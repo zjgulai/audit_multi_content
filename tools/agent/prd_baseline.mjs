@@ -177,7 +177,13 @@ export const loadPendingState = () => loadState(PENDING_STATE_FILE());
  */
 const KEEP_BASELINE = ['lastState', 'saidDriftFp', 'saidUntestedDay', 'staleSince',
                        // ★ 2026-09-22 加：**异常通报发到过哪个群** —— 见下面 `alertChat` 那段。
-                       'alertChat'];
+                       'alertChat',
+                       // ★ 2026-09-30 加：**「退 1 但不是上游改版」今天说过了吗**。
+                       //   它和 `saidDriftFp` 分开记，因为两者是两件事：
+                       //   漂移能按指纹判「是不是同一版」，而这一类**抠不出指纹**，
+                       //   只能按天去重。合并成一个键会互相顶掉 —— 上游真改版那天，
+                       //   若先前说过一次「非上游改版」，就会被误当成「同一个漂移」而闭嘴。
+                       'saidUnparsedDay'];
 const KEEP_PENDING = ['p_lastState', 'p_saidDueKey', 'p_saidDueDay', 'p_saidUntestedDay', 'p_saidBrokenDay',
                       'p_alertChat',
                       // ★ 2026-09-22 加：**已经补问过的条目 id**。它挡的是「补问已经发进群、
@@ -371,6 +377,38 @@ export function enter(prev, now) {
     };
   }
 
+  /**
+   * ★★ 退 1，但**不是**上游改版（2026-09-30 加）。
+   *
+   * 判据：`code === 1` 且**抠不出任何上游指纹变化**。这时红来自检查器内部
+   * （实测那一次全部来自 R 段「章节引用登记」），**没有任何证据**说上游 PRD 变了。
+   *
+   * 为什么要说：退 1 就是退了 1，沉默等于把异常咽下去 —— 沿用原作者那条
+   *   「宁可说，不可沉默」。
+   * 为什么必须换个说法：把「引用登记不一致」说成「上游 PRD 改版了」，会让人去
+   *   重拉一份**根本没变**的基线，并据此把引用按旧版算 —— 白做工，还误导。
+   *   **一个会说错病的告警，比没有告警更快被无视**（`AGENTS.md` §2.1）。
+   *
+   * 与 `drift` 分开记状态（`lastState: 'unparsed'`），是为了让收尾那句也说得准：
+   *   这一支从头到尾没说过「上游改版」，就不能用「上游基线检查恢复了」来收尾
+   *   —— 那等于回头把那句没说过的话补上。
+   */
+  if (code === 1) {
+    if (prev.saidUnparsedDay === day) {
+      return { state: { ...st, lastState: 'unparsed' }, say: null,
+               why: '今天的「退 1 但不是上游改版」已经说过一次' };
+    }
+    return {
+      state: { ...st, lastState: 'unparsed', saidUnparsedDay: day, ...saidTo(now) },
+      why: '退 1，但输出里没有任何上游指纹变化 —— 不是上游改版',
+      say: [
+        '⚠️ **基线检查退 1，但这一轮不是「上游 PRD 改版」** —— 输出里没有任何上游指纹变化。',
+        '红来自检查器内部（多半是「章节引用登记」那一段）；上游那两份文档这一轮**没有证据说它变了**。',
+        '所以：**不用**重拉基线，**也不用**把引用按旧版算。具体是哪一项红，见 `PMO/logs`。',
+      ].join('\n'),
+    };
+  }
+
   if (code === 2) {
     if (prev.saidUntestedDay === day) {
       return { state: { ...st, lastState: 'untested' }, say: null, why: '今天的「未测」已经说过一次' };
@@ -387,15 +425,22 @@ export function enter(prev, now) {
   }
 
   // 退 0：只在上一次是红/未测时说一句"恢复了"，否则闭嘴。
-  if (prev.lastState === 'drift' || prev.lastState === 'untested') {
+  // ★ `unparsed` 也算「红过」（2026-09-30 加）—— 群里看到过异常，得看到它结束。
+  if (prev.lastState === 'drift' || prev.lastState === 'untested' || prev.lastState === 'unparsed') {
+    // ★ 但收尾的话要**按当初说过的那句**配（2026-09-30）：`unparsed` 那一支
+    //   从头到尾没说过「上游改版」，用「上游基线检查恢复了…与指纹一致」收尾，
+    //   等于**回头把那句没说过的话补上** —— 群里会以为上游真改过一版。
+    const wasUnparsed = prev.lastState === 'unparsed';
     return {
-      state: { ...st, lastState: 'ok', saidDriftFp: null, alertChat: null },
+      state: { ...st, lastState: 'ok', saidDriftFp: null, saidUnparsedDay: null, alertChat: null },
       // ★ **收尾回到当初通报去的那个群**（`alertChat`）—— 不是 `resolveChat()`。
       //   null = 当初没通报过，调用方仍退回默认群；那时说「恢复」本来就是错的，
       //   所以这一支也**不会**被走到（`lastState` 不是红/未测）。
       sayTo: closeTo(prev),
       why: '从红/未测恢复 —— 群里之前看到过异常，得看到它结束',
-      say: `✅ 上游基线检查恢复了：手上那份 PRD 与指纹一致。`,
+      say: wasUnparsed
+        ? '✅ 基线检查回到退 0：这一轮的输出与登记表一致。'
+        : `✅ 上游基线检查恢复了：手上那份 PRD 与指纹一致。`,
     };
   }
   return { state: { ...st, lastState: 'ok', saidDriftFp: null, alertChat: null }, say: null, why: '一直是绿的，不刷屏' };
@@ -445,9 +490,23 @@ export function parseUntested(out) {
  *   **一个会误报的检查器比没有检查器更糟**，所以判据要能区分「说」和「否认」。
  */
 export function stripNegated(s) {
+  // ★ 2026-09-30 把 `不用|不需要|无需|不必|无须` 并进来。
+  //
+  //   起因是「退 1 但不是上游改版」那句文案：它**劝阻**别人重拉基线
+  //   （「所以：**不用**重拉基线，**也不用**把引用按旧版算」），而判据
+  //   「不许叫人去重拉基线」是**裸词表**，把劝阻也算了进去 —— 误报。
+  //
+  //   与 V25b 是**同一个病**：判据分不清「说」和「否认」。一个会误报的检查器
+  //   比没有检查器更糟（本文件前面写过两遍），所以这里不加特例放宽某一条断言，
+  //   而是把「否定域」这个概念本身扩全 —— 劝阻也是一种否定。
+  //
+  //   ⚠️ 别把它扩成「只要出现这些词就整句不算」：剥掉的是**词后那一小段**，
+  //   同一句里另一处裸的 `请重拉基线` 仍然会被留下并被判据抓到。
+  //   正反面都在 `--selftest` 里（「不用重拉」必须剥掉 / 裸的「请重拉」必须留下）。
+  const NEG = '(不是|不算|并非|而非|不用|不需要|无需|不必|无须)';
   return String(s ?? '')
-    .replace(/(不是|不算|并非|而非)\s*[「『"'][^」』"']*[」』"']/g, '')
-    .replace(/(不是|不算|并非|而非)[^\n，。；]{0,12}/g, '');
+    .replace(new RegExp(`${NEG}\\s*[「『"'][^」』"']*[」』"']`, 'g'), '')
+    .replace(new RegExp(`${NEG}[^\\n，。；]{0,12}`, 'g'), '');
 }
 
 /**
@@ -552,10 +611,18 @@ async function runCheckNow({ reason = 'daily', force = false, day = bjDate(), ru
     drifted: code === 1 ? parseDrift(out) : [],
     untested: code === 2 ? parseUntested(out) : [],
   };
-  // 退 1 但抠不出指纹：也要说，只是文案退化（宁可说，不可沉默）
-  if (code === 1 && !now.drifted.length) {
-    now.drifted = [{ file: '（输出里没抠到具体文件，见 PMO/logs）', old: '', now: '' }];
-  }
+  // ★ 原先这里**伪造**一条 drifted：`（输出里没抠到具体文件，见 PMO/logs）`，
+  //   本意是让下游「宁可说，不可沉默」。**本意没错，错在伪造。**（2026-09-30 删）
+  //
+  //   后果实测（2026-09-30 19:32）：那一轮的退 1 **全部来自 R 段（章节引用登记）**，
+  //   L1/L2/L3 三层全绿 —— 上游那份 PRD 一个字都没改。可伪造出的那条会一路流进
+  //   `enter()` 的「⚠️ 上游 PRD 改版了」那一支，等于对群里说了一句**假话**，
+  //   还叫人「给我一分钟重拉一次基线」：白做工，而且会让人据此把引用按旧版算。
+  //   附带：`saidDriftFp` 被写成 `（…）:` 这种值，本身就在骗下一个读状态文件的人。
+  //
+  //   现在**不伪造**：`drifted` 留空，由 `enter()` 里 `code === 1 && !drifted.length`
+  //   那一支说一句说得准的话（照旧说，只是不冒充上游改版）。这一处是**唯一**的生产者，
+  //   别处不许再往 `drifted` 里塞占位符。
   const { state, say, why, sayTo } = enter(prev, now);
   /**
    * ★ `dryRun` 时必须**一个字节都不落盘**。（2026-09-22 加的，代价是一次实测）
@@ -841,6 +908,14 @@ export async function selftest() {
   /** 注入用的「现在」。`recheckDue()` 是纯函数且 `t` 可注入 —— 所以「冷却前/后」两侧都造得出来，不必真等 30 分钟。 */
   const T0 = Date.parse('2026-09-22T09:30:00.000Z');
   const drift = (fp) => ({ code: 1, day: D, untested: [], drifted: [{ file: 'A.md', old: 'a'.repeat(64), now: fp }] });
+  /**
+   * ★★ 2026-09-30 事故那份**真实的**输出形状（逐字抄自 `PMO/logs`）：
+   *   退 1 **全部来自 R 段**，L1/L2/L3 三层全绿 —— 上游那份 PRD 一个字都没改。
+   *   用它做**行为级**输入，才能盯住 `checkNow` 里那条伪造路径；
+   *   光测纯函数 `enter()` 是盯不住的（反向对照实测：把伪造放回去，纯函数那些用例照样全绿）。
+   */
+  const R_OUT = '❌ [R] H3 每处引用都指到 v1.2 里那一节的名字 · R2 · PMO/x.json §11.2：'
+              + '仓库里有这处引用，登记表里没有（新引用要登记）\n\n退出码 1\n';
   /** 待收清单的假样本：n 件到期未收（用的是 P-03 的真实字段形状） */
   const pdue = (n) => ({
     code: 1, day: D,
@@ -876,6 +951,11 @@ export async function selftest() {
               return !/没问题|一切正常|正常/.test(stripNegated(r.say)); }],
     ['反向对照：换成一句真的「一切正常」→ 上面那条判据必须红（否则它恒真）',
       () => /没问题|一切正常|正常/.test(stripNegated('检查完成：上游一切正常，没问题'))],
+    ['★ 反向对照：`不用重拉基线` 是**劝阻**、必须被剥掉；而同一句里裸的 `请重拉基线` **必须留下**',
+      () => stripNegated('不用重拉基线').includes('重拉') === false
+            && stripNegated('不用管这个，请重拉基线').includes('重拉') === true],
+    ['★ 反向对照：`不需要`/`无需`/`不必` 同样算否定域（上面那条不是只对 `不用` 成立）',
+      () => ['不需要重拉', '无需重拉', '不必重拉'].every((t) => !stripNegated(t).includes('重拉'))],
     ['反向对照：`这不是「没问题」` 必须被剥掉；而裸的 `没问题` 必须留下',
       () => stripNegated('这不是「没问题」') === '' || !/没问题/.test(stripNegated('这不是「没问题」'))
             ? /没问题/.test(stripNegated('上游没问题')) : false],
@@ -887,6 +967,99 @@ export async function selftest() {
     ['从漂移回到绿 → **必须说**（群里看到过异常，得看到它结束）',
       () => typeof enter({ lastState: 'drift' }, { code: 0, day: D, drifted: [], untested: [] }).say === 'string'],
     ['从未测回到绿 → **必须说**', () => typeof enter({ lastState: 'untested' }, { code: 0, day: D, drifted: [], untested: [] }).say === 'string'],
+
+    /* ── ★★ 退 1 ≠ 上游改版（2026-09-30；事故：把「引用登记不一致」说成「上游 PRD 改版了」）──
+     *
+     * 事故原样（`PMO/logs/ws_outbound.jsonl` 2026-09-30 19:32）：
+     *
+     * ```
+     * ⚠️ 上游 PRD 改版了 —— 我手上那份基线已经过期。
+     * · （输出里没抠到具体文件，见 PMO/logs）  旧指纹 `` → 新指纹 ``
+     * 请给我一分钟重拉一次基线并记新指纹；在那之前，凡是引用这份 PRD 的判断都按旧版算。
+     * ```
+     *
+     * 而同一轮实跑：**L1 11 ✅ / L2 6 ✅ / L3 7 ✅** —— 三层全绿，退 1 全部来自 R 段。
+     * 根因是 `checkNow` 里**伪造**了一条 drifted 占位符（见那里的注释），
+     * 于是「抠不出指纹」被冒充成了「上游改版」。
+     *
+     * 这一组是**一对正反面**，缺任一边都测不出病：
+     *   · 退 1 且抠得出指纹 → 必须说，**且必须真的说成「上游改版」**
+     *     （原有那条只管「说了」，没管「说成什么」—— 只说一句「退 1 了」也照样绿）；
+     *   · 退 1 且抠不出指纹 → 照旧**必须说**（宁可说，不可沉默），
+     *     但**不许**说成「上游改版」，也不许叫人去重拉基线。
+     */
+    ['★ 退 1 且抠得出指纹 → 文案必须**真的指向上游改版**（原有那条只管「说了」）',
+      () => /上游[^\n]{0,8}改版了/.test(stripNegated(enter({ lastState: 'ok' }, drift('b'.repeat(64))).say))],
+    ['★★ 退 1 但抠不出指纹 → **必须说**（宁可说，不可沉默 —— 沿用原作者那条）',
+      () => { const r = enter({ lastState: 'ok' }, { code: 1, day: D, drifted: [], untested: [] });
+              return typeof r.say === 'string' && r.say.length > 30; }],
+    ['★★ 而且**不许**把它说成「上游 PRD 改版了」（本次事故的直接判据）',
+      () => { const r = enter({ lastState: 'ok' }, { code: 1, day: D, drifted: [], untested: [] });
+              return !/上游[^\n]{0,8}改版了/.test(stripNegated(r.say)); }],
+    ['★ 反向对照：上面那条判据**不是恒真** —— 喂真·上游改版必须命中',
+      () => /上游[^\n]{0,8}改版了/.test(stripNegated(enter({ lastState: 'ok' }, drift('b'.repeat(64))).say))],
+    ['★ 而且不许叫人去重拉基线 / 按旧版算（上游没变，那是白做工且误导）',
+      () => { const r = enter({ lastState: 'ok' }, { code: 1, day: D, drifted: [], untested: [] });
+              return !/重拉|请给我一分钟|按旧版算/.test(stripNegated(r.say)); }],
+    ['★ 状态必须落进 `unparsed`，**不许**落进 `drift`（否则收尾那句会回头补上「上游恢复了」）',
+      () => enter({ lastState: 'ok' }, { code: 1, day: D, drifted: [], untested: [] }).state.lastState === 'unparsed'],
+    ['反向对照：真的上游改版仍必须落进 `drift`（上面那条不是恒真）',
+      () => enter({ lastState: 'ok' }, drift('b'.repeat(64))).state.lastState === 'drift'],
+    ['退 1 但抠不出指纹：同一天第二次 → 闭嘴',
+      () => enter({ lastState: 'unparsed', saidUnparsedDay: D },
+                  { code: 1, day: D, drifted: [], untested: [] }).say === null],
+    ['退 1 但抠不出指纹：第二天 → **再说**（昨天的通报不算今天的）',
+      () => typeof enter({ lastState: 'unparsed', saidUnparsedDay: '2026-09-20' },
+                         { code: 1, day: D, drifted: [], untested: [] }).say === 'string'],
+    ['★ 两类去重**互不顶掉**：今天说过「非上游改版」，也不能让真·上游改版闭嘴',
+      () => typeof enter({ lastState: 'unparsed', saidUnparsedDay: D }, drift('b'.repeat(64))).say === 'string'],
+    ['★ 从「退 1 非上游改版」回到退 0 → 必须说，**且不许**补一句「上游基线检查恢复了」',
+      () => { const back = enter({ lastState: 'unparsed', alertChat: 'oc_A' },
+                                 { code: 0, day: D, drifted: [], untested: [], chatId: null });
+              return typeof back.say === 'string' && !/上游基线检查恢复了/.test(back.say); }],
+    ['★ 退 1 非上游改版也带地址（通报带地址、收尾回同一个群，与另两支同规矩）',
+      () => { const r = enter({ lastState: 'ok' }, { code: 1, day: D, drifted: [], untested: [], chatId: 'oc_C' });
+              return r.say !== null && r.state.alertChat === 'oc_C'; }],
+    ['★★ 喂**本次事故那份真实的 R 段输出** → `parseDrift()` 必须抠不出任何指纹',
+      () => parseDrift(R_OUT).length === 0],
+    ['★ `saidUnparsedDay` 必须在状态白名单里 —— 不在的话下一次读状态就被 `pick` 丢掉，「非上游改版」会每天重发',
+      () => BASELINE_KEYS.includes('saidUnparsedDay')
+            && 'saidUnparsedDay' in enter({ lastState: 'ok' }, { code: 1, day: D, drifted: [], untested: [] }).state],
+
+    /* ── ★★ 上面那些测的是纯函数 `enter()`。**必须再有一条行为级**： ──
+     *   反向对照实测：把 `checkNow` 里那段伪造 drifted 原样放回去，
+     *   纯函数那一组**照样全绿** —— 因为伪造发生在 `checkNow` 的**上游**，
+     *   喂进 `enter()` 的已经不是 `drifted: []` 了。
+     *   只测纯函数 = 只测了「拿到正确输入时说得对不对」，
+     *   而本次事故的病是「**喂进去的输入被伪造过**」。（`AGENTS.md` §2.4：函数写对了，
+     *   但没人断言它被接上 / 没人断言喂进去的是什么。）
+     */
+    ['★★ 行为级：喂事故那份真实输出（退 1、无上游指纹）→ `say` **不许**出现「上游改版」、也不许叫人重拉基线',
+      async () => {
+        const f = path.join(stateDir(), '_selftest-tmp-state.json');
+        try {
+          fs.writeFileSync(f, JSON.stringify({ lastRunAt: '2020-01-01T00:00:00.000Z',
+                                               lastDay: '2020-01-01', lastState: 'ok' }));
+          const r = await checkNow({ force: true, dryRun: true, stateFile: f,
+                                     run: async () => ({ code: 1, note: '', out: R_OUT }) });
+          return typeof r.say === 'string'
+              && !/上游[^\n]{0,8}改版了/.test(stripNegated(r.say))
+              && !/重拉|请给我一分钟|按旧版算/.test(stripNegated(r.say));
+        } finally { try { fs.unlinkSync(f); } catch { /* 已经没了就算了 */ } }
+      }],
+    ['★ 行为级反向对照：同样的注入方式喂**真的上游漂移输出** → 必须说「上游改版了」（上面那条不是恒真）',
+      async () => {
+        const f = path.join(stateDir(), '_selftest-tmp-state.json');
+        try {
+          fs.writeFileSync(f, JSON.stringify({ lastRunAt: '2020-01-01T00:00:00.000Z',
+                                               lastDay: '2020-01-01', lastState: 'ok' }));
+          const out = '★★ 上游改版了：PRD/feishu/x.md\n   索引指纹 ' + '1'.repeat(64)
+                    + '\n   现场指纹 ' + '2'.repeat(64) + '\n';
+          const r = await checkNow({ force: true, dryRun: true, stateFile: f,
+                                     run: async () => ({ code: 1, note: '', out }) });
+          return /上游[^\n]{0,8}改版了/.test(stripNegated(r.say));
+        } finally { try { fs.unlinkSync(f); } catch { /* 已经没了就算了 */ } }
+      }],
 
     /* ── ★★ 通报带地址，收尾必须带同一个地址（2026-09-22；事故见上面 `alertChat` 那段）────
      *

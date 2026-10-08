@@ -19,6 +19,8 @@ import { LOG_DIR, ensureDir } from './agent/config.mjs';
 
 const CHAT_ID = process.env.PROBE_CHAT_ID || 'oc_49a7cfb2861cffa4365ca8491f398d32';
 const RESULT_FILE = path.join(LOG_DIR, 'card_probe.jsonl');
+/** ★ 2026-09-30 补：`--dry` 只看不发（原先没有这个开关，见 main() 里那段注释）。 */
+const DRY = process.argv.includes('--dry');
 
 const H = (t, c) => ({ title: { tag: 'plain_text', content: t }, template: c });
 
@@ -89,6 +91,18 @@ function digestError(e) {
 
 async function main() {
   for (const p of PROBES) {
+    if (DRY) {
+      // ★ 2026-09-30 补：这个脚本原先**没有 `--dry`**，而调用方（包括我自己）
+      //   按 probe_cards.mjs 的习惯传了它 —— 传了不报错、也不生效，
+      //   于是"打印 payload 看看"变成了**真发一次请求**。
+      //   实测后果：我用一个假 chat id 跑 dry，服务端 400，而脚本把那次 400
+      //   当成"这张卡被拒"**写进了台账**；`verify_cards` 每个 id 取最后一行，
+      //   于是白名单当场被判成"当它可用、其实会被拒"。
+      //   一条**没有开关的"只看不发"**，与没有这个开关是一回事（§2.4）。
+      console.log(`\n── ${p.id} ── ${p.asks}`);
+      console.log(JSON.stringify(p.card, null, 2));
+      continue;
+    }
     try {
       const r = await client.im.message.create({
         params: { receive_id_type: 'chat_id' },
@@ -99,12 +113,21 @@ async function main() {
       console.log(`✅ ${p.id} — 通过，message_id=${entry.messageId}`);
     } catch (e) {
       const err = digestError(e);
+      // ★ 2026-09-30：**请求参数错**不是"这张卡被拒"，不该进台账。
+      //   `invalid receive_id` 说明这次请求压根没问到"卡片能不能用"这件事 ——
+      //   把它记成 ok:false，等于让一次**未测**冒充一次**实测否定**（§2.4.1 那个形状）。
+      const badParam = /invalid receive_id|invalid request parameter/i.test(String(err.msg ?? ''));
+      if (badParam) {
+        console.log(`⚠️ ${p.id} — **未测**：${err.msg}（这是请求参数错，不是卡片判定，不写台账）`);
+        continue;
+      }
       const entry = { at: new Date().toISOString(), id: p.id, asks: p.asks, ok: false, error: err };
       ensureDir(LOG_DIR); fs.appendFileSync(RESULT_FILE, JSON.stringify(entry) + '\n');
       console.log(`❌ ${p.id} — 被拒：${JSON.stringify(err)}`);
     }
     await new Promise((r) => setTimeout(r, 600));
   }
+  if (!DRY) console.log(`\n原始读数已写入 ${RESULT_FILE}`);
   process.exit(0);
 }
 

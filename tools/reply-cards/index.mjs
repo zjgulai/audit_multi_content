@@ -9,11 +9,14 @@ import { client, sendMarkdown } from '../agent/feishu.mjs';
 import {
   REGISTRY, BY_KIND, BUILDERS, BUILDER_SOURCE_NAME,
   build, validateCard, renderText, shapeOf, sampleCards, lintCopy,
+  TONE, TEMPLATES, BACKGROUND_STYLES, band,
 } from './registry.mjs';
 
 export {
   build, validateCard, renderText, shapeOf, sampleCards, lintCopy,
   REGISTRY, BY_KIND, BUILDERS, BUILDER_SOURCE_NAME,
+  // J9 段（配色不撞车 + 底色闭集）要拿它们喂样本，所以从这里转出去。
+  TONE, TEMPLATES, BACKGROUND_STYLES, band,
 };
 
 /**

@@ -56,6 +56,10 @@ import * as mem from './memory.mjs';
 export const SOURCES = Object.freeze([
   'reply',               // daemon 的回复循环（已进记忆，不折）
   'resend',              // ★ 2026-09-22 加：失败之后**补发**的那条（引用原消息，见 retry_queue.mjs）
+  'chain-ack',           // ★ 2026-10-05 加：送审链启动时的「⏳ 处理中…」回执（引用原消息）
+                         //   —— 它原先直接用了这个字符串，而**它不在这个闭集里**，
+                         //   于是台账里那条记成了 `unknown:chain-ack`（`known=false`）。
+                         //   闭集的意义就是「没登记的来源要看得见」，这次它起作用了。
   'proactive-baseline',  // 上游基线漂移告警
   'proactive-pending',   // 待收清单到期提醒
   'proactive-external',  // ★ 2026-09-22 加：外部标准库漂移告警（见 external_watch.mjs）

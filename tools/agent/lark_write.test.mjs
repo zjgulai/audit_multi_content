@@ -60,10 +60,36 @@ const ok_ = (v, m) => { if (!v) throw new Error(m ?? '断言为假'); };
 
 /** 每个方法默认「没打桩就抛」—— 静默返回 undefined 会让上面那些「没被调用」的
  *  断言变成恒真（因为一次都没进过那行），那正是我们要防的。 */
+/**
+ * ★ 2026-10-05 加：**假客户端要按真接口的契约校验**，不能「任意 args 都收」。
+ *
+ * 起因是一次实测缺陷：`batchGet` 把 `record_ids` 放进了 query（`params`），
+ * 而飞书要的是 body（`data`）——真接口回
+ * `code=99992402 · field validation failed · field_violations=[{field:"record_ids",
+ * description:"record_ids is required"}]`（实测 log_id `20261005082040C23AF9EB8F20344668AC`）。
+ * 而当时本文件的假客户端**照单全收**，于是「留痕 / 回读 / 快照」三条纪律
+ * 从未真正跑通，自证却全绿 —— 假接口比真接口松，假数据就是真数据的形状（§2.4.1）。
+ *
+ * 现在这道守卫**在进打桩之前**跑：形状不对就直接回真接口那句错，
+ * 于是任何「把 record_ids 放错位置」的改动都会让相关用例当场变红。
+ */
+function guardBatchGet(args) {
+  const ids = args?.data?.record_ids;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return { code: 99992402, msg: 'field validation failed',
+             err: { field_violations: [{ field: 'record_ids', description: 'record_ids is required' }] } };
+  }
+  return null;
+}
+
 function mkClient(handlers = {}) {
   const calls = [];
   const mk = (key, def) => async (args) => {
     calls.push({ key, args });
+    if (key === 'appTableRecord.batchGet') {
+      const bad = guardBatchGet(args);
+      if (bad) return bad;                      // ← 真接口会拒的，假接口也必须拒
+    }
     const h = handlers[key] ?? def;
     if (typeof h === 'function') return h(args);
     if (h === undefined) throw new Error(`未打桩的调用：${key}`);
@@ -100,6 +126,29 @@ const TABLES = [{ table_id: 'tblAAA', name: '规则库' }, { table_id: 'tblBBB',
 const CTX = { chatId: 'oc_x', senderName: '李倩怡', senderOpenId: 'ou_x', messageId: 'om_x' };
 
 const ledgerLines = () => (fs.existsSync(TMP) ? fs.readFileSync(TMP, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
+
+console.log('\n═══ 0. 假客户端的契约守卫（§2.4.1：假接口不许比真接口松）═══');
+
+t('0a 反向对照：record_ids 放进 params（就是 10-05 那个真缺陷）必须被拒', async () => {
+  const { cl } = mkClient({ 'appTableRecord.batchGet': () => API_OK({ records: [] }) });
+  const r = await cl.bitable.appTableRecord.batchGet({
+    path: { app_token: 'a', table_id: 't' }, params: { record_ids: ['rec1'] } });
+  eq(r.code, 99992402, '真接口会回 99992402；假接口也必须回，否则这个错会再次溜过去');
+});
+
+t('0b 正向对照：放进 data 必须放行（否则守卫就是块砖头）', async () => {
+  const { cl } = mkClient({ 'appTableRecord.batchGet': () => API_OK({ records: [{ record_id: 'rec1', fields: { A: '1' } }] }) });
+  const r = await cl.bitable.appTableRecord.batchGet({
+    path: { app_token: 'a', table_id: 't' }, data: { record_ids: ['rec1'] } });
+  eq(r.code, 0, '正确形状不许被误伤');
+  eq(r.data.records[0].record_id, 'rec1');
+});
+
+t('0c 空 ids 也要拒（真接口同样拒）', async () => {
+  const { cl } = mkClient({ 'appTableRecord.batchGet': () => API_OK({ records: [] }) });
+  const r = await cl.bitable.appTableRecord.batchGet({ path: {}, data: { record_ids: [] } });
+  eq(r.code, 99992402);
+});
 
 console.log('\n═══ A. 纯函数 ═══');
 
@@ -288,7 +337,10 @@ await ta('B8 ★★ 正向对照：条件齐全时 batchDelete 必须真的被�
     'appTable.list': API_OK({ items: TABLES }),
     'appTableRecord.batchGet': (args) => {
       // 第一次读旧值返回 2 条；删完之后再读返回空
-      const want = args?.params?.record_ids ?? [];
+      // ★ 2026-10-05：这里原先是 `args?.params?.record_ids` —— 与当时的代码犯了**同一个错**，
+      //   所以两边一直自洽、自证全绿，而真接口早就回「record_ids is required」。
+      //   桩必须照**真接口的契约**读：body（data）。
+      const want = args?.data?.record_ids ?? [];
       const seen = hit('appTableRecord.batchGet');
       return seen <= 1
         ? API_OK({ records: want.map((id) => ({ record_id: id, fields: { A: 'old' } })) })
@@ -473,7 +525,10 @@ await ta('D10 ★★ 正向对照：另一条消息确认 → batchDelete 真的
   const { cl, hit } = mkClient({
     'appTable.list': API_OK({ items: TABLES }),
     'appTableRecord.batchGet': (args) => {
-      const want = args?.params?.record_ids ?? [];
+      // ★ 2026-10-05：这里原先是 `args?.params?.record_ids` —— 与当时的代码犯了**同一个错**，
+      //   所以两边一直自洽、自证全绿，而真接口早就回「record_ids is required」。
+      //   桩必须照**真接口的契约**读：body（data）。
+      const want = args?.data?.record_ids ?? [];
       return hit('appTableRecord.batchGet') <= 2      // 提议读 1 次 + 执行前快照 1 次
         ? API_OK({ records: want.map((id) => ({ record_id: id, fields: { A: 'old' } })) })
         : API_OK({ records: [] });

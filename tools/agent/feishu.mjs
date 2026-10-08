@@ -6,6 +6,9 @@
  *      必须对照 message.mentions 还原成真名，否则守衡不知道谁在跟它说话。
  *   2. markdown → 飞书富文本(post)：LLM 天然输出 markdown，直接塞给飞书会显示成一堆星号。
  */
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import * as Lark from '@larksuiteoapi/node-sdk';
 import { config } from './config.mjs';
 import { beijingString } from './timefmt.mjs';
@@ -271,6 +274,181 @@ export function bodyToText(msgType, contentJson) {
   return { text: null, parsed: false, note: `${msgType ?? '未知'} 类型没有正文读取通道` };
 }
 
+/* ─────────── 图片 / 视频：哪几个、字节怎么取（§2.6 窄豁免的**唯一**调用点） ─────────── */
+
+/**
+ * ★ 2026-10-05 开的一条**窄豁免**（`AGENTS.md` §2.6 第 1 条，Owner 现场确认选项 A）。
+ *
+ * 事实经过：10-05 06:37 刘华丽私聊发了一条**图文混排**的消息问「评审下下这个图片，能过吗？」。
+ * 守衡 14ms 回了一句「这条是「post」，它的正文我读不了」——
+ * 那句话对**正文**是错的（正文就在 payload 里，见 `postToPlain`），
+ * 对**图片**则是照旧按红线不取。她要做的事（评审图片）因此没有一条走得通的路。
+ *
+ * 豁免的形状**故意只有一条**，写成代码就是这个调用点（`fetchMessageResource`）：
+ *   · 只取**人当前发给守衡的这条消息**里的**图片**（`messageResource.get` + `type:'image'`）；
+ *   · 取回来只写**系统临时目录**，交给 `vision.mjs` 做完 OCR 就地删除；
+ *   · **不归档、不进知识库、不转发第三方**；群历史里的图、云文档、多维表格**一律照旧不取**。
+ *
+ * ★ 2026-10-05 晚些时候**加宽了一次，形状没变**（Owner 现场确认）：
+ *   起因是委托方另外两条要求「发视频必须打通」—— 而视频的字节通道与图片是同一条，
+ *   于是 `media` / `file` 里的**视频**被并进同一条豁免：同一个调用点、同样只写临时目录、
+ *   同样用完即删；抽帧 OCR 与语音转写全在本机做完（见 `video.mjs`）。
+ *   **没有松的**（一个字没动）：`file` 里的**非视频附件**（xlsx / pdf / docx…）、
+ *   群历史里的一切、云文档、多维表格、Drive 的 `download` 与 `medias/` 两个端点。
+ *   「是视频」这个判断在**取字节之前**就要做出来（看 `file_name` 后缀），
+ *   不许「先取回来再看看是不是视频」—— 那等于把附件也拉进来了。
+ *
+ * 这条豁免有执行点，不是一句注释：
+ *   · `tools/verify_feishu_index.py` 的 M6/M7/M10（全仓唯一调用点 + `type` 只许闭集里的值）
+ *   · `tools/test_agent.mjs` 第 13 组（行为级：非视频附件一次都不许取）、
+ *     第 16/17 组（视频那条：抽帧 + 转写 + 引用的那条 + 不许翻历史）
+ */
+
+/** `messageResource.get` 的 `type` **只许这两个值** —— 闭集写在这里，M7 断言的就是它。 */
+export const RESOURCE_TYPES = Object.freeze(['image', 'file']);
+
+/** 「这是个视频文件」的判据：**只看名字后缀**（取字节之前就要判出来，见上面的头注）。 */
+const VIDEO_EXT = /\.(mp4|mov|m4v|avi|webm|mkv|3gp)$/i;
+
+/** 这条消息里带了哪几张图。**只认 post 与 image 两种形态；附件一律回空数组。** */
+export function imageKeysOf(msgType, contentJson) {
+  let d = null;
+  try { d = JSON.parse(contentJson ?? '{}'); } catch { return []; }
+  if (!d || typeof d !== 'object') return [];
+
+  if (msgType === 'image') {
+    // 单图消息：`{"image_key":"img_v3_..."}`
+    return d.image_key ? [{ imageKey: String(d.image_key), width: d.width ?? null, height: d.height ?? null }] : [];
+  }
+  if (msgType === 'post') {
+    const blocks = Array.isArray(d.content) ? d.content : (Array.isArray(d.content_v2) ? d.content_v2 : []);
+    const out = [];
+    for (const para of blocks) {
+      if (!Array.isArray(para)) continue;
+      for (const n of para) {
+        if (n?.tag === 'img' && n.image_key) {
+          out.push({ imageKey: String(n.image_key), width: n.width ?? null, height: n.height ?? null });
+        }
+      }
+    }
+    return out;
+  }
+  // file / media / audio / sticker / 其它：**零**。
+  // 图这条支路只认 image 与 post；视频走 `videoKeysOf`，两条支路**不共用**返回值 ——
+  // 混在一起的话，「这段字节是图还是视频」就没人说得清了。
+  return [];
+}
+
+/**
+ * 这条消息里带了哪几个**视频**。
+ *
+ * 判据（取字节**之前**就要定下来）：
+ *   · `msg_type === 'media'` —— 飞书的视频消息，载荷本身就是视频；
+ *   · `msg_type === 'file'` **且文件名后缀是视频** —— 实测委托方发的视频就是这一种
+ *     （`file_v3_00166_…` + `momcozy-…-hero-1080p.mp4`，见 `PMO/logs/ws_events.jsonl` 10-05 09:22）。
+ *     ⚠️ 加这个后缀判断是**必须的**：`file` 里同样会来 xlsx / pdf，那些**不在豁免里**。
+ *   · 其余（`audio` / `sticker` / `post` 里的视频节点…）**一律回空数组**。
+ */
+export function videoKeysOf(msgType, contentJson) {
+  let d = null;
+  try { d = JSON.parse(contentJson ?? '{}'); } catch { return []; }
+  if (!d || typeof d !== 'object') return [];
+
+  const one = (fileKey, extra = {}) => (fileKey
+    ? [{ fileKey: String(fileKey), fileName: extra.fileName ?? null,
+         durationMs: extra.durationMs ?? null, coverKey: extra.coverKey ?? null }]
+    : []);
+
+  if (msgType === 'media') {
+    return one(d.file_key, { fileName: d.file_name ?? null, durationMs: d.duration ?? null,
+                             coverKey: d.image_key ?? null });
+  }
+  if (msgType === 'file') {
+    const name = String(d.file_name ?? '');
+    if (!VIDEO_EXT.test(name)) return [];   // ← 非视频附件在这里就被挡掉，且**一次网络都不发**
+    return one(d.file_key, { fileName: name });
+  }
+  return [];
+}
+
+/**
+ * 取一条消息里的**图片或视频**字节，写到系统临时目录，回路径与清理函数。
+ *
+ * ★ 这是全仓**唯一**一处从飞书取字节的调用点。要再加一处，先改 `AGENTS.md` §2.6 与 M 段断言。
+ *
+ * 契约（调用方必须照做）：
+ *   · 拿到 `path` 就趁早用，用完**必须**调 `cleanup()`（`agent.mjs` 放在 `finally` 里）；
+ *   · `error` 不为空时 `path` 一定是 `null` —— 「取不到」与「取到空的」不许混。
+ */
+async function fetchMessageResource(messageId, fileKey, { type, dir = null, ext = '.bin', tag = 'res' } = {}) {
+  const nothing = () => { /* 没取到东西，没什么可清理 */ };
+  if (!RESOURCE_TYPES.includes(type)) {
+    // 闭集之外的类型一律不发请求 —— 这道判断本身就是豁免的边界。
+    return { path: null, bytes: 0, error: `type=${type} 不在豁免闭集 ${RESOURCE_TYPES.join('/')} 里`, cleanup: nothing };
+  }
+  if (!messageId || !fileKey) {
+    return { path: null, bytes: 0, error: `缺少 message_id 或 ${tag}_key`, cleanup: nothing };
+  }
+  // 现场建临时目录（优先用调用方给的，测试用）——**绝不写进仓库**：
+  // 字节一旦落进 REPO_ROOT，就等于把它归档了，那已经越过这条豁免。
+  let tmpDir = dir;
+  let ownDir = false;
+  try {
+    if (!tmpDir) {
+      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `shouheng-${tag}-`));
+      ownDir = true;
+    } else {
+      fs.mkdirSync(tmpDir, { recursive: true });
+    }
+  } catch (e) {
+    return { path: null, bytes: 0, error: `临时目录建不出来：${e.message}`, cleanup: nothing };
+  }
+  // 文件名用 file_key 做个可读前缀（排查时能对上飞书那条消息），后面加随机数防撞。
+  const safeKey = String(fileKey).replace(/[^\w.-]/g, '').slice(-40) || tag;
+  const filePath = path.join(tmpDir, `${safeKey}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}${ext}`);
+  const cleanup = () => {
+    try { fs.rmSync(filePath, { force: true }); } catch { /* 删不掉不该影响这一次回话 */ }
+    if (ownDir) { try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* 同上 */ } }
+  };
+
+  try {
+    const r = await client.im.messageResource.get({
+      path: { message_id: messageId, file_key: fileKey },
+      // ★ `type` 只能取闭集里的值。这一行是豁免的边界本身：
+      //   别的值（例如 audio）就等于把别的附件也拉进来了，那不在 Owner 同意的那一条里。
+      params: { type },
+    });
+    if (typeof r?.writeFile !== 'function') {
+      return { path: null, bytes: 0, error: 'SDK 没回 writeFile（接口形状变了，没取到字节）', cleanup };
+    }
+    await r.writeFile(filePath);
+    const bytes = fs.existsSync(filePath) ? fs.statSync(filePath).size : 0;
+    if (!bytes) return { path: null, bytes: 0, error: '取回来是 0 字节', cleanup };
+    return { path: filePath, bytes, error: null, cleanup };
+  } catch (e) {
+    // 已知会走到这里的：应用缺 `im:resource` 权限、消息不在本应用可见范围、超 100MB。
+    // 照实报，别把它说成「图上没有字」。
+    cleanup();
+    const code = e?.response?.data?.code;
+    const msg = e?.response?.data?.msg ?? e.message;
+    const what = type === 'image' ? '取图' : '取视频';
+    return { path: null, bytes: 0, error: `${what}失败 code=${code ?? '(无)'} msg=${msg}`, cleanup: nothing };
+  }
+}
+
+/** 取图片字节（`type:'image'`）。见上面那条窄豁免。 */
+export function fetchMessageImage(messageId, imageKey, { dir = null } = {}) {
+  return fetchMessageResource(messageId, imageKey, { type: 'image', dir, ext: '.img', tag: 'img' });
+}
+
+/**
+ * 取视频字节（`type:'file'`）—— 与图片**同一条窄豁免**，同一次 Owner 确认（2026-10-05）。
+ * ★ 只在 `videoKeysOf` 已经判定「这是个视频」之后才调它。
+ */
+export function fetchMessageVideo(messageId, fileKey, { dir = null, ext = '.mp4' } = {}) {
+  return fetchMessageResource(messageId, fileKey, { type: 'file', dir, ext, tag: 'vid' });
+}
+
 /** 超长文本切块（优先在换行处切，避免把句子劈开） */
 function chunkText(text, size = MAX_TEXT_LEN) {
   const out = [];
@@ -455,19 +633,38 @@ export async function listRecentMessages(chatId, pageSize = 20, memberMap = null
       // 必须把它和「正常但很短的消息」区分开：前者是**内容没了**，后者是**本来就这么短**。
       // 混在一起时，守衡会把「撤回」读成「有一条我看不懂的消息」，进而低估自己漏了多少东西。
       const recalled = /^This message was recalled$/i.test(raw.trim());
-      // 附件（file/image/media/audio）不是「我看不到」—— 是**按规矩不取**：
-      // 飞书内容禁止下载（AGENTS.md §2.6），而附件只有下载这一条通道。
+      // 附件里的 **file/media/audio** 不是「我看不到」—— 是**按规矩不取**：
+      // 它们的字节只有下载这一条通道，而飞书内容禁止下载（AGENTS.md §2.6）。
       // 工具给的是事实，事实就该由工具说清，不让模型去猜自己为什么读不到。
-      const ATTACHMENT_TYPES = new Set(['file', 'image', 'media', 'audio']);
+      //
+      // ★ 2026-10-05：**图片从这一类里分出来了**。人在**当前那条**消息里发的图，
+      //   守衡会读图上的字（窄豁免，见 `fetchMessageImage` 的头注）；
+      //   但**群历史里的图不读** —— 豁免只覆盖「人当前发的那一条」，
+      //   否则就成了「顺着历史把群里的图全捞一遍」，那正是红线要防的事。
+      //   这一格必须把这层差别写出来，否则守衡会把「历史图不读」说成「图片我不读」，
+      //   于是她再发一次也没用（她上次听到的就是这类话）。
+      // ★ 2026-10-05 同日补**视频**那一半：`media`（视频消息）与「名字是视频的 `file`」
+      //   现在**也在窄豁免里** —— 但同图片一样，**只管人当前发的那一条**。
+      //   历史里的视频照旧不取，这一格要把这层差别说出来，否则她会听到「视频我不读」。
+      const ATTACHMENT_TYPES = new Set(['file', 'media', 'audio']);
+      const VIDEO_EXT = /\.(mp4|mov|m4v|avi|webm|mkv|3gp)$/i;
+      let contentObj = {};
+      try { contentObj = JSON.parse(it.body?.content ?? '{}') ?? {}; } catch { contentObj = {}; }
+      const isVideoish = it.msg_type === 'media'
+        || (it.msg_type === 'file' && VIDEO_EXT.test(String(contentObj.file_name ?? '')));
       const text = recalled
         ? '（原文已在飞书端撤回，撤回后任何接口都不返回内容）'
-        : (raw || (ATTACHMENT_TYPES.has(it.msg_type)
-            ? '（这是附件：飞书内容禁止下载，附件只有下载这一条通道，所以我不取它的内容。）'
-            // ★ 这一句原先对 post / interactive 也这么说过（「正文为空 —— 我没法看到里面的内容」），
-            //   而那是**假否定**：内容就在 payload 里，是我们没去读对地方。
-            //   现在只有**真的没解析出来**才落到这里，并把「是哪种没解析出来」写出来 ——
-            //   **「没解析出来」和「内容为空」是两件事**，读的人要能分开。
-            : `（${it.msg_type ?? '未知'} 类型：我没能解析出正文 —— ${parsed.note ?? '未知原因'}）`));
+        : (raw || (it.msg_type === 'image'
+            ? '（这是图片消息。**历史里的图我不读** —— 我只看人当前发给我的那一条里的图。要看这张，请单独再发我一条。）'
+            : (isVideoish
+              ? '（这是视频。**历史里的视频我不读** —— 我只看人当前发给我的那一条（它引用的那一条也算）。要看这条，请单独再发我一条。）'
+              : (ATTACHMENT_TYPES.has(it.msg_type)
+                ? '（这是附件：飞书内容禁止下载，附件只有下载这一条通道，所以我不取它的内容。）'
+              // ★ 这一句原先对 post / interactive 也这么说过（「正文为空 —— 我没法看到里面的内容」），
+              //   而那是**假否定**：内容就在 payload 里，是我们没去读对地方。
+              //   现在只有**真的没解析出来**才落到这里，并把「是哪种没解析出来」写出来 ——
+              //   **「没解析出来」和「内容为空」是两件事**，读的人要能分开。
+              : `（${it.msg_type ?? '未知'} 类型：我没能解析出正文 —— ${parsed.note ?? '未知原因'}）`))));
       const sender = {
         messageId: it.message_id,
         // 北京时间，不是 UTC。原来这里是 toISOString()，而 `now` 工具给的是北京时间，
@@ -571,6 +768,16 @@ export async function getMessage(messageId) {
       //   「这条读回来了」还是「这条我读不出来」，不许把后者当成前者。
       parsed: parsed.parsed,
       parseNote: parsed.note ?? null,
+      // ★ 2026-10-05：把**原始 content** 与**这条消息里的图片 key** 一起带出去。
+      //   理由：「引用一张图 / 回复一张图来问守衡」是最常见的发法之一，而那条被引用的
+      //   消息必须能被读成「里面有没有图、图是哪几张」。原先这里只回**解析后的文本**，
+      //   于是「引用一张图问一句」这条路在数据上就是断的 —— 看不到 `image_key`，
+      //   只能回一句「你这条里没图」（而真相是「图在它引用的那一条里」）。
+      rawContent: it.body?.content ?? null,
+      images: imageKeysOf(it.msg_type, it.body?.content),
+      // ★ 2026-10-05 同日加：视频走**同一条窄豁免**（`videoKeysOf`）。
+      //   与 `images` 分开两个字段，是为了让「这条我拿到的是图还是视频」在数据上就分得开。
+      videos: videoKeysOf(it.msg_type, it.body?.content),
       parentId: it.parent_id ?? null,
       rootId: it.root_id ?? null,
     };

@@ -327,6 +327,186 @@ def main():
     ck("M", "M5 fetch_file 不做任何网络调用（不下载、也不探测）",
        all(c not in HTTP_HELPERS for c in _calls), f"调用了：{_calls}")
 
+    # ---- M6–M10（2026-10-05 新增，同日加宽过一次）：§2.6 那条**窄豁免**的执行点
+    #
+    # 背景（真实事故 · 第一次）：10-05 06:37 有人私聊发了一条**图文混排**（飞书里是 `post` 类型）
+    # 问「评审下下这个图片，能过吗？」。守衡 14ms 回「这条是「post」，它的正文我读不了」——
+    # 图片按红线不取（当时对），但**正文被整类扔掉**（错，正文就在 payload 里），
+    # 而她要做的「评审图片」没有任何一条走得通的路。
+    # Owner 2026-10-05 现场确认（选项 A）：**开一条窄豁免** ——
+    # 只取「人当前发给守衡的那一条消息里的图片」，取完只做本机 OCR，用完即删。
+    #
+    # 背景（真实事故 · 第二次）：同日 09:22:43 她私聊发了一条视频
+    # （`type=file` + `file_v3_00166_48a0a140…` + `momcozy-…-hero-1080p.mp4`），
+    # 守衡 **0 毫秒**回了 108 字拒绝。Owner 当天再次现场确认：
+    # **把同一条豁免按同一形状加宽到视频**（同一个调用点、同样只落临时目录、用完即删；
+    # 抽帧 OCR 与语音转写全在本机做完）。没松的：`file` 里的**非视频附件**、
+    # 群历史、云文档、多维表格、Drive 的 `download` 与 `medias/`。
+    #
+    # 一条豁免如果不能被证伪，它就会慢慢长成「什么都能下」。所以钉成五条：
+    #   M6 全仓**唯一**调用点（棘轮：多一处就红；`.mjs` 里也不许出现下载通道字面量）
+    #   M7 那个调用点的 `type` **只许取自闭集**，而闭集恰好是 {image, file}
+    #   M8 字节只许落**系统临时目录**：函数体里不许出现 REPO_ROOT（= 不许归档进仓库）
+    #   M9 上面三条**自己会红**（喂已知坏样本，各自检出）
+    #   M10 闭集**加宽就得改这里**：闭集里多一个值、或包装函数绕过闭集，都必须红
+    # 行为级那一半在 `tools/test_agent.mjs` 第 13 组与第 16 组（喂桩跑：不联网、不花 token）。
+    #
+    # ⚠️ 已知盲区（明着留着，见 C5 的同一条纪律）：这里只扫 `.mjs` 的**字面量**与**调用形状**。
+    #   把 `messageResource.get` 拆成字符串拼接、或改走原生 HTTP，本段抓不到 ——
+    #   那种改动同时会撞上 §2.6 的评审，不该靠一个正则兜住。
+
+    JS_LITERAL_DL = re.compile(r"""["'`]([^"'`\n]*?(?:/download|/medias/)[^"'`\n]*?)["'`]""")
+
+    def _strip_js_comments(src):
+        """整行/块注释不算代码 —— 与 verify_shouheng_ops 的 C5、verify_cards 的 J1a 同一条读法。
+
+        本仓的注释里大量引用接口路径（这份文件自己就是），不剥掉注释会满屏误报，
+        而「一个会误报的检查器比没有检查器更糟」（AGENTS.md §2.1.1）。
+        已知盲区：**行尾**注释仍会被扫到（与 C5 明着留的那条一样）。
+        """
+        out = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
+        return "\n".join(l for l in out.split("\n") if not l.lstrip().startswith("//"))
+
+    def _mjs_files():
+        found = []
+        for root, dirs, files in os.walk(os.path.join(REPO, "tools")):
+            dirs[:] = [d for d in dirs if d != "node_modules"]
+            for fn in sorted(files):
+                if not fn.endswith(".mjs"):
+                    continue
+                fp = os.path.join(root, fn)
+                try:
+                    found.append((os.path.relpath(fp, REPO), open(fp, encoding="utf-8").read()))
+                except Exception:
+                    continue
+        return found
+
+    def _js_download_literals(src):
+        return [m.group(1)[:70] for m in JS_LITERAL_DL.finditer(_strip_js_comments(src))]
+
+    def _resource_get_sites(src):
+        """回 [(文件内行号, 该行 + 其后 8 行)] —— `type` 参数不一定与调用在同一行。"""
+        s = _strip_js_comments(src)
+        lines = s.split("\n")
+        out = []
+        for i, l in enumerate(lines):
+            if "messageResource.get" in l or re.search(r"messageResource\s*:\s*\{", l):
+                if "messageResource.get" in l:
+                    out.append((i + 1, "\n".join(lines[i:i + 9])))
+        return out
+
+    def _closed_set(src):
+        """从 `RESOURCE_TYPES` 的声明里抽出那个闭集（**这是豁免的宽度本身**）。
+
+        返回 (值集合, 原文片段)。抽不出来就回 (None, 原文) —— 调用方据此判红。
+        """
+        s = _strip_js_comments(src)
+        m = re.search(r"RESOURCE_TYPES\s*=\s*Object\.freeze\(\[([^\]]*)\]\)", s)
+        if not m:
+            return None, s[:0]
+        vals = set(re.findall(r"['\"]([A-Za-z_]+)['\"]", m.group(1)))
+        return vals, m.group(0)[:120]
+
+    def _wrapper_type(src, fn_name):
+        """某个包装函数里传给 `fetchMessageResource` 的 type 字面量（抽不到回 None）。"""
+        s = _strip_js_comments(src)
+        i = s.find(f"export function {fn_name}")
+        if i < 0:
+            return None
+        body = s[i:i + 600]
+        m = re.search(r"type\s*:\s*['\"]([A-Za-z_]+)['\"]", body)
+        return m.group(1) if m else None
+
+    _mjs = _mjs_files()
+    ck("M", "M6a 扫到了 .mjs（不许是空扫 —— 空扫会让下面几条恒真）", len(_mjs) >= 5,
+       f"扫到 {len(_mjs)} 个 .mjs 文件")
+
+    _dl = [(fn, lit) for fn, src in _mjs for lit in _js_download_literals(src)]
+    ck("M", "M6b .mjs 里没有任何附件下载通道的字面量（/download、/medias/）", not _dl,
+       f"发现 {len(_dl)} 处：{_dl[:3]}")
+
+    _sites = [(fn, ln) for fn, src in _mjs for ln, _w in _resource_get_sites(src)]
+    ck("M", "M6c 取消息资源只许有**一个**调用点（棘轮：多一处就红）",
+       len(_sites) == 1 and _sites[0][0] == os.path.join("tools", "agent", "feishu.mjs"),
+       f"实际 {len(_sites)} 处：{_sites[:4]} —— 豁免只覆盖「当前那条消息里的图片/视频」，"
+       f"多一个调用点就是多一条取字节的路")
+
+    _win = ""
+    for fn, src in _mjs:
+        for _ln, w in _resource_get_sites(src):
+            _win = w
+    # M7 改成「闭集 + 守卫」而不是「只许 image」：2026-10-05 加宽到视频之后，
+    # 「只许 image」这条判据本身会变成**错的**（它会拦下合法的那次加宽）。
+    # 判据必须跟着形状走，而不是跟着当时那一个值走 —— 否则下次加宽时，
+    # 人只会去改这条断言，而不会去改 §2.6（那就成了一句注释在守红线）。
+    _ff = next((src for fn, src in _mjs if fn.endswith(os.path.join("agent", "feishu.mjs"))), "")
+    _ff_stripped = _strip_js_comments(_ff)
+    _setvals, _setdecl = _closed_set(_ff)
+    ck("M", "M7a 闭集 `RESOURCE_TYPES` 必须存在，且**恰好**是 {image, file}",
+       _setvals == {"image", "file"},
+       f"抽到 {_setvals} —— 声明：{_setdecl}；多加一个值（如 audio/sticker）就是加宽豁免，"
+       f"那要先改 AGENTS.md §2.6 再改这里")
+
+    _type_other = re.findall(r"type\s*:\s*['\"]([A-Za-z_]+)['\"]", _win)
+    ck("M", "M7b 调用点的 type 必须**取自闭集**（`params: { type }`），不许写死字面量",
+       bool(re.search(r"params\s*:\s*\{\s*type\s*\}", _win)) and not _type_other,
+       f"用 shorthand={'params: { type }' in _win} 窗口里的字面量={_type_other}")
+
+    _guard = re.search(r"RESOURCE_TYPES\.includes\(\s*type\s*\)", _ff_stripped)
+    ck("M", "M7c 闭集必须真的**被用来拦**（调用点之前有 includes 守卫，且拒绝时直接返回）",
+       bool(_guard) and "不在豁免闭集" in _ff_stripped,
+       "闭集声明了却没拿去比较，就是 §2.4 那条「常量定义了没人用」的老病")
+
+    _t_img = _wrapper_type(_ff, "fetchMessageImage")
+    _t_vid = _wrapper_type(_ff, "fetchMessageVideo")
+    ck("M", "M7d 两个包装函数各自只用闭集里的一个值（图片 image / 视频 file）",
+       _t_img == "image" and _t_vid == "file", f"image={_t_img} video={_t_vid}")
+
+    # ★ 先剥注释再找函数体：第一版直接在**原文**里搜 `REPO_ROOT`，于是
+    #   **函数自己的说明文字**（「字节一旦落进 REPO_ROOT 就等于把它归档了」）把自己判红了。
+    #   这正是 C5 那条「整行注释不算代码」要防的形状 —— 判据必须看代码，不看解释。
+    _fi = _ff_stripped.find("async function fetchMessageResource")
+    _fbody = _ff_stripped[_fi:_fi + 4000] if _fi >= 0 else ""
+    ck("M", "M8 取回来的字节只许落系统临时目录（不许写进仓库 = 不许归档）",
+       bool(_fbody) and "os.tmpdir()" in _fbody and "REPO_ROOT" not in _fbody,
+       f"找到函数={bool(_fbody)} 用 os.tmpdir()={'os.tmpdir()' in _fbody} "
+       f"出现 REPO_ROOT={'REPO_ROOT' in _fbody}")
+
+    # M9 反向对照：三个检测器各自喂坏样本，必须红。
+    _bad_lit = 'const u = "/open-apis/drive/v1/files/xxx/download";'
+    _bad_site = 'const r = await client.im.messageResource.get({ path: {}, params: { type: "file" } });'
+    _bad_repo = 'export async function fetchMessageResource(){ const d = REPO_ROOT + "/tmp"; }'
+    ck("M", "M9a 反向对照：下载通道字面量必须检出", len(_js_download_literals(_bad_lit)) == 1,
+       f"检出 {len(_js_download_literals(_bad_lit))} 处")
+    _bs = _resource_get_sites(_bad_site)
+    ck("M", "M9b 反向对照：新的调用点必须被数出来（否则 M6c 恒真）", len(_bs) == 1,
+       f"检出 {len(_bs)} 处")
+    ck("M", "M9c 反向对照：type 写成字面量必须被 M7b 拦住",
+       bool(re.findall(r"type\s*:\s*['\"]([A-Za-z_]+)['\"]", _bs[0][1] if _bs else ""))
+       and not bool(re.search(r"params\s*:\s*\{\s*type\s*\}", _bs[0][1] if _bs else "")),
+       "坏样本（type:'file' 写死）应被判红")
+    ck("M", "M9d 反向对照：函数体里出现 REPO_ROOT 必须被 M8 拦住",
+       "REPO_ROOT" in _bad_repo and "os.tmpdir()" not in _bad_repo,
+       "坏样本应同时满足「有 REPO_ROOT、没有 os.tmpdir()」")
+
+    # M10：**加宽这条路自己也要能被证伪** —— 否则「下次再加一个 type」只能靠人自觉。
+    #   三条坏样本，各自打在一个不同的位上：
+    _set_audio = 'export const RESOURCE_TYPES = Object.freeze(["image", "file", "audio"]);'
+    _set_none = 'export const RESOURCE_TYPES = ["image"];'
+    _wrap_lit = ('export function fetchMessageVideo(messageId, fileKey) {'
+                 ' return fetchMessageResource(messageId, fileKey, { type: "video", dir: null }); }')
+    ck("M", "M10a 反向对照：闭集里多一个值（audio）必须被判红",
+       _closed_set(_set_audio)[0] != {"image", "file"},
+       f"实际抽到 {_closed_set(_set_audio)[0]}")
+    ck("M", "M10b 反向对照：闭集没写成 Object.freeze 也要判红（不许静默换成可变数组）",
+       _closed_set(_set_none)[0] is None or _closed_set(_set_none)[0] != {"image", "file"},
+       f"实际抽到 {_closed_set(_set_none)[0]}")
+    ck("M", "M10c 反向对照：包装函数用闭集外的值（video）必须被 M7d 拦住",
+       _wrapper_type(_wrap_lit, "fetchMessageVideo") == "video"
+       and _wrapper_type(_wrap_lit, "fetchMessageVideo") != "file",
+       "坏样本应被抽出 video（≠ file）")
+
+
     # ---- H（2026-09-22 新增）：飞书 HTTP 助手只许有**一份** —— 防漂移复活
     #
     # 债 #16：`call(url, payload=None, token=None, method=None)` 曾在 4 个脚本里各有一份，

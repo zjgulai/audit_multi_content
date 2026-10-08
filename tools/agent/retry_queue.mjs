@@ -188,15 +188,47 @@ export function answeredByLedger(item, entries) {
 }
 
 /**
- * ③ 会话记忆里这条问话后面已经有一条**真回答**？**纯函数**。
- *
- * 「真回答」= `role === 'assistant'` 且**没有**失败标记。失败标记有两个，
- * 判据都是**结构**，不是比对那句文案：
+ * 结构化「不是真回答」的标记。**判据是结构，不是比对文案**（文案会改，标记不会）。
  *
  * | 标记 | 谁打的 | 什么意思 |
  * |---|---|---|
  * | `llm_error: true` | `agent.mjs` 的模型失败分支 | 这一轮压根没调通模型 |
  * | `tool_exhausted: true` | `agent.mjs` 的兜底话术分支 | 模型调通了，但**始终没给出最终答复** |
+ * | `truncated: true` | `agent.mjs` 的截断守卫分支（2026-09-30 加） | 这一轮**被长度上限腰斩**，正文不完整 |
+ *
+ * ★ `truncated` 是第三个成员，起因是一次真事故（本群 2026-09-30 19:11 / 19:16）：
+ *   模型烧光输出预算，正文 0 字，`annotateTruncation()` 把一句「⚠️ 这条回答被长度上限
+ *   截断了……你可以让我『接着说』」当成了回复发进群 —— 那条消息**通篇只有说明、
+ *   没有一个字的答案**。而 `answeredInMemory()` 认为「她问话后面有一条不带失败标记的
+ *   assistant，所以她已经答过了」，于是**队列把她出队，答案永远没发出去**。
+ *
+ *   这与 2026-09-22 那次（`tool_exhausted` 缺失 → 兜底话术被当成真回答）是**同一个形状**：
+ *   失败被写成了「一条长得像回答的 assistant」。第一次修的是兜底话术，这次修的是截断说明。
+ */
+/**
+ * 「这一条 assistant **不是答案**」的结构标记。
+ *
+ * ★ 2026-10-06 加 `chain_not_run`（Owner：「每次发图片/视频都必须能正常回复，不能拒答」）。
+ *   形状与 2026-09-22 加 `tool_exhausted` 一模一样，事故也一模一样：
+ *   **送审单起了链、链却没跑成**（库忙 exit 3 / 超时 / 层前置红 / 依据侧没给结论）时，
+ *   守衡照样发了一条回复（「这一单未测，没有三态结论」）—— 于是 `reason` 是 `ok`，
+ *   补发队列判「她已经答过了」，**一条都补不出去**。
+ *   结果就是：那张图那条视频，**问一次答不上，问十次还是答不上**。
+ *   本模块存在的全部理由就是不让「答不上」等于「永远答不上」——
+ *   所以「链没跑成」必须与「答了」长得不一样。
+ *
+ * 判据（写入侧在 `agent.mjs`）：**闸门判了送审（`gate.yes`）** 且 **`chainRan` 为假**。
+ * 两样缺一不可：没有闸门的普通问答不在此列（它本来就不需要链）。
+ */
+export const NOT_AN_ANSWER_FLAGS = Object.freeze([
+  'llm_error', 'tool_exhausted', 'truncated',
+  'chain_not_run',   // ★ 2026-10-06：送审单但链没跑成 ⇒ 补发队列应当重跑
+]);
+
+/**
+ * ③ 会话记忆里这条问话后面已经有一条**真回答**？**纯函数**。
+ *
+ * 「真回答」= `role === 'assistant'` 且**没有**任何 `NOT_AN_ANSWER_FLAGS` 标记。
  *
  * ★ `tool_exhausted` 是 **2026-09-22 补的**，因为那天真出过一次：
  *   上游在私聊里问「你如何读取我 DSH 上的知识库」，两次都跑满 6 轮工具、
@@ -223,11 +255,10 @@ export function answeredInMemory(item, session) {
   for (let i = at + 1; i < msgs.length; i++) {
     const m = msgs[i];
     if (m?.role !== 'assistant') continue;
-    if (m.llm_error === true) continue;
-    if (m.tool_exhausted === true) continue;
+    if (NOT_AN_ANSWER_FLAGS.some((f) => m[f] === true)) continue;
     return { answered: true, why: `记忆里已有真回答（第 ${i - at} 条之后）` };
   }
-  return { answered: false, why: '记忆里只有失败话术，没有真回答' };
+  return { answered: false, why: '记忆里只有失败话术 / 截断说明，没有真回答' };
 }
 
 /**
@@ -334,16 +365,22 @@ export async function runTick({ answer, send, now = new Date(), file = null, log
   try { res = await answer(it); }
   catch (e) { res = { reply: null, reason: 'threw', error: `${e?.message ?? e}` }; }
 
-  // ★ 「补发这一次也没答出来」的判据有两个来源，别只写一个：
-  //   `llm_error`  —— 模型这一拍没调通（补发那一次本身就是探针）；
-  //   `tool_exhausted` —— 调通了但工具循环又跑满，等同于没答出来。
-  //   漏掉后者的话：兜底话术带 `reply`，会被当成「答出来了」直接发进群，
-  //   而那正是**她连着收到两条兜底话术**的形状（2026-09-22 实测）。
-  if (!res || res.reason === 'llm_error' || res.reason === 'tool_exhausted' || !res.reply) {
+  // ★ 「补发这一次也没答出来」的判据有三个来源，别只写一个：
+  //   `llm_error`      —— 模型这一拍没调通（补发那一次本身就是探针）；
+  //   `tool_exhausted` —— 调通了但工具循环又跑满，等同于没答出来；
+  //   `truncated`      —— **答了，但被长度上限腰斩**（2026-09-30 加）。
+  //   漏掉第三个的代价是实测过的：19:16 那次补发，回答**正文 0 字**，
+  //   只有一句「⚠️ 这条回答被长度上限截断了……」，而队列把它当成「答出来了」直接发进群 ——
+  //   于是**同一条问题，群里收到两条一模一样的空回答**（截图里那两条就是这么来的）。
+  //   宁可留在队列里再试，也不要往群里灌第二条空话。
+  if (!res || res.reason === 'llm_error' || res.reason === 'tool_exhausted'
+      || res.meta?.truncated === true || !res.reply) {
     it.tries = Number(it.tries ?? 0) + 1;
     it.last_tried_at = new Date().toISOString();
     it.last_layer = res?.meta?.llm?.layer ?? it.last_layer ?? null;
-    it.last_error = res?.meta?.llm ? `layer=${res.meta.llm.layer}` : (res?.error ?? res?.reason ?? '仍答不上');
+    it.last_error = res?.meta?.truncated === true ? '答是答了，但被长度上限截断（正文不完整）'
+      : res?.meta?.llm ? `layer=${res.meta.llm.layer}`
+      : (res?.error ?? res?.reason ?? '仍答不上');
     if (it.tries >= MAX_TRIES) {
       deadDrop(`补发 ${it.tries} 次仍失败（最后：${it.last_error}）`);
       log(`   ✗ 补发 ${it.tries} 次仍未成功，落死信 —— 只在日志说`);

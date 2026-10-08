@@ -36,6 +36,7 @@ const VERBOSE = process.argv.includes('--verbose');
 const {
   REGISTRY, BY_KIND, BUILDERS, BUILDER_SOURCE_NAME,
   build, validateCard, renderText, shapeOf, sampleCards, lintCopy,
+  TONE, TEMPLATES, BACKGROUND_STYLES,
 } = await import(path.join(CARDS_DIR, 'index.mjs'));
 const cardsSrc = fs.readFileSync(path.join(CARDS_DIR, 'cards.mjs'), 'utf8');
 const cardsMod = await import(path.join(CARDS_DIR, 'cards.mjs'));
@@ -474,6 +475,193 @@ head('J 信封 · 解析、上限执行、以及「标记不许漏进群」');
     if (r.mode !== 'text' || r.text !== plain) no('J5 无块时原样透传', `mode=${r.mode}，文本被改动了`);
     else ok('J5 无块时原样透传');
   }
+
+  // J8 ★ PRD §5.3 结论行进标题时，纯文本渲染**不许叠方括号**（2026-10-06 实发事故）
+  //
+  //   真事：08:25 那条 PASS 回复，卡片表头是对的（`header.title` 是 raw plain_text），
+  //   但台账与**降级文本**里成了 `【【审查结论：PASS】…进行 sign-off。】` ——
+  //   因为 `renderText` 本来会给标题套一层 `【…】` 当标题样式。
+  //   降级文本是「卡片发不出去时原样进群」的那条兜底，所以这处偏差**只在出事那一跳才看得见**。
+  {
+    const LINE = '【审查结论：PASS】未发现已知底线风险，可转交 @sign-off 责任人（未配置） 进行 sign-off。';
+    const r = toCardOrText('[[card:query-answer]]\n' + JSON.stringify({ title: '旧标题', verdict: 'x' }),
+                           { verdict53: { state: 'PASS', line: LINE, from: 'chain' } });
+    const first = r.text.split('\n')[0];
+    if (first !== LINE) no('J8 §5.3 结论行进纯文本时逐字且不叠括号', `实际第一行：${JSON.stringify(first.slice(0, 70))}`);
+    else ok('J8 §5.3 结论行进纯文本时逐字且不叠括号');
+
+    // 反向对照：**普通**标题仍必须被套一层。
+    // 少了这一条，「不许叠括号」会悄悄滑成「所有标题都不加括号」—— 那会把标题样式整个取消。
+    const first2 = toCardOrText('[[card:receipt]]\n' + JSON.stringify({ verdict: '收到。' })).text.split('\n')[0];
+    if (first2 !== '【已收到】') no('J8 反向对照：普通标题仍套一层', `实际：${JSON.stringify(first2)}`);
+    else ok('J8 反向对照：普通标题仍套一层');
+  }
+
+  // ═══════════ J9 ★ 配色：两类不许撞色 + 底色闭集（2026-10-06 加）═══════════
+  //
+  //   起因是委托方看截图提的两条：「回执卡不要灰色」+「不要跟其他卡片颜色冲突」。
+  //   当时 `receipt` 与 `capability-boundary` **都是 grey** —— 而回执是发得最多的一张。
+  //
+  //   这一段的立场：**颜色是语义，不是装饰**，所以「撞色」是一条可判定的断言，
+  //   而不是审美意见。J9a 是它的执行点；没有 J9a，下一个人把两个类型改成同色
+  //   不会有任何东西变红（§2.4：写进文档的约束必须指得出哪一行在拦它）。
+  {
+    // J9a 十类的配色**两两不同**。判据写成纯函数，好让反向对照直接喂坏样本。
+    const dupColors = (tone) => {
+      const by = new Map();
+      for (const [kind, c] of Object.entries(tone)) {
+        if (!by.has(c)) by.set(c, []);
+        by.get(c).push(kind);
+      }
+      return [...by.entries()].filter(([, ks]) => ks.length > 1);
+    };
+    const dups = dupColors(TONE);
+    if (dups.length) {
+      no('J9a 十类配色两两不同', dups.map(([c, ks]) => `${c} 被 ${ks.join('/')} 共用`).join('；'));
+    } else {
+      ok(`J9a 十类配色两两不同（${Object.keys(TONE).length} 类 / ${new Set(Object.values(TONE)).size} 色）`);
+    }
+
+    // J9a-反向对照：喂一份**故意撞色**的 TONE，判据必须红。
+    // 少了这一条，`dupColors` 写成恒返回 [] 也照样绿 —— 那正是 §2.4 点名的假执行点。
+    const badTone = { ...TONE, 'capability-boundary': TONE.receipt };
+    if (dupColors(badTone).length !== 1) no('J9a 反向对照：故意撞色必须被抓', '喂了同色的两份，判据没红');
+    else ok('J9a 反向对照：故意撞色必须被抓');
+
+    // J9b 每个配色都必须出自 `TEMPLATES` 闭集 —— 枚举外的值服务端会静默忽略。
+    {
+      const outside = Object.entries(TONE).filter(([, c]) => !TEMPLATES.includes(c));
+      if (outside.length) no('J9b 配色都在 TEMPLATES 闭集里', outside.map(([k, c]) => `${k}=${c}`).join('；'));
+      else ok('J9b 配色都在 TEMPLATES 闭集里');
+    }
+
+    // J9c 回执卡：表头必须是淡暗粉那一档，且正文必须真的坐上同族色带。
+    //
+    //   为什么两条都要：只查表头的话，把色带悄悄删掉照样绿 ——
+    //   而委托方挑的是 **D**（表头 + 正文色带），少一半就不是他看中的那张。
+    {
+      const c = build('receipt', { verdict: '收到了，正在处理。' });
+      if (c.header.template !== 'carmine') {
+        no('J9c 回执表头 = carmine', `实际 ${JSON.stringify(c.header.template)}`);
+      } else ok('J9c 回执表头 = carmine（淡暗粉，momcozy 品牌色族）');
+
+      const bandEl = c.body.elements.find((e) => e.tag === 'column_set');
+      if (bandEl?.background_style !== 'carmine-50') {
+        no('J9c 回执正文带 carmine-50 色带', `实际 ${JSON.stringify(bandEl?.background_style)}`);
+      } else ok('J9c 回执正文带 carmine-50 色带');
+    }
+
+    // J9d 底色闭集**真的会拦**。
+    //
+    //   ★ 这条比 J9b 重要：飞书对未知底色是**静默忽略**的（表头写 `pink` 也 code=0，
+    //     2026-10-06 实测六个未知取值全部发送成功）。也就是说写错颜色的表现
+    //     **不是报错，是安静地变成另一个颜色** —— 唯一能拦它的就是本地校验。
+    {
+      const base = build('receipt', { verdict: 'x' });
+      const withStyle = (v) => {
+        const c = JSON.parse(JSON.stringify(base));
+        c.body.elements[0].background_style = v;
+        return validateCard(c);
+      };
+      if (withStyle('chartreuse-50').ok) no('J9d 未登记底色必须被拦', 'chartreuse-50 竟然过了');
+      else ok('J9d 未登记底色必须被拦（chartreuse-50）');
+
+      // 反向对照：闭集里那两个必须照常通过，否则这条闸门会变成砖头。
+      const allowed = [...BACKGROUND_STYLES].filter((v) => !withStyle(v).ok);
+      if (allowed.length) no('J9d 反向对照：登记过的底色必须放行', `${allowed.join('/')} 被误拦`);
+      else ok(`J9d 反向对照：登记过的底色放行（${[...BACKGROUND_STYLES].join('/')}）`);
+    }
+
+    // J9e 十类的配色必须与 `contract.md` 那张表逐格一致。
+    //
+    //   文档说 `alert` 是 carmine、代码却发 red —— 这种漂移不会红任何东西，
+    //   而它正是「文档里的读数是过期的」这个老病（§2.4.1 第 5 行）。
+    {
+      const md = fs.readFileSync(path.join(CARDS_DIR, 'contract.md'), 'utf8');
+      const drift = [];
+      for (const [kind, color] of Object.entries(TONE)) {
+        // 表行形如：| `alert` | **red** | 我这侧坏了 |
+        const re = new RegExp(`\\|\\s*\`${kind.replace(/[-]/g, '\\-')}\`\\s*\\|\\s*\\*{0,2}${color}\\*{0,2}\\s*\\|`);
+        if (!re.test(md)) drift.push(`${kind} 应为 ${color}`);
+      }
+      if (drift.length) no('J9e contract.md 配色表与 TONE 一致', `对不上：${drift.join('；')}`);
+      else ok('J9e contract.md 配色表与 TONE 一致（逐格）');
+    }
+  }
+
+  // ═══════ J10 ★ 媒材读数必须进卡片正文（2026-10-06 加）═══════
+  //
+  //   事故（Owner 原话「视频还是无法读取」）：他发的 15 秒视频**内核读成功了** ——
+  //   8 帧全抽出来、OCR 成功、音轨确认没人说话 —— 而那三个读数**只进了日志**。
+  //   卡片正文通篇在讲知识库自己的事（「覆盖判据不成立」「缺的是库覆盖，补素材无用」），
+  //   一句没讲他视频里有什么 ⇒ 结论读起来就是「它没看我的视频」。
+  //
+  //   判据分三面：搬得进去 / 位置对 / 没有读数时不许凭空造。
+  {
+    const READ = '视频 1 段｜读成功 1 · 失败 0\n视频 1：15.0 秒｜抽帧 OCR 8/8 帧（共 51 字）｜音轨里没人说话';
+    const mk = (opts) => toCardOrText(
+      '[[card:query-answer]]\n' + JSON.stringify({ title: 'x', verdict: 'REVIEW：覆盖判据不成立。' }), opts);
+
+    // J10a 搬进去了，而且在正文**第一块**（结论行仍占标题，两样各占一格）
+    const r = mk({ verdict53: { state: 'REVIEW', line: '【审查结论：REVIEW】共发现 1 处需人工确认。', from: 'chain' },
+                   mediaRead: READ });
+    const first = String(r.card?.body?.elements?.[0]?.content ?? '');
+    if (!first.includes('**我读到了**') || !first.includes('15.0 秒')) {
+      no('J10a 媒材读数进卡片正文第一块', `实际第一块：${JSON.stringify(first.slice(0, 90))}`);
+    } else ok('J10a 媒材读数进卡片正文第一块');
+    // 结论行不许被挤出标题（读数进正文 ≠ 结论行下移）
+    if (r.card?.header?.title?.content !== '【审查结论：REVIEW】共发现 1 处需人工确认。') {
+      no('J10a 结论行仍在标题里', `实际：${JSON.stringify(r.card?.header?.title?.content)}`);
+    } else ok('J10a 结论行仍在标题里（读数不挤结论）');
+
+    // J10b 反向对照：**没有**读数时不许凭空造一句「我读到了」
+    //   少了这一条，写成恒插入一句空话也照样绿 —— 而那是**编读数**，比不搬严重。
+    const r2 = mk({ verdict53: null });
+    const body2 = JSON.stringify(r2.card?.body ?? {});
+    if (body2.includes('我读到了')) no('J10b 反向对照：无媒材时不许凭空造读数', '没有读数却出现了「我读到了」');
+    else ok('J10b 反向对照：无媒材时不许凭空造读数');
+  }
+
+  /* ── J11 评审单的 PRD §5.3 逐条块**必须落得下**（2026-10-07 实发缺口）─────────────
+   *  病灶：卡片类型由模型挑，而 11 种里**只有 `query-answer`（reasoning）与 `evidence`（groups）**
+   *        装得下逐条块；挑到 `turn-diff` 等类型 ⇒ `applyVerdictLine` 返回 `no-slot`
+   *        ⇒ **块被静默丢掉、卡片照发** ⇒ Owner 当场报「你改了后就不按 PRD 格式输出了」。
+   *  判据三层（缺一层都不算）：能不能换 · 换了块在不在 · 原内容丢没丢。＋两条反向对照。
+   */
+  {
+    const V53 = { state: 'BLOCK', line: '【审查结论：BLOCK】共发现 6 处必须修改。', from: 'chain',
+      block: '【审查结论：BLOCK】共发现 6 处必须修改。\n知识库侧 3 条 ／ 模型侧 3 条\n\n'
+           + '1.【合规】素材正文  —— **模型侧**（无库内依据）\n   原因：FDA 批准表述\n'
+           + '   依据：无库内依据\n   判定：REVIEW\n   建议：转对应负责人复核。\n\n请修改后重新提交。' };
+    const RAW_DIFF = '[[card:turn-diff]]\n' + JSON.stringify({
+      verdict: '库侧 0 条→3 条，结论 BLOCK 未变', before: '上一次：REVIEW，报「知识库侧 0 条」',
+      after: '这一次：BLOCK，报「知识库侧 3 条」', cause: '上游口径修正',
+      fields: [{ label: '耗时', value: '110.809 ms → 45.564 ms' }] }) + '\n[[/card]]';
+
+    const r = toCardOrText(RAW_DIFF, { verdict53: V53 });
+    const groups = r.data?.groups ?? [];
+    if (r.mode !== 'card' || r.kind !== 'evidence') {
+      no('J11a 评审单遇装不下的类型 ⇒ 换 evidence', `mode=${r.mode} kind=${r.kind}`);
+    } else ok('J11a 评审单遇装不下的类型 ⇒ 换 evidence');
+    const g0 = String(groups[0]?.content ?? '');
+    if (groups[0]?.title !== 'PRD §5.3 结论块' || !g0.includes('共发现 6 处') || !g0.includes('1.【合规】')) {
+      no('J11b 换卡后逐条块必须在第一组（含结论行与逐条四要素）', JSON.stringify(groups[0]?.title));
+    } else ok('J11b 换卡后逐条块必须在第一组（含结论行与逐条四要素）');
+    const carried = groups.map((g) => String(g?.content ?? '')).join('\n');
+    if (!carried.includes('上游口径修正') || !carried.includes('110.809 ms')) {
+      no('J11c 原卡内容必须逐字搬过去（不丢字）', carried.slice(0, 120));
+    } else ok('J11c 原卡内容必须逐字搬过去（不丢字）');
+
+    // J11d 反向对照：**非评审单**不许换卡（否则等于借着 PRD 的名义改模型的形态选择）
+    const rn = toCardOrText(RAW_DIFF, { verdict53: null });
+    if (rn.kind !== 'turn-diff') no('J11d 反向对照：非评审单不许换卡', `kind=${rn.kind}`);
+    else ok('J11d 反向对照：非评审单不许换卡');
+    // J11e 反向对照：本来就装得下的类型（evidence）不许被动过
+    const re = toCardOrText('[[card:evidence]]\n' + JSON.stringify({ verdict: 'x', groups: [] }) + '\n[[/card]]',
+                            { verdict53: V53 });
+    if (re.kind !== 'evidence') no('J11e 反向对照：装得下的类型不许换', `kind=${re.kind}`);
+    else ok('J11e 反向对照：装得下的类型不许换');
+  }
 }
 
 /* ─────────────── K 提示词 · registry 与 persona 不许漂移 ─────────────── */
@@ -524,11 +712,41 @@ head('K 提示词 · 模型看到的类型清单必须与登记表一致');
     else ok(`K4 ${r.kind} 字段齐全（${Object.keys(r.fields).length} 个）`);
   }
 
-  // K5 提示词长度要有个上限意识：它进的是每一次调用的前缀
+  // K5 提示词长度要有个上限意识：它进的是每一次调用的前缀。
+  //
+  // ★ 2026-10-05：上限 8000 → **8500，并冻结**（Owner 现场确认，选项 A）。
+  //
+  //   为什么调：8000 是 2026-09-21 定的「上限意识」，不是外部约束。此后
+  //   09-28 / 10-04 两次会话各往人设里加了正文（判定依据分层、送审走哪条路），
+  //   实测 8329 —— **K5 从那天起一直红着**，而没人注意到；连带的后果是
+  //   I 段算出的期望项数少 1，于是三份文档里的「253 项全过」被报成不一致
+  //   （那三条是下游，不是独立问题）。
+  //   两条路摆过一次：删正文回 8000，或把上限调到实测值。**选了后者** ——
+  //   要删的每一句都是 09-28 / 10-04 两次真实事故换来的措辞，而 8000 本身没有外部依据。
+  //   （顺带：这次也把与 `kb_review_chain` tool description **逐条重复**的三段
+  //   从人设里删掉了 —— 模型两处都读得到，重复是纯开销。）
+  //
+  //   为什么是**冻结**而不是「改成 8500 就算完」：只把数字改大，下一个人还会再改大一次。
+  //   所以下面另有一条**逐字相等**的断言 —— 动这个数（往任何一个方向）都会红，
+  //   逼着改它的人先说明理由。要放宽，先改
+  //   `PMO/守衡-图片读取修复记录-20261005.md` 里记的那条，再改这里。
+  const PROMPT_MAX_CHARS = 8500;
   {
     const n = [...prompt].length;
-    if (n > 8000) no('K5 提示词长度', `${n} 字符，太长了；卡片段应保持精炼`);
-    else ok(`K5 提示词 ${n} 字符（卡片段 ${[...cardContract()].length}）`);
+    const margin = PROMPT_MAX_CHARS - n;
+    if (n > PROMPT_MAX_CHARS) {
+      no('K5 提示词长度', `${n} 字符 > 上限 ${PROMPT_MAX_CHARS}（余量 ${margin}）；`
+        + '要加正文就得先删等量的 —— 这个上限 2026-10-05 冻结，理由见本段注释');
+    } else {
+      ok(`K5 提示词 ${n}/${PROMPT_MAX_CHARS} 字符（余量 ${margin}；卡片段 ${[...cardContract()].length}）`);
+    }
+    // 冻结断言：这个数字本身不许被悄悄改动（往上改 = 松判据；往下改 = 也该说一声）
+    if (PROMPT_MAX_CHARS !== 8500) {
+      no('K5b 上限已冻结', `PROMPT_MAX_CHARS = ${PROMPT_MAX_CHARS} ≠ 8500 —— `
+        + '这个数 2026-10-05 冻结（当时实测 8493）。要改先改 PMO 记录并在这里写明为什么');
+    } else {
+      ok('K5b 上限仍是冻结值 8500（改它必须带理由）');
+    }
   }
 }
 
@@ -613,10 +831,32 @@ head('L 发送链 · 降级链完整且不重复投递');
 
   // L5 内核不许自己拼卡片 —— 形态决策只能在发送层一处。
   // 两处都能定形态，就会出现「内核按 A 想、发送层按 B 发」的错位。
-  const agentSrc = fs.readFileSync(path.join(HERE, 'agent', 'agent.mjs'), 'utf8');
-  if (/reply-cards|toCardOrText|\[\[card:/.test(agentSrc)) {
+  //
+  // ★ 2026-10-06：**扫之前先剥注释**，与上面 L3 用同一条读法（`stripComments`）。
+  //   同一个坑这是第二次：09-22 那次是 `onMessage` 里解释「原先 toCardOrText 在这儿调」的注释
+  //   把 L3 自己绊红；今天往 `agent.mjs` 里加了一句解释「结论行怎么交到信封层」的注释，
+  //   里面写着 `toCardOrText`，于是**内核一行卡片逻辑都没有，L5 却红了**。
+  //   `AGENTS.md` §2.4.4 已经把修法写死了：**不是把注释改得更绕，是给扫描器统一一条读法** ——
+  //   「注释不算代码」。已知盲区（字符串里的 `//`，例如 URL）明着留着，同 L3 那段注释。
+  const agentSrc = stripComments(fs.readFileSync(path.join(HERE, 'agent', 'agent.mjs'), 'utf8'));
+  const CARD_IN_KERNEL = /reply-cards|toCardOrText|\[\[card:/;
+  if (CARD_IN_KERNEL.test(agentSrc)) {
     no('L5 内核不碰卡片', 'agent.mjs 里出现了卡片逻辑；形态决策必须只在 ws_daemon 一处');
   } else ok('L5 形态决策只在发送层一处');
+
+  // ★ 反向对照（§2.4.1：**没红过的断言不算验证过它**）。
+  //   上面那条现在是绿的，而「绿」也可能只是因为扫描器对什么都闭嘴了。
+  //   两个样本必须给出**相反**的结果 —— 缺任何一个，另一个就是恒真的：
+  //     · 喂一行真代码 → 必须命中（证明它真的会红）
+  //     · 喂一行注释   → 必须不命中（证明「剥注释」这一步真的在起作用，不是把该红的也放过了）
+  const BAD_CODE = 'const shaped = toCardOrText(reply);';
+  const BAD_COMMENT = '// 这一段曾经在 agent.mjs 里调 toCardOrText —— 注释不算代码';
+  if (!CARD_IN_KERNEL.test(stripComments(BAD_CODE))) {
+    no('L5 反向对照：真代码必须命中', '喂一行调用 toCardOrText 的代码没被扫出来 —— 上面那条是空转的');
+  } else ok('L5 反向对照：喂真代码会红');
+  if (CARD_IN_KERNEL.test(stripComments(BAD_COMMENT))) {
+    no('L5 反向对照：注释不许命中', '注释里提到函数名也算成了违规 —— 会误报的检查器比没有更糟');
+  } else ok('L5 反向对照：注释不算代码');
 }
 
 /* ─────────────── L6/L7 内核自己的文案也要过同一把尺 ─────────────── */

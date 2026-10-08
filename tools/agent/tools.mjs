@@ -1,3 +1,4 @@
+
 /**
  * tools.mjs —— 守衡的工具层
  *
@@ -30,6 +31,8 @@ import { REPO_ROOT } from './config.mjs';
 import { beijingDateTime } from './timefmt.mjs';
 import * as feishu from './feishu.mjs';
 import * as lw from './lark_write.mjs';
+import * as kb from './kb_client.mjs';
+import * as reviewPublish from './review_publish.mjs';
 
 const execFileP = promisify(execFile);
 
@@ -1040,6 +1043,631 @@ register('lark_base_cancel_delete', {
     },
   },
   run: async () => lw.cancelDelete(runtimeContext),
+});
+
+/* ─────────────── 知识库检索：kb_search / kb_status ─────────────── */
+
+/**
+ * ★★ 重建件说明（2026-10-03）—— 这两个工具是**重建**的，不是原文。
+ *
+ * ── 事故
+ * `tools.mjs` 在磁盘上被误删（`git status` 记为 `D`）。恢复时从 HEAD 取回，
+ * 而 HEAD 是 **2026-09-24** 的版本 —— 这两个工具是那之后加进**工作树**的、
+ * **从没提交过**，于是随删除一起没了。**没提交 ≠ 没在用。**
+ *
+ * ── 怎么发现恢复错了
+ * 守衡启动时会把工具清单写进 `PMO/logs/ws_daemon.log`（`loadedTools()`，注释写着
+ * 「确认工具与模型都装载成功」）。那份清单是 **27 个**、含 `kb_search(read) kb_status(read)`；
+ * 而 HEAD 版只有 **25 个**、这两个一个都没有。**日志比 git 记得多。**
+ *
+ * ── 怎么重建（契约不是猜的，是抄的）
+ *   · `kb_client.test.mjs` 的 **E1–E7 就是这两个工具的规格**（它从 `tools.mjs` 取
+ *     `executeTool` / `toolNames`，所以原文必然注册在本文件里）；
+ *   · `judge_evidence.mjs` 顶段写明「只把 kb_search 挂成**第 26 件**工具」——
+ *     与「HEAD 25 件 + kb_search + kb_status = 27 件」严丝合缝；
+ *   · 客户端 API 全在 `kb_client.mjs`（该文件未丢失）。
+ *   重建后必须跑 `node kb_client.test.mjs`，E1–E7 全过才算还上（它全程离线，不碰真凭据与真配额）。
+ *
+ * ── 为什么「未查成」必须是独立形态（E4/E5/E6 守的就是这条）
+ * 检索失败（配额用尽 / 连不上 / 429）**绝不能**返回空 `hits`：一个空数组到了模型手里，
+ * 会被读成「查过了，知识库里没有」—— 而真相是「这次没查到」。这两句在**判定**上恰好相反：
+ * 前者能被拿来支持「合规」，后者只能转人工。所以失败时**连 `hits` 这个键都不给**（E5），
+ * 给 `[]` 也算错。
+ */
+
+/** 检索失败时的统一形态。话术里**必须**含「不是「没有命中」」这句（E6 守它）。 */
+function kbUntested(why, extra = {}) {
+  return {
+    is_untested: true,
+    // ★ 故意**不给** hits 键 —— 理由见上面那段。
+    reason: why,
+    note: `⚠️ 本次**没有查成**（${why}）。这是「未测」，**不是「没有命中」** —— `
+        + '不许把这次结果读成「知识库里没有这条」，更不许拿它当合规依据。'
+        + '要么照实说「我没查成」，要么转人工。',
+    ...extra,
+  };
+}
+
+register('kb_search', {
+  scope: 'read',
+  schema: {
+    type: 'function',
+    function: {
+      name: 'kb_search',
+      description:
+        '在 Momcozy 内容治理知识库里检索条文分片。返回命中分片（docId / docTitle / chunkId / 正文 / ' +
+        'score 及其含义）、排序可信度、配额真值。\n' +
+        '什么时候用：要「知识库怎么规定的」「有没有相关条文」这类**依据**时。\n' +
+        '★ 三条必须照实转述的边界：\n' +
+        '(1) 返回的是**分片**(chunk)不是完整规则，而且**没有取全文的端点** —— ' +
+        '不许把一片当成一条规则的全部。\n' +
+        '(2) `order_is_meaningful=false` 时**顺序不可信**（查询词不足 3 个字符时服务端回退成词频序）。' +
+        '别按返回顺序下结论；`query_hint` 里有改写建议。\n' +
+        '(3) 返回 `is_untested=true` 是**没查成**（配额用尽 / 连不上），**不是「没有命中」** —— ' +
+        '这种时候连 `hits` 都不会有。必须照实说「我没查成」。',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: '查询词。★ 中文请给 **3 个字以上**，否则服务端走词频序、顺序不可信。' },
+          collection: { type: 'string', description: '限定子库 id（如 3_措辞表达库 / 1_外部标准库 / 2_内部正负样本库）。省略则用默认子库。' },
+          topK: { type: 'number', description: `要几条候选（上限 ${kb.TOPK_MAX}，默认 ${kb.TOPK_DEFAULT}）。回给模型的条数另有更小的上限（${kb.HITS_RETURN_MAX}）。` },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  run: async ({ query, collection, topK } = {}) => {
+    const q = String(query ?? '').trim();
+    if (!q) return kbUntested('查询词为空');
+    const coll = String(collection ?? '').trim() || kb.COLLECTIONS.wording;
+    // 配额闸门：宁可少查，也不要把日配额烧穿（60/分、1000/天，见 kb_client 顶部实测）。
+    if (!kb.canSpend(1)) {
+      return kbUntested('知识库日配额已用尽（服务端最近一次回报）',
+                        { collection: coll, quota: kb.quotaState() });
+    }
+    try {
+      return await kb.retrieve(coll, q, { topK: Number(topK) || undefined });
+    } catch (e) {
+      return kbUntested(`检索失败 ${e?.code ?? e?.name ?? 'ERROR'}：${e?.message ?? e}`,
+                        { collection: coll, quota: kb.quotaState() });
+    }
+  },
+});
+
+register('kb_status', {
+  scope: 'read',
+  schema: {
+    type: 'function',
+    function: {
+      name: 'kb_status',
+      description:
+        '看知识库接上了没有、有哪些子库、配额还剩多少。\n' +
+        '什么时候用：检索没查成时先判「是配置/网络问题还是配额问题」；或要回答「守衡到底连着知识库没有」。\n' +
+        '★ 探活（GET /health）**免鉴权、不消耗配额**；列子库与检索要消耗。\n' +
+        '★ 余额是**服务端上一次回报**的真值，转述时必须连 `asOf` 一起说 —— 别把它说成「此刻还剩多少」。',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  run: async () => {
+    const p = await kb.ping();                    // 免费探活：0 配额、约 0.2 秒
+    const described = kb.describeKb();
+    const out = {
+      connected: p.ok === true,
+      baseUrl: described?.baseUrl ?? null,
+      health: { httpStatus: p.httpStatus, service: p.service ?? null, elapsedMs: p.elapsedMs, note: p.note },
+      quota: kb.quotaState(),
+      collections: Object.values(kb.COLLECTIONS),
+    };
+    // E7：连不上时**必须**给出 error 字符串 —— 「配额问题」与「配置/网络问题」要一眼分得开。
+    if (!p.ok) {
+      out.error = String(p.note ?? '探活失败');
+      out.note = '⚠️ 探活没通，所以「库里有没有这条」**现在无法回答**。这是「没查成」，不是「没有」。';
+    } else {
+      out.note = '探活通。注意：探活只证明**隧道通、服务端活着**，**不证明 key 还有效** —— '
+               + '那得靠一次真检索（或列子库）才知道。';
+    }
+    return out;
+  },
+});
+
+/* ─────────────── 知识库审查链（2026-10-03 加）─────────────── */
+
+/**
+ * `kb_review_chain` —— 把一条待审内容交给**知识库那条链**去判。
+ *
+ * ── 为什么守衡自己判不了、必须外派一个 DSH agent
+ *
+ * 守衡的 `judge_copy` 走的是 `JUDGE_PY`（本仓自己的判定引擎 + 自己的词表/外部标准库），
+ * 那是**一套栈**；Momcozy 知识库是**另一套栈**：
+ *   L4 发号 → L5 P0 → L6 召回 → L7 跨层闸门 → 评审链出三态（PASS/REVIEW/BLOCK）
+ *   → 落报告 → 发飞书。
+ * 那条链的每一步都要求执行者**能加载 skill**：**逐层**用 `skill` 工具把本层
+ * skill 读进上下文，而且**库里的审计会核这件事**（`skill_invocation_audit.py`，红 1 就拒答）。
+ * `skill` 工具是 **DSH 独有的**。守衡是个 node 进程，它加载不了 skill —— 但它能 spawn 一个 DSH agent。
+ *
+ * `dsh --profile headless "<task>"` 就是为此造的（`@deepseek-ai/dsh-headless` 自述：
+ * "Answer one task, stream reasoning to stderr, print the final assistant message, and exit."）。
+ * ★ 实测（2026-10-03 22:26，问「Momcozy 穿戴式吸奶器，三种模式九档吸力，单双边可选。」）：
+ *   四层 + 评审链全自动跑完 —— 四条审计红 0、`mode=enforced`、报告落
+ *   `kb/l7/reports/rv-20261003-223320.feishu.md`、飞书表行 `recvwZSX3lygJe`。**全程无人提醒。**
+ *
+ * ── 三条纪律（每条都有代价，不是客套）
+ *
+ *   ① **不许追问**：内容 ID / 渠道 / 产品线 / 版本这些缺省字段，知识库侧**会自己补**
+ *      （它的 AGENTS.md 明文要求「缺省自动补，不许追问」）。这里再问一遍，
+ *      等于把一个已经解决的问题又推回给人。
+ *   ② **超时要长、超时要说"未知"**：一单要跑四层（2026-10-05 起四层由**一次执行**跑完，不再逐层起 subagent），2026-10-05 实测：**四层前置侧 832.6 s → 7.7 s**（同一天同一条链）；但**端到端仍是 4~10 分钟**（四类素材实测均值 6.25 分钟）—— 因为其中**约八成是 agent 自己在想**（实测一单 326.6 s 里模型生成 259.8 s）。
+ *      给 30 分钟。**超时不要编结论** —— 半条链的结论比没有结论更危险
+ *      （层前置没跑完就出三态，正是库里那三条防线要防的事）。
+ *   ③ **原文逐字传**：`question` + `text` 原样交给 DSH，**不改写、不翻译、不总结**。
+ *      判定对象一变，依据就不再指向它 —— 而报告里的锚点/条款号是按原文取的。
+ *
+ * ── 为什么 scope 是 'write'（本文件只标了三个 read 之外的第一个）
+ *
+ * 因为它**会往飞书写东西**：结论 ≥3 个问题时写云文档，并按内容 ID 幂等 upsert 一条表行。
+ * （按本文件顶部那段：`scope` 只是标注、不是闸门 —— 但标错方向会骗下一个读代码的人，
+ *   所以这里按真实副作用标。真正拦不拦，看调用方要不要给。）
+ */
+const KB_ROOT = process.env.SHOUHENG_KB_ROOT
+  || '/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理';
+const DSH_BIN = process.env.SHOUHENG_DSH_BIN
+  || '/Applications/DSH Desktop.app.pre-lute-20260907-111753/Contents/Resources/app.asar.unpacked'
+     + '/node_modules/@deepseek-ai/dsh/lib/bin.js';
+const KB_REVIEW_TIMEOUT_MS = Number(process.env.SHOUHENG_KB_REVIEW_TIMEOUT_MS || 30 * 60_000);
+
+/**
+ * 跑批前把「认领」这道门清干净 —— 2026-10-05 事故驱动（用户实测：10-04 22:18 那次
+ * 整整卡满 30 分钟才超时，10-05 仍然不行）。
+ *
+ * 病因：`kb/.work/.kb-loop-claim.json` 的持有者 pid 已死，但 **TTL 45 分钟还没到**。
+ *   `kb_loop_claim.py claim` 遇到「已被占」一律 exit 3，而 **`--take-over` 只在陈旧时才放行**
+ *   ⇒ 链子卡在门口进不去、又不报错，只能等 TTL —— 等到了 30 分钟上限，回报一张 alert 卡片。
+ *   ★ 更糟的是 TTL 过期**不会自动放行**（`claim` 对陈旧认领默认仍拒），
+ *     所以**一次崩溃 = 此后每一条 @守衡 都静默失败**，直到有人手工 `--take-over` / `release --force`。
+ *
+ * 本函数做两件事：
+ *   ① 陈旧认领（pid 已死 / 超 TTL）→ **当场 `release --force`**（这正是脚本自己承认可以接手的状态）；
+ *   ② 新鲜认领（别的会话**正在跑**）→ **立刻回话说"库忙"**，而不是耗满 30 分钟才说超时。
+ *      —— 不抢是对的（库规：同一时间只准一个会话跑这条循环），但"不抢"不等于"陪着等"。
+ *
+ * 返回 {blocked, detail, action}。**预检本身出错不阻断**（fail-open）——
+ * 宁可让链子按原样去撞，也不要因为预检脚本崩了就永远送不了审。
+ */
+/**
+ * **只读**地问一句：知识库那条循环现在有没有人在跑？（给回执用）
+ *
+ * ★ 与 `preflightClaim()` 的区别：那个会**顺手释放陈旧认领**（有副作用），
+ *   这个一个字节都不改 —— 回执这一步只想知道「要不要说排队」，不该动任何东西。
+ *   超时给得短（8 秒）：它是**回话之前**跑的，慢了就等于让人多等。
+ *
+ * @returns {Promise<{free:boolean, stale:boolean, detail:string}>}
+ */
+export async function claimStatus({ timeoutMs = 8000 } = {}) {
+  const KBPY = path.join(KB_ROOT, 'kb', 'kbpy');
+  const CLAIM = path.join(KB_ROOT, 'kb', 'l7', 'scripts', 'kb_loop_claim.py');
+  try {
+    const { stdout } = await execFileP('sh', [KBPY, CLAIM, 'status'],
+      { cwd: KB_ROOT, timeout: timeoutMs, maxBuffer: 1 << 20 });
+    const s = String(stdout ?? '');
+    const free = s.includes('无认领');
+    const stale = s.includes('陈旧');
+    return { free, stale, detail: s.trim().slice(0, 200) };
+  } catch (e) {
+    // 取不到就说「不知道」—— 回执退回常态那套话（不谎报排队，也不谎报空闲）
+    return { free: false, stale: false, unknown: true, detail: `状态读不到：${e?.message ?? e}` };
+  }
+}
+
+async function preflightClaim() {
+  const KBPY = path.join(KB_ROOT, 'kb', 'kbpy');
+  const CLAIM = path.join(KB_ROOT, 'kb', 'l7', 'scripts', 'kb_loop_claim.py');
+  try {
+    const { stdout } = await execFileP('sh', [KBPY, CLAIM, 'status'],
+      { cwd: KB_ROOT, timeout: 30_000, maxBuffer: 1 << 20 });
+    const s = String(stdout ?? '');
+    if (s.includes('无认领')) return { blocked: false, detail: '空闲（无认领）' };
+    if (s.includes('陈旧')) {
+      // 脚本自己会打印「陈旧（可 --take-over）」——那就是它承认可以接手的状态。
+      await execFileP('sh', [KBPY, CLAIM, 'release', '--force'],
+        { cwd: KB_ROOT, timeout: 30_000, maxBuffer: 1 << 20 });
+      return { blocked: false, action: 'released_stale_claim',
+               detail: '检测到陈旧认领，已自动释放：' + s.trim().slice(0, 200) };
+    }
+    // 新鲜认领 ⇒ 有会话正在跑这条循环。**不抢**，但立刻回话（不再耗 30 分钟）。
+    return { blocked: true, detail: s.trim().slice(0, 300) };
+  } catch (e) {
+    return { blocked: false, detail: `认领预检跳过（${e?.message ?? e}）` };
+  }
+}
+
+/**
+ * 送审任务里**每次都要带上的两条硬规矩**（Owner 2026-10-05 现场定的）。
+ *
+ * ★ 为什么要带在**任务文本**里，而不是只写在工具描述里：
+ *   工具描述是给**守衡**看的（什么时候调它），任务文本是给**链的执行者**看的（怎么判）。
+ *   这两条改的是链的判定口径，不是守衡的调用时机 —— 写错地方等于没写。
+ *
+ * ★ 为什么这两条必须成对出现：
+ *   ① 那天送了四条素材，链跑完 3.5~17.9 分钟，**表里一行都没有** ——
+ *      因为链的发布条件是「有**三态结论**才发」，拒答整单被跳过，
+ *      于是「审过了、结论是拒答」在盘上零痕迹。Owner 的原话是「**每一个评审任务都必须落表**」。
+ *   ② 而那条图片素材**本来就是库里的案例**（与 `sample_case #32` 逐字重合，条款号 S-1.2，
+ *      `polarity=反例`、`semantics=禁区`）。链认出了它，却以「自命中 / 同源留痕 / 循环论证」
+ *      为由**降级成「交人裁」并最终拒答**。Owner 的裁定：**那是反面依据 —— 它指出问题所在，
+ *      不是拒答的理由。** 用这条素材自己的历史案例判它自己，正是要的答案。
+ *
+ * ★ 守衡这一侧**不依赖**链照做：链返回后 `runSubmissionGate` 会核对「表里到底有没有这一行」，
+ *   没有就自己补（`review_publish.mjs`）。这两条是**让链做对**，那一段是**保证不漏**。
+ */
+export const REVIEW_HARD_RULES = [
+  '【本次送审的两条硬规矩（Owner 2026-10-05 现场定的，优先于默认流程）】',
+  '1. **「自命中」是反面依据，不是拒答的理由。** 若本素材在库里命中**已定稿的反例/禁区条款**',
+  '   （`polarity=反例`，或 `semantics` 以「禁区」开头，例如 S-1.2），那是**这条素材本身有定论**：',
+  '   必须把它**登记为 findings**（带条款号 + anchor + source_sha256 + 逐字摘录）并据此出三态结论',
+  '   （通常 BLOCK）。**不许**以「自命中 / 同源留痕 / 循环论证」为由把它降级成「交人裁」或拒答。',
+  '2. **每一个评审任务都必须落表。** 无论结论是三态还是拒答/未测，都要往飞书多维表格',
+  '   （app_token `RY2UbCRjXaeeWwscUPScVN5AnQc` / table `tblCXPQVzfFWWCon`）写一行并回读；',
+  '   字段按 PRD：内容 ID、产品线、渠道、内容类型、送审版本、Agent 结论、置信度、问题数量、',
+  '   问题分类汇总、报告链接、人工复核人、复核结论、sign-off 人、发布时间、状态。',
+  '   拒答时 `状态` 填「待审」（PRD 六档里没有「拒答」）。',
+].join('\n');
+
+/* ── ★ P0 快路（2026-10-05 加）───────────────────────────────────────────────
+ * 依据：PRD §6.3 第一层「P0 命中即**停止后续审查**，直接输出 BLOCK」+ §12「P0 层响应 ≤ 1 秒」
+ *       + §6.2 P0 行「**无需大模型推理**，正则/关键词命中即输出 BLOCK」。
+ *
+ * 为什么放在**入口**而不是链内：链内跑一次要 4~10 分钟（2026-10-05 四单实测均值 6.25 min，
+ * 其中约八成是通用 agent 自己在探索），而 PRD 要 ≤1 秒。**命中就不 spawn agent**
+ * 是唯一满足它的做法（实测快路墙钟 0.13 s）。
+ *
+ * 边界（判据全部写死在库内 `kb/l5/p0_fastpath.py`，这里只转发，不在这里新造判据）：
+ *   · 只对**命中**短路、只出 BLOCK —— **永不**产出 PASS / REVIEW；
+ *   · 未命中一律回落原链（L4→L5→L6→L7 + 评审链），判据一条不放宽；
+ *   · 结论自带 `mode=p0_fastpath` 与「未跑层前置」声明 —— **不许静默**；
+ *   · 它是**只读**的：不碰 kb/.work/.kb.lock、也不写库 ⇒ 所以放在 claim **之前**，
+ *     不去抢那条全局单槽（抢了反而让真正的重单更难跑）。
+ */
+async function runP0FastPath(text, { reportOut = null, reportRef = '' } = {}) {
+  const s = String(text ?? '');
+  if (!s.trim()) return { hit: false };
+  const tmp = path.join(os.tmpdir(), `p0-fastpath-${process.pid}-${Date.now()}.txt`);
+  const args = [path.join(KB_ROOT, 'kb/kbpy'), 'l5/p0_fastpath.py', '--file', tmp, '--json'];
+  // ★ `--report-out`（2026-10-06）：报告**随判定一起落盘**，只多约 10 ms
+  //   （报告正文 = 判定结果的重渲染，不重跑匹配、不联网）。
+  //   它**不改变**这条快路的「只读、不抢锁」性质：落点是 `kb/.work/p0_reports/`（工作区临时区），
+  //   不是 kb/l0–l7 的层数据，也不碰 `kb/.work/.kb.lock`。
+  if (reportOut) args.push('--report-out', reportOut);
+  // ★ `--report-ref`：第二次进来只把「报告链接」那一格换成真 url。
+  //   它是**纯确定性函数**（同输入必同输出），所以重渲染不会让结论漂移。
+  if (reportRef) args.push('--report-ref', reportRef);
+  try {
+    fs.writeFileSync(tmp, s, 'utf8');      // 走 --file：素材可能很长（视频转写），别撑爆 argv
+    const { stdout } = await execFileP('sh', args,
+      { cwd: KB_ROOT, timeout: 20000, maxBuffer: 8 << 20 });
+    return JSON.parse(String(stdout));
+  } finally {
+    try { fs.unlinkSync(tmp); } catch { /* 临时件清不掉不影响结论 */ }
+  }
+}
+
+/**
+ * 读「机读旁挂」`kb/.work/last_review_result.json`（由 `kb/l8/review_run.sh` 写）。
+ *
+ * ★ 为什么需要它（Owner 2026-10-05 指出「BLOCK 却问题数量空」「拒答却问题数量 0」自相矛盾）：
+ *   链跑在**另一个 dsh 进程**里，本工具只拿得到它的**最终文本** ——
+ *   「问题数量 / 置信度」这些字段本来就在引擎 JSON 里，却传不出来，于是表里恒空。
+ *   `review_run.sh` 跑完把引擎 JSON 的这些字段**原样**落一份小文件，这里读回来。
+ *
+ * 三条纪律：
+ *   ① **只在新鲜时采纳** —— `at` 必须晚于本次起链时刻（防读到上一单的，张冠李戴比没有更坏）；
+ *   ② **不做任何换算** —— 引擎给什么就是什么；引擎给 null 就留 null（**不许编**）；
+ *   ③ 读不到就**不带这个字段**（落表侧保持原样），**不抛错、不阻断链**。
+ */
+function readReviewSidecar(sinceMs) {
+  try {
+    const p = path.join(KB_ROOT, 'kb/.work/last_review_result.json');
+    const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+    const at = Date.parse(j?.at ?? '');
+    if (!Number.isFinite(at) || !Number.isFinite(sinceMs) || at < sinceMs - 2000) return null;
+    return j;
+  } catch {
+    return null;   // 文件不在 / 不是 JSON ⇒ 当作没有（**不是**「结论为空」）
+  }
+}
+
+
+/**
+ * **产品线 / 渠道的兜底取数**：素材原文里逐字命中库内受控词（Owner 2026-10-06）。
+ *
+ * 为什么要兜底：图片/视频那类单**没有规则命中**（引擎输出里连 `anchor` 都没有），
+ * 记录里取不到任何东西；而素材原文（含本机 OCR / 音轨转写）里**常常直接写着**
+ * 「吸奶器」「Google」「展会」。
+ * ★ 判据（词表、词边界、catch-all 剔除、**「这条记录是不是本素材本人」的准入闸**）
+ *   **全部在库内** `kb/l5/l0_facets.py` —— 这里只转发，**不在这边新造一条**。库那边改了，这里自动跟着变。
+ * ★ 取不到 ⇒ 返回空串（**不写「未指定」充数**，也不让模型猜）。
+ */
+export async function facetsFromMaterial(text) {
+  const s = String(text ?? '').trim();
+  if (!s) return { product_line: '', channel: '', from: {} };
+  try {
+    const { stdout } = await execFileP('sh',
+      [path.join(KB_ROOT, 'kb/kbpy'), 'l5/l0_facets.py', '--text', s],
+      { cwd: KB_ROOT, timeout: 20000, maxBuffer: 8 << 20 });
+    const d = JSON.parse(String(stdout));
+    return { product_line: d.product_line || '', channel: d.channel || '', from: d.from || {} };
+  } catch (e) {
+    console.log(`[facets] ⚠️ 素材兜底取数没跑成（不影响结论，产品线/渠道留空）：${e?.message ?? e}`);
+    return { product_line: '', channel: '', from: {} };
+  }
+}
+
+
+/* ── ★ 评审链执行手册（2026-10-05 加）──────────────────────────────────────
+ * 目的：把 headless agent 从「探索者」压成「执行者」。
+ *   实测它一单做 63 次工具调用（含一次 42 秒的全库递归 grep）、反复重跑闸门与重读同一文件，
+ *   而四层前置只占 7.7 秒 ⇒ 时间花在「自己发明流程」上。
+ * 真源 = 库内那一页 `kb/l8/review_playbook.md`：**读它、不复制它**（库内契约 #4：
+ *   同一事实写两处，第二处必然过期）。
+ * ⚠️ 读不到时**出声**（console.warn），不许静默返回空串 ——
+ *   静默失效＝手册悄悄不生效而无人察觉，正是本库最忌讳的形状。
+ * ⚠️ 位置必须在 `fs` / `path` / `KB_ROOT` 都就绪**之后**：2026-10-05 踩过 ——
+ *   插到文件头上时 IIFE 在 import 之前执行，被 undefined 吞掉、返回空串而无人知道。
+ */
+export const REVIEW_PLAYBOOK = (() => {
+  try {
+    return fs.readFileSync(path.join(KB_ROOT, 'kb/l8/review_playbook.md'), 'utf8').trim();
+  } catch (e) {
+    console.warn(`[playbook] ⚠️ 读不到 kb/l8/review_playbook.md：${e?.message ?? e} —— 本单按 AGENTS.md 自行编排`);
+    return '';
+  }
+})();
+register('kb_review_chain', {
+  scope: 'write',
+  schema: {
+    type: 'function',
+    function: {
+      name: 'kb_review_chain',
+      description:
+        '把一条待审内容交给 **Momcozy 知识库那条审查链**判：逐层跑 L4→L5→L6→L7（**逐层真的加载该层 skill**、四层由一次执行跑完、' +
+        '真的加载该层 skill）→ 评审链出三态结论（PASS / REVIEW / BLOCK）→ 落报告 → 发飞书。\n' +
+        '什么时候用：有人贴一段素材（文案 / 图片 / 视频 / 产品宣称）问「这个能不能发 / 有没有问题 / 审一下」' +
+        '，而他要的是**知识库条款级依据**（条款号 + 命中片段 + 锚点 + L0 逐字原文）。\n' +
+        '与 `judge_copy` 的分工：`judge_copy` 走本仓自己的判定引擎（快、秒级、返回档位与规则编号）；' +
+        '本工具走知识库那条链（慢、分钟级、带 L0–L3 溯源与飞书留痕）。**要溯源就用本工具。**\n' +
+        '★ 三条必须照实转述的限制：\n' +
+        '(1) **这是一次真实发布动作**：结论问题数 ≥3 时它会写飞书云文档，并 upsert 一条表行 —— ' +
+        '不是干跑。\n' +
+        '(2) **耗时分钟级**（2026-10-05 四类素材实测 4~10 分钟；四层前置侧已从 832.6 s 降到 7.7 s，余下大头上是模型自己的生成时间），期间不要以为它卡死了。超时返回的是「结论未知」，' +
+        '**不许当成通过**。\n' +
+        '(3) 返回的 `answer` 是知识库 agent 的**最终回答原文**（含它自己写的边界声明与 E5 黄提示）。' +
+        '**照实转述，不要简化掉边界** —— 库规里「未命中 ≠ 合规」是硬口径，省掉它会把一次「没查到」读成一次「没问题」。\n' +
+        '原文里若出现另一会话抢了全局认领槽，那是**并发如实登记**，不是本工具失败。',
+      parameters: {
+        type: 'object',
+        properties: {
+          question: {
+            type: 'string',
+            description: '提问原文，**逐字**传入（例如「这句广告语能不能发？」）。不要改写、不要总结。',
+          },
+          text: {
+            type: 'string',
+            description: '待审素材原文，**逐字**传入。文案/字幕/产品宣称贴原文；图片或视频贴描述或链接。不要翻译、不要润色。',
+          },
+        },
+        required: ['question'],
+      },
+    },
+  },
+  run: async ({ question, text } = {}) => {
+    const task = [String(question ?? ''), String(text ?? ''), REVIEW_HARD_RULES, REVIEW_PLAYBOOK]
+      .map((s) => s.trim()).filter(Boolean).join('\n');
+    if (!task) return { error: '问题和素材都为空，没有可送审的内容' };
+    if (!fs.existsSync(DSH_BIN)) {
+      return { error: `找不到 dsh CLI：${DSH_BIN}（可用环境变量 SHOUHENG_DSH_BIN 覆盖）` };
+    }
+    if (!fs.existsSync(KB_ROOT)) {
+      return { error: `找不到知识库工作区：${KB_ROOT}（可用环境变量 SHOUHENG_KB_ROOT 覆盖）` };
+    }
+
+    // ── ★ P0 快路（2026-10-05）：PRD §6.3 第一层 / §12「P0 层响应 ≤ 1 秒」 ──────
+    //    放在 claim **之前**：快路只读（模式表 + L4 canonical + L0 记录），
+    //    不碰 kb/.work/.kb.lock、也不写库 ⇒ 不该去抢那条全局单槽。
+    //    命中 ⇒ **不 spawn agent**（实测 0.13 s，对照走链 4~10 分钟）；
+    //    未命中 ⇒ 原样往下走；快路**自身出错也照样回落**原链（不许因为快路坏了就不审）。
+    let p0 = null;
+    // 判定对象取**素材**（text）；没有素材才退回提问。
+    // 为什么不把两者合并扫：提问里可能出现「这条有没有 safest 这种词？」——
+    // 把提问也当判定对象会**误报红线**（假 BLOCK）。
+    // ★ 提到 try 外面（2026-10-06）：报告那一步要用**同一个**判定对象重渲染，
+    //   若它只在 try 里可见，就得在下面再算一遍 —— 两份"同一个东西"迟早会不一致。
+    const p0Target = String(text ?? '').trim() || String(question ?? '').trim();
+    // 报告落点：`kb/.work/p0_reports/`（工作区临时区，不写层数据）。带时间戳 + pid，
+    // 同一秒两单也不会互相覆盖（实测并发单槽，但仍不留这个隐患）。
+    const p0ReportPath = path.join(KB_ROOT, 'kb/.work/p0_reports',
+      `${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}-${process.pid}.p0.md`);
+    try {
+      p0 = await runP0FastPath(p0Target, { reportOut: p0ReportPath });
+    } catch (e) {
+      p0 = null;
+      console.log(`[p0] ⚠️ 快路没跑成，回落原链：${e?.message ?? e}`);
+    }
+    if (p0?.hit) {
+      // ── ★ P0 报告（2026-10-06，Owner 三条口径）─────────────────────────────
+      //   ① 「P0 问题可先在飞书侧响应」 ⇒ 回执卡在 `runSubmissionGate` 里**已经先发过了**
+      //      （`notify(ackMessage(...))` 在调本工具之前），所以这一步**不占任何响应预算**；
+      //   ② 「写入云文档报告的时间不统计在 ≤1 秒内」 ⇒ PRD §12 的「P0 层响应 ≤1s」
+      //      量的是**判定**（`p0.elapsed_ms`，实测 9.8 ms），「报告生成」是另一条 ≤30s 的指标；
+      //   ③ 「补充报告」 ⇒ 报告**必须**跑，跑成了把链接填进回执（PRD §5.3.3 要求 ≥3 条时出报告链接），
+      //      跑不成要**看得见**（`report_detail` 带出 CLI 原话），**不许静默留空、更不许编链接**。
+      let reportUrl = null;
+      let reportDetail = '';
+      // ── ★ **同一内容已有报告就复用，不新建**（Owner 2026-10-06 选定方案 (c)）──────────
+      //   实测的病：同一份素材**复跑**时，`ensureReviewRow` 会按「内容 ID」找到**旧行**，
+      //   而它的「报告链接」被「非空不覆盖」挡住了 ⇒ 这里新建的那一份**没人能点到**（孤儿文档）。
+      //   (a) 改成新建一行 ⇒ 会多出**重复行**（比缺行更难发现）；
+      //   (b) 改成覆盖旧链接 ⇒ 行内**自相矛盾**（汇总写旧审查、链接指新报告）；
+      //   (c) **复用旧链接、不新建** ← 选它：不产孤儿、不产重复行、行与报告始终一致。
+      //   为什么复用是对的：**内容 ID 是送审文本的 sha256** ⇒ 同一 ID 就是**同一份素材**，
+      //   报告逐字相同。代价：多一次查表（实测 15 行 **~1.0 s**），发生在**回执卡之后**，
+      //   不占 PRD §12 任何一条预算（「P0 层响应 ≤1s」量的是判定，仍 ~12 ms）。
+      const p0ContentId = reviewPublish.contentIdOf(String(text ?? ''));
+      const prevReport = await reviewPublish.previousReportLink(p0ContentId);
+      if (prevReport) {
+        reportUrl = prevReport;
+        reportDetail = `复用同一内容已有的报告（内容 ID ${p0ContentId}）：${prevReport}`;
+        console.log(`[p0] ♻️ 同一内容已有报告，复用不新建：${prevReport}`);
+      } else if (p0.report_path) {
+        const pub = await reviewPublish.publishReportDoc(p0.report_path);
+        reportDetail = pub.detail;
+        if (pub.ok) {
+          reportUrl = pub.url;
+          console.log(`[p0] 📄 报告已出：${pub.url}`);
+        } else {
+          console.log(`[p0] ⚠️ 报告没出（结论不受影响）：${pub.detail}`);
+        }
+      } else {
+        reportDetail = '快路没给出 report_path（未落报告文件）';
+        console.log(`[p0] ⚠️ ${reportDetail}`);
+      }
+      // ★ 拿到真链接就**重渲染一次回执**，把「报告链接」那一格填上（PRD §5.3.3）。
+      //   没拿到就保留原文那句「报告在回执之后补」——那是实话，改掉它才是撒谎。
+      let rendered = String(p0.rendered ?? '');
+      if (reportUrl) {
+        try {
+          const again = await runP0FastPath(p0Target, { reportRef: reportUrl });
+          if (again?.rendered) rendered = String(again.rendered);
+        } catch (e) {
+          console.log(`[p0] ⚠️ 回执重渲染失败（保留原回执，报告链接改由表行与落表摘要带出）：${e?.message ?? e}`);
+        }
+      }
+      // ── ★ 两端对齐的运行期核对（Owner 2026-10-06：「后续两端数据必须对齐」）────────
+      //   当天的事故形状：**回执说 3 条、云文档里读出来像 1 条**。
+      //   根因是版式（已修），但那件事暴露了一个更根本的问题：
+      //   「回执说的条数」与「报告里的条目数」**没有任何东西在运行时对照过**。
+      //   所以这里加一道**生产期**核对（不能只写在自检里 —— 自检跑不到真实素材）：
+      //     ① 回执正文里 `共发现 N 处` 的 N（**重渲染之后**的最终文本）
+      //     ② 结构化字段 `p0.issue_count`（= findings 长度，落表「问题数量」用的就是它）
+      //     ③ 报告文件里 `### 问题 N ｜` 的条数
+      //   三处不一致 ⇒ **必须看得见**（日志 + 落进 report_detail，汇总格里会带出来）。
+      //   **不许静默**：数量对不上时，看表的人只会觉得"怪"，说不出哪里错。
+      let alignNote = '';
+      try {
+        const stated = Number((rendered.match(/共发现\s*(\d+)\s*处/) || [])[1]);
+        let items = null;
+        if (p0.report_path && fs.existsSync(p0.report_path)) {
+          items = (fs.readFileSync(p0.report_path, 'utf8').match(/^### 问题 \d+ ｜ /gm) || []).length;
+        }
+        const expect = p0.issue_count;
+        const bad = [];
+        if (stated !== expect) bad.push(`回执写 ${stated}`);
+        if (items !== null && items !== expect) bad.push(`报告里 ${items}`);
+        if (bad.length) {
+          alignNote = `⚠️ **两端条数对不上**：结构化=${expect} ｜ ${bad.join(' ｜ ')}。`;
+          console.log(`[p0] ${alignNote}`);
+        } else {
+          console.log(`[p0] ✓ 两端对齐：回执 ${stated} ｜ 结构化 ${expect}`
+            + ` ｜ 报告 ${items === null ? '（未落盘）' : items}`);
+        }
+      } catch (e) {
+        alignNote = `（两端对齐核对没跑成：${e?.message ?? e}）`;
+        console.log(`[p0] ⚠️ ${alignNote}`);
+      }
+      // ★ 2026-10-06：这里原先**又写了一遍**「本单走的是 P0 快路…未跑层前置…不是专项审查结论」。
+      //   而 `kb/l5/p0_fastpath.py` 的 `_render()` 现在自己带一整节「来路与边界」——
+      //   两处一说，模型就会当成两句不同的话分别转述（实测卡片里就是两段重复）。
+      //   所以这一段**只留渲染器没有的那两个读数**（耗时 / 命中条数），边界不再重说。
+      const answer = rendered.trim()
+        + `\n\n（本单走 P0 快路：确定性匹配 ${p0.elapsed_ms} ms ｜ 命中 ${p0.matched_patterns} 条 P0 模式。）`;
+      console.log(`[p0] 🚦 P0 命中 ⇒ 直接 BLOCK，不起链：${(p0.findings ?? []).map((f) => f.rule_code).join(',')}`
+        + `｜${p0.elapsed_ms} ms`);
+      return {
+        ok: true,
+        answer,
+        p0_fastpath: {
+          mode: p0.mode,
+          elapsed_ms: p0.elapsed_ms,
+          matched_patterns: p0.matched_patterns,
+          rule_codes: (p0.findings ?? []).map((f) => f.rule_code),
+          layer_preflight: p0.layer_preflight,
+        },
+        // ★ 2026-10-05（Owner 指出 BLOCK 却问题数量空 = 自相矛盾）：把引擎**已经给出**的
+        //   结构化字段带出去。原先只带 mode/elapsed/patterns，落表侧取不到 ⇒ 表里恒空。
+        //   **值来自 `kb/l5/p0_fastpath.py` 自己的输出，这里只搬不算。**
+        issue_count: p0.issue_count,
+        // P0 是**确定性匹配**（正则/关键词命中），PRD §6.6 明写「P0 层级规则**不适用置信度分流**，
+        //   命中即 BLOCK」⇒ 不参与分流，但 **§8.2 要求该字段必须记录** ⇒ 记 1.0 = 「确定性命中」。
+        //   这是**取值口径**，不是算出来的概率 —— 汇总列里会写明。
+        confidence: 1.0,
+        // ★ 报告（2026-10-06）：`report` 是**云文档链接**（没建成就是空串，**不是**"待生成"的占位）；
+        //   `report_path` 是本地 .md；`report_detail` 是「成没成、为什么」的原话。
+        //   `review_gate.formatChainBlock` 读 `report` 那一格 —— 空就什么都不显示（不许编）。
+        report: reportUrl ?? '',
+        report_path: p0.report_path ?? null,
+        // ★ `align_note`（2026-10-06）：非空 = **两端条数对不上**，它是**给落表用的**——
+        //   `agent.mjs` 会把它拼进「问题分类汇总」，于是**在表里看得见**。
+        //   空串 = 三处一致（回执 / 结构化 / 报告条目数），正常情形。
+        report_detail: reportDetail + alignNote,
+        align_note: alignNote,
+        // ★ 产品线 / 渠道（2026-10-06）：值来自 `kb/l5/p0_fastpath.py` 的 `facets`
+        //   —— 它从**命中的 L0 记录**里取（`品线`/`适用产品`、`渠道/市场`/`渠道`/`平台`）。
+        //   取不到就是空串 ⇒ 落表侧**不写这一格**（不许写「未指定」充数，更不许从素材正文猜）。
+        product_line: p0.product_line ?? '',
+        channel: p0.channel ?? '',
+      };
+    }
+
+    // ★ 前置：把跑批认领这道门清干净（陈旧→自愈；被别人占→立刻回话，不耗满 30 分钟）。
+    //   2026-10-05 加 —— 见 preflightClaim 的注释：这两条各值一次 30 分钟。
+    const pre = await preflightClaim();
+    if (pre.blocked) {
+      return {
+        error: '知识库**跑批锁被别的会话占着**，本次**没有送审**。'
+             + '这不是"审过了"、也不是"通过"——是**结论未知**。请过几分钟再让他试一次。',
+        claim_status: pre.detail,
+        hint: '库规要求「同一时间只准一个会话跑这条循环」，所以这里**不抢**；'
+            + '但要抢也只能在陈旧时才放行（脚本口径）。若确认对方已死，'
+            + `可手工：cd "${KB_ROOT}" && sh kb/kbpy l7/scripts/kb_loop_claim.py status`
+            + ' → 陈旧则 release --force。',
+      };
+    }
+    const t0 = Date.now();
+    try {
+      // cwd 必须是知识库工作区：链上每一步都按 `kb/...` 相对路径找脚本，
+      // 而且 AGENTS.md 的工作区指令由 cwd 决定 —— cwd 不对，跑出来的就不是那条链。
+      const { stdout } = await execFileP('node', [DSH_BIN, '--profile', 'headless', task], {
+        cwd: KB_ROOT, timeout: KB_REVIEW_TIMEOUT_MS, maxBuffer: 8 << 20,
+      });
+      const answer = String(stdout ?? '').trim();
+      if (!answer) {
+        return {
+          error: 'DSH 跑完但**没有输出最终回答** —— 链可能断在中途。**这等于结论未知，不是通过。**',
+          elapsed_ms: Date.now() - t0,
+        };
+      }
+      const sidecar = readReviewSidecar(t0);
+      if (!sidecar) {
+        // ★ 缺旁挂要**出声**（库规：缺证据必须可见，不许静默）——
+        //   但它**不阻断**：链本身跑成了，结论仍然照转述。
+        console.log('[review] ⚠️ 没读到机读旁挂（kb/.work/last_review_result.json 缺失或不新鲜）'
+          + ' ⇒ 本单的「问题数量/置信度」落表时会是空的。');
+      }
+      return { ok: true, answer, elapsed_ms: Date.now() - t0,
+               ...(sidecar ? { review: sidecar } : {}),
+               // 自愈过就把这件事带出去（库规：缺前置/异常必须可见，不许静默）
+               ...(pre.action ? { preflight: { action: pre.action, detail: pre.detail } } : {}) };
+    } catch (e) {
+      // execFile 超时后 kill 掉子进程：`killed` 为真或 `code` 为 null。
+      const timedOut = e?.killed === true || e?.code === null;
+      return {
+        error: timedOut
+          ? `审查链超时（${Math.round(KB_REVIEW_TIMEOUT_MS / 60000)} 分钟）—— **结论未知，不要当成通过**`
+          : `审查链执行失败：${e?.message ?? e}`,
+        ...(e?.stdout ? { partial_stdout: String(e.stdout).slice(-3000) } : {}),
+        ...(e?.stderr ? { stderr: String(e.stderr).slice(-3000) } : {}),
+        elapsed_ms: Date.now() - t0,
+      };
+    }
+  },
 });
 
 /* ─────────────────────────── 对外暴露 ─────────────────────────── */

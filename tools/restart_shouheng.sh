@@ -162,12 +162,22 @@ while stack:
 changed = [os.path.relpath(f, root) for f in seen if os.stat(f).st_mtime > epoch]
 
 # spawn 目标：图内代码按 path.join(REPO_ROOT, 'tools', '…….py') 指到的脚本
+#
+# ★ 2026-10-06 修口径。原判据是「`path.join(REPO_ROOT, …)` 指到的、盘上存在的文件」，
+#   结果它把 **`PMO/logs/lark_writes.jsonl`（一个日志）** 报成了
+#   「1 个被调起的脚本在启动后被改过」—— 实测全仓 8 个命中里有 2 个是数据文件
+#   （另一个是 `PMO/shouheng-state/seen-messages.json`）。
+#   这正是 AGENTS.md §2.4.1 那个病：**接口读通了，但口径读错了，于是安静地产出假数据**，
+#   而这条读数恰好是 §2.7 说的「判断时机的唯一硬依据」，读的人会照着它决定要不要重启。
+#   修法：**被调起的脚本必须是脚本** —— 只认脚本后缀，数据/日志/状态文件一律不算。
+#   执行点：`verify_shouheng_ops.py` 的 **B7**（喂坏样本必须红）。
+SPAWN_EXT = ('.py', '.sh', '.mjs', '.js', '.cjs', '.bash')
 spawn_rx = re.compile(r"""path\.join\(\s*REPO_ROOT\s*,\s*((?:'[^']*'\s*,\s*)*'[^']*')""")
 spawn = set()
 for f in seen:
     for m in spawn_rx.finditer(open(f, encoding='utf-8', errors='replace').read()):
         p = os.path.join(root, *re.findall(r"'([^']*)'", m.group(1)))
-        if os.path.isfile(p):
+        if os.path.isfile(p) and p.endswith(SPAWN_EXT):
             spawn.add(p)
 spawned = sorted(os.path.relpath(p, root) for p in spawn if os.stat(p).st_mtime > epoch)
 

@@ -32,6 +32,11 @@
 .tools/bin/
 .venv-r4/
 .pylibs/
+# Python 字节码缓存 —— 机器生成、可复算，源 `.py` 在 L1。
+# ★ 2026-10-03 补（ADR-0013 §三 同步已做）：补之前 `git ls-files` 里 `__pycache__`/`.pyc` 均为 0 条，
+#   「既有做法不收它」是事实；只是此前没有 .pyc 落盘，所以没人被绊到。用 `**/` 前缀是因为
+#   `tools/**` 下同样会长出 `__pycache__/`（本仓 python 脚本不止一处）。
+**/__pycache__/
 .vendor/
 node_modules/
 

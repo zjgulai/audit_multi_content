@@ -53,7 +53,14 @@ const event = {
 };
 
 const t0 = Date.now();
-const out = await handleMessage(event);
+// ★ 2026-10-05 加：**干跑不许起送审链**。
+//   这个脚本的契约是「只返回不发送」，而送审闸门（`agent.mjs` 的 `runSubmissionGate`）
+//   现在会**自动**把该送审的消息送进知识库那条链 —— 那条链会**真写飞书**、跑 6~30 分钟。
+//   一条「干跑」把一次真实发布动作做出去了，是比结果错更坏的事。
+//   所以这里显式把跑链那一步换成一个会说清楚话的桩：干跑看到的是「本该起链、干跑没起」。
+const out = await handleMessage(event, {
+  chainRunner: async () => ({ error: '干跑（_dryrun_link.mjs）：本该起链，但干跑不起 —— 干跑不许真写飞书' }),
+});
 const ms = Date.now() - t0;
 
 console.log('═'.repeat(74));

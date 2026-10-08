@@ -78,15 +78,37 @@
 | 类型 | 配色 | 读作 |
 |---|---|---|
 | `query-answer` | blue | 常规问答，可以略过 |
-| `correction` | **red** | 我说错了，必须看 |
+| `correction` | **orange** | 我说错了，必须看 |
 | `capability-boundary` | grey | 能力边界，存档性质 |
-| `find-nothing` | orange | 没找到，需要你补信息 |
+| `find-nothing` | **yellow** | 没找到，需要你补信息 |
 | `cannot-read` | wathet | 输入我读不了 |
-| `receipt` | grey | 只确认收到 |
+| `receipt` | **carmine** | 只确认收到 —— 淡暗粉，正文另有 `carmine-50` 通栏色带 |
 | `turn-diff` | violet | 同一问题的两次回答不一样 |
 | `evidence` | green | 证据陈列 |
-| `alert` | **carmine** | 我这侧坏了 |
+| `alert` | **red** | 我这侧坏了 |
 | `decision` | purple | 要你做决定 |
+
+> **2026-10-06 重排。** 委托方看截图提了两条：回执卡不要灰色、任何两类不许撞色。
+> 当时 `receipt` 与 `capability-boundary` 都是 `grey` —— 而回执是发得最多的一张，
+> 于是最常看到的那张长得像存档卡。
+>
+> 要的是**淡暗粉**。飞书 `header.template` 的枚举里**没有粉色**
+> （`blue` `wathet` `turquoise` `green` `yellow` `orange` `red` `carmine` `violet`
+> `purple` `indigo` `grey` `default`），最接近的只有 `carmine`；而 `carmine` 原本是
+> `alert` 的，所以这次是**连锁重排**：`receipt` 拿走 `carmine`，`alert` 让到 `red`，
+> `correction` 让到 `orange`，`find-nothing` 让到 `yellow`。重排后 **10 类 10 个互不相同的色**。
+>
+> 「淡暗粉」这个说法有出处：参照站 `https://momcozy.com/` 的 CSS 自定义属性里写着
+> `--brand-color: #9B626C`（灰调玫粉）。但**表头吃不到自定义色**，所以粉色分两处落：
+> 表头用枚举里最近的 `carmine`，正文用元素级色阶 `carmine-50`
+> （色阶后缀与 RGBA 只有元素级吃）。委托方是在 6 张色卡里挑的这一张（**D**）。
+>
+> ⚠️ **飞书对未知取值是静默忽略的**：2026-10-06 实测表头写
+> `turquoise` / `pink` / `carmine-50` / `red-50` / `carmine-100` / `default`
+> 六个**全部 `code=0` 发送成功**（发完即撤）。所以「发得出去」不等于「渲染成那样」——
+> 颜色没有离线判据，新增一个底色必须有人在群里看过。
+> 底色闭集在 `cards.mjs` 的 `BACKGROUND_STYLES`，执行点是 `validateCard`，判据是
+> `node tools/verify_cards.mjs` 的 **J9a–J9e**。
 
 ---
 
@@ -156,14 +178,19 @@
 
 ### 6. `cannot-read` · 读不了
 
-**用**：输入是图片/文件/语音/卡片，或**已撤回**，或掉出可见窗口。
+**用**：输入是**文件/语音/卡片**、**已撤回**、掉出可见窗口，或者**一张图读不出字**。
 **这几件事的信息量完全不同，别混成一句「我读不了」**：「内容没有」「内容在我范围外」
 「**按规矩不取**」是三回事。
 
-> ★ **附件（file/image/media/audio）单独说**：飞书内容禁止下载（`AGENTS.md` §2.6），
-> 附件只有下载这一条通道 —— 所以不是「读不到」，是**不取**。
+> ★ **附件（file/media/audio）单独说**：它们的字节只有下载这一条通道，
+> 而飞书内容禁止下载（`AGENTS.md` §2.6）—— 所以不是「读不到」，是**不取**。
 > 写成「没权限」「能力还没做」，对方就会去申请权限、去找文件主人，**全是白跑**。
 > 并且必须给一条走得通的路（把文字贴过来 / 存成飞书云文档发我）。
+
+> ★ **图片自 2026-10-05 起不在这一档**（`AGENTS.md` §2.6 的窄豁免）：**人当前发给守衡的图**
+> 会走本机 OCR，守住衡拿到的是**图内文字**。所以：能按图上的字判文案与宣称，
+> 但**画面本身看不到**（场景、人物、动作、产品怎么用）—— 这句话必须一起说出去。
+> 只有「图上没读出字」或「这张取不到」才用本档，而且两者的话**不一样**。
 
 字段：`verdict`（写准是哪一类）· `item`（`{kind, from, at, content}`）· `why` · `alternative`
 
@@ -341,7 +368,7 @@
 | 降级链（卡 → 文本，两处兜底合并为一处） | ✅ 完成 |
 | 提示词打包（类型清单与登记表现算，不手抄） | ✅ 完成（`persona.cardContract()`） |
 | 去 AI 味内容级检查（7 条） | ✅ 完成（`lintCopy()`） |
-| 自证 | ✅ `node tools/verify_cards.mjs`，253 项全过 |
+| 自证 | ✅ `node tools/verify_cards.mjs`，274 项全过 |
 | **接进 `ws_daemon.mjs` 的发送路径** | ✅ **已接入**。每条回复过 `toCardOrText()`，形态 / 搬迁 / 语域命中都落日志 |
 | **群里真实渲染效果** | ⚠️ **未由人眼确认**。探针只验了「接口收下」，没验「群里长什么样」 |
 | **按钮回调** | ❌ **未接住**。`ws_daemon` 收到 `card.action.trigger` 只记日志。所以模版里的按钮目前点不动 |

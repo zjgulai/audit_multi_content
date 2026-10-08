@@ -54,13 +54,54 @@ export function save(sess) {
   return f;
 }
 
-/** 追加一条消息 */
+/**
+ * 追加一条消息。
+ *
+ * ★ **闸门设在这里，不在调用方**（§2.4：写进文档的约束必须指得出哪一行在拦它）。
+ *   `isPersistable()` 不通过就**真的不落盘**，并返回 `{stored:false}` ——
+ *   调用方若要记账，读返回值，别自己再判一次（两处判就会各自漂移）。
+ *
+ * @returns {{stored:boolean, why?:string}}
+ */
 export function append(sess, msg) {
+  if (!isPersistable(msg)) {
+    return { stored: false, why: '空 assistant 轮不许落盘（会 400，且会被当成「已经答过」）' };
+  }
   sess.messages.push({ at: new Date().toISOString(), ...msg });
   sess.messageCount = (sess.messageCount ?? 0) + 1;
+  return { stored: true };
 }
 
-/** 记录群/人的展示名，方便日志里看懂是谁 */
+/**
+ * 这条 assistant 轮**能不能落进记忆**。
+ *
+ * ★ 2026-09-30 加，起因是一次真事故（本群 19:11 / 19:16 两条截断回复）：
+ *   `agent.mjs` 在「模型烧光额度、正文 0 字」时把**空串**原样 append 进了会话记忆。
+ *   下一轮 `toLlmMessages()` 又把这条空 assistant 发回给 API，而 DeepSeek 思考模式下
+ *   **一条 content 为空、又不带 reasoning_content 的 assistant 消息会被 400 拒收**：
+ *
+ *       HTTP 400 code=invalid_request_error:
+ *       The `reasoning_content` in the thinking mode must be passed back to the API.
+ *
+ *   （本机实测：`{role:'assistant', content:''}` 单发必 400，见 `test_agent.mjs` 第 11 组。）
+ *   于是**一条空回复会让守衡接下来整整一轮彻底答不出来** —— `PMO/logs/llm_failures.jsonl`
+ *   里那条 400 就是这么来的。而这一切的源头只是「把空串当成一条正常发言存了下来」。
+ *
+ * 判据是**结构**，不比对文案：
+ *   · 有 `tool_calls` → 允许（工具调用轮本来就可能 content 为空，那是协议的一部分）；
+ *   · `content` 非空    → 允许；
+ *   · 其余（空串 / 纯空白 / null / undefined）→ **不许落盘**。
+ *
+ * 为什么不去「补一句占位文案」：那会伪造一条守衡从未说过的话，
+ * 而且它仍会在历史里占一格、被模型当成自己真的答过。**没答过就不该留下痕迹。**
+ */
+export function isPersistable(msg) {
+  if (!msg || msg.role !== 'assistant') return true;          // 只拦 assistant 轮
+  if (Array.isArray(msg.tool_calls) && msg.tool_calls.length) return true;
+  return String(msg.content ?? '').trim().length > 0;
+}
+
+/** 记群/人的展示名，方便日志里看懂是谁 */
 export function setTitle(sess, title) {
   if (title && sess.title !== title) sess.title = title;
 }
@@ -146,7 +187,17 @@ export async function compact(sess, summarize, keepTurns = config.llm.maxTurns, 
   return true;
 }
 
-/** 构造发给 LLM 的 messages 数组 */
+/**
+ * 构造发给 LLM 的 messages 数组。
+ *
+ * ★ 2026-09-30 加**回放前清洗**（`sanitizeForLlm`）。理由与 `isPersistable` 是同一件事，
+ *   但**必须独立存在**：`append` 那道闸只拦「今后新写进来的」，
+ *   拦不住**盘上已经躺着的**坏记录 —— 而事故当时那份会话记忆里就有两条空 assistant
+ *   （`…692.json` 的第 26、43 条），它们会让守衡在**每一次**后续请求上 400，
+ *   直到有人手动去改会话文件（谁也不会想到要改）。
+ *
+ *   两道闸的关系是「以后不再产生」+「已经产生的别再送出去」，缺一条都不算修好。
+ */
 export function toLlmMessages(sess, systemPrompt) {
   const out = [{ role: 'system', content: systemPrompt }];
   if (sess.summary) {
@@ -158,8 +209,61 @@ export function toLlmMessages(sess, systemPrompt) {
   for (const m of sess.messages) {
     if (m.role === 'user' || m.role === 'assistant' || m.role === 'tool' || m.role === 'system') {
       out.push({ role: m.role, content: m.content, ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
-                 ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}) });
+                 ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
+                 // ★ 2026-09-30 加（P0）：带 `tools` 的请求**必须**回传 reasoning_content，
+                 //   否则 API 直接 400（见 config.mjs 的 `reasoningPassback` 与
+                 //   PMO/logs/llm_failures.jsonl 那条实测）。这里只做「有就带上」，
+                 //   裁剪与开关都在 `agent.mjs` 的 `reasoningToPassBack()` 一处收口。
+                 ...(m.reasoning_content ? { reasoning_content: m.reasoning_content } : {}) });
     }
+  }
+  return sanitizeForLlm(out);
+}
+
+/**
+ * 回放前的清洗。**纯函数**，所以它能被单独喂样本证伪。
+ *
+ * 三条，每条对应一个**已经真实发生过**的 400：
+ *   ① **空 assistant 轮**（无 tool_calls、content 空/空白）→ 丢掉。
+ *      实测：`{role:'assistant',content:''}` 单发必 400
+ *      `The reasoning_content in the thinking mode must be passed back to the API`。
+ *   ② **配不上 tool_calls 的 tool 结果**（前面的 assistant 里没有这个 tool_call_id）→ 丢掉。
+ *      实测报错：`An assistant message with 'tool_calls' must be followed by tool messages …`
+ *      以及 `Messages with role 'tool' must be a response to a preceding message with 'tool_calls'`。
+ *      ⚠️ 这一条**是防御性的**，不是「已发生」：当前写入路径不会产生孤儿 tool 结果
+ *      （工具结果与被截断的收尾都 append 在同一轮里，逐条核过盘上的会话文件）。
+ *      留着它，是因为**压缩切点**与将来新增的写入路径都可能把它造成事实。
+ *   ③ 就地保序 —— 只删不排，不许因为清洗把 user / assistant 的顺序打乱。
+ *
+ * @param {Array} messages 已经拼好的 messages 数组
+ * @returns {Array} 同一个顺序、去掉坏记录的数组
+ */
+export function sanitizeForLlm(messages) {
+  const out = [];
+  const liveCallIds = new Set();
+  for (const m of Array.isArray(messages) ? messages : []) {
+    if (!m || typeof m !== 'object') continue;
+
+    if (m.role === 'assistant') {
+      const hasCalls = Array.isArray(m.tool_calls) && m.tool_calls.length > 0;
+      if (!hasCalls && String(m.content ?? '').trim().length === 0) continue;   // ①
+      // 记下这一轮的 tool_call_id；上一轮的先作废（tool 结果只许跟**紧接**它的那个 assistant）
+      liveCallIds.clear();
+      if (hasCalls) for (const tc of m.tool_calls) if (tc?.id) liveCallIds.add(tc.id);
+      out.push(m);
+      continue;
+    }
+
+    if (m.role === 'tool') {
+      const id = m.tool_call_id;
+      if (!id || !liveCallIds.has(id)) continue;                                // ②（孤儿）
+      liveCallIds.delete(id);       // 一个结果只配一次，重复的同样丢掉
+      out.push(m);
+      continue;
+    }
+
+    liveCallIds.clear();            // user / system 之后，之前那批 tool_calls 已经过期
+    out.push(m);
   }
   return out;
 }

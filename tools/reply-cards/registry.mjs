@@ -12,8 +12,9 @@
  * 因此它不会腐烂 —— 改代码不改这里，自证会红。
  */
 import {
-  BUILDERS, BUILDER_SOURCE_NAME, build, validateCard, collapsible,
+  BUILDERS, BUILDER_SOURCE_NAME, build, validateCard, collapsible, band,
   VERDICT_MAX, BOUNDARY_MAX, MAX_SECTIONS, ALLOWED_TAGS, TEMPLATES, TONE, REMOVED_IN_V2,
+  BACKGROUND_STYLES,
 } from './cards.mjs';
 
 /* ═══════════════════ ① 内容级约束（去 AI 味，机械可查） ═══════════════════ */
@@ -119,6 +120,16 @@ export const COPY_RULES = [
       for (const m of s.matchAll(/([a-z][a-z0-9_]{4,})\s*[、,，]\s*\1\s*[、,，]\s*\1/g)) n += 1;
       // 连续两个「像工具名的东西 + 括号」也可能是 trace
       n += (s.match(/([a-z][a-z0-9_]{4,})\((\d+ms)?\)[^\n]{0,40}\1\(/g) ?? []).length;
+      // ★ 思考模式把**工具调用语法当成正文吐出来**（2026-09-30 实测）。
+      //   本机实盘复现过：模型在正文里直接写
+      //     <｜｜DSML｜｜ calls> / <｜｜DSML｜｜ invoke name="kb_search"> /
+      //     <｜｜DSML｜｜ parameter name="query">吸奶器
+      //   而当时 `internalLeak` 的其他几条**一条都不命中**（实测 0 命中）——
+      //   它认工具名、认 call_xxx、认栈帧，唯独不认这串框架标记。漏出去的后果是
+      //   群里看到一段谁也读不懂的尖括号，**比半句话更难判断"这是不是全部内容"**。
+      //   判据取**带全角竖线的标记本身**，不取 `invoke` / `parameter` 这种英文词 ——
+      //   它们是正常英文词，拿它们当判据会在正经回答里误报（§2.1.1：误报比不报更糟）。
+      n += (s.match(/<[｜|]{1,2}\s*DSML\s*[｜|]{1,2}/g) ?? []).length;
       return n ? Math.min(n, 9) : 0;
     },
   },
@@ -252,8 +263,9 @@ export const REGISTRY = [
       title: '我能做什么',
       verdict: '按能不能做分三栏。每栏每条都带边界，不带边界的清单等于没写。',
       can: ['读当前群历史（最近 50 条，不分页）', '看群成员列表（显示名 + open_id）', '读工作区文本文件', '执行只读命令（白名单）'],
-      limited: ['群历史顶到上限时我不会知道自己漏了', '成员列表没有部门/岗位'],
-      cannot: ['发文件、写文件', '读图片/文件/语音/卡片的内容', '读已撤回消息的原文', '联网'],
+      limited: ['群历史顶到上限时我不会知道自己漏了', '成员列表没有部门/岗位',
+                '图片只读得到**图上的字**，画面本身看不到'],
+      cannot: ['发文件、写文件', '读文件/语音/卡片的内容（按规矩不取）', '读已撤回消息的原文', '联网'],
       evidence: '`PMO/守衡-架构说明.md` 第四节第 4 条：9 个工具全只读。',
       boundary: '这份清单随工具开放变化，不是承诺。',
     },
@@ -284,11 +296,12 @@ export const REGISTRY = [
   {
     kind: 'cannot-read',
     zh: '读不了',
-    when: '输入是图片/文件/语音/卡片，或**已撤回**，或掉出可见窗口。'
-        + '这几件事的信息量完全不同，别混成一句「我读不了」。'
-        + '★ 附件（file/image/media/audio）要单独说：那不是「读不到」，是**按规矩不取** ——'
-        + '飞书内容禁止下载（AGENTS.md §2.6）。说成「没权限」「能力还没做」'
-        + '会让对方去申请权限、去找文件主人，全是白跑。',
+    when: '输入是**文件/语音/卡片**、**已撤回**、掉出可见窗口，或一张图**读不出字**。'
+        + '别混成一句「我读不了」。★ 附件（file/media/audio）不是「读不到」，是**按规矩不取**'
+        + '（只有下载这一条通道，飞书内容禁止下载，AGENTS.md §2.6）；说成「没权限」「能力还没做」'
+        + '会让对方去申请权限、找文件主人，白跑。'
+        + '★ **图片 2026-10-05 起不在这一档**：人当前发来的图读**图内文字**（窄豁免），'
+        + '只有「图上没字 / 这张取不到」才落到这里 —— 两种话不一样。',
     fields: {
       verdict: '哪一类。**「内容没有」「内容在我范围外」「按规矩不取」是三回事**，必须写准。',
       item: '{kind, from, at, content}。content 留空表示取不到。',
@@ -299,7 +312,7 @@ export const REGISTRY = [
       title: '这条是文件，我不取内容',
       verdict: '**我知道它存在**：类型 file、谁发的、什么时候都有。**里面是什么我不看** —— 飞书上的内容公司不让下载，附件只有下载这一条通道。',
       item: { kind: 'file', from: '周健', at: '09-16 12:49:23', content: null },
-      why: '附件（xlsx/pdf/图片/视频）只有下载才读得到，而飞书内容禁止下载。**这是规矩，不是权限没给够。**',
+      why: '附件（xlsx/pdf/语音/视频）只有下载才读得到，而飞书内容禁止下载。**这是规矩，不是权限没给够。**（图片例外：人当前发来的图读图上的字。）',
       alternative: '把里面的文字贴过来，或者存成飞书云文档发我 —— 云文档我能直接读。',
     },
   },
@@ -457,7 +470,19 @@ function elementToText(el, depth = 0) {
 /** 卡片 → 纯文本。发送降级路径用它；也是「模版到底在说什么」的可读视图。 */
 export function renderText(c, reason = null) {
   const out = [];
-  out.push(`【${stripMd(c.header?.title?.content ?? '(无标题)')}】`);
+  // ★ 2026-10-06：标题**已经自带方括号标记**时不再套第二层。
+  //
+  //   事故形状（Owner 2026-10-06 08:25 那条 PASS 回复）：PRD §5.3 的结论行本身长这样 ——
+  //     `【审查结论：PASS】未发现已知底线风险，可转交 @… 进行 sign-off。`
+  //   而这里**本来会给标题套一层** `【…】` 当标题样式 ⇒ 台账与降级文本里成了
+  //     `【【审查结论：PASS】…进行 sign-off。】`
+  //   卡片表头走的是 raw `plain_text`（`cards.mjs` 的 `card()`），所以群里那张卡是**对的**；
+  //   出偏差的是 `renderText` 的产物 —— 它是**降级兜底**（卡片发不出去时原样进群）与**台账正文**，
+  //   也就是「只在出事那一跳才看得见」的那一处。
+  //   判据：标题**以 `【…】` 开头**就不加第二层（不是「整行被方括号包住」——
+  //   5.3 那行的括号只包住态名，行尾还有一个句号）。
+  const title = stripMd(c.header?.title?.content ?? '(无标题)');
+  out.push(/^【[^】]*】/.test(title) ? title : `【${title}】`);
   for (const el of c.body?.elements ?? []) {
     const t = elementToText(el);
     if (t) out.push(t);
@@ -493,9 +518,12 @@ export function sampleCards() {
 }
 
 export {
-  build, validateCard, BUILDERS, BUILDER_SOURCE_NAME, collapsible,
+  build, validateCard, BUILDERS, BUILDER_SOURCE_NAME, collapsible, band,
   // 这三个上限以前只定义、不导出、不引用（grep 全仓库只有定义行）。
   // envelope.mjs 是它们现在唯一的执行点，所以必须从这里转出去。
   VERDICT_MAX, BOUNDARY_MAX, MAX_SECTIONS,
   ALLOWED_TAGS, TEMPLATES, TONE, REMOVED_IN_V2,
+  // 底色闭集：执行点就在 cards.mjs 的 validateCard 里，这里转出去是给
+  // verify_cards.mjs 的 J9 段喂坏样本用（进不去就证不了它会红）。
+  BACKGROUND_STYLES,
 };

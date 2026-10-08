@@ -272,8 +272,18 @@ def scan_bash_trap(text):
 
 
 def code_files():
+    """本仓「可执行代码」的范围。
+
+    ★ 2026-10-05 补 `base/**/*.sh`：**这条扫描原先漏掉了事故真正发生的地方。**
+      那天写 `base/build_video.sh`（视频那条路的构建脚本）时，当场又踩了一次
+      bash 3.2 的多字节陷阱 —— `echo "✓ 编译成功：${FIXTURE_OUT}（只在重做试纸时用）"`
+      少了那对花括号，于是报 `FIXTURE_OUT<0xef>: unbound variable`
+      （报出来的变量名**根本不存在于源码中**）。而 F1 当时只扫 `tools/`，看不见它。
+      （§2.4.1 那条：判据没盖住的那一跳，就是事故所在的那一跳。）
+    """
     out = []
-    for pat in ("tools/**/*.sh", "tools/**/*.mjs", "tools/**/*.py", "*.sh"):
+    for pat in ("tools/**/*.sh", "tools/**/*.mjs", "tools/**/*.py",
+                "base/**/*.sh", "*.sh"):
         for p in ROOT.glob(pat):
             if "node_modules" in p.parts:
                 continue
@@ -405,6 +415,33 @@ def spawned_scripts(out):
     return mods
 
 
+# ── B7 用：spawn 段的**原始**条目（不过滤后缀 —— 要看的就是后缀）──────────
+#
+# 定位方式是**表头自己声明的条数**，不是缩进。
+# 为什么不用缩进：那三行解释文字里有一行折行后恰好与条目同缩进
+# （`要靠这次重启才会开始跑。…`），按缩进切会把它当成一条「脚本」。
+# 按条数切还顺带管住了另一件事：**表头说几条就必须真有几条**。
+SCRIPT_EXT = (".py", ".sh", ".mjs", ".js", ".cjs", ".bash")
+
+
+def spawned_entries(out):
+    """返回 spawn 段的条目列表；**条数读不出来时返回 None（未测），不是 []**。"""
+    lines = out.splitlines()
+    for i, line in enumerate(lines):
+        if "另（spawn）" in line:
+            m = re.search(r"(\d+)\s*个被调起的脚本", line)
+            if not m:
+                return None
+            n = int(m.group(1))
+            return [lines[i + 1 + j].strip() for j in range(n) if i + 1 + j < len(lines)]
+    return []
+
+
+def nonscript_entries(entries):
+    """一段 spawn 条目里，**不是脚本**的那些（B7 的判据本体，抽出来好喂坏样本）。"""
+    return [e for e in (entries or []) if not e.endswith(SCRIPT_EXT)]
+
+
 rc, out = run_gate("--check", "--since=0")
 mods_all = changed_modules(out)
 check("B1", rc == 0 and "tools/ws_daemon.mjs" in mods_all and len(mods_all) >= 5,
@@ -427,6 +464,40 @@ check("B5", rc == 0 and not spawned_scripts(out),
 rc, out = run_gate("--check", "--since=0")
 check("B6", rc == 0 and "tools/restart_shouheng.sh" not in changed_modules(out) + spawned_scripts(out),
       "★ 闸门自己不许出现在任何一张表里（它是既不 import 也不被 spawn 的 —— 这就是 §2.7 记的那个老错）")
+
+# ★ B7（2026-10-06 加）：spawn 段**只许列脚本**。
+#
+#   真事故：这一段把 `PMO/logs/lark_writes.jsonl`（一个日志）报成了
+#   「被调起的脚本在启动后被改过」—— 全仓 8 个命中里 2 个是数据文件。
+#   B4/B5 一直绿，因为它们的解析器**只收 `tools/**.py`**，
+#   于是那条日志在解析时就先被丢掉了 —— **判据的口径把 bug 一起滤掉了**。
+#   这正是 §2.4.1 第 4 行的形状：一条通道活着，不给另一条通道作证。
+#
+#   为什么值得单独一条断言：这段读数正是 §2.7 说的「判断时机的唯一硬依据」，
+#   读的人会照着它决定要不要重启。它错一行的代价是**一次不必要的重启窗口**，
+#   而窗口里群里的消息不会被回答、也补不回来。
+rc, out = run_gate("--check", "--since=0")
+ents = spawned_entries(out)
+if ents is None:
+    # 未测：条数读不出来时不许当成 0（§2.4.1 第 3 条）。
+    check("B7", False, "⚠ 未测：spawn 段表头读不出条数")
+else:
+    bad7 = nonscript_entries(ents)
+    check("B7", rc == 0 and not bad7,
+          f"spawn 段只许列脚本（{len(ents)} 条，非脚本 {len(bad7)} 条）"
+          + (f"：{bad7}" if bad7 else ""))
+
+# B7b 反向对照：拿**真实误报的原样形状**喂同一个判据，它必须报出来。
+#   少了这一条，`nonscript_entries` 写成恒返回 [] 也照样绿（§2.4 的假执行点）。
+_FAKE_SPAWN = """  另（spawn）   2 个被调起的脚本在启动后被改过/新建：
+                  tools/verify_pending.py
+                  PMO/logs/lark_writes.jsonl
+                · 脚本每次触发都是新起的进程 —— **它自己的改动不用重启就会生效**
+"""
+_fake_ents = spawned_entries(_FAKE_SPAWN)
+check("B7b", _fake_ents is not None and len(_fake_ents) == 2
+      and nonscript_entries(_fake_ents) == ["PMO/logs/lark_writes.jsonl"],
+      "反向对照：喂含日志文件的坏样本必须被认出来（2026-10-06 真实误报的形状）")
 
 # ── C 不许绕过闸门 ──────────────────────────────────────────────────────
 print("\nC 绕过闸门的写法（全仓可执行代码）")
@@ -492,6 +563,52 @@ else:
 fake_on = plistlib.dumps({"Label": LABEL, "KeepAlive": {"SuccessfulExit": True}})
 check("D5", not keepalive_ok(fake_on), "反向对照：SuccessfulExit=true → 判红（那就不自愈了）")
 check("D6", not keepalive_ok(plistlib.dumps({"Label": LABEL})), "反向对照：整个 KeepAlive 缺失 → 判红")
+
+def judge_ws(rs: dict, log_tail: str, now: float) -> tuple:
+    """判「守衡此刻还连着飞书吗」。回 `(结论, 说明)`，结论 ∈ ok / down / untested。
+
+    ★ 为什么这条断言必须存在（2026-10-05 实测）：07:10 长连接断了
+      （`getaddrinfo ENOTFOUND open.feishu.cn` → 之后 `timeout of 15000ms exceeded`），
+      而**整个 E 段照样全绿** —— 进程活着、心跳照打、日志照写。
+      也就是：**守衡对外失联，自证说「✅ 全过」。**
+      这正是 §2.4.1 第 4 行那个病（否定结论不许比输入大）的镜像：
+      这里是把「进程活着」当成了「还连着飞书」。
+
+    两路输入，**先结构化、后退日志**，且都要能区分「连着」与「说不清」：
+      ① `run-state.wsConnected`（2026-10-05 起由 daemon 写，权威）；
+      ② 日志尾部：`ws client ready` 与断线标记（`unable to connect to the server after trying`
+         ／`getaddrinfo`／`timeout of 15000ms exceeded`）**谁在后面** —— 断线标记在后 = 断了。
+    两路都取不到 → **untested**（不许当成「连着」）。
+    """
+    if isinstance(rs, dict) and "wsConnected" in rs:
+        if rs.get("wsConnected") is True:
+            return "ok", "run-state.wsConnected=true（daemon 自己报的，权威）"
+        down_s = rs.get("wsDownSeconds")
+        err = rs.get("wsLastError") or "（没记错误）"
+        if not isinstance(down_s, (int, float)):
+            return "untested", "写着断线却没给断开时长 —— 读不出「断了多久」"
+        mins = down_s / 60.0
+        if mins >= 5:
+            return "down", ("长连接已断 %.0f 分钟（最后错误：%s）—— **这段时间群里发的消息收不到**"
+                            % (mins, str(err)[:80]))
+        return "down", "长连接刚断 %.1f 分钟，SDK 正在重连（最后错误：%s）" % (mins, str(err)[:80])
+
+    # 退到日志：只认**阳性**信号（看得见断线标记），看不见就说「未测」
+    if not log_tail:
+        return "untested", "既没有 run-state.wsConnected，也读不到日志 —— 连没连着【未测】"
+    lines = [l for l in log_tail.splitlines() if l.strip()]
+    last_ready = max([i for i, l in enumerate(lines) if "ws client ready" in l], default=-1)
+    BAD = ("unable to connect to the server after trying", "getaddrinfo", "timeout of 15000ms exceeded")
+    last_bad = max([i for i, l in enumerate(lines) if any(b in l for b in BAD)], default=-1)
+    if last_bad > last_ready:
+        return "down", ("日志里最后一次连接动静是**失败**（第 %d 行起）：%s"
+                        % (last_bad + 1, lines[last_bad][:120]))
+    if last_ready >= 0:
+        return "untested", ("日志里最后一次是 `ws client ready`，但**那是过去式** —— "
+                            "这条路径证明不了「此刻还连着」（这个进程比 wsConnected 这个读数还老）")
+    return "untested", "日志里既没有连上过、也没有失败标记 —— 【未测】"
+
+
 check("D7", not keepalive_ok(b"not a plist at all"), "反向对照：plist 解不出来 → 判红（不许静默当成通过）")
 
 # ── E 它现在活着吗 ──────────────────────────────────────────────────────
@@ -533,6 +650,41 @@ elif UP:
     check("E2", "长连接已启动" in log, f"日志里出现过启动横幅 {log.count('长连接已启动')} 次")
     age = (time.time() - DAEMON_LOG.stat().st_mtime) / 60 if DAEMON_LOG.exists() else 1e9
     check("E3", age < 12, f"日志 {age:.0f} 分钟前还在写（心跳每 5 分钟一次 → 没卡死）")
+
+    # ── E4 还连着飞书吗（2026-10-05 加）──────────────────────────────────
+    # 「进程活着」≠「还在答话」。断线时群里发的消息**收不到也不会补**，
+    # 而那与进程死掉在盘上是同一个后果 —— 只是更难发现。
+    _rs = {}
+    try:
+        if RUN_STATE.exists():
+            _rs = json.loads(RUN_STATE.read_text(encoding="utf-8"))
+    except Exception as _e:
+        _rs = {"__err": str(_e)}
+    _ws_concl, _ws_why = judge_ws(_rs, "\n".join(log.splitlines()[-400:]), time.time())
+    if _ws_concl == "ok":
+        check("E4", True, _ws_why)
+    elif _ws_concl == "down":
+        # 失联 = **未测**，不是红：与 §2.7 的口径一致（它此刻在对外失联，退 2）
+        cannot_test("E4", "⚠️ " + _ws_why)
+    else:
+        cannot_test("E4", _ws_why)
+
+    # E4 的反向对照：喂合成读数，四条必须各自落对（不碰真网络、不碰真状态）
+    for _rs_probe, _tail_probe, _want, _name in [
+        ({"wsConnected": True}, "", "ok", "run-state 说连着"),
+        ({"wsConnected": False, "wsDownSeconds": 1800, "wsLastError": "getaddrinfo ENOTFOUND"},
+         "", "down", "断了 30 分钟"),
+        ({"wsConnected": False, "wsDownSeconds": 20, "wsLastError": "timeout"},
+         "", "down", "刚断 20 秒（也算断，但文案不同）"),
+        ({}, "…\n[i] [ 'ws', 'ws client ready' ]\n…\n[e] [ '[ws]', 'getaddrinfo ENOTFOUND x' ]",
+         "down", "老进程：日志里最后一次动静是失败"),
+        ({}, "…\n[i] [ 'ws', 'ws client ready' ]\n…", "untested",
+         "老进程：日志最后是连上过 —— **不许当成「此刻连着」**"),
+        ({}, "", "untested", "两路输入都空"),
+        ({"wsConnected": False}, "", "untested", "说断了却没给时长"),
+    ]:
+        _got4, _ = judge_ws(_rs_probe, _tail_probe, time.time())
+        check("E4r", _got4 == _want, "%s → %s（期望 %s）" % (_name, _got4, _want))
 else:
     check("E1", False, "✗ 没有在跑 —— 群里现在没人在答话")
 
@@ -558,7 +710,7 @@ for f in code_files():
         continue
     for ln, var, txt in scan_bash_trap(f.read_text(encoding="utf-8", errors="replace")):
         trap_hits.append(f"{f.relative_to(ROOT)}:{ln} ${var} → {txt}")
-check("F1", not trap_hits, f"tools/ 下的 .sh 无此写法（{len(trap_hits)} 处）")
+check("F1", not trap_hits, f"tools/ 与 base/ 下的 .sh 无此写法（{len(trap_hits)} 处）")
 for t in trap_hits[:6]:
     print(f"      ✗ {t}")
 check("F2", len(scan_bash_trap('echo "值 $P，中文"\n')) == 1, "反向对照：喂 $P， → 报出 1 处")

@@ -171,6 +171,52 @@ T('C6i `reason=tool_exhausted` → 不算答出来（留在队列，且**没往�
   sFb.calls.length === 0 && readQueue().items.length === 1 && readQueue().items[0].tries === 1,
   JSON.stringify({ sent: sFb.calls.length, queue: readQueue().items.length, why: res.why }));
 
+/* ★ C6j–C6m：**第三种失败形状** —— 截断说明（`truncated`）。
+ *
+ * 2026-09-30 实测事故（本群 19:11 / 19:16，截图里那两条空回答）：
+ *   她问「用知识库查一下『吸奶器』相关的措辞要求」→ 工具回了 60,349 字原始 JSON
+ *   → 下一轮推理把 8000 token 输出预算吃光 → 正文 0 字。
+ *   `annotateTruncation()` 把一句「⚠️ 这条回答被长度上限截断了……」当成了回复**发进群**，
+ *   而队列看到「她问话后面有一条不带失败标记的 assistant」就判「已答过」→ **出队**。
+ *   于是那条消息的答案**永远没发出去**，她还收到了两条只有说明、没有内容的回复。
+ *
+ * 与 C6g/C6h 是同一个形状的第三次出现。判据必须是结构标记。 */
+const sessWithCutOnly = { messages: [
+  { role: 'user', content: `【刘华丽】${QUESTION}` },
+  { role: 'assistant', content: '\n\n---\n⚠️ 这条回答被长度上限截断了（finish_reason=length（额度耗尽）），上面是不完整的。', truncated: true },
+] };
+T('C6j 记忆里只有截断说明（带 truncated 标记）→ **不跳**（否则答案永远发不出去）',
+  q.answeredInMemory({ text: QUESTION }, sessWithCutOnly).answered === false,
+  '这正是 2026-09-30 那次「队列把她出队、答案再没出现」的成因');
+const sessWithCutUnmarked = { messages: [
+  { role: 'user', content: `【刘华丽】${QUESTION}` },
+  { role: 'assistant', content: '\n\n---\n⚠️ 这条回答被长度上限截断了（finish_reason=length（额度耗尽）），上面是不完整的。' },
+] };
+T('C6k 同一句话**不带标记**时算真回答（证明 C6j 判的是结构，不是文案）',
+  q.answeredInMemory({ text: QUESTION }, sessWithCutUnmarked).answered === true,
+  '若这条也判「不跳」，说明判据退化成了文案匹配 —— 改一个字就失效');
+
+freshQueue(); resetLedger();
+q.enqueue(q.itemFromEvent(ev('om_cut_1')));
+let sCut = mkSend();
+const answerTruncated = async () => ({
+  reply: '\n\n---\n⚠️ 这条回答被长度上限截断了（finish_reason=length（额度耗尽）），上面是不完整的。',
+  reason: 'ok', meta: { truncated: true },
+});
+res = await q.runTick({ answer: answerTruncated, send: sCut.send, log: () => {}, sessionLoader: () => ({ messages: [] }) });
+T('C6l 补发回来的是一条**被截断**的回答 → 不发进群、留在队列',
+  sCut.calls.length === 0 && readQueue().items.length === 1 && readQueue().items[0].tries === 1,
+  JSON.stringify({ sent: sCut.calls.length, queue: readQueue().items.length, why: res.why }));
+T('C6m 失败理由说得清是「被截断」而不是「没答」',
+  /截断/.test(readQueue().items[0]?.last_error ?? ''), String(readQueue().items[0]?.last_error));
+
+// 反面：下一拍答完整了 → 必须真的补发出去，且出队（否则上面那条会把队列焊死）
+let sCut2 = mkSend();
+res = await q.runTick({ answer: answerOk, send: sCut2.send, log: () => {}, sessionLoader: () => ({ messages: [] }) });
+T('C6n 反面：下一拍答完整了 → 照常补发、出队',
+  sCut2.calls.length === 1 && readQueue().items.length === 0,
+  JSON.stringify({ sent: sCut2.calls.length, left: readQueue().items.length }));
+
 freshQueue(); resetLedger();
 q.enqueue(q.itemFromEvent(ev()));
 let s4 = mkSend();

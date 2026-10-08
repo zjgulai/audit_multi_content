@@ -52,19 +52,61 @@ export const REMOVED_IN_V2 = {
   image: 'V2 移除了 image。同上。',
 };
 
-/** 卡片头部配色 → 语义。颜色不是装饰，是「这条要不要停下看」的信号。 */
+/**
+ * 卡片头部配色 → 语义。颜色不是装饰，是「这条要不要停下看」的信号。
+ *
+ * ── 2026-10-06 重排（委托方两条要求：回执不要灰色、任何两类不许撞色）──────
+ * 起因是回执卡（`receipt`）与能力边界卡（`capability-boundary`）**都是 grey** ——
+ * 而回执是守衡发得最多的一张（「正在处理，请稍等」），于是最常看到的那张卡
+ * 长得像一张存档卡。
+ *
+ * 要的是**淡暗粉**，参照 `https://momcozy.com/`。粉色不是猜的，是该站 CSS
+ * 自定义属性里的实测值：`--brand-color: #9B626C`（灰调玫粉）。但飞书
+ * `header.template` 的枚举里**没有粉色**（见 TEMPLATES），最接近的只有 `carmine`。
+ *
+ * `carmine` 原先是 `alert` 的，所以这次是**一次连锁重排**，不是改一个值：
+ *
+ *     receipt          grey    → carmine   （要粉色，占掉 carmine）
+ *     alert            carmine → red       （让位；而且「我这侧坏了」本来就是错误色）
+ *     correction       red     → orange    （让位；警告色）
+ *     find-nothing     orange  → yellow    （让位；注意色）
+ *
+ * 后三行是**被传递性逼出来的**，不是顺手改的：`receipt` 拿走的那个值必须有出处，
+ * 而每一站都不能停在一个已被占用的色上。重排后 **10 类 10 个互不相同的色**
+ * （原来是 10 类 9 色，grey 撞了两次）—— 这条不变量由
+ * `node tools/verify_cards.mjs` 的 **J9a** 守着，不是靠这份注释。
+ */
 export const TONE = {
   'query-answer': 'blue',        // 常规问答，可以略过
-  'correction': 'red',           // 我说错了，必须看
+  'correction': 'orange',        // 我说错了，必须看
   'capability-boundary': 'grey', // 能力边界，存档性质
-  'find-nothing': 'orange',      // 没找到，需要你补信息
+  'find-nothing': 'yellow',      // 没找到，需要你补信息
   'cannot-read': 'wathet',       // 输入我读不了
-  'receipt': 'grey',             // 只确认收到
+  'receipt': 'carmine',          // 只确认收到 —— 淡暗粉（momcozy 品牌色族）
   'turn-diff': 'violet',         // 同一问题的两次回答不一样
   'evidence': 'green',           // 证据陈列
-  'alert': 'carmine',            // 我这侧坏了
+  'alert': 'red',                // 我这侧坏了
   'decision': 'purple',          // 要你做决定
 };
+
+/**
+ * 元素级 `background_style` 的**闭集白名单**。
+ *
+ * 为什么要有这一条：表头那 13 个枚举值里没有粉色，所以「淡暗粉」只能落在
+ * **元素级底色**上（色阶后缀 `-50`…`-900` 与自定义 RGBA 只有元素级吃）。
+ * 而 `background_style` 此前**从来没有被校验过** —— 写什么发什么，
+ * 正是 AGENTS.md §2.4 说的「没有执行点的约束」。
+ *
+ * 诚实声明（2026-10-06 探针）：飞书对**未知取值是静默忽略**的 —— 表头上
+ * `turquoise` / `pink` / `carmine-50` / `red-50` / `carmine-100` / `default`
+ * 六个全部 `code=0` 发送成功（发完即撤），渲染成什么样接口不告诉你。
+ * 所以这份白名单**不是**「服务端接受什么」，而是「我们验过人眼、准用哪些」：
+ * 加一个值必须同时说得出它在哪个群里被人看过。
+ */
+export const BACKGROUND_STYLES = new Set([
+  'grey',       // 注脚/字段排的既有底色（探针 8/10 通过）
+  'carmine-50', // 回执卡的淡暗粉底 —— 与 TONE.receipt 同族
+]);
 
 /** 结论行的长度上限（字符）。超过说明结论没提炼出来，退化成正文了。 */
 export const VERDICT_MAX = 60;
@@ -141,6 +183,26 @@ export function fieldRow(fields, opts = {}) {
     fields.map((f) => ({ content: `**${f.label}**\n${f.value}` })),
     { backgroundStyle: 'grey', horizontalSpacing: '8px', ...opts },
   );
+}
+
+/**
+ * 通栏色带 —— 把若干个元素放进一条**带底色**的整宽栏里。
+ *
+ * 与 `columns()` 的区别：`columns()` 是按格分栏（每格一段 markdown），
+ * 这个是**一格通栏**、里面可以塞任意元素（markdown / 表格 / 字段排），
+ * 用途是给整块正文一个底色。回执卡的淡暗粉底就是它。
+ *
+ * `style` 必须出自 `BACKGROUND_STYLES`（`validateCard` 会拦）。
+ */
+export function band(elements, style) {
+  const els = (Array.isArray(elements) ? elements : [elements])
+    .map((e) => (typeof e === 'string' ? md(e) : e));
+  return {
+    tag: 'column_set',
+    flex_mode: 'none',
+    ...(style ? { background_style: style } : {}),
+    columns: [{ tag: 'column', width: 'weighted', weight: 1, elements: els }],
+  };
 }
 
 /** 折叠面板（探针 5/7 通过）。长证据默认收起——这是「中位数 791 字」的直接解法。 */
@@ -257,10 +319,20 @@ export function cannotRead(d = {}) {
   return card(TONE['cannot-read'], s(d.title ?? '这条我读不了'), d.subtitle, els);
 }
 
-/** 07 回执 · 只确认，不解释。越短越好 */
+/**
+ * 07 回执 · 只确认，不解释。越短越好
+ *
+ * ── 2026-10-06 上色（委托方指定）────────────────────────────────────────
+ * 表头 `carmine`（见 `TONE`），正文那句话坐在一条 `carmine-50` 通栏色带上 ——
+ * 也就是委托方在 6 张色卡里挑的 **D**（「carmine 表头 + carmine-50 淡粉色带」）。
+ * 表头单独上色会显得只有顶部一条，正文再压一道底色才读得出「整卡是淡粉的」。
+ *
+ * 这是**唯一**一张自带底色的卡：`grey` 色带仍是注脚（`fieldRow`）的既有语义，
+ * 两者不要混。字段排跟着走粉色，否则一条灰格子会压在粉底上。
+ */
 export function receipt(d = {}) {
-  const els = [md(s(d.verdict ?? '收到了。'))];
-  if (d.fields?.length) els.push(fieldRow(d.fields));
+  const els = [band([md(s(d.verdict ?? '收到了。'))], 'carmine-50')];
+  if (d.fields?.length) els.push(fieldRow(d.fields, { backgroundStyle: 'carmine-50' }));
   if (d.note) els.push(md(s(d.note)));
   return card(TONE['receipt'], s(d.title ?? '已收到'), d.subtitle, els);
 }
@@ -360,6 +432,15 @@ export function validateCard(c) {
       if (!tag) { E(q, '缺 tag'); return; }
       if (REMOVED_IN_V2[tag]) { E(`${q}.tag`, `V2 已移除该元素：${REMOVED_IN_V2[tag]}`); return; }
       if (!ALLOWED_TAGS.has(tag)) { E(`${q}.tag`, `不在实测白名单里：${tag}。白名单：${[...ALLOWED_TAGS].join(', ')}`); return; }
+
+      // 底色只许出自登记过的闭集。飞书对未知取值是**静默忽略**的
+      // （实测：表头写 `pink` / `carmine-50` 也 code=0），所以错值不会报错、
+      // 只会安静地变成另一个颜色 —— 唯一能拦住它的就是这里。
+      if (el.background_style !== undefined && !BACKGROUND_STYLES.has(el.background_style)) {
+        E(`${q}.background_style`,
+          `未登记的底色 ${JSON.stringify(el.background_style)}；闭集：${[...BACKGROUND_STYLES].join(', ')}`
+          + '（新增一个值，必须说得出它在哪个群里被人眼看过）');
+      }
 
       if (tag === 'markdown' && typeof el.content !== 'string') E(`${q}.content`, 'markdown 的 content 必须是字符串');
       if (tag === 'collapsible_panel') {

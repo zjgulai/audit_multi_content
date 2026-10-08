@@ -16,9 +16,18 @@ import { buildSystemPrompt } from './persona.mjs';
 import * as llm from './llm.mjs';
 import * as mem from './memory.mjs';
 import * as feishu from './feishu.mjs';
-import { TOOL_SCHEMAS, executeTool, runtimeContext, toolNames } from './tools.mjs';
-import { detectTruncation, annotateTruncation, tailOf } from './truncate.mjs';
+import * as vision from './vision.mjs';
+import * as video from './video.mjs';
+import { TOOL_SCHEMAS, executeTool, runtimeContext, toolNames, claimStatus, facetsFromMaterial } from './tools.mjs';
+import { detectTruncation, annotateTruncation, tailOf, collapseToolMessages, clipToolOutput,
+         TOOL_OUTPUT_MAX_CHARS } from './truncate.mjs';
 import { parentIdOf, alreadyInHistory, buildQuoteBlock } from './thread.mjs';
+import * as reviewGate from './review_gate.mjs';
+import { mergeFindings, mergedState, kbFindingsOf, kbCoveredOf, renderMerged, mergeSummary, kbSideOf,
+         kbNoReadingOf } from './dual_track.mjs';
+import { reviewModelSide, readingsForModelSide } from './model_side.mjs';
+import * as reviewPublish from './review_publish.mjs';
+import { deriveVerdictLine } from './prd53.mjs';
 import { foldInto } from './outbound.mjs';
 
 /* ─────────────────── 去重：见过的事件不再处理 ─────────────────── */
@@ -124,14 +133,949 @@ export function fallbackReply(toolTrace = []) {
     + '\n\n你把要查的范围再说细一点，我重新来。';
 }
 
+/**
+ * 「已经取到东西、但一个字都没写出来」时的最后一条路。
+ *
+ * ★ 2026-09-30 加，起因是一次真事故（本群 19:11 / 19:16）：
+ *   她问「用知识库查一下『吸奶器』相关的措辞要求」。模型调了两次 `kb_search`，
+ *   工具把 60,349 字原始 JSON 倒进上下文；下一轮**推理把 8000 token 输出预算吃光**
+ *   （`finish_reason=length`、正文 0 字），群里收到的是一条**只有截断说明的消息**。
+ *   同一形状在 19:05 也发生过一次：工具循环跑满 → 兜底话术「这个问题我没答上来」，
+ *   **而盘上答案就在手边**（工具明明都读通了）。
+ *
+ * 两种「烧光」都不该以「什么都没说」收场，因为**答案的材料已经取回来了**。
+ * 这一跳做的事只有一件：把工具返回体折叠成结构摘要，然后**关掉工具**再问一次，
+ * 要求它用手上的东西写答案。
+ *
+ * 为什么关掉工具：再给它工具，它会把同一批查询再跑一遍，然后**再一次**把预算烧光
+ * —— 那是同一个坑的第二次。
+ *
+ * @param {object} opts
+ * @param {string} opts.systemPrompt
+ * @param {Array}  opts.messages      当轮的完整 messages（含工具结果）
+ * @param {string} opts.why           'tool-iters'（循环跑满） | 'empty-length'（烧光没写出字）
+ * @returns {Promise<{text:string, usage?:object, finishReason?:string, ok:boolean, error?:string}>}
+ */
+async function synthesizeFromTools({ systemPrompt, messages, why }) {
+  const collapsed = collapseToolMessages(messages);
+  const nudge = why === 'empty-length'
+    ? '你上一轮的思考把额度用光了，**正文一个字都没写出来**。'
+    : `你已经不能再调工具了（本轮工具调用已到上限）。`
+    ;
+  const finalMessages = [
+    ...collapsed,
+    { role: 'system', content:
+        `${nudge}现在**只许写答案**：直接用上面的材料回话，不要再调任何工具，`
+        + '不要再复述原始返回体。\n'
+        + '五条要求：\n'
+        + '1. 先给结论（一到三句），再给依据；依据要带得出处（条款号 / 文档名 / 规则码）。\n'
+        + '2. 材料里没有的**不要补**；确实没查到就直说「这次没查到」，并说清查了什么。\n'
+        + '3. 剪过条数或字数时（材料里有 `clip_note` / `〔已折叠〕`）要照实说明'
+        + '「我只看了 N 条」，**不许**说成「库里一共只有这些」。\n'
+        + '4. 中文，短句，不要复述 JSON，不要贴工具名。\n'
+        + '5. 长度控制在 800 字以内。' },
+  ];
+  try {
+    const r = await llm.chat(finalMessages, { tools: [] });
+    if (!r.ok) return { ok: false, error: r.error, layer: r.layer };
+    return { ok: true, text: String(r.message?.content ?? '').trim(),
+             message: r.message,                       // ★ 供 P0 取 reasoning_content
+             finishReason: r.finishReason, usage: r.usage };
+  } catch (e) {
+    return { ok: false, error: `${e?.name ?? 'Error'}: ${e?.message ?? e}` };
+  }
+}
+
+/**
+ * 把一条 assistant 轮写进记忆。**空的那条不许落盘**（2026-09-30 加）。
+ *
+ * 为什么单独包一层：`mem.append` 那道闸会静默拒收，而「静默」在这里恰好是错的 ——
+ * 被拒的那一条是「模型一个字都没写出来」，这件事必须留痕，否则事后只看会话文件
+ * 会以为**这一轮压根没发生过**。所以我们自己判一次、自己说一句，再交下去。
+ *
+ * 判据与 `memory.mjs` 的 `isPersistable` 同源（那边是执行点，这里是留痕点）。
+ */
+function appendAssistant(sess, msg) {
+  const r = mem.append(sess, msg);
+  if (!r.stored) {
+    console.warn(`[agent] ⚠️ 空 assistant 轮**未写入记忆**：${r.why}`
+      + `｜正文 ${String(msg?.content ?? '').length} 字｜tool_calls ${msg?.tool_calls?.length ?? 0}`);
+  }
+  return r;
+}
+
+/**
+ * 取出这一轮该**回传**的 `reasoning_content`（2026-09-30 加，P0）。
+ *
+ * 为什么必须有这一跳：DeepSeek 思考模式下，**带 `tools` 的请求**要求把历史里
+ * 每一轮的思维链原样回传，不回传就 400。守衡每轮都带 `tools`，所以这不是可选项。
+ * 实测读数在 `PMO/logs/llm_failures.jsonl`：
+ *
+ *     HTTP 400 code=invalid_request_error
+ *     The `reasoning_content` in the thinking mode must be passed back to the API.
+ *
+ * 唯一一处收口（裁剪也好、开关也好，都只在这里），所以：
+ *   · 关掉 → 返回 `{}`，调用点的写法一个字都不用改；
+ *   · 超限 → 裁到 `maxChars` 并在**正文之外**留一句可核对的标记，
+ *     不静默截断（截了不说 = 事后没人能判断上下文里到底放了什么）。
+ *
+ * ⚠️ 上限不是洁癖：单轮思维链实测可达 8000 token（≈3 万字）。
+ *   无界回传会把「上下文被塞爆 → 推理烧光预算」那个病再造一遍。
+ *
+ * @param {object} message LLM 返回的 `choices[0].message`（或我们记下的等价物）
+ * @returns {{reasoning_content?: string}} 可直接展开进 assistant 轮的对象
+ */
+export function reasoningToPassBack(message) {
+  if (!config.llm.reasoningPassback.enabled) return {};
+  const r = message?.reasoning_content;
+  if (typeof r !== 'string' || r.length === 0) return {};
+
+  const cap = config.llm.reasoningPassback.maxChars;
+  if (r.length <= cap) return { reasoning_content: r };
+
+  console.warn(`[agent] · 思维链超回传预算：${r.length} 字 → 裁到 ${cap} 字`
+    + `（只为控制上下文；已发出的正文不受影响）`);
+  return {
+    reasoning_content: r.slice(0, cap)
+      + `\n…〔本轮思维链原长 ${r.length} 字，按 ${cap} 字上限裁剪后回传〕`,
+  };
+}
+
+/* ─────────────────── 入向内容：文字 + 图内文字 + 视频 ─────────────────── */
+
+/** 一次最多读几张图。是**上限**，不是「读到几张算几张」—— 超出的部分要说话。 */
+export const MAX_IMAGES_PER_MESSAGE = 4;
+
+/**
+ * 一次最多读几条视频。**故意是 1**（2026-10-05 定的），理由不是省事：
+ *   · PRD §12 给视频的响应预算是 **≤60s**，而一条 15 秒的视频实测要 3.5 秒
+ *     （抽帧 0.2s + 8 帧 OCR 3.0s + 转写 0.8s）—— 成本随时长与条数线性涨；
+ *   · 人一次发两条视频要同时审，是罕见用法；真遇到，多出来的那一条**明说没读**，
+ *     让人分开再发（比默默读一半强）。
+ */
+export const MAX_VIDEOS_PER_MESSAGE = 1;
+
+/** 这几类附件**不在** §2.6 那条窄豁免里 —— 但 «里面的视频» 从 2026-10-05 起在（见下）。 */
+const ATTACHMENT_TYPES = new Set(['file', 'media', 'audio']);
+
+/**
+ * 把一条消息读成「文字部分 + 图内文字」。**纯读**：不发消息、不碰记忆、不调模型 ——
+ * 所以它能被单测直接喂桩（`tools/test_agent.mjs` 第 13 组就是这么跑的）。
+ *
+ * ★ 为什么要有这个函数（而不是散在 handleMessage 里）：
+ *   2026-10-05 那条「评审下下这个图片，能过吗？」被整类拒掉 —— 连**正文**都没读。
+ *   根因是 `handleMessage` 里 `if (msg.message_type !== 'text') return 拒答` 这一道
+ *   把所有非文本类型一刀切了，而**图文混排恰恰是 post 类型**：
+ *   人最常见的发法（写一句话 + 配一张图）正好落在刀口上。
+ *
+ * ★ 三种「读不到」在这里必须长得不一样（§2.4.1「否定结论不许比输入大」）：
+ *   · `attachment` —— 按规矩不取（file/media/audio）；
+ *   · `images[i].failed` —— 这一张**取不到**（给原因）；
+ *   · `images[i].ocrEmpty` —— 取到了、也跑了 OCR，但**图上没读出文字**。
+ *   把后两者说成同一件事，是「把取不到说成没有」。
+ *
+ * @param {object} msg  im.message.receive_v1 的 `message`
+ * @param {{fetchImage?:Function, ocr?:Function}} [deps] 测试注入用；生产走真实现
+ */
+export async function readInboundContent(msg, {
+  fetchImage = feishu.fetchMessageImage,
+  fetchVideo = feishu.fetchMessageVideo,
+  ocr = vision.ocrImage,
+  readVideoFn = video.readVideo,
+  loadParent = feishu.getMessage,
+} = {}) {
+  const msgType = msg?.message_type ?? 'unknown';
+  const content = msg?.content ?? '{}';
+
+  // 正文走 `bodyToText`（post 的富文本 → 纯文本这条路 2026-09-22 就修好了，
+  // 只是**从来没有机会被执行** —— 非 text 类型在上一步就被拒了）。
+  const parsed = feishu.bodyToText(msgType, content);
+  const text = parsed.text ?? '';
+
+  // ── 图 / 视频从哪来：先看这一条，再看**它引用的那一条** ──
+  //
+  // ★ 为什么必须有第二处（2026-10-05 补）：「发一张图 → 回它一句『这张能过吗』」
+  //   和「@守衡 回复某条带图的消息」都是真实用法（实测群历史里 post+parent_id 就有）。
+  //   只看当前消息的后果是：守衡回一句「你这条里没图」—— 而图就在它引用的那一条里。
+  //   仍然只覆盖**被明确指到的那一条**（`parent_id`），**不翻历史**：
+  //   「顺着历史把群里的图/视频捞一遍」不在豁免里，那条线没动。
+  //
+  // ★ 2026-10-05 同日：视频并进同一条豁免（Owner 现场确认），取法完全一样 ——
+  //   所以这两路**共用同一个 parent 回读**，而不是各写一遍（各写一遍就会出现
+  //   「回复一条带视频的消息，守衡说没视频」这种一半对一半错的状态）。
+  let keys = feishu.imageKeysOf(msgType, content);
+  let vidKeys = feishu.videoKeysOf(msgType, content);
+  let fromParent = false;
+  let parentNote = null;          // 非 null = 「那条我读不到/没图没视频」这件事本身要说出
+  if (!keys.length && !vidKeys.length) {
+    const pid = parentIdOf(msg);
+    if (pid) {
+      let parent = null;
+      try { parent = await loadParent(pid); }
+      catch (e) { parent = { error: `回读抛异常：${e?.message ?? e}` }; }
+      if (parent?.images?.length || parent?.videos?.length) {
+        keys = parent.images ?? [];
+        vidKeys = parent.videos ?? [];
+        fromParent = true;
+        // 被引用那条的**正文**也带上（她可能是「引用一段图文」再问的）。
+        if (parent.text && !text) parentNote = { kind: 'parent_text', text: parent.text };
+      } else if (parent?.error) {
+        // ⚠️ 这是**未测**，不是「引用的那条里没有图」—— 两句话引出的下一步不同
+        parentNote = { kind: 'parent_unreadable', error: parent.error, parentId: pid };
+      } else {
+        parentNote = { kind: 'parent_no_image', parentId: pid };
+      }
+    }
+  }
+
+  const images = [];
+  const todo = keys.slice(0, MAX_IMAGES_PER_MESSAGE);
+
+  for (let i = 0; i < todo.length; i++) {
+    const k = todo[i];
+    let got = null;
+    try {
+      got = await fetchImage(msg?.message_id, k.imageKey);
+    } catch (e) {
+      got = { path: null, bytes: 0, error: `取图抛异常：${e?.message ?? e}`, cleanup: () => {} };
+    }
+    try {
+      if (got?.error || !got?.path) {
+        images.push({ index: i + 1, imageKey: k.imageKey, fromParent, failed: got?.error ?? '取图没有回路径' });
+        continue;
+      }
+      // OCR 自己抛也要接住：本模块的契约是「**任何一张图读不到都不该让整条回话失败**」，
+      // 而这一条是写测试时才发现的 —— 第一版的 throw 会穿过 finally 冒到 handleMessage 外面，
+      // 后果是对方发图那一条消息**连正文都收不到回答**（正好复现我们要修的那个病）。
+      let r;
+      try {
+        r = await ocr(got.path);
+      } catch (e) {
+        images.push({ index: i + 1, imageKey: k.imageKey, fromParent, bytes: got.bytes,
+                      failed: `OCR 抛异常：${e?.message ?? e}` });
+        continue;
+      }
+      if (!r?.ok) {
+        // 「这一张我读不到」—— 与下面的「图上没字」分开记。
+        images.push({ index: i + 1, imageKey: k.imageKey, fromParent, bytes: got.bytes,
+                      failed: `OCR 失败（${r?.error ?? '未知'}）${r?.detail ? '：' + r.detail : ''}`,
+                      placeholder: !!r?.placeholder });
+      } else if (!r.text || !r.text.trim()) {
+        images.push({ index: i + 1, imageKey: k.imageKey, fromParent, bytes: got.bytes,
+                      ocrEmpty: true, w: r.w ?? null, h: r.h ?? null });
+      } else {
+        images.push({ index: i + 1, imageKey: k.imageKey, fromParent, bytes: got.bytes,
+                      text: r.text, lines: r.lines ?? null, chars: r.chars ?? null,
+                      w: r.w ?? null, h: r.h ?? null, truncated: !!r.truncated });
+      }
+    } finally {
+      // 字节用完就删 —— 豁免的形状是「过一遍 OCR」，**不是「留下来」**。
+      // 放在 finally 里：OCR 抛了也要删（否则一次故障就留下一堆临时图）。
+      try { got?.cleanup?.(); } catch { /* 删不掉不该让这次回话失败 */ }
+    }
+  }
+
+  const skipped = keys.length - todo.length;
+
+  // ── 视频：取字节 → 抽帧 OCR + 本机转写（同一条窄豁免，同一个 parent 回读）──
+  const videos = [];
+  const vTodo = vidKeys.slice(0, MAX_VIDEOS_PER_MESSAGE);
+  for (let i = 0; i < vTodo.length; i++) {
+    const v = vTodo[i];
+    let got = null;
+    // 后缀用**原名里的后缀**（只留字母数字），好让临时文件一眼看得出是什么；
+    // 解不开的容器由 `readVideo` 如实报，不靠后缀判断。
+    const ext = (String(v.fileName ?? '').match(/\.[A-Za-z0-9]{2,5}$/) ?? ['.mp4'])[0].toLowerCase();
+    try {
+      got = await fetchVideo(msg?.message_id, v.fileKey, { ext });
+    } catch (e) {
+      got = { path: null, bytes: 0, error: `取视频抛异常：${e?.message ?? e}`, cleanup: () => {} };
+    }
+    try {
+      if (got?.error || !got?.path) {
+        videos.push({ index: i + 1, fileKey: v.fileKey, fileName: v.fileName, fromParent,
+                      bytes: got?.bytes ?? 0, failed: got?.error ?? '取视频没有回路径' });
+        continue;
+      }
+      let r;
+      try {
+        r = await readVideoFn(got.path, {});       // ← 本机抽帧 + OCR + 转写，全在这一个调用里
+      } catch (e) {
+        videos.push({ index: i + 1, fileKey: v.fileKey, fileName: v.fileName, fromParent,
+                      bytes: got.bytes, failed: `读视频抛异常：${e?.message ?? e}` });
+        continue;
+      }
+      // 抽出来的帧与音频**用完就删**（豁免的形状是「过一遍」，不是「留下来」）。
+      try { r?.cleanup?.(); } catch { /* 删不掉不该让这次回话失败 */ }
+      if (!r?.ok) {
+        videos.push({ index: i + 1, fileKey: v.fileKey, fileName: v.fileName, fromParent,
+                      bytes: got.bytes,
+                      failed: `读视频失败（${r?.error ?? '未知'}）${r?.detail ? '：' + r.detail : ''}` });
+        continue;
+      }
+      videos.push({
+        index: i + 1, fileKey: v.fileKey, fileName: v.fileName, fromParent, bytes: got.bytes,
+        meta: r.meta, frames: r.frames, framesRead: r.framesRead, framesFailed: r.framesFailed,
+        ocrText: r.ocrText, ocrChars: r.ocrChars, ocrTruncated: r.ocrTruncated,
+        transcript: r.transcript, notes: r.notes ?? [], ms: r.ms,
+      });
+    } finally {
+      // 视频字节本身也删（与图片那条同一个 finally 形状）。
+      try { got?.cleanup?.(); } catch { /* 同上 */ }
+    }
+  }
+  const skippedVideos = vidKeys.length - vTodo.length;
+
+  return {
+    msgType,
+    text,
+    parsed: parsed.parsed,
+    parseNote: parsed.note ?? null,
+    /** 消息里一共有几张图（含没读的）—— 含「从被引用那条消息里取的」 */
+    imageCount: keys.length,
+    /** 图/视频是从**被引用的那条消息**里取的吗（当前这条两样都没有） */
+    fromParent,
+    /** 被引用那条的读数：「没有 / 没正文 / 读不到（未测）」三者必须分得开 */
+    parentNote,
+    images,
+    skippedImages: skipped > 0 ? skipped : 0,
+    /** 消息里一共有几段视频（含没读的） */
+    videoCount: vidKeys.length,
+    videos,
+    skippedVideos: skippedVideos > 0 ? skippedVideos : 0,
+    // ★ 附件类型（不在豁免里）；不是附件则 null。
+    //   `file` / `media` **只在它们不是视频时**才算「附件」——
+    //   「名字是视频的 file」从 2026-10-05 起在豁免里，把它算成附件会让人听到
+    //   「视频我不取」，而那条路已经通了（这正是这次要修的那句话）。
+    attachment: (ATTACHMENT_TYPES.has(msgType) && !vidKeys.length) ? msgType : null,
+  };
+}
+
+/**
+ * ★ 「带了媒材就要起链」这条规矩的**唯一出处**（2026-10-05 加，Owner 现场确认）。
+ *
+ * 起因是一次真实事故：有人私聊发了一条视频、**一个字都没写**，守衡把读数描述了一遍就收工了 ——
+ * `PMO/logs/ws_daemon.log:2498` 那一轮**一次工具都没调**（回复行前面没有 `🔧 工具:` 那一行），
+ * 她要的结论一个字没有。诊断出来是两个缺口叠在一起：
+ *   ① 人设那条路由规则是按**问句**写的（「能不能发 / 审一下」），一条光秃秃的媒体消息不匹配；
+ *   ② 图块/视频块的头注全在讲「你能判什么、不能判什么」，**一个字没提该走哪条路**。
+ *
+ * 所以这句话同时挂在图块、视频块，以及人设的「走哪条路」那一节 —— 三处同一句话，
+ * 判据在 `tools/test_agent.mjs` 第 16 组（两个块里必须都有它）与第 10 组（人设里必须有它）。
+ */
+export const MEDIA_ROUTE_HINT =
+  '【★ 这是**送审素材**：不管对方写没写「审一下」，都要走 kb_review_chain，'
+  + '把上面这段读数当输入交进去 —— 只回一段「我读到了什么」不算回答。'
+  + '连「这里没有可判内容」这种结论也必须由链给出，不由你替它下。】';
+
+/**
+ * 把入向内容拼成**给模型看的那一段**。
+ *
+ * ★ 图块的头注不是客套话，它承担三件事，缺一件都会让模型说出比依据大的话：
+ *   1. 说清这是 **OCR 读数**，可能有识别错误（不许当成逐字原文去引用）；
+ *   2. 说清**画面本身看不见** —— 构图、场景、人物、婴幼儿在做什么、产品怎么用的，
+ *      都不在这段文字里。模型必须把这条边界转述出去，否则「这个图能过吗」
+ *      会被答成一个它其实没看过画面的结论；
+ *   3. 说清图的**来源**（就是对方这条消息里附的），避免和图上印着的文字混淆。
+ */
+export function buildImageBlock(inbound) {
+  if (!inbound?.imageCount) return '';
+  // 来源必须说准：是她**这条**带的图，还是她**引用的那条**里的图 ——
+  // 说错了，模型会把「她引用的那条里的字」当成「她这条里写的字」去答。
+  const src = inbound.fromParent
+    ? '对方**这条消息没带图**；下面是**它引用的那条消息**里附的图'
+    : '对方这条消息里附了图';
+  const quoted = inbound.fromParent && inbound.parentNote?.kind === 'parent_text' && inbound.parentNote.text
+    ? `\n（她引用的那条消息，正文逐字是：${String(inbound.parentNote.text).slice(0, 500)}）`
+    : '';
+  const parts = [
+    `【${src}，共 ${inbound.imageCount} 张。下面每一格是**本机 OCR 读出的图内文字**`
+    + `（逐字，可能有识别错误；也可能读不全）。`
+    + `你就此能判断的只有「图上写了什么字」—— 画面本身（构图、场景、人物、婴幼儿、`
+    + `产品怎么用、有没有换脸/合成痕迹）**不在这些字里，你看不到**。`
+    + `所以：可以按图内文字做文案与宣称层面的判定，但凡涉及画面本身的结论，`
+    + `必须写明「画面我看不到」这一条边界，并说明要看画面得由人来看。${quoted}】`,
+  ];
+  for (const im of inbound.images) {
+    if (im.failed) {
+      parts.push(`【图 ${im.index}】**这一张我读不到**：${im.failed}`
+        + (im.placeholder ? '（OCR 自己报的尺寸是 1×1 像素级 —— 这类多是占位图/懒加载图，不是「读不出来」）' : '')
+        + ` —— 不要猜它的内容。`);
+    } else if (im.ocrEmpty) {
+      parts.push(`【图 ${im.index}】这一张取到了（${im.bytes} 字节，${im.w ?? '?'}×${im.h ?? '?'} 像素），`
+        + `但**没识别出任何文字** —— 这是「图上没有可读的文字」，不是「读不出来」。`);
+    } else {
+      parts.push(`【图 ${im.index} 内文字${im.truncated ? '（已截断）' : ''}｜${im.lines ?? '?'} 行】\n`
+        + `${im.text}\n【/图 ${im.index}】`);
+    }
+  }
+  if (inbound.skippedImages) {
+    parts.push(`【还有 ${inbound.skippedImages} 张图**没有读**：一次最多读 ${MAX_IMAGES_PER_MESSAGE} 张。`
+      + `需要的话让对方把剩下的单独再发一次。】`);
+  }
+  parts.push(MEDIA_ROUTE_HINT);
+  return parts.join('\n');
+}
+
+/**
+ * 把入向内容里的**视频**拼成给模型看的那一段。
+ *
+ * ★ 视频块的头注比图片块更要紧，因为「看视频」这句话最容易说大：
+ *   本模块能做到的是 —— **按时长均匀抽 N 帧**（默认 8 帧）→ 读这 N 帧画面上的字；
+ *   **把整条音轨**做本机转写（口播/旁白）。做不到的是 —— 逐帧看完整条片子、
+ *   看构图/动作/婴幼儿姿势、听语气、看剪辑节奏。
+ *   所以「我看了这条视频」是**假话**，必须让模型说的是「我读到了这 8 帧上的字 + 整条音轨的转写」。
+ *   这一条是 PRD §11 那条「PASS 误放率」的地基：把抽样说成全量，误放就从这里开始。
+ *
+ * ★ 三种「声音那侧没有结果」也在这里分开说，不许糊成一句「听不清」：
+ *   · 没有音轨 —— 读数（静音片子是合法素材）；
+ *   · 有音轨但没人说话 —— 读数（实测产品 hero 片就是这样）；
+ *   · 转写没跑成（未授权 / 超时 / 模型没装）—— **未测**，要人看一眼。
+ */
+export function buildVideoBlock(inbound) {
+  if (!inbound?.videoCount) return '';
+  const src = inbound.fromParent
+    ? '对方**这条消息没带视频**；下面是**它引用的那条消息**里附的视频'
+    : '对方这条消息里附了视频';
+  const quoted = inbound.fromParent && inbound.parentNote?.kind === 'parent_text' && inbound.parentNote.text
+    ? `\n（她引用的那条消息，正文逐字是：${String(inbound.parentNote.text).slice(0, 500)}）`
+    : '';
+  const parts = [
+    `【${src}，共 ${inbound.videoCount} 段。下面每一格是**本机读出来的读数**：`
+    + `「关键帧上的文字」是按时长**均匀抽 ${video.VIDEO_MAX_FRAMES} 帧**做的 OCR，`
+    + `「音轨转写」是**整条音轨**在本机做的语音识别（开关是 requiresOnDeviceRecognition，音频不出机器）。`
+    + `你能据此判断的是：**画面上出现过的字**（硬字幕、贴片文案、logo、包装声明）`
+    + `与**整条音轨里说过的话**。`
+    + `你**看不到**的是：没抽到的那几帧、构图、场景、人物在做什么、婴幼儿的姿势、`
+    + `产品怎么用的、有没有换脸/合成痕迹。`
+    + `所以：涉及**画面本身**的结论必须写明「画面我只看得到抽样的这几帧」，`
+    + `不许说成「整条视频我都看了」。${quoted}】`,
+  ];
+  for (const v of inbound.videos) {
+    if (v.failed) {
+      parts.push(`【视频 ${v.index}】**这一段我读不到**：${v.failed} —— 不要猜它的内容。`
+        + `（对方发的是「${v.fileName ?? '未给文件名'}」）`);
+      continue;
+    }
+    const m = v.meta ?? {};
+    const head = `【视频 ${v.index}｜${v.fileName ?? '未给文件名'}｜`
+      + `${m.duration_s != null ? Number(m.duration_s).toFixed(1) + 's' : '时长未知'}`
+      + `${m.w && m.h ? `｜${m.w}×${m.h}` : ''}`
+      + `${m.fps ? `｜${Number(m.fps).toFixed(0)}fps` : ''}`
+      + `｜关键帧 ${v.framesRead}/${v.frames?.length ?? 0} 帧读成功】`;
+
+    // ── 画面上的字 ──
+    const frameLines = (v.frames ?? []).map((f) => (f.failed
+      ? `  [${Number(f.t_s).toFixed(2)}s] （这一帧 OCR 失败：${f.failed}）`
+      : (f.text ? `  [${Number(f.t_s).toFixed(2)}s] ${String(f.text).replace(/\n/g, ' / ')}` : null)))
+      .filter(Boolean);
+    const ocrPart = frameLines.length
+      ? `关键帧上的文字（按时间码${v.ocrTruncated ? '，已截断' : ''}）：\n${frameLines.join('\n')}`
+      : `关键帧上的文字：**这 ${v.frames?.length ?? 0} 帧里没读出一个字**`
+        + `（这是「画面上没有可读文字」，不是「读不出来」—— 除非上面写了某帧 OCR 失败）`;
+
+    // ── 声音 ──
+    const t = v.transcript ?? {};
+    let audioPart;
+    if (t.ok) {
+      audioPart = t.chars
+        ? `音轨转写（本机识别，逐字，可能有错；语种 ${t.locale}）：\n「${t.text}」`
+        : `音轨转写：识别器回了一个**空结果**（chars=0）—— 这是「整条音轨里没识别出话」，`
+          + `不是「转写没跑成」。`;
+    } else if (t.kind === 'no_audio_track') {
+      audioPart = '音轨：**这条视频没有音轨**（静音片子）—— 是读数，不是转写失败。';
+    } else if (t.kind === 'no_speech') {
+      audioPart = '音轨转写：**这段音频里没有人说话**（识别器的原话是 No speech detected）——'
+        + ' 是读数，不是读不到。多半是纯音乐/音效片。';
+    } else {
+      audioPart = `音轨转写：**没跑成**（${t.kind ?? '未知'}）`
+        + `${t.hint ? ` —— ${t.hint}` : ''}`
+        + `。这一格是**未测**：声音里说了什么**我不知道**，不要当成「没有说话」。`;
+    }
+
+    parts.push(`${head}\n${ocrPart}\n${audioPart}`
+      + (v.notes?.length ? `\n附注：${v.notes.join('；')}` : '')
+      + `\n【/视频 ${v.index}】`);
+  }
+  if (inbound.skippedVideos) {
+    parts.push(`【还有 ${inbound.skippedVideos} 段视频**没有读**：一次最多读 ${MAX_VIDEOS_PER_MESSAGE} 段`
+      + `（视频要抽帧 + 整条转写，成本随时长涨）。需要的话让对方把剩下的单独再发一次。】`);
+  }
+  parts.push(MEDIA_ROUTE_HINT);
+  return parts.join('\n');
+}
+
+/**
+ * 默认的跑链方式：把 `kb_review_chain` 跑一次，并**拆掉 `executeTool` 的那层信封**。
+ *
+ * ★ 为什么单独写一个具名函数（而不是内联一行）：这一层**信封**是实测踩出来的坑 ——
+ *   `executeTool()` 回的是 `{tool, ok, result}`，**不是**链自己的返回。
+ *   第一版写的是 `(args) => executeTool('kb_review_chain', args)`，于是闸门拿到的是那个信封：
+ *   `res.error` 是 undefined、`res.answer` 也是 undefined，
+ *   结果**每一次送审都会被写成「链跑完了但没返回结论 —— 结论未知」** ——
+ *   链明明跑成了、飞书也写了，而回给群里的是「未知」。一个安静地把成功说成未知的形状。
+ *   所以这里拆信封，并且 `review_gate.formatChainBlock()` **两种形状都认**
+ *   （判据在 `tools/test_agent.mjs` 第 18 组，两种形状各喂一次）。
+ */
+export async function defaultChainRunner(args) {
+  const r = await executeTool('kb_review_chain', args);
+  if (r?.ok === false) return { error: r.error ?? '工具调用失败（没给出原因）' };
+  return r?.result ?? { error: '工具回了空结果' };
+}
+
+/**
+ * **送审闸门**：内核自己判「这条是不是送审」，是就**自己把链跑完**，再把结论交回给模型。
+ *
+ * ── 为什么要由内核做，而不是写进人设
+ *
+ * 委托方 2026-10-05 第三次重申「工作流必须走：@守衡 提问/图片/视频/链接 → L4→L5→L6→L7 +
+ * 评审链 → 出报告溯源（L0）→ 写飞书」。而那条链本身一直是通的（实测跑过 691s / 771s / 1809s）。
+ * 缺的从来不是能力，是**触发**：在此之前「算不算送审」只写在人设里，而**人设是声明，不是约束** ——
+ * 09:22 那条视频，模型没想起来要调链，读到了 51 个字却给不出结论，
+ * 而盘上**唯一的痕迹是一行没有出现的日志**（`PMO/logs/ws_daemon.log:2498`）。
+ * `AGENTS.md` §2.4：指不出哪一行在拦它，就等于没拦。**拦它的就是这一个函数。**
+ *
+ * ── 三条边界（每条都有代价）
+ *
+ *   ① **判据是纯函数**（`review_gate.isSubmission`），离线可反向对照：
+ *      喂「在吗」不许触发、喂一条光秃秃的媒材必须触发。
+ *   ② **补发重放不重跑**（`force`）：链会真写飞书，重跑等于同一单写两遍。
+ *   ③ **结论排在那一轮的最前面**（`buildUserTurn` 的 `chainBlock`）：排在读数后面会被盖住，
+ *      模型就又开始「描述我读到了什么」了 —— 那正是这次要修的病。
+ *
+ * @returns {Promise<{question:string, gate:object|null, chainBlock:string,
+ *                    chainRan:boolean, chainMs:number}>}
+ */
+export async function runSubmissionGate({
+  inbound, question = '', notify = null,
+  chainRunner = defaultChainRunner,
+  // ★ 模型侧那一遍**必须可注入**（2026-10-06）：它默认会真调 LLM。
+  //   不注入的话，将来任何一条「带媒材 + 链跑成」的自证用例都会**真打网络** ——
+  //   而 §2.4.4 记的正是这个形状（自证有副作用）。与 chainRunner / publishRunner 同一种做法。
+  modelSideRunner = reviewModelSide,
+  // ★ 落表这一步**必须可注入** —— 否则单测里一个假结论就会真的往 Owner 的表里写一行
+  //   （2026-10-05 实测发生过：自证往真表写了两行，还改了一行的状态）。
+  publishRunner = reviewPublish.ensureReviewRow,
+  force = false,
+} = {}) {
+  if (force) return { question, gate: null, chainBlock: '', chainRan: false, chainMs: 0, verdict53: null };
+
+  const gate = reviewGate.isSubmission({
+    text: inbound?.text ?? '',
+    imageCount: inbound?.imageCount ?? 0,
+    videoCount: inbound?.videoCount ?? 0,
+  });
+  if (!gate.yes) return { question, gate, chainBlock: '', chainRan: false, chainMs: 0, verdict53: null };
+
+  const input = reviewGate.chainInput({ question, inbound });
+  console.log(`[agent] 🧭 送审闸门：${gate.kind} —— ${gate.why}｜起链（这一步要 6~30 分钟）`);
+  if (typeof notify === 'function') {
+    // ★ 回执要**分开说**「常态 5 分钟」与「在排队」—— 用一个悲观的大区间把两件事糊在一起，
+    //   人会以为每条都要半小时（Owner 2026-10-05 当场就是这么读的：「太长了，不正常」）。
+    //   排不排队是**读得出来的**：知识库那条循环的认领（`kb_loop_claim`）现在有没有人在持。
+    let queued = false;
+    try {
+      const cs = await claimStatus();
+      queued = !!cs && cs.free === false && cs.stale === false && cs.unknown !== true;
+    } catch { /* 取不到就不说排队（不谎报） */ }
+    // ★ 递过去的是**卡片块**（发送层负责成形）—— 见 `review_gate.ackMessage` 的两条现场裁定。
+    try { await notify(reviewGate.ackMessage(gate, { queued }).block); }
+    catch (e) { console.log(`[agent] · 送审回执没发出去（不影响链）：${e?.message ?? e}`); }
+  }
+  const t0 = Date.now();
+  let res;
+  try { res = await chainRunner(input); }
+  catch (e) { res = { error: `起链抛异常：${e?.message ?? e}` }; }
+  const chainMs = Date.now() - t0;
+  const chainRan = !res?.error;
+  let chainBlock = reviewGate.formatChainBlock(res);
+
+  // ── ★ 双轨：**模型侧独立一遍** + 并集合并（2026-10-06）────────────────────
+  //
+  //   依据：上游技术方案《内容治理技术方案》§③「知识库 ＋ 大模型 双校验」/§④「结果合并输出」——
+  //         「模型侧：语义核查与边界判断 → 命中带 位置与理由（**无库内依据**）」
+  //         「同一个问题 → 取交集 ／ 不同的问题 → 走并集」
+  //   合并判据全在 dual_track.mjs（六行矩阵逐字实现 + 自证 16/7 条）。
+  //
+  //   ★ 三条边界，一条都不许松：
+  //     ① **模型侧跑不成不算失败** —— 回落单轨（只有知识库），结论一个字不改；
+  //     ② **模型侧没报东西就不改结论** —— renderMerged 返回 null，仍用链给的那份；
+  //     ③ **PASS 门限一个字不改** —— mergedState 要求 kbCovered === true，
+  //        而 kbCoveredOf 认不出来时判「没覆盖」（保守一侧）。
+  let dual = null;
+  if (chainRan) {
+    try {
+      const readings = readingsForModelSide(inbound);
+      const model = await modelSideRunner({ readings, question, ask: llm.ask });
+      const kb = kbFindingsOf(res?.answer);
+      // ★ 库侧的**结构化读数**（2026-10-07）：结论与条数从这里取 —— 不再只靠正则抠中文答案。
+      //   病灶（当天实测，已复现）：PRD §5.3.3 规定问题数 ≥3 时库侧只出分类汇总 ⇒
+      //   逐条正则抠不到 ⇒ 库侧被读成「0 条」⇒ 合并把**库侧的 BLOCK 降级成 REVIEW**。
+      const kbSide = kbSideOf(res);
+      const merged = mergeFindings(kb.findings, model.findings);
+      const state = mergedState({ kbCovered: kbCoveredOf(res?.answer), merged: merged.items, kb: kbSide });
+      const rendered = renderMerged(merged.items, { state, kb: kbSide, kbTextCount: kb.findings.length });
+      dual = { model, kb, merged, state, rendered, kbSide };
+      const modelNote = model.ok
+        ? (model.skipped ? '跳过（文字层为空）' : model.findings.length + ' 条 / ' + model.ms + 'ms')
+        : ('没跑成：' + model.error);
+      // ★ 结构化读数与文本抽取**并排打出来** —— 两者不一致时必须看得见（2026-10-07）。
+      const kbNote = kbSide.hasSidecar || kbSide.source === 'p0_fastpath'
+        ? `${kbSide.source === 'p0_fastpath' ? 'P0 快路' : '机读旁挂'} 结论=${kbSide.state || '—'}`
+          + `/${kbSide.issueCount ?? '—'} 条 ｜ 逐条抽出 ${kb.findings.length} 条`
+          + (kbSide.refused ? ` ｜ ⛔ **库侧拒答**（${kbSide.reason || '未给原因'}）` : '')
+          + (Number.isFinite(kbSide.issueCount) && kbSide.issueCount > kb.findings.length
+              ? ' ｜ ⚠️ 明细未抠全（≥3 时库侧按 PRD 只出汇总）' : '')
+        : '**读不到机读旁挂**（缺证据要看得见）';
+      console.log('[agent] ⚖ 双轨｜模型侧 ' + modelNote
+        + '｜知识库侧 ' + kbNote
+        + ' ⇒ ' + mergeSummary(merged.stats)
+        + '｜合并态=' + state
+        + '｜改写结论=' + (rendered ? '是' : '否（模型侧没报东西，仍用链给的那份）')
+        + (model.dropped?.length ? '｜⚠ 解析丢掉 ' + model.dropped.length + ' 条：' + model.dropped.map((d) => d.why).join('；') : ''));
+      if (rendered) {
+        chainBlock = chainBlock
+          + '\n\n【★ 双轨合并后的结论（**这一份才是最终的**，代码产出，逐字转述）】：\n'
+          + rendered.block;
+      }
+    } catch (e) {
+      dual = null;
+      console.log('[agent] ⚠️ 双轨没跑成，回落单轨（结论仍由链给）：' + (e?.message ?? e));
+    }
+  }
+  console.log(`[agent] 🧭 送审链返回：${chainRan ? '跑成' : '没跑成'}｜${chainMs}ms`
+    + `${chainRan ? '' : `｜${String(res?.error).slice(0, 120)}`}`);
+
+  // ── 6.0 **每一个评审任务都必须落表**（Owner 2026-10-05 定的硬规矩）
+  //
+  // ★ 这一条**不能只写在提示词里**：那天送了四条，链跑完 3.5~17.9 分钟，
+  //   表里一行都没有 —— 因为链自己的发布条件是「有**三态结论**才发」，
+  //   拒答（NEEDS_INPUT）整单被跳过。于是「审过了、结论是拒答」在盘上零痕迹。
+  //   现在这段代码是那条规矩的执行点：**链发了就用它那一行（补空字段），没发就我们建一行**。
+  //   判据是「表里到底有没有这一行」，不是「链说它发了」。
+  let publish = null;
+  try {
+    // ★ 结论与两个必录读数**先算好**（`machineNumbers` 需要结论才知道该用哪条口径说明）。
+    const chainConclusion = reviewPublish.conclusionOf(res?.answer) ?? (chainRan ? null : 'NEEDS_INPUT');
+    // ★★ 表行的结论**必须与用户看到的卡同源**（2026-10-07 实测缺陷）：
+    //   卡里写的是**双轨合并后的结论**（`dual.rendered`），而表里原先写的是**链的结论**
+    //   （`conclusionOf(res.answer)`）—— 两条来源不同 ⇒ 当天五条**五条都对不上**：
+    //     A 表 NEEDS_INPUT ↔ 卡 REVIEW；C 表 BLOCK/3 ↔ 卡 REVIEW/2（**红线在表里是 BLOCK、
+    //     在人手里是 REVIEW**）；D 表 PASS ↔ 卡 REVIEW；E 表 NEEDS_INPUT ↔ 卡 REVIEW。
+    //   ⇒ 卡里出的是合并结论时，表行就跟它走（`拒答` 落表写作 `NEEDS_INPUT`）；
+    //     卡里没出合并结论（模型侧没报东西、回落链条那一段）就仍用链的结论 —— 两者恒一致。
+    const mergedConclusion = dual?.rendered
+      ? (dual.state === '拒答' ? 'NEEDS_INPUT' : dual.state)
+      : null;
+    let conclusion = mergedConclusion ?? chainConclusion;
+    // ★★ 2026-10-07 加（Owner 同意）—— **库侧没有读数 ⇒ 不许落 PASS**。
+    //   为什么（实测，不是假设）：素材「这条社媒文案能不能发：这批婴幼儿用品的文案里写了医用级」
+    //     （表行 `recvxlAvpEWMIX`）旁挂没读到 ⇒ 库侧**一个读数都没有**，
+    //     而这一行落的是 `Agent 结论=PASS` / `状态=PASS` / `问题数量 0` / `置信度 0`。
+    //     同一批另一条（旁挂读到了、`state=NEEDS_INPUT`）落的是 NEEDS_INPUT/待审 ——
+    //     差别不在素材，在**有没有读数**。
+    //   ⇒ 这条闸是**单向**的（只挡 PASS，不动 BLOCK/REVIEW/NEEDS_INPUT）：
+    //     PASS 是唯一的「放行」态，也是唯一不可挽回的错（放出去的物料收不回来）。
+    //     而且它**不新造判据**：库侧没读数时，链的结论本来就是 agent 自己写的话，
+    //     而「未命中 ≠ 合规」是库的硬口径 —— 没读过库，凭什么说合规。
+    const kbReadings = kbSideOf(res);
+    const kbNoReading = chainRan && kbNoReadingOf(kbReadings);
+    let passBlockedByNoReading = false;
+    if (kbNoReading && String(conclusion ?? '').toUpperCase() === 'PASS') {
+      conclusion = 'NEEDS_INPUT';
+      passBlockedByNoReading = true;
+    }
+    const nums = reviewPublish.machineNumbers(res, conclusion);
+
+    // ── 产品线 / 渠道：**先 KB 命中记录，再素材原文兜底**（Owner 2026-10-06）─────────
+    //   · 第一优先：命中记录里的 `品线`/`平台`/`渠道/市场`
+    //     （P0 快路 ⇒ `res.product_line`；评审链 ⇒ 机读旁挂的 `facets`）
+    //   · 兜底：**素材原文**里逐字命中库内受控词 —— 图片/视频那类没有规则命中时，
+    //     这是唯一诚实的来源（词表与判据全在库内 `kb/l5/l0_facets.py`，这里只转发）
+    //   · 都取不到 ⇒ **空**（不写「未指定」充数，也不让模型猜：
+    //     表里那格曾被写进整段视频读数）
+    let productLine = String(res?.product_line || res?.review?.facets?.product_line || '').trim();
+    let channel = String(res?.channel || res?.review?.facets?.channel || '').trim();
+    if ((!productLine || !channel) && input.text) {
+      const fb = await facetsFromMaterial(input.text);
+      if (!productLine && fb.product_line) productLine = fb.product_line;
+      if (!channel && fb.channel) channel = fb.channel;
+    }
+
+    // ── 汇总列（顺序语句，不再用三元套三元）──────────────────────────────────────
+    //   ★「不许自相矛盾」的老账都在这儿：P0 命中**不许**写「链已跑完」（它根本没跑链）；
+    //     拒答**必须**写原因码（否则看表的人不知道是库的缺口还是调用方的缺口）。
+    let summaryText;
+    if (!chainRan) {
+      summaryText = `链**没跑成**（${String(res?.error ?? '未知原因').slice(0, 300)}）—— 本行是为了留痕：`
+        + '这一单**没有结论**，不是「没问题」。';
+    } else if (res?.p0_fastpath) {
+      // ★ P0 命中时**不许**再写「链已跑完」—— 它根本没跑链。这是行内自相矛盾的来源之一。
+      summaryText = `**P0 快路**（确定性匹配，${res.p0_fastpath.elapsed_ms} ms ｜ 命中 `
+        + `${res.p0_fastpath.matched_patterns} 条 P0 模式`
+        + `${res.p0_fastpath.rule_codes?.length ? `：${res.p0_fastpath.rule_codes.join('、')}` : ''}）。`
+        + '**未跑** L4→L5→L6→L7 层前置与评审链；置信度按 **1.0** 记'
+        + '（= 确定性命中，PRD §6.6：P0 不适用置信度分流）。'
+        // ★ 报告成没成，这一格里要看得见（Owner 2026-10-06「补充报告」）。
+        //   没成时**写明原因**，不写「待生成」那种含糊话 —— 那句话读起来像"马上就有"。
+        + (res?.report
+            ? ` 报告：${res.report}`
+            : ` 报告：**未生成**（${String(res?.report_detail ?? '未给原因').slice(0, 200)}）`);
+    } else if (res?.review?.refusal) {
+      // ★ 2026-10-05（Owner 裁定「建议1」）：**拒答必须在表里说明为什么**。
+      //   原因码与读数都是**引擎自己算的**（`with_kb_evidence.py` 拒答分支），这里只搬不算。
+      // ★ 2026-10-07 修：原先条件写的是 `refusal.reason_code` —— 而**供给链超期那类拒答的
+      //   `refusal` 里没有 `reason_code`，只有中文 `reason`**（实测 E 单）。于是这类拒答
+      //   掉进下面那条「链已跑完…结论原文见对话与报告」的兜底话术里 —— **一句听起来像
+      //   正常结论的话**。现在只要求 `refusal` 存在，原因码与原因哪个有写哪个。
+      const rf = res.review.refusal;
+      summaryText = `链已跑完（${Math.round(chainMs / 1000)}s）。**未能得出结论**（${conclusion ?? 'NEEDS_INPUT'}）`
+        + (rf.reason_code ? `｜原因码 \`${rf.reason_code}\`` : `｜原因 \`${String(rf.reason ?? '未给').slice(0, 60)}\``)
+        + (rf.human ? `：${rf.human}` : '')
+        + (rf.coverage?.top_hit_anchor
+            ? `｜Top 命中 ${rf.coverage.top_hit_anchor}` : '');
+    } else if (kbNoReading) {
+      // ★ 2026-10-07（Owner 同意）：**库侧没读数**这一格必须自己说清楚 ——
+      //   原先它会掉进下面那条「链已跑完…结论原文见对话与报告」的兜底话术，
+      //   **那句话读起来像一次正常结论**（实测素材 D 就是这么落表的）。
+      summaryText = `链已跑完（${Math.round(chainMs / 1000)}s）。**本单知识库侧没有读数**`
+        + '（没跑到引擎 ／ 机读旁挂没落 —— 库忙、层闸门红、或没走 `review_run.sh`）⇒ '
+        + '**本次没有知识库三态结论**：本行只作留痕，**不得当通过依据**。'
+        + (passBlockedByNoReading
+            ? ' ⚠️ 链原文里出现 PASS，**已按闸门改记「未判」** —— 没读过库就不许放行（库口径：未命中 ≠ 合规）。'
+            : '');
+    } else {
+      summaryText = `链已跑完（${Math.round(chainMs / 1000)}s）。结论原文见对话与报告；`
+        + '本行由守衡在链返回后核对落表。';
+    }
+    // ★ 双轨合并过、且**卡里的条数与表里那列不是一个口径**时，把差异写在这一格（2026-10-07）：
+    //   表里「问题数量」按**库侧机器读数**记（有口径、可回源）；卡里那个总数是**并集上限**
+    //   （库侧 ≥3 时按 PRD 只出汇总 ⇒ 重叠未判）。两者不同不是错，但**必须看得见**。
+    if (dual?.rendered) {
+      const cardTotal = dual.rendered.total ?? null;
+      if (Number.isFinite(cardTotal) && Number.isFinite(nums.issueCount) && cardTotal !== nums.issueCount) {
+        summaryText += `｜双轨合并：卡内总数 ${cardTotal} 处（库侧 ${dual.kbSide?.issueCount ?? '—'} ＋ 模型侧 `
+          + `${dual.model?.findings?.length ?? 0}，**重叠未判**）；本列「问题数量」按库侧机器读数 `
+          + `${nums.issueCount} 记 —— 差在模型侧那几条「无库内依据」的条目上。`;
+      }
+    }
+    // ★ **口径必须跟数一起进表**（Owner 2026-10-06「不允许为空」）：
+    //   `machineNumbers()` 在替换过任何一个读数时给出说明（例如「置信度按 0 记 ——
+    //   0 = 引擎未做判定，不是"零风险"」）。留空时没人看得懂；**填了 0 却不说口径
+    //   同样没人看得懂** —— 一个 0 看起来像一个结论。`note` 为空时不追加任何东西。
+    if (nums.note) summaryText += ` ⚠️ ${nums.note}。`;
+    // ★ 产品线/渠道为空时**写明为什么空** —— 一个空格说不出是「库里没有」还是「我们没读到」，
+    //   而这两件事要人做的动作完全不同（补登记 vs 查取数）。所以**空也要有原因**。
+    if (!productLine || !channel) {
+      const miss = [!productLine && '产品线', !channel && '渠道'].filter(Boolean).join('、');
+      summaryText += ` ⚠️ ${miss}：**库内命中记录与素材原文都没有** ⇒ 留空，需人工补。`;
+    }
+
+    publish = await publishRunner({
+      contentId: reviewPublish.contentIdOf(input.text),
+      question: input.question,
+      contentType: gate.kind === 'media' ? '图片/视频' : (gate.kind === 'link' ? '链接' : '文字'),
+      conclusion,
+      // ★ 2026-10-06 **重定口径**（Owner 现场：「置信度**和问题数量不允许为空**」；
+      //   并指出「这些问题昨天修复过了，今天又复现了」——昨天那次（10-05）修的是
+      //   「引擎给了值却没传出来」，**没修「引擎不给值时留空」**，于是今天原样复现）。
+      //   ⇒ 现在走 `reviewPublish.machineNumbers()`：**永不为空**，且填了数就**同时填口径**
+      //     （口径拼进下面的 `summary`，看表的人不必来问）。详见那个函数的注释。
+      //   取值来源仍是**只搬不算**：P0 ⇒ 快路带出；链 ⇒ 机读旁挂（原样搬自引擎 JSON）。
+      issueCount: nums.issueCount,
+      confidence: nums.confidence,
+      // ★ 产品线 / 渠道（2026-10-06）：Owner 要求「从知识库命中产品线和渠道的都填写进去」。
+      //   · P0 快路 ⇒ `res.product_line` / `res.channel`（`kb/l5/p0_fastpath.py` 从命中记录取）
+      //   · 评审链   ⇒ `res.review.facets`（机读旁挂里由 `kb/l5/l0_facets.py` 取，同一个取数点）
+      //   **取不到就是空 ⇒ 不写这一格**：不写「未指定」充数，也不从素材正文猜
+      //   （表里已经出现过一次脏数据：产品线那一格被写进整段视频读数）。
+      productLine: productLine || null,
+      channel: channel || null,
+      // ★ 报告链接（2026-10-06，Owner「补充报告」）——
+      //   PRD §8.2 把「报告链接」列为字段、§8.3 要求问题数 ≥3 时填。
+      //   此前**这一格从没被传过**（`rowFieldsOf` 早就支持 `reportUrl`），于是 4 行全空 ——
+      //   包括那条 REVIEW/3：报告条件明明满足，链接却没人送过来。
+      //   取值：P0 快路 ⇒ `res.report`（`tools.mjs` 建完云文档带出）；
+      //         评审链   ⇒ 发布件自己写（它 upsert 同一行，不走这里）。
+      //   **空就是空**：没建成不许写占位符 —— 一个点不开的链接比空格更坏。
+      reportUrl: String(res?.report ?? '').trim() || null,
+      // ★ 汇总改成**顺序语句**（2026-10-06）—— 原来是「三元套三元再拼字符串」，
+      //   往里加一句口径就写出语法错（实测：`node --check` 报 `Unexpected token ')'`，
+      //   而我把 `node --check … | head` 的退出码当成了通过：**管道会吞掉退出码**）。
+      //   同一段文字要能被下一个人读懂并安全地改，就别用括号杂技。
+      summary: summaryText,
+    }, { since: t0 - 1000, question: input.question, ctx: { actor: 'shouheng/review-gate' } });
+    console.log(`[agent] 🧭 落表：${publish?.ok ? publish.action : '失败'}`
+      + `${publish?.record_id ? `｜${publish.record_id}` : ''}`
+      + `｜回读=${publish?.readback ?? '（未回读）'}`
+      + `${publish?.ok ? '' : `｜${String(publish?.detail).slice(0, 140)}`}`);
+  } catch (e) {
+    console.log(`[agent] ⚠️ 落表抛异常（不影响回话）：${e?.message ?? e}`);
+  }
+
+  return {
+    question: buildUserTurn({ questionText: question, chainBlock }),
+    gate, chainBlock, chainRan, chainMs, publish,
+    // ★ PRD §5.3 结论行的**权威出处**（2026-10-06 加）。
+    //   为什么在这里算而不在发送层猜：这一层是**唯一**同时拿得到链原文与 P0 快路读数的地方，
+    //   而结论行只许由链（或 P0 派生的那一行）说了算 —— 模型的措辞不参与这一格。
+    //   拿不到就回 null（**不编**）：不是送审、链没给三态、拒答（5.3 不管这一态）都会回 null。
+    // ★ 双轨合并**改写结论原文**时以它为准（dual.rendered 只在模型侧真报了东西时才非 null）
+    //   —— 结论行与逐条块仍由这同一个 deriveVerdictLine 产出，分工没变：模型不写、代码搬。
+    verdict53: deriveVerdictLine({
+      answer: dual?.rendered?.block ?? res?.answer,
+      p0Fastpath: res?.p0_fastpath ?? null,
+    }),
+    dual: dual ? { state: dual.state, stats: dual.merged.stats, ok: dual.model.ok,
+                   model_ms: dual.model.ms, overrode: !!dual.rendered } : null,
+  };
+}
+
 /* ─────────────────── 主处理函数 ─────────────────── */
 
+/**
+ * 把「人问的话 + 图块 + 视频块」拼成**真正发给模型的那一轮**。
+ *
+ * ★ 为什么把它拆成一个**能被调用**的纯函数（2026-10-05 晚）：
+ *   现场那次验收里，视频读到了（8/8 帧、51 字、音轨无人说话），
+ *   但**回复是用另一条消息的那一轮生成的** —— 两条消息（先发视频、再单独发一句
+ *   「审核下这个视频」）本来就是**两轮**，而「单独发一句」那一条没有 `parent_id`，
+ *   按 §2.6 就不该去捞那条视频。人看到的却是「我拿不到那 51 个字」，很像接线断了。
+ *   当时没有任何断言看得住这一跳 —— 第 15 组那条「必须走到模型那一侧」其实只走到
+ *   `readInboundContent`，**名字比它验的事大**（§2.4.1）。
+ *   现在这一跳有了名字、有了调用点，判据能真的走进去（第 16 组那条端到端）。
+ */
+/**
+ * 这一轮**带了媒材、却没起链**吗？（纯函数，可被单测直接调用）
+ *
+ * ★ 为什么要有它（2026-10-05）：那次事故的表现就是「视频读到了、结论一个字没有」，
+ *   而在盘上，这个形状**只是一行没有出现的日志** —— 没有任何东西会红。
+ *   判据不能只写在人设里（那是**声明**）：这里把它变成一个**能被调用**的读数，
+ *   由 daemon 在每一轮回复之后问一次，答「是」就打一行 `⚠`。
+ *
+ * @param {{media?:{images?:number,videos?:number}, toolTrace?:Array<{tool:string,ok:boolean}>}} meta
+ * @returns {null|{media:number, tools:string[]}} 没起链时回读数，起了链（或本来就没媒材）回 null
+ */
+export function mediaWithoutChain(meta) {
+  const m = meta?.media ?? {};
+  const n = (m.images ?? 0) + (m.videos ?? 0);
+  // ★ 2026-10-05 改：判据从「带了媒材」升级为「**闸门判成送审**」。
+  //   闸门（内核自己跑的）会把该起链的那些先跑掉，所以这个函数现在的职责是**兜底**：
+  //   闸门判成送审、却既没跑成链、模型自己也没补上 —— 那就是真的漏了，必须喊出来。
+  const gateYes = meta?.gate?.yes === true;
+  if (!n && !gateYes) return null;          // 既没媒材、闸门也没判送审 → 这条不适用
+  const chain = meta?.chain ?? null;
+  if (chain?.ran) return null;              // 闸门跑成了
+  const trace = meta?.toolTrace ?? [];
+  // 只认**成功**的那一次：`ok:false` 的链等于没跑成，那正是要说的另一种话。
+  if (trace.some((t) => t.tool === 'kb_review_chain' && t.ok)) return null;
+  return { media: n, gate: meta?.gate ?? null,
+           chainTried: !!chain, chainOk: chain?.ran === true,
+           tools: trace.map((t) => t.tool) };
+}
+
+/**
+ * 「这一轮到底读到了什么」——**纯函数**，给一句人话读数（没有媒材时返回 null）。
+ *
+ * ★ 为什么把它抽出来（2026-10-06，Owner 原话：「视频还是无法读取」）：
+ *   这条读数原先**只进日志**。于是卡片正文通篇在讲知识库自己的事
+ *   （「覆盖判据不成立」「缺的是库覆盖，补素材无用」），**一句没讲他视频里有什么** ——
+ *   委托方读到的就是「它没看我的视频」，而日志里明明写着
+ *   「15.0s｜帧 OCR 8/8（51 字）｜音轨里没人说话」。
+ *
+ *   现在同一份读数**两处共用**：日志一行、卡片正文一块（`meta.mediaRead` → 信封）。
+ *   两处各拼一遍迟早会不一致，所以只留这一个产者 —— 与 §2.5「形态决策只能有一处」
+ *   同一条道理：同一件事有两个产者，错位只是时间问题。
+ *
+ * @param {object|null} inbound `readInboundContent()` 的产物
+ * @returns {string|null}
+ */
+export function describeMediaRead(inbound) {
+  if (!inbound) return null;
+  const cut = (s, n = 200) => {
+    const t = String(s ?? '').replace(/\s+/g, ' ').trim();
+    return t.length > n ? `${t.slice(0, n)}…` : t;
+  };
+  const frameText = (f) => cut(typeof f === 'string' ? f : (f?.text ?? ''));
+  const out = [];
+
+  const imgs = inbound.images ?? [];
+  if (inbound.imageCount) {
+    const got = imgs.filter((i) => i.text);
+    const failed = imgs.filter((i) => i.failed);
+    const empty = imgs.filter((i) => i.ocrEmpty);
+    const chars = imgs.reduce((a, i) => a + (i.chars ?? 0), 0);
+    out.push(`图 ${inbound.imageCount} 张${inbound.fromParent ? '（取自你引用的那条消息）' : ''}`
+      + `｜读出文字 ${got.length} 张（共 ${chars} 字）`
+      + (empty.length ? `｜图上没字 ${empty.length} 张` : '')
+      + (failed.length ? `｜**读失败 ${failed.length} 张**` : '')
+      + (inbound.skippedImages ? `｜超上限未读 ${inbound.skippedImages} 张` : ''));
+    if (got.length) out.push(`图上文字：${cut(got.map((i) => i.text).join(' ／ '))}`);
+    for (const f of failed) out.push(`图 ${f.index} 读失败：${f.failed}`);
+  }
+
+  const vids = inbound.videos ?? [];
+  if (inbound.videoCount) {
+    const failed = vids.filter((v) => v.failed);
+    out.push(`视频 ${inbound.videoCount} 段${inbound.fromParent ? '（取自你引用的那条消息）' : ''}`
+      + `｜读成功 ${vids.length - failed.length} · 失败 ${failed.length}`
+      + (inbound.skippedVideos ? `｜超上限未读 ${inbound.skippedVideos} 段` : ''));
+    for (const v of vids) {
+      if (v.failed) { out.push(`视频 ${v.index} 读失败：${v.failed}`); continue; }
+      const t = v.transcript ?? {};
+      const audio = t.ok ? `音轨转写 ${t.chars ?? 0} 字`
+        : (t.kind === 'no_audio_track' ? '**没有音轨**'
+          : (t.kind === 'no_speech' ? '音轨里没人说话' : `音轨转写没跑成（${t.kind ?? '?'}）`));
+      out.push(`视频 ${v.index}：${Number(v.meta?.duration_s ?? 0).toFixed(1)} 秒`
+        + `｜抽帧 OCR ${v.framesRead ?? 0}/${v.frames?.length ?? 0} 帧（共 ${v.ocrChars ?? 0} 字）｜${audio}`);
+      // ★ 「一帧都没读到字」也要**明说**：不说的话，读到的 0 字与没读长得一样，
+      //   而这两件事的下一步完全不同（一个是素材本身没字，一个是我的读取坏了）。
+      const per = (v.frames ?? []).map(frameText).filter(Boolean);
+      out.push(per.length ? `帧上文字：${cut(per.join(' ／ '))}` : '帧上文字：**一帧都没读到字**');
+    }
+  }
+  return out.length ? out.join('\n') : null;
+}
+
+export function buildUserTurn({ questionText = '', imageBlock = '', videoBlock = '', chainBlock = '' } = {}) {
+  // 图块拼在问题**后面**：模型先读人问的话，再读图上的字，顺序与人发消息的顺序一致。
+  // 视频块排在最后（它最长），顺序是「她问的话 → 图上的字 → 视频读数」。
+  let q = questionText ?? '';
+  if (imageBlock) q = q ? `${q}\n\n${imageBlock}` : imageBlock;
+  if (videoBlock) q = q ? `${q}\n\n${videoBlock}` : videoBlock;
+  // ★ 链的结论排在**最前**（它在问题之前）：它是这一轮的**结论**，不是补充材料 ——
+  //   排在后面会被前面几百字的读数盖住，模型就又开始「描述我读到了什么」了。
+  if (chainBlock) q = q ? `${chainBlock}\n\n${q}` : chainBlock;
+  return q;
+}
 /**
  * 处理一条飞书消息，返回要发出的回复文本（不负责发送）。
  * @param {object} event  im.message.receive_v1 的 data
  * @returns {Promise<{reply:string|null, reason?:string, sessionKey?:string, meta?:object}>}
  */
-export async function handleMessage(event, { force = false } = {}) {
+export async function handleMessage(event, {
+  force = false,
+  deps = undefined,
+  // ★ 链要跑 10~30 分钟：一开始就回一句，否则对方以为它没动（09:22 那次就是这样）。
+  notify = null,
+  // 跑链那一步的注入点（测试必须注入桩 —— 不注入就会真起一条 30 分钟的链并写飞书）。
+  //
+  // ★ 2026-10-05 现场踩到的第二个坑：这里原先内联写着 `(args) => executeTool(...)` ——
+  //   而 `executeTool` 回的是**信封** `{tool, ok, result}`，不是链的返回。
+  //   于是同一个「怎么跑链」有了**两个默认值**，而 `handleMessage` 显式把这个传下去，
+  //   **盖住了 `runSubmissionGate` 里那个正确拆信封的默认值**。
+  //   表现：链明明没跑成（KB 根不存在），日志和 `meta.chain.ran` 却写「**跑成**」——
+  //   而 `mediaWithoutChain()` 那条兜底棘轮看的正是 `chain.ran`，
+  //   于是「该送审却没起链」这个警报**在链没跑成的时候反而闭嘴**。
+  //   修法：默认值只留一个（下面那个具名函数），这里只做转发。
+  chainRunner = defaultChainRunner,
+  publishRunner = reviewPublish.ensureReviewRow,
+  // ★ 2026-10-06：`handleMessage` **转发**它，所以自己也必须声明它。
+  //   不声明就转发 = 未声明标识符 = **直接抛 ReferenceError**，
+  //   而它抛在闸门之后那一跳上 —— 现场表现是「链跑完了却没有回话」。
+  //   实测就是这么红的：`THREW modelSideRunner is not defined`。
+  modelSideRunner = reviewModelSide,
+} = {}) {
   const msg     = event?.message ?? {};
   const sender  = event?.sender ?? {};
   const chatId  = msg.chat_id;
@@ -149,29 +1093,89 @@ export async function handleMessage(event, { force = false } = {}) {
     return { reply: null, reason: 'duplicate', meta: { message_id: msg.message_id } };
   }
 
-  // ── 2. 只处理文本。附件类明确说「按规矩不取」，不装懂、也**不把规矩说成能力**。
+  // ── 2. 把这一条读成「文字 + 图内文字」。
   //
-  // 依据 AGENTS.md §2.6 红线：飞书上的内容禁止下载。
-  // 这里曾经写的是「我现在只能读文本消息 …… 我看不到里面的内容」——
-  // 那句话把**策略**说成了**能力/权限**问题：对方会以为还差一个开关没打开，
-  // 于是去申请权限、去找文件主人。全是白跑。规矩就该照直说，并给出走得通的路。
-  if (msg.message_type !== 'text') {
-    const ATTACHMENT_TYPES = new Set(['file', 'image', 'media', 'audio']);
-    if (ATTACHMENT_TYPES.has(msg.message_type)) {
-      return { reply: '附件我不取 —— 飞书上的内容公司不让下载，附件只有下载这一条通道。\n'
-                    + '要审的话，把里面的文字贴过来；或者存成飞书云文档发我，云文档我能直接读。',
-               reason: 'attachment_not_taken', meta: { message_type: msg.message_type } };
+  // ★ 2026-10-05 改：原先这一步是 `if (msg.message_type !== 'text') return 拒答`。
+  //   那次事故（06:37 私聊「评审下下这个图片，能过吗？」+ 配图）暴露了两个错，
+  //   而且是**同一个形状**——「结论比输入大」：
+  //     · 图文混排在飞书里是 **post** 类型 → 连**正文**都被扔掉，
+  //       而 `bodyToText`（09-22 就修好了）本来读得出来；
+  //     · 图片按红线不取 —— 这一半**当时是对的**，但话说错了：
+  //       「它的正文我读不了」让人以为缺个开关，于是她没有任何可走的路。
+  //   现在：正文照读；**人当前发来的图**读图内文字（§2.6 窄豁免，Owner 10-05 确认）；
+  //   file/media/audio 仍然不取，而且明确说「按规矩不取」。
+  //  `deps` 只是给测试注入桩用的（生产调用点一个字都不用改）——
+  //  没有它，「取图 + OCR」这条路只能在联网 + 花 token 的情况下才测得动，
+  //  而那等于没有可跑的判据（AGENTS.md §2.4：指不出哪一行在拦它，就等于没拦）。
+  const inbound = await readInboundContent(msg, deps);
+  // 日志留一行读数：**「守衡有没有真的读到图」不该只能靠群里看回复来判断**。
+  // 这一行也是排查的锚点（图几张、OCR 多少字、哪几张失败、是不是从引用的那条取的）。
+  if (inbound.parentNote?.kind === 'parent_unreadable') {
+    console.log(`[agent] ⚠️ 图未测：这条没带图，它引用的 ${inbound.parentNote.parentId} 读不到（${inbound.parentNote.error}）`);
+  }
+  // ★ 2026-10-06：原先图、视频各拼一段日志，而**同一份读数不进卡片**。见 `describeMediaRead`。
+  const mediaRead = describeMediaRead(inbound);
+  if (mediaRead) console.log(`[agent] 📥 读到｜${mediaRead.replace(/\n/g, ' ⏎ ')}`);
+  const imageBlock = buildImageBlock(inbound);
+  const videoBlock = buildVideoBlock(inbound);
+  // ★ 判据是「**读成功过**」，不是「读出了内容」：一条视频抽帧成功、音轨里没人说话，
+  //   那也是一个**要如实回答的读数**（「画面上这 8 帧没有可读文字、音轨里没人说话」），
+  //   而不是走「我读不了」那条拒答 —— 后者会让人以为缺个开关，再去发一遍还是同一句。
+  const videoRead = inbound.videos.some((v) => !v.failed);
+  const hasAnything = !!inbound.text || inbound.images.some((i) => i.text) || videoRead;
+
+  if (!hasAnything) {
+    const meta = { message_type: msg.message_type, image_count: inbound.imageCount,
+                   video_count: inbound.videoCount };
+    // ⓐ 附件（file / media / audio 里的**非视频**）：**按规矩不取**，并给一条走得通的路。
+    //   ★ 这段文案 2026-10-05 改过一次，因为**它当时是错的**：
+    //     原文写着「附件（文件/语音/**视频**）我不取」—— 而视频那条路当天已经通了。
+    //     照那句说，对方会把视频再发一遍，还是听到同样一句话（与 06:37 那次同一个形状：
+    //     **话说得比能做的窄，于是人以为缺个开关**）。
+    if (inbound.attachment) {
+      return { reply: '附件（表格/文档/语音这类）我不取 —— 飞书上的内容公司不让下载，它们只有下载这一条通道。\n'
+                    + '要审的话，把里面的文字贴过来；或者存成飞书云文档发我，云文档我能直接读。\n'
+                    + '**图片和视频不一样**：图你直接发我，我读图上的字；'
+                    + '视频你也直接发我，我抽关键帧读画面上的字、再在**本机**把口播转成文字。',
+               reason: 'attachment_not_taken', meta };
     }
-    return { reply: `这条是「${msg.message_type}」，它的正文我读不了 —— 需要的话请把它转成文字发我。`,
-             reason: 'unsupported_type', meta: { message_type: msg.message_type } };
+    // ⓑ 视频一段都没读成 → 如实说失败原因（**不许**编内容，也不许说成「视频里没东西」）。
+    if (inbound.videoCount) {
+      const why = inbound.videos.map((v) => `视频 ${v.index}：${v.failed ?? '未读'}`).join('；');
+      return { reply: `你发的那段视频我**没读成**（${why}）。\n`
+                    + '这不是「视频里没问题」—— 是我这一段没读到。'
+                    + '可以再发一次；如果是格式比较偏（比如非常规编码），转成 mp4 再发我一次。',
+               reason: 'video_unreadable', meta };
+    }
+    // ⓒ 有图但一张都没读出来 → 如实说，并给出下一步（**不许**编内容）。
+    if (inbound.imageCount) {
+      const why = inbound.images.map((i) => `图 ${i.index}：${i.failed ?? (i.ocrEmpty ? '图上没识别出文字' : '未读')}`).join('；');
+      return { reply: `你这条里的图我**没读出内容**（${why}）。\n`
+                    + '如果是图上文字太小或图形化排版，可以把文字贴过来；'
+                    + '也可以换一张更清晰的截图再发我一次。',
+               reason: 'image_unreadable', meta };
+    }
+    // ⓓ 其余非文本类型（卡片 / 表情 / 位置…）：照实说没解析出来 + 是哪种没解析出来。
+    //   ★ 若这条是在**回复**另一条、而那条我读不到 —— 必须说「未测」，不许说成「没有图」。
+    const quoteNote = inbound.parentNote?.kind === 'parent_unreadable'
+      ? `\n另外：你这条是在回复某一条，而**那条我读不到**（${inbound.parentNote.error}）——`
+        + '所以那里面有没有图或视频，我不知道，也不会去猜。'
+      : '';
+    return { reply: `这条是「${msg.message_type}」，它的正文我读不了`
+                  + `${inbound.parseNote ? `（${inbound.parseNote}）` : ''} —— 需要的话请把它转成文字发我。`
+                  + quoteNote,
+             reason: 'unsupported_type', meta: { ...meta, parseNote: inbound.parseNote } };
   }
 
   // ── 3. 解析正文与 mention
-  let rawText = '';
-  try { rawText = JSON.parse(msg.content ?? '{}').text ?? ''; } catch {}
+  //    `inbound.text` 已经是可读正文（post 也在内）；mention 还原仍然照旧。
+  const rawText = inbound.text;
   const { display, mentions } = feishu.resolveMentions(rawText, msg.mentions);
   const botMentioned = feishu.isBotMentioned(mentions);
-  const question = botMentioned ? feishu.stripBotMention(display, mentions) : display.trim();
+  let question = buildUserTurn({
+    questionText: botMentioned ? feishu.stripBotMention(display, mentions) : display.trim(),
+    imageBlock, videoBlock,
+  });
 
   // ── 4. 群聊里「不 @ 不理」，避免刷屏；私聊一律响应
   if (chatType === 'group' && config.requireMentionInGroup && !botMentioned) {
@@ -305,6 +1309,24 @@ export async function handleMessage(event, { force = false } = {}) {
       }
     }
 
+    // ── 5.9 **送审闸门**：内核先跑链，再让模型说话（见 `runSubmissionGate` 的头注）
+    //
+    // ★ 2026-10-05 现场踩到的坑，逐字记下来：把闸门抽成函数时，**把 `let gate = null;`
+    //   那四行声明一起抽走了**，于是这里变成对**未声明标识符**赋值 —— ESM 是严格模式，
+    //   直接 `ReferenceError: gate is not defined`。后果不是「少一个字段」，是：
+    //   **链跑完 17.9 分钟、然后内核在回话前一刻崩掉**，人收到的是
+    //   「我处理这条消息时内部出错了…gate is not defined」，而链的结论被丢掉。
+    //   为什么自证没拦住：`runSubmissionGate` 自己测过（它是好的），
+    //   接线断言只查了「handleMessage 里有没有调用它」—— **而崩溃发生在调用之后那一行**。
+    //   补的判据见 `tools/test_agent.mjs` 第 18 组那条 `子进程端到端`：
+    //   它真跑一遍 handleMessage（LLM 指向死地址、KB 根指向不存在），
+    //   所以「调用之后还有没有塌」从此有人看着。
+    const g = await runSubmissionGate({ inbound, question, notify, chainRunner, publishRunner, modelSideRunner, force });
+    const gate = g.gate;
+    const chainRan = g.chainRan;
+    const chainMs = g.chainMs;
+    question = g.question;
+
     const userTurn = chatType === 'group' ? `【${senderName}】${question}` : question;
     const turnContent = parentBlock ? `${parentBlock}\n\n${userTurn}` : userTurn;
     // ★ `force`（补发）时**不重复 append 同一个用户轮**：上一轮失败前已经 append 过一次
@@ -331,6 +1353,14 @@ export async function handleMessage(event, { force = false } = {}) {
     let llmFailure = null;             // ★ 整条失败体（layer/chain/attempts/retryable），不只那句 error
     let truncated = false;
     let toolExhausted = false;         // ★ 走没走兜底话术（决定 reason，`retry_queue` 靠它补发）
+    // ★ 2026-10-08：**「链跑成」不等于「有结论」**。
+    //   真事故（Owner 截图）：库忙（认领被占）时链**正常返回**（日志写 `🧭 送审链返回：跑成`），
+    //   而旁挂是 `state=NEEDS_INPUT / reason_code=claim_busy` —— **一次三态都没有**。
+    //   上一轮我把「没测」的判据写成 `!chainRan`，于是这一种**根本不触发**：
+    //   卡片照发（「库忙未判」）、补发队列 0 条、**永远不补跑**。
+    //   判据改成「**链没给出三态结论**」—— PASS/REVIEW/BLOCK 之外的一切都算没测，
+    //   不管它是报错、拒答、库忙还是超时。
+    let synthesized = null;            // ★ 走过「兜底合成」的话记下触发原因（tool-iters / empty-length）
 
     for (let iter = 0; iter < config.llm.maxToolIters; iter++) {
       const messages = mem.toLlmMessages(sess, systemPrompt);
@@ -347,6 +1377,49 @@ export async function handleMessage(event, { force = false } = {}) {
         // 截断检查：拿到 finishReason 却不用，半句话就会被当成完整回答发出去。
         // 真实事故：779 字回复停在「…里「未做」，日志却记「✓ 已发送」。
         const cut = detectTruncation({ finishReason: r.finishReason, text: reply });
+
+        // ★ 2026-09-30 新增一支：**一个字都没写出来**（`finish_reason=length` + 正文 0 字）。
+        //   它与「半句话被腰斩」是两种故障，处置也不同：
+        //     · 腰斩 —— 写了一半，材料已经用上，交给 annotateTruncation 标出来即可；
+        //     · 空 —— **什么都没说**，而材料在手边。此时该做的是**关掉工具再写一次**，
+        //       不是把一句「被长度上限截断了」当成回答发进群（事故里就是这么发的，
+        //       用户看到的是一条只有说明、没有内容的回复）。
+        const empty = reply.length === 0;
+        if (empty && cut.cut && toolTrace.length) {
+          const s = await synthesizeFromTools({ systemPrompt, messages, why: 'empty-length' });
+          synthesized = 'empty-length';
+          const got = s.ok ? String(s.text ?? '').trim() : '';
+          const rTok = s.usage?.completion_tokens_details?.reasoning_tokens ?? null;
+          console.warn(
+            `[agent] ⚠️ 模型烧光额度没写出正文（${cut.reason}）→ 已折叠工具返回体、关掉工具重写一次`
+            + `｜工具结果 ${messages.filter((x) => x.role === 'tool').length} 份`
+            + `｜重写后正文 ${got.length} 字｜reasoning ${rTok ?? '?'} tok`
+            + (got ? '' : `｜**重写也没写出正文**${s.ok ? '' : `（失败：${s.error}）`}`)
+          );
+          if (got) {
+            reply = got;
+            // 重写这一跳自己也可能被截在半句上 —— 同一把尺子再量一次，不搞双重标准。
+            const cut2 = detectTruncation({ finishReason: s.finishReason, text: reply });
+            if (cut2.cut) { reply = annotateTruncation(reply, { reason: cut2.reason }); truncated = true; }
+            // ★ 带上 `truncated` 这个**结构标记**（见 retry_queue.mjs 的 NOT_AN_ANSWER_FLAGS）：
+            //   截断说明长得像一条回答，不带标记的话补发队列会以为她已经答过了。
+            appendAssistant(sess, { role: 'assistant', content: reply,
+                                    ...(truncated ? { truncated: true } : {}),
+                                    ...(chainUnmeasured ? { chain_not_run: true } : {}),
+                                    ...reasoningToPassBack(s.message) });
+            break;
+          }
+          // 重写仍是空 → **这一轮真的没有答案**。落回兜底话术（它至少是一句人话），
+          // 不是把一句「被截断了」当成回答 —— 事故里发进群的那条正是后者：
+          // 通篇只有说明、没有一个字的答案，而她还以为那是全部内容。
+          console.warn('[agent] ⚠️ 兜底合成也没写出正文 → 改用兜底话术（这一轮确实没答上来）');
+          toolExhausted = true;
+          reply = fallbackReply(toolTrace);
+          appendAssistant(sess, { role: 'assistant', content: reply, tool_exhausted: true, truncated: true,
+                                  ...reasoningToPassBack(m) });
+          break;
+        }
+
         if (cut.cut) {
           const reasoning = r.usage?.completion_tokens_details?.reasoning_tokens ?? null;
           console.warn(
@@ -358,12 +1431,16 @@ export async function handleMessage(event, { force = false } = {}) {
           truncated = true;
         }
 
-        mem.append(sess, { role: 'assistant', content: reply });
+        appendAssistant(sess, { role: 'assistant', content: reply,
+                                ...(truncated ? { truncated: true } : {}),
+                                ...(chainUnmeasured ? { chain_not_run: true } : {}),
+                                ...reasoningToPassBack(m) });
         break;
       }
 
       // 有工具调用：把 assistant 的 tool_calls 存进历史，再逐个执行
-      mem.append(sess, { role: 'assistant', content: m.content ?? '', tool_calls: toolCalls });
+      appendAssistant(sess, { role: 'assistant', content: m.content ?? '', tool_calls: toolCalls,
+                              ...reasoningToPassBack(m) });
 
       for (const tc of toolCalls) {
         const name = tc.function?.name;
@@ -372,32 +1449,62 @@ export async function handleMessage(event, { force = false } = {}) {
         toolTrace.push({ tool: name, ok: out.ok, ms: Date.now() - t0,
                          args: String(tc.function?.arguments ?? '').slice(0, 300),
                          error: out.ok ? undefined : out.error });
-        mem.append(sess, {
-          role: 'tool',
-          tool_call_id: tc.id,
-          content: JSON.stringify(out.ok ? out.result : { error: out.error }).slice(0, 60_000),
-        });
+        // ★ 工具返回体的**最后一道字数闸**就设在这里（§2.4：上限必须有执行点）。
+        //   `executeTool` 收口处已经剪过（`boundToolResult`），这里是**独立**的一道 ——
+        //   因为「工具自己守规矩」不该是这条不变量成立的前提：任何一条路径把
+        //   大对象塞进 memory，都会在下一次请求里挤掉模型的正文额度。
+        //   实测：60,349 字工具结果 → 模型 reasoning 8000 tok、正文 0 字。
+        const raw = JSON.stringify(out.ok ? out.result : { error: out.error });
+        const body = raw.length > TOOL_OUTPUT_MAX_CHARS
+          ? clipToolOutput(raw)
+          : raw.slice(0, 60_000);
+        if (raw.length > TOOL_OUTPUT_MAX_CHARS) {
+          console.warn(`[agent] ⚠️ 工具返回体超预算：${name} ${raw.length} 字 → 入库前截到 ${TOOL_OUTPUT_MAX_CHARS} 字`);
+        }
+        mem.append(sess, { role: 'tool', tool_call_id: tc.id, content: body });
       }
       // 循环继续：让模型看到工具结果后决定是继续查还是作答
     }
 
     if (reply === null && !llmError) {
-      toolExhausted = true;
-      // 工具循环用尽仍未给出最终答复。文案见 `fallbackReply()` —— 它有一条硬约束
-      // （不许出现工具名），由 `verify_cards.mjs` 的 L6 断言。
-      reply = fallbackReply(toolTrace);
-      // 工具名只进日志：可排查，但**不进正文**（正文那份由上面那个函数产生）。
+      // ── 工具循环用尽。**先试「兜底合成」，再考虑兜底话术**（2026-09-30 加）
+      //
+      // 原先是直接跳到兜底话术：「这个问题我没答上来 —— 查了几轮，还是没能得出可靠结论」。
+      // 而 19:05 那次实测里，**工具 12 次调用一次都没失败**（`其中失败 0 次`），
+      // 材料全都读到手了 —— 说「没答上来」对她是误导，对我方是**白丢一次本来能答的机会**。
+      // 现在先关掉工具让它用手上的材料写一遍；只有**它也写不出来**才说兜底话术。
+      const messages = mem.toLlmMessages(sess, systemPrompt);
+      const s = await synthesizeFromTools({ systemPrompt, messages, why: 'tool-iters' });
+      const got = s.ok ? String(s.text ?? '').trim() : '';
+      synthesized = 'tool-iters';
       console.warn(
         `[agent] ⚠️ 工具循环用尽：上限 ${config.llm.maxToolIters} 轮 / 实调 ${toolTrace.length} 次`
         + `｜工具 ${[...new Set(toolTrace.map((t) => t.tool))].join(',') || '（无）'}`
         + `｜其中失败 ${toolTrace.filter((t) => !t.ok).length} 次`
-        + ` → 已改用兜底话术（明细只留在这里）`
+        + ` → 已折叠工具返回体、关掉工具让它用手上的材料写一次：正文 ${got.length} 字`
+        + (got ? '' : `（也没写出来${s.ok ? '' : `：${s.error}`} → 落兜底话术）`)
       );
-      // ★ `tool_exhausted` 是**结构标记**，与 `llm_error` 同一用途：告诉补发队列
-      //   「这条 assistant 不是真回答」。没有它，`answeredInMemory()` 会把兜底话术
-      //   当成真回答，于是「答不上」就真的变成「永远答不上」——
-      //   2026-09-22 她连问两次都得到兜底话术，而队列一条都补不出去。
-      mem.append(sess, { role: 'assistant', content: reply, tool_exhausted: true });
+      if (got) {
+        reply = got;
+        const cut2 = detectTruncation({ finishReason: s.finishReason, text: reply });
+        if (cut2.cut) { reply = annotateTruncation(reply, { reason: cut2.reason }); truncated = true; }
+        appendAssistant(sess, { role: 'assistant', content: reply,
+                                ...(truncated ? { truncated: true } : {}),
+                                ...(chainUnmeasured ? { chain_not_run: true } : {}),
+                                ...reasoningToPassBack(s.message) });
+      } else {
+        toolExhausted = true;
+        // 工具循环用尽仍未给出最终答复。文案见 `fallbackReply()` —— 它有一条硬约束
+        // （不许出现工具名），由 `verify_cards.mjs` 的 L6 断言。
+        reply = fallbackReply(toolTrace);
+        // 工具名只进日志：可排查，但**不进正文**（正文那份由上面那个函数产生）。
+        // ★ `tool_exhausted` 是**结构标记**，与 `llm_error` 同一用途：告诉补发队列
+        //   「这条 assistant 不是真回答」。没有它，`answeredInMemory()` 会把兜底话术
+        //   当成真回答，于是「答不上」就真的变成「永远答不上」——
+        //   2026-09-22 她连问两次都得到兜底话术，而队列一条都补不出去。
+        appendAssistant(sess, { role: 'assistant', content: reply, tool_exhausted: true,
+                                ...reasoningToPassBack(s.message) });
+      }
     }
 
     // ── 7. 压缩与落盘
@@ -420,17 +1527,78 @@ export async function handleMessage(event, { force = false } = {}) {
       mem.append(sess, { role: 'assistant', content: notice, llm_error: true });
       mem.save(sess);
       return { reply: notice, reason: 'llm_error', sessionKey: key,
-               meta: { toolTrace, llm: { layer: llmFailure?.layer ?? '未知',
+               // ★ 2026-10-05 补：这一条原先**不带** `gate` / `chain` / `media` ——
+               //   于是「模型这一跳失败」的时候，`mediaWithoutChain()` 那条棘轮读不到闸门读数，
+               //   只能闭嘴。而「链跑了、模型又失败」恰恰是最该被看见的一种：
+               //   结论算出来了、却没送到人手上。读数缺一格，警报就少一处。
+               meta: { toolTrace,
+                       media: { images: inbound.imageCount, videos: inbound.videoCount },
+                       gate: gate ? { yes: gate.yes, kind: gate.kind, why: gate.why } : null,
+                       chain: gate?.yes ? { ran: chainRan, ms: chainMs,
+                                        publish: g.publish ? { ok: g.publish.ok,
+                                                               action: g.publish.action,
+                                                               record_id: g.publish.record_id ?? null } : null } : null,
+                       llm: { layer: llmFailure?.layer ?? '未知',
                                         retryable: llmFailure?.retryable === true,
                                         attempts: llmFailure?.attempts?.length ?? 0,
                                         chain: llmFailure?.chain ?? [] } } };
     }
 
+    // ── 「这一单**到底有没有三态结论**」——报错、拒答、库忙、超时都算「没有」 ──────────
+    //
+    // ★ 2026-10-08 修。上一轮我把判据写成 `!chainRan`（= 链报错），漏掉了一整类：
+    //   **库忙（认领被占）时链是「跑成」返回的**（日志写 `🧭 送审链返回：跑成`），
+    //   而旁挂是 `state=NEEDS_INPUT / reason_code=claim_busy` —— 一次三态都没有。
+    //   后果（Owner 截图那一单）：卡片照发「库忙未判」、**补发队列 0 条、永远不补跑**。
+    //   判据改成「链有没有给出 PASS/REVIEW/BLOCK」—— 比 `!chainRan` 严格得多，
+    //   而且**不依赖任何字符串猜测**：`verdict53` 只可能由三态结论行（或 P0 派生）产生，
+    //   `NEEDS_INPUT` 那一类根本没有 §5.3 行可抽（`LINE_RE` 只认三态）。
+    const verdict53Final = g?.verdict53
+      ?? ((toolTrace ?? []).some((x) => x.tool === 'kb_review_chain' && x.ok)
+           ? deriveVerdictLine({ replyText: reply ?? '', reviewedByTool: true })
+           : null);
+    /** 闸门判了送审，但**没拿到三态结论** ⇒ 这一轮不是答案，补发队列应当重跑。 */
+    const chainUnmeasured = !!(gate?.yes && !verdict53Final);
+
     return { reply: reply || null,
-             reason: reply ? (toolExhausted ? 'tool_exhausted' : 'ok') : 'empty_reply',
+             // ★ 2026-10-06 加第三种 reason `chain_not_run`（Owner：「每次发图片/视频都必须
+             //   能正常回复，不能拒答」）。形状与 09-22 那次的 `tool_exhausted` **一模一样**：
+             //   送审单起了链、链却没跑成（库忙 exit 3 / 超时 / 层前置红 / 依据侧没给结论）时，
+             //   守衡照样有一条回复（「这一单未测，没有三态结论」）⇒ `reason` 本来是 `ok`
+             //   ⇒ `ws_daemon` 的入队判据不收它 ⇒ 补发队列**连队都没进**，
+             //   于是「问一次答不上，问十次还是答不上」。
+             //   判据与 `chain_not_run` 那个记忆标记**同源**（`gate?.yes && !chainRan`），
+             //   两处必须一起动：入队靠 reason，防「答两遍」靠记忆标记。
+             reason: reply
+               ? (toolExhausted ? 'tool_exhausted'
+                  : (chainUnmeasured ? 'chain_not_run' : 'ok'))
+               : 'empty_reply',
              sessionKey: key,
              meta: { toolTrace, compacted, summary_chars: (sess.summary ?? '').length,
-                     truncated, turns: sess.messages.length,
+                     truncated, synthesized, turns: sess.messages.length,
+                     // ★ 这一轮带了几个媒材 —— daemon 拿它问 `mediaWithoutChain()`：
+                     //   「读到了、却没起链」这个形状**必须有个读数**，否则它只是一行没出现的日志。
+                     media: { images: inbound.imageCount, videos: inbound.videoCount },
+                     // ★ 2026-10-05 加：送审闸门自己的读数 —— 判没判、判成什么、链跑成没有、花了多久。
+                     //   没有这三个数，「闸门到底有没有生效」就只能靠猜（而猜错的方向是「以为它跑了」）。
+                     gate: gate ? { yes: gate.yes, kind: gate.kind, why: gate.why } : null,
+                     chain: gate?.yes ? { ran: chainRan, ms: chainMs } : null,
+                     // ★ 2026-10-06 加：PRD §5.3 的权威结论行 —— daemon 把它一路交到
+                     //   `replyTo → toCardOrText`，由信封层**搬进卡片的结论格**。
+                     //   没有它，「逐字转述、不许改写」就只是一句写在提示词里的声明，
+                     //   而实测证明模型会改写（Owner 看见的那三条就是）。
+                     // ★ 2026-10-06：闸门没判送审、**但模型自己调了 `kb_review_chain`** 的那条路 ——
+                     //   原先这里只认 `g?.verdict53`，于是那条路上的卡片抬头由模型自便
+                     //   （Owner 发的 `REVIEW 1 处：W-1.16「限时」（覆盖不成立）` 就是这么来的）。
+                     //   凭据是**这一轮真的调成了链**（`toolTrace` 里有一次 `ok` 的
+                     //   `kb_review_chain`），不是「回复里出现了一行像 5.3 的字」。
+                     verdict53: verdict53Final,
+                     // ★ 2026-10-06 加：**这一轮到底读到了什么** —— daemon 把它一路交到
+                     //   `replyTo → toCardOrText`，由信封层搬进卡片正文**最前面**。
+                     //   没有它，卡片通篇只有知识库在讲自己（「覆盖判据不成立」），
+                     //   委托方读到的就是「它没看我的视频」（Owner 原话）。
+                     //   与 `verdict53` 同一条分工：**模型不写，代码搬。**
+                     mediaRead: describeMediaRead(inbound),
                      outbound: { folded: outboundFold.folded, untested: outboundFold.plan.untested } } };
   });
 }

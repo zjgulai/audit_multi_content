@@ -22,8 +22,12 @@ import path from 'node:path';
 
 import { config, describeConfig, LOG_DIR, REPO_ROOT, ensureDir, stateDir } from './agent/config.mjs';
 import * as feishu from './agent/feishu.mjs';
-import { handleMessage, flushSeen, loadedTools, status } from './agent/agent.mjs';
+import * as vision from './agent/vision.mjs';
+import * as video from './agent/video.mjs';
+import * as asr from './agent/asr.mjs';
+import { handleMessage, flushSeen, loadedTools, status, mediaWithoutChain } from './agent/agent.mjs';
 import { toCardOrText } from './reply-cards/envelope.mjs';
+import { deriveVerdictLine } from './agent/prd53.mjs';
 import { shapeOf } from './reply-cards/registry.mjs';
 import { checkNow, checkPending, resolveChat, LARK_DOC_RE, bjDate, loadState, loadPendingState, saveChatId,
          pickAlertTarget,
@@ -71,6 +75,67 @@ const RUN_STATE_FILE = () => path.join(stateDir(), 'daemon-run.json');
 const RUN_STARTED_AT = new Date();
 let runStateWrites = 0, runStateFails = 0;
 
+/* ─────────── 长连接的**状态**（2026-10-05 加）───────────
+ *
+ * ★ 为什么必须有这一块：实测 2026-10-05 07:10，守衡的长连接断了
+ *   （`getaddrinfo ENOTFOUND open.feishu.cn` → 之后 `timeout of 15000ms exceeded`），
+ *   而**没有任何东西会红**：
+ *     · 进程活着、心跳每 5 分钟照打（E3 因此一直是绿的）；
+ *     · SDK 自己在重试，但它的错误只进 logger —— **没注册回调，等于报给了空气**；
+ *     · 群里那侧看到的是「守衡不回话了」，而盘上一切正常。
+ *   这与 §2.4.1 第 5 行是同一个病：**一个会过期的读数，没有任何东西在它过期时变红**。
+ *   「进程活着」和「还连着飞书」是两件事，必须分别有读数。
+ *
+ *   ⇒ 三个后果都要有：**看得见**（心跳里带一行）· **查得到**（写进 run-state 供自证读）·
+ *     **能自愈**（重试循环真的死了就重新 start 一次，有上限、有留痕）。
+ */
+const wsState = {
+  connected: false,      // 此刻连着吗（**不猜**：只由 SDK 的回调改）
+  readyAt: null,         // 最近一次连上的时刻
+  downSince: null,       // 第一次断开的时刻（恢复即清空）
+  lastSignalAt: Date.now(),  // 最近一次收到任何 ws 回调的时刻（判「重试循环是不是死了」）
+  lastError: null,
+  lastErrorAt: null,
+  reconnects: 0,         // SDK 报的重连次数
+  revives: 0,            // **我们**主动重新 start() 的次数
+};
+const wsDownMinutes = () => (wsState.downSince ? (Date.now() - wsState.downSince) / 60_000 : 0);
+
+function wsLine() {
+  if (wsState.connected) {
+    const up = wsState.readyAt ? Math.round((Date.now() - wsState.readyAt) / 60_000) : null;
+    return `长连接=✅ 已连${up === null ? '' : ` ${up} 分钟`}`;
+  }
+  const down = wsDownMinutes();
+  return `长连接=⚠️ **断线 ${down < 1 ? '不到 1' : Math.round(down)} 分钟**`
+       + `${wsState.lastError ? `（最后错误：${String(wsState.lastError).slice(0, 80)}）` : ''}`
+       + `｜重连 ${wsState.reconnects} 次 · 自愈 ${wsState.revives} 次 —— 这段时间群里发的消息收不到`;
+}
+
+/**
+ * 自愈：**只在重试循环像是死了的时候**才重新 start 一次。
+ *
+ * 判据（缺一不可）：① 此刻没连着；② 最后一次 ws 回调已经过去 > 6 分钟
+ * （SDK 的 reconnectInterval 是 120 秒 —— 6 分钟等于连续三轮都没动静）；
+ * ③ 距上次自愈 > 10 分钟（有上限，不许把「断线」变成「每 5 分钟重连风暴」）。
+ */
+let lastReviveAt = 0;
+function maybeReviveWs() {
+  if (wsState.connected) return false;
+  const quietMin = (Date.now() - wsState.lastSignalAt) / 60_000;
+  const sinceReviveMin = (Date.now() - lastReviveAt) / 60_000;
+  if (quietMin < 6 || sinceReviveMin < 10) return false;
+  lastReviveAt = Date.now();
+  wsState.revives++;
+  log(`  ★ 长连接断了 ${Math.round(wsDownMinutes())} 分钟，且 ${Math.round(quietMin)} 分钟没有任何重连动静`
+      + ` —— 主动重新 start()（第 ${wsState.revives} 次）`);
+  void Promise.resolve()
+    .then(() => ws.start({ eventDispatcher: dispatcher }))
+    .then(() => log('  ★ 重新 start() 已发出'))
+    .catch((e) => log(`  ❌ 重新 start() 失败：${e?.message ?? e}`));
+  return true;
+}
+
 function writeRunState(note = null) {
   const body = {
     pid: process.pid,
@@ -83,6 +148,12 @@ function writeRunState(note = null) {
     skipped: counters.skipped, failed: counters.failed, uncaught: counters.uncaught,
     llmCalls: status().llm.calls,
     probe: PROBE, dumpOnly: DUMP_ONLY,
+    // ★ 长连接读数（2026-10-05）：**「进程活着」与「还连着飞书」必须分开报**。
+    //   `verify_shouheng_ops.py` 的 E4 读这三个字段；缺了它们就只能是「未测」。
+    wsConnected: wsState.connected,
+    wsDownSeconds: wsState.downSince ? Math.round((Date.now() - wsState.downSince) / 1000) : null,
+    wsLastError: wsState.lastError ? String(wsState.lastError).slice(0, 200) : null,
+    wsReconnects: wsState.reconnects, wsRevives: wsState.revives,
     note,
   };
   try {
@@ -111,13 +182,22 @@ async function onMessage(data) {
   const msg = data?.message ?? {};
   const chatId = msg.chat_id;
 
-  // 先落一行「收到了」，保证即使后面崩了，日志也能看出事件确实到了
-  let preview = '';
-  try { preview = JSON.parse(msg.content ?? '{}').text ?? ''; } catch {}
+  // 先落一行「收到了」，保证即使后面崩了，日志也能看出事件确实到了。
+  //
+  // ★ 2026-10-05 改：原先只认 `JSON.parse(content).text`，于是**图文混排（post）在日志里
+  //   一律打成 `原文=""`** —— 事故那天这一行读起来像「她发了一条空消息」，
+  //   而真身是「一句话 + 一张图」，两者排查方向完全不同（这正是 `bodyToText` 09-22 修过的同一个病，
+  //   只是当时代码路径没走到日志这一侧）。现在走同一份解析，并把**图几张**一起打出来。
+  const parsedIn = feishu.bodyToText(msg.message_type, msg.content ?? '{}');
+  const preview = parsedIn.text ?? '';
+  const inImages = feishu.imageKeysOf(msg.message_type, msg.content ?? '{}').length;
   const mentionNames = (msg.mentions ?? []).map((m) => m.name).filter(Boolean);
   log(`★ 收到消息 chat=${chatId} msg=${msg.message_id}`);
-  log(`   type=${msg.message_type} chat_type=${msg.chat_type} mentions=[${mentionNames.join(', ')}]`);
-  log(`   原文=${JSON.stringify(preview).slice(0, 200)}`);
+  log(`   type=${msg.message_type} chat_type=${msg.chat_type} mentions=[${mentionNames.join(', ')}]`
+      + (inImages ? ` 图=${inImages}张` : ''));
+  log(`   原文=${JSON.stringify(preview).slice(0, 200)}`
+      + (preview ? '' : (inImages ? '（正文为空，但带图 —— 图的内容由内核读）' : `（${parsedIn.note ?? '解析不出正文'}）`))
+      + (msg.parent_id ? ` ｜回复 ${msg.parent_id}` : ''));
 
   if (DUMP_ONLY) { log('   （--dump-only 模式，不回复）'); return; }
 
@@ -140,7 +220,19 @@ async function onMessage(data) {
   const t0 = Date.now();
   let result;
   try {
-    result = await handleMessage(data);
+    result = await handleMessage(data, {
+      // ★ 送审链要跑 6~30 分钟 —— 一开始先回一句，否则对方以为它没动
+      //   （09:22 那次就是：她发完视频等了半天，收到的是一段「我读不了」）。
+      //   形态决策仍然只有 `replyTo` 一处（§2.5），所以这里走同一个 safeSend。
+      // ★ 2026-10-05 改：回执走 `replyTo`（引用她那条消息）而不是 `safeSend`。
+      //   两个理由，都不是风格问题：
+      //     ① 内核递过来的是**卡片块**（`[[card:receipt]]` + JSON），成形与字段校验
+      //        只在 `envelope` 一处做（§2.5：形态决策只能有一处）；`safeSend` 走的是纯 markdown，
+      //        会把那个块**原样当字符串发出去**，群里看到的就是一段 `[[card:receipt]]{...}`。
+      //     ② 截图那张「⏳ 处理中…」是**引用她消息**的一条卡片 —— 回执属于「回答某一条」，
+      //        不是主动喊话，`replyTo` 正是那一条路径（它还负责降级与台账）。
+      notify: (text) => replyTo(chatId, msg.message_id, text, msg.chat_type, 'chain-ack'),
+    });
   } catch (e) {
     counters.failed++;
     log(`   ✗ 内核异常: ${e?.stack ?? e?.message ?? e}`);
@@ -159,6 +251,17 @@ async function onMessage(data) {
   counters.handled++;
   const trace = result.meta?.toolTrace ?? [];
   if (trace.length) log(`   🔧 工具: ${trace.map((t) => `${t.tool}${t.ok ? '' : '✗'}(${t.ms}ms)`).join(' → ')}`);
+  // ★ 2026-10-05 加：**「媒材读到了、却一次链都没起」这个形状现在有读数了。**
+  //   那次事故的全部盘上痕迹，就是上面那行 `🔧 工具:` **没有出现** ——
+  //   而「一行没出现的日志」不是判据（§2.4.1：判据没盖住的那一跳，就是事故所在的那一跳）。
+  //   所以这里每轮问一次：带了图/视频却没成功起过 kb_review_chain → 打一行 ⚠。
+  const noChain = mediaWithoutChain(result.meta);
+  if (noChain) {
+    log(`   ⚠ 该送审却没起链：闸门=${JSON.stringify(noChain.gate)}｜媒材 ${noChain.media} 个`
+      + `｜闸门起链=${noChain.chainTried ? (noChain.chainOk ? '跑成' : '没跑成') : '没起'}`
+      + `｜本轮工具=${noChain.tools.join(',') || '（一个都没调）'}`
+      + ' —— 对方要的是结论，不是「我读到了什么」');
+  }
   if (result.meta?.compacted) {
     // ★ 2026-09-22 改：这块**原先无条件**说「+ 纪要」，而 `meta.summary` 就在手边
     //   （写出来之后**从来没有一个地方读过它** —— §2.4 那个病的又一个实例）。
@@ -172,6 +275,13 @@ async function onMessage(data) {
         + '旧对话已删且未留下摘要，这是故障不是省事，见 PMO/logs');
   }
   if (result.meta?.truncated) log('   ⚠️ 回复被长度上限截断（已附截断说明，不是完整回答）');
+  // ★ 2026-09-30 加：走过兜底合成就要说出来 —— 这一轮的回答是**折叠工具返回体之后重写的**，
+  //   质量与正常轮不同（依据只剩结构摘要）。不写这一行，事后看日志会以为它是正常回答。
+  if (result.meta?.synthesized) {
+    log(`   ↺ 兜底合成：${result.meta.synthesized === 'empty-length'
+      ? '模型烧光额度没写出正文 → 已折叠工具返回体、关掉工具重写一次'
+      : '工具循环跑满 → 已折叠工具返回体、关掉工具让它用手上的材料作答'}`);
+  }
   if (result.meta?.outbound?.folded) log(`   ↩ 本轮补记外发 ${result.meta.outbound.folded} 条进会话记忆`);
   if (result.meta?.outbound?.untested) log(`   ⚠️ 补记外发未测：${result.meta.outbound.untested}`);
 
@@ -180,24 +290,32 @@ async function onMessage(data) {
   // 这里只负责把它连同「哪条消息、哪个群、问的什么」记下来。
   // **只对可重试类失败入队**：HTTP 4xx（鉴权/参数/配额）补发 5 次也是白试。
   //
-  // ★ 两种失败都要入队（2026-09-22 补第二种）：
+  // ★ 三种失败都要入队（2026-10-06 补第三种）：
   //   `llm_error`      —— 模型这一拍没调通；
   //   `tool_exhausted` —— 调通了但工具循环跑满、始终没给出最终答复（走兜底话术）。
-  //   第二种原先不入队（`reason` 是 `'ok'`，因为它有 `reply`），于是她连问两次
-  //   都只收到兜底话术，而**盘上没有任何东西记得她欠一条回答**。
-  if (result.reason === 'llm_error' || result.reason === 'tool_exhausted') {
+  //   `chain_not_run`  —— **送审单起了链、链却没跑成**（库忙 exit 3 / 超时 / 层前置红 /
+  //                       依据侧没给结论）。它有回复（「这一单未测」），所以 `reason` 本来是
+  //                       `ok` ⇒ 这里收不到它 ⇒ **连队都没进** ⇒ 那张图那条视频
+  //                       「问一次答不上，问十次还是答不上」。
+  //                       与 09-22 补 `tool_exhausted` 是**同一个病**，只是长在送审这条路上
+  //                       （Owner 2026-10-06：「每次发图片/视频都必须能正常回复，不能拒答」）。
+  if (result.reason === 'llm_error' || result.reason === 'tool_exhausted'
+      || result.reason === 'chain_not_run') {
     const m = result.meta?.llm ?? {};
     const item = retryQueue.itemFromEvent(data, { error: result.reply?.slice(0, 200), layer: m.layer });
     if (!item) log('   ⚠ 失败入队未测：事件里抽不出 message_id/chat_id');
     else {
-      // 工具跑满**不是**网络问题：`retryable` 只对 `llm_error` 才由层决定。
-      // 兜底话术那次补发值不值得？值得 —— 补发是**换一条路重跑**（`answer` 会重跑内核），
-      // 而工具循环是个随机过程：同一句话两次跑满不代表第三次也跑满。
-      const retryable = result.reason === 'tool_exhausted' ? true : m.retryable === true;
+      // 工具跑满 / 链没跑成**都不是**网络问题：`retryable` 只对 `llm_error` 才由层决定。
+      // 补发值不值得？值得 —— 补发是**换一条路重跑**（`answer` 会重跑内核），
+      // 而库忙、超时、层前置都是**随时间变化**的状态：同一句话隔几分钟再跑很可能就通了。
+      const retryable = (result.reason === 'tool_exhausted' || result.reason === 'chain_not_run')
+        ? true : m.retryable === true;
       const enq = retryQueue.enqueue({ ...item, retryable });
-      log(`   ↻ ${result.reason === 'tool_exhausted'
-              ? `工具循环跑满（${result.meta?.toolTrace?.length ?? 0} 次调用）`
-              : `模型失败（层=${m.layer ?? '未知'}）`}，可重试=${retryable} → `
+      log(`   ↻ ${result.reason === 'chain_not_run'
+              ? '送审单但链没跑成（库忙/超时/层前置红）'
+              : (result.reason === 'tool_exhausted'
+                 ? `工具循环跑满（${result.meta?.toolTrace?.length ?? 0} 次调用）`
+                 : `模型失败（层=${m.layer ?? '未知'}）`)}，可重试=${retryable} → `
           + (enq.ok ? `已入补发队列（${enq.size} 条）` : `未入队：${enq.why}`));
     }
   }
@@ -209,7 +327,14 @@ async function onMessage(data) {
   // 而这正是 §2.5 存在的理由。现在这里只把模型的原文交下去，由 `replyTo` 一处决定。
   log(`   💬 回复 ${result.reply.length} 字，耗时 ${ms}ms`);
 
-  const sent = await replyTo(chatId, msg.message_id, result.reply, msg.chat_type);
+  // ★ 2026-10-06：把**权威结论行**（PRD §5.3）一路交到 `toCardOrText`。
+  //   它是唯一知道「这一轮链给了哪一行」的地方（`meta.verdict53` 由内核算出），
+  //   而形态决策仍然只在 `replyTo` 一处做（§2.5）—— 这里只是**递读数**，不定形态。
+  const sent = await replyTo(chatId, msg.message_id, result.reply, msg.chat_type, 'reply',
+    { verdict53: result.meta?.verdict53 ?? null,
+      // ★ 2026-10-06 加：这一轮**读到了什么**（内核的 `describeMediaRead`）。
+      //   与 `verdict53` 同一条分工 —— 这里只**递读数**，成形仍只在 `replyTo` 一处（§2.5）。
+      mediaRead: result.meta?.mediaRead ?? null });
   if (sent.ok) { counters.replied++; log(`   ✓ 已发送 ${sent.messageIds.filter(Boolean).join(', ')} [${sent.mode}]`); }
   else { counters.failed++; log(`   ✗ 发送失败: ${sent.error}`); }
 }
@@ -328,8 +453,28 @@ function dumpDropped({ messageId, chatId, source, reason, raw }) {
  *   而不是以为守衡改了风格。这是 2026-09-17 那次故障的直接教训 ——
  *   当时它对着一堆内部记录说「✓ 已发送」。
  */
-async function replyTo(chatId, messageId, rawReply, chatType = null, source = 'reply') {
-  const shaped = toCardOrText(rawReply);
+async function replyTo(chatId, messageId, rawReply, chatType = null, source = 'reply',
+                       { verdict53 = null, mediaRead = null } = {}) {
+  // ★ 结论行的**兜底派生**（2026-10-06）：补发队列那一跳（`source='resend'`）走的是
+  //   `handleMessage(event, {force:true})`，它**不跑送审闸门**，所以拿不到 `meta.verdict53`。
+  //   判据很窄 —— 只有模型自己把一行 5.3 结论**摆在回复最前面**时才认它
+  //   （`prd53.leadsWith`）。宁可在这一路上漏搬，也不许把「有人在问 5.3 模板长什么样」
+  //   那句回答误当成一条审查结论。
+  const v53 = verdict53 ?? deriveVerdictLine({ replyText: rawReply });
+  // ★ `mediaRead` 不走兜底派生：它是**内核已经算好的读数**，拿不到就是没有（不猜）。
+  const shaped = toCardOrText(rawReply, { verdict53: v53, mediaRead });
+  if (v53) {
+    // ★ 措辞不合 5.3 时**出声**：链是结论行的产者，它的措辞会回退，
+    //   而回退的表现只是「群里格式不对」—— 那要等到人看见才知道。
+    //   这一行让 `PMO/logs/ws_daemon.log` 里能直接查到「哪一条、哪一态、为什么不合规」。
+    const c = v53.conform;
+    const v = shaped.verdict53 ?? {};
+    const blk = v.block ? `${v.block.action}·${v.block.slot ?? '-'}` : '无';
+    log(`   📋 PRD §5.3 结论行：${v53.state}（来自 ${v53.from}）`
+        + `｜落点=${v.action ?? 'n/a'}·${v.slot ?? '-'}`
+        + `｜逐条块=${blk}`
+        + `${c && !c.ok ? ` ⚠️ 措辞不合 §5.3：${c.why}` : ''}`);
+  }
   for (const m of shaped.moved) log(`   ↪ ${m.field} → ${m.to}（${m.why}）`);
   for (const h of shaped.lint) log(`   ${h.level === 'error' ? '❌' : '⚠️ '} 语域 ${h.id} ×${h.count} ${h.sample}`);
   if (shaped.mode === 'card') log(`   🃏 卡片 ${shaped.kind} · ${shapeOf(shaped.card)}`);
@@ -548,6 +693,30 @@ log('='.repeat(74));
 const dispatcher = new Lark.EventDispatcher({}).register(handlers);
 const ws = new Lark.WSClient({
   appId: config.lark.appId, appSecret: config.lark.appSecret, loggerLevel: Lark.LoggerLevel.info,
+  // ★ 2026-10-05 加：原先这四个回调**一个都没注册** —— 于是 SDK 把「连不上/重连耗尽」
+  //   报给了空气，守衡静默失联而盘上全是绿的。现在每一次都改读数、并落一行日志。
+  onReady: () => {
+    wsState.connected = true; wsState.readyAt = Date.now();
+    wsState.downSince = null; wsState.lastSignalAt = Date.now();
+  },
+  onReconnecting: () => {
+    if (!wsState.downSince) wsState.downSince = Date.now();
+    wsState.connected = false; wsState.reconnects++;
+    wsState.lastSignalAt = Date.now();
+    log(`  ⚠️ 长连接断了（第 ${wsState.reconnects} 次重连中）—— 恢复前群里发的消息收不到`);
+  },
+  onReconnected: () => {
+    const down = wsState.downSince ? Math.round((Date.now() - wsState.downSince) / 1000) : null;
+    wsState.connected = true; wsState.readyAt = Date.now();
+    wsState.downSince = null; wsState.lastSignalAt = Date.now();
+    log(`  ✓ 长连接已恢复${down === null ? '' : `（断了约 ${down} 秒）`}`);
+  },
+  onError: (e) => {
+    wsState.lastError = String(e?.message ?? e);
+    wsState.lastErrorAt = Date.now();
+    wsState.lastSignalAt = Date.now();
+    log(`  ❌ 长连接错误：${wsState.lastError}`);
+  },
 });
 
 let shuttingDown = false;
@@ -620,6 +789,57 @@ process.on('unhandledRejection', (e) => noteCrash('unhandledRejection', e));
 process.on('uncaughtException',  (e) => noteCrash('uncaughtException',  e));
 
 await ws.start({ eventDispatcher: dispatcher });
+// ★ 2026-10-05 加：OCR / 读图这条路的**启动自检**。
+//   为什么放在启动：第一张图来的时候现场编译要几十秒，而那几十秒花在**某个人正在等的那条回复**上；
+//   编译失败（SDK 变了、CLT 升级）更糟 —— 只有那一张图报「读不到」，没有任何东西会红。
+//   现在它每次启动都真跑一遍试纸（本仓资产，不联网、不碰飞书），读数就在第一屏。
+try {
+  const pf = await vision.preflight();
+  if (pf.ok) {
+    log(`  读图/OCR              = ✅ 就绪（试纸 ${pf.lines} 行 / ${pf.ms}ms`
+        + `${pf.built ? ' · 本次现场编译了二进制' : ''}`
+        + `${pf.blankOk ? ' · 空白试纸如期报「没字」' : ' · ⚠ 空白试纸没报「没字」'})`);
+  } else {
+    log(`  读图/OCR              = ❌ 不可用（${pf.error}）${pf.detail ? '：' + String(pf.detail).slice(0, 160) : ''}`);
+    log('                          → 人发来的图会回「图我读不出内容」，而不是静默当成「图上没字」');
+  }
+} catch (e) {
+  log(`  读图/OCR              = ⚠️ 未测（自检自己抛了：${e?.message ?? e}）`);
+}
+
+// ★ 2026-10-05 加：**视频**那条路的启动自检（抽帧 → OCR 读画面上的字）。
+//   与读图同一个理由，而且这里更急：视频要现场抽帧 + 跑 8 次 OCR，
+//   一条断了不会自己红，只会在群里回一句「视频我读不了」。
+try {
+  const vp = await video.preflight();
+  if (vp.ok) {
+    log(`  读视频(抽帧+OCR)      = ✅ 就绪（试纸 ${vp.n_frames} 帧 / ${vp.duration_s}s`
+        + ` · 抽帧 ${vp.probeMs}ms · OCR ${vp.ocrMs}ms${vp.built ? ' · 本次现场编译了二进制' : ''}）`);
+  } else {
+    log(`  读视频(抽帧+OCR)      = ❌ 不可用（${vp.error}）${vp.detail ? '：' + String(vp.detail).slice(0, 160) : ''}`);
+    log('                          → 人发来的视频会回「没读成」，而不是静默当成「视频里没问题」');
+  }
+} catch (e) {
+  log(`  读视频(抽帧+OCR)      = ⚠️ 未测（自检自己抛了：${e?.message ?? e}）`);
+}
+
+// ★ 2026-10-05 加：**语音转写**那条路的启动自检（本机识别试纸里那句话）。
+//   ★ 这一行是有意做得显眼的：它红的时候，视频的「口播/旁白」那一半就是**未测**——
+//     而 PRD §12 不许改用云端识别，所以唯一的修法是**人去点一次系统授权**
+//     （或把本机语言模型装上）。这里把该说的话直接写在第一屏，不让人去猜。
+try {
+  const ap = await asr.preflight();
+  if (ap.ok) {
+    log(`  语音转写(本机)        = ✅ 就绪（试纸「${String(ap.text ?? '').slice(0, 24)}…」/ ${ap.ms}ms · 语种 ${ap.locale}）`);
+  } else {
+    log(`  语音转写(本机)        = ❌ 不可用（${ap.error}）${ap.detail ? '：' + String(ap.detail).slice(0, 160) : ''}`);
+    if (ap.hint) log(`                          → ${String(ap.hint).slice(0, 200)}`);
+    log('                          → 视频的「口播/旁白」这一半会标成**未测**（不是「没有人说话」）');
+  }
+} catch (e) {
+  log(`  语音转写(本机)        = ⚠️ 未测（自检自己抛了：${e?.message ?? e}）`);
+}
+
 log('✓ 长连接已启动，等待事件（断线由 SDK 自动重连）');
 
 // 启动即核一次上游基线：重启后第一时间知道手上那份 PRD 是不是最新版
@@ -637,6 +857,10 @@ writeRunState('startup');
 // 每 5 分钟打一次心跳，方便判断进程是活着还是卡死
 const hb = setInterval(() => {
   log(`· 心跳 事件 ${counters.events} 已回答 ${counters.handled} 失败 ${counters.failed} 未捕获 ${counters.uncaught} | LLM 调用 ${status().llm.calls}`);
+  // ★ 每一拍都把长连接状态说出来（断的时候还会带错误与断线时长）——
+  //   「守衡还连着飞书吗」从此是一个**每分钟都在刷新的读数**，不用等人发现它不回话。
+  log(`  ${wsLine()}`);
+  maybeReviveWs();
   writeRunState();                       // Q2：心跳刷新 lastBeatAt（E1d 靠新鲜度判「卡死」）
   rotateLogIfHuge();
   // 每日兜底：**她"基于评估重新修改"已经推过的那一篇时，群里不会有新链接** ——

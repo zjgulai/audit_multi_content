@@ -390,6 +390,20 @@ export async function listRecords(appToken, table, { limit = 20, pageToken = nul
 /* ── 写 ── */
 
 /**
+ * ★ 2026-10-05 实测修的一处**静默缺陷**：`appTableRecord.batchGet` 的 `record_ids`
+ *   必须放在 **body**（`data`）里，放到 query（`params`）里飞书会回
+ *   `code=99992402 · field validation failed · field_violations=[{field:"record_ids",
+ *   description:"record_ids is required"}]`（实测 log_id
+ *   `20261005082040C23AF9EB8F20344668AC`）。
+ *
+ *   为什么它能藏这么久：这些调用点全是**留痕 / 回读 / 删除前快照** —— 三条纪律都 fail-closed，
+ *   读不到旧值就中止，所以**没有破坏过任何数据**，只是「改记录」这条路一直走不通，
+ *   而自证里的假客户端**不校验调用形状**（任意 args 都收），于是全绿。
+ *   这正是 §2.4.1 那个病换了个地方长出来：**fake 的契约比真接口松，假数据就是真数据的形状。**
+ *   判据已补在 `lark_write.test.mjs`：假客户端按**真接口的契约**校验 batchGet（见 guardBatchGet）。
+ */
+
+/**
  * 所有写操作共用的外壳：留痕 → 执行 → 回读 → 再留痕一次（带回读结论）。
  * ★ 自证里有一条 AST/源码级断言：**每个导出的写函数都必须经过这里**。
  *   这是 §2.4 那条规矩的落地 —— 「留痕」不能只是一句注释。
@@ -634,7 +648,7 @@ export async function createRecords(ctx, appToken, table, records) {
       const ids = (r.data.records ?? []).map((x) => x.record_id);
       // ② 回读：按返回的 id 取回来，逐字段比
       const back = await call(C().bitable.appTableRecord.batchGet.bind(C().bitable.appTableRecord),
-        { path: { app_token: appToken, table_id: t.table_id }, params: { record_ids: ids } });
+        { path: { app_token: appToken, table_id: t.table_id }, data: { record_ids: ids } });
       if (!back.ok) {
         return { record_ids: ids, readback: 'untested',
           readback_detail: `写入返回 ${ids.length} 个 id，但回读失败（${back.msg}）—— `
@@ -674,7 +688,7 @@ export async function updateRecords(ctx, appToken, table, records) {
       //    ★ 读不到旧值就**不改**：盖掉的那个值如果没搬走，就永远搬不走了。
       const before = await call(C().bitable.appTableRecord.batchGet.bind(C().bitable.appTableRecord),
         { path: { app_token: appToken, table_id: t.table_id },
-          params: { record_ids: payload.map((p) => p.record_id) } });
+          data: { record_ids: payload.map((p) => p.record_id) } });
       if (!before.ok) {
         return bad('snapshot_failed',
           `改之前读不到这些记录的旧值（${before.msg}）—— 没搬走旧值就不改，已中止`);
@@ -690,7 +704,7 @@ export async function updateRecords(ctx, appToken, table, records) {
 
       const back = await call(C().bitable.appTableRecord.batchGet.bind(C().bitable.appTableRecord),
         { path: { app_token: appToken, table_id: t.table_id },
-          params: { record_ids: payload.map((p) => p.record_id) } });
+          data: { record_ids: payload.map((p) => p.record_id) } });
       if (!back.ok) {
         return { ledger_extra: { pre_image: pre.snapshot }, readback: 'untested',
           readback_detail: '改完回读失败 —— 「改成了没有」我答不了，这是未测' };
@@ -720,7 +734,7 @@ export async function deleteRecords(ctx, appToken, table, recordIds, { confirmed
   // ★ 两段式的第一段：把「要删哪几条、那几条长什么样」摆出来给人看
   if (!confirmed) {
     const peek = await call(C().bitable.appTableRecord.batchGet.bind(C().bitable.appTableRecord),
-      { path: { app_token: appToken, table_id: t.table_id }, params: { record_ids: ids } });
+      { path: { app_token: appToken, table_id: t.table_id }, data: { record_ids: ids } });
     const sample = peek.ok
       ? (peek.data.records ?? []).slice(0, 3).map((r) => {
         const f = r.fields ?? {};
@@ -743,7 +757,7 @@ export async function deleteRecords(ctx, appToken, table, recordIds, { confirmed
       //      而空数组 = 合法的「零条」→ 判定通过 → 照删。
       //      **「读不到」被 `?? []` 变成了「没有」。** 现在读不到就直接中止。
       const before = await call(C().bitable.appTableRecord.batchGet.bind(C().bitable.appTableRecord),
-        { path: { app_token: appToken, table_id: t.table_id }, params: { record_ids: ids } });
+        { path: { app_token: appToken, table_id: t.table_id }, data: { record_ids: ids } });
       if (!before.ok) {
         return bad('snapshot_failed',
           `删之前读不到这些记录的旧值（${before.msg}）—— 搬不走就不删，已中止`);
@@ -760,7 +774,7 @@ export async function deleteRecords(ctx, appToken, table, recordIds, { confirmed
         { path: { app_token: appToken, table_id: t.table_id }, data: { records: ids } });
       if (!r.ok) return { ...r, ledger_extra: { pre_image: snap.snapshot } };
       const back = await call(C().bitable.appTableRecord.batchGet.bind(C().bitable.appTableRecord),
-        { path: { app_token: appToken, table_id: t.table_id }, params: { record_ids: ids } });
+        { path: { app_token: appToken, table_id: t.table_id }, data: { record_ids: ids } });
       // 回读失败 → 未测；回读成功且一条都不剩 → consistent
       if (!back.ok) {
         return { ledger_extra: { pre_image: snap.snapshot }, readback: 'untested',

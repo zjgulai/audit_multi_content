@@ -4,7 +4,7 @@
   "$how_to_add": "新写一处 `PRD §N` 引用 → 在这里加一条。`kind=current` 必须写 `heading`，而它必须**逐字等于**正文里 §N 的标题；`kind=history`（讲旧编号的叙述，例如说明 v1.0 的 `PRD §7.2` 当时指什么）必须写 `from_version` 与 `maps_to`，**且那一行要带版本标记**（v1.0 / 旧版 / 旧编号 / 重排前）—— 否则读者分不清那个节号指的是哪一版。",
   "$marker_re": "(?<!-)v1\\.0|旧版|旧编号|重排前",
   "$marker_note": "★ 负向后顾 `(?<!-)` 是**实测补的**：上游那份正文的**文件名**里也有 \"v1.0\"（内容审查Agent-PRD-v1.0.md），而它装的是 **v1.2** 正文（文件名没改）。第一版判据因此把一处**活引用**误判成历史叙述 —— 会误报的检查器比没有检查器更糟。",
-  "$scope_note": "★ 扫描范围**不给自己开后门**：连这份登记表自己的说明文字、以及 `tools/verify_prd_baseline.py` 自己的注释，只要写了 `PRD §N` 就要按同一条规矩登记（它们都在下面的 refs 里，且都是 history）。要豁免某个文件，就得在这里写清为什么 —— 而「这个文件特殊」从来不是一个理由。",
+  "$scope_note": "★ 扫描范围**不给自己开后门**：连这份登记表自己的说明文字、以及 `tools/verify_prd_baseline.py` 自己的注释，只要写了 `PRD §N` 就要按同一条规矩登记（它们都在下面的 refs 里，且都是 history）。要豁免某个文件，就得在这里写清为什么 —— 而「这个文件特殊」从来不是一个理由。\n\n★ **已豁免**：`PMO/shouheng-state/`（2026-09-30）。理由（按上面那条规矩写清）：① **它是运行时记忆，不是文档** —— 守衡把任何文件读进上下文，那段内容就原样落进会话 JSON；实测 19:05:35 一次读 `PMO/待收清单-v1.json` 的工具返回把该文件里那句 `PRD §11.2 保障机制…` 搬进了记忆，而**那处引用本来就是登记过的**，只是多了一份副本。② **它是易失的** —— `memory.compact()` 会按轮数删掉旧消息。所以在这里「新引用要登记」会变成**定时炸弹**：今天登记，压缩后那一行没了，就翻成反向的「登记表里有、仓库里没有（陈旧登记）」—— 两个方向都会红，而两次都不是真的漂移。⇒ 排除它修的是**类别错误**（判据要钉的是文档里的引用），不是把该红的改绿：`PMO/待收清单-v1.json` 那处引用**仍按原样登记着**，作者写的新文档引用也照样要登记。",
   "refs": [
     {
       "file": "PMO/守衡-Utopia结合方案-20260923.md",
@@ -178,6 +178,12 @@
       "maps_to": "11.2"
     },
     {
+      "file": "PRD/feishu/章节引用-v1.json",
+      "section": "11.2",
+      "kind": "current",
+      "heading": "保障机制"
+    },
+    {
       "file": "research/governance/skeleton/clause_ref.py",
       "section": "5.3",
       "kind": "current",
@@ -299,6 +305,78 @@
       "kind": "history",
       "from_version": "v1.0",
       "maps_to": "11.2"
+    },
+    {
+      "file": "tools/verify_prd_baseline.py",
+      "section": "11.2",
+      "kind": "current",
+      "heading": "保障机制"
+    },
+    {
+      "file": "PMO/守衡-B机交接-证据包合并与思维链回传-20260930.md",
+      "section": "11.2",
+      "kind": "current",
+      "heading": "保障机制"
+    },
+    {
+      "file": "PMO/守衡-三条重排-按PRD5.3-20261006.md",
+      "section": "5.3",
+      "kind": "current",
+      "heading": "三态结论输出规范"
+    },
+    {
+      "file": "PMO/守衡-三条重排-按PRD5.3-20261006.md",
+      "section": "6.3",
+      "kind": "current",
+      "heading": "分层执行流程"
+    },
+    {
+      "file": "PMO/守衡-三条重排-按PRD5.3-20261006.check.py",
+      "section": "5.3",
+      "kind": "current",
+      "heading": "三态结论输出规范"
+    },
+    {
+      "file": "tools/agent/agent.mjs",
+      "section": "5.3",
+      "kind": "current",
+      "heading": "三态结论输出规范"
+    },
+    {
+      "file": "tools/agent/prd53.mjs",
+      "section": "5.3",
+      "kind": "current",
+      "heading": "三态结论输出规范"
+    },
+    {
+      "file": "tools/agent/prd53.mjs",
+      "section": "6.3",
+      "kind": "current",
+      "heading": "分层执行流程"
+    },
+    {
+      "file": "tools/reply-cards/envelope.mjs",
+      "section": "5.3",
+      "kind": "current",
+      "heading": "三态结论输出规范"
+    },
+    {
+      "file": "tools/test_agent.mjs",
+      "section": "5.3",
+      "kind": "current",
+      "heading": "三态结论输出规范"
+    },
+    {
+      "file": "tools/test_agent.mjs",
+      "section": "5.3.2",
+      "kind": "current",
+      "heading": "REVIEW"
+    },
+    {
+      "file": "tools/ws_daemon.mjs",
+      "section": "5.3",
+      "kind": "current",
+      "heading": "三态结论输出规范"
     }
   ]
 }
