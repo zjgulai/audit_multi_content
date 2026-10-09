@@ -183,6 +183,107 @@ def uptime_minutes(pid):
     return None, "没来源（run-state 未部署，且台账里没有 pid_after=%s 的记录）" % (pid or "?")
 
 
+def last_shutdown_kind():
+    """上一个进程**是怎么结束的**：`commanded`（干净收尾）/ `crash`（自己塌的）/ `unknown`。
+
+    ★ 为什么必须分开（否则 E5 会**误报** —— §2.1.1：会误报的检查器比没有更糟）：
+      · `launchctl kickstart -k`（闸门或手敲）⇒ 进程收到 SIGTERM、**干净收尾**（退出码 0）
+        ⇒ 而 launchd 的 `KeepAlive{SuccessfulExit:false}` **不会**自己拉起它
+        ⇒ **能重新跑起来这件事本身就是被命令的** ⇒ 台账必须有那一笔。
+      · 进程**自己塌了**（未捕获异常等，非零退出）⇒ launchd **自动**重拉 ⇒
+        台账本来就不会有那一笔 —— 那不是绕过闸门，**不许报红**（要报的是"它塌过一次"）。
+    判据是**日志里当前启动横幅之前**那段收尾痕迹；读不出标记就给 `unknown`（→ 未测）。
+    """
+    try:
+        lines = DAEMON_LOG.read_text(encoding="utf-8", errors="replace").splitlines()
+    except Exception:
+        return "unknown"
+    starts = [i for i, l in enumerate(lines) if "长连接已启动" in l]
+    if not starts:
+        return "unknown"
+    last = starts[-1]
+    # ★ 取样点：本进程输出的**第一行**（横幅从「守衡 · 常驻入口」那行开始），再看它**之前**那几行
+    #   —— 那才是上一个进程的收尾。第一版我拿「长连接已启动」往上数 12 行，落在**本进程横幅内部**，
+    #   什么收尾痕迹都读不到 ⇒ 恒 unknown（判据把自己废了，实测 E5 因此落进「判不了」那一支）。
+    begin = next((j for j in range(last, max(0, last - 300), -1) if "常驻入口" in lines[j]), None)
+    if begin is None:
+        return "unknown"
+    seg = lines[max(0, begin - 12):begin]
+    if any("收到 SIGTERM，正在收尾" in l for l in seg):
+        return "commanded"
+    if any(("未捕获" in l and "0 未捕获" not in l) or "uncaughtException" in l
+           or "内核异常" in l for l in seg):
+        return "crash"
+    return "unknown"
+
+
+def restart_trace_readings():
+    """E5 用的三个读数：这次进程的启动时刻、台账最后一条、上一个进程怎么结束的。
+
+    返回 `(started_epoch|None, (ledger_epoch, at, why)|None, end_kind, note)`。
+    **读不到一律给 None（⇒ 未测）**，不许当成 0 或「没重启过」（§2.2 第 7 条）。
+    """
+    started, note = None, ""
+    try:
+        d = json.loads(RUN_STATE.read_text(encoding="utf-8"))
+        if d.get("startedAt"):
+            started = _iso_epoch(d["startedAt"])
+    except Exception as e:
+        note = "run-state 读不到：%s" % e
+    last = None
+    try:
+        recs = [json.loads(x) for x in LEDGER.read_text(encoding="utf-8").splitlines() if x.strip()]
+        if recs:
+            r = recs[-1]
+            last = (_iso_epoch(r.get("at")), r.get("at"), (r.get("why") or "")[:70])
+    except Exception as e:
+        note = (note + "；" if note else "") + "台账读不到：%s" % e
+    return started, last, last_shutdown_kind(), note
+
+
+def judge_restart_trace(started_epoch, ledger_last, end_kind="commanded", tol_s=90):
+    """纯函数：这次启动**走没走闸门**。四种结论，**四种不许长一样**。
+
+    ★ 为什么要有这一条（2026-10-09 实测）：15:19:28 与 15:45:50 两次启动**没有台账行**
+      （台账最后一条 14:29:11），且两次的日志都是「收到 SIGTERM，正在收尾…」= 被命令的重启。
+      闸门**没有**「不留痕」开关（`restart_shouheng.sh:427` 每条放行都写一行）⇒
+      那两次是**绕过闸门**敲的。代价正是 §2.7 要防的：没读「最后一条消息距今多久」
+      （重启窗口会吃消息，事后补不回来）、没记为什么重启。而 C 段只扫**仓库里的代码**，
+      扫不到手动敲的命令 —— 这个洞此前没有任何东西在看。
+
+    | 结论 | 含义 | 断言 |
+    |---|---|---|
+    | `traced` | 启动时刻不晚于台账最后一条 ⇒ 走过闸门 | 通过 |
+    | `untraced` | 启动晚于台账，**且上一个进程是干净收尾** ⇒ 被命令的重启却没留痕 | **红** |
+    | `crash_restart` | 启动晚于台账，但上一个进程不是干净收尾（可能自己塌过）⇒ 判不了 | 未测（并报「它塌过一次」） |
+    | `untested` | 启动时刻或台账读不到 | 未测（退 2） |
+
+    容差 90 秒：进程启动（launchd 拉起 + 预热 ~3s）与台账写入之间本来就有秒级抖动 ——
+    **不许把正常情况报红**（§2.1.1）。
+    """
+    if not started_epoch or not ledger_last:
+        return "untested", "启动时刻或重启台账读不到 —— 【未测】，不等于「走没走闸门」"
+    led_epoch, led_at, led_why = ledger_last
+    d = started_epoch - led_epoch
+    started_h = time.strftime("%H:%M:%S", time.localtime(started_epoch))
+    if d <= tol_s:
+        return "traced", ("这次启动（%s）不晚于台账最后一条（%s，差 %.0f 秒）⇒ 走过闸门；"
+                          "那条的理由是「%s」" % (started_h, led_at, -d, led_why))
+    if end_kind != "commanded":
+        return "crash_restart", (
+            "这次启动（%s）比台账最后一条（%s）晚 %.0f 秒，但上一个进程**不是干净收尾**"
+            "（%s）⇒ 判不了走没走闸门（重启可能是 launchd 自己在拉）。"
+            "★ 但这本身要人看：**它塌过一次**，日志里能看到当时怎么塌的"
+            % (started_h, led_at, d, "日志里读不出收尾痕迹" if end_kind == "unknown"
+               else "看到异常痕迹"))
+    return "untraced", ("这次启动（%s）比台账最后一条（%s）**晚 %.0f 秒**，而上一个进程是"
+                        "**干净收尾**（`launchctl kickstart` 式）⇒ **没走闸门**："
+                        "闸门每条放行都会写台账，而它没有记这一笔。代价见 §2.7 —— "
+                        "没读「群里最后一条消息距今多久」（重启窗口会吃消息、事后补不回来），"
+                        "也没记为什么重启。要用闸门重启：`bash tools/restart_shouheng.sh`"
+                        % (started_h, led_at, d))
+
+
 def beat_age_minutes():
     """最后一次心跳距今多少分钟 + 来源。优先 run-state（结构化），退日志 mtime。"""
     now = time.time()
@@ -654,6 +755,19 @@ elif UP:
     # ── E4 还连着飞书吗（2026-10-05 加）──────────────────────────────────
     # 「进程活着」≠「还在答话」。断线时群里发的消息**收不到也不会补**，
     # 而那与进程死掉在盘上是同一个后果 —— 只是更难发现。
+    #
+    # ★★ 2026-10-09 实测补记：**重启之后的前 5 分钟，E4 必然读到 `wsConnected=false`。**
+    #   `run-state.wsConnected` 是**心跳**（每 5 分钟一次）更新的 —— 进程起来 2 秒就把状态
+    #   文件写了那一格，而那时长连接还没 ready，于是它写着 `false`。
+    #   实测：10:33:43 重启 → 10:34、10:39:10 两次读都是 `false`（退 2），
+    #   10:39:53 首个心跳落地后读到 `true`（全过 rc=0）。
+    #
+    #   为什么必须把这件事写在这里：**这是 E4 唯一会「对正常状态报未测」的场合。**
+    #   不写下来，下一个人有两条错路可走 ——
+    #     ① 把重启后的 rc=2 读成**真断线**，去查一个不存在的故障；
+    #     ② 更坏：学会**无视 rc=2**，从此 E4 真的断线时也不看了
+    #        （§2.1.1：一个会误报的检查器比没有检查器更糟）。
+    #   正确做法是**等首个心跳**（≤5 分钟）再下结论 —— 而不是改判据把它变绿。
     _rs = {}
     try:
         if RUN_STATE.exists():
@@ -687,6 +801,38 @@ elif UP:
         check("E4r", _got4 == _want, "%s → %s（期望 %s）" % (_name, _got4, _want))
 else:
     check("E1", False, "✗ 没有在跑 —— 群里现在没人在答话")
+
+# E1 的反向对照：喂合成读数，四种结论必须**各自落对**（不碰真进程）
+print("\nE5 这次启动**走闸门了吗**（台账里有这一笔吗）")
+_rt_start, _rt_ledger, _rt_end, _rt_note = restart_trace_readings()
+_rt_concl, _rt_why = judge_restart_trace(_rt_start, _rt_ledger, _rt_end)
+if _rt_concl == "traced":
+    check("E5", True, _rt_why)
+elif _rt_concl == "untraced":
+    # ★ 判红（不是未测）：读数**采到了**，结论是「这次启动没走闸门」—— 那是可归因的事实。
+    check("E5", False, "✗ " + _rt_why)
+elif _rt_concl == "crash_restart":
+    # 不许报红（那可能是 launchd 自己拉的，凭这一条判不了）—— 但**要出声**：
+    # 「它塌过一次」这件事必须有人看，否则与"一切正常"长得一样。
+    cannot_test("E5", "⚠️ " + _rt_why)
+else:
+    cannot_test("E5", _rt_why + ("（%s）" % _rt_note if _rt_note else ""))
+
+# E5 的反向对照：喂合成读数，三态必须各自落对（不碰真台账）
+for _args, _want, _name in [
+    ((1000.0, (990.0, "2026-01-01T00:00:00Z", "why")), "traced", "台账晚于/等于启动 ⇒ 走过闸门"),
+    ((1000.0, (1000.0, "x", "why")), "traced", "同一秒也算走过（表与进程启动有秒级抖动）"),
+    ((2000.0, (1000.0, "x", "why")), "untraced", "启动比台账晚 1000 秒 ⇒ 没走闸门"),
+    ((1000.5, (1000.0, "x", "why")), "traced", "差 0.5 秒在容差内（不许把正常情况报红）"),
+    ((None, (1000.0, "x", "why")), "untested", "启动时刻读不到 ⇒ 未测"),
+    ((1000.0, None), "untested", "台账读不到 ⇒ 未测"),
+    ((2000.0, (1000.0, "x", "why"), "commanded"), "untraced", "晚于台账 + 干净收尾 ⇒ 判红"),
+    ((2000.0, (1000.0, "x", "why"), "crash"), "crash_restart",
+     "晚于台账但**不是**干净收尾 ⇒ 不许判红（可能是 launchd 自己拉的）"),
+    ((2000.0, (1000.0, "x", "why"), "unknown"), "crash_restart", "收尾痕迹读不出 ⇒ 也不许判红"),
+]:
+    _got5, _ = judge_restart_trace(*_args)
+    check("E5r", _got5 == _want, "%s → %s（期望 %s）" % (_name, _got5, _want))
 
 # E1 的反向对照：喂合成读数，四种结论必须**各自落对**（不碰真进程）
 print("\nE1 的反向对照（纯函数，不碰真进程）")

@@ -40,6 +40,10 @@
 
 /** 一行（去空白后）不超过它，才**可能**是水印 —— 人名 / 工号 / 编号都是短串。 */
 export const MAX_TOKEN_LEN = 24;
+/** 同一个短串至少在**这么多不同位置**出现，才算平铺的水印核心。 */
+export const MIN_POSITIONS = 2;
+/** **纯数字**核心要更严（见 ① 里的注释：真实素材的规格数字会在多处出现）。 */
+export const NUMERIC_MIN_POSITIONS = 3;
 /** 两个位置的归一化距离小于它 ⇒ 视为**同一处**（水印是散开的，同处重复不算）。 */
 export const MIN_POS_DIST = 0.15;
 
@@ -72,51 +76,141 @@ function farApart(a, b) {
 /**
  * 从 OCR 结果里摘出水印行。
  *
- * ⚠️ **只有两条判据，都是"宁可漏、不可误删"**（见文件头那条不对称）：
- *   ① 有坐标时：**同一串出现在图的不同位置**（水印平铺的定义）；
- *   ② 没坐标时：同一串**字面重复 ≥2 次**。
+ * ★★ 2026-10-09 晚 **v2：拿到真图之后重写**（Owner 把原图发过来了）──────────────
  *
- * ⚠️ 实测**否掉**了"近似变体"判据（`5615 RO0` / `5615 R00` / `5615 RC`）：
- *   它会把 `Sep 15` / `Week1` / `Week2` / `Week3` / `Week4` / `Sep 1-7` 一起当水印删掉
- *   —— 而那些是**活动日历的真内容**（实测：35 行里误删 17 行，其中 8 行是内容）。
- *   代价不对称：**漏一个水印**只是检索里多几个噪声词；
- *   **误删一段真内容**是"素材被删了、结论会漏、而且看不出来"。
- *   ⇒ 变体水印（`5615 Rxx`）目前**只被部分覆盖**，剩下的**照实留在文本里**，
- *     由人去复核；**不拿一条会误伤的判据去换好看的数字**。
+ *   真图 OCR 实测（35 行，归一化坐标）：
+ *     · `刘华丽` **3 次**，位置 (0.278,0.910)/(0.874,0.913)/(0.573,0.755) —— 全不同；
+ *     · `5615` **5 种形态**：`5615`/`5615 RO`/`5615 R00`/`5615 ROOT`（另有一处识别成 `615`），
+ *       位置全不同；
+ *     · 水印**常与邻居粘成一行**（`5615 ROOT刘华丽`）⇒ 判据必须能吃"包含"。
+ *
+ *   v1 为什么漏：只认"**同一串**、不同位置"⇒ `5615 RO0/R00/RC/ROOT` 每个只出现一次 ⇒ 全漏。
+ *   而 v1 试过的"近似变体"**会误删** `Week1/Sep 15`（实测 35 行误删 17 行，8 行是内容）。
+ *
+ *   v2 三步（缺一不可，每步都能被真图坐标证实）：
+ *     ① **核心词**：短串在**不同位置**出现 ≥ `MIN_POSITIONS` 次；
+ *     ② **变体扩展**：短行**包含**核心词 ⇒ 也算水印（这抓 `5615 RO`/`5615 ROOT`）；
+ *     ③ **内容豁免**：`looksLikeContent()` 命中的行一律放行。
+ *
+ *   ⚠️ v2 敢用"包含"、v1 不敢，差别在**核心是被位置判据证明过平铺的**：
+ *      `Week1/Week2/Sep 15` 不会在多个位置重复 ⇒ 当不上核心 ⇒ 不会被误删。
  *
  * @param {{text?:string, boxes?:Array<{t:string,x:number,y:number}>}} ocr
- *        `vision.ocrImage()` 的返回（`boxes` 是 2026-10-09 新加的）。
- * @returns {{text:string, kept:string[], dropped:string[], basis:string, droppedRatio:number}}
- *          `text` = **过滤后**（给检索用）；`basis` 说明这次靠哪条判据（可核）。
+ * @returns {{text:string, kept:string[], dropped:string[], cores:string[], basis:string, droppedRatio:number}}
  */
 export function stripOcrWatermark(ocr) {
   const src = typeof ocr === 'string' ? { text: ocr } : (ocr ?? {});
   const text = String(src.text ?? '');
   const lines = text.split('\n');
   const boxes = Array.isArray(src.boxes) ? src.boxes : [];
+  const norm = (s) => String(s ?? '').replace(/\s+/g, '');
 
   const droppedIdx = new Set();
-  let basis = 'none';
+  const cores = [];
 
-  // ⚠️ 必须**按下标配对**，不能按文本查（第一版就是按文本建 Map 查坐标 ⇒
-  //    同一串的两次出现被压成一个 ⇒ `farApart` 恒 false ⇒ 一条水印都抓不到）。
-  const candidates = lines
-    .map((l, i) => ({ l, i, b: boxes[i] ?? null }))
-    .filter((c) => c.l.trim() && !looksLikeContent(c.l));
-
-  const sameKey = (s) => s.replace(/\s+/g, '');
-  for (let i = 0; i < candidates.length; i++) {
-    for (let j = i + 1; j < candidates.length; j++) {
-      const a = candidates[i], b = candidates[j];
-      if (sameKey(a.l) !== sameKey(b.l)) continue;      // 只认**同一串**
-      if (boxes.length && !farApart(a.b, b.b)) continue; // 有坐标 ⇒ 还必须是**不同位置**
-      droppedIdx.add(a.i); droppedIdx.add(b.i);
-      basis = boxes.length ? 'same-string-different-position' : 'exact-repeat-no-coords';
+  // ── ① 核心词：短串在**不同位置**出现 ≥ MIN_POSITIONS 次 ──────────────────
+  //   ⚠️ 按**下标**配对，不能按文本建 Map（v1 第一版那样会把同串的多次出现压成一个）。
+  if (boxes.length) {
+    const byText = new Map();
+    lines.forEach((l, i) => {
+      const k = norm(l);
+      const b = boxes[i];
+      if (!k || k.length > MAX_TOKEN_LEN || looksLikeContent(l)) return;
+      if (!b || !Number.isFinite(b.x) || !Number.isFinite(b.y)) return;
+      if (!byText.has(k)) byText.set(k, []);
+      byText.get(k).push({ x: b.x, y: b.y });
+    });
+    for (const [k, hits] of byText) {
+      // ★ 纯数字串要**更严**：真实素材里规格/型号数字（`3 hours`/`9 levels`/`100%`）
+      //   本来就可能在多处出现 ⇒ 只出现 2 次的数字**不当核心**，避免误删真内容。
+      const need = /^\d+$/.test(k) ? Math.max(MIN_POSITIONS, NUMERIC_MIN_POSITIONS) : MIN_POSITIONS;
+      if (hits.length < need) continue;
+      const spread = hits.some((a, ai) => hits.some((b, bi) => ai < bi && farApart(a, b)));
+      if (spread) cores.push(k);
     }
+
+    // ── ①b **共享数字核心**：编号的各个变体共享同一串数字 ────────────────────
+    //   实测（真图）水印编号的变体：`5615R00` / `5615ROOT` / `5615RO` / `615` / `5615`
+    //   —— 它们**共享数字核心 `5615`**（`615` 是 OCR 少读一位）。
+    //   而内容里的数字：`Sep 15`/`Sep 1-7`/`Sep 8-14`/`Sep 22-28`/`Sep 15-21`/`Week1..4`
+    //   —— 取出来的数字（`15`/`1`/`7`/`8`/`14`/`21`/`22`/`28`/`2`/`3`/`4`）**互不共享**。
+    //
+    //   ⚠️ 这条判据是**第 4 个候选**（前三个都被真图否掉了，记在这里免得再走一遍）：
+    //     · v1「近似变体（任意公共子串）」⇒ 误删 `Week1/Sep 15`（35 行误删 17 行）；
+    //     · v2a「数字跨 ≥2 行出现」⇒ 误删 `Sep 15`（`15` 出现在两行）；
+    //     · v2b「数字须与另一个多处出现的数字同行」⇒ 太严，`5615` 全漏；
+    //     · v2c「数字紧邻字母」⇒ 分不开（`Week2`/`Sep 15` 同样紧邻）。
+    //   ⇒ 现在这条：**按 4~6 位数字核心聚类**，一个核心 ≥2 个不同形态、且位置不同 ⇒ 收核心。
+    {
+      const numLines = [];
+      lines.forEach((l, i) => {
+        if (!l.trim() || looksLikeContent(l)) return;
+        const b = boxes[i];
+        if (!b || !Number.isFinite(b.x) || !Number.isFinite(b.y)) return;
+        const toks = String(l).match(/\d{2,6}/g) ?? [];
+        if (toks.length) numLines.push({ i, toks, text: String(l).replace(/\s+/g, ''), pos: { x: b.x, y: b.y } });
+      });
+      // 数字核心 → { 形态集合, 位置集合 }
+      const byCore = new Map();
+      for (const rec of numLines) {
+        for (const t of rec.toks) {
+          // 取该数字串的 4 位前缀作为候选核心（`5615R00` 里的 `5615`；`615` 不够 4 位则跳过）
+          for (let L = t.length; L >= 4; L--) {
+            for (let st = 0; st + L <= t.length; st++) {
+              const core = t.slice(st, st + L);
+              if (!byCore.has(core)) byCore.set(core, { forms: new Set(), pos: [] });
+              const e = byCore.get(core);
+              e.forms.add(rec.text); e.pos.push(rec.pos);
+              break;                                   // 每个 token 只取最长那次
+            }
+          }
+        }
+      }
+      for (const [core, e] of byCore) {
+        if (e.forms.size < MIN_POSITIONS) continue;                     // ≥2 个不同形态
+        if (e.pos.length < MIN_POSITIONS) continue;
+        const spread = e.pos.some((a, ai) => e.pos.some((b, bi) => ai < bi && farApart(a, b)));
+        if (spread && !cores.includes(core)) cores.push(core);
+      }
+    }
+  }
+
+  // ── ② 变体扩展：短行**包含**核心词 ⇒ 也算水印 ─────────────────────────────
+  if (cores.length) {
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      if (!l.trim() || looksLikeContent(l)) continue;              // ③ 内容豁免
+      const k = norm(l);
+      if (!k || k.length > MAX_TOKEN_LEN + 8) continue;             // 粘连行略放宽
+      if (cores.some((c) => k.includes(c))) droppedIdx.add(i);
+    }
+  } else if (!boxes.length) {
+    // 兜底（**没有坐标**时）：字面精确重复 ≥2 次
+    const freq = new Map();
+    for (const l of lines) {
+      const k = norm(l);
+      if (!k || k.length > MAX_TOKEN_LEN || looksLikeContent(l)) continue;
+      freq.set(k, (freq.get(k) ?? 0) + 1);
+    }
+    lines.forEach((l, i) => {
+      const k = norm(l);
+      if (k && !looksLikeContent(l) && (freq.get(k) ?? 0) >= 2) droppedIdx.add(i);
+    });
   }
 
   const kept = [], dropped = [];
   lines.forEach((l, i) => (droppedIdx.has(i) ? dropped : kept).push(l));
   const total = lines.filter((l) => l.trim()).length || 1;
-  return { text: kept.join('\n'), kept, dropped, basis, droppedRatio: dropped.length / total };
+  // ★ 2026-10-09：`basis` **必须说准是哪条判据干的活**。
+  //   病灶：原先只在 `cores.length` 上分支 ⇒ 没有坐标时走的是「字面重复」兜底 **并且真的摘掉了行**，
+  //   却照样印 `none`（判据名 `exact-repeat-no-coords` 从 v2 起**再也印不出来**）。
+  //   实测（test_agent 的 Z37d 原料）：兜底摘掉 5 行（`刘华問`×2 / `5615`×3），`basis` 却回 `none` ——
+  //   行为对、标签错。这一格进日志与卡片那一行，印错了就等于把「为什么摘的」记成了「没摘」。
+  //   判据改成**按实际结果**分：一行没摘 ⇒ `none`；摘了 ⇒ 说清是哪条。
+  const basis = !dropped.length
+    ? 'none'
+    : cores.length
+      ? (boxes.length ? 'core-tiled-at-different-positions' : 'exact-repeat-no-coords')
+      : 'exact-repeat-no-coords';
+  return { text: kept.join('\n'), kept, dropped, cores, basis, droppedRatio: dropped.length / total };
 }

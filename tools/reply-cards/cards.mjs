@@ -355,7 +355,16 @@ export function evidence(d = {}) {
   if (d.verdict) els.push(md(s(d.verdict)));
   const groups = d.groups?.length ? d.groups : [{ title: '证据', content: s(d.content) }];
   for (const g of groups) {
-    els.push(collapsible(`${g.title} · ${g.count ?? ''}`.trim(), [s(g.content)], g.expanded ?? false));
+    // ★ 2026-10-08：`count` 是**可选**字段 —— 有才拼，没有就只印标题。
+    //   改前是 `${g.title} · ${g.count ?? ''}`.trim()，两个毛病（10/07–10/08 实发多张卡）：
+    //     ① `count` 缺省时留下一个**悬空的分隔符** —— 群里出现过
+    //        「原始回答（原「decision」卡，逐字搬） ·」；
+    //     ② `count: 0` 那种占位印成「PRD §5.3 结论块 · 0」，而同一块正文写着
+    //        「共发现 3 处必须修改」 ⇒ **标题说 0、正文说 3**，同一张卡自相矛盾。
+    //   计数只在**有结构化的真值**时才给（宁可没有，也不印一个假的）。
+    const hasCount = g.count !== undefined && g.count !== null && g.count !== '';
+    els.push(collapsible(hasCount ? `${g.title} · ${g.count}` : String(g.title ?? ''),
+                         [s(g.content)], g.expanded ?? false));
   }
   if (d.fields?.length) els.push(fieldRow(d.fields));
   if (d.boundary) els.push(hr(), md(`*${s(d.boundary)}*`));

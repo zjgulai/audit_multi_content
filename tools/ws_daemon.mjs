@@ -251,6 +251,16 @@ async function onMessage(data) {
   counters.handled++;
   const trace = result.meta?.toolTrace ?? [];
   if (trace.length) log(`   🔧 工具: ${trace.map((t) => `${t.tool}${t.ok ? '' : '✗'}(${t.ms}ms)`).join(' → ')}`);
+  // ★ 2026-10-08 加：「链只跑一次」那条护栏自己的读数。
+  //   起因是一次真实事故（Owner 19:08 那张图）：`🔧 工具: kb_review_chain(709739ms)`
+  //   明明在闸门跑完 2.5 分钟之后又跑了一遍，人等了 15 分钟 ——
+  //   而**这一行本身看不出它是重复的**（709739ms 只说明它慢，不说明它多余）。
+  //   有这一行，重复跑从此有读数；没有它，「护栏到底有没有生效」只能靠猜。
+  const cm = result.meta?.chainMemo;
+  if (cm?.hit) {
+    log(`   ♻️ 链缓存命中 ${cm.hit} 次（同一轮里模型又调了 kb_review_chain —— `
+      + '已回缓存不重跑；没有这一行它会再花 5~15 分钟并重复写一次飞书）');
+  }
   // ★ 2026-10-05 加：**「媒材读到了、却一次链都没起」这个形状现在有读数了。**
   //   那次事故的全部盘上痕迹，就是上面那行 `🔧 工具:` **没有出现** ——
   //   而「一行没出现的日志」不是判据（§2.4.1：判据没盖住的那一跳，就是事故所在的那一跳）。
@@ -269,9 +279,19 @@ async function onMessage(data) {
     //   真相是压缩把旧对话**删掉了但什么都没留下**，而这句话让人以为留下了。
     //   现在按真实字符数分流：有纪要才说「+ 纪要」，没有就说清「纪要为空」。
     const sc = result.meta.summary_chars ?? 0;
+    // ★ 2026-10-08 改：`turns` 与「条数」原先**是同一个数**
+    //   （内核里写的是 `turns: sess.messages.length`），于是日志印着
+    //   「保留 130 轮」而真相是 **130 条 ≈ 24 轮**（`config.llm.maxTurns`）。
+    //   与上面那段是同一个形状：**这句话说得比手上的依据大**（§2.4.3）。
+    //   现在两个数一起印，各自名副其实；取不到就说「未测」，不拿轮数冒充条数
+    //   （§2.2 第 7 条：靠外部读数取不到时必须说未测，不许空着也不许当成 0）。
+    const tn = result.meta.turns ?? null;
+    const mc = result.meta.messages ?? null;
+    const held = tn === null ? '⚠️ 轮数未测'
+      : (mc === null ? `${tn} 轮（条数未测）` : `${tn} 轮（${mc} 条）`);
     log(sc > 0
-      ? `   🗜 历史已压缩（保留 ${result.meta.turns} 轮 + 纪要 ${sc} 字）`
-      : `   🗜 历史已压缩（保留 ${result.meta.turns} 轮）⚠️ 纪要为空 —— `
+      ? `   🗜 历史已压缩（保留 ${held} + 纪要 ${sc} 字）`
+      : `   🗜 历史已压缩（保留 ${held}）⚠️ 纪要为空 —— `
         + '旧对话已删且未留下摘要，这是故障不是省事，见 PMO/logs');
   }
   if (result.meta?.truncated) log('   ⚠️ 回复被长度上限截断（已附截断说明，不是完整回答）');
@@ -334,7 +354,9 @@ async function onMessage(data) {
     { verdict53: result.meta?.verdict53 ?? null,
       // ★ 2026-10-06 加：这一轮**读到了什么**（内核的 `describeMediaRead`）。
       //   与 `verdict53` 同一条分工 —— 这里只**递读数**，成形仍只在 `replyTo` 一处（§2.5）。
-      mediaRead: result.meta?.mediaRead ?? null });
+      mediaRead: result.meta?.mediaRead ?? null,
+      // 2026-10-09: 报告链接 —— 与 mediaRead 同级（都进可见格，都不该藏在折叠区里）
+      reportLink: result.meta?.reportLink ?? null });
   if (sent.ok) { counters.replied++; log(`   ✓ 已发送 ${sent.messageIds.filter(Boolean).join(', ')} [${sent.mode}]`); }
   else { counters.failed++; log(`   ✗ 发送失败: ${sent.error}`); }
 }

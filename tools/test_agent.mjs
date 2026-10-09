@@ -3754,7 +3754,7 @@ await t('V7 ★ 行为级：本仓建的合并报告，URL 必须**同时**进�
 
   await t('Z37a 不同位置上的同一串 ⇒ 判水印（且能说出判据）', async () => {
     const r = stripOcrWatermark({ text, boxes });
-    assert.strictEqual(r.basis, 'same-string-different-position', `判据不对：${r.basis}`);
+    assert.strictEqual(r.basis, 'core-tiled-at-different-positions', `判据不对：${r.basis}`);
     assert.ok(r.dropped.length >= 2, `没摘到水印：${r.dropped.length}`);
   });
 
@@ -3774,8 +3774,74 @@ await t('V7 ★ 行为级：本仓建的合并报告，URL 必须**同时**进�
 
   await t('Z37d 没有坐标时退回「字面重复」判据，且不误删真内容', async () => {
     const r = stripOcrWatermark({ text });
+    // ★ 2026-10-09 修正：这一条原先只断言 `basis === 'exact-repeat-no-coords'`，
+    //   而那个名字**从 v2 起再也印不出来**（`basis` 只在 `cores.length` 上分支 ⇒ 兜底干活也印 `none`）。
+    //   断言当时是红的，红得**对**：错的是标签，不是行为。
+    //   ⇒ 现在同时钉三件事：① 兜底**真的摘了**（不是"没摘还说摘了"）；
+    //     ② 标签**说得出是哪条判据**；③ 真内容（`Sep 15`/`Week1`）一个都不许丢。
     assert.strictEqual(r.basis, 'exact-repeat-no-coords', `判据不对：${r.basis}`);
+    assert.ok(r.dropped.length >= 2, `兜底判据没摘到东西，这条断言就变成了空转：${r.dropped.length}`);
+    assert.ok(r.dropped.some((d) => /刘华問|5615/.test(d)), `摘的不是水印：${r.dropped.join(' / ')}`);
     assert.ok(r.text.includes('Sep 15') && r.text.includes('Week1'), '无坐标时误删了真内容');
+
+    // ★ 反向对照：**一行都没摘**时必须印 `none`，不许印一个判据名冒充「我摘了」
+    const clean = stripOcrWatermark({ text: 'Sep 15\nWeek1\nMOMCOZY' });
+    assert.strictEqual(clean.basis, 'none', `没摘任何行却说用了判据：${clean.basis}`);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Z38 ★★（2026-10-09）**水印摘除 v2：用真图坐标钉住**（Owner 把原图发过来了）
+// ══════════════════════════════════════════════════════════════════════════════
+//   这条判据的价值全在**样本是真图**：35 行 OCR + **真实归一化坐标**（本机 OCR 跑真图取回）。
+//   前三个候选判据都被它否掉了（写在 `ocr_watermark.mjs` 的注释里，免得下一个人再走一遍）：
+//     · 「任意公共子串」⇒ 误删 `Week1/Sep 15`；· 「数字跨 ≥2 行」⇒ 误删 `Sep 15`；
+//     · 「数字须与另一个多处数字同行」⇒ 太严（`5615` 全漏）；· 「数字紧邻字母」⇒ 分不开。
+//   现在这条：**按数字核心聚类**（`5615R00`/`5615ROOT`/`5615RO`/`5615` 共享 `5615`）。
+{
+  const { stripOcrWatermark } = await import('./agent/ocr_watermark.mjs');
+  // 真图 OCR（1252×1150）逐行 + 真实坐标
+  const REAL = [
+    ['5615 R00', 0.050, 0.777], ['5615 ROOT', 0.349, 0.930], ['刘华丽', 0.278, 0.910],
+    ['刘华丽', 0.874, 0.913], ['#MomAndMore activity calendar', 0.145, 0.844],
+    ['Each Group has its own activities—choose the ones you like and join in.', 0.169, 0.805],
+    ['刘华丽', 0.573, 0.755], ['50', 0.645, 0.781], ['Every week：', 0.329, 0.638],
+    ['1topic activity & i+ comment or game', 0.153, 0.604], ['Sep 15', 0.711, 0.665],
+    ['Mystery', 0.732, 0.609], ['activity', 0.735, 0.583], ['begins', 0.740, 0.555],
+    ['刘华', 0.872, 0.604], ['Week2', 0.527, 0.490], ['Sep 8-14', 0.523, 0.453],
+    ['5615 RO', 0.639, 0.470], ['Week1', 0.184, 0.414], ['Sep 1-7', 0.187, 0.377],
+    ['615', 0.366, 0.329], ['ROO', 0.407, 0.337], ['Week4', 0.527, 0.334],
+    ['Sep 22-28', 0.517, 0.297], ['5615', 0.940, 0.318], ['刘华', 0.872, 0.297],
+    ['Week3', 0.273, 0.259], ['Sep 15-21', 0.268, 0.223], ['5615', 0.646, 0.168],
+    ['Winners', 0.752, 0.233], ['announcements', 0.706, 0.209], ['every weekend', 0.714, 0.180],
+    ['MOMCOZY', 0.410, 0.017], ['4俗丽', 0.877, 0.009], ['50', 0.941, 0.019],
+  ];
+  const ocr = () => ({ text: REAL.map((r) => r[0]).join('\n'),
+                       boxes: REAL.map((r) => ({ t: r[0], x: r[1], y: r[2] })) });
+
+  await t('Z38a 真图：水印（用户名＋编号各变体）必须全部摘掉', async () => {
+    const r = stripOcrWatermark(ocr());
+    assert.strictEqual(r.basis, 'core-tiled-at-different-positions', `判据不对：${r.basis}`);
+    for (const w of ['刘华丽', '刘华', '5615', '5615 R00', '5615 ROOT', '5615 RO']) {
+      assert.ok(!r.text.includes(w), `水印残留：${w}`);
+    }
+  });
+
+  await t('Z38b ★★ 反向对照：日历的真内容一个都不许删（本组是这条判据的核心价值）', async () => {
+    const r = stripOcrWatermark(ocr());
+    const content = ['#MomAndMore activity calendar',
+      'Each Group has its own activities—choose the ones you like and join in.', 'Every week：',
+      '1topic activity & i+ comment or game', 'Sep 15', 'Mystery', 'activity', 'begins',
+      'Week1', 'Week2', 'Week3', 'Week4', 'Sep 1-7', 'Sep 8-14', 'Sep 15-21', 'Sep 22-28',
+      'Winners', 'announcements', 'every weekend', 'MOMCOZY'];
+    const lost = content.filter((c) => !r.text.includes(c));
+    assert.deepStrictEqual(lost, [], `真内容被当水印删了：${lost.join(' / ')}`);
+  });
+
+  await t('Z38c 只有 2 次重复的**内容**数字不许当核心（防 v2a 那个误删）', async () => {
+    // `15` 出现在 `Sep 15` 与 `Sep 15-21` 两行、位置不同 —— 但它**不共享数字核心**
+    const r = stripOcrWatermark(ocr());
+    assert.ok(!r.cores.includes('15'), '把内容数字 15 当成了水印核心');
   });
 }
 

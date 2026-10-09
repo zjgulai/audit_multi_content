@@ -49,8 +49,104 @@ const ASR_BUILD = path.join(REPO_ROOT, 'base', 'build_asr.sh');
 export const ASR_FIXTURE = path.join(AGENT_DIR, '__fixtures__', 'asr-sample.wav');
 export const ASR_FIXTURE_TOKEN = '守恒语音自检';
 
+/**
+ * **带音轨**的试纸（m4a，有音轨、无视频轨）。
+ *
+ * 为什么要单独一张（2026-10-08）：`video-sample.mp4` 是**纯画面、没有音轨** ⇒
+ * `readVideo()` 走 `no_audio_track`、**根本不调转写**，于是
+ * 「画面文字定语种 ⇒ 交给转写」这段接线**没有试纸能钉住**。
+ * 这一张在 `readVideo()` 里 `has_audio=true`（会走转写）、`n_frames=0`（画面文字为空）
+ * ⇒ 正好把「没有画面文字时必须回默认语序」那一半钉死。
+ * 生成源码：`base/asr_audio_fixture.sh`（本机 `say`，不联网）。
+ */
+export const ASR_AUDIO_FIXTURE = path.join(AGENT_DIR, '__fixtures__', 'audio-sample.m4a');
+
 /** 默认语种。先判中文再判英文 —— 本项目的素材中英混排，两句都试一遍比只试一句强。 */
 export const ASR_LOCALES = ['zh-CN', 'en-US'];
+
+/**
+ * 语种 ↔ 文字的**自洽判据**：某个语种转出来的字，里头必须有该语言的字符。
+ *
+ * ── 为什么必须有这条（2026-10-08 实测出来的真缺陷）
+ *
+ * 病灶：`transcribe()` 原来是「**第一个 `ok` 就 return**」——
+ *   `for (const loc of locales) { …; if (r.ok === true) return …; }`
+ * 而默认语序是 `['zh-CN','en-US']`（中文优先）。于是**英文视频会被按中文识别**，
+ * 识别器照样回 `ok:true`，拿到的是一段胡话。实测（刘华丽 2026-10-08 那条
+ * `知识库视频-WhatsApp-2026-10-06.mp4`，同一段音轨、同一台机器、只换语种）：
+ *
+ *   · `['en-US']` ⇒ 「Personalities for the mom cause illness one more because it feels
+ *      more comfortable I love the mass feature and it's much easier for me to take apart
+ *      and clean」  ← 真人说的就是这个
+ *   · `['zh-CN']` ⇒ 「Let die for them online one more but if it more one I love the matter
+ *      speed and it's much is for me do dick a bad and thing」 ← 胡话
+ *   · 默认 `['zh-CN','en-US']` ⇒ **与 zh-CN 逐字相同**（en-US 根本没被试到）
+ *
+ * ★ 比「读不准」更坏的是**它长得像成功**：带 `ok:true` + `on_device:true` 回来，
+ *   下游（`buildVideoBlock`）会把它写成「音轨转写（本机识别，逐字）」——
+ *   于是守衡拿一段胡话当口播去引用。这与本文件头注①的
+ *   「否定结论不许比输入大」（AGENTS.md §2.4.1）是同一条道理的另一面：
+ *   那边防的是「没有结果说成有结果」，这边防的是「**错的结果说成对的结果**」。
+ *
+ * 判据取「该语种的特征字在不在」—— 它便宜、确定、可复核，且**不需要识别器给置信度**
+ * （`shouheng-asr` 的产物里没有 confidence，而那个二进制**不能重编**：
+ *  TCC 按 cdhash 记授权，重编一次授权就失效、要人去系统设置里再点一遍）。
+ */
+export const LOCALE_SCRIPTS = Object.freeze([
+  { test: (l) => /^zh([-_]|$)/i.test(l), re: /[\u3400-\u9fff]/, name: '汉字' },
+  { test: (l) => /^en([-_]|$)/i.test(l), re: /[A-Za-z]/, name: '拉丁字母' },
+]);
+
+/**
+ * 这段文字与该语种**自洽**吗。
+ *
+ * 返回 `ok:true` 的两种情形必须分清（所以另给了 `reason`）：
+ *   · `hit` —— 该语种的特征字出现了，自洽；
+ *   · `empty` / `unknown_locale` —— 空文字，或语种不在 `LOCALE_SCRIPTS` 里
+ *     （**认不出来就不判**，不许越权下结论）。
+ *
+ * @returns {{ok:boolean, reason:string, name?:string}}
+ */
+export function checkScript(locale, text) {
+  const s = String(text ?? '');
+  if (!s.trim()) return { ok: true, reason: 'empty' };
+  for (const r of LOCALE_SCRIPTS) {
+    if (!r.test(String(locale ?? ''))) continue;
+    return r.re.test(s)
+      ? { ok: true, reason: 'hit', name: r.name }
+      : { ok: false, reason: 'miss', name: r.name };
+  }
+  return { ok: true, reason: 'unknown_locale' };
+}
+
+/**
+ * 按一段**样本文字**（视频这条路用的是画面 OCR 文本）决定语种**试的顺序**。
+ *
+ * 为什么用画面文字：它在 `readVideo()` 里**本来就先跑**（关键帧 → OCR → 再音轨转写），
+ * 所以这一步零额外成本；而且它把「猜语种」从一个**写死的顺序**变成一个
+ * **可复核的读数**（`basis` 会一路带到群里那张卡上）。
+ *
+ * 判不出来时**不许装作判出来了**：回默认语序，并在 `basis` 里写明「语种未定」。
+ * 那种情形靠 `checkScript()` 那道网兜住（第一个语种的字不对，会去试下一个）。
+ *
+ * @param {string} sample 样本文字
+ * @param {{min?:number}} [opt] `min` = 可判字符数下限，低于它就认为判不出来
+ */
+export function orderLocalesByText(sample, { min = 20 } = {}) {
+  const s = String(sample ?? '');
+  const cjk = (s.match(/[\u3400-\u9fff]/g) ?? []).length;
+  const latin = (s.match(/[A-Za-z]/g) ?? []).length;
+  if (cjk + latin < min) {
+    return { locales: [...ASR_LOCALES], decided: false,
+             basis: `样本里可判字符只有 ${cjk + latin} 个（< ${min}）⇒ **语种未定**，`
+                  + `按默认语序试 ${ASR_LOCALES.join(' → ')}` };
+  }
+  const zhFirst = cjk >= latin;
+  const locales = zhFirst ? ['zh-CN', 'en-US'] : ['en-US', 'zh-CN'];
+  return { locales, decided: true,
+           basis: `画面文字判读：汉字 ${cjk} / 拉丁字母 ${latin} ⇒ **${zhFirst ? '中文' : '英文'}优先**`
+                + `（语序 ${locales.join(' → ')}）` };
+}
 /** 单次转写的墙钟上限（毫秒）。识别本机跑，比实时快，但 `open` 启动本身要几百毫秒。 */
 const ASR_TIMEOUT_MS = 90_000;
 /** 结果文件轮询间隔 */
@@ -153,7 +249,11 @@ async function runOnce(file, locale, { timeoutMs }) {
  * @param {string} filePath
  * @param {{locales?:string[], timeoutMs?:number}} [opt]
  * @returns {Promise<{ok:boolean, text?:string, chars?:number, locale?:string, ms?:number,
- *                    callbacks?:number, kind?:string, hint?:string, detail?:string, tried?:string[]}>}
+ *                    callbacks?:number, kind?:string, hint?:string, detail?:string, tried?:string[],
+ *                    suspect?:boolean, script?:object, candidates?:Array<object>}>}
+ *   `suspect:true` + `kind:'script_mismatch'` = **结果回来了，但字与被试的语种都不符**
+ *   （实测成因：英文音轨被按 zh-CN 识别）。`ok` 仍是 true（文本确实有），
+ *   但**下游不许把它当逐字原文引用** —— 见 `checkScript()` 的头注。
  */
 export async function transcribe(filePath, { locales = ASR_LOCALES, timeoutMs = ASR_TIMEOUT_MS } = {}) {
   if (!filePath || !fs.existsSync(filePath)) {
@@ -171,15 +271,23 @@ export async function transcribe(filePath, { locales = ASR_LOCALES, timeoutMs = 
 
   const tried = [];
   let firstFail = null;
+  // 「结果回来了、但字与该语种不符」的候选 —— 见 `checkScript()` 的头注。
+  // ★ 不当成最终结果直接返回，但也**不丢**：所有语种都试完还只有它，就带着可见标记回它。
+  const mismatched = [];
   for (const loc of locales) {
     const r = await runOnce(filePath, loc, { timeoutMs });
     tried.push(loc);
     if (r.ok === true) {
       const text = String(r.text ?? '').trim();
-      return {
+      const sc = checkScript(loc, text);
+      const payload = {
         ok: true, text, chars: text.length, locale: r.locale, ms: r.ms, wallMs: r.wallMs,
-        callbacks: r.callbacks ?? null, on_device: r.on_device === true, tried,
+        callbacks: r.callbacks ?? null, on_device: r.on_device === true, tried: [...tried],
       };
+      if (sc.ok) return { ...payload, script: sc };
+      // 该语种的特征字一个都没有 ⇒ **别急着当成功**：后面还有语种就接着试。
+      mismatched.push({ ...payload, script: sc });
+      continue;
     }
     const c = classifyError(r.error ?? r.kind);
     const fail = { ok: false, ...c, error: r.error ?? null, detail: r.detail ?? null,
@@ -189,6 +297,22 @@ export async function transcribe(filePath, { locales = ASR_LOCALES, timeoutMs = 
     // 授权/模型缺失：换语种也救不回来，但**要说清是哪一个语种**缺。
     if (c.kind === 'not_authorized' || c.kind === 'hang' || c.kind === 'timeout') { if (!firstFail) firstFail = fail; }
     if (!firstFail) firstFail = fail;
+  }
+  if (mismatched.length) {
+    // ★ 所有语种都没给出「自洽」的结果。文本还在手上，**不丢** —— 但必须让下游一眼看出
+    //   「这段字与它标的语种不符」，否则它会以「逐字转写」的样子被引用出去。
+    //   取字数最多的那一条（信息量最大），并把所有候选的读数一并带出，便于人复核。
+    const best = mismatched.slice().sort((a, b) => b.chars - a.chars)[0];
+    const cands = mismatched.map((m) => `${m.locale}:${m.chars}字/无${m.script?.name ?? '特征字'}`);
+    return {
+      ...best,
+      kind: 'script_mismatch',
+      suspect: true,
+      hint: `这段音轨用 ${tried.join(' → ')} 都试过了，**没有一个语种转出该语言的字**`
+          + `（${cands.join('，')}）—— 转写文本**大概不是语音的真实内容**，别当逐字原文引用。`
+          + `多半是：音轨语种不在 ${tried.join('/')} 里，或现场音乐/音效压过了人声。`,
+      candidates: mismatched.map((m) => ({ locale: m.locale, chars: m.chars, text: m.text })),
+    };
   }
   return firstFail ?? { ok: false, kind: 'error', tried };
 }

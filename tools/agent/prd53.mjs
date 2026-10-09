@@ -126,9 +126,73 @@ export function conclusionBlock(text) {
 }
 
 /**
+ * 由**显式条数**生成 §5.3 的结论行（纯函数）。
+ *
+ * ── 为什么需要它（2026-10-08，Owner 定的规则）
+ *
+ * Owner 的规则原话：「我在飞书侧 @守衡 提问后，双轨并行（知识库+模型），
+ * **双轨按照 PRD ≧3 个问题输出报告链接到飞书文档**」。
+ *
+ * 查下来 PRD 那一侧**早就实现了**（`kb/l7/review-engine/core/feishu_publish.py`：
+ * `REPORT_LINK_MIN_ISSUES = 3`，且留痕「10-03 曾改判为 0，Owner 裁定后已回退为 3」）。
+ * 真正坏的是**口径**：一单里有**三个**「问题数」在打架 ——
+ *
+ *   | 数 | 来自谁 | 19:44 那单 | 19:08 那张图 |
+ *   |---|---|---|---|
+ *   | 卡片抬头那个数 | 链的结论原文（被 `conclusionLine` **正则抠**出来） | — | **12** |
+ *   | 报告阈值读的数 | 机读旁挂 `issue_count` | **2** | 5 |
+ *   | 人实际看到的条目 | 双轨合并条数 | **10** | 7 |
+ *
+ * 人看到 10 条 ⇒ 按规则该给链接；而阈值读的是 2 ⇒ `2 < 3` ⇒ 不生成报告 ⇒ **没有链接**。
+ * 从人的座位上，这条规则就是没生效。
+ *
+ * ── 这个函数在「统一成一个数」里的位置
+ *
+ * 抬头那个 N 现在是**从链的正文里抠**出来的（`deriveVerdictLine` 第 ① 支），
+ * 所以它天生就是「链自己的数」—— 这就是口径打架的根。
+ * 把它变成**入参**之后，抬头、逐条块、报告阈值读的才是**同一个变量**。
+ *
+ * 这不是新发明：`deriveVerdictLine` 第 ② 支（P0 快路）**早就是**按显式条数派生一行
+ * （用 `p0_fastpath.matched_patterns`）。这里只是把同一个形状补到双轨这一支上。
+ *
+ * @param {{state?:string, n?:number}} input
+ * @returns {{state:string, line:string, conform:object}|null}
+ *   派生不出来时回 `null` —— **绝不编一个 N**（§2.4：「共发现 ? 处」比不搬更坏）。
+ */
+export function verdictLineFor({ state, n } = {}) {
+  const st = String(state ?? '').toUpperCase();
+  const count = Number(n);
+  // 只认「≥1 的整数」：
+  //   · `undefined` / `NaN` / 字符串 ⇒ 不派生
+  //   · 小数、负数 ⇒ 不派生（那是坏读数，不是条数）
+  //   · **0 ⇒ 不派生**。这一条是独立的判断，不是顺带：`mergedState()` 里
+  //     「合并 0 条 + 库侧 REVIEW」会给出 REVIEW（覆盖缺口那一类），
+  //     而 `【审查结论：REVIEW】共发现 0 处需人工确认。` **自己跟自己矛盾**。
+  //     那时退回链那一行更诚实 —— 链自己数出了几条，就照它说。
+  if (!Number.isInteger(count) || count < 1) return null;
+
+  let line = null;
+  if (st === 'REVIEW') line = `【审查结论：REVIEW】共发现 ${count} 处需人工确认。`;
+  else if (st === 'BLOCK') line = `【审查结论：BLOCK】共发现 ${count} 处必须修改。`;
+  // PASS 的模板（§5.3.1）里**没有 N**，所以派生不出来；拒答 / NEEDS_INPUT 不在 §5.3 里。
+  else return null;
+
+  return { state: st, line, conform: conforms(line) };
+}
+
+/**
  * **权威结论行**：这一轮该往卡片里搬哪一行。
  *
- * 三条来源，按可靠性排序（前两条是「链说的」，第三条是「模型自己排在最前面的」）：
+ * 四条来源，按可靠性排序（前两条是「链说的」，第三条是「模型自己排在最前面的」）：
+ *
+ *   ⓪ **双轨跑过 ⇒ 用双轨合并数派生**（2026-10-08 加）。
+ *      为什么它排在最前：第 ① 支那个 N 是**从链的正文里抠**出来的，
+ *      而人在卡片上看到的条目是**双轨合并**之后的 —— 两个数天然不等
+ *      （实测 19:08 那张图：抠出来 12、合并 7、阈值读 5）。
+ *      报告链接的门槛（PRD §5.3.4「问题数量 ≥3」）挂在哪个数上都不是重点，
+ *      重点是**只能有一个数**：抬头、逐条块、阈值读同一个变量。
+ *      ★ 传进来的数不合法（缺失 / 0 / NaN / 非整数）时**退回第 ① 支**，
+ *        而不是编一个 N —— 派生是**加强**，不是取代兜底。
  *
  *   ① 链返回的结论原文里有 5.3 行 ⇒ **用它**。链是这条结论唯一的产者，也是唯一有权改它的人。
  *   ② 走的 P0 快路 ⇒ 按 §5.3.3 **派生**一行：`【审查结论：BLOCK】共发现 N 处必须修改。`
@@ -138,10 +202,25 @@ export function conclusionBlock(text) {
  *   ③ 都没有、但模型自己把一行 5.3 结论摆在回复最前面 ⇒ 用它的。
  *      （补发队列重跑那一跳拿不到 `meta`，这是给那条路留的兜底。）
  *
- * @param {{answer?:string, p0Fastpath?:object|null, replyText?:string}} input
- * @returns {{state:string, line:string, from:'chain'|'p0-fastpath'|'reply'}|null}
+ * @param {{answer?:string, p0Fastpath?:object|null, replyText?:string,
+ *          mergedCount?:number|null, mergedState?:string|null}} input
+ *   `mergedCount` / `mergedState` 由**双轨合并**那一路传来（`dual_track.mjs`）。
+ *   不给就是没跑双轨 ⇒ 行为与本改动之前**逐字相同**（这一条有反向对照守着）。
+ * @returns {{state:string, line:string, from:string}|null}
  */
-export function deriveVerdictLine({ answer = '', p0Fastpath = null, replyText = '', reviewedByTool = false } = {}) {
+export function deriveVerdictLine({ answer = '', p0Fastpath = null, replyText = '', reviewedByTool = false,
+                                    mergedCount = null, mergedState: mState = null } = {}) {
+  // ── ⓪ 双轨合并数优先（见函数头那段注释）────────────────────────────────
+  //
+  //   `block` 这一格**照第 ① 支的写法原样给**（`conclusionBlock(answer)`），
+  //   不自己造一个块 —— 逐条块由信封层的 `groups` 那一跳负责
+  //   （实测日志：`逐条块=forced·groups`），这里改块会与它抢同一格。
+  //   所以本支相对改动之前，**唯一**的差别就是那一行里的 N。
+  const derived = verdictLineFor({ state: mState, n: mergedCount });
+  if (derived) {
+    return { ...derived, from: 'dual-track-merged', block: conclusionBlock(answer) };
+  }
+
   const fromChain = conclusionLine(answer);
   // ★ 每一条来源都带上 `conform` 读数（2026-10-06 加）：
   //   链是这一行的**产者**，而它自己的措辞也会回退（实测：2026-10-06 之前

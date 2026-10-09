@@ -106,6 +106,26 @@ export function setTitle(sess, title) {
   if (title && sess.title !== title) sess.title = title;
 }
 
+/**
+ * 这段历史里有几**轮**。
+ *
+ * ★ 为什么要单独一个函数（2026-10-08）：`agent.mjs` 的 `meta.turns` 原先是
+ *   `turns: sess.messages.length` —— 那是**条数**。而 `ws_daemon.mjs` 把它印成
+ *   「🗜 历史已压缩（保留 130 轮 + 纪要 5249 字）」，**真实含义是 130 条 ≈ 24 轮**。
+ *   变量名（`turns`）、日志措辞（「轮」）、实际的值（条数）三者不一致 ——
+ *   这正是 `AGENTS.md` §2.4.3 那个形状：**说出去的话比手上的依据大**。
+ *
+ * 口径与 `compact()` **同源**，不是另立一个：一轮 = 一条 `role === 'user'`。
+ * 一条用户消息可能对应 `assistant(tool_calls)` + 若干 `tool` 结果（条数不定），
+ * 所以**只能按 user 定位**，按条数算会把工具调用也算成轮。
+ * 两处口径必须一起动 —— 分开写两遍就会各自漂移（§2.4.1 第 4 行的教训）。
+ */
+export function countTurns(sess) {
+  const msgs = sess?.messages;
+  if (!Array.isArray(msgs)) return 0;
+  return msgs.filter((m) => m?.role === 'user').length;
+}
+
 /* ─────────────────────── 上下文压缩 ─────────────────────── */
 
 /**
