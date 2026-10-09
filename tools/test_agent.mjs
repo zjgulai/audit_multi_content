@@ -3721,6 +3721,64 @@ await t('V7 ★ 行为级：本仓建的合并报告，URL 必须**同时**进�
   });
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Z37 ★（2026-10-09）**OCR 水印不许当素材内容**（Owner 亲自看出来的根因）
+// ══════════════════════════════════════════════════════════════════════════════
+//   Owner 原话：「图上文字：5615 RO0 刘华丽 刘华問 ==》这是我，是因为图片上有水印吗？」
+//   他判断对：那是飞书文档的协作水印（用户名 + 工号），而它**进了检索** ⇒
+//   拿水印里的常用词撞库 ⇒ 撞出一堆无关的内部样本、又被渲染成「命中」进报告。
+//
+//   判据：**同一串出现在图的不同位置**（水印平铺的定义），坐标由 `vision.normalize`
+//   带出（原先被它丢掉，同日修复）。
+//   ⚠️ 本组有一条**反向对照**：真内容（`Sep 15 / Week1 / Week4`）**一个都不许删** ——
+//     第一版用了"近似变体"判据，把这些日历数据也当水印删了（35 行误删 17 行）。
+{
+  const { stripOcrWatermark } = await import('./agent/ocr_watermark.mjs');
+  // 线上那一单的真实 OCR 文本（逐字，从库内留痕取的）
+  const REAL = ['5615 RO0', '刘华丽', '刘华問', '#MomAndMore activity calendar', '5615 R00',
+    'Each Group has its own activities—choose the ones you like and join in.', 'Every week：',
+    '1topic activity & i+ comment or game', 'Sep 15', 'Mystery', 'activity', 'begins', '5',
+    '刘华問', 'Week2', 'Sep8-14', '5615 RC', 'Week1', 'Sep 1-7', '5615 ROOT', 'Week4',
+    'Sep 22-28', '5615', '刘华', 'Week3', 'Sep 15-21', '5615', 'Winners', 'announcements',
+    'every weekend', '华', '八613', 'MOMCOZY', '1化司', '5615'];
+  const text = REAL.join('\n');
+  // 坐标：让**真的重复了的**串落在不同位置（刘华問×2、5615×3），其余各就各位
+  const pos = { '刘华問': [[0.10, 0.90], [0.60, 0.35]], '5615': [[0.10, 0.85], [0.62, 0.30], [0.30, 0.12]] };
+  const seen = {};
+  const boxes = REAL.map((t, i) => {
+    const p = pos[t];
+    let x = 0.05 + (i % 6) * 0.15, y = 0.95 - (i % 12) * 0.07;
+    if (p) { const k = (seen[t] = (seen[t] ?? -1) + 1); x = p[Math.min(k, p.length - 1)][0]; y = p[Math.min(k, p.length - 1)][1]; }
+    return { t, x, y };
+  });
+
+  await t('Z37a 不同位置上的同一串 ⇒ 判水印（且能说出判据）', async () => {
+    const r = stripOcrWatermark({ text, boxes });
+    assert.strictEqual(r.basis, 'same-string-different-position', `判据不对：${r.basis}`);
+    assert.ok(r.dropped.length >= 2, `没摘到水印：${r.dropped.length}`);
+  });
+
+  await t('Z37b ★ 反向对照：真内容一个都不许删（日历的周次/日期是内容，不是水印）', async () => {
+    const r = stripOcrWatermark({ text, boxes });
+    const content = ['#MomAndMore activity calendar',
+      'Each Group has its own activities—choose the ones you like and join in.',
+      'Sep 15', 'Week1', 'Week2', 'Week3', 'Week4', 'Sep 1-7', 'Sep 22-28', 'MOMCOZY', 'Winners'];
+    const lost = content.filter((c) => !r.text.includes(c));
+    assert.deepStrictEqual(lost, [], `真内容被当水印删了：${lost.join(' / ')}`);
+  });
+
+  await t('Z37c 同一串落在**同一处**不许判水印（同处重复是内容，不是平铺）', async () => {
+    const r = stripOcrWatermark({ text: 'MOMCOZY\nMOMCOZY', boxes: [{ t: 'MOMCOZY', x: 0.1, y: 0.5 }, { t: 'MOMCOZY', x: 0.11, y: 0.5 }] });
+    assert.strictEqual(r.dropped.length, 0, `同处重复被误判成水印：${r.dropped.join(' / ')}`);
+  });
+
+  await t('Z37d 没有坐标时退回「字面重复」判据，且不误删真内容', async () => {
+    const r = stripOcrWatermark({ text });
+    assert.strictEqual(r.basis, 'exact-repeat-no-coords', `判据不对：${r.basis}`);
+    assert.ok(r.text.includes('Sep 15') && r.text.includes('Week1'), '无坐标时误删了真内容');
+  });
+}
+
 // 汇总必须放在**所有**分组之后（2026-10-09 修：中间那两块重复的汇总+exit
 // 让「第 27 组」与「第 33 组」**从没被执行过**，而合计照样印得像全绿）。
 console.log(`\n═══ 合计：通过 ${pass} / 失败 ${fail} ═══`);

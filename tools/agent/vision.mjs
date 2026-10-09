@@ -122,6 +122,15 @@ function normalize(raw, { langs, wallMs }) {
   }
 
   const lines = (d.lines ?? []).map((l) => String(l?.t ?? '')).filter((s) => s.trim() !== '');
+  // ★★ 2026-10-09（Owner 亲自看出「图上文字里的『刘华丽』是水印」）：
+  //   **行坐标必须带出去** —— 二进制本来就在输出 `{t,c,x,y,w,h}`（归一化坐标），
+  //   而这里原先只取 `t`、把坐标丢了 ⇒ 下游**做不了水印判据**
+  //   （水印最可靠的特征就是「同一串出现在图的不同位置」，那需要坐标）。
+  //   ⇒ 一并带出 `boxes`；**`lines` 的语义不变**（它仍是「识别出多少行」那个数，
+  //     另有调用方在用，见 `agent.mjs` 的「｜N 行】」）。
+  const boxes = (d.lines ?? [])
+    .map((l) => ({ t: String(l?.t ?? ''), x: l?.x ?? null, y: l?.y ?? null }))
+    .filter((b) => b.t.trim() !== '');
   let text = lines.join('\n');
   const trunc = text.length > OCR_MAX_CHARS;
   if (trunc) text = `${text.slice(0, OCR_MAX_CHARS)}\n…〔本张图 OCR 文字原长 ${text.length} 字，按 ${OCR_MAX_CHARS} 字上限截断〕`;
@@ -129,7 +138,8 @@ function normalize(raw, { langs, wallMs }) {
   return {
     ok: true,
     text,
-    lines: lines.length,          // 识别出多少行
+    lines: lines.length,          // 识别出多少行（**语义不变**，另有调用方在用）
+    boxes,                        // ★ 2026-10-09：逐行 `{t,x,y}` —— 水印判据要用（原先被丢掉）
     chars: text.length,
     w: d.w ?? null, h: d.h ?? null,
     ms: d.ms ?? null,

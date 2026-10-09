@@ -108,7 +108,25 @@ export function chainInput({ question = '', inbound = {} } = {}) {
   const media = [];
 
   for (const im of inbound.images ?? []) {
-    if (im.text) { parts.push(`【图片 ${im.index} 的图内文字（本机 OCR）】\n${im.text}`); media.push('image'); }
+    if (im.text) {
+      // ★★ 2026-10-09：喂给链的是**摘掉水印后**的文本（`wlText`），不是 OCR 原文。
+      //   为什么（Owner 亲自看出来的根）：图内 OCR 混着**文档水印**（用户名 + 工号，
+      //   实测 `5615 RO0 / 刘华丽 / 刘华問`），而这段原文**直接进了 BM25 检索** ⇒
+      //   拿水印里的常用词撞库 ⇒ 撞出一堆无关的内部样本、又被渲染成「命中」进报告。
+      //   ⇒ 检索用 `wlText`；**原文一个字不丢**（仍进 `im.text`，卡片显示"我读到了什么"用它）。
+      //   ⚠️ 摘了要在**给模型的正文里说明** —— 否则模型会以为"图上就这些字"，
+      //     把水印里读到的东西当成素材内容去判（那正是要修的病）。
+      //   ⚠️ 说明里**只报条数、不列出水印串本身** —— 第一版把串列了出来（"摘除：5615 RO0、刘华丽"），
+      //     那等于**又把它们放回给模型的正文里**，模型照样能照着判 ⇒ 修了等于没修。
+      const body = String(im.wlText ?? im.text);
+      const wmNote = (im.wmDropped?.length)
+        ? `\n（本机 OCR 另读到 ${im.wmDropped.length} 行**水印/印章类文字**，`
+          + `已从检索文本中摘除，**不要把它们当素材内容**；`
+          + `摘除明细见日志与报告，需要核对时由人调取。）`
+        : '';
+      parts.push(`【图片 ${im.index} 的图内文字（本机 OCR${wmNote ? '，已摘除水印' : ''}）】\n${body}${wmNote}`);
+      media.push('image');
+    }
     else if (im.ocrEmpty) parts.push(`【图片 ${im.index}】取到了，但图上没识别出文字。`);
     else parts.push(`【图片 ${im.index}】**没读到**：${im.failed ?? '未读'}。`);
   }

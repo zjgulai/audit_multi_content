@@ -17,6 +17,8 @@ import * as llm from './llm.mjs';
 import * as mem from './memory.mjs';
 import * as feishu from './feishu.mjs';
 import * as vision from './vision.mjs';
+// ★ 2026-10-09：OCR 水印摘除（Owner 看出图内文字里的用户名是水印）——见该模块头注
+import { stripOcrWatermark } from './ocr_watermark.mjs';
 import * as video from './video.mjs';
 import { TOOL_SCHEMAS, executeTool, runtimeContext, toolNames, claimStatus, facetsFromMaterial,
          beginChainTurn, chainMemoStats } from './tools.mjs';
@@ -377,9 +379,24 @@ export async function readInboundContent(msg, {
         images.push({ index: i + 1, imageKey: k.imageKey, fromParent, bytes: got.bytes,
                       ocrEmpty: true, w: r.w ?? null, h: r.h ?? null });
       } else {
+        // ★★ 2026-10-09（Owner 亲自看出「图上文字里的『刘华丽』是水印」）──────────────
+        //   图内 OCR 里混着**文档水印**（用户名 + 工号，实测 `5615 RO0 / 刘华丽 / 刘华問`），
+        //   它被当成素材内容 ⇒ **进了检索** ⇒ 拿水印里的常用词撞库
+        //   ⇒ 撞出一堆无关的内部样本、又被渲染成「命中」进报告。**这是那批假命中的根。**
+        //   ⇒ 这里做一次**水印摘除**，且**两份都留着**：
+        //     · `text`    = **原文**（卡片显示"我读到了什么"要用它，一个字不许改）；
+        //     · `wlText`  = **摘掉水印后**（`chainInput` 拿它去检索）；
+        //     · `wm*`     = 留痕（摘了哪些行、靠哪条判据）—— 缺了它，摘除就是不可核的。
+        const wm = stripOcrWatermark({ text: r.text, boxes: r.boxes });
         images.push({ index: i + 1, imageKey: k.imageKey, fromParent, bytes: got.bytes,
                       text: r.text, lines: r.lines ?? null, chars: r.chars ?? null,
-                      w: r.w ?? null, h: r.h ?? null, truncated: !!r.truncated });
+                      w: r.w ?? null, h: r.h ?? null, truncated: !!r.truncated,
+                      wlText: wm.text, wmDropped: wm.dropped, wmBasis: wm.basis });
+        if (wm.dropped.length) {
+          console.log(`[agent] 🚫 图 ${i + 1} 摘除水印 ${wm.dropped.length} 行`
+            + `（判据=${wm.basis}）：${wm.dropped.slice(0, 8).join(' / ')}`
+            + `${wm.dropped.length > 8 ? ' …' : ''}`);
+        }
       }
     } finally {
       // 字节用完就删 —— 豁免的形状是「过一遍 OCR」，**不是「留下来」**。
