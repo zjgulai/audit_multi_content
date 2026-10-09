@@ -842,6 +842,27 @@ export async function runSubmissionGate({
         } catch (e) {
           console.log(`[agent] ⚠️ 合并报告异常（**不阻断结论**）：${e?.message ?? e}`);
         }
+      } else {
+        // ★★ 2026-10-09：**「跳过了」必须出声**（Owner 问「为什么发图片/视频报告就不对，
+        //    发文案就对」——而这一跳当时**一条日志都没有**，只能靠倒推）。
+        //
+        //    实测形状：文案单（库侧 issue_count 1 < 3 ⇒ 库侧不建 docx）⇒ 本仓建了合并报告，
+        //    卡上链接正确；图片/视频单（库侧 5 条 ≥ 3 ⇒ 库侧自己建了 docx）⇒
+        //    `kbSide.reportUrl` 有值 ⇒ **这里被跳过** ⇒ 卡上链接指向**库侧那份**，
+        //    而库侧那份只装库侧条目、且把库内案例渲染成「命中」。
+        //
+        //    这一行把三个读数一次打全（**是谁挡的、挡在哪个数上**），下次不必再倒推：
+        //      · 卡里那个数 `rendered0.total`
+        //      · 库侧给的链接（有没有、是什么、是文档还是本地路径）
+        //      · 三个条件里**哪一个**不成立
+        const _ru = kbSide?.reportUrl ?? null;
+        const _why = !rendered0 ? 'renderMerged 返回 null（没有可并的条目）'
+          : (rendered0.total < REPORT_LINK_MIN_ISSUES
+            ? `卡内总数 ${rendered0.total} < ${REPORT_LINK_MIN_ISSUES} ⇒ 按 PRD 本就不该给报告`
+            : `库侧已经给了链接（${_ru}）⇒ 本仓不重复建`);
+        console.log(`[agent] 📄 合并报告：**未建**（${_why}）`
+          + `｜卡内总数=${rendered0?.total ?? '—'}｜库侧链接=${_ru ?? '(无)'}`
+          + `（kind=${kbSide?.reportUrlKind ?? '—'}）`);
       }
       const rendered = reportUrlOverride
         // ★ 必须用 itemsWithAdvice —— 有报告链接时走的是这一支，用 merged.items 会把建议丢掉
