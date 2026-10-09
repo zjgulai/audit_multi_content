@@ -3284,6 +3284,64 @@ await t('Z32 ★★ 库侧的真文档在 publish.docx 里，不在 report_url �
     assert.ok(blk.includes('KBSIDE5'), '建失败时没有回落库侧链接 —— 卡上会变成没有链接');
   });
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Z35 ★（2026-10-09）**报告正文里的库内原始 HTML 必须转义，否则整份文档被飞书拒收**
+// ══════════════════════════════════════════════════════════════════════════════
+//   Owner 的问题：「文案是合并报告，图片/视频现在是合并报告吗？这 3 个要改成一致的」。
+//
+//   查出来的真因**不是** fix #2 没生效，而是**合并报告建了但发不出去**：
+//     建云文档失败：invalid <img> local resource tag:
+//     XML syntax error on line 1: invalid character entity &#39 (no semicolon)
+//
+//   库内记录的 `excerpt` **含原始 HTML**（实测那条视频单的命中原文是
+//   `>修改字幕</li></ol><img name="image.png" alt="…">` 与 `<table><colgroup>…`）。
+//   飞书 `docs +create` 把 markdown 里的 `<…>` **当 HTML 解析** ⇒ 撞坏实体 ⇒ **整份被拒**。
+//   为什么"发文案对、发图/视频不对"：文案单命中是纯文本（不含 `<`），图/视频单命中富文本。
+//
+//   实测（2026-10-09）：那份 12,877 字节的真实报告原样发 `ok:false`；
+//   **只**把 `<` `>` 转义后 `ok:true`，且结构一字未损（标题 1 / 二级 4 / 加粗 166 前后一致）。
+{
+  const { mdBodySafe, mdTextSafe } = await import('./agent/merged_report.mjs');
+
+  await t('Z35a 跨行 HTML 标签所在的行必须整行转义（第一版只认单行标签 ⇒ 漏）', async () => {
+    const src = ['# 报告', '', '   命中原文（逐字）：<img name="image.png"',
+      ' alt="图片展示了一位女性在厨房">', '', '**加粗**照旧'].join('\n');
+    const out = mdBodySafe(src);
+    assert.ok(!/<\/?[A-Za-z]/.test(out), `仍有裸标签：${out.slice(0, 120)}`);
+    assert.ok(out.includes('&lt;img'), '没转义成实体');
+    // ⚠️ 反向对照：**正常 markdown 一个字符都不许动**
+    assert.ok(out.startsWith('# 报告'), '标题被改坏');
+    assert.ok(out.includes('**加粗**照旧'), '加粗被改坏');
+  });
+
+  await t('Z35b 没有 HTML 的正文必须逐字不变（防"顺手全转义"）', async () => {
+    const src = ['# 内容审查报告', '', '- 结论：**REVIEW** ｜ 问题数量：**3**',
+      '', '| 分类 | 条数 |', '|-|-|', '| 合规 | 1 |', '',
+      '1.【本地化】整句', '   **原因**：未标市场', '   **依据**：无库内依据'].join('\n');
+    assert.strictEqual(mdBodySafe(src), src, '正常 markdown 被改动了 —— 报告会变丑');
+  });
+
+  await t('Z35c 反向对照：**裸实体单独出现不会导致拒收** ⇒ 不许顺手把它也转义', async () => {
+    // 实测（2026-10-09）：只含 `&#39;` 的文档飞书照收（`ok:true`）；那个报错是
+    // **在 `<img …>` 标签内部**才冒出来的，而标签行已被 Z35a 那条覆盖。
+    // 所以这里钉的是「**别过度防守**」：`&#39` 是正常文本，改了就把原文改样了。
+    const src = '行内有 &#39 这种裸实体，以及 &#x27 另一种。';
+    assert.strictEqual(mdBodySafe(src), src, '把裸实体也转义了 —— 那是过度防守，且改动了原文');
+  });
+
+  await t('Z35d 命中原文注入点：hitsBlock 进报告前必须转义', async () => {
+    const { renderMergedReportMd } = await import('./agent/merged_report.mjs');
+    const md = renderMergedReportMd({
+      merged: [], total: 3, state: 'REVIEW', line: '【审查结论：REVIEW】共发现 3 处需人工确认。',
+      hitsBlock: '**库内命中（读数）**\n\n1. `#a`｜BM25 1｜internal_sample\n'
+        + '   命中原文（逐字）：<table><tr><td>x</td></tr></table>\n   直链：—',
+      question: 'q', contentId: 'c', at: 'T', kbGap: 0, kbTextCount: 0, modelCount: 0,
+    });
+    assert.ok(!/<table>/.test(md), 'hitsBlock 里的 HTML 没转义 ⇒ 这份文档发不出去');
+    assert.ok(md.includes('&lt;table&gt;'), '没有转义成实体');
+  });
+}
 // ★★ 2026-10-09 修（**静默空转**，比红更坏）：
 //   这里原先有**两块**一模一样的「汇总 + `process.exit`」，而它们**后面还有测试**
 //   —— 另一会话追加的「第 27 组」与本次追加的「第 33 组」全在 `exit` 之后，
