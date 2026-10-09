@@ -3674,6 +3674,53 @@ await t('V7 ★ 行为级：本仓建的合并报告，URL 必须**同时**进�
   });
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Z36 ★（2026-10-09）**卡内算术必须闭合**（Owner 报「图表数字对不上」）
+// ══════════════════════════════════════════════════════════════════════════════
+//   实测那单（16:24）：抬头「共发现 **8** 处」，页脚「知识库侧 **2** 条 ／ 模型侧 **6** 条」——
+//   2+6=8 看着对，而**库侧实际并进来 5 条**（双轨读数：库侧 5 ＋ 模型侧 6 ⇒ 合并 8），
+//   卡里另一处还写着「REVIEW 5 处」。根因：页脚用「**并进清单里的**库侧条目」，
+//   抬头那个数却含「**没并进来的**」⇒ 两个口径不同的数并排印。
+//   ⇒ 现在页脚是「知识库侧 X（结构化读数）＋ 模型侧 Y − 计入 N 处（去重 D）＝ 本卡 N 处」。
+{
+  const T = await import('./agent/dual_track.mjs');
+  const mk = (i, c) => ({ location: `p${i}`, category: c, severity: 'REVIEW', source: 'kb',
+    reason: 'r', excerpt: `e${i}` });
+  const mo = (i) => ({ location: `m${i}`, category: '措辞表达', severity: 'REVIEW',
+    source: 'model', reason: 'x' });
+
+  const probe = (kbCnt, kbTextN, modelCnt) => {
+    const kbItems = Array.from({ length: kbCnt }, (_, i) => mk(i, '品牌一致性'));
+    const modelItems = Array.from({ length: modelCnt }, (_, i) => mo(i));
+    const merge = T.mergeFindings(kbItems.slice(0, kbTextN), modelItems);
+    const r = T.renderMerged(merge.items, {
+      state: 'REVIEW', kb: T.kbSideOf({ review: { state: 'REVIEW', issue_count: kbCnt } }),
+      kbTextCount: kbTextN, model: { ok: true, findings: modelItems },
+      mergedStats: merge.stats, reportUrlOverride: 'https://x/docx/A' });
+    const head = Number((r.block.match(/共发现 (\d+) 处/) || [])[1]);
+    const foot = (r.block.match(/^知识库侧.*$/m) || [''])[0];
+    const m = foot.match(/知识库侧 (\d+) 条.*＋ 模型侧 (\d+) 条(?: − 计入 (\d+) 处（去重 (\d+))?/);
+    return { head, foot, m };
+  };
+
+  await t('Z36a 页脚两个数相减必须等于抬头（四种形状都核）', async () => {
+    for (const [kb, txt, moN, label] of [[5, 2, 6, '库侧 5 读数/并进 2/模型 6'],
+      [5, 5, 6, '库侧 5/5/6'], [0, 0, 8, '库侧 0'], [3, 3, 0, '只有库侧 3']]) {
+      const { head, foot, m } = probe(kb, txt, moN);
+      assert.ok(m, `页脚没印出可核的算式（${label}）：${foot}`);
+      const lhs = Number(m[1]) + Number(m[2]) - Number(m[4] || 0);
+      assert.strictEqual(lhs, head, `${label}：${m[1]}+${m[2]}-${m[4] || 0}=${lhs} ≠ 抬头 ${head}`);
+    }
+  });
+
+  await t('Z36b 页脚必须说清「库侧那个数是结构化读数」而不是并进条数', async () => {
+    const { foot } = probe(5, 2, 6);
+    // 病灶原样：印成「知识库侧 2 条 ／ 模型侧 6 条」——2 是**并进清单里的**，看着像总数
+    assert.ok(/结构化读数/.test(foot), `页脚没标明库侧那个数的口径：${foot}`);
+    assert.ok(!/^知识库侧 \d+ 条 ／ 模型侧 \d+ 条$/.test(foot), '又退回旧形状（口径不同的两个数并排）');
+  });
+}
+
 // 汇总必须放在**所有**分组之后（2026-10-09 修：中间那两块重复的汇总+exit
 // 让「第 27 组」与「第 33 组」**从没被执行过**，而合计照样印得像全绿）。
 console.log(`\n═══ 合计：通过 ${pass} / 失败 ${fail} ═══`);

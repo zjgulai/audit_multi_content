@@ -1458,7 +1458,8 @@ export function renderMergedItem(f, i, { must = false } = {}) {
  * @returns {{line:string, block:string}|null}
  */
 export function renderMerged(merged, { state, kb = null, kbTextCount = null, model = null,
-                                     reportUrlOverride = null, kbHitsBlock = null } = {}) {
+                                     reportUrlOverride = null, kbHitsBlock = null,
+                                     mergedStats = null } = {}) {
   const list = Array.isArray(merged) ? merged : [];
   const n = list.length;
   const kbN = Number.isFinite(kb?.issueCount) ? kb.issueCount : null;
@@ -1565,15 +1566,35 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   //   —— 编号 1 与汇总行**粘在同一行**。`verify_cards.mjs:633` 的夹具里本来就有
   //   `'知识库侧 3 条 ／ 模型侧 3 条\n\n1.【合规】'`，**是代码与夹具不一致**，
   //   不是设计如此；夹具写得对，所以这条改动不会把判据打红。
+  // ★★ 2026-10-09（Owner 报「图表数字对不上」）**页脚算术必须闭合** ──────────────
+  //   病灶（实测本单，逐字）：抬头「共发现 **8** 处」，页脚「知识库侧 **2** 条 ／ 模型侧 **6** 条」——
+  //   2+6=8 看着对，**而库侧实际并进来的是 5 条**（双轨读数：库侧 5 ＋ 模型侧 6 ⇒ 合并 8）。
+  //   读者拿卡一算就不平：库侧 2 ＋ 模型侧 6 ＝ 8 ＝ 抬头，但卡里另一处又写着「REVIEW 5 处」。
+  //   根因：页脚用的是「**并进清单里的**库侧条目」（`fromKb`），而抬头那个数是
+  //   `n + kbGap + covEntries`（含**没并进来的**库侧条目）⇒ 两个口径不同的数并排印。
+  //   ⇒ 改成三个**说得通**的数，且**加起来等于抬头**：
+  //        知识库侧 X 条（结构化读数）＋ 模型侧 Y 条 − 两侧指向同一处的 Z 条 = 抬头
+  //      （Z＝两轨确认 ＋ 冲突；`mergeFindings` 的 stats 里本来就有，不用另算）
+  //   ⚠️ 不许再出现「页脚两个数加起来对不上抬头」的形状。
+  const kbStructuralN = Number.isFinite(kbN) ? kbN : fromKb;
+  // ★ 去重条数**用差额算**，不另取 stats：
+  //   抬头 `total = n + kbGap + covEntries`（`n` = 并集去重后的条数），
+  //   而左边两个数之和是 `kbStructuralN + fromModel` ⇒ 差额就是「并集之外多算的」，
+  //   它**同时吸收两样东西**：两侧指向同一处的重复（stats.both/conflict）＋ 库侧未并进的 kbGap。
+  //   ⇒ 这样「左式 − 差额 ＝ 抬头」**恒成立**，说明文字也不会与 `kbGap` 那段重复计数
+  //     （第一版两种都写，印出来是「5+6=11」又「另有 3 条未并进」，自相矛盾）。
+  const lhs = kbStructuralN + fromModel;
+  const dedupN = Math.max(0, lhs - total);
   const tally = (kbNoReading
     ? `知识库侧 **本次未参与**（没拿到引擎读数） ／ ${modelTxt}`
       + `（**全部无库内依据**，只能转人工）`
     : (covGap && !kbContentN
       // ★ 2026-10-08：覆盖缺口那条**不是内容问题** —— 不许让它与「内容问题」共用同一个计数说法
       ? `知识库侧 **未报内容问题**；另有 **1 条覆盖缺口**（库对该题材没有可依据的条款） ／ ${modelTxt}`
-      : `知识库侧 ${kbContentN + covEntries} 条${kbGap ? `（**结构化读数 ${kb?.state ?? '—'}/${kbN}**；本卡未逐条列出）` : ''}`
-        + `${covEntries ? '（其中 1 条是**覆盖缺口**，不是内容问题）' : ''} `
-        + `／ ${modelTxt}`)) + '\n';
+      : `知识库侧 ${kbStructuralN} 条（结构化读数）＋ 模型侧 ${fromModel} 条`
+        + (dedupN ? ` − 计入 ${total} 处（去重 ${dedupN}：两侧指向同一处 ＋ 库侧未并入的）` : '')
+        + ` ＝ 本卡 **${total} 处**`
+        + `${covEntries ? '（另 1 条是**覆盖缺口**，不是内容问题）' : ''}`)) + '\n';
   // ★ 库侧明细缺失是**必须出声**的（2026-10-07）：否则读者会以为库侧真没报东西。
   // ★★ 2026-10-08：**解释必须按真实原因分支**。
   //   原先不分情形一律写「PRD §5.3.3 规定问题数 ≥3 时库侧只出分类汇总」——

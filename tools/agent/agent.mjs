@@ -801,7 +801,8 @@ export async function runSubmissionGate({
         adviceReferencedKb: !!(f.kb?.suggestionLine || f.kbAdvice),
       }));
       const rendered0 = renderMerged(itemsWithAdvice, { state, kb: kbSide, kbTextCount: kb.findings.length, model,
-                                                     kbHitsBlock: kb.kbHitsBlock ?? null });
+                                                     kbHitsBlock: kb.kbHitsBlock ?? null,
+                                                     mergedStats: merged.stats });
 
       // ── ★ 2026-10-09：**问题数 ≥3 ⇒ 飞书文档要带报告**（Owner 的原话）──────────
       //
@@ -883,7 +884,8 @@ export async function runSubmissionGate({
       const rendered = reportUrlOverride
         // ★ 必须用 itemsWithAdvice —— 有报告链接时走的是这一支，用 merged.items 会把建议丢掉
         ? renderMerged(itemsWithAdvice, { state, kb: kbSide, kbTextCount: kb.findings.length, model,
-                                       reportUrlOverride, kbHitsBlock: kb.kbHitsBlock ?? null })
+                                       reportUrlOverride, kbHitsBlock: kb.kbHitsBlock ?? null,
+                                       mergedStats: merged.stats })
         : rendered0;
       dual = { model, kb, merged, state, rendered, kbSide, reportUrl: reportUrlOverride };
       // ★ 2026-10-08：**模型侧没跑成时要把 raw 打出来**。
@@ -1112,8 +1114,19 @@ export async function runSubmissionGate({
       //   而**表里「报告链接」是空的** —— 因为这一格只认 `res.report`（链侧那份），
       //   而链侧那单只有 1 条、达不到它自己的 ≥3 门槛。
       //   ⇒ Owner 的原话是「把能填的都填了」（2026-10-05），卡里有的链接表里也得有。
-      //   回落顺序：链侧报告 → 本仓合并报告；两处都没有就**仍然是空**（不写占位符）。
-      reportUrl: String(res?.report ?? '').trim() || dual?.reportUrl || null,
+      //   ★★ 2026-10-09（Owner：「这 3 个要改成一致的」）**顺序反转** ────────────────
+      //   病灶（实测 2026-10-09 16:24 那单，逐字可核）：
+      //     卡上链接 = `docx/M7DbdQUvbopAkmxGdsRccGstnTg`（**本仓合并报告**）
+      //     表里链接 = `docx/Y2Gxd8BAbonVKrxgPWQcKkwRneb`（**库侧那份**）
+      //     ⇒ **同一单两份文档、两个链接**。成因有两层：
+      //       ① 这一行的回落顺序把**链侧那份**排在前面，而链侧 `with_kb_evidence`
+      //          只在**它自己** ≥3 时建文档（本单库侧正好 5 条 ⇒ 建了）；
+      //       ② 链侧建完是把 URL **直接 upsert 进这一行**的，而它跑在守衡落表**之后**
+      //          ⇒ 本仓写进去的合并链接被它**覆盖**。
+      //     ⇒ 两层一起修：这里**合并报告优先**；`kb_review_chain` 另有一处配套
+      //       （`SHOUHENG_OWN_REPORT`：本仓会建报告时，**不让链侧再建它自己那份**）。
+      //       「一单一个数、一个链接」——库侧那份只装库侧条目，不是卡上那一份。
+      reportUrl: dual?.reportUrl || String(res?.report ?? '').trim() || null,
       // ★ 汇总改成**顺序语句**（2026-10-06）—— 原来是「三元套三元再拼字符串」，
       //   往里加一句口径就写出语法错（实测：`node --check` 报 `Unexpected token ')'`，
       //   而我把 `node --check … | head` 的退出码当成了通过：**管道会吞掉退出码**）。
