@@ -816,11 +816,28 @@ export async function runSubmissionGate({
       //   （不去调 `feishu_publish.py`：它 `:495` 的 `rid = None` 让 `:555` 成为死代码 ⇒
       //    每调一次必然在业务表里多一行）。
       //
-      //   ★ 三条边界：**只在本仓报告缺失时建**（库侧给了链接就用它的，不重复建）；
+      //   ★★ 2026-10-09（Owner 裁定「2 先于 1」）：**去掉 `!kbSide?.reportUrl` 这个挡条** ──
+      //
+      //   Owner 的疑问：「发文案给守衡输出的报告格式是对的，发图片和视频就不对了？」
+      //   查清了，成因反直觉 —— 那一行 `!kbSide?.reportUrl` 让两条路**互斥**：
+      //     · 文案单：库侧自己 **1 条（<3）** ⇒ 库侧不建 docx ⇒ `kbSide.reportUrl` 空
+      //       ⇒ 本仓建了合并报告 ⇒ **卡上链接正确**；
+      //     · 图片/视频单：库侧自己 **5 条（≥3）** ⇒ 库侧建了 docx ⇒ `kbSide.reportUrl` 有值
+      //       ⇒ **本仓被跳过** ⇒ 卡上链接指向**库侧那份**。
+      //   而库侧那份有两个硬伤（我逐字对比过两份文档）：
+      //     ① 它**只装库侧条目**，条目数天然对不上卡里那个数（库侧 5 vs 卡内 7）；
+      //     ② 它把**库内案例**渲染成「命中」，而守衡那份自带免责
+      //        （「库内条目只说明出处，不说明与本次素材相关；相关性以卡片告警为准」）
+      //        —— 免责说明正是挡住那个坑的东西。
+      //   ⇒ 口径定死：**只要卡内 ≥3，就用本仓那份**。库侧那份降为"库侧自己留的档"，
+      //     **不再自动当作卡上的链接**（`reportUrlOverride` 优先于 `kbSide.reportUrl`，
+      //     这条在 `renderMerged` 里本来就是这么写的）。
+      //
+      //   ★ 三条边界（第一条改了，后两条不变）：**卡内 ≥3 一律本仓建**（不再看库侧有没有）；
       //     **失败不阻断结论**（报告与三态是两件事）；**失败必须照 detail 说**
       //     （把 `url=''` 说成「已出报告」是比不建更坏的一面）。
       let reportUrlOverride = null;
-      if (rendered0 && rendered0.total >= REPORT_LINK_MIN_ISSUES && !kbSide?.reportUrl) {
+      if (rendered0 && rendered0.total >= REPORT_LINK_MIN_ISSUES) {
         try {
           const at = new Date().toISOString();
           const md = renderMergedReportMd({
@@ -845,24 +862,23 @@ export async function runSubmissionGate({
       } else {
         // ★★ 2026-10-09：**「跳过了」必须出声**（Owner 问「为什么发图片/视频报告就不对，
         //    发文案就对」——而这一跳当时**一条日志都没有**，只能靠倒推）。
-        //
-        //    实测形状：文案单（库侧 issue_count 1 < 3 ⇒ 库侧不建 docx）⇒ 本仓建了合并报告，
-        //    卡上链接正确；图片/视频单（库侧 5 条 ≥ 3 ⇒ 库侧自己建了 docx）⇒
-        //    `kbSide.reportUrl` 有值 ⇒ **这里被跳过** ⇒ 卡上链接指向**库侧那份**，
-        //    而库侧那份只装库侧条目、且把库内案例渲染成「命中」。
-        //
-        //    这一行把三个读数一次打全（**是谁挡的、挡在哪个数上**），下次不必再倒推：
-        //      · 卡里那个数 `rendered0.total`
-        //      · 库侧给的链接（有没有、是什么、是文档还是本地路径）
-        //      · 三个条件里**哪一个**不成立
+        //   ⚠️ 去掉 `!kbSide?.reportUrl` 挡条之后，走到这里**只剩两种正当原因**
+        //      （「库侧已经给了链接」那一种已从结构上消失）：
+        //        · `renderMerged` 返回 null（没有可并的条目）；
+        //        · 卡内总数 < 3（PRD §5.3.4 本就不该给报告）。
         const _ru = kbSide?.reportUrl ?? null;
         const _why = !rendered0 ? 'renderMerged 返回 null（没有可并的条目）'
-          : (rendered0.total < REPORT_LINK_MIN_ISSUES
-            ? `卡内总数 ${rendered0.total} < ${REPORT_LINK_MIN_ISSUES} ⇒ 按 PRD 本就不该给报告`
-            : `库侧已经给了链接（${_ru}）⇒ 本仓不重复建`);
+          : `卡内总数 ${rendered0.total} < ${REPORT_LINK_MIN_ISSUES} ⇒ 按 PRD 本就不该给报告`;
         console.log(`[agent] 📄 合并报告：**未建**（${_why}）`
           + `｜卡内总数=${rendered0?.total ?? '—'}｜库侧链接=${_ru ?? '(无)'}`
           + `（kind=${kbSide?.reportUrlKind ?? '—'}）`);
+      }
+      // ★ 建失败时**仍要看得见**：这一单会回落成「卡上链接指向库侧那份」——
+      //   那是**次优**（库侧只装库侧条目），但**有链接好过没链接**。
+      //   所以不算失败，只把"回落到了谁"记出来。
+      if (!reportUrlOverride && kbSide?.reportUrl) {
+        console.log(`[agent] 📄 合并报告没建成 ⇒ **回落库侧那份**（${kbSide.reportUrl}）`
+          + '—— 注意：库侧那份只装库侧条目，条目数可能与卡里那个数不一致。');
       }
       const rendered = reportUrlOverride
         // ★ 必须用 itemsWithAdvice —— 有报告链接时走的是这一支，用 merged.items 会把建议丢掉

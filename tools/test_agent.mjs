@@ -3234,6 +3234,56 @@ await t('Z32 ★★ 库侧的真文档在 publish.docx 里，不在 report_url �
   assert.strictEqual(r2.summarized, false, '只有本地路径却走了汇总 —— 卡上会只剩一行汇总、点不开');
   assert.strictEqual((String(r2.block).match(/^ *\*{0,2}判定\*{0,2}：/gm) || []).length, 8, '退回平铺时 8 条必须都在');
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Z34 ★（2026-10-09，Owner 裁定「2 先于 1」）**库侧有链接时，也必须用本仓那份**
+// ══════════════════════════════════════════════════════════════════════════════
+//   Owner 的疑问：「发文案给守衡输出的报告格式是对的，发图片和视频就不对了？」
+//
+//   查清后的成因（反直觉）：那一行 `&& !kbSide?.reportUrl` 让两条路**互斥** ——
+//     · 文案单：库侧自己 **1 条（<3）** ⇒ 库侧不建 docx ⇒ 空 ⇒ 本仓建 ⇒ **卡上链接对**；
+//     · 图片/视频单：库侧自己 **5 条（≥3）** ⇒ 库侧建了 docx ⇒ 有值 ⇒ **本仓被跳过**
+//       ⇒ 卡上链接指向**库侧那份**（只装库侧条目、条目数对不上卡、还把库内案例渲染成「命中」）。
+//   ⇒ 口径：**只要卡内 ≥3，就用本仓那份**。库侧那份降为"库侧自己留的档"。
+//
+//   这一组是那个裁定的**护栏**：拆掉 `!kbSide?.reportUrl` 这个改动，Z34a 必须变红。
+{
+  const { runSubmissionGate } = await import('./agent/agent.mjs');
+  const KBURL = 'https://momcozy-in.feishu.cn/docx/KBSIDE5';   // 库侧自己那份（5 条 ≥3）
+  const MERGED = 'https://momcozy-in.feishu.cn/docx/MERGED7';  // 本仓合并那份（卡内 7）
+  const KBANS = ['【审查结论：REVIEW】共发现 5 处需人工确认。', '',
+    '· 品牌一致性类问题：3 个', '', '建议转 @内容治理负责人 复核。'].join('\n');
+  const mkGate = async (runner) => runSubmissionGate({
+    adviceRunner: async ({ items }) => ({ ok: true, ms: 1,
+      advice: Object.fromEntries((items || []).map((_, i) => [i, `改法 ${i}`])) }),
+    inbound: { text: '审一下这张图', imageCount: 1, videoCount: 0 },
+    question: '审一下这张图', notify: null,
+    // ★ 库侧**给了**链接 —— 这就是图片/视频单的形状（原先在这里被跳过）
+    chainRunner: async () => ({ answer: KBANS, review: { state: 'REVIEW', issue_count: 5,
+      publish: { published: true, docx: KBURL, record_id: 'recX' },
+      report_url: KBURL, report_url_kind: 'feishu_docx' } }),
+    publishRunner: async () => ({ ok: true, record_id: 'recX' }),
+    modelSideRunner: async () => ({ ok: true, ms: 1,
+      findings: [1, 2].map((n) => ({ category: '本地化', location: `画面 ${n}`,
+        severity: 'REVIEW', reason: 'x' })) }),
+    mergedReportRunner: runner,
+  });
+
+  await t('Z34a ★ 库侧有链接时，本仓**仍要**建合并报告，且卡上用它', async () => {
+    let called = 0;
+    const g = await mkGate(async () => { called++; return { ok: true, url: MERGED, detail: '桩' }; });
+    assert.strictEqual(called, 1, '库侧有链接就把本仓这一跳跳过了 —— Owner 的裁定没落地');
+    const blk = String(g.verdict53?.block ?? '');
+    assert.ok(blk.includes(MERGED), `卡上不是本仓那份：${(blk.match(/docx\/\w+/) || ['(无)'])[0]}`);
+    assert.ok(!blk.includes('KBSIDE5'), '卡上还留着库侧那份的链接（两份文档会打架）');
+  });
+
+  await t('Z34b 反向对照：本仓建失败 ⇒ 回落库侧那份（有链接好过没链接）', async () => {
+    const g = await mkGate(async () => ({ ok: false, url: null, detail: '建失败：桩' }));
+    const blk = String(g.verdict53?.block ?? '');
+    assert.ok(blk.includes('KBSIDE5'), '建失败时没有回落库侧链接 —— 卡上会变成没有链接');
+  });
+}
 // ★★ 2026-10-09 修（**静默空转**，比红更坏）：
 //   这里原先有**两块**一模一样的「汇总 + `process.exit`」，而它们**后面还有测试**
 //   —— 另一会话追加的「第 27 组」与本次追加的「第 33 组」全在 `exit` 之后，
