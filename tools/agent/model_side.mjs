@@ -202,6 +202,14 @@ export function readingsForModelSide(inbound) {
     if (String(u ?? '').trim()) parts.push('【待审链接】\n' + String(u).trim());
   }
   for (const i of inbound.images ?? []) {
+    // ★★ 2026-10-09 晚（Owner：「报告链接中有文字是删除的」那条的**第二重代价**）：
+    //   这一格原先取 `i.text`，而 `i.text` 那时是 **OCR 原文、含水印**
+    //   ⇒ 模型侧读数里带着「刘华丽 / 刘华問 / 5615 RO0」，于是它把水印写成了
+    //   **素材里的内容问题**：实测那份报告的建议写着「图上反复出现『5615 RO0』…
+    //   看起来是设计残留或误贴」「图上出现『刘华丽』『刘华問』三处中文人名，若是参与
+    //   用户真名，换成昵称或整行删掉」—— **让被审方去改一个图上根本不存在的元素**。
+    //   ⇒ 现在 `i.text` 本身就是**摘掉水印的那份**（唯一对外文本，见 `agent.mjs` 收口注释），
+    //     这里不需要再挑字段：**同一件事不许再有第二个产者各挑各的**（今天已因它栽两次）。
     if (String(i?.text ?? '').trim()) parts.push('【图 ' + i.index + ' 上的字】\n' + String(i.text).trim());
   }
   for (const v of inbound.videos ?? []) {

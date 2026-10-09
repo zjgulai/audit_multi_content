@@ -3899,11 +3899,14 @@ await t('V7 ★ 行为级：本仓建的合并报告，URL 必须**同时**进�
     ['MOMCOZY', 0.410, 0.017], ['4俗丽', 0.877, 0.009], ['50', 0.941, 0.019],
   ];
   // 逐字复刻 `readInboundContent` 对每张图做的那一跳（真入口要真图字节，这里只需这一跳）
+  // ★ 2026-10-09 晚**收口后**的形状：`text` = **摘掉水印那份**（唯一对外文本）、
+  //   `textRaw` = OCR 原文（只给诊断与留痕）。测试必须用**生产同形**的数据，
+  //   否则「产者各挑各的」那类缺陷在测试里永远看不见 —— 这一版就是这么被抓出来的。
   const strip = () => {
     const text = REAL.map((r) => r[0]).join('\n');
     const boxes = REAL.map((r) => ({ t: r[0], x: r[1], y: r[2] }));
-    const wm = stripOcrWatermark({ text, boxes });
-    return { index: 1, text, lines: REAL.length, chars: text.length,
+    const wm = stripOcrWatermark({ text, boxes, senderName: '刘华丽' });
+    return { index: 1, text: wm.text, textRaw: text, lines: REAL.length, chars: text.length,
              wlText: wm.text, wmDropped: wm.dropped, wmBasis: wm.basis };
   };
   const inbound = () => ({ imageCount: 1, images: [strip()] });
@@ -3939,12 +3942,36 @@ await t('V7 ★ 行为级：本仓建的合并报告，URL 必须**同时**进�
   });
 
   await t('Z39e 没有水印时不许凭空多出一句（反向对照）', async () => {
-    const clean = { imageCount: 1, images: [{ index: 1, text: 'MOMCOZY\nSep 15', lines: 2,
-                                              chars: 13, wlText: 'MOMCOZY\nSep 15',
+    const clean = { imageCount: 1, images: [{ index: 1, text: 'MOMCOZY\nSep 15', textRaw: 'MOMCOZY\nSep 15',
+                                              lines: 2, chars: 13, wlText: 'MOMCOZY\nSep 15',
                                               wmDropped: [], wmBasis: 'none' }] };
     const b = buildImageBlock(clean);
     assert.ok(!/另摘除水印/.test(b), '没摘水印却印了摘除说明');
     assert.ok(b.includes('MOMCOZY') && b.includes('Sep 15'), '无水印时把内容弄丢了');
+  });
+
+  await t('Z39f ★★ 模型侧读数也不许含水印（**第三个产者**，Owner 报告里的那两条建议就是它）', async () => {
+    const { readingsForModelSide } = await import('./agent/model_side.mjs');
+    const r = readingsForModelSide(inbound());
+    // 病灶原样（实测那份报告的建议）：模型把水印当"素材里的中文人名"写成了整改建议 ——
+    // 「图上出现『刘华丽』『刘华問』三处中文人名，若是参与用户真名，换成昵称或整行删掉」
+    // ⇒ 让被审方去改一个图上根本不存在的元素。
+    for (const w of ['刘华丽', '刘华', '5615']) {
+      assert.ok(!r.includes(w), `水印进了模型侧读数 ⇒ 模型会把它当素材内容写成整改建议：${w}`);
+    }
+    assert.ok(r.includes('Sep 15') && r.includes('Week1'), '模型侧把真内容弄丢了');
+  });
+
+  await t('Z39g 结构：`text` 必须是**摘除后**那份（收口的根据，四处产者不许再各挑各的）', async () => {
+    const src = fs.readFileSync(new URL('./agent/agent.mjs', import.meta.url), 'utf8');
+    assert.ok(/text:\s*wm\.text,\s*textRaw:\s*r\.text/.test(src),
+      '`images.push` 里 `text` 不再是摘除后那份 —— 消费者又会拿到带水印的原文');
+    // 诊断日志必须用原文（否则「我到底读到了什么」就没法核了）
+    assert.ok(/describeMediaRead\(inbound,\s*\{\s*raw:\s*true\s*\}\)/.test(src),
+      '诊断日志没走 raw:true ⇒ 印的是摘除后的，核对时看不到 OCR 真读数');
+    // 卡片那一格必须仍是默认（摘除后）
+    assert.ok(/mediaRead:\s*describeMediaRead\(inbound\)/.test(src),
+      '卡片那一格改了参数 ⇒ 水印会回到卡上');
   });
 }
 

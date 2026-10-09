@@ -395,16 +395,24 @@ export async function readInboundContent(msg, {
         //      而门限是固定数 ⇒ 长素材下「同长度纯噪声」（实测 49.17）都能过 16.0。
         //      详见 2026-10-09 的实测记录；**改门限是另一件事，未做**。
         //   ⇒ 这里做一次**水印摘除**，且**两份都留着**：
-        //     · `text`    = **原文**（留痕；核对"OCR 到底读到了什么"用它，一个字不许改）；
-        //     · `wlText`  = **摘掉水印后** —— **卡片与送进模型的那段都用它**，
-        //                   也是 `chainInput` 拿去做检索的那份（三处同源，不再各拼一遍）；
+        //     · `text`    = **摘掉水印后** —— 这是**唯一的对外文本**（卡片 / 送进模型 /
+        //                   模型侧读数 / 库侧检索 / 落表 / 报告附录 六处都取它）。
+        //       ★★ 2026-10-09 晚**收口**（理由见下）：原先 `text` 是原文、另设一个 `wlText`，
+        //          三处产者各挑各的 ⇒ 一天之内**连栽两次**：
+        //            ① 卡片印原文 ⇒ Owner 看到自己的名字；
+        //            ② 模型侧读数（`model_side.mjs`）印原文 ⇒ 模型把水印当"素材里的中文人名"
+        //               写进整改建议，等于让被审方去改一个根本不存在的元素。
+        //          存两份、让每个读者自己挑 ⇒ 迟早再漏一处。现在**默认就是干净的那份**，
+        //          要原文的（只有诊断与留痕）必须**显式**去取 `textRaw`。
+        //     · `textRaw` = **OCR 原文**（留痕；核对"OCR 到底读到了什么"用它，一个字不改）；
         //     · `wm*`     = 留痕（摘了哪些行、靠哪条判据）—— 缺了它，摘除就是不可核的。
-        // ★ 送审人显示名**惰性取一次**（只为水印判据；取不到回 null，不抛）
         const senderName = senderNameForWatermark ? await senderNameForWatermark() : null;
         const wm = stripOcrWatermark({ text: r.text, boxes: r.boxes, senderName });
         images.push({ index: i + 1, imageKey: k.imageKey, fromParent, bytes: got.bytes,
-                      text: r.text, lines: r.lines ?? null, chars: r.chars ?? null,
+                      text: wm.text, textRaw: r.text,
+                      lines: r.lines ?? null, chars: r.chars ?? null,
                       w: r.w ?? null, h: r.h ?? null, truncated: !!r.truncated,
+                      // `wlText` 保留为**同一份**（老读者还有人在用；值恒等，不再各挑各的）
                       wlText: wm.text, wmDropped: wm.dropped, wmBasis: wm.basis });
         if (wm.dropped.length) {
           console.log(`[agent] 🚫 图 ${i + 1} 摘除水印 ${wm.dropped.length} 行`
@@ -1329,9 +1337,15 @@ export function mediaWithoutChain(meta) {
  *   同一条道理：同一件事有两个产者，错位只是时间问题。
  *
  * @param {object|null} inbound `readInboundContent()` 的产物
+ * @param {{raw?:boolean}} [opt] `raw:true` ⇒ 用 **OCR 原文**（`textRaw`）而不是摘除后的文本。
+ *        ★ 2026-10-09 晚加：这一格原先**同时**供卡片与诊断日志用，而两者要的不是一回事 ——
+ *          卡片要**干净**（水印对读者没有信息量），日志要**原文**（"我到底读到了什么"是排查的锚点，
+ *          摘除后印出来，核对时就看不到 OCR 真读成什么样了；当天我就因此差点把
+ *          「生产摘 9 行、我这台摘 10 行」的差异读错）。
+ *        ⚠️ 默认 `false` = 摘除后那份 ⇒ **卡片（唯一的生产调用）行为一个字不变**。
  * @returns {string|null}
  */
-export function describeMediaRead(inbound) {
+export function describeMediaRead(inbound, { raw = false } = {}) {
   if (!inbound) return null;
   const cut = (s, n = 200) => {
     const t = String(s ?? '').replace(/\s+/g, ' ').trim();
@@ -1346,7 +1360,9 @@ export function describeMediaRead(inbound) {
 
   const imgs = inbound.images ?? [];
   if (inbound.imageCount) {
-    const got = imgs.filter((i) => i.text);
+    // ⚠️ 判据用 `textRaw`（**OCR 真读到了什么**）：OCR 读到、但全被判为水印时，
+    //    `text` 会是空的 —— 那是「读到了、但都不算素材内容」，**不是「图上没字」**。
+    const got = imgs.filter((i) => i.textRaw ?? i.text);
     const failed = imgs.filter((i) => i.failed);
     const empty = imgs.filter((i) => i.ocrEmpty);
     const chars = imgs.reduce((a, i) => a + (i.chars ?? 0), 0);
@@ -1363,7 +1379,9 @@ export function describeMediaRead(inbound) {
     //   ⚠️ 摘掉的行**只报条数、不列内容** —— 列出来等于把水印又放回卡上（第一版就是这样，等于没摘）。
     if (got.length) {
       const parts = got.map((i) => {
-        const body = cut(String(i.wlText ?? i.text));
+        // `raw`（诊断日志）取 OCR 原文 `textRaw`；默认（卡片）取摘除后那份 `text`。
+        // 现在 `text` 本身就是干净的 ⇒ 这里**不需要**再挑 `wlText`，少一处会漏的地方。
+        const body = cut(String((raw ? (i.textRaw ?? i.text) : i.text) ?? ''));
         const n = i.wmDropped?.length ?? 0;
         return n ? `${body}（另摘除水印 ${n} 行）` : body;
       });
@@ -1500,7 +1518,11 @@ export async function handleMessage(event, {
   }
   // ★ 2026-10-06：原先图、视频各拼一段日志，而**同一份读数不进卡片**。见 `describeMediaRead`。
   const mediaRead = describeMediaRead(inbound);
-  if (mediaRead) console.log(`[agent] 📥 读到｜${mediaRead.replace(/\n/g, ' ⏎ ')}`);
+  // ⚠️ 这一行印 **OCR 原文**（`raw:true`）：它是"我到底读到了什么"的排查锚点，
+  //   摘除后印出来就看不到 OCR 真读成什么样了（水印摘了哪些行另有「🚫 摘除水印」那一行）。
+  //   卡片那一格仍然取**摘除后**的那份（`describeMediaRead` 默认行为）。
+  const mediaReadRaw = describeMediaRead(inbound, { raw: true });
+  if (mediaReadRaw) console.log(`[agent] 📥 读到｜${mediaReadRaw.replace(/\n/g, ' ⏎ ')}`);
   const imageBlock = buildImageBlock(inbound);
   const videoBlock = buildVideoBlock(inbound);
   // ★ 判据是「**读成功过**」，不是「读出了内容」：一条视频抽帧成功、音轨里没人说话，
