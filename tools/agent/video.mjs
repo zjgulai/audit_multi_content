@@ -56,6 +56,53 @@ const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
 /** 单条视频的时长上限（秒）。超了只报读数、不做转写 —— 转写成本随时长线性涨。 */
 const MAX_TRANSCRIPT_SECONDS = 600;
 const PROBE_TIMEOUT_MS = 120_000;
+
+/* ─────────────── 帧 → 一行带时间码的文本（**唯一产者**）───────────────
+ *
+ * ★★ 2026-10-09（Owner：「目前守衡输出的没有视频的时间节点 00:12 这些」）──────
+ *
+ *   病灶：`t_s` 一路都算出来了（`readVideo` 的 `frameOcr[].t_s`，来自本机探针），
+ *   但**帧文本有三个消费者，各拼各的，其中两个把 `t_s` 丢掉了**：
+ *     · 卡片「帧上文字」（`agent.mjs::describeMediaRead` 的 `frameText`）—— 丢掉；
+ *     · 模型侧出 findings 的输入（`model_side.mjs::readingsForModelSide`）—— 丢掉；
+ *     · 库侧检索文本（`review_gate.mjs`）—— 保留。
+ *   于是同一份读数在卡上「没有时间点」、在库里「有」——
+ *   而 `agent.mjs:1238` 自己写着「同一份读数两处共用……两处各拼一遍迟早会不一致」。
+ *   这一条正是它警告的那个形状，只是当时漏了时间码这一格。
+ *
+ *   还有一个自相矛盾：提示词教模型「涉及画面本身的结论必须写明**哪一帧**」，
+ *   而出 findings 的那份输入里**恰恰没有帧号** —— 要它指位置，却不给它位置。
+ *
+ *   ⇒ 现在把「帧 → 一行带时间码的文本」收成**这一个函数**，三处共用。
+ *     PRD §5.3.2 的模板就是 `视频 00:12 字幕…`，时间码是**证据的一部分**，不是装饰。
+ *
+ * ⚠️ 帧**没有文字**时返回 `null`（不是空串）—— 空串会被 `filter(Boolean)` 之外的
+ *    调用方当成一帧有内容，这与「这一帧画面上没字」是两件事。
+ * ⚠️ 帧 **OCR 失败**时返回「这一帧 OCR 失败」那一行，**不许**与「没字」混成一句
+ *    （库规：未测 ≠ 没有）。
+ *
+ * @param {{t_s?:number, text?:string, failed?:string}|string} f 一帧（或裸文本）
+ * @param {{indent?:boolean, oneLine?:boolean}} [opt]
+ *        `indent` 前缀两个空格（库侧/卡片一直是这个形状，保持逐字兼容）；
+ *        `oneLine` 把帧内换行折成 ` / `（同上）。
+ * @returns {string|null}
+ */
+export function frameLine(f, { indent = true, oneLine = true } = {}) {
+  if (typeof f === 'string') return f.trim() ? `${indent ? '  ' : ''}${f.trim()}` : null;
+  if (!f || typeof f !== 'object') return null;
+  const t = Number(f.t_s);
+  // 没有合法时间码 ⇒ **明说没时间码**，不许印一个 `[NaNs]` 冒充
+  const stamp = Number.isFinite(t) ? `[${t.toFixed(2)}s] ` : '[时间码缺失] ';
+  const pad = indent ? '  ' : '';
+  if (f.failed) {
+    const why = typeof f.failed === 'string' ? f.failed : (f.detail ?? '未给原因');
+    return `${pad}${stamp}（这一帧 OCR 失败：${why}）`;
+  }
+  const txt = String(f.text ?? '');
+  if (!txt.trim()) return null;                       // 画面上没字 ≠ 有内容
+  return `${pad}${stamp}${oneLine ? txt.replace(/\n/g, ' / ') : txt}`;
+}
+
 const AUDIO_EXTRACT_TIMEOUT_MS = 120_000;
 
 let _buildAttempted = false;
@@ -224,11 +271,23 @@ export async function readVideo(filePath, {
   } else {
     const wav = path.join(ownDir, 'audio.wav');
     const ex = await extractAudio(filePath, wav);
-    transcript = ex.ok ? await asrFn(wav, locale ? { locales: [locale] } : {})
-                       : { ok: false, kind: ex.error, detail: ex.detail };
+    // ★ 2026-10-08：**用画面文字先定语种**，再决定转写试哪个语种、什么顺序。
+    //   病灶：原来固定传 `{}` ⇒ 走 `ASR_LOCALES = ['zh-CN','en-US']`（中文优先），
+    //   而 `transcribe()` 是「第一个 ok 就 return」⇒ **英文视频被按中文识别成胡话**，
+    //   还带 `ok:true` 回来（实测见 `asr.mjs::checkScript()` 头注）。
+    //   这里用 `frameOcr`（上面刚跑完的关键帧 OCR）当样本：**零额外成本**，
+    //   而且把「猜语种」变成一条可复核的读数（`locale_basis` 会带到群里那张卡上）。
+    const hint = locale ? { locales: [locale], basis: `调用方显式指定语种 ${locale}` }
+                        : asr.orderLocalesByText(frameOcr.map((f) => f.text ?? '').join('\n'));
+    transcript = ex.ok
+      ? { ...(await asrFn(wav, { locales: hint.locales })), locale_basis: hint.basis }
+      : { ok: false, kind: ex.error, detail: ex.detail };
   }
 
-  let ocrText = frameOcr.filter((f) => f.text).map((f) => `[${f.t_s.toFixed(2)}s] ${f.text}`).join('\n');
+  // ④ 用**同一个** `frameLine`（见其头注）—— 这一格是给库侧的检索文本，原先自己拼过一份。
+  //    与改动前**逐字等价**：`indent:false`（不缩进）+ `oneLine:false`（保留原始换行）。
+  let ocrText = frameOcr.filter((f) => f.text)
+    .map((f) => frameLine(f, { indent: false, oneLine: false })).filter(Boolean).join('\n');
   let ocrTruncated = false;
   if (ocrText.length > VIDEO_MAX_OCR_CHARS) {
     ocrTruncated = true;

@@ -26,6 +26,9 @@
  * 喂一条闲聊必须**不**触发，喂一条光秃秃的媒材必须触发。
  */
 import { bodyToText } from './feishu.mjs';
+// ★ 2026-10-09：帧文本改走 `video.frameLine`（**唯一产者**）—— 原先这一处自己拼过一份，
+//   与 `video.mjs` / `agent.mjs` 那份是两份实现。`video.mjs` 不引本模块，无循环依赖。
+import * as video from './video.mjs';
 
 /** 纯文字要多长才「像送审」。不是拍脑袋：一句正经的送审描述基本都过 30 字。 */
 export const MIN_REVIEW_CHARS = 30;
@@ -115,8 +118,8 @@ export function chainInput({ question = '', inbound = {} } = {}) {
     const m = v.meta ?? {};
     const lines = [`【视频 ${v.index}｜${v.fileName ?? '未给文件名'}｜${m.duration_s != null ? Number(m.duration_s).toFixed(1) + 's' : '时长未知'}`
       + `${m.w && m.h ? `｜${m.w}×${m.h}` : ''}｜关键帧 ${v.framesRead ?? 0}/${v.frames?.length ?? 0} 帧读成功】`];
-    const frames = (v.frames ?? []).filter((f) => f.text)
-      .map((f) => `  [${Number(f.t_s).toFixed(2)}s] ${String(f.text).replace(/\n/g, ' / ')}`);
+    // ④ 与卡片/模型侧**共用同一个 `frameLine`**（原先这里自己拼过一份）。输出**逐字不变**。
+    const frames = (v.frames ?? []).map((f) => video.frameLine(f)).filter(Boolean);
     lines.push(frames.length ? `画面上的字（按时间码）：\n${frames.join('\n')}` : '画面上的字：这几帧里没读出一个字。');
     const t = v.transcript ?? {};
     lines.push(t.ok
@@ -208,7 +211,75 @@ export function formatChainBlock(result) {
     //   所以改成**只按下行括号里的事实说**，没有括号就是这两件没发生。
     + '★ **「报告 / 飞书行」以括号里那一行为准：没有括号 = 这两件没发生**，'
     + '**不许**自己补一句「报告已落盘」。'
+    // ★ 2026-10-08 加：**别再调一次 `kb_review_chain`。**
+    //   实测事故（Owner 2026-10-08 19:08 那张图）：闸门 2.5 分钟就跑完了，
+    //   而模型又自己调了一遍（709 秒、超时没出结果），于是：
+    //     ① 人等了 **15 分钟**（`💬 回复 3159 字，耗时 900041ms`）；
+    //     ② 模型把它那次失败写进了**对外卡片** ——「我这次实跑 709 秒没出最终回答」。
+    //   拦它的**执行点**在 `tools.mjs` 的 `executeTool`（同一轮再调直接回缓存，不重跑）；
+    //   这一句是**治因**：模型原先不知道链已经跑过了 —— §2.4 那句
+    //   「人设是声明，不是约束」说的正是这里：两处都要有，缺一处就退回今天这张卡。
+    + '★ **这一单的链已经跑完了 —— 不要再调 `kb_review_chain`。**'
+    + '结论就是上面这一段：再跑一次要 5~15 分钟，而且会往飞书**再写一遍**。'
+    + '★ 若你发现自己已经调过、且那一次**没出结果**，**不许把它写进回话** ——'
+    + '上面那段才是这一单的结论。「我实跑 N 秒没出结果」是内部读数，**不进对外正文**。'
     + '★ 若它的结论是「未测 / 结论未知」，那就是**未知**，不许说成通过。】';
+}
+
+/**
+ * 把**闸门这一次落表的读数**交给模型 —— 「飞书表里到底有没有这一行」只许照抄它。
+ *
+ * ★ 为什么必须有这一段（2026-10-09 实测事故，Owner 拿着截图来问的那张卡）：
+ *   那一单是图片评审，链在 **L6 闸门红**处停下（`layer_gate_red`，退出码 4），
+ *   闸门**照规矩把这一单落了表**（`recvxwCWhwCO68`，14:11:57 update，状态=待审），
+ *   32 秒后发出去的那张 alert 卡里却写着：
+ *     「**对你有什么影响**：这条素材现在没有结论……**飞书表也没落这一行（拒答档）**。」
+ *   —— **与盘上的事实相反**。而模型不是撒谎：那段「影响」是它自己写的，
+ *   `chainBlock`（它唯一能看到的读数）里**根本没有落表这一步的结果** ——
+ *   `formatChainBlock()` 在链返回时就定稿了，而落表发生在**它之后**（`runSubmissionGate` 6.0 段）。
+ *   §2.4.1 那句话在这里第二次应验：**读数是空的，模型就用猜的填**；
+ *   而这一次它猜的方向正好是「表里没有」—— 于是人以为整条链路什么都没留下。
+ *
+ * ★ 判据只认**这次调用的返回**（`publish` 对象），不认任何字符串推断：
+ *   `ok/action` 来自 `ensureReviewRow()`，`record_id` 是它回读到的行号。
+ * ★ 三种结局必须长得不一样（§2.4.1）：**落了 / 没落 / 这一步压根没跑**。
+ *
+ * @param {{ok?:boolean, action?:string, record_id?:string|null, readback?:string|null, detail?:string|null}|null} publish
+ * @param {{conclusion?:string|null, status?:string|null}} [ctx] 这一单的结论与它对应的表内状态
+ * @returns {string} 给模型看的一段读数（会拼进 `chainBlock`）
+ */
+export function publishFactBlock(publish, { conclusion = null, status = null } = {}) {
+  const p = publish ?? null;
+  if (!p) {
+    // 走到这里说明落表那一步**没有产出读数**（抛异常被 catch 掉，或闸门根本没跑到那一步）。
+    // 「没有读数」不是「没有落表」—— 所以措辞是「不许提表」，不是「说表里没有」。
+    return '【★ 飞书评审表**没有落表读数**（这一步没有产出任何结果）—— '
+      + '关于表里有没有这一行，**你手上没有任何读数** ⇒ 回话时**一个字都不许提表**：'
+      + '别说落了、也别说没落。只说结论本身。】';
+  }
+  if (p.ok) {
+    const action = p.action === 'created' ? '新建'
+      : (p.action === 'updated' ? '更新'
+        : (p.action === 'unchanged' ? '已是最新（无需改写）' : `写入（${String(p.action ?? '未知动作')}）`));
+    return '【★ 飞书评审表**落表读数**（代码产出，**只许照抄、不许自行推断**）：'
+      + `**已${action}这一单在表里的那一行**｜行号 \`${p.record_id ?? '（未回读）'}\``
+      + `｜结论=${conclusion ?? '（未给）'}｜状态=${status ?? '（未给）'}`
+      + `｜回读=${p.readback ?? '（未回读）'}。`
+      + '★ **这一行就是这一单在表里的位置** —— 回话里若要提表，只能照这一行说；'
+      + '★ **不许**说「表里没有这一行」「没落表」「没留下痕迹」之类与它相反的话。】';
+  }
+  // 没落成：`skipped`（被熔断闸门关掉）与真失败**不是一回事**，措辞要分开 ——
+  // 前者是**故意的**（`SHOUHENG_REVIEW_TABLE=off`，自证专用），后者是故障。
+  const detail = String(p.detail ?? p.error ?? '（未给原因）').slice(0, 200);
+  const why = p.action === 'skipped'
+    ? `落表这一步**没有执行**（skipped）｜原因：${detail}`
+    : `落表**失败**｜原因：${detail}`;
+  return '【★ 飞书评审表**落表读数**（代码产出，**只许照抄、不许自行推断**）：'
+    + `${why}｜行号=${p.record_id ?? '（无）'}。`
+    + '⇒ 这一单在表里**没有行**。'
+    + '★ 这是**守衡自己这一侧的故障**，不是素材的问题，也不是「库里说它有问题」——'
+    + '回话时可以照实说「这一单没能落到表里、需要人看一眼」，'
+    + '★ 但**不许**说成「已落表 / 表里有了」。】';
 }
 
 /**

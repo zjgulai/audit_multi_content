@@ -644,9 +644,18 @@ head('J 信封 · 解析、上限执行、以及「标记不许漏进群」');
       no('J11a 评审单遇装不下的类型 ⇒ 换 evidence', `mode=${r.mode} kind=${r.kind}`);
     } else ok('J11a 评审单遇装不下的类型 ⇒ 换 evidence');
     const g0 = String(groups[0]?.content ?? '');
-    if (groups[0]?.title !== 'PRD §5.3 结论块' || !g0.includes('共发现 6 处') || !g0.includes('1.【合规】')) {
+    if (groups[0]?.title !== '审查结论' || !g0.includes('共发现 6 处') || !g0.includes('1.【合规】')) {
       no('J11b 换卡后逐条块必须在第一组（含结论行与逐条四要素）', JSON.stringify(groups[0]?.title));
     } else ok('J11b 换卡后逐条块必须在第一组（含结论行与逐条四要素）');
+    // ★ J11b2（2026-10-08，Owner：「… · 0 是什么意思？」）：
+    //   第一组**不许带 `count`** —— 实测发出去过「PRD §5.3 结论块 · 0」，
+    //   而同一块正文写着「共发现 3 处必须修改」⇒ 标题说 0、正文说 3，同一张卡自相矛盾。
+    //   条数只在**有结构化真值**时才给，这里拿不到 ⇒ 就是不给（不是给个 0 占位）。
+    //   ⚠️ 这条断言盯的是**数据**（`groups[0].count`），不是渲染出来的字符串 ——
+    //      字符串层面 `cards.mjs` 已改成"有才拼"，在这里再查一遍是查不出占位的。
+    if (groups[0]?.count !== undefined) {
+      no('J11b2 第一组不许带计数占位（发过「· 0」）', JSON.stringify(groups[0]?.count));
+    } else ok('J11b2 第一组不许带计数占位（发过「· 0」）');
     const carried = groups.map((g) => String(g?.content ?? '')).join('\n');
     if (!carried.includes('上游口径修正') || !carried.includes('110.809 ms')) {
       no('J11c 原卡内容必须逐字搬过去（不丢字）', carried.slice(0, 120));
@@ -661,6 +670,90 @@ head('J 信封 · 解析、上限执行、以及「标记不许漏进群」');
                             { verdict53: V53 });
     if (re.kind !== 'evidence') no('J11e 反向对照：装得下的类型不许换', `kind=${re.kind}`);
     else ok('J11e 反向对照：装得下的类型不许换');
+  }
+}
+
+/* ─────────────── L 卡片正文的**分行**不许粘连（2026-10-09 实发缺口）───────────────
+ *  病灶（实测三单，图片/视频/文案全中）：`dual_track.renderMerged` 的拼接是
+ *    `${line}${reportNote}\n${tally}${covNote}${bodyText}`
+ *  而 `tally` 与 `covNote` **都没有结尾换行** ⇒ 群里印出来是
+ *    `…只能转人工）1.【合规-医疗宣称】视频 00:12 字幕`
+ *  —— 编号 1 与「知识库侧 N 条 ／ 模型侧 M 条」**粘在同一行**，读者拿到的是一个坏掉的块。
+ *
+ *  为什么判据必须直接调真生产者（而不是只靠夹具）：下面 J11 的夹具里**本来就写着**
+ *  `'知识库侧 3 条 ／ 模型侧 3 条\n\n1.【合规】'` —— **夹具是对的、代码是错的**，
+ *  两者不一致而没有任何东西发现（AGENTS.md §2.4 那个形状）。所以这里调 `renderMerged()`。
+ */
+head('L 卡片正文分行 · 汇总行与编号不许粘在一行');
+{
+  const { renderMerged } = await import(path.join(HERE, 'agent', 'dual_track.mjs'));
+  const F = (l, c, s, e = {}) => ({ location: l, category: c, severity: s, source: 'model', ...e });
+  const kb0 = { source: 'chain', hasSidecar: true, state: 'REVIEW', issueCount: 0,
+                reportUrl: null, reportUrlKind: null, coverageGap: false, refused: false };
+  const two = [F('视频 00:12 字幕', '合规-医疗宣称', 'REVIEW', { reason: 'r', suggestion: 's' }),
+               F('图片 1', '消费者安全-使用姿势', 'REVIEW', { reason: 'r', suggestion: 's' })];
+  const r = renderMerged(two, { state: 'REVIEW', kb: kb0, kbTextCount: 0, model: { ok: true, findings: two } });
+  const block = r?.block ?? '';
+
+  // L1 汇总行与第一个编号之间必须有换行（≤2 条走逐条平铺那一支）
+  if (/只能转人工）1\.【/.test(block) || /条）1\.【/.test(block)) {
+    no('L1 汇总行与「1.」之间必须有换行', '粘连 ⇒ 卡片正文是一个坏掉的块');
+  } else if (!/\n1\.【/.test(block)) {
+    no('L1 汇总行与「1.」之间必须有换行', '没找到编号行，判据本身失效');
+  } else ok('L1 汇总行与「1.」之间必须有换行');
+
+  // L2/L3 覆盖缺口那一支：既有换行，也不许说假话
+  {
+    const cov = { ...kb0, coverageGap: true };
+    const rc = renderMerged(two, { state: 'REVIEW', kb: cov, kbTextCount: 0,
+                                   model: { ok: true, findings: two } });
+    const b = rc?.block ?? '';
+    if (!/\n1\.【/.test(b)) {
+      no('L2 覆盖缺口说明与「1.」之间必须有换行', '粘连或找不到编号行');
+    } else ok('L2 覆盖缺口说明与「1.」之间必须有换行');
+
+    // ★ 这句话**不许说假话**：列表里有别的条目时，覆盖缺口并不渲染进清单
+    //   （实测视频单：卡说「上面那 1 条就是它」，而上面那条其实是模型侧的对比风险）
+    if (/上面那 1 条「需人工确认」就是它/.test(b)) {
+      no('L3 列表非空时不许说「上面那 1 条就是它」', '读者会照着这句话认错条目');
+    } else if (!/本身不占下面清单里的任何一条/.test(b)) {
+      no('L3 列表非空时不许说「上面那 1 条就是它」', '既没改口也没找到新措辞');
+    } else ok('L3 列表非空时不许说「上面那 1 条就是它」');
+
+    // L4 反向对照：列表**为空**时原措辞是对的（覆盖缺口确实占那 1 条）—— 不许一起改掉
+    const r0 = renderMerged([], { state: 'REVIEW', kb: cov, kbTextCount: 0,
+                                  model: { ok: true, findings: [] } });
+    if (!/上面那 1 条「需人工确认」就是它/.test(r0?.block ?? '')) {
+      no('L4 反向对照：列表为空时原措辞必须保留', '把正确的那一支也改掉了');
+    } else ok('L4 反向对照：列表为空时原措辞必须保留');
+  }
+
+  // ── L5/L6 **内部标记不许漏进卡片正文**（2026-10-09 实测缺陷，线上发过 6 张）──────
+  //   病灶：`[[card:receipt]]\n{…}\n[[/card]]` 解析出的 `after` 是 **`[[/card]]`** ——
+  //   它被当成「块外正文」交给 `enforceLimits` 的 `extra`，那个循环会把它**折进折叠组**
+  //   ⇒ 群里出现一个内容写着 `[[/card]]` 的组。
+  //   上线证据：`PMO/logs/ws_outbound.jsonl` 里 6 张（最近 2026-10-07 08:21）。
+  {
+    const { extractCardBlock } = await import(path.join(CARDS_DIR, 'envelope.mjs'));
+    const KINDS_L = ['query-answer', 'evidence', 'receipt', 'data-table', 'turn-diff',
+                     'correction', 'alert', 'decision', 'find-nothing'];
+    const leaks = [];
+    for (const k of KINDS_L) {
+      const raw = `[[card:${k}]]\n{"verdict":"v"}\n[[/card]]`;
+      const b = extractCardBlock(raw);
+      if (!b) { leaks.push(`${k}:解析不出`); continue; }
+      if (b.after.includes('[[/card]]') || b.after.includes('[[card:')) leaks.push(`${k}:after`);
+      if (raw.slice(b.blockEnd).includes('[[/card]]')) leaks.push(`${k}:blockEnd`);
+    }
+    if (leaks.length) no('L5 九种类型的闭合标记都不许残留在 after/blockEnd', leaks.join(' · '));
+    else ok('L5 九种类型的闭合标记都不许残留在 after/blockEnd');
+
+    // L6 闭合标记**恒为 `[[/card]]`**，与 kind 无关 —— 第一版就把它写成了 `[[/${kind}]]`
+    //    ⇒ 找 `[[/receipt]]` 永远找不到 ⇒ 修了等于没修。这条就是钉住那个错法。
+    const bR = extractCardBlock('[[card:receipt]]\n{"verdict":"v"}\n[[/card]]');
+    if (bR.blockEnd !== '[[card:receipt]]\n{"verdict":"v"}\n[[/card]]'.length) {
+      no('L6 blockEnd 必须落在闭合标记之后', `实得 ${bR.blockEnd}`);
+    } else ok('L6 blockEnd 必须落在闭合标记之后');
   }
 }
 

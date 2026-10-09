@@ -104,8 +104,28 @@ export function extractCardBlock(text) {
   try { data = JSON.parse(rest.slice(b0, end + 1)); }
   catch (e) { data = null; if (!e) throw e; }
 
-  const tail = rest.slice(end + 1).replace(/\s*```\s*$/, '').trim();
-  const blockEnd = at + CARD_MARK.length + close + 2 + end + 1;
+  // ★★ 2026-10-09：**闭合标记必须在这里剥干净**（实测缺陷，线上发过 6 张）──────────
+  //   病灶：`[[card:receipt]]\n{…}\n[[/card]]` 解析出来的 `after` 是 **`[[/card]]`** ——
+  //   它会被当成「**块外正文**」交给 `enforceLimits` 的 `extra`，而那个循环会把它
+  //   **折进卡片的折叠组**（`foldIn`）⇒ 群里就出现一个内容写着 `[[/card]]` 的组。
+  //   最小复现（9 行）：`extractCardBlock(RAW).after === '[[/card]]'`，而按 `blockEnd` 切
+  //   只剩 `"\n[[/card]]"` —— 两个都说明**闭合标记没被计入块的结束位置**。
+  //   线上证据：`ws_outbound.jsonl` 里 6 张卡（最近一张 2026-10-07 08:21）。
+  //   修法两层（都要）：① `tail` 里显式剥掉闭合标记（容忍前后空白与 ``` 围栏）；
+  //   ② 用**正确的 `blockEnd`** 复核 —— `blockEnd` 此前少了闭合标记的长度
+  //      （`close + 2` 只到 kind 的 `]]`，没算 `[[/`）。它没有外部消费者，改它安全。
+  // ⚠️ 两个基准别写错：`closeAt` / `end` / `b0` 都是**相对 `rest`**（`rest` 从 kind 的 `]]` 之后开始），
+  //   而 `blockEnd` 是**相对 `src`** ⇒ 前缀 = `at + CARD_MARK.length + close + 2`。
+  // ⚠️ 闭合标记是**恒定的 `[[/card]]`**，**不是** `[[/${kind}]]`（第一版就写错成后者：
+  //   对 `[[card:receipt]]` 会去找 `[[/receipt]]` ⇒ 永远找不到 ⇒ `closeAt=-1` ⇒ 修了等于没修）。
+  const srcPrefix = at + CARD_MARK.length + close + 2;
+  const closeMark = '[[/card]]';
+  const closeAt = rest.indexOf(closeMark, end + 1);
+  const tail = (closeAt >= 0 ? rest.slice(end + 1, closeAt) : rest.slice(end + 1))
+    .replace(/\s*```\s*$/, '')
+    .replace(/^\s*```[a-zA-Z]*\s*/, '')
+    .trim();
+  const blockEnd = closeAt >= 0 ? srcPrefix + closeAt + closeMark.length : src.length;
   if (data === null || typeof data !== 'object' || Array.isArray(data)) {
     return { kind, data: null, before: src.slice(0, at).trim(), after: tail,
              blockStart: at, blockEnd, error: '对象不是合法 JSON 或不是对象' };
@@ -219,7 +239,16 @@ export function applyVerdictLine(kind, data, verdict) {
     // `groups` 型（如 evidence 卡）：块作为**第一组**，默认展开 —— 它是这条结论的正文，不是附录。
     const groups = Array.isArray(out.groups) ? out.groups : [];
     if (JSON.stringify(groups).includes(verdict.block)) return { ...r, block: { action: 'already', slot: bs } };
-    out.groups = [{ title: 'PRD §5.3 结论块', content: verdict.block, count: 0, expanded: true }, ...groups];
+    // ★ 2026-10-08 两处改动（Owner：「PRD §5.3 结论块 · 0 是什么意思？**为什么要带 prd**？」）：
+    //   ① **不再给 `count: 0`** —— 那是漏填的占位，印出来是「· 0」，而同一块正文写着
+    //      「共发现 3 处必须修改」⇒ 标题说 0、正文说 3（10/07–10/08 连发多张卡）。
+    //      `cards.mjs` 已改成"有才拼"。条数**只在有结构化真值时才给**
+    //      （P0 快路那条在 `prd53.deriveVerdictLine` 里是 `matched_patterns`）；
+    //      这里拿不到结构化条数 ⇒ **不给** —— 绝不回头去正则抠那段中文
+    //      （库规：库侧的结论与条数一律读结构化字段，不许从中文答案里抠）。
+    //   ② 标题去掉内部章节号 —— 这张卡是给业务同事看的，**「PRD §5.3」对他们是零信息量**。
+    //      格式仍由 PRD §5.3 规定；要追溯出处看日志里的 `block.action`，不必印在卡面上。
+    out.groups = [{ title: '审查结论', content: verdict.block, expanded: true }, ...groups];
     return { ...r, data: out, block: { action: 'forced', slot: bs } };
   };
 
@@ -242,11 +271,19 @@ export function applyVerdictLine(kind, data, verdict) {
   }
 
   // ① 先把模型原来那句搬进折叠区（**搬不是砍**），② 再落权威结论行。
+  //
+  // ★★ 2026-10-09（Owner：「prd 没说要『原始回答（原「data-table」卡，逐字搬）』，
+  //    现在输出的有，可考虑去掉」）——
+  //    这三处折叠组的标题原先写的是**本仓的内部动作**（换了哪张卡、哪一行被替换），
+  //    对群里的人是**零信息量**，而且「data-table / receipt」是**内部类型名**。
+  //    口径：**内容一个字不丢，标题只说"这是什么"**。
+  //    —— 保留「原文照留」这四个字，是因为它承担一个真实语义：
+  //       读者得知道**下面这段不是权威结论、是模型原话**（否则两段话看起来像两个结论）。
   let out = { ...data };
   let moved = null;
   if (cur) {
     const [folded, to] = foldIn(kind, { ...out, [slot]: '' },
-      `（原结论，被 PRD §5.3 结论行替换，原文照留）\n${data[slot]}`);
+      `（原文照留：这一段是模型原话，**不是**下方权威结论）\n${data[slot]}`);
     if (to) {
       out = folded;
       moved = { field: slot, to, chars: len(data[slot]), why: `原结论搬进 ${to}` };
@@ -388,8 +425,8 @@ function foldIn(kind, d, text) {
   if (field) {
     if (FOLD_GROUPS.has(kind)) {
       const cur = Array.isArray(d[field]) ? d[field] : [];
-      return [{ ...d, [field]: [...cur, { title: '（原内容，被 PRD §5.3 结论行替换，原文照留）',
-                                         content: text, count: 0, expanded: false }] }, field];
+      return [{ ...d, [field]: [...cur, { title: '（原文照留：模型原话，非权威结论）',
+                                         content: text, expanded: false }] }, field];
     }
     if (FOLD_IS_ARRAY.has(kind)) {
       // 类型由**表**决定，不由模型给没给决定 —— 见上面那段。
@@ -620,7 +657,37 @@ export function applyMediaRead(kind, data, mediaRead) {
   return { data: out, action: 'forced', slot };
 }
 
-export function toCardOrText(reply, { verdict53 = null, mediaRead = null } = {}) {
+/**
+ * 把**报告链接**放进卡片**可见格**（2026-10-09，Owner 第三次同一个反馈）。
+ *
+ * ── 为什么不能只放在结论块里
+ *
+ *   报告链接此前拼在 §5.3 结论块内部（先是在 8 条逐条之后，后挪到块的第 2 行），
+ *   而**整块在卡片里是可收起的** —— 实测那张 8 处问题的卡，块被折成
+ *   「（已收起 1 条证据：审查结论）」，链接**一个字都看不见**。
+ *   从 Owner 的座位上，那就是「没有报告链接」—— 而盘上 docx 明明建好了
+ *   （`📄 合并报告已建（问题数 8 ≥ 3）：…`）。
+ *
+ * ── 做法：与 `applyMediaRead` **完全同构**
+ *
+ *   把那一行搬进「可见的字符串格」（`verdict` / `reasoning` / `wrong` / `verdict_text`）。
+ *   链接是**要人去点的动作**，它与「我读到了」同级 —— 都不该藏在折叠区里。
+ *   §2.5：形态决策只有一处，所以这里只负责**往可见格搬**，不决定卡片类型。
+ */
+export function applyReportLink(kind, data, reportLink) {
+  const url = String(reportLink ?? '').trim();
+  if (!url) return { data, action: 'none', slot: null, why: '这一轮没有报告链接' };
+  const line = `→ 查看完整问题清单与修改建议：${url}`;
+  const out = { ...data };
+  const slot = ['verdict', 'reasoning', 'wrong', 'verdict_text']
+    .find((k) => typeof out[k] === 'string');
+  if (!slot) return { data, action: 'no-slot', slot: null, why: `「${kind}」没有能放链接的格` };
+  if (String(out[slot]).includes('查看完整问题清单')) return { data, action: 'already', slot };
+  out[slot] = out[slot] ? `${out[slot]}\n\n${line}` : line;
+  return { data: out, action: 'forced', slot };
+}
+
+export function toCardOrText(reply, { verdict53 = null, mediaRead = null, reportLink = null } = {}) {
   const raw = s(reply);
   const blk = extractCardBlock(raw);
 
@@ -690,9 +757,27 @@ export function toCardOrText(reply, { verdict53 = null, mediaRead = null } = {})
                  why: `「${kd}」没有能放 §5.3 逐条块的格（既无 reasoning 也无 groups）`
                     + ' ⇒ 换 evidence，原卡内容逐字搬进第二组' });
     dd = { verdict: s(dd?.verdict).trim() || s(dd?.title).trim() || '',
-           groups: [{ title: `原始回答（原「${kd}」卡，逐字搬）`, content: carried || '（原卡无正文）',
+           // ★ 2026-10-09（Owner）：**标题不许出现内部类型名**（「原「data-table」卡」对业务同事
+           //   是零信息量）。内容仍**逐字照搬**（`carryCardText` 一个字没动）。
+           // ⚠️ 标题要与 `foldIn` 那个（「模型原话（原文照留）」）**明显不同** ——
+           //   两处都写「原文照留」时，读者会把两组当成**同一段的重复**，而它们装的
+           //   其实是两样东西：这一组装「原结论格 + 字段表」，那一个装「卡片块之外的正文」。
+           groups: [{ title: '原结论（原文照留）', content: carried || '（原卡无正文）',
                       expanded: true }] };
     kd = 'evidence';
+    // ★★ 2026-10-09：**结论格在这里就落权威结论行**（治「结论行印两遍」）────────────
+    //   病灶（实测复现，文案单那张卡里「【审查结论：REVIEW】」出现 **2 次**）：
+    //     · ① `carryCardText` 已把原卡的 `verdict`（模型那句）**逐字搬进 `groups[0]`**，
+    //          而换卡后 `dd.verdict` 仍留着**同一句**；
+    //     · ② 紧接着 `applyVerdictLine` 看到 `verdict` 槽"有内容且不等于结论行"
+    //          ⇒ 走 ①「先把模型原来那句搬进折叠区」那一支 ⇒ **再折一份**，
+    //          然后才把结论行写进 `verdict`。
+    //     ⇒ 同一句模型原话在卡上出现两次（一次在 `groups[0]`、一次在折叠组，
+    //        标题还各不相同），且**结论行也跟着出现两次**。
+    //   修法：换卡时**先把结论行放进 `verdict`** ⇒ 后面那次 `applyVerdictLine` 走
+    //     `cur === verdict.line` 的 `already` 支 ⇒ **不折、不写** ⇒ 天然不重复。
+    //     （原内容已由 `carried` 保住，一个字没丢 —— 「搬是搬，砍是砍」。）
+    if (verdict53?.line) dd.verdict = verdict53.line;
   }
 
   // 块前后还有正文：不是丢弃，是并进这张卡里该放它的格子。
@@ -711,7 +796,18 @@ export function toCardOrText(reply, { verdict53 = null, mediaRead = null } = {})
     // ★ 媒材读数接在结论行**之后**、`build()` **之前**（同一条理由：建完卡再改 data 是白改）。
     const mr = applyMediaRead(kd, data, mediaRead);
     data = mr.data;
-    if (mr.action === 'forced') moved.push({ what: 'mediaRead', to: mr.slot });
+    // ★ 2026-10-09：**报告链接也搬进可见格** —— 它此前只在结论块里，而那一块会被收起
+    //   （Owner 第三次反馈「没有报告链接」，而 docx 其实建好了）。
+    const rl = applyReportLink(kd, data, reportLink);
+    data = rl.data;
+    // ★ 2026-10-08：这条搬迁记录原先压的是 `{ what: 'mediaRead', to }` —— 而日志格式器
+    //   （`ws_daemon.mjs` 的 `↪ ${m.field} → ${m.to}（${m.why}）`）读的是 `field` / `why`，
+    //   于是实测在图片单上打出一行 `↪ undefined → verdict（undefined）`：
+    //   看得见「有东西搬进 verdict」，看不见**搬的是什么、为什么**。形状对齐其余搬迁记录。
+    if (mr.action === 'forced') {
+      moved.push({ field: 'mediaRead', to: mr.slot, chars: String(mediaRead ?? '').length,
+                   why: `媒材读数（我读到了）接进「${mr.slot}」格` });
+    }
     v53 = { action: applied.action, slot: applied.slot, why: applied.why,
             from: verdict53?.from ?? null, line: verdict53?.line ?? null,
             // 逐条块的落点也一起带出去 —— 否则日志里只看得到「标题搬了」，

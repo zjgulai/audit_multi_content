@@ -22,6 +22,11 @@
  * 那是把一条新增的旁路变成了新的单点故障。
  */
 
+// ★ 2026-10-09：帧文本走 `video.frameLine`（**唯一产者**）—— 原先这一处自己拼过一份，
+//   且**丢掉了 `t_s`** ⇒ 模型出 findings 时看不到时间码，却被告知要「指得出第几帧」。
+//   `video.mjs` 不引本模块，无循环依赖。
+import * as video from './video.mjs';
+
 /** 类目闭集（与 PRD §5.3 的「维度标注」同一套词）。不在闭集里的一律丢掉。 */
 export const CATEGORIES = Object.freeze([
   '合规', '消费者安全', '措辞表达', '产品描述', '隐私', 'AI 披露', '本地化',
@@ -38,11 +43,25 @@ export const SYSTEM = [
   '1. **没有发现就返回空数组 `[]`。** 不许为了「有产出」而编 —— 空的清单是有效结论。',
   '2. **不许把「我看不到画面」写成问题。** 画面层不在你的输入里，那是能力边界，不是内容风险。',
   '3. **不许把「这段没有可读文字」写成问题。** 同上。',
-  '4. 每条必须指得出**位置**（第几帧 / 图上哪个位置 / 转写的哪一句）与**理由**。',
+  // ★ 2026-10-09（Owner：「守衡输出的没有视频的时间节点」）：原先只写「第几帧」，
+  //   而输入里**根本没有帧号** ⇒ 模型只能编一个「帧 3」，或干脆写「（未给位置）」。
+  //   措辞里有两条边界，都是**能力边界**，不许让模型以为它能给更多：
+  //     · 视频**只能给到帧的时间码**（8 帧是**均匀抽样**，不是逐帧 ⇒ 时间码是「这附近」）；
+  //     · **音轨转写没有词级时间戳**（`asr.mjs` 只回整段文本）⇒ 口播类问题**给不出秒数**，
+  //       要它如实说「转写第 N 段 / 原句」，**不许编一个时间**。
+  '4. 每条必须指得出**位置**与**理由**。位置按素材类型给：'
+    + '视频关键帧上的字 ⇒ **给该帧的时间码**（行首 `[12.34s]`，直接抄那个数）；'
+    + '音轨转写 ⇒ 给**转写里的第几段 / 原句**（转写**没有**时间戳，**不许编一个秒数**）；'
+    + '图上的字 ⇒ 给图上位置（如「主标题」「右下角贴片」）；素材正文 ⇒ 给所在句子。',
+  '4b. ★ **每条都要给 suggestion：具体怎么改** —— 改哪个词、换成什么、删哪一句、补什么。',
+  '    不许写「转对应负责人复核」「请人工确认」「建议修改」这类**没有动作**的话：',
+  '    收到它的人还是不知道改什么。写不出具体改法时，就写清**缺什么信息才能定**（例如',
+  '    「需要知道投放的是哪个平台才能定这句话合不合规」）—— 那也是可执行的下一步。',
   '5. 你出的每一条都**没有库内依据** —— 所以它最高只能到 REVIEW，不要给 BLOCK。',
   '',
   '输出：**只输出一个 JSON 数组**，不要解释、不要 markdown 代码块。每项形如',
-  '{"location":"帧 3","category":"消费者安全","severity":"REVIEW","reason":"一句话说清问题","excerpt":"逐字引用的原文"}',
+  '{"location":"帧 3","category":"消费者安全","severity":"REVIEW","reason":"一句话说清问题",',
+  ' "excerpt":"逐字引用的原文","suggestion":"具体怎么改（改哪个词/换成什么/删哪句/补什么）"}',
   `category 只能取：${CATEGORIES.join(' / ')}。`,
 ].join('\n');
 
@@ -73,7 +92,18 @@ export function buildPrompt({ readings = '', question = '' } = {}) {
 export function parseFindings(text) {
   const s = String(text ?? '');
   const a = s.indexOf('['); const b = s.lastIndexOf(']');
-  if (a < 0 || b <= a) return { ok: false, findings: [], dropped: [], error: '输出里没有 JSON 数组' };
+  if (a < 0) return { ok: false, findings: [], dropped: [], error: '输出里没有 JSON 数组' };
+  // ★★ 2026-10-09 实测（Owner 那张夜间图）：**输出被截断时报错了方向。**
+  //   日志写 `raw=1545 字`、首 100 字是 `"[\n {\n \"location\": …` —— 它**有**数组开头，
+  //   只是**没有结尾**（额度用尽被腰斩），而判据把它报成「**输出里没有 JSON 数组**」⇒
+  //   查的人会往「模型没照格式写」那个方向查，永远查不到真因（额度）。
+  //   与 `raw=0` 那个坑（额度被 reasoning 烧光）是**同一个形状**：报错指向错误的方向。
+  //   所以先判「有没有结尾」，再判「有没有开头」。
+  if (b <= a) {
+    return { ok: false, findings: [], dropped: [],
+             error: `输出**被截断**（有数组开头、没有结尾）—— 不是「没写数组」，`
+               + `多半是额度用尽被腰斩｜raw=${s.length} 字` };
+  }
   let arr;
   try { arr = JSON.parse(s.slice(a, b + 1)); } catch (e) {
     return { ok: false, findings: [], dropped: [], error: `JSON 解析失败：${e?.message ?? e}` };
@@ -95,6 +125,10 @@ export function parseFindings(text) {
       severity: sev === 'BLOCK' ? 'BLOCK' : 'REVIEW',
       reason,
       excerpt: String(raw?.excerpt ?? '').trim() || null,
+      // ★ 2026-10-09：模型侧的**可执行改法**（Owner：「不要甩给人」）。
+      //   缺了不丢整条（它是补充信息，不是判定依据）；但为空时置 null，
+      //   由渲染层如实说「两侧都没给修改建议」，**不许**替它编一句。
+      suggestion: String(raw?.suggestion ?? '').trim() || null,
       basis: 'model',      // 无库内依据
     });
   }
@@ -113,15 +147,25 @@ export function parseFindings(text) {
 //   同一个提示词、同一张图：1200 ⇒ 0 字 / 6565ms；4000 ⇒ 1038 字 / 5 条 finding / 8886ms。
 //   这就是内核里记过的那个病（`agent.mjs` 的「模型烧光额度没写出正文」），
 //   所以这里默认给 4000 并**在日志里报 raw 长度** —— 空正文与「没报问题」必须长得不一样。
-export async function reviewModelSide({ readings, question = '', ask, maxTokens = 4000 } = {}) {
+// ★ 2026-10-09 实测：`maxTokens=4000` 时输出被**腰斩**（`raw=1545 字`、有 `[` 无 `]`）
+//   ⇒ 从 4000 提到 8000，并在下面加了「截断就重试一次」。
+export async function reviewModelSide({ readings, question = '', ask, maxTokens = 8000 } = {}) {
   const t0 = Date.now();
   const noRead = !String(readings ?? '').trim();
   // 「没读到任何文字」时**不调模型**：那是确定性的事实，问一次模型只会换来编造。
   if (noRead) return { ok: true, findings: [], ms: 0, skipped: '文字层是空的 —— 模型侧无需跑，也不会编' };
   if (typeof ask !== 'function') return { ok: false, findings: [], ms: 0, error: '没有可用的 llm.ask' };
   try {
-    const raw = await ask(buildPrompt({ readings, question }), { system: SYSTEM, maxTokens });
-    const p = parseFindings(raw);
+    let raw = await ask(buildPrompt({ readings, question }), { system: SYSTEM, maxTokens });
+    let p = parseFindings(raw);
+    // ★★ 2026-10-09：**截断就重试一次**（额度翻倍）。不重试的话，一次腰斩就把模型侧整条丢掉，
+    //   用户拿到的卡里只剩库侧条目 —— 实测那张夜间图就是这样（`raw=1545 字`、无结尾）。
+    //   只对「截断」重试：真没写数组（散文）重试也没用，那是提示词问题，不该白烧一次。
+    if (!p.ok && /被截断/.test(String(p.error ?? ''))) {
+      console.log(`[agent] ↻ 模型侧输出被截断，重试一次（额度 ${maxTokens} → ${maxTokens * 2}）`);
+      raw = await ask(buildPrompt({ readings, question }), { system: SYSTEM, maxTokens: maxTokens * 2 });
+      p = parseFindings(raw);
+    }
     return { ...p, raw, ms: Date.now() - t0 };
   } catch (e) {
     // 模型侧跑不成**不算失败**：调用方回落单轨，结论一个字不改。
@@ -158,8 +202,14 @@ export function readingsForModelSide(inbound) {
   }
   for (const v of inbound.videos ?? []) {
     if (v?.failed) continue;
-    const fr = (v.frames ?? []).map((f) => String(typeof f === 'string' ? f : (f?.text ?? '')).trim()).filter(Boolean);
-    if (fr.length) parts.push('【视频 ' + v.index + ' 关键帧上的字】\n' + fr.join('\n'));
+    // ★★ 2026-10-09（Owner：「目前守衡输出的没有视频的时间节点 00:12 这些」）──────
+    //   这一行原先**只取 `f.text`、丢掉 `t_s`** ⇒ 模型出 findings 时**看不到时间码**，
+    //   而提示词第 4 条却要求它「指得出**第几帧**」—— 要它指位置，却不给它位置，
+    //   实测 outcome 就是 `location` 里出现「帧 3」「（未给位置）」这类**不可核**的值。
+    //   现在改走 `video.frameLine`（唯一产者）⇒ 时间码随帧一起进输入，
+    //   与卡片、库侧**同源同格式**。提示词里的要求也同步改成「时间码」。
+    const fr = (v.frames ?? []).map((f) => video.frameLine(f)).filter(Boolean);
+    if (fr.length) parts.push('【视频 ' + v.index + ' 关键帧上的字（每行开头是该帧的时间码）】\n' + fr.join('\n'));
     const t = v.transcript ?? {};
     if (t.ok && String(t.text ?? '').trim()) parts.push('【视频 ' + v.index + ' 音轨转写】\n' + String(t.text).trim());
   }
