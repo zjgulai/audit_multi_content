@@ -76,6 +76,15 @@ const PROBE_TIMEOUT_MS = 120_000;
  *   ⇒ 现在把「帧 → 一行带时间码的文本」收成**这一个函数**，三处共用。
  *     PRD §5.3.2 的模板就是 `视频 00:12 字幕…`，时间码是**证据的一部分**，不是装饰。
  *
+ * ★★ 2026-10-09（Owner 第三次点这件事）：「我验证的视频，还是没展示到几秒 **00:12 格式**没看到」。
+ *   查下来**两件事都不对**，缺一件都出不来 `00:12`：
+ *     ① 这一格原先印 `[12.91s]` —— 秒数带两位小数，不是 Owner 要的 `MM:SS`；
+ *     ② **提示词第 4 条教的还是「行首 `[12.34s]`，直接抄那个数」** ⇒ 就算这里改对了，
+ *        模型也会照着提示词把 `[12.34s]` 抄回去（`model_side.mjs` 已同步改）。
+ *   ⇒ 口径统一成 `[MM:SS]`，**按整秒截断**（`12.91 → 00:12`，与 Owner 举的例子逐字一致，
+ *     不四舍五入成 `00:13`）。⚠️ 8 帧是**均匀抽样** ⇒ 这个时间码的含义是「这一秒附近」，
+ *     不是精确到帧 —— 这一条由卡片头注与提示词各自说明，别在这里假装精确。
+ *
  * ⚠️ 帧**没有文字**时返回 `null`（不是空串）—— 空串会被 `filter(Boolean)` 之外的
  *    调用方当成一帧有内容，这与「这一帧画面上没字」是两件事。
  * ⚠️ 帧 **OCR 失败**时返回「这一帧 OCR 失败」那一行，**不许**与「没字」混成一句
@@ -87,12 +96,20 @@ const PROBE_TIMEOUT_MS = 120_000;
  *        `oneLine` 把帧内换行折成 ` / `（同上）。
  * @returns {string|null}
  */
+export function mmss(sec) {
+  const s = Math.floor(Number(sec));
+  if (!Number.isFinite(s) || s < 0) return '00:00';
+  const m = Math.floor(s / 60);
+  return `${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+}
+
 export function frameLine(f, { indent = true, oneLine = true } = {}) {
   if (typeof f === 'string') return f.trim() ? `${indent ? '  ' : ''}${f.trim()}` : null;
   if (!f || typeof f !== 'object') return null;
   const t = Number(f.t_s);
   // 没有合法时间码 ⇒ **明说没时间码**，不许印一个 `[NaNs]` 冒充
-  const stamp = Number.isFinite(t) ? `[${t.toFixed(2)}s] ` : '[时间码缺失] ';
+  // ★ 2026-10-09：`[12.91s]` ⇒ `[00:12]`（Owner 的口径；按整秒**截断**，不四舍五入）
+  const stamp = Number.isFinite(t) ? `[${mmss(t)}] ` : '[时间码缺失] ';
   const pad = indent ? '  ' : '';
   if (f.failed) {
     const why = typeof f.failed === 'string' ? f.failed : (f.detail ?? '未给原因');

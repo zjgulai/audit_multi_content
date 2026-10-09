@@ -3639,13 +3639,15 @@ await t('V7 ★ 行为级：本仓建的合并报告，URL 必须**同时**进�
 
   await t('Z33a 卡片「帧上文字」必须带时间码（Owner 点名的那一条）', async () => {
     const read = String(describeMediaRead(inbound()) ?? '');
-    assert.ok(/\[8\.64s\]/.test(read), `卡上帧文本没有时间码：${read.slice(0, 200)}`);
-    assert.ok(/\[0\.02s\]/.test(read), '第一帧的时间码也必须在');
+    // ★ 2026-10-09：口径改成 Owner 要的 `MM:SS`（`8.64s → [00:08]`、`0.02s → [00:00]`）
+    assert.ok(/\[00:08\]/.test(read), `卡上帧文本没有时间码：${read.slice(0, 200)}`);
+    assert.ok(/\[00:00\]/.test(read), '第一帧的时间码也必须在');
+    assert.ok(!/\[\d+\.\d+s\]/.test(read), '卡上还印着旧的「秒.小数」形状');
   });
 
   await t('Z33b 模型侧输入必须带时间码＋明说「每行开头是时间码」', async () => {
     const r = readingsForModelSide(inbound());
-    assert.ok(/\[8\.64s\]/.test(r), '模型侧输入没有时间码 ⇒ 它只能编一个「帧 3」');
+    assert.ok(/\[00:08\]/.test(r), '模型侧输入没有时间码 ⇒ 它只能编一个「帧 3」');
     assert.ok(/时间码/.test(r), '没告诉模型行首那个数是时间码');
   });
 
@@ -3658,13 +3660,35 @@ await t('V7 ★ 行为级：本仓建的合并报告，URL 必须**同时**进�
     assert.ok(/不许编一个秒数/.test(p), '音轨转写没有时间戳这件事没写进提示词 ⇒ 模型会编');
   });
 
-  await t('Z33d 反向对照：库侧那份帧文本必须逐字未变（原先就是对的）', async () => {
+  await t('Z33d 库侧那份帧文本：形状逐字未变，但时间码是 Owner 的 `MM:SS` 口径', async () => {
     const got = FRAMES.map((f) => video.frameLine(f)).filter(Boolean).join('\n');
-    const want = ['  [0.02s] Momeozy Wellness 1 vs Euiy S1 Pro',
-                  '  [8.64s] so letls.compare it with my -Eufy-S1Pro',
-                  '  [25.87s] line1 / line2',
-                  '  [34.48s] （这一帧 OCR 失败：ocr_threw）'].join('\n');
+    // ★ 2026-10-09 改（Owner 第三次点这件事：「还是没展示到几秒 **00:12 格式**没看到」）：
+    //   原先这里钉的是 `[0.02s]`（两位小数秒）—— 那是**旧口径**，改后按 `MM:SS` 截断。
+    //   这条断言的价值仍是「形状逐字未变」（缩进 / ` / ` 折叠 / 失败帧那行都在），
+    //   只是**那一格数字的形状**换成 Owner 要的：`0.02 → 00:00`、`34.48 → 00:34`。
+    const want = ['  [00:00] Momeozy Wellness 1 vs Euiy S1 Pro',
+                  '  [00:08] so letls.compare it with my -Eufy-S1Pro',
+                  '  [00:25] line1 / line2',
+                  '  [00:34] （这一帧 OCR 失败：ocr_threw）'].join('\n');
     assert.strictEqual(got, want, '库侧帧文本被改动了');
+    // 反向对照：`[12.34s]` 那种带小数的旧形状**不许**再出现（否则就是没改干净）
+    assert.ok(!/\[\d+\.\d+s\]/.test(got), '还在印旧的「秒.小数」形状：' + got.slice(0, 80));
+  });
+
+  await t('Z33d2 时间码必须是 `MM:SS` 且**提示词同口径**（缺一件都出不来 00:12）', async () => {
+    const { mmss } = video;
+    // 截断，不四舍五入：Owner 举的例子 `00:12` 对应的原始读数是 `12.91s`
+    assert.strictEqual(mmss(12.91), '00:12', '12.91s 必须是 00:12（四舍五入会成 00:13，与 Owner 的卡对不上）');
+    assert.strictEqual(mmss(4.30), '00:04', '4.30s 必须是 00:04');
+    assert.strictEqual(mmss(60), '01:00', '满 60 秒必须进位成 01:00');
+    assert.strictEqual(mmss(125.4), '02:05', '125.4s 必须是 02:05');
+    assert.strictEqual(mmss(-1), '00:00', '负秒数不许印负号');
+    assert.strictEqual(mmss(NaN), '00:00', 'NaN 不许漏出去（未测不许长得像测过）');
+    // ★ 这一半才是「模型会不会输出 00:12」的关键：提示词教它抄的形状
+    const { SYSTEM } = await import('./agent/model_side.mjs');
+    assert.ok(/行首 `\[00:12\]`/.test(String(SYSTEM)),
+      '提示词还在教旧形状 ⇒ 模型会照抄 `[12.34s]`，卡上永远出不来 00:12');
+    assert.ok(!/行首 `\[\d+\.\d+s\]`/.test(String(SYSTEM)), '提示词里还留着旧的 `秒.小数` 形状');
   });
 
   await t('Z33e 画面上没字的帧不许冒出一行；无合法时间码要明说', async () => {
