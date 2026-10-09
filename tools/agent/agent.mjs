@@ -381,8 +381,13 @@ export async function readInboundContent(msg, {
       } else {
         // ★★ 2026-10-09（Owner 亲自看出「图上文字里的『刘华丽』是水印」）──────────────
         //   图内 OCR 里混着**文档水印**（用户名 + 工号，实测 `5615 RO0 / 刘华丽 / 刘华問`），
-        //   它被当成素材内容 ⇒ **进了检索** ⇒ 拿水印里的常用词撞库
-        //   ⇒ 撞出一堆无关的内部样本、又被渲染成「命中」进报告。**这是那批假命中的根。**
+        //   它被当成素材内容进了检索 —— 该摘。
+        //   ⚠️ **但事后实测证明：它不是那批假命中的根**（我一开始这么写过，已更正）——
+        //      那 5 条无关记录与素材**只共用了 `in / or / 5 / 15` 与品牌名 `momcozy`**，
+        //      水印 token（`刘华丽` 等）在那 5 条里**一次都没出现**。真因是**门限口径**：
+        //      `l6/retriever.py::search_lang` 逐词累加分数、**不按查询长度归一**，
+        //      而门限是固定数 ⇒ 长素材下「同长度纯噪声」（实测 49.17）都能过 16.0。
+        //      详见 2026-10-09 的实测记录；**改门限是另一件事，未做**。
         //   ⇒ 这里做一次**水印摘除**，且**两份都留着**：
         //     · `text`    = **原文**（卡片显示"我读到了什么"要用它，一个字不许改）；
         //     · `wlText`  = **摘掉水印后**（`chainInput` 拿它去检索）；
@@ -1330,7 +1335,20 @@ export function describeMediaRead(inbound) {
       + (empty.length ? `｜图上没字 ${empty.length} 张` : '')
       + (failed.length ? `｜**读失败 ${failed.length} 张**` : '')
       + (inbound.skippedImages ? `｜超上限未读 ${inbound.skippedImages} 张` : ''));
-    if (got.length) out.push(`图上文字：${cut(got.map((i) => i.text).join(' ／ '))}`);
+    // ★★ 2026-10-09（Owner 两次重测都问这件事）**卡上也不再显示水印** ──────────────
+    //   上一版这里印的是 `i.text`（OCR 原文、含水印），理由是"让人看到我读到了什么"。
+    //   按 Owner 反馈定：**水印对读者没有信息量**。
+    //   ⇒ 改印 `wlText`（摘掉水印那份）——**与喂给链的检索文本同源**（同一个字段，
+    //     不再两处各拼一遍）；原文一个字没丢（仍在 `i.text`），核对时看日志的摘除明细。
+    //   ⚠️ 摘掉的行**只报条数、不列内容** —— 列出来等于把水印又放回卡上（第一版就是这样，等于没摘）。
+    if (got.length) {
+      const parts = got.map((i) => {
+        const body = cut(String(i.wlText ?? i.text));
+        const n = i.wmDropped?.length ?? 0;
+        return n ? `${body}（另摘除水印 ${n} 行）` : body;
+      });
+      out.push(`图上文字：${parts.join(' ／ ')}`);
+    }
     for (const f of failed) out.push(`图 ${f.index} 读失败：${f.failed}`);
   }
 
