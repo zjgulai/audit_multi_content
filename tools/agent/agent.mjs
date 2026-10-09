@@ -288,6 +288,12 @@ export async function readInboundContent(msg, {
   ocr = vision.ocrImage,
   readVideoFn = video.readVideo,
   loadParent = feishu.getMessage,
+  // ★★ 2026-10-09（Owner：「图上文字：刘华丽==》**还有我的名字**」）：
+  //   一个**异步取数函数** `() => Promise<string|null>`，回**送审人显示名** ——
+  //   水印里那个名字的确定性来源（水印逐字就是「用户名 + 工号」）。
+  //   只在**真读到图、真要去水印**那一刻调一次（惰性：没带图的对话不付这次查询）。
+  //   取不到（没 open_id / 查不到）⇒ 回 null ⇒ 那一条判据不生效，**不抛**。
+  senderNameForWatermark = null,
 } = {}) {
   const msgType = msg?.message_type ?? 'unknown';
   const content = msg?.content ?? '{}';
@@ -393,7 +399,9 @@ export async function readInboundContent(msg, {
         //     · `wlText`  = **摘掉水印后** —— **卡片与送进模型的那段都用它**，
         //                   也是 `chainInput` 拿去做检索的那份（三处同源，不再各拼一遍）；
         //     · `wm*`     = 留痕（摘了哪些行、靠哪条判据）—— 缺了它，摘除就是不可核的。
-        const wm = stripOcrWatermark({ text: r.text, boxes: r.boxes });
+        // ★ 送审人显示名**惰性取一次**（只为水印判据；取不到回 null，不抛）
+        const senderName = senderNameForWatermark ? await senderNameForWatermark() : null;
+        const wm = stripOcrWatermark({ text: r.text, boxes: r.boxes, senderName });
         images.push({ index: i + 1, imageKey: k.imageKey, fromParent, bytes: got.bytes,
                       text: r.text, lines: r.lines ?? null, chars: r.chars ?? null,
                       w: r.w ?? null, h: r.h ?? null, truncated: !!r.truncated,
@@ -1460,7 +1468,31 @@ export async function handleMessage(event, {
   //  `deps` 只是给测试注入桩用的（生产调用点一个字都不用改）——
   //  没有它，「取图 + OCR」这条路只能在联网 + 花 token 的情况下才测得动，
   //  而那等于没有可跑的判据（AGENTS.md §2.4：指不出哪一行在拦它，就等于没拦）。
-  const inbound = await readInboundContent(msg, deps);
+  //
+  // ── 2.5 送审人显示名：**必须在读图之前**备好（2026-10-09 晚，Owner：「还有我的名字」）──
+  //
+  // ★ 病灶（**接线顺序错了**，不是判据错）：`readInboundContent` 就是下一行（读图 + 摘水印），
+  //   而名字原先要到第 4 步（`not_mentioned` 判断之后，约 1550 行）才解析出来 ——
+  //   ⇒ **摘水印的时候还不知道送审人叫什么**，判据只能靠「OCR 有没有把名字读出 2 次」去猜。
+  //   而同一张图两次 OCR 的读数**并不一致**（实测：一次 `刘华問`×2+`刘华丽`×1，
+  //   另一次 `刘华`×2+`刘华丽`×3）⇒ 名字只被读出 1 次时就当不上"平铺核心"、摘不掉，
+  //   于是卡片与报告继续带着它（Owner 连报两次）。
+  //   水印逐字就是「**用户名 + 工号**」（台账实测 `sender: 刘华丽`）⇒ 名字是**已知的**，不该猜。
+  //
+  // ★ 为什么是**惰性取数**而不是在这里 await：没带图的普通对话不该多付一次名字查询。
+  //   传下去的是个**取数函数**，`readInboundContent` 只在真读到图、真要去水印那一刻调它；
+  //   底层 `feishu.getUserName` 自带群成员缓存 ⇒ 第 4 步再调一次是缓存命中、不重复花钱。
+  let _senderNameForWm;
+  const senderNameForWatermark = () => {
+    if (_senderNameForWm === undefined) {
+      _senderNameForWm = senderOpenId
+        ? feishu.getUserName(senderOpenId, chatId).then((x) => x?.name ?? null).catch(() => null)
+        : Promise.resolve(null);
+    }
+    return _senderNameForWm;
+  };
+  const inbound = await readInboundContent(msg,
+    deps ? { ...deps, senderNameForWatermark } : { senderNameForWatermark });
   // 日志留一行读数：**「守衡有没有真的读到图」不该只能靠群里看回复来判断**。
   // 这一行也是排查的锚点（图几张、OCR 多少字、哪几张失败、是不是从引用的那条取的）。
   if (inbound.parentNote?.kind === 'parent_unreadable') {
@@ -1530,11 +1562,12 @@ export async function handleMessage(event, {
     imageBlock, videoBlock,
   });
 
+  // 名字的解析与「惰性取数函数」都在上游第 2.5 步（读图之前）—— 这里不再重复一份。
+
   // ── 4. 群聊里「不 @ 不理」，避免刷屏；私聊一律响应
   if (chatType === 'group' && config.requireMentionInGroup && !botMentioned) {
     return { reply: null, reason: 'not_mentioned' };
-  }
-  if (config.allowedChats.length && !config.allowedChats.includes(chatId)) {
+  }  if (config.allowedChats.length && !config.allowedChats.includes(chatId)) {
     return { reply: null, reason: 'chat_not_allowed', meta: { chatId } };
   }
 

@@ -74,6 +74,34 @@ function farApart(a, b) {
 }
 
 /**
+ * 送审人的**显示名** —— 水印里那个名字的**确定性来源**（不是猜出来的）。
+ *
+ * ★★ 2026-10-09（Owner：「图上文字：刘华丽==》**还有我的名字**」）：
+ *   飞书云文档的水印逐字就是「**用户名 + 工号**」（实测 `刘华丽` / `5615`），
+ *   而 `刘华丽` 正是这条消息的**发送人显示名**（台账里 `sender: 刘华丽`，
+ *   `ou_af95e2a43871579692afbb25a529e77e`）。
+ *
+ *   ⚠️ 为什么还要这一条（**有判据了，为什么不够**）：上面那套「平铺」判据依赖
+ *     「OCR 把同一个名字**读出 ≥2 次**，且落在不同位置」。而同一张图的两次 OCR
+ *     **读数并不一致**（实测：一次读成 `刘华問`×2 + `刘华丽`×1，另一次读成
+ *     `刘华`×2 + `刘华丽`×3）⇒ 名字只被读出 **1 次**时它当不上"核心"、摘不掉，
+ *     于是卡上/报告里继续带着它。**判据不能靠 OCR 的运气。**
+ *   ⇒ 现在补一条**与 OCR 无关**的判据：行**逐字等于**送审人显示名 ⇒ 就是水印。
+ *
+ *   ⚠️ 为什么只认「逐字相等」、不做"包含"：送审人可能叫 `May`、`Sun`、`Ann`
+ *     这类**常见词**，做包含会把正文里的真词删掉（误删真内容的代价不对称，见文件头）。
+ *     逐字相等这一条**不可能误删**（正文里恰好只有发送人名字一行的概率极低，
+ *     且即便命中，删掉的那一行也确实只是他的名字）。
+ *   传 `null`/`(未知名)`/空 时这一条**不生效**（不许拿一个占位符当判据）。
+ */
+function senderNameCore(senderName) {
+  const n = String(senderName ?? '').trim();
+  if (!n || n === '(未知名)') return null;
+  if (n.length > MAX_TOKEN_LEN) return null;         // 长名字不当判据
+  return n;
+}
+
+/**
  * 从 OCR 结果里摘出水印行。
  *
  * ★★ 2026-10-09 晚 **v2：拿到真图之后重写**（Owner 把原图发过来了）──────────────
@@ -95,7 +123,9 @@ function farApart(a, b) {
  *   ⚠️ v2 敢用"包含"、v1 不敢，差别在**核心是被位置判据证明过平铺的**：
  *      `Week1/Week2/Sep 15` 不会在多个位置重复 ⇒ 当不上核心 ⇒ 不会被误删。
  *
- * @param {{text?:string, boxes?:Array<{t:string,x:number,y:number}>}} ocr
+ * @param {{text?:string, boxes?:Array<{t:string,x:number,y:number}>, senderName?:string}} ocr
+ *        `senderName` = 送审人显示名（可选）。给了就多一条**与 OCR 无关**的判据：
+ *        逐字等于它的行判水印（见 `senderNameCore` 的注释）。
  * @returns {{text:string, kept:string[], dropped:string[], cores:string[], basis:string, droppedRatio:number}}
  */
 export function stripOcrWatermark(ocr) {
@@ -198,6 +228,18 @@ export function stripOcrWatermark(ocr) {
     });
   }
 
+  // ── ④ **送审人显示名**：逐字等于它的行 ⇒ 水印（与 OCR 读数无关，见 `senderNameCore`）──
+  //   这一条补的是「名字只被 OCR 读出 1 次 ⇒ 当不上核心 ⇒ 摘不掉」那个洞。
+  const snCore = senderNameCore(src.senderName);
+  let namedHit = 0;
+  if (snCore) {
+    const want = norm(snCore);
+    lines.forEach((l, i) => {
+      if (droppedIdx.has(i)) return;
+      if (norm(l) === want) { droppedIdx.add(i); namedHit++; }
+    });
+  }
+
   const kept = [], dropped = [];
   lines.forEach((l, i) => (droppedIdx.has(i) ? dropped : kept).push(l));
   const total = lines.filter((l) => l.trim()).length || 1;
@@ -207,10 +249,15 @@ export function stripOcrWatermark(ocr) {
   //   实测（test_agent 的 Z37d 原料）：兜底摘掉 5 行（`刘华問`×2 / `5615`×3），`basis` 却回 `none` ——
   //   行为对、标签错。这一格进日志与卡片那一行，印错了就等于把「为什么摘的」记成了「没摘」。
   //   判据改成**按实际结果**分：一行没摘 ⇒ `none`；摘了 ⇒ 说清是哪条。
+  //   ★★ 2026-10-09 晚：再加 `sender-name-in-ocr` —— **只靠送审人显示名摘到的**那一种。
+  //     要是把它并进 `core-tiled-...`，就等于把「我只知道那是你的名字」说成
+  //     「我证明了它平铺」—— 证据形状不同，不许混成一个名字。
   const basis = !dropped.length
     ? 'none'
-    : cores.length
-      ? (boxes.length ? 'core-tiled-at-different-positions' : 'exact-repeat-no-coords')
-      : 'exact-repeat-no-coords';
+    : (namedHit && namedHit === dropped.length)
+      ? 'sender-name-in-ocr'
+      : cores.length
+        ? (boxes.length ? 'core-tiled-at-different-positions' : 'exact-repeat-no-coords')
+        : (namedHit ? 'sender-name-in-ocr' : 'exact-repeat-no-coords');
   return { text: kept.join('\n'), kept, dropped, cores, basis, droppedRatio: dropped.length / total };
 }

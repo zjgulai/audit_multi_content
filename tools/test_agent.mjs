@@ -3948,6 +3948,91 @@ await t('V7 ★ 行为级：本仓建的合并报告，URL 必须**同时**进�
   });
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Z40 ★★（2026-10-09 晚）**「名字只被 OCR 读出 1 次」也要摘掉**（Owner 连报两次）
+// ══════════════════════════════════════════════════════════════════════════════
+//   Owner 原话（这一轮）：「图上文字：刘华丽==》**还有我的名字**」。
+//   病灶（**接线顺序错了，不是判据错**）：`readInboundContent` 读图那一刻还不知道
+//   送审人叫什么（名字要到 `handleMessage` 第 4 步才解析）⇒ 判据只能靠
+//   「OCR 有没有把名字读出 ≥2 次、且落在不同位置」去猜。而**同一张图的两次 OCR
+//   读数并不一致**（实测：一次 `刘华問`×2 + `刘华丽`×1，另一次 `刘华`×2 + `刘华丽`×3）
+//   ⇒ 只读出 1 次时它当不上"平铺核心"⇒ 摘不掉 ⇒ 卡片与报告继续带着名字。
+//   水印逐字就是「**用户名 + 工号**」（台账实测 `sender: 刘华丽`）⇒ 名字是**已知的**。
+//   ⇒ 现在补一条**与 OCR 读数无关**的判据：行**逐字等于**送审人显示名 ⇒ 水印。
+{
+  const { stripOcrWatermark } = await import('./agent/ocr_watermark.mjs');
+  const box = (t, x, y) => ({ t, x, y });
+
+  await t('Z40a ★ 名字只出现 1 次也必须摘掉（这就是 Owner 报的那一次）', async () => {
+    const r = stripOcrWatermark({
+      text: ['刘华丽', '#MomAndMore activity calendar', 'Sep 15', 'Week1'].join('\n'),
+      boxes: [box('刘华丽', 0.278, 0.910), box('#MomAndMore activity calendar', 0.145, 0.844),
+              box('Sep 15', 0.711, 0.665), box('Week1', 0.184, 0.414)],
+      senderName: '刘华丽',
+    });
+    assert.ok(!r.text.includes('刘华丽'), '名字还在 —— 这一条没生效');
+    assert.deepStrictEqual(r.dropped, ['刘华丽'], `摘错了：${JSON.stringify(r.dropped)}`);
+    // ★ 判据名必须是**它自己那一个**：只靠名字摘到的，不许说成「我证明了它平铺」
+    assert.strictEqual(r.basis, 'sender-name-in-ocr', `判据名不对：${r.basis}`);
+  });
+
+  await t('Z40b ★★ 反向对照：不传 senderName ⇒ 行为逐字不变（旧判据一个字没松）', async () => {
+    const noName = stripOcrWatermark({
+      text: ['刘华丽', '#MomAndMore activity calendar', 'Sep 15', 'Week1'].join('\n'),
+      boxes: [box('刘华丽', 0.278, 0.910), box('#MomAndMore activity calendar', 0.145, 0.844),
+              box('Sep 15', 0.711, 0.665), box('Week1', 0.184, 0.414)],
+    });
+    assert.strictEqual(noName.dropped.length, 0,
+      '不传名字时把只出现一次的行摘了 —— 说明「平铺」判据被顺手放松了（那是误删真内容的方向）');
+    assert.strictEqual(noName.basis, 'none', '没摘任何行却印了判据');
+  });
+
+  await t('Z40c 拿占位符「(未知名)」当判据 ⇒ 必须不生效（不许拿占位符当证据）', async () => {
+    const r = stripOcrWatermark({
+      text: '(未知名)\nSep 15', boxes: [box('(未知名)', 0.1, 0.1), box('Sep 15', 0.5, 0.5)],
+      senderName: '(未知名)',
+    });
+    assert.strictEqual(r.dropped.length, 0, '把「(未知名)」当成了水印判据');
+  });
+
+  await t('Z40d 名字那一行**恰好是内容**时：只删那一行，别的不许动（边界写实）', async () => {
+    const r = stripOcrWatermark({
+      text: ['May', 'Week1', 'Sep 15', 'Every week：'].join('\n'),
+      boxes: [box('May', 0.5, 0.5), box('Week1', 0.1, 0.4), box('Sep 15', 0.7, 0.6), box('Every week：', 0.3, 0.3)],
+      senderName: 'May',
+    });
+    // 逐字相等 ⇒ 命中；这是**已知的、可接受的**代价（见 ocr_watermark.mjs 的注释：
+    // 不做"包含"就是为了把误删面收到最小；正文里恰好只有发送人名字一行的概率极低）
+    assert.deepStrictEqual(r.dropped, ['May'], `摘的不是那一行：${JSON.stringify(r.dropped)}`);
+    assert.ok(r.text.includes('Week1') && r.text.includes('Sep 15'), '连带把真内容删了');
+  });
+
+  await t('Z40e 接线三跳：顺序对 / 入参声明 / 真被调用（缺一跳这条线就断）', async () => {
+    const src = fs.readFileSync(new URL('./agent/agent.mjs', import.meta.url), 'utf8');
+    const iDef = src.indexOf('const senderNameForWatermark = ()');
+    const iRead = src.indexOf('await readInboundContent(msg');
+    assert.ok(iDef > 0, '找不到 senderNameForWatermark 的定义');
+    assert.ok(iRead > 0, '找不到 readInboundContent 的调用');
+    // ① 顺序：名字要在**读图之前**备好
+    assert.ok(iDef < iRead,
+      '名字的取数函数排在读图**之后** —— 摘水印时又拿不到名字，这一整条等于没接');
+
+    // ② 入参：`readInboundContent` 必须真的声明它（只在调用点传、函数不接 ⇒ 静默丢掉）
+    const fnStart = src.indexOf('export async function readInboundContent');
+    assert.ok(fnStart > 0, '找不到 readInboundContent 定义');
+    const fnBody = src.slice(fnStart, src.indexOf('\n} = {}) {', fnStart) + 10);
+    assert.ok(/senderNameForWatermark\s*=\s*null/.test(fnBody),
+      'readInboundContent 的入参里没有 senderNameForWatermark —— 传了也没人接（静默丢参数）');
+
+    // ③ 调用：真去取名字、真传给判据（③ 是最容易漏的一跳：参数接了却不用）
+    const imgBranch = src.slice(fnStart, src.indexOf('export async function describeMediaRead'));
+    assert.ok(/await senderNameForWatermark\(\)/.test(imgBranch),
+      'readInboundContent 里从没调过 senderNameForWatermark() —— 参数接了不用');
+    assert.ok(/stripOcrWatermark\(\{[^}]*senderName[^}]*\}\)/.test(imgBranch),
+      '取到的名字没传给 stripOcrWatermark —— 取了也白取');
+  });
+}
+
 // 汇总必须放在**所有**分组之后（2026-10-09 修：中间那两块重复的汇总+exit
 // 让「第 27 组」与「第 33 组」**从没被执行过**，而合计照样印得像全绿）。
 console.log(`\n═══ 合计：通过 ${pass} / 失败 ${fail} ═══`);
