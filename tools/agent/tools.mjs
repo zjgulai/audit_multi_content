@@ -25,6 +25,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { REPO_ROOT } from './config.mjs';
@@ -1242,41 +1243,179 @@ const KB_REVIEW_TIMEOUT_MS = Number(process.env.SHOUHENG_KB_REVIEW_TIMEOUT_MS ||
  *
  * @returns {Promise<{free:boolean, stale:boolean, detail:string}>}
  */
-export async function claimStatus({ timeoutMs = 8000 } = {}) {
+// ══════════════════════════════════════════════════════════════════════════
+// ★★ 2026-10-08 **根因修复**：非零退出是**结果**，不是**异常**
+// ══════════════════════════════════════════════════════════════════════════
+// **病灶（当天实测到根因，Owner 问「库忙彻底解决了吗」逼出来的）**：
+//   `kb_loop_claim.py status` 的契约是「**exit 3 = 被别人占着**」（脚本头注第 32 行），
+//   而 `promisify(execFile)` **在非零退出上会 reject** ⇒ 「被占」这个信号
+//   **永远以异常的形式到达**，`const { stdout } = await execFileP(...)` 那一行直接抛。
+//
+//   于是 `preflightClaim()` 里那个 `blocked: true` 分支是**死代码**：
+//   它要检测的情形，恰好就是它抛异常的情形。实测原话（认领正被占着时实调）：
+//     code=3 ｜ STDOUT="**进行中** ｜ 会话=session-11298093… ｜ BASE=20261008-1730"
+//     ⇒ 返回值 {blocked:false, detail:"认领预检跳过（Command failed: sh … status）"}
+//   **⇒ 守衡的认领预检从来没有生效过一次**：每次送审都直接起链，链内部才被拒
+//     （`kb/l8/review_run.sh` exit 3）⇒ 用户拿到的是一张**库忙卡**。
+//   同一个 bug 还咬了 `claimStatus()` ⇒ **回执卡从来说不出「在排队」**，
+//   只会报常态 ETA（`agent.mjs:678` 那条分支等于也废了）。
+//
+// **为什么这条特别坏**：catch 把失败降级成「不 blocked」，**一行日志都不打**，
+//   于是「预检坏了」与「预检说空闲」在外部**长得一模一样**。这正是库规
+//   「缺证据必须可见，不许静默」要禁的形状 —— 一个安静地把失效说成正常的形状。
+//
+// **修法**：`runCapture` 把退出码**收下来**（REJECT 只留给「根本起不来」）。
+//   判据：只有 code ∈ {0, 3} 才算**拿到了答案**（那两个码是脚本契约里写死的）；
+//   其余码（含 ENOENT / 超时被杀）一律当「读不到」⇒ 调用方走各自的 fail-open，
+//   但**必须出声**（`console.log`），不许再静默。
+async function runCapture(file, args, opts = {}) {
+  try {
+    const { stdout, stderr } = await execFileP(file, args, opts);
+    return { code: 0, stdout: String(stdout ?? ''), stderr: String(stderr ?? '') };
+  } catch (e) {
+    // execFile 在「非零退出」与「超时被杀」两种情况下都 reject，且都带上
+    // stdout / stderr / code（Node ≥ 12）——所以异常里**有**我们要的答案。
+    if (e && (typeof e.code === 'number' || e.stdout !== undefined)) {
+      return { code: typeof e.code === 'number' ? e.code : -1,
+               stdout: String(e.stdout ?? ''), stderr: String(e.stderr ?? ''),
+               signal: e.signal ?? null, killed: e.killed === true, err: e };
+    }
+    throw e;                       // 真的起不来（ENOENT/权限）⇒ 照旧抛
+  }
+}
+
+/**
+ * **纯函数**：把 `status` 的 `{code, stdout}` 解析成三态。
+ *
+ * 抽成纯函数**就是为了能被离线自证**（`claim_wait.test.mjs`）：这个 bug
+ * （exit 3 = 被占，而 execFile 在非零退出上 reject）**只有真的占一次槽才碰得到**，
+ * 而「测试去占真库的槽」既慢又污染真库 ⇒ 把判据抽出来，喂**逐字真实样本**。
+ *
+ * **只认 code ∈ {0,3}**（脚本头注第 32 行的契约）；其余码一律抛
+ * ⇒ 调用方 fail-open 但**必须出声**。
+ * 三态与 `kb_loop_claim.py::cmd_status()` 逐行对应：
+ *   exit 0 + 「无认领」 ⇒ free ｜ exit 0 + 「陈旧」 ⇒ stale
+ *   exit 3 + 「进行中」 ⇒ busy ｜ exit 3 + 「读不出」⇒ **也当 busy**
+ * （最后那条照脚本自己的口径：「保守起见先别跑，人工看一眼再决定」。）
+ */
+export function parseClaimStatus({ code, stdout, stderr = '', killed = false } = {}) {
+  if (code !== 0 && code !== 3) {
+    throw new Error(`status 退出码 ${code}（契约只认 0/3）`
+      + (stderr ? `，stderr=${String(stderr).trim().slice(0, 200)}` : '')
+      + (killed ? '（超时被杀）' : ''));
+  }
+  const s = String(stdout ?? '').trim();
+  if (s.includes('无认领')) return { state: 'free', detail: '空闲（无认领）', code };
+  if (s.includes('陈旧')) return { state: 'stale', detail: s.slice(0, 200), code };
+  return { state: 'busy', detail: s.slice(0, 300), code };
+}
+
+async function probeClaimStateOnce(timeoutMs = 30_000) {
   const KBPY = path.join(KB_ROOT, 'kb', 'kbpy');
   const CLAIM = path.join(KB_ROOT, 'kb', 'l7', 'scripts', 'kb_loop_claim.py');
+  const r = await runCapture('sh', [KBPY, CLAIM, 'status'],
+    { cwd: KB_ROOT, timeout: timeoutMs, maxBuffer: 1 << 20 });
+  return parseClaimStatus(r);
+}
+
+export async function claimStatus({ timeoutMs = 8000 } = {}) {
   try {
-    const { stdout } = await execFileP('sh', [KBPY, CLAIM, 'status'],
-      { cwd: KB_ROOT, timeout: timeoutMs, maxBuffer: 1 << 20 });
-    const s = String(stdout ?? '');
-    const free = s.includes('无认领');
-    const stale = s.includes('陈旧');
-    return { free, stale, detail: s.trim().slice(0, 200) };
+    const st = await probeClaimStateOnce(timeoutMs);
+    return { free: st.state === 'free', stale: st.state === 'stale',
+             busy: st.state === 'busy', detail: st.detail };
   } catch (e) {
     // 取不到就说「不知道」—— 回执退回常态那套话（不谎报排队，也不谎报空闲）
+    console.log(`[claim] ⚠️ 认领状态读不到（回执将按"不知道"处理）：${e?.message ?? e}`);
     return { free: false, stale: false, unknown: true, detail: `状态读不到：${e?.message ?? e}` };
   }
 }
 
-async function preflightClaim() {
+// ══════════════════════════════════════════════════════════════════════════
+// 认领预检（2026-10-08，Owner：「彻底解决库忙，不是解决这单」）
+// ══════════════════════════════════════════════════════════════════════════
+// 这一节当天改过**两轮**，两轮都要记着，否则会照着旧注释把缺陷改回来。
+//
+// ── 第 1 轮：修「预检从来没生效过」的退出码 bug（**这轮是纯 bug，与设计无关**）──
+//   `kb_loop_claim.py status` 的契约是「**exit 3 = 被占**」，而 `promisify(execFile)`
+//   **在非零退出上 reject** ⇒ `blocked: true` 那个分支是**死代码**，
+//   每次送审都直接起链、链内部才被拒 ⇒ 用户拿到库忙卡。
+//   同一个 bug 还咬了 `claimStatus()`（回执卡靠它决定说不说「排队」）。
+//   ⇒ 修法：`runCapture()` 把非零退出当**结果**收下来。
+//
+// ── 第 2 轮：**把「排队等槽」删掉**（认领改成按 RUN 分槽之后，等待变成等一个不会发生的阻塞）
+//   · 第 1 轮时认领还是「**全局单槽**」，所以我加了「被占就排队等 ≤10 分钟」；
+//   · 但实测槽被持有**最长 1,659 秒（27.7 分钟）**、中位 34 秒 ⇒ 10 分钟**盖不住**，
+//     等完还是库忙卡 —— 那句「排到了就正常跑」依然兑现不了；
+//   · 真正的病根是**锁开大了**：持有单位是「会话」，要保护的却是「一次运行的写集」。
+//     改成**按 RUN 分槽**（`kb_loop_claim.py` ①）之后，评审链的 RUN（`YYYYMMDD-HHMM`）
+//     与供给链的（`daily-YYYYMMDD-HHMM`）**永不相等** ⇒ 「别人在跑」**根本挡不住本单**。
+//   ⇒ 于是这里的等待是**等一个不会发生的阻塞**，删掉它才是对的 —— 留着反而会把
+//     「别人在跑」重新变成一种延迟的库忙。
+//
+// ★ 现在这一节的职责只剩两条：
+//   ① 陈旧认领 ⇒ **当场释放**（自愈，唯一还会动盘的分支）；
+//   ② 别的 RUN 在跑 ⇒ **记下来（`ran_by`）但绝不拦**。
+// ★ 残余（rare，且是**正确行为**不是缺陷）：两次评审落在**同一分钟** ⇒ RUN 同名 ⇒
+//   链内部 `review_preflight.sh` 照旧 exit 3（fail-closed），这一单按库忙处理并由补发队列重试。
+//   **那一刻的库忙是真的。**
+
+/** 探一次认领状态（**只读**，一个字节都不改）。解析口径见 `probeClaimStateOnce`。 */
+const probeClaimState = () => probeClaimStateOnce(30_000);
+
+/** 释放陈旧认领（**有副作用**，只在这一种状态下调）。 */
+async function releaseStaleClaim() {
   const KBPY = path.join(KB_ROOT, 'kb', 'kbpy');
   const CLAIM = path.join(KB_ROOT, 'kb', 'l7', 'scripts', 'kb_loop_claim.py');
+  const r = await runCapture('sh', [KBPY, CLAIM, 'release', '--force'],
+    { cwd: KB_ROOT, timeout: 30_000, maxBuffer: 1 << 20 });
+  if (r.code !== 0) {
+    throw new Error(`release --force 退出码 ${r.code}`
+      + (r.stderr ? `，stderr=${r.stderr.trim().slice(0, 200)}` : ''));
+  }
+}
+
+/**
+ * 认领预检：空闲即过；陈旧即释放；**新鲜则排队等**（等不到才 blocked）。
+ *
+ * 依赖项全部可注入（`probe` / `releaseStale` / `sleep` / `now` / `log`）——
+ * 为的是**这条等待逻辑能被离线自证**（`claim_wait.test.mjs`）：不注入就只能靠
+ * 「真的去占一次槽」来测，那种测法既慢又会污染真库。
+ * 默认参数 = 生产行为；调用点 `preflightClaim()` **一个字不用改**。
+ */
+export async function preflightClaim({
+  probe = probeClaimState,
+  releaseStale = releaseStaleClaim,
+  now = () => Date.now(),
+} = {}) {
+  const t0 = now();
+  const done = (extra) => ({ blocked: false, waited_ms: now() - t0, ...extra });
   try {
-    const { stdout } = await execFileP('sh', [KBPY, CLAIM, 'status'],
-      { cwd: KB_ROOT, timeout: 30_000, maxBuffer: 1 << 20 });
-    const s = String(stdout ?? '');
-    if (s.includes('无认领')) return { blocked: false, detail: '空闲（无认领）' };
-    if (s.includes('陈旧')) {
-      // 脚本自己会打印「陈旧（可 --take-over）」——那就是它承认可以接手的状态。
-      await execFileP('sh', [KBPY, CLAIM, 'release', '--force'],
-        { cwd: KB_ROOT, timeout: 30_000, maxBuffer: 1 << 20 });
-      return { blocked: false, action: 'released_stale_claim',
-               detail: '检测到陈旧认领，已自动释放：' + s.trim().slice(0, 200) };
+    const st = await probe();
+    // ── 陈旧 ⇒ 自愈（唯一还会动盘的分支；这是"顺手的清理"，不是闸门）──
+    if (st.state === 'stale') {
+      await releaseStale();
+      return done({ action: 'released_stale_claim',
+                    detail: '检测到陈旧认领，已自动释放：' + st.detail });
     }
-    // 新鲜认领 ⇒ 有会话正在跑这条循环。**不抢**，但立刻回话（不再耗 30 分钟）。
-    return { blocked: true, detail: s.trim().slice(0, 300) };
+    // ★★ 2026-10-08（① 落地后）：**别的 RUN 在跑，不再拦、也不再等。** ──────────
+    //   为什么（这条是 ① 的直接推论，不是"放宽"）：认领已改成**按 RUN 分槽**，
+    //   而本链的 RUN 是**链内现取的时间戳**（`YYYYMMDD-HHMM`），供给链的是
+    //   `daily-YYYYMMDD-HHMM` ⇒ **两者永不相等**。所以「别人在跑」**根本挡不住本单**，
+    //   在这里等 10 分钟是等一个**不会发生的阻塞** —— 那正是库忙卡的另一种形状。
+    //   ⚠️ 残余（rare，且是**正确行为**不是缺陷）：两次评审若落在**同一分钟**，
+    //     RUN 会同名 ⇒ 链内部 `review_preflight.sh` 照旧 exit 3（fail-closed），
+    //     这一单按库忙处理并由补发队列重试。**那一刻的库忙是真的。**
+    //   判据：`claim_preflight.test.mjs` 的 ①（拆回"见谁都拦" ⇒ 精确变红）。
+    return done({ action: st.state === 'free' ? undefined : 'foreign_run_running',
+                  ran_by: st.detail,
+                  detail: st.state === 'free'
+                    ? '空闲（无认领）'
+                    : '有别的 RUN 在跑（不阻塞本单，按 RUN 分槽）：' + st.detail });
   } catch (e) {
-    return { blocked: false, detail: `认领预检跳过（${e?.message ?? e}）` };
+    // 探不到 / 释放失败 ⇒ 不 blocked，照跑。
+    // ★ 这不是 fail-open 的口子：真正的强制在**链内部**（`kb/l8/review_preflight.sh`
+    //   自己还会认领一次，同 RUN 被占就 exit 3）⇒ 这一层只是**提前**看一眼。
+    return done({ detail: `认领预检跳过（${e?.message ?? e}）` });
   }
 }
 
@@ -1358,17 +1497,104 @@ async function runP0FastPath(text, { reportOut = null, reportRef = '' } = {}) {
  *   「问题数量 / 置信度」这些字段本来就在引擎 JSON 里，却传不出来，于是表里恒空。
  *   `review_run.sh` 跑完把引擎 JSON 的这些字段**原样**落一份小文件，这里读回来。
  *
- * 三条纪律：
- *   ① **只在新鲜时采纳** —— `at` 必须晚于本次起链时刻（防读到上一单的，张冠李戴比没有更坏）；
- *   ② **不做任何换算** —— 引擎给什么就是什么；引擎给 null 就留 null（**不许编**）；
- *   ③ 读不到就**不带这个字段**（落表侧保持原样），**不抛错、不阻断链**。
+ * 四条纪律：
+ *   ① **只在新鲜时采纳** —— `at` 必须晚于本次起链时刻；
+ *   ② ★★ **必须是本单的** —— `token` 必须等于本次起链注入的那个（见下）；
+ *   ③ **不做任何换算** —— 引擎给什么就是什么；引擎给 null 就留 null（**不许编**）；
+ *   ④ 读不到就**不带这个字段**（落表侧保持原样），**不抛错、不阻断链**。
+ *
+ * ══════════════════════════════════════════════════════════════════════════
+ * ★★ 2026-10-08 **身份核对**（Owner 当天截图那一单逼出来的根因）
+ * ══════════════════════════════════════════════════════════════════════════
+ * **病灶**：旁挂是**一个固定文件**（`kb/.work/last_review_result.json`），
+ *   **每一次跑都整份覆盖**——原链、补发、P0、任何并发单，全写同一个路径。
+ *   而采纳判据原先**只有时间**（`at >= sinceMs - 2000`）。
+ *   注释当时写的是「防读到上一单的，张冠李戴比没有更坏」——**它只挡住了"上一单"，
+ *   挡不住"同时在跑的另一单"**：链要跑 2~3 分钟，这期间任何别的跑写完旁挂，
+ *   本单读完 **必然** 拿到**最后写的那一份**，也就是**别人的结论**。
+ *
+ * **实测（Owner 2026-10-08 那张卡，逐条可核）**：
+ *   · 用户发的图，当天被送 6 次，六轮 OCR **逐字相同**（624 字，`ROO MOMCOZY … oay … selcted suppoft`），
+ *     对应内容 ID `AUTO-11edb5e80c35`（报告 `kb/l7/reports/20261008-171250.review.md`）；
+ *   · 而守衡那张卡里引用的却是 `AUTO-a5c77a1ef763`——**另一张图**（报告 `20261008-171611`）；
+ *   · 读旁挂的那一刻，文件里躺的是 `base=RT-20261008-IMG-BEDSHARE`、`content_id=AUTO-43d672880536`
+ *     —— **第三单**的读数。`base` 这个身份字段**一直就在旁挂里，从来没有人核过**。
+ *   ⇒ 后果不只是"数字不对"：结论、问题数、甚至卡片引用的**内容 ID** 都会变成别人的，
+ *     人会照着一张图的审查史去看**另一张图**的结论（Owner 当场就报"回复是错误的"）。
+ *
+ * **修法（不依赖任何一方"记得传"，也不需要 env 穿透）**：旁挂里**新增身份字段
+ *   `text_sha8` = `sha256(question + "\n" + text)` 前 8 位**，由 `review_run.sh` 在
+ *   **两个写入点**各自算一遍写进去；这里用**本单自己那份 question/text** 独立算一遍，
+ *   **只采纳指纹相符的那一份**。
+ *   · 为什么是它：判据正是我们真正要保证的那件事 ——「**这份旁挂是不是审这段文本产生的**」。
+ *   · 试过并且**否掉**的方案：起链时生成一次性令牌、经 env 注入子进程。**实测穿不过去** ——
+ *     2026-10-08 照本工具的方式起 `dsh --profile headless`、注入
+ *     `SHOUHENG_REVIEW_TOKEN=TOKPROBE-7f3a91c2`，让 headless agent 的 bash
+ *     `echo $SHOUHENG_REVIEW_TOKEN` ⇒ 回 `TOKEN=`（**空**）。那一侧的 bash **不继承** env。
+ *     ⇒ 那条路写进注释就是**假承诺**，已删。
+ *   · 缺指纹 / 指纹不符 ⇒ **当作没读到**（回落「库侧没读数」），并**出声**。
+ *     **宁缺勿错**：库规原话「张冠李戴比没有更坏」——这一条现在才真的成立。
  */
-function readReviewSidecar(sinceMs) {
+function readReviewSidecar(sinceMs, textSha8, contentId, reviewToken = '') {
   try {
     const p = path.join(KB_ROOT, 'kb/.work/last_review_result.json');
     const j = JSON.parse(fs.readFileSync(p, 'utf8'));
     const at = Date.parse(j?.at ?? '');
     if (!Number.isFinite(at) || !Number.isFinite(sinceMs) || at < sinceMs - 2000) return null;
+    // ── ★★ 身份核对：**只告警，不拒收**（2026-10-08 第二次回修，理由见下）──────────
+    //   为什么从「拒收」退回「告警」：**实测证明这两把锁对不上，而且不是偶尔对不上**。
+    //   现场数据（委托方 p2p 发同一张床照图，日志逐字）：
+    //     本单（守衡）文本指纹=de388f11 ｜ 内容ID=AUTO-de388f119542
+    //     旁挂（链）  指纹=23da57f1 ｜ 内容ID=AUTO-23da57f188f4
+    //   ——**两把锁内部是自洽的**（守衡那对互相印证 ⇒ 算式没错），
+    //   但链算出来的内容身份与守衡那段文本的哈希**根本不是一个值**：
+    //   链的报告 `kb/l7/reports/rv-20261008-180741.feishu.md` 写着
+    //   `content_version：23da57f188f45c66dd553f00e122949705cfa18d5fcdc5191d1306954e257b3f`，
+    //   而同一份报告的 `用户原提问` 是 **「审一下：这条送审素材能不能发」**（**链自己拟的话**，
+    //   委托方那张图的消息正文是空的）⇒ **链的内容身份算在「它自己组装的那段文本」上**，
+    //   不等于守衡递出去的素材文本。
+    //   ⇒ 判据与事实不符时，**错的是判据**：继续拒收的代价是**每一单都丢掉库侧读数**
+    //     （委托方当场看到「知识库侧本次未参与」，误以为库忙复现）。
+    //   ⇒ 退回**时间口径**（原行为），把不一致**降级为一行告警**：
+    //     证据留着（两个指纹都打出来），但**不再拿它挡读数**。
+    //   ★ 待办（**没做完，别当已完成**）：真正的身份要么走链自己回传的 `review_id` /
+    //     `publish.record_id`（答案里与旁挂里都有，且与文本构造无关），要么让
+    //     `review_run.sh` 回写一个**由守衡注入、链原样带回**的随机数（env 走不通，
+    //     已实测；需要走参数）。**在下一次动它之前，先把「链到底拿哪段文本算 content_version」
+    //     查清** —— 否则又是一次猜。
+    const wantSha = String(textSha8 ?? '').trim();
+    const gotSha = String(j?.text_sha8 ?? '').trim();
+    const wantCid = String(contentId ?? '').trim();
+    const gotCid = String(j?.content_id ?? '').trim();
+    const bySha = !!wantSha && !!gotSha && gotSha === wantSha;
+    const byCid = !!wantCid && !!gotCid && gotCid === wantCid;
+    // ★★ 2026-10-09（Owner 裁定「1 旁挂身份对齐」）：**第一把锁 = 一次性令牌**
+    //   它是我这一侧造的那个素材文件路径，链侧 `--material-file` 收到什么就原样回写什么。
+    //   **与"模型怎么组装文本"完全无关** —— 而这正是原先两把锁一起失效的原因。
+    const wantTok = String(reviewToken ?? '').trim();
+    const gotTok = String(j?.review_token ?? '').trim();
+    const byToken = !!wantTok && !!gotTok && gotTok === wantTok;
+    if (!byToken && !bySha && !byCid) {
+      // ⚠️ 失败要**分得开是哪一级断的**（否则下次还得倒推）：
+      //   · `gotTok` 空 ⇒ headless **没把 `--material-file` 带过去**（这一档要靠它逐字转发）；
+      //   · `gotTok` 有值但不等于 wantTok ⇒ 链读的是**别人那份素材文件**（并发/补发串了）；
+      //   · 两把文本锁也不成立 ⇒ 落到模型逐字那一档，而它不可靠（今天 6/6 没对上）。
+      const why = !wantTok
+        ? '本单没造素材文件（写 /tmp 失败）⇒ 只有文本两把锁，而它们今天 6/6 没对上'
+        : (!gotTok
+          ? '链侧**没收到 --material-file**（旁挂 review_token 为空）⇒ headless 没把路径带过去'
+          : '链侧读的是**另一份素材文件**（review_token 不相等）⇒ 并发/补发串单');
+      console.log(`[review] ⚠️ 旁挂身份对不上（**不拒收，按时间口径采纳**）`
+        + `｜令牌=${byToken ? '✅' : '❌'}（旁挂=${gotTok || '（空）'}）`
+        + `｜文本指纹 ${bySha ? '✅' : '❌'}（本单=${wantSha || '（无）'} 旁挂=${gotSha || '（缺）'}）`
+        + `｜内容ID ${byCid ? '✅' : '❌'}（本单=${wantCid || '（无）'} 旁挂=${gotCid || '（缺）'}）`
+        + `｜旁挂 base=${j?.base ?? '?'}｜旁挂 at=${j?.at ?? '?'}`
+        + `｜断在哪一级：${why}`);
+    } else {
+      // ★ 成功也要出声（一行）：否则"这一单到底靠哪把锁认下来的"无从统计
+      console.log(`[review] ✅ 旁挂身份对齐（${byToken ? '令牌' : (bySha ? '文本指纹' : '内容ID')}）`
+        + `｜base=${j?.base ?? '?'}`);
+    }
     return j;
   } catch {
     return null;   // 文件不在 / 不是 JSON ⇒ 当作没有（**不是**「结论为空」）
@@ -1459,8 +1685,52 @@ register('kb_review_chain', {
     },
   },
   run: async ({ question, text } = {}) => {
-    const task = [String(question ?? ''), String(text ?? ''), REVIEW_HARD_RULES, REVIEW_PLAYBOOK]
+    // ══════════════════════════════════════════════════════════════════════════
+    // ★★ 2026-10-09（Owner 裁定「1 旁挂身份对齐」）**素材落文件 + 一次性令牌**
+    // ══════════════════════════════════════════════════════════════════════════
+    //   根因（今天每一单都复现，6 次）：旁挂的身份判据是
+    //   「把喂给链的文本哈希一遍」，而**喂进去的那段文本是 headless 里的模型自己组装的** ——
+    //   playbook 只写了「逐字传入」，没有任何东西能保证它逐字。于是指纹**从来没对上过**，
+    //   身份核对恒不成立 ⇒ 退化成「按时间口径采纳」⇒ 「链接指向上一张图」。
+    //
+    //   ⇒ 修法：**把身份从"文本"换成"这次运行自己造的那份文件"**。
+    //     · 本函数把素材写成 `/tmp/shouheng-material-<sha8>-<rand>.txt`；
+    //     · 把**路径**写进 task，并明确要求原样带进 `review_run.sh --material-file <路径>`；
+    //     · 链侧以文件为准（`--material-file` 覆盖 `--text`）⇒ **两边哈希同一份字节**；
+    //     · 链侧把**收到的路径**原样回写成旁挂的 `review_token`（与文本构造完全无关）。
+    //   ⇒ 守衡这一侧只需核：旁挂的 `review_token` == 我刚造的那个路径。
+    //     ⚠️ 三级判据（令牌 > 文件指纹 > 内容 ID），**任一成立即认**；全不成立才拒。
+    //       若 headless 没把 `--material-file` 带过去，旁挂 `review_token` 会是空 ⇒
+    //        自动落到「文件指纹」那一级（此时才依赖模型逐字），仍对不上才拒 ——
+    //        所以这两种失败**必须在日志里分得开**（见下面的 why 串）。
+    let materialPath = '';
+    let materialSha8 = '';
+    {
+      const t = String(text ?? '').replace(/[ \t\r\n]+$/, '');
+      materialSha8 = crypto.createHash('sha256').update(t, 'utf8').digest('hex').slice(0, 8);
+      // ⚠️ **用 `/tmp`，不用 `os.tmpdir()`**：后者在 macOS 上是
+      //    `/var/folders/.../T`（`drwx------`，仅属主可进）。虽然守衡与 headless 都以
+      //    `lute` 跑、理论上读得到，但这是**靠权限巧合**；`/tmp` 是双方确定可读的公开位，
+      //    也是飞书 CLI 的既有约定（`lark-cli` 的 `@file` 只认 cwd 之下或 `/tmp` 之下 ——
+      //    见库规那条实测）。素材文件本身不含机密（就是送审素材），放这里无额外暴露。
+      materialPath = `/tmp/shouheng-material-${materialSha8}-${Date.now().toString(36)}.txt`;
+      try { fs.writeFileSync(materialPath, String(text ?? ''), 'utf8'); }
+      catch { materialPath = ''; }        // 写不成就退回老路（不阻断送审）
+    }
+    const materialRule = materialPath
+      ? `\n【★ 本单素材已落盘，路径如下 —— **必须原样带给链**】\n`
+        + `${materialPath}\n`
+        + `调链时用 \`bash kb/l8/review_run.sh ... --material-file ${materialPath}\`，`
+        + `**不要**自己把素材正文重新拼一遍再传（那样两边算出的指纹会对不上，`
+        + `库里就认不出这份旁挂是本单的）。\n`
+    : '';
+    const task = [String(question ?? ''), String(text ?? ''), materialRule, REVIEW_HARD_RULES, REVIEW_PLAYBOOK]
       .map((s) => s.trim()).filter(Boolean).join('\n');
+    // ── 素材文件用后即删（不留在盘上）────────────────────────────────────────
+    //   删在 `finally` 里：链**跑成 / 跑败 / 超时**三种结局都要删，
+    //   否则 `/tmp` 会攒下一堆送审素材（而它们是可以拼出客户内容的）。
+    //   ⚠️ 删除**必须在链跑完之后** —— 链侧要读它算指纹。
+    const cleanupMaterial = () => { if (materialPath) { try { fs.unlinkSync(materialPath); } catch { /* 已删/不存在都无妨 */ } } };
     if (!task) return { error: '问题和素材都为空，没有可送审的内容' };
     if (!fs.existsSync(DSH_BIN)) {
       return { error: `找不到 dsh CLI：${DSH_BIN}（可用环境变量 SHOUHENG_DSH_BIN 覆盖）` };
@@ -1616,21 +1886,61 @@ register('kb_review_chain', {
       };
     }
 
-    // ★ 前置：把跑批认领这道门清干净（陈旧→自愈；被别人占→立刻回话，不耗满 30 分钟）。
-    //   2026-10-05 加 —— 见 preflightClaim 的注释：这两条各值一次 30 分钟。
+    // ★ 前置：清一下陈旧的跑批认领（自愈）。
+    //   2026-10-05 加；2026-10-08 一天里改了两轮，**以 `preflightClaim()` 头注为准**：
+    //     第 1 轮修掉「预检因退出码 bug 恒不生效」；第 2 轮随认领改成**按 RUN 分槽**，
+    //     把「被占就排队等 ≤10 分钟」**删掉** —— 对方的 RUN 与本单永不相等，
+    //     等它只是在等一个不会发生的阻塞。⇒ **`blocked` 今天恒为 false。**
+    //   ⚠️ 这个分支**留着**（不删）：它是「库忙卡」的唯一落点，`preflightClaim` 若将来
+    //     因为任何原因重新可能返回 `blocked`（比如又把某个判定加回预检），
+    //     卡这条路必须还在 —— 删掉它等于让那种改动**静默地**把结论吞掉。
     const pre = await preflightClaim();
     if (pre.blocked) {
+      console.log(`[claim] ⛔ 预检判定本单不能跑（等了 ${pre.waited_min ?? 0} 分钟，探了 ${pre.polls} 次）`
+        + ` ⇒ 本单没送审：${String(pre.detail).slice(0, 160)}`);
       return {
-        error: '知识库**跑批锁被别的会话占着**，本次**没有送审**。'
-             + '这不是"审过了"、也不是"通过"——是**结论未知**。请过几分钟再让他试一次。',
+        error: `知识库**跑批认领没拿到**`
+             + (pre.waited_min ? `（我**替你排队等了 ${pre.waited_min} 分钟**）` : '')
+             + ' ⇒ 本次**没有送审**。'
+             + '这不是"审过了"、也不是"通过"——是**结论未知**。',
         claim_status: pre.detail,
-        hint: '库规要求「同一时间只准一个会话跑这条循环」，所以这里**不抢**；'
-            + '但要抢也只能在陈旧时才放行（脚本口径）。若确认对方已死，'
-            + `可手工：cd "${KB_ROOT}" && sh kb/kbpy l7/scripts/kb_loop_claim.py status`
-            + ' → 陈旧则 release --force。',
+        claim_busy: true,
+        waited_min: pre.waited_min ?? 0,
+        hint: '库规要求「同一个 RUN 同一时间只准一个会话跑」，所以这里**不抢**；'
+            + '要抢只能在对方**陈旧**时才放行（脚本口径），而陈旧是它自己判的。'
+            + '**这一单已进补发队列**（1 小时内最多 5 次）——它会自动重试；'
+            + `也可手工看是谁占着：cd "${KB_ROOT}" && sh kb/kbpy l7/scripts/kb_loop_claim.py status`
+            + '（`history` 看今天被占了几次、占了多久）。',
       };
     }
     const t0 = Date.now();
+    // ★★ 本单身份指纹（详见 readReviewSidecar 头注）：
+    //   `sha256(question + "\n" + text)` 前 8 位 —— 判据是**这次到底审的是哪段文本**。
+    //   ★ 为什么不用「env 注入一次性令牌」：**实测穿不过去**。
+    //     2026-10-08 照 `kb_review_chain` 的方式起 `dsh --profile headless`、
+    //     注入 `SHOUHENG_REVIEW_TOKEN=TOKPROBE-7f3a91c2`，让它 `echo $SHOUHENG_REVIEW_TOKEN`
+    //     ⇒ 回的是 `TOKEN=`（**空**）。headless agent 那一侧的 bash **不继承**本进程的 env，
+    //     所以「令牌经 env 穿透」是**不成立的机制**，写进注释就是假承诺（库规禁这种形状）。
+    //   ⇒ 改用**内容身份**：**只哈希素材文本**，并额外认**链自己算的内容 ID**
+    //     （`contentIdOf`，与链同一算法 —— 落表一直在用它，从没出现过重复行）。
+    //
+    //   ★★ 2026-10-08 **当天就回修了一次，把误伤记在这里**：
+    //     第一版哈希的是 `question + "\n" + text`，判据成了「**同一次提问** ＋ 同一段文本」——
+    //     **太严，当场误伤**。实测（委托方截图那一单）：同一张图（bed-share）
+    //     被 **p2p 新单**与**补发单**各跑一次，`question` 不同（「审核下这张图」vs 原话）
+    //     ⇒ 指纹不符 ⇒ **把本来可用的读数拒掉了** ⇒ 卡片回落成「知识库侧本次未参与（没拿到引擎读数）」
+    //     ⇒ 委托方看到的就是**「库忙又复现了」**（`[review] ⛔ 机读旁挂不是本单的｜本单文本指纹=b5e33261
+    //     旁挂指纹=16c5f528｜旁挂 base=RT-20261008-173328-IMG-BEDSHARE`）。
+    //     **同一内容换句话问，仍然是同一内容** —— 判据该按内容，不该按提问。
+    //
+    //   ★ 两处 rstrip 必须同口径：这里用**只去 ASCII 尾空白**（`[ \t\r\n]`），
+    //     不用 JS 的 `\s`（**含 U+3000**）、也不用 bash 的 `[[:space:]]`（**看 locale**）——
+    //     那两个在两端会对不齐，而「对不齐」的表现就是**静默拒收**。
+    const textForKey = String(text ?? '').replace(/[ \t\r\n]+$/, '');
+    const textSha8 = crypto.createHash('sha256').update(textForKey, 'utf8').digest('hex').slice(0, 8);
+    // 链自己那份内容 ID（`AUTO-<sha256(文本)[:12]>`）—— 拿它当**第二把锁**：
+    // 两把锁任意一把对上就认（同一内容的不同问法走这条），**两把都对不上才拒**。
+    const contentId = reviewPublish.contentIdOf(String(text ?? ''));
     try {
       // cwd 必须是知识库工作区：链上每一步都按 `kb/...` 相对路径找脚本，
       // 而且 AGENTS.md 的工作区指令由 cwd 决定 —— cwd 不对，跑出来的就不是那条链。
@@ -1644,20 +1954,61 @@ register('kb_review_chain', {
           elapsed_ms: Date.now() - t0,
         };
       }
-      const sidecar = readReviewSidecar(t0);
+      const sidecar = readReviewSidecar(t0, textSha8, contentId, materialPath);
+      // ★ 链已跑完、旁挂已读 ⇒ 素材文件**用完就删**（三档结局都走这里之外的 catch 也删）
+      cleanupMaterial();
+      // ★★ 2026-10-08（第七批）：**把「链到底给了我们什么样的回答」原样留一份**。
+      //   为什么要留（**这是我自己踩的坑，记在这免得再踩**）：
+      //     我改 `dual_track.kbFindingsOf`（结构化优先）时，拿**引擎的原始 stdout**
+      //     当样本验的 —— 那片 JSON 里有完整的 `risk_items`（条款号/锚点/`l0_entry_url`），
+      //     测下来「全绿」。**而守衡真正拿到的是 `answer` = headless agent 的最终回答**，
+      //     那是**模型自己组织过的文本**，未必含原始 JSON。
+      //     ⇒ 用错样本 ⇒ 线上依旧印「《知识库》（未给条款号）（锚点：—）」，而我的判据全绿。
+      //   ⇒ 现在把 answer 落一份（**只留前 20000 字符**，够看形状），
+      //     下一轮就能拿**真实样本**复现，不再靠猜。**排查用的中间件，不是产物。**
+      try {
+        const cap = path.join(KB_ROOT, 'kb/.work/last_chain_answer.txt');
+        fs.writeFileSync(cap, `# at=${new Date().toISOString()}\n`
+          + `# base=${sidecar?.base ?? '?'} ｜ answer 长度=${answer.length}\n`
+          + answer.slice(0, 20000));
+      } catch (e) {
+        console.log(`[review] ⚠️ answer 留样没写成（不影响结论）：${e?.message ?? e}`);
+      }
       if (!sidecar) {
         // ★ 缺旁挂要**出声**（库规：缺证据必须可见，不许静默）——
         //   但它**不阻断**：链本身跑成了，结论仍然照转述。
         console.log('[review] ⚠️ 没读到机读旁挂（kb/.work/last_review_result.json 缺失或不新鲜）'
           + ' ⇒ 本单的「问题数量/置信度」落表时会是空的。');
       }
+      // ★★ 2026-10-08（第七批）：引擎 JSON（结构化逐条依据）—— 与旁挂同一条新鲜度纪律。
+      //   读不到 / 不新鲜 ⇒ 不带这个字段，下游**原样退回**从 `answer` 抠中文的老路
+      //   （不许因为新路没通就少报东西）。
+      let engineJson = null;
+      try {
+        const ep = path.join(KB_ROOT, 'kb/.work/last_engine_out.json');
+        const raw = fs.readFileSync(ep, 'utf8');
+        const at = fs.statSync(ep).mtimeMs;
+        if (Number.isFinite(t0) && at >= t0 - 2000) engineJson = JSON.parse(raw);
+        else console.log('[review] ⚠️ 引擎 JSON 不新鲜（早于本次起链）⇒ 不带结构化读数。');
+      } catch (e) {
+        console.log(`[review] ⚠️ 读不到引擎 JSON（${e?.code ?? e?.message}）⇒ 本单逐条依据退回从回答里抠。`);
+      }
       return { ok: true, answer, elapsed_ms: Date.now() - t0,
                ...(sidecar ? { review: sidecar } : {}),
+               // ★★ 2026-10-08（第七批）：**引擎 JSON 作为结构化读数带出去**。
+               //   它是「逐条依据」的唯一权威源（条款号 / 锚点 / source_sha256 /
+               //   命中片段 / `l0_entry_url` 飞书直链），由 `review_run.sh` 原样落盘。
+               //   为什么不让下游从 `answer` 里正则抠：那是**模型组织过的散文**，
+               //   措辞会变、≥3 条时还没有逐条行 ⇒ 抠不到就退回重建版（实测的病灶）。
+               //   与旁挂同一条纪律：**只在新鲜时采纳**（`at` 必须晚于本次起链时刻）。
+               ...(engineJson ? { engine: engineJson } : {}),
                // 自愈过就把这件事带出去（库规：缺前置/异常必须可见，不许静默）
                ...(pre.action ? { preflight: { action: pre.action, detail: pre.detail } } : {}) };
     } catch (e) {
       // execFile 超时后 kill 掉子进程：`killed` 为真或 `code` 为 null。
       const timedOut = e?.killed === true || e?.code === null;
+      // ★ 素材文件用后即删（**失败路径也要删** —— 链跑败/超时同样不该把它留在盘上）
+      cleanupMaterial();
       return {
         error: timedOut
           ? `审查链超时（${Math.round(KB_REVIEW_TIMEOUT_MS / 60000)} 分钟）—— **结论未知，不要当成通过**`
@@ -1682,9 +2033,113 @@ export function toolNames() { return defs.map((d) => `${d.name}(${d.scope})`); }
  * 执行一个工具调用。任何异常都被兜住并转成结构化错误 ——
  * 工具炸掉不应该让整条回复消失，守衡应当能告诉用户「我查这个失败了」。
  */
+/* ═══════════════ 同一条链，一轮里只许跑一次（2026-10-08）═══════════════
+ *
+ * ── 为什么需要这一块：实测的一次真实事故（Owner 2026-10-08 19:08 那张图）
+ *
+ *   19:08:55  有人发图 @守衡
+ *   19:09:00  回执卡「⏳ 处理中…」
+ *   19:11:30  `🧭 送审链返回：跑成｜147386ms`       ← 闸门跑完了，2.5 分钟
+ *   19:11:30  `🧭 落表：updated｜recvxsiDhAWPoU`    ← 结论也落库了
+ *   19:23:55  `🔧 工具: kb_review_chain(709739ms)`  ← ★ 模型**又自己跑了一遍**
+ *   19:23:57  回复 3159 字，耗时 **900041ms**
+ *
+ *   也就是说：**2.5 分钟就判完了，人等了 15 分钟。** 而且第二遍那 709 秒
+ *   **超时没出结果**，模型就把这句写进了对外卡片：
+ *   「我这次实跑 709 秒没出最终回答（结论未知，非通过）」——
+ *   业务同事收到的是**内部故障自述**，还带着自相矛盾的数字（抬头 12 处 / 正文 5 处）。
+ *
+ * ── 为什么会各跑一遍：两个各自都对的部件合起来必然撞车（`AGENTS.md` §2.4.5）
+ *
+ *   · 闸门：`defaultChainRunner` → `executeTool('kb_review_chain', …)`（`agent.mjs`），
+ *     跑完把结论注入提示词（`chainBlock`）。它以为「跑完了模型就知道」。
+ *   · 人设：`persona.mjs` 写着「这类问题，走 `kb_review_chain`」。它以为「没人跑过」。
+ *   **两边都不知道对方存在**，盘上没有任何一处告诉模型「链已经跑完了」。
+ *   历史读数：闸门跑成 **72** 次，模型自己又调 **18** 次 —— 不是偶发。
+ *
+ * ── 代价不止是慢
+ *
+ *   工具描述自己写着「**这是一次真实发布动作**」：重跑 = 往飞书**再写一遍**，
+ *   而第二遍**没有**闸门那行 `落表` 记账。所以这一块同时修两件事：延迟 + 重复写。
+ *
+ * ── 判据为什么定在 `executeTool`（唯一漏斗），不是 `kb_review_chain.run`
+ *
+ *   闸门与模型**都**经 `executeTool`（前者经 `defaultChainRunner` 转发）。
+ *   装在漏斗上，一处就盖住两条路 —— 与 §2.4「上限必须有执行点」同一条思路：
+ *   执行点越少越好，且必须**能指出是哪一行在拦它**。
+ *
+ * ── 三道护栏，缺一道都可能出错（方向不对称：漏跑只是慢，**串轮是答错**）
+ *
+ *   ① **每轮清空**：`agent.mjs` 在调闸门**之前**调 `beginChainTurn()`。
+ *      漏了它，上一轮的结论会被下一轮拿去答一张**没审过的图** —— 这是唯一危险的方向。
+ *   ② **TTL**：`CHAIN_MEMO_TTL_MS`。独立于 ① 的第二道，专治「某条路径绕过了 ①」。
+ *      链本身要跑十几分钟，所以 TTL 从**跑完**那一刻起算，不是从起跑。
+ *   ③ **命中要出声**：每次命中打一行 `[agent] ♻️`，并有 `chainMemoStats()` 计数。
+ *      否则「它到底有没有生效」只能靠猜（§2.4：没红过的断言不算验证过它）。
+ */
+const CHAIN_MEMO_TOOL = 'kb_review_chain';
+const CHAIN_MEMO_TTL_MS = 30 * 60 * 1000;
+
+let chainMemo = null;      // { at:number, envelope:{tool,ok,result} } —— 只装**跑成**的结果
+let chainMemoHits = 0;
+
+/** 一轮的边界：清空上一次的记忆并结算命中数。返回**上一轮**命中了几次。 */
+export function beginChainTurn() {
+  const prevHits = chainMemoHits;
+  chainMemo = null;
+  chainMemoHits = 0;
+  return prevHits;
+}
+
+/** 给日志/`meta` 用的读数：这一轮命中过几次、现在有没有装着缓存。 */
+export function chainMemoStats() {
+  return { hit: chainMemoHits, armed: !!chainMemo };
+}
+
+/* ── 两条**纯**判据。为什么要单独抽出来（§2.4：判据要能被调用）───────────────
+ * 真跑一遍 `executeTool('kb_review_chain', …)` 会**真的起一条链、真的写飞书**
+ * —— 拿它当自证手段，正是 §2.4.4 那个病（跑一次自证，改掉了它要保护的东西）。
+ * 所以「该不该回缓存」「该不该装缓存」这两跳必须是**纯函数**：
+ * 断言直接喂构造出来的 memo/result，一次副作用都不产生。
+ */
+
+/** 该不该回缓存。命中返回那个信封，否则返回 null（null = 照常真跑）。 */
+export function chainMemoLookup({ name, memo, nowMs = Date.now() } = {}) {
+  if (name !== CHAIN_MEMO_TOOL) return null;      // 只管这一条链，别的工具照旧
+  if (!memo || !memo.envelope) return null;       // 没装过
+  if (!Number.isFinite(memo.at)) return null;     // 坏的记忆当没有 —— 宁可重跑，不可乱答
+  if (nowMs - memo.at > CHAIN_MEMO_TTL_MS) return null;   // 过期
+  return memo.envelope;
+}
+
+/** 该不该把这一次的结果装进缓存。**只装跑成的**：`{error}` 是「结论未知」。 */
+export function chainMemoShouldArm({ name, result } = {}) {
+  if (name !== CHAIN_MEMO_TOOL) return false;
+  if (!result || typeof result !== 'object') return false;
+  // 缓存一次失败 = 把「结论未知」钉死一整轮，后面每一次调用都拿不到重试的机会
+  // —— §2.4.2：未测不许与通过长得一样。
+  return !result.error;
+}
+
+/** 只给自证用 —— 让断言能从干净状态起跑、并能构造一个「已经跑过链」的现场。 */
+export function _resetChainMemoForTest() { chainMemo = null; chainMemoHits = 0; }
+export function _armChainMemoForTest(envelope, at = Date.now()) { chainMemo = { at, envelope }; }
+
 export async function executeTool(name, argsJson) {
   const def = byName.get(name);
   if (!def) return { tool: name, ok: false, error: `未知工具：${name}` };
+
+  // ★ 护栏：同一个漏斗、同一轮、同一条链 —— 第二次直接回缓存，不再真跑一遍。
+  //   放在 `byName` 判定**之后**：未知工具仍照旧报错，缓存不改错误语义。
+  //   放在解析参数**之前**：参数坏不坏都不影响「这一轮已经跑过了」这个事实，
+  //   而缓存可用时无须为一个注定不执行的调用先解析 JSON。
+  const hit = chainMemoLookup({ name, memo: chainMemo });
+  if (hit) {
+    chainMemoHits++;
+    console.log(`[agent] ♻️ 这一轮**已经跑过链** —— ${name} 再调一次**回缓存、不重跑**`
+      + `（省掉一次真发布动作：不重复写飞书、不再等十几分钟）`);
+    return hit;
+  }
 
   let args = {};
   if (argsJson && typeof argsJson === 'string') {
@@ -1694,7 +2149,9 @@ export async function executeTool(name, argsJson) {
 
   try {
     const result = await def.run(args);
-    return { tool: name, ok: true, result };
+    const envelope = { tool: name, ok: true, result };
+    if (chainMemoShouldArm({ name, result })) chainMemo = { at: Date.now(), envelope };
+    return envelope;
   } catch (e) {
     return { tool: name, ok: false, error: `${e?.name ?? 'Error'}: ${e?.message ?? e}` };
   }
