@@ -65,9 +65,39 @@ export function reportDir() {
  *   两处都在是有意的：**飞书导入崩掉整份文档**，代价是"报告根本没发出去"，
  *   而这不是守卫过度的场合 —— 转义只影响显示（读者看到 `&lt;img` 而不是 `<img`）。
  */
-export const mdTextSafe = (s) => String(s ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+export const mdTextSafe = (s) => String(s ?? '')
+  .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  // ★ 2026-10-09（Owner 在报告里看到「~~」）：`~` 也要转义 —— 库内原文带 `~~…~~`
+  //   （某人批注痕迹），印进 markdown 后被飞书渲染成**删除线** ⇒「依据」那一行被划掉、
+  //   字段名与内容糊在一起（实测印成 `~~**~~依据~~**~~：…`）。
+  //   `~` 在报告里**不承担任何 markdown 作用**（我们不用删除线）⇒ 转义无副作用；
+  //   不转义则**原文观感被改**，读者会以为那段是被删掉的东西。
+  .replace(/~/g, '&#126;');
 
-/** 来源归到两段里 —— 与 Owner 的要求一致：「库侧问题＋模型侧问题」。 */const isKbSide = (f) => f.source === 'kb' || f.source === 'both' || f.source === 'both-conflict';
+/** 来源归到两段里 —— 与 Owner 的要求一致：「库侧问题＋模型侧问题」。 */
+const isKbSide = (f) => f.source === 'kb' || f.source === 'both' || f.source === 'both-conflict';
+
+/**
+ * 报告头那一行「用户原提问」该印什么。
+ *
+ * 只有**媒材**的单子上，`input.question` 是内核自己拟的那段**探针**（给模型看的读数指令），
+ * 不是对方写的话。原样印进报告头 ⇒ 报告被 35 行 OCR 片段 + 操作规程占满（Owner 报「太丑」）。
+ *
+ * 判据：探针的头注有固定形状（`【对方这条消息里附了…` / `【图片 N…` / `【图 N…` /
+ * `【视频 N…` / `【待读的链接】`）。**只认这些开头**；认不出就**原样印**
+ * （宁可长，不可错删 —— 万一是人真的写了以「【」开头的话）。
+ *
+ * @returns {string} 要印的内容；空串 = 这一行不印
+ */
+export function questionForReport(question) {
+  const raw = String(question ?? '').trim();
+  if (!raw) return { userLine: '', material: '' };
+  // 探针（给模型看的读数指令）：**不进报告正文**，只把里面的素材读数摘出来放附录。
+  if (/^【(对方这条消息里附了|图片\s*\d|图\s*\d|视频\s*\d|待读的链接)/.test(raw)) {
+    return { userLine: '（对方**只发了素材**，没有写问题）', material: raw };
+  }
+  return { userLine: raw, material: '' };
+}
 
 /**
  * 渲染合并报告 markdown（**纯函数**，不碰磁盘、不碰网络 ⇒ 可以直接断言）。
@@ -94,7 +124,17 @@ export function renderMergedReportMd({
   const L = [];
   L.push(`# 内容审查报告 · ${contentId || at || '（未给内容 ID）'}`);
   L.push('');
-  if (String(question).trim()) L.push(`- 用户原提问：${String(question).trim()}`);
+  // ★★ 2026-10-09（Owner：「里面的【图 1 内文字｜35 行】，展示的太丑了」）──────────
+  //   病灶：只有媒材的单子上，`input.question` 是**内核自己拟的那段探针**，
+  //   而报告把它**整段逐字**印进报告头 —— 实测那份报告头里赫然是
+  //   `【对方这条消息里附了图…】` + `【图 1 内文字｜35 行】` + **35 行 OCR 片段**
+  //   + `【/图 1】` + 一大段操作规程 ⇒ 报告头被"给模型看的内部指令"占满，
+  //   读者看到的是一堆断行的碎字（Owner 原话「太丑」）。
+  //   ⚠️ **一个字都没丢**：素材读数本来就在报告正文里（逐条引文 / 附录检索读数）；
+  //      这段探针是**指令**、不是内容。认出来时**如实说清**「对方只发了素材、没写问题」，
+  //      不留空（留空会让人以为漏印）。
+  const q = questionForReport(question);
+  if (q.userLine) L.push(`- 用户原提问：${q.userLine}`);
   L.push(`- 内容 ID：\`${contentId || '—'}\` ｜ 审查时刻：${at || '—'}`);
   L.push(`- 结论：**${state || '—'}** ｜ 问题数量：**${total}**`
     + `（知识库侧 ${kbItems.length} 条 ／ 模型侧 ${modelItems.length} 条）`);
@@ -167,6 +207,23 @@ export function renderMergedReportMd({
     L.push('');
     // ★ `mdTextSafe`：检索命中里**含库内原始 HTML** ⇒ 不转义会让飞书拒收整份文档
     L.push(mdTextSafe(String(hitsBlock).trim()));
+    L.push('');
+  }
+  // ── 附录：机读素材读数（**原样，不作可读化**）──────────────────────────────
+  //   ★ 2026-10-09（Owner：「里面的【图 1 内文字｜35 行】，展示的太丑了」）：
+  //     真相是**它本来就不可读** —— OCR 是**逐行碎片**（版面的列关系在 OCR 那一步就丢了）。
+  //     实测：把它机械合并成段落只会**把不同栏的字揉在一起**（试过，读起来更糟）。
+  //     ⇒ 所以**不假装它可读**：从正文挪到附录、如实标明「机读碎片，供回源核对」，
+  //       正文里只留各条的引文与命中原话。
+  //     ⚠️ 一个字不丢（搬是搬，砍是砍）——它仍是唯一能核对"当时读到了什么"的原始读数。
+  if (q.material) {
+    L.push('## 附录：机读素材读数（原样，供回源核对）');
+    L.push('');
+    L.push('> ⚠️ 这一段是**本机 OCR 的逐行碎片** —— 版面的列关系在 OCR 那一步就丢了，');
+    L.push('> 因此它**读起来不通顺是正常的**（机械合并只会把不同栏的字揉在一起，试过，更糟）。');
+    L.push('> 它的用途只有一个：核对"当时到底读到了什么字"。**不要把它当素材的排版或正文。**');
+    L.push('');
+    L.push(q.material);
     L.push('');
   }
   L.push('---');
