@@ -3845,6 +3845,85 @@ await t('V7 ★ 行为级：本仓建的合并报告，URL 必须**同时**进�
   });
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Z39 ★★（2026-10-09）**水印不许进「给模型看的那一段」**（Owner 第二次来问水印）
+// ══════════════════════════════════════════════════════════════════════════════
+//   病灶（我自己造成的，第二次才被发现）：
+//   同一段图内文字**有两个产者**，改水印时我只改了一个 ——
+//     · `describeMediaRead`（卡片那一格）：已改印 `wlText` ⇒ **干净**；
+//     · `buildImageBlock`（`buildUserTurn({imageBlock})` ⇒ **喂给模型**）：仍印 `im.text` ⇒ **带水印**。
+//   ⇒ 我先答了 Owner「卡片会干净」，却漏了「送进去的还是脏的」：
+//     模型与**报告**那一侧继续拿水印当素材内容（Owner 两轮都在追这件事）。
+//   ⇒ 这一组同时钉**两个产者**：Z38 只钉「判据本身」，钉不住「接线」。
+{
+  const { stripOcrWatermark } = await import('./agent/ocr_watermark.mjs');
+  const { buildImageBlock, describeMediaRead } = await import('./agent/agent.mjs');
+  // 与 Z38 同源的真图 OCR（35 行 + 真实归一化坐标）
+  const REAL = [
+    ['5615 R00', 0.050, 0.777], ['5615 ROOT', 0.349, 0.930], ['刘华丽', 0.278, 0.910],
+    ['刘华丽', 0.874, 0.913], ['#MomAndMore activity calendar', 0.145, 0.844],
+    ['Each Group has its own activities—choose the ones you like and join in.', 0.169, 0.805],
+    ['刘华丽', 0.573, 0.755], ['50', 0.645, 0.781], ['Every week：', 0.329, 0.638],
+    ['1topic activity & i+ comment or game', 0.153, 0.604], ['Sep 15', 0.711, 0.665],
+    ['Mystery', 0.732, 0.609], ['activity', 0.735, 0.583], ['begins', 0.740, 0.555],
+    ['刘华', 0.872, 0.604], ['Week2', 0.527, 0.490], ['Sep 8-14', 0.523, 0.453],
+    ['5615 RO', 0.639, 0.470], ['Week1', 0.184, 0.414], ['Sep 1-7', 0.187, 0.377],
+    ['615', 0.366, 0.329], ['ROO', 0.407, 0.337], ['Week4', 0.527, 0.334],
+    ['Sep 22-28', 0.517, 0.297], ['5615', 0.940, 0.318], ['刘华', 0.872, 0.297],
+    ['Week3', 0.273, 0.259], ['Sep 15-21', 0.268, 0.223], ['5615', 0.646, 0.168],
+    ['Winners', 0.752, 0.233], ['announcements', 0.706, 0.209], ['every weekend', 0.714, 0.180],
+    ['MOMCOZY', 0.410, 0.017], ['4俗丽', 0.877, 0.009], ['50', 0.941, 0.019],
+  ];
+  // 逐字复刻 `readInboundContent` 对每张图做的那一跳（真入口要真图字节，这里只需这一跳）
+  const strip = () => {
+    const text = REAL.map((r) => r[0]).join('\n');
+    const boxes = REAL.map((r) => ({ t: r[0], x: r[1], y: r[2] }));
+    const wm = stripOcrWatermark({ text, boxes });
+    return { index: 1, text, lines: REAL.length, chars: text.length,
+             wlText: wm.text, wmDropped: wm.dropped, wmBasis: wm.basis };
+  };
+  const inbound = () => ({ imageCount: 1, images: [strip()] });
+
+  await t('Z39a ★ 喂给模型的图块不许含水印（这一跳原先印的是 OCR 原文）', async () => {
+    const b = buildImageBlock(inbound());
+    for (const w of ['刘华丽', '刘华', '5615']) {
+      assert.ok(!b.includes(w), `水印进了「给模型看的那一段」：${w}`);
+    }
+  });
+
+  await t('Z39b ★ 卡片那一格同时也不许含水印（两个产者一起钉）', async () => {
+    const read = String(describeMediaRead(inbound()) ?? '');
+    for (const w of ['刘华丽', '刘华', '5615']) {
+      assert.ok(!read.includes(w), `水印进了卡片：${w}`);
+    }
+  });
+
+  await t('Z39c ★★ 反向对照：真内容一个都不许丢（送进去的那份）', async () => {
+    const b = buildImageBlock(inbound());
+    const content = ['#MomAndMore activity calendar', 'Sep 15', 'Week1', 'Week4',
+                     'Winners', 'MOMCOZY', 'Every week：'];
+    const lost = content.filter((c) => !b.includes(c));
+    assert.deepStrictEqual(lost, [], `真内容没进图块：${lost.join(' / ')}`);
+  });
+
+  await t('Z39d 摘了水印必须明写「另摘除水印 N 行」，且行数仍报真读数', async () => {
+    const b = buildImageBlock(inbound());
+    // 行数不许缩水成「正文行数」—— 那是**读到几行**这个真读数（35）
+    assert.ok(/35 行/.test(b), `行数不是真读数：${b.slice(0, 120)}`);
+    assert.ok(/另摘除水印 \d+ 行/.test(b), '摘了水印却不说 —— 模型会以为行数对不上正文');
+    assert.ok(!/另摘除水印 0 行/.test(b), '没摘也印一行「另摘除 0 行」= 噪声');
+  });
+
+  await t('Z39e 没有水印时不许凭空多出一句（反向对照）', async () => {
+    const clean = { imageCount: 1, images: [{ index: 1, text: 'MOMCOZY\nSep 15', lines: 2,
+                                              chars: 13, wlText: 'MOMCOZY\nSep 15',
+                                              wmDropped: [], wmBasis: 'none' }] };
+    const b = buildImageBlock(clean);
+    assert.ok(!/另摘除水印/.test(b), '没摘水印却印了摘除说明');
+    assert.ok(b.includes('MOMCOZY') && b.includes('Sep 15'), '无水印时把内容弄丢了');
+  });
+}
+
 // 汇总必须放在**所有**分组之后（2026-10-09 修：中间那两块重复的汇总+exit
 // 让「第 27 组」与「第 33 组」**从没被执行过**，而合计照样印得像全绿）。
 console.log(`\n═══ 合计：通过 ${pass} / 失败 ${fail} ═══`);

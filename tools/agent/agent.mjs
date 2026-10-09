@@ -389,8 +389,9 @@ export async function readInboundContent(msg, {
         //      而门限是固定数 ⇒ 长素材下「同长度纯噪声」（实测 49.17）都能过 16.0。
         //      详见 2026-10-09 的实测记录；**改门限是另一件事，未做**。
         //   ⇒ 这里做一次**水印摘除**，且**两份都留着**：
-        //     · `text`    = **原文**（卡片显示"我读到了什么"要用它，一个字不许改）；
-        //     · `wlText`  = **摘掉水印后**（`chainInput` 拿它去检索）；
+        //     · `text`    = **原文**（留痕；核对"OCR 到底读到了什么"用它，一个字不许改）；
+        //     · `wlText`  = **摘掉水印后** —— **卡片与送进模型的那段都用它**，
+        //                   也是 `chainInput` 拿去做检索的那份（三处同源，不再各拼一遍）；
         //     · `wm*`     = 留痕（摘了哪些行、靠哪条判据）—— 缺了它，摘除就是不可核的。
         const wm = stripOcrWatermark({ text: r.text, boxes: r.boxes });
         images.push({ index: i + 1, imageKey: k.imageKey, fromParent, bytes: got.bytes,
@@ -540,8 +541,19 @@ export function buildImageBlock(inbound) {
       parts.push(`【图 ${im.index}】这一张取到了（${im.bytes} 字节，${im.w ?? '?'}×${im.h ?? '?'} 像素），`
         + `但**没识别出任何文字** —— 这是「图上没有可读的文字」，不是「读不出来」。`);
     } else {
-      parts.push(`【图 ${im.index} 内文字${im.truncated ? '（已截断）' : ''}｜${im.lines ?? '?'} 行】\n`
-        + `${im.text}\n【/图 ${im.index}】`);
+      // ★★ 2026-10-09（Owner 第二次来问「我重测了，水印还在」）：
+      //   这一格原先印 `im.text`（**OCR 原文、含水印**）。而同一件事的另一个产者
+      //   `describeMediaRead`（卡片那一格）已改印 `wlText` ⇒ **同一段文字两个口径**：
+      //   卡片干净、**喂给模型的这段还带着水印** ⇒ 模型与报告那一侧继续拿水印当素材。
+      //   ⇒ 现在**统一**：送进模型的也是摘掉水印那份（`wlText`），与喂给链的检索文本同源。
+      //   原文一个字没丢（仍在 `im.text`），核对时看日志的摘除明细那一行。
+      //   ⚠️ 行数仍报**读到几行**（`im.lines`，是真读数）；另摘几行**明写**，
+      //     否则模型会怀疑"显示的行数对不上正文"，或反过来把摘掉的当成没读到。
+      const body = String(im.wlText ?? im.text);
+      const dropped = im.wmDropped?.length ?? 0;
+      parts.push(`【图 ${im.index} 内文字${im.truncated ? '（已截断）' : ''}｜${im.lines ?? '?'} 行`
+        + `${dropped ? `，另摘除水印 ${dropped} 行（不是素材内容）` : ''}】\n`
+        + `${body}\n【/图 ${im.index}】`);
     }
   }
   if (inbound.skippedImages) {
