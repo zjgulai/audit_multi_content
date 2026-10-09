@@ -116,6 +116,11 @@ export function renderMergedReportMd({
   //   为什么搬到这儿：卡上那块业务同事看不懂（`BM25 205.88 ｜ 取不到直链 ｜ sha…`），
   //   但它是查证时的依据 ⇒ 不能砍，只能挪（搬是搬，砍是砍）。
   hitsBlock = null,
+  // ★★ 2026-10-09 晚：**从卡上撤下来的媒材读数全文**（`agent.mediaReadAppendix(inbound)`）。
+  //   Owner 原话：「【图 1 内文字｜35 行，另摘除水印 10 行】==》**丑排版**」，
+  //   并对「挪到附录」**点了头**。原文在卡上被切一半、折一行 —— 两头不讨好；
+  //   ⇒ 卡只留读数，**全文落在这里**（搬不是砍）。空串 = 这一节不印。
+  mediaAppendix = '',
 } = {}) {
   const kbItems = merged.filter(isKbSide);
   const modelItems = merged.filter((f) => !isKbSide(f));
@@ -210,6 +215,18 @@ export function renderMergedReportMd({
     L.push('');
   }
   // ── 附录：机读素材读数（**原样，不作可读化**）──────────────────────────────
+  //   ★★ 2026-10-09 晚：**媒材读数全文**先落这里（`mediaAppendix`，Owner 点头的落点）。
+  //     它比下面 `q.material` 那份**更全**：按图/按视频分段、带时间码、带摘除数与判据，
+  //     且**已经摘掉水印**（`q.material` 那份是当时给模型的探针原文，含摘除前的水印）。
+  if (String(mediaAppendix ?? '').trim()) {
+    L.push('## 附录：机读素材读数（全文，供回源核对）');
+    L.push('');
+    L.push('> ⚠️ **卡片上只印读数**（读到几行/几帧、摘掉多少水印）—— 全文落在这里，一个字不丢。');
+    L.push('> 这是**本机 OCR / 抽帧读出来的东西**，不是素材的排版，也不是审查结论。');
+    L.push('');
+    L.push(mdTextSafe(String(mediaAppendix).trim()));
+    L.push('');
+  }
   //   ★ 2026-10-09（Owner：「里面的【图 1 内文字｜35 行】，展示的太丑了」）：
   //     真相是**它本来就不可读** —— OCR 是**逐行碎片**（版面的列关系在 OCR 那一步就丢了）。
   //     实测：把它机械合并成段落只会**把不同栏的字揉在一起**（试过，读起来更糟）。

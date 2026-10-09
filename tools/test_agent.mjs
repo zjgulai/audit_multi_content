@@ -4060,6 +4060,106 @@ await t('V7 ★ 行为级：本仓建的合并报告，URL 必须**同时**进�
   });
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Z41 ★★（2026-10-09 晚）**卡片只留读数，全文进报告附录**
+// ══════════════════════════════════════════════════════════════════════════════
+//   Owner 原话：「【图 1 内文字｜35 行，另摘除水印 10 行（不是素材内容）】==》**丑排版**」，
+//   并为「把原文挪到附录」这个方向**点了头**（「你下午修复过一次，把排版丑放到附录中==》可以的」）。
+//
+//   病灶：卡片正文里塞着 **35 行 OCR 碎片**，被 `cut(200)` 切一半、又用 ` / ` 折成一行 ——
+//     既不是给人看的（碎片本就不通顺），也不是给回源核对的（切了一半）。
+//   结构上它出现在**两个地方**（卡片 + 报告），而两份都是"半截"。
+//
+//   ⇒ 分工：**卡片给业务看读数**（读到几行、摘掉几行水印），**报告附录给回源核对全文**。
+//     ⚠️ **搬不是砍**：全文必须真的落进报告附录（先证明报告接得住，再从卡上撤）。
+//     ⚠️ 卡上仍要**看得见**摘了多少行水印（那是"我处理过了"的读数，不是内容）。
+{
+  const { describeMediaRead, mediaReadAppendix } = await import('./agent/agent.mjs');
+  const { renderMergedReportMd } = await import('./agent/merged_report.mjs');
+  // 真图真数据（同 Z38/Z39）：35 行 OCR + 真坐标 + 真摘除结果
+  const REAL35 = [
+    '5615 R00', '刘华丽', '刘华問', '#MomAndMore activity calendar', '5615 R00',
+    'Each Group has its own activities—choose the ones you like and join in.', 'Every week：',
+    '1topic activity & i+ comment or game', 'Sep 15', 'Mystery', 'activity', 'begins', '5',
+    '刘华問', 'Week2', 'Sep8-14', '5615 RC', 'Week1', 'Sep 1-7', '5615 ROOT', 'Week4',
+    'Sep 22-28', '5615', '刘华', 'Week3', 'Sep 15-21', '5615', 'Winners', 'announcements',
+    'every weekend', '华', '八613', 'MOMCOZY', '1化司', '5615',
+  ];
+  const inboundImg = () => ({
+    imageCount: 1,
+    images: [{
+      index: 1, lines: 35, chars: 359, truncated: false,
+      text: REAL35.filter((l) => !/5615|刘华丽|刘华問|刘华/.test(l)).join('\n'),
+      textRaw: REAL35.join('\n'),
+      wmDropped: ['5615 R00', '刘华丽', '刘华問', '5615 R00', '刘华問', '5615 RC', '5615 ROOT',
+                  '5615', '刘华', '5615'],
+      wmBasis: 'core-tiled-at-different-positions',
+    }],
+  });
+  const inboundVid = () => ({
+    videoCount: 1,
+    videos: [{ index: 1, meta: { duration_s: 68.9 }, framesRead: 2, framesFailed: 0,
+               frames: [{ t_s: 4.3, text: 'Momeozy Wellness 1 vs Euiy S1 Pro' },
+                        { t_s: 12.91, text: 'Eufy S1 Pro has a single layer' }] }],
+  });
+
+  await t('Z41a ★ 卡片那一格**不再塞 OCR 碎片**（只留读数）', async () => {
+    const read = String(describeMediaRead(inboundImg()) ?? '');
+    // 锚定「图上文字：」那一行里**只有读数**，不许再跟 OCR 碎片
+    //   （⚠️ 别拿 `Winners` 这类词判：视频预览里也有同名字幕，会假红 —— 第一版就这么栽的）
+    const line = read.split('\n').find((l) => l.startsWith('图上文字：')) ?? '';
+    assert.ok(/图 1：读到 35 行/.test(line), `卡上没报读到几行：${line}`);
+    assert.ok(/另摘除水印 10 行/.test(line), `卡上没报摘掉几行水印（处理凭据，不许省）：${line}`);
+    assert.ok(!/activity calendar|announcements|MOMCOZY/.test(line),
+      `图上文字那一行里还塞着 OCR 碎片（就是 Owner 说的「丑排版」）：${line}`);
+    assert.ok(/全文见报告附录/.test(line), '卡上撤了原文却没说去哪儿找 —— 那是「砍」不是「搬」');
+  });
+
+  await t('Z41b ★★ 报告附录**必须接得住全文**（搬不是砍 —— 先证明有落点）', async () => {
+    const md = String(mediaReadAppendix(inboundImg()) ?? '');
+    assert.ok(md.includes('#MomAndMore activity calendar'), '报告附录没有全文');
+    assert.ok(md.includes('Winners') && md.includes('MOMCOZY'), '附录被截断了 —— 那就不是「搬」是「砍」');
+    // 关键：附录里**必须说明它是碎片**，否则下一个人又会拿它当正文去排版
+    assert.ok(/碎片|逐行|不要把它当/.test(md), '附录没说明这是 OCR 逐行碎片');
+  });
+
+  await t('Z41c ★ 视频那一侧**刻意不同**：帧文字保留带时间码的压缩预览（Owner 点名要 00:12）', async () => {
+    const read = String(describeMediaRead(inboundVid()) ?? '');
+    // ⚠️ 这里**不许**照图那一侧一起撤掉 —— 帧文字是成句可读的，且 Owner 点名要时间码。
+    //    撤的时候 Z33a（时间码必须上卡）当场变红，那一次红得对，所以分开处理。
+    assert.ok(read.includes('[00:04]') && read.includes('[00:12]'),
+      `卡上丢了时间码（Owner 点名要的那一条）：${read.slice(0, 160)}`);
+    assert.ok(read.includes('Eufy S1 Pro has a single layer'), '视频预览里没有任何帧文字了');
+    const md = String(mediaReadAppendix(inboundVid()) ?? '');
+    assert.ok(md.includes('[00:04]') && md.includes('[00:12]'),
+      `报告附录的帧文字没带时间码：${md.slice(0, 160)}`);
+    assert.ok(md.includes('Eufy S1 Pro has a single layer'), '附录没收到第二个帧的文字');
+  });
+
+  await t('Z41d 反向对照：没带媒材时，附录**不许凭空造一节**出来', async () => {
+    assert.strictEqual(String(mediaReadAppendix({}) ?? ''), '', '没有媒材却产出了附录');
+    assert.strictEqual(String(mediaReadAppendix(null) ?? ''), '', 'null 入参不许炸');
+  });
+
+  await t('Z41e 接线：报告**必须**把这一节带进正文（不接=又一处「改了但没人读」）', async () => {
+    const src = fs.readFileSync(new URL('./agent/agent.mjs', import.meta.url), 'utf8');
+    assert.ok(/mediaReadAppendix\(inbound\)/.test(src),
+      '`renderMergedReportMd` 的调用里没有 `mediaReadAppendix(inbound)` —— 附录没接进报告');
+    // 且必须真的传进去（算出来不用 = 白算）
+    const i = src.indexOf('renderMergedReportMd({');
+    assert.ok(/mediaAppendix\s*:/.test(src.slice(i, i + 1200)),
+      '算出了附录却没传给 `renderMergedReportMd`');
+  });
+
+  await t('Z41f 报告渲染器真的会印这一节（纯函数直调）', async () => {
+    const apx = String(mediaReadAppendix(inboundImg()) ?? '');
+    const md = renderMergedReportMd({ merged: [], total: 0, state: 'REVIEW', line: 'x',
+                                      question: '', mediaAppendix: apx });
+    assert.ok(md.includes('#MomAndMore activity calendar'), '报告正文里没有附录那一段');
+    assert.ok(/^# /m.test(md), '第一行必须仍是 H1（飞书 docs +create 靠它定标题）');
+  });
+}
+
 // 汇总必须放在**所有**分组之后（2026-10-09 修：中间那两块重复的汇总+exit
 // 让「第 27 组」与「第 33 组」**从没被执行过**，而合计照样印得像全绿）。
 console.log(`\n═══ 合计：通过 ${pass} / 失败 ${fail} ═══`);

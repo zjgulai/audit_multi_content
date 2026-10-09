@@ -896,6 +896,8 @@ export async function runSubmissionGate({
             merged: itemsWithAdvice, total: rendered0.total, state, line: rendered0.line,
             // ★ 卡上撤下来的检索读数 → 报告附录（搬不是砍）
             hitsBlock: rendered0.hitsBlock ?? null,
+            // ★★ 2026-10-09 晚：卡上撤下来的**媒材读数全文**（Owner 点头「放到附录」）
+            mediaAppendix: mediaReadAppendix(inbound),
             question, contentId: kbSide?.contentId ?? '', at,
             kbGap: rendered0.kbGap, kbTextCount: kb.findings.length,
             modelCount: model?.findings?.length ?? 0,
@@ -1378,14 +1380,18 @@ export function describeMediaRead(inbound, { raw = false } = {}) {
     //     不再两处各拼一遍）；原文一个字没丢（仍在 `i.text`），核对时看日志的摘除明细。
     //   ⚠️ 摘掉的行**只报条数、不列内容** —— 列出来等于把水印又放回卡上（第一版就是这样，等于没摘）。
     if (got.length) {
+      // ★★ 2026-10-09 晚（Owner：「【图 1 内文字｜35 行，另摘除水印 10 行】==》丑排版」）：
+      //   卡上从前把 35 行碎片折成一行、切到 200 字。**两头不讨好**：
+      //   业务读不懂（碎片本就不通顺），回源也核不了（切了一半）。
+      //   ⇒ 卡上**只留读数**（读到几行、摘掉几行水印），**全文进报告附录**
+      //     （`mediaReadAppendix`，唯一落点，一个字不丢；Owner 已点头这个方向）。
+      //   ⚠️ 摘掉水印的行**只报条数、不列内容** —— 列出来等于把水印又搬回卡上。
+      //   ⚠️ 原文**没有删**：`i.text` 仍在 `inbound` 里，报告附录印的就是它。
       const parts = got.map((i) => {
-        // `raw`（诊断日志）取 OCR 原文 `textRaw`；默认（卡片）取摘除后那份 `text`。
-        // 现在 `text` 本身就是干净的 ⇒ 这里**不需要**再挑 `wlText`，少一处会漏的地方。
-        const body = cut(String((raw ? (i.textRaw ?? i.text) : i.text) ?? ''));
         const n = i.wmDropped?.length ?? 0;
-        return n ? `${body}（另摘除水印 ${n} 行）` : body;
+        return `图 ${i.index}：读到 ${i.lines ?? '?'} 行${n ? `，另摘除水印 ${n} 行` : ''}`;
       });
-      out.push(`图上文字：${parts.join(' ／ ')}`);
+      out.push(`图上文字：${parts.join(' ／ ')}（**全文见报告附录**「机读素材读数」）`);
     }
     for (const f of failed) out.push(`图 ${f.index} 读失败：${f.failed}`);
   }
@@ -1404,13 +1410,95 @@ export function describeMediaRead(inbound, { raw = false } = {}) {
           : (t.kind === 'no_speech' ? '音轨里没人说话' : `音轨转写没跑成（${t.kind ?? '?'}）`));
       out.push(`视频 ${v.index}：${Number(v.meta?.duration_s ?? 0).toFixed(1)} 秒`
         + `｜抽帧 OCR ${v.framesRead ?? 0}/${v.frames?.length ?? 0} 帧（共 ${v.ocrChars ?? 0} 字）｜${audio}`);
-      // ★ 「一帧都没读到字」也要**明说**：不说的话，读到的 0 字与没读长得一样，
-      //   而这两件事的下一步完全不同（一个是素材本身没字，一个是我的读取坏了）。
+      // ★★ 2026-10-09 晚（Owner：「【图 1 内文字｜35 行，另摘除水印 10 行】==》**丑排版**」）：
+      //   卡上**不再平铺图内文字全文** —— 那 35 行 OCR 碎片被 `cut(200)` 切一半、
+      //   又用 ` / ` 折成一行：既不是给人看的（碎片本就不通顺），也不是给回源核对的（切了一半）。
+      //   ⇒ **图**：卡片只留读数（读到几行、摘掉几行水印），全文进报告附录（`mediaReadAppendix`）。
+      //   ⚠️ **视频不一样，这是刻意的，别顺手统一**：帧文字是**成句的一句话**
+      //     （`Eufy S1 Pro has a single layer`，可读），而且 Owner **点名要卡上看得见时间码**
+      //     （`[00:12]`）—— 把整块撤掉会连那个一起弄没（Z33a 就是这条，撤的时候当场变红）。
+      //     ⇒ 视频保留**带时间码的压缩预览**（前几帧），全文仍进附录。
       const per = (v.frames ?? []).map(frameText).filter(Boolean);
-      out.push(per.length ? `帧上文字：${cut(per.join(' ／ '))}` : '帧上文字：**一帧都没读到字**');
+      const preview = per.slice(0, 3);
+      out.push(preview.length
+        ? `帧上文字：${cut(preview.join(' ／ '), 150)}`
+          + (per.length > preview.length
+            ? `…（共 ${per.length} 帧有字，**全文见报告附录**「机读素材读数」）` : '')
+        : '帧上文字：**一帧都没读到字**（这不等于「画面没问题」）');
     }
   }
   return out.length ? out.join('\n') : null;
+}
+
+/**
+ * 报告附录：**媒材读数的全文**（图内文字 + 关键帧文字/转写）—— 与卡片那格**分工**。
+ *
+ * ★★ 2026-10-09 晚加（Owner 点头：「把排版丑放到附录中==》可以的」）：
+ *   卡片上原先把 35 行 OCR 碎片折成一行、切到 200 字 —— **两头不讨好**：
+ *   业务读不懂（碎片本就不通顺），回源也核不了（切了一半）。
+ *   ⇒ 全文搬到**报告附录**（唯一落点），卡片只留读数。**搬不是砍**：
+ *     · 图：`text`（摘除水印后那份，与卡/模型/链同源）+ 另摘了几行（只报条数，不列内容）；
+ *     · 视频：`frameLine()` 逐帧（**带时间码**，`[00:12]` 口径）+ 音轨转写；
+ *     · 读不到/没字的**如实写**（未测 ≠ 没有）。
+ *   ⚠️ 没有媒材 ⇒ 回**空串**（不许凭空造一节 —— 报告里多一节空壳也是噪声）。
+ *   ⚠️ 这里印的是**机读碎片**，必须自带说明：否则下一个人又会拿它当"素材的排版"去读。
+ *
+ * @param {object|null} inbound `readInboundContent()` 的产物
+ * @returns {string} markdown 片段（空串 = 这一节不印）
+ */
+export function mediaReadAppendix(inbound) {
+  if (!inbound || (!inbound.imageCount && !inbound.videoCount)) return '';
+  const L = [];
+  const imgs = inbound.images ?? [];
+  if (inbound.imageCount && imgs.length) {
+    L.push('### 图内文字（本机 OCR 逐行碎片）');
+    L.push('');
+    L.push('> ⚠️ 这是**逐行碎片** —— 版面的列关系在 OCR 那一步就丢了，**读起来不通顺是正常的**。');
+    L.push('> 用途只有一个：核对「当时到底读到了什么字」。**不要把它当素材的排版或正文。**');
+    L.push('> 水印/印章类文字**已摘除**（摘了几行只说条数、不列内容 —— 列出来等于把水印又搬回来）。');
+    L.push('');
+    for (const i of imgs) {
+      if (i.failed) { L.push(`- **图 ${i.index}**：读失败（${i.failed}）`); continue; }
+      const n = i.wmDropped?.length ?? 0;
+      L.push(`- **图 ${i.index}**（读到 ${i.lines ?? '?'} 行${i.truncated ? ' · 已按字数上限截断' : ''}`
+        + `${n ? ` · 另摘除水印 ${n} 行` : ''}${i.wmBasis && i.wmBasis !== 'none' ? ` · 判据 \`${i.wmBasis}\`` : ''}）：`);
+      L.push('');
+      L.push('```');
+      L.push(String(i.text ?? '').trim() || '（这一张没读出文字）');
+      L.push('```');
+      L.push('');
+    }
+  }
+  const vids = inbound.videos ?? [];
+  if (inbound.videoCount && vids.length) {
+    L.push('### 关键帧文字与音轨转写');
+    L.push('');
+    for (const v of vids) {
+      if (v.failed) { L.push(`- **视频 ${v.index}**：读失败（${v.failed}）`); continue; }
+      L.push(`- **视频 ${v.index}**（${Number(v.meta?.duration_s ?? 0).toFixed(1)} 秒 · `
+        + `抽帧 OCR ${v.framesRead ?? 0}/${v.frames?.length ?? 0} 帧）：`);
+      L.push('');
+      const per = (v.frames ?? []).map((f) => video.frameLine(f, { indent: false })).filter(Boolean);
+      L.push('```');
+      L.push(per.length ? per.join('\n') : '（一帧都没读到字）');
+      L.push('```');
+      L.push('');
+      const t = v.transcript ?? {};
+      if (t.ok && String(t.text ?? '').trim()) {
+        L.push('音轨转写：');
+        L.push('');
+        L.push('```');
+        L.push(String(t.text).trim());
+        L.push('```');
+        L.push('');
+      } else {
+        L.push(`音轨：${t.kind === 'no_audio_track' ? '**没有音轨**'
+          : (t.kind === 'no_speech' ? '音轨里没人说话' : `转写没跑成（${t.kind ?? '未测'}）`)}`);
+        L.push('');
+      }
+    }
+  }
+  return L.join('\n').trim();
 }
 
 export function buildUserTurn({ questionText = '', imageBlock = '', videoBlock = '', chainBlock = '' } = {}) {
