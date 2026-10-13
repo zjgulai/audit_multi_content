@@ -875,6 +875,59 @@ head('J13 查证笔记 · 不上卡、但要答得出来（Owner 2026-10-13 三�
     } else ok('J14d 接线：agent 算出 p0Boundary ＋ daemon 接住并转发');
   }
 
+/* ── J16 卡脚那条边界**收在折叠区里**（2026-10-13，Owner：「这段内容可以隐藏吗？」）──
+ *  Owner 贴的是群卡片的卡脚：
+ *    `*未命中≠合规；顶层 state=REVIEW，依据侧 refusal=NEEDS_INPUT/coverage_not_covered；
+ *      表里 0=未判定非零风险；模态为申报档。*`
+ *  —— 那是**模型写的**（全仓 grep 不到），而它当时**平铺在卡脚**。
+ *  ⇒ 收进折叠面板「边界与口径」（默认收起）。**隐藏 ≠ 删掉**：点开就在。
+ *
+ *  ⚠️ 写这一组时才发现的另一件事：**这件事原先没有任何东西在看着** ——
+ *    改完形状（`hr + markdown` → `collapsible`）**311 项判据一条都没红**。
+ *    所以下面这几条是**新长出来的眼睛**，不是给旧行为搬家。
+ */
+head('J16 卡脚边界 · 收在折叠区里，但一个字都不许丢');
+{
+  const { evidence: buildEvidence } = await import(path.join(CARDS_DIR, 'cards.mjs'));
+  const BND = '未命中≠合规；顶层 state=REVIEW，依据侧 refusal=NEEDS_INPUT/coverage_not_covered。';
+  // J16a 必须在折叠面板里，且**默认收起**
+  {
+    const c = buildEvidence({ verdict: 'v', groups: [{ title: '审查结论', content: 'x' }], boundary: BND });
+    const panel = (c.body.elements ?? []).find((e) => e.tag === 'collapsible_panel'
+      && /边界/.test(String(e.header?.title?.content ?? '')));
+    if (!panel) no('J16a 卡脚边界必须在折叠面板里', JSON.stringify((c.body.elements ?? []).map((e) => e.tag)));
+    else if (panel.expanded !== false) no('J16a 卡脚边界必须**默认收起**', `expanded=${panel.expanded}`);
+    else ok('J16a 卡脚边界收在折叠面板「边界与口径」里，默认收起（Owner：可以隐藏吗 → 能）');
+  }
+  // J16b **隐藏 ≠ 删掉**：内容一个字都不许少
+  {
+    const c = buildEvidence({ verdict: 'v', boundary: BND });
+    const whole = JSON.stringify(c);
+    if (!whole.includes('coverage_not_covered') || !whole.includes('未命中≠合规')) {
+      no('J16b 收起来 ≠ 删掉（点开必须还在）', whole.slice(0, 140));
+    } else ok('J16b 收起来但一个字没丢（点开就在）');
+  }
+  // J16c 反向对照：**没有边界就不许造**一个空的折叠面板出来
+  {
+    const c = buildEvidence({ verdict: 'v' });
+    const empty = (c.body.elements ?? []).some((e) => e.tag === 'collapsible_panel'
+      && /边界/.test(String(e.header?.title?.content ?? '')) && !e.elements?.length);
+    if (empty) no('J16c 反向对照：没有边界不许造一个空面板', '冒出了空的「边界与口径」');
+    else if (JSON.stringify(c).includes('边界与口径')) no('J16c 反向对照：没有边界就不印', '冒出了「边界与口径」');
+    else ok('J16c 反向对照：没有边界就不印（不造空壳）');
+  }
+  // J16d **一条规矩五处共用**：源码里不许再有「hr + 斜体 boundary」那种平铺写法
+  //   （少了这一条，下一次谁在某个卡片里加回平铺，上面三条照样绿）
+  {
+    const src = fs.readFileSync(path.join(CARDS_DIR, 'cards.mjs'), 'utf8');
+    const flat = (src.match(/hr\(\),\s*md\(`\*\$\{s\(d\.boundary\)\}\*`\)/g) || []).length;
+    const shared = (src.match(/boundaryEl\(d\.boundary\)/g) || []).length;
+    if (flat) no('J16d boundary 不许再有平铺写法（hr + 斜体）', `还剩 ${flat} 处`);
+    else if (shared !== 5) no('J16d 五种卡片的 boundary 必须都走共用件', `实际 ${shared} 处`);
+    else ok(`J16d 五处 boundary 全走共用件 boundaryEl()（${shared} 处，无平铺残留）`);
+  }
+}
+
 /* ─────── J15 报告链接**不许在一张卡上出现两次**（2026-10-13，Owner 那张视频卡）───────
  *  实测那张卡（真实结构复原）：可见格是「我读到了 ＋ → 查看完整问题清单与修改建议：…」，
  *  而下面「审查结论」那一组（**默认展开**）里，链接又是结论行下面第二行 ——

@@ -206,6 +206,31 @@ export function band(elements, style) {
 }
 
 /** 折叠面板（探针 5/7 通过）。长证据默认收起——这是「中位数 791 字」的直接解法。 */
+/**
+ * **卡脚那条边界（`boundary`）—— 收进折叠区**（2026-10-13，Owner 当场问的）。
+ *
+ * Owner 原话：「飞书群里回复的这段内容**可以隐藏吗**？」他贴的是群卡片的卡脚：
+ *   `*未命中≠合规；顶层 state=REVIEW，依据侧 refusal=NEEDS_INPUT/coverage_not_covered；
+ *     表里 0=未判定非零风险；模态为申报档。*`
+ * —— 那是**模型写的**（全仓 grep 不到这些字），而它现在**平铺在卡脚**。
+ *
+ * 收起来的两个理由，都不是审美：
+ *   ① **本仓自己的规矩**：`agent-skills/守衡语域/SKILL.md` 第 7 条 ——
+ *      **内部详情只进折叠区**。这一段里带 `coverage_not_covered` / `refusal=` / `E5` 这类
+ *      内部标识，按规矩本来就不该平铺；`envelope` 的 `internalLeak` 只认工具名/指纹/栈帧，
+ *      认不出引擎状态码，所以它一直是绿的。
+ *   ② **一条规矩、五处共用**：`query-answer` / `correction` / `capability-boundary` /
+ *      `find-nothing` / `evidence` 原先各自写一遍 `hr() + md('*…*')`。
+ *      留一处、改一处 —— 否则会出现「有的卡折、有的卡不折」，而 Owner 刚抱怨过那种随机感。
+ *
+ * ⚠️ **隐藏 ≠ 删掉**：点开就在（`collapsible`，默认收起）。
+ * ⚠️ **纯文本降级时它不会出现**（`renderText` 把折叠面板渲染成「（已收起 N 条证据：…）」）——
+ *    这正是 §2.3 那条：「纯文本没有折叠区可放 ⇒ 那一句就根本不写」。
+ */
+export function boundaryEl(text) {
+  return collapsible('边界与口径', [md(`*${s(text)}*`)], false);
+}
+
 export function collapsible(title, inner, expanded = false) {
   return {
     tag: 'collapsible_panel',
@@ -253,7 +278,7 @@ export function queryAnswer(d = {}) {
   if (d.reasoning) els.push(md(s(d.reasoning)));
   if (d.fields?.length) els.push(fieldRow(d.fields));
   if (d.evidence?.length) els.push(collapsible(`证据 · ${d.evidence.length} 条`, [s(d.evidence.join('\n'))]));
-  if (d.boundary) els.push(hr(), md(`*${s(d.boundary)}*`));
+  if (d.boundary) els.push(boundaryEl(d.boundary));
   return card(TONE['query-answer'], s(d.title ?? d.verdict), d.subtitle, els);
 }
 
@@ -273,7 +298,7 @@ export function correction(d = {}) {
   const els = [md(`**错在哪**：${s(d.wrong)}`), md(`**正确的是**：${s(d.right)}`)];
   if (d.cause) els.push(md(`**为什么错**：${s(d.cause)}`));
   if (d.fields?.length) els.push(fieldRow(d.fields));
-  if (d.boundary) els.push(hr(), md(`*${s(d.boundary)}*`));
+  if (d.boundary) els.push(boundaryEl(d.boundary));
   return card(TONE['correction'], s(d.title ?? '我上一条说错了'), d.subtitle, els);
 }
 
@@ -286,7 +311,7 @@ export function capabilityBoundary(d = {}) {
   if (d.cannot?.length) cols.push({ content: `**做不到**\n${d.cannot.map((x) => `- ${x}`).join('\n')}` });
   if (cols.length) els.push(columns(cols));
   if (d.evidence) els.push(collapsible('依据', [s(d.evidence)]));
-  if (d.boundary) els.push(hr(), md(`*${s(d.boundary)}*`));
+  if (d.boundary) els.push(boundaryEl(d.boundary));
   return card(TONE['capability-boundary'], s(d.title ?? '我能做什么'), d.subtitle, els);
 }
 
@@ -299,7 +324,7 @@ export function findNothing(d = {}) {
   }
   if (d.tried) els.push(collapsible('检索动作明细', [s(d.tried)]));
   if (d.nextStep) els.push(md(`**需要你补什么**：${s(d.nextStep)}`));
-  if (d.boundary) els.push(hr(), md(`*${s(d.boundary)}*`));
+  if (d.boundary) els.push(boundaryEl(d.boundary));
   return card(TONE['find-nothing'], s(d.title ?? '没找到'), d.subtitle, els);
 }
 
@@ -367,7 +392,7 @@ export function evidence(d = {}) {
                          [s(g.content)], g.expanded ?? false));
   }
   if (d.fields?.length) els.push(fieldRow(d.fields));
-  if (d.boundary) els.push(hr(), md(`*${s(d.boundary)}*`));
+  if (d.boundary) els.push(boundaryEl(d.boundary));
   return card(TONE['evidence'], s(d.title ?? '证据'), d.subtitle, els);
 }
 

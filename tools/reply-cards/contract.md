@@ -126,7 +126,7 @@
 
 字段：`title`（**写结论本身**，不写「关于 X 的答复」）· `verdict`（≤60 字）· `reasoning`（可选）· `fields`（≤4 个）· `evidence`（收起）· `boundary`（一行，没有就不填）
 
-形状：`markdown · markdown · column_set(3栏) · collapsible(收起) · hr · markdown`
+形状：`markdown · markdown · column_set(3栏) · collapsible(收起) · collapsible(收起)`
 
 ---
 
@@ -151,7 +151,7 @@
 
 字段：`wrong`（错在哪，**引自己原话**）· `right` · `cause`（错在哪个环节，**是归因不是道歉**）· `boundary`
 
-形状：`markdown · markdown · markdown · column_set(1栏) · hr · markdown`
+形状：`markdown · markdown · markdown · column_set(1栏) · collapsible(收起)`
 
 ---
 
@@ -161,7 +161,7 @@
 
 字段：`can`（每条带一句边界）· `limited`（有硬上限的）· `cannot`（**直接说做不到**，不用「暂时」软化，除非真有计划）· `evidence`（收起）· `boundary`
 
-形状：`markdown · column_set(3栏) · collapsible(收起) · hr · markdown`
+形状：`markdown · column_set(3栏) · collapsible(收起) · collapsible(收起)`
 
 ---
 
@@ -172,7 +172,7 @@
 
 字段：`paths`（`{where, how, result}`，**每一处都要写**，漏写等于谎报覆盖）· `tried`（收起）· `nextStep` · `boundary`
 
-形状：`markdown · markdown · table(3行) · collapsible(收起) · markdown · hr · markdown`
+形状：`markdown · markdown · table(3行) · collapsible(收起) · markdown · collapsible(收起)`
 
 ---
 
@@ -232,7 +232,7 @@
 
 字段：`verdict` · `groups`（`{title, content, count, expanded}`，**默认 `expanded: false`**）· `fields` · `boundary`
 
-形状：`markdown · collapsible(收起) · collapsible(收起) · column_set(2栏) · hr · markdown`
+形状：`markdown · collapsible(收起) · collapsible(收起) · column_set(2栏) · collapsible(收起)`
 
 > ★★ **评审单：模型原话那一组默认不建**（2026-10-13，Owner 当场给的原文）。
 > 代码建卡（`envelope.mjs` 的 `autoCard`）原先把模型这一轮的整段原话放进一组
@@ -394,7 +394,7 @@
 | 降级链（卡 → 文本，两处兜底合并为一处） | ✅ 完成 |
 | 提示词打包（类型清单与登记表现算，不手抄） | ✅ 完成（`persona.cardContract()`） |
 | 去 AI 味内容级检查（7 条） | ✅ 完成（`lintCopy()`） |
-| 自证 | ✅ `node tools/verify_cards.mjs`，311 项全过 |
+| 自证 | ✅ `node tools/verify_cards.mjs`，315 项全过 |
 | **接进 `ws_daemon.mjs` 的发送路径** | ✅ **已接入**。每条回复过 `toCardOrText()`，形态 / 搬迁 / 语域命中都落日志 |
 | **群里真实渲染效果** | ⚠️ **未由人眼确认**。探针只验了「接口收下」，没验「群里长什么样」 |
 | **按钮回调** | ❌ **未接住**。`ws_daemon` 收到 `card.action.trigger` 只记日志。所以模版里的按钮目前点不动 |
