@@ -667,10 +667,38 @@ head('J 信封 · 解析、上限执行、以及「标记不许漏进群」');
     if (groups[0]?.count !== undefined) {
       no('J11b2 第一组不许带计数占位（发过「· 0」）', JSON.stringify(groups[0]?.count));
     } else ok('J11b2 第一组不许带计数占位（发过「· 0」）');
+    // ★★ 2026-10-13（Owner：「群聊里跟私聊的格式不一样？」）：**评审单的形状由代码定** ——
+    //   模型自拟的分组/结论格/块外正文**都不上卡**（它们仍是这一轮的回复正文，
+    //   会话记忆与 `💬 回复 N 字` 日志里都在）。所以 J11c 从「原卡内容必须逐字搬过去」
+    //   改成反过来钉：**它不许上卡**，且**给不给卡，卡面必须逐字一样**。
     const carried = groups.map((g) => String(g?.content ?? '')).join('\n');
-    if (!carried.includes('上游口径修正') || !carried.includes('110.809 ms')) {
-      no('J11c 原卡内容必须逐字搬过去（不丢字）', carried.slice(0, 120));
-    } else ok('J11c 原卡内容必须逐字搬过去（不丢字）');
+    if (carried.includes('上游口径修正')) {
+      no('J11c 模型自拟的分组不许上卡（Owner 2026-10-13）', carried.slice(0, 120));
+    } else ok('J11c 模型自拟的分组不上卡');
+
+    // J11c2 ★★ **这就是 Owner 报的那件事**：同一个 §5.3 块，
+    //   「模型给了卡」与「模型没给卡」两条路必须产出**同一张卡**。
+    //   少了这一条，两边各自看着都对，而群里/私聊的格式照样不一样。
+    {
+      const shapeOf = (r) => JSON.stringify({
+        kind: r.kind,
+        title: r.card?.header?.title?.content,
+        tags: (r.card?.body?.elements ?? []).map((e) => e.tag),
+        titles: (r.card?.body?.elements ?? []).filter((e) => e.tag === 'collapsible_panel')
+          .map((e) => e.header?.title?.content),
+      });
+      const withCard = toCardOrText(RAW_DIFF, { verdict53: V53 });
+      const noCard = toCardOrText('模型这一轮没给卡片块，只写了些话。', { verdict53: V53 });
+      if (shapeOf(withCard) !== shapeOf(noCard)) {
+        no('J11c2 评审单：模型给不给卡，卡面形状必须**逐字一样**',
+           `给卡=${shapeOf(withCard)} ／ 不给卡=${shapeOf(noCard)}`);
+      } else ok('J11c2 评审单：模型给不给卡，卡面形状逐字一样（Owner 报的那件事已收口）');
+      // 反向对照：**非评审单**（没有 §5.3 块）时，模型给的卡照用 —— 不许一刀切
+      const plainWithCard = toCardOrText(RAW_DIFF, { verdict53: { state: 'BLOCK', line: V53.line, from: 'chain' } });
+      if (plainWithCard.kind !== 'turn-diff') {
+        no('J11c3 反向对照：没有 §5.3 块时，模型给的卡照用', `kind=${plainWithCard.kind}`);
+      } else ok('J11c3 反向对照：没有 §5.3 块时模型给的卡照用（没被一刀切）');
+    }
 
     // J11d 反向对照：**非评审单**不许换卡（否则等于借着 PRD 的名义改模型的形态选择）
     const rn = toCardOrText(RAW_DIFF, { verdict53: null });
@@ -808,14 +836,23 @@ head('J13 查证笔记 · 不上卡、但要答得出来（Owner 2026-10-13 三�
     else ok('J14a 代码给的边界落在卡脚（P0 快路那句跑不掉）');
     if (!foot.includes('仍需转对应专项复核')) no('J14a2 边界里那句「仍需转对应专项复核」也要在', '被截掉了');
     else ok('J14a2 「仍需转对应专项复核」也在卡脚');
-    // J14b2 ★★ 卡上**已经有边界**（模型自己写的）⇒ 不许再补一条
-    //   —— 实测 Owner 2026-10-13 11:35 群里那条卡：卡脚印了**两条**说的是一件事。
+    // J14b2 ★★ 卡上**已经有边界**（模型自己写的）⇒ **换成代码那条**（不是并排印两条）
+    //   实测 Owner 2026-10-13 11:35 群里那条卡：卡脚印了**两条**说的是一件事；
+    //   而第一版修法（「已有就不补」）留下的是另一个不齐 —— 群里与私聊卡脚**逐字不同**，
+    //   正是 Owner 问的「为什么格式不一样」。⇒ 口径：有代码边界就以代码那条为准。
     {
       const { applyBoundary: AB } = await import(path.join(CARDS_DIR, 'envelope.mjs'));
       const withOwn = AB('evidence', { verdict: 'v', boundary: '模型自己写的那条边界。' }, BND);
-      if (withOwn.action !== 'already' || /P0 红线拦截/.test(String(withOwn.data.boundary))) {
-        no('J14b2 卡上已有边界 ⇒ 不许再补一条（同一件事印两遍）', JSON.stringify(withOwn).slice(0, 160));
-      } else ok('J14b2 卡上已有边界 ⇒ 不补（重复已治）');
+      const b = String(withOwn.data.boundary);
+      if (withOwn.action !== 'forced' || b !== BND) {
+        no('J14b2 已有模型边界 ⇒ 换成代码那条（不许并排两条、也不许留两个说法）',
+           JSON.stringify(withOwn).slice(0, 160));
+      } else ok('J14b2 已有模型边界 ⇒ 换成代码那条（卡脚全站同一个说法）');
+      // 反向对照：**没有代码边界**时，模型写的那条**一个字都不许动**
+      const onlyModel = AB('evidence', { verdict: 'v', boundary: '模型自己写的那条边界。' }, '');
+      if (onlyModel.action !== 'none' || String(onlyModel.data.boundary) !== '模型自己写的那条边界。') {
+        no('J14b2b 反向对照：没有代码边界时，模型那条不许被改', JSON.stringify(onlyModel).slice(0, 140));
+      } else ok('J14b2b 反向对照：没有代码边界时模型那条原样留着');
     }
 
     // J14b **反向对照**：没有边界时**一个字都不许加**（不许编一句套话）

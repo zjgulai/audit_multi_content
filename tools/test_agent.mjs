@@ -2345,16 +2345,28 @@ await t('W9 行为级：**逐条四要素整块**必须进卡片正文（不只�
     title: 'P0 红线拦截：BLOCK（H02 / H04）',
     verdict: 'BLOCK：命中 W-1.18 与 W-1.13 两条 P0，不能发',
     reasoning: 'P0 快路确定性匹配（35.559 ms，不动用大模型）—— 红线拦截，不是专项审查结论。' });
-  const r = toCardOrText(reply, { verdict53: v });
-  const body = String(r.data.reasoning ?? '');
+  const P0BND = '本结论为 **P0 红线拦截**（确定性匹配，**未跑**专项审查、层前置与评审链），'
+             + '**不是 PASS 依据**；若素材属图片 / 视频 / 产品宣称等模态，**仍需转对应专项复核**。';
+  const r = toCardOrText(reply, { verdict53: v, boundary: P0BND });
+  // ★★ 2026-10-13（Owner：「群聊里跟私聊的格式不一样？」）：**评审单形状由代码定** ——
+  //   模型挑的 `query-answer`（正文格是 `reasoning`）不再被沿用，一律收敛到 `evidence`
+  //   ＋ 一组「审查结论」，逐条四要素落进**那一组**（不是 `reasoning`）。
+  const body = String(r.data?.groups?.[0]?.content ?? '');
+  assert.strictEqual(r.kind, 'evidence', `评审单没收敛到 evidence，实际 ${r.kind}`);
+  assert.strictEqual(r.data?.groups?.[0]?.title, '审查结论', '第一组标题必须固定');
   // ★ 2026-10-06：Owner 要求**标签加粗**，方便业务同事一眼扫到「原因/依据/建议」。
   //   断言跟着改成加粗形态 —— 不是放宽，是**钉住新形态**（钉不住的格式改动会悄悄退回）。
   for (const k of ['**原因**：', '**依据**：', '**锚点**：', '**判定**：', '**建议**：']) {
-    assert.ok(body.includes(k), `正文里缺「${k}」—— 这一格正是 Owner 指出没落上的那几行`);
+    assert.ok(body.includes(k), `逐条块里缺「${k}」—— 这一格正是 Owner 指出没落上的那几行`);
   }
   assert.ok(r.verdict53.block && r.verdict53.block.action === 'forced', '落点读数必须带出来（否则日志里看不到）');
-  // ★ 搬不是砍：模型自己那句话必须留着（它是边界话）
-  assert.ok(body.includes('35.559'), '模型原来那句被覆盖掉了 —— 丢了它，边界就跟着丢了');
+  // ★ 边界改由**代码**给（P0 单）：卡脚必须有它 —— 模型自己那句话不上卡之后，
+  //   这是「未跑专项审查 / 仍需转对应专项复核」唯一的落点。
+  assert.ok(String(r.data?.boundary ?? '').includes('P0 红线拦截'), '卡脚丢了 P0 边界');
+  // ★ 搬不是砍：模型原话仍在**这一轮的回复正文**里（会话记忆 + `💬 回复 N 字`），只是不上卡
+  assert.ok(reply.includes('35.559'), '夹具自己变了？');
+  assert.ok(!JSON.stringify(r.card ?? {}).includes('35.559'),
+    '模型原话又回到卡上了 —— Owner 2026-10-13 要求它整组不上卡');
 });
 
 await t('W10 反向对照：PASS（只有一行、没有逐条）不许被硬塞一个空块', () => {

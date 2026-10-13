@@ -763,10 +763,21 @@ export function applyBoundary(kind, data, boundaryText) {
   //   口径：**只在卡上还没有边界时补**。边界与结论行不同 —— 结论行必须逐字由代码写
   //   （`verdict53`，模型的措辞不参与那一格）；而边界是**卡自己的脚注**，
   //   模型写了就用它的（搬是搬），没写才由代码补上。
-  if (String(out.boundary ?? '').includes(txt)) return { data, action: 'already', slot: 'boundary' };
-  if (String(out.boundary ?? '').trim()) {
-    return { data, action: 'already', slot: 'boundary',
-             why: '卡上已经有边界（模型写的）⇒ 不再补一条 —— 同一件事印两遍' };
+  const cur = String(out.boundary ?? '').trim();
+  if (cur === txt) return { data, action: 'already', slot: 'boundary' };
+  // ★★ 2026-10-13（第二次收口）：**代码那条权威 —— 有就用它，替换掉模型写的那条。**
+  //
+  //   第一版写的是「已有就不补」（治重复），而那会留下另一样不齐：
+  //   **同一件事两个说法** —— 模型写的是转述、代码写的是定稿，
+  //   群里那张卡的卡脚于是与私聊那张**逐字不同**（Owner 问的正是「为什么不一样」）。
+  //   两条口径都不能丢，所以：
+  //     · **有代码边界（P0 快路单）⇒ 用代码那条**（它完整、逐字固定，是要人照做的安全声明）；
+  //     · **没有代码边界（非 P0 单）⇒ 沿用模型写的那条**（`boundary` 直接放行，一个字不动）。
+  //   ⚠️ 被换下来的那句**不丢**：记进 `moved`（日志看得见），且它仍在会话记忆里。
+  if (cur) {
+    out.boundary = txt;
+    return { data: out, action: 'forced', slot: 'boundary',
+             why: '卡脚本就有一条（模型写的）⇒ 换成代码那条（安全声明以代码为准）' };
   }
   out.boundary = txt;
   return { data: out, action: 'forced', slot: 'boundary' };
@@ -816,6 +827,37 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null,
    *   ⚠️ 只对**有权威结论行**的单子生效（`verdict53.line` 非空）：闲聊仍是纯文本，
    *     不许借着 PRD 的名义把所有对话都套成卡（J12d 反向对照钉着）。
    */
+  // ══════════════════════════════════════════════════════════════════════════
+  // ★★ 2026-10-13（Owner：「我到群里@守衡，群聊的格式跟私聊不一样？」）
+  //    **评审单的卡片形状由代码定 —— 不看模型这一轮有没有给卡片块。**
+  // ══════════════════════════════════════════════════════════════════════════
+  //   先钉事实（`PMO/logs/ws_outbound.jsonl` 今日 9 条）：
+  //     · 私聊 6 条评审卡 ⇒ 模型**没给**卡 ⇒ 代码建卡 ⇒ 抬头 + 「审查结论」组 + 卡脚；
+  //     · 群里 1 条评审卡 ⇒ 模型**给了**卡 ⇒ 用它 ⇒ 抬头 + 模型自拟的四五个分组 + 卡脚。
+  //   而**代码里没有任何群/私聊分叉** —— 形态提示词（`cardContract()`）两条路是同一份，
+  //   按会话类型变的只有 `# 当前场景` 那一行。⇒ 差别只来自**模型这一轮的心血来潮**。
+  //
+  //   这正是 §2.5「形态决策只能有一处」要防的东西：形态由掷骰子决定，表现就是「格式随机」。
+  //   ⇒ 口径：**只要有 §5.3 块（＝这是一张评审单），卡面就收敛到同一个形状** ——
+  //     抬头＝结论行 · 一组「审查结论」＝§5.3 逐条块 · 卡脚＝边界（+报告链接在可见格）。
+  //     模型自拟的分组 / 它的结论格 / 块外正文 **都不上卡**（Owner 前三条已经逐条要走的东西），
+  //     但它们**一个字都没丢**：它仍是这一轮的回复正文（会话记忆 + `💬 回复 N 字` 日志）。
+  //   ⚠️ **模型写过的卡脚边界沿用**（它是脚注、不是分组）—— 见 `applyBoundary` 的口径。
+  //   ⚠️ 没有 §5.3 块时（`verdict53.block` 为空）行为**逐字不变**：模型给的卡照用。
+  const reviewShape = !!(verdict53 && verdict53.line && verdict53.block) && !!s(raw).trim();
+  const shapeMoved = [];
+  if (reviewShape) {
+    const modelBoundary = s(blk?.data?.boundary).trim();
+    if (blk) {
+      shapeMoved.push({ field: 'cardKind', to: 'evidence',
+                        why: '评审单 ⇒ 卡面形状由代码定（Owner 2026-10-13：群里与私聊必须一样）'
+                           + ' ⇒ 模型自拟的分组/结论格不上卡（原文仍在会话记忆里）' });
+    }
+    blk = { kind: 'evidence', error: null, before: '', after: '',
+            data: { verdict: '', groups: [],
+                    ...(modelBoundary ? { boundary: modelBoundary } : {}) } };
+  }
+
   const autoCard = !blk && !!(verdict53 && verdict53.line) && !!s(raw).trim();
   const autoDedup = [];
   if (autoCard) {
@@ -931,6 +973,7 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null,
   let kd = blk.kind;
   let dd = blk.data;
   const remap = [];
+  remap.push(...shapeMoved);
   // ★ 代码建的卡也要**出声**：日志里必须看得见「这一单的卡不是模型给的」——
   //   否则「模型忘了给卡」这件事只会以「格式变了」的样子出现在群里（今天就是这样）。
   if (autoCard) {
