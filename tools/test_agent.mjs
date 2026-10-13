@@ -3081,22 +3081,35 @@ await t('Z21 ★ 报告只留 PRD 字段：两个来源小标题、免责、计�
     '两段合并后编号必须连号（各从 1 开始会被读成两份清单）');
 });
 
-await t('Z21b ★ 报告标题 = 用户原问题 + 内容审查报告（不再印渲染时刻）', async () => {
+await t('Z21b ★ 报告 H1 **固定**「内容审查报告」—— 文案/图片/视频一律（Owner 2026-10-13 第三次改这条）', async () => {
+  // Owner 原话：「输出的文档报告标题太乱了，**直接按照原来的「内容审查报告」**」，
+  // 并点名「**文案/图片/视频都需要改**」。
+  // 上一版是 `<用户原问题> 内容审查报告`，坏在媒材单上 —— 那类消息没有「用户原问题」，
+  // `question` 是内核自己拟的**探针**；探针识别漏了一种形状
+  // （`【对方这条消息没带视频；下面是它引用的那条消息里附的视频…】`）⇒
+  // 整段 3498 字进了 H1（Owner 贴回来的就是那个）。
   const M = await import('./agent/merged_report.mjs');
   const head = (q) => M.renderMergedReportMd({ merged: [], total: 1, state: 'REVIEW',
     line: '【审查结论：REVIEW】共发现 1 处需人工确认。',
     question: q, contentId: 'C', at: '2026-10-12T07:31:24.329Z' }).split('\n')[0];
-  // ① 有原问题 ⇒ 问题 + 内容审查报告
-  assert.strictEqual(head('这条社媒文案能不能发'), '# 这条社媒文案能不能发 内容审查报告');
-  // ② 没有原问题（对方只发了素材）⇒ 只剩「内容审查报告」——
-  //    ⚠️ **不许**把内核拟的探针（给模型看的读数指令）当标题：那会造出一个假标题
-  const probe = '【对方这条消息里附了视频，共 1 段。\n【视频 1｜x.mp4｜68.9s】\n关键帧上的文字：…';
-  assert.strictEqual(head(probe), '# 内容审查报告', '探针被当成标题了');
+  // ① **一律**就这一句 —— 文案 / 图片 / 视频三种都一样
+  assert.strictEqual(head('这条社媒文案能不能发'), '# 内容审查报告');
   assert.strictEqual(head(''), '# 内容审查报告');
-  // ③ 渲染时刻**一个都不许**出现在 H1 里（那正是 Owner 点名要去掉的形状）
-  assert.ok(!/2026-10-12T07:31:24/.test(head('这条社媒文案能不能发')), 'H1 里还有渲染时刻');
-  // ④ 换行必须折成空格 —— H1 里带换行会让后面几行掉出标题、变成正文首段
-  assert.strictEqual(head('第一行\n第二行'), '# 第一行 第二行 内容审查报告');
+  assert.strictEqual(head(null), '# 内容审查报告');
+  // ② **那个漏掉的探针形状**（Owner 贴回来的那一段）一个字符都不许进 H1
+  const probe = '【对方这条消息没带视频；下面是它引用的那条消息里附的视频，共 1 段。'
+    + '下面每一格是本机读出来的读数：「关键帧上的文字」是按时长均匀抽 8 帧做的 OCR…';
+  assert.strictEqual(head(probe), '# 内容审查报告', '探针又被当成标题了');
+  // ③ 反向对照：H1 里**不许**出现渲染时刻，也不许出现探针里的任何特征串
+  assert.ok(!/2026-10-12T07:31:24/.test(head('x')), 'H1 里还有渲染时刻');
+  for (const q of ['这条社媒文案能不能发', probe, '第一行\n第二行']) {
+    assert.ok(head(q) === '# 内容审查报告', `H1 不是固定的那一句：${head(q)}`);
+  }
+  // ④ 探针识别本身也要对（它管的是**留底**里的素材读数附录，不只是标题）
+  const { questionForReport } = M;
+  assert.strictEqual(questionForReport(probe).isProbe, true, '新形状的探针没被认出来');
+  assert.strictEqual(questionForReport('这条社媒文案能不能发').isProbe, false,
+    '把真问题误判成探针了 —— 那会把素材读数当成人写的话');
 });
 
 await t('Z21c ★ 报告头只留 PRD 字段 ＋ **投出去那份不带附录、留底那份带**（Owner 2026-10-13 第四条）', async () => {

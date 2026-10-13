@@ -99,7 +99,13 @@ export function questionForReport(question) {
   const raw = String(question ?? '').trim();
   if (!raw) return { userLine: '', material: '', isProbe: false };
   // 探针（给模型看的读数指令）：**不进报告正文**，只把里面的素材读数摘出来放附录。
-  if (/^【(对方这条消息里附了|图片\s*\d|图\s*\d|视频\s*\d|待读的链接)/.test(raw)) {
+  // ★★ 2026-10-13（Owner 贴回来的那段乱标题）：**这里原先漏了一种形状** ——
+  //   `【对方这条消息没带视频；下面是它引用的那条消息里附的视频，共 1 段。…】`
+  //   （「发一张图/视频，再回它一句『这个能过吗』」那种发法）。
+  //   认不出来 ⇒ 那段 3498 字的指令被当成「用户原问题」⇒ 整段进了 H1（Owner 原话「标题太乱了」）。
+  //   ⇒ 头注改成 `^【对方这条消息`（覆盖全部已知形状），其余几支一个不动。
+  //   ⚠️ 仍然**只认**「【」开头的这几种：真有人写了以「【」开头的话，宁可原样印（宁可长，不可错删）。
+  if (/^【(对方这条消息|图片\s*\d|图\s*\d|视频\s*\d|待读的链接)/.test(raw)) {
     return { userLine: '（对方**只发了素材**，没有写问题）', material: raw, isProbe: true };
   }
   return { userLine: raw, material: '', isProbe: false };
@@ -126,15 +132,30 @@ export function questionForReport(question) {
  *     这一行里：宁可标题短一点，也不要一个把飞书文档列表撑坏的标题。
  *   ⚠️ 换行必须先折成空格：H1 里带换行会让后面几行掉出标题、变成正文首段。
  */
-export const REPORT_TITLE_MAX = 120;
-
-export function titleForReport(question) {
-  const q = questionForReport(question);
-  if (!q.userLine || q.isProbe) return '内容审查报告';
-  const flat = String(q.userLine).replace(/\s+/g, ' ').replace(/[`#*]/g, '').trim();
-  if (!flat) return '内容审查报告';
-  const cut = flat.length > REPORT_TITLE_MAX ? `${flat.slice(0, REPORT_TITLE_MAX)}…` : flat;
-  return `${cut} 内容审查报告`;
+/**
+ * 报告的 H1（= 飞书云文档的标题）。**固定就这一句。**
+ *
+ * ★★ 2026-10-13（Owner，同日第四次改这条）：
+ *   「输出的文档报告标题太乱了，**直接按照原来的「内容审查报告」**」，并点名
+ *   「**文案/图片/视频都需要改**」。
+ *
+ *   ── 三版的历史，写在这里免得再翻一遍
+ *     · 初版：`内容审查报告 · <ISO 时刻>` —— 标题里是**我们自己的渲染时刻**，
+ *       对打开文档的人零信息量，而且一天好几份文档标题一模一样。
+ *     · 第二版：`<用户原问题> 内容审查报告` —— 想让它能区分是哪一单。
+ *       实测**坏在媒材单上**：那类消息没有「用户原问题」，`question` 是内核自己拟的
+ *       **探针**（给模型看的读数指令），而探针识别漏了一种形状
+ *       （`【对方这条消息没带视频；下面是它引用的那条消息里附的视频…】`）⇒
+ *       整段 3498 字被当成原问题印进 H1 ⇒ Owner 原话「标题太乱了」。
+ *     · 现在（第三版）：**固定 `内容审查报告`**。不猜、不截断、不可能再乱。
+ *
+ *   ⚠️ 代价说清楚：**报告里再也没有一处写着「这次审的是哪一条」**。
+ *     要能区分，恢复点就是把 `<用户原问题>` 加回来 —— 但**必须先修 `questionForReport`
+ *     的探针识别**（本文件同日已修：头注改成 `^【对方这条消息`），
+ *     否则媒材单会再乱一次。
+ */
+export function titleForReport() {
+  return '内容审查报告';
 }
 
 /**
@@ -210,9 +231,10 @@ export function renderMergedReportMd({
   //     modelItems 在后（与改动前肉眼顺序一致），**编号不再各从 1 开始**
   //     （那正是分两段才有的形状，合并后重号会被读成「两份清单」）。
   const ordered = [...kbItems, ...modelItems];
-  // ★ 探针只在**附录**用（正文里不再有「用户原提问」那一行 —— Owner 第 3 条第 2 款）。
+  // ★ 探针只在**留底那一份的附录**里用（投出去那份与正文都不印）。
   const q = questionForReport(question);
-  L.push(`# ${titleForReport(question)}`);
+  // ★ 2026-10-13（第三版）：H1 **固定**「内容审查报告」—— 文案/图片/视频一律。
+  L.push(`# ${titleForReport()}`);
   L.push('');
   // ★ 2026-10-13（Owner）：**这两行都去掉了**。
   //   · `- 内容 ID：… ｜ 审查时刻：…` —— 内部 ID 与渲染时刻，对读的人零信息量；
