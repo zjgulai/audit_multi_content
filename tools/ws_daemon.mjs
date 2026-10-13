@@ -356,9 +356,10 @@ async function onMessage(data) {
       //   （`envelope.toCardOrText` 那个入参也一并撤掉，免得留下一个没人读的入参）。
       //   读数本身没丢：内核的 `📥 读到｜…` 日志、会话记忆、报告附录三处都在。
       // 2026-10-09: 报告链接 —— 与 mediaRead 同级（都进可见格，都不该藏在折叠区里）
-      reportLink: result.meta?.reportLink ?? null,
-      // ★ 2026-10-13: 卡脚那条边界（P0 快路）—— 与 reportLink 同级，都只是**递读数**
-      boundary: result.meta?.boundary ?? null });
+      reportLink: result.meta?.reportLink ?? null });
+  // ⚠️ 2026-10-13：`boundary`（卡脚那条边界）**不再往下传** —— Owner 要求
+  //   「整个都隐藏，不要展示在卡片上」。它改走 `dual_track.internalNotes`（记忆侧），
+  //   于是「未跑专项审查 / 仍需转对应专项复核」这句话**守衡答得出来**，只是不上卡。
   if (sent.ok) { counters.replied++; log(`   ✓ 已发送 ${sent.messageIds.filter(Boolean).join(', ')} [${sent.mode}]`); }
   else { counters.failed++; log(`   ✗ 发送失败: ${sent.error}`); }
 }
@@ -478,7 +479,7 @@ function dumpDropped({ messageId, chatId, source, reason, raw }) {
  *   当时它对着一堆内部记录说「✓ 已发送」。
  */
 async function replyTo(chatId, messageId, rawReply, chatType = null, source = 'reply',
-                       { verdict53 = null, reportLink = null, boundary = null } = {}) {
+                       { verdict53 = null, reportLink = null } = {}) {
   // ★ 结论行的**兜底派生**（2026-10-06）：补发队列那一跳（`source='resend'`）走的是
   //   `handleMessage(event, {force:true})`，它**不跑送审闸门**，所以拿不到 `meta.verdict53`。
   //   判据很窄 —— 只有模型自己把一行 5.3 结论**摆在回复最前面**时才认它
@@ -492,7 +493,7 @@ async function replyTo(chatId, messageId, rawReply, chatType = null, source = 'r
   //   旧判据（`test_agent.mjs` 的 Z20）只查了**源码里出现过**
   //   `reportLink: result.meta?.reportLink` 这一行，**没查它真被用上** ——
   //   又一个「名字出现过 ≠ 它拦得住」（§2.4）。现在有行为级判据钉着（Z20b）。
-  const shaped = toCardOrText(rawReply, { verdict53: v53, reportLink, boundary });
+  const shaped = toCardOrText(rawReply, { verdict53: v53, reportLink });
   if (v53) {
     // ★ 措辞不合 5.3 时**出声**：链是结论行的产者，它的措辞会回退，
     //   而回退的表现只是「群里格式不对」—— 那要等到人看见才知道。

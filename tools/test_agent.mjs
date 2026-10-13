@@ -2345,9 +2345,7 @@ await t('W9 行为级：**逐条四要素整块**必须进卡片正文（不只�
     title: 'P0 红线拦截：BLOCK（H02 / H04）',
     verdict: 'BLOCK：命中 W-1.18 与 W-1.13 两条 P0，不能发',
     reasoning: 'P0 快路确定性匹配（35.559 ms，不动用大模型）—— 红线拦截，不是专项审查结论。' });
-  const P0BND = '本结论为 **P0 红线拦截**（确定性匹配，**未跑**专项审查、层前置与评审链），'
-             + '**不是 PASS 依据**；若素材属图片 / 视频 / 产品宣称等模态，**仍需转对应专项复核**。';
-  const r = toCardOrText(reply, { verdict53: v, boundary: P0BND });
+  const r = toCardOrText(reply, { verdict53: v });
   // ★★ 2026-10-13（Owner：「群聊里跟私聊的格式不一样？」）：**评审单形状由代码定** ——
   //   模型挑的 `query-answer`（正文格是 `reasoning`）不再被沿用，一律收敛到 `evidence`
   //   ＋ 一组「审查结论」，逐条四要素落进**那一组**（不是 `reasoning`）。
@@ -2360,9 +2358,11 @@ await t('W9 行为级：**逐条四要素整块**必须进卡片正文（不只�
     assert.ok(body.includes(k), `逐条块里缺「${k}」—— 这一格正是 Owner 指出没落上的那几行`);
   }
   assert.ok(r.verdict53.block && r.verdict53.block.action === 'forced', '落点读数必须带出来（否则日志里看不到）');
-  // ★ 边界改由**代码**给（P0 单）：卡脚必须有它 —— 模型自己那句话不上卡之后，
-  //   这是「未跑专项审查 / 仍需转对应专项复核」唯一的落点。
-  assert.ok(String(r.data?.boundary ?? '').includes('P0 红线拦截'), '卡脚丢了 P0 边界');
+  // ★★ 2026-10-13（Owner：「整个都隐藏，不要展示在卡片上」）：**卡脚那一格整格作废**。
+  //   P0 那句边界改走 `dual_track.internalNotes`（记忆侧）——
+  //   这里只钉「卡上不许有它」（记忆侧那一半在 verify_cards 的 J14b）。
+  assert.ok(!JSON.stringify(r.card ?? {}).includes('P0 红线拦截'), '卡脚边界又上卡了');
+  assert.strictEqual(r.data?.boundary, undefined, 'boundary 那一格还没撤干净');
   // ★ 搬不是砍：模型原话仍在**这一轮的回复正文**里（会话记忆 + `💬 回复 N 字`），只是不上卡
   assert.ok(reply.includes('35.559'), '夹具自己变了？');
   assert.ok(!JSON.stringify(r.card ?? {}).includes('35.559'),
@@ -3012,22 +3012,27 @@ await t('Z20b ★ 行为级：传下去的读数**必须真被用上**（Z20 那
               from: 'dual-track-merged',
               block: '【审查结论：BLOCK】共发现 1 处必须修改。\n1.【合规】全文\n   原因：x\n请修改后重新提交。' };
   const DOCX = 'https://momcozy-in.feishu.cn/docx/Z20B';   // ⚠️ 别叫 `URL` —— 会遮蔽全局构造函数
-  const BND = '本结论为 **P0 红线拦截**（确定性修改、**未跑**专项审查），**不是 PASS 依据**。';
-  const r = toCardOrText('模型原话', { verdict53: V, reportLink: DOCX, boundary: BND });
+  const r = toCardOrText('模型原话', { verdict53: V, reportLink: DOCX });
   const card = JSON.stringify(r.card ?? {});
   assert.ok(card.includes(DOCX), '报告链接没落到卡上 —— 那就是被某一跳丢了');
-  assert.ok(card.includes('P0 红线拦截'), '卡脚边界没落到卡上');
   // 反向对照：不给就一个都不许有（否则上面两条可能是「恒印一句」）
   const r0 = toCardOrText('模型原话', { verdict53: V });
   assert.ok(!JSON.stringify(r0.card ?? {}).includes(DOCX), '没给链接却印了链接');
-  assert.ok(!JSON.stringify(r0.card ?? {}).includes('P0 红线拦截'), '没给边界却印了边界');
   // 接线（源码级，与 Z20 同一层）：签名里必须真的接住这两个读数
   const d = fs.readFileSync(new URL('./ws_daemon.mjs', import.meta.url), 'utf8');
+  // ⚠️ 「注释不算代码」—— 统一一条读法（§2.4.4 记过三次的坑：判据被自己的解释文字绊倒）
+  const codeOnly = (x) => x.split('\n').filter((l) => {
+    const t = l.trim();
+    return !(t.startsWith('//') || t.startsWith('*') || t.startsWith('/*'));
+  }).join('\n');
   const sig = (d.match(/async function replyTo\([^)]*\)[^{]*\{/) || [''])[0];
   assert.ok(/reportLink = null/.test(sig), `replyTo 的签名里没有 reportLink：${sig.slice(0, 120)}`);
-  assert.ok(/boundary = null/.test(sig), 'replyTo 的签名里没有 boundary');
-  assert.ok(/toCardOrText\(rawReply, \{ verdict53: v53, reportLink, boundary \}\)/.test(d),
-    'replyTo 没有把这两个读数交给 toCardOrText');
+  assert.ok(/toCardOrText\(rawReply, \{ verdict53: v53, reportLink \}\)/.test(d),
+    'replyTo 没有把这个读数交给 toCardOrText');
+  // ⚠️ 2026-10-13：`boundary` 从这条链上**整个撤了**（卡脚那一格作废）——
+  //   撤了就要撤干净：留一个没人读的入参就是「传了但没人接」那个病。
+  assert.ok(!/boundary/.test(codeOnly(d)),
+    'ws_daemon 里还有 boundary 的搬运（那一格已整格作废）');
   // ★ 2026-10-13：`mediaRead` 从这条链上**整个撤掉了**（读数不上卡）——
   //   留一个没人读的入参就是「传了但没人接」那个病。撤了就要撤干净：
   assert.ok(!/mediaRead/.test(sig), `replyTo 的签名里还留着没人读的 mediaRead：${sig.slice(0, 120)}`);

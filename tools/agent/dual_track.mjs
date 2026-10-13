@@ -1910,11 +1910,6 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
     ? `（问题数 **${total} ≥ ${REPORT_LINK_MIN_ISSUES}** ⇒ 按 PRD §5.3.3 只出分类汇总，`
       + '逐条清单与修改建议在报告里；1–2 条时才在卡上逐条平铺。）'
     : '';
-  // ⚠️ `candNote` 已经拼在 `tally` 里面（见上面那一行 `+ candNote +`），别再列一次。
-  const internalNotes = [tally, gapNote, covNote, noReadNote,
-    summaryFootnote ? `\n${summaryFootnote}` : '']
-    .map((x) => String(x ?? '').trim())
-    .filter(Boolean).join('\n').trim();
   // ══════════════════════════════════════════════════════════════════════════
   // ★★ 2026-10-13：**P0 快路那条边界改由代码给**（原先只有模型原话里那一份）
   // ══════════════════════════════════════════════════════════════════════════
@@ -1930,6 +1925,14 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
     ? '本结论为 **P0 红线拦截**（确定性匹配，**未跑**专项审查、层前置与评审链），'
       + '**不是 PASS 依据**；若素材属图片 / 视频 / 产品宣称等模态，**仍需转对应专项复核**。'
     : '';
+  // ⚠️ `candNote` 已经拼在 `tally` 里面（见上面那一行 `+ candNote +`），别再列一次。
+  // ★★ 2026-10-13（Owner：「整个都隐藏，不要展示在卡片上」）：**P0 快路那条边界也并进这里**。
+  //   它原先是卡脚（`boundary` 格），而那一格现在整格作废 ⇒ 不挪过来就是**静默消失**
+  //   （「未跑专项审查 / 仍需转对应专项复核」这句话必须还在，只是不上卡）。
+  const internalNotes = [tally, gapNote, covNote, noReadNote, p0Boundary,
+    summaryFootnote ? `\n${summaryFootnote}` : '']
+    .map((x) => String(x ?? '').trim())
+    .filter(Boolean).join('\n').trim();
   return {
            line, total, kbGap, refused: false, coverageGap: !!kb?.coverageGap,
            kbNoReading, covEntries, kbContentN, modelFailed, reportNote, summarized,
@@ -1938,9 +1941,6 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
            // ★ 2026-10-13：库侧/模型侧的口径读数与解释 —— **只走这里**（模型上下文 + 记忆），
            //   既不进卡片也不进报告正文。空串 = 这一单没有这类读数。
            internalNotes,
-           // ★ 2026-10-13：P0 快路的边界（**代码产出**）→ 由 `envelope` 写进卡脚。
-           //   空串 = 不是 P0 快路，卡脚不印（不编）。
-           p0Boundary,
            block: `${line}${reportNote}\n${bodyText}${hitsNote}`
              + `${summarized ? '' : '\n'}\n\n${action}` };
 }

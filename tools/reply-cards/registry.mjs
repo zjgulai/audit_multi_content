@@ -13,7 +13,7 @@
  */
 import {
   BUILDERS, BUILDER_SOURCE_NAME, build, validateCard, collapsible, band,
-  VERDICT_MAX, BOUNDARY_MAX, MAX_SECTIONS, ALLOWED_TAGS, TEMPLATES, TONE, REMOVED_IN_V2,
+  VERDICT_MAX, MAX_SECTIONS, ALLOWED_TAGS, TEMPLATES, TONE, REMOVED_IN_V2,
   BACKGROUND_STYLES,
 } from './cards.mjs';
 
@@ -130,6 +130,24 @@ export const COPY_RULES = [
       //   判据取**带全角竖线的标记本身**，不取 `invoke` / `parameter` 这种英文词 ——
       //   它们是正常英文词，拿它们当判据会在正经回答里误报（§2.1.1：误报比不报更糟）。
       n += (s.match(/<[｜|]{1,2}\s*DSML\s*[｜|]{1,2}/g) ?? []).length;
+      // ══════════════════════════════════════════════════════════════════════
+      // ★★ 2026-10-09（Owner 现场那张「在吗」的截图）：**上面这些一条都不命中，
+      //    而它照样把内部详情写进了正文。** 漏出去的是这两类：
+      //
+      //   ① **指纹 / 哈希** —— 原话：「在我这儿还是**旧版指纹** `1f871b42fa909e70…`，
+      //      新版是 `bc48e2ae893ab3e7…`」。sha 是**内部标识**，业务同事拿到它没有任何用处。
+      //   ② **能力自述** —— 原话：「**重拉基线那一步不在我的工具里**」。
+      //      这是「我有什么工具」的自述，属内部详情；而且它后面还接了
+      //      「你要我重拉，**把该跑的命令给我**」—— **把维护侧的活推回给了业务同事**。
+      //
+      //   判据为什么这么取（每条都要能挡住上面那两句，且不许误报正经回答）：
+      //     · sha 取**连续 ≥16 位十六进制**且**不是纯数字** —— 纯数字不算，否则订单号、
+      //       金额、时间戳会被误报（§2.1.1：一个会误报的检查器比没有更糟）。
+      //       `1f871b42fa909e70` 是 16 位且含字母 ⇒ 命中；`20261009` 不命中。
+      //     · 能力自述取「我的工具」「我这边没有…工具」这类**第一人称 + 工具**的固定搭配，
+      //       不取「工具」这个词本身。
+      n += (s.match(/\b(?=[0-9a-f]*[a-f])[0-9a-f]{16,}\b/g) ?? []).length;
+      n += (s.match(/(我的工具|我这边.{0,6}工具|不在我的工具|我没有那个工具|没有这个工具|我的能力范围之外)/g) ?? []).length;
       return n ? Math.min(n, 9) : 0;
     },
   },
@@ -173,7 +191,6 @@ export const REGISTRY = [
       reasoning: '理由。可选 —— 如果结论已经自明，不要为了对称而填。',
       fields: '≤4 个短字段（置信度/窗口/证据数…）。超过 4 个说明该换 evidence。',
       evidence: '字符串数组，默认收起。',
-      boundary: '单行边界声明，≤90 字。**没有就不填**，不写「本回答基于…」这种模板句。',
     },
     sample: {
       title: '本群可查到的、你发过的消息：11 条',
@@ -187,7 +204,6 @@ export const REGISTRY = [
       evidence: [
         '| # | 时间 | 你说的 |\n|---|---|---|\n| 1 | 09-15 22:38:21 | 你是做什么的？ |\n| 2 | 09-16 10:57:08 | 你是谁？ |\n| 3 | 09-16 12:26:20 | 我是谁？ |',
       ],
-      boundary: '只覆盖本群；只覆盖最近 50 条；撤回的取不回。',
     },
   },
   {
@@ -237,14 +253,12 @@ export const REGISTRY = [
       wrong: '错在哪，引自己原话。不要用「可能」「或许」软化。',
       right: '正确的是什么。',
       cause: '错在哪个环节（哪一步查漏了 / 哪一步推断了）。**不是道歉，是归因**。',
-      boundary: '可选。',
     },
     sample: {
       title: '我上一条说错了',
       wrong: '「群历史只标『用户』，分辨不出谁发的」',
       right: '飞书群历史接口每条都返回 `sender.id`，数据一直在。是我们的工具层把它压成了「用户」两个字。',
       cause: '我把「我这一侧看到的残缺数据」当成了「接口的限制」，还把话说到了「该去看代码」就停住了。',
-      boundary: '这条更正只针对发送者字段。',
     },
   },
   {
@@ -257,7 +271,6 @@ export const REGISTRY = [
       limited: '能做但有硬上限的。',
       cannot: '做不到。**直接说做不到，不要用「暂时」软化**，除非真的有计划。',
       evidence: '「做不到」的依据（哪个文件哪一节说的）。收起。',
-      boundary: '可选。',
     },
     sample: {
       title: '我能做什么',
@@ -267,7 +280,6 @@ export const REGISTRY = [
                 '图片只读得到**图上的字**，画面本身看不到'],
       cannot: ['发文件、写文件', '读文件/语音/卡片的内容（按规矩不取）', '读已撤回消息的原文', '联网'],
       evidence: '`PMO/守衡-架构说明.md` 第四节第 4 条：9 个工具全只读。',
-      boundary: '这份清单随工具开放变化，不是承诺。',
     },
   },
   {
@@ -279,7 +291,6 @@ export const REGISTRY = [
       paths: '{where, how, result} 数组。**每一处都要写**，漏写等于谎报覆盖。',
       tried: '检索动作明细（命令、关键词）。收起。',
       nextStep: '需要对方补什么。能想到就写，想不到写「不知道去哪找」。',
-      boundary: '可选。',
     },
     sample: {
       title: '这批材料没找到',
@@ -290,7 +301,6 @@ export const REGISTRY = [
       ],
       tried: '```bash\ngrep -rn "PB-00" --include=*.md .\nfind . -iname "*岗位*"\n```',
       nextStep: '这批材料大概在什么位置？另一个仓库、飞书云文档，还是压根还没建？',
-      boundary: '我只在能读的位置找过；有权读的范围之外，我无法判断有没有。',
     },
   },
   {
@@ -372,7 +382,6 @@ export const REGISTRY = [
       verdict: '结论，短。',
       groups: '{title, content, count, expanded} 数组。**默认 expanded: false**。',
       fields: '可选。',
-      boundary: '可选。',
     },
     sample: {
       title: '截断修复确认生效',
@@ -381,7 +390,6 @@ export const REGISTRY = [
         { title: '证据 · 飞书回读', count: '4 项', content: '`im.message.get` 取回原消息：`msg_type=text`、`length=1045`、`deleted=false`、结尾为完整句。' },
         { title: '证据 · 日志', count: '2 行', content: '```\n[+153.312s] 💬 回复 1045 字，耗时 16696ms\n[+154.674s] ✓ 已发送 om_x100b65964f87dca8b170a9dd77c9ddc [reply]\n```' },
       ],
-      boundary: '这次只验了「发出去的东西是完整的」，没验「读的人看到了」。',
     },
   },
   {
@@ -521,7 +529,7 @@ export {
   build, validateCard, BUILDERS, BUILDER_SOURCE_NAME, collapsible, band,
   // 这三个上限以前只定义、不导出、不引用（grep 全仓库只有定义行）。
   // envelope.mjs 是它们现在唯一的执行点，所以必须从这里转出去。
-  VERDICT_MAX, BOUNDARY_MAX, MAX_SECTIONS,
+  VERDICT_MAX, MAX_SECTIONS,
   ALLOWED_TAGS, TEMPLATES, TONE, REMOVED_IN_V2,
   // 底色闭集：执行点就在 cards.mjs 的 validateCard 里，这里转出去是给
   // verify_cards.mjs 的 J9 段喂坏样本用（进不去就证不了它会红）。

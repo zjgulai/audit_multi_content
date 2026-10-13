@@ -27,7 +27,7 @@
 模版的作用是把这些变成**槽位**：
 
 - 结论有且只有一个格（`verdict`），超 60 字就是没提炼出来
-- 边界有且只有一个格（`boundary`），一行，≤90 字，**没有就不填**
+- ~~边界有且只有一个格（`boundary`）~~ —— **2026-10-13 整格作废**（Owner：整个都隐藏，不要展示在卡片上）
 - 内部记录只能进折叠区（`collapsible_panel`），正文里出现就是故障
 
 **不靠模型自觉，靠模版逼。**
@@ -124,9 +124,9 @@
 **用**：问的是一个**事实或结论**，一到三句话能说完。
 **不用**：要罗列多条记录 → `data-table`；回答本身就长 → `evidence`。
 
-字段：`title`（**写结论本身**，不写「关于 X 的答复」）· `verdict`（≤60 字）· `reasoning`（可选）· `fields`（≤4 个）· `evidence`（收起）· `boundary`（一行，没有就不填）
+字段：`title`（**写结论本身**，不写「关于 X 的答复」）· `verdict`（≤60 字）· `reasoning`（可选）· `fields`（≤4 个）· `evidence`（收起）
 
-形状：`markdown · markdown · column_set(3栏) · collapsible(收起) · collapsible(收起)`
+形状：`markdown · markdown · column_set(3栏) · collapsible(收起)`
 
 ---
 
@@ -149,9 +149,9 @@
 **用**：**发现自己前面说错了**。唯一必须红头的类型 —— 群里上一句还挂着，更正不显眼等于没更正。
 **不用**：只是补充信息，不是改口 → `query-answer`。
 
-字段：`wrong`（错在哪，**引自己原话**）· `right` · `cause`（错在哪个环节，**是归因不是道歉**）· `boundary`
+字段：`wrong`（错在哪，**引自己原话**）· `right` · `cause`（错在哪个环节，**是归因不是道歉**）
 
-形状：`markdown · markdown · markdown · column_set(1栏) · collapsible(收起)`
+形状：`markdown · markdown · markdown · column_set(1栏)`
 
 ---
 
@@ -159,9 +159,9 @@
 
 **用**：被问「你能做什么 / 你能不能做 X」。**三栏一次说完，不分段解释** —— 这类问题的价值在清单，不在论证。
 
-字段：`can`（每条带一句边界）· `limited`（有硬上限的）· `cannot`（**直接说做不到**，不用「暂时」软化，除非真有计划）· `evidence`（收起）· `boundary`
+字段：`can`（每条带一句边界）· `limited`（有硬上限的）· `cannot`（**直接说做不到**，不用「暂时」软化，除非真有计划）· `evidence`（收起）
 
-形状：`markdown · column_set(3栏) · collapsible(收起) · collapsible(收起)`
+形状：`markdown · column_set(3栏) · collapsible(收起)`
 
 ---
 
@@ -170,9 +170,9 @@
 **用**：查了但**一条都没有**。
 **必须说清查了哪里** —— 「没找到」不带检索范围，对方无法判断该补信息还是该换个地方找。
 
-字段：`paths`（`{where, how, result}`，**每一处都要写**，漏写等于谎报覆盖）· `tried`（收起）· `nextStep` · `boundary`
+字段：`paths`（`{where, how, result}`，**每一处都要写**，漏写等于谎报覆盖）· `tried`（收起）· `nextStep`
 
-形状：`markdown · markdown · table(3行) · collapsible(收起) · markdown · collapsible(收起)`
+形状：`markdown · markdown · table(3行) · collapsible(收起) · markdown`
 
 ---
 
@@ -230,9 +230,9 @@
 
 > ★ 这是「中位数 786 字」的直接解法：想一眼看完的人看标题和结论，想核对的人点开。
 
-字段：`verdict` · `groups`（`{title, content, count, expanded}`，**默认 `expanded: false`**）· `fields` · `boundary`
+字段：`verdict` · `groups`（`{title, content, count, expanded}`，**默认 `expanded: false`**）· `fields`
 
-形状：`markdown · collapsible(收起) · collapsible(收起) · column_set(2栏) · collapsible(收起)`
+形状：`markdown · collapsible(收起) · collapsible(收起) · column_set(2栏)`
 
 > ★★ **评审单：模型原话那一组默认不建**（2026-10-13，Owner 当场给的原文）。
 > 代码建卡（`envelope.mjs` 的 `autoCard`）原先把模型这一轮的整段原话放进一组
@@ -241,7 +241,8 @@
 > `★ 表行（照抄）…行号 recvx…｜回读 consistent`、`观察：M8 这句跑第 3 次…`，**全是内部读数**。
 >
 > **卡上真正要读的四样由代码搬，一样都不在那段原话里**：
-> 抬头 = 权威结论行 · 第一组 = PRD §5.3 逐条块 · 可见格 = 「我读到了」与报告链接 · 卡脚 = `boundary`。
+> 抬头 = 权威结论行 · 第一组 = PRD §5.3 逐条块 · 可见格 = 「我读到了」与报告链接 。
+> （**卡脚那条 `boundary` 2026-10-13 整格作废** —— Owner：整个都隐藏，不要展示在卡片上。）
 >
 > ⚠️ **安全网**：`verdict53.block` 为空（`conclusionBlock()` 找不到动作行）时**照旧建那一组** ——
 > 不然卡上只剩一个抬头，比改动前更没法用。
@@ -289,7 +290,7 @@
 
 守衡今天的边界声明是**一段话**，而且同一条回答里写五遍。契约把它压成：
 
-1. **一个格**（`boundary`），一行，≤90 字
+1. ~~**一个格**（`boundary`），一行，≤90 字~~ —— **2026-10-13 整格作废**（整个都隐藏）
 2. **没有就不填。** 不许写「本回答基于…」这种模板句充数
 3. 只在三个条件之一成立时才写：
    - 结论**依赖一个会变的窗口**（「只覆盖最近 50 条」）
@@ -336,8 +337,8 @@
 
 | 约束 | 执行点 | 违反时 |
 |---|---|---|
-| 结论（`verdict`）≤60 字符 | `enforceLimits` | 超出部分按句**搬**到 `boundary`，**一个字符不丢** |
-| 边界（`boundary`）≤90 字符 | `enforceLimits` | 超出部分搬进该类型的折叠区 |
+| 结论（`verdict`）≤60 字符 | `enforceLimits` | 超出部分按句**搬**进折叠区，**一个字符不丢** |
+| ~~边界（`boundary`）≤90 字符~~ | **已作废** | 2026-10-13 随 `boundary` 整格一起撤（`BOUNDARY_MAX` 不再存在） |
 | 内部记录只进折叠区 | `scrubInternal` | 从公开格整段搬进折叠区 |
 
 > **搬是搬，砍是砍。** 超长时搬走、不截断 —— 丢内容比格式难看严重得多。
@@ -394,7 +395,7 @@
 | 降级链（卡 → 文本，两处兜底合并为一处） | ✅ 完成 |
 | 提示词打包（类型清单与登记表现算，不手抄） | ✅ 完成（`persona.cardContract()`） |
 | 去 AI 味内容级检查（7 条） | ✅ 完成（`lintCopy()`） |
-| 自证 | ✅ `node tools/verify_cards.mjs`，315 项全过 |
+| 自证 | ✅ `node tools/verify_cards.mjs`，304 项全过 |
 | **接进 `ws_daemon.mjs` 的发送路径** | ✅ **已接入**。每条回复过 `toCardOrText()`，形态 / 搬迁 / 语域命中都落日志 |
 | **群里真实渲染效果** | ⚠️ **未由人眼确认**。探针只验了「接口收下」，没验「群里长什么样」 |
 | **按钮回调** | ❌ **未接住**。`ws_daemon` 收到 `card.action.trigger` 只记日志。所以模版里的按钮目前点不动 |
@@ -414,7 +415,7 @@
 
 真正要治的是三件**结构**上的事，也正是这十一类模版在做的事：
 
-1. 边界声明重复五遍（占全文三分之一）→ 压成一个 `boundary` 格，一行，没有就不写
+1. 边界声明重复五遍（占全文三分之一）→ 压成一行，没有就不写（那一格 2026-10-13 已作废；这条说的是「别反复声明」）
 2. 内部记录被当内容发出去 → 只允许进 `collapsible_panel`
 3. 结论埋在 786 字的某处 → 提到 `header.title`
 

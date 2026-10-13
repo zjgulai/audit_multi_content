@@ -1346,11 +1346,9 @@ export async function runSubmissionGate({
                    model_ms: dual.model?.ms ?? null, overrode: !!dual.rendered,
                    // 2026-10-09: 本仓建的那份合并报告的 URL —— daemon 拿它搬进卡片可见格
                    reportUrl: dual.reportUrl ?? null,
-                   // ★★ 2026-10-13：**P0 快路那条边界**（代码产出）—— 与 reportUrl 同一条路，
-                   //   daemon 拿它搬进**卡脚**（`envelope.applyBoundary`）。
-                   //   为什么必须由代码带出去：Owner 同一天要求把「模型原话」整组从卡上去掉，
-                   //   而这条边界原先**只出现在模型原话里** ⇒ 不补就会静默消失。
-                   p0Boundary: dual.rendered?.p0Boundary || null,
+                   // ⚠️ 2026-10-13：`p0Boundary` 那一格撤了 —— 卡脚边界整个不上卡
+                   //   （Owner：「整个都隐藏，不要展示在卡片上」）。
+                   //   它现在走 `renderMerged` 的 `internalNotes`（记忆侧），答得出来、不上卡。
                    // ★ 2026-10-09：**卡里那个「问题数」**（`rendered.total`）必须从这里出去 ——
                    //   它是 PRD §5.3.4 报告链接门槛（≥3）该读的那个数。
                    //   口径 = 能并的条目 ＋ 库侧未并进的（`kbGap`）＋ 覆盖缺口那 1 条，
@@ -2319,8 +2317,6 @@ export async function handleMessage(event, {
                      //   读数仍有三处落点：`📥 读到｜…` 日志（`raw:true`）、会话记忆、报告附录。
                      // 2026-10-09: 报告链接走**可见格**（结论块会被收起，藏里面等于没有）
                      reportLink: g.dual?.reportUrl ?? null,
-                     // ★ 2026-10-13: 卡脚那条边界（P0 快路）—— 与 reportLink 同一条分工
-                     boundary: g.dual?.p0Boundary ?? null,
                      outbound: { folded: outboundFold.folded, untested: outboundFold.plan.untested } } };
   });
 }

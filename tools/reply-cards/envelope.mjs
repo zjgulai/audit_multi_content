@@ -9,23 +9,25 @@
  *    而犯错的代价不是样式难看 —— 是**整条消息被服务端拒掉，回复凭空消失**。
  *
  * 2. 模版的真正作用是**约束内容**，不是换皮。`verdict` 只有一个格、
- *    `boundary` 只有一个格、没东西就空着 —— 这些是槽位，不是建议。
+ *    结论只有一个格（`verdict`）—— 这些是槽位，不是建议。
+ *    （`boundary` 那一格 2026-10-13 已整格作废，见下。）
  *    所以这一层必须真的把上限**执行**掉，而不是在注释里写「≤60 字」。
  *
  * ── 实测：上限原来一处在读吗 ───────────────────────────────────────────
- * 没有。cards.mjs 里 `VERDICT_MAX = 60`、`BOUNDARY_MAX = 90`、`MAX_SECTIONS = 3`
+ * 没有。cards.mjs 里 `VERDICT_MAX = 60`、`MAX_SECTIONS = 3`（`BOUNDARY_MAX` 2026-10-13 随
+ * `boundary` 那一格一起作废）
  * 三个常量定义完之后，**整个仓库没有任何代码引用它们**（grep 只有定义行）。
  * 也就是说「结论 ≤60 字」此前是一句注释，模型写 300 字也照发。
  * 这一层就是它们唯一的执行点。
  *
  * ── 超长怎么处理：搬，不是砍 ───────────────────────────────────────────
  * 结论超过 60 字时**不截断**。截断会丢内容，而丢内容比格式难看严重得多。
- * 做法是把超出部分的整句搬到 boundary 格 —— 内容一个字不少，只是从
+ * 做法是把超出部分的整句搬到折叠区 —— 内容一个字不少，只是从
  * 「结论」那一格挪到了「边界」那一格。真搬不动了才降级成纯文本，
  * 并且降级理由写进正文（对方要能看出格式为什么变了）。
  */
 import {
-  BUILDERS, VERDICT_MAX, BOUNDARY_MAX, MAX_SECTIONS, collapsible,
+  BUILDERS, VERDICT_MAX, MAX_SECTIONS, collapsible,
   build, validateCard, renderText, BY_KIND,
 } from './registry.mjs';
 import { lintCopy } from './registry.mjs';
@@ -307,7 +309,7 @@ const FIELD_ZH = {
   can: '能做到', limited: '受限', cannot: '做不到', item: '对象', why: '原因',
   alternative: '替代方案', note: '备注', paths: '可查路径', tried: '试过哪些',
   nextStep: '下一步', what: '发生了什么', impact: '影响', internal: '内部详情', retry: '重试方式',
-  ask: '在问什么', options: '选项', recommend: '推荐', evidence: '证据', boundary: '边界',
+  ask: '在问什么', options: '选项', recommend: '推荐', evidence: '证据',
   columns: '列', rows: '行', fields: '补充',
 };
 
@@ -365,7 +367,7 @@ export function blockSlotOf(kind) {
 const FOLD_FIELD = {
   'query-answer': 'evidence',
   // ★ 2026-10-06 修：这里原来写的是 `'evidence': 'evidence'` —— **该卡没有 `evidence` 这个字段**
-  //   （它的字段是 `verdict` / `groups` / `fields` / `boundary`）。于是 `foldIn` 把内容写进
+  //   （它的字段是 `verdict` / `groups` / `fields`）。于是 `foldIn` 把内容写进
   //   一个**没人渲染的字段**里 ⇒ **静默丢内容**，而它还返回了一个「落到了 evidence」的读数。
   //   这条陈旧条目一直没被发现，因为此前没有任何路径让 `evidence` 卡走到 `foldIn`
   //   —— 直到 2026-10-06 把结论行的落点改成「抬头优先」，它必然要折一次原抬头。
@@ -454,7 +456,7 @@ function foldIn(kind, d, text) {
  */
 const PUBLIC_FIELDS = [
   'title', 'verdict', 'reasoning', 'wrong', 'right', 'cause', 'what', 'impact',
-  'ask', 'recommend', 'note', 'nextStep', 'boundary', 'why', 'alternative', 'before', 'after',
+  'ask', 'recommend', 'note', 'nextStep', 'why', 'alternative', 'before', 'after',
 ];
 
 function scrubInternal(kind, d) {
@@ -492,7 +494,9 @@ export function enforceLimits(kind, data, extra = []) {
   let d = { ...data };
   const moved = [];
 
-  // 结论超长：按句切，前 VERDICT_MAX 字留结论，其余进 boundary。
+  // 结论超长：按句切，前 VERDICT_MAX 字留结论，其余**搬进折叠区**。
+  // ★ 2026-10-13：原先搬进 `boundary`，而 `boundary` 那一格已整格作废（不上卡）
+  //   ⇒ 再往那儿搬就是**静默丢字**。改走 `foldIn`（与「边界超长」「字段超限」同一条路）。
   if (d.verdict && len(d.verdict) > VERDICT_MAX) {
     const chars = [...s(d.verdict)];
     // 优先在句号处断开，退而在上限处断 —— 但都要保证不丢字
@@ -505,26 +509,10 @@ export function enforceLimits(kind, data, extra = []) {
     const spill = chars.slice(cut).join('').trim();
     if (spill) {
       d.verdict = head;
-      d.boundary = d.boundary ? `${spill} ${d.boundary}` : spill;
-      moved.push({ field: 'verdict', to: 'boundary', chars: len(spill), why: `结论超过 ${VERDICT_MAX} 字` });
-    }
-  }
-
-  // 边界超长：搬进折叠区（有 evidence 就并进去，没有就退到本类型的补充格）
-  if (d.boundary && len(d.boundary) > BOUNDARY_MAX) {
-    const chars = [...s(d.boundary)];
-    let cut = -1;
-    for (let i = Math.min(BOUNDARY_MAX, chars.length - 1); i > BOUNDARY_MAX * 0.4; i--) {
-      if ('。；\n'.includes(chars[i])) { cut = i + 1; break; }
-    }
-    if (cut < 0) cut = BOUNDARY_MAX;
-    const head = chars.slice(0, cut).join('').trim();
-    const spill = chars.slice(cut).join('').trim();
-    if (spill) {
-      d.boundary = head;
-      const [next, to] = foldIn(kind, d, spill);
-      d = next;
-      moved.push({ field: 'boundary', to: to ?? '(无格可放)', chars: len(spill), why: `单行边界超过 ${BOUNDARY_MAX} 字` });
+      const [nv, nto] = foldIn(kind, d, spill);
+      d = nv;
+      moved.push({ field: 'verdict', to: nto ?? '(无格可放)', chars: len(spill),
+                   why: `结论超过 ${VERDICT_MAX} 字` });
     }
   }
 
@@ -717,74 +705,7 @@ export function applyReportLink(kind, data, reportLink) {
   return { data: out, action: 'forced', slot };
 }
 
-/**
- * 把**代码产出的边界**放进卡脚（`boundary` 格）。
- *
- * ── 为什么要有它（2026-10-13）
- *
- *   Owner 要求把「模型原话」那一整组从卡上去掉（见 `toCardOrText` 的 autoCard）。
- *   而 **P0 快路那条边界原先只出现在模型原话里**：
- *     「P0 快路（258.167 ms…）—— 红线拦截，**未跑** L4→L5→L6→L7 与评审链，不得当 PASS 依据」
- *     「边界：…**本单未跑专项审查 —— 素材属产品宣称，仍需转对应专项复核**」
- *   原话一走，卡上就**没有任何东西**说得出这句话 ⇒ 读卡的人会把一次
- *   **确定性匹配**当成「整条链审过了」。所以它必须由**代码**补回来。
- *
- *   这不是新发明：Owner 2026-10-12 要求恢复的三样里就有它
- *   （`agent.mjs` 原位注释：「逐条明细 ＋ 页脚『本结论为 P0 红线拦截…』—— 三样都在」），
- *   那时它是模型照着提示词写的；现在改由代码写 —— **同一条分工**：
- *   边界这种「事实性读数」不该交给模型转述（§2.5：模型不写，代码搬）。
- *
- *   与 `applyReportLink` **完全同构**，但落点是 `boundary`（`cards.mjs` 印成 `hr` + 斜体一行），
- *   不是可见格 —— 边界是脚注，不是结论。
- *
- * @param {string} kind
- * @param {object} data
- * @param {string} boundaryText 代码算好的边界；空 = 没有（**不编**）
- */
-export function applyBoundary(kind, data, boundaryText) {
-  const txt = String(boundaryText ?? '').trim();
-  if (!txt) return { data, action: 'none', slot: null, why: '这一单没有代码产出的边界' };
-  const fields = BY_KIND.get(kind)?.fields;
-  // ⚠️ 判据就是「这个类型有没有 `boundary` 格」—— 没有就 **no-slot 并出声**，
-  //   不许硬塞进别的格子（那会把一句脚注塞进结论或正文里，比不印更坏）。
-  if (!fields || !('boundary' in fields)) {
-    return { data, action: 'no-slot', slot: null, why: `「${kind}」没有 boundary 格` };
-  }
-  const out = { ...data };
-  // ★★ 2026-10-13（**修我自己上一轮引入的回归**）：**卡上已经有边界就不再补**。
-  //
-  //   实测（Owner 2026-10-13 11:35 在群里那条，模型**自己给了卡**）：
-  //   卡脚印成了**两条**边界，说的是同一件事 ——
-  //     · 代码那条：`本结论为 **P0 红线拦截**（确定性匹配，**未跑**专项审查、层前置与评审链）…`
-  //     · 模型那条：`P0 快路=红线拦截≠专项审查结论，不得当 PASS 依据；未跑四层与评审链；…`
-  //   上一轮加 `applyBoundary` 是为了补**代码建卡**那条路（模型没给卡 ⇒ 卡上**一条边界都没有**），
-  //   但它对**模型自己写了一条**的单子照加不误 ⇒ 重复。
-  //
-  //   口径：**只在卡上还没有边界时补**。边界与结论行不同 —— 结论行必须逐字由代码写
-  //   （`verdict53`，模型的措辞不参与那一格）；而边界是**卡自己的脚注**，
-  //   模型写了就用它的（搬是搬），没写才由代码补上。
-  const cur = String(out.boundary ?? '').trim();
-  if (cur === txt) return { data, action: 'already', slot: 'boundary' };
-  // ★★ 2026-10-13（第二次收口）：**代码那条权威 —— 有就用它，替换掉模型写的那条。**
-  //
-  //   第一版写的是「已有就不补」（治重复），而那会留下另一样不齐：
-  //   **同一件事两个说法** —— 模型写的是转述、代码写的是定稿，
-  //   群里那张卡的卡脚于是与私聊那张**逐字不同**（Owner 问的正是「为什么不一样」）。
-  //   两条口径都不能丢，所以：
-  //     · **有代码边界（P0 快路单）⇒ 用代码那条**（它完整、逐字固定，是要人照做的安全声明）；
-  //     · **没有代码边界（非 P0 单）⇒ 沿用模型写的那条**（`boundary` 直接放行，一个字不动）。
-  //   ⚠️ 被换下来的那句**不丢**：记进 `moved`（日志看得见），且它仍在会话记忆里。
-  if (cur) {
-    out.boundary = txt;
-    return { data: out, action: 'forced', slot: 'boundary',
-             why: '卡脚本就有一条（模型写的）⇒ 换成代码那条（安全声明以代码为准）' };
-  }
-  out.boundary = txt;
-  return { data: out, action: 'forced', slot: 'boundary' };
-}
-
-export function toCardOrText(reply, { verdict53 = null, reportLink = null,
-                                      boundary = null } = {}) {
+export function toCardOrText(reply, { verdict53 = null, reportLink = null } = {}) {
   // ★★ 2026-10-13（Owner 三条里的第 1、2 条）：**查证笔记在成形之前就摘掉** ——
   //   放在最前面（早于 `extractCardBlock`）是有意的：那几行若被模型抄进卡片块里，
   //   晚一步摘就摘不到了（块里的是 JSON 字符串，按行认不出来）。
@@ -842,20 +763,19 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null,
   //     抬头＝结论行 · 一组「审查结论」＝§5.3 逐条块 · 卡脚＝边界（+报告链接在可见格）。
   //     模型自拟的分组 / 它的结论格 / 块外正文 **都不上卡**（Owner 前三条已经逐条要走的东西），
   //     但它们**一个字都没丢**：它仍是这一轮的回复正文（会话记忆 + `💬 回复 N 字` 日志）。
-  //   ⚠️ **模型写过的卡脚边界沿用**（它是脚注、不是分组）—— 见 `applyBoundary` 的口径。
+  //   ⚠️ 2026-10-13：`boundary` 那一格**整格作废**（Owner：整个都隐藏）⇒ 模型写的边界
+  //     也**不上卡**（它仍是这一轮回复正文的一部分，会话记忆里有）。
   //   ⚠️ 没有 §5.3 块时（`verdict53.block` 为空）行为**逐字不变**：模型给的卡照用。
   const reviewShape = !!(verdict53 && verdict53.line && verdict53.block) && !!s(raw).trim();
   const shapeMoved = [];
   if (reviewShape) {
-    const modelBoundary = s(blk?.data?.boundary).trim();
     if (blk) {
       shapeMoved.push({ field: 'cardKind', to: 'evidence',
                         why: '评审单 ⇒ 卡面形状由代码定（Owner 2026-10-13：群里与私聊必须一样）'
                            + ' ⇒ 模型自拟的分组/结论格不上卡（原文仍在会话记忆里）' });
     }
     blk = { kind: 'evidence', error: null, before: '', after: '',
-            data: { verdict: '', groups: [],
-                    ...(modelBoundary ? { boundary: modelBoundary } : {}) } };
+            data: { verdict: '', groups: [] } };
   }
 
   const autoCard = !blk && !!(verdict53 && verdict53.line) && !!s(raw).trim();
@@ -898,8 +818,8 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null,
       error: null,
       before: '',
       after: '',
-      // `verdict: ''` 是**留槽位**，不是留空话：`applyReportLink` / `applyBoundary`
-      // 只往 `verdict / reasoning / wrong / verdict_text`（以及 `boundary`）里搬，
+      // `verdict: ''` 是**留槽位**，不是留空话：`applyReportLink`
+      // 只往 `verdict / reasoning / wrong / verdict_text` 里搬，
       // 一个都不给的话，**拿不到 §5.3 块的单子**会连报告链接都没地方落。
       // 留空串 ⇒ 它们搬得进来；而结论行走的是**抬头**（`verdictSlotOf('evidence')='title'`），
       // 两样各占一格，**不会印两遍**。
@@ -1034,10 +954,8 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null,
     //     **留一个没人读的入参就是「传了但没人接」那个病**（同一天刚在
     //     `ws_daemon.replyTo` 的 `reportLink` 上抓到一次，见 test_agent 的 Z20b）。
     //   纯函数 `applyMediaRead` 留着（`p0ShortReplyBlock` 那个先例），要恢复就是把这一跳加回来。
-    // ★ 2026-10-13：**代码产出的边界**（P0 快路那一句）落在卡脚 —— 与报告链接同一批接线，
-    //   位置同样必须在 `build()` **之前**（建完卡再改 data 是白改）。
-    const bd = applyBoundary(kd, data, boundary);
-    data = bd.data;
+    // ⚠️ 2026-10-13：卡脚那一跳**整块已作废**（Owner：「整个都隐藏，不要展示在卡片上」）。
+    //   原先这里往卡脚写 P0 边界 ⇒ 现在那一句改走 `dual_track.internalNotes`（记忆侧，答得出来）。
     // ★ 2026-10-09：**报告链接也搬进可见格** —— 它此前只在结论块里，而那一块会被收起
     //   （Owner 第三次反馈「没有报告链接」，而 docx 其实建好了）。
     const rl = applyReportLink(kd, data, reportLink);
@@ -1190,4 +1108,4 @@ export function publicTextOf(card) {
 }
 
 /** 供 verify 与 CLI 用：哪些常量真的被读了 */
-export const ENFORCED = { VERDICT_MAX, BOUNDARY_MAX, MAX_SECTIONS, KINDS: Object.keys(BUILDERS), validateCard, capSections };
+export const ENFORCED = { VERDICT_MAX, MAX_SECTIONS, KINDS: Object.keys(BUILDERS), validateCard, capSections };

@@ -334,7 +334,9 @@ head('J 信封 · 解析、上限执行、以及「标记不许漏进群」');
     return null;
   };
 
-  for (const k of ['VERDICT_MAX', 'BOUNDARY_MAX', 'MAX_SECTIONS']) {
+  // ⚠️ 2026-10-13：`BOUNDARY_MAX` 已随 `boundary` 那一格**整格作废**（不再上卡 ⇒ 没有可拦的东西），
+  //   所以它不在这张表里了 —— 这一行本身就是那条作废的执行点。
+  for (const k of ['VERDICT_MAX', 'MAX_SECTIONS']) {
     const how = reachesComparison(k);
     if (!how) {
       const seen = envLines.filter((l) => !isComment(l) && new RegExp(`\\b${k}\\b`).test(l));
@@ -355,13 +357,6 @@ head('J 信封 · 解析、上限执行、以及「标记不许漏进群」');
     const vAfter = r1.data.verdict ?? '';
     if (cp(vAfter) > 60) no('J1b VERDICT_MAX 真的拦', `喂 300 字结论，出来还是 ${cp(vAfter)} 字`);
     else ok(`J1b VERDICT_MAX 真的拦：300 → ${cp(vAfter)} 字`);
-
-    // ② 边界超长
-    const bLong = '边'.repeat(400);
-    const r2 = enforceLimits('query-answer', { title: 't', verdict: '短结论', boundary: bLong }, []);
-    const bAfter = r2.data.boundary ?? '';
-    if (cp(bAfter) > 90) no('J1b BOUNDARY_MAX 真的拦', `喂 400 字边界，出来还是 ${cp(bAfter)} 字`);
-    else ok(`J1b BOUNDARY_MAX 真的拦：400 → ${cp(bAfter)} 字`);
 
     // ③ 段落超限 —— 造一张比 MAX_SECTIONS 多两段的卡
     const n = MS + 2;
@@ -453,7 +448,7 @@ head('J 信封 · 解析、上限执行、以及「标记不许漏进群」');
   {
     const long = '这是一句很长的结论。'.repeat(12);
     const { data, moved } = enforceLimits('query-answer', { verdict: long });
-    const rejoined = [...data.verdict, ...(data.boundary ?? ''), ...(data.evidence ?? []).join('')].join('');
+    const rejoined = [...data.verdict, ...(data.evidence ?? []).join('')].join('');
     const lost = [...long].filter((ch) => !rejoined.includes(ch)).length;
     if (moved.length === 0) no('J3 超长结论被搬迁', '超过 60 字却没有产生任何搬迁记录');
     else if (lost) no('J3 超长结论零丢失', `搬迁后丢了 ${lost} 个字符 —— 搬是搬，砍是砍，不能混`);
@@ -817,116 +812,112 @@ head('J13 查证笔记 · 不上卡、但要答得出来（Owner 2026-10-13 三�
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // J14 **卡脚那条边界必须由代码写**（2026-10-13：它原先只在模型原话里，
-  //     而原话整组被 Owner 从卡上撤走了 ⇒ 不给就会静默消失）
+  // J14 **卡脚那条边界整个不上卡**（2026-10-13，Owner：「整个都隐藏，不要展示在卡片上」）
   // ══════════════════════════════════════════════════════════════════════════
-  //   这条边界管的是**误读**：P0 快路是「确定性匹配、**没跑过**专项审查」，
-  //   少了这一句，读卡的人会把一次红线拦截当成「整条链审过了」。
-  //   它同时是 Owner 2026-10-12 要求恢复的三样之一（页脚「本结论为 P0 红线拦截…」）。
+  //   历史：这一格来回改过三次 ——
+  //     ① 模型写在卡脚（平铺）→ Owner 问「可以隐藏吗」；
+  //     ② 我把它收进折叠面板「边界与口径」→ Owner：「**整个都隐藏，不要展示在卡片上**」；
+  //     ③ 现在：**整格作废**（不再是任何卡片的字段，`BOUNDARY_MAX` 一并作废）。
+  //   ⚠️ 它**不是被删掉**：P0 快路那句边界改走 `dual_track.internalNotes`
+  //      （→ `chainBlock` → **会话记忆**）⇒ 守衡答得出来，只是不上卡。
+  //      「未跑专项审查 / 仍需转对应专项复核」必须还在 —— 少一句，
+  //      读卡的人会把一次**确定性匹配**当成「整条链审过了」。
   {
-    const { applyBoundary } = await import(path.join(CARDS_DIR, 'envelope.mjs'));
     const V53B = { state: 'BLOCK', line: '【审查结论：BLOCK】共发现 2 处必须修改。',
                    from: 'dual-track-merged',
                    block: '【审查结论：BLOCK】共发现 2 处必须修改。\n1.【合规】全文\n   原因：x\n请修改后重新提交。' };
     const BND = '本结论为 **P0 红线拦截**（确定性匹配，**未跑**专项审查、层前置与评审链），'
               + '**不是 PASS 依据**；若素材属图片 / 视频 / 产品宣称等模态，**仍需转对应专项复核**。';
-    const r = toCardOrText('模型原话（会被整组去掉）', { verdict53: V53B, boundary: BND });
-    const foot = JSON.stringify(r.card?.body ?? '');
-    if (!foot.includes('P0 红线拦截')) no('J14a 代码给的边界必须落在卡上', foot.slice(0, 160));
-    else ok('J14a 代码给的边界落在卡脚（P0 快路那句跑不掉）');
-    if (!foot.includes('仍需转对应专项复核')) no('J14a2 边界里那句「仍需转对应专项复核」也要在', '被截掉了');
-    else ok('J14a2 「仍需转对应专项复核」也在卡脚');
-    // J14b2 ★★ 卡上**已经有边界**（模型自己写的）⇒ **换成代码那条**（不是并排印两条）
-    //   实测 Owner 2026-10-13 11:35 群里那条卡：卡脚印了**两条**说的是一件事；
-    //   而第一版修法（「已有就不补」）留下的是另一个不齐 —— 群里与私聊卡脚**逐字不同**，
-    //   正是 Owner 问的「为什么格式不一样」。⇒ 口径：有代码边界就以代码那条为准。
+    // J14a 模型自拟的卡里写了 boundary ⇒ 也不许上卡
     {
-      const { applyBoundary: AB } = await import(path.join(CARDS_DIR, 'envelope.mjs'));
-      const withOwn = AB('evidence', { verdict: 'v', boundary: '模型自己写的那条边界。' }, BND);
-      const b = String(withOwn.data.boundary);
-      if (withOwn.action !== 'forced' || b !== BND) {
-        no('J14b2 已有模型边界 ⇒ 换成代码那条（不许并排两条、也不许留两个说法）',
-           JSON.stringify(withOwn).slice(0, 160));
-      } else ok('J14b2 已有模型边界 ⇒ 换成代码那条（卡脚全站同一个说法）');
-      // 反向对照：**没有代码边界**时，模型写的那条**一个字都不许动**
-      const onlyModel = AB('evidence', { verdict: 'v', boundary: '模型自己写的那条边界。' }, '');
-      if (onlyModel.action !== 'none' || String(onlyModel.data.boundary) !== '模型自己写的那条边界。') {
-        no('J14b2b 反向对照：没有代码边界时，模型那条不许被改', JSON.stringify(onlyModel).slice(0, 140));
-      } else ok('J14b2b 反向对照：没有代码边界时模型那条原样留着');
+      const raw = '[[card:evidence]]\n' + JSON.stringify({
+        verdict: 'v', groups: [{ title: '审查结论', content: 'x' }], boundary: BND }) + '\n[[/card]]';
+      const r = toCardOrText(raw, { verdict53: V53B });
+      const whole = JSON.stringify(r.card ?? {});
+      if (/P0 红线拦截/.test(whole) || /仍需转对应专项复核/.test(whole)) {
+        no('J14a 模型写的 boundary 也不许上卡', whole.slice(0, 160));
+      } else ok('J14a 模型写的 boundary 不上卡（Owner：整个都隐藏）');
     }
-
-    // J14b **反向对照**：没有边界时**一个字都不许加**（不许编一句套话）
-    const r0 = toCardOrText('模型原话', { verdict53: V53B });
-    if (/P0 红线拦截/.test(JSON.stringify(r0.card?.body ?? ''))) {
-      no('J14b 反向对照：没给边界不许凭空造一条', '冒出了「P0 红线拦截」');
-    } else ok('J14b 反向对照：没给边界就不印（不编）');
-    // J14c **no-slot 必须出声**：类型没有 boundary 格时不许硬塞进别的格子
-    const rq = applyBoundary('turn-diff', { before: 'a', after: 'b' }, BND);
-    if (rq.action !== 'no-slot' || rq.data.before !== 'a') {
-      no('J14c 没有 boundary 格的类型 ⇒ no-slot，不许硬塞', JSON.stringify(rq).slice(0, 120));
-    } else ok('J14c 没有 boundary 格的类型 ⇒ no-slot 并出声（不硬塞）');
-    // J14d **接线**：内核真的把这条边界算出来、daemon 真的把它传下去
-    //   （少了这两句，上面三条全是「函数自己能跑」，而线上一个字节都到不了）
-    const A = fs.readFileSync(path.join(HERE, 'agent', 'agent.mjs'), 'utf8');
-    const Wd = fs.readFileSync(path.join(HERE, 'ws_daemon.mjs'), 'utf8');
-    if (!/p0Boundary/.test(A) || !/boundary:\s*result\.meta\?\.boundary/.test(Wd)
-        || !/boundary = null \} = \{\}/.test(Wd)) {
-      no('J14d 接线：agent 算出 p0Boundary ＋ daemon 接住并转发', '有一跳没接上');
-    } else ok('J14d 接线：agent 算出 p0Boundary ＋ daemon 接住并转发');
+    // J14b ★★ **搬不是砍**：P0 那句边界必须仍在**记忆侧**
+    {
+      const T = await import(path.join(HERE, 'agent', 'dual_track.mjs'));
+      const kb = T.kbSideOf({ p0_fastpath: { rule_codes: ['H05'], elapsed_ms: 258, matched_patterns: 1 }, issue_count: 1 });
+      const mo = { ok: true, findings: [{ location: 'x', category: '合规', severity: 'BLOCK', source: 'model', reason: 'r' }] };
+      const r0 = T.renderMerged(T.mergeFindings([], mo.findings).items,
+        { state: 'BLOCK', kb, kbTextCount: 1, model: mo });
+      if (/P0 红线拦截/.test(String(r0.block))) no('J14b 卡面 block 里不许再有它', String(r0.block).slice(0, 100));
+      else if (!/P0 红线拦截/.test(String(r0.internalNotes))) {
+        no('J14b P0 边界必须搬进 internalNotes（搬不是砍）', JSON.stringify(String(r0.internalNotes).slice(0, 120)));
+      } else ok('J14b P0 边界从卡面搬进了查证笔记（记忆侧留得住）');
+      // 反向对照：**不是 P0 快路**的单子，笔记里不许凭空多出这句
+      const kbR = T.kbSideOf({ review: { state: 'REVIEW', issue_count: 1 } });
+      const r1 = T.renderMerged(T.mergeFindings([], mo.findings).items,
+        { state: 'REVIEW', kb: kbR, kbTextCount: 1, model: mo });
+      if (/P0 红线拦截/.test(String(r1.internalNotes))) {
+        no('J14b2 反向对照：非 P0 单不许凭空多出 P0 边界', '冒出来了');
+      } else ok('J14b2 反向对照：非 P0 单没有这句（不编）');
+    }
+    // J14c **接线**：整条链上不该再有 `boundary` 这一格的搬运
+    {
+      const E = fs.readFileSync(path.join(CARDS_DIR, 'envelope.mjs'), 'utf8');
+      const Wd = fs.readFileSync(path.join(HERE, 'ws_daemon.mjs'), 'utf8');
+      const A = fs.readFileSync(path.join(HERE, 'agent', 'agent.mjs'), 'utf8');
+      const Rg = fs.readFileSync(path.join(CARDS_DIR, 'registry.mjs'), 'utf8');
+      const bad = [];
+      // ⚠️ 扫描**排除注释行** —— 第一版就被自己的解释文字绊倒（`// 见 applyBoundary 的口径`）。
+      //    这是 §2.4.4 记过的坑：**统一一条读法，注释不算代码**。
+      const code = (x) => x.split('\n').filter((l) => {
+        const t = l.trim();
+        return !(t.startsWith('//') || t.startsWith('*') || t.startsWith('/*'));
+      }).join('\n');
+      if (/applyBoundary/.test(code(E))) bad.push('envelope 还有 applyBoundary');
+      if (/boundary:\s*result\.meta/.test(Wd) || /boundary = null/.test(Wd)) bad.push('daemon 还在传 boundary');
+      if (/meta\.boundary|p0Boundary:/.test(A)) bad.push('agent 还把 boundary 交出去');
+      if (/boundary:/.test(Rg)) bad.push('登记表里还有 boundary 字段（提示词会继续问它）');
+      if (bad.length) no('J14c 接线：整条链上不该再有 boundary', bad.join(' · '));
+      else ok('J14c 接线：envelope / daemon / agent / 登记表 四处都不再有 boundary');
+    }
   }
 
-/* ── J16 卡脚那条边界**收在折叠区里**（2026-10-13，Owner：「这段内容可以隐藏吗？」）──
- *  Owner 贴的是群卡片的卡脚：
- *    `*未命中≠合规；顶层 state=REVIEW，依据侧 refusal=NEEDS_INPUT/coverage_not_covered；
- *      表里 0=未判定非零风险；模态为申报档。*`
- *  —— 那是**模型写的**（全仓 grep 不到），而它当时**平铺在卡脚**。
- *  ⇒ 收进折叠面板「边界与口径」（默认收起）。**隐藏 ≠ 删掉**：点开就在。
+/* ── J16 `boundary` 那一格**整格作废**（2026-10-13，Owner：「整个都隐藏，不要展示在卡片上」）──
+ *  这一组是 J14 的**另一半**：J14 管「P0 那句边界必须还有落点（记忆侧）」，
+ *  J16 管「卡面上一个渲染点都不许留」。
  *
- *  ⚠️ 写这一组时才发现的另一件事：**这件事原先没有任何东西在看着** ——
- *    改完形状（`hr + markdown` → `collapsible`）**311 项判据一条都没红**。
- *    所以下面这几条是**新长出来的眼睛**，不是给旧行为搬家。
+ *  ⚠️ 写这组时才知道的事：**这件事原先没有任何东西在看着** ——
+ *    把渲染从 `hr + markdown` 改成 `collapsible` 时，311 项判据**一条都没红**。
+ *    所以这几条是**新长出来的眼睛**。
  */
-head('J16 卡脚边界 · 收在折叠区里，但一个字都不许丢');
+head('J16 boundary 整格作废 · 卡面上一个渲染点都不许留');
 {
-  const { evidence: buildEvidence } = await import(path.join(CARDS_DIR, 'cards.mjs'));
+  const cards = await import(path.join(CARDS_DIR, 'cards.mjs'));
   const BND = '未命中≠合规；顶层 state=REVIEW，依据侧 refusal=NEEDS_INPUT/coverage_not_covered。';
-  // J16a 必须在折叠面板里，且**默认收起**
+  // J16a 五种卡片的构建器**都不许**把 boundary 渲染出来
   {
-    const c = buildEvidence({ verdict: 'v', groups: [{ title: '审查结论', content: 'x' }], boundary: BND });
-    const panel = (c.body.elements ?? []).find((e) => e.tag === 'collapsible_panel'
-      && /边界/.test(String(e.header?.title?.content ?? '')));
-    if (!panel) no('J16a 卡脚边界必须在折叠面板里', JSON.stringify((c.body.elements ?? []).map((e) => e.tag)));
-    else if (panel.expanded !== false) no('J16a 卡脚边界必须**默认收起**', `expanded=${panel.expanded}`);
-    else ok('J16a 卡脚边界收在折叠面板「边界与口径」里，默认收起（Owner：可以隐藏吗 → 能）');
+    const kinds = ['query-answer', 'correction', 'capability-boundary', 'find-nothing', 'evidence'];
+    const leaked = [];
+    for (const k of kinds) {
+      const built = cards.build(k, { verdict: 'v', title: 't', wrong: 'w', right: 'r',
+        content: 'c', groups: [{ title: 'g', content: 'x' }], boundary: BND });
+      if (JSON.stringify(built).includes('coverage_not_covered')) leaked.push(k);
+    }
+    if (leaked.length) no('J16a 五种卡片都不许把 boundary 渲染上卡', `漏了：${leaked.join(' / ')}`);
+    else ok('J16a 五种卡片都不许把 boundary 渲染上卡（整格作废）');
   }
-  // J16b **隐藏 ≠ 删掉**：内容一个字都不许少
-  {
-    const c = buildEvidence({ verdict: 'v', boundary: BND });
-    const whole = JSON.stringify(c);
-    if (!whole.includes('coverage_not_covered') || !whole.includes('未命中≠合规')) {
-      no('J16b 收起来 ≠ 删掉（点开必须还在）', whole.slice(0, 140));
-    } else ok('J16b 收起来但一个字没丢（点开就在）');
-  }
-  // J16c 反向对照：**没有边界就不许造**一个空的折叠面板出来
-  {
-    const c = buildEvidence({ verdict: 'v' });
-    const empty = (c.body.elements ?? []).some((e) => e.tag === 'collapsible_panel'
-      && /边界/.test(String(e.header?.title?.content ?? '')) && !e.elements?.length);
-    if (empty) no('J16c 反向对照：没有边界不许造一个空面板', '冒出了空的「边界与口径」');
-    else if (JSON.stringify(c).includes('边界与口径')) no('J16c 反向对照：没有边界就不印', '冒出了「边界与口径」');
-    else ok('J16c 反向对照：没有边界就不印（不造空壳）');
-  }
-  // J16d **一条规矩五处共用**：源码里不许再有「hr + 斜体 boundary」那种平铺写法
-  //   （少了这一条，下一次谁在某个卡片里加回平铺，上面三条照样绿）
+  // J16b 源码级：cards.mjs 里不许再出现渲染 boundary 的那一行（否则下一个人加回来没人拦）
   {
     const src = fs.readFileSync(path.join(CARDS_DIR, 'cards.mjs'), 'utf8');
-    const flat = (src.match(/hr\(\),\s*md\(`\*\$\{s\(d\.boundary\)\}\*`\)/g) || []).length;
-    const shared = (src.match(/boundaryEl\(d\.boundary\)/g) || []).length;
-    if (flat) no('J16d boundary 不许再有平铺写法（hr + 斜体）', `还剩 ${flat} 处`);
-    else if (shared !== 5) no('J16d 五种卡片的 boundary 必须都走共用件', `实际 ${shared} 处`);
-    else ok(`J16d 五处 boundary 全走共用件 boundaryEl()（${shared} 处，无平铺残留）`);
+    if (/d\.boundary|boundaryEl/.test(src)) {
+      no('J16b cards.mjs 里不许再出现渲染 boundary 的代码', '还有残留');
+    } else ok('J16b cards.mjs 里没有渲染 boundary 的代码（也没有 boundaryEl）');
+  }
+  // J16c 反向对照：**没有** boundary 的单子当然也不许凭空冒出面板
+  {
+    const built = cards.build('evidence', { verdict: 'v', groups: [{ title: 'g', content: 'x' }] });
+    if (/边界/.test(JSON.stringify(built))) no('J16c 反向对照：没有边界不许凭空造一格', '冒出来了');
+    else ok('J16c 反向对照：没有边界就不印（不造空壳）');
   }
 }
+
 
 /* ─────── J15 报告链接**不许在一张卡上出现两次**（2026-10-13，Owner 那张视频卡）───────
  *  实测那张卡（真实结构复原）：可见格是「我读到了 ＋ → 查看完整问题清单与修改建议：…」，
