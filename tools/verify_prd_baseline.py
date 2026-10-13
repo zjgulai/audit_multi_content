@@ -67,6 +67,7 @@ python open().read() : 14614      索引 size_bytes : 14614      sha256 一致
 """
 
 import argparse
+import datetime
 import hashlib
 import json
 import os
@@ -174,6 +175,78 @@ def fetch_raw(token, obj_token):
     return (r.get("data") or {}).get("content", ""), None
 
 
+def fetch_edit_time(token, obj_token):
+    """取上游最后改动时刻（**只读元数据**：`drive/v1/metas/batch_query`，AGENTS.md §2.6 允许读元数据）。
+
+    取不到一律返回 `None` —— 调用方据此落「未测」，**不许**当成「没改过」。
+
+    ★ 为什么加它（2026-10-12，代价是一次手工考古）：
+      那天上游 17:44:01 删掉了正文里一个空行。告警说的是「请给我一分钟重拉一次基线」——
+      **没有说上游是什么时候改的**。而「现在就拉，还是等它改完」正是读者唯一要判断的事：
+      实测当时只能靠翻 daemon 日志时间线（17:43:37 还绿、17:45:08 已变）**加上**另调一次
+      这个 metas 接口，才拼出那个 90 秒的窗口。
+    """
+    r = _req(f"{API}/drive/v1/metas/batch_query",
+             {"request_docs": [{"doc_token": obj_token, "doc_type": "docx"}], "with_url": False},
+             tok=token)
+    if r.get("code") != 0:
+        return None
+    metas = (r.get("data") or {}).get("metas") or []
+    if not metas:
+        return None
+    m = metas[0]
+    ts = m.get("latest_modify_time")
+    if not ts:
+        return None
+    ts = int(ts)
+    if ts > 10 ** 12:            # 有接口回毫秒；实测这个接口回的是**秒**（1791798241 → 2026-10-12 17:44:01）
+        ts //= 1000
+    return {
+        "bj": datetime.datetime.utcfromtimestamp(ts + 8 * 3600).strftime("%Y-%m-%d %H:%M:%S"),
+        "epoch": ts,
+        "who": m.get("latest_modify_user") or None,
+    }
+
+
+def name_of(token, open_id):
+    """`open_id` → 姓名（只读通讯录；AGENTS.md §2.6 允许读元数据）。取不到返回 `None`。
+
+    ★ 为什么必须解析、而且解析不到就**整个不印**：
+      往飞书群里印一个 `ou_39b94aeb…` 是**内部标识**，业务同事看不懂 ——
+      与「库内命中（读数）」那类**原始倾倒**是同一个病（2026-10-12 委托方批过）。
+      所以这里不做「退而求其次印 open_id」这种事：**宁可少一句，不印看不懂的东西。**
+    """
+    if not open_id:
+        return None
+    try:
+        r = _req(f"{API}/contact/v3/users/{open_id}", tok=token)
+    except Exception:                                        # noqa: BLE001
+        return None
+    if r.get("code") != 0:
+        return None
+    return ((r.get("data") or {}).get("user") or {}).get("name") or None
+
+
+def edit_time_problem(rec, upstream):
+    """纯判据：索引记的 `obj_edit_time_bj` 必须等于上游的 `latest_modify_time`。
+
+    ★ 与 `A6` 是**两件事**，别互相顶替：
+      `A6` 判「这个值能不能解析、落不落在合理区间」—— 治的是**秒 vs 毫秒读错**；
+      这一条判「它跟上游说的是不是同一个时刻」—— 治的是**能解析、但早已过期**。
+    实测后者烂过两次没人发现（其中一次就是本文件作者 2026-10-12 上午重拉时跳过的）：
+    索引一直写着 `2026-09-24 19:10:54`，而正文当天已经改过两次。
+    """
+    if upstream is None:
+        return None              # 取不到上游 → 由调用方落「未测」，不在这里判
+    want = str(rec.get("obj_edit_time_bj") or "")
+    if not want:
+        return "索引项没有 obj_edit_time_bj"
+    if want == upstream.get("bj"):
+        return None
+    return (f"索引记的是「{want}」，而上游最后改动是「{upstream.get('bj')}」"
+            f" —— ★ 内容可能没变，但这个读数已经过期（重拉时它和 sha256 是一起要重记的）")
+
+
 # ─────────────────────────── 结论行（纯函数，好让 controls 断言它不撒谎） ───────────────────────────
 
 def verdict(n_pass, n_fail, untested):
@@ -210,7 +283,23 @@ def verdict(n_pass, n_fail, untested):
 # ★ 判据的形状：每处引用都要**指到 v1.2 里那一节的名字**（登记表 `PRD/feishu/章节引用-v1.json`）。
 #   上游再重排一次 → R1 当场红。
 REFS = BASE_DIR / "章节引用-v1.json"
-REF_RE = re.compile(r"PRD\s*§\s*(\d+(?:\.\d+)*)")
+# ★ `\\?` 那一截是**实测补的**（2026-10-12）：引用可能写在 **JS 正则字面量**里，
+#   于是点号是转义的 —— `dual_track.mjs` 里那句
+#   `/未达 3 条，不适用 PRD §5\.3\.3/` 被旧判据读成了 **`§5`（功能需求）**，
+#   因为 `\.` 里的反斜杠把 `(?:\.\d+)*` 掐断了。
+#   后果不是「少登记一条」，而是**多出一条不存在的引用**：它逼着人给一个
+#   **仓库里根本没写过的节号**补登记 —— 那正是「为了变绿机械补一行」。
+#   一个读错输入的扫描器，和一个恒绿的断言一样糟（§2.1.1）。
+REF_RE = re.compile(r"PRD\s*§\s*(\d+(?:\\?\.\d+)*)")
+
+
+def _norm_sec(s):
+    """把正则转义写法归一：`5\\.3\\.3` → `5.3.3`。
+
+    归一放在**捕获之后、当键之前** —— 否则同一个节号会因为两种写法被记成两个键，
+    于是「登记表里有、仓库里没有」和它的反面会同时红。
+    """
+    return s.replace("\\", "")
 # ★ 负向后顾 `(?<!-)` 是**实测补的**：文件名 `内容审查Agent-PRD-v1.0.md` 里也有 "v1.0"，
 #   而那份文件装的是 **v1.2** 正文（上游没改文件名）。第一版判据因此把一处**活引用**
 #   误判成历史叙述 —— 会误报的检查器比没有检查器更糟（§2.1.1），它会让人开始不看报告。
@@ -262,7 +351,7 @@ def scan_refs(root):
             continue
         for ln in lines:
             for m in REF_RE.finditer(ln):
-                e = found.setdefault((s, m.group(1)), {"marker": False})
+                e = found.setdefault((s, _norm_sec(m.group(1))), {"marker": False})
                 e["marker"] = e["marker"] or bool(HIST_MARKER.search(ln))
     return found
 
@@ -472,6 +561,7 @@ def main():
 
     # ── L3 取数（一次 token，逐份重拉）；失败/跳过 = 未测，不是通过
     live = {}
+    edit_up = {}          # ★ 每份的「上游最后改动」读数（2026-10-12 加，见 fetch_edit_time）
     untested = []
     if args.offline:
         # ★ 必须在这里就把 untested 填上。第一版是直接跳过整个块、untested 留空，
@@ -502,8 +592,23 @@ def main():
                     add("L3", f"C0 重拉 {d.get('file')}", False, err)
                 else:
                     live[d.get("file")] = txt
+                # ★ 上游最后改动时刻（2026-10-12 加）。取不到落**未测** ——
+                #   与 `fetch_raw` 失败同一档待遇：这条判据没跑成，就不许当它过了。
+                up = fetch_edit_time(tok, d.get("obj_token"))
+                if up is None:
+                    untested.append(f"{d.get('file')}（上游编辑时刻未取到）")
+                else:
+                    edit_up[d.get("file")] = up
 
     # ── 逐份判定
+    for d in docs:
+        # ★ A7 与 A6 **成对**：A6 判「能解析、落合理区间」（治秒/毫秒读错），
+        #   A7 判「与上游是不是同一个时刻」（治「能解析但已过期」）。
+        #   只有联网取到了上游时刻才判；取不到已经在上面落了「未测」。
+        if d.get("file") in edit_up:
+            prob = edit_time_problem(d, edit_up[d.get("file")])
+            add("L3", f"A7 索引 obj_edit_time_bj = 上游最后改动 · {d.get('file')}",
+                prob is None, prob or edit_up[d["file"]]["bj"])
     for d in docs:
         f = d.get("file")
         p = BASE_DIR / str(f)
@@ -568,6 +673,18 @@ def main():
             print(f"\n★★ 上游改版了：{d['file']}")
             print(f"   索引指纹 {d['sha256']}")
             print(f"   现场指纹 {hashlib.sha256(live[d['file']].encode('utf-8')).hexdigest()}")
+            # ★ 把「上游什么时候改的」印出来（2026-10-12 加）：读者要判断的正是
+            #   「现在就拉，还是等它改完」—— 而这条读数此前只能靠手工翻日志时间线拼。
+            up = edit_up.get(d["file"])
+            if up:
+                import time as _t
+                mins = max(0, int((_t.time() - up["epoch"]) // 60))
+                # ★ 姓名**在这里才解析**（不放进 `fetch_edit_time`）：那条路径每次检查都跑，
+                #   而姓名只有漂移告警要用 —— 别为一条罕见的读数让日常检查多两次网络调用。
+                #   解析不到就**不印改动人**，绝不退而印一个业务同事看不懂的 open_id。
+                who = name_of(tok, up.get("who")) if up.get("who") else None
+                print(f"   上游最后改动 {up['bj']}（北京时间，{mins} 分钟前）"
+                      + (f" · 改动人 {who}" if who else ""))
             print("   动作（**别只改 sha256**，要重拉正文并重记全部读数）：")
             print(f"     python3 tools/lark_find.py readdoc {d['obj_token']} > "
                   f"'PRD/feishu/{d['file']}'")

@@ -178,24 +178,48 @@ export function enter(prev, now) {
     };
   }
 
-  // ── 红：引文在上游对不上（也可能是我方抄错）
-  if (code === 1 || miss.length) {
-    const key = `miss:${miss.map((m) => m.id).sort().join(',')}`;
+  // ── 红：引文在上游对不上 / 只差排版形态 / 空位形态不齐
+  //
+  //   ★★ 2026-10-13 修**一处 fail-open**（就在这条路上，实测踩到）：
+  //     原条件 `code === 1 || miss.length` 有两种坏法，方向相反：
+  //       · `miss` 空而红在 `punct` / `ws`（转写杂质）⇒ 文案印成「有 **0** 条引文对不上」，
+  //         真正红在哪一条一个字都没说（当天实测：`miss=0`、检查器退 1）；
+  //       · 若顺手把条件收窄成 `miss.length`，那两种红会**一路掉进最后的绿分支**
+  //         （`全绿且无来源变动（该闭嘴）`）⇒ **有红报绿**，比上一坏法严重得多。
+  //     现在：三种红各自进这一支、各自被说出来；末尾另加一道兜底 ——
+  //     「退 1 却四类全空」不许当绿。**判据只认清单里的字段，不猜。**
+  const nPunct = Number(man?.entries?.punct ?? 0);
+  const nWs = Number(man?.entries?.ws ?? 0);
+  if (miss.length || nPunct || nWs) {
+    const key = `red:${miss.map((m) => m.id).sort().join(',')}|punct:${nPunct}|ws:${nWs}`;
     if (prev.saidDriftKey === key) {
       return { state: { ...st, lastState: 'red', saidDriftKey: key }, say: null,
                why: '同一批失配条目已经说过', verdict: 'red' };
     }
-    const lines = miss.slice(0, 6).map((m) => `· ${m.id}（${m.source_id}）`)
-      .concat(miss.length > 6 ? [`· 还有 ${miss.length - 6} 条，明细在我这边的日志里`] : []);
+    const lines = [];
+    if (miss.length) {
+      lines.push(`⚠️ **外部标准库有 ${miss.length} 条引文在上游对不上了**`);
+      lines.push(...miss.slice(0, 6).map((m) => `· ${m.id}（${m.source_id}）`));
+      if (miss.length > 6) lines.push(`· 还有 ${miss.length - 6} 条，明细在我这边的日志里`);
+      lines.push('· 两种可能：上游改了这几句，或者我们当初抄错了。**先别拿这几条当依据**，我去核。');
+    } else {
+      // 失配 0，但形态层有红 —— 不许说成「都对上了」（§2.4.2）
+      lines.push('⚠️ **外部标准库这一轮没全过**：失配 0 条，红在**形态层**（见下）—— 那不是「都对上了」。');
+    }
+    if (nPunct || nWs) {
+      lines.push(`· 另有 ${nPunct} 条只差**排版形态**（弯/直引号）、${nWs} 条**空位形态不齐**`
+                 + '（多了原文没有的空格）—— 属转录杂质，应改我们的写法。');
+    }
+    if (unver.length) {
+      // ★ 与 `verify_shouheng_ops` 的 H7 同一条纪律：**有红时也要把未测说出来**，
+      //   否则只看这一条的人会以为其余都验过了。
+      lines.push(`· 另有 ${unver.length} 条**不可复核**（今日无匿名取法拿到正文），只对仓内留档件核过，按 L2 算。`);
+    }
     return {
       state: { ...st, lastState: 'red', saidDriftKey: key },
       verdict: 'red',
-      why: '有引文在上游对不上',
-      say: [
-        `⚠️ **外部标准库有 ${miss.length} 条引文在上游对不上了**`,
-        ...lines,
-        '· 两种可能：上游改了这几句，或者我们当初抄错了。**先别拿这几条当依据**，我去核。',
-      ].join('\n'),
+      why: miss.length ? '有引文在上游对不上' : '形态层有红（转录杂质，应改）',
+      say: lines.join('\n'),
     };
   }
 
@@ -225,7 +249,15 @@ export function enter(prev, now) {
       state: { ...st, lastState: 'ok', saidDriftKey: prev.saidDriftKey },
       verdict: 'ok',
       why: '上一次是红的/未测，这次干净了（要报一次，否则没人知道恢复了）',
-      say: `✅ 外部标准库的核对恢复了：${hit}/${total} 条引文在上游逐字命中，没有来源变动。`,
+      // ★ 2026-10-13：`hit` 里可能含**已裁决的空位差**（`entries.declared_ws`）——
+      //   那种条目逐字内容无差异，但**只出现在派生证据件上的空格**是有的。
+      //   一句「逐字命中」会把这层差别吞掉 ⇒ 这里必须说出来（清单里有这个字段，
+      //   见 `verify_external.py` 的 `declared_ws_diffs`）。
+      say: `✅ 外部标准库的核对恢复了：${hit}/${total} 条引文在上游逐字命中，没有来源变动。`
+           + (Number(man?.entries?.declared_ws ?? 0)
+              ? `\n· 其中 ${Number(man.entries.declared_ws)} 条带**已裁决**的空位差`
+                + '（只出现在派生证据件上的空格，逐字内容无差异）。'
+              : ''),
     };
   }
 
@@ -246,6 +278,25 @@ export function enter(prev, now) {
         + '**只对仓内留档件核过，没在上游核**（本机无匿名取法）。',
         '· 这几条的结论按 L2 算，别当成「在上游验过了」。',
       ].join('\n'),
+    };
+  }
+
+  // ★ 兜底（2026-10-13）：检查器**退 1**，而上面四类可归类的红都不是它
+  //   ⇒ 这是「检查器与告警器口径不一致」的形状，**不许报绿**。
+  //   宁可说一句「我认不出红在哪一类」，也不能让一个退 1 的检查器在群里静默。
+  if (code === 1) {
+    const key = `red-unclassified:${st.lastHash}`;
+    if (prev.saidDriftKey === key) {
+      return { state: { ...st, lastState: 'red', saidDriftKey: key }, say: null,
+               why: '同一条未归类的红已经说过', verdict: 'red' };
+    }
+    return {
+      state: { ...st, lastState: 'red', saidDriftKey: key },
+      verdict: 'red',
+      why: '检查器退 1，但清单里四类红全空',
+      say: '⚠️ **外部标准库这一轮退 1，而我认不出红在哪一类**'
+           + '（失配 / 排版形态 / 空位形态 / 不可复核 全是 0）\n'
+           + '· 这是**检查器与告警器口径不一致**的形状 —— 别当成通过；明细看那一轮 `verify_external.py` 的输出。',
     };
   }
 
@@ -328,6 +379,25 @@ export async function selftest() {
   r = enter({}, { code: 1, manifest: mk({ miss: [{ id: 'EXT-007', source_id: 'S4' }] }), day });
   T('引文失配 → 必须说', !!r.say && r.verdict === 'red' && r.say.includes('EXT-007'), `verdict=${r.verdict}`);
 
+  // 4b. ★ 退 1 但 `miss` 为空、红在形态层（2026-10-13 加）
+  //     实测形状：当天 `失配 0 / 不可复核 4`，检查器退 1，而旧文案印的是
+  //     「有 **0** 条引文在上游对不上了」—— 真正红在哪一条一个字没说。
+  r = enter({}, { code: 1, manifest: mk({ entries: { total: 62, hit: 61, punct: 1, ws: 2 } }), day });
+  T('★ 红在形态层（miss 空）→ 必须说出来，且不许印「0 条对不上」',
+    !!r.say && r.verdict === 'red' && !/有 0 条引文/.test(r.say) && /空位形态不齐/.test(r.say),
+    `say=${r.say}`);
+
+  // 4c. ★ 反向对照（fail-open 那一侧）：退 1、而四类红全空 ⇒ **不许报绿**
+  r = enter({}, { code: 1, manifest: mk({}), day });
+  T('★ 反向对照：退 1 却四类全空 → 不许报绿',
+    r.verdict === 'red' && !!r.say && /认不出红在哪一类/.test(r.say), `verdict=${r.verdict} say=${r.say}`);
+
+  // 4d. 有红且同时有不可复核 → 必须两样都说（与 H7 同一条纪律）
+  r = enter({ lastState: 'ok', saidDriftKey: 'x' },
+            { code: 1, manifest: mk({ miss: [{ id: 'EXT-007', source_id: 'S4' }],
+                                      unverifiable: [{ id: 'EXT-021', source_id: 'S7' }] }), day });
+  T('有红时也要把「不可复核」说出来', !!r.say && /不可复核/.test(r.say), `say=${r.say}`);
+
   // 5. 未测 → 必须说，且**文案里不许出现「没问题」**（§2.4.2 第 2 条）
   //    ⚠️ 判据要能区分「说」和「否认」：守衡那句「这不是『没问题』，是『没测到』」是对的，
   //    禁用语检查第一版把它算成命中（就是下面这条自己红过一次）。所以先 `stripNegated`。
@@ -355,6 +425,17 @@ export async function selftest() {
   // 10. 恢复要报一次
   r = enter({ lastState: 'red' }, { code: 0, manifest: mk({}), day });
   T('上一次是红的、这次干净 → 报一次恢复', !!r.say && r.verdict === 'ok', `say=${r.say}`);
+
+  // 10b. ★ 恢复文案里**不许**把「已裁决的空位差」吞掉（2026-10-13 加）
+  //      实测形状：EXT-040 逐字内容无差异，但派生证据件上多一个空格，已登记裁决。
+  //      旧文案一律印「逐字命中，没有来源变动」—— 那句话在这一天是错的。
+  r = enter({ lastState: 'red' },
+            { code: 0, manifest: mk({ entries: { total: 62, hit: 62, declared_ws: 1 } }), day });
+  T('恢复文案要说清有几条已裁决的空位差',
+    !!r.say && /已裁决/.test(r.say) && /1 条/.test(r.say), `say=${r.say}`);
+  // 10c. 反向对照：没有已裁决空位差时**不许**凭空多出那一句（防恒真）
+  r = enter({ lastState: 'red' }, { code: 0, manifest: mk({}), day });
+  T('没有已裁决空位差时不许凭空多一句', !!r.say && !/已裁决/.test(r.say), `say=${r.say}`);
 
   // 11. 状态键**恰好**在白名单里（残留由构造不可能）
   r = enter({ lastState: 'ok', 陈年残留: 1, p_lastDay: '2026-09-01' }, { code: 0, manifest: mk({}), day });

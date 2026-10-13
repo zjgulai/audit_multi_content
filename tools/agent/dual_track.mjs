@@ -32,6 +32,7 @@
  *   这是取舍，不是遗漏：宁可并集多留一条，也不许把两条不同的东西合成一条。
  */
 import { createHash } from 'node:crypto';
+import { basisText as extBasisText } from './ext_basis.mjs';
 // ★ 2026-10-09：⑰j 要读 `agent.mjs` 的源文件核「接线那一行」—— 见那条判据的说明。
 import { readFileSync } from 'node:fs';
 // ★ 2026-10-12：判「PRD 那句有没有被粘上别的东西」用**守衡自己的**合规尺子，
@@ -313,6 +314,16 @@ const pickModel = (f) => ({
   reason: f?.reason ?? null, excerpt: f?.excerpt ?? null, severity: normSev(f?.severity) || null,
   // ★ 2026-10-09：模型侧新增的「可执行改法」字段（见 model_side.mjs）
   suggestion: f?.suggestion ?? null,
+  // ★ 2026-10-13：**依据来源 id**（闭集 id，不是 URL）—— 少了这一行，
+  //   渲染层的 `extBasisText()` 永远拿到 `{}`，于是「有依据」那条路**一次都不会生效**
+  //   （实测：加完提示词与渲染，印出来还是「没给出可核的外部来源」）。
+  //   白名单式搬运的代价就是这个：**新字段不加进来就静默消失**。
+  source: f?.source ?? null,
+  // ★ 2026-10-13（Owner：「模型当然有权限写 url」）：模型自己给的 URL + 来源名 + 核验三态，
+  //   三个一起搬 —— 少搬 `url_probe` 就会出现「标了链接却看不出核没核过」。
+  source_url: f?.source_url ?? null,
+  source_name: f?.source_name ?? null,
+  url_probe: f?.url_probe ?? null,
 });
 
 /**
@@ -417,6 +428,66 @@ export function selftest() {
        ['REVIEW', 'model']);
     eq('④ 它原本要的严重度如实记着（不假装它没说过）', r.items[0].asked_severity, 'BLOCK');
     eq('④ 标注「无库内依据」', /无库内依据/.test(r.items[0].note), true);
+  }
+  // ④b ★ 模型侧**依据链接**（2026-10-13 Owner：「模型侧输出的问题需要带上依据」）
+  //     判据三层：挑中来源 ⇒ 卡里带**真链接**；挑不出 ⇒ 明说没有；手写 URL ⇒ **必须被丢掉**。
+  {
+    const blkOf = (src) => renderMerged(
+      mergeFindings([], [F('全文', '合规', 'REVIEW',
+        { reason: 'FDA 批准表述', excerpt: 'FDA approved', suggestion: '删掉', source: src })]).items,
+      { state: 'REVIEW', kb: kbSideOf({ review: { state: 'REVIEW', issue_count: 1 } }), kbTextCount: 0 }).block;
+    const ok1 = blkOf('S11');
+    eq('④b 挑中已登记来源 ⇒ 依据行带真链接（fda.gov）',
+       [/fda\.gov/.test(ok1), /外部标准/.test(ok1)], [true, true]);
+    const no1 = blkOf(null);
+    eq('④b2 ★ 反向对照：两种来源都没给 ⇒ 不许出现任何链接，且明说没有',
+       [/https?:\/\//.test(no1), /也没给出外部来源/.test(no1)], [false, true]);
+    // ④b4 ★ 模型**自写 URL** 这条路（Owner 亲口：「当然有权限写 url」）——
+    //      必须印出来、且带核验状态；核验说「未核」时也必须照印（不许因为取不到就删掉）。
+    const F2 = (extra) => ({ location: '全文', category: '合规', severity: 'REVIEW',
+      reason: '平台举证要求', suggestion: '补', ...extra });
+    const blkUrl = (probe) => renderMerged(
+      mergeFindings([], [F2({ source_url: 'https://advertising.amazon.com/help/G6UU66YLSCUYDULQ',
+        source_name: 'Amazon Ads · Claims and substantiation', url_probe: probe })]).items,
+      { state: 'REVIEW', kb: kbSideOf({ review: { state: 'REVIEW', issue_count: 1 } }), kbTextCount: 0 }).block;
+    const u1 = blkUrl({ state: 'ok', http: 200 });
+    eq('④b4 ★ 模型自写 URL ⇒ 印出来且标「已核」',
+       [/advertising\.amazon\.com/.test(u1), /✅ 已核（HTTP 200）/.test(u1)], [true, true]);
+    const u2 = blkUrl({ state: 'unreachable', why: '超时' });
+    eq('④b5 ★ 反向对照：取不到也**不许删链接**，只标「未核」',
+       [/advertising\.amazon\.com/.test(u2), /未核/.test(u2)], [true, true]);
+
+    const bad1 = blkOf('https://evil.example/fake');
+    // ★ ④b3 **口径已变**（Owner 2026-10-13：「模型当然有权限写 url」）：原先断言
+    //   「手写 URL 一律丢掉」—— 那是我定的、过头了的规矩。现在 URL 走 `source_url`
+    //   这条正规路（照印 + 核验状态，见 ④b4/④b5）；而塞进**闭集 id 那一格**（`source`）
+    //   的 URL 仍然不算数：那一格只认 S1…S17，链接一律由 `ext_basis` 按登记表挂。
+    eq('④b3 ★ 口子分开：URL 塞进「来源 id」那一格 ⇒ 不算数',
+       [/evil\.example/.test(bad1), /也没给出外部来源/.test(bad1)], [false, true]);
+  }
+  // ④c ★ 逐条依据**落库**（Owner 2026-10-13：「这个要落库」）
+  {
+    const items = mergeFindings(
+      // ⚠️ 夹具形状要照 `kbFindingsOf()` 的**产出**来：`basisLine` 在**条目顶层**
+      //   （塞进 `kb:{}` 里会被 `pickKb` 白名单丢掉 —— 我第一版就是这么写的，实测那条没进块）
+      [{ location: '全文', category: '措辞表达', severity: 'REVIEW',
+         article_no: 'W-1.33', anchor: '#广告文案明细/recv/命中片段',
+         basisLine: '依据：《措辞表达库 v0》第 W-1.33 条 ← 逐字命中「最好」｜原始出处：https://momcozy-in.feishu.cn/base/X?record=recv' }],
+      //   ⚠️ 两条模型侧条目**类目必须不同**：同位置同类目会被合并成一条（合并规则第一条），
+      //      那样就测不出「没有依据的那条不列」。
+      [F('全文', '合规', 'REVIEW', { reason: 'FDA 批准表述', suggestion: '删', source: 'S11' }),
+       F('第 2 段', '本地化', 'REVIEW', { reason: '没有依据的那条', suggestion: 'x' })]).items;
+    const blk = evidenceBlock(items);
+    eq('④c 落库块：库侧那条用**它自己的** basisLine（带飞书直链，原样搬）',
+       [/逐字命中「最好」/.test(blk), /feishu\.cn\/base/.test(blk)], [true, true]);
+    eq('④c2 ★ 模型侧那条把**依据 URL** 落进表里（fda.gov）',
+       [/fda\.gov/.test(blk)], [true]);
+    eq('④c3 ★ 反向对照：**没有依据的条目一条都不列**（凑数就是撒谎）',
+       [/没有依据的那条/.test(blk)], [false]);
+    eq('④c4 上限：超过 max 条时明确说「其余见报告」',
+       evidenceBlock(items, { max: 1 }).includes('另有 1 条'), true);
+    eq('④c5 有依据的条目**全部**列出（库侧 1 + 模型侧 1 = 2 条）',
+       (evidenceBlock(items).match(/^\d+\.【/gm) || []).length, 2);
   }
   // ⑤ 两侧都没问题 + 两侧都覆盖 → PASS（方案说这是 PASS 唯一的成立方式）
   {
@@ -1486,14 +1557,51 @@ export function selftestExtract() {
  *   两处各写一遍必然漂移（今天已经因为「同一个东西两个产出者」栽过三次）。
  *   所以**口径只有这一处**：卡片与报告都调它。§2.4 那句「搬是搬」。
  */
+/**
+ * **逐条依据**（落库用）——把每一条的「依据」压成一行，写进表里的「问题分类汇总」。
+ *
+ * ── 为什么要有它（Owner 2026-10-13）────────────────────────────────────────
+ *   「你修改的模型侧输出问题必须带依据的 url，**这个要落库**」
+ *   卡上有了、报告里有了，但**表里没有**：卡片会滚走、报告要另点一次，
+ *   而表是这一单最长寿的那份记录。依据不进表，等于它没被留住。
+ *
+ * ── 三条判据（都在下面 `--selftest` 里对着喂）──────────────────────────────
+ *   · 库侧条目用它**自己的** `basisLine`（带飞书直链，原样搬，不许重建）；
+ *   · 模型侧条目用 `extBasisText()` 那一行（登记来源 ／ 自写 URL + 核验三态）；
+ *   · **没有依据的条目一条都不列** —— 这一节的标题是「依据」，凑数就是撒谎。
+ */
+export function evidenceBlock(items, { max = 12 } = {}) {
+  const lines = [];
+  for (const f of items ?? []) {
+    const hasKb = f.source === 'kb' || f.source === 'both' || f.source === 'both-conflict';
+    const kbLine = hasKb ? (f.kb?.basisLine || f.basisLine || null) : null;
+    const ext = f.source === 'model' ? extBasisText(f.model ?? {}) : null;
+    const basis = kbLine || (ext?.cited ? ext.line : null);
+    if (!basis) continue;                       // 没依据的不列（凑数就是撒谎）
+    const what = String(f.reason ?? f.kb?.reasonLine ?? '').replace(/\s+/g, ' ').slice(0, 60);
+    lines.push(`${lines.length + 1}.【${f.category ?? '—'}】${String(f.location ?? '').slice(0, 40)}`
+      + `${what ? `｜${what}` : ''} → ${basis}`);
+  }
+  if (!lines.length) return '';
+  const head = `\n\n【逐条依据（落库留痕）】`;
+  const tail = lines.length > max
+    ? `\n…另有 ${lines.length - max} 条，逐字依据见报告。`
+    : '';
+  return head + '\n' + lines.slice(0, max).join('\n') + tail;
+}
+
 export function renderMergedItem(f, i, { must = false } = {}) {
   // 来源标记（Owner 2026-10-06：「备注下是规则库侧问题，还是模型侧问题」）
   // ★★ 2026-10-13（Owner：「不要出现 知识库侧，模型侧」）——
   //   **去的是那两个词，不是那条信息**。这个标记真正的用处是回答
   //   「**这一条回不回得了源**」（带条款号/锚点/指纹 ⇒ 可回源；不然只能转人工），
   //   而那是下一步动作的依据 ⇒ 换成不带内部说法的措辞，一个字的信息都没少。
+  // ★ 2026-10-13（Owner）：「模型侧输出的问题，需要带上依据。写『无库内依据』，
+  //   那就放模型侧能查到的依据链接」—— 所以这一格先算出**外部依据**，
+  //   有依据就把标记改掉（标记的用处是回答「这条回不回得了源」：只说"无依据"会让人以为查都没法查）。
+  const extB = f.source === 'model' ? extBasisText(f.model ?? {}) : null;
   const origin = f.source === 'kb' ? '**有库内条款依据**'
-    : (f.source === 'model' ? '**无库内依据 · 建议转人工**'
+    : (f.source === 'model' ? (extB?.cited ? '**无库内条款 · 依据为外部标准**' : '**无库内依据 · 建议转人工**')
       : (f.source === 'both-conflict' ? '**两侧都命中 · 结论冲突 ⇒ 已降 REVIEW**'
         : '**两侧都命中（可回源）**'));
   // ★ 库侧那条 `依据` 行**原样用**（它带逐字命中文案 + 飞书源直链）。
@@ -1506,7 +1614,7 @@ export function renderMergedItem(f, i, { must = false } = {}) {
     ? `《知识库》${f.kb?.article_no ?? '（未给条款号）'}（锚点：${f.kb?.anchor ?? '—'}）`
     : (f.source === 'both'
       ? `两侧都命中（库内条款 ${f.kb?.article_no ?? '—'} ／ 独立复核也命中）`
-      : '**无库内依据** —— 未落在知识库条款上（独立复核给出的判断）'));
+      : (extB?.line ?? '**无库内依据** —— 未落在知识库条款上（独立复核给出的判断）')));
   const verdict = f.source === 'both-conflict'
     ? '**两侧结论不一致 ⇒ 降为 REVIEW，转人工**（不许任一侧单独定案）'
     : (f.severity === 'BLOCK' ? 'BLOCK' : 'REVIEW');

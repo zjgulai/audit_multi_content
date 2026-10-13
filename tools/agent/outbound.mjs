@@ -67,6 +67,10 @@ export const SOURCES = Object.freeze([
   'greeting',            // 被拉进群的自我介绍
   'manual',              // 人用 send_once.mjs 手发的（T7① 那一问、15:03 更正都是这一类）
   'manual-backfill',     // 补记：修复之前发出去的（从飞书回读，见 outbound_ledger.mjs）
+  'batch-review',        // ★ 2026-10-13 加：本机批跑器（`tools/batch_review_runner.mjs`）
+                         //   逐条跑送审那条路之后，用**守衡自己的身份**把结论发进会话。
+                         //   为什么要有它：批跑的结论也是「守衡说过的话」，必须与其它外发
+                         //   同一条台账、同一套折记忆规则 —— 否则它就成了一个没人知道的出口。
 ]);
 
 /**
@@ -82,6 +86,24 @@ export const SOURCES = Object.freeze([
 export const FOLDING = Object.freeze(new Set([
   'proactive-baseline', 'proactive-pending', 'proactive-external',
   'error-fallback', 'greeting', 'manual', 'manual-backfill',
+  // ★ 批跑器的结论与其余主动消息同类：**代码产生的话 ⇒ 折**（见下面 chain-ack 那段的口径）。
+  'batch-review',
+  // ★ 2026-10-13 补：**送审回执卡（`chain-ack`）要折**。
+  //
+  //   它 2026-10-05 进了 `SOURCES`（见上面那条注释：字符串先用了、闭集随后才补），
+  //   却**没进这张分类表** —— 后果有两层，第二层才是真代价：
+  //     ① `verify_outbound.py` 的 A17 一直红：「`SOURCES` 必须被 FOLDING/NON_FOLDING
+  //        恰好切成两半」，实测没分类的正是 `chain-ack`；
+  //     ② `foldPlan` 对没分类的来源**不折、只计数**（`skipped.unclassified`）
+  //        ⇒ 回执卡那句「⏳ 正在处理，请稍等」**从来没进过会话记忆**。
+  //        那正是 2026-09-22 那次误答的形状：**我说过的话，记忆里没有** ⇒
+  //        下一轮否认自己回过。红着的检查器没人看，这一层就一直没被发现。
+  //
+  //   归类依据（与这张表其余条目同一条线）：**代码产生的话 ⇒ 折**。
+  //   回执卡由送审闸门发（不是模型的回答，内核不会替它写记忆）；
+  //   而 `reply` / `resend` 不折，是因为那两条由内核自己 `mem.append`，
+  //   再折一遍就是同一句在记忆里出现两遍。
+  'chain-ack',
 ]));
 /** 这些来源**不折**：说出去的话由其产生方自己写进记忆（回复循环 / 补发时的内核重跑）。 */
 export const NON_FOLDING = Object.freeze(new Set(['reply', 'resend']));

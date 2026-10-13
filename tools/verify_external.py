@@ -241,12 +241,101 @@ def ws_fold(s):
     就会在标点前留下原文没有的空格（`Comparative claims :`、`as “ tests`）。
     这是转录杂质，不是内容差异 —— 但要**报出来让人改**，不能悄悄放过。
     """
+    # ★★ 2026-10-13 修：左引号那一条**必须在 `fold()` 之前**跑。
+    #   原先它排在 `fold()` 之后 —— 而 `fold()` 已经把弯引号折成直引号
+    #   （`\u201c` → `"`），于是这条正则里的 `[\u201c\u2018]` **永远匹配不到**，
+    #   那两个分支是**死代码**。代价实测（EXT-040，报了很久的一条"失配"）：
+    #     抓取件 `as “tests` ↔ 引文 `as “ tests` —— 只差一个空格，本该判 `ws`
+    #     （"转录杂质，应改"），却因为折不动而落进 `miss`（"引文对不上"），
+    #     告警于是说成「上游改了，或我们抄错了，先别拿它当依据」——
+    #     比真相（一个空格）严重得多，而**没有任何东西会觉得这句话不对**。
+    #   为什么顺序反了不会自伤：直引号 `"` `'` 在这一步之后才由 `fold()` 产生，
+    #   所以它们**碰不到**这条规则 —— 2026-09-22 那次「误删右引号后空格」的
+    #   反向对照（`condition" is not`）逐字保住，见 `ws_selfcheck()`。
+    s = re.sub(r"([(\[\u201c\u2018])\s+", r"\1", s)
     s = fold(s)
-    s = re.sub(r"\s+([:;,.)\]])", r"\1", s)
-    # ★ 只认**无歧义**的左引号。直引号 " 与 ' 既可能是左也可能是右，
-    #   第一版把它们一并当左引号，于是把 `condition" is not` 的空格也删了
-    #   —— 那恰好是一次**自伤**：把一个本来逐字正确的引文改成了错的。
-    return re.sub(r"([(\[\u201c\u2018])\s+", r"\1", s)
+    return re.sub(r"\s+([:;,.)\]])", r"\1", s)
+
+
+def classify(q, txt):
+    """引文 vs 快照：`exact` / `punct`（只差弯直引号）/ `ws`（只差空格位置）/ `None`（失配）。
+
+    抽成纯函数是为了让**反向对照能直接喂它** —— 判据自己也要被喂坏样本（§2.4.1）。
+    ★ 顺序即语义：逐字 → 排版形态 → 空位形态 → 失配。**先严后宽**，
+      否则一条只差空格的引文会被记成 `punct`，把真正的诊断盖掉。
+    """
+    if q and q in txt:
+        return "exact"
+    if q and fold(q) in fold(txt):
+        return "punct"
+    if q and ws_fold(q) in ws_fold(txt):
+        return "ws"
+    return None
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 已裁决的空位差 —— 「报出来让人裁」里**人已经裁过**的那一类（2026-10-13 加）
+# ══════════════════════════════════════════════════════════════════════
+# `ws` 这一层的语义是「转录杂质，应改」。可杂质有两种来路：
+#   ① 我们抄错了                → 改**我们的**文本（默认处置，仍要红）；
+#   ② 抓取侧留下的              → 我们的文本是对的，而它逐字对的是**冻结的交付原件**：
+#      那件是**被复核对象本身**，回改它等于把被复核的东西改到能过（§2.4 那个形状）。
+# ②的正确处置既不是每天红一次没人管，也不是悄悄放过 —— 是**登记裁决**：
+# 在这张表里写清「差在哪、为什么是杂质、凭据是什么」，输出里照旧列出来（`已裁决空位差`），
+# 但不计入未通过。**判据一个字没松**：
+#   · 只有 `ws`（= `ws_fold` 已机械证明差异**只在空格位置**）才可能被这张表认领；
+#   · 差一个字母仍是 `None` ⇒ 失配 ⇒ 红（`ws_selfcheck()` 第 3 例钉着）；
+#   · 表里的条目**现在**已经不是 `ws` 了 ⇒ 表过期 ⇒ 红（下面那段 `已过期` 判据）。
+KNOWN_WS_DIFFS = {
+    "EXT-040": {
+        # ★ 只在**这一条证据路径**上认领。为什么必须按路径限定：同一条引文换一条路径
+        #   就是另一个结论 —— 实测同一天：真抓件（`visible`）上**逐字命中**，
+        #   而钉住件（HTML→markdown 的转换件）上只差一个空格。不限定路径的话，
+        #   这张表会连带把「真抓件上也多出空格」这种**真问题**一起放过。
+        "证据路径": ("pin:",),
+        "方向": "钉住件有多余空格、在用件没有（`as “ tests` ↔ `as “tests`）",
+        "为什么是杂质": "FTC 页面在 `“` 后紧跟内联标签（`“<em>tests</em>`），"
+                    "HTML→markdown 转换时为保住词间边界补了一个空格。"
+                    "凭据：`research/kb/_evidence/外部标准库/S14.txt`（本日真抓）与 2026-09-22 起"
+                    "30 余份归档抓取件，**每一份**都是 `as “tests`（无空格）。",
+        "为什么不改文本": "多余空格在**派生件**里（转换出的 `_evidence/.../ftc-hpcg-landing.md`）"
+                      "与**冻结的交付原件**里（`外部标准库-研究稿-交付原件.json`，是被复核对象）；"
+                      "**在用件** `外部标准库-v1.json` 已按真抓件订正"
+                      "（`$provenance/整合人订正[2]`：`as “ tests` → `as “tests`），与页面逐字一致。",
+        "裁决": "2026-10-13 · 判为抓取/转换杂质（逐字内容无差异）；引用以在用件为准",
+    },
+}
+
+
+def ws_selfcheck():
+    """`ws` 这一层的自证 —— **每次真跑都做**。
+
+    为什么不放进 `--controls`：那个开关**没有任何调用方**（全仓 grep 只命中它自己的帮助文本），
+    把判据放进去等于放一句注释。这里每次真跑都算，失败即让结论红（与 `hashed_bad` 同一档）。
+    """
+    bad = []
+    cases = [
+        # (名称, 引文, 快照, 期望)
+        ("抓取侧在左引号后补的空格 ⇒ 空位杂质（EXT-040 的真实形状）",
+         'as “tests, analyses', 'as “ tests, analyses', "ws"),
+        ("★ 反向对照：直引号后的空格**不许**被折掉（2026-09-22 自伤过的那一次）",
+         'condition" is not', 'condition"is not', None),
+        ("★ 反向对照：改一个字母就是内容差异，不许被当成空位杂质",
+         'as “tests, analyses', 'as “texts, analyses', None),
+        ("标点前多一个空格（`ws_fold` 的另一支）",
+         'Comparative claims:', 'Comparative claims :', "ws"),
+        ("逐字命中优先于形态层（顺序不许反）",
+         'as “tests', 'as “tests', "exact"),
+    ]
+    for name, q, txt, want in cases:
+        got = classify(q, txt)
+        if got != want:
+            bad.append("%s：期望 %r，实际 %r" % (name, want, got))
+    for eid, spec in KNOWN_WS_DIFFS.items():
+        for k in ("证据路径", "方向", "为什么是杂质", "为什么不改文本", "裁决"):
+            if not spec.get(k):
+                bad.append("KNOWN_WS_DIFFS[%s] 缺字段 %s —— 没有凭据的裁决就是免罪符" % (eid, k))
+    return bad
 
 
 # ---------- 快照的保存：内容哈希 · 归档 · 漂移（2026-09-22 加） ----------
@@ -444,7 +533,7 @@ def last_run():
 
 # ---------- 主流程 ----------
 
-def verdict(n_live, n_miss, n_unver, n_pun, n_wsq, n_hit, n_total):
+def verdict(n_live, n_miss, n_unver, n_pun, n_wsq, n_hit, n_total, n_declared=0):
     """把结论行拆成纯函数 —— 好让 `--controls` 直接断言**这句话本身**不许撒谎。
 
     与 `verify_prd_baseline.verdict` / `verify_shouheng_ops.verdict` 同口径，
@@ -473,6 +562,12 @@ def verdict(n_live, n_miss, n_unver, n_pun, n_wsq, n_hit, n_total):
     if n_live == 0:
         return 2, ("⚠️  今日 0 个来源被真抓（`--offline`，或全部走了已钉快照）—— "
                    "**未测**：逐字命中只在快照上验过，没在上游验过。退 2，不是通过。")
+    # ★ 2026-10-13：有「已裁决的空位差」时**不许**再说「无空位差」——
+    #   结论行是给人看的唯一一行，它说错就等于没查（§2.4.2）。
+    if n_declared:
+        return 0, ("✅ %d/%d 条在该来源快照中命中（其中 %d 条带**已裁决**的空位差："
+                   "只出现在派生证据件上的空格，逐字内容无差异；裁决与凭据见 KNOWN_WS_DIFFS）"
+                   % (n_hit, n_total, n_declared))
     return 0, ("✅ %d/%d 条在该来源快照中**逐字**命中（无形态差、无空位差）"
                % (n_hit, n_total))
 
@@ -493,6 +588,11 @@ def controls():
         ("只差排版形态（punct）", (17, 0, 0, 3, 0, 59, 62), 1, ["排版形态 3"], ["✅"]),
         ("★ 又红又未测：红优先，但必须报出未测",
          (0, 1, 0, 0, 0, 61, 62), 1, ["失配 1", "另有未测"], ["✅"]),
+        # ★ 2026-10-13 加：有「已裁决的空位差」时，结论行**必须说出来** ——
+        #   原先这里一律印「无空位差」，而 EXT-040 恰恰带着一处（裁决过的）空位差。
+        #   断言取的是那句话本身：把 `n_declared` 忽略掉 ⇒ 这一条精确变红。
+        ("全过 + 1 条已裁决空位差：必须报出那条，不许写「无空位差」",
+         (17, 0, 0, 0, 0, 62, 62, 1), 0, ["已裁决", "1 条"], ["无空位差", "✅ 62/62 条在该来源快照中**逐字**命中"]),
     ]
     # ★ 计数用「有几个 ❌」推出来，**不**用「用例总数 - 通过数」那种算法。
     #   原先写的是 `return 0 if n_ok == len(cases) + len(d_cases) else 1` ——
@@ -739,7 +839,7 @@ def main():
                                 "only": sorted(only) or None, "n_live": n_live,
                                 "sources": run_sources}, ensure_ascii=False, sort_keys=True) + "\n")
 
-    hit, miss, unver = [], [], []
+    hit, miss, unver, declared = [], [], [], []
     pidx = pin_index()
     for e in entries:
         sid, q = e["source_id"], norm(e.get("条款原文") or "")
@@ -757,17 +857,17 @@ def main():
             continue
         got = None
         for where, txt in cands:
-            if q and q in txt:
-                got = (where, "exact")
-                break
-            if q and fold(q) in fold(txt):
-                got = (where, "punct")
-                break
-            if q and ws_fold(q) in ws_fold(txt):
-                got = (where, "ws")
+            k = classify(q, txt)          # 顺序即语义，见 classify() 的注释
+            if k:
+                got = (where, k)
                 break
         if got:
+            # ★ 已裁决的空位差：**照旧进 `hit`**（它是命中，只是带一处空位杂质，
+            #   计数必须加得起来），但**不进 `wsq`** —— 那一份才驱动红。
             hit.append((e["id"], sid) + got)
+            if (got[1] == "ws" and e["id"] in KNOWN_WS_DIFFS
+                    and str(got[0]).startswith(tuple(KNOWN_WS_DIFFS[e["id"]]["证据路径"]))):
+                declared.append((e["id"], sid, got[0]))
         else:
             miss.append((e["id"], sid, q, None))
 
@@ -778,13 +878,38 @@ def main():
     n_pun = len([h for h in hit if h[3] == "punct"])
     # ★ 这两个列表原先在**人读明细**里才算（`wsq` / `pun`），而 `verdict()` 用得到它们 ——
     #   算到前面来。两处各算一遍就会各自漂移。
-    wsq = [h for h in hit if h[3] == "ws"]
+    wsq = [h for h in hit if h[3] == "ws" and h[0] not in KNOWN_WS_DIFFS]
     pun = [h for h in hit if h[3] == "punct"]
+
+    # ★ 判据自证（每次真跑都做）：自证本身不过 ⇒ 结论红，且**压过**其余读数
+    #   （与 `hashed_bad` 同一档：判据不可信时，别的读数是空的）。
+    selfcheck_bad = list(ws_selfcheck())
+    # ★ 登记表不许变成免罪符：某条**现在**已经不是 `ws` 了（逐字命中 / 或压根没命中）
+    #   ⇒ 这张表过期了，必须删掉那一条 —— 否则它会一直替一条早已修好的条目挡红。
+    _declared_ids = {d[0] for d in declared}
+    declared_unobserved = []
+    for eid, spec in KNOWN_WS_DIFFS.items():
+        if eid in _declared_ids:
+            continue
+        # ★ 登记表**过期**只有一种表现：这一条现在在**登记路径之外**也成了空位差
+        #   （说明杂质不只在那一个派生件里 ⇒ 该重新裁一次）。
+        #   ⚠️ **不**拿「真抓件上逐字命中」判过期：那正是本登记存在的理由（它本来就对得上），
+        #      拿它判过期会**天天误报** —— 实测 `--offline` 下就是这样红的，
+        #      而会误报的检查器比没有更糟（§2.1.1）。
+        stray = [h for h in hit if h[0] == eid and h[3] == "ws"
+                 and not str(h[2]).startswith(tuple(spec["证据路径"]))]
+        if stray:
+            selfcheck_bad.append("KNOWN_WS_DIFFS[%s] 的登记不覆盖这条路径：%s —— "
+                                 "杂质出现在登记之外的证据件上，重新裁一次" % (eid, stray[0][2]))
+        else:
+            declared_unobserved.append(eid)
     # `verdict()` 是纯函数，放在这里没有副作用。
     code, line = verdict(n_live, len(miss), len(unver), len(pun), len(wsq),
-                         len(hit), len(entries))
+                         len(hit), len(entries), len(declared))
     if hashed_bad:          # 清单自身的恒等式先于一切结论：清单不可信，别的读数是空的
         code, line = 1, "❌ 清单里的 sha256 与落盘文件的内容 sha256 不一致（%s）" % "、".join(hashed_bad)
+    elif selfcheck_bad:     # 判据自己的自证不过 —— 与上面同一档
+        code, line = 1, ("❌ 判据自证不过（%d 项）：%s" % (len(selfcheck_bad), "；".join(selfcheck_bad)))
 
     # ── 机器可读清单（2026-09-22 加，Q4-4d）：`ws_daemon` 的每日兜底读这一行。
     #    「上游改过没有」是一个**每天都要问一次**的问题，而它此前只有人能问（计划 §4.1 A3）。
@@ -804,7 +929,13 @@ def main():
         "archived": {sid: name for sid, name in archived},
         "entries": {"total": len(entries), "hit": len(hit), "visible": n_vis,
                     "embedded": n_emb, "pin": n_pin, "punct": n_pun, "ws": len(wsq),
+                    "declared_ws": len(declared),
                     "miss": len(miss), "unverifiable": len(unver)},
+        # ★ 已裁决的空位差：连裁决一起给出，读的人不必去翻源码才知道凭什么放过
+        "declared_ws_diffs": [{"id": eid, "source_id": sid, "where": where,
+                               "方向": KNOWN_WS_DIFFS[eid]["方向"],
+                               "裁决": KNOWN_WS_DIFFS[eid]["裁决"]} for eid, sid, where in declared],
+        "selfcheck": {"bad": selfcheck_bad},
         "miss": [{"id": eid, "source_id": sid, "prefix": longest_prefix(q, miss_text(snap, pidx, srcs, sid))}
                  for eid, sid, q, _ in miss],
         "unverifiable": [{"id": eid, "source_id": sid, "why": why} for eid, sid, why in unver],
@@ -869,14 +1000,24 @@ def main():
     src_desc = ("今日抓取" if n_live else
                 "**已钉快照（今日 0 个来源被真抓 —— 上游本次未测）**")
     print("逐条核对：命中 %d（%s：可见正文 %d / 仅内嵌数据块 %d；仓内钉住证据 %d）"
-          "  失配 %d  不可复核 %d  —— 共 %d 条"
-          % (len(hit), src_desc, n_vis, n_emb, n_pin, len(miss), len(unver), len(entries)))
+          "  已裁决空位差 %d  失配 %d  不可复核 %d  —— 共 %d 条"
+          % (len(hit), src_desc, n_vis, n_emb, n_pin, len(declared), len(miss), len(unver), len(entries)))
+    # 加法必须闭合：命中 + 失配 + 不可复核 == 全部条目。差一条就说明分类里有东西掉了。
+    if len(hit) + len(miss) + len(unver) != len(entries):
+        print("⚠ 计数不闭合：命中 %d + 失配 %d + 不可复核 %d ≠ 共 %d 条"
+              % (len(hit), len(miss), len(unver), len(entries)))
     print("=" * 80)
     if n_pin:
         print("\n· 靠仓内钉住证据命中的（今日无匿名取法拿到正文，改对钉住抓取件核）：")
         for eid, sid, where, _ in [h for h in hit if h[2].startswith("pin:")]:
             print("    %-8s %-3s %s" % (eid, sid, where[4:]))
-    wsq = [h for h in hit if h[3] == "ws"]
+    if declared_unobserved:
+        print("\n· ⚠ 已裁决登记表里这些本轮**没观察到空位差**（可能未测、也可能派生件已修好）—— "
+              "若杂质出现在登记之外的证据件上，会判「登记不覆盖」：%s" % "、".join(declared_unobserved))
+    if declared:
+        print("\n· 已裁决的空位差（不是内容差异；裁决与凭据见 `tools/verify_external.py` 的 KNOWN_WS_DIFFS）：")
+        for eid, sid, where in declared:
+            print("    %s（%s，%s）%s" % (eid, sid, where, KNOWN_WS_DIFFS[eid]["方向"]))
     if wsq:
         print("\n· 空位形态不齐（标点前/引号后多了原文没有的空格）—— 属转录杂质，应改：")
         for eid, sid, where, _ in wsq:

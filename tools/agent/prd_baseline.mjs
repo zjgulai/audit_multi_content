@@ -364,7 +364,9 @@ export function enter(prev, now) {
       return { state: { ...st, lastState: 'drift' }, say: null, why: '同一个漂移指纹已经说过' };
     }
     const lines = now.drifted.map((d) =>
-      `· **${d.file}**\n  旧指纹 \`${String(d.old).slice(0, 16)}…\` → 新指纹 \`${String(d.now).slice(0, 16)}…\``);
+      `· **${d.file}**\n  旧指纹 \`${String(d.old).slice(0, 16)}…\` → 新指纹 \`${String(d.now).slice(0, 16)}…\``
+      // ★ 上游什么时候改的 —— 「现在拉还是等它改完」唯一的依据（2026-10-12 加）。
+      + (d.at ? `\n  ${d.at}` : ''));
     return {
       state: { ...st, lastState: 'drift', saidDriftFp: fp, ...saidTo(now) },
       why: '上游改版了（这是本检查存在的理由）',
@@ -400,11 +402,14 @@ export function enter(prev, now) {
     }
     return {
       state: { ...st, lastState: 'unparsed', saidUnparsedDay: day, ...saidTo(now) },
-      why: '退 1，但输出里没有任何上游指纹变化 —— 不是上游改版',
+      // ★ `why` 进 daemon 日志（「基线检查[daily] 退出码 1 —— <why>」）。
+      //   把**红的编号与条数**带上，日志本身就说得清，不必再去翻明细文件。
+      why: '退 1，但输出里没有任何上游指纹变化 —— 不是上游改版；红在 '
+         + ((now.failures ?? []).map((f) => `${f.id}×${f.count}`).join('/') || '（没抠出编号）'),
       say: [
         '⚠️ **基线检查退 1，但这一轮不是「上游 PRD 改版」** —— 输出里没有任何上游指纹变化。',
-        '红来自检查器内部（多半是「章节引用登记」那一段）；上游那两份文档这一轮**没有证据说它变了**。',
-        '所以：**不用**重拉基线，**也不用**把引用按旧版算。具体是哪一项红，见 `PMO/logs`。',
+        failuresLine(now.failures),
+        `所以：**不用**重拉基线，**也不用**把引用按旧版算。${detailFileLine(now.detailFile)}`,
       ].join('\n'),
     };
   }
@@ -471,15 +476,112 @@ export function runChecker({ timeoutMs = 90_000, offline = false } = {}) {
 /** 从输出里抠出「哪份文件、旧指纹、新指纹」。抠不到不算漂移 —— 退 1 但没指纹时走兜底文案。 */
 export function parseDrift(out) {
   const drifted = [];
-  const re = /★★ 上游改版了：(.+)\n\s*索引指纹 ([0-9a-f]{64})\n\s*现场指纹 ([0-9a-f]{64})/g;
+  /**
+   * ★ `at`（上游最后改动时刻）是**可选**捕获（2026-10-12 加）。
+   *
+   * 出生理由：告警原先只说「请给我一分钟重拉一次基线」——**没说上游什么时候改的**。
+   * 而读者唯一要判断的就是「现在就拉，还是等它改完」：实测那次为了答这个问题，
+   * 得去翻 daemon 日志时间线（17:43:37 还绿、17:45:08 已变）**再加上**手工调一次
+   * metas 接口，才拼出那个 90 秒的窗口。检查器现在把这条读数印在 `现场指纹` 下一行。
+   *
+   * ⚠️ **可选**是必须的：老版本检查器的输出没有这一行，而 `parseDrift` 不能因此
+   *    把整条漂移丢掉 —— 那会让「上游改版」这条告警直接消失（比少一个字段严重得多）。
+   */
+  const re = /★★ 上游改版了：(.+)\n\s*索引指纹 ([0-9a-f]{64})\n\s*现场指纹 ([0-9a-f]{64})(?:\n\s*(上游最后改动 .+))?/g;
   let m;
-  while ((m = re.exec(out)) !== null) drifted.push({ file: m[1].trim(), old: m[2], now: m[3] });
+  while ((m = re.exec(out)) !== null) {
+    drifted.push({ file: m[1].trim(), old: m[2], now: m[3], at: m[4] ? m[4].trim() : null });
+  }
   return drifted;
 }
 
 export function parseUntested(out) {
   const m = /⚠️\s+L3 未测：(.+?) ——/.exec(out);
   return m ? m[1].split(/,\s*/).map((s) => s.trim()).filter(Boolean) : [];
+}
+
+/**
+ * ★★ 从检查器输出里读出**真正红的是哪几条**（2026-10-12 加）。
+ *
+ * 出生理由：`enter()` 那一支的文案原先写死着
+ * 「红来自检查器内部（**多半是**「章节引用登记」那一段）」——
+ * 那是一句**把一次历史观测当成事实**的话（代码注释里自己写着「实测那一次全部来自 R 段」）。
+ * 红在别处时（比如 L1 结构），它会**信心十足地指错方向**，
+ * 而读者没有任何办法从告警正文里看出那句话是猜的 —— 只能去翻日志，
+ * 而那份日志里**从来没有过**这份明细（见 `DETAIL_FILE` 的注释）。两个错叠在一起。
+ *
+ * 现在改成读：真红的条目**就在 `out` 里**（每行一条 `❌ [段] 编号 标签 · 子号 · 文件 §x.y：原因`），
+ * 没有任何理由去猜。`R_OUT`（自证里那份）与真实输出两种形状都吃。
+ *
+ * ⚠️ **摘要行不算**：`❌ 80 项中 53 项失败` 里 `80` 是纯数字，
+ * 而本判据要求编号以**字母开头**（`H3`/`L1`/`R2`/`G4`…）—— 所以它自然落选。
+ * 这一条是**反向对照**（喂只带摘要行的输出必须解析出 0 条），不是备注。
+ */
+export function parseFailures(out) {
+  const byId = new Map();
+  const re = /^[ \t]*❌[ \t]*(?:\[([^\]]+)\][ \t]*)?([A-Z]{1,3}\d{1,3})\b[ \t]*(.*)$/gm;
+  let m;
+  while ((m = re.exec(String(out ?? ''))) !== null) {
+    const id = m[2];
+    // ★ 标签到「子号」为止。真实输出用**两个以上空格**做列分隔
+    //   （`名字   R2 · 文件 §x.y`），而 `R_OUT` 那份抄下来的是 `名字 · R2 · …` ——
+    //   两种都得切。只按 `·` 切会把 `R2` 混进标签（实测抓到过，见自证里那条回归断言）。
+    const label = String(m[3] ?? '').split(/\s{2,}|·/)[0].trim();
+    const fm = /·[ \t]*([^\s·]+\.[A-Za-z0-9]+)[ \t]*§/.exec(m[0]);
+    const e = byId.get(id) ?? { id, section: m[1] ?? null, label: '', count: 0, files: [] };
+    e.count += 1;
+    if (!e.label && label) e.label = label;
+    if (fm && e.files.length < 3 && !e.files.includes(fm[1])) e.files.push(fm[1]);
+    byId.set(id, e);
+  }
+  return [...byId.values()].sort((a, b) => b.count - a.count || a.id.localeCompare(b.id));
+}
+
+/**
+ * 全量清单落在哪 —— **跟着这一次运行的 `stateFile` 走**，不是永远落在真状态目录。
+ * 它必须与告警正文里印出来的那个路径是**同一个来源**，否则「见 XX」又会变成一句
+ * 指不出对象的话（这一处就是为修那句而加的）。
+ *
+ * ★ 第一版写死 `stateDir()`，被**实测**抓出来了，抓到的方式值得记：
+ *   跑完自证之后，真状态目录下多了一个 311 字节的文件，头行写着 `触发 daily · 退出码 0`
+ *   —— 正是自证里那条「不带 `dryRun` 时必须落盘」的注入样本：它用 `stateFile`
+ *   把**状态**指到临时文件，而我的明细**没跟着走**。
+ *   也就是说：**§2.4.4 那个病，长在了记录这个病的那个文件自己身上。**
+ *
+ * ★ 判据是「自证用 `stateFile` 隔离自己」这条**既有**约定 —— 明细是这次运行的产物，
+ *   落点必须与状态文件同源；否则以后每加一个副产品，都要再补一次隔离。
+ */
+const DETAIL_NAME = 'prd-baseline-last-check.txt';
+const detailFileOf = (stateFile) => path.join(path.dirname(stateFile), DETAIL_NAME);
+/** 印给人看的路径：在库内就印相对路径，库外才印绝对路径（别印一个点不开的绝对路径）。 */
+function detailFileLabel(f) {
+  return f.startsWith(REPO_ROOT + path.sep) ? path.relative(REPO_ROOT, f) : f;
+}
+
+/**
+ * 「红的是哪几条」写成一句**可核对**的话。
+ *
+ * ★ 读得出就**点名**（编号 + 标签 + 条数 + 两个文件名当抓手）；读不出就**明说读不出**。
+ *   **两种情况下都不许再写「多半是…」** —— 那正是这一支被修掉的东西：
+ *   一句把历史观测当事实的猜测，在红落到别处时会自信地指错方向（§2.4.1「这句话比我的输入大吗」）。
+ */
+export function failuresLine(failures) {
+  const list = Array.isArray(failures) ? failures : [];
+  if (!list.length) {
+    return '红的是检查器内部的断言，但这份输出里**没抠出是哪几条**（输出形状可能变了）'
+         + '—— 那本身就是要查的事，先看下面的全量清单。';
+  }
+  const parts = list.map((f) => `**${f.id}「${f.label}」× ${f.count} 项**`).join('、');
+  const ex = list[0]?.files?.length ? `（例：${list[0].files.join('、')}）` : '';
+  return `红的是 ${parts}${ex}；上游文档这一轮**没有证据说它变了**。`;
+}
+
+/** 「全量清单在哪」写成一句**指向真实存在的东西**的话；没落盘就直说没有，不许印一个空路径。 */
+export function detailFileLine(detailFile) {
+  return detailFile
+    ? `全量清单（每一条都带文件名与章节号）：\`${detailFile}\`。`
+    : '全量清单这次**没落盘**（`--check` 是纯查看，不写任何东西）—— '
+      + '要看明细就跑 `python3 tools/verify_prd_baseline.py`。';
 }
 
 /**
@@ -602,6 +704,36 @@ async function runCheckNow({ reason = 'daily', force = false, day = bjDate(), ru
   }
 
   const { code, out, note } = await run({});
+  /**
+   * ★ **把完整输出落盘**（2026-10-12 加）：告警正文里那句「全量清单见 …」就是这么来的。
+   *
+   * 出生理由：那句原先写的是「具体是哪一项红，见 `PMO/logs`」—— 而**明细从来不在那儿**。
+   * `runChecker` 收着 `out`，`parseDrift` 只从里面抠了指纹，**其余全部丢掉**，
+   * 一个字节都没写盘。实测 `PMO/logs/` 下 grep `H3 每处引用` **命中 0 次**
+   * （唯一那处命中是告警正文自己）。也就是说：**那句指路把人指去一个没有这份读数的地方**，
+   * 读者照做只会空手而归（2026-10-12 就是照做之后回来问的）。
+   * 与 `AGENTS.md` §2.4.3「说出去的话比依据大」是同一个病。
+   *
+   * 两条纪律：
+   *   ① **每次都写**（含退 0）。只写红的会让这份文件在转绿之后继续以「最新读数」的身份
+   *      示人 —— 而它已经过期了（§2.4.6 那个「停在 drift 不是因为它还是 drift」的坑）。
+   *      写在开头的 `退出码` 一行就是给读者判新旧用的。
+   *   ② `dryRun` 下**一个字节都不许落盘** —— `--check` 那条命令的卖点就是「纯查看、不改任何东西」，
+   *      而它走的正是 `runChecker`（§2.4.4：跑一次查看不改掉将来要发生的事）。
+   */
+  // ★ 明细跟着**这次运行的状态文件**走（`stateFile` 是自证唯一的隔离手段，明细必须同源）。
+  const detailFile = detailFileOf(file);
+  if (!dryRun) {
+    try {
+      ensureDir(path.dirname(detailFile));
+      fs.writeFileSync(detailFile,
+        `# PRD 基线检查 —— 最近一次运行的完整输出\n`
+        + `# 生成于 ${new Date().toISOString()} · 触发 ${reason} · 退出码 ${code}\n`
+        + `# 这份文件是给告警正文里那句「全量清单」指路用的 —— 由 prd_baseline.mjs 写，别手改。\n`
+        + `# 复现同一条读数：python3 tools/verify_prd_baseline.py\n`
+        + `${String(out ?? '').replace(/\s*$/, '')}\n`);
+    } catch { /* 落盘失败不该让检查本身失败 —— 正文里会明说「未落盘」 */ }
+  }
   const now = {
     code,
     day,
@@ -610,6 +742,10 @@ async function runCheckNow({ reason = 'daily', force = false, day = bjDate(), ru
     chatId,
     drifted: code === 1 ? parseDrift(out) : [],
     untested: code === 2 ? parseUntested(out) : [],
+    // ★ 退 1 时**真红的是哪几条**（读出来的，不是猜的）。退 2（未测）没有「红条目」可言。
+    failures: code === 1 ? parseFailures(out) : [],
+    // ★ 正文里印的路径与写盘用的是**同一个来源**，否则又变成一句指不出对象的话。
+    detailFile: !dryRun && fs.existsSync(detailFile) ? detailFileLabel(detailFile) : null,
   };
   // ★ 原先这里**伪造**一条 drifted：`（输出里没抠到具体文件，见 PMO/logs）`，
   //   本意是让下游「宁可说，不可沉默」。**本意没错，错在伪造。**（2026-09-30 删）
@@ -904,6 +1040,33 @@ async function runCheckPending({ reason = 'daily', force = false, day = null, to
  * 只证一边的都是坏检查器 —— 恒说的刷屏，恒不说的等于没有。
  */
 export async function selftest() {
+  /**
+   * ★★ **自证一开始就把状态目录指到临时目录**（2026-10-12 加）。
+   *
+   * 原先只有**逐个调用点**去隔离（`dryRun` 或 `stateFile`），于是一旦有人加一条
+   * 新的副产品落盘，隔离就漏一个 —— 实测就漏过：明细文件写死 `stateDir()`，
+   * 跑一次自证就在真状态目录下留下一个 311 字节的文件（§2.4.4 那个病）。
+   * 而且那 8 处注入点本来就一直往真目录里写 `_selftest-tmp-state.json`。
+   *
+   * 改成**一条不变量**：自证期间 `stateDir()` **不是**真的那个。
+   * 这样**以后任何**新增的落盘都自动隔离，不必每加一个就补一次
+   * （`AGENTS.md` §2.5：同一个形状只能有一处实现）。
+   * 下面还有一条断言专门验这件事，免得这句话本身没人执行。
+   */
+  const realStateDir = path.join(REPO_ROOT, 'PMO', 'shouheng-state');
+  const tmpStateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bs-selftest-state-'));
+  const prevStateDirEnv = process.env.SHOUHENG_STATE_DIR;
+  process.env.SHOUHENG_STATE_DIR = tmpStateDir;
+  try {
+    return await selftestBody(realStateDir);
+  } finally {
+    if (prevStateDirEnv === undefined) delete process.env.SHOUHENG_STATE_DIR;
+    else process.env.SHOUHENG_STATE_DIR = prevStateDirEnv;
+    try { fs.rmSync(tmpStateDir, { recursive: true, force: true }); } catch { /* 清不掉就算了 */ }
+  }
+}
+
+async function selftestBody(realStateDir) {
   const D = '2026-09-21';
   /** 注入用的「现在」。`recheckDue()` 是纯函数且 `t` 可注入 —— 所以「冷却前/后」两侧都造得出来，不必真等 30 分钟。 */
   const T0 = Date.parse('2026-09-22T09:30:00.000Z');
@@ -916,6 +1079,22 @@ export async function selftest() {
    */
   const R_OUT = '❌ [R] H3 每处引用都指到 v1.2 里那一节的名字 · R2 · PMO/x.json §11.2：'
               + '仓库里有这处引用，登记表里没有（新引用要登记）\n\n退出码 1\n';
+  /**
+   * ★★ **当前真机输出那种形状**（2026-10-12 逐字抄自 `python3 tools/verify_prd_baseline.py`）。
+   *
+   * 与上面 `R_OUT` **不是同一个形状**，而且这个差别是要命的：
+   *   `R_OUT`      ：`名字 · R2 · 文件 §…`      ← 分隔符是 `·`
+   *   `R_OUT_REAL` ：`名字   R2 · 文件 §…`      ← 分隔符是**两个以上空格**，`R2` 在 `·` 之前
+   *
+   * 为什么必须两份都要：第一版判据只按 `·` 切标签，而 `R_OUT` 恰好用 `·` 分列 ——
+   * 于是「按 `·` 切」和「按空格切」在它上面**看不出区别**，那条断言看着在测这件事、
+   * 实际喂的输入**区分不出来**。变异实测：把切法改回 `split('·')`，整套 **0 项红**。
+   * 这正是本项目记过的那个坑（fixture 同时含两种特征 → 删掉规则仍然绿）。
+   * 下面另有一条断言专门盯着「这两份 fixture 不许退化成同一个形状」。
+   */
+  const R_OUT_REAL = '  ❌ [R] H3 每处引用都指到 v1.2 里那一节的名字   R2 · AGENTS.md §5.1：'
+                   + '仓库里有这处引用，登记表里没有（新引用要登记 —— 登记时填的那一栏就是'
+                   + '「指到 v1.2 里那一节的名字」）\n❌ 80 项中 1 项失败\n';
   /** 待收清单的假样本：n 件到期未收（用的是 P-03 的真实字段形状） */
   const pdue = (n) => ({
     code: 1, day: D,
@@ -1026,6 +1205,144 @@ export async function selftest() {
       () => BASELINE_KEYS.includes('saidUnparsedDay')
             && 'saidUnparsedDay' in enter({ lastState: 'ok' }, { code: 1, day: D, drifted: [], untested: [] }).state],
 
+    /* ── ★★ 「红的是哪几条」必须**读出来**，不许猜（2026-10-12 加） ──
+     *   修的是这样一句话：「红来自检查器内部（**多半是**「章节引用登记」那一段）」——
+     *   一次历史观测被写成了事实。红落到别处时它会自信地指错方向，而读者看不出那是猜的。
+     *   ★ 核心那条是**反向对照**（喂「红在别处」必须说那一条）：只断言「说得出 H3」
+     *   的话，把那句猜测原样放回去也照样全绿 —— 因为事故现场恰好就是 H3。
+     */
+    ['★★ 不变量：自证期间 `SHOUHENG_STATE_DIR` 必须指着临时目录 —— `stateDir()` **不是**真的那个',
+      () => stateDir() !== realStateDir && stateDir().startsWith(os.tmpdir())],
+    ['★ 反向对照：真的那个状态目录必须**就是** `PMO/shouheng-state`（上面那条不是恒真 —— 它得有个可比的对象）',
+      () => realStateDir === path.join(REPO_ROOT, 'PMO', 'shouheng-state')
+            && !realStateDir.startsWith(os.tmpdir())],
+    ['★★ 判据级：真实形状的输出 → `parseFailures()` 必须点名 H3，且标签**不许**把子号 `R2` 混进来',
+      () => { const f = parseFailures(R_OUT);
+              return f.length === 1 && f[0].id === 'H3' && f[0].count >= 1
+                  && f[0].label.includes('每处引用') && !/\bR2\b/.test(f[0].label)
+                  && f[0].files.includes('PMO/x.json'); }],
+    ['★★★ 判据级（**真机那种分列格式**，与上面那份**不同形状**）→ 标签必须**恰好**是那个名字，`R2` 一个字符都不许混进来',
+      () => { const f = parseFailures(R_OUT_REAL);
+              return f.length === 1 && f[0].id === 'H3'
+                  && f[0].label === '每处引用都指到 v1.2 里那一节的名字'
+                  && !/\bR2\b/.test(f[0].label) && f[0].files.includes('AGENTS.md'); }],
+    ['★ 上面两份 fixture **必须是不同形状**（一个 `名字 · R2`、一个 `名字   R2`）—— 否则那条断言会退化成恒真',
+      () => R_OUT.includes('名字 · R2') && R_OUT_REAL.includes('名字   R2')],
+    ['★ 真实形状里**摘要行不许被当成红条目**（`❌ 80 项中 1 项失败` 与那条 H3 同处一份输出）',
+      () => parseFailures(R_OUT_REAL).length === 1],
+    ['★ 反向对照：只带摘要行 `❌ 80 项中 53 项失败` → 必须 0 条（证明上面那条不是恒真 —— 摘要行不是红条目）',
+      () => parseFailures('❌ 80 项中 53 项失败\n').length === 0],
+    ['★★ 反向对照（本次修复的核心）：喂**红在别处**的输出 → 文案必须说那一条，**不许**再提「章节引用登记」',
+      () => { const s = failuresLine(parseFailures('  ❌ [L1] L1 结构   L1a · 索引缺 docs：x\n'));
+              return s.includes('L1') && !s.includes('H3') && !s.includes('章节引用登记'); }],
+    ['★ 一条都读不出时**必须明说读不出**，不许补一句猜测（原先那句「多半是…」就是替它猜的）',
+      () => { const s = failuresLine([]); return s.includes('没抠出') && !s.includes('多半是'); }],
+    ['★ 未落盘时**不许**印出任何明细路径（一个点不开的路径比不印更糟）',
+      () => !/\.txt|shouheng-state/.test(detailFileLine(null))],
+    ['★ 反向对照：真落了盘时**必须**把路径印出来（上面那条不是恒真）',
+      () => detailFileLine('PMO/shouheng-state/prd-baseline-last-check.txt')
+              .includes('prd-baseline-last-check.txt')],
+    ['★★ 行为级：退 1 真跑一次 → **必须**把完整明细落盘，且正文里印的路径与落盘的是同一个',
+      async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bs-detail-'));
+        const old = process.env.SHOUHENG_STATE_DIR;
+        process.env.SHOUHENG_STATE_DIR = dir;   // ★ `stateDir()` 是惰性的，改了立刻生效
+        try {
+          const r = await checkNow({ force: true, stateFile: path.join(dir, 's.json'),
+                                     run: async () => ({ code: 1, note: '', out: R_OUT }) });
+          const f = path.join(dir, 'prd-baseline-last-check.txt');
+          if (!fs.existsSync(f)) return false;
+          const body = fs.readFileSync(f, 'utf8');
+          return body.includes('H3 每处引用') && body.includes('退出码 1')
+              && typeof r.say === 'string'
+              && r.say.includes('prd-baseline-last-check.txt') && r.say.includes('H3');
+        } finally {
+          if (old === undefined) delete process.env.SHOUHENG_STATE_DIR;
+          else process.env.SHOUHENG_STATE_DIR = old;
+          try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* 清不掉就算了 */ }
+        }
+      }],
+    ['★★★ 判据级：明细必须落在**这次运行的 `stateFile` 旁边** —— 两个目录**故意不同**才区分得出来',
+      async () => {
+        /**
+         * ★ 为什么非要两个不同目录：上面那条「必须落盘」的用例里
+         *   `SHOUHENG_STATE_DIR` 与 `stateFile` 指的是**同一个目录**，
+         *   于是「跟着 `stateFile` 走」与「写死 `stateDir()`」**看不出任何区别**。
+         *   变异实测：把实现改回写死 `stateDir()`，上面那条**照样全绿**。
+         *   这正是本项目反复记的那个坑（输入区分不出来 → 断言看着在测、实际没测）。
+         */
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bs-detail-'));
+        const other = fs.mkdtempSync(path.join(os.tmpdir(), 'bs-detail-'));
+        const old = process.env.SHOUHENG_STATE_DIR;
+        process.env.SHOUHENG_STATE_DIR = other;       // ★ `stateDir()` 指这里
+        try {
+          if (dir === other) return false;            // 前提本身不许塌
+          await checkNow({ force: true, stateFile: path.join(dir, 's.json'),
+                           run: async () => ({ code: 1, note: '', out: R_OUT }) });
+          return fs.existsSync(path.join(dir, 'prd-baseline-last-check.txt'))     // 跟着 stateFile ✓
+              && !fs.existsSync(path.join(other, 'prd-baseline-last-check.txt')); // 没落到 stateDir ✗
+        } finally {
+          if (old === undefined) delete process.env.SHOUHENG_STATE_DIR;
+          else process.env.SHOUHENG_STATE_DIR = old;
+          for (const d of [dir, other]) { try { fs.rmSync(d, { recursive: true, force: true }); } catch { /* 清不掉就算了 */ } }
+        }
+      }],
+    ['★ 行为级反向对照：`dryRun` 下**一个字节都不许落盘**（否则跑一次 `--check` 就改了盘，`--check` 的卖点是纯查看）',
+      async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bs-detail-'));
+        const old = process.env.SHOUHENG_STATE_DIR;
+        process.env.SHOUHENG_STATE_DIR = dir;
+        try {
+          await checkNow({ force: true, dryRun: true, stateFile: path.join(dir, 's.json'),
+                           run: async () => ({ code: 1, note: '', out: R_OUT }) });
+          return !fs.existsSync(path.join(dir, 'prd-baseline-last-check.txt'));
+        } finally {
+          if (old === undefined) delete process.env.SHOUHENG_STATE_DIR;
+          else process.env.SHOUHENG_STATE_DIR = old;
+          try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* 清不掉就算了 */ }
+        }
+      }],
+    ['★★ 行为级：`dryRun` 下正文**不许**印出一个并不存在的路径（说了有却打不开，比不说更糟）',
+      async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bs-detail-'));
+        const old = process.env.SHOUHENG_STATE_DIR;
+        process.env.SHOUHENG_STATE_DIR = dir;
+        try {
+          const r = await checkNow({ force: true, dryRun: true, stateFile: path.join(dir, 's.json'),
+                                     run: async () => ({ code: 1, note: '', out: R_OUT }) });
+          return typeof r.say === 'string' && !r.say.includes('prd-baseline-last-check.txt');
+        } finally {
+          if (old === undefined) delete process.env.SHOUHENG_STATE_DIR;
+          else process.env.SHOUHENG_STATE_DIR = old;
+          try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* 清不掉就算了 */ }
+        }
+      }],
+    ['★★★ 行为级（本次修复的核心）：喂**红在别处**的输出去真跑一次 → 正文必须报那一条，**不许**报「章节引用登记」',
+      async () => {
+        /**
+         * ★ 为什么上面那条纯函数级的不够：事故现场**恰好就是 H3**。
+         *   把原先那句「多半是「章节引用登记」那一段」原样放回去，
+         *   纯函数那组、以及那条喂 `R_OUT` 的行为级断言**统统照样全绿** ——
+         *   因为它们的输入正好就是那次事故的形状（`AGENTS.md` §2.4：
+         *   只测纯函数 = 只测了「拿到正确输入时说得对不对」）。
+         *   只有把**红在别处**的输入真的喂进 `checkNow`，才验得了「它是读出来的，不是猜的」。
+         */
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bs-detail-'));
+        const old = process.env.SHOUHENG_STATE_DIR;
+        process.env.SHOUHENG_STATE_DIR = dir;
+        try {
+          const r = await checkNow({ force: true, dryRun: true, stateFile: path.join(dir, 's.json'),
+            run: async () => ({ code: 1, note: '',
+              out: '  ❌ [L1] L1 结构   L1a · 索引缺 docs：x\n❌ 80 项中 1 项失败\n' }) });
+          return typeof r.say === 'string' && r.say.includes('L1')
+              && !r.say.includes('H3') && !r.say.includes('章节引用登记');
+        } finally {
+          if (old === undefined) delete process.env.SHOUHENG_STATE_DIR;
+          else process.env.SHOUHENG_STATE_DIR = old;
+          try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* 清不掉就算了 */ }
+        }
+      }],
+
     /* ── ★★ 上面那些测的是纯函数 `enter()`。**必须再有一条行为级**： ──
      *   反向对照实测：把 `checkNow` 里那段伪造 drifted 原样放回去，
      *   纯函数那一组**照样全绿** —— 因为伪造发生在 `checkNow` 的**上游**，
@@ -1058,6 +1375,39 @@ export async function selftest() {
           const r = await checkNow({ force: true, dryRun: true, stateFile: f,
                                      run: async () => ({ code: 1, note: '', out }) });
           return /上游[^\n]{0,8}改版了/.test(stripNegated(r.say));
+        } finally { try { fs.unlinkSync(f); } catch { /* 已经没了就算了 */ } }
+      }],
+
+    /* ── ★★ 上游「什么时候改的」必须进告警（2026-10-12 加）──────────────
+     *   出生理由：告警只说「请给我一分钟重拉一次基线」，没说上游什么时候改的 ——
+     *   而「现在就拉、还是等它改完」正是读者唯一要判断的事。实测那天为答这个问题，
+     *   得翻 daemon 日志时间线 + 手工调一次 metas 接口，才拼出那个 90 秒窗口。
+     *   检查器现在把 `上游最后改动 …（N 分钟前）` 印在 `现场指纹` 的下一行。
+     */
+    ['★★ 判据级：带「上游最后改动」行的输出 → `parseDrift()` 必须把它抠出来',
+      () => { const o = '★★ 上游改版了：A.md\n   索引指纹 ' + '1'.repeat(64) + '\n   现场指纹 '
+                     + '2'.repeat(64) + '\n   上游最后改动 2026-10-12 17:44:01（北京时间，3 分钟前）\n';
+              const d = parseDrift(o);
+              return d.length === 1 && typeof d[0].at === 'string'
+                  && d[0].at.includes('2026-10-12 17:44:01') && d[0].file === 'A.md'; }],
+    ['★★ 反向对照：**不带**那一行的（老版本检查器的输出）→ 漂移**仍必须被解析出来**，只是 `at` 为 null',
+      () => { const o = '★★ 上游改版了：A.md\n   索引指纹 ' + '1'.repeat(64)
+                     + '\n   现场指纹 ' + '2'.repeat(64) + '\n';
+              const d = parseDrift(o);
+              return d.length === 1 && d[0].at === null; }],
+    ['★★ 行为级：喂带时刻的漂移输出 → 告警正文里必须**看得见那个时刻**',
+      async () => {
+        const f = path.join(stateDir(), '_selftest-tmp-state.json');
+        try {
+          fs.writeFileSync(f, JSON.stringify({ lastRunAt: '2020-01-01T00:00:00.000Z',
+                                               lastDay: '2020-01-01', lastState: 'ok' }));
+          const out = '★★ 上游改版了：PRD/feishu/x.md\n   索引指纹 ' + '1'.repeat(64)
+                    + '\n   现场指纹 ' + '2'.repeat(64)
+                    + '\n   上游最后改动 2026-10-12 17:44:01（北京时间，3 分钟前）\n';
+          const r = await checkNow({ force: true, dryRun: true, stateFile: f,
+                                     run: async () => ({ code: 1, note: '', out }) });
+          return typeof r.say === 'string' && /上游[^\n]{0,8}改版了/.test(stripNegated(r.say))
+              && r.say.includes('2026-10-12 17:44:01');
         } finally { try { fs.unlinkSync(f); } catch { /* 已经没了就算了 */ } }
       }],
 
@@ -1405,10 +1755,14 @@ export async function selftest() {
        * **没有第三条路能落到真文件上**。这是「到达」而不是「出现过」。
        * 截断（实参里嵌了 `}`）只会更严，不会更松。
        * 反向保证：`calls.length >= 2` —— 改名之后它会因为「一次都没匹配到」而红。
+       *   ★ 2026-10-12 这条**真的响了一次**：把断言列表搬进 `selftestBody()`（为了给自证
+       *   加一条状态目录不变量）之后，`selftest.toString()` 里一个调用点都没有了
+       *   → `calls.length >= 2` 不成立 → 两条红。**它抓的是「扫描范围没跟上改名」**，
+       *   所以修法是把范围扩到两个函数，而不是放宽判据。
        */
       () => {
         const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-        const src = strip(selftest.toString());
+        const src = strip(selftest.toString()) + '\n' + strip(selftestBody.toString());
         const calls = [...src.matchAll(/checkNow\(\{([^}]*)\}/g)].map((m) => m[1]);
         const dry = (a) => /dryRun:\s*true/.test(a);
         const inj = (a) => /stateFile:/.test(a);
@@ -1525,7 +1879,9 @@ export async function selftest() {
       */
      () => {
        const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-       const src = strip(selftest.toString());
+       // ★ 与上面那条 `checkNow` 版**同一天响过**（断言列表搬进 `selftestBody()`），
+       //   同样把扫描范围扩到两个函数 —— 它抓的正是「扫描范围没跟上改名」。
+       const src = strip(selftest.toString()) + '\n' + strip(selftestBody.toString());
        const calls = [...src.matchAll(/checkPending\(\{([^}]*)\}/g)].map((m) => m[1]);
        const ok = (a) => /dryRun:\s*true/.test(a) || /stateFile:/.test(a) || /today:/.test(a);
        return calls.length >= 1 && calls.every(ok);

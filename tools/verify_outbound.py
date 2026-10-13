@@ -211,6 +211,23 @@ SEND_OWNERS = {
     },
     "tools/probe_cards2.mjs": {"records": None, "why": "同上（第二轮探针）"},
     "tools/ws_test.mjs": {"records": None, "why": "2026-09-15 长连接联调脚本：回一句固定回执，一次性工具"},
+    # ★ 2026-10-13 补登记：B16 一直在报「表外出现了发送者」—— 就是它。
+    #   它不是偷偷长出来的出口，是一个**人眼探针**：枚举 6 张候选卡（表头配色 / 元素级
+    #   色带两套路子）发到测试群，让委托方挑一张；默认**干跑**，加 `--send` 才真发。
+    #   归到探针这一类（同 `probe_cards*.mjs`）：发的是自检样例，不是守衡对外说的话，
+    #   进台账反而会污染它的记忆。★ 它**发完不撤回**（发之前自己会打印这一句）。
+    # ★ 2026-10-13 加：本机批跑器 —— 它**确实在守衡的名义下说话**（用守衡自己的身份发卡），
+    #   所以它必须进这张表，且必须真的记账（B19 会到文件里找下面那一行）。
+    #   与 `ws_daemon` 的区别只有一处：daemon 发的是「回答某一条」，它发的是「新的一条」。
+    "tools/batch_review_runner.mjs": {
+        "records": "recordSend({",
+        "why": "本机批跑器：逐条走送审那条路（handleMessage → runSubmissionGate），"
+               "再用守衡自己的身份把结论发进会话；每条都写 outbound 台账（source=batch-review）",
+    },
+    "tools/probe_receipt_color.mjs": {
+        "records": None,
+        "why": "回执配色人眼探针（2026-10-06）：颜色没有离线判据，只能发出来看；默认干跑，--send 才发",
+    },
 }
 
 
@@ -703,6 +720,43 @@ else:
 # ══════════════════════════════════════════════════════════════════════
 # D 段 · 拿真实台账 + 真实会话跑一遍（回归测试）
 # ══════════════════════════════════════════════════════════════════════
+# ★ 历史遗留的「来源未登记」记录（2026-10-13 收）
+#
+#   台账是**流水账**：写进去的就是当时发生的事，**不许回改**（回改等于把审计线索抹掉）。
+#   2026-10-05 那 9 条 `unknown:chain-ack` 是真事 —— 当天「送审回执」这个来源**还没登记进
+#   `SOURCES`**（`outbound.mjs` 里留着那一刻的注释：字符串先用了，闭集随后才补上），
+#   于是它们被**如实**记成了 unknown。这恰好说明闭集起了作用。
+#
+#   可 D7 的用意是「**发现新的**发送路径绕过 SOURCES」。9 条 8 天前的历史记录不构成这个
+#   信号，却让 D7 天天红 —— 红久了就没人看了（同一个病本仓记过多次）。
+#   ⇒ 口径收窄成：**该来源登记生效之后**还出现 unknown:，才算红。
+#     边界取**实测值**：台账里第一条以登记名写下的时刻（不是随手挑的日期）。
+#     反向对照见 D7b–D7d：同一条来源、时间挪到边界之后**必须红**。
+LEGACY_UNKNOWN_SOURCES = {
+    "unknown:chain-ack": "2026-10-05T23:46:24Z",
+}
+
+
+def unknown_source_problems(entries, legacy=None):
+    """纯判据：把台账记录分成「新的未登记来源」与「登记生效前的历史遗留」。
+
+    抽成纯函数是为了让反向对照能**离线喂合成台账**（§2.1：反向对照不落盘）。
+    """
+    legacy = LEGACY_UNKNOWN_SOURCES if legacy is None else legacy
+    fresh, n_legacy = [], 0
+    for e in entries:
+        src = str(e.get("source", ""))
+        if not src.startswith("unknown:"):
+            continue
+        cut = legacy.get(src)
+        if cut and str(e.get("at") or "") < cut:
+            n_legacy += 1
+        else:
+            fresh.append(e)
+    return fresh, n_legacy
+
+
+# ══════════════════════════════════════════════════════════════════════
 print("\nD 回归：拿 2026-09-22 那次误答的真实数据跑一遍，被答的那句话必须不再缺席")
 
 if OFFLINE:
@@ -771,13 +825,27 @@ console.log(JSON.stringify({{
     if entries is not None:
         # D7：台账里不许出现「来源没登记」—— 那是有人加了发送路径却忘了在 SOURCES 里登记。
         # 这类记录**照样会折进记忆**（宁可记住也不要丢），但它意味着发送面在悄悄长大。
-        unknown = [e for e in entries if str(e.get("source", "")).startswith("unknown:")]
+        unknown, n_legacy = unknown_source_problems(entries)
         check("D7", not unknown,
-              f"真台账里没有来源未登记的记录（实测 {len(unknown)} 条）"
-              f"—— 有的话说明有发送路径绕过了 SOURCES"
+              (f"真台账里没有**新的**来源未登记记录（实测 0 条；另有 {n_legacy} 条历史遗留 —— "
+               f"写在来源登记生效之前，台账不回改，见 LEGACY_UNKNOWN_SOURCES）")
               if not unknown else
               f"真台账里有 {len(unknown)} 条 source=unknown:… —— 有发送路径没登记来源："
-              f"{sorted({e.get('source') for e in unknown})}")
+              f"{sorted({e.get('source') for e in unknown})}"
+              + (f"（另有 {n_legacy} 条历史遗留不计）" if n_legacy else ""))
+
+        # D7b–D7d ★ 收窄口径**不许**变成免罪符：喂合成台账，证明这一刀只切历史。
+        for _cid, _name, _rows, _want_fresh in [
+            ("D7b", "历史遗留（登记生效**前**）→ 不算红",
+             [{"source": "unknown:chain-ack", "at": "2026-10-05T02:16:16Z"}], 0),
+            ("D7c", "★ 同一条来源、时间挪到登记生效**之后** → 必须红",
+             [{"source": "unknown:chain-ack", "at": "2026-10-06T00:00:00Z"}], 1),
+            ("D7d", "★ 表外的**新**来源（时间再早也不放过）→ 必须红",
+             [{"source": "unknown:whoops", "at": "2026-01-01T00:00:00Z"}], 1),
+        ]:
+            _fresh, _leg = unknown_source_problems(_rows)
+            check(_cid, len(_fresh) == _want_fresh,
+                  f"{_name}（新的 {len(_fresh)} 条 / 期望 {_want_fresh}；历史 {_leg} 条）")
 
         # D8：台账里**不应该**出现「发失败的回复」被当成发出去的话 —— 折记忆那一侧由 A3 保证，
         # 这里断言台账自己把 ok 标出来了（否则 A3 那个判据在真实数据上无从下手）。

@@ -2323,6 +2323,23 @@ await t('W8 接线：`replyTo` 必须真的把结论行**传进** toCardOrText�
   assert.ok(/meta\?\.verdict53/.test(onMsg), 'onMessage 没有把 meta.verdict53 取出来 —— 内核算了也白算');
 });
 
+await t('W8b 接线：**逐条依据**必须接在**真的条目数组**上（不是 undefined）', () => {
+  // ★ 病灶（2026-10-13 实测）：我写成了 `evidenceBlock(dual.items)`，而条目其实在
+  //   `dual.merged.items` —— 传进去 `undefined` ⇒ `evidenceBlock` 返回 `''` ⇒
+  //   **依据块永远是空**，而日志、卡片、表行**一处都不会报错**。
+  //   这就是 §2.4 那个病：判据抓对了、接线在最后一跳断了，且断得静悄悄。
+  const src = fs.readFileSync(new URL('./agent/agent.mjs', import.meta.url), 'utf8');
+  const strip = (x) => x.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  const body = strip(src);
+  assert.ok(/evidenceBlock\(/.test(body), '落表那一格里没有调用 evidenceBlock —— 依据没落库');
+  assert.ok(/evidenceBlock\(\s*dual\??\.merged\??\.items\s*\)/.test(body),
+    'evidenceBlock 的入参不是 `dual.merged.items` —— 传 undefined 时它只会返回空串，且**不会有任何报错**');
+  // 反向对照：把入参改回 `dual.items` ⇒ 上面那条必须红（在内存里做，不碰盘）
+  const mutated = body.replace(/evidenceBlock\(\s*dual\??\.merged\??\.items\s*\)/, 'evidenceBlock(dual.items)');
+  assert.ok(!/evidenceBlock\(\s*dual\??\.merged\??\.items\s*\)/.test(mutated),
+    '反向对照失效：改回 dual.items 后判据仍然通过');
+});
+
 await t('W9 行为级：**逐条四要素整块**必须进卡片正文（不只是抬头）', () => {
   // 真事（Owner 2026-10-06 08:57 那张 BLOCK 卡）：抬头对了，**逐条整块没有** ——
   // 因为正文由模型转述，它把一整块压成了一句「命中两条 P0，不能发」。

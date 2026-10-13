@@ -26,6 +26,10 @@
 //   且**丢掉了 `t_s`** ⇒ 模型出 findings 时看不到时间码，却被告知要「指得出第几帧」。
 //   `video.mjs` 不引本模块，无循环依赖。
 import * as video from './video.mjs';
+import { sourceMenuLines, resolveSourceId, probeUrl, probeLabel } from './ext_basis.mjs';
+
+/** 每次最多探几条依据链接（防 10 条 finding 拖出 10 次网络往返）。 */
+export const MAX_PROBE = 3;
 
 /** 类目闭集（与 PRD §5.3 的「维度标注」同一套词）。不在闭集里的一律丢掉。 */
 export const CATEGORIES = Object.freeze([
@@ -63,9 +67,30 @@ export const SYSTEM = [
   '    「需要知道投放的是哪个平台才能定这句话合不合规」）—— 那也是可执行的下一步。',
   '5. 你出的每一条都**没有库内依据** —— 所以它最高只能到 REVIEW，不要给 BLOCK。',
   '',
+  // ★ 2026-10-13（Owner）：「模型侧输出的问题，需要带上依据。写『无库内依据』，
+  //   那就放模型侧能查到的依据链接」—— 于是每条要多给一格 `source`：
+  //   **只能从下面这 17 个已登记来源里挑一个 id**，链接由代码挂。
+  //   ⚠️ **不许自己写 URL**：幻觉链接比空格更坏（写了也会被解析侧丢掉，见 `ext_basis.resolveSourceId`）。
+  // ★★ 2026-10-13（Owner 亲口）：「模型侧的问题模型**当然有权限写 url**」——
+  //   我先前那条「只许挑闭集 id、不许写 URL」是**我自己定的、而且过头了**：
+  //   模型侧的依据本来就在库外（平台政策/监管指引），不许它给 URL 等于掐掉最有用的一条。
+  //   现在两条路都开着，**核验由代码做**：登记来源每天被 verify_external 复核；
+  //   自写 URL 由本机探一次，卡片上照实标「已核 / 本机取不到 / 未核」。
+  '6. ★★ **每一条都必须交代依据**（Owner 2026-10-13：「必须带依据的 url」）。',
+  '   实测过：写成「给不出就写 null」时，同一条素材有时给依据、有时全给 null ——',
+  '   而**一条没有依据的问题，读的人除了信或不信没有第三条路**。所以这一格现在**必填**：',
+  '   实在找不到依据，就写 `source:"none"`，并在 `reason` 里写清你**凭什么**这么判',
+  '   （通用经验？平台惯例？），我会在卡片上如实标成「本条无外部来源」。',
+  '   · `source`：如果这条判断落在某个**已登记来源**上，挑它的 id（闭集，挑不出写 `null`）；',
+  '   · `source_url` + `source_name`：如果依据是闭集之外的公开规则（平台政策页、监管页面等），',
+  '     **把 URL 原样写出来** —— 我会替你探一次并在卡片上标出「已核 / 本机取不到 / 未核」。',
+  '     ⚠️ 只写你**确实知道**的那个地址；不确定就写 `null`，不要拼一个看起来像的。',
+  '   ' + sourceMenuLines().join('\n   ').trimStart(),
+  '',
   '输出：**只输出一个 JSON 数组**，不要解释、不要 markdown 代码块。每项形如',
   '{"location":"帧 3","category":"消费者安全","severity":"REVIEW","reason":"一句话说清问题",',
-  ' "excerpt":"逐字引用的原文","suggestion":"具体怎么改（改哪个词/换成什么/删哪句/补什么）"}',
+  ' "excerpt":"逐字引用的原文","suggestion":"具体怎么改（改哪个词/换成什么/删哪句/补什么）",',
+  ' "source":"S11 或 null","source_url":"https://… 或 null","source_name":"来源名 或 null"}',
   `category 只能取：${CATEGORIES.join(' / ')}。`,
 ].join('\n');
 
@@ -93,6 +118,13 @@ export function buildPrompt({ readings = '', question = '' } = {}) {
  *
  * @returns {{ok:boolean, findings:Array, dropped:Array, error:string|null}}
  */
+/** URL 形状清洗：只认 http(s)、去掉控制字符、限长。**不做**「像不像真的」判断。 */
+export function sanitizeUrl(v) {
+  const u = String(v ?? '').trim().replace(/[\u0000-\u001f\u007f\s]+/g, '');
+  if (!/^https?:\/\//i.test(u) || u.length > 500) return null;
+  return u;
+}
+
 export function parseFindings(text) {
   const s = String(text ?? '');
   const a = s.indexOf('['); const b = s.lastIndexOf(']');
@@ -133,10 +165,22 @@ export function parseFindings(text) {
       //   缺了不丢整条（它是补充信息，不是判定依据）；但为空时置 null，
       //   由渲染层如实说「两侧都没给修改建议」，**不许**替它编一句。
       suggestion: String(raw?.suggestion ?? '').trim() || null,
+      // ★ 2026-10-13：依据来源 —— 只认**闭集里真有的** id（`resolveSourceId` 会把
+      //   模型手写的 URL、乱码、不在表里的 id 一律折成 null）。链接由渲染层挂。
+      source: resolveSourceId(raw?.source),
+      source_asked: raw?.source == null ? null : String(raw.source).slice(0, 60),
+      // ★ 模型自己给的 URL：**照收**（Owner：它有权限写）。这里只做形状清洗，
+      //   「可不可信」交给 `probeUrl` 探一次，结论由渲染层如实标出。
+      source_url: sanitizeUrl(raw?.source_url),
+      source_name: String(raw?.source_name ?? '').trim().slice(0, 80) || null,
       basis: 'model',      // 无库内依据
     });
   }
-  return { ok: true, findings, dropped, error: null };
+  // ★ 依据交代情况**如实报出来**（Owner 要的「必须带依据」在这条路上才看得见成效）：
+  //   给 id 或 URL 算「交代了」；`none` / null 算「没给」。
+  const noBasis = findings.filter((f) => !f.source && !f.source_url).length;
+  return { ok: true, findings, dropped, error: null,
+           basis: { total: findings.length, with_source: findings.length - noBasis, without: noBasis } };
 }
 
 /**
@@ -169,6 +213,20 @@ export async function reviewModelSide({ readings, question = '', ask, maxTokens 
       console.log(`[agent] ↻ 模型侧输出被截断，重试一次（额度 ${maxTokens} → ${maxTokens * 2}）`);
       raw = await ask(buildPrompt({ readings, question }), { system: SYSTEM, maxTokens: maxTokens * 2 });
       p = parseFindings(raw);
+    }
+    // ★ 2026-10-13：模型自己写了 URL ⇒ 就地**探一次**（标出核验状态；不判「信不信」）。
+    //   三条纪律：① **不阻塞结论**（探测失败只是标「未核」，不丢条目）；
+    //   ② **有条数上限**（`MAX_PROBE`）——不能让 10 条 finding 拖出 10 次网络往返；
+    //   ③ 只探 http(s)，探测结果进 `url_probe`，由渲染层如实印出来。
+    if (p.ok && Array.isArray(p.findings)) {
+      const targets = p.findings.filter((f) => f.source_url).slice(0, MAX_PROBE);
+      if (targets.length) {
+        const probes = await Promise.all(targets.map((f) => probeUrl(f.source_url)));
+        targets.forEach((f, i) => { f.url_probe = probes[i]; });
+        // 一行留痕：探了几条、各是什么状态 —— 「未核」不许静默（它会印在卡上）
+        console.log('[agent] 🔗 依据链接核验：'
+          + targets.map((f, i) => `${f.source_url} → ${probeLabel(probes[i])}`).join(' ｜ '));
+      }
     }
     return { ...p, raw, ms: Date.now() - t0 };
   } catch (e) {

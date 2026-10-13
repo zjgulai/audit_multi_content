@@ -27,7 +27,7 @@ import { detectTruncation, annotateTruncation, tailOf, collapseToolMessages, cli
 import { parentIdOf, alreadyInHistory, buildQuoteBlock } from './thread.mjs';
 import * as reviewGate from './review_gate.mjs';
 import { mergeFindings, mergedState, kbFindingsOf, kbCoveredOf, renderMerged, mergeSummary, kbSideOf,
-         kbNoReadingOf, REPORT_LINK_MIN_ISSUES } from './dual_track.mjs';
+         kbNoReadingOf, REPORT_LINK_MIN_ISSUES, evidenceBlock } from './dual_track.mjs';
 import { renderMergedReportMd, publishMergedReport } from './merged_report.mjs';
 import { reviewModelSide, readingsForModelSide } from './model_side.mjs';
 import { generateAdvice } from './advice.mjs';
@@ -1241,7 +1241,13 @@ export async function runSubmissionGate({
       //   往里加一句口径就写出语法错（实测：`node --check` 报 `Unexpected token ')'`，
       //   而我把 `node --check … | head` 的退出码当成了通过：**管道会吞掉退出码**）。
       //   同一段文字要能被下一个人读懂并安全地改，就别用括号杂技。
-      summary: summaryText,
+      // ★ 2026-10-13（Owner）：「模型侧输出问题必须带依据的 url，**这个要落库**」——
+      //   卡上会滚走、报告要另点一次，而**表是这一单最长寿的那份记录**。
+      //   依据不进表，等于它没被留住。逐条一行、只列**有依据**的条目（见 `evidenceBlock`）。
+      //   ⚠️ 条目在 **`dual.merged.items`**（不是 `dual.items`）—— 我第一版写的就是 `dual.items`，
+      //     传进去一个 `undefined`，于是依据块**永远是空**，而日志、卡片、表行都不会报错。
+      //     接线判据见 `test_agent.mjs` 的「逐条依据必须接在**真的条目数组**上」。
+      summary: summaryText + (dual ? evidenceBlock(dual?.merged?.items) : ''),
     }, { since: t0 - 1000, question: input.question, ctx: { actor: 'shouheng/review-gate' } });
     console.log(`[agent] 🧭 落表：${publish?.ok ? publish.action : '失败'}`
       + `${publish?.record_id ? `｜${publish.record_id}` : ''}`
