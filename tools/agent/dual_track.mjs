@@ -34,6 +34,9 @@
 import { createHash } from 'node:crypto';
 // ★ 2026-10-09：⑰j 要读 `agent.mjs` 的源文件核「接线那一行」—— 见那条判据的说明。
 import { readFileSync } from 'node:fs';
+// ★ 2026-10-12：判「PRD 那句有没有被粘上别的东西」用**守衡自己的**合规尺子，
+//   不在本文件另抄一份正则（口径只有一处）。
+import { conforms as prd53Conforms } from './prd53.mjs';
 
 /** 严重度序（越大越重）。只认三态里的两个可裁剪值 + 空。 */
 const SEV_ORDER = { BLOCK: 2, REVIEW: 1, '': 0 };
@@ -52,8 +55,12 @@ const SEV_ORDER = { BLOCK: 2, REVIEW: 1, '': 0 };
  */
 export const REPORT_LINK_MIN_ISSUES = 3;
 
-/** 方案 L211 的对齐键：**位置相同 ＋ 类目相同**。 */
-export const keyOf = (f) => `${String(f?.location ?? '').trim()}|${String(f?.category ?? '').trim()}`;
+/**
+ * 方案 L211 的对齐键：**位置相同 ＋ 类目相同**。
+ * ⚠️ **它只当 Map 的键用，谁也不许再把它拆回来**（见下面那段：拆回来丢过东西）。
+ */
+export const keyOf = (f) => JSON.stringify([String(f?.location ?? '').trim(),
+                                            String(f?.category ?? '').trim()]);
 
 const normSev = (s) => {
   const v = String(s ?? '').trim().toUpperCase();
@@ -192,7 +199,25 @@ export function mergeFindings(kbFindings = [], modelFindings = []) {
   let nBoth = 0; let nConflict = 0; let nKbOnly = 0; let nModelOnly = 0;
 
   for (const [key, { kb, model }] of sides) {
-    const [location, category] = key.split('|');
+    // ══════════════════════════════════════════════════════════════════════════
+    // ★★ 2026-10-13（修一个 **Owner 那张卡上就看得见的真 bug**）：
+    //   **不再从 `key` 里 split 回来。**
+    // ══════════════════════════════════════════════════════════════════════════
+    //   病灶：`keyOf` 原先是 `` `${location}|${category}` ``，而这里写的是
+    //     `const [location, category] = key.split('|')` —— **拼起来再拆回去**。
+    //   只要 `location` 里本身带 `|`，这个来回就丢东西。实测那一条（P0 快路 H05）：
+    //     location = `全文，逐字命中 \`最\s*(好|佳|优|强|安全|低价|便宜|有效|…)\``
+    //     ⇒ 拆回来 location = `` 全文，逐字命中 `最\s*(好 ``（**命中正则被腰斩**）
+    //        category = `佳`
+    //     ⇒ 卡上印出 **`1.【佳】`** 与 **`· 佳类问题：1 个`**，而真维度是
+    //        `绝对化与安全承诺-虚假安全承诺`。**读者拿到的是一条被改坏的数据。**
+    //
+    //   口径：两侧的 `location` / `category` **本来就在对象上** ——
+    //     库侧在就用库侧的（与原先拆出来的那一支逐字一致），否则用独立复核那一侧的。
+    //     `keyOf` 同时改成了 JSON（分隔符不可能出现在数据里，也不会两组拼成同一个键）。
+    const src = kb ?? model;
+    const location = String(src?.location ?? '').trim();
+    const category = String(src?.category ?? '').trim();
     if (kb && model) {
       const a = normSev(kb.severity); const b = normSev(model.severity);
       if (a === b) {
@@ -449,10 +474,17 @@ export function selftest() {
     const p0r = kbSideOf({ review: { state: 'REVIEW', issue_count: 1 } });
     eq('⑩ 反向对照：库侧 REVIEW ＋ 同一批模型侧条目 ⇒ 合并态 REVIEW（不是 BLOCK）',
        mergedState({ kbCovered: true, merged: modelTwo, kb: p0r }), 'REVIEW');
-    // 渲染：库侧条数必须**出现在卡里**，且明说明细未并进来、总数是上限
+    // 渲染：库侧条数**必须留着**，且明说明细未并进来、总数是上限。
+    // ★★ 2026-10-13（Owner 裁定）：这一族读数**不上卡** —— 改走 `internalNotes`
+    //   （模型上下文 + **会话记忆**），卡片与报告都不显示。
+    //   判据因此分两面，缺一面都不算数：**笔记里必须有**（一个字没丢）
+    //   ＋ **卡面上必须没有**（是搬，不是删）。
     const rd = renderMerged(modelTwo, { state: 'BLOCK', kb: p0, kbTextCount: 0 });
-    eq('⑩ 卡里写出库侧条数＋总数上限＋「明细未并进来」',
-       [rd.total, /结构化读数 BLOCK\/3/.test(rd.block), /上限/.test(rd.block)], [5, true, true]);
+    eq('⑩ 库侧条数＋总数上限＋「明细未并进来」要留着（在查证笔记里）',
+       [rd.total, /结构化读数 BLOCK\/3/.test(rd.internalNotes), /上限/.test(rd.internalNotes)],
+       [5, true, true]);
+    eq('⑩ 反向对照：同一段**不许**再出现在卡面（Owner 2026-10-13：不上卡）',
+       [/结构化读数/.test(rd.block), /上限/.test(rd.block)], [false, false]);
   }
 
   // ⑪ ★★ **库侧拒答 ⇒ 不许出三态结论**（2026-10-07；同一天五条里两条栽在这上面）─────────
@@ -483,8 +515,11 @@ export function selftest() {
     eq('⑪c2 覆盖缺口的合并态 = REVIEW（不是 NEEDS_INPUT）', stCov, 'REVIEW');
     const rdCov = renderMerged([F('全文', '合规', 'REVIEW')],
       { state: stCov, kb: cov, kbTextCount: 0 });
-    eq('⑪c3 卡里要写明「库对该题材没有可依据的条款 / 不是发现了内容问题」',
-       [/没有可依据的条款/.test(rdCov.block), /不是发现了内容问题/.test(rdCov.block)], [true, true]);
+    eq('⑪c3 「库对该题材没有可依据的条款 / 不是发现了内容问题」要留着（在查证笔记里）',
+       [/没有可依据的条款/.test(rdCov.internalNotes),
+        /不是发现了内容问题/.test(rdCov.internalNotes)], [true, true]);
+    eq('⑪c3b 反向对照：这段不许再上卡（Owner 把那句原话列进了「都去掉」）',
+       [/coverage_not_covered/.test(rdCov.block), /没有可依据的条款/.test(rdCov.block)], [false, false]);
   }
 
   // ⑫ 向后兼容：不给 `kb`（读不到旁挂）时，判据必须与改动前**逐字相同**
@@ -520,11 +555,14 @@ export function selftest() {
     // 卡里必须**说明白**：不许与「库侧 0 条」长得一样
     const rdNo = renderMerged([F('全文', '合规', 'REVIEW')],
       { state: 'REVIEW', kb: noRead, kbTextCount: 0 });
-    eq('⑬f 卡里写「知识库侧本次未参与」，且**不许**再出现「知识库侧 0 条」',
-       [/本次未参与/.test(rdNo.block), /知识库侧 0 条/.test(rdNo.block), rdNo.kbNoReading],
-       [true, false, true]);
-    eq('⑬g 卡里要说明：只来自模型侧、无库内依据、**不得据此当 PASS**',
-       [/不得当通过依据/.test(rdNo.block), /不得据此当 PASS/.test(rdNo.block)], [true, true]);
+    eq('⑬f 「知识库侧本次未参与」要留着（在查证笔记里），且**不许**出现「知识库侧 0 条」',
+       [/本次未参与/.test(rdNo.internalNotes), /知识库侧 0 条/.test(rdNo.internalNotes),
+        rdNo.kbNoReading], [true, false, true]);
+    eq('⑬f2 反向对照：这句也不上卡了（它属于「库侧/模型侧的口径读数」那一族）',
+       [/本次未参与/.test(rdNo.block), /本次知识库侧没有读数/.test(rdNo.block)], [false, false]);
+    eq('⑬g 要说明：只来自模型侧、无库内依据、**不得据此当 PASS**（仍在查证笔记里）',
+       [/不得当通过依据/.test(rdNo.internalNotes), /不得据此当 PASS/.test(rdNo.internalNotes)],
+       [true, true]);
   }
 
   // ⑭ ★★ 2026-10-08（Owner 拿一张图逼出来的两处）────────────────────────────────
@@ -545,20 +583,22 @@ export function selftest() {
        [rdCov1.total, rdCov1.line], [1, '【审查结论：REVIEW】共发现 1 处需人工确认。']);
     eq('⑭c 覆盖缺口：卡里**不许**再出现「≥3 时库侧只出分类汇总」那句错误解释',
        /≥3 时库侧只出分类汇总/.test(rdCov1.block), false);
-    eq('⑭d 覆盖缺口：卡里要写明「未报内容问题」＋「那 1 条就是覆盖缺口」',
-       [/未报内容问题/.test(rdCov1.block),
-        /上面那 1 条「需人工确认」就是它/.test(rdCov1.block)], [true, true]);
+    eq('⑭d 覆盖缺口：「未报内容问题」＋「那 1 条就是覆盖缺口」要留着（在查证笔记里）',
+       [/未报内容问题/.test(rdCov1.internalNotes),
+        /上面那 1 条「需人工确认」就是它/.test(rdCov1.internalNotes)], [true, true]);
+    eq('⑭d2 反向对照：这两句都不上卡',
+       [/未报内容问题/.test(rdCov1.block), /就是它/.test(rdCov1.block)], [false, false]);
     // 反向对照①：**非**覆盖缺口、kbN=3、明细抠 0 ⇒ §5.3.3 那句**必须**还在（没被一刀切掉）
     const rdBig = renderMerged([], { state: 'REVIEW',
       kb: kbSideOf({ review: { state: 'REVIEW', issue_count: 3 } }), kbTextCount: 0 });
-    eq('⑭e 反向对照：kbN=3、明细抠不全 ⇒ §5.3.3 的解释照旧（没被⑭c一刀切）',
-       [/≥3 时库侧只出分类汇总/.test(rdBig.block), rdBig.kbGap], [true, 3]);
+    eq('⑭e 反向对照：kbN=3、明细抠不全 ⇒ §5.3.3 的解释照旧（没被「不上卡」一刀切掉）',
+       [/≥3 时库侧只出分类汇总/.test(rdBig.internalNotes), rdBig.kbGap], [true, 3]);
     // 反向对照②：**非**覆盖缺口、kbN=1、明细抠 0 ⇒ 不许说 ≥3，要按真实条数说
     const rdSmall = renderMerged([], { state: 'REVIEW',
       kb: kbSideOf({ review: { state: 'REVIEW', issue_count: 1 } }), kbTextCount: 0 });
     eq('⑭f 反向对照：kbN=1、明细抠不全 ⇒ 说「未达 3 条」而不是「≥3 只出汇总」',
-       [/≥3 时库侧只出分类汇总/.test(rdSmall.block),
-        /未达 3 条，不适用 PRD §5\.3\.3/.test(rdSmall.block)], [false, true]);
+       [/≥3 时库侧只出分类汇总/.test(rdSmall.internalNotes),
+        /未达 3 条，不适用 PRD §5\.3\.3/.test(rdSmall.internalNotes)], [false, true]);
     // ══════════════════════════════════════════════════════════════════════
     // ⑭g–⑭i（2026-10-08 第五批）：**报告链接要按来源分档，不许把本地路径当链接**
     // ══════════════════════════════════════════════════════════════════════
@@ -650,8 +690,15 @@ export function selftest() {
        [kbSug], ['删掉「限时」二字，改为「活动期间」']);
     const mdSug = sugOf({ category: '本地化', location: '第 4 行', source: 'model', reason: 'x',
                           suggestion: '把整段译成中文' });
-    eq('⑱b 只有模型侧给 ⇒ 照搬**并标明来源**（否则会被当成库规要求）',
-       [/把整段译成中文/.test(mdSug), /模型侧给的改法/.test(mdSug), /不是库规要求/.test(mdSug)], [true, true, true]);
+    // ★ 2026-10-13（Owner：「不要出现 知识库侧，模型侧」）：措辞改了，**信息一条没少** ——
+    //   仍要照搬那句改法，仍要标明「无库内依据」「不是库规原文」。
+    eq('⑱b 只有独立复核给 ⇒ 照搬**并标明来源**（否则会被当成库规要求）',
+       [/把整段译成中文/.test(mdSug), /无库内依据的改法建议/.test(mdSug), /不是库规原文/.test(mdSug)],
+       [true, true, true]);
+    eq('⑱b2 反向对照：**那两个词**一个都不许再出现（卡面与报告共用这条渲染）',
+       [/知识库侧/.test(mdSug + itemOf({ category: 'a', location: 'b', source: 'kb', reason: 'r' })),
+        /模型侧/.test(mdSug + itemOf({ category: 'a', location: 'b', source: 'model', reason: 'r' }))],
+       [false, false]);
     const noneSug = sugOf({ category: '本地化', location: '第 5 行', source: 'model', reason: 'x' });
     eq('⑱c ★ 两侧都没给 ⇒ **如实说没有**，不许用「转人复核」冒充一条建议',
        [/两侧都没给修改建议/.test(noneSug), /转对应负责人复核/.test(noneSug)], [true, false]);
@@ -741,15 +788,15 @@ export function selftest() {
     const item = [F('全文', '合规', 'REVIEW')];
     const rdFail = renderMerged(item, { state: 'REVIEW', kb: kbOne, kbTextCount: 1,
       model: { ok: false, findings: [], raw: '', ms: 900, error: '输出里没有 JSON 数组' } });
-    eq('⑭g 模型侧没跑成 ⇒ 卡里写「没跑成」，**不许**写「模型侧 0 条」',
-       [/模型侧 \*\*没跑成\*\*（输出里没有 JSON 数组）/.test(rdFail.block),
-        /模型侧 0 条/.test(rdFail.block), rdFail.modelFailed], [true, false, true]);
+    eq('⑭g 模型侧没跑成 ⇒ 写「没跑成」，**不许**写「模型侧 0 条」（在查证笔记里）',
+       [/模型侧 \*\*没跑成\*\*（输出里没有 JSON 数组）/.test(rdFail.internalNotes),
+        /模型侧 0 条/.test(rdFail.internalNotes), rdFail.modelFailed], [true, false, true]);
     eq('⑭g2 且要写明「这不等于模型侧看过、没问题」',
-       /这不等于「模型侧看过、没问题」/.test(rdFail.block), true);
+       /这不等于「模型侧看过、没问题」/.test(rdFail.internalNotes), true);
     const rdOk = renderMerged(item, { state: 'REVIEW', kb: kbOne, kbTextCount: 1,
       model: { ok: true, findings: [], dropped: [], ms: 900 } });
     eq('⑭h 反向对照：模型侧**跑成且 0 条** ⇒ 照旧写「模型侧 0 条」（不许一刀切）',
-       [/模型侧 0 条/.test(rdOk.block), /没跑成/.test(rdOk.block), rdOk.modelFailed],
+       [/模型侧 0 条/.test(rdOk.internalNotes), /没跑成/.test(rdOk.internalNotes), rdOk.modelFailed],
        [true, false, false]);
     eq('⑭i 反向对照：模型侧挂了**不许**改结论行（结论仍由库侧定）',
        [rdFail.line, rdFail.total], [rdOk.line, rdOk.total]);
@@ -782,6 +829,39 @@ export function selftest() {
     eq('⑮e 反向对照：非库忙的拒答 ⇒ 仍写「跑层/日更」，且**不许**说「会自己重跑」',
        [/先把库侧恢复（跑层\/日更）再重审/.test(rdStale.block),
         /会自己重跑/.test(rdStale.block), rdStale.claimBusy], [true, false, false]);
+  }
+
+  // ★★ 2026-10-12（库侧 Owner 裁定 `issue_count` 只算库内依据）：
+  //   数改小之后，候选线索必须在卡上有一句；没有候选时**一个字都不许加**（反向对照）。
+  {
+    const _side = (cn) => kbSideOf({ review: Object.assign(
+      { state: 'REVIEW', issue_count: 2 },
+      Number.isFinite(cn) ? { candidate_count: cn } : {}) });
+    const _mk = (cn) => renderMerged(
+      [{ location: '全文', category: '功效宣称', severity: 'REVIEW', source: 'model', reason: 'x' }],
+      { state: 'REVIEW', kb: _side(cn), kbTextCount: 2, model: { ok: true, findings: [] } });
+    const rCand = _mk(3);
+    const rNone = _mk(0);
+    eq('㉑a 库侧报了非权威候选 ⇒ 必须说出条数，且写明「不构成依据」（在查证笔记里）',
+       [/另有 \*\*3 条非权威候选线索\*\*/.test(rCand.internalNotes),
+        /不构成依据/.test(rCand.internalNotes)], [true, true]);
+    eq('㉑a2 反向对照：候选提示也不上卡（同一族口径读数）', /非权威候选/.test(rCand.block), false);
+    eq('㉑b 反向对照：没有候选（或旧旁挂没这个键）⇒ **一个字都不加**',
+       [/非权威候选/.test(rNone.internalNotes), /非权威候选/.test(_mk(undefined).internalNotes)],
+       [false, false]);
+    eq('㉑c 候选条数**不许进算术**：抬头与 kbGap 与「有没有候选」无关',
+       [rCand.total, rNone.total, rCand.kbGap, rNone.kbGap],
+       [rNone.total, rNone.total, rNone.kbGap, rNone.kbGap]);
+    // ★★ ㉑d/㉑e（2026-10-12，Owner「同意加」那行候选提示之后补的结构判据）：
+    //   库侧上一批真踩过这个坑 —— 把候选说明接在 PRD 那句**同一行**上，
+    //   而 `conforms()` 是 `$` 锚定、`LINE_RE` 取到行尾 ⇒ 判 false、卡面标题不再是 PRD 那句。
+    //   ⇒ 那行候选提示**必须独立成行**。这里用**守衡自己的**尺子判，不另抄正则。
+    const _vline = String(rCand.block).split('\n').find((l) => l.includes('【审查结论：')) || '';
+    eq('㉑d 候选提示必须**独立一行**：PRD 那句仍逐字合规、且那句里不许出现候选字样',
+       [prd53Conforms(_vline).ok, /非权威候选/.test(_vline)], [true, false]);
+    const _glued = '【审查结论：REVIEW】共发现 3 处需人工确认。（另有 3 条非权威候选线索，不构成依据）';
+    eq('㉑e **反向对照**：把候选提示粘到结论行尾巴上 ⇒ 合规判据必须红（这正是库侧踩过的写法）',
+       [prd53Conforms(_glued).ok, prd53Conforms(_vline).why === _glued], [false, false]);
   }
 
   console.log(`\n自证：通过 ${pass} / 失败 ${bad.length}`);
@@ -1115,6 +1195,11 @@ export function kbSideOf(res) {
     //   这里必须把它带出去；否则卡片会把一条本地路径当链接贴给读者
     //   （库规原话：「一个点不开的链接比空格更坏」）。
     reportUrlKind: String(rev?.report_url_kind ?? '').trim() || null,
+    // ★★ 2026-10-12（库侧 Owner 裁定：`issue_count` **只算库内依据**）：
+    //   候选条数**单独带出来** —— 数改小之后，若不单独说，读者会以为「库里就报了这几条」，
+    //   而实际上还有几条**线索**（源里自己写着"不权威/已被取代"）。
+    //   ⚠️ 只读，不参与任何算术：卡上的 `total` 与 `kbGap` 一个字没动。
+    candidateCount: Number.isFinite(Number(rev?.candidate_count)) ? Number(rev.candidate_count) : null,
   };
 }
 
@@ -1345,6 +1430,50 @@ export function selftestExtract() {
     // ↑ 两处调用（rendered0 与 rendered）都要接；只接一处 ⇒ 走另一条分支的单子又没有读数。
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // ㉒ 2026-10-13：**合并的键不许把内容拆坏**（Owner 那张 P0 卡上就看得见）
+  // ══════════════════════════════════════════════════════════════════════════
+  //   病灶：`keyOf` 是 `` `${location}|${category}` ``，而 `mergeFindings` 收尾
+  //   把它 `key.split('|')` 拆回来。这一条的 `location` 里**本身全是 `|`**
+  //   （命中正则 `最\s*(好|佳|优|强|安全|…)`）⇒ 拆回来 location 被腰斩成
+  //   `` 全文，逐字命中 `最\s*(好 ``、category 变成 `佳`
+  //   ⇒ 卡上印出 **`1.【佳】`** 与 **`· 佳类问题：1 个`**。真维度是 `绝对化与安全承诺-虚假安全承诺`。
+  //
+  //   判据三层（缺一层都不算）：腰斩的那一条逐字不变 · 反向对照普通条目照旧 · 键不再相撞。
+  {
+    const PIPE_LOC = '全文，逐字命中 `最\\s*(好|佳|优|强|安全|低价|便宜|有效|快|大|高|省|舒适)`';
+    const kbPipe = [{ location: PIPE_LOC, category: '绝对化与安全承诺', sub: '虚假安全承诺',
+                      severity: 'BLOCK', source: 'kb', reason: 'H05' }];
+    const mPipe = mergeFindings(kbPipe, []);
+    eq('㉒a ★ 命中正则里带 `|` 的条目 ⇒ 位置与维度**逐字不变**（旧写法会腰斩成「最\\s*(好」/「佳」）',
+       [mPipe.items[0].location, mPipe.items[0].category], [PIPE_LOC, '绝对化与安全承诺']);
+    // ↑ 变异自证：把 `const src = kb ?? model` 那两行换回 `key.split('|')` ⇒ 这里
+    //   变成 ['全文，逐字命中 `最\\s*(好', '佳']，**精确变红**。
+    eq('㉒a2 它照样认得出来是 BLOCK（腰斩会把维度判错，严重度那一格也不能跟着坏）',
+       mPipe.items[0].severity, 'BLOCK');
+    // 反向对照：**没有 `|` 的普通条目**照旧（不许为了修这一条把配对逻辑改坏）
+    const plain = mergeFindings(
+      [{ location: '第 3 行', category: '平台与促销', severity: 'REVIEW', source: 'kb', reason: 'x' }],
+      [{ location: '第 3 行', category: '平台与促销', severity: 'REVIEW', source: 'model', reason: 'y' }]);
+    eq('㉒b 反向对照：不带 `|` 的同位置同维度仍并成一条（双轨确认）',
+       [plain.items.length, plain.items[0].source, plain.items[0].location], [1, 'both', '第 3 行']);
+    // 键不再相撞：`a|b`+`c` 与 `a`+`b|c` 在旧写法下是**同一个键**（两条并成一条，静默少报）
+    const collide = mergeFindings(
+      [{ location: 'a|b', category: 'c', severity: 'REVIEW', source: 'kb', reason: '1' },
+       { location: 'a', category: 'b|c', severity: 'REVIEW', source: 'kb', reason: '2' }], []);
+    eq('㉒c 旧写法下会撞成一个键的两组 ⇒ 现在必须是**两条**（撞了就是静默少报）',
+       collide.items.length, 2);
+    // 来源标记的措辞：**那两个词一个都不许出现**，而「回不回得了源」这条信息必须还在
+    const kbLine = renderMergedItem({ location: 'x', category: '合规', source: 'kb',
+                                      severity: 'REVIEW', reason: 'r' }, 0, { must: false });
+    const moLine = renderMergedItem({ location: 'x', category: '合规', source: 'model',
+                                      severity: 'REVIEW', reason: 'r' }, 0, { must: false });
+    eq('㉒d 卡面/报告里不许出现「知识库侧」「模型侧」（Owner 2026-10-13）',
+       [/知识库侧/.test(kbLine + moLine), /模型侧/.test(kbLine + moLine)], [false, false]);
+    eq('㉒e 但「这一条回不回得了源」必须还在（那才是那个标记的用处）',
+       [/有库内条款依据/.test(kbLine), /无库内依据/.test(moLine)], [true, true]);
+  }
+
   console.log(`\n抽取自证：通过 ${pass} / 失败 ${bad.length}`);
   return bad.length ? 1 : 0;
 }
@@ -1359,10 +1488,14 @@ export function selftestExtract() {
  */
 export function renderMergedItem(f, i, { must = false } = {}) {
   // 来源标记（Owner 2026-10-06：「备注下是规则库侧问题，还是模型侧问题」）
-  const origin = f.source === 'kb' ? '**知识库侧**'
-    : (f.source === 'model' ? '**模型侧**（无库内依据）'
-      : (f.source === 'both-conflict' ? '**两轨都命中 · 结论冲突 ⇒ 已降 REVIEW**'
-        : '**双轨确认**（库侧＋模型侧都命中）'));
+  // ★★ 2026-10-13（Owner：「不要出现 知识库侧，模型侧」）——
+  //   **去的是那两个词，不是那条信息**。这个标记真正的用处是回答
+  //   「**这一条回不回得了源**」（带条款号/锚点/指纹 ⇒ 可回源；不然只能转人工），
+  //   而那是下一步动作的依据 ⇒ 换成不带内部说法的措辞，一个字的信息都没少。
+  const origin = f.source === 'kb' ? '**有库内条款依据**'
+    : (f.source === 'model' ? '**无库内依据 · 建议转人工**'
+      : (f.source === 'both-conflict' ? '**两侧都命中 · 结论冲突 ⇒ 已降 REVIEW**'
+        : '**两侧都命中（可回源）**'));
   // ★ 库侧那条 `依据` 行**原样用**（它带逐字命中文案 + 飞书源直链）。
   //   为什么必须搬、不能重建：L0 定位（`feishu_publish.l0_locate`）是 **Python** 的能力，
   //   JS 这一侧没有 ⇒ 重建只能造出一个更差的版本（「《知识库》W-1.16（锚点：#…）」，
@@ -1372,10 +1505,10 @@ export function renderMergedItem(f, i, { must = false } = {}) {
   const basis = kbBasis || (f.source === 'kb'
     ? `《知识库》${f.kb?.article_no ?? '（未给条款号）'}（锚点：${f.kb?.anchor ?? '—'}）`
     : (f.source === 'both'
-      ? `两轨都命中（库侧 ${f.kb?.article_no ?? '—'} ／ 模型侧独立一遍）`
-      : '**无库内依据** —— 模型侧独立一遍给的，未落在知识库条款上'));
+      ? `两侧都命中（库内条款 ${f.kb?.article_no ?? '—'} ／ 独立复核也命中）`
+      : '**无库内依据** —— 未落在知识库条款上（独立复核给出的判断）'));
   const verdict = f.source === 'both-conflict'
-    ? '**两轨结论不一致 ⇒ 降为 REVIEW，转人工**（不许任一侧单独定案）'
+    ? '**两侧结论不一致 ⇒ 降为 REVIEW，转人工**（不许任一侧单独定案）'
     : (f.severity === 'BLOCK' ? 'BLOCK' : 'REVIEW');
   // ★ 来源标记放**条目第一行末尾**，不动 §5.3 的 `【维度-子类】` ——
   //   那个标签是 PRD 契约（`prd53.conforms` 与 `l7_integrity.py` 都在核它），
@@ -1413,11 +1546,11 @@ export function renderMergedItem(f, i, { must = false } = {}) {
   const advRef = f.adviceReferencedKb === true;
   const sugLine = adv
     ? `${adv}（${advRef ? '**参考了库内反例的建议**' : '**库内无可参考建议**'}`
-      + ' —— 改法由模型按素材给出，**不是库规原文**）'
+      + ' —— 改法是按素材给出的，**不是库规原文**）'
     : (sugKb
       ? sugKb
       : (sugModel
-        ? `${sugModel}（**模型侧给的改法**，无库内依据 —— 是建议，不是库规要求）`
+        ? `${sugModel}（**无库内依据的改法建议** —— 不是库规原文）`
         : '（**两侧都没给修改建议** —— 这一条只有现象，没有可执行的改法；'
           + '**不许把它读成「照此处理即可」**）'));
   // ══════════════════════════════════════════════════════════════════════════
@@ -1477,6 +1610,14 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   //     ② 但它**不算「明细抠不出来」** ⇒ 不进 `kbGap`，也不触发那句 ≥3 的解释；
   //     ③ 「抠不全」的解释**按真实原因分支**：≥3 才说 §5.3.3，<3 就如实说抠出几条。
   const covGap = !!kb?.coverageGap;
+  // ★★ 2026-10-12：**非权威候选线索**要出声（库侧 `issue_count` 已改成只算库内依据）。
+  //   为什么必须单独说：那个数改小之后，"库里报了几条"与"还剩几条线索要人扫一眼"是两件事，
+  //   而候选在卡上原本**完全不可见**。措辞与库侧口径一致（见 `review_engine.candidate_note`）。
+  const candN = Number.isFinite(kb?.candidateCount) ? kb.candidateCount : 0;
+  const candNote = candN > 0
+    ? `\n⚠️ 另有 **${candN} 条非权威候选线索**（源规则已声明不权威/已被取代，`
+      + `**无库内条款号、不构成依据**）—— 见报告完整清单。`
+    : '';
   const covEntries = covGap ? 1 : 0;              // ① 那 1 条覆盖缺口：算「需人工确认」
   const kbMissingDetail = !covGap && kbN != null && kbN > 0 && (txtN == null || kbN > txtN);
   const kbGap = kbMissingDetail ? Math.max(0, kbN - (txtN ?? 0)) : 0;
@@ -1485,11 +1626,12 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   //   原先拒答被折算成「0 条」⇒ 用户收到一张形如双轨结论的 REVIEW 卡，
   //   而表里那行的结论是 NEEDS_INPUT —— 同一单两个结论。
   if (state === 'NEEDS_INPUT') {
-    const line = `【审查结论：NEEDS_INPUT】知识库侧**未判**（拒答、fail-closed）`
+    // ★ 2026-10-13：同上 —— 去词不去信息。「哪一侧没判」照样说得清（说「审查引擎未判」）。
+    const line = `【审查结论：NEEDS_INPUT】**审查引擎未判**（拒答、fail-closed）`
       + (kb?.reason ? `：${kb.reason}` : '') + '。';
     const body = list.length
       ? list.map((f, i) => `${i + 1}.【${f.category}${f.sub ? '-' + f.sub : ''}】${f.location}`
-          + `  —— **模型侧**（无库内依据）\n   原因：${f.reason ?? '（未给理由）'}\n`
+          + `  —— **无库内依据 · 建议转人工**\n   原因：${f.reason ?? '（未给理由）'}\n`
           + `   判定：REVIEW\n   建议：**先恢复库侧再定**（本条不能当通过或拦截依据）。`).join('\n\n')
       : '（模型侧本次没报东西。）';
     // ★ 2026-10-08（Owner 同意 ②）：**「库忙」要写成「已排队」，不能写成「没下文」。** ──────
@@ -1514,7 +1656,7 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
       : '**下一步**：先把库侧恢复（跑层/日更）再重审这一单。';
     return {
       line, total: list.length, kbGap: 0, refused: true, claimBusy: isBusy,
-      block: `${line}\n**本次没有知识库三态结论** —— 以下只是**模型侧**的初步观察，`
+      block: `${line}\n**本次没有三态结论** —— 以下只是**独立复核**的初步观察，`
         + '**不得当通过依据，也不得当拦截依据**。\n\n' + body
         + queueNote
         + `\n\n${nextStep}`,
@@ -1600,7 +1742,7 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
           : ` ＋ 模型侧 ${fromModel} 条`
             + (dedupN ? ` − 计入 ${total} 处（去重 ${dedupN}：两侧指向同一处 ＋ 库侧未并入的）` : '')
             + ` ＝ 本卡 **${total} 处**（**上限**：两轨重叠未判）`
-            + `${covEntries ? '（另 1 条是**覆盖缺口**，不是内容问题）' : ''}`))) + '\n';
+            + `${covEntries ? '（另 1 条是**覆盖缺口**，不是内容问题）' : ''}`))) + candNote + '\n';
   // ★ 库侧明细缺失是**必须出声**的（2026-10-07）：否则读者会以为库侧真没报东西。
   // ★★ 2026-10-08：**解释必须按真实原因分支**。
   //   原先不分情形一律写「PRD §5.3.3 规定问题数 ≥3 时库侧只出分类汇总」——
@@ -1746,13 +1888,61 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   const hasReportLink = /^https?:\/\//.test(linkLine.trim());
   const summarized = total >= REPORT_LINK_MIN_ISSUES && hasReportLink;
   const bodyText = summarized ? categorySummary(list, total) : items.join('\n\n');
+  // ══════════════════════════════════════════════════════════════════════════
+  // ★★ 2026-10-13（Owner 裁定）：**库侧/模型侧的口径读数与解释不上卡，只留在守衡的记忆里**
+  // ══════════════════════════════════════════════════════════════════════════
+  //
+  //   Owner 原话（三条里第 1、2 条）：
+  //     「输出到飞书群包含知识库侧+模型侧的文字，**不要展示在卡片上**，我问的时候，你要能回答」
+  //     「类似以下的文案都去掉：知识库侧 未报内容问题…／模型侧 7 条… ／ ℹ️ 知识库侧给了
+  //       覆盖缺口（`coverage_not_covered`）… ／（问题数 8 ≥ 3 ⇒ 按 PRD §5.3.3 只出分类汇总…）」
+  //
+  //   为什么这一整族都搬走（`tally`/`gapNote`/`covNote`/`noReadNote`/`candNote`/汇总页脚）：
+  //     它们是**我们自己核对用的口径读数** —— 讲的是「这一单里哪一侧说了话、有几条没并进来、
+  //     与 PRD §5.3.3 是什么关系」。对群里的人，那是**零可执行信息**；
+  //     而 PRD §5.3.3 给 ≥3 的单子规定的卡面只有四样：结论行 · 分类汇总 · 报告链接 · 动作行。
+  //
+  //   ★ 但**一个字都没丢**（搬是搬，砍是砍）—— 它们原样从 `internalNotes` 出去，
+  //     由 `agent.mjs` 接进 `chainBlock`（= 模型的上下文 + **会话记忆**）：
+  //     对方追问「知识库侧报了几条 / 为什么说是覆盖缺口」，守衡答得出来。
+  //     ⚠️ 它们**不许**再回到 `block` —— 卡片与报告都是 `block` 渲染的。
+  const summaryFootnote = summarized
+    ? `（问题数 **${total} ≥ ${REPORT_LINK_MIN_ISSUES}** ⇒ 按 PRD §5.3.3 只出分类汇总，`
+      + '逐条清单与修改建议在报告里；1–2 条时才在卡上逐条平铺。）'
+    : '';
+  // ⚠️ `candNote` 已经拼在 `tally` 里面（见上面那一行 `+ candNote +`），别再列一次。
+  const internalNotes = [tally, gapNote, covNote, noReadNote,
+    summaryFootnote ? `\n${summaryFootnote}` : '']
+    .map((x) => String(x ?? '').trim())
+    .filter(Boolean).join('\n').trim();
+  // ══════════════════════════════════════════════════════════════════════════
+  // ★★ 2026-10-13：**P0 快路那条边界改由代码给**（原先只有模型原话里那一份）
+  // ══════════════════════════════════════════════════════════════════════════
+  //   为什么必须补：Owner 同一天要求「模型原话那一组从卡上整组去掉」（见 `envelope.mjs`
+  //   的 autoCard）。而这条边界**只出现在模型原话里** —— 原话一走，卡上就没有任何东西
+  //   说得出「这是红线拦截、**没有跑过专项审查**」了。
+  //   而这句话不能丢，它是 Owner 2026-10-12 要求恢复的三样之一
+  //   （`agent.mjs` 原位注释记着：「逐条明细 ＋ 页脚『本结论为 P0 红线拦截…』—— 三样都在」）：
+  //   少一句，读卡的人就会把一次**确定性匹配**当成「整条链审过了」。
+  //   措辞与那一版同源（08:56 那张卡的卡脚），只把模态说全（图/视频/产品宣称），
+  //   因为 P0 快路对三类素材走的是同一条路。
+  const p0Boundary = kb?.source === 'p0_fastpath'
+    ? '本结论为 **P0 红线拦截**（确定性匹配，**未跑**专项审查、层前置与评审链），'
+      + '**不是 PASS 依据**；若素材属图片 / 视频 / 产品宣称等模态，**仍需转对应专项复核**。'
+    : '';
   return {
            line, total, kbGap, refused: false, coverageGap: !!kb?.coverageGap,
            kbNoReading, covEntries, kbContentN, modelFailed, reportNote, summarized,
            // ★ 卡上不印了 ⇒ 由这里原样交出去，报告把它放进附录（搬不是砍）
            hitsBlock,
-           block: `${line}${reportNote}\n${tally}${gapNote}${covNote}${noReadNote}${hitsNote}`
-             + `${bodyText}${summarized ? '' : '\n'}\n\n${action}` };
+           // ★ 2026-10-13：库侧/模型侧的口径读数与解释 —— **只走这里**（模型上下文 + 记忆），
+           //   既不进卡片也不进报告正文。空串 = 这一单没有这类读数。
+           internalNotes,
+           // ★ 2026-10-13：P0 快路的边界（**代码产出**）→ 由 `envelope` 写进卡脚。
+           //   空串 = 不是 P0 快路，卡脚不印（不编）。
+           p0Boundary,
+           block: `${line}${reportNote}\n${bodyText}${hitsNote}`
+             + `${summarized ? '' : '\n'}\n\n${action}` };
 }
 
 /**
@@ -1761,7 +1951,13 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
  * ★ 与库侧 `_summary_lines` / `_category_counts` **同口径**：按**大类**（`catFamily`）合并，
  *   不按子类 —— 子类太细，汇总就没意义了。
  * ★ 为什么必须给总数：汇总行加起来可能小于 `total`（库侧有明细没并进来时），
- *   那时只说分类会让人以为「就这么多」⇒ 末尾一律带上总数的口径说明。
+ *   那时只说分类会让人以为「就这么多」⇒ 多出来的那部分要有一行交代。
+ *
+ * ★★ 2026-10-13（Owner 裁定）：**页脚那句「（问题数 N ≥ 3 ⇒ 按 PRD §5.3.3 只出分类汇总…）」
+ *   从卡上撤掉了** —— 它讲的是我们自己的口径规矩，对群里的人是零可执行信息
+ *   （Owner 原话把它列进了「类似以下的文案都去掉」那一串）。
+ *   它**没有丢**：原样落在 `renderMerged` 的 `internalNotes` 里（守衡凭它答追问），
+ *   所以这个函数现在**只产出 PRD §5.3.3 要的那几行**，一句解释都不带。
  */
 export function categorySummary(list = [], total = null) {
   const counts = new Map();
@@ -1774,12 +1970,11 @@ export function categorySummary(list = [], total = null) {
   if (!rows.length) rows.push('·（本次没有并进任何逐条）');
   const n = total ?? list.length;
   if (n > list.length) {
-    rows.push(`· 另有 **${n - list.length} 条**未并入逐条（见报告与计数口径）`);
+    // ⚠️ 这一行**必须留**：没有它，读者把分类行加起来会小于抬头那个数
+    //   （实测 19:08 那单：抬头 12、分类只有 7）—— 那是「卡内算术不闭合」，
+    //   比多一句话坏得多。它只说「还有 N 条在哪」，不下口径解释。
+    rows.push(`· 另有 **${n - list.length} 条**（明细在报告里）`);
   }
-  rows.push('');
-  // 逐条清单去哪了 —— 必须**明确说**，否则读者以为「这单只有 3 个问题」
-  rows.push(`（问题数 **${n} ≥ ${REPORT_LINK_MIN_ISSUES}** ⇒ 按 PRD §5.3.3 **只出分类汇总**，`
-    + '逐条清单与修改建议在报告里；1–2 条时才在卡上逐条平铺。）');
   return rows.join('\n');
 }
 

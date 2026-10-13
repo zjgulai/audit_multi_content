@@ -32,7 +32,11 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { renderMergedItem, REPORT_LINK_MIN_ISSUES } from './dual_track.mjs';
+// ⚠️ 2026-10-13：**不再 import `REPORT_LINK_MIN_ISSUES`** —— 报告正文里那句
+//   「判断：PRD §5.3.4 问题数量 ≥3 时生成完整报告」被 Owner 点名去掉了（它讲的是
+//   我们自己的门槛），而这个常数在报告这一层就没有第二个用处。门槛仍在**两处**起着作用：
+//   `dual_track.renderMerged`（卡上要不要只出分类汇总）与 `agent.mjs`（要不要建这份报告）。
+import { renderMergedItem } from './dual_track.mjs';
 import { publishReportDoc } from './review_publish.mjs';
 
 /** 报告留底目录（`PMO/shouheng-state/` 是 gitignored 的运行时状态目录）。 */
@@ -87,16 +91,50 @@ const isKbSide = (f) => f.source === 'kb' || f.source === 'both' || f.source ===
  * `【视频 N…` / `【待读的链接】`）。**只认这些开头**；认不出就**原样印**
  * （宁可长，不可错删 —— 万一是人真的写了以「【」开头的话）。
  *
- * @returns {string} 要印的内容；空串 = 这一行不印
+ * @returns {{userLine:string, material:string, isProbe:boolean}}
+ *   `isProbe=true` 表示「这一单对方只发了素材，没写问题」——
+ *   `userLine` 那时是一句**如实说明**，不是对方的话 ⇒ **不许当标题**（见 `titleForReport`）。
  */
 export function questionForReport(question) {
   const raw = String(question ?? '').trim();
-  if (!raw) return { userLine: '', material: '' };
+  if (!raw) return { userLine: '', material: '', isProbe: false };
   // 探针（给模型看的读数指令）：**不进报告正文**，只把里面的素材读数摘出来放附录。
   if (/^【(对方这条消息里附了|图片\s*\d|图\s*\d|视频\s*\d|待读的链接)/.test(raw)) {
-    return { userLine: '（对方**只发了素材**，没有写问题）', material: raw };
+    return { userLine: '（对方**只发了素材**，没有写问题）', material: raw, isProbe: true };
   }
-  return { userLine: raw, material: '' };
+  return { userLine: raw, material: '', isProbe: false };
+}
+
+/**
+ * 报告的 H1（= 飞书云文档的标题）。
+ *
+ * ★★ 2026-10-13（Owner 三条里的第 3 条第 1 款）：
+ *   「标题改成：**用户原问题+内容审查报告**，去掉『内容审查报告 · 2026-10-12T07:31:24.329Z』」
+ *
+ *   病灶：原标题是 `# 内容审查报告 · <ISO 时刻>` —— 标题里放的是**我们自己的渲染时刻**，
+ *   对打开文档的人**零信息量**（他要知道的是「这是哪一条内容的那份报告」）。
+ *   而 `audit_multi_content` 一天要出好几份，几份文档在飞书里**标题一模一样**。
+ *
+ *   现在的形状：
+ *     · 有真问题  ⇒ `# <用户原问题> 内容审查报告`
+ *     · 对方只发了素材（`isProbe`，没有「原问题」可写）⇒ `# 内容审查报告`
+ *       ⚠️ **不许**把探针（给模型看的读数指令）或那句「（对方只发了素材…）」当标题 ——
+ *          前者是内部指令、后者不是对方说的话，两者都会造出一个假标题。
+ *
+ *   ⚠️ 上限 120 字：H1 就是云文档标题，而送审问题可能是**整段字幕**贴进来。
+ *     超长会截断（尾附 `…`）—— 这是**有意**的唯一一处截断，理由与理由的代价都写在
+ *     这一行里：宁可标题短一点，也不要一个把飞书文档列表撑坏的标题。
+ *   ⚠️ 换行必须先折成空格：H1 里带换行会让后面几行掉出标题、变成正文首段。
+ */
+export const REPORT_TITLE_MAX = 120;
+
+export function titleForReport(question) {
+  const q = questionForReport(question);
+  if (!q.userLine || q.isProbe) return '内容审查报告';
+  const flat = String(q.userLine).replace(/\s+/g, ' ').replace(/[`#*]/g, '').trim();
+  if (!flat) return '内容审查报告';
+  const cut = flat.length > REPORT_TITLE_MAX ? `${flat.slice(0, REPORT_TITLE_MAX)}…` : flat;
+  return `${cut} 内容审查报告`;
 }
 
 /**
@@ -109,7 +147,12 @@ export function questionForReport(question) {
  */
 export function renderMergedReportMd({
   merged = [], total = 0, state = '', line = '', question = '',
-  contentId = '', at = '', kbGap = 0, kbTextCount = 0, modelCount = 0,
+  contentId = '', at = '',
+  // ⚠️ 这三个读数（`kbGap` / `kbTextCount` / `modelCount`）**报告正文里不再渲染** ——
+  //   它们原先只服务「三、计数口径」那一段，而 Owner 2026-10-13 把整段去掉了。
+  //   入参**留着**：调用方仍在传（`agent.mjs`），而它们是这一单唯一的机读口径读数，
+  //   将来若要再加一格（例如按维度分组统计）不必回头改调用方。
+  kbGap = 0, kbTextCount = 0, modelCount = 0,
   // Owner 2026-10-09: 结构化告警（可选）—— 有就照搬进正文，没有也不能装作没有（常驻免责已在正文里）
   warnings = [],
   // ★ 2026-10-09：**从卡上撤下来的检索读数**（`kbHitsBlock`）—— 原样进附录，一条不丢。
@@ -121,87 +164,78 @@ export function renderMergedReportMd({
   //   并对「挪到附录」**点了头**。原文在卡上被切一半、折一行 —— 两头不讨好；
   //   ⇒ 卡只留读数，**全文落在这里**（搬不是砍）。空串 = 这一节不印。
   mediaAppendix = '',
+  // ══════════════════════════════════════════════════════════════════════════
+  // ★★ 2026-10-13（Owner 第四条）：「输出的飞书文档报告，去掉（- 内容 ID…／- 结论…／
+  //    **附录下的所有内容**）」。
+  // ══════════════════════════════════════════════════════════════════════════
+  //   实测那份报告：**149 行里 79 行是附录**（7892 字符）—— 正文（逐条清单）只占前 70 行。
+  //   而 `- 结论：**REVIEW** ｜ 问题数量：**10**` 与紧跟其后的
+  //   `【审查结论：REVIEW】共发现 10 处需人工确认。` **是同一件事说两遍**。
+  //
+  //   ⇒ `withAppendix = false` 渲染**投给飞书云文档的那一份**：标题 ＋ 结论行 ＋ 逐条清单。
+  //     ⚠️ **附录内容一个字都没丢** —— 它留在**本机留底**那一份里（`withAppendix = true` 的
+  //     渲染结果，由 `publishMergedReport` 写进 `PMO/shouheng-state/merged-reports/`）。
+  //     这就是「搬是搬，砍是砍」：**投出去的那一份要干净，留底那一份要完整**。
+  //     留底那份正是「这条依据是怎么来的 / 当时到底读到了什么字」的唯一落点。
+  withAppendix = true,
 } = {}) {
   const kbItems = merged.filter(isKbSide);
   const modelItems = merged.filter((f) => !isKbSide(f));
   const must = String(state).toUpperCase() === 'BLOCK';
 
   const L = [];
-  L.push(`# 内容审查报告 · ${contentId || at || '（未给内容 ID）'}`);
-  L.push('');
-  // ★★ 2026-10-09（Owner：「里面的【图 1 内文字｜35 行】，展示的太丑了」）──────────
-  //   病灶：只有媒材的单子上，`input.question` 是**内核自己拟的那段探针**，
-  //   而报告把它**整段逐字**印进报告头 —— 实测那份报告头里赫然是
-  //   `【对方这条消息里附了图…】` + `【图 1 内文字｜35 行】` + **35 行 OCR 片段**
-  //   + `【/图 1】` + 一大段操作规程 ⇒ 报告头被"给模型看的内部指令"占满，
-  //   读者看到的是一堆断行的碎字（Owner 原话「太丑」）。
-  //   ⚠️ **一个字都没丢**：素材读数本来就在报告正文里（逐条引文 / 附录检索读数）；
-  //      这段探针是**指令**、不是内容。认出来时**如实说清**「对方只发了素材、没写问题」，
-  //      不留空（留空会让人以为漏印）。
+  // ══════════════════════════════════════════════════════════════════════════
+  // ★★ 2026-10-13（Owner 三条里的第 3 条）：**这份报告只留 PRD 要的东西**
+  //
+  //   Owner 原话：
+  //     ① 「标题改成：**用户原问题+内容审查报告**，去掉『内容审查报告 · 2026-10-12T07:31:24.329Z』」
+  //     ② 「去掉这些废话：- 用户原提问：（对方只发了素材，没有写问题）／- 判据：PRD §5.3.4…／
+  //         一、知识库侧（库内条款条目）—— 0 条／⚠️ 本段条目来自库内条款表…／
+  //         （本单知识库侧没有并进任何条目。）／二、模型侧（无库内依据，只能转人工）—— 7 条／
+  //         这一段里的条目没有落在任何知识库条款上…」
+  //     ③ 「三、计数口径 下的所有内容都不需要」
+  //
+  //   改法：
+  //     · H1 = `titleForReport(question)`（用户原问题 + 内容审查报告），**不再印渲染时刻**；
+  //     · 报告头只留 **内容 ID / 审查时刻 / 结论 / 问题数量** 四格（判据行去掉 ——
+  //       门槛是我们自己的实现细节，PRD §5.3.4 那句话读者不需要）；
+  //     · **不再按「库内/模型侧」分两段** —— Owner 把那两个小标题连同底下的免责整段列进了
+  //       「废话」。条目**照旧逐条带来源标记**（`renderMergedItem` 的第一行末尾：
+  //       `—— **知识库侧**` / `—— **模型侧**（无库内依据）`），所以「这条能不能回源」
+  //       **一条都没少**，少的只是包在它们外面的两层标题与免责；
+  //     · **整个「三、计数口径」段去掉**（Owner 第 ③ 条）。那三条读数没有丢 ——
+  //       `total` 仍印在报告头与结论行里、`kbGap` 的去向在卡上那份「查证笔记」里（守衡答得出）。
+  //
+  //   ⚠️ 顺序与编号：两段合并成**一条连续清单**（1..N），来源标记仍逐条在。kbItems 在前、
+  //     modelItems 在后（与改动前肉眼顺序一致），**编号不再各从 1 开始**
+  //     （那正是分两段才有的形状，合并后重号会被读成「两份清单」）。
+  const ordered = [...kbItems, ...modelItems];
+  // ★ 探针只在**附录**用（正文里不再有「用户原提问」那一行 —— Owner 第 3 条第 2 款）。
   const q = questionForReport(question);
-  if (q.userLine) L.push(`- 用户原提问：${q.userLine}`);
-  L.push(`- 内容 ID：\`${contentId || '—'}\` ｜ 审查时刻：${at || '—'}`);
-  L.push(`- 结论：**${state || '—'}** ｜ 问题数量：**${total}**`
-    + `（知识库侧 ${kbItems.length} 条 ／ 模型侧 ${modelItems.length} 条）`);
-  L.push(`- 判据：PRD §5.3.4「问题数量 ≥ ${REPORT_LINK_MIN_ISSUES} 时生成完整报告并返回链接」`);
+  L.push(`# ${titleForReport(question)}`);
   L.push('');
+  // ★ 2026-10-13（Owner）：**这两行都去掉了**。
+  //   · `- 内容 ID：… ｜ 审查时刻：…` —— 内部 ID 与渲染时刻，对读的人零信息量；
+  //   · `- 结论：REVIEW ｜ 问题数量：10` —— 与下面 §5.3 结论行**同一件事说两遍**。
+  //   结论与条数仍在（就在下面那一行，PRD §5.3 的原文），一条信息都没少。
   if (line) { L.push(line); L.push(''); }
-
-  // ★★ 2026-10-09（Owner 反馈）：**这一段原先的标题是一句「声称」，不是事实。**
-  //
-  //   原话是 `## 一、知识库侧（有条款级依据）` —— 而实测那一单（原则性图）：
-  //   卡上守衡自己写着「我读了云文档：**4/4 条依据与素材无关**，另 2 条 L0 sha 不一致」，
-  //   而这四条在报告里顶着「**有条款级依据**」这个标题、还带条款号与飞书直链 ——
-  //   **报告比卡片可信得多**，于是修好链接反而放大了危害。
-  //
-  //   改法两层，都只做**能与不能**的区分，不替库侧下结论：
-  //     ① 标题从「有条款级依据」改成「库内条款条目」—— 只说**出处**，不下「所以它就对」的判断；
-  //     ② 加一条**常驻免责**：相关性未经本报告核验，且**卡片上有告警时以卡片为准**。
-  //   为什么常驻而不是「检测到才写」：我手上那个信号（`evidence_complete`）在这一单里是
-  //   `undefined`，靠它判会时灵时不灵 —— 而**不确定性必须无条件说出来**，
-  //   不能等到「我确信有问题」才说（§2.4.2：未测不许与通过长得一样）。
-  const warnBlock = [
-    '> ⚠️ **本段条目来自库内条款表 —— 这只说明它们的出处，不说明它们与本次素材相关。**',
-    '> 条目与素材的**相关性、以及依据指纹（`source_sha256`）是否对得上，本报告不作核验**。',
-    '> 守衡在卡片上若给出了相关性 / sha 告警，**以卡片为准**，并以那条告警决定是否采信本段。',
-    ...(warnings || []).map((w) => `> ⚠️ ${w}`),
-    '',
-  ];
-  L.push(`## 一、知识库侧（库内条款条目）—— ${kbItems.length} 条`);
-  L.push('');
-  L.push(...warnBlock);
-  if (kbItems.length) {
-    kbItems.forEach((f, i) => { L.push(renderMergedItem(f, i, { must })); L.push(''); });
+  if (ordered.length) {
+    ordered.forEach((f, i) => { L.push(renderMergedItem(f, i, { must })); L.push(''); });
   } else {
-    L.push('（本单知识库侧没有并进任何条目。）');
+    L.push('（本单没有并进任何条目。）');
+    L.push('');
+  }
+  // ⚠️ `warnings` 仍然要落下来（它是**卡上给过的那条告警**的留档，不是套话）——
+  //   原先它挂在「一、知识库侧」的免责块下面，那一段没了之后它不能跟着消失。
+  //   只有真给了才印（不给就不印，不许凭空造一条）。
+  if ((warnings || []).length) {
+    L.push('> ⚠️ 本次审查的告警（与卡片上同源）：');
+    for (const w of warnings) L.push(`> ⚠️ ${w}`);
     L.push('');
   }
 
-  L.push(`## 二、模型侧（无库内依据，只能转人工）—— ${modelItems.length} 条`);
-  L.push('');
-  L.push('> 这一段里的条目**没有落在任何知识库条款上** —— 它们是模型独立一遍给的判断，');
-  L.push('> **不得当通过依据，也不得据此当拦截依据**。下一步是转人工，不是照它改稿。');
-  L.push('');
-  if (modelItems.length) {
-    modelItems.forEach((f, i) => { L.push(renderMergedItem(f, i, { must })); L.push(''); });
-  } else {
-    L.push('（本单模型侧没有并进任何条目。）');
-    L.push('');
-  }
-
-  // ── 计数口径必须说清：`total` 是**卡里那个数**，它不等于「上面列出的条数」之和
-  //    当库侧判到 ≥3 只出分类汇总时，明细抠不出来 ⇒ `kbGap > 0` ⇒ 上面列不全。
-  //    不说清就会出现「报告里 6 条、卡上说 10 处」这种看起来像 bug 的差异。
-  L.push('## 三、计数口径');
-  L.push('');
-  L.push(`- 本单**问题总数 ${total}** ＝ 已列出的 ${merged.length} 条`
-    + (kbGap > 0 ? ` ＋ 知识库侧**另有 ${kbGap} 条未并进**（PRD §5.3.3：库侧问题数 ≥3 时只出分类汇总，`
-      + '逐条明细在库内，未进本报告）' : '')
-    + '。');
-  L.push(`- 知识库侧结构化读数 ${kbTextCount} 条 ／ 模型侧 ${modelCount} 条。`);
-  L.push('- 两轨**重叠未判** ⇒ 总数是**上限**（同一条问题若两侧都命中会被算两次，'
-    + '`mergeFindings` 只在「位置与类目都相同」时并成一条）。');
-  L.push('');
+  // ── 附录（**投云文档那一份不印** —— Owner 2026-10-13；留底那一份照印）──────────
+  if (!withAppendix) return L.join('\n');
   // ── 附录：检索读数（从卡上撤下来的那一块，原样搬过来）────────────────────
   if (String(hitsBlock ?? '').trim()) {
     L.push('## 附录：检索读数');
@@ -281,15 +315,31 @@ export function mdBodySafe(md) {
     .join('\n');
 }
 
-export async function publishMergedReport(md, { contentId = '', at = '' } = {}) {
+export async function publishMergedReport(md, { contentId = '', at = '', archiveMd = null,
+                                                // ★★ 2026-10-13：**投云文档那一跳必须可注入** ——
+                                                //   否则任何一条「只想验落盘」的自证都会
+                                                //   **真的在 Owner 的飞书里建一份文档**
+                                                //   （§2.4.4：跑一次自证，改掉了它要保护的东西。
+                                                //    本仓已经栽过两次，第二次就是本函数这一跳）。
+                                                publishDoc = publishReportDoc } = {}) {
   const safe = String(contentId || at || 'report').replace(/[^\w.-]+/g, '_').slice(0, 80);
-  const mdPath = path.join(reportDir(), `merged-${safe}-${Date.now()}.md`);
+  const stamp = Date.now();
+  const mdPath = path.join(reportDir(), `merged-${safe}-${stamp}.md`);
+  // ★★ 2026-10-13（Owner：「附录下的所有内容」去掉）：**两份分开写**。
+  //   投出去的那一份（`md`）只含 PRD 字段；`archiveMd` 是**本机留底**，附录照旧完整。
+  //   为什么留底那一份必须有：附录里是「这条依据是怎么来的」（检索读数、BM25、sha、直链）
+  //   与「当时到底读到了什么字」（OCR 全文）—— 那是**唯一**能回源核对的东西。
+  //   投出去的那份干净，留底那份完整 —— 这与「搬是搬，砍是砍」是同一条规矩。
+  //   ⚠️ 留底文件名带 `.full.md` 后缀，落盘路径由返回值 `archivePath` 给出（不猜）。
+  const archivePath = archiveMd ? path.join(reportDir(), `merged-${safe}-${stamp}.full.md`) : null;
   const body = mdBodySafe(md);
   try {
     fs.writeFileSync(mdPath, body);          // ★ Node 写（不是 Python）—— 不进 +4096 填充态
+    if (archivePath) fs.writeFileSync(archivePath, mdBodySafe(String(archiveMd)));
   } catch (e) {
-    return { ok: false, url: null, mdPath: null, detail: `报告落盘失败：${e?.message ?? e}` };
+    return { ok: false, url: null, mdPath: null, archivePath: null,
+             detail: `报告落盘失败：${e?.message ?? e}` };
   }
-  const r = await publishReportDoc(mdPath);
-  return { ...r, mdPath };
+  const r = await publishDoc(mdPath);
+  return { ...r, mdPath, archivePath };
 }

@@ -352,11 +352,13 @@ async function onMessage(data) {
   //   而形态决策仍然只在 `replyTo` 一处做（§2.5）—— 这里只是**递读数**，不定形态。
   const sent = await replyTo(chatId, msg.message_id, result.reply, msg.chat_type, 'reply',
     { verdict53: result.meta?.verdict53 ?? null,
-      // ★ 2026-10-06 加：这一轮**读到了什么**（内核的 `describeMediaRead`）。
-      //   与 `verdict53` 同一条分工 —— 这里只**递读数**，成形仍只在 `replyTo` 一处（§2.5）。
-      mediaRead: result.meta?.mediaRead ?? null,
+      // ⚠️ 2026-10-13：`mediaRead` **不再往下传** —— 媒材读数按 Owner 的要求不上卡了
+      //   （`envelope.toCardOrText` 那个入参也一并撤掉，免得留下一个没人读的入参）。
+      //   读数本身没丢：内核的 `📥 读到｜…` 日志、会话记忆、报告附录三处都在。
       // 2026-10-09: 报告链接 —— 与 mediaRead 同级（都进可见格，都不该藏在折叠区里）
-      reportLink: result.meta?.reportLink ?? null });
+      reportLink: result.meta?.reportLink ?? null,
+      // ★ 2026-10-13: 卡脚那条边界（P0 快路）—— 与 reportLink 同级，都只是**递读数**
+      boundary: result.meta?.boundary ?? null });
   if (sent.ok) { counters.replied++; log(`   ✓ 已发送 ${sent.messageIds.filter(Boolean).join(', ')} [${sent.mode}]`); }
   else { counters.failed++; log(`   ✗ 发送失败: ${sent.error}`); }
 }
@@ -476,7 +478,7 @@ function dumpDropped({ messageId, chatId, source, reason, raw }) {
  *   当时它对着一堆内部记录说「✓ 已发送」。
  */
 async function replyTo(chatId, messageId, rawReply, chatType = null, source = 'reply',
-                       { verdict53 = null, mediaRead = null } = {}) {
+                       { verdict53 = null, reportLink = null, boundary = null } = {}) {
   // ★ 结论行的**兜底派生**（2026-10-06）：补发队列那一跳（`source='resend'`）走的是
   //   `handleMessage(event, {force:true})`，它**不跑送审闸门**，所以拿不到 `meta.verdict53`。
   //   判据很窄 —— 只有模型自己把一行 5.3 结论**摆在回复最前面**时才认它
@@ -484,7 +486,13 @@ async function replyTo(chatId, messageId, rawReply, chatType = null, source = 'r
   //   那句回答误当成一条审查结论。
   const v53 = verdict53 ?? deriveVerdictLine({ replyText: rawReply });
   // ★ `mediaRead` 不走兜底派生：它是**内核已经算好的读数**，拿不到就是没有（不猜）。
-  const shaped = toCardOrText(rawReply, { verdict53: v53, mediaRead });
+  // ★★ 2026-10-13（修一个真缺陷）：`reportLink` **原先在这里被丢掉** ——
+  //   调用方（`onMessage`）一路传了 `reportLink: result.meta?.reportLink`，
+  //   而本函数的解构签名里**没有它** ⇒ 静默丢弃。
+  //   旧判据（`test_agent.mjs` 的 Z20）只查了**源码里出现过**
+  //   `reportLink: result.meta?.reportLink` 这一行，**没查它真被用上** ——
+  //   又一个「名字出现过 ≠ 它拦得住」（§2.4）。现在有行为级判据钉着（Z20b）。
+  const shaped = toCardOrText(rawReply, { verdict53: v53, reportLink, boundary });
   if (v53) {
     // ★ 措辞不合 5.3 时**出声**：链是结论行的产者，它的措辞会回退，
     //   而回退的表现只是「群里格式不对」—— 那要等到人看见才知道。

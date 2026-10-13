@@ -2278,13 +2278,26 @@ await t('W5b 反向对照：**未登记的类型**落到 no-slot，且不许丢�
   assert.ok(JSON.stringify(r.card.body).includes('grep'), '搬结论行时把正文丢了');
 });
 
-await t('W6 纯文本路径：结论行前置，且幂等（已有就不再加）', () => {
+await t('W6 评审单：结论行前置（走卡片抬头），且幂等（已有就不再加）', () => {
   const line = '【审查结论：PASS】未发现已知底线风险，可转交 @sign-off 责任人（未配置） 进行 sign-off。';
-  const once = toCardOrText('模型自己写的一段话。', { verdict53: { state: 'PASS', line, from: 'chain' } });
-  assert.strictEqual(once.mode, 'text');
-  assert.ok(once.text.startsWith(line), `结论行必须排在最前面，实际开头：${once.text.slice(0, 40)}`);
-  const twice = toCardOrText(once.text, { verdict53: { state: 'PASS', line, from: 'chain' } });
-  assert.strictEqual(twice.text, once.text, '已经有这一行时不许再加一遍（否则会「结论 + 又一遍结论」）');
+  const V = { state: 'PASS', line, from: 'chain' };
+  // ★ 2026-10-12（Owner 现场：「守衡的输出格式变了」）：**带权威结论行的回复必须建卡**。
+  //   旧断言写的是 `mode === 'text'` —— 而那正是 19:31–19:58 四条实发回复的形状：
+  //   纯文本在飞书里不渲染 markdown，群里看到的是 `**加粗**`、反引号与一堆 `|`。
+  //   行为改动在 `envelope.mjs::toCardOrText`（模型没给卡 ⇒ 代码建一张），
+  //   判据在 `verify_cards.mjs` J12a–d。
+  const once = toCardOrText('模型自己写的一段话。', { verdict53: V });
+  assert.strictEqual(once.mode, 'card', `评审单必须建卡，实际 mode=${once.mode}（reason=${once.reason}）`);
+  assert.strictEqual(once.card.header.title.content, line,
+    `结论行必须排在最前面（抬头），实际：${JSON.stringify(once.card.header.title.content)}`);
+  // 幂等：模型原话里已经把这一行写出来了 ⇒ 从折叠组里摘掉，抬头独占（不许印两遍）
+  const twice = toCardOrText(`${line}\n\n模型自己写的一段话。`, { verdict53: V });
+  const n = JSON.stringify(twice.card).split(line).length - 1;
+  assert.strictEqual(n, 1, `结论行在卡里出现了 ${n} 次 —— 已经有这一行时不许再来一遍`);
+  // 反向对照：**没有**权威结论行 ⇒ 仍是纯文本，且一个字符都不许改
+  const plain = toCardOrText('模型自己写的一段话。');
+  assert.strictEqual(plain.mode, 'text');
+  assert.strictEqual(plain.text, '模型自己写的一段话。');
 });
 
 await t('W7 措辞判据：REVIEW / BLOCK 两句话必须**不一样**（这是引擎原先抹平的那一处）', () => {
@@ -2853,7 +2866,7 @@ await t('Z14 ★ 行为级：卡片抬头那个数必须 == 卡里那个数（`r
 await t('Z15 ★ 行为级：问题数 ≥3 且库侧没给链接 ⇒ 本仓建报告，卡里那一行是**真链接**', async () => {
   const { runSubmissionGate } = await import('./agent/agent.mjs');
   const KB_ANSWER = ['【审查结论：REVIEW】共发现 1 处需人工确认。', '',
-    '1.【本地化】图 1 —— 模型侧', '', '建议转 李倩怡 复核。'].join('\n');
+    '1.【本地化】图 1', '', '建议转 李倩怡 复核。'].join('\n');
   const STUB = 'https://example.invalid/docx/Z15';
   let called = 0;
   const g = await runSubmissionGate({
@@ -2868,9 +2881,16 @@ await t('Z15 ★ 行为级：问题数 ≥3 且库侧没给链接 ⇒ 本仓建�
       findings: [1, 2, 3, 4, 5].map((n) => ({ category: '本地化', location: `画面 ${n}`, severity: 'REVIEW', reason: 'x' })) }),
     mergedReportRunner: async (md) => {
       called++;
-      // 报告正文必须**两侧都在**（Owner：「6 个就展示 6 个问题」）
-      assert.ok(/## 一、知识库侧/.test(md), '报告缺「知识库侧」那一段');
-      assert.ok(/## 二、模型侧/.test(md), '报告缺「模型侧」那一段');
+      // 报告正文必须**两侧条目都在**（Owner：「6 个就展示 6 个问题」）。
+      // ★ 2026-10-13：两侧**不再各有一个小标题**（Owner 把它们连免责一起列进了「废话」），
+      //   所以判据从「有没有那两个标题」改成「**条目在不在、来源标没标**」——
+      //   后者才是「这条回不回得了源」，也是那两个标题原先承担的**唯一**信息。
+      // ★ 2026-10-13（Owner：「不要出现 知识库侧，模型侧」）：标记改了措辞，
+      //   判据跟着改成**新措辞**（去的是词，不是「回不回得了源」这条信息）。
+      assert.ok(/\*\*有库内条款依据\*\*/.test(md), '报告缺「有库内条款依据」那条（来源标记没了）');
+      assert.ok(/\*\*无库内依据 · 建议转人工\*\*/.test(md), '报告缺「无库内依据」那条（来源标记没了）');
+      assert.ok(!/知识库侧|模型侧/.test(md), '「知识库侧/模型侧」又出现了（Owner 点名去掉）');
+      assert.ok(!/## 一、知识库侧|## 二、模型侧/.test(md), '两个来源小标题又回来了（Owner 点名去掉）');
       // ★ 2026-10-09：`判定` 如今**带加粗**（Owner 裁定「字段加粗保留」）且**排在 PRD 四要素之后**
       //   ⇒ 原先的 `^ {3}判定：`（非加粗）在这里数出 0 条，把「量条目数」误判成失败。
       //   这一处查的是**条数**、与加粗无关，所以认两种写法（`\*{0,2}`），
@@ -2890,7 +2910,7 @@ await t('Z15 ★ 行为级：问题数 ≥3 且库侧没给链接 ⇒ 本仓建�
 await t('Z16 ★ 反向对照：建报告**失败**时不许说成已出报告，且**不许阻断结论**', async () => {
   const { runSubmissionGate } = await import('./agent/agent.mjs');
   const KB_ANSWER = ['【审查结论：REVIEW】共发现 1 处需人工确认。', '',
-    '1.【本地化】图 1 —— 模型侧', '', '建议转 李倩怡 复核。'].join('\n');
+    '1.【本地化】图 1', '', '建议转 李倩怡 复核。'].join('\n');
   const g = await runSubmissionGate({
     // ★ 2026-10-09：**建议生成必须注入** —— 它默认真打 LLM（漏一处就把套件拖到超时，实测 7.5s/次）
     adviceRunner: async ({ items }) => ({ ok: true, ms: 1,
@@ -2915,9 +2935,11 @@ await t('Z17 ★ 接线：建报告那一步**必须可注入**，且默认走�
   const src = fs.readFileSync(new URL('./agent/agent.mjs', import.meta.url), 'utf8');
   assert.ok(/mergedReportRunner\s*=\s*publishMergedReport/.test(src),
     '闸门没有可注入的 mergedReportRunner —— 自证会真的往飞书建文档（§2.4.4）');
-  assert.ok(/await mergedReportRunner\(md,/.test(src), '接线里没走注入的那个 runner');
+  // ★ 2026-10-13：变量名从 `md` 改成 `mdDoc`（报告现在渲染**两份**：投出的这份 ＋ 留底那份），
+  //   判据跟着认新名字 —— 它查的是「走没走注入的那个 runner」，与变量叫什么无关。
+  assert.ok(/await mergedReportRunner\(md(Doc|Full)?,/.test(src), '接线里没走注入的那个 runner');
   // ★ 反向对照：**不许**绕过注入点去直接调真函数 —— 那会让上面两条恒真
-  assert.ok(!/await publishMergedReport\(md,/.test(src),
+  assert.ok(!/await publishMergedReport\(md/.test(src),
     '接线里直接调了真函数 —— 注入点形同虚设，自证又会建真文档');
   // 门槛必须读**卡里那个数**，不是「并进来几条」
   assert.ok(/rendered0\.total >= REPORT_LINK_MIN_ISSUES/.test(src),
@@ -2966,6 +2988,40 @@ await t('Z20 接线：daemon 必须把 meta.reportLink 传给信封（否则上�
   assert.ok(/reportLink:\s*g\.dual\?\.reportUrl/.test(a), 'handleMessage 的 meta 没带 reportLink');
   assert.ok(/reportUrl:\s*dual\.reportUrl/.test(a), '闸门的 dual 读数里没带 reportUrl');
 });
+
+await t('Z20b ★ 行为级：传下去的读数**必须真被用上**（Z20 那种源码文本断言挡不住「传了但签名里没接」）', async () => {
+  // ★★ 2026-10-13：写这条时真抓到一个 —— `onMessage` 一路传着
+  //   `reportLink: result.meta?.reportLink`，而 `replyTo(..., { verdict53, mediaRead })`
+  //   的解构签名里**根本没有 reportLink** ⇒ 静默丢弃。Z20 是绿的，因为它只查
+  //   **源码里出现过那一行**（§2.4：「名字出现过」不是「它拦得住」）。
+  //   ⇒ 判据必须走**行为**：把读数交给那条真的成形路径，看它有没有落到卡上。
+  const { toCardOrText } = await import('./reply-cards/envelope.mjs');
+  const V = { state: 'BLOCK', line: '【审查结论：BLOCK】共发现 1 处必须修改。',
+              from: 'dual-track-merged',
+              block: '【审查结论：BLOCK】共发现 1 处必须修改。\n1.【合规】全文\n   原因：x\n请修改后重新提交。' };
+  const DOCX = 'https://momcozy-in.feishu.cn/docx/Z20B';   // ⚠️ 别叫 `URL` —— 会遮蔽全局构造函数
+  const BND = '本结论为 **P0 红线拦截**（确定性修改、**未跑**专项审查），**不是 PASS 依据**。';
+  const r = toCardOrText('模型原话', { verdict53: V, reportLink: DOCX, boundary: BND });
+  const card = JSON.stringify(r.card ?? {});
+  assert.ok(card.includes(DOCX), '报告链接没落到卡上 —— 那就是被某一跳丢了');
+  assert.ok(card.includes('P0 红线拦截'), '卡脚边界没落到卡上');
+  // 反向对照：不给就一个都不许有（否则上面两条可能是「恒印一句」）
+  const r0 = toCardOrText('模型原话', { verdict53: V });
+  assert.ok(!JSON.stringify(r0.card ?? {}).includes(DOCX), '没给链接却印了链接');
+  assert.ok(!JSON.stringify(r0.card ?? {}).includes('P0 红线拦截'), '没给边界却印了边界');
+  // 接线（源码级，与 Z20 同一层）：签名里必须真的接住这两个读数
+  const d = fs.readFileSync(new URL('./ws_daemon.mjs', import.meta.url), 'utf8');
+  const sig = (d.match(/async function replyTo\([^)]*\)[^{]*\{/) || [''])[0];
+  assert.ok(/reportLink = null/.test(sig), `replyTo 的签名里没有 reportLink：${sig.slice(0, 120)}`);
+  assert.ok(/boundary = null/.test(sig), 'replyTo 的签名里没有 boundary');
+  assert.ok(/toCardOrText\(rawReply, \{ verdict53: v53, reportLink, boundary \}\)/.test(d),
+    'replyTo 没有把这两个读数交给 toCardOrText');
+  // ★ 2026-10-13：`mediaRead` 从这条链上**整个撤掉了**（读数不上卡）——
+  //   留一个没人读的入参就是「传了但没人接」那个病。撤了就要撤干净：
+  assert.ok(!/mediaRead/.test(sig), `replyTo 的签名里还留着没人读的 mediaRead：${sig.slice(0, 120)}`);
+  assert.ok(!/mediaRead/.test(d.slice(d.indexOf('const shaped = toCardOrText'), d.indexOf('const shaped = toCardOrText') + 200)),
+    'replyTo 还在往 toCardOrText 传 mediaRead');
+});
 // ═══ 第 29 组 · 报告不许替库侧下「有依据」这个结论（Owner 2026-10-09）═══
 //
 // 实测那一单：卡上守衡写着「4/4 条依据与素材无关，另 2 条 L0 sha 不一致」，
@@ -2976,22 +3032,124 @@ await t('Z20 接线：daemon 必须把 meta.reportLink 传给信封（否则上�
 // 常驻而不是「检测到才写」：`evidence_complete` 那类信号实测是 `undefined`，
 // 靠它判会时灵时不灵 —— 而**不确定性必须无条件说出来**（§2.4.2）。
 
-await t('Z21 ★ 报告不许声称「有条款级依据」—— 标题只说出处，且必须带常驻免责', async () => {
+await t('Z21 ★ 报告只留 PRD 字段：两个来源小标题、免责、计数口径全部去掉', async () => {
+  // ★★ 2026-10-13（Owner 三条里的第 3 条）：报告要按 PRD 字段输出，把「废话」去掉。
+  //   Owner 逐条点名要去掉的：`- 用户原提问：…` / `- 判据：PRD §5.3.4…` /
+  //   `## 一、知识库侧（库内条款条目）` / 那段 ⚠️ 免责 / `（本单知识库侧没有并进任何条目。）` /
+  //   `## 二、模型侧（无库内依据，只能转人工）` / 那段 blockquote / **整个「三、计数口径」**。
   const M = await import('./agent/merged_report.mjs');
   const md = M.renderMergedReportMd({
-    merged: [{ location: '图上文案', category: '平台与促销', severity: 'REVIEW', source: 'kb',
-               reason: 'x', kb: { suggestionLine: '删掉「最」' } }],
-    total: 1, state: 'REVIEW', line: '【审查结论：REVIEW】共发现 1 处需人工确认。',
-    question: '审核', contentId: 'AUTO-x', at: '2026-10-09', kbTextCount: 1, modelCount: 0 });
-  // ★ 病灶本身：这句「声称」不许再出现
+    merged: [
+      { location: '图上文案', category: '平台与促销', severity: 'REVIEW', source: 'kb',
+        reason: 'x', kb: { suggestionLine: '删掉「最」' } },
+      { location: '视频 00:12', category: '合规', severity: 'REVIEW', source: 'model',
+        reason: 'y', suggestion: '改掉' },
+    ],
+    total: 2, state: 'REVIEW', line: '【审查结论：REVIEW】共发现 2 处需人工确认。',
+    question: '审核这段文案', contentId: 'AUTO-x', at: '2026-10-09', kbTextCount: 1, modelCount: 1 });
+  // ★ 更老的那条病灶（2026-10-09）不许回来：标题声称「有条款级依据」＝替库侧下结论
   assert.ok(!/有条款级依据/.test(md), '标题又在声称「有条款级依据」—— 那是替库侧下结论');
-  assert.ok(/## 一、知识库侧（库内条款条目）/.test(md), '标题应只说**出处**');
-  // ★ 常驻免责三条，缺一条读者就会把「出自条款表」读成「所以它是对的」
-  assert.ok(/不说明它们与本次素材相关/.test(md), '缺「只说出处、不说相关」那句');
-  assert.ok(/本报告不作核验/.test(md), '缺「相关性/sha 未核验」那句');
-  assert.ok(/以卡片为准/.test(md), '缺「卡片有告警时以卡片为准」那句');
-  // 模型侧那一段不受影响（它本来就写着「无库内依据」）
-  assert.ok(/## 二、模型侧（无库内依据，只能转人工）/.test(md), '模型侧标题被误改');
+  // ★ 本次三处（Owner 逐条点名）
+  assert.ok(!/## 一、知识库侧/.test(md), '「一、知识库侧」那个小标题还在（Owner 点名要去掉）');
+  assert.ok(!/## 二、模型侧/.test(md), '「二、模型侧」那个小标题还在（Owner 点名要去掉）');
+  assert.ok(!/本报告不作核验/.test(md), '那段 ⚠️ 免责还在');
+  assert.ok(!/没有并进任何条目/.test(md), '「（本单知识库侧没有并进任何条目。）」还在');
+  assert.ok(!/计数口径/.test(md), '「三、计数口径」还在（Owner：下面的内容都不需要）');
+  assert.ok(!/^- 判据：/m.test(md), '「- 判据：PRD §5.3.4…」还在');
+  assert.ok(!/^- 用户原提问：/m.test(md), '「- 用户原提问：…」还在（它已经挪进标题）');
+  // ★★ 反向对照（**这一条最要紧**）：去掉的是**外层的标题与免责**，
+  //   条目本身一条都不许少，且**逐条**仍要能看出是哪一侧给的
+  //   （「这条回不回得了源」决定下一步，比那两个小标题重要得多）。
+  // ★ 2026-10-13（Owner：「不要出现 知识库侧，模型侧」）：标记换成新措辞，
+  //   判据跟着换；同时**反着钉一条** —— 那两个词一个都不许回来。
+  assert.ok(/\*\*有库内条款依据\*\*/.test(md), '库侧条目丢了来源标记 —— 读者就看不出它回得了源');
+  assert.ok(/\*\*无库内依据 · 建议转人工\*\*/.test(md), '无依据那条丢了来源标记 —— 会被当成有依据的');
+  assert.ok(!/知识库侧|模型侧/.test(md), '「知识库侧/模型侧」又出现了（Owner 2026-10-13 点名去掉）');
+  assert.ok(/1\.【平台与促销】/.test(md) && /2\.【合规】/.test(md),
+    '两段合并后编号必须连号（各从 1 开始会被读成两份清单）');
+});
+
+await t('Z21b ★ 报告标题 = 用户原问题 + 内容审查报告（不再印渲染时刻）', async () => {
+  const M = await import('./agent/merged_report.mjs');
+  const head = (q) => M.renderMergedReportMd({ merged: [], total: 1, state: 'REVIEW',
+    line: '【审查结论：REVIEW】共发现 1 处需人工确认。',
+    question: q, contentId: 'C', at: '2026-10-12T07:31:24.329Z' }).split('\n')[0];
+  // ① 有原问题 ⇒ 问题 + 内容审查报告
+  assert.strictEqual(head('这条社媒文案能不能发'), '# 这条社媒文案能不能发 内容审查报告');
+  // ② 没有原问题（对方只发了素材）⇒ 只剩「内容审查报告」——
+  //    ⚠️ **不许**把内核拟的探针（给模型看的读数指令）当标题：那会造出一个假标题
+  const probe = '【对方这条消息里附了视频，共 1 段。\n【视频 1｜x.mp4｜68.9s】\n关键帧上的文字：…';
+  assert.strictEqual(head(probe), '# 内容审查报告', '探针被当成标题了');
+  assert.strictEqual(head(''), '# 内容审查报告');
+  // ③ 渲染时刻**一个都不许**出现在 H1 里（那正是 Owner 点名要去掉的形状）
+  assert.ok(!/2026-10-12T07:31:24/.test(head('这条社媒文案能不能发')), 'H1 里还有渲染时刻');
+  // ④ 换行必须折成空格 —— H1 里带换行会让后面几行掉出标题、变成正文首段
+  assert.strictEqual(head('第一行\n第二行'), '# 第一行 第二行 内容审查报告');
+});
+
+await t('Z21c ★ 报告头只留 PRD 字段 ＋ **投出去那份不带附录、留底那份带**（Owner 2026-10-13 第四条）', async () => {
+  // Owner 原话：「输出的飞书文档报告，去掉（`- 内容 ID：— ｜ 审查时刻：…` ／
+  //   `- 结论：REVIEW ｜ 问题数量：10` ／ **附录下的所有内容**）」。
+  //   实测那份报告：149 行里 79 行是附录（7892 字符），正文只占前 70 行。
+  const M = await import('./agent/merged_report.mjs');
+  const args = {
+    merged: [{ location: '[00:04]', category: '合规', severity: 'REVIEW', source: 'model',
+               reason: 'r', advice: 'a' }],
+    total: 1, state: 'REVIEW', line: '【审查结论：REVIEW】共发现 1 处需人工确认。',
+    question: '这条视频能过吗', contentId: '—', at: '2026-10-13T03:11:14.656Z',
+    hitsBlock: '【库内命中（读数）】本次检索命中 5 条\n1. `#l.1-2`｜BM25 299.18',
+    mediaAppendix: '### 关键帧文字与音轨转写\n\n- **视频 1**（68.9 秒）',
+  };
+  const doc = M.renderMergedReportMd({ ...args, withAppendix: false });
+  const full = M.renderMergedReportMd(args);
+  // ① 那两行都不许再出现
+  assert.ok(!/^- 内容 ID：/m.test(doc), '「- 内容 ID：…」还在');
+  assert.ok(!/^- 结论：/m.test(doc), '「- 结论：…」还在（它与下面的 §5.3 结论行是同一件事说两遍）');
+  // ★ 反向对照：**结论与条数一条都没少** —— 它们就在结论行里（这就是那两行能去掉的前提）
+  assert.ok(/【审查结论：REVIEW】共发现 1 处需人工确认。/.test(doc), '把结论也一起删了 —— 那这条改动就变成丢信息');
+  // ② 投出去那份：一个附录节都不许有
+  assert.ok(!/^## 附录/m.test(doc), '投出去的文档里还有附录节');
+  assert.ok(!/库内命中（读数）/.test(doc), '投出去那份里还有检索读数');
+  assert.ok(!/关键帧文字/.test(doc), '投出去那份里还有媒材读数全文');
+  // ③ ★★ **搬不是砍**：留底那份必须**完整**（它是「这条依据怎么来的 / 当时读到什么字」的唯一落点）
+  assert.ok(/^## 附录：检索读数/m.test(full), '留底那份丢了检索读数附录');
+  assert.ok(/^## 附录：机读素材读数/m.test(full), '留底那份丢了媒材读数附录');
+  assert.ok(/库内命中（读数）/.test(full) && /关键帧文字/.test(full), '留底那份的内容被截了');
+  // ④ 两份的**条目必须逐字同源**（只差附录那一半）
+  const bodyOf = (m) => m.split('\n').filter((l) => /^\d+\.【/.test(l)).join('\n');
+  assert.strictEqual(bodyOf(doc), bodyOf(full), '两份的逐条清单不一致 —— 那就成了「两处各写一遍」');
+});
+
+await t('Z21d ★ 落盘：投出那份与留底那份**是两个文件**，且路径都从返回值给（不许猜）', async () => {
+  const M = await import('./agent/merged_report.mjs');
+  const os = await import('node:os');
+  const fsx = await import('node:fs');
+  const pathx = await import('node:path');
+  const dir = fsx.mkdtempSync(pathx.join(os.tmpdir(), 'mr-'));
+  const prev = process.env.SHOUHENG_MERGED_REPORT_DIR;
+  process.env.SHOUHENG_MERGED_REPORT_DIR = dir;
+  try {
+    // ⚠️⚠️ **必须注入 `publishDoc`** —— 默认那一跳会真的去飞书建云文档。
+    //   这不是假设：写这条自证的第一版就漏了它（§2.4.4 那个病，本仓已栽过两次）。
+    const stubPub = async (p) => ({ ok: true, url: 'https://example.invalid/docx/Z21D', detail: `桩：${p}` });
+    const pub = await M.publishMergedReport('# 投出\n\n正文', {
+      contentId: 'C1', at: 'T', archiveMd: '# 留底\n\n## 附录：检索读数\n\n读数',
+      publishDoc: stubPub,
+    });
+    assert.ok(pub.mdPath && fsx.existsSync(pub.mdPath), `投出那份没落盘：${JSON.stringify(pub).slice(0, 160)}`);
+    assert.ok(pub.archivePath && fsx.existsSync(pub.archivePath), '留底那份没落盘');
+    assert.ok(/\.full\.md$/.test(pub.archivePath), `留底文件名没带 .full.md：${pub.archivePath}`);
+    assert.ok(!/## 附录/.test(fsx.readFileSync(pub.mdPath, 'utf8')), '投出那份带着附录');
+    assert.ok(/## 附录/.test(fsx.readFileSync(pub.archivePath, 'utf8')), '留底那份没有附录');
+    // 反向对照：**不给 archiveMd 就不写留底**（不留一个空壳文件）
+    const pub2 = await M.publishMergedReport('# 投出2', { contentId: 'C2', archiveMd: null,
+                                                         publishDoc: stubPub });
+    assert.strictEqual(pub2.archivePath, null, '没给留底内容却写了留底文件');
+  } finally {
+    if (prev === undefined) delete process.env.SHOUHENG_MERGED_REPORT_DIR;
+    else process.env.SHOUHENG_MERGED_REPORT_DIR = prev;
+    fsx.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 await t('Z22 有结构化告警时照搬进正文（缺口留着，但不能装作没有）', async () => {
@@ -3084,9 +3242,10 @@ await t('Z26 ★ 行为级：库侧条目走生成（参考库侧建议），**�
   assert.ok(lines.some((l) => /生成器给的改法/.test(l) && /参考了库内反例的建议/.test(l)),
     '库侧条目没走生成或没标参考：' + JSON.stringify(lines));
   // ★ 模型侧那条：**沿用原话**，且标注是「模型侧给的改法」
-  assert.ok(lines.some((l) => /模型侧自己写的：译成中文/.test(l) && /模型侧给的改法/.test(l)),
+  // ★ 2026-10-13：标注措辞改了（不再出现「模型侧」），判据跟着换 —— 查的还是同一件事。
+  assert.ok(lines.some((l) => /模型侧自己写的：译成中文/.test(l) && /无库内依据的改法建议/.test(l)),
     '模型侧条目被重写了（应当沿用）：' + JSON.stringify(lines));
-  assert.ok(!lines.some((l) => /生成器给的改法/.test(l) && /模型侧给的改法/.test(l)),
+  assert.ok(!lines.some((l) => /生成器给的改法/.test(l) && /无库内依据的改法建议/.test(l)),
     '模型侧条目被送进生成器了 —— 与 Owner 的期望不符');
 });
 // ═══ 第 31 组 · ≥3 时卡片**只出分类汇总 + 报告链接**（PRD §5.3.3，Owner 追问第四次）═══
@@ -3117,7 +3276,13 @@ await t('Z27 ★ 行为级：≥3 ⇒ 只出分类汇总 + 链接（**零条逐�
     '≥3 时**不许**在卡上逐条平铺（这正是 Owner 反复看到的那件事）');
   assert.ok(/· .*类问题：\d+ 个/.test(b7), '缺 PRD 要的分类汇总行');
   assert.ok(/查看完整问题清单与修改建议/.test(b7), '缺报告链接');
-  assert.ok(/只出分类汇总/.test(b7), '没说清逐条清单去哪了 —— 读者会以为这单只有 3 个问题');
+  // ★★ 2026-10-13（Owner 裁定）：卡上**不再**有「（问题数 N ≥ 3 ⇒ 按 PRD §5.3.3 只出分类汇总…）」
+  //   那句页脚 —— 它讲的是我们的口径规矩，业务同事读不懂，Owner 把它列进了「都去掉」。
+  //   ⚠️ 判据**反过来钉**：卡上不许有 ＋ **查证笔记里必须有**（搬不是砍，
+  //      对方追问「逐条清单去哪了」守衡要答得出来）。
+  assert.ok(!/只出分类汇总/.test(b7), '那句口径页脚又回到卡上了（Owner 2026-10-13 点名去掉）');
+  assert.ok(/只出分类汇总/.test(String(big.internalNotes)),
+    '从卡上撤下来的页脚必须落在 internalNotes 里（搬不是砍）');
   // ★ 反向对照：<3 时必须**照旧逐条平铺**（1–2 条走逐条输出，PRD 就是这么定的）
   const small = build(2, null);
   const b2 = String(small.block);
@@ -3365,7 +3530,7 @@ await t('Z32 ★★ 库侧的真文档在 publish.docx 里，不在 report_url �
 await t('Z15 ★ 行为级：问题数 ≥3 且库侧没给链接 ⇒ 本仓建报告，卡里那一行是**真链接**', async () => {
   const { runSubmissionGate } = await import('./agent/agent.mjs');
   const KB_ANSWER = ['【审查结论：REVIEW】共发现 1 处需人工确认。', '',
-    '1.【本地化】图 1 —— 模型侧', '', '建议转 李倩怡 复核。'].join('\n');
+    '1.【本地化】图 1', '', '建议转 李倩怡 复核。'].join('\n');
   const STUB = 'https://example.invalid/docx/Z15';
   let called = 0;
   const g = await runSubmissionGate({
@@ -3380,9 +3545,16 @@ await t('Z15 ★ 行为级：问题数 ≥3 且库侧没给链接 ⇒ 本仓建�
       findings: [1, 2, 3, 4, 5].map((n) => ({ category: '本地化', location: `画面 ${n}`, severity: 'REVIEW', reason: 'x' })) }),
     mergedReportRunner: async (md) => {
       called++;
-      // 报告正文必须**两侧都在**（Owner：「6 个就展示 6 个问题」）
-      assert.ok(/## 一、知识库侧/.test(md), '报告缺「知识库侧」那一段');
-      assert.ok(/## 二、模型侧/.test(md), '报告缺「模型侧」那一段');
+      // 报告正文必须**两侧条目都在**（Owner：「6 个就展示 6 个问题」）。
+      // ★ 2026-10-13：两侧**不再各有一个小标题**（Owner 把它们连免责一起列进了「废话」），
+      //   所以判据从「有没有那两个标题」改成「**条目在不在、来源标没标**」——
+      //   后者才是「这条回不回得了源」，也是那两个标题原先承担的**唯一**信息。
+      // ★ 2026-10-13（Owner：「不要出现 知识库侧，模型侧」）：标记改了措辞，
+      //   判据跟着改成**新措辞**（去的是词，不是「回不回得了源」这条信息）。
+      assert.ok(/\*\*有库内条款依据\*\*/.test(md), '报告缺「有库内条款依据」那条（来源标记没了）');
+      assert.ok(/\*\*无库内依据 · 建议转人工\*\*/.test(md), '报告缺「无库内依据」那条（来源标记没了）');
+      assert.ok(!/知识库侧|模型侧/.test(md), '「知识库侧/模型侧」又出现了（Owner 点名去掉）');
+      assert.ok(!/## 一、知识库侧|## 二、模型侧/.test(md), '两个来源小标题又回来了（Owner 点名去掉）');
       // ★ 2026-10-09：`判定` 如今**带加粗**（Owner 裁定「字段加粗保留」）且**排在 PRD 四要素之后**
       //   ⇒ 原先的 `^ {3}判定：`（非加粗）在这里数出 0 条，把「量条目数」误判成失败。
       //   这一处查的是**条数**、与加粗无关，所以认两种写法（`\*{0,2}`），
@@ -3402,7 +3574,7 @@ await t('Z15 ★ 行为级：问题数 ≥3 且库侧没给链接 ⇒ 本仓建�
 await t('Z16 ★ 反向对照：建报告**失败**时不许说成已出报告，且**不许阻断结论**', async () => {
   const { runSubmissionGate } = await import('./agent/agent.mjs');
   const KB_ANSWER = ['【审查结论：REVIEW】共发现 1 处需人工确认。', '',
-    '1.【本地化】图 1 —— 模型侧', '', '建议转 李倩怡 复核。'].join('\n');
+    '1.【本地化】图 1', '', '建议转 李倩怡 复核。'].join('\n');
   const g = await runSubmissionGate({
     // ★ 2026-10-09：**建议生成必须注入** —— 它默认真打 LLM（漏一处就把套件拖到超时，实测 7.5s/次）
     adviceRunner: async ({ items }) => ({ ok: true, ms: 1,
@@ -3427,9 +3599,11 @@ await t('Z17 ★ 接线：建报告那一步**必须可注入**，且默认走�
   const src = fs.readFileSync(new URL('./agent/agent.mjs', import.meta.url), 'utf8');
   assert.ok(/mergedReportRunner\s*=\s*publishMergedReport/.test(src),
     '闸门没有可注入的 mergedReportRunner —— 自证会真的往飞书建文档（§2.4.4）');
-  assert.ok(/await mergedReportRunner\(md,/.test(src), '接线里没走注入的那个 runner');
+  // ★ 2026-10-13：变量名从 `md` 改成 `mdDoc`（报告现在渲染**两份**：投出的这份 ＋ 留底那份），
+  //   判据跟着认新名字 —— 它查的是「走没走注入的那个 runner」，与变量叫什么无关。
+  assert.ok(/await mergedReportRunner\(md(Doc|Full)?,/.test(src), '接线里没走注入的那个 runner');
   // ★ 反向对照：**不许**绕过注入点去直接调真函数 —— 那会让上面两条恒真
-  assert.ok(!/await publishMergedReport\(md,/.test(src),
+  assert.ok(!/await publishMergedReport\(md/.test(src),
     '接线里直接调了真函数 —— 注入点形同虚设，自证又会建真文档');
   // 门槛必须读**卡里那个数**，不是「并进来几条」
   assert.ok(/rendered0\.total >= REPORT_LINK_MIN_ISSUES/.test(src),
@@ -3705,7 +3879,13 @@ await t('V7 ★ 行为级：本仓建的合并报告，URL 必须**同时**进�
 //   2+6=8 看着对，而**库侧实际并进来 5 条**（双轨读数：库侧 5 ＋ 模型侧 6 ⇒ 合并 8），
 //   卡里另一处还写着「REVIEW 5 处」。根因：页脚用「**并进清单里的**库侧条目」，
 //   抬头那个数却含「**没并进来的**」⇒ 两个口径不同的数并排印。
-//   ⇒ 现在页脚是「知识库侧 X（结构化读数）＋ 模型侧 Y − 计入 N 处（去重 D）＝ 本卡 N 处」。
+//   ⇒ 那之后页脚是「知识库侧 X（结构化读数）＋ 模型侧 Y − 计入 N 处（去重 D）＝ 本卡 N 处」。
+//
+// ★★ 2026-10-13（Owner 裁定）**那一行整行从卡上撤走了**（它属于「库侧/模型侧的口径读数」那一族）。
+//   ⚠️ 但**不变式一条都没松**，只是换了两处落点 —— 判据必须跟着搬，否则等于把这条账删了：
+//     ① **查证笔记**里那个算式仍要闭合（它就是原来那行，只是不再上卡）；
+//     ② **卡面**改成「分类行相加 ＋ 另有 N 条 ＝ 抬头」——这是 PRD §5.3.3 那一格的算式，
+//        同样必须闭合（实测 19:08 那单：抬头 12、分类只有 7 ⇒ 不闭合，读者一眼就看出对不上）。
 {
   const T = await import('./agent/dual_track.mjs');
   const mk = (i, c) => ({ location: `p${i}`, category: c, severity: 'REVIEW', source: 'kb',
@@ -3722,26 +3902,41 @@ await t('V7 ★ 行为级：本仓建的合并报告，URL 必须**同时**进�
       kbTextCount: kbTextN, model: { ok: true, findings: modelItems },
       mergedStats: merge.stats, reportUrlOverride: 'https://x/docx/A' });
     const head = Number((r.block.match(/共发现 (\d+) 处/) || [])[1]);
-    const foot = (r.block.match(/^知识库侧.*$/m) || [''])[0];
+    // 页脚（那个算式）现在在**查证笔记**里
+    const foot = (r.internalNotes.match(/^知识库侧.*$/m) || [''])[0];
     const m = foot.match(/知识库侧 (\d+) 条.*＋ 模型侧 (\d+) 条(?: − 计入 (\d+) 处（去重 (\d+))?/);
-    return { head, foot, m };
+    return { head, foot, m, r };
   };
 
-  await t('Z36a 页脚两个数相减必须等于抬头（四种形状都核）', async () => {
+  await t('Z36a 查证笔记里那个算式仍要闭合（四种形状都核）', async () => {
     for (const [kb, txt, moN, label] of [[5, 2, 6, '库侧 5 读数/并进 2/模型 6'],
       [5, 5, 6, '库侧 5/5/6'], [0, 0, 8, '库侧 0'], [3, 3, 0, '只有库侧 3']]) {
       const { head, foot, m } = probe(kb, txt, moN);
-      assert.ok(m, `页脚没印出可核的算式（${label}）：${foot}`);
+      assert.ok(m, `查证笔记里没印出可核的算式（${label}）：${foot}`);
       const lhs = Number(m[1]) + Number(m[2]) - Number(m[4] || 0);
       assert.strictEqual(lhs, head, `${label}：${m[1]}+${m[2]}-${m[4] || 0}=${lhs} ≠ 抬头 ${head}`);
     }
   });
 
-  await t('Z36b 页脚必须说清「库侧那个数是结构化读数」而不是并进条数', async () => {
-    const { foot } = probe(5, 2, 6);
+  await t('Z36a2 ★ 卡面的算式也要闭合：分类行相加 ＋「另有 N 条」＝ 抬头（PRD §5.3.3 那一格）', async () => {
+    for (const [kb, txt, moN, label] of [[5, 2, 6, '库侧 5 读数/并进 2/模型 6'],
+      [5, 5, 6, '库侧 5/5/6'], [0, 0, 8, '库侧 0'], [3, 3, 0, '只有库侧 3']]) {
+      const { head, r } = probe(kb, txt, moN);
+      const cats = [...r.block.matchAll(/^· .*类问题：(\d+) 个$/gm)].map((x) => Number(x[1]));
+      const extra = Number((r.block.match(/^· 另有 \*\*(\d+) 条\*\*/m) || [])[1] || 0);
+      const sum = cats.reduce((a, b) => a + b, 0) + extra;
+      assert.strictEqual(sum, head, `${label}：分类 ${cats.join('+')} ＋ 另有 ${extra} ＝ ${sum} ≠ 抬头 ${head}`);
+    }
+  });
+
+  await t('Z36b 查证笔记要标明「库侧那个数是结构化读数」；卡面上**不许**再出现这个算式', async () => {
+    const { foot, r } = probe(5, 2, 6);
     // 病灶原样：印成「知识库侧 2 条 ／ 模型侧 6 条」——2 是**并进清单里的**，看着像总数
-    assert.ok(/结构化读数/.test(foot), `页脚没标明库侧那个数的口径：${foot}`);
+    assert.ok(/结构化读数/.test(foot), `查证笔记没标明库侧那个数的口径：${foot}`);
     assert.ok(!/^知识库侧 \d+ 条 ／ 模型侧 \d+ 条$/.test(foot), '又退回旧形状（口径不同的两个数并排）');
+    // ★ 2026-10-13 反向对照：这一行**不许**再上卡（Owner：「不要展示在卡片上」）
+    assert.ok(!/结构化读数/.test(r.block), '口径读数又回到卡面了');
+    assert.ok(!/^知识库侧/m.test(r.block), '「知识库侧 …」那一行又回到卡面了');
   });
 }
 
@@ -3969,9 +4164,16 @@ await t('V7 ★ 行为级：本仓建的合并报告，URL 必须**同时**进�
     // 诊断日志必须用原文（否则「我到底读到了什么」就没法核了）
     assert.ok(/describeMediaRead\(inbound,\s*\{\s*raw:\s*true\s*\}\)/.test(src),
       '诊断日志没走 raw:true ⇒ 印的是摘除后的，核对时看不到 OCR 真读数');
-    // 卡片那一格必须仍是默认（摘除后）
-    assert.ok(/mediaRead:\s*describeMediaRead\(inbound\)/.test(src),
-      '卡片那一格改了参数 ⇒ 水印会回到卡上');
+    // ★ 2026-10-13：卡上那一格**已经撤了**（Owner：媒材读数不上卡）⇒ 这一条改盯
+    //   **报告附录**那一份：它必须仍是**摘除后**的（`mediaReadAppendix` 内部走默认参数）。
+    //   水印会回到**人眼前**的通道就剩这一条（卡上那条已经不存在了）—— 所以更要盯住它。
+    // ⚠️ 判据**只在函数体里找** —— 第一版写成「`mediaReadAppendix` 之后 200 字内出现 raw:true」
+    //   就把它**自己的解释文字**扫进来了（实测命中 `…见它自己的头注）。⚠️ 这一行印 **OCR 原文**（raw:true`），
+    //   于是真身永远红。这就是 §2.4.4 记的「判据被自己的注释绊倒」——**统一一条读法：注释不算代码**。
+    const body = (src.match(/export function mediaReadAppendix\([\s\S]*?\n\}/) || [''])[0];
+    assert.ok(body.length > 200, '取不到 mediaReadAppendix 的函数体 —— 判据本身失效');
+    assert.ok(!/raw\s*:\s*true/.test(body),
+      '报告附录那一份改用了 raw:true ⇒ 水印会回到报告里');
   });
 }
 
@@ -4146,9 +4348,16 @@ await t('V7 ★ 行为级：本仓建的合并报告，URL 必须**同时**进�
     assert.ok(/mediaReadAppendix\(inbound\)/.test(src),
       '`renderMergedReportMd` 的调用里没有 `mediaReadAppendix(inbound)` —— 附录没接进报告');
     // 且必须真的传进去（算出来不用 = 白算）
-    const i = src.indexOf('renderMergedReportMd({');
+    // ★ 2026-10-13：`renderMergedReportMd` 现在被调**两次**（投出那份 `withAppendix:false`、
+    //   留底那份完整），而入参收在一个 `_args` 对象里。判据改成「附录算出来了、且**传进了
+    //   那个共用的入参对象**」——写成「离调用点 1200 字内出现 mediaAppendix」会被这次重构误伤。
+    const i = src.indexOf('const _args = {');
+    assert.ok(i > 0, '找不到渲染报告的入参对象 `_args`（结构变了，判据要跟着走）');
     assert.ok(/mediaAppendix\s*:/.test(src.slice(i, i + 1200)),
       '算出了附录却没传给 `renderMergedReportMd`');
+    // 反向对照：**留底那一份必须带附录**（投出那份不带）—— 少这一半，附录就真的没了
+    assert.ok(/withAppendix:\s*false/.test(src),
+      '没有渲染「投出去那一份」—— 那 Owner 要去掉的附录会照旧投上云文档');
   });
 
   await t('Z41f 报告渲染器真的会印这一节（纯函数直调）', async () => {
@@ -4160,6 +4369,80 @@ await t('V7 ★ 行为级：本仓建的合并报告，URL 必须**同时**进�
   });
 }
 
+await t('Z35 ★ 内部详情不许进正文：指纹与「我工具里没这一步」必须被判红（实测那条）', async () => {
+  // Owner 2026-10-09 现场：「在吗」的回复里写着两个 PRD sha 指纹与「重拉基线那一步不在我的工具里」，
+  // 而旧 internalLeak（工具名 / call_xxx / 栈 / DSML 标记）**一条都不命中** ⇒ 就这么发出去了。
+  const { lintCopy } = await import('./reply-cards/registry.mjs');
+  const hit = (t) => lintCopy(t).filter((h) => h.id === 'internalLeak').length;
+  const REAL = '在我这儿还是**旧版指纹** 1f871b42fa909e70…，新版是 bc48e2ae893ab3e7… —— '
+    + '**重拉基线那一步不在我的工具里**，所以在那之前，凡引用这份 PRD 的判断我都按旧版算。';
+  assert.ok(hit(REAL) > 0, '实测那条漏出去了 —— 指纹与能力自述必须被判红');
+  assert.ok(hit('重拉基线那一步不在我的工具里') > 0, '能力自述没盖住');
+  // ★ **两类判据各要一条只含它的夹具** —— 上面那条同时含指纹与能力自述，
+  //   所以「摘掉指纹判据」时它照样红（能力自述那条还在命中）⇒ **变异读不出指纹判据的死活**。
+  //   实测过一次：摘掉指纹判据后 Z35 全绿，我一度以为断言没盖住。
+  assert.ok(hit('新版指纹是 bc48e2ae893ab3e7') > 0, '指纹这一类没盖住（只含指纹的夹具）');
+  assert.ok(hit('那一版是 a1b2c3d4e5f60718') > 0, '纯十六进制指纹没盖住');
+  // ★ 反向对照：正经回答一条都不许误报（§2.1.1：会误报的检查器比没有更糟）
+  for (const ok of ['这条站内广告文案能不能发：M6 吸奶器静音设计', '订单号 20261009123456 已登记',
+                    '审核完成，共发现 3 处需人工确认。', '活动截至 2026 年 10 月 9 日 23:59']) {
+    assert.strictEqual(hit(ok), 0, '误报了正经回答：' + ok);
+  }
+});
+
+await t('Z36 接线：这条规则必须有一个承载它的地方（规程 + 执行点）', async () => {
+  // ⚠️ 它**不在提示词里** —— 系统提示词有冻结上限 8500（`verify_cards` 的 K5），
+  //   而这条规则写之前就已经贴着顶（8493/8500）。所以承载落在两处：
+  //     ① 规程（给人看的判据，`agent-skills/守衡语域/SKILL.md` §2.3）
+  //     ② `internalLeak` 检测器（**真的拦它的那一行**）。
+  //   §2.4：上限必须有执行点 —— 执行点在检测器，不在提示词。
+  const doc = fs.readFileSync(new URL('../agent-skills/守衡语域/SKILL.md', import.meta.url), 'utf8');
+  assert.ok(/指纹 \/ 哈希 \/ 版本号/.test(doc), '规程里没点名「指纹」这一类');
+  assert.ok(/把该跑的命令给我/.test(doc), '规程里没写「把维护侧的活派成对方待办」这个反面例');
+  assert.ok(/没有折叠区可放|没有折叠区所以写进正文/.test(doc), '规程没写清「纯文本时就根本不写」');
+  // 执行点必须真的在：检测器拦得住实测那条
+  const { lintCopy } = await import('./reply-cards/registry.mjs');
+  assert.ok(lintCopy('新版是 bc48e2ae893ab3e7…').some((h) => h.id === 'internalLeak'),
+    '检测器没拦住指纹 —— 那这条规则就没有执行点了');
+  // 反向对照：提示词不许为了这条规则把冻结上限顶破
+  const { buildSystemPrompt } = await import('./agent/persona.mjs');
+  assert.ok(buildSystemPrompt().length <= 8500, '提示词超了冻结上限（K5 会红）');
+});
+
+await t('Z42 ★ P0 命中那一路的输入不许被「短卡 / 篇幅上限」类指令改写（Owner 2026-10-12 指示恢复 16:57 格式）', async () => {
+  // ── 为什么有这一条
+  //   2026-10-12 17:54 另一个会话给 P0 命中那一路加了一段「短卡」指令（≤300 字、
+  //   只保留结论行/模式与条款号/报告链接），19:31 生效后的第一条 P0 回复就变了样：
+  //   两轨计数行 + 逐条明细 + 页脚**全没了**，换来「条款 W-1.33 / L4→L5→L6→L7 / 表行 recvx…」
+  //   （两条原文都在 `PMO/logs/ws_outbound.jsonl`）。
+  //   Owner 当场指示恢复 —— 那段拼接已停用（见 `agent.mjs` 原位注释）。
+  //   ⚠️ 那条改动**没有踩红任何断言**，所以这一条必须补上：判据不能只活在注释里（§2.4）。
+  const { runSubmissionGate, P0_SHORT_REPLY_INSTRUCTION } = await import('./agent/agent.mjs');
+  const inbound = { text: '审核下这个吸奶器文案：吸奶器M9，是最好的吸奶器', imageCount: 0, videoCount: 0 };
+  const r = await runSubmissionGate({
+    inbound, question: inbound.text, notify: async () => {},
+    // ★ 让链返回 **P0 命中**那一支 —— `p0ShortReplyBlock(res)` 只认 `res.p0_fastpath`
+    chainRunner: async () => ({ answer: '【审查结论：BLOCK】占位',
+                               p0_fastpath: { elapsed_ms: 48, matched_patterns: 1, rule_codes: ['H05'] } }),
+    // ★ 三个注入点一个都不能漏：漏 `modelSideRunner` 会真打 LLM，漏 `mergedReportRunner`
+    //   会真在飞书建云文档（§2.4.4 那个病，本仓实测踩过两次）。
+    modelSideRunner: async () => ({ ok: true, findings: [] }),
+    publishRunner: async () => ({ ok: true, action: 'skipped', detail: '自证桩：不碰真表' }),
+    mergedReportRunner: async () => ({ ok: true, url: 'https://example.invalid/docx/STUB', detail: '自证桩' }),
+    adviceRunner: async () => ({ ok: true, ms: 1, advice: {} }),
+  });
+  const turn = String(r.question ?? '');
+  // ① 先证明**真的走到了 P0 那一支** —— 否则下面两条是恒真的空断言（本仓记过这个坑）
+  assert.ok(turn.includes('P0 快路'), '这一轮没走到 P0 快路那一支 —— 下面两条会退化成恒真');
+  // ② 那段短卡指令不许被拼进来
+  assert.ok(!turn.includes(P0_SHORT_REPLY_INSTRUCTION), '短卡指令又被拼进来了（Owner 已指示恢复 16:57 格式）');
+  // ③ 篇幅上限这一类「靠压缩求短」的指令同样不许出现 —— 短不该以丢掉卡面结构为代价
+  assert.ok(!/篇幅上限|≤\s*\d+\s*字/.test(turn), '这一路的输入里不许出现篇幅上限');
+  // ④ 反向对照：这条断言**不是恒真** —— 拼进来时必须能红，否则等于没写
+  assert.ok(P0_SHORT_REPLY_INSTRUCTION.length > 20
+            && (turn + '\n\n' + P0_SHORT_REPLY_INSTRUCTION).includes(P0_SHORT_REPLY_INSTRUCTION),
+            '常量是空的 ⇒ 第②条永远不会红，等于没有断言');
+});
 // 汇总必须放在**所有**分组之后（2026-10-09 修：中间那两块重复的汇总+exit
 // 让「第 27 组」与「第 33 组」**从没被执行过**，而合计照样印得像全绿）。
 console.log(`\n═══ 合计：通过 ${pass} / 失败 ${fail} ═══`);

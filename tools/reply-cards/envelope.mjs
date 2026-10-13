@@ -646,6 +646,23 @@ function leadWithVerdict(text, verdict) {
  * @returns {{data:object, action:'none'|'no-slot'|'already'|'forced', slot:string|null, why?:string}}
  */
 export function applyMediaRead(kind, data, mediaRead) {
+  // ══════════════════════════════════════════════════════════════════════════
+  // ⚠️ **本函数当前不生效**（2026-10-13）—— 与 `dual_track.p0ShortReplyBlock` 同一个先例：
+  //    **纯函数保留，接线撤了**。撤的理由是 Owner 当场给的原文：
+  //    「（视频那一段）我读到了／视频 1 段｜读成功 1 · 失败 0／…／帧上文字：[00:04] …
+  //      （共 8 帧有字，全文见报告附录「机读素材读数」）—— **这里多余的回复也去掉**」。
+  //
+  //    他自己引的就是这个函数的产物（`**我读到了**` ＋ 读数 ＋ 帧上文字预览）。
+  //    ⇒ 媒材读数**不再上卡**。它一条都没丢，仍在三处：
+  //      · `ws_daemon` 的日志（`📥 读到｜视频 1 段｜读成功 1 · 失败 0` —— 「我真读了」的凭证在那）；
+  //      · 会话记忆（`chainBlock` 里的媒材块）；
+  //      · **报告附录**「机读素材读数（全文，供回源核对）」（`agent.mediaReadAppendix`）。
+  //
+  //   ⚠️ 这条改的是 Owner 2026-10-06 的一条要求（「视频还是无法读取」→ 那时把读数搬上卡，
+  //      因为卡上通篇在讲库自己的事、一句没讲他视频里有什么）。**两条要求指向相反**，
+  //      以**最新这一条**为准；要恢复，把 `toCardOrText` 里那一行接线加回来即可。
+  //   ⚠️ 恢复时请一并读 §J14 那组判据（卡面结构不许再被撑开）。
+  // ══════════════════════════════════════════════════════════════════════════
   if (!mediaRead) return { data, action: 'none', slot: null, why: '这一轮没有媒材读数' };
   const block = `**我读到了**\n${String(mediaRead).trim()}`;
   const out = { ...data };
@@ -678,18 +695,181 @@ export function applyReportLink(kind, data, reportLink) {
   const url = String(reportLink ?? '').trim();
   if (!url) return { data, action: 'none', slot: null, why: '这一轮没有报告链接' };
   const line = `→ 查看完整问题清单与修改建议：${url}`;
+  // ══════════════════════════════════════════════════════════════════════════
+  // ★★ 2026-10-13（Owner：「这里多余的回复也去掉」）：**先在整张卡里找一遍**。
+  // ══════════════════════════════════════════════════════════════════════════
+  //   那一行本来就印在 §5.3 块里 —— **结论行下面第二行**，而那一块**默认展开**
+  //   （`applyVerdictLine` 给第一组的是 `expanded: true`，已按真实卡片结构核过）。
+  //   再往可见格补一份 ⇒ 同一张卡上出现**两次**同一个链接（Owner 那张视频卡就是这样）。
+  //
+  //   ⚠️ 与上面「为什么必须有它」不冲突：那一条治的是「链接落在**块的最末尾**、
+  //     被 8 条逐条顶到看不见的地方」。现在的口径是「**块里已有就不再补**」——
+  //     块里没有（非评审单 / 块没搬进来）时**照旧补进可见格**，一个都不许少。
+  if (JSON.stringify(data).includes('查看完整问题清单与修改建议')) {
+    return { data, action: 'already', slot: null,
+             why: '§5.3 块里已经有这一行（默认展开、就在结论行下面第二行）⇒ 不重复' };
+  }
   const out = { ...data };
   const slot = ['verdict', 'reasoning', 'wrong', 'verdict_text']
     .find((k) => typeof out[k] === 'string');
   if (!slot) return { data, action: 'no-slot', slot: null, why: `「${kind}」没有能放链接的格` };
-  if (String(out[slot]).includes('查看完整问题清单')) return { data, action: 'already', slot };
   out[slot] = out[slot] ? `${out[slot]}\n\n${line}` : line;
   return { data: out, action: 'forced', slot };
 }
 
-export function toCardOrText(reply, { verdict53 = null, mediaRead = null, reportLink = null } = {}) {
-  const raw = s(reply);
-  const blk = extractCardBlock(raw);
+/**
+ * 把**代码产出的边界**放进卡脚（`boundary` 格）。
+ *
+ * ── 为什么要有它（2026-10-13）
+ *
+ *   Owner 要求把「模型原话」那一整组从卡上去掉（见 `toCardOrText` 的 autoCard）。
+ *   而 **P0 快路那条边界原先只出现在模型原话里**：
+ *     「P0 快路（258.167 ms…）—— 红线拦截，**未跑** L4→L5→L6→L7 与评审链，不得当 PASS 依据」
+ *     「边界：…**本单未跑专项审查 —— 素材属产品宣称，仍需转对应专项复核**」
+ *   原话一走，卡上就**没有任何东西**说得出这句话 ⇒ 读卡的人会把一次
+ *   **确定性匹配**当成「整条链审过了」。所以它必须由**代码**补回来。
+ *
+ *   这不是新发明：Owner 2026-10-12 要求恢复的三样里就有它
+ *   （`agent.mjs` 原位注释：「逐条明细 ＋ 页脚『本结论为 P0 红线拦截…』—— 三样都在」），
+ *   那时它是模型照着提示词写的；现在改由代码写 —— **同一条分工**：
+ *   边界这种「事实性读数」不该交给模型转述（§2.5：模型不写，代码搬）。
+ *
+ *   与 `applyReportLink` **完全同构**，但落点是 `boundary`（`cards.mjs` 印成 `hr` + 斜体一行），
+ *   不是可见格 —— 边界是脚注，不是结论。
+ *
+ * @param {string} kind
+ * @param {object} data
+ * @param {string} boundaryText 代码算好的边界；空 = 没有（**不编**）
+ */
+export function applyBoundary(kind, data, boundaryText) {
+  const txt = String(boundaryText ?? '').trim();
+  if (!txt) return { data, action: 'none', slot: null, why: '这一单没有代码产出的边界' };
+  const fields = BY_KIND.get(kind)?.fields;
+  // ⚠️ 判据就是「这个类型有没有 `boundary` 格」—— 没有就 **no-slot 并出声**，
+  //   不许硬塞进别的格子（那会把一句脚注塞进结论或正文里，比不印更坏）。
+  if (!fields || !('boundary' in fields)) {
+    return { data, action: 'no-slot', slot: null, why: `「${kind}」没有 boundary 格` };
+  }
+  const out = { ...data };
+  // ★★ 2026-10-13（**修我自己上一轮引入的回归**）：**卡上已经有边界就不再补**。
+  //
+  //   实测（Owner 2026-10-13 11:35 在群里那条，模型**自己给了卡**）：
+  //   卡脚印成了**两条**边界，说的是同一件事 ——
+  //     · 代码那条：`本结论为 **P0 红线拦截**（确定性匹配，**未跑**专项审查、层前置与评审链）…`
+  //     · 模型那条：`P0 快路=红线拦截≠专项审查结论，不得当 PASS 依据；未跑四层与评审链；…`
+  //   上一轮加 `applyBoundary` 是为了补**代码建卡**那条路（模型没给卡 ⇒ 卡上**一条边界都没有**），
+  //   但它对**模型自己写了一条**的单子照加不误 ⇒ 重复。
+  //
+  //   口径：**只在卡上还没有边界时补**。边界与结论行不同 —— 结论行必须逐字由代码写
+  //   （`verdict53`，模型的措辞不参与那一格）；而边界是**卡自己的脚注**，
+  //   模型写了就用它的（搬是搬），没写才由代码补上。
+  if (String(out.boundary ?? '').includes(txt)) return { data, action: 'already', slot: 'boundary' };
+  if (String(out.boundary ?? '').trim()) {
+    return { data, action: 'already', slot: 'boundary',
+             why: '卡上已经有边界（模型写的）⇒ 不再补一条 —— 同一件事印两遍' };
+  }
+  out.boundary = txt;
+  return { data: out, action: 'forced', slot: 'boundary' };
+}
+
+export function toCardOrText(reply, { verdict53 = null, reportLink = null,
+                                      boundary = null } = {}) {
+  // ★★ 2026-10-13（Owner 三条里的第 1、2 条）：**查证笔记在成形之前就摘掉** ——
+  //   放在最前面（早于 `extractCardBlock`）是有意的：那几行若被模型抄进卡片块里，
+  //   晚一步摘就摘不到了（块里的是 JSON 字符串，按行认不出来）。
+  //   ⚠️ 摘下来的原文**进 `stripMoved` 留痕**（日志看得见），不是静默丢弃。
+  const stripped = stripInternalNotes(reply);
+  const stripMoved = stripped.removed.length
+    ? [{ field: 'reply', to: '(memory)', chars: stripped.removed.join('\n').length,
+         why: `回复里混进了我自己的查证笔记（${stripped.removed.length} 行）——`
+            + '它不上卡（Owner 2026-10-13：卡片与报告都不显示，只在记忆里），已摘除' }]
+    : [];
+  const raw = s(stripped.text);
+  let blk = extractCardBlock(raw);
+
+  /* ★★ 2026-10-12（Owner 现场：「守衡的输出格式变了」）—— **评审单不许以纯文本出门** ──────
+   *
+   * ── 实测（三方对齐，不是推断）
+   *
+   *   `PMO/logs/ws_outbound.jsonl` ＋ 会话原文 ＋ `ws_daemon.log`，同一天两条形状：
+   *     · 16:58 那条 1336 字 ⇒ `mode=reply-card`（卡片），群里渲染正常；
+   *     · 19:31 / 19:53 / 19:55 / 19:58 四条 ⇒ `mode=reply`（**纯文本**），
+   *       而它们对应的**模型原文里根本没有 `[[card:` 块**（会话逐条核过，
+   *       日志那一行也写着 `📋 PRD §5.3 结论行：…｜落点=n/a·-｜逐条块=无`）。
+   *   纯文本在飞书里**不渲染 markdown** ⇒ 群里看到的是 `**加粗**`、反引号、
+   *   以及一堆 `|`（`persona.mjs` 的卡片规程早就写着这件事）——这就是 Owner 报的「格式变了」。
+   *
+   * ── 触发与残留（各占一半，别只修一半）
+   *
+   *   触发：19:31 那一轮的用户消息里被注入了「【请按短卡作答】…正文 ≤ 300 字，不要展开」，
+   *   模型照着写了短答、**顺手把卡片块丢了**。那条指令 19:52 已停用并重启，
+   *   可是**停用之后模型照样不给卡**（19:58 那条仍无卡块）⇒
+   *   「模型会不会给卡」是**概率**，而 PRD §5.3 的结论行是**必须**落下的东西。
+   *
+   * ── 所以：与结论行、逐条块**同一条分工** —— **模型不写，代码搬**；模型连卡都不给，
+   *    **代码自己建一张**（`evidence`：抬头放权威结论行，模型原话逐字进折叠组）。
+   *
+   *   ⚠️ 提示词那条路**这一步走不通**：`cardContract()` 已顶到 K5 的冻结上限
+   *     （实测 `buildSystemPrompt()` 8497/8500，余量 3 字符）—— 想在里面加一句
+   *     「评审单一律用卡」，得先删掉等量文字。在腾出空间之前，**这一跳是唯一的执行点**。
+   *
+   *   ⚠️ 只对**有权威结论行**的单子生效（`verdict53.line` 非空）：闲聊仍是纯文本，
+   *     不许借着 PRD 的名义把所有对话都套成卡（J12d 反向对照钉着）。
+   */
+  const autoCard = !blk && !!(verdict53 && verdict53.line) && !!s(raw).trim();
+  const autoDedup = [];
+  if (autoCard) {
+    const line = s(verdict53.line).trim();
+    let body = raw;
+    // ★ 结论行**独占抬头**（2026-10-09 治过一次「结论行印两遍」）：模型原话里若已经把
+    //   这一行原样写出来了，就从折叠组里摘掉它 —— 否则抬头一遍、展开组里又一遍。
+    //   ⚠️ 摘完就空了 ⇒ **不摘**：宁可重复一次，也不留一个空的组（那比重复更难读）。
+    if (line && body.includes(line)) {
+      const stripped = body.split(line).join('').replace(/\n{3,}/g, '\n\n').trim();
+      if (stripped) {
+        body = stripped;
+        autoDedup.push({ field: 'verdictLine', to: 'title',
+                         why: '模型原话里已经把结论行写出来了 ⇒ 从折叠组里摘掉（抬头独占，不许印两遍）' });
+      }
+    }
+    // ══════════════════════════════════════════════════════════════════════════
+    // ★★ 2026-10-13（Owner 当场给的原文）：「去掉下面这些」——
+    //    他展开的那一组正是**模型这一轮的整段原话**（标题叫「详细说明」）。
+    // ══════════════════════════════════════════════════════════════════════════
+    //   他引的原文里有大量**内部读数**：`P0 快路（258.167 ms…）`、`未跑 L4→L5→L6→L7 与评审链`、
+    //   `★ 表行（照抄）…行号 recvxPYwEQOSAe…回读 consistent`、`观察：M8 这句跑第 3 次…`。
+    //   那些**不是给群里的人看的**（与「库内命中（读数）」同一个病）。
+    //
+    //   而这一单真正要读的东西**一个字都不在那一组里** —— 它们由**代码**搬进卡：
+    //     抬头 = 权威结论行；第一组 = PRD §5.3 逐条块（原因/依据/建议/判定）；卡脚 = P0 边界。
+    //     ⇒ 所以那一组**不再建**。
+    //
+    //   ⚠️ **安全网（与「拿不到报告链接就退回逐条平铺」同一条）**：
+    //     **只有 §5.3 块真的搬得进来时才不建那一组**。`verdict53.block` 可能是 null
+    //     （`conclusionBlock()` 找不到动作行时），那时卡上会只剩一个抬头 ——
+    //     比改动之前**更没法用**。所以那时照旧把原话放进「详细说明」组。
+    //   ⚠️ 模型这一轮的原文**没有丢**：它仍是这一轮的回复正文（`ws_daemon` 记
+    //     `💬 回复 N 字`，`memory` 也原样存着这一条 assistant 轮）。
+    const dropProse = !!verdict53?.block;
+    blk = {
+      kind: 'evidence',
+      error: null,
+      before: '',
+      after: '',
+      // `verdict: ''` 是**留槽位**，不是留空话：`applyReportLink` / `applyBoundary`
+      // 只往 `verdict / reasoning / wrong / verdict_text`（以及 `boundary`）里搬，
+      // 一个都不给的话，**拿不到 §5.3 块的单子**会连报告链接都没地方落。
+      // 留空串 ⇒ 它们搬得进来；而结论行走的是**抬头**（`verdictSlotOf('evidence')='title'`），
+      // 两样各占一格，**不会印两遍**。
+      data: { verdict: '',
+              groups: dropProse ? [] : [{ title: '详细说明', content: body, expanded: true }] },
+    };
+    if (dropProse) {
+      autoDedup.push({ field: 'groups', to: '(不建)',
+                       why: '模型原话整组不上卡（Owner 2026-10-13：那一组里是内部读数；'
+                          + '要读的三样由代码搬进卡 —— 抬头 / §5.3 逐条块 / 卡脚边界）' });
+    }
+  }
 
   if (!blk) {
     const lint = lintCopy(raw);
@@ -716,13 +896,13 @@ export function toCardOrText(reply, { verdict53 = null, mediaRead = null, report
         text: '我这次没能把回答组织好 —— 正文里混进了内部记录，已经拦下没发出去。'
             + '原文我留在 PMO/logs/dropped/ 了，需要的话我重新答一次，不会丢。',
         reason: `正文含内部标识（internalLeak×${leak.count}），纯文本没有折叠区可放 → 不原样发`,
-        moved: [],
+        moved: stripMoved,
         lint,
         dropped: true,
       };
     }
     const text = leadWithVerdict(raw, verdict53);
-    return { mode: 'text', text, reason: null, moved: [], lint: lintCopy(text), dropped: false,
+    return { mode: 'text', text, reason: null, moved: stripMoved, lint: lintCopy(text), dropped: false,
              verdict53: verdict53 ? 'text-lead' : null };
   }
 
@@ -733,7 +913,7 @@ export function toCardOrText(reply, { verdict53 = null, mediaRead = null, report
       || `我这次没能把回答组织成卡片（${blk.error}），上面这条就是我能给出的全部。`;
     return {
       mode: 'text', text, reason: `卡片块不可用：${blk.error}`,
-      moved: [], lint: lintCopy(text), dropped: true,
+      moved: stripMoved, lint: lintCopy(text), dropped: true,
     };
   }
 
@@ -751,6 +931,14 @@ export function toCardOrText(reply, { verdict53 = null, mediaRead = null, report
   let kd = blk.kind;
   let dd = blk.data;
   const remap = [];
+  // ★ 代码建的卡也要**出声**：日志里必须看得见「这一单的卡不是模型给的」——
+  //   否则「模型忘了给卡」这件事只会以「格式变了」的样子出现在群里（今天就是这样）。
+  if (autoCard) {
+    remap.push(...autoDedup);
+    remap.push({ field: 'cardKind', to: 'evidence',
+                 why: '本单有权威结论行，而模型没给卡片块 ⇒ 代码建卡'
+                    + '（纯文本不渲染 markdown，格式会整块丢；判据 J12a–c）' });
+  }
   if (verdict53 && verdict53.block && !blockSlotOf(kd)) {
     const carried = carryCardText(dd);
     remap.push({ field: 'cardKind', to: 'evidence',
@@ -759,9 +947,11 @@ export function toCardOrText(reply, { verdict53 = null, mediaRead = null, report
     dd = { verdict: s(dd?.verdict).trim() || s(dd?.title).trim() || '',
            // ★ 2026-10-09（Owner）：**标题不许出现内部类型名**（「原「data-table」卡」对业务同事
            //   是零信息量）。内容仍**逐字照搬**（`carryCardText` 一个字没动）。
-           // ⚠️ 标题要与 `foldIn` 那个（「模型原话（原文照留）」）**明显不同** ——
+           // ⚠️ 标题要与 `foldIn` 那个（「（原文照留：模型原话，非权威结论）」）**明显不同** ——
            //   两处都写「原文照留」时，读者会把两组当成**同一段的重复**，而它们装的
            //   其实是两样东西：这一组装「原结论格 + 字段表」，那一个装「卡片块之外的正文」。
+           // ★ 2026-10-13（Owner）：另一处原先叫「模型原话（原文照留）」的组标题也去掉了
+           //   —— 「模型」是我们的内部说法，对群里的人是零信息量。改名后两组标题仍有明显区别。
            groups: [{ title: '原结论（原文照留）', content: carried || '（原卡无正文）',
                       expanded: true }] };
     kd = 'evidence';
@@ -788,14 +978,23 @@ export function toCardOrText(reply, { verdict53 = null, mediaRead = null, report
   const built = (() => {
     let { data, moved } = enforceLimits(kd, dd, extra);
     moved.push(...remap);
+    // ★ 2026-10-13：摘掉的查证笔记也要留痕（否则「它本来就没写过」与
+    //   「写了、被我摘了」在日志里长得一模一样 —— `verify_cards` 的 J13d 钉着）。
+    moved.push(...stripMoved);
     // ★ PRD §5.3 结论行必须在 `build()` **之前**落进结论格 ——
     //   建完卡再改 `data` 不会影响已经建出来的那张卡（改了也不报错，只是白改）。
     const applied = applyVerdictLine(kd, data, verdict53);
     data = applied.data;
     if (applied.moved) moved.push(applied.moved);
-    // ★ 媒材读数接在结论行**之后**、`build()` **之前**（同一条理由：建完卡再改 data 是白改）。
-    const mr = applyMediaRead(kd, data, mediaRead);
-    data = mr.data;
+    // ★★ 2026-10-13：**媒材读数不再上卡**（Owner：「这里多余的回复也去掉」）。
+    //   ⇒ 这一跳的接线**撤了**，`mediaRead` 这个选项也一并撤掉 ——
+    //     **留一个没人读的入参就是「传了但没人接」那个病**（同一天刚在
+    //     `ws_daemon.replyTo` 的 `reportLink` 上抓到一次，见 test_agent 的 Z20b）。
+    //   纯函数 `applyMediaRead` 留着（`p0ShortReplyBlock` 那个先例），要恢复就是把这一跳加回来。
+    // ★ 2026-10-13：**代码产出的边界**（P0 快路那一句）落在卡脚 —— 与报告链接同一批接线，
+    //   位置同样必须在 `build()` **之前**（建完卡再改 data 是白改）。
+    const bd = applyBoundary(kd, data, boundary);
+    data = bd.data;
     // ★ 2026-10-09：**报告链接也搬进可见格** —— 它此前只在结论块里，而那一块会被收起
     //   （Owner 第三次反馈「没有报告链接」，而 docx 其实建好了）。
     const rl = applyReportLink(kd, data, reportLink);
@@ -804,10 +1003,6 @@ export function toCardOrText(reply, { verdict53 = null, mediaRead = null, report
     //   （`ws_daemon.mjs` 的 `↪ ${m.field} → ${m.to}（${m.why}）`）读的是 `field` / `why`，
     //   于是实测在图片单上打出一行 `↪ undefined → verdict（undefined）`：
     //   看得见「有东西搬进 verdict」，看不见**搬的是什么、为什么**。形状对齐其余搬迁记录。
-    if (mr.action === 'forced') {
-      moved.push({ field: 'mediaRead', to: mr.slot, chars: String(mediaRead ?? '').length,
-                   why: `媒材读数（我读到了）接进「${mr.slot}」格` });
-    }
     v53 = { action: applied.action, slot: applied.slot, why: applied.why,
             from: verdict53?.from ?? null, line: verdict53?.line ?? null,
             // 逐条块的落点也一起带出去 —— 否则日志里只看得到「标题搬了」，
@@ -841,6 +1036,70 @@ export function toCardOrText(reply, { verdict53 = null, mediaRead = null, report
     text, reason: null, moved: built.moved, lint: lintCopy(text), dropped: false,
     verdict53: v53,
   };
+}
+
+/**
+ * **守衡自己的「查证笔记」不许进群** —— 在成形之前按行摘掉（纯函数，可离线断言）。
+ *
+ * ── 为什么要有它（2026-10-13，Owner 三条里的第 1、2 条）
+ *
+ * Owner 原话：「输出到飞书群包含知识库侧+模型侧的文字，**不要展示在卡片上**，
+ * **我问的时候，你要能回答**」，并把那一族口径读数逐条列进了「类似以下的文案都去掉」：
+ *
+ *   · `知识库侧 未报内容问题；另有 1 条覆盖缺口… ／ 模型侧 7 条（其中 7 条无库内依据…）`
+ *   · `ℹ️ 知识库侧给了 **覆盖缺口**（`coverage_not_covered`）…`
+ *   · `（问题数 8 ≥ 3 ⇒ 按 PRD §5.3.3 只出分类汇总…）`
+ *
+ * ── 分工（与结论行、逐条块同一条：**模型不写、代码搬**）
+ *
+ *   `dual_track.renderMerged` 已经把这几行**从 `block` 里摘掉**（模型没有可逐字转述的源），
+ *   它们改走 `internalNotes` → `agent.mjs` 的 `chainBlock`（模型上下文 + **会话记忆**）
+ *   ⇒ 这一轮答得出、以后每一轮也答得出（Owner 要的「我问的时候你要能回答」）。
+ *
+ *   但「模型从不照抄 `chainBlock` 里别的东西」是**概率，不是保证** ——
+ *   而这几行一旦被抄进去，就会顺着卡片正文进群。所以这里是**执行点**：
+ *   逐行认我们**自己产出的那几种固定形状**，命中即摘，并留痕（`removed`）。
+ *
+ * ⚠️ 判据**只认我们自己的字符串**（前缀 + 关键片段），不做泛化匹配 ——
+ *   实测否掉的写法：「凡出现『知识库侧』就摘」会把**正常句子**一起摘掉
+ *   （`知识库侧 3 条与素材相关` 是模型在如实转述，它该留着）。
+ *   反向对照（`verify_cards.mjs` 的 J13）钉着这一条：普通句子**必须**原样留下。
+ *
+ * ⚠️ 摘的是**我们自己生成的行**，不是改写模型的话 ——
+ *   与 `internalLeak` 那条「不是改写，是不许写」同源，区别只在于：
+ *   那一条没有折叠区时只能**整条拦下**，而这几行有明确的归属（记忆里还有一份），
+ *   所以按行摘掉比把整条回复丢掉**代价小得多、也不会丢内容**。
+ *
+ * @param {string} text 模型这一轮的原文
+ * @returns {{text:string, removed:string[]}} 摘完的文本与摘掉的原文行（留痕用）
+ */
+export function stripInternalNotes(text) {
+  const src = s(text);
+  if (!src) return { text: src, removed: [] };
+  // 我们自己的那几种固定形状（`dual_track.renderMerged` 是唯一产者）。
+  const RULES = [
+    /^知识库侧 .*／\s*模型侧 /,                       // tally
+    /^知识库侧 \*\*本次未参与\*\*/,                    // tally（库侧没读数那一支）
+    /^ℹ️ 知识库侧给了 \*\*覆盖缺口\*\*/,               // covNote
+    /^⚠️ 知识库侧另有 \*\*\d+ 条\*\*未并进本卡/,        // gapNote（kbN ≥ 3）
+    /^⚠️ 知识库侧的结构化读数是 \*\*\d+ 条\*\*/,        // gapNote（kbN < 3）
+    /^⚠️ \*\*本次知识库侧没有读数\*\*/,                 // noReadNote
+    /^⚠️ 另有 \*\*\d+ 条非权威候选线索\*\*/,            // candNote
+    /^（问题数 \*\*\d+ ≥ 3\*\* ⇒ 按 PRD §5\.3\.3 只出分类汇总/,   // 汇总页脚
+  ];
+  const removed = [];
+  const out = [];
+  for (const line of src.split('\n')) {
+    const t = line.trim();
+    // ★ 查证笔记的**整段**（`agent.mjs` 的 chainBlock 里那一段）——
+    //   模型把整段抄下来时，这一条比逐行认更早兜住（含它自己的首尾标记）。
+    if (/^【★ 我的查证笔记/.test(t)) { removed.push(line); continue; }
+    if (/^【★ 查证笔记结束】/.test(t)) { removed.push(line); continue; }
+    if (RULES.some((re) => re.test(t))) { removed.push(line); continue; }
+    out.push(line);
+  }
+  if (!removed.length) return { text: src, removed: [] };
+  return { text: out.join('\n').replace(/\n{3,}/g, '\n\n').trim(), removed };
 }
 
 /**

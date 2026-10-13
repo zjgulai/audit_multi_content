@@ -288,7 +288,7 @@ head('H 入库 · 规程文件不在 .gitignore 里');
 /* ─────────────── J 信封 · 模型输出 → 卡片，且内部标记永不出现在群里 ─────────────── */
 head('J 信封 · 解析、上限执行、以及「标记不许漏进群」');
 {
-  const { toCardOrText, extractCardBlock, enforceLimits, leaksInternalMark, publicTextOf, CARD_MARK } =
+  const { toCardOrText, extractCardBlock, enforceLimits, leaksInternalMark, publicTextOf, stripInternalNotes, CARD_MARK } =
     await import(path.join(CARDS_DIR, 'envelope.mjs'));
 
   // J1 三个上限：**不查名字，查它真的会拦。**
@@ -602,24 +602,35 @@ head('J 信封 · 解析、上限执行、以及「标记不许漏进群」');
     const mk = (opts) => toCardOrText(
       '[[card:query-answer]]\n' + JSON.stringify({ title: 'x', verdict: 'REVIEW：覆盖判据不成立。' }), opts);
 
-    // J10a 搬进去了，而且在正文**第一块**（结论行仍占标题，两样各占一格）
+    // ★★ 2026-10-13（Owner 反转了这一条）：**媒材读数不再上卡**。
+    //   他 2026-10-06 说「视频还是无法读取」，那时把读数搬上了卡；
+    //   2026-10-13 他把那一整段贴回来说「这里多余的回复也去掉」。
+    //   ⇒ 判据**反过来钉**：卡上不许有它，但读数**一条都没丢**（日志 / 记忆 / 报告附录三处）。
     const r = mk({ verdict53: { state: 'REVIEW', line: '【审查结论：REVIEW】共发现 1 处需人工确认。', from: 'chain' },
                    mediaRead: READ });
-    const first = String(r.card?.body?.elements?.[0]?.content ?? '');
-    if (!first.includes('**我读到了**') || !first.includes('15.0 秒')) {
-      no('J10a 媒材读数进卡片正文第一块', `实际第一块：${JSON.stringify(first.slice(0, 90))}`);
-    } else ok('J10a 媒材读数进卡片正文第一块');
-    // 结论行不许被挤出标题（读数进正文 ≠ 结论行下移）
+    const whole = JSON.stringify(r.card ?? {});
+    if (whole.includes('我读到了') || whole.includes('15.0 秒')) {
+      no('J10a 媒材读数**不许**上卡（Owner 2026-10-13）', whole.slice(0, 140));
+    } else ok('J10a 媒材读数不上卡（Owner 2026-10-13 反转了 10-06 那条要求）');
+    // 结论行仍必须占标题（撤读数与结论行的位置无关）
     if (r.card?.header?.title?.content !== '【审查结论：REVIEW】共发现 1 处需人工确认。') {
-      no('J10a 结论行仍在标题里', `实际：${JSON.stringify(r.card?.header?.title?.content)}`);
-    } else ok('J10a 结论行仍在标题里（读数不挤结论）');
+      no('J10a2 结论行仍在标题里', `实际：${JSON.stringify(r.card?.header?.title?.content)}`);
+    } else ok('J10a2 结论行仍在标题里');
 
-    // J10b 反向对照：**没有**读数时不许凭空造一句「我读到了」
-    //   少了这一条，写成恒插入一句空话也照样绿 —— 而那是**编读数**，比不搬严重。
+    // J10b **反向对照（搬不是砍）**：读数不上卡 ≠ 读数没了 ——
+    //   生产它的那一处必须还在，而且三处落点各自都要有接线（少一处就是静默丢）。
+    const AG = fs.readFileSync(path.join(HERE, 'agent', 'agent.mjs'), 'utf8');
+    const WD = fs.readFileSync(path.join(HERE, 'ws_daemon.mjs'), 'utf8');
+    if (!/export function describeMediaRead/.test(AG)) {
+      no('J10b 读数的产者必须还在（撤的只是上卡那一跳）', 'describeMediaRead 没了');
+    } else if (!/📥 读到/.test(WD) && !/mediaReadAppendix/.test(AG) && !/describeMediaRead\(inbound\)/.test(WD)) {
+      no('J10b 读数的三处落点至少要各有一处接线', '日志 / 报告附录 / 记忆 都找不到');
+    } else ok('J10b 读数仍由 describeMediaRead 产出，且日志与报告附录的接线都还在');
+    // J10c 反向对照：**没有**读数时当然也不许冒出「我读到了」
     const r2 = mk({ verdict53: null });
-    const body2 = JSON.stringify(r2.card?.body ?? {});
-    if (body2.includes('我读到了')) no('J10b 反向对照：无媒材时不许凭空造读数', '没有读数却出现了「我读到了」');
-    else ok('J10b 反向对照：无媒材时不许凭空造读数');
+    if (JSON.stringify(r2.card?.body ?? {}).includes('我读到了')) {
+      no('J10c 反向对照：无媒材时不许凭空造读数', '没有读数却出现了「我读到了」');
+    } else ok('J10c 反向对照：无媒材时不许凭空造读数');
   }
 
   /* ── J11 评审单的 PRD §5.3 逐条块**必须落得下**（2026-10-07 实发缺口）─────────────
@@ -671,14 +682,277 @@ head('J 信封 · 解析、上限执行、以及「标记不许漏进群」');
     if (re.kind !== 'evidence') no('J11e 反向对照：装得下的类型不许换', `kind=${re.kind}`);
     else ok('J11e 反向对照：装得下的类型不许换');
   }
+
+  /* ── J12 评审单**不许以纯文本出门**（2026-10-12 Owner：「守衡的输出格式变了」）────────
+   *  实测（`PMO/logs/ws_outbound.jsonl` ＋ 会话原文 ＋ `ws_daemon.log` 三方对齐）：
+   *    16:58 那条 1336 字 = `mode=reply-card`（卡，渲染正常）；
+   *    19:31/19:53/19:55/19:58 四条 = `mode=reply`（**纯文本**），
+   *    而模型原文里**没有 `[[card:` 块**，日志那行是 `落点=n/a·-｜逐条块=无`。
+   *  ⇒ 飞书纯文本**不渲染 markdown**：群里看到的是 `**加粗**`、反引号与一堆 `|`。
+   *
+   *  判据四层（缺一层都不算）：建得出来 · 抬头是结论行 · 原话一字不丢且在折叠区 · 反向对照。
+   *  ★ 为什么必须**直接调真生产者**：这一条盯的是「模型不给卡时信封层怎么兜」，
+   *    夹具可以写得再对，兜底跳不过去的话群里照样是纯文本 —— 与 L 段同一条理由。
+   */
+  {
+    const V53T = { state: 'BLOCK', line: '【审查结论：BLOCK】共发现 1 处必须修改。', from: 'dual-track-merged' };
+    // 夹具**逐字取自 2026-10-12 那条被降级的真回复**（含 sha 形状的内部标识，
+    // 它当时正是把纯文本这一路打成「正文含内部标识 ⇒ 整条拦下」的那一根刺）。
+    const PROSE = '**结论：BLOCK —— 1 处必须修改（合并口径 2 处）。请修改后重新提交。**\n'
+                + 'P0 快路（131.204 ms，命中 1 条模式 **H05**）—— 红线拦截，**未跑** L4→L5→L6→L7。\n\n'
+                + '**命中**：模式 `p-08487282e2d400fe`｜**条款 W-1.33**｜判定 **事实（确定性逐字匹配）**。';
+
+    const r = toCardOrText(PROSE, { verdict53: V53T });
+    if (r.mode !== 'card') no('J12a 有结论行而模型没给卡 ⇒ 代码建卡', `mode=${r.mode} reason=${r.reason}`);
+    else ok(`J12a 有结论行而模型没给卡 ⇒ 代码建卡（${r.kind}）`);
+
+    const headTitle = r.card?.header?.title?.content ?? '';
+    if (headTitle !== V53T.line) {
+      no('J12b 代码建的卡：抬头必须是权威结论行', JSON.stringify(String(headTitle).slice(0, 60)));
+    } else ok('J12b 代码建的卡：抬头是权威结论行（PRD §5.3「结论放最前面」）');
+
+    const whole = JSON.stringify(r.card ?? {});
+    if (!whole.includes('判定 **事实（确定性逐字匹配）**')) {
+      no('J12c 模型原话一个字不许丢', whole.slice(0, 120));
+    } else if (publicTextOf(r.card).includes('p-08487282e2d400fe')) {
+      no('J12c 模型原话必须进折叠组', '内部标识留在公开格里 —— 折叠区才是它的位置');
+    } else ok('J12c 模型原话逐字留在折叠组里，公开格干净');
+
+    // J12d 反向对照：**没有**结论行 ⇒ 仍是纯文本（不许借着 PRD 的名义把闲聊全套成卡）
+    const rn = toCardOrText('在。要审什么直接发素材就行。');
+    if (rn.mode !== 'text' || rn.kind) no('J12d 反向对照：没有结论行的闲聊仍是纯文本', `mode=${rn.mode} kind=${rn.kind}`);
+    else ok('J12d 反向对照：没有结论行的闲聊仍是纯文本');
+  }
+}
+
+/* ─────── J13 守衡的**查证笔记**不许进群，而「我问的时候你要能回答」要有落点 ───────
+ *  Owner 2026-10-13 原话（三条里的第 1、2 条）：
+ *    「输出到飞书群包含知识库侧+模型侧的文字，**不要展示在卡片上**，**我问的时候，你要能回答**」
+ *    「类似以下的文案都去掉：知识库侧 未报内容问题…／ℹ️ 知识库侧给了 覆盖缺口…／
+ *      （问题数 8 ≥ 3 ⇒ 按 PRD §5.3.3 只出分类汇总…）／模型原话（原文照留）」
+ *
+ *  分工（与结论行、逐条块同一条：**模型不写、代码搬**）：
+ *    · 那几行由 `dual_track.renderMerged` **从 `block` 里摘掉**，改走 `internalNotes`
+ *      → `agent.mjs` 的 `chainBlock`（= 模型上下文 ＋ **会话记忆**）⇒ 追问答得出来；
+ *    · 但「模型从不照抄 chainBlock 里别的东西」是**概率** ⇒ 信封层 `stripInternalNotes`
+ *      是**执行点**：逐行认我们**自己产出的那几种固定形状**，命中即摘并留痕。
+ *
+ *  判据四层（缺一层都不算）：卡上不许有 · 留痕 · 普通句子不许误伤 · 接线真的接上。
+ */
+head('J13 查证笔记 · 不上卡、但要答得出来（Owner 2026-10-13 三条里的第 1、2 条）');
+{
+  // ★ 本段在 J 段那个 `{ }` **之外**（J12 之后），所以自己取一次 —— 不去依赖外面的作用域。
+  const { toCardOrText, stripInternalNotes } = await import(path.join(CARDS_DIR, 'envelope.mjs'));
+  const NOTES = [
+    '知识库侧 **未报内容问题**；另有 **1 条覆盖缺口**（库对该题材没有可依据的条款） ／ 模型侧 7 条（其中 7 条**无库内依据**，只能转人工）',
+    'ℹ️ 知识库侧给了 **覆盖缺口**（`coverage_not_covered`）：检索有命中，但「既被规则引用、又达门限」的单元 0 条。',
+    '（问题数 **8 ≥ 3** ⇒ 按 PRD §5.3.3 只出分类汇总，逐条清单与修改建议在报告里；1–2 条时才在卡上逐条平铺。）',
+  ].join('\n');
+  const V53 = { state: 'REVIEW', line: '【审查结论：REVIEW】共发现 8 处需人工确认。',
+                from: 'dual-track-merged', block: '【审查结论：REVIEW】共发现 8 处需人工确认。' };
+  const PROSE = `【审查结论：REVIEW】共发现 8 处需人工确认。\n${NOTES}\n\n1.【合规】全文\n   **原因**：x`;
+
+  // J13a **卡上不许有**（模型把它抄进回复的那种形状）
+  {
+    const r = toCardOrText(PROSE, { verdict53: V53 });
+    const whole = JSON.stringify(r.card ?? r.text ?? '');
+    const leaked = ['未报内容问题', 'coverage_not_covered', '只出分类汇总'].filter((k) => whole.includes(k));
+    if (leaked.length) no('J13a 查证笔记不许进卡（含折叠区）', `漏了：${leaked.join(' / ')}`);
+    else ok('J13a 查证笔记不进卡（含折叠区）');
+  }
+
+  // J13a2 **模型原话整组也不上卡**（Owner 2026-10-13：他展开的那一组就是它）
+  //   引的原文里全是内部读数：`P0 快路（258.167 ms…）`、`未跑 L4→L5→L6→L7`、
+  //   `★ 表行（照抄）…行号 recvx…｜回读 consistent`、`观察：M8 这句跑第 3 次…`。
+  {
+    const r = toCardOrText(PROSE, { verdict53: V53 });
+    const whole = JSON.stringify(r.card ?? '');
+    const titles = (r.data?.groups ?? []).map((g) => String(g?.title ?? ''));
+    if (titles.includes('详细说明')) {
+      no('J13a2 模型原话整组不许上卡', `那一组还在：${JSON.stringify(titles)}`);
+    } else if (whole.includes('1.【合规】全文')) {
+      no('J13a2 模型原话整组不许上卡', '原话还在卡里（换了个组名也一样）');
+    } else ok('J13a2 模型原话整组不上卡');
+
+    // ★ **反向对照（安全网）**：`verdict53.block` 为空 ⇒ §5.3 块搬不进来
+    //   ⇒ 那时**必须**照旧建那一组，否则卡上只剩一个抬头（比改动前更没法用）。
+    const rNoBlock = toCardOrText(PROSE, { verdict53: { state: 'REVIEW', line: V53.line, from: 'x' } });
+    if (!JSON.stringify(rNoBlock.card ?? '').includes('1.【合规】全文')) {
+      no('J13a3 反向对照：§5.3 块搬不进来时必须退回原话组', '内容被丢光了');
+    } else ok('J13a3 反向对照：§5.3 块搬不进来 ⇒ 照旧建原话组（安全网）');
+
+    // J13a4 **接线**：原文没有丢 —— 它是这一轮的回复正文（`ws_daemon` 记字数、memory 存这一轮）
+    const W = fs.readFileSync(path.join(HERE, 'ws_daemon.mjs'), 'utf8');
+    if (!/💬 回复 \$\{result\.reply\.length\} 字/.test(W)) {
+      no('J13a4 模型原文必须仍以「这一轮的回复」被记下来', '找不到那一行字数日志');
+    } else ok('J13a4 模型原文仍以「这一轮的回复」被记下来（不是静默丢掉）');
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // J14 **卡脚那条边界必须由代码写**（2026-10-13：它原先只在模型原话里，
+  //     而原话整组被 Owner 从卡上撤走了 ⇒ 不给就会静默消失）
+  // ══════════════════════════════════════════════════════════════════════════
+  //   这条边界管的是**误读**：P0 快路是「确定性匹配、**没跑过**专项审查」，
+  //   少了这一句，读卡的人会把一次红线拦截当成「整条链审过了」。
+  //   它同时是 Owner 2026-10-12 要求恢复的三样之一（页脚「本结论为 P0 红线拦截…」）。
+  {
+    const { applyBoundary } = await import(path.join(CARDS_DIR, 'envelope.mjs'));
+    const V53B = { state: 'BLOCK', line: '【审查结论：BLOCK】共发现 2 处必须修改。',
+                   from: 'dual-track-merged',
+                   block: '【审查结论：BLOCK】共发现 2 处必须修改。\n1.【合规】全文\n   原因：x\n请修改后重新提交。' };
+    const BND = '本结论为 **P0 红线拦截**（确定性匹配，**未跑**专项审查、层前置与评审链），'
+              + '**不是 PASS 依据**；若素材属图片 / 视频 / 产品宣称等模态，**仍需转对应专项复核**。';
+    const r = toCardOrText('模型原话（会被整组去掉）', { verdict53: V53B, boundary: BND });
+    const foot = JSON.stringify(r.card?.body ?? '');
+    if (!foot.includes('P0 红线拦截')) no('J14a 代码给的边界必须落在卡上', foot.slice(0, 160));
+    else ok('J14a 代码给的边界落在卡脚（P0 快路那句跑不掉）');
+    if (!foot.includes('仍需转对应专项复核')) no('J14a2 边界里那句「仍需转对应专项复核」也要在', '被截掉了');
+    else ok('J14a2 「仍需转对应专项复核」也在卡脚');
+    // J14b2 ★★ 卡上**已经有边界**（模型自己写的）⇒ 不许再补一条
+    //   —— 实测 Owner 2026-10-13 11:35 群里那条卡：卡脚印了**两条**说的是一件事。
+    {
+      const { applyBoundary: AB } = await import(path.join(CARDS_DIR, 'envelope.mjs'));
+      const withOwn = AB('evidence', { verdict: 'v', boundary: '模型自己写的那条边界。' }, BND);
+      if (withOwn.action !== 'already' || /P0 红线拦截/.test(String(withOwn.data.boundary))) {
+        no('J14b2 卡上已有边界 ⇒ 不许再补一条（同一件事印两遍）', JSON.stringify(withOwn).slice(0, 160));
+      } else ok('J14b2 卡上已有边界 ⇒ 不补（重复已治）');
+    }
+
+    // J14b **反向对照**：没有边界时**一个字都不许加**（不许编一句套话）
+    const r0 = toCardOrText('模型原话', { verdict53: V53B });
+    if (/P0 红线拦截/.test(JSON.stringify(r0.card?.body ?? ''))) {
+      no('J14b 反向对照：没给边界不许凭空造一条', '冒出了「P0 红线拦截」');
+    } else ok('J14b 反向对照：没给边界就不印（不编）');
+    // J14c **no-slot 必须出声**：类型没有 boundary 格时不许硬塞进别的格子
+    const rq = applyBoundary('turn-diff', { before: 'a', after: 'b' }, BND);
+    if (rq.action !== 'no-slot' || rq.data.before !== 'a') {
+      no('J14c 没有 boundary 格的类型 ⇒ no-slot，不许硬塞', JSON.stringify(rq).slice(0, 120));
+    } else ok('J14c 没有 boundary 格的类型 ⇒ no-slot 并出声（不硬塞）');
+    // J14d **接线**：内核真的把这条边界算出来、daemon 真的把它传下去
+    //   （少了这两句，上面三条全是「函数自己能跑」，而线上一个字节都到不了）
+    const A = fs.readFileSync(path.join(HERE, 'agent', 'agent.mjs'), 'utf8');
+    const Wd = fs.readFileSync(path.join(HERE, 'ws_daemon.mjs'), 'utf8');
+    if (!/p0Boundary/.test(A) || !/boundary:\s*result\.meta\?\.boundary/.test(Wd)
+        || !/boundary = null \} = \{\}/.test(Wd)) {
+      no('J14d 接线：agent 算出 p0Boundary ＋ daemon 接住并转发', '有一跳没接上');
+    } else ok('J14d 接线：agent 算出 p0Boundary ＋ daemon 接住并转发');
+  }
+
+/* ─────── J15 报告链接**不许在一张卡上出现两次**（2026-10-13，Owner 那张视频卡）───────
+ *  实测那张卡（真实结构复原）：可见格是「我读到了 ＋ → 查看完整问题清单与修改建议：…」，
+ *  而下面「审查结论」那一组（**默认展开**）里，链接又是结论行下面第二行 ——
+ *  **同一个链接印两遍**，Owner 把这一整段贴回来说「这里多余的回复也去掉」。
+ *
+ *  口径：**块里已有就不再补**；块里没有（非评审单 / 块没搬进来）才补进可见格。
+ *  ⚠️ 这与「为什么当初要有 applyReportLink」不冲突 —— 那一条治的是
+ *     「链接落在**块的最末尾**、被 8 条逐条顶到看不见的地方」，本条治的是**重复**。
+ */
+head('J15 报告链接 · 一张卡上只许出现一次');
+{
+  const { toCardOrText: T } = await import(path.join(CARDS_DIR, 'envelope.mjs'));
+  const URL = 'https://momcozy-in.feishu.cn/docx/J15';
+  const LINE = `→ 查看完整问题清单与修改建议：${URL}`;
+  const WITH_LINK = { state: 'REVIEW', line: '【审查结论：REVIEW】共发现 3 处需人工确认。',
+                      from: 'dual-track-merged',
+                      block: `【审查结论：REVIEW】共发现 3 处需人工确认。\n${LINE}\n1.【合规】x\n请修改后重新提交。` };
+  const NO_LINK = { state: 'REVIEW', line: '【审查结论：REVIEW】共发现 3 处需人工确认。',
+                    from: 'dual-track-merged',
+                    block: '【审查结论：REVIEW】共发现 3 处需人工确认。\n1.【合规】x\n请修改后重新提交。' };
+
+  // J15a 块里已经有 ⇒ 全卡只许出现一次
+  {
+    const r = T('模型原话', { verdict53: WITH_LINK, reportLink: URL });
+    const n = (JSON.stringify(r.card ?? {}).match(/查看完整问题清单与修改建议/g) || []).length;
+    if (n !== 1) no('J15a 块里已有链接 ⇒ 全卡只许出现一次', `实际出现 ${n} 次`);
+    else ok('J15a 块里已有链接 ⇒ 全卡只出现一次（不重复）');
+  }
+  // J15b 反向对照：块里**没有** ⇒ 必须补进可见格，否则链接就没了
+  {
+    const r = T('模型原话', { verdict53: NO_LINK, reportLink: URL });
+    const n = (JSON.stringify(r.card ?? {}).match(/查看完整问题清单与修改建议/g) || []).length;
+    if (n !== 1) no('J15b 反向对照：块里没有 ⇒ 必须补进可见格', `实际出现 ${n} 次`);
+    else ok('J15b 反向对照：块里没有 ⇒ 补进可见格（链接不会丢）');
+  }
+  // J15c 反向对照：**没给链接**时一个字符都不许加
+  {
+    const r = T('模型原话', { verdict53: NO_LINK });
+    if (/查看完整问题清单/.test(JSON.stringify(r.card ?? {}))) {
+      no('J15c 反向对照：没给链接不许凭空造一行', '冒出了链接行');
+    } else ok('J15c 反向对照：没给链接就不印（不编）');
+  }
+}
+
+  // J13b **留痕**：摘了必须看得见（否则「本来就没写」与「写了被我摘了」长得一样）
+  {
+    const r = toCardOrText(PROSE, { verdict53: V53 });
+    const hit = (r.moved ?? []).find((m) => /查证笔记/.test(String(m.why ?? '')));
+    if (!hit) no('J13b 摘掉笔记必须留痕', JSON.stringify((r.moved ?? []).map((m) => m.why)));
+    else ok(`J13b 摘掉笔记有留痕（${hit.chars} 字）`);
+  }
+
+  // J13c 反向对照：**普通句子一个字符都不许动**（会误报的检查器比没有更糟，§2.1.1）
+  {
+    const okLine = '知识库侧 3 条与素材相关，可以采信；这一条我核过了。';
+    const r = stripInternalNotes(okLine);
+    if (r.text !== okLine || r.removed.length) {
+      no('J13c 反向对照：普通句子不许被摘', JSON.stringify(r));
+    } else ok('J13c 反向对照：普通句子一个字符都不许动');
+    const plain = '好的，这条我看了，没问题。\n\n要不要我把它发出去？';
+    if (stripInternalNotes(plain).text !== plain) no('J13c2 无笔记的回复必须逐字不变', '被改动了');
+    else ok('J13c2 无笔记的回复逐字不变');
+  }
+
+  // J13d 整段抄下来的那种形状（chainBlock 的首尾标记）也要兜得住
+  {
+    const r = stripInternalNotes('【★ 我的查证笔记 —— 只用来回答对方的追问。】\n知识库侧 1 条\n【★ 查证笔记结束】\n\n好的。');
+    if (/查证笔记/.test(r.text) || r.removed.length !== 2) {
+      no('J13d 整段抄下来时首尾标记都要摘掉', JSON.stringify(r));
+    } else ok('J13d 整段抄下来时首尾标记都摘掉');
+  }
+
+  // J13e **接线**：`agent.mjs` 必须真的把 `internalNotes` 接进 chainBlock。
+  //   少了这一条会出现「产出者对了、消费者没接」—— 而表现是**群里答不出追问**，
+  //   卡片一切正常，没有任何东西会红（§2.4.1 那个形状）。
+  {
+    const src = fs.readFileSync(path.join(HERE, 'agent', 'agent.mjs'), 'utf8');
+    if (!/rendered\.internalNotes/.test(src)) {
+      no('J13e agent.mjs 必须把 rendered.internalNotes 接进 chainBlock',
+         '不接 ⇒ 群里问「知识库侧几条」答不出来（卡片上又看不到）');
+    } else ok('J13e agent.mjs 把 internalNotes 接进了 chainBlock（记忆里留得住）');
+    const dual = fs.readFileSync(path.join(HERE, 'agent', 'dual_track.mjs'), 'utf8');
+    if (!/internalNotes,/.test(dual)) no('J13f renderMerged 必须交出 internalNotes', '没这个出口');
+    else ok('J13f renderMerged 交出了 internalNotes');
+  }
+
+  // J13g **代码建卡那一组的标题**：Owner 点名把「模型原话（原文照留）」去掉。
+  //   为什么不是简单删掉标题：`cards.mjs` 的 `collapsible(g.title)` 会渲染出一个**空标题**的
+  //   折叠面板 —— 那不是「去掉废话」，是换了一种坏法。所以是**改名**，而改名必须可断言：
+  //   ① 卡面上不再出现「模型原话」这个内部说法；② 那一组仍在（模型原文一个字没丢）。
+  {
+    const r = toCardOrText('**结论：BLOCK** —— 1 处必须修改。', {
+      verdict53: { state: 'BLOCK', line: '【审查结论：BLOCK】共发现 1 处必须修改。', from: 'dual-track-merged' } });
+    const groups = r.data?.groups ?? [];
+    const titles = groups.map((g) => String(g?.title ?? ''));
+    if (titles.some((t) => /模型原话|原文照留/.test(t))) {
+      no('J13g 代码建卡的组标题不许再写「模型原话（原文照留）」', JSON.stringify(titles));
+    } else if (!groups.length) {
+      no('J13g 代码建卡的组标题不许再写「模型原话（原文照留）」', '那一组整个没了 —— 模型原文会丢');
+    } else ok(`J13g 代码建卡的组标题已改名（${titles.join(' / ')}），原文仍在组里`);
+    if (!JSON.stringify(groups).includes('1 处必须修改')) {
+      no('J13g2 改名不许把那一组的内容弄丢', JSON.stringify(groups).slice(0, 120));
+    } else ok('J13g2 改名后那一组的内容一个字没丢');
+  }
 }
 
 /* ─────────────── L 卡片正文的**分行**不许粘连（2026-10-09 实发缺口）───────────────
- *  病灶（实测三单，图片/视频/文案全中）：`dual_track.renderMerged` 的拼接是
+ *  病灶（实测三单，图片/视频/文案全中）：`dual_track.renderMerged` 当年的拼接是
  *    `${line}${reportNote}\n${tally}${covNote}${bodyText}`
  *  而 `tally` 与 `covNote` **都没有结尾换行** ⇒ 群里印出来是
  *    `…只能转人工）1.【合规-医疗宣称】视频 00:12 字幕`
  *  —— 编号 1 与「知识库侧 N 条 ／ 模型侧 M 条」**粘在同一行**，读者拿到的是一个坏掉的块。
+ *  ⚠️ 2026-10-13 之后 `tally`/`covNote` **已不在这一行里**（它们改走 `internalNotes`），
+ *     但这一段判据**不能删** —— 它守的是「卡面第一行与编号之间必须有换行」这条形状，
+ *     而那个形状随时会以别的字段回来（`reportNote` 就是接在 `line` 后面的下一个）。
  *
  *  为什么判据必须直接调真生产者（而不是只靠夹具）：下面 J11 的夹具里**本来就写着**
  *  `'知识库侧 3 条 ／ 模型侧 3 条\n\n1.【合规】'` —— **夹具是对的、代码是错的**，
@@ -702,28 +976,40 @@ head('L 卡片正文分行 · 汇总行与编号不许粘在一行');
     no('L1 汇总行与「1.」之间必须有换行', '没找到编号行，判据本身失效');
   } else ok('L1 汇总行与「1.」之间必须有换行');
 
-  // L2/L3 覆盖缺口那一支：既有换行，也不许说假话
+  // L2/L3 覆盖缺口那一支：卡面干净、笔记留全，且笔记里的话不许是假的
+  //
+  // ★★ 2026-10-13（Owner 裁定）：覆盖缺口那一段**不再上卡** —— 它属于
+  //   「库侧/模型侧的口径读数与解释」那一族，Owner 逐字把它列进了「都去掉」。
+  //   它改走 `internalNotes`（模型上下文 + 会话记忆）。
+  //   ⇒ 判据从「卡上怎么写」改成两面：**卡上不许有** ＋ **笔记里仍不许说假话**。
   {
     const cov = { ...kb0, coverageGap: true };
     const rc = renderMerged(two, { state: 'REVIEW', kb: cov, kbTextCount: 0,
                                    model: { ok: true, findings: two } });
     const b = rc?.block ?? '';
+    const notes = rc?.internalNotes ?? '';
     if (!/\n1\.【/.test(b)) {
-      no('L2 覆盖缺口说明与「1.」之间必须有换行', '粘连或找不到编号行');
-    } else ok('L2 覆盖缺口说明与「1.」之间必须有换行');
+      no('L2 卡面第一行与「1.」之间必须有换行', '粘连或找不到编号行');
+    } else ok('L2 卡面第一行与「1.」之间必须有换行');
+    if (/coverage_not_covered/.test(b) || /知识库侧/.test(b)) {
+      no('L2b 覆盖缺口说明**不许**上卡（Owner：这一族文案都去掉）', b.slice(0, 120));
+    } else if (!/coverage_not_covered/.test(notes)) {
+      no('L2b 覆盖缺口说明**必须**留在查证笔记里（搬不是砍）',
+         `笔记里没有：${JSON.stringify(notes.slice(0, 120))}`);
+    } else ok('L2b 覆盖缺口说明：卡上无、笔记里有（搬不是砍）');
 
     // ★ 这句话**不许说假话**：列表里有别的条目时，覆盖缺口并不渲染进清单
     //   （实测视频单：卡说「上面那 1 条就是它」，而上面那条其实是模型侧的对比风险）
-    if (/上面那 1 条「需人工确认」就是它/.test(b)) {
+    if (/上面那 1 条「需人工确认」就是它/.test(notes)) {
       no('L3 列表非空时不许说「上面那 1 条就是它」', '读者会照着这句话认错条目');
-    } else if (!/本身不占下面清单里的任何一条/.test(b)) {
+    } else if (!/本身不占下面清单里的任何一条/.test(notes)) {
       no('L3 列表非空时不许说「上面那 1 条就是它」', '既没改口也没找到新措辞');
     } else ok('L3 列表非空时不许说「上面那 1 条就是它」');
 
     // L4 反向对照：列表**为空**时原措辞是对的（覆盖缺口确实占那 1 条）—— 不许一起改掉
     const r0 = renderMerged([], { state: 'REVIEW', kb: cov, kbTextCount: 0,
                                   model: { ok: true, findings: [] } });
-    if (!/上面那 1 条「需人工确认」就是它/.test(r0?.block ?? '')) {
+    if (!/上面那 1 条「需人工确认」就是它/.test(r0?.internalNotes ?? '')) {
       no('L4 反向对照：列表为空时原措辞必须保留', '把正确的那一支也改掉了');
     } else ok('L4 反向对照：列表为空时原措辞必须保留');
   }
