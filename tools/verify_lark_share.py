@@ -51,6 +51,7 @@ from lark_http import call  # noqa: E402  —— 全仓唯一 HTTP 入口
 
 # 建表脚本与本脚本**必须指同一张表** —— 所以常量不从这儿再抄一份，直接引用它。
 # （抄一份的后果：改了一处、另一处安静地验着别的表。）
+# 来源：tools/migrate_external_to_lark.py（同目录，靠上面那行 sys.path 找得到）。
 from migrate_external_to_lark import APP_TOKEN, TABLE_NAME, load_library, token  # noqa: E402
 
 API = "https://open.feishu.cn/open-apis"
