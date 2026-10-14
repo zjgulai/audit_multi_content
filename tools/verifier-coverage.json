@@ -203,6 +203,21 @@
         "PMO/已修问题.jsonl",
         "PMO/已修问题索引.md"
       ]
+    },
+    {
+      "verifier": "tools/verify_agents_budget.py",
+      "asserts": "AGENTS.md 的工作区指令预算（65536）+ 余量下限（3288）+ 搬走的那份逐字还在且本文件 0 残留",
+      "subjects": [
+        "AGENTS.md",
+        "PMO/填充态-环境特性-实测史.md"
+      ]
+    },
+    {
+      "verifier": "tools/verify_lark_share.py",
+      "asserts": "「外部标准库」那张表别人点不点得开（link_share_entity 真读三态：tenant_editable / tenant_readable / closed）",
+      "subjects": [
+        "migrate_external_to_lark.py"
+      ]
     }
   ]
 }
