@@ -62,6 +62,28 @@ const len = (x) => [...s(x)].length;
  *            blockStart:number, blockEnd:number, error:string|null}|null}
  *          data 为 null 表示找到了块但解析失败，error 说明原因。
  */
+/**
+ * 逐条块的**卡内版**：去掉开头那行结论行（它与卡抬头逐字相同）。
+ *
+ * ★★ 2026-10-14（Owner：「去掉『审查结论』多余的」）：抬头已经印了
+ *   `【审查结论：BLOCK】共发现 N 处必须修改。`，而 `verdict.block` 的第一行**就是它**
+ *   ⇒ 同一句在卡上出现两次。这里只去掉**那一行**，其余（汇总 / 链接 / 逐条 / 动作行）原样保留。
+ *
+ * ⚠️ 只动**卡面**：`verdict.block` 本身不改（报告、留痕、日志里仍是全份）——
+ *   与「搬是搬，砍是砍」同一条纪律。
+ * @param {string} block 结论块原文
+ * @returns {string}
+ */
+export function blockRows(block) {
+  const lines = String(block ?? '').split('\n');
+  // 只认**第一行**是不是结论行（PRD §5.3 的形状），中间出现的三态词一律不动
+  const isHead = (l) => /^\s*【审查结论\s*[：:]/.test(l);
+  while (lines.length && !lines[0].trim()) lines.shift();
+  if (lines.length && isHead(lines[0])) lines.shift();
+  while (lines.length && !lines[0].trim()) lines.shift();
+  return lines.join('\n');
+}
+
 export function extractCardBlock(text) {
   const src = s(text);
   const at = src.indexOf(CARD_MARK);
@@ -250,7 +272,14 @@ export function applyVerdictLine(kind, data, verdict) {
     //      （库规：库侧的结论与条数一律读结构化字段，不许从中文答案里抠）。
     //   ② 标题去掉内部章节号 —— 这张卡是给业务同事看的，**「PRD §5.3」对他们是零信息量**。
     //      格式仍由 PRD §5.3 规定；要追溯出处看日志里的 `block.action`，不必印在卡面上。
-    out.groups = [{ title: '审查结论', content: verdict.block, expanded: true }, ...groups];
+    // ★★ 2026-10-14（Owner：「去掉『审查结论』多余的」）—— 两处重复，一处修：
+    //   ① **组标题**原先叫「审查结论」，而块的第一行**本身就是** `【审查结论：BLOCK】…`
+    //      ⇒ 卡上连着出现两个「审查结论」。
+    //   ② **块里的结论行**与卡抬头（`applyVerdictLine` 写的那一行）**逐字相同**
+    //      ⇒ 同一句出现两次（抬头一次、第一组首行一次）。
+    //   ⇒ 组标题改成描述**这一组装什么**（`逐条问题`），块去掉开头那行结论行 ——
+    //     结论行由**抬头**独占。⚠️ 块本身一个字不丢（只去重），报告与留痕里仍是全份。
+    out.groups = [{ title: '逐条问题', content: blockRows(verdict.block), expanded: true }, ...groups];
     return { ...r, data: out, block: { action: 'forced', slot: bs } };
   };
 
