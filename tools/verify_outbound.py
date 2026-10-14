@@ -451,7 +451,23 @@ def scan_failures(daemon: str, agent: str, send_once: str) -> list:
     return [k for k, (ok, _) in scan_wiring(daemon, agent, send_once).items() if not ok]
 
 
-def scan_repo_senders(owners: dict | None = None) -> dict:
+BACKUP_PATH_RE = re.compile(r"(^|/)(\.backups?|__pycache__|\.git)(/|$)|(^|/)[^/]*\.bak([.-]|$)|~$|\.orig$|\.swp$")
+
+
+def is_backup_artifact(rel: str) -> bool:
+    """备份 / 临时件 **不是活路径**（不会被 import、不会跑）⇒ 不参与「谁是发送者」的双向对齐。
+
+    ★ 为什么单列这条（2026-10-14 实测）：`tools/.backups/batch-runner-media-…/batch_review_runner.mjs`
+      是别会话留的**备份副本**，B16 一直把它当「表外的新发送者」报红，复核 C8 跟着红。
+      把它登记进总表是**错的**：那会给一条**不会运行**的路径发通行证，
+      而总表的用意恰恰是「每条**活**出口都要有人负责」。
+      ⇒ 口径：**只登记活代码；备份件在扫描阶段就排除**，而不是靠总表豁免。
+      反向对照见 C9（纯函数三例）与 C10（真造一遍：备份处不报、正常处必报）。
+    """
+    return bool(BACKUP_PATH_RE.search(rel or ""))
+
+
+def scan_repo_senders(owners: dict | None = None, skip_backups: bool = True) -> dict:
     """全仓扫「谁能发消息」，与那张总表**双向**对齐。回 {检查号: (通过?, 说明)}。
 
     三件事分开报，因为它们坏起来的样子完全不同：
@@ -465,6 +481,8 @@ def scan_repo_senders(owners: dict | None = None) -> dict:
         if "node_modules" in p.parts:
             continue
         rel = p.relative_to(ROOT).as_posix()
+        if skip_backups and is_backup_artifact(rel):
+            continue
         src = strip_comments(read(p))
         if RAW_SEND_RE.search(src) or FEISHU_SEND_RE.search(src):
             found.add(rel)
@@ -740,6 +758,41 @@ else:
     check("C8", scan_failures(daemon, agent, send_once) == []
                 and scan_repo_senders()["B16"][0] and scan_repo_senders()["B17"][0],
           "**没改的真源码 → 一个都不报**（上面那些不是恒红）")
+
+    # ★ 2026-10-14 加：备份件不算「活出口」（B16 当天就是被一份备份副本顶红的）
+    check("C9", is_backup_artifact("tools/.backups/x/y.mjs")
+                and is_backup_artifact("tools/agent/agent.mjs.bak-pre-parentfetch-20261009")
+                and not is_backup_artifact("tools/agent/agent.mjs"),
+          "纯函数三例：`.backups/` 目录 ｜ `.bak-` 后缀 ｜ **正常源码不受影响**")
+
+    # C10 = 把缺陷**真造一遍**：备份处**不许**报、正常处**必须**报（否则「跳过」就成了恒绿的挡箭牌）
+    _c10_ok, _c10_msg = False, "未跑"
+    _bak = ROOT / "tools" / ".backups" / "__selftest__" / "fake_sender.mjs"
+    _real = ROOT / "tools" / "__selftest_fake_sender.mjs"
+    try:
+        for _f in (_bak, _real):
+            _f.parent.mkdir(parents=True, exist_ok=True)
+            _f.write_text("client.im.message.create({ receive_id: chatId });\n", encoding="utf-8")
+        _on = scan_repo_senders()
+        _off = scan_repo_senders(skip_backups=False)
+        _c10_ok = (not any("__selftest__" in m for m in _on["B16"][1].split("表外的：[")[-1].split("]")[0].split(", "))
+                   and "__selftest_fake_sender.mjs" in _on["B16"][1]
+                   and not _on["B16"][0]
+                   and "__selftest__" in _off["B16"][1])
+        _c10_msg = "备份处不报 ✅ ｜ 正常处必报 ✅" if _c10_ok else f"在线={_on['B16']} ｜ 关跳过={_off['B16']}"
+    except Exception as _e:                                      # noqa: BLE001
+        _c10_msg = repr(_e)
+    finally:
+        for _f in (_bak, _real):
+            try:
+                _f.unlink()
+            except OSError:
+                pass
+        try:
+            _bak.parent.rmdir()
+        except OSError:
+            pass
+    check("C10", _c10_ok, "**反向对照（真造一遍）**：备份件不报、真源码必报 —— " + _c10_msg)
 
 # ══════════════════════════════════════════════════════════════════════
 # D 段 · 拿真实台账 + 真实会话跑一遍（回归测试）
