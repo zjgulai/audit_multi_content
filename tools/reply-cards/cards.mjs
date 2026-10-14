@@ -27,6 +27,10 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+// ★ 2026-10-14：摘 markdown 符号的实现**只有一份**，在 `agent/plain.mjs`。
+//   这里 import 它，而不是在卡片侧再写一份 —— 两份实现必然漂移（本项目栽过）。
+//   方向是 `reply-cards → agent`（`agent/plain.mjs` 不 import 卡片，无环）。
+import { plainifyCard } from '../agent/plain.mjs';
 
 /* ═══════════════════════════ 实测常量 ═══════════════════════════ */
 
@@ -178,8 +182,10 @@ export function columns(cols, opts = {}) {
 
 /** 一格字段排（用于边界声明：一行放 3–4 个短字段，而不是三句解释） */
 export function fieldRow(fields, opts = {}) {
+  // ★ 2026-10-14：`f.value` 直接插进模板字面量，模型给对象就又是 `[object Object]`
+  //   （同一个病根，只是换了一张卡）。走 `s()` 收口。
   return columns(
-    fields.map((f) => ({ content: `**${f.label}**\n${f.value}` })),
+    fields.map((f) => ({ content: `**${s(f.label)}**\n${s(f.value)}` })),
     { backgroundStyle: 'grey', horizontalSpacing: '8px', ...opts },
   );
 }
@@ -237,7 +243,52 @@ export function button(label, value = {}, type = 'default') {
  * 而不是静默省略（静默省略正是那条「等于没答」的 434 字回复的成因）。
  */
 const NA = '（未填）';
-const s = (v) => (v === undefined || v === null || v === '' ? NA : String(v));
+
+/**
+ * 一个值 → 一行**人能读的文字**。`s()` 的底座，也是本项目**唯一**的文本化执行点。
+ *
+ * ★ 2026-10-14 加。起因是一张真发出去的卡（`ws_outbound.jsonl:721`，私聊
+ *   「你可以回答什么问题」）：`capability-boundary` 的能做 7 条 / 受限 6 条 /
+ *   做不到 6 条，**十九条全是 `[object Object]`**，整张卡等于没答。
+ *
+ *   根因不是模型写错，而是**渲染端对对象零防御**：旧代码是
+ *   `` d.can.map((x) => `- ${x}`) `` —— 模板字面量对任何对象一律 `String(x)`，
+ *   于是「模型把一条能力写成 `{能力, 边界}`」这种完全合理的输出，
+ *   在卡上就变成十九个 `[object Object]`。同类隐患遍布所有 `s(d.xxx)` 调用点
+ *   （`verdict` / `evidence` / `fields[].value` … 模型给对象就一样烂）。
+ *
+ *   口径（与 `envelope.carryCardText()` 同一套写法，改一处必须改两处）：
+ *     · 对象 ⇒ `键：值`，多键用 `；` 连 —— **键名不丢**，因为模型用键名表达
+ *       「能力 / 边界」这种区分，抹掉键名就等于替它做了取舍；
+ *     · 数组 ⇒ 逐项摊平，嵌套项用换行（在正文格里换行是列点，不会跑版）；
+ *     · 认得出 `{label, value}` / `{title, content}` 这两种既有约定就优先用，
+ *       与 `carryCardText()` 对齐；认不出才按键值平铺 —— 不猜含义。
+ *
+ *   ★ 反例（**不许**出现的形状）：`String({})` = `[object Object]`。
+ *     那是故障信号进群，比「（未填）」和格式难看都严重得多。
+ *
+ *   ⚠️ `flat1` 的契约是「**摊平**」，不是「决定空值怎么显示」：摊完是空就返回空串，
+ *      由 `s()` 统一落 `（未填）` 占位。两件事分开，占位口径才只有一处。
+ *      （写这组时真踩过一次：让 `flat1` 直接吐 `NA`，于是 `{能力:'', 边界:''}`
+ *       摊成 `能力：（未填）；边界：（未填）` —— 一个空格子被印了两遍。）
+ */
+const flat1 = (v) => {
+  if (Array.isArray(v)) return v.map(flat1).filter(Boolean).join('\n');
+  if (v && typeof v === 'object') {
+    // 键值对：**空值整条丢掉**，不留「`能力：`」这种挂着键名、值没了的残句
+    // （残留比缺失更难读：人以为有内容，其实冒号后面什么都没有）。
+    const kv = (k, val) => {
+      const t = flat1(val).trim();
+      return t ? `${k}：${t}` : '';
+    };
+    if ('label' in v) return kv(flat1(v.label), v.value);
+    if ('title' in v && 'content' in v) return `【${flat1(v.title)}】${flat1(v.content)}`;
+    return Object.entries(v).map(([k, vv]) => kv(k, vv)).filter(Boolean).join('；');
+  }
+  return v === undefined || v === null ? '' : String(v);
+};
+
+const s = (v) => flat1(v).trim() || NA;
 
 const card = (template, title, subtitle, elements) => ({
   schema: '2.0',
@@ -278,9 +329,14 @@ export function correction(d = {}) {
 export function capabilityBoundary(d = {}) {
   const els = [md(s(d.verdict ?? '按「能做 / 受限 / 做不到」三栏给，不解释原因。'))];
   const cols = [];
-  if (d.can?.length) cols.push({ content: `**能做**\n${d.can.map((x) => `- ${x}`).join('\n')}` });
-  if (d.limited?.length) cols.push({ content: `**受限**\n${d.limited.map((x) => `- ${x}`).join('\n')}` });
-  if (d.cannot?.length) cols.push({ content: `**做不到**\n${d.cannot.map((x) => `- ${x}`).join('\n')}` });
+  // ★ 2026-10-14：这三行原先写的是 `` `- ${x}` `` —— 模板字面量对对象一律
+  //   `String(x)` ⇒ 模型把一条能力写成 `{能力, 边界}` 时，卡上就是十九个
+  //   `[object Object]`（真单见 `ws_outbound.jsonl:721`）。改走 `s()`，
+  //   让它吃字符串吃对象都塌成一行人话。
+  const list = (items) => items.map((x) => `- ${s(x)}`).join('\n');
+  if (d.can?.length) cols.push({ content: `**能做**\n${list(d.can)}` });
+  if (d.limited?.length) cols.push({ content: `**受限**\n${list(d.limited)}` });
+  if (d.cannot?.length) cols.push({ content: `**做不到**\n${list(d.cannot)}` });
   if (cols.length) els.push(columns(cols));
   if (d.evidence) els.push(collapsible('依据', [s(d.evidence)]));
   return card(TONE['capability-boundary'], s(d.title ?? '我能做什么'), d.subtitle, els);
@@ -483,11 +539,20 @@ export function validateCard(c) {
   return { ok: errors.length === 0, errors, warnings };
 }
 
-/** 构建 + 校验，一步到位。校验不过直接抛，别把坏卡发出去。 */
+/**
+ * 构建 + 摘符号 + 校验，一步到位。校验不过直接抛，别把坏卡发出去。
+ *
+ * ★ 2026-10-14（Owner）：「守衡的所有输出中不允许包含 `**` 星号」——
+ *   卡片的正文也在这条之内。摘符号这一步放在**建完卡之后、校验之前**：
+ *   · 建完之后 —— 模版自己写进去的 `**能查的我查完再说**` 这类也要摘（它不是模型写的，
+ *     而 Owner 看到的那张回执卡上那句 `本次按**美国市场**口径审查` 正是**代码**写死的）；
+ *   · 校验之前 —— 摘完的卡才是要发出去的那张，让 `validateCard` 校验它。
+ *   实现只有一份：`agent/plain.mjs` 的 `plainifyCard()`（**别在这里再写一遍**）。
+ */
 export function build(kind, data) {
   const fn = BUILDERS[kind];
   if (!fn) throw new Error(`未知卡片类型：${kind}；可选：${Object.keys(BUILDERS).join(', ')}`);
-  const c = fn(data);
+  const c = plainifyCard(fn(data));
   const v = validateCard(c);
   if (!v.ok) {
     const msg = v.errors.map((e) => `  ${e.path}: ${e.msg}`).join('\n');

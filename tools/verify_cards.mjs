@@ -638,7 +638,9 @@ head('J 信封 · 解析、上限执行、以及「标记不许漏进群」');
     const V53 = { state: 'BLOCK', line: '【审查结论：BLOCK】共发现 6 处必须修改。', from: 'chain',
       block: '【审查结论：BLOCK】共发现 6 处必须修改。\n知识库侧 3 条 ／ 模型侧 3 条\n\n'
            + '1.【合规】素材正文  —— **模型侧**（无库内依据）\n   原因：FDA 批准表述\n'
-           + '   依据：无库内依据\n   判定：REVIEW\n   建议：转对应负责人复核。\n\n请修改后重新提交。' };
+           // ★★ 2026-10-14（Owner 裁定「去掉『判定』这个字段」）：夹具里的 `判定：REVIEW` 去掉 ——
+           //   逐条块不再有这一行（三态只在结论行一处）。四条逐条要素照旧：原因/依据/建议。
+           + '   依据：无库内依据\n   建议：转对应负责人复核。\n\n请修改后重新提交。' };
     const RAW_DIFF = '[[card:turn-diff]]\n' + JSON.stringify({
       verdict: '库侧 0 条→3 条，结论 BLOCK 未变', before: '上一次：REVIEW，报「知识库侧 0 条」',
       after: '这一次：BLOCK，报「知识库侧 3 条」', cause: '上游口径修正',
@@ -734,12 +736,24 @@ head('J 信封 · 解析、上限执行、以及「标记不许漏进群」');
       no('J12b 代码建的卡：抬头必须是权威结论行', JSON.stringify(String(headTitle).slice(0, 60)));
     } else ok('J12b 代码建的卡：抬头是权威结论行（PRD §5.3「结论放最前面」）');
 
+    // ★ 2026-10-14 改（Owner：出站一律不许有 `**`）——
+    //   原先这一条查的是**卡里**能不能找到模型原话逐字。而在「出站摘符号」这条规矩生效后，
+    //   卡里的 `**` 已经按规矩被摘掉了 ⇒ 逐字匹配必然失败。
+    //   两件事各有落点，一条都不许丢：
+    //     · **保真**（模型原话一个字不许丢）⇒ 查 `r.data`（槽位里的原文，摘符号**不改它**）；
+    //     · **出站**（不许有星号）⇒ 查 `r.card`（要发出去的那一份）。
+    //   把这两条并成一条会得到一个**二者只能取一**的假冲突 —— 而真正的约束是「都要」。
     const whole = JSON.stringify(r.card ?? {});
-    if (!whole.includes('判定 **事实（确定性逐字匹配）**')) {
-      no('J12c 模型原话一个字不许丢', whole.slice(0, 120));
+    const raw = JSON.stringify(r.data ?? {});
+    if (!raw.includes('判定 **事实（确定性逐字匹配）**')) {
+      // 原文在 data 里都找不到 ⇒ 真丢了（摘符号只该动卡，不该动数据）
+      no('J12c 模型原话一个字不许丢', raw.slice(0, 120));
+    } else if (whole.includes('*')) {
+      // ★ 反向对照：卡里还留着星号 ⇒ 摘符号那一步没接上（Owner 2026-10-14 明确要的那条）
+      no('J12c 出站卡里不许留 markdown 星号', whole.slice(0, 120));
     } else if (publicTextOf(r.card).includes('p-08487282e2d400fe')) {
       no('J12c 模型原话必须进折叠组', '内部标识留在公开格里 —— 折叠区才是它的位置');
-    } else ok('J12c 模型原话逐字留在折叠组里，公开格干净');
+    } else ok('J12c 模型原话逐字留在 data 里 · 卡里已摘符号 · 公开格干净');
 
     // J12d 反向对照：**没有**结论行 ⇒ 仍是纯文本（不许借着 PRD 的名义把闲聊全套成卡）
     const rn = toCardOrText('在。要审什么直接发素材就行。');
@@ -918,6 +932,103 @@ head('J16 boundary 整格作废 · 卡面上一个渲染点都不许留');
   }
 }
 
+
+/* ─────── J17 ★★ 卡面**永不许出现 `[object Object]`**（2026-10-14）───────
+ *  真单（不是构造出来的）：私聊「你可以回答什么问题」⇄ 守衡回了一张
+ *  `capability-boundary`，**能做 7 条 / 受限 6 条 / 做不到 6 条，十九条全是
+ *  `[object Object]`** —— 整张卡等于没答。原文逐字留在
+ *  `PMO/logs/ws_outbound.jsonl:721`，本条判据的第一组数据就是照那条复原的。
+ *
+ *  病根不在模型：**渲染端对对象零防御**。旧写法 `` `- ${x}` `` 对任何对象一律
+ *  `String(x)`，于是「一条能力写成 `{能力, 边界}`」这种完全合理的输出就烂在卡上。
+ *  同一个病根还长在 `s(d.verdict)` / `s(d.evidence)` / `fieldRow` 的 `f.value` 上。
+ *
+ *  ★ 为什么值得单开一组：一条回复里出现 `[object Object]`，读的人**当场就知道
+ *    这东西不能信**（比写错一句话严重）。而在此之前，**没有任何东西在看着它** ——
+ *    修复前 304 项判据一条都不红，因为旧判据只喂**字符串**样例。
+ *    「我只喂过合法的形状」不等于「它只收合法的形状」。
+ *
+ *  ★ 口径（两处，改一处必须改两处）：`cards.mjs::flat1()` 与
+ *    `envelope.mjs::carryCardText()` —— 键名不许丢（键名是模型在表达区分），
+ *    认不出形状才按键值平铺，**不猜含义**。
+ */
+head('J17 卡面永不许出现 [object Object]（对象值必须塌成人话）');
+{
+  // 第一组数据 = 那条真单的形状：每条「能力」是一个对象，键名表达「能力 / 边界」
+  const OBJ_CAN = [
+    { 能力: '读当前群历史', 边界: '最近 50 条，不分页' },
+    { 能力: '看群成员列表', 边界: '只有显示名与 open_id' },
+    { label: '读工作区文本文件', value: '只读，不写' },
+    { title: '执行只读命令', content: '白名单内' },
+  ];
+
+  // J17a 十九个 `[object Object]` 那条真单：三栏都是对象时，卡上一个都不许剩
+  {
+    const built = build('capability-boundary', {
+      title: '我能做什么', verdict: '按三栏给',
+      can: OBJ_CAN, limited: OBJ_CAN, cannot: OBJ_CAN,
+    });
+    const dump = JSON.stringify(built) + renderText(built);
+    if (dump.includes('[object Object]')) no('J17a 能力卡三栏给对象不许印 [object Object]', '真单那个形状又出现了');
+    else ok('J17a 能力卡三栏给对象 ⇒ 塌成人话（十九条全中那个形状）');
+  }
+  // J17a2 **键名与值都要在** —— 只把值抠出来、丢掉键名，等于替模型抹掉了「能力/边界」的区分
+  {
+    const built = build('capability-boundary', { title: 't', can: OBJ_CAN });
+    const txt = renderText(built);
+    const lost = ['读当前群历史', '最近 50 条，不分页', '能力', '边界'].filter((w) => !txt.includes(w));
+    if (lost.length) no('J17a2 对象摊平后键名与值都不许丢', `丢了：${lost.join(' / ')}`);
+    else ok('J17a2 对象摊平后键名与值都在（键名是模型在表达区分，不许替它取舍）');
+  }
+  // J17b 同一个病根换张卡：`fields[].value` 给对象照样烂 ⇒ 一起收口
+  {
+    const built = build('query-answer', {
+      title: 't', verdict: 'v', fields: [{ label: '窗口', value: { 起: '09-01', 止: '09-30' } }],
+    });
+    const dump = JSON.stringify(built) + renderText(built);
+    if (dump.includes('[object Object]')) no('J17b fields[].value 给对象不许印 [object Object]', '漏了');
+    else ok('J17b fields[].value 给对象 ⇒ 也塌成人话（同一病根的第二张卡）');
+  }
+  // J17c 源码级接线：`String()` 台面上不许再有裸插对象的位置
+  //    （不是全文禁 `${x}` —— `cards.mjs` 的 `${q}[${i}]` 是**路径字符串**，合法）
+  //    ⚠️ 必须先**剥掉注释**再扫：本组的修复说明里逐字引用了旧写法
+  //    `` `- ${x}` ``，不剥就会红在**文档**上（第一版就是这么红的，红得没道理）。
+  {
+    const raw = fs.readFileSync(path.join(CARDS_DIR, 'cards.mjs'), 'utf8');
+    const code = raw
+      .replace(/\/\*[\s\S]*?\*\//g, '')      // 块注释
+      .replace(/(^|[^:])\/\/[^\n]*/g, '$1'); // 行注释（避开 `https://`）
+    const bad = [...code.matchAll(/\$\{\s*(?:d\.\w+|x|f\.(?:label|value)|v)\s*\}/g)].map((m) => m[0]);
+    if (bad.length) no('J17c 源码里不许再有裸插对象的模板位', `还有 ${bad.length} 处：${bad.join(' · ')}`);
+    else ok('J17c 源码里没有裸插对象的模板位（对象一律过 s()）');
+  }
+  // J17d 反向对照：**拆掉修复必须精确变红**。
+  //   喂的是 `s()` 的**旧实现**（`String(v)`），卡上必须重新长出 `[object Object]`。
+  //   红不了 ⇒ 说明 J17a 是恒绿的，等于没守。
+  {
+    const OLD = (v) => String(v);
+    const lines = OBJ_CAN.map((x) => `- ${OLD(x)}`).join('\n');
+    if (!lines.includes('[object Object]')) no('J17d 反向对照：旧实现必须被抓', '喂了 String(v) 却没长出 [object Object]');
+    else ok('J17d 反向对照：旧实现重新长出 [object Object]（J17a 不是恒绿）');
+  }
+  // J17e 不回归：**纯字符串**那条路一个字都不许变
+  {
+    const str = ['A：一条', 'B：两条'];
+    const built = build('capability-boundary', { title: 't', can: str, cannot: ['联网'] });
+    const txt = renderText(built);
+    if (!txt.includes('- A：一条\n- B：两条') || !txt.includes('- 联网')) {
+      no('J17e 字符串路径不许被这次修复改坏', txt.slice(0, 200));
+    } else ok('J17e 字符串路径照旧（修复只加防御，不改合法输入）');
+  }
+  // J17f 边界：空值仍走「（未填）」占位 —— 塌平之后是空的，也要看得见缺什么
+  {
+    const built = build('capability-boundary', { title: 't', can: [{ 能力: '', 边界: '' }] });
+    const txt = renderText(built);
+    if (txt.includes('[object Object]')) no('J17f 空值对象不许印 [object Object]', '漏了');
+    else if (!txt.includes('（未填）')) no('J17f 摊平后为空要走（未填）占位', txt.slice(0, 200));
+    else ok('J17f 摊平后为空 ⇒ 仍是（未填）占位（看得见缺什么）');
+  }
+}
 
 /* ─────── J15 报告链接**不许在一张卡上出现两次**（2026-10-13，Owner 那张视频卡）───────
  *  实测那张卡（真实结构复原）：可见格是「我读到了 ＋ → 查看完整问题清单与修改建议：…」，
