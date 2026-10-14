@@ -22,6 +22,9 @@
 set -uo pipefail
 
 REPO="/Users/lute/Project/audit_multi_content"
+LARK="${LARK_CLI:-$HOME/.dsh/bin/lark-cli}"
+ALERT_CHAT="${DAILY_GIT_PUSH_CHAT:-oc_7775e2dacb6f2ebc9789cd6e681de5f7}"
+ALERT=1
 WHY=""; RULER=""; DRY=0; SELFTEST=0; LEDGER=""
 
 while [ $# -gt 0 ]; do
@@ -33,6 +36,7 @@ while [ $# -gt 0 ]; do
     --ruler=*)  RULER="${1#--ruler=}" ;;
     --ruler)    shift; RULER="${1:-}" ;;
     --dry-run)  DRY=1 ;;
+    --no-alert) ALERT=0 ;;
     --selftest) SELFTEST=1 ;;
     -h|--help)  sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
     *) echo "未知参数: $1"; exit 2 ;;
@@ -49,6 +53,18 @@ ledger() {   # $1=repo $2=verdict $3=detail
     "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$1" "$2" "$3" "${WHY//\"/\'}" >> "$LEDGER" 2>/dev/null || true
 }
 
+notify() {   # $1=正文 —— 只在「拦截 / 失败」时调用；发不出去也不影响退出码
+  [ "$ALERT" = "1" ] || { log "（--no-alert：未推飞书）"; return 0; }
+  if [ ! -x "$LARK" ]; then log "⚠️ 找不到 lark-cli ⇒ 告警没发出去（已进日志与台账）"; return 0; fi
+  if [ "${KB_ALERT_FORCE_SEND:-0}" = "1" ]; then log "[自证] 未真发；正文长度 ${#1}"; return 0; fi
+  if PATH="$HOME/.dsh/bin:$PATH" "$LARK" im +messages-send --as bot --profile dsh-kb \
+       --chat-id "$ALERT_CHAT" --text "$1" >/tmp/daily_git_push.alert.log 2>&1; then
+    log "  📣 已推飞书告警"
+  else
+    log "  ⚠️ 告警发送失败（已进日志与台账）：$(tail -1 /tmp/daily_git_push.alert.log | cut -c1-160)"
+  fi
+}
+
 push_one() {   # $1=repo ⇒ 0/3/4
   local repo="$1" br head remote_head n
   [ -d "$repo/.git" ] || { log "⛔ 不是 git 仓：$repo"; ledger "$repo" error not-a-repo; return 2; }
@@ -63,7 +79,7 @@ push_one() {   # $1=repo ⇒ 0/3/4
     log "  跑尺子：$RULER"
     if ! eval "$RULER" >/tmp/daily_git_push.ruler.log 2>&1; then
       log "  ⛔ 尺子红了 ⇒ **不提交** ｜ $(tail -2 /tmp/daily_git_push.ruler.log | tr '\n' ' ' | cut -c1-180)"
-      ledger "$repo" blocked ruler-red; return 3
+      ledger "$repo" blocked ruler-red; notify "⚠️ 日更收尾 git：**尺子红 ⇒ 未提交** ｜ 仓 ${repo} ｜ 尺子 ${RULER} ｜ 待提交 ${n} 条 ｜ 台账 PMO/logs/daily-git-push.ndjson"; return 3
     fi
     log "  ✅ 尺子过"
   fi
@@ -75,16 +91,16 @@ push_one() {   # $1=repo ⇒ 0/3/4
   head="$(git rev-parse HEAD)"; log "  已提交 ${head:0:9}"
   if ! git push origin "$br" >/tmp/daily_git_push.push.log 2>&1; then
     if grep -qE "non-fast-forward|fetch first|\[rejected\]" /tmp/daily_git_push.push.log; then
-      log "  ⛔ 远端领先（别人推过）⇒ **不 force**，停下交人处理"; ledger "$repo" blocked remote-ahead; return 4
+      log "  ⛔ 远端领先（别人推过）⇒ **不 force**，停下交人处理"; ledger "$repo" blocked remote-ahead; notify "⚠️ 日更收尾 git：**远端领先 ⇒ 未推送、未 force** ｜ 仓 ${repo} ｜ 需人处理（先 git pull --rebase 再重试）；**机器不许 force**"; return 4
     fi
-    log "  ⛔ push 失败：$(tail -2 /tmp/daily_git_push.push.log | tr '\n' ' ' | cut -c1-200)"
+    log "  ⛔ push 失败：$(tail -2 /tmp/daily_git_push.push.log | tr '\n' ' ' | cut -c1-200)"; notify "❌ 日更收尾 git：**push 失败**（rc=4）｜ 仓 ${repo} ｜ 末行：$(tail -1 /tmp/daily_git_push.push.log | cut -c1-140)"
     ledger "$repo" error push-failed; return 4
   fi
   remote_head="$(git ls-remote origin "refs/heads/$br" 2>/dev/null | awk '{print $1}')"
   if [ "$head" = "$remote_head" ]; then
     log "  ✅ 已推送并读回一致：${head:0:9}"; ledger "$repo" pushed "$head"; return 0
   fi
-  log "  ⛔ 读回不一致（本地 ${head:0:9} ≠ 远端 ${remote_head:0:9}）"; ledger "$repo" error readback-mismatch; return 4
+  log "  ⛔ 读回不一致（本地 ${head:0:9} ≠ 远端 ${remote_head:0:9}）"; ledger "$repo" error readback-mismatch; notify "❌ 日更收尾 git：**推送后读回不一致**（本地 ${head:0:9} ≠ 远端 ${remote_head:0:9}）⇒ 不算推成功"; return 4
 }
 
 selftest() {
