@@ -140,6 +140,22 @@ export function sameOrigin(a, b) {
   const famOk = !fa || !fb || fa === fb;
   const equal = ea === eb;
   const r = lcsLen(ea, eb);
+  // ══════════════════════════════════════════════════════════════════════════
+  // ★★ 2026-10-14：**「有重叠」才是裁决，本函数原先只写了「完全相等」** ────────────
+  // ══════════════════════════════════════════════════════════════════════════
+  //   裁决原文（本文件题注，2026-10-08 Owner）：
+  //     「两侧命中的**逐字片段有重叠** ⇒ 算同一条」。
+  //   实现却只认 `ea === eb`，把裁决**收窄了一档**；而两侧片段的**长度天然不同**：
+  //     · 库侧给的是**命中词/命中正则**（P0 快路实测：`最好`，或 `最\s*(好|佳|…)`）；
+  //     · 模型侧给的是**逐字引用的原句**（实测：`m8 pro吸奶器是最好的吸奶器`）。
+  //   ⇒ 两者永远不相等 ⇒ **交集在实跑里一次都没成立过**（实测：123 次双轨，
+  //     `双轨确认` 与 `冲突降 REVIEW` **全为 0**，产出 100% 走并集）。
+  //   ⇒ 现在按裁决的字面来：一方的片段**完整包含**另一方 ⇒ 有重叠。
+  //   ⚠️ 下限 2 字：单字（「好」「大」）在中文长句里必然撞上，那不是重叠，是噪声。
+  //   ⚠️ 类目族不同**不拦**（与 `equal` 同一口径）：两侧本就是两套词表，
+  //      拦掉它等于把裁决重新废掉。差别由 `why` 如实说出来、并在卡上留注（`same_origin_note`）。
+  const overlap = !equal && ea.length >= 2 && eb.length >= 2
+    && (ea.includes(eb) || eb.includes(ea));
   // ── 精确相等 ⇒ **算同一条，且不看类目族** ─────────────────────────────────────
   //
   // ★ 这一条是**被测试逼出来的**（2026-10-08）。原设计把「类目族相同」放在前面当硬闸，
@@ -152,9 +168,12 @@ export function sameOrigin(a, b) {
   //   代价说清：同一个词可能被两侧当成**不同**问题（「静音」既可能是措辞绝对化、也可能是
   //   产品参数虚假）。那种情况现在会**并成一条**，靠结论里那句注（`same_origin_note`）
   //   让人看见两侧依据、自己判断 —— 而不是靠代码替人决定。
-  if (equal) {
-    return { same: true, r, equal,
-             why: `两侧逐字片段相同（「${String(a?.excerpt ?? a?.matched_term ?? '').trim()}」）`
+  if (equal || overlap) {
+    return { same: true, r, equal, overlap,
+             why: (equal
+               ? `两侧逐字片段相同（「${String(a?.excerpt ?? a?.matched_term ?? '').trim()}」）`
+               : `两侧逐字片段**有重叠**（库侧「${String(a?.excerpt ?? a?.matched_term ?? '').trim()}」`
+                 + ` ／ 独立复核侧「${String(b?.excerpt ?? b?.matched_term ?? '').trim()}」）`)
                   + (famOk ? '' : `；类目族不同（${fa || '—'} ／ ${fb || '—'}）—— 两侧词表不同，**
 以逐字片段为准**`) };
   }
@@ -1096,6 +1115,10 @@ function _kbFromEngineJson(answer, engine = null) {
       sub,
       severity: String(r.action || '').toLowerCase() === 'block' ? 'BLOCK' : 'REVIEW',
       reason: String(r.reason || '').slice(0, 300),
+      // ★ 2026-10-14：链这条来路**本来就把 `exc` 算出来了**（`ev.excerpt || original_text`），
+      //   却只拼进 `basisLine` 的字符串里没挂在条目上 ⇒ `sameOrigin` 拿不到它。
+      //   「判据抓对了、搬运却在这一行把字段丢了」—— 与 2026-10-08 `basisLine` 那次同一个形状。
+      excerpt: exc || null,
       basis: 'kb', basisLine, reasonLine: String(r.reason || '').slice(0, 300),
       // ★ 2026-10-09：**引擎 JSON 这条来路也要带 `suggestionLine`**。
       //   库侧条目有**两条来路**：正则抠逐条块（`kbFindingsOf` 下半段）与
@@ -1177,7 +1200,44 @@ export function kbHitsBlockOf(engine) {
  *
  * @param {string} answer 链给的结论原文
  */
-export function kbFindingsOf(answer, engine = null) {
+/**
+ * ★★ 2026-10-14：**把「真实命中文字」接上来 —— 这正是「同问题取交集」缺的那一格**。
+ *
+ * 裁决（2026-10-08 Owner，见本文件题注）：「两侧命中的**逐字片段有重叠** ⇒ 算同一条」。
+ * 而实跑里 `sameOrigin` 恒返回「一侧没有逐字命中片段（无从比）」——
+ * **库侧条目两条来路都不带 `excerpt`/`matched_term`**，判据要的东西根本不在数据里。
+ * ⇒ 交集在**实测 123 次双轨里一次都没成立过**（`双轨确认`＋`冲突降 REVIEW` 全为 0）。
+ *
+ * 这一格的来路是**搬**不是造：P0 快路 CLI 的 `findings[].matched[].{line_text, span}`
+ * 就能切出**真实命中文字**。为什么不拿收据里印的「命中正则」（如 `最\s*(好|佳|…)`）当片段：
+ * 正则永远不可能与模型侧引用的原句「重叠」，拿它去比等于没接。
+ * 取不到 ⇒ **不挂**（不编一个空串去骗判据）。
+ */
+export function p0MatchedMap(p0Findings) {
+  const byPattern = new Map();
+  for (const f of (Array.isArray(p0Findings) ? p0Findings : [])) {
+    for (const m of (f?.matched ?? [])) {
+      const pat = String(m?.pattern ?? '');
+      if (!pat || byPattern.has(pat)) continue;
+      const lt = String(m?.line_text ?? '');
+      const sp = Array.isArray(m?.span) ? m.span : null;
+      if (!sp || sp.length !== 2 || !lt) continue;
+      const txt = lt.slice(Number(sp[0]), Number(sp[1])).trim();
+      if (txt) byPattern.set(pat, txt);
+    }
+  }
+  return byPattern;
+}
+
+/** 从位置串里取回「命中片段」（P0 收据印成 `` `X` ``，多个用「、」连）⇒ 换成**真实命中文字**。 */
+export function excerptFromLocation(location, byPattern) {
+  if (!byPattern || !byPattern.size) return null;
+  const hits = [...String(location ?? '').matchAll(/`([^`]+)`/g)]
+    .map((x) => byPattern.get(x[1])).filter(Boolean);
+  return hits.length ? [...new Set(hits)].join('、') : null;
+}
+
+export function kbFindingsOf(answer, engine = null, p0Findings = null) {
   // ══════════════════════════════════════════════════════════════════════════
   // ★★ 2026-10-08（第六批）：**结构化优先 —— 先找引擎 JSON 的 `risk_items`**。
   // ══════════════════════════════════════════════════════════════════════════
@@ -1202,6 +1262,9 @@ export function kbFindingsOf(answer, engine = null) {
   //   原先只挂在 `coverage` 上（且只在覆盖缺口时才挂）⇒ 常规单子一个字都没有。
   if (structured) return { ...structured, kbHitsBlock: kbHitsBlockOf(engine) };
 
+  // ★★ 2026-10-14：P0 快路的**真实命中文字**映射（正则 ⇒ 命中文字）。
+  //   没有它，「同问题取交集」判据恒「无从比」—— 见 `p0MatchedMap` 的说明。
+  const byPattern = p0MatchedMap(p0Findings);
   const out = []; let coverage = null;
   const candidates = [];        // ★ 非权威候选线索（正则这条来路也要分流）
   const lines = String(answer ?? '').split('\n');
@@ -1238,6 +1301,9 @@ export function kbFindingsOf(answer, engine = null) {
     const item = { location: m[2].trim().slice(0, 120) || '（未给位置）', category, sub,
                    severity: /必须修改/.test(String(answer)) ? 'BLOCK' : 'REVIEW',
                    reason: m[2].trim().slice(0, 300), basis: 'kb', suggestionLine,
+                   // ★ 2026-10-14：**真实命中文字**（不是收据里印的那个正则）。
+                   //   它就是 `sameOrigin` 要比的那一格；取不到时是 null，**不编**。
+                   excerpt: excerptFromLocation(m[2].trim(), byPattern),
                    basisLine, reasonLine };
     if (category === COVERAGE_CATEGORY) { coverage ??= item; continue; }
     // ★★ 2026-10-14：**正则这条来路也认「非权威候选」**（与结构化那条同口径）。
@@ -1419,6 +1485,22 @@ export function selftestExtract() {
   eq('⑩ 反向对照：PASS 结论 ⇒ 算覆盖到了',
      kbCoveredOf('【审查结论：PASS】未发现已知底线风险。'), true);
 
+  // ★★ 2026-10-14：**P0 的「真实命中文字」必须被挂上** —— 交集判据缺的就是这一格 ──────
+  //   样本是**真实产出物的形状**（`kb/l5/p0_fastpath.py --json` 的 `findings[].matched[]`
+  //   与 `_prd_block()` 印出来的那行逐字抄下来），不是我编的短句：
+  //   收据里印的是**命中正则**（`最好` 这条恰好是字面量；H05 那条会是 `最\s*(好|佳|…)`），
+  //   而判据要比的是**命中文字**。
+  const P0 = [{ rule_code: 'V02', matched: [{ kind: 'regex', pattern: '最好', line: 1,
+                 span: [10, 12], line_text: 'm8 pro吸奶器是最好的吸奶器，这句话能过吗？' }] }];
+  const RCPT = '【审查结论：BLOCK】共发现 1 处必须修改。\n\n'
+    + '1.【绝对化与安全承诺-绝对化用语】全文，逐字命中 `最好`\n'
+    + '  **原因**：按 PRD §7.3 判定\n';
+  eq('⑩ ★P0 的真实命中文字被挂成 excerpt（不是收据里那个正则）',
+     kbFindingsOf(RCPT, null, P0).findings[0].excerpt, '最好');
+  // 反向对照：不给 P0 结构化 ⇒ **不许编**（挂 null ⇒ 判据自己会说「无从比」，不会假装同源）
+  eq('⑩ 反向对照：不给 p0_findings ⇒ excerpt 为 null（不编）',
+     kbFindingsOf(RCPT, null, null).findings[0].excerpt, null);
+
   // ── 同源判据（2026-10-08）────────────────────────────────────────────
   //   真事故：库侧「平台与促销-静音绝对化表述」+ 模型侧「措辞表达」，位置与类目两个都不同
   //   ⇒ 按原规则算两条 ⇒ 问题数虚高（Owner 那张卡写 4 处、实际 3 处）。
@@ -1449,10 +1531,42 @@ export function selftestExtract() {
     // 反向对照②：**逐字片段不相同**时不许因为「位置/类目像」就并
     // ⚠️ 位置必须**与库侧不同**：写「全文」的话键就匹配上了（那是原本的规则、合并是对的），
     //    这条用例就**没隔离住要测的东西** —— 第一版我写错了，断言直接红。
+    // ★★ 2026-10-14：**这一条反向对照的口径换了，不是它坏了** ──────────────────────
+    //   它原先钉的是「片段**完全相等**才并」—— 那是实现的收窄，不是裁决。
+    //   裁决（本文件题注）是「逐字片段**有重叠** ⇒ 同一条」，而「静音」⊂「完全静音」
+    //   就是有重叠 ⇒ **应当并**。旧断言继续留着，等于拿被推翻的口径去判新口径。
+    //   ⇒ 期望值由 2 改成 1；**真正的反向对照**换成下面「毫无重叠」那条。
     const mo3 = [{ location: '第 2 段', category: '平台与促销', severity: 'REVIEW',
                    excerpt: '完全静音', reason: 'x' }];
-    eq('⑪ 反向对照：片段**不相同** ⇒ 不许合并（哪怕位置与类目都对得上）',
-       mergeFindings(kb, mo3).items.length, 2);
+    eq('⑪ 有重叠（「静音」⊂「完全静音」）⇒ 合并成一条',
+       mergeFindings(kb, mo3).items.length, 1);
+
+    // 反向对照（新）：**毫无重叠**的两个片段 ⇒ 一个字都不许并（哪怕位置与类目都对得上）
+    const mo3b = [{ location: '第 2 段', category: '平台与促销', severity: 'REVIEW',
+                    excerpt: '包装破损', reason: 'x' }];
+    eq('⑪ 反向对照：片段**毫无重叠** ⇒ 不许合并（哪怕位置与类目都对得上）',
+       mergeFindings(kb, mo3b).items.length, 2);
+
+    // 反向对照（新）：**单字**不构成重叠 —— 单字在中文长句里必然撞上，那是噪声不是同源
+    // ⚠️ 两侧必须一个是单字、一个是长串（「静」⊂「完全静音」）：两侧都写「静」会落进
+    //    `equal` 分支，**根本没测到下限**（第一版我就这么写错了，断言当场红）。
+    eq('⑪ 反向对照：单字片段（「静」⊂「完全静音」）不构成重叠 ⇒ 不许合并',
+       mergeFindings([{ ...kb[0], excerpt: '静' }],
+                     [{ location: '第 2 段', category: '平台与促销', severity: 'REVIEW',
+                        excerpt: '完全静音', reason: 'x' }]).items.length, 2);
+
+    // ★★ 真实产出物（2026-10-14 实跑那一单：P0 快路 + 模型侧逐字原句）──────────────
+    //   库侧片段 = **命中词**「最好」；模型侧片段 = **逐字引用的原句**。
+    //   修前：两者不相等 ⇒ 判成「不同的问题」⇒ 走并集（实测 123 次双轨全如此，交集 0 次）。
+    const rReal = mergeFindings(
+      [{ location: '全文，逐字命中 `最好`', category: '绝对化与安全承诺',
+         severity: 'BLOCK', excerpt: '最好' }],
+      [{ location: '素材正文（第一句：m8 pro吸奶器是最好的吸奶器）', category: '合规',
+         severity: 'REVIEW', excerpt: 'm8 pro吸奶器是最好的吸奶器' }]);
+    eq('⑪ ★真实形状：库侧命中词「最好」／模型侧当句 ⇒ **同一条**（交集成立）',
+       rReal.items.length, 1);
+    eq('⑪ ★真实形状：两侧都命中 ⇒ 计入交集那一支（严重度不等 ⇒ 冲突降 REVIEW）',
+       rReal.stats.both + rReal.stats.conflict, 1);
 
     // ★ 一条结构性事实，钉住它免得下一个人以为 R 门限覆盖了全部：
     //   2 字命中词的 R 最大只能是 2。
@@ -1702,8 +1816,7 @@ export function evidenceBlock(items, { max = 12 } = {}) {
     : '';
   // ★ 2026-10-14：编号条目之间也空开一行 —— 与 PRD §5.3 的分段口径同源
   //   （这处不是 PRD 那一块，是查证笔记；但同一张卡里两种编号列表的间距不该不一样）。
-  // ★ 2026-10-14：编号条目之间也空开一行 —— 与 PRD §5.3 的分段口径同源
-  //   （这处不是 PRD 那一块，是查证笔记；但同一张卡里两种编号列表的间距不该不一样）。
+  return head + '\n' + lines.slice(0, max).join('\n\n') + tail;
 }
 
 /**
@@ -2043,6 +2156,7 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   //   为什么要有它：库侧只在**它自己的** `issue_count >= 3` 时建 docx，而卡里那个数是
   //   `total`（含模型侧与库侧未并进的）—— 实测 6 vs 1 ⇒ 库侧不给链接，而按 PRD 该给。
   //   传进来时它就是**权威**：本仓建成了就用它，没建成传 null（照实说没拿到）。
+  const _ru = reportUrlOverride || kb?.reportUrl || null;
   // ★★ 2026-10-14：`reportNote` 的分段要用「这一单会不会走汇总」→ 而 `summarized`
   //   又要用 `reportNote` 抠出的链接判 ⇒ **循环依赖**。解法：在 `_ru` 刚拿到时
   //   先按**等价判据**（≥3 且 `_ru` 是 http(s)）算一个先行量给它用；
@@ -2111,8 +2225,6 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   //
   //   ★ 拿不到链接时**如实说、并说清是哪一种拿不到** —— 不许编一个链接，也不许默默不给
   //     （库规：「一个点不开的链接比空格更坏」；而「没说为什么没有」比两者都坏）。
-  // ★ 2026-10-14：前导 `\n\n`（**不是 `\n`**）—— PRD §5.3.2 的分段是
-  //   `· <大类>类问题：N 个` ␤ `→ 查看完整问题清单…`，两者之间要有空行。
   // ★★ 2026-10-14（Owner 第二次裁定）：这个前导换行**按路径分**，两种形状不一样：
   //
   //   · **≥3 汇总**（`summarized`）：汇总行**紧接**结论行（只一个空行，来自拼装处），
@@ -2204,6 +2316,11 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   //   ⇒ 只认**行内那一句**，不管它在第几行、前面有没有东西。
   const linkLine = (reportNote.match(/→ 查看完整问题清单与修改建议：(.*)$/m) || [])[1] || '';
   const hasReportLink = /^https?:\/\//.test(linkLine.trim());
+  // ★ 权威定义：≥3 **且** reportNote 里抠出来的确实是 http(s) 链接。
+  //   与上面 `_willSummarize`（按 `_ru` 直接判）**等价** —— 两处都在，是因为
+  //   `reportNote` 的拼装要用到它、而它又要用 `reportNote` 抠出的链接；
+  //   改判据时**两处一起改**（这是本文件里我为数不多允许「同一件事两处」的地方，
+  //   代价写在这里，免得下一个人改一处就漂移）。
   const summarized = total >= REPORT_LINK_MIN_ISSUES && hasReportLink;
   // ★★ 2026-10-14（Owner：「审核结论中 1，2...每条之间需要空一行的 …… 都要跟 prd 对齐」）──
   //
@@ -2231,30 +2348,7 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   //   ⇒ 口径：**条目在这里先收尾成一个整块**（去掉各自尾随的空行），
   //     块间与块后的空行由**拼装那一处**统一给。空行只有一个来源，就不会再叠。
   const itemBlocks = items.map((b) => String(b ?? '').replace(/\n+$/, ''));
-  // ★★ 2026-10-14（Owner：「审核结论中 1，2...每条之间需要空一行的 …… 都要跟 prd 对齐」）──
-  //
-  //   PRD §5.3.2 / §5.3.3 的逐字形状（回源飞书 PRD wiki rev 36 ＋ 本地 `kb/.work/prd.md`，
-  //   两份一致；下面 `␤` 是空行）：
-  //
-  //       【审查结论：REVIEW】共发现 2 处需人工确认。
-  //       ␤
-  //       1.【合规-医疗宣称】……
-  //         原因：……
-  //         依据：……
-  //       ␤
-  //       2.【消费者安全-使用姿势】……
-  //       ␤
-  //       建议转 @法务 @医学顾问 复核。
-  //
-  //   ⇒ **结论行之后一个空行 · 每条之间一个空行 · 动作行之前一个空行**。
-  //
-  //   改前实测的坏形状（不是「一条空行都没有」这么简单，而是**空行数不对**）：
-  //     · 2 条：结论行→第 1 条**没有**空行；第 2 条之后**三个**空行才到动作行；
-  //     · ≥3 汇总：链接与动作行之间**两个**空行。
-  //   根因是三个空行来源叠在一起（`renderMergedItem` 结尾自带的空行、`items.join('\n\n')`
-  //   的分隔、拼装处的 `\n\n`）—— 各加一段就多一段。
-  //
-  //   ⇒ 口径：**条目在这里先收尾成一个整块**（去掉各自尾随的空行），
+  const bodyText = summarized ? categorySummary(list, total) : itemBlocks.join('\n\n');
   // ══════════════════════════════════════════════════════════════════════════
   // ★★ 2026-10-13（Owner 裁定）：**库侧/模型侧的口径读数与解释不上卡，只留在守衡的记忆里**
   // ══════════════════════════════════════════════════════════════════════════
@@ -2331,15 +2425,8 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
            //   拼装点原先写的是 `${summarized ? '' : '\n'}\n\n` —— 逐条那一路因此多出一个空行、
            //   汇总那一路则把「链接→动作行」挤成零空行。现在统一：
            //   `bodyText` 有内容就给一个空行，没有就不留孤立的空行。
-           // ★★ 2026-10-14：**分段空行只从这一处给**（PRD §5.3.2 的逐字形状）——
-           //   结论行 ␤ 正文（逐条之间已由上面 `bodyText` 的 `join('\n\n')` 空开）␤ 动作行。
-           //   拼装点原先写的是 `${summarized ? '' : '\n'}\n\n` —— 逐条那一路因此多出一个空行、
-           //   汇总那一路则把「链接→动作行」挤成零空行。现在统一：
-           //   `bodyText` 有内容就给一个空行，没有就不留孤立的空行。
            block: `${line}\n\n${bodyText}${reportNote}${hitsNote}`
              + `${bodyText ? '\n\n' : '\n'}${action}` };
-}
-
 }
 
 /**
@@ -2362,7 +2449,6 @@ export function categorySummary(list = [], total = null) {
     const fam = catFamily(f?.category) || '未分类';
     counts.set(fam, (counts.get(fam) ?? 0) + 1);
   }
-  // ★ 2026-10-14：**行间空一行**（PRD §5.3.2 的 `· …` 三行之间各有一个空行）。
   // ★★ 2026-10-14（Owner 第二次裁定，**推翻我上一轮的做法**）：
   //   汇总行**不空行**。PRD §5.3.2 / §5.3.3 的 ≥3 块逐字是：
   //       【审查结论：REVIEW】共发现 5 处需人工确认。
@@ -2383,15 +2469,10 @@ export function categorySummary(list = [], total = null) {
   const n = total ?? list.length;
   if (n > list.length) {
     // ⚠️ 这一行**必须留**：没有它，读者把分类行加起来会小于抬头那个数
-  if (!rows.length) rows.push('·（本次没有并进任何逐条）');
-  const n = total ?? list.length;
-  if (n > list.length) {
-    // ⚠️ 这一行**必须留**：没有它，读者把分类行加起来会小于抬头那个数
     //   （实测 19:08 那单：抬头 12、分类只有 7）—— 那是「卡内算术不闭合」，
     //   比多一句话坏得多。它只说「还有 N 条在哪」，不下口径解释。
     rows.push(`· 另有 **${n - list.length} 条**（明细在报告里）`);
   }
-  // 逐行空开（与库侧 `_summary_lines` 同形：那边也是每行之间空一行）
   // 汇总行**紧挨着**输出（不空行）—— 见上面那条口径
   return rows.map((r) => r.replace(/\n+$/, '')).join('\n');
 }

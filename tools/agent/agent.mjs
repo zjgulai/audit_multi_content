@@ -751,7 +751,13 @@ export async function runSubmissionGate({
     imageCount: inbound?.imageCount ?? 0,
     videoCount: inbound?.videoCount ?? 0,
   });
-  if (!gate.yes) return { question, gate, chainBlock: '', chainRan: false, chainMs: 0, verdict53: null };
+  if (!gate.yes) {
+    // ★ 2026-10-14：闸门**判「不是送审」时也要留一行读数** —— 因为一次事故正是
+    //   「它判成了送审」。原先这里什么都不打，于是「闸门有没有把这条挡下来」
+    //   在盘上是一行不存在的日志（§2.4.1：判据没盖住的那一跳，就是事故所在的那一跳）。
+    if (gate.guard) console.log(`[agent] 🧭 送审闸门：不起链 —— ${gate.why}`);
+    return { question, gate, chainBlock: '', chainRan: false, chainMs: 0, verdict53: null };
+  }
 
   const input = reviewGate.chainInput({ question, inbound });
   // ★ 2026-10-12（Owner）：「这一步要 6~30 分钟」**是优化前的旧估计，删掉**。
@@ -836,7 +842,12 @@ export async function runSubmissionGate({
       //   「《知识库》（未给条款号）（锚点：—）」⇒ 命中文字 / 条款号 / 锚点 / 飞书直链全丢。
       //   `res.engine` 是 `review_run.sh` 原样落盘的那份引擎 JSON；读不到就是 null
       //   ⇒ `kbFindingsOf` **原样退回**老路（不许静默少报）。
-      const kb = kbFindingsOf(res?.answer, res?.engine);
+      // ★★ 2026-10-14：第三格 = P0 快路的**结构化逐条**（`res.p0_findings`）。
+      //   没有它，库侧条目只有「命中正则」、没有「逐字命中片段」⇒ `sameOrigin`
+      //   恒判「无从比」⇒ 方案 §④「同一个问题 → 取交集」**一次都不成立**
+      //   （实测 123 次双轨：`双轨确认`＋`冲突降 REVIEW` 全为 0）。
+      //   链那条来路不吃这一格（它走 `res.engine.risk_items`，见 `_kbFromEngineJson`）。
+      const kb = kbFindingsOf(res?.answer, res?.engine, res?.p0_findings);
       // ★ 库侧的**结构化读数**（2026-10-07）：结论与条数从这里取 —— 不再只靠正则抠中文答案。
       //   病灶（当天实测，已复现）：PRD §5.3.3 规定问题数 ≥3 时库侧只出分类汇总 ⇒
       //   逐条正则抠不到 ⇒ 库侧被读成「0 条」⇒ 合并把**库侧的 BLOCK 降级成 REVIEW**。
@@ -2291,7 +2302,16 @@ export async function handleMessage(event, {
                      // ★ 2026-10-05 加：送审闸门自己的读数 —— 判没判、判成什么、链跑成没有、花了多久。
                      //   没有这三个数，「闸门到底有没有生效」就只能靠猜（而猜错的方向是「以为它跑了」）。
                      gate: gate ? { yes: gate.yes, kind: gate.kind, why: gate.why } : null,
-                     chain: gate?.yes ? { ran: chainRan, ms: chainMs } : null,
+                     // ★ 2026-10-13 加：**这一单落到结论表的哪一行**。
+                     //   为什么加：本机批跑器要把结论回填进采集表，而媒体行**没法按素材原文认领**
+                     //   （图片行送的是 post、链记的「送审问题」是图注；视频行送的是 media、
+                     //    链记的是一段生成的块头 ⇒ 文本键结构上对不上；退到时间窗又会捡到
+                     //    链侧那行**空的**）。实测栽过两次：`问题数量` 先被写成 0，视频行被写成 PASS/0。
+                     //   ⇒ 让内核把**它自己刚写的那一行**报出来，回填就不必猜。
+                     //   形态与上面「模型跳失败」那条路**逐字同形**（那边本来就有 publish 这一格）。
+                     chain: gate?.yes ? { ran: chainRan, ms: chainMs,
+                       publish: g?.publish ? { ok: g.publish.ok, action: g.publish.action,
+                                               record_id: g.publish.record_id ?? null } : null } : null,
                      // ★ 2026-10-08 加：「链只跑一次」那条护栏自己的读数。
                      //   没有它，命中只是一个**没出现的日志**（§2.4 那个病）——
                      //   而这件事的代价是十几分钟 + 一次重复写飞书，必须看得见。

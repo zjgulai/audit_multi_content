@@ -1860,6 +1860,13 @@ register('kb_review_chain', {
           rule_codes: (p0.findings ?? []).map((f) => f.rule_code),
           layer_preflight: p0.layer_preflight,
         },
+        // ★★ 2026-10-14：「同问题取交集」缺的那一格 —— P0 的**结构化逐条**原样带出去。
+        //   病灶：双轨的对齐判据比的是两侧的**逐字命中片段**，而库侧条目一直只有
+        //   「命中正则」（实测 `最\s*(好|佳|…)`）；模型侧给的是**逐字引用的原句**
+        //   ⇒ 两者永远不重叠 ⇒ **交集在实测 123 次双轨里一次都没成立过**。
+        //   这一格**只搬不算**（值来自 CLI 自己的 `matched[].{line_text, span}`），
+        //   不新增判据、不改任何结论、不改任何版式。
+        p0_findings: Array.isArray(p0.findings) ? p0.findings : [],
         // ★ 2026-10-05（Owner 指出 BLOCK 却问题数量空 = 自相矛盾）：把引擎**已经给出**的
         //   结构化字段带出去。原先只带 mode/elapsed/patterns，落表侧取不到 ⇒ 表里恒空。
         //   **值来自 `kb/l5/p0_fastpath.py` 自己的输出，这里只搬不算。**
