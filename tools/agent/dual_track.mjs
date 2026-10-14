@@ -958,6 +958,48 @@ export function selftest() {
        [prd53Conforms(_glued).ok, prd53Conforms(_vline).why === _glued], [false, false]);
   }
 
+  // ══════════════════════════════════════════════════════════════════════
+  // ㉓a–㉓d（2026-10-14）：**非权威候选不许冒称「有库内条款依据」**
+  // ══════════════════════════════════════════════════════════════════════
+  //   Owner 原话：「所有参考知识库的，都必须带飞书侧源链接，修复下并提交入库。」
+  //   实测那张 hospital-grade 卡：种子规则候选（`authoritative: false`，库自己写着
+  //   「这不是知识库的规则真源」）被贴成 `**有库内条款依据**` ＋ `《知识库》（未给条款号）`
+  //   —— **既冒称依据，又给不出链接**。而 `authoritative` 这一格守衡侧此前**全文零命中**。
+  {
+    const seed = {
+      risk_type: '绝对化与排名宣称', category: '绝对化', location: 'text characters 40-53',
+      action: 'review', reason: '命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认',
+      original_text: 'hospital-grade',
+      authoritative: false, authority: 'seed-rules(非规则真源)',
+      superseded_by: 'kb/l3/candidates/rules.jsonl',
+      evidence: { library: null, article_no: null, anchor: null, source_sha256: null, excerpt: null },
+    };
+    const real = {
+      risk_type: '背书与资质-等级与资质背书', category: '背书与资质', location: '全文',
+      action: 'review', reason: '逐字命中「hospital」',
+      evidence: { library: '措辞表达库', article_no: 'W-1.35', anchor: '#广告文案明细/recvuJYdObBgjg/命中片段',
+                  source_sha256: 'a'.repeat(64), excerpt: 'M05:hospital grade',
+                  l0_entry_url: 'https://momcozy-in.feishu.cn/base/AAA?table=BBB&record=recvuJYdObBgjg' },
+    };
+    const parsed = kbFindingsOf('', { decision: { risk_items: [seed, real] } });
+    eq('㉓a 非权威候选**不进 findings**（它是线索，不是「共发现 N 处」里的 N）',
+       [parsed.findings.length, parsed.candidates.length], [1, 1]);
+    eq('㉓b 真依据照旧在 findings 里，且带得上飞书直链',
+       [parsed.findings[0]?.kb?.article_no, /^https:\/\//.test(String(parsed.findings[0]?.kb?.entry_url || ''))],
+       ['W-1.35', true]);
+    // ㉓c：候选**不许**被渲染成「有库内条款依据」（本条的失败信号就在这里）
+    const seedItem = { location: seed.location, category: seed.category, severity: 'REVIEW',
+                       source: 'kb', reason: seed.reason, basisLine: parsed.candidates[0]?.kb?.basisLine ?? null };
+    const painted = renderMergedItem(seedItem, 0, { must: false });
+    eq('㉓c 候选那条的卡面文字：不许出现「有库内条款依据」',
+       [/有库内条款依据/.test(painted)], [false]);
+    // ㉓d 反向对照：把 authoritative 拿掉（= 真依据的形状）⇒ 它必须**回到** findings。
+    //   否则 ㉓a 可能只是「所有条目都被分流了」的恒真判据。
+    const noFlag = kbFindingsOf('', { decision: { risk_items: [{ ...seed, authoritative: undefined }, real] } });
+    eq('㉓d 反向对照：摘掉 authoritative（真依据的形状）⇒ 必须回到 findings',
+       [noFlag.findings.length, noFlag.candidates.length], [2, 0]);
+  }
+
   console.log(`\n自证：通过 ${pass} / 失败 ${bad.length}`);
   return bad.length ? 1 : 0;
 }
@@ -1016,6 +1058,7 @@ function _kbFromEngineJson(answer, engine = null) {
   const rows = Array.isArray(dec.risk_items) ? dec.risk_items : null;
   if (!rows || !rows.length) return null;
   const out = []; let coverage = null;
+  const candidates = [];        // ★ 非权威候选线索（不进 findings，见下面那一段）
   for (const r of rows) {
     if (!r || typeof r !== 'object') continue;
     const ev = (r.evidence && typeof r.evidence === 'object') ? r.evidence : {};
@@ -1065,11 +1108,23 @@ function _kbFromEngineJson(answer, engine = null) {
       kb: { article_no: art, anchor: anc, entry_url: link || null,
             source_sha256: ev.source_sha256 || null, library: ev.library || null, basisLine,
             suggestionLine: String(r.suggestion || '').trim() || null },
+      // ★★ 2026-10-14（Owner：「所有参考知识库的，都必须带飞书侧源链接」）：
+      //   **把库自己的「不权威」声明读出来**。`scan_text()` 产的非权威候选带着
+      //   `authoritative: false`（种子规则自己写着「这不是知识库的规则真源」），
+      //   而这一格此前**守衡侧全文零命中** ⇒ 候选与真依据长得一模一样：
+      //   实测那张 hospital-grade 卡，候选那一条被贴成 `**有库内条款依据**`
+      //   ＋ `《知识库》（未给条款号）` —— **既冒称依据，又给不出链接**。
+      //   ⚠️ 判据是**显式 `false`**（与库侧 `review_engine.is_candidate()` 同口径）：
+      //      真依据**根本没有这个键**，把「缺键」当候选会把全部库内依据打成候选。
+      authoritative: (r.authoritative === false ? false : null),
     };
     if (item.category === COVERAGE_CATEGORY) { coverage ??= item; continue; }
+    // 候选**不进 findings** —— 它是排查线索，不是「共发现 N 处」里的 N
+    // （库侧 `issue_count` 本来就不含候选，另走 `candidate_count`）。
+    if (item.authoritative === false) { candidates.push(item); continue; }
     out.push(item);
   }
-  return { findings: out, coverage };
+  return { findings: out, coverage, candidates };
 }
 
 /**
@@ -1148,6 +1203,7 @@ export function kbFindingsOf(answer, engine = null) {
   if (structured) return { ...structured, kbHitsBlock: kbHitsBlockOf(engine) };
 
   const out = []; let coverage = null;
+  const candidates = [];        // ★ 非权威候选线索（正则这条来路也要分流）
   const lines = String(answer ?? '').split('\n');
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
@@ -1184,9 +1240,20 @@ export function kbFindingsOf(answer, engine = null) {
                    reason: m[2].trim().slice(0, 300), basis: 'kb', suggestionLine,
                    basisLine, reasonLine };
     if (category === COVERAGE_CATEGORY) { coverage ??= item; continue; }
+    // ★★ 2026-10-14：**正则这条来路也认「非权威候选」**（与结构化那条同口径）。
+    //   判据用的是库侧 `candidate_item_note()` 那**一句逐字**——它是候选的唯一标记，
+    //   而且**由库侧产出**（不是这边猜的）。认不出就照旧当依据（缺键 = 真依据，
+    //   与 `is_candidate()` 的「判显式 False，不判缺键」同一条纪律）。
+    if (/非权威候选/.test(String(reasonLine || '') + String(suggestionLine || '')
+        + lines.slice(i, Math.min(i + 9, lines.length)).join(''))) {
+      const candLine = String(basisLine || '');
+      candidates.push({ ...item, authoritative: false, kb: { article_no: null, anchor: null,
+        entry_url: null, source_sha256: null, library: null, basisLine: candLine } });
+      continue;
+    }
     out.push(item);
   }
-  return { findings: out, coverage, kbHitsBlock: kbHitsBlockOf(engine) };
+  return { findings: out, coverage, candidates, kbHitsBlock: kbHitsBlockOf(engine) };
 }
 
 /**
@@ -1558,14 +1625,37 @@ export function selftestExtract() {
     eq('㉒c 旧写法下会撞成一个键的两组 ⇒ 现在必须是**两条**（撞了就是静默少报）',
        collide.items.length, 2);
     // 来源标记的措辞：**那两个词一个都不许出现**，而「回不回得了源」这条信息必须还在
+    // ★★ 2026-10-14（Owner：「所有参考知识库的，都必须带飞书侧源链接」）：
+    //   样本改成**真依据的形状**（有条款号 + 有飞书直链）—— 原先那份是
+    //   「`source:'kb'` 但没有号也没有链接」，而那正是**现在必须被拦下**的形状
+    //   （实测那张 hospital-grade 卡就是这么印出「有库内条款依据 ＋（未给条款号）」的）。
     const kbLine = renderMergedItem({ location: 'x', category: '合规', source: 'kb',
-                                      severity: 'REVIEW', reason: 'r' }, 0, { must: false });
+                                      severity: 'REVIEW', reason: 'r',
+                                      kb: { article_no: 'W-1.35',
+                                            basisLine: '《措辞表达库 v0》第 W-1.35 条 ← 命中「hospital」'
+                                              + '｜原始出处：https://momcozy-in.feishu.cn/base/A?table=B&record=C' } },
+                                    0, { must: false });
     const moLine = renderMergedItem({ location: 'x', category: '合规', source: 'model',
                                       severity: 'REVIEW', reason: 'r' }, 0, { must: false });
     eq('㉒d 卡面/报告里不许出现「知识库侧」「模型侧」（Owner 2026-10-13）',
        [/知识库侧/.test(kbLine + moLine), /模型侧/.test(kbLine + moLine)], [false, false]);
     eq('㉒e 但「这一条回不回得了源」必须还在（那才是那个标记的用处）',
        [/有库内条款依据/.test(kbLine), /无库内依据/.test(moLine)], [true, true]);
+    // ★★ ㉒e2 反向对照（2026-10-14）：**「有库内条款依据」这句话本身要够条件才许说** ——
+    //   没有条款号、或没有可点链接 ⇒ 这条回不了源 ⇒ 不许冒称依据。
+    //   这条**不是放宽**：㉒e 那条真依据照旧印原话（两态并存才是对的口径）。
+    const weakNoLink = renderMergedItem({ location: 'x', category: '合规', source: 'kb', severity: 'REVIEW',
+                                          reason: 'r', kb: { article_no: 'W-1.35',
+                                          basisLine: '《措辞表达库 v0》第 W-1.35 条 ← 命中「hospital」' } },
+                                        0, { must: false });
+    const weakNoArt = renderMergedItem({ location: 'x', category: '合规', source: 'kb', severity: 'REVIEW',
+                                         reason: 'r', kb: { article_no: null,
+                                         basisLine: '《知识库》（未给条款号） ← 命中「hospital-grade」' } },
+                                       0, { must: false });
+    eq('㉒e2 有号无链接 / 无号无链接 ⇒ 都不许印「有库内条款依据」',
+       [/有库内条款依据/.test(weakNoLink), /有库内条款依据/.test(weakNoArt)], [false, false]);
+    eq('㉒e3 它们要如实说「非权威候选线索 · 不构成依据」',
+       [/非权威候选线索/.test(weakNoLink), /非权威候选线索/.test(weakNoArt)], [true, true]);
   }
 
   console.log(`\n抽取自证：通过 ${pass} / 失败 ${bad.length}`);
@@ -1645,10 +1735,24 @@ export function renderMergedItem(f, i, { must = false } = {}) {
   //   那就放模型侧能查到的依据链接」—— 所以这一格先算出**外部依据**，
   //   有依据就把标记改掉（标记的用处是回答「这条回不回得了源」：只说"无依据"会让人以为查都没法查）。
   const extB = f.source === 'model' ? extBasisText(f.model ?? {}) : null;
-  const origin = f.source === 'kb' ? '**有库内条款依据**'
-    : (f.source === 'model' ? (extB?.cited ? '**无库内条款 · 依据为外部标准**' : '**无库内依据 · 建议转人工**')
-      : (f.source === 'both-conflict' ? '**两侧都命中 · 结论冲突 ⇒ 已降 REVIEW**'
-        : '**两侧都命中（可回源）**'));
+  // ★★ 2026-10-14（Owner：「所有参考知识库的，都必须带飞书侧源链接」）：
+  //   **「有库内条款依据」这句话本身要满足条件才许说** —— 判据是结构，不是来源标记：
+  //     ① 有一个**条款号**（`第 X 条`）；② 有一个**可点链接**（http(s)）。
+  //   两条缺任一条 ⇒ 这条**回不了源** ⇒ 如实说「非权威候选线索 · 不构成依据」。
+  //   为什么必须加这道：候选虽然在 `kbFindingsOf` 已分流，但**别处**（旧旁挂 / 正则来路 /
+  //   将来新加的产者）仍可能把一条没有号也没有链接的条目塞成 `source:'kb'` ——
+  //   实测那张 hospital-grade 卡就是这么印出 `**有库内条款依据** ＋ 《知识库》（未给条款号）` 的。
+  //   ⚠️ 这条**不是放宽**：真依据（有号 + 有链接）照旧印「有库内条款依据」，一个字没变（㉓b 钉着）。
+  const _kbLine = String(f.kb?.basisLine || f.basisLine || '');
+  const _hasArticle = /第\s*\S+\s*条/.test(_kbLine);
+  const _hasLink = /https?:\/\//.test(_kbLine) || /^https?:\/\//.test(String(f.kb?.entry_url || ''));
+  const _kbWeak = (f.source === 'kb' || f.source === 'both' || f.source === 'both-conflict')
+    && !(_hasArticle && _hasLink);
+  const origin = _kbWeak ? '**非权威候选线索 · 不构成依据**（无条款号，回不了源）'
+    : (f.source === 'kb' ? '**有库内条款依据**'
+      : (f.source === 'model' ? (extB?.cited ? '**无库内条款 · 依据为外部标准**' : '**无库内依据 · 建议转人工**')
+        : (f.source === 'both-conflict' ? '**两侧都命中 · 结论冲突 ⇒ 已降 REVIEW**'
+          : '**两侧都命中（可回源）**')));
   // ★ 库侧那条 `依据` 行**原样用**（它带逐字命中文案 + 飞书源直链）。
   //   为什么必须搬、不能重建：L0 定位（`feishu_publish.l0_locate`）是 **Python** 的能力，
   //   JS 这一侧没有 ⇒ 重建只能造出一个更差的版本（「《知识库》W-1.16（锚点：#…）」，
@@ -2066,7 +2170,16 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   //   —— 比改动之前（至少还有 7 条逐条）**更没法用**。
   //   所以：**拿不到可点的链接 ⇒ 退回逐条平铺**（宁可长，不可空）。
   //   判据看的是 `reportNote` 里到底有没有一个可点的链接，**不是** total 够不够。
-  const linkLine = (reportNote.match(/^→ 查看完整问题清单与修改建议：(.*)$/m) || [])[1] || '';
+  // ★★ 2026-10-14：**去掉 `^` 锚定** —— 这是今天第四处「判据绑死了别处的形状」。
+  //   病灶：这一行原来写 `^→ …`，而它抠的是**拼装之前**的 `reportNote` 字符串 ——
+  //   那个字符串自己当然以 `→` 开头。可我一旦把拼装次序改回 PRD
+  //   （`${line}\n${bodyText}${reportNote}`），这行代码读的还是 `reportNote` 本身、
+  //   并没变，**但 ⑰f 与它的断言随之改动时极容易连带踩到**；且 `reportNote` 的首字符
+  //   是 `\n`（它本来是拼在后面的），`^` 在多行模式下要求 `→` 顶格 —— 一旦拼装微调
+  //   （加一个前置换行/空格），`^` 就抠不到 ⇒ `hasReportLink=false` ⇒ 判成「没拿到链接」
+  //   ⇒ **报告不建、卡上写「本次未拿到报告链接」**（实测 Z15 就是这么变红的）。
+  //   ⇒ 只认**行内那一句**，不管它在第几行、前面有没有东西。
+  const linkLine = (reportNote.match(/→ 查看完整问题清单与修改建议：(.*)$/m) || [])[1] || '';
   const hasReportLink = /^https?:\/\//.test(linkLine.trim());
   const summarized = total >= REPORT_LINK_MIN_ISSUES && hasReportLink;
   // ★★ 2026-10-14（Owner：「审核结论中 1，2...每条之间需要空一行的 …… 都要跟 prd 对齐」）──

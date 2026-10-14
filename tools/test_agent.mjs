@@ -3239,8 +3239,21 @@ await t('Z15 ★ 行为级：问题数 ≥3 且库侧没给链接 ⇒ 本仓建�
   //   ⇒ 只靠后面那句 `const T = …` 会撞 TDZ（实测报 `T is not defined`，
   //     而它只是「报告没建」，**不阻断结论** ⇒ 会静默少建一份报告）。
   const T = await import('./agent/dual_track.mjs');
+  // ★★ 2026-10-14（Owner：「所有参考知识库的，都必须带飞书侧源链接」）：
+  //   夹具补齐成**现代引擎输出**的形状（原因 / 依据 / 锚点 / 建议四行）。
+  //   原先是老格式（只有 `1.【本地化】图 1` 一行、没有 `依据`），于是
+  //   `kbFindingsOf` 这条来路**抠不出 `basisLine`** ⇒ 渲染层退回重建版
+  //   `《知识库》（未给条款号）`；而它以前还能印出「有库内条款依据」，
+  //   靠的是**那条种子候选被误当成库内条目**顶了位（正是本轮修掉的缺陷）。
+  //   ⇒ 夹具必须长得像真产出，否则测的是别的形状（同「样本不对，结论就是假的」）。
   const KB_ANSWER = ['【审查结论：REVIEW】共发现 1 处需人工确认。', '',
-    '1.【本地化】图 1', '', '建议转 李倩怡 复核。'].join('\n');
+    '1.【本地化】图 1，逐字命中「图」',
+    '  **原因**：逐字命中',
+    '  **依据**：《措辞表达库 v0》第 W-1.48 条 ← 命中「图」'
+      + '｜原始出处：https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJP2jyHizA',
+    '  **锚点**：#广告文案明细/recvuJP2jyHizA/命中片段｜source_sha256：' + 'a'.repeat(16),
+    '  **建议**：按模板改',
+    '', '建议转 李倩怡 复核。'].join('\n');
   const STUB = 'https://example.invalid/docx/Z15';
   let called = 0;
   const g = await runSubmissionGate({
@@ -3285,8 +3298,21 @@ await t('Z15 ★ 行为级：问题数 ≥3 且库侧没给链接 ⇒ 本仓建�
 
 await t('Z16 ★ 反向对照：建报告**失败**时不许说成已出报告，且**不许阻断结论**', async () => {
   const { runSubmissionGate } = await import('./agent/agent.mjs');
+  // ★★ 2026-10-14（Owner：「所有参考知识库的，都必须带飞书侧源链接」）：
+  //   夹具补齐成**现代引擎输出**的形状（原因 / 依据 / 锚点 / 建议四行）。
+  //   原先是老格式（只有 `1.【本地化】图 1` 一行、没有 `依据`），于是
+  //   `kbFindingsOf` 这条来路**抠不出 `basisLine`** ⇒ 渲染层退回重建版
+  //   `《知识库》（未给条款号）`；而它以前还能印出「有库内条款依据」，
+  //   靠的是**那条种子候选被误当成库内条目**顶了位（正是本轮修掉的缺陷）。
+  //   ⇒ 夹具必须长得像真产出，否则测的是别的形状（同「样本不对，结论就是假的」）。
   const KB_ANSWER = ['【审查结论：REVIEW】共发现 1 处需人工确认。', '',
-    '1.【本地化】图 1', '', '建议转 李倩怡 复核。'].join('\n');
+    '1.【本地化】图 1，逐字命中「图」',
+    '  **原因**：逐字命中',
+    '  **依据**：《措辞表达库 v0》第 W-1.48 条 ← 命中「图」'
+      + '｜原始出处：https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJP2jyHizA',
+    '  **锚点**：#广告文案明细/recvuJP2jyHizA/命中片段｜source_sha256：' + 'a'.repeat(16),
+    '  **建议**：按模板改',
+    '', '建议转 李倩怡 复核。'].join('\n');
   const g = await runSubmissionGate({
     // ★ 2026-10-09：**建议生成必须注入** —— 它默认真打 LLM（漏一处就把套件拖到超时，实测 7.5s/次）
     adviceRunner: async ({ items }) => ({ ok: true, ms: 1,
@@ -3304,7 +3330,16 @@ await t('Z16 ★ 反向对照：建报告**失败**时不许说成已出报告�
   const blk = String(g.verdict53?.block ?? '');
   assert.ok(/查看完整问题清单/.test(blk), '连那一行都没了 —— 拿不到也要出声');
   assert.ok(/本次未拿到报告链接/.test(blk), '建失败却没说清 —— 会让人以为没有报告这回事');
-  assert.ok(!/momcozy-in\.feishu\.cn/.test(blk), '建失败却编了一个飞书链接');
+  // ★★ 2026-10-14：这条原先写 `!/momcozy-in\.feishu\.cn/.test(blk)` —— **判据写宽了**。
+  //   它要拦的是「**报告链接**」，可这个正则把**依据行里的 L0 源直链**也一起拦了；
+  //   而那条 L0 直链恰恰是 Owner 要的（「所有参考知识库的，都必须带飞书侧源链接」）。
+  //   以前它没红，只是因为**老夹具的库侧那条根本没有链接**。
+  //   ⇒ 改成只查**报告链接那一行**（`→ 查看完整问题清单…`），依据行不在此列。
+  //   ⚠️ 两个链接是**两件事**：报告链接 = 完整清单的云文档；L0 直链 = 「这条依据出自哪条源记录」。
+  assert.ok(!/→\s*查看完整问题清单[^\n]*https?:\/\//.test(blk),
+    '建失败却在报告链接那一行编了一个链接');
+  assert.ok(/→\s*查看完整问题清单[^\n]*本次未拿到报告链接/.test(blk),
+    '报告链接那一行没说清「未拿到」—— 会让人以为没有报告这回事');
 });
 
 await t('Z17 ★ 接线：建报告那一步**必须可注入**，且默认走本仓的 publishReportDoc', () => {
@@ -3421,8 +3456,16 @@ await t('Z21 ★ 报告只留 PRD 字段：两个来源小标题、免责、计�
   const M = await import('./agent/merged_report.mjs');
   const md = M.renderMergedReportMd({
     merged: [
+      // ★★ 2026-10-14（Owner：「所有参考知识库的，都必须带飞书侧源链接」）：
+      //   这条夹具原先是「`source:'kb'` 但**没有条款号、也没有链接**」——
+      //   而那正是现在**必须被拦下**的形状（不许冒称「有库内条款依据」）。
+      //   ⇒ 补成真依据的形状（有号 + 有飞书直链）。本测试查的是「报告里两条来源都在」，
+      //     与「那条依据完不完整」是两件事，夹具必须长得像真产出。
       { location: '图上文案', category: '平台与促销', severity: 'REVIEW', source: 'kb',
-        reason: 'x', kb: { suggestionLine: '删掉「最」' } },
+        reason: 'x',
+        kb: { article_no: 'W-1.54', suggestionLine: '删掉「最」',
+              basisLine: '《措辞表达库 v0》第 W-1.54 条 ← 命中「最」'
+                + '｜原始出处：https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJYdOb1B8v' } },
       { location: '视频 00:12', category: '合规', severity: 'REVIEW', source: 'model',
         reason: 'y', suggestion: '改掉' },
     ],
@@ -3932,8 +3975,21 @@ await t('Z15 ★ 行为级：问题数 ≥3 且库侧没给链接 ⇒ 本仓建�
   //   ⇒ 只靠后面那句 `const T = …` 会撞 TDZ（实测报 `T is not defined`，
   //     而它只是「报告没建」，**不阻断结论** ⇒ 会静默少建一份报告）。
   const T = await import('./agent/dual_track.mjs');
+  // ★★ 2026-10-14（Owner：「所有参考知识库的，都必须带飞书侧源链接」）：
+  //   夹具补齐成**现代引擎输出**的形状（原因 / 依据 / 锚点 / 建议四行）。
+  //   原先是老格式（只有 `1.【本地化】图 1` 一行、没有 `依据`），于是
+  //   `kbFindingsOf` 这条来路**抠不出 `basisLine`** ⇒ 渲染层退回重建版
+  //   `《知识库》（未给条款号）`；而它以前还能印出「有库内条款依据」，
+  //   靠的是**那条种子候选被误当成库内条目**顶了位（正是本轮修掉的缺陷）。
+  //   ⇒ 夹具必须长得像真产出，否则测的是别的形状（同「样本不对，结论就是假的」）。
   const KB_ANSWER = ['【审查结论：REVIEW】共发现 1 处需人工确认。', '',
-    '1.【本地化】图 1', '', '建议转 李倩怡 复核。'].join('\n');
+    '1.【本地化】图 1，逐字命中「图」',
+    '  **原因**：逐字命中',
+    '  **依据**：《措辞表达库 v0》第 W-1.48 条 ← 命中「图」'
+      + '｜原始出处：https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJP2jyHizA',
+    '  **锚点**：#广告文案明细/recvuJP2jyHizA/命中片段｜source_sha256：' + 'a'.repeat(16),
+    '  **建议**：按模板改',
+    '', '建议转 李倩怡 复核。'].join('\n');
   const STUB = 'https://example.invalid/docx/Z15';
   let called = 0;
   const g = await runSubmissionGate({
@@ -3978,8 +4034,21 @@ await t('Z15 ★ 行为级：问题数 ≥3 且库侧没给链接 ⇒ 本仓建�
 
 await t('Z16 ★ 反向对照：建报告**失败**时不许说成已出报告，且**不许阻断结论**', async () => {
   const { runSubmissionGate } = await import('./agent/agent.mjs');
+  // ★★ 2026-10-14（Owner：「所有参考知识库的，都必须带飞书侧源链接」）：
+  //   夹具补齐成**现代引擎输出**的形状（原因 / 依据 / 锚点 / 建议四行）。
+  //   原先是老格式（只有 `1.【本地化】图 1` 一行、没有 `依据`），于是
+  //   `kbFindingsOf` 这条来路**抠不出 `basisLine`** ⇒ 渲染层退回重建版
+  //   `《知识库》（未给条款号）`；而它以前还能印出「有库内条款依据」，
+  //   靠的是**那条种子候选被误当成库内条目**顶了位（正是本轮修掉的缺陷）。
+  //   ⇒ 夹具必须长得像真产出，否则测的是别的形状（同「样本不对，结论就是假的」）。
   const KB_ANSWER = ['【审查结论：REVIEW】共发现 1 处需人工确认。', '',
-    '1.【本地化】图 1', '', '建议转 李倩怡 复核。'].join('\n');
+    '1.【本地化】图 1，逐字命中「图」',
+    '  **原因**：逐字命中',
+    '  **依据**：《措辞表达库 v0》第 W-1.48 条 ← 命中「图」'
+      + '｜原始出处：https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJP2jyHizA',
+    '  **锚点**：#广告文案明细/recvuJP2jyHizA/命中片段｜source_sha256：' + 'a'.repeat(16),
+    '  **建议**：按模板改',
+    '', '建议转 李倩怡 复核。'].join('\n');
   const g = await runSubmissionGate({
     // ★ 2026-10-09：**建议生成必须注入** —— 它默认真打 LLM（漏一处就把套件拖到超时，实测 7.5s/次）
     adviceRunner: async ({ items }) => ({ ok: true, ms: 1,
@@ -3997,7 +4066,16 @@ await t('Z16 ★ 反向对照：建报告**失败**时不许说成已出报告�
   const blk = String(g.verdict53?.block ?? '');
   assert.ok(/查看完整问题清单/.test(blk), '连那一行都没了 —— 拿不到也要出声');
   assert.ok(/本次未拿到报告链接/.test(blk), '建失败却没说清 —— 会让人以为没有报告这回事');
-  assert.ok(!/momcozy-in\.feishu\.cn/.test(blk), '建失败却编了一个飞书链接');
+  // ★★ 2026-10-14：这条原先写 `!/momcozy-in\.feishu\.cn/.test(blk)` —— **判据写宽了**。
+  //   它要拦的是「**报告链接**」，可这个正则把**依据行里的 L0 源直链**也一起拦了；
+  //   而那条 L0 直链恰恰是 Owner 要的（「所有参考知识库的，都必须带飞书侧源链接」）。
+  //   以前它没红，只是因为**老夹具的库侧那条根本没有链接**。
+  //   ⇒ 改成只查**报告链接那一行**（`→ 查看完整问题清单…`），依据行不在此列。
+  //   ⚠️ 两个链接是**两件事**：报告链接 = 完整清单的云文档；L0 直链 = 「这条依据出自哪条源记录」。
+  assert.ok(!/→\s*查看完整问题清单[^\n]*https?:\/\//.test(blk),
+    '建失败却在报告链接那一行编了一个链接');
+  assert.ok(/→\s*查看完整问题清单[^\n]*本次未拿到报告链接/.test(blk),
+    '报告链接那一行没说清「未拿到」—— 会让人以为没有报告这回事');
 });
 
 await t('Z17 ★ 接线：建报告那一步**必须可注入**，且默认走本仓的 publishReportDoc', () => {
