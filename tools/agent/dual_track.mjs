@@ -1610,7 +1610,9 @@ export function evidenceBlock(items, { max = 12 } = {}) {
   const tail = lines.length > max
     ? `\n…另有 ${lines.length - max} 条，逐字依据见报告。`
     : '';
-  return head + '\n' + lines.slice(0, max).join('\n') + tail;
+  // ★ 2026-10-14：编号条目之间也空开一行 —— 与 PRD §5.3 的分段口径同源
+  //   （这处不是 PRD 那一块，是查证笔记；但同一张卡里两种编号列表的间距不该不一样）。
+  return head + '\n' + lines.slice(0, max).join('\n\n') + tail;
 }
 
 /**
@@ -1998,8 +2000,10 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   //
   //   ★ 拿不到链接时**如实说、并说清是哪一种拿不到** —— 不许编一个链接，也不许默默不给
   //     （库规：「一个点不开的链接比空格更坏」；而「没说为什么没有」比两者都坏）。
+  // ★ 2026-10-14：前导 `\n\n`（**不是 `\n`**）—— PRD §5.3.2 的分段是
+  //   `· <大类>类问题：N 个` ␤ `→ 查看完整问题清单…`，两者之间要有空行。
   const reportNote = total >= REPORT_LINK_MIN_ISSUES
-    ? '\n→ 查看完整问题清单与修改建议：'
+    ? '\n\n→ 查看完整问题清单与修改建议：'
       + (!_ru
         ? '**本次未拿到报告链接** —— 库侧这一单没生成完整报告（`issue_count < '
           + REPORT_LINK_MIN_ISSUES + '` 时它按 PRD 不生成；本卡的问题数 `total` 含**模型侧**'
@@ -2065,7 +2069,33 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   const linkLine = (reportNote.match(/^→ 查看完整问题清单与修改建议：(.*)$/m) || [])[1] || '';
   const hasReportLink = /^https?:\/\//.test(linkLine.trim());
   const summarized = total >= REPORT_LINK_MIN_ISSUES && hasReportLink;
-  const bodyText = summarized ? categorySummary(list, total) : items.join('\n\n');
+  // ★★ 2026-10-14（Owner：「审核结论中 1，2...每条之间需要空一行的 …… 都要跟 prd 对齐」）──
+  //
+  //   PRD §5.3.2 / §5.3.3 的逐字形状（回源飞书 PRD wiki rev 36 ＋ 本地 `kb/.work/prd.md`，
+  //   两份一致；下面 `␤` 是空行）：
+  //
+  //       【审查结论：REVIEW】共发现 2 处需人工确认。
+  //       ␤
+  //       1.【合规-医疗宣称】……
+  //         原因：……
+  //         依据：……
+  //       ␤
+  //       2.【消费者安全-使用姿势】……
+  //       ␤
+  //       建议转 @法务 @医学顾问 复核。
+  //
+  //   ⇒ **结论行之后一个空行 · 每条之间一个空行 · 动作行之前一个空行**。
+  //
+  //   改前实测的坏形状（不是「一条空行都没有」这么简单，而是**空行数不对**）：
+  //     · 2 条：结论行→第 1 条**没有**空行；第 2 条之后**三个**空行才到动作行；
+  //     · ≥3 汇总：链接与动作行之间**两个**空行。
+  //   根因是三个空行来源叠在一起（`renderMergedItem` 结尾自带的空行、`items.join('\n\n')`
+  //   的分隔、拼装处的 `\n\n`）—— 各加一段就多一段。
+  //
+  //   ⇒ 口径：**条目在这里先收尾成一个整块**（去掉各自尾随的空行），
+  //     块间与块后的空行由**拼装那一处**统一给。空行只有一个来源，就不会再叠。
+  const itemBlocks = items.map((b) => String(b ?? '').replace(/\n+$/, ''));
+  const bodyText = summarized ? categorySummary(list, total) : itemBlocks.join('\n\n');
   // ══════════════════════════════════════════════════════════════════════════
   // ★★ 2026-10-13（Owner 裁定）：**库侧/模型侧的口径读数与解释不上卡，只留在守衡的记忆里**
   // ══════════════════════════════════════════════════════════════════════════
@@ -2137,8 +2167,13 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
            //      汇总（≥3 时汇总只有 1–4 行）之后、逐条**之上**，两个诉求同时满足。
            //   ⚠️ 与库侧 `review_engine.render_summary` 同一次序（那边本来就是
            //      `_summary_lines` 再 `→ 查看完整问题清单`），两处不许再各写一份。
-           block: `${line}\n${bodyText}${reportNote}${hitsNote}`
-             + `${summarized ? '' : '\n'}\n\n${action}` };
+           // ★★ 2026-10-14：**分段空行只从这一处给**（PRD §5.3.2 的逐字形状）——
+           //   结论行 ␤ 正文（逐条之间已由上面 `bodyText` 的 `join('\n\n')` 空开）␤ 动作行。
+           //   拼装点原先写的是 `${summarized ? '' : '\n'}\n\n` —— 逐条那一路因此多出一个空行、
+           //   汇总那一路则把「链接→动作行」挤成零空行。现在统一：
+           //   `bodyText` 有内容就给一个空行，没有就不留孤立的空行。
+           block: `${line}\n\n${bodyText}${reportNote}${hitsNote}`
+             + `${bodyText ? '\n\n' : '\n'}${action}` };
 }
 
 /**
@@ -2161,6 +2196,7 @@ export function categorySummary(list = [], total = null) {
     const fam = catFamily(f?.category) || '未分类';
     counts.set(fam, (counts.get(fam) ?? 0) + 1);
   }
+  // ★ 2026-10-14：**行间空一行**（PRD §5.3.2 的 `· …` 三行之间各有一个空行）。
   const rows = [...counts.entries()].sort((a, b) => b[1] - a[1])
     .map(([fam, n]) => `· ${fam}类问题：${n} 个`);
   if (!rows.length) rows.push('·（本次没有并进任何逐条）');
@@ -2171,7 +2207,8 @@ export function categorySummary(list = [], total = null) {
     //   比多一句话坏得多。它只说「还有 N 条在哪」，不下口径解释。
     rows.push(`· 另有 **${n - list.length} 条**（明细在报告里）`);
   }
-  return rows.join('\n');
+  // 逐行空开（与库侧 `_summary_lines` 同形：那边也是每行之间空一行）
+  return rows.join('\n\n');
 }
 
 /* ═══════════════════ 运行入口（必须在**文件末尾**）═══════════════════
