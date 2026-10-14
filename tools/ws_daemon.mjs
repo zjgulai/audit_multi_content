@@ -22,6 +22,7 @@ import path from 'node:path';
 
 import { config, describeConfig, LOG_DIR, REPO_ROOT, ensureDir, stateDir } from './agent/config.mjs';
 import * as feishu from './agent/feishu.mjs';
+import { plainify } from './agent/plain.mjs';
 import * as vision from './agent/vision.mjs';
 import * as video from './agent/video.mjs';
 import * as asr from './agent/asr.mjs';
@@ -556,6 +557,15 @@ async function replyTo(chatId, messageId, rawReply, chatType = null, source = 'r
   //   「谁答的」在台账里要分得出来 —— `resend` 是**晚十几分钟的补答**，它还要参与
   //   补发队列的三重幂等（`retry_queue.mjs` 的 ②）。两种来源在折记忆时都不折
   //   （见 outbound.mjs 的 `NON_FOLDING`），但它们在台账里必须长得不一样。
+  // ★ 2026-10-14：把「**真的发出去了什么**」记进台账（`extra.delivery`）。
+  //   为什么必须有这个读数：台账里存的是**模型原文**，而摘符号发生在**发送那一跳** ——
+  //   于是「台账那行带 `**`」与「对方看到星号」是**两件不同的事**。
+  //   实测踩到（我自己写的判据 H1 就是被这个坑红的）：
+  //     `06:44:02Z` 那条 `mode=reply` 台账正文带 8 个星号，**而飞书侧读回来是 0 个**
+  //     （`GET /im/v1/messages/{id}`，`star_count=0`，类型 `post`）。
+  //   ⇒ 判据要断的是**投递事实**，不是原文长什么样。这一格就是那个事实的唯一来源。
+  sent.delivery = { starsRemoved: ((text.match(/\*/g) ?? []).length) - ((plainify(text).match(/\*/g) ?? []).length),
+                    sentText: plainify(text) };
   recordOutbound(chatId, sent, { text, source, replyTo: messageId, chatType });
   return sent;
 }
@@ -571,6 +581,9 @@ async function replyTo(chatId, messageId, rawReply, chatType = null, source = 'r
 async function safeSend(chatId, text, source, chatType = null) {
   try {
     const sent = await feishu.sendMarkdown(chatId, text);
+    // 主动推送同样记「真的发出去了什么」（post 转换器保证不带字面星号；降级支靠 plainify）
+    sent.delivery = { starsRemoved: ((text.match(/\*/g) ?? []).length) - ((plainify(text).match(/\*/g) ?? []).length),
+                      sentText: plainify(text) };
     recordOutbound(chatId, sent, { text, source, chatType });
   } catch (e) { log('   ✗ 兜底发送也失败:', e.message); }
 }
@@ -593,6 +606,10 @@ function recordOutbound(chatId, sent, { text, source, replyTo = null, chatType =
     chatId, chatType, messageIds: ids, text, source,
     mode: sent?.mode ?? null, replyTo,
     ok: sent?.ok !== false, error: sent?.error ?? null,
+    // ★ `delivery` = 「发出去的那份正文」的读数（见 `replyTo` 里那段注释）。
+    //   没给就是**没记**，判据据此落「未测」而不是「通过」。
+    extra: sent?.delivery ? { delivery: { starsRemoved: sent.delivery.starsRemoved,
+                                          sentHasStar: /[*]/.test(sent.delivery.sentText) } } : null,
   });
   if (!r.ok) log(`   ⚠ 外发留痕失败（${r.error}）—— 这条消息在台账里查不到`);
   return r;

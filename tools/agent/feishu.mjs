@@ -12,6 +12,7 @@ import path from 'node:path';
 import * as Lark from '@larksuiteoapi/node-sdk';
 import { config } from './config.mjs';
 import { beijingString } from './timefmt.mjs';
+import { plainifyForSend } from './plain.mjs';
 
 export const client = new Lark.Client({
   appId: config.lark.appId,
@@ -489,11 +490,16 @@ export async function sendMarkdown(chatId, markdown) {
     } catch (e) {
       const code = e?.response?.data?.code;
       mode = 'text';
-      // 富文本失败（常见：内容里有飞书不认的节点），落回纯文本
+      // 富文本失败（常见：内容里有飞书不认的节点），落回纯文本。
+      // ★ 2026-10-14：**落回纯文本时要把 markdown 符号摘掉** —— 见 `plain.mjs` 的头注：
+      //   飞书 text 会把 `**` **原样显示**，于是这条兜底会把「一次发送失败」
+      //   放大成「群里出现一堆星号」。摘符号放在这里，而不是让调用方各自记得摘。
+      const { text: safe, before } = plainifyForSend(chunk, { where: `sendMarkdown 降级(${code})` });
+      if (before > 0) console.log(`[plain] · 降级正文原带 ${before} 个星号`);
       try {
         const r2 = await client.im.message.create({
           params: { receive_id_type: 'chat_id' },
-          data: { receive_id: chatId, msg_type: 'text', content: JSON.stringify({ text: chunk }) },
+          data: { receive_id: chatId, msg_type: 'text', content: JSON.stringify({ text: safe }) },
         });
         messageIds.push(r2?.data?.message_id);
       } catch (e2) {
@@ -507,13 +513,23 @@ export async function sendMarkdown(chatId, markdown) {
 /**
  * 回复某条消息（形成引用关系，群里更清楚在答谁）。
  * 失败时自动退化为普通发送，保证「答不上」不会变成「不答」。
+ *
+ * ★★ 2026-10-14 重写（Owner 拿私聊截图来问的那一条）：
+ *   **原先这条路把 markdown 原文塞进 `msg_type: 'text'`，一个字都不转**
+ *   ⇒ `**能查的我查完再说**` 在私聊里就是一堆星号。
+ *   而「回复」恰恰是最常走的一条（引用关系更清楚），于是**最常走的路最脏**。
+ *
+ * 现在两处都改：① 回复本体走 **富文本(post)**，与 `sendMarkdown` 同一个转换器
+ *   （`mdToPostNodes`，**不是**新写一份 —— 那是本项目栽过的「两份实现各自漂移」）；
+ *   ② 富文本这条路不通时，兜底文本**先摘符号**再发（`plainifyForSend`）。
+ *   ⇒ 无论走哪条路，发出去的正文里都不会再有字面星号。
  */
 export async function replyMarkdown(messageId, chatId, markdown) {
   const text = chunkText(markdown)[0];   // 回复只发首块，其余走 sendMarkdown 补发
   try {
     const r = await client.im.message.reply({
       path: { message_id: messageId },
-      data: { msg_type: 'text', content: JSON.stringify({ text }) },
+      data: { msg_type: 'post', content: JSON.stringify({ zh_cn: { title: '', content: mdToPostNodes(text) } }) },
     });
     if (markdown.length > text.length) {
       const rest = await sendMarkdown(chatId, markdown.slice(text.length).replace(/^\n+/, ''));
@@ -521,8 +537,24 @@ export async function replyMarkdown(messageId, chatId, markdown) {
     }
     return { ok: true, messageIds: [r?.data?.message_id], mode: 'reply' };
   } catch (e) {
-    const fallback = await sendMarkdown(chatId, markdown);
-    return { ...fallback, mode: `reply-failed→${fallback.mode}`, error: `reply code=${e?.response?.data?.code}` };
+    // 富文本回复失败（含「飞书不认 post 形态」这种）→ 纯文本回复，但**摘掉符号**。
+    const code = e?.response?.data?.code;
+    const { text: safe } = plainifyForSend(text, { where: `replyMarkdown 降级(post code=${code})` });
+    try {
+      const r2 = await client.im.message.reply({
+        path: { message_id: messageId },
+        data: { msg_type: 'text', content: JSON.stringify({ text: safe }) },
+      });
+      if (markdown.length > text.length) {
+        const rest = await sendMarkdown(chatId, markdown.slice(text.length).replace(/^\n+/, ''));
+        return { ok: true, messageIds: [r2?.data?.message_id, ...rest.messageIds], mode: 'reply-text+send' };
+      }
+      return { ok: true, messageIds: [r2?.data?.message_id], mode: 'reply-text',
+               error: `post reply code=${code}` };
+    } catch (e2) {
+      const fallback = await sendMarkdown(chatId, markdown);
+      return { ...fallback, mode: `reply-failed→${fallback.mode}`, error: `reply code=${e2?.response?.data?.code}` };
+    }
   }
 }
 
@@ -553,9 +585,12 @@ export async function replyCard(messageId, card) {
 /** 发一条「正在处理」提示，返回其 message_id 以便后续撤回或更新 */
 export async function sendTyping(chatId, text = '（守衡正在处理…）') {
   try {
+    // 同样摘符号：这条虽然默认文案干净，但**调用方可以传别的文案** ——
+    // 出站纪律按**出口**守，不按「现在是干净的」守。
+    const { text: safe } = plainifyForSend(text, { where: 'sendTyping' });
     const r = await client.im.message.create({
       params: { receive_id_type: 'chat_id' },
-      data: { receive_id: chatId, msg_type: 'text', content: JSON.stringify({ text }) },
+      data: { receive_id: chatId, msg_type: 'text', content: JSON.stringify({ text: safe }) },
     });
     return r?.data?.message_id ?? null;
   } catch { return null; }
@@ -859,8 +894,11 @@ export async function getUserName(openId, chatId = null) {
 
 /** 发一条带 @ 的文本消息：文本里写 <at user_id="ou_xxx"></at> 即可触发飞书 @ */
 export async function sendTextWithMentions(chatId, text) {
+  // ★ 2026-10-14：`msg_type: 'text'` 的出口**一律摘 markdown 符号**（见 `plain.mjs`）。
+  //   这条与 `sendMarkdown` 的降级支是同一条纪律：飞书 text 不认 `**`，会把它们显示出来。
+  const { text: safe } = plainifyForSend(text, { where: 'sendTextWithMentions' });
   return client.im.message.create({
     params: { receive_id_type: 'chat_id' },
-    data: { receive_id: chatId, msg_type: 'text', content: JSON.stringify({ text }) },
+    data: { receive_id: chatId, msg_type: 'text', content: JSON.stringify({ text: safe }) },
   });
 }

@@ -69,6 +69,22 @@ LEDGER = ROOT / "PMO" / "logs" / "ws_outbound.jsonl"
 INCIDENT_CHAT = "oc_49a7cfb2861cffa4365ca8491f398d32"
 INCIDENT_SESSION = ROOT / "PMO" / "shouheng-state" / "sessions" / f"chat_{INCIDENT_CHAT}.json"
 
+# ★ H 段的分界线：**「台账开始记录投递事实（`extra.delivery`）」这一刻**。
+#   取法（可复算）：`ws_daemon.mjs` 的 `replyTo` / `safeSend` 加上那两行的那次编辑
+#   （2026-10-14 北京时间约 15:0x ⇒ 07:00Z）。
+#
+#   ★★ 这条分界线**纠正了我自己写的第一版判据**：第一版直接拿「台账正文里有没有 `**`」
+#   判红，于是它把 `06:44:02Z` 那条判成了泄漏 —— **而飞书侧读回来是 0 个星号**
+#   （`GET /im/v1/messages/{id}`，类型 `post`）。台账存的是**模型原文**，
+#   而摘符号发生在**发送那一跳**：**「台账那行带星号」≠「对方看到星号」**。
+#   ⇒ 判据改成断**投递事实**：要么台账正文本来就干净，要么这条记录里
+#   写着 `extra.delivery.starsRemoved`（真的摘过）。两者都没有才是红。
+#
+#   历史记录（分界线之前）**不回改台账**（§D 段纪律），故单列豁免。
+#   若将来重构这一段，把这条时刻往后挪**必须同时说明为什么**，否则它就成了一把
+#   会自动豁免新泄漏的橡皮尺（与 `LEGACY_UNKNOWN_SOURCES` 同一种风险）。
+STAR_FIX_AT = "2026-10-14T07:00:00Z"
+
 # 本次事故那两条真实外发（读数取自 PMO/守衡-误答登记-20260922.md §一/§四，逐字）
 INCIDENT_OUR_MSG = "om_x100b64166aff2ca8b487459d2f76acb"   # 14:37:55 我方问「117 条签核归谁」
 INCIDENT_OUR_FIX = "om_x100b6416cc300890b15041c1568cac7"   # 15:03:11 那条更正
@@ -210,6 +226,14 @@ SEND_OWNERS = {
         "why": "卡片渲染探针：发的是自检样本，**不是守衡对外说的话**，进台账反而会污染它的记忆",
     },
     "tools/probe_cards2.mjs": {"records": None, "why": "同上（第二轮探针）"},
+    "tools/test_agent.mjs": {
+        "records": None,
+        "why": "内核自证：**它调 feishu 的发送函数是打桩的**（把 `client.im.message.*` 换成本地捕获器，"
+               "见第 3 组「真发一次（网络打桩）」）—— 一次网络都不发，所以没有台账可记。"
+               "★ 2026-10-14 登记（它原先不在表里，B16 因此报红）：它之所以看起来像发送者，"
+               "是因为发星星那条行为级断言**必须真的走到发送那一跳**才证明得了 —— "
+               "那正是「判据要走进那一跳」的代价，不是它偷偷开了第二条发送路。",
+    },
     "tools/ws_test.mjs": {"records": None, "why": "2026-09-15 长连接联调脚本：回一句固定回执，一次性工具"},
     # ★ 2026-10-13 补登记：B16 一直在报「表外出现了发送者」—— 就是它。
     #   它不是偷偷长出来的出口，是一个**人眼探针**：枚举 6 张候选卡（表头配色 / 元素级
@@ -940,6 +964,107 @@ else:
                       "E6 已单独断言自证的标记串不在里面")
 
 shutil.rmtree(TMPDIR, ignore_errors=True)
+
+# ══════════════════════════════════════════════════════════════════════
+# H 段 · 台账里的 markdown 星号：按**发送形态**分账（2026-10-14 Owner 拿私聊截图来问）
+# ══════════════════════════════════════════════════════════════════════
+# 起因：Owner 在私聊里看到的回答是 `1. **能查的我查完再说** —— …`，星号**字面**显示出来。
+#
+# 真因（可复算）：`replyMarkdown()`（「回复某条消息」那条路，**最常走**的一条）
+# 把 markdown 原文直接塞进 `msg_type: 'text'`，一个字都不转；而
+# `sendMarkdown()` 那条路转富文本(post)，本来就干净。
+# ⇒ 台账里 24 条 `mode: 'reply'` **全部**带星号；`mode: 'text'` 1 条（2026-09-30 一条降级告警）。
+#
+# ★ 这一段的判据按**发送形态**分账，因为「台账里有没有星号」**不等于**
+#   「对方看到没看到星号」：
+#     · `post` —— 正文被转成 bold 节点，`**` **不会**字面显示（台账存的是原文，故带星号是正常的）；
+#     · `card` / `reply-card` —— 卡片正文用 markdown 渲染（卡片模版里本来就有加粗标签）；
+#     · `reply` / `text` —— **飞书按纯文本渲染**，星号会**字面显示** ⇒ 这一类必须为 0。
+#   把四类混在一起数，会得出一个既吓人又不准的数（实测「492 条」），
+#   而它指不出该修哪儿 —— §2.4.1 那个病的形状。
+#
+# ★ 想同时收掉卡片那一半（`reply-card` 340 条，含回执卡里那句
+#   `本次按**美国市场**口径审查`）是**另一个决定**：卡片 markdown 的加粗是渲染得出来的，
+#   摘掉它等于把卡片正文的加粗一起去掉。**Owner 未定，故这里只报读数、不判红。**
+print("\nH 台账里的 markdown 星号：按发送形态分账（纯文本那两类必须为 0）")
+
+# 纯文本形态：飞书把它们按字面渲染 ⇒ 星号会被看见
+LITERAL_TEXT_MODES = ("reply", "text", "reply-text")
+
+
+def asterisk_by_mode(entries):
+    """纯判据：把台账按发送形态分账，回 (带星号条数, 各形态总数, 该修的那几条)。
+
+    「该修的那几条」的口径（★ 这一条是踩过坑才定下来的）：
+      纯文本形态（飞书**按字面渲染**）**且**台账正文带 `**` **且**这条记录说得出
+      「我摘过」时**不算**泄漏 —— 因为台账存的是模型原文，摘符号在发送那一跳发生。
+      判据要断的是**投递事实**：`extra.delivery.starsRemoved`（daemon 记的读数）。
+      **没有这个读数**又不干净 ⇒ 才是真的要修。
+    """
+    counts, totals = {}, {}
+    for e in entries:
+        mode = str(e.get("mode") or "?")
+        totals[mode] = totals.get(mode, 0) + 1
+        if "*" in str(e.get("text") or ""):
+            counts[mode] = counts.get(mode, 0) + 1
+
+    def stars_in_text(e):
+        return "*" in str(e.get("text") or "")
+
+    def delivery(e):
+        d = ((e.get("extra") or {}).get("delivery") or {})
+        return d if isinstance(d, dict) else {}
+
+    literal_hits = [e for e in entries
+                    if str(e.get("mode") or "") in LITERAL_TEXT_MODES
+                    and stars_in_text(e)
+                    and not (delivery(e).get("starsRemoved") or 0) > 0]
+    return counts, totals, literal_hits
+
+
+if OFFLINE:
+    cannot_test("H", "`--offline`：没读真台账")
+elif not LEDGER.exists():
+    cannot_test("H1", "台账还不存在 —— 没法按形态分账")
+else:
+    try:
+        _h_entries = [json.loads(x) for x in LEDGER.read_text(encoding="utf-8").splitlines() if x.strip()]
+    except (OSError, json.JSONDecodeError) as e:
+        cannot_test("H1", f"真台账读不出：{type(e).__name__}: {e}")
+    else:
+        _counts, _totals, _literal = asterisk_by_mode(_h_entries)
+        _render = " ｜ ".join(f"{m}={_counts.get(m, 0)}/{_totals.get(m, 0)}" for m in sorted(_totals))
+        # H1：纯文本形态那两类，**修复之后**不许再有新的（历史那 25 条留着，台账不回改）
+        _traced = [e for e in _literal if str(e.get("at") or "") >= STAR_FIX_AT]
+        check("H1", not _traced,
+              f"纯文本形态（{'/'.join(LITERAL_TEXT_MODES)}，飞书按字面渲染）里，"
+              f"**说不清「摘没摘」的带星号记录**一条都没有（历史 {len(_literal) - len(_traced)} 条豁免；"
+              f"分界线后仍说不清的有 {len(_traced)} 条，最晚 "
+              f"{max((str(e.get('at')) for e in _traced), default='（无）')}）"
+              f" —— 判定口径：台账正文干净 **或** 记着 `extra.delivery.starsRemoved`"
+              f"（台账存原文、摘符号在发送那一跳，两者不是一回事）")
+        # H2：分账读数本身要**看得出来是哪几类**（否则「492 条」这种数指不出该修哪儿）
+        check("H2", bool(_totals),
+              f"按发送形态分账读得出：{_render}（post / card 走渲染，`**` 不会字面显示；"
+              f"纯文本形态才会）")
+        # H3：反向对照 —— 判据自己会红（喂一条修复之后的假记录）
+        _fake = [{"at": "2099-01-01T00:00:00Z", "mode": "reply", "text": "**新的泄漏**"}]
+        _c2, _t2, _l2 = asterisk_by_mode(_fake)
+        check("H3", len(_l2) == 1,
+              "反向对照：喂一条「修复之后、reply 形态、带星号、**没有投递读数**」的假记录 "
+              "→ 判据必须认出来（否则 H1 恒真）")
+        # H5：反向对照的另一面 —— 同一条记录**带上**投递读数就不该判红（否则判据会误报真身）
+        _fake2 = [{"at": "2099-01-01T00:00:00Z", "mode": "reply", "text": "**摘过了**",
+                   "extra": {"delivery": {"starsRemoved": 4, "sentHasStar": False}}}]
+        _c5, _t5, _l5 = asterisk_by_mode(_fake2)
+        check("H5", len(_l5) == 0,
+              "反向对照：带 `extra.delivery.starsRemoved` 的记录**不算**泄漏 "
+              "—— 不然「台账存原文」这件事会让判据天天误报（第一版就误报过）")
+        # H4：反向对照 —— post 形态**不算**泄漏（这就是分账的理由）
+        _c3, _t3, _l3 = asterisk_by_mode([{"at": "2099-01-01T00:00:00Z", "mode": "post", "text": "**a**"}])
+        check("H4", len(_l3) == 0,
+              "反向对照：post 形态带星号**不算**泄漏（正文转 bold 节点，不字面显示）"
+              "—— 混在一起数会把这条判成红的，那是误报")
 
 # ── 结论 ────────────────────────────────────────────────────────────────
 n_fail = sum(1 for _, ok, _ in results if not ok)

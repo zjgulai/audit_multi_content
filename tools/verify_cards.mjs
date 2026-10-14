@@ -652,7 +652,9 @@ head('J 信封 · 解析、上限执行、以及「标记不许漏进群」');
       no('J11a 评审单遇装不下的类型 ⇒ 换 evidence', `mode=${r.mode} kind=${r.kind}`);
     } else ok('J11a 评审单遇装不下的类型 ⇒ 换 evidence');
     const g0 = String(groups[0]?.content ?? '');
-    if (groups[0]?.title !== '审查结论' || !g0.includes('共发现 6 处') || !g0.includes('1.【合规】')) {
+    // ★★ 2026-10-14（Owner：「去掉『审查结论』多余的」）：组标题改「逐条问题」，
+    //   且块首那行结论行**已不在卡内版里**（抬头独占）⇒ 断言跟着改成查「条数行」。
+    if (groups[0]?.title !== '逐条问题' || !g0.includes('1.【合规】') || /【审查结论\s*[：:]/.test(g0)) {
       no('J11b 换卡后逐条块必须在第一组（含结论行与逐条四要素）', JSON.stringify(groups[0]?.title));
     } else ok('J11b 换卡后逐条块必须在第一组（含结论行与逐条四要素）');
     // ★ J11b2（2026-10-08，Owner：「… · 0 是什么意思？」）：

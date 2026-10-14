@@ -35,6 +35,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createRecords, updateRecords, listRecords, flat } from './lark_write.mjs';
+import { plainify } from './plain.mjs';
 
 const execFileP = promisify(execFile);
 
@@ -308,24 +309,32 @@ export function rowFieldsOf({
   contentId, question, contentType, channel, productLine, version,
   conclusion, confidence, issueCount, summary, reportUrl,
 } = {}) {
+  // ★ 2026-10-14：**落库的正文格也要摘 markdown 符号**（Owner：「所有输出中不允许包含 `**` 星号」）。
+  //   这张表就是「落库」本身，而它此前**照单全收**上游来的字符串：`问题分类汇总` 里那句
+  //   `问题数量按 **0** 记` 是**我们自己的代码**拼的，`送审问题` 是模型/人给的原文 ——
+  //   两条路都会把星号带进单元格，而这一格**不经过任何渲染**，星号就是字面字符。
+  //   实测（2026-10-14，只读盘点）：表里 294 行中 **164 行**至少有一格带 `**`。
+  //   实现只有一份：`agent/plain.mjs`（别在这里再写一遍）。
+  //   ⚠️ 只摘**文本格**：数字、链接、选项、人员这些格一个都不动（它们没有 markdown 语义）。
   const f = {};
+  const cell = (v) => plainify(String(v));
   if (contentId) f['内容 ID'] = contentId;
-  if (question) f['送审问题'] = String(question).slice(0, 2000);
-  if (contentType) f['内容类型'] = String(contentType).slice(0, 200);
-  if (channel) f['渠道'] = String(channel).slice(0, 200);
+  if (question) f['送审问题'] = cell(question).slice(0, 2000);
+  if (contentType) f['内容类型'] = cell(contentType).slice(0, 200);
+  if (channel) f['渠道'] = cell(channel).slice(0, 200);
   // ★ 产品线（2026-10-06）：Owner 要求「从知识库命中产品线和渠道的都填写进去」。
   //   值由 `kb/l5/l0_facets.py` 出（**唯一取数点**）：**本素材自己的记录**（`品线`）优先，
   //   其次**素材原文**逐字命中受控词；命中的记录**若是规则样本则一律跳过**（不拿样本的投放属性充数）。
   //   取不到就是空 ⇒ 这里不写这一格（**不写「未指定」，也不从素材正文猜**）。
-  if (productLine) f['产品线'] = String(productLine).slice(0, 200);
-  if (version) f['送审版本'] = String(version).slice(0, 200);
-  if (conclusion) f['Agent 结论'] = String(conclusion).slice(0, 200);
+  if (productLine) f['产品线'] = cell(productLine).slice(0, 200);
+  if (version) f['送审版本'] = cell(version).slice(0, 200);
+  if (conclusion) f['Agent 结论'] = cell(conclusion).slice(0, 200);
   // ★ 这两个字段：调用方应已用 `machineNumbers()` 保证**永不为空**（Owner 2026-10-06 明令）。
   //   这里仍只认有限数 —— 传进来 null 就不写这一格，**不许在这里悄悄补 0**：
   //   「补 0 + 口径」是 `machineNumbers()` 的职责，两处都补会让一个 0 丢掉它的解释。
   if (Number.isFinite(confidence)) f['置信度'] = confidence;
   if (Number.isFinite(issueCount)) f['问题数量'] = issueCount;
-  if (summary) f['问题分类汇总'] = String(summary).slice(0, 20000);
+  if (summary) f['问题分类汇总'] = cell(summary).slice(0, 20000);
   if (reportUrl) f['报告链接'] = { link: String(reportUrl), text: '审查报告' };
   f['状态'] = statusOf(conclusion);
   return f;

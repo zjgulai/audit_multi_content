@@ -16,6 +16,10 @@ import {
   VERDICT_MAX, MAX_SECTIONS, ALLOWED_TAGS, TEMPLATES, TONE, REMOVED_IN_V2,
   BACKGROUND_STYLES,
 } from './cards.mjs';
+// ★ 2026-10-14：摘 markdown 符号的实现**只有一份** —— `agent/plain.mjs` 的 `plainify()`。
+//   原先本文件里还有第二份（只删 `**` 与行首 `#`）—— 而「两份实现必然漂移」这件事
+//   本项目已经栽过一次（见 `PMO/守衡-误答登记-20260922.md` §16.3）。
+import { plainify as stripMd } from '../agent/plain.mjs';
 
 /* ═══════════════════ ① 内容级约束（去 AI 味，机械可查） ═══════════════════ */
 /*
@@ -451,12 +455,14 @@ export const BY_KIND = new Map(REGISTRY.map((r) => [r.kind, r]));
  *   - 折叠区**不展开**，改标「（已收起 N 条证据）」
  *   - 结尾注明「本条以纯文本发出：<原因>」，让对方知道格式为什么没生效
  */
-const stripMd = (x) => String(x).replace(/\*\*/g, '').replace(/^#+\s*/gm, '');
 
 function elementToText(el, depth = 0) {
   if (typeof el === 'string') return el;
   switch (el.tag) {
-    case 'markdown': return el.content;
+    // ★ 2026-10-14：正文 markdown 也要摘符号（原先**只有**折叠区标题那一处摘了）。
+    //   这一份文本是「卡片降级成纯文本」与**台账正文**共用的 —— 而它只在出事那一跳才被看见，
+    //   所以它带着星号进了群也没人会发现（§16.2 那个形状）。
+    case 'markdown': return stripMd(el.content);
     case 'hr': return '———';
     case 'table': {
       const head = el.columns.map((c) => c.display_name ?? c.name);

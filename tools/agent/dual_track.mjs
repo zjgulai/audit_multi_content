@@ -38,6 +38,19 @@ import { readFileSync } from 'node:fs';
 // ★ 2026-10-12：判「PRD 那句有没有被粘上别的东西」用**守衡自己的**合规尺子，
 //   不在本文件另抄一份正则（口径只有一处）。
 import { conforms as prd53Conforms } from './prd53.mjs';
+// ★ 2026-10-14（Owner：收尾动作行与 PRD §5.3.2 不符）：收件人**按问题方向算**，
+//   不再是一个硬编码常量。路由真源在库里（`routing-policy.json`），本文件只读不抄。
+import { loadRoutingPolicy, loadRoleHandles, reviewOwnersFor, renderReviewAction }
+  from './routing.mjs';
+
+/**
+ * 路由表与句柄表**读一次**（模块加载时），与库侧 `review_engine.py` 的 `_approvers()`
+ * 同口径：**任何异常都当作没读到**，由调用方回落 —— 判据是「拿到的东西」，
+ * 不是「文件在不在」。两个表都是 registry 级文件，不是逐单变化的数据；
+ * 它们改了要重启守衡才生效（与改任何其它被 import 的模块一样）。
+ */
+const ROUTING_POLICY = loadRoutingPolicy();
+const ROLE_HANDLES = loadRoleHandles();
 
 /** 严重度序（越大越重）。只认三态里的两个可裁剪值 + 空。 */
 const SEV_ORDER = { BLOCK: 2, REVIEW: 1, '': 0 };
@@ -735,14 +748,24 @@ export function selftest() {
     // 常数与库侧同名同口径 —— 钉住 3，改它必须同时改两边（库侧 `feishu_publish.py`）
     eq('⑰e 门槛常数与库侧同口径（PRD §5.3.4 / §8.3 / §17 三处都是 3）',
        [REPORT_LINK_MIN_ISSUES], [3]);
-    // ★ 2026-10-09（第二次修）：**链接必须在抬头下面，不许埋在逐条之后**。
-    //   病灶：它原先在结论块**最末尾**，而那一块在飞书里可收起 —— 8 条清单一铺开，
-    //   链接就落到折叠区底部，Owner 的座位上看就是「**没有报告链接**」。
-    //   判据：一个必须被点开才看得见的链接，等于没有链接。
-    eq('⑰f 报告链接必须在结论行**下面一两行内**（不许埋在逐条清单之后）',
-       [(() => { const ls = String(r3.block).split('\\n');
-                 const i = ls.findIndex((l) => /查看完整问题清单/.test(l));
-                 return i >= 0 && i <= 2; })()], [true]);
+    // ★★ 2026-10-14（Owner：「修改建议的链接，预期放在『建议转』这行的上面，跟 PRD 对齐」）：
+    //   **次序按 PRD 逐字核**（回源飞书 PRD wiki `NB55wAq8liEOdKkquL2cgtPEnmg` rev 36
+    //   ＋ 本地 `kb/.work/prd.md`，两份一致）：
+    //       结论行 → `· <大类>类问题：N 个` → `→ 查看完整问题清单…` → 动作行
+    //   改前拼装写的是 `${line}${reportNote}\n${bodyText}` ⇒ **链接跑到汇总之前**，与 PRD 相反
+    //   （Owner 截图当场指出：「跟 prd 对齐，你没改吗？」）。
+    //   ⚠️ 2026-10-09 那条诉求**没有作废**：链接不许被埋在逐条之后（会落进可折叠区）。
+    //      现在的次序里它紧跟汇总、仍在逐条**之上** ⇒ 两个诉求同时成立。
+    //   ⚠️ 判据改钉**三件事的相对次序**，不再钉「在第几行」—— 后者绑死行号，
+    //      任何一次次序/行数调整都会误红（而误红的判据比没有判据更坏）。
+    eq('⑰f 次序照 PRD：汇总 在 链接 之前，链接 在 动作行 之前（且不埋在逐条之后）',
+       [(() => {
+         const ls = String(r3.block).split("\n").map((x) => x.trim());
+         const iSum = ls.findIndex((l) => /^·/.test(l));
+         const iLink = ls.findIndex((l) => /查看完整问题清单/.test(l));
+         const iAct = ls.findIndex((l) => /^(建议转|请修改后重新提交)/.test(l));
+         return iSum >= 0 && iLink > iSum && iAct > iLink;
+       })()], [true]);
     //   ⑰f 的反向对照**不是夹具而是变异**：把 reportNote 挪回逐条之后 ⇒ ⑰f 必红（已实测）。
     // ══════════════════════════════════════════════════════════════════════
     // ⑱a–⑱d（2026-10-09）：**逐条「建议」必须来自两侧的真话，不许甩给人**
@@ -1318,7 +1341,7 @@ export function selftestExtract() {
   const COV = '【审查结论：REVIEW】共发现 1 处需人工确认。\n\n'
     + '1.【覆盖-知识库覆盖缺口】本次素材的**文字层逐字命中 0 条**，但覆盖判据不成立'
     + '（没有「既被规则引用、又达门限」的单元）——**这不是素材有问题，是库对该题材没有可依据的条款**。\n'
-    + '   判定：REVIEW（**不是 PASS**）\n\n建议转 @内容治理负责人 复核。';
+    + '   建议：转人工复核后再定；补素材无用（缺的是库覆盖）。';
   const rc = kbFindingsOf(COV);
   eq('⑩ 覆盖缺口不计入 findings', [rc.findings.length, rc.coverage?.category], [0, '覆盖']);
 
@@ -1388,7 +1411,7 @@ export function selftestExtract() {
       + '｜原始出处：https://momcozy-in.feishu.cn/base/XXX?table=YYY&record=recvuJP2jyeza5';
     const ans = `【审查结论：REVIEW】共发现 1 处需人工确认。\n\n`
       + `1.【平台与促销-静音绝对化表述】全文，（来源未给引文）\n`
-      + `  **原因**：逐字命中「限时」\n  **${KB_LINE}**\n  **判定**：事实\n`;
+      + `  **原因**：逐字命中「限时」\n  **${KB_LINE}**\n`;
     const q = kbFindingsOf(ans);
     eq('⑫ 库侧依据行被抓下来（逐字命中文案 + 飞书源直链）',
        /逐字命中「限时」/.test(q.findings[0]?.basisLine ?? '') && /https:\/\//.test(q.findings[0]?.basisLine ?? ''), true);
@@ -1415,7 +1438,7 @@ export function selftestExtract() {
     const ans = '【审查结论：REVIEW】共发现 1 处需人工确认。\n\n'
       + '1.【平台与促销】全文，静音程度夸大\n'
       + '  **原因**：逐字命中「静音」，静音程度夸大\n'
-      + `  **${KB_LINE}**\n  **判定**：REVIEW\n`;
+      + `  **${KB_LINE}**\n`;
     const kb = kbFindingsOf(ans);
     const mo = [{ location: '整段', category: '措辞表达', severity: 'REVIEW',
                   excerpt: '别的词', reason: '模型侧另一条' }];   // 确保走 kb-only 那条支路
@@ -1590,6 +1613,26 @@ export function evidenceBlock(items, { max = 12 } = {}) {
   return head + '\n' + lines.slice(0, max).join('\n') + tail;
 }
 
+/**
+ * 数**渲染出来的条目**有几条（卡片正文 / 报告正文通用）。
+ *
+ * ★★ 2026-10-14（Owner 裁定「去掉『判定』这个字段」）—— **为什么必须新增它**：
+ *   在此之前，多处判据（`test_agent.mjs` / `verify_cards.mjs`）拿
+ *   `/^ *\*{0,2}判定\*{0,2}：/gm` **当条目计数器**用 —— 因为逐条块里
+ *   `**判定**：` 恰好**每条一次**，数它就等于数条目。
+ *   那是个**寄生判据**：它量的不是「有几条」，而是「有几行某个字段」。
+ *   该字段一删，这些判据会**静默数出 0 条**（`0 === 0`、`0 === 8` 这类断言立刻变红，
+ *   而红的原因是"计数器坏了"，不是"条目少了"）—— 红得对不上病。
+ *   ⇒ 现在**量真东西**：逐条块的行首编号（`renderMergedItem` 的第一行就是它）。
+ *   与排版无关（加不加粗、有没有补充行都不影响），字段增删也不再连带判据。
+ *
+ * @param {string} text 卡片正文 / 报告正文
+ * @returns {number}
+ */
+export function countRenderedItems(text) {
+  return (String(text ?? '').match(/^ *\d+\.【[^】]+】/gm) || []).length;
+}
+
 export function renderMergedItem(f, i, { must = false } = {}) {
   // 来源标记（Owner 2026-10-06：「备注下是规则库侧问题，还是模型侧问题」）
   // ★★ 2026-10-13（Owner：「不要出现 知识库侧，模型侧」）——
@@ -1681,8 +1724,13 @@ export function renderMergedItem(f, i, { must = false } = {}) {
     + `   **原因**：${f.kb?.reasonLine ?? f.reason ?? '（未给理由）'}\n`
     + `   **依据**：${basis}\n`
     + (must ? `   **建议**：${sugLine}\n` : '')
-    // ── 以下为**补充行**（非 PRD 模板），一律排在四要素之后 ──────────────────
-    + `   **判定**：${verdict}\n`
+    // ── ★★ 2026-10-14（Owner 裁定）：**`**判定**` 那一行整行删除** ────────────────────
+    //   口径：PRD §5.3 的逐条模板只有 `原因` / `依据` /（BLOCK 才有）`建议`，
+    //   三态只出现在**结论行** `【审查结论：X】` 一处 —— 逐条再挂一个「判定」，
+    //   同一张卡上就有两个「判定」，业务侧分不清哪个是结论。
+    //   ⚠️ 2026-10-09 那次「把它降格成补充行、加粗保留」的裁定**已被本次取代**
+    //      （同一 Owner，后令优先）；上面第 1665 行那段注释留作历史，**勿据以恢复该行**。
+    //   `verdict` 这个局部量仍算（上面 headline 那段），但**不再有任何输出点**。
     + (!must ? `   **建议**：${sugLine}\n` : '');
 }
 
@@ -1740,7 +1788,10 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
     const body = list.length
       ? list.map((f, i) => `${i + 1}.【${f.category}${f.sub ? '-' + f.sub : ''}】${f.location}`
           + `  —— **无库内依据 · 建议转人工**\n   原因：${f.reason ?? '（未给理由）'}\n`
-          + `   判定：REVIEW\n   建议：**先恢复库侧再定**（本条不能当通过或拦截依据）。`).join('\n\n')
+          // ★★ 2026-10-14（Owner 裁定）：拒答卡上的 `判定：REVIEW` 一并删除 ——
+          //   三态只出现在上面的结论行（本支路是 `【审查结论：NEEDS_INPUT】`）；
+          //   逐条再挂一个「判定：REVIEW」会让同一张卡出现**两个互相打架的三态**。
+          + `   建议：**先恢复库侧再定**（本条不能当通过或拦截依据）。`).join('\n\n')
       : '（模型侧本次没报东西。）';
     // ★ 2026-10-08（Owner 同意 ②）：**「库忙」要写成「已排队」，不能写成「没下文」。** ──────
     //   病灶：卡原先只写「本次没有知识库三态结论 … **下一步**：先把库侧恢复（跑层/日更）再重审」——
@@ -1782,7 +1833,26 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
     ? `【审查结论：BLOCK】共发现 ${total} 处必须修改。`
     : `【审查结论：REVIEW】共发现 ${total} 处需人工确认。`;
   const items = list.map((f, i) => renderMergedItem(f, i, { must }));
-  const action = must ? '请修改后重新提交。' : '建议转 @内容治理负责人 复核。';
+  // ★★ 2026-10-14（Owner 报：与 PRD 不符）—— 收尾动作行的**收件人按问题方向算**。
+  //
+  //   病灶：这一行原先是常量 `'建议转 @内容治理负责人 复核。'`。PRD §5.3.2 **两处**
+  //   （1-2 条与 ≥3 条）逐字都写 `建议转 @法务 @医学顾问 复核。`，§9 写
+  //   「REVIEW 自动转**对应**专业团队（法务、医学、专家、北美）」——
+  //   而「内容治理负责人」不在那四个团队里，且**不随问题方向变**。
+  //
+  //   现在：方向词 → `routing-policy.json` 的 rules → owners（有序）→ 有句柄用句柄、
+  //   没句柄写「角色名（未配置）」。读不到路由表就回落 PRD §5.3.2 那一对。
+  //   ⚠️ 保住的：`建议转 … 复核。` 这个**句式**（PRD §5.3 的收尾），
+  //      以及「一个方向都没命中时不许编一个收件人」。
+  //   ⚠️ `applyVerdictLine` 只搬**结论行**（`【审查结论：…】`），不碰这一行 ⇒ 两处不打架。
+  const routing = reviewOwnersFor(list, ROUTING_POLICY);
+  const action = must
+    ? '请修改后重新提交。'
+    : renderReviewAction(routing.owners, ROLE_HANDLES,
+        { unmatched: routing.unmatched, total: list.length,
+          // ★ 没有任何条目可路由（空清单）时落这个 —— 与「读不到路由表」同一答案。
+          //   库侧覆盖缺口那一支恒为空清单，靠的就是这条（`routing.py` 同口径）。
+          fallback: ROUTING_POLICY?.fallback });
   // ★ 块首汇总：**先让人看到「这次是谁在说话」**，而不是读完四条才自己拼出来。
   //   库侧 0 条而模型侧 5 条，与库侧 5 条，是两种完全不同的单子 —— 前者没有一条回得了源。
   const fromKb = list.filter((f) => f.source === 'kb' || f.source === 'both' || f.source === 'both-conflict').length;
@@ -2044,12 +2114,30 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   return {
            line, total, kbGap, refused: false, coverageGap: !!kb?.coverageGap,
            kbNoReading, covEntries, kbContentN, modelFailed, reportNote, summarized,
+           // ★ 2026-10-14：**这一单转给谁**（PRD §5.4 的 JSON 规范里就有 `next_owners`）。
+           //   与 `action` 同一份读数 —— 卡上印的是它渲染出来的句子，下游（表行 / 报告）
+           //   拿到的是结构化的那几个角色位。留痕用，不是第二份口径。
+           nextOwners: must ? [] : routing.owners,
+           routingSource: routing.source,
+           routingVersion: routing.version,
+           routingUnmatched: routing.unmatched,
            // ★ 卡上不印了 ⇒ 由这里原样交出去，报告把它放进附录（搬不是砍）
            hitsBlock,
            // ★ 2026-10-13：库侧/模型侧的口径读数与解释 —— **只走这里**（模型上下文 + 记忆），
            //   既不进卡片也不进报告正文。空串 = 这一单没有这类读数。
            internalNotes,
-           block: `${line}${reportNote}\n${bodyText}${hitsNote}`
+           // ★★ 2026-10-14（Owner：「修改建议的链接，预期放在『建议转』这行的上面，跟 PRD 对齐」）：
+           //   **次序修回 PRD §5.3.2 / §5.3.3 的逐字次序**。回源核过飞书 PRD 正文
+           //   （wiki `NB55wAq8liEOdKkquL2cgtPEnmg`，rev 36）与本地 `kb/.work/prd.md`，两份一致：
+           //       结论行 → `· <大类>类问题：N 个`（分类汇总）→ `→ 查看完整问题清单…` → 动作行
+           //   而这里原先写的是 `${line}${reportNote}\n${bodyText}` —— **链接被拼在汇总之前**
+           //   ⇒ 群里看到的就是「链接 → 汇总」，与 PRD 相反（Owner 截图当场指出）。
+           //   ⚠️ 2026-10-09 那次「链接提到抬头下面」的诉求**没有被推翻**：它要防的是
+           //      「链接被埋在 8 条逐条之后、落进可折叠区」—— 现在的次序里 link 仍紧跟在
+           //      汇总（≥3 时汇总只有 1–4 行）之后、逐条**之上**，两个诉求同时满足。
+           //   ⚠️ 与库侧 `review_engine.render_summary` 同一次序（那边本来就是
+           //      `_summary_lines` 再 `→ 查看完整问题清单`），两处不许再各写一份。
+           block: `${line}\n${bodyText}${reportNote}${hitsNote}`
              + `${summarized ? '' : '\n'}\n\n${action}` };
 }
 
