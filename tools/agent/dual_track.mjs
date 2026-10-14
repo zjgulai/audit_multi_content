@@ -1702,7 +1702,8 @@ export function evidenceBlock(items, { max = 12 } = {}) {
     : '';
   // ★ 2026-10-14：编号条目之间也空开一行 —— 与 PRD §5.3 的分段口径同源
   //   （这处不是 PRD 那一块，是查证笔记；但同一张卡里两种编号列表的间距不该不一样）。
-  return head + '\n' + lines.slice(0, max).join('\n\n') + tail;
+  // ★ 2026-10-14：编号条目之间也空开一行 —— 与 PRD §5.3 的分段口径同源
+  //   （这处不是 PRD 那一块，是查证笔记；但同一张卡里两种编号列表的间距不该不一样）。
 }
 
 /**
@@ -2042,7 +2043,13 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   //   为什么要有它：库侧只在**它自己的** `issue_count >= 3` 时建 docx，而卡里那个数是
   //   `total`（含模型侧与库侧未并进的）—— 实测 6 vs 1 ⇒ 库侧不给链接，而按 PRD 该给。
   //   传进来时它就是**权威**：本仓建成了就用它，没建成传 null（照实说没拿到）。
-  const _ru = reportUrlOverride || kb?.reportUrl || null;
+  // ★★ 2026-10-14：`reportNote` 的分段要用「这一单会不会走汇总」→ 而 `summarized`
+  //   又要用 `reportNote` 抠出的链接判 ⇒ **循环依赖**。解法：在 `_ru` 刚拿到时
+  //   先按**等价判据**（≥3 且 `_ru` 是 http(s)）算一个先行量给它用；
+  //   `summarized` 仍在下面按它自己的判据算（两处等价，改判据时一起改）。
+  //   实测两轮才走对：① 直接用 `summarized` ⇒ TDZ 报错；
+  //   ② 在 `reportNote` 处用 `_ru` 判、但 `_ru` 声明在其后 ⇒ 恒 false（链接前少一个空行）。
+  const _willSummarize = total >= REPORT_LINK_MIN_ISSUES && !!_ru && /^https?:\/\//i.test(_ru);
   const _ruKind = kb?.reportUrlKind
     || (_ru ? (/^https?:\/\//i.test(_ru) ? 'feishu_docx' : 'local_path') : null);
   const reportRef = !_ru
@@ -2106,8 +2113,24 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   //     （库规：「一个点不开的链接比空格更坏」；而「没说为什么没有」比两者都坏）。
   // ★ 2026-10-14：前导 `\n\n`（**不是 `\n`**）—— PRD §5.3.2 的分段是
   //   `· <大类>类问题：N 个` ␤ `→ 查看完整问题清单…`，两者之间要有空行。
+  // ★★ 2026-10-14（Owner 第二次裁定）：这个前导换行**按路径分**，两种形状不一样：
+  //
+  //   · **≥3 汇总**（`summarized`）：汇总行**紧接**结论行（只一个空行，来自拼装处），
+  //     而汇总行与链接**之间**要有空行 ⇒ 这里给 `\n\n`。
+  //   · **<3 逐条**：此时 `bodyText` 是逐条块（末尾已有换行）⇒ 这里只需 `\n`，
+  //     给 `\n\n` 会让「最后一条 → 链接」多出一个空行。
+  //
+  //   ⚠️ 我上一轮把它一刀切成 `\n\n`，把两条路都写坏了：
+  //     ≥3 那一侧汇总行被空开（Owner 当场指出的就是它）、
+  //     <3 那一侧条目与链接之间多空一行。
+  //   ⚠️ 它引用 `summarized`，而 `summarized` 要用 `reportNote` 抠出来的链接判 ⇒
+  //     两者互相依赖。**声明次序必须是这样**（实测踩过两轮）：
+  //       `_ru` → `reportNote` → `linkLine` → `hasReportLink` → `summarized` → 用 `summarized`。
+  //     第一版把 `summarized` 放在 `reportNote` 后面 ⇒ `Cannot access 'summarized' before initialization`；
+  //     第二版改成在 `reportNote` 处先按 `_ru` 算个等价量 ⇒ 又因 `_ru` 还没声明而恒为 false。
+  //     ⇒ 唯一的正解是**把 `_ru` 那一段上移到 `reportNote` 之前**（已做）。
   const reportNote = total >= REPORT_LINK_MIN_ISSUES
-    ? '\n\n→ 查看完整问题清单与修改建议：'
+    ? `${_willSummarize ? '\n\n' : '\n'}→ 查看完整问题清单与修改建议：`
       + (!_ru
         ? '**本次未拿到报告链接** —— 库侧这一单没生成完整报告（`issue_count < '
           + REPORT_LINK_MIN_ISSUES + '` 时它按 PRD 不生成；本卡的问题数 `total` 含**模型侧**'
@@ -2208,7 +2231,30 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   //   ⇒ 口径：**条目在这里先收尾成一个整块**（去掉各自尾随的空行），
   //     块间与块后的空行由**拼装那一处**统一给。空行只有一个来源，就不会再叠。
   const itemBlocks = items.map((b) => String(b ?? '').replace(/\n+$/, ''));
-  const bodyText = summarized ? categorySummary(list, total) : itemBlocks.join('\n\n');
+  // ★★ 2026-10-14（Owner：「审核结论中 1，2...每条之间需要空一行的 …… 都要跟 prd 对齐」）──
+  //
+  //   PRD §5.3.2 / §5.3.3 的逐字形状（回源飞书 PRD wiki rev 36 ＋ 本地 `kb/.work/prd.md`，
+  //   两份一致；下面 `␤` 是空行）：
+  //
+  //       【审查结论：REVIEW】共发现 2 处需人工确认。
+  //       ␤
+  //       1.【合规-医疗宣称】……
+  //         原因：……
+  //         依据：……
+  //       ␤
+  //       2.【消费者安全-使用姿势】……
+  //       ␤
+  //       建议转 @法务 @医学顾问 复核。
+  //
+  //   ⇒ **结论行之后一个空行 · 每条之间一个空行 · 动作行之前一个空行**。
+  //
+  //   改前实测的坏形状（不是「一条空行都没有」这么简单，而是**空行数不对**）：
+  //     · 2 条：结论行→第 1 条**没有**空行；第 2 条之后**三个**空行才到动作行；
+  //     · ≥3 汇总：链接与动作行之间**两个**空行。
+  //   根因是三个空行来源叠在一起（`renderMergedItem` 结尾自带的空行、`items.join('\n\n')`
+  //   的分隔、拼装处的 `\n\n`）—— 各加一段就多一段。
+  //
+  //   ⇒ 口径：**条目在这里先收尾成一个整块**（去掉各自尾随的空行），
   // ══════════════════════════════════════════════════════════════════════════
   // ★★ 2026-10-13（Owner 裁定）：**库侧/模型侧的口径读数与解释不上卡，只留在守衡的记忆里**
   // ══════════════════════════════════════════════════════════════════════════
@@ -2285,8 +2331,15 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
            //   拼装点原先写的是 `${summarized ? '' : '\n'}\n\n` —— 逐条那一路因此多出一个空行、
            //   汇总那一路则把「链接→动作行」挤成零空行。现在统一：
            //   `bodyText` 有内容就给一个空行，没有就不留孤立的空行。
+           // ★★ 2026-10-14：**分段空行只从这一处给**（PRD §5.3.2 的逐字形状）——
+           //   结论行 ␤ 正文（逐条之间已由上面 `bodyText` 的 `join('\n\n')` 空开）␤ 动作行。
+           //   拼装点原先写的是 `${summarized ? '' : '\n'}\n\n` —— 逐条那一路因此多出一个空行、
+           //   汇总那一路则把「链接→动作行」挤成零空行。现在统一：
+           //   `bodyText` 有内容就给一个空行，没有就不留孤立的空行。
            block: `${line}\n\n${bodyText}${reportNote}${hitsNote}`
              + `${bodyText ? '\n\n' : '\n'}${action}` };
+}
+
 }
 
 /**
@@ -2310,8 +2363,26 @@ export function categorySummary(list = [], total = null) {
     counts.set(fam, (counts.get(fam) ?? 0) + 1);
   }
   // ★ 2026-10-14：**行间空一行**（PRD §5.3.2 的 `· …` 三行之间各有一个空行）。
+  // ★★ 2026-10-14（Owner 第二次裁定，**推翻我上一轮的做法**）：
+  //   汇总行**不空行**。PRD §5.3.2 / §5.3.3 的 ≥3 块逐字是：
+  //       【审查结论：REVIEW】共发现 5 处需人工确认。
+  //       ␤
+  //       · 合规类问题：3 个          ← 这三行
+  //       · 消费者安全类问题：1 个     ← **紧挨着**
+  //       · 措辞表达类问题：1 个      ← 中间没有空行
+  //       ␤
+  //       → 查看完整问题清单与修改建议：…
+  //       ␤
+  //       建议转 @法务 @医学顾问 复核。
+  //   Owner 原话：「问题大于等于3个 …… 输出的卡片逐条问题是不空行的」。
+  //   ⇒ 空行只在**结论行之后**与**链接/动作行之前**；汇总行内部不空。
+  //   （<3 的逐条路径**相反**：那一条 PRD 明确每条之间空一行，见 `itemBlocks`。）
   const rows = [...counts.entries()].sort((a, b) => b[1] - a[1])
     .map(([fam, n]) => `· ${fam}类问题：${n} 个`);
+  if (!rows.length) rows.push('·（本次没有并进任何逐条）');
+  const n = total ?? list.length;
+  if (n > list.length) {
+    // ⚠️ 这一行**必须留**：没有它，读者把分类行加起来会小于抬头那个数
   if (!rows.length) rows.push('·（本次没有并进任何逐条）');
   const n = total ?? list.length;
   if (n > list.length) {
@@ -2321,7 +2392,8 @@ export function categorySummary(list = [], total = null) {
     rows.push(`· 另有 **${n - list.length} 条**（明细在报告里）`);
   }
   // 逐行空开（与库侧 `_summary_lines` 同形：那边也是每行之间空一行）
-  return rows.join('\n\n');
+  // 汇总行**紧挨着**输出（不空行）—— 见上面那条口径
+  return rows.map((r) => r.replace(/\n+$/, '')).join('\n');
 }
 
 /* ═══════════════════ 运行入口（必须在**文件末尾**）═══════════════════
