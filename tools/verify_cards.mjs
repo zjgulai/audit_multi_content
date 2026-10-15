@@ -1338,7 +1338,7 @@ const { carryCardText } = await import(path.join(CARDS_DIR, 'envelope.mjs'));
  *  ⚠️ 这与「为什么当初要有 applyReportLink」不冲突 —— 那一条治的是
  *     「链接落在**块的最末尾**、被 8 条逐条顶到看不见的地方」，本条治的是**重复**。
  */
-head('J15 报告链接 · 一张卡上只许出现一次');
+head('J15 报告链接 · 一张卡上只许出现一次，且位置在「动作行」之上');
 {
   const { toCardOrText: T } = await import(path.join(CARDS_DIR, 'envelope.mjs'));
   const URL = 'https://momcozy-in.feishu.cn/docx/J15';
@@ -1357,12 +1357,14 @@ head('J15 报告链接 · 一张卡上只许出现一次');
     if (n !== 1) no('J15a 块里已有链接 ⇒ 全卡只许出现一次', `实际出现 ${n} 次`);
     else ok('J15a 块里已有链接 ⇒ 全卡只出现一次（不重复）');
   }
-  // J15b 反向对照：块里**没有** ⇒ 必须补进可见格，否则链接就没了
+  // J15b 反向对照：块里**没有**链接 ⇒ 必须补进来，一个都不许丢。
+  //   ★ 2026-10-15：落点从「可见格」改成「块内、动作行之上」（见 J15d）。
+  //     这条判据**只数出现次数**，不绑落点 —— 绑了就与 J15d 抢同一格。
   {
     const r = T('模型原话', { verdict53: NO_LINK, reportLink: URL });
     const n = (JSON.stringify(r.card ?? {}).match(/查看完整问题清单与修改建议/g) || []).length;
-    if (n !== 1) no('J15b 反向对照：块里没有 ⇒ 必须补进可见格', `实际出现 ${n} 次`);
-    else ok('J15b 反向对照：块里没有 ⇒ 补进可见格（链接不会丢）');
+    if (n !== 1) no('J15b 反向对照：块里没有 ⇒ 必须补进来（链接不许丢）', `实际出现 ${n} 次`);
+    else ok('J15b 反向对照：块里没有 ⇒ 补进来（链接不会丢）');
   }
   // J15c 反向对照：**没给链接**时一个字符都不许加
   {
@@ -1370,6 +1372,116 @@ head('J15 报告链接 · 一张卡上只许出现一次');
     if (/查看完整问题清单/.test(JSON.stringify(r.card ?? {}))) {
       no('J15c 反向对照：没给链接不许凭空造一行', '冒出了链接行');
     } else ok('J15c 反向对照：没给链接就不印（不编）');
+  }
+
+  /* ★★ J15d–J15g（2026-10-15，Owner 第 4 次同一个反馈 —— 这次是**位置**）────────────
+   *
+   *   Owner 原话：「守衡中飞书群发放的卡片 review 1-2 个问题的内容：
+   *     `→ 查看完整问题清单与修改建议：<docx>` —— **要放在「建议转xxx」上面，
+   *     不要放在审查结论下面**」。
+   *
+   *   病灶（离线复原真单 `om_x100b623f78cedcb0cfc77dcec593725`，与台账 121 字逐字一致）：
+   *   1–2 条那一支的 §5.3 块**本来就不含链接行**（链接行按 PRD §5.3.4 的问题数门槛
+   *   只在 ≥3 那一支由 `dual_track.renderMerged` 拼进块里）⇒ `applyReportLink` 走
+   *   「补进可见格」那一跳 ⇒ 链接落在**抬头正下方**，而动作行在下面那一组的最末尾。
+   *   **≥3 的单子位置本来是对的**（链接在块里、动作行之上）—— 两条路要一个形状。
+   *
+   *   判据是**同一把尺子喂两个输入**：修好的卡要绿，把旧行为**真造一遍**的卡必须红
+   *   —— 只断言「绿」等于没守（写法与 `J18f` 同源）。
+   */
+  // 同一把尺子：把卡摊成行，量「最后一条问题 < 链接 < 动作行」
+  const placeOf = (card) => {
+    const lines = [];
+    const walk = (els) => {
+      for (const e of els ?? []) {
+        if (e?.tag === 'markdown') lines.push(e.content ?? '');
+        else if (e?.tag === 'collapsible_panel') {
+          lines.push(e.header?.title?.content ?? '');
+          walk(e.elements);
+        } else if (e?.tag === 'column_set') {
+          for (const c of e.columns ?? []) walk(c.elements);
+        }
+      }
+    };
+    walk(card?.body?.elements);
+    const L = lines.join('\n').split('\n');
+    const iLink = L.findIndex((l) => /查看完整问题清单/.test(l));
+    const iAct = L.findIndex((l) => /^(建议转|请修改后重新提交)/.test(l));
+    const iItem = L.map((l, i) => (/^\s*\d+\.【/.test(l) ? i : -1)).filter((i) => i >= 0).pop() ?? -1;
+    return { iItem, iLink, iAct, ok: iLink > iItem && iAct > iLink };
+  };
+  // 与真单同形：2 条问题 + `建议转 … 复核。` 的动作行（块里**没有**链接 ⇒ 走这一跳）
+  const TWO_ITEMS = {
+    state: 'REVIEW', line: '【审查结论：REVIEW】共发现 2 处需人工确认。', from: 'dual-track-merged',
+    block: '【审查结论：REVIEW】共发现 2 处需人工确认。\n\n1.【产品描述】4-in-1 是笼统宣称\n'
+         + '\n2.【消费者安全】TEMP-SENSING 无宾语\n\n建议转 @法务 @医学顾问 复核。',
+  };
+  const r2 = T('模型原话', { verdict53: TWO_ITEMS, reportLink: URL });
+  const p2 = placeOf(r2.card ?? {});
+  // J15d ★ 本次诉求：链接必须落在**最后一条问题之后、动作行之上**
+  if (!p2.ok) {
+    no('J15d 链接必须落在动作行之上（1–2 条那一支）',
+       `最后一条=${p2.iItem} 链接=${p2.iLink} 动作行=${p2.iAct}（要求 问题<链接<动作）`);
+  } else ok('J15d 链接落在动作行之上（PRD §5.3 次序：正文 → 链接 → 动作行）');
+  // J15d2 ★★ 反向对照①：**不许**再落在「审查结论下面」——
+  //   公开格（折叠面板之外）里不许有链接行；旧行为下它正是卡里第一个 markdown 段。
+  {
+    const { publicTextOf: pub } = await import(path.join(CARDS_DIR, 'envelope.mjs'));
+    const pubText = pub(r2.card ?? {});
+    if (/查看完整问题清单/.test(pubText)) {
+      no('J15d2 反向对照：链接不许落在公开格（＝抬头正下方）',
+         `公开格 = ${JSON.stringify(pubText.slice(0, 80))}`);
+    } else ok('J15d2 反向对照：链接不在公开格（不落在审查结论下面）');
+  }
+  // J15d3 ★★ 反向对照②：**把旧行为真造一遍**（链接补进 `verdict` 可见格）⇒ 同一把尺子必须红。
+  //   少了这一条，「链接在块里」就退化成「反正它在卡里某一处」，位置等于没守。
+  {
+    const old = build('evidence', { ...(r2.data ?? {}), verdict: LINE });
+    const po = placeOf(old);
+    if (po.ok) no('J15d3 变异反向对照：旧行为必须被抓', '链接回到可见格，位置尺子却还是绿的 ⇒ 恒绿');
+    else ok(`J15d3 变异反向对照：旧行为被抓（链接=${po.iLink} 早于动作行=${po.iAct}，仍在问题上文）`);
+  }
+  // J15e 分段：正文 ␤ 链接 ␤ 动作行（恰好一个空行，且全篇不出现连续两个空行）
+  {
+    const L = JSON.stringify(r2.data?.groups ?? '').split('\\n');
+    const iLink = L.findIndex((l) => /查看完整问题清单/.test(l));
+    const one = iLink > 0 && L[iLink - 1] === '' && L[iLink + 1] === '' && L[iLink + 2] !== '';
+    if (!one) no('J15e 链接的上下各恰好一个空行', JSON.stringify(L.slice(Math.max(0, iLink - 1), iLink + 2)));
+    else ok('J15e 链接上下各恰好一个空行（正文 ␤ 链接 ␤ 动作行）');
+    if (JSON.stringify(r2.card ?? {}).includes('\\n\\n\\n')) no('J15e2 不许出现连续两个空行', '出现了');
+    else ok('J15e2 卡里没有连续两个空行');
+  }
+  // J15f 反向对照③：块里**认不出动作行** ⇒ 退回可见格（链接一个都不许丢，也不许瞎插）
+  {
+    const NO_ACTION = { ...TWO_ITEMS,
+      block: '【审查结论：REVIEW】共发现 2 处需人工确认。\n\n1.【产品描述】x\n\n2.【消费者安全】y' };
+    const r = T('模型原话', { verdict53: NO_ACTION, reportLink: URL });
+    const n = (JSON.stringify(r.card ?? {}).match(/查看完整问题清单与修改建议/g) || []).length;
+    const { publicTextOf: pub } = await import(path.join(CARDS_DIR, 'envelope.mjs'));
+    if (n !== 1 || !/查看完整问题清单/.test(pub(r.card ?? {}))) {
+      no('J15f 反向对照：认不出动作行 ⇒ 退回可见格（链接不许丢）',
+         `出现 ${n} 次；公开格里有=${/查看完整问题清单/.test(pub(r.card ?? {}))}`);
+    } else ok('J15f 反向对照：认不出动作行时退回可见格（链接不丢、不瞎插）');
+  }
+  // J15g 纯函数层：认不出动作行 ⇒ `null`（**不猜位置**）；块里已有 ⇒ 原样返回
+  {
+    const { insertLinkAboveAction: ins } = await import(path.join(CARDS_DIR, 'envelope.mjs'));
+    const a = ins('1.【合规】x\n2.【安全】y', URL);
+    const b = ins(`1.【合规】x\n${LINE}\n建议转 @法务 复核。`, URL);
+    const want = `1.【合规】x\n${LINE}\n建议转 @法务 复核。`;
+    if (a !== null) no('J15g 认不出动作行 ⇒ 回 null', JSON.stringify(a).slice(0, 80));
+    else if (b?.action !== 'already' || b.text !== want) {
+      no('J15g2 块里已有链接 ⇒ 原样返回', JSON.stringify(b).slice(0, 80));
+    } else ok('J15g 认不出动作行回 null · 已有链接原样返回（不重复、不猜）');
+  }
+  // J15h **留痕**：链接落在哪必须看得见 —— 否则「插对了没有」只能靠人在群里看出来。
+  //   实测这一跳此前**只接线、不记账**（`rl` 的返回值没人读）⇒ 账上只有「有链接 / 没链接」，
+  //   而 Owner 报的是**落点**。
+  {
+    const hit = (r2.moved ?? []).find((m) => m.field === 'reportLink');
+    if (!hit) no('J15h 链接的落点必须留痕', `搬迁记录：${JSON.stringify((r2.moved ?? []).map((m) => m.field))}`);
+    else if (!/块内/.test(String(hit.why))) no('J15h2 留痕必须写明落在块内', JSON.stringify(hit));
+    else ok(`J15h 链接落点留痕（→ ${hit.to}：${String(hit.why).slice(0, 34)}…）`);
   }
 }
 

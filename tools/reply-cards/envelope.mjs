@@ -717,8 +717,94 @@ export function applyMediaRead(kind, data, mediaRead) {
  *
  *   把那一行搬进「可见的字符串格」（`verdict` / `reasoning` / `wrong` / `verdict_text`）。
  *   链接是**要人去点的动作**，它与「我读到了」同级 —— 都不该藏在折叠区里。
- *   §2.5：形态决策只有一处，所以这里只负责**往可见格搬**，不决定卡片类型。
+ *   §2.5：形态决策只有一处，所以这里只负责**搬**，不决定卡片类型。
+ *
+ * ★★ 2026-10-15（Owner 第 4 次同一个反馈，这次是**位置**不是「有没有」）─────────────
+ *
+ *   Owner 原话：「守衡中飞书群发放的卡片 review 1-2 个问题的内容：
+ *     `→ 查看完整问题清单与修改建议：<docx>` —— **要放在「建议转xxx」上面，
+ *     不要放在审查结论下面**」。
+ *
+ *   实测（离线复原真单 `om_x100b623f78cedcb0cfc77dcec593725` 那张 2 处问题的卡，
+ *   `renderText` 与台账 121 字**逐字一致**）：
+ *     · 抬头 = 结论行；`body[0]` = `markdown(→ 查看完整问题清单…)`；
+ *       `body[1]` = `collapsible(逐条问题, expanded:true)`，**动作行在那一组的最末尾**。
+ *   ⇒ 链接被插在**抬头正下方**（＝Owner 说的「审查结论下面」），而 PRD §5.3 的次序是
+ *     `正文 → 链接 → 动作行`（`dual_track.renderMerged` 在 **≥3** 那一支已经是这么拼的，
+ *     `prd53_format.test.mjs` ②c/②d 钉着）。⇒ 同一个链接，≥3 的单子位置对、1–2 的单子位置错。
+ *
+ *   为什么原先会走到可见格：那一跳（2026-10-09）治的是「链接落在**块的最末尾**、
+ *   被 8 条逐条顶进折叠区」。但现在的块**本身就是逐条**，且那一组是
+ *   `expanded: true`（`applyVerdictLine` 定的）⇒ **块内就是可见区**，
+ *   两个诉求同时成立：链接在块里，且在**动作行之上的紧邻位置**。
+ *
+ *   ⇒ 次序：**先试「插进 §5.3 块的动作行之上」**，块里认不出动作行（没有块 /
+ *     块被截断 / 非评审单）才退回可见格 —— 退回那条路一个字没动（J15b 钉着）。
  */
+/**
+ * §5.3 块的**动作行** —— PRD §5.3.2 的 `建议转 … 复核。` 与 §5.3.3 的
+ * `请修改后重新提交。`。
+ *
+ * ★ 与 `agent/prd53.mjs::conclusionBlock` 认的是**同一行**（那边认「块的收尾在哪」、
+ *   这边认「链接该插在哪」）—— 两处都在描述这一行的形状，改的时候**一起改**。
+ *   多行模式（`m`）下按**行首**匹配：正文里提到「建议转人工」不算动作行。
+ */
+const ACTION_LINE_RE = /^(?:请修改后重新提交。|建议转[^\n]*复核。)[^\n]*$/m;
+
+/**
+ * 把**报告链接那一行**插到动作行之上的紧邻位置（纯函数，可离线断言）。
+ *
+ * PRD §5.3.2 / §5.3.3 的次序是 `正文 → → 查看完整问题清单… → 动作行`，
+ * 分段与 `dual_track.renderMerged` 的拼装**同一形状**（块间恰好一个空行，
+ * 不出现连续两个空行）—— 这里不另立一套空行口径。
+ *
+ * @param {string} text 装着 §5.3 块的那一格（`reasoning` 或某个 `groups[i].content`）
+ * @param {string} url  报告链接
+ * @returns {{text:string, action:'inserted'|'already'}|null}
+ *   `null` = **这段文本里认不出动作行** ⇒ 调用方走旧路（宁可放可见格，也不瞎插）。
+ *   认不出就不猜，是因为「随便找个位置插进去」会让读者以为那一行属于它上面的那条问题。
+ */
+export function insertLinkAboveAction(text, url) {
+  const src = String(text ?? '');
+  if (!src.trim()) return null;
+  // 块里已经有了 ⇒ 一个字都不动（J15a 那条口径：一张卡上只许出现一次）
+  if (src.includes('查看完整问题清单与修改建议')) return { text: src, action: 'already' };
+  const m = ACTION_LINE_RE.exec(src);
+  if (!m) return null;
+  const head = src.slice(0, m.index).replace(/\s+$/, '');
+  const tail = src.slice(m.index).replace(/^\s+/, '');
+  const parts = [head, `→ 查看完整问题清单与修改建议：${url}`, tail].filter(Boolean);
+  return { text: parts.join('\n\n'), action: 'inserted' };
+}
+
+/**
+ * 链接该落在**哪一格**：有 §5.3 块 ⇒ 落在块里（动作行之上）；认不出 ⇒ `null`。
+ *
+ * ★ 找块**不靠标题**（`逐条问题` 这个名字是渲染口径，会改），靠两个硬特征：
+ *   ① `blockSlotOf(kind)` 说这个类型把逐条块放哪一格（与 `applyVerdictLine` 同一处口径）；
+ *   ② 那一格的内容里**认得出动作行**（§5.3 块的收尾）。
+ *   少了 ②，一张恰好含「建议转」三个字的普通卡也会被插进链接。
+ */
+function insertLinkIntoBlock(kind, data, url) {
+  const slot = blockSlotOf(kind);
+  if (slot === 'reasoning') {
+    const r = insertLinkAboveAction(data?.reasoning, url);
+    if (!r || r.action !== 'inserted') return null;
+    return { data: { ...data, reasoning: r.text }, slot: 'reasoning' };
+  }
+  if (slot === 'groups') {
+    const groups = Array.isArray(data?.groups) ? data.groups : [];
+    for (let i = 0; i < groups.length; i += 1) {
+      const r = insertLinkAboveAction(groups[i]?.content, url);
+      if (!r || r.action !== 'inserted') continue;
+      const next = groups.slice();
+      next[i] = { ...groups[i], content: r.text };
+      return { data: { ...data, groups: next }, slot: `groups[${i}]` };
+    }
+  }
+  return null;
+}
+
 export function applyReportLink(kind, data, reportLink) {
   const url = String(reportLink ?? '').trim();
   if (!url) return { data, action: 'none', slot: null, why: '这一轮没有报告链接' };
@@ -726,16 +812,28 @@ export function applyReportLink(kind, data, reportLink) {
   // ══════════════════════════════════════════════════════════════════════════
   // ★★ 2026-10-13（Owner：「这里多余的回复也去掉」）：**先在整张卡里找一遍**。
   // ══════════════════════════════════════════════════════════════════════════
-  //   那一行本来就印在 §5.3 块里 —— **结论行下面第二行**，而那一块**默认展开**
-  //   （`applyVerdictLine` 给第一组的是 `expanded: true`，已按真实卡片结构核过）。
-  //   再往可见格补一份 ⇒ 同一张卡上出现**两次**同一个链接（Owner 那张视频卡就是这样）。
+  //   那一行本来就印在 §5.3 块里 —— 紧挨着**动作行之上**（PRD §5.3 的次序），
+  //   而那一块**默认展开**（`applyVerdictLine` 给第一组的是 `expanded: true`，
+  //   已按真实卡片结构核过）。再补一份 ⇒ 同一张卡上出现**两次**同一个链接
+  //   （Owner 那张视频卡就是这样）。
   //
   //   ⚠️ 与上面「为什么必须有它」不冲突：那一条治的是「链接落在**块的最末尾**、
   //     被 8 条逐条顶到看不见的地方」。现在的口径是「**块里已有就不再补**」——
   //     块里没有（非评审单 / 块没搬进来）时**照旧补进可见格**，一个都不许少。
   if (JSON.stringify(data).includes('查看完整问题清单与修改建议')) {
     return { data, action: 'already', slot: null,
-             why: '§5.3 块里已经有这一行（默认展开、就在结论行下面第二行）⇒ 不重复' };
+             why: '§5.3 块里已经有这一行（块默认展开）⇒ 不重复' };
+  }
+  // ★★ 2026-10-15（Owner：「要放在『建议转xxx』上面，不要放在审查结论下面」）──────
+  //   先试**块内**：插在动作行之上的紧邻位置。这是 ≥3 那一支早就在用的次序
+  //   （`dual_track.renderMerged` 的 `reportNote`），本条只是把它补到 1–2 那一支上。
+  //   ⚠️ 认不出动作行（没有 §5.3 块 / 块被截断 / 非评审单）⇒ **退回下面的可见格**，
+  //     一个字符都不少（J15b 反向对照钉着这条路）。
+  const inBlock = insertLinkIntoBlock(kind, data, url);
+  if (inBlock) {
+    return { data: inBlock.data, action: 'in-block', slot: inBlock.slot,
+             why: `§5.3 块在（${inBlock.slot}）⇒ 链接插在**动作行之上**`
+                + '（PRD §5.3 次序：正文 → 链接 → 动作行；块默认展开、看得见）' };
   }
   const out = { ...data };
   const slot = ['verdict', 'reasoning', 'wrong', 'verdict_text']
@@ -1078,6 +1176,16 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null, machi
     //   （Owner 第三次反馈「没有报告链接」，而 docx 其实建好了）。
     const rl = applyReportLink(kd, data, reportLink);
     data = rl.data;
+    // ★★ 2026-10-15：**链接的落点也必须留痕**。
+    //   这一跳此前只接线、不记账 —— 于是「链接插到动作行之上了没有」在日志里
+    //   **一个字都看不见**：账上只有「有链接 / 没链接」。而 Owner 这一次报的
+    //   恰恰是**落点**错了（`要放在「建议转xxx」上面`）⇒ 没有落点读数，
+    //   下一次同样的错只能又靠人在群里看出来。字段名对齐上面那条搬迁记录的形状
+    //   （`ws_daemon.mjs` 的 `↪ ${m.field} → ${m.to}（${m.why}）` 读的就是这三个键）。
+    if (rl.action && rl.action !== 'none') {
+      moved.push({ field: 'reportLink', to: rl.slot ?? '(无格)',
+                   why: `${rl.action === 'in-block' ? '块内·动作行之上' : rl.action}：${rl.why}` });
+    }
     // ★ 2026-10-08：这条搬迁记录原先压的是 `{ what: 'mediaRead', to }` —— 而日志格式器
     //   （`ws_daemon.mjs` 的 `↪ ${m.field} → ${m.to}（${m.why}）`）读的是 `field` / `why`，
     //   于是实测在图片单上打出一行 `↪ undefined → verdict（undefined）`：
