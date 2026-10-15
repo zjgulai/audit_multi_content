@@ -115,7 +115,7 @@ function readTable(table, { sortDesc = false } = {}) {
 }
 
 /** 把结论表里这一条的结果字段搬进采集表（**读回来再写**，不猜字段、不编值）。 */
-async function writeBack(contentId, recordId, sinceMs, materialText = '', publishedRowId = null) {
+async function writeBack(contentId, recordId, sinceMs, materialText = '', publishedRowId = null, currentStatus = '') {
   // ★ 认领方式**不是**按 `内容 ID`：链会给素材**自己编一个**（实测它是 `AD-20261013-001`，
   //   而不是采集表里的 `MC-AMZ-…`）—— 按内容 ID 找会一条都找不到（我第一版就是这么写的）。
   //   改成**按时间窗认领「这一轮刚出现的那一行」**：与 `review_publish.ensureReviewRow`
@@ -186,7 +186,32 @@ async function writeBack(contentId, recordId, sinceMs, materialText = '', publis
   //   ⇒ 有 publishedRowId 就用它；没有（例如 `--backfill` 补历史）才退回猜。
   const hit = (publishedRowId && res.rows.find((r) => r.record_id === publishedRowId)) || _guess;
   if (!hit) return { ok: false, why: `结论表里这一单（素材原文 ／ 自 ${new Date(sinceMs).toISOString()} 起）都没有行 —— 不写` };
-  return writeFields(recordId, fieldsFrom(hit));
+  return writeFields(recordId, dropHumanTerminalStatus(fieldsFrom(hit), currentStatus));
+}
+
+/**
+ * PRD §8.2 的「状态：待审 / 已修改 / 已发布」里，**机器只拥有「待审」**；
+ * 「已修改」「已发布」是人/内容方的动作 ⇒ 回填**不许**把它们改回「待审」。
+ *
+ * ★ 2026-10-15（Owner：「状态按照 prd…现在填的错的」）：这一格原先被写成三态
+ *   （采集表 80/80 行、结论表 441/457 行），而回填器又把结论表那一格原样搬进采集表
+ *   ⇒ 人的终态会被机器覆盖。判据与 `review_publish.HUMAN_TERMINAL_STATUS` **同一份口径**，
+ *   这里只做「值是不是终态」这一件事，不另立标准。
+ */
+const HUMAN_TERMINAL_STATUS = ['已修改', '已发布'];
+function dropHumanTerminalStatus(fields, currentStatus) {
+  if (!('状态' in fields)) return fields;
+  if (HUMAN_TERMINAL_STATUS.includes(String(currentStatus ?? '').trim())) {
+    delete fields['状态'];
+    SKIPPED_FIELDS.add('状态（人设终态，机器不许改回）');
+    return fields;
+  }
+  // 机器档位照旧写：PRD 三档里机器只落「待审」（三态是 `Agent 结论` 的值域，不是这一格的）
+  if (String(fields['状态'] ?? '').trim() !== '待审') {
+    SKIPPED_FIELDS.add(`状态（源行给的是「${String(fields['状态']).slice(0, 12)}」，非 PRD 三档 ⇒ 不搬）`);
+    delete fields['状态'];
+  }
+  return fields;
 }
 
 /** 从结论表的一行里取出要回填的那几格（**空的不写、URL 归一化**）—— 两处调用共用这一份判据。 */
@@ -530,6 +555,21 @@ async function runOne(row, tag) {
 async function main() {
   const rows = readRows();
   const st = loadState();
+  // ══════════════════════════════════════════════════════════════════════════
+  // ★★ 2026-10-15：**内容 ID 撞号 ⇒ 这几行本轮拒跑** ─────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────
+  //  实测事故（当天）：社媒文案我用了 `MC-US-YT-<videoId>`，与**视频行**重名 ⇒
+  //   · 台账/状态是按 **内容 ID** 索引的 ⇒ 两行共用一条记录，`--only <id>` **两行都命中**；
+  //   · 于是跑批器把**没打算动的视频行也跑了**，它们的结论/数量/链接被改写（6 行）。
+  //  ⇒ 判据放在入口：**同一个 `内容 ID` 出现两次 ⇒ 这两行都不跑**，并出声。
+  //     修法是改 ID（让它唯一），不是绕过去 —— 绕过去只会把污染留到下一次。
+  const _idCount = new Map();
+  for (const r of rows) _idCount.set(r.content_id, (_idCount.get(r.content_id) ?? 0) + 1);
+  const dupIds = new Set([..._idCount.entries()].filter(([, n]) => n > 1).map(([k]) => k));
+  if (dupIds.size) {
+    console.log(`⛔ 表里有 ${dupIds.size} 个「内容 ID」撞号 —— **本轮拒跑这些行**（先让 ID 唯一再来）：`
+      + [...dupIds].slice(0, 6).join('、') + (dupIds.size > 6 ? ' …' : ''));
+  }
 
   if (has('--status')) {
     for (const r of rows) {
@@ -557,7 +597,7 @@ async function main() {
       if (!key) { noText.push(r.content_id); continue; }
       const hit = res.rows.filter((x) => norm(x.cell('送审问题')).startsWith(key)).pop();
       if (!hit) { nomatch.push(r.content_id); continue; }
-      const wb = await writeFields(r.record_id, fieldsFrom(hit));
+      const wb = await writeFields(r.record_id, dropHumanTerminalStatus(fieldsFrom(hit), r.state));
       st.items[r.content_id] = { ...(st.items[r.content_id] ?? {}), record_id: r.record_id,
         filled_from: '结论表·按素材原文匹配',
         write_back: wb.ok ? 'ok' : `失败：${wb.why ?? wb.detail}`,
@@ -598,6 +638,7 @@ async function main() {
   // 不必把整表顺序打乱。（2026-10-13 加：视频行在表尾，验它要等 2 小时。）
   const ONLY = new Set(args.reduce((acc, a, i) => (a === '--only' && args[i + 1] ? acc.concat(args[i + 1]) : acc), []));
   const todo = rows.filter((r) => (r.text || '').trim() && !(st.items[r.content_id] ?? {}).answered_at
+    && !dupIds.has(r.content_id)                       // ★ 撞号的行一律不跑（见 main 开头那段）
     && (!ONLY.size || ONLY.has(r.content_id)));
   const batch = LIMIT ? todo.slice(0, LIMIT) : todo;
   if (!batch.length) { console.log('没有要跑的（都跑过了？）'); return 0; }
@@ -638,7 +679,7 @@ async function main() {
     saveState(st);
     // ── 回填采集表：从结论表把这一条的结果搬过来（守衡的链刚刚自己写进去的那一行）
     const wb = await writeBack(row.content_id, row.record_id, t, row.text,
-                               out.meta?.chain?.publish?.record_id ?? null);
+                               out.meta?.chain?.publish?.record_id ?? null, row.state);
     st.items[row.content_id].write_back = wb.ok ? 'ok' : `失败：${wb.why ?? wb.detail}`;
     st.items[row.content_id].write_back_readback = wb.readback ?? null;
     st.items[row.content_id].write_back_fields = wb.fields ?? null;

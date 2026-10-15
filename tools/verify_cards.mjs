@@ -781,7 +781,7 @@ head('J 信封 · 解析、上限执行、以及「标记不许漏进群」');
 head('J13 查证笔记 · 不上卡、但要答得出来（Owner 2026-10-13 三条里的第 1、2 条）');
 {
   // ★ 本段在 J 段那个 `{ }` **之外**（J12 之后），所以自己取一次 —— 不去依赖外面的作用域。
-  const { toCardOrText, stripInternalNotes } = await import(path.join(CARDS_DIR, 'envelope.mjs'));
+  const { toCardOrText, stripInternalNotes, publicTextOf } = await import(path.join(CARDS_DIR, 'envelope.mjs'));
   const NOTES = [
     '知识库侧 **未报内容问题**；另有 **1 条覆盖缺口**（库对该题材没有可依据的条款） ／ 模型侧 7 条（其中 7 条**无库内依据**，只能转人工）',
     'ℹ️ 知识库侧给了 **覆盖缺口**（`coverage_not_covered`）：检索有命中，但「既被规则引用、又达门限」的单元 0 条。',
@@ -889,6 +889,101 @@ head('J13 查证笔记 · 不上卡、但要答得出来（Owner 2026-10-13 三�
       if (!JSON.stringify(r2.card ?? '').includes('三条建议')) {
         no('J13a3c 反向对照：机器答案里有真答复时不许丢', '答复被吞了');
       } else ok('J13a3c 反向对照：机器答案里**有真内容**时照旧上卡（判据不是「一律丢」）');
+
+      // ══════════════════════════════════════════════════════════════════════
+      // J13a3e ★★ 2026-10-15（**第 7 张 PASS 卡**，Owner 再次报「格式不符」）
+      // ══════════════════════════════════════════════════════════════════════
+      //   真单：行 `MC-US-AMZ-B0G647K9TN`，台账 `ws_outbound.jsonl` 第 1073 行，
+      //   message `om_x100b623de32b9c84cebb3cd965d312f`（17:20 私聊）。
+      //
+      //   它与 J13a3b 那条**同根、但站在另一条分支上**：
+      //     · J13a3b 修的是「**模型没给卡** ⇒ 代码建卡」（`machineAnswer` 生效）；
+      //     · 这一单**模型给了卡**（`query-answer`，3 格）⇒ 走「模型的卡照用」那一支
+      //       ⇒ `machineAnswer` **根本没被执行** ⇒ 模型把 `res.reply` 里的读数
+      //         转述进卡面（`引擎结论` / `状态 PASS ｜ 问题数 0 ｜ 置信度 0.93` /
+      //         `（未填）` / `--content-type text` / `四道审计红 0` / `source_sha256` /
+      //         `record_id` / `回写=consistent` 共 10 类），结论行还印了两遍。
+      //
+      //   夹具逐字取自那张真单的卡面（`reasoning` 就是台账正文），**一字未改**。
+      //   判据四条，缺一条都不算：
+      //     ① 读数一类都不许留（含**段落中间**的、和 `；` 切出来的短残句）；
+      //     ② 结论行只能出现**一次**（抬头），正文不许再印一遍；
+      //     ③ 模型写的话与模型给的抬头**一句都不许丢**（搬进正文 / 折叠区）；
+      //     ④ 结论格不许留「（未填）」—— 权威结论行已在抬头，那一格该装模型那句原话。
+      {
+        const line53p = '【审查结论：PASS】未发现已知底线风险，可转交 @sign-off 责任人（未配置） 进行 sign-off。';
+        const V53P2 = { state: 'PASS', line: line53p, from: 'chain', block: null };
+        const CARD_TITLE = 'M5 Smart（Quill Gray）listing：链侧 PASS/0 —— 但本单没收到合并稿';
+        const CARD_BODY = [
+          '链侧 PASS/0（未发现已知底线风险）；本单未收到双轨合并块',
+          `${line53p}状态 PASS ｜ 问题数 0 ｜ 置信度 0.93（\`heuristic_not_calibrated\`，≥0.90 走 PRD §6.6 直出档）。`
+            + '`findings=0` ⇒ 没有条款号 / anchor / `source_sha256` / L0 直链可给；P0/P1/P2/P3 计数全 0。'
+            + '★ 要紧的一点：这一单我收到的只有链侧那一段，没有「双轨合并后的结论」那一块。',
+          '（未填）',
+          '审的是落盘的 833 字节素材文本（sha256 `2e4e7a24…`，与旁挂同源），`--content-type text` '
+            + '⇒ 文本模态恒记 `complete`，引擎不核「链接抓到没有」 —— 本次审的是随单粘贴的 listing 正文。',
+          '（未填）',
+          '未命中 ≠ 合规（是「未发现已知底线风险」，不是「已证明合规」）；② 自命中检查真跑过、'
+            + '结果为「未命中」（归一化 638 字、扫过 209 条、阈值 ratio≥0.9 且 run≥80）——不是 `status=error`；'
+            + '层前置 L4/L5/L6 各 1 项黄＝预演落章（E5）＝机制证据、不等于真落盘（四道审计红 0、'
+            + '那行 `ok=None` 是取值空档，JSON 实为 `ok=true / mode=enforced / red_total=0`）；本单不涉 `NEEDS_INPUT`',
+          '（未填）',
+          '链侧：发布件 `feishu_publish.py --apply` 退出码 1、`published=false`、无云文档、无 `record_id`，'
+            + '报错同样是 `code 800030005 / not_found`。守衡侧（落表读数）：行号 reczz28NdOnB5bBO｜'
+            + '结论=PASS｜状态=待审｜回读=consistent',
+          '（未填）',
+          '本单没有合并块，所以我不能替它下「最终结论」。对照：同一段 listing 正文的另一 SKU'
+            + '（M5 Smart 2-Pack Cozy Red）本会话跑过两次，两次都是「链侧 PASS/0 ＋ 模型侧若干处 ⇒ 合并稿 REVIEW」',
+          '（已收起 1 条证据：证据 · 1 条）',
+        ].join('\n');
+        const raw7 = '[[card:query-answer]]\n'
+          + JSON.stringify({ title: CARD_TITLE, verdict: '链侧 PASS/0（未发现已知底线风险）；本单未收到双轨合并块',
+                             reasoning: CARD_BODY }) + '\n[[/card]]';
+        const r7 = toCardOrText(raw7, { verdict53: V53P2, machineAnswer: true });
+        const whole7 = JSON.stringify(r7.card ?? r7.text ?? '');
+        const leaks7 = ['引擎结论', '回读=consistent', '（未填）', 'heuristic_not_calibrated', '问题数 0 ｜',
+                        '--content-type', 'source_sha256', 'record_id', '四道审计', '预演落章',
+                        'feishu_publish', '发布件'].filter((k) => whole7.includes(k));
+        // ② 结论行只能出现一次：`publicTextOf` 是**公开格**（非折叠区）的文本 ——
+        //    抬头 + 正文；折叠区里的原文照留不算「卡面又印了一遍」。
+        const face7 = publicTextOf(r7.card ?? {});
+        const dup7 = (face7.match(/【审查结论：PASS】/g) ?? []).length;
+        const kept7 = [CARD_TITLE, '未命中 ≠ 合规', '本单没有合并块'].filter((k) => whole7.includes(k));
+        const lost7 = [CARD_TITLE, '未命中 ≠ 合规', '本单没有合并块'].filter((k) => !whole7.includes(k));
+        if (r7.mode !== 'card') {
+          no('J13a3e 模型给了卡的机器答案也必须收成卡', `mode=${r7.mode}`);
+        } else if (leaks7.length) {
+          no('J13a3e 模型给的卡里那 10 类读数一行都不许上卡', `漏了：${leaks7.join(' / ')}`);
+        } else if (dup7 !== 1) {
+          no('J13a3e 结论行只许印一次（真单印了两遍）', `公开格出现 ${dup7} 次`);
+        } else if (lost7.length) {
+          no('J13a3e 模型写的话与它给的抬头一句都不许丢', `丢了：${lost7.join(' / ')}`);
+        } else if (String(r7.data?.verdict ?? '').includes('未填')) {
+          no('J13a3e 结论格不许留「（未填）」', JSON.stringify(r7.data?.verdict));
+        } else ok('J13a3e 模型给卡的机器答案：读数摘净 · 结论行只一次 · 模型原话一句没丢');
+
+        // J13a3e2 ★ 反向对照：**同一个夹具、不声明机器答案** ⇒ 一个字都不许动。
+        //   这一条钉的是「不许把这条判据扩到回复那条路」（Owner 给人写的卡照旧原样发）。
+        {
+          const r8 = toCardOrText(raw7, { verdict53: V53P2 });
+          const whole8 = JSON.stringify(r8.card ?? r8.text ?? '');
+          const stray = ['四道审计', 'feishu_publish', '--content-type', '问题数 0 ｜']
+            .filter((k) => !whole8.includes(k));
+          // 回复那条路：① 读数**一行都不许摘**（安全网，Owner 2026-10-13 定的）；
+          //   ② 抬头仍是**权威结论行**（`applyVerdictLine` 的既定口径，FIX-010；
+          //      「模型自己那句抬头当标题」从来不是口径 —— 这条我第一版写错过一次）；
+          //   ③ 但模型给的抬头**一个字都不许丢**（它落进折叠区「原文照留」）。
+          const folded8 = JSON.stringify(r8.card ?? '');
+          if (stray.length) {
+            no('J13a3e2 反向对照：没声明机器答案时读数一行都不许摘', `被摘了：${stray.join(' / ')}`);
+          } else if (String(r8.card?.header?.title?.content ?? '') !== line53p) {
+            no('J13a3e2 反向对照：回复那条路的抬头仍是权威结论行（FIX-010）',
+               JSON.stringify(r8.card?.header?.title?.content));
+          } else if (!folded8.includes(CARD_TITLE)) {
+            no('J13a3e2 反向对照：模型给的抬头一个字都不许丢', '原抬头不见了');
+          } else ok('J13a3e2 反向对照：回复那条路读数一行不摘、抬头仍走权威结论行、原话进折叠区');
+        }
+      }
     }
 
     // J13a3d **接线**：批跑器**真的**传了那个声明吗？
@@ -907,6 +1002,19 @@ head('J13 查证笔记 · 不上卡、但要答得出来（Owner 2026-10-13 三�
     } else if (!calls.some((c) => /machineAnswer:\s*true/.test(c))) {
       no('J13a3d 批跑器必须传 machineAnswer: true', `实参区里没有它：${calls[0].slice(0, 120)}`);
     } else ok('J13a3d 批跑器真的传了 machineAnswer: true（不是只写在注释里）');
+
+    // J13a3d2 ★★ 2026-10-15（**变异逼出来的**）：**凡是带了 `verdict53` 的调用点，
+    //   必须同时带上 `machineAnswer: true`**。
+    //   为什么单列一条：J13a3e 那组判据喂的是**已清洗后的卡**，而清洗要不要发生
+    //   取决于调用点有没有声明 —— 我把批跑器里那个参数删掉重跑，**J13a3e 照样全绿**
+    //   （它压根不读调用点；判据写了、没量到声明，这才是「恒真的判据」）。
+    //   ⚠️ 只认**带 verdict53 的调用**：`ws_daemon.replyTo` 那条路不带它（没有结论行），
+    //     把它一起要求上就成了「拦得比该拦的多」。
+    const badCall = calls.find((c) => /verdict53\s*[:,]/.test(c) && !/machineAnswer:\s*true/.test(c));
+    if (badCall) {
+      no('J13a3d2 带 verdict53 的 toCardOrText 调用必须同时声明 machineAnswer: true',
+         `这一个没声明：${badCall.slice(0, 140)}`);
+    } else ok('J13a3d2 带 verdict53 的调用点都声明了 machineAnswer: true（声明真的到了那一跳）');
   }
 
   // J13a4 **接线**：原文没有丢 —— 它是这一轮的回复正文（`ws_daemon` 记字数、memory 存这一轮）

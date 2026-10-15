@@ -960,6 +960,22 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null, machi
   let dd = blk.data;
   const remap = [];
   remap.push(...shapeMoved);
+  // ══════════════════════════════════════════════════════════════════════════
+  // ★★ 2026-10-15（第 7 张 PASS 卡，真单 `om_x100b623de32b9c84cebb3cd965d312f`）：
+  //    **模型给了卡时，`machineAnswer` 也必须接得上。**
+  // ══════════════════════════════════════════════════════════════════════════
+  //   实测：17:20 那张卡走的是「模型的卡照用」这一支 ⇒ 上面 `autoCard` 里的
+  //   `machineOnly` 判据**根本没被执行**，于是模型把那一轮 `res.reply` 里的读数
+  //   转述进了卡面（`状态 PASS ｜ 问题数 0 ｜ 置信度 0.93`、`（未填）` 表格碎片、
+  //   `--content-type text`、`四道审计红 0`、`source_chain`… 共 10 类），
+  //   结论行还印了两遍。Owner 当场报「格式不符」—— 与 15:11 那条**同根**，
+  //   只是站在**另一条分支**上（那一条修的是「模型没给卡」）。
+  //   ⚠️ 只对**机器答案**生效（`machineAnswer` 由批跑器声明）：回复那条路一个字不动。
+  if (machineAnswer) {
+    const mf = machineAnswerFold(kd, dd, verdict53);
+    dd = mf.data;
+    remap.push(...mf.moved);
+  }
   // ★ 代码建的卡也要**出声**：日志里必须看得见「这一单的卡不是模型给的」——
   //   否则「模型忘了给卡」这件事只会以「格式变了」的样子出现在群里（今天就是这样）。
   if (autoCard) {
@@ -1015,6 +1031,42 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null, machi
     const applied = applyVerdictLine(kd, data, verdict53);
     data = applied.data;
     if (applied.moved) moved.push(applied.moved);
+    // ══════════════════════════════════════════════════════════════════════════
+    // ★★ 2026-10-15：**权威结论行占抬头，模型那句原话降到正文首行**
+    //    （真单第 7 张 PASS 卡：`query-answer` 的结论格是 `verdict`，**抬头不是它**）
+    // ══════════════════════════════════════════════════════════════════════════
+    //   出了什么事：`verdictSlotOf('query-answer') = 'title'` ⇒ `applyVerdictLine`
+    //   认定「抬头已经是权威结论行」（它刚写的）⇒ 走 `already` 支、**一个字符都没搬**。
+    //   于是正文第一格 `verdict` 还空着 ⇒ 卡面上第一行印着 **「（未填）」**，
+    //   而那一格本来装的正是模型那句结论（`链侧 PASS/0…；本单未收到双轨合并块`）。
+    //   `（未填）` 是「缺字段」的可见信号（`cards.mjs` 的 `NA`）—— 这里并不缺，
+    //   缺的是**有人把它搬下来**。所以这一步只做一件**搬迁**：抬头归权威结论行，
+    //   模型那句进正文首行（**一个字都没丢**，也没替它改写）。
+    //   ⚠️ 只对**机器答案**生效，且只在「抬头确实已是权威结论行」时动手；
+    //     回复那条路（模型给人写的卡）一个字都不动。
+    //   ★★ 判据**不**加 `machineAnswer` 门（这一点是反向对照逼出来的，2026-10-15）：
+    //     回复那条路同样会走到这里 —— `applyVerdictLine` 把抬头改写成权威结论行之后，
+    //     **模型自己给的抬头就没人接着了**（`dd.title` 还在，但卡面上不再是它）。
+    //     那一句是模型写的，按「搬不是砍」必须落回正文（`J13a3e2` 钉着这一条）。
+    //     ⚠️ 只在「抬头**确实被改写过**」时动手：`data.title` 仍是模型那句 ⇒ 一字不动。
+    const _mTitle = s(blk?.data?.title).trim();
+    //   ⚠️ 「原本有没有正文字段」要拿**模型给的原始卡**（`blk.data`）去问，不能问 `data`：
+    //     `applyVerdictLine` 可能已经把原抬头折进 `data.evidence` 了（回复那条路就是），
+    //     拿折完的 `data` 判会得出「正文本来就有」的假结论（实测踩过）。
+    const _hasProse = !!s(blk?.data?.verdict).trim() || !!s(blk?.data?.reasoning).trim();
+    const _alreadyKept = (Array.isArray(blk?.data?.evidence) ? blk.data.evidence : [])
+      .some((x) => s(x).includes(_mTitle));
+    if (verdict53?.line && _mTitle && _mTitle !== s(verdict53.line).trim()
+        && s(data.title).trim() === s(verdict53.line).trim() && !_alreadyKept) {
+      if (_hasProse) {
+        // 模型给的卡本来就有正文格 ⇒ 把原抬头补进正文首行，别让它只活在折叠区里
+        data = { ...data, verdict: s(data.verdict).trim() ? data.verdict : _mTitle };
+        moved.push({ field: 'title', to: 'verdict', chars: len(_mTitle),
+                     why: '抬头归权威结论行 ⇒ 原抬头补进正文首行（不丢字；也免得印「（未填）」）' });
+      } else {
+        data = foldInto(kd, data, _mTitle, moved, 'title');
+      }
+    }
     // ★★ 2026-10-13：**媒材读数不再上卡**（Owner：「这里多余的回复也去掉」）。
     //   ⇒ 这一跳的接线**撤了**，`mediaRead` 这个选项也一并撤掉 ——
     //     **留一个没人读的入参就是「传了但没人接」那个病**（同一天刚在
@@ -1100,7 +1152,7 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null, machi
  * @param {string} text 模型这一轮的原文
  * @returns {{text:string, removed:string[]}} 摘完的文本与摘掉的原文行（留痕用）
  */
-export function stripInternalNotes(text, { machine = false } = {}) {
+export function stripInternalNotes(text, { machine = false, cardField = false } = {}) {
   const src = s(text);
   if (!src) return { text: src, removed: [] };
   // 我们自己的那几种固定形状（`dual_track.renderMerged` 是唯一产者）。
@@ -1151,11 +1203,141 @@ export function stripInternalNotes(text, { machine = false } = {}) {
     //   模型把整段抄下来时，这一条比逐行认更早兜住（含它自己的首尾标记）。
     if (/^【★ 我的查证笔记/.test(t)) { removed.push(line); continue; }
     if (/^【★ 查证笔记结束】/.test(t)) { removed.push(line); continue; }
+    // ★ 2026-10-15：**卡片自己的渲染注记**（`（已收起 N 条证据：…）`）也是我们自己产出的
+    //   （`registry.renderText` 那一路，`hasSubstance` 的 ③e 早就把它当「不是内容」）。
+    //   实测：模型把台账正文整个转述进卡面时，连这一行一起抄了进来 ⇒ 卡上出现
+    //   「（已收起 1 条证据：证据 · 1 条）」**两遍**（一遍是真折叠区、一遍是转述）。
+    if (/^[（(]已收起\s*\d+\s*条证据/.test(t)) { removed.push(line); continue; }
     if (ACTIVE.some((re) => re.test(t))) { removed.push(line); continue; }
+    // ★★ 2026-10-15：机器答案那一档**再拆两层段落** —— 见 `machineReadingPara`。
+    if (machine && !t.startsWith('[[card:')) {
+      // 占位符行（`（未填）`）在这一档也算读数 —— `hasSubstance` 早就把它当占位符，
+      // 这里原先只在 `MACHINE_RULES` 里认「整行正好是它」，模型带前后空格就漏（实测漏了一行）。
+      if (/^[（(]\s*(?:未填|无|空)\s*[）)]$/.test(t)) { removed.push(line); continue; }
+      // `cardField` 是**模型给的卡片字段**那一档（`machineAnswerFold` 用）：
+      //   那几格里没有「模型写给人的整段话」，只有转述出来的读数
+      //   ⇒ 段落拆分时把**短残句**（`< 12` 字、去掉读数句以后剩下的尾巴）一并摘掉。
+      //   ⚠️ 默认 `false`：`autoCard` 那条路喂进来的是**模型写的整段回复**，
+      //     那里一个字都不许多摘（J13a3 / J13a3c 两条反向对照钉着）。
+      const cut = machineReadingSentences(t, { dropFragments: cardField });
+      if (cut === null) { removed.push(line); continue; }        // 整段是读数 ⇒ 整行摘
+      if (cut !== t) { removed.push(line); out.push(cut); continue; }   // 只摘掉段里那几句
+    }
     out.push(line);
   }
   if (!removed.length) return { text: src, removed: [] };
+  // 段落级摘除会留下空行 ⇒ 与上面同为「不许出现连续两个空行」（J 段的分段判据也钉着它）
   return { text: out.join('\n').replace(/\n{3,}/g, '\n\n').trim(), removed };
+}
+
+/**
+ * **一个内容行里的读数句**该摘到哪里？（只在 `machine: true` 那一档用）
+ *
+ * 返回值三态，调用方照它决定「整行摘 / 摘几句 / 一行不动」：
+ *   · `null` —— 整行都是读数 ⇒ 整行摘；
+ *   · 另一个字符串 —— 读数句已摘掉（可能摘空 ⇒ 回空串）；
+ *   · **原样的字符串** —— 一行都没命中 ⇒ 一个字不动。
+ *
+ * ── 为什么要拆到「句」
+ *
+ *   实测那一段（真单 `om_x100b623de32b9c84cebb3cd965d312f`）是**混排**的：
+ *
+ *     `未命中 ≠ 合规（是「未发现已知底线风险」，不是「已证明合规」）；`   ← 模型按口径写的边界声明，**要留**
+ *     `② 自命中检查真跑过、结果为「未命中」（归一化 638 字、扫过 209 条…）；`  ← 读数，摘
+ *     `层前置 L4/L5/L6 各 1 项黄＝预演落章（E5）＝机制证据…`              ← 读数，摘
+ *
+ *   整段判 ⇒ 要么把边界声明一起丢掉（拦得比该拦的多），要么把读数放出去。
+ *   ⇒ 按 `；` 拆句，**逐句判**，分号原样接回去（不改写一个字）。
+ *
+ * ── 判据（**机械形状，不做语义猜测**，与上面同一条纪律）
+ *
+ *   一个内容行里同时出现**管道分隔**与**内部读数标记**（枚举 / 段位 / 全角管道 / 反引号键值）
+ *   ⇒ 判它是读数段。实测该判据对本单 5 段命中 4 段，
+ *   **留下的那一段正是模型按口径写的边界声明**（`未命中 ≠ 合规…`，要留）。
+ *
+ * ⚠️ 只认**枚举与标识符**，不认「凡出现 PASS 就摘」那种泛化 —— 那会把模型
+ *   如实转述的两轨结论一起摘掉（`stripInternalNotes` 头注里那条纪律，J13 反向对照钉着）。
+ *
+ * @param {string} t 已经 `trim()` 过的一段
+ */
+function machineReadingSentences(t, { dropFragments = false } = {}) {
+  const para = s(t).trim();
+  if (!para) return para;
+  // ⚠️ 护栏一：**卡片块那一行绝不许认**。`[[card:…]]` 是**单行**的 JSON
+  //   （字段里的换行是转义过的 `\n`），而它里面什么都有 —— 实测验过：不加这一条，
+  //   它被整行摘掉 ⇒ `extractCardBlock` 找不到对象 ⇒ 卡片降级成
+  //   「我这次没能把回答组织成卡片（标记后没有对象）」那句兜底话。
+  //   卡面里的读数**另有执行点**（`machineAnswerFold`），不必、也不能在这一层摘。
+  if (para.startsWith('[[card:')) return para;
+  // ⚠️ 护栏二：**只对「像一段话」的长度生效**。卡片块之外，一行几百上千字的多半是
+  //   别的机器产物（JSON / 日志行），不是给人读的段落 —— 摘它风险大于收益。
+  if (para.length > 800) return para;
+  if (!machineReadingPara(para)) return para;
+  // 单句 / 两句的段落：整段就是读数，不必拆（拆了也只剩残句）。
+  const sentences = para.split('；');
+  if (sentences.length < 3) return null;
+  // 三句以上：按句判，读数句摘掉，其余原样接回去。
+  //   ⚠️ 残句必须一起摘：`…；P0/P1/P2/P3 计数全 0。★ 要紧的一点：…` 这一句的中段
+  //     是读数、后段是模型话，按 `；` 切完只剩「P0/P1/P2/P3 计数全 0。」这种碎渣
+  //     上卡比读数还难读。判据：**同一段里摘掉过东西 + 剩下的残句短于 12 字**
+  //     ⇒ 它本来就是那一句的尾巴，一并摘（摘下来的原文同样进折叠区）。
+  const kept = [];
+  const dropped = [];
+  for (const sentence of sentences) {
+    if (machineReadingPara(sentence)) { dropped.push(sentence); continue; }
+    kept.push(sentence);
+  }
+  if (!dropped.length) return para;
+  const body = dropFragments ? kept.filter((x) => x.trim().length >= 12) : kept.slice();
+  const crumbs = dropFragments ? kept.filter((x) => x.trim().length < 12) : [];
+  dropped.push(...crumbs);
+  if (!body.length) return null;
+  return body.join('；').replace(/^[；\s]+|[；\s]+$/g, '').trim();
+}
+
+/**
+ * 单独一段**是不是**读数段。判据见 `machineReadingSentences` 头注。
+ *
+ * @param {string} para 已经 `trim()` 过的一段（一句或一整段）
+ */
+function machineReadingPara(para) {
+  const t = s(para).trim();
+  if (!t) return false;
+  if (t.startsWith('[[card:')) return false;      // 护栏一，同 `machineReadingSentences`
+  if (t.length > 800) return false;               // 护栏二，同 `machineReadingSentences`
+  const PIPE = /[｜|]/;
+  // 枚举值：`状态 PASS` / `| 这一次 |` 那种；**必须与管道同段**才算数（单出现一个词不算）
+  const ENUM = /[｜|]\s*(?:PASS|REVIEW|BLOCK|NEEDS_INPUT)\b/;
+  const TALLY = /(?:问题数|置信度|判定主体|回读|结论|状态)\s*[=｜|]/;
+  // 段位名与开关：`heuristic_not_calibrated`（置信度档位）、`--content-type text`（引擎开关）、
+  // `四道审计`/`预演落章`（闸门读数）、`source_sha256`/`record_id`（坐标与指纹）。
+  // ⚠️ **容得下空格**：实测那一句写的是「四道审计红 0」而不是「四道审计红0」——
+  //    精确匹配那版在真单上**一个字都没命中**（判据写对了、够不着真实文本，本项目的经典形状）。
+  //    所以机械词表一律允许词与数字之间夹空白，不改语义（仍只认这几个词）。
+  const MARK = /heuristic_not_calibrated|--content-type|source_sha256|record_id|四道审计\s*[红0-9]|预演落章|层前置\s*L[4-7]|red_total/;
+  // ★★ 2026-10-15 第二次收窄（实测那一段**一个管道都没有**，第一版判据够不着）：
+  //   真单那一整段里既有 `sha256 \`2e4e7a24…\``（反引号里的**指纹**）、`--content-type text`、
+  //   `四道审计红 0`、`预演落章（E5）`，也有一句**模型按口径写的边界声明**
+  //   （`未命中 ≠ 合规…`）。逐词摘会把手写句子打断，整段留又会把读数放出去。
+  //   ⇒ 判据取**两种信号同时出现**：段里有**反引号包的机械标识**（指纹 / 开关 / 段位），
+  //     **并且**段里有读数标记。单有反引号不算（模型正常引用路径/字段名时也打反引号）。
+  //   为什么这一条是安全的：反引号在本仓文案里只用来包**标识符 / 路径 / 枚举**
+  //   （`cards.mjs` 那条注释同源），给业务同事看的话里不会出现「指纹 + 开关」这种东西。
+  //   ★★ 2026-10-15 第三次收窄（前两版都在**反引号里的形状**上够不着真实文本）：
+  //     真单里那些反引号包的是 `status=error` / `ok=None` / `ok=true / mode=enforced / red_total=0`
+  //     / `NEEDS_INPUT` —— 全是**键值、开关、态名**，而前两版只认「纯下划线词 / --flag / 十六进制」，
+  //     于是 `TICKED` 恒为 false，整条判据一次都没生效（判据写对了、够不着真文本，本项目的经典形状）。
+  //     ⇒ 认「反引号里的内容含 `=` / 连字符 / 下划线 / 全大写态名」这一组**机械形状**。
+  const TICKED = /`[^`]*(?:[=_-]|[A-Z]{2,})[^`]*`/;
+  if (TICKED.test(t) && MARK.test(t)) return true;
+  if (PIPE.test(t)) return ENUM.test(t) || TALLY.test(t) || MARK.test(t);
+  // ★★ 2026-10-15：**没有管道的短残句**也算 —— 实测 `…；P0/P1/P2/P3 计数全 0。★ 要紧的一点：…`
+  //   这一句按 `；` 切开之后，剩下的正是「P0/P1/P2/P3 计数全 0。」：读数**不在行首**
+  //   （行首是「P0/P1/P2」），也没有管道 ⇒ 前面每一版判据都够不着。
+  //   判据取两个机械条件同时成立：**段里有读数标记** 且 **段短于 30 字**。
+  //   ⚠️ 阈值不放宽（60 字那种就不摘了）——放宽会把模型写的短句一起摘掉，
+  //     那是「拦得比该拦的多」（J13a3c 反向对照钉着）。
+  return MARK.test(t) && t.length < 30;
 }
 
 /**
@@ -1205,6 +1387,87 @@ export function hasSubstance(text, { exclude = null } = {}) {
   //     不排掉它的话，这一判据对每一张评审单都会答「有内容」（实测踩到：就是这样一直挡着）。
   const ex = s(exclude).trim();
   return lines.some((l) => l !== ex && !placeholder.test(l) && !reading(l) && !renderNote.test(l));
+}
+
+/**
+ * **机器答案那一档：模型自己给的卡也要按行摘读数**（2026-10-15，真单第七张 PASS 卡）。
+ *
+ * ── 它补的是 `machineAnswer` 的**下半条路**
+ *
+ *   `machineAnswer` 原先只在 `autoCard` 那一支生效（**模型没给卡**、代码自己建卡）。
+ *   而模型**给了卡**时，走的是「模型的卡照用」那一支 —— 声明接不上，
+ *   那一轮的 `res.reply` 里全是我们自己的读数，被模型**转述进了卡面**
+ *   （`title` / `verdict` / `reasoning` 三格），**一个字都没被摘**。
+ *
+ * ── 实测（真单，逐字取自 `PMO/logs/ws_outbound.jsonl` 第 1073 行）
+ *
+ *   `MC-US-AMZ-B0G647K9TN`，17:20 那张卡 · 模型给的是 `query-answer` 卡：
+ *     · 卡面正文＝`状态 PASS ｜ 问题数 0 ｜ 置信度 0.93（`heuristic_not_calibrated`…）`、
+ *       `（未填）` 表格碎片、`--content-type text`、`四道审计红 0`、
+ *       `feishu_publish.py --apply 退出码 1`、`source_sha256`、`record_id`、
+ *       `行 reczz…｜结论=PASS｜回读=consistent`；
+ *     · 结论行**印了两遍**（抬头一次、正文首行又一次）。
+ *   ⇒ `machineAnswer: true` 在这一单上**等于没传**。
+ *
+ * ── 判据：**只摘读数行，一个字的模型话都不许丢**
+ *
+ *   摘下来的字段**整体进折叠区**（`foldIn`）—— 与 `stripInternalNotes` 同一条纪律
+ *   （那几行有明确归属：会话记忆里还有一份，所以摘掉比整条拦下代价小得多）。
+ *   ⚠️ 与 J13a3c 那条反向对照同源：**链跑挂时模型那段是真答复**，它没有读数形状
+ *   ⇒ 一行都摘不掉 ⇒ 原样留下。
+ *
+ * @param {string} kind 当前卡片类型（决定折叠区落在哪个字段）
+ * @param {object} data 模型给的卡片数据
+ * @param {{line:string}|null} verdict53 权威结论行
+ * @returns {{data:object, moved:object[]}}
+ */
+function machineAnswerFold(kind, data, verdict53) {
+  const line53 = s(verdict53?.line).trim();
+  const moved = [];
+  let d = { ...data };
+  // 可见的字符串格 —— 与 `carryCardText` / `scrubInternal` 同一组字段，不另立一份清单
+  for (const f of ['title', 'verdict', 'reasoning', 'wrong', 'verdict_text']) {
+    if (typeof d[f] !== 'string' || !d[f].trim()) continue;
+    const before = d[f];
+    const st = stripInternalNotes(before, { machine: true, cardField: true });
+    let after = st.text.trim();
+    // ★ 结论行**独占抬头**（与 `autoCard` 那一支同一条口径）：正文里再印一遍就是重复。
+    //   ⚠️ 只在摘完**还剩别的内容**时才摘 —— 否则会留下一个空组 / 空白正文
+    //   （真单 `om_x100b62372ba…` 那类混排单：结论行底下还有「差异：…」「为什么变：…」要留）。
+    if (line53 && after.includes(line53)) {
+      const cut = after.split(line53).join('').replace(/\n{3,}/g, '\n\n').trim();
+      if (cut) after = cut;
+    }
+    if (after === before.trim()) continue;
+    // ★ 折进卡面的**只有真内容**：`（未填）` 这类占位符、以及摘完剩下的**短残句**
+    //   （`< 12` 字、且整格已无实质内容时），折进去只是把噪声换个地方显示
+    //   （实测：折完之后卡面上又冒出一行 `（未填）`）。
+    const keep = st.removed.filter((x) => s(x).trim() && !/^[（(]\s*(?:未填|无|空)\s*[）)]$/.test(s(x).trim()));
+    if (!after) {
+      // 整格都是读数 ⇒ 摘空；摘掉的原文跟着折叠区走，不丢
+      d = { ...d, [f]: '' };
+      moved.push({ field: f, to: keep.length ? '(折叠区)' : '(不进公开格)', chars: len(before),
+                   why: `批跑的机器答案：这一格整格是内部读数（${st.removed.length} 行），`
+                      + '不上卡（原文仍在折叠区与这一轮的记忆里）' });
+      if (keep.length) d = foldInto(kind, d, keep.join('\n'), moved, f);
+    } else {
+      d = { ...d, [f]: after };
+      moved.push({ field: f, to: '(同格·摘行)', chars: len(before) - len(after),
+                   why: `批跑的机器答案：摘掉 ${st.removed.length} 行内部读数（其余内容一句没动）` });
+    }
+  }
+  return { data: d, moved };
+}
+
+/** 把摘下来的原文折进折叠区（与 `scrubInternal` 同一条路，落点由 `foldIn` 定）。 */
+function foldInto(kind, d, text, moved, from) {
+  // ⚠️ `foldIn` 返回的是 `[data, to]` **元组**，不是对象 —— 当成对象展开会把
+  //   卡片数据整体打散（实测：`.mjs` 里 `{...d}` 一展，`title/verdict/reasoning`
+  //   全没了，卡直接建不出来，降级成「标记后没有对象」那句兜底话）。
+  const [next, to] = foldIn(kind, d, `（原文照留：这一格是机器读数，不进公开卡面）\n${text}`);
+  if (to === null) return d;                    // 没地方放 ⇒ 宁可留着读数，也不静默丢字
+  moved.push({ field: from, to, chars: len(text), why: '摘下来的原文进折叠区（不丢字）' });
+  return next;
 }
 
 /**
