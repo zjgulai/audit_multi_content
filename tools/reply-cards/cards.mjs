@@ -281,7 +281,20 @@ const flat1 = (v) => {
       const t = flat1(val).trim();
       return t ? `${k}：${t}` : '';
     };
-    if ('label' in v) return kv(flat1(v.label), v.value);
+    // ★★ 2026-10-15 **修一行真 bug**（真单：私聊 16:24 那张「我能做什么」卡，三栏全是「（未填）」）：
+    //   模型给的形状是 `{label, note}`（十九处都这样），而这里写的是 **`v.value`** ——
+    //   于是 `note` 永远读不到、`label` 被当成**键名**拼进 `kv()` 的查找对象里
+    //   ⇒ `kv('列目录 / 找文件', undefined)` ⇒ `flat1(undefined)=''` ⇒ 返回空串
+    //   ⇒ `s()` 落 `（未填）`。**每一栏都变成「（未填）」，而卡本身不报错、不降级。**
+    //   判据：`verify_cards` 的 J17a–f（2026-10-14 为 `[object Object]` 那次写的）
+    //   只喂了 `{能力, 边界}` 与 `{label, value}` 两种形状，**没喂 `{label, note}`**
+    //   —— 模型真正用的那一种恰好漏在外面。
+    if ('label' in v) {
+      // 取值按**模型实际用的键**依次认：`note`（真单）→ `value`（既有约定）→ 其余单键
+      const rest = Object.entries(v).filter(([k]) => k !== 'label');
+      const other = rest.find(([k]) => k === 'note') ?? rest.find(([k]) => k === 'value') ?? rest[0];
+      return other ? kv(flat1(v.label), other[1]) : flat1(v.label);
+    }
     if ('title' in v && 'content' in v) return `【${flat1(v.title)}】${flat1(v.content)}`;
     return Object.entries(v).map(([k, vv]) => kv(k, vv)).filter(Boolean).join('；');
   }

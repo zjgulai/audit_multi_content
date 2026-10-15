@@ -1071,6 +1071,31 @@ head('J17 卡面永不许出现 [object Object]（对象值必须塌成人话）
     if (lost.length) no('J17a2 对象摊平后键名与值都不许丢', `丢了：${lost.join(' / ')}`);
     else ok('J17a2 对象摊平后键名与值都在（键名是模型在表达区分，不许替它取舍）');
   }
+  // J17a3 ★★ 2026-10-15 **真单漏在外面的一种形状：`{label, note}`**
+  //   起因：私聊那张「我能做什么」卡三栏全是「（未填）」（`ws_outbound.jsonl` 16:24:36），
+  //   而模型给的十九处全是 `{label, note}` —— `flat1` 的 label 分支当时读的是 **`v.value`**，
+  //   于是 `note` 读不到、`label` 被当键名拼进查找对象 ⇒ 每条都摊成空串 ⇒ `s()` 落 `（未填）`。
+  //   ★ 判据为什么没抓住它：J17a/J17a2 只喂了 `{能力, 边界}` 与 `{label, value}` 两种形状，
+  //     **模型真正用的那一种恰好没喂**（§2.4.1：判据没盖住的那一类，就是事故所在的那一类）。
+  {
+    const LABEL_NOTE = [
+      { label: '列目录 / 找文件', note: 'list_workspace、list_files' },
+      { label: '读文件内容', note: 'read_text_file，单次有字节上限' },
+    ];
+    const built = build('capability-boundary', { title: '我能做什么', can: LABEL_NOTE, cannot: [LABEL_NOTE[0]] });
+    const txt = renderText(built) + JSON.stringify(built);
+    if (txt.includes('（未填）')) {
+      no('J17a3 `{label, note}` 不许印成（未填）', '真单那个形状又出现了');
+    } else if (!txt.includes('列目录 / 找文件') || !txt.includes('list_workspace')) {
+      no('J17a3 `{label, note}` 的 label 与 note 都要在', '有一个丢了');
+    } else ok('J17a3 `{label, note}`（模型真用的那种形状）⇒ label 与 note 都印出来');
+    // ★ 反向对照：`{label, value}` 那种既有约定**照旧**要认（不许为了修这一种弄坏另一种）
+    const lv = build('capability-boundary', { title: 't', can: [{ label: '能做A', value: '值A' }] });
+    const lvtxt = renderText(lv);
+    if (!lvtxt.includes('能做A') || !lvtxt.includes('值A')) no('J17a3 反向对照：{label,value} 照旧认', lvtxt.slice(0, 120));
+    else ok('J17a3 反向对照：`{label, value}` 那种既有约定照旧认');
+  }
+
   // J17b 同一个病根换张卡：`fields[].value` 给对象照样烂 ⇒ 一起收口
   {
     const built = build('query-answer', {
