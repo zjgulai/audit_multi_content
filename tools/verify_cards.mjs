@@ -855,6 +855,34 @@ head('J13 查证笔记 · 不上卡、但要答得出来（Owner 2026-10-13 三�
         no('J13a3b 权威结论行必须在卡上', whole.slice(0, 160));
       } else ok('J13a3b 机器答案：卡上只有权威结论行，内部读数一行都不上卡');
 
+      // J13a3b2 ★ 2026-10-15 真单（`om_x100b62372ba...` 那类：**混排**）——
+      //   实测 10-14 那两张 PASS 卡**不是纯噪声**：开头一句「差异：…」、结尾一句
+      //   「为什么变：不确定…」都是**模型按口径写的边界声明**，该留；中间夹的是读数，该摘。
+      //   所以这一条同时断两个方向：**读数一行不许留 · 有用的句子一句不许丢**。
+      {
+        const line53 = '【审查结论：PASS】未发现已知底线风险，可转交 @sign-off 责任人（未配置） 进行 sign-off。';
+        const MIXED = [line53,
+          '差异：同一张图：上次 REVIEW 1 处，本次链侧 PASS/0；本次没给合并块',
+          '| 项 | 值 |', '| --- | --- |',
+          '| 这一次 | 本次：链侧 PASS ｜ 问题数 0 ｜ 置信度 0.93；判定主体「图片安全审查」mode=declared',
+          '为什么变：不确定 —— 两次是两条独立的链运行；我不替它解释，也不拿新结论去覆盖旧记录',
+          '（未填）',
+          '本单 issue_count=0、risk_items=[] ⇒ 引擎没有产出任何条款号可引（不是不给）',
+          '未命中 ≠ 合规；四层审计红 0',
+          '判定输入只有本机 OCR 读出的那几行字 —— 构图、场景都不在这些字里；要看画面得由人来看',
+        ].join('\n');
+        const r = toCardOrText(MIXED, { verdict53: { state: 'PASS', line: line53, from: 'chain', block: null },
+                                        machineAnswer: true });
+        const whole = JSON.stringify(r.card ?? r.text ?? '');
+        const leaked = ['链侧 PASS ｜', '| 项 | 值 |', '| --- |', '（未填）', '问题数 0 ｜ 置信度'].filter((k) => whole.includes(k));
+        const kept = ['差异：同一张图', '为什么变：不确定', '未命中 ≠ 合规', '判定输入只有本机 OCR'].filter((k) => whole.includes(k));
+        if (leaked.length) {
+          no('J13a3b2 混排：读数一行都不许留', `漏了：${leaked.join(' / ')}`);
+        } else if (kept.length !== 4) {
+          no('J13a3b2 混排：有用的句子一句都不许丢', `丢了：${['差异：同一张图', '为什么变：不确定', '未命中 ≠ 合规', '判定输入只有本机 OCR'].filter((k) => !whole.includes(k)).join(' / ')}`);
+        } else ok('J13a3b2 混排：读数摘干净 · 模型按口径写的边界声明一句没丢');
+      }
+
       // J13a3c ★ 反向对照：**链跑挂时模型那段是真答复** —— 不许被这条判据一起吞掉
       const realAnswer = `${line53}\n\n这条链这次没跑成，我按能读到的部分给你三条建议，第一条是……`;
       const r2 = toCardOrText(realAnswer, { verdict53: V53P, machineAnswer: true });

@@ -739,7 +739,7 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null, machi
   //   放在最前面（早于 `extractCardBlock`）是有意的：那几行若被模型抄进卡片块里，
   //   晚一步摘就摘不到了（块里的是 JSON 字符串，按行认不出来）。
   //   ⚠️ 摘下来的原文**进 `stripMoved` 留痕**（日志看得见），不是静默丢弃。
-  const stripped = stripInternalNotes(reply);
+  const stripped = stripInternalNotes(reply, { machine: machineAnswer });
   const stripMoved = stripped.removed.length
     ? [{ field: 'reply', to: '(memory)', chars: stripped.removed.join('\n').length,
          why: `回复里混进了我自己的查证笔记（${stripped.removed.length} 行）——`
@@ -866,7 +866,7 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null, machi
     //     「机器答案 **且** 摘掉我们自己产出的那几种行形状之后已无实质内容」。
     //   判据在 `tools/verify_cards.mjs` 的 J13a3 / J13a3b（正反各一条）。
     const machineOnly = machineAnswer
-      && !hasSubstance(stripInternalNotes(reply).text, { exclude: verdict53?.line });
+      && !hasSubstance(stripInternalNotes(reply, { machine: true }).text, { exclude: verdict53?.line });
     const dropProse = !!verdict53?.block || machineOnly;
     blk = {
       kind: 'evidence',
@@ -1089,7 +1089,7 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null, machi
  * @param {string} text 模型这一轮的原文
  * @returns {{text:string, removed:string[]}} 摘完的文本与摘掉的原文行（留痕用）
  */
-export function stripInternalNotes(text) {
+export function stripInternalNotes(text, { machine = false } = {}) {
   const src = s(text);
   if (!src) return { text: src, removed: [] };
   // 我们自己的那几种固定形状（`dual_track.renderMerged` 是唯一产者）。
@@ -1103,6 +1103,35 @@ export function stripInternalNotes(text) {
     /^⚠️ 另有 \*\*\d+ 条非权威候选线索\*\*/,            // candNote
     /^（问题数 \*\*\d+ ≥ 3\*\* ⇒ 按 PRD §5\.3\.3 只出分类汇总/,   // 汇总页脚
   ];
+  // ── ★★ 2026-10-15：**这一组只在 `machine: true` 时生效** ──────────────────────
+  //   为什么要分组：`J5 无块时原样透传` 钉着「信封不许改写正常回答」。第一版把这五类
+  //   并进上面那张表，**当场把 J5 判红** —— 它的样本里有一张模型写的正经表格
+  //   （`| a | b |` / `|---|---|`），被表行规则摘了。分组判据就落在那一条断言上：
+  //     · 回复那条路（没有 `machineAnswer` 声明）⇒ 一个字都不许动；
+  //     · 机器答案那一档 ⇒ 允许按**读数形状**逐行摘（真单见 `stripInternalNotes` 头注）。
+  const MACHINE_RULES = [
+    // （下面每一行都是照着真单逐行抄的，不是想出来的）
+    //   起因：PASS 单那张卡里 `链侧 PASS ｜ 0 处问题…`、`引擎结论（照抄 ③b 模板）：…`、
+    //   `行 reczz…｜结论=PASS｜回读=consistent`、`` `ok=true / mode=enforced…` `` 五类行
+    //   **一条都不在上述形状里** ⇒ 逐行摘不掉 ⇒ 整段当卡片正文进了群
+    //   （真单：`om_x100b62333eaaf0a8b050a29473b0030` 等 6 张 PASS 卡）。
+    //   ⚠️ 仍**只认我们自己的固定前缀**（与上面同一条纪律）：不做「凡出现 PASS 就摘」
+    //     那种泛化 —— 那会把模型正常转述的两轨结论一起摘掉。反向对照在 J13 段。
+    /^链侧\s*(PASS|REVIEW|BLOCK|NEEDS_INPUT)/,          // 链侧态行
+    /^引擎结论/,                                        // 引擎结论（照抄模板）
+    /^行\s*\S+\s*｜\s*结论\s*=/,                        // 表行读数
+    /^（未填）$/,                                       // 占位符行
+    /^\|\s*项\s*\|\s*值\s*\|$/, /^\|\s*-{2,}\s*\|/,  // 表头 / 分隔行
+    //   表行：整行以 `|` 开头，且**行内带读数标记**（`｜ PASS` / `问题数` / `置信度` /
+    //   `判定主体` / `mode=`）才摘 —— 只看「是不是表格」会把模型写的正经表格一起摘掉。
+    /^\|[^\n]*(?:｜\s*(?:PASS|REVIEW|BLOCK|NEEDS_INPUT)|问题数|置信度|判定主体|mode=)/,
+    /^\|\s*上一次\s*\|/, /^\|\s*这一次\s*\|/,         // 差异表那两行（标题就说明它是读数）
+    /^`(?:ok|mode|red_total)=/,                          // 引擎读数键=值
+    // ⚠️ **刻意不收**：`0 条 findings ⇒ …` / `未命中 ≠ 合规；…` / `判定输入只有本机 OCR…` /
+    //   `为什么变：不确定 —— …` —— 实测它们是**模型按口径写的边界声明**（有用、且本来就该说），
+    //   不是内部读数。收进来会把有用的部分一起摘掉（那正是「拦得比该拦的多」）。
+  ];
+  const ACTIVE = machine ? RULES.concat(MACHINE_RULES) : RULES;
   const removed = [];
   const out = [];
   for (const line of src.split('\n')) {
@@ -1111,7 +1140,7 @@ export function stripInternalNotes(text) {
     //   模型把整段抄下来时，这一条比逐行认更早兜住（含它自己的首尾标记）。
     if (/^【★ 我的查证笔记/.test(t)) { removed.push(line); continue; }
     if (/^【★ 查证笔记结束】/.test(t)) { removed.push(line); continue; }
-    if (RULES.some((re) => re.test(t))) { removed.push(line); continue; }
+    if (ACTIVE.some((re) => re.test(t))) { removed.push(line); continue; }
     out.push(line);
   }
   if (!removed.length) return { text: src, removed: [] };
