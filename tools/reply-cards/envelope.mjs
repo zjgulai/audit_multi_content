@@ -734,7 +734,7 @@ export function applyReportLink(kind, data, reportLink) {
   return { data: out, action: 'forced', slot };
 }
 
-export function toCardOrText(reply, { verdict53 = null, reportLink = null } = {}) {
+export function toCardOrText(reply, { verdict53 = null, reportLink = null, machineAnswer = false } = {}) {
   // ★★ 2026-10-13（Owner 三条里的第 1、2 条）：**查证笔记在成形之前就摘掉** ——
   //   放在最前面（早于 `extractCardBlock`）是有意的：那几行若被模型抄进卡片块里，
   //   晚一步摘就摘不到了（块里的是 JSON 字符串，按行认不出来）。
@@ -795,6 +795,20 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null } = {}
   //   ⚠️ 2026-10-13：`boundary` 那一格**整格作废**（Owner：整个都隐藏）⇒ 模型写的边界
   //     也**不上卡**（它仍是这一轮回复正文的一部分，会话记忆里有）。
   //   ⚠️ 没有 §5.3 块时（`verdict53.block` 为空）行为**逐字不变**：模型给的卡照用。
+  // ★★ 2026-10-15（真单 `om_x100b62333eaaf0a8b050a29473b0030`，14:47 批跑那张 PASS 卡）：
+  //   **判据一字未动** —— 走的是下面 `autoCard` 那一档的「块外正文并进折叠组」。
+  //   出了什么事：那一单是 PASS、问题数 0 ⇒ 链**本来就没有逐条块** ⇒ `block` 为空 ⇒
+  //   模型这一轮的回复正文（`链侧 PASS ｜ 0 处问题…`、`引擎结论（照抄 ③b 模板）…置信度 0.93`、
+  //   `（未填）` 表格、`` `risk_items` 为空… ``）被当成卡片正文进了群。
+  //   `stripInternalNotes()` 只认**已登记的那几种行形状**（产者是 `dual_track.renderMerged`），
+  //   模型自己编的笔记形状它一个都不认 ⇒ 一行都摘不掉。
+  //
+  //   ★ 修法**不在这一层**：这一层的「块为空也要保住模型原话」是 J13a3 明写的安全网
+  //     （怕丢内容），一刀砍掉它会连**回复那条路**一起伤。真正的区别在**调用方**：
+  //     · `ws_daemon.replyTo` —— 那是**回给某个人的话**，原话该留着（安全网要的）；
+  //     · `batch_review_runner` —— 它喂进来的 `raw` 是**链的机器答案**（跑批时没有真人对话），
+  //       那一段里全是内部读数，本来就不该上卡 ⇒ 它显式传 `machineAnswer: true`。
+  //   实现见下面 `autoCard` 分支里 `useRaw` 那几行。
   const reviewShape = !!(verdict53 && verdict53.line && verdict53.block) && !!s(raw).trim();
   const shapeMoved = [];
   if (reviewShape) {
@@ -841,7 +855,19 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null } = {}
     //     比改动之前**更没法用**。所以那时照旧把原话放进「详细说明」组。
     //   ⚠️ 模型这一轮的原文**没有丢**：它仍是这一轮的回复正文（`ws_daemon` 记
     //     `💬 回复 N 字`，`memory` 也原样存着这一条 assistant 轮）。
-    const dropProse = !!verdict53?.block;
+    // ★ 2026-10-15：`machineAnswer` —— **调用方声明「喂进来的 raw 是链的机器答案、不是回给某个人的话」**。
+    //   批跑那条路（`batch_review_runner`）就是这一种：跑批时没有真人对话，
+    //   `res.reply` 里除了结论行，剩下的全是我们自己的读数（`链侧 PASS ｜ 0 处问题…`、
+    //   `引擎结论（照抄 ③b 模板）…置信度 0.93`、`（未填）` 表格、`` `risk_items` 为空… ``）。
+    //   实测那一单（PASS、问题数 0）就这么把内部读数当卡片正文发进了群（Owner 当场指出）。
+    //
+    //   ⚠️ 它**不是**「一概丢掉原话」：批跑里链跑挂时，模型那一段是有内容的答复，
+    //     那时**必须**照旧留着（与 `!block` 那条安全网同理）⇒ 判据收窄成
+    //     「机器答案 **且** 摘掉我们自己产出的那几种行形状之后已无实质内容」。
+    //   判据在 `tools/verify_cards.mjs` 的 J13a3 / J13a3b（正反各一条）。
+    const machineOnly = machineAnswer
+      && !hasSubstance(stripInternalNotes(reply).text, { exclude: verdict53?.line });
+    const dropProse = !!verdict53?.block || machineOnly;
     blk = {
       kind: 'evidence',
       error: null,
@@ -1090,6 +1116,55 @@ export function stripInternalNotes(text) {
   }
   if (!removed.length) return { text: src, removed: [] };
   return { text: out.join('\n').replace(/\n{3,}/g, '\n\n').trim(), removed };
+}
+
+/**
+ * 这段文本**还有没有给人看的实质内容**？（纯函数，只给「机器答案」那一档用）
+ *
+ * 实测的形状（2026-10-15 批跑三张 PASS 卡，逐字取自 `ws_outbound.jsonl`）——
+ * 除了权威结论行，剩下的**每一行都是我们自己的读数**：
+ *
+ *     （未填）                                            ← 占位符
+ *     行 reczz28NamxLZylu｜结论=PASS｜状态=PASS｜回读=consistent   ← 表行读数
+ *     引擎结论（照抄 ③b 模板）：状态 PASS ｜ 问题数 0 ｜ 置信度 0.93…  ← 机器答案（管道分隔）
+ *     链侧 PASS ｜ 0 处问题（只对 9 行 OCR 文字）；画面看不到、未审
+ *     `risk_items` 为空（问题数 0）⇒ 没有可给的条款号/命中片段…
+ *
+ * ★ 判据分三层，**一层比一层宽**，任何一层命中就算「这一行不是给人看的」：
+ *   ① **空行**；
+ *   ② **占位符行** —— 只有 `（未填）` / `(未填)` / `—` / `-` / `（无）` 这类；
+ *   ③ **读数行** —— 含管道分隔且带态标（`｜ PASS`）、或含 `` `键` `` + 比较/箭头
+ *      （`` `ok=true / mode=enforced…` ``、`` `risk_items` 为空… ``）、或 `回读=` / `结论=` / `状态=`。
+ *
+ * ⚠️ 为什么必须留一层「实质内容」的活路：批跑里**链跑挂**时，模型那一段是真答复
+ *   （`这条链这次没跑成，所以我按能读到的部分给你三条建议…`）—— 那时**要上卡**。
+ *   三层都是**机械可判**的形状，不做语义猜测（与 `stripInternalNotes` 同一条纪律）。
+ */
+export function hasSubstance(text, { exclude = null } = {}) {
+  const lines = s(text).split('\n').map((l) => l.trim()).filter((l) => l !== '');
+  const placeholder = /^(?:[（(]\s*(?:未填|无|空)\s*[）)]|[—–-]{1,3})$/;
+  //   ③e ★ **卡片自己的渲染注记**（`（已收起 N 条证据：…）`）—— 它是 `renderText` 产出的、
+  //       描述「这张卡长什么样」的一行，不是内容。实测它正好是最后一条挡住判定的行。
+  const renderNote = /^[（(]已收起\s*\d+\s*条证据/;
+  //   ③b ★ **管道分隔的行**（`引擎结论（照抄 ③b 模板）：状态 PASS ｜ 问题数 0 ｜ 置信度 0.93`）——
+  //       实测漏网的正是这一种：它后半句是长解释，`｜` 与态标都不缺，所以单列一条。
+  //   ③c ★ **反引号键 + 比较符**（`` `ok=true / mode=enforced / red_total=0` ``、
+  //       `` `risk_items` 为空… ``）—— **键长不限**，这是实测踩到的那一版
+  //       （第一版写成 `` `[^`]+` `` 紧跟符号，于是 `` `risk_items` 为空 `` 漏了，卡上就留着它）。
+  const KEYS = /(?:^|[（(\s，。；：])(?:[A-Za-z_][A-Za-z0-9_]{2,}|红|结论|状态|问题数|置信度|回读|命中|依据|条款号|模式|判定)\s*(?:=|为空|为 |⇒|→|＞|>)/;
+  //   ③d ★ **反引号包着的键** —— 单独一条，不跟比较符绑：实测 `` `risk_items` 为空 `` 里
+  //       键与「为空」之间没有比较符，前一版把两者写在一个正则里就漏了它。
+  //       反引号在我们的文案里只用来包**标识符/路径/枚举**（`kb/l7/...`、`AD-2025...`、`ok=true`），
+  //       那不可能是给业务看的话 —— 所以「整行含反引号」本身就是读数信号。
+  const reading = (l) => /[｜|]/.test(l)
+    || KEYS.test(l)
+    || /`[^`]+`/.test(l)
+    || /回读\s*=|结论\s*=|状态\s*=/.test(l)
+    || /^引擎结论/.test(l) || /^链侧 /.test(l);
+  //   ★ **权威结论行自己不算内容** —— 它上面已经进了抬头（`verdict53.line`），
+  //     不排掉它的话，这一判据对每一张评审单都会答「有内容」（实测踩到：就是这样一直挡着）。
+  const ex = s(exclude).trim();
+  return lines.some((l) => l !== ex && !placeholder.test(l) && !reading(l) && !renderNote.test(l));
 }
 
 /**

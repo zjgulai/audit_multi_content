@@ -38,6 +38,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { handleMessage } from './agent/agent.mjs';
+import * as videoMod from './agent/video.mjs';
 import { client, sendMarkdown } from './agent/feishu.mjs';
 import { toCardOrText } from './reply-cards/envelope.mjs';
 import { recordSend } from './agent/outbound.mjs';
@@ -53,11 +54,18 @@ const BASE = 'RY2UbCRjXaeeWwscUPScVN5AnQc';        // 「内容治理问题描�
 const TABLE = 'tblavfbMDMeRsulo';                  // 「内容治理数据采集」（80 行）
 const CHAT = 'oc_7775e2dacb6f2ebc9789cd6e681de5f7'; // 你和守衡的私聊
 const SOURCE = 'batch-review';                      // 台账来源（已在 outbound.SOURCES 里登记）
-const F = { id: '内容 ID', text: '采集数据', state: '状态' };
+const F = { id: '内容 ID', text: '采集数据', state: '状态', type: '内容类型' };
 // 结论表的表名/字段与这张采集表**同名**（都照 PRD 那套）——回填就是按 `内容 ID` 把它们搬过来。
 const RESULT_TABLE = 'tblCXPQVzfFWWCon';
 const RESULT_FIELDS = ['Agent 结论', '状态', '问题数量', '置信度', '报告链接', '问题分类汇总'];
 const NUM_FIELDS = new Set(['问题数量', '置信度']);
+// ★★ 2026-10-15：**列被删了就跳过，并且要出声** ──────────────────────────────────
+//   Owner 把采集表的「报告链接」列删了，而 `RESULT_FIELDS` 里还写着它 —— 写一个**不存在的字段名**
+//   会让**整批 batchUpdate 被拒** ⇒ 结论/状态/数量/汇总**一个都落不下来**。
+//   症状与「回填静默失败」长得一样，根因完全不同（那个是分页只读 200 行，这个是字段名不存在）。
+//   判据用**读到的真字段清单**（`readRows()` 从采集表 meta 取），不硬编码列名。
+let KNOWN_FIELDS = null;                  // 采集表真实字段清单（readRows() 填）
+const SKIPPED_FIELDS = new Set();         // 因「表里没有这一列」被跳过的字段（写回结果里带出来）
 
 const args = process.argv.slice(2);
 const has = (f) => args.includes(f);
@@ -79,10 +87,20 @@ function saveState(st) {
 }
 
 /** 读一张表（**守衡自己的**应用身份：`--profile dsh-kb --as bot`）—— 不借任何新权限。 */
-function readTable(table) {
-  const out = execFileSync(LARK, ['--profile', 'dsh-kb', 'base', '+record-list',
+function readTable(table, { sortDesc = false } = {}) {
+  // ★★ 2026-10-13 第五修（**这一条会让整批回填静默失效**）：
+  //   结论表是**追加式**的（每次审查 `+record-create` 一～两行），跑到 20:06 已经是 **209 行**；
+  //   而这里只读 `--page-size 200`（CLI 上限就是 200）⇒ `has_more=true`、**最新那几行不在这一页**。
+  //   实测后果：`writeBack` 按 `publishedRowId` 在自己读到的 200 行里找不到刚写的那一行
+  //   ⇒ 退到猜 ⇒ 报「结论表里这一单…都没有行」⇒ **采集表那一行没结果**。
+  //   （那条读数长这样：`↳ 回填你的表：❌ 结论表里这一单（素材原文 ／ 自 … 起）都没有行 —— 不写`。）
+  //   修法：**读结论表时按 `写入时间` 倒序** —— 我们要的那一行永远是**最新**的，倒序后必在第一页。
+  //   边界：这只保证「最新 ≤200 行」内的行可见；更老的走 `--fill-all` 的文本口径。
+  const args = ['--profile', 'dsh-kb', 'base', '+record-list',
     '--base-token', BASE, '--table-id', table, '--page-size', '200',
-    '--as', 'bot', '--format', 'json'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+    '--as', 'bot', '--format', 'json'];
+  if (sortDesc) args.push('--sort-json', '[{"field":"写入时间","desc":true}]');
+  const out = execFileSync(LARK, args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
   const d = JSON.parse(out);
   if (!d.ok) throw new Error(`读表失败：${JSON.stringify(d.error).slice(0, 300)}`);
   const dd = d.data, fields = dd.fields ?? [], ids = dd.record_id_list ?? [];
@@ -97,31 +115,76 @@ function readTable(table) {
 }
 
 /** 把结论表里这一条的结果字段搬进采集表（**读回来再写**，不猜字段、不编值）。 */
-async function writeBack(contentId, recordId, sinceMs, materialText = '') {
+async function writeBack(contentId, recordId, sinceMs, materialText = '', publishedRowId = null) {
   // ★ 认领方式**不是**按 `内容 ID`：链会给素材**自己编一个**（实测它是 `AD-20261013-001`，
   //   而不是采集表里的 `MC-AMZ-…`）—— 按内容 ID 找会一条都找不到（我第一版就是这么写的）。
   //   改成**按时间窗认领「这一轮刚出现的那一行」**：与 `review_publish.ensureReviewRow`
   //   自己的判据同源（它那句注释写着「判据是时间窗，不是内容 ID」）。
-  const res = readTable(RESULT_TABLE);
+  const res = readTable(RESULT_TABLE, { sortDesc: true });
   // ★★ 认领顺序（2026-10-13 实测修）：**先按素材原文，再按时间窗**。
   //   为什么改：同一单在结论表里**可能有两行**（链侧 `feishu_publish` 自己也 upsert 一行，
   //   实测有的是空行 —— `问题数量=0`、`问题分类汇总` 空）。而时间窗取的是「窗口内最后一行」
   //   ⇒ 一旦链侧那行落在后面，回填就会把**空行**搬进采集表（实测第 2 条就是这么丢的依据块）。
   //   素材原文才是这一单真正的键（与 `--fill-all` 同一份判据，两处不许各写一套）。
   const norm = (t) => String(t ?? '').replace(/<br\s*\/?>/gi, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
-  const key = norm(materialText).slice(0, 120);
+  // ★ 2026-10-13：**两个键**，不是一 个。
+  //   图片行改走「真媒材」之后，链记的 `送审问题` 不再以图片 URL 开头，而是 post 正文
+  //   （实测逐字：`[图片]图注：M5 Smart Wearable Breast Pump – …`）⇒ 只按 URL 前缀对，
+  //   会命中**上一轮那条旧行**（真踩过：回填把上一轮的「2 处/212s」搬了回去，
+  //   而新一轮其实是「6 处」，且依据里已经读到了**图上的奖项徽章**）。
+  //   ⇒ 同时用「素材原文前缀」与「图注前缀」两个键，并**先按时间窗收口**。
+  const stripTag = (t) => norm(clean(t)).replace(/^\[(图片|媒体|视频)\]/, '');
+  const keys = (() => {
+    const out = [norm(clean(materialText)).slice(0, 120)];
+    if (imageUrlOf(clean(String(materialText ?? '')))) {
+      // ★ 图注键**只取 40 字**：取 80 字时尾巴会落在「来源页 URL」那一段上，
+      //   而结论表记的是**送审当时**那版（裸 URL / markdown 两种形态混着）⇒ 键在尾巴上分叉。
+      //   40 字落在图注本身（`图注：M5 Smart Wearable Breast Pump – Upgraded`）里，稳。
+      const cap = norm(clean(captionOf(String(materialText ?? '')))).slice(0, 40);
+      if (cap.length >= 20) out.push(cap);
+    }
+    return [...new Set(out.filter(Boolean))];
+  })();
   const inWindow = res.rows.filter((r) => {
     const t = Date.parse(String(r.cell('写入时间')));
     return Number.isFinite(t) && t >= sinceMs;
   });
-  const byText = key ? res.rows.filter((r) => norm(r.cell('送审问题')).startsWith(key)) : [];
+  const byText = keys.length
+    ? res.rows.filter((r) => { const q = stripTag(r.cell('送审问题'));
+        return keys.some((k) => q.startsWith(k) || q.includes(k)); })
+    : [];
   // 候选里挑**信息最全**的那一行（空行永远排在最后）
   const richest = (rows) => rows.slice().sort((a, b) => {
     const score = (r) => (String(r.cell('问题分类汇总') ?? '').length > 0 ? 2 : 0)
       + (Number(r.cell('问题数量') ?? 0) > 0 ? 1 : 0);
     return score(a) - score(b);
   }).pop();
-  const hit = byText.length ? richest(byText) : richest(inWindow);
+  // ── 命中口径（2026-10-13 第二次修，两种错都踩过了，判据写成「两个坑一起躲」）──────
+  //   坑① 只按「文本命中」：同一素材有**历史行**时认到旧行（实测：把上一轮的「2 处/212s」
+  //        搬回采集表，而新一轮其实是「6 处」且读到了图上的奖项徽章）。
+  //   坑② 只按「时间窗」：链侧 `feishu_publish` 自己 upsert 的那行**常常是空的**
+  //        （`问题数量=0`、`问题分类汇总` 空），窗口内最后一行就是它 ⇒ 把空行搬回去
+  //        （实测：把 `问题数量` 写成 0）。这条是原作者注释里就写过的坑。
+  //   ⇒ 判据 = **文本命中 → 先滤掉空行 → 取最新**：
+  //        · 空行 = 既没汇总、`问题数量` 又不 > 0 的行（链侧那行）；
+  //        · 有内容的多行时取 `写入时间` 最新那行（本轮守衡自己落的那行）。
+  const _score = (r) => (String(r.cell('问题分类汇总') ?? '').length > 0 ? 2 : 0)
+    + (Number(r.cell('问题数量') ?? 0) > 0 ? 1 : 0);
+  const _cands = byText.length ? byText : inWindow;
+  const _rich = _cands.filter((r) => _score(r) > 0);
+  const _pool = _rich.length ? _rich : _cands;
+  const _guess = _pool.slice().sort((a, b) => (Date.parse(String(a.cell('写入时间'))) || 0)
+    - (Date.parse(String(b.cell('写入时间'))) || 0)).pop();
+  // ★★ 2026-10-13 第三修（**这一条才是根治**）：优先用**守衡自己报的那一行**
+  //   —— `meta.publish.record_id`（内核里 `review_publish` 的返回，日志那行
+  //   `🧭 落表：created｜reczz28MsKYevb19` 就是它）。
+  //   为什么前面两次都在猜：媒体行**送进去的东西 ≠ 采集表里的素材原文** ——
+  //     图片行发的是 `post`（链记的「送审问题」是**图注**）；
+  //     视频行发的是 `media`（**根本没有正文**，链记的是一段生成出来的块头
+  //     「【对方这条消息里附了视频，共 1 段。…】」）⇒ 文本键**结构上对不上**，
+  //     时间窗又会捡到链侧那行空的。实测栽过两次（`问题数量` 先被写成 0、视频行被写成 PASS/0）。
+  //   ⇒ 有 publishedRowId 就用它；没有（例如 `--backfill` 补历史）才退回猜。
+  const hit = (publishedRowId && res.rows.find((r) => r.record_id === publishedRowId)) || _guess;
   if (!hit) return { ok: false, why: `结论表里这一单（素材原文 ／ 自 ${new Date(sinceMs).toISOString()} 起）都没有行 —— 不写` };
   return writeFields(recordId, fieldsFrom(hit));
 }
@@ -130,6 +193,11 @@ async function writeBack(contentId, recordId, sinceMs, materialText = '') {
 function fieldsFrom(hit) {
   const fields = {};
   for (const name of RESULT_FIELDS) {
+    // ★★ 2026-10-15：**表里没有这一列 ⇒ 跳过它，别让一个字段名把整批写毁掉** ──────────
+    //   实测背景：Owner 删了采集表的「报告链接」列 ⇒ `RESULT_FIELDS` 里那一个名字成了非法字段名，
+    //   batchUpdate 会整批被拒（与 200 行分页那个坑的症状一样、根因完全不同）。
+    //   `KNOWN_FIELDS` 没填时（例如离线自证）**不拦**，行为与改动前逐字相同。
+    if (KNOWN_FIELDS && !KNOWN_FIELDS.includes(name)) { SKIPPED_FIELDS.add(name); continue; }
     const v = hit.cell(name);
     if (v === '' || v == null) continue;                       // 空的不写（不许把空值刷上去）
     let val = Array.isArray(v) && v.length === 1 && typeof v[0] === 'string' ? v[0]
@@ -170,7 +238,9 @@ async function writeFields(recordId, fields) {
   //   否则回填会以「ok」的样子静默失败（今天实测过一次：报 ok、回读是空的）。
   return { ok: r?.ok === true && r?.readback === 'consistent',
            readback: r?.readback ?? '(未回读)',
-           detail: [r?.msg, r?.code ? `code=${r.code}` : '', r?.readback_detail, r?.error]
+           detail: [r?.msg, r?.code ? `code=${r.code}` : '', r?.readback_detail, r?.error,
+                    // ★ 跳过的字段必须**看得见**（2026-10-15）：静默跳过 = 下一个人以为「该填的都填了」
+                    SKIPPED_FIELDS.size ? `跳过（表里没有这列）：${[...SKIPPED_FIELDS].join('、')}` : '']
              .filter(Boolean).join(' ｜ ') || '(无错误信息)',
            fields };
 }
@@ -178,11 +248,12 @@ async function writeFields(recordId, fields) {
 function readRows() {
   const t = readTable(TABLE);
   const fields = t.fields;
-  if (!fields.includes(F.text)) throw new Error(`表里没有「${F.text}」这一列；实际：${fields.join('/')}`);
+  KNOWN_FIELDS = fields;            // ★ 2026-10-15：写回的目标就是这张表 ⇒ 用它自己的字段清单做闸
   if (!fields.includes(F.text)) throw new Error(`表里没有「${F.text}」这一列；实际：${fields.join('/')}`);
   return t.rows.map((r) => ({
     record_id: r.record_id, content_id: String(r.cell(F.id)),
     state: String(r.cell(F.state)), text: String(r.cell(F.text)),
+    ctype: String(r.cell(F.type)),
   }));
 }
 
@@ -191,7 +262,14 @@ function readRows() {
  * 只差"不挂在某条消息下面"（本机跑没有可引用的 message id）。
  */
 async function sendShaped(raw, { verdict53 = null, reportLink = null, progress = null } = {}) {
-  const shaped = toCardOrText(String(raw ?? ''), { verdict53, reportLink });
+  // ★ 2026-10-15：`machineAnswer: true` —— 本机跑批**没有真人对话**，喂进来的 `raw`
+  //   是 `handleMessage` 的 `res.reply`，而那一轮里除了权威结论行，剩下的全是我们自己的读数
+  //   （实测真单 `om_x100b62333eaaf0a8b050a29473b0030`：`链侧 PASS ｜ 0 处问题…`、
+  //    `引擎结论（照抄 ③b 模板）…置信度 0.93`、`（未填）` 表格、`` `risk_items` 为空… ``）。
+  //   公开群里的那张卡只该有结论行 + §5.3 逐条块。
+  //   ⚠️ 只是一条**声明**，不是「一概丢原话」：信封层还要求「摘掉笔记后已无实质内容」才丢
+  //     ⇒ 链跑挂时模型那段有内容的答复照旧上卡（判据见 `verify_cards.mjs` J13a3 / J13a3b）。
+  const shaped = toCardOrText(String(raw ?? ''), { verdict53, reportLink, machineAnswer: true });
   let sent = null;
   if (shaped.card) {
     try {
@@ -217,13 +295,223 @@ async function sendShaped(raw, { verdict53 = null, reportLink = null, progress =
   return sent;
 }
 
+/* ── 媒体按「真媒材」送进去（2026-10-13 加）─────────────────────────────────
+ *
+ * 病灶（实测，第 16 行 `MC-US-WEB-IMG-8673508131014`）：图片行的素材原文是
+ *   「<图片URL>\n图注：…\n来源页：…」，闸门判 `link`（`review_gate.mjs:72` 只在
+ *   `imageCount>0` 时判 media），而守衡**没有取网工具**（`run_readonly_command` 白名单无 curl）
+ *   ⇒ 全链不 OCR、结论只引「图注」，**素材本体从头到尾没被读过**。
+ *
+ * 修法：走**守衡自己的读图那条路** —— 下载图 → 传成飞书图片资源 → 发一条**真图片消息**
+ *   → 再把这个合成事件指到那条真消息的 `message_id` + `image_key`。
+ *   于是 `readInboundContent` → `fetchMessageImage(message_id, image_key)` → `vision.ocrImage`
+ *   整条跑起来（生产里用户发图走的就是这条）。
+ *
+ * ★ 为什么必须真的发一条消息：`fetchMessageImage` 打的是
+ *   `/im/v1/messages/{message_id}/resources/{file_key}` —— **资源必须属于那条消息**，
+ *   合成一个假 message_id 会 400（实测过：假 id + 真 key 取不到字节）。
+ * ★ 图片行同时带图注：合成事件用 `post`（`img` 节点 + `text` 节点），
+ *   与「用户发一张图配一句话」同形，图注那么judged，图上文字也那么 judged。
+ */
+const IMG_TMP = '/tmp/kb-batch-img';
+const VID_TMP = '/tmp/kb-batch-vid';   // 预先下好的视频（yt-dlp，format 18 = 直出 mp4）
+
+/** 把 markdown 链接 `[x](y)` 还原成 `y` —— 飞书把含 URL 的格子读回来是 markdown 形态，
+ *  而采集件（`out/rows_us.json`）与结论表的「送审问题」都是**裸 URL**。
+ *  ⇒ 两边先过这一道，**认领键**才谈得上可比（实测：不过这一道，80 字键在 URL 尾巴上分叉，
+ *    认领整条落空、退到时间窗、捡到链侧**空行**，把 `问题数量` 写成 0）。 */
+function clean(t) {
+  return String(t ?? '').replace(/\[([^\]]*)\]\((https?:\/\/[^)]+)\)/g, '$2');
+}
+
+/** 素材原文里第一条「看起来是图片」的 URL（图片行的第一行就是它）。 */
+function imageUrlOf(text) {
+  for (const line of String(text ?? '').split('\n')) {
+    const s = line.trim();
+    // ★ 2026-10-13 修：飞书把这几行的素材格子读回来是 **markdown 链接形态** `[url](url)`
+    //   （实测 3 行；采集件 `out/rows_us.json` 里是**裸 URL** ⇒ 那是库侧渲染形态，不是原始素材）。
+    //   老写法用贪婪 `\S+` ⇒ 抓到的是 `…jpg?v=N](https://…jpg?v=N)` **整段**：
+    //   Shopify 会忽略那段 query 照样出图（**侥幸对了**，但字节能对上纯属运气），
+    //   Amazon 那种无 query 的就会因为路径里多了 `](` 而 404 ⇒ 退回「只审图注」。
+    const md = /\]\((https?:\/\/[^\s)]+)\)/.exec(s);
+    const bare = /(https?:\/\/[^\s)\]\(]+)/.exec(s);
+    const u = md ? md[1] : (bare ? bare[1] : null);
+    if (u && /\.(jpe?g|png|webp|gif|bmp)(\?|$)/i.test(u)) return u;
+  }
+  return null;
+}
+
+/** 非 URL 的那些行（图注 / 来源页说明）—— 作为这条图消息的正文。 */
+function captionOf(text) {
+  const out = [];
+  for (const raw of String(text ?? '').split('\n')) {
+    const l = raw.trim();
+    if (!l) continue;
+    // ★ 含**图 URL** 的行一律不算图注 —— 注意 markdown 形态那行是以 `[` 开头的，
+    //   老写法只滤「以 http 开头」，会把它当图注留下来（实测：认领键因此整条对不上，
+    //   回填退到时间窗，捡到链侧那行**空行**，把 `问题数量` 写成了 0）。
+    if (imageUrlOf(l)) continue;
+    out.push(l);
+  }
+  return out.join('\n');
+}
+
+/** 下载图 → 传成飞书**图片资源** → 返回 image_key（发图消息与「视频封面图」都用它）。 */
+async function uploadImageFromUrl(url, cid) {
+  fs.mkdirSync(IMG_TMP, { recursive: true });
+  const dest = path.join(IMG_TMP, `${String(cid).replace(/[^\w.-]/g, '_')}${/\.png(\?|$)/i.test(url) ? '.png' : '.jpg'}`);
+  const r = await fetch(url, { headers: { 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' } });
+  if (!r.ok) throw new Error(`下载图失败 HTTP ${r.status}`);
+  const buf = Buffer.from(await r.arrayBuffer());
+  if (buf.length < 1024) throw new Error(`下载到的图太小（${buf.length} 字节）`);
+  fs.writeFileSync(dest, buf);
+  const out = execFileSync(LARK, ['--profile', 'dsh-kb', 'im', 'images', 'create', '--as', 'bot',
+    '--data', '{"image_type":"message"}', '--file', dest, '--format', 'json'],
+    { cwd: ROOT, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
+  const j = JSON.parse(out);
+  if (!j.ok) throw new Error(`上传图片失败：${JSON.stringify(j.error).slice(0, 180)}`);
+  return { imageKey: j.data.image_key, bytes: buf.length };
+}
+
+/** 视频行：把**真视频**发成一条 `media` 消息（封面图另传）。
+ *  ★★ 必须**回读**这条消息、用它**自带**的 content —— 实测飞书发出去时会**换发一个 file_key**
+ *     （传的时候是 `…b41efb47…`，消息里变成 `…ea998ff2…`）。
+ *     拿上传时那个 key 去喂内核 ⇒ `/messages/{id}/resources/{key}` 返回
+ *     `234003 File not in msg.` ⇒ 内核报「视频我没读成」。这一步不补，整条视频路就是假的。
+ */
+async function publishVideoMessage(videoPath, coverKey) {
+  const out = execFileSync(LARK, ['--profile', 'dsh-kb', 'im', 'files', 'create', '--as', 'bot',
+    '--data', JSON.stringify({ file_type: 'mp4', file_name: path.basename(videoPath) }),
+    '--file', videoPath, '--format', 'json'],
+    { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const j = JSON.parse(out);
+  if (!j.ok) throw new Error(`上传视频失败：${JSON.stringify(j.error).slice(0, 180)}`);
+  const sent = await client.im.message.create({
+    params: { receive_id_type: 'chat_id' },
+    data: { receive_id: CHAT, msg_type: 'media',
+            content: JSON.stringify({ file_key: j.data.file_key, image_key: coverKey, duration: 0 }) },
+  });
+  const messageId = sent?.data?.message_id;
+  if (!messageId) throw new Error('发视频消息没拿到 message_id');
+  const got = await client.im.message.get({ path: { message_id: messageId } });
+  const content = got?.data?.items?.[0]?.body?.content;
+  if (!content) throw new Error('回读视频消息拿不到 content');
+  return { messageId, content, uploadKey: j.data.file_key, realKey: (JSON.parse(content) || {}).file_key };
+}
+
+/** 下载图 → 传图片资源 → 发真图片消息。返回 {imageKey, messageId, bytes, caption}。 */
+async function publishImageMessage(url, caption, cid) {
+  fs.mkdirSync(IMG_TMP, { recursive: true });
+  const dest = path.join(IMG_TMP, `${String(cid).replace(/[^\w.-]/g, '_')}${/\.png(\?|$)/i.test(url) ? '.png' : '.jpg'}`);
+  const r = await fetch(url, { headers: { 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)' } });
+  if (!r.ok) throw new Error(`下载图失败 HTTP ${r.status}`);
+  const buf = Buffer.from(await r.arrayBuffer());
+  if (buf.length < 1024) throw new Error(`下载到的图太小（${buf.length} 字节）`);
+  fs.writeFileSync(dest, buf);
+  const out = execFileSync(LARK, ['--profile', 'dsh-kb', 'im', 'images', 'create', '--as', 'bot',
+    '--data', '{"image_type":"message"}', '--file', dest, '--format', 'json'],
+    { cwd: ROOT, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
+  const j = JSON.parse(out);
+  if (!j.ok) throw new Error(`上传图片失败：${JSON.stringify(j.error).slice(0, 180)}`);
+  const imageKey = j.data.image_key;
+  const sent = await client.im.message.create({
+    params: { receive_id_type: 'chat_id' },
+    data: { receive_id: CHAT, msg_type: 'image', content: JSON.stringify({ image_key: imageKey }) },
+  });
+  const messageId = sent?.data?.message_id;
+  if (!messageId) throw new Error('发图片消息没拿到 message_id');
+  return { imageKey, messageId, bytes: buf.length, caption };
+}
+
 async function runOne(row, tag) {
   // ★ 独立会话键：不碰你和守衡那份私聊记忆（见文件头边界 ②）。
   const sessionKey = `oc-batch-${tag}`;
+  // ── 图片行：把图按**真媒材**送进去（否则全链不 OCR，只审图注）──────────────
+  const matText = clean(row.text);      // ★ 先算（下面 msgContent 就用它）
+  let msgType = 'text';
+  let msgContent = JSON.stringify({ text: matText });
+  let msgId = `om_batch_${tag}_${row.content_id}`;
+  // ★ 2026-10-13：**视频行也按真图片送** —— 送的是它的**封面图**。
+  //   为什么：表里视频行的素材只有「标题 + YouTube 链接 + 缩略图链接 + 发布日」，
+  //   **没有视频文件**（本机也没装 yt-dlp，实测 `which yt-dlp` 空）⇒ 走文本就只有标题可审。
+  //   实测封面图信息量很足（`VwANGOaT4vs` 那张：momcozy 标识、「WEBINAR ｜ Aeroflow Breastpumps」
+  //   联名、两位讲者的 IBCLC/RN 头衔、「Expert support」宣称）—— 那正是库内规则管的「背书与资质」。
+  //   ★ 素材里**明写「视频本体未审」**，免得这条结果被读成「视频审过了」。
+  const _ct = String(row.ctype ?? '');
+  const _isVid = _ct.includes('视频');
+  // ── 视频行：优先走**真视频**（预下在 /tmp/kb-batch-vid/<内容ID>.mp4）──────────
+  const _vidPath = _isVid ? path.join(VID_TMP, `${row.content_id}.mp4`) : null;
+  // ★ 2026-10-13：本机直读成功 ⇒ **不许**再走下面的封面图分支。
+  //   实测踩到的自伤：直读把 `msgType` 置成 `'text'`，而下面封面图那一支的条件写的是
+  //   `(_isVid && msgType === 'text')` ⇒ 它**正好被直读触发**，把刚拼好的正文
+  //   **整个覆盖**成「封面图 + 图注」⇒ 这一单又变成了只审封面
+  //   （日志会长成 `🎬 …本机直读` 紧跟着 `📥 读到｜图 1 张`，两条自相矛盾）。
+  let usedLocalRead = false;
+  if (_vidPath && fs.existsSync(_vidPath)) {
+    try {
+      const cover = await uploadImageFromUrl(imageUrlOf(matText), `${row.content_id}.cover`);
+      const pv = await publishVideoMessage(_vidPath, cover.imageKey);
+      msgId = pv.messageId; msgType = 'media'; msgContent = pv.content;
+      console.log(`   🎬 视频已按真媒材送入（${(fs.statSync(_vidPath).size / 1048576).toFixed(1)} MB`
+        + `｜封面 ${cover.bytes}B｜msg=${pv.messageId}`
+        + (pv.uploadKey !== pv.realKey ? '｜file_key 已被飞书换发（已用回读的那个）' : '') + '）');
+    } catch (e) {
+      const _msg = String(e?.message ?? e);
+      if (/exceed the max value|234006/.test(_msg)) {
+        // ★ 2026-10-13 加：**超过飞书上传上限时，改本机直读**。
+        //   实测：飞书 `im/v1/files` 有大小上限 —— `234006 The file size exceed the max value.`
+        //   （这批里 27.6 MB 那条**过**、74 MB 那条 webinar **被拒**；飞书文档记的是 30 MB）。
+        //   直读走的是**同一个** `video.mjs`（守衡自己的抽帧 OCR ＋ Apple Speech 转写），
+        //   差别只在「少一次经飞书的搬运」——所以读数口径没变，**要说出来**：
+        //   正文里明写「本机直读，未走飞书搬运 —— 该文件超过飞书上传上限」。
+        try {
+          const r = await videoMod.readVideo(_vidPath);
+          const fr = (r.frames ?? []).filter((f) => f.text)
+            .map((f) => `[${Math.round(f.t_s)}s] ${String(f.text).replace(/\n/g, ' / ')}`).join('\n');
+          const tr = r.transcript?.ok ? r.transcript.text
+                                     : `（没转写：${r.transcript?.kind ?? '未知'} —— ${r.transcript?.hint ?? ''}）`;
+          msgType = 'text';
+          msgContent = JSON.stringify({ text:
+            `【视频本体 —— 本机直读（未走飞书搬运：该文件超过飞书上传上限）】\n`
+            + `文件 ${(fs.statSync(_vidPath).size / 1048576).toFixed(1)} MB｜时长 ${r.meta?.duration_s ?? '?'} 秒`
+            + `｜分辨率 ${r.meta?.w ?? '?'}×${r.meta?.h ?? '?'}｜抽帧 OCR ${r.framesRead ?? 0} 帧`
+            + `｜音轨转写：${r.transcript?.ok ? '成' : '没跑成'}\n`
+            + `帧上文字：\n${fr || '（没有帧读出文字）'}\n\n【转写正文】\n${tr}\n\n${captionOf(matText)}` });
+          usedLocalRead = true;
+          console.log(`   🎬 视频超过飞书上限（234006）⇒ **本机直读**（守衡同一个 video.mjs）`
+            + `：${(fs.statSync(_vidPath).size / 1048576).toFixed(1)} MB｜帧 ${r.framesRead ?? 0}`
+            + `｜转写 ${r.transcript?.ok ? '成' : '没跑成（' + (r.transcript?.kind ?? '') + '）'}`);
+        } catch (e2) {
+          console.log(`   ⚠ 本机直读也失败（${e2?.message ?? e2}）⇒ 退回封面图`);
+        }
+      } else {
+        console.log(`   ⚠ 视频送不进去（${_msg}）⇒ 退回封面图`);
+      }
+    }
+  }
+  const imgUrl = (_ct.includes('图片') || (_isVid && msgType === 'text' && !usedLocalRead))
+    ? imageUrlOf(matText) : null;
+  if (imgUrl) {
+    try {
+      const cap = _isVid
+        ? `【视频封面图 —— 本次只审**封面图与标题**；视频本体（口播 / 字幕 / 画面）**未审】**\n${captionOf(matText)}`
+        : captionOf(matText);
+      const pub = await publishImageMessage(imgUrl, cap, row.content_id);
+      msgId = pub.messageId;
+      msgType = 'post';
+      msgContent = JSON.stringify({ content: [[
+        { tag: 'img', image_key: pub.imageKey },
+        ...(pub.caption ? [{ tag: 'text', text: pub.caption }] : []),
+      ]] });
+      console.log(`   🖼  图已按真媒材送入（${pub.bytes} 字节｜image_key=${String(pub.imageKey).slice(0, 20)}…｜msg=${pub.messageId}）`);
+    } catch (e) {
+      console.log(`   ⚠ 图送不进去（${e?.message ?? e}）⇒ 退回按文本送（**只审图注**，结果要打折看）`);
+    }
+  }
   const ev = {
     message: {
-      message_id: `om_batch_${tag}_${row.content_id}`, chat_id: sessionKey, chat_type: 'p2p',
-      message_type: 'text', content: JSON.stringify({ text: row.text }),
+      message_id: msgId, chat_id: sessionKey, chat_type: 'p2p',
+      message_type: msgType, content: msgContent,
     },
     sender: { sender_id: { open_id: 'ou_batch_runner' }, sender_type: 'user' },
   };
@@ -261,7 +549,7 @@ async function main() {
   //     （后者是 `String(question).slice(0,2000)`，就是送审时那段原文）。
   //   取归一化后前 120 字比对；**匹配不上的如实列出来**，绝不按「最像的」硬填（填错比空着坏）。
   if (has('--fill-all')) {
-    const res = readTable(RESULT_TABLE);
+    const res = readTable(RESULT_TABLE, { sortDesc: true });
     const norm = (t) => String(t ?? '').replace(/<br\s*\/?>/gi, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
     let filled = 0; const nomatch = []; const noText = [];
     for (const r of rows) {
@@ -306,7 +594,11 @@ async function main() {
     return 0;
   }
 
-  const todo = rows.filter((r) => (r.text || '').trim() && !(st.items[r.content_id] ?? {}).answered_at);
+  // `--only <内容ID>`：只跑指定的一行（可重复）—— 用来**精确验**某一行（例如视频行），
+  // 不必把整表顺序打乱。（2026-10-13 加：视频行在表尾，验它要等 2 小时。）
+  const ONLY = new Set(args.reduce((acc, a, i) => (a === '--only' && args[i + 1] ? acc.concat(args[i + 1]) : acc), []));
+  const todo = rows.filter((r) => (r.text || '').trim() && !(st.items[r.content_id] ?? {}).answered_at
+    && (!ONLY.size || ONLY.has(r.content_id)));
   const batch = LIMIT ? todo.slice(0, LIMIT) : todo;
   if (!batch.length) { console.log('没有要跑的（都跑过了？）'); return 0; }
 
@@ -345,7 +637,8 @@ async function main() {
     };
     saveState(st);
     // ── 回填采集表：从结论表把这一条的结果搬过来（守衡的链刚刚自己写进去的那一行）
-    const wb = await writeBack(row.content_id, row.record_id, t, row.text);
+    const wb = await writeBack(row.content_id, row.record_id, t, row.text,
+                               out.meta?.chain?.publish?.record_id ?? null);
     st.items[row.content_id].write_back = wb.ok ? 'ok' : `失败：${wb.why ?? wb.detail}`;
     st.items[row.content_id].write_back_readback = wb.readback ?? null;
     st.items[row.content_id].write_back_fields = wb.fields ?? null;

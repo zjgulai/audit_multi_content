@@ -815,12 +815,73 @@ head('J13 查证笔记 · 不上卡、但要答得出来（Owner 2026-10-13 三�
 
     // ★ **反向对照（安全网）**：`verdict53.block` 为空 ⇒ §5.3 块搬不进来
     //   ⇒ 那时**必须**照旧建那一组，否则卡上只剩一个抬头（比改动前更没法用）。
+    //   ⚠️ 2026-10-15 我先在这里改错过一次（把这条期望翻过来、一刀砍掉那一组）——
+    //     它连着**回复那条路**一起伤。真正的区别在**调用方**：见 J13a3b。
     const rNoBlock = toCardOrText(PROSE, { verdict53: { state: 'REVIEW', line: V53.line, from: 'x' } });
     if (!JSON.stringify(rNoBlock.card ?? '').includes('1.【合规】全文')) {
       no('J13a3 反向对照：§5.3 块搬不进来时必须退回原话组', '内容被丢光了');
     } else ok('J13a3 反向对照：§5.3 块搬不进来 ⇒ 照旧建原话组（安全网）');
 
-    // J13a4 **接线**：原文没有丢 —— 它是这一轮的回复正文（`ws_daemon` 记字数、memory 存这一轮）
+    // ── J13a3b ★ 2026-10-15（真单 `om_x100b62333eaaf0a8b050a29473b0030`，Owner 当场指出「格式不符」）
+    //
+    //   那一单是 **PASS、问题数 0** ⇒ 链**本来就没有逐条块** ⇒ 走的是上面那张安全网 ——
+    //   于是模型这一轮的回复正文（`链侧 PASS ｜ 0 处问题…`、`引擎结论（照抄 ③b 模板）…置信度 0.93`、
+    //   `（未填）` 表格、`` `risk_items` 为空… ``）被当成**卡片正文**发进了群。
+    //   批跑那条路没有真人对话，那一整段都是**我们自己的读数** ⇒ 调用方声明 `machineAnswer: true`。
+    //
+    //   判据分两半，**缺一半都不算**（不然「一律丢掉原话」也能过）：
+    //     ① `machineAnswer` + 正文全是读数 ⇒ 卡上只剩权威结论行（本段）；
+    //     ② `machineAnswer` 但正文有真内容 ⇒ 照旧保留（J13a3c 反向对照）。
+    {
+      const line53 = '【审查结论：PASS】未发现已知底线风险，可转交 @sign-off 责任人（未配置） 进行 sign-off。';
+      const V53P = { state: 'PASS', line: line53, from: 'chain', block: null };
+      const REAL = [line53,
+        '链侧 PASS ｜ 0 处问题（只对 9 行 OCR 文字）；画面看不到、未审',
+        '引擎结论（照抄 ③b 模板）：状态 PASS ｜ 问题数 0 ｜ 置信度 0.93；判定主体「图片安全审查」mode=declared。',
+        '（未填）',
+        '行 reczz28NamxLZylu｜结论=PASS｜状态=PASS｜回读=consistent',
+        '（未填）',
+        '`risk_items` 为空（问题数 0）⇒ 没有可给的条款号，「0 条问题就是 0 条依据，不编」',
+        '（已收起 1 条证据：证据 · 4 条）',
+      ].join('\n');
+      const r = toCardOrText(REAL, { verdict53: V53P, machineAnswer: true });
+      const whole = JSON.stringify(r.card ?? r.text ?? '');
+      const leaks = ['引擎结论', '回读=', '（未填）', 'risk_items', '详细说明'].filter((k) => whole.includes(k));
+      if (r.mode !== 'card' || r.kind !== 'evidence') {
+        no('J13a3b 机器答案也要收成评审卡', `mode=${r.mode} kind=${r.kind}`);
+      } else if (leaks.length) {
+        no('J13a3b 机器答案的读数不许上卡', `漏了：${leaks.join(' / ')}`);
+      } else if (whole.includes(line53) === false) {
+        no('J13a3b 权威结论行必须在卡上', whole.slice(0, 160));
+      } else ok('J13a3b 机器答案：卡上只有权威结论行，内部读数一行都不上卡');
+
+      // J13a3c ★ 反向对照：**链跑挂时模型那段是真答复** —— 不许被这条判据一起吞掉
+      const realAnswer = `${line53}\n\n这条链这次没跑成，我按能读到的部分给你三条建议，第一条是……`;
+      const r2 = toCardOrText(realAnswer, { verdict53: V53P, machineAnswer: true });
+      if (!JSON.stringify(r2.card ?? '').includes('三条建议')) {
+        no('J13a3c 反向对照：机器答案里有真答复时不许丢', '答复被吞了');
+      } else ok('J13a3c 反向对照：机器答案里**有真内容**时照旧上卡（判据不是「一律丢」）');
+    }
+
+    // J13a3d **接线**：批跑器**真的**传了那个声明吗？
+  //   ★ 这一条是变异逼出来的：上面 J13a3b 直接调 `toCardOrText(..., machineAnswer:true)` ——
+  //     我把批跑器里那个参数删掉重跑，**判据全绿**（它压根没读调用点）。
+  //     「判据写对了」不等于「调用方接上了」—— §2.4.1 那个病，长在这里。
+  //     判据与 `verify_outbound.py` 的 B 段同形：**必须到达那个参数**，不是「出现过函数名」。
+  {
+    const BR = fs.readFileSync(path.join(HERE, 'batch_review_runner.mjs'), 'utf8');
+    // ⚠️ 正则**不**去匹配整个调用（第一个 `)` 会停在 `String(raw ?? '')` 那一层，
+    //    实测就是这么误报的 —— 会停下来的正则等于没判）。判据落在**实参区**：
+    //    从 `toCardOrText(` 往后取 200 字，看里面有没有那个具名参数。
+    const calls = [...BR.matchAll(/toCardOrText\(/g)].map((m) => BR.slice(m.index, m.index + 200));
+    if (!calls.length) {
+      no('J13a3d 批跑器必须调 toCardOrText', '一次都没调？');
+    } else if (!calls.some((c) => /machineAnswer:\s*true/.test(c))) {
+      no('J13a3d 批跑器必须传 machineAnswer: true', `实参区里没有它：${calls[0].slice(0, 120)}`);
+    } else ok('J13a3d 批跑器真的传了 machineAnswer: true（不是只写在注释里）');
+  }
+
+  // J13a4 **接线**：原文没有丢 —— 它是这一轮的回复正文（`ws_daemon` 记字数、memory 存这一轮）
     const W = fs.readFileSync(path.join(HERE, 'ws_daemon.mjs'), 'utf8');
     if (!/💬 回复 \$\{result\.reply\.length\} 字/.test(W)) {
       no('J13a4 模型原文必须仍以「这一轮的回复」被记下来', '找不到那一行字数日志');

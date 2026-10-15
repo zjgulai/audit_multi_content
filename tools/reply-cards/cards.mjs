@@ -404,7 +404,16 @@ export function turnDiff(d = {}) {
 export function evidence(d = {}) {
   const els = [];
   if (d.verdict) els.push(md(s(d.verdict)));
-  const groups = d.groups?.length ? d.groups : [{ title: '证据', content: s(d.content) }];
+  // ★ 2026-10-15：**没有分组、也没有 `content` 时，不许造一个空组**。
+  //   原先这里无条件造 `[{title:'证据', content: s(d.content)}]` —— `d.content` 缺省时
+  //   `s()` 把它变成空串 ⇒ 多出一个**空折叠区**（标题「证据」、点开什么都没有）。
+  //   实测来路：PASS（问题数 0）那类评审单**本来就没有逐条块**，
+  //   旧判据又把它判成「不是评审单」，两条叠在一起正好走到这个分支。
+  //   ★ 再补一刀：**占位符不算内容**。实测那条真单折出来的是「证据 →（未填）」——
+  //     一个点开什么都没有的折叠区，读起来像「这里有东西但没写」，比不显示更糟。
+  const _c = s(d.content).replace(/[（(]\s*未填\s*[）)]/g, '').trim();
+  const groups = d.groups?.length ? d.groups
+    : (_c ? [{ title: '证据', content: s(d.content) }] : []);
   for (const g of groups) {
     // ★ 2026-10-08：`count` 是**可选**字段 —— 有才拼，没有就只印标题。
     //   改前是 `${g.title} · ${g.count ?? ''}`.trim()，两个毛病（10/07–10/08 实发多张卡）：
