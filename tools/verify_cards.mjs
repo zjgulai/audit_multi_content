@@ -1146,6 +1146,81 @@ head('J17 卡面永不许出现 [object Object]（对象值必须塌成人话）
   }
 }
 
+/* ─────── J18 换卡搬迁（`carryCardText`）· 逐字搬家不许丢字、不许印 `undefined`（2026-10-15）───
+ *  真单：私聊 16:24 那张「我能做什么」卡三栏全是「（未填）」，**同一份模型输出**
+ *  在换卡搬迁那条路上是九个 `undefined` —— `carryCardText` 自带的那份 label 分支
+ *  读的是 `x.value`，而模型给的是 `{label, note}`。
+ *
+ *  ★ 为什么单开一组：`verify_cards` 里此前 **`carryCardText` 只出现在注释里**
+ *    （被上一段说明点名，却没有任何一条判据调用过它）——
+ *    于是同一个病在卡面修好之后，这条路上一个字没动，而 **317 项全绿**。
+ *    「判据没盖住的那一类，就是事故所在的那一类」。
+ *
+ *  ★ 治法不是「记得也改一份」：两处实现合一（`cards.mjs::flat1` 导出给这边用），
+ *    再加一条**源码级接线**判据（J18e）—— 谁再把一份本地 label 分支写回来，当场红。
+ *    （行为判据守不住这件事：本地写回一份照样能让 J18a 绿，而「改一处必须改两处」
+ *      这个病就回来了。）
+ */
+head('J18 换卡搬迁 · 逐字搬家不许丢字、不许印 undefined');
+const { carryCardText } = await import(path.join(CARDS_DIR, 'envelope.mjs'));
+{
+  const LABEL_NOTE = [
+    { label: '列目录 / 找文件', note: 'list_workspace、list_files' },
+    { label: '读文件内容', note: 'read_text_file，单次有字节上限' },
+  ];
+  // J18a 真单形状：`label` 与 `note` 都要搬过去，一个都不许丢
+  {
+    const t = carryCardText({ title: '我能做什么', can: LABEL_NOTE });
+    const lost = ['列目录 / 找文件', 'list_workspace、list_files'].filter((w) => !t.includes(w));
+    if (t.includes('undefined')) no('J18a 搬迁不许印 undefined', t.slice(0, 200));
+    else if (lost.length) no('J18a 搬迁后 label 与 note 都要在', `丢了：${lost.join(' / ')}`);
+    else ok('J18a `{label, note}` 搬过去 label 与 note 都在（真单那个形状）');
+  }
+  // J18b 反向对照：`{label, value}` 那种既有约定**照旧**要认
+  {
+    const t = carryCardText({ can: [{ label: '能做A', value: '值A' }] });
+    if (!t.includes('能做A') || !t.includes('值A')) no('J18b 反向对照：{label,value} 照旧认', t.slice(0, 160));
+    else ok('J18b 反向对照：`{label, value}` 照旧认');
+  }
+  // J18c 更早的那种形状（`[object Object]` 那次真单）：键名与值都要在
+  {
+    const t = carryCardText({ can: [{ 能力: '读当前群历史', 边界: '最近 50 条，不分页' }] });
+    const lost = ['读当前群历史', '最近 50 条，不分页', '能力', '边界'].filter((w) => !t.includes(w));
+    if (t.includes('[object Object]')) no('J18c 搬迁不许印 [object Object]', t.slice(0, 200));
+    else if (lost.length) no('J18c 搬迁后键名与值都不许丢', `丢了：${lost.join(' / ')}`);
+    else ok('J18c `{能力, 边界}` 搬过去键名与值都在');
+  }
+  // J18d 边界：整栏都摊不出内容 ⇒ 不留「能做到：」这种挂着标题、底下一片空
+  {
+    const t = carryCardText({ title: 't', can: [{ 能力: '', 边界: '' }] });
+    if (/能做到：/.test(t)) no('J18d 摊平后为空不许留空标题', t.slice(0, 160));
+    else ok('J18d 摊平后为空 ⇒ 整条不留残句（与 kv() 同口径）');
+  }
+  // J18e 源码级接线：搬迁这条路**不许再自带一份**对象摊平实现 —— 两处实现正是这次的病根，
+  //    而它的症状（`undefined`）只在换卡时才出现；行为判据守不住「谁又把本地分支写回来了」。
+  //    ⚠️ 与 J17c 同规矩：**先剥注释再扫**，否则会红在本段自己的说明文字上。
+  {
+    const raw = fs.readFileSync(path.join(CARDS_DIR, 'envelope.mjs'), 'utf8');
+    const code = raw
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    const body = code.match(/export function carryCardText[\s\S]*?\n\}/);
+    if (!body) no('J18e 找得到 carryCardText 函数体', '正则没匹配上 —— 判据要跟着改，别让它恒绿');
+    else if (/'label' in x/.test(body[0])) {
+      no('J18e 搬迁不许自带 label 分支', '本地又写了一份 ⇒「改一处必须改两处」这个病回来了');
+    } else if (!/\bflat1\b/.test(body[0])) {
+      no('J18e 搬迁必须用共享的 flat1', '函数体里没有 flat1 —— 口径又分叉了');
+    } else ok('J18e 搬迁用的是 `cards.mjs::flat1`（全仓只有一份实现）');
+  }
+  // J18f 反向对照：把旧写法拼回来必须**精确变红**（红不了 ⇒ J18a 是恒绿的，等于没守）
+  {
+    const OLD = (x) => (x && typeof x === 'object' && 'label' in x ? `${x.label}：${x.value}` : String(x));
+    const bad = LABEL_NOTE.map(OLD).join('\n');
+    if (!bad.includes('undefined')) no('J18f 反向对照：旧写法必须被抓', '喂了旧实现却没长出 undefined');
+    else ok('J18f 反向对照：旧写法重新长出 `undefined`（J18a 不是恒绿）');
+  }
+}
+
 /* ─────── J15 报告链接**不许在一张卡上出现两次**（2026-10-13，Owner 那张视频卡）───────
  *  实测那张卡（真实结构复原）：可见格是「我读到了 ＋ → 查看完整问题清单与修改建议：…」，
  *  而下面「审查结论」那一组（**默认展开**）里，链接又是结论行下面第二行 ——

@@ -31,6 +31,11 @@ import {
   build, validateCard, renderText, BY_KIND,
 } from './registry.mjs';
 import { lintCopy } from './registry.mjs';
+// ★ 2026-10-15：对象 → 一行人话，**全仓只有这一份实现**（`cards.mjs::flat1`）。
+//   原先这里自带一份（`${x.label}：${x.value}`），靠注释「改一处必须改两处」守着；
+//   当天卡面修了、这里没修 ⇒ 换卡之后印九个 `undefined`（见 `carryCardText` 注释）。
+//   import 方向是单向的：`cards.mjs` 不 import 本文件，不构成环。
+import { flat1 } from './cards.mjs';
 
 /** 卡片块的开头标记。选这个形态是因为它在 markdown 里不构成任何语法，误触概率低。 */
 export const CARD_MARK = '[[card:';
@@ -345,6 +350,14 @@ const FIELD_ZH = {
 /**
  * 把一张卡的数据**逐字摊成文字** —— 换卡片类型时用（内容一个字不丢，换的只是外壳）。
  * 与 `foldIn` 的分工：那个是把溢出折进折叠区；这个是**跨类型搬迁**。
+ *
+ * ★ 2026-10-15：对象摊平**改用 `cards.mjs::flat1`**（全仓唯一实现）。
+ *   本条原先自带一份 label 分支（`${x.label}：${x.value}`），与卡面那份是
+ *   「同一套写法，改一处必须改两处」—— 当天就守输了：卡面读 `v.value` 印了
+ *   九个 `（未填）`（真单 16:24），这条照旧读 `x.value`，模型给的 `{label, note}`
+ *   搬过去印九个 `undefined`。而且 `verify_cards` **317 项全绿**：
+ *   那个脚本里 `carryCardText` 只出现在注释里，**从来没有一条判据调用过它**。
+ *   ⇒ 病根是「同一个口径两处实现 ＋ 判据只盖住其中一处」，治法是不再有两处。
  */
 export function carryCardText(data) {
   if (!data || typeof data !== 'object') return '';
@@ -353,18 +366,16 @@ export function carryCardText(data) {
     if (v == null || s(v).trim() === '') continue;
     const label = FIELD_ZH[k] ?? k;
     if (Array.isArray(v)) {
-      const lines = v.map((x) => {
-        if (x && typeof x === 'object') {
-          if ('label' in x) return `${x.label}：${x.value}`;
-          if ('title' in x && 'content' in x) return `【${x.title}】${x.content}`;
-          return Object.entries(x).map(([kk, vv]) => `${kk}：${vv}`).join('；');
-        }
-        return String(x);
-      }).filter((t) => t && s(t).trim());
+      const lines = v.map((x) => (x && typeof x === 'object' ? flat1(x) : String(x)))
+        .filter((t) => t && s(t).trim());
       if (lines.length) out.push(`${label}：\n${lines.join('\n')}`);
       continue;
     }
-    out.push(`${label}：${s(v).trim()}`);
+    // ★ 非数组的对象值也走 `flat1`：旧写法 `s(v)` 就是 `String(v)`，
+    //   给它一个对象照样是 `[object Object]`（卡面那条路 2026-10-14 修的就是它）。
+    //   摊平后为空（`{能力:'', 边界:''}` 这种）**整条不留残句** —— 与 `kv()` 同口径。
+    const t = flat1(v).trim();
+    if (t) out.push(`${label}：${t}`);
   }
   return out.join('\n');
 }
