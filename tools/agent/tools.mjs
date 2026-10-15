@@ -1535,66 +1535,91 @@ async function runP0FastPath(text, { reportOut = null, reportRef = '' } = {}) {
  *   · 缺指纹 / 指纹不符 ⇒ **当作没读到**（回落「库侧没读数」），并**出声**。
  *     **宁缺勿错**：库规原话「张冠李戴比没有更坏」——这一条现在才真的成立。
  */
-function readReviewSidecar(sinceMs, textSha8, contentId, reviewToken = '') {
+/**
+ * ══════════════════════════════════════════════════════════════════════════
+ * **读数身份判定（纯函数）** —— 这份旁挂 / 引擎 JSON 到底是不是**本单**的
+ * ══════════════════════════════════════════════════════════════════════════
+ * 判据一句话：**至少有一把锁对得上**；一把都对不上 ⇒ **拒收**（宁缺勿错 ——
+ * 库规原话「张冠李戴比没有更坏」）。
+ *
+ * ── ★★ 2026-10-15 那次事故（这条判据就是为它写的）────────────────────────
+ *   17:51 李倩怡在群里发了一张图（本机 OCR 只读到一行 `momcozY`），本单起链；
+ *   17:53:33 本单的链跑完（`kb/l7/reports/20261015-175333.json`，素材指纹 `8381eb63`）；
+ *   17:54:39 **另一单**（批跑在审一篇英文页面文案，原文里真写着
+ *            `Join Emily Silver, NP-C, IBCLC`）的链跑完（`…-175439.json`，`6aeaf105`）；
+ *   旁挂与引擎 JSON 都是**一个固定文件、每次整份覆盖** ⇒ 本单 17:55 去读，
+ *   读到的是**别人那一单**的读数：那条 `逐字命中「ibclc」`**本身是真的**，
+ *   错的是**它被贴到了另一张图上**，还随报告发进了群。
+ *   当时日志写得清清楚楚（`旁挂身份对不上（**不拒收，按时间口径采纳**）`）——
+ *   **三把锁全 ❌ 也照收**，于是判据看见了、结论照样错：
+ *   **判据没盖住的那一跳，就是事故所在的那一跳。**
+ *
+ * ── 四把锁各自的实测底细（2026-10-15 用实物核的，不是推的）────────────────
+ *   · **令牌**（`review_token` = 链把收到的 `--material-file` 路径原样回写）：
+ *     能用，但**常常是空的** —— headless 没把路径带过去（本单旁挂 `review_token` 为空）
+ *     ⇒ **不能当唯一依靠**。
+ *   · **文本指纹**（`text_sha8`）：实测**两端同一个算式** = `sha256(素材文本)[:8]`。
+ *     两处证据：① 归档对：旁挂 `text_sha8=52412e4d` == `sha256(报告 20261015-195446 的
+ *     input_manifest.text)[:8]` == 该报告的 `content_version[:8]`；
+ *     ② 日志 `✅ 对齐（文本指纹）` **34 次**，`base` 从 `20261009-1621` 到 `20261015-1407`。
+ *     ⇒ 旧注释那句「指纹从来没对上过」是 **2026-10-08 之前**的形状，**已经不成立** ——
+ *       别照着它再把「拒收」退回去（那正是这次串单能发出去的原因）。
+ *   · **内容指纹**（`content_version` = `sha256(素材文本)` **全值**，只在引擎 JSON 里）：
+ *     抽查最近 44 份评审报告**全部相符、0 例外**。
+ *   · **内容ID**：守衡算 `AUTO-<sha12>`，旁挂里却是 `AD-<日期>-<序号>`（业务号）
+ *     ⇒ **按构造永不相等**，它其实**不是一把锁**（留着只为万一对方改了写法）。
+ *
+ * 执行点：`tools/test_agent.mjs` 的「旁挂身份」一组（判据表 + 反向对照 + 真读文件的
+ * 行为级），改这里必须同时改那一组 —— 判据与自证只有一对，不许各写一份。
+ */
+export function identityVerdict({ sinceMs, at, want = {}, got = {} } = {}) {
+  const atMs = Date.parse(String(at ?? ''));
+  if (!Number.isFinite(atMs) || !Number.isFinite(sinceMs) || atMs < sinceMs - 2000) {
+    return { accept: false, level: null, why: '不新鲜（写入时刻早于本次起链，或读不到写入时刻）' };
+  }
+  const pick = (o) => ({
+    token: String(o?.token ?? '').trim(),
+    sha8: String(o?.sha8 ?? '').trim(),
+    full: String(o?.full ?? '').trim(),
+    cid: String(o?.cid ?? '').trim(),
+  });
+  const w = pick(want);
+  const g = pick(got);
+  const hit = (a, b) => !!a && !!b && a === b;
+  if (hit(w.token, g.token)) return { accept: true, level: '令牌', why: '链把收到的 --material-file 路径原样回写' };
+  if (hit(w.sha8, g.sha8)) return { accept: true, level: '文本指纹', why: 'sha256(素材文本)[:8] 相符（两端同一算式）' };
+  if (hit(w.full, g.full)) return { accept: true, level: '内容指纹', why: 'sha256(素材文本) 全值相符' };
+  if (hit(w.cid, g.cid)) return { accept: true, level: '内容ID', why: '内容 ID 相符' };
+  return { accept: false, level: null, why: '四把锁全不成立 —— 这份读数不是本单的' };
+}
+
+function readReviewSidecar(sinceMs, textSha8, contentId, reviewToken = '', textFullSha = '') {
   try {
     const p = path.join(KB_ROOT, 'kb/.work/last_review_result.json');
     const j = JSON.parse(fs.readFileSync(p, 'utf8'));
-    const at = Date.parse(j?.at ?? '');
-    if (!Number.isFinite(at) || !Number.isFinite(sinceMs) || at < sinceMs - 2000) return null;
-    // ── ★★ 身份核对：**只告警，不拒收**（2026-10-08 第二次回修，理由见下）──────────
-    //   为什么从「拒收」退回「告警」：**实测证明这两把锁对不上，而且不是偶尔对不上**。
-    //   现场数据（委托方 p2p 发同一张床照图，日志逐字）：
-    //     本单（守衡）文本指纹=de388f11 ｜ 内容ID=AUTO-de388f119542
-    //     旁挂（链）  指纹=23da57f1 ｜ 内容ID=AUTO-23da57f188f4
-    //   ——**两把锁内部是自洽的**（守衡那对互相印证 ⇒ 算式没错），
-    //   但链算出来的内容身份与守衡那段文本的哈希**根本不是一个值**：
-    //   链的报告 `kb/l7/reports/rv-20261008-180741.feishu.md` 写着
-    //   `content_version：23da57f188f45c66dd553f00e122949705cfa18d5fcdc5191d1306954e257b3f`，
-    //   而同一份报告的 `用户原提问` 是 **「审一下：这条送审素材能不能发」**（**链自己拟的话**，
-    //   委托方那张图的消息正文是空的）⇒ **链的内容身份算在「它自己组装的那段文本」上**，
-    //   不等于守衡递出去的素材文本。
-    //   ⇒ 判据与事实不符时，**错的是判据**：继续拒收的代价是**每一单都丢掉库侧读数**
-    //     （委托方当场看到「知识库侧本次未参与」，误以为库忙复现）。
-    //   ⇒ 退回**时间口径**（原行为），把不一致**降级为一行告警**：
-    //     证据留着（两个指纹都打出来），但**不再拿它挡读数**。
-    //   ★ 待办（**没做完，别当已完成**）：真正的身份要么走链自己回传的 `review_id` /
-    //     `publish.record_id`（答案里与旁挂里都有，且与文本构造无关），要么让
-    //     `review_run.sh` 回写一个**由守衡注入、链原样带回**的随机数（env 走不通，
-    //     已实测；需要走参数）。**在下一次动它之前，先把「链到底拿哪段文本算 content_version」
-    //     查清** —— 否则又是一次猜。
-    const wantSha = String(textSha8 ?? '').trim();
-    const gotSha = String(j?.text_sha8 ?? '').trim();
-    const wantCid = String(contentId ?? '').trim();
-    const gotCid = String(j?.content_id ?? '').trim();
-    const bySha = !!wantSha && !!gotSha && gotSha === wantSha;
-    const byCid = !!wantCid && !!gotCid && gotCid === wantCid;
-    // ★★ 2026-10-09（Owner 裁定「1 旁挂身份对齐」）：**第一把锁 = 一次性令牌**
-    //   它是我这一侧造的那个素材文件路径，链侧 `--material-file` 收到什么就原样回写什么。
-    //   **与"模型怎么组装文本"完全无关** —— 而这正是原先两把锁一起失效的原因。
-    const wantTok = String(reviewToken ?? '').trim();
-    const gotTok = String(j?.review_token ?? '').trim();
-    const byToken = !!wantTok && !!gotTok && gotTok === wantTok;
-    if (!byToken && !bySha && !byCid) {
-      // ⚠️ 失败要**分得开是哪一级断的**（否则下次还得倒推）：
-      //   · `gotTok` 空 ⇒ headless **没把 `--material-file` 带过去**（这一档要靠它逐字转发）；
-      //   · `gotTok` 有值但不等于 wantTok ⇒ 链读的是**别人那份素材文件**（并发/补发串了）；
-      //   · 两把文本锁也不成立 ⇒ 落到模型逐字那一档，而它不可靠（今天 6/6 没对上）。
-      const why = !wantTok
-        ? '本单没造素材文件（写 /tmp 失败）⇒ 只有文本两把锁，而它们今天 6/6 没对上'
-        : (!gotTok
-          ? '链侧**没收到 --material-file**（旁挂 review_token 为空）⇒ headless 没把路径带过去'
-          : '链侧读的是**另一份素材文件**（review_token 不相等）⇒ 并发/补发串单');
-      console.log(`[review] ⚠️ 旁挂身份对不上（**不拒收，按时间口径采纳**）`
-        + `｜令牌=${byToken ? '✅' : '❌'}（旁挂=${gotTok || '（空）'}）`
-        + `｜文本指纹 ${bySha ? '✅' : '❌'}（本单=${wantSha || '（无）'} 旁挂=${gotSha || '（缺）'}）`
-        + `｜内容ID ${byCid ? '✅' : '❌'}（本单=${wantCid || '（无）'} 旁挂=${gotCid || '（缺）'}）`
-        + `｜旁挂 base=${j?.base ?? '?'}｜旁挂 at=${j?.at ?? '?'}`
-        + `｜断在哪一级：${why}`);
-    } else {
-      // ★ 成功也要出声（一行）：否则"这一单到底靠哪把锁认下来的"无从统计
-      console.log(`[review] ✅ 旁挂身份对齐（${byToken ? '令牌' : (bySha ? '文本指纹' : '内容ID')}）`
-        + `｜base=${j?.base ?? '?'}`);
+    // ── 身份判定走上面那个纯函数（判据只有一处，别在这里再写一遍）──────────────
+    //   历史记着（别再退回旧行为）：2026-10-08 曾把「拒收」降级成「只告警」，
+    //   理由是当时两把文本锁**实测 6/6 全不成立**（链把身份算在它自己组装的那段
+    //   文本上）。那件事后来修掉了（令牌锁 + 算式对齐），2026-10-09 16:21 起
+    //   文本指纹**连续 34 次对齐**；而「只告警」留下的口子正是 10-15 那次串单。
+    const v = identityVerdict({
+      sinceMs, at: j?.at,
+      want: { token: reviewToken, sha8: textSha8, full: textFullSha, cid: contentId },
+      got: { token: j?.review_token, sha8: j?.text_sha8, cid: j?.content_id },
+    });
+    if (!v.accept) {
+      // ★ 拒收必须**看得见**（否则下一单还得倒推）：四个读数与旁挂自报的 base 一起打出来
+      console.log('[review] ⛔ 机读旁挂**不是本单的 ⇒ 拒收**'
+        + `｜${v.why}`
+        + `｜令牌 旁挂=${String(j?.review_token ?? '').trim() || '（空）'}（本单=${reviewToken || '（无）'}）`
+        + `｜文本指纹 旁挂=${String(j?.text_sha8 ?? '').trim() || '（缺）'}（本单=${textSha8 || '（无）'}）`
+        + `｜内容ID 旁挂=${String(j?.content_id ?? '').trim() || '（缺）'}（本单=${contentId || '（无）'}）`
+        + `｜旁挂自报 base=${j?.base ?? '?'}｜at=${j?.at ?? '?'}`
+        + '｜⇒ 本单按「库侧没读数」走（**不是**「库里说没问题」）');
+      return null;
     }
+    // ★ 成功也要出声（一行）：否则"这一单到底靠哪把锁认下来的"无从统计
+    console.log(`[review] ✅ 旁挂身份对齐（${v.level}）｜base=${j?.base ?? '?'}`);
     return j;
   } catch {
     return null;   // 文件不在 / 不是 JSON ⇒ 当作没有（**不是**「结论为空」）
@@ -1718,13 +1743,22 @@ register('kb_review_chain', {
       catch { materialPath = ''; }        // 写不成就退回老路（不阻断送审）
     }
     const materialRule = materialPath
-      ? `\n【★ 本单素材已落盘，路径如下 —— **必须原样带给链**】\n`
+      ? `【★ 第 0 条（先读这一条，再读下面所有内容）—— 本单素材已落盘，路径如下】\n`
         + `${materialPath}\n`
-        + `调链时用 \`bash kb/l8/review_run.sh ... --material-file ${materialPath}\`，`
-        + `**不要**自己把素材正文重新拼一遍再传（那样两边算出的指纹会对不上，`
-        + `库里就认不出这份旁挂是本单的）。\n`
-    : '';
-    const task = [String(question ?? ''), String(text ?? ''), materialRule, REVIEW_HARD_RULES, REVIEW_PLAYBOOK]
+        + `调链时必须用 \`bash kb/l8/review_run.sh ... --material-file ${materialPath}\`，`
+        + `**原样**把这个路径带给链：链会把你收到的路径原样回写进旁挂，`
+        + `我**靠它认这份旁挂是不是本单的**。\n`
+        + `**不要**自己把素材正文重新拼一遍再传（那样两边算出的指纹会对不上）。\n`
+        + `⚠️ 带漏了不会报错，但**并发时我会认错结论**（2026-10-15 实测：别人的 `
+        + `\`逐字命中「ibclc」\` 被当成你的素材判的，并随报告发进了群）—— `
+        + `宁可这一单回落成「库侧没读数」，也不许把别人的结论贴到你的素材上。\n`
+      : '';
+    // ★★ 2026-10-15：素材规则**排到最前面**（原来排第 3 位，夹在素材正文与 playbook 之间）。
+    //   为什么改：这条规则要 headless 去**转发一个路径**，而它此前 34 次里只照做过 1 次
+    //   （旁挂 `review_token` 基本是空的）。排在正文与 playbook 之后，等于把一件"附带请求"
+    //   塞在几万字后面 —— 位置就是权重。
+    //   执行点：`tools/test_agent.mjs`「素材规则必须排在 playbook 之前」。
+    const task = [materialRule, String(question ?? ''), String(text ?? ''), REVIEW_HARD_RULES, REVIEW_PLAYBOOK]
       .map((s) => s.trim()).filter(Boolean).join('\n');
     // ── 素材文件用后即删（不留在盘上）────────────────────────────────────────
     //   删在 `finally` 里：链**跑成 / 跑败 / 超时**三种结局都要删，
@@ -1944,7 +1978,8 @@ register('kb_review_chain', {
     //     不用 JS 的 `\s`（**含 U+3000**）、也不用 bash 的 `[[:space:]]`（**看 locale**）——
     //     那两个在两端会对不齐，而「对不齐」的表现就是**静默拒收**。
     const textForKey = String(text ?? '').replace(/[ \t\r\n]+$/, '');
-    const textSha8 = crypto.createHash('sha256').update(textForKey, 'utf8').digest('hex').slice(0, 8);
+    const textFullSha = crypto.createHash('sha256').update(textForKey, 'utf8').digest('hex');
+    const textSha8 = textFullSha.slice(0, 8);
     // 链自己那份内容 ID（`AUTO-<sha256(文本)[:12]>`）—— 拿它当**第二把锁**：
     // 两把锁任意一把对上就认（同一内容的不同问法走这条），**两把都对不上才拒**。
     const contentId = reviewPublish.contentIdOf(String(text ?? ''));
@@ -1961,7 +1996,7 @@ register('kb_review_chain', {
           elapsed_ms: Date.now() - t0,
         };
       }
-      const sidecar = readReviewSidecar(t0, textSha8, contentId, materialPath);
+      const sidecar = readReviewSidecar(t0, textSha8, contentId, materialPath, textFullSha);
       // ★ 链已跑完、旁挂已读 ⇒ 素材文件**用完就删**（三档结局都走这里之外的 catch 也删）
       cleanupMaterial();
       // ★★ 2026-10-08（第七批）：**把「链到底给了我们什么样的回答」原样留一份**。
@@ -1987,16 +2022,37 @@ register('kb_review_chain', {
         console.log('[review] ⚠️ 没读到机读旁挂（kb/.work/last_review_result.json 缺失或不新鲜）'
           + ' ⇒ 本单的「问题数量/置信度」落表时会是空的。');
       }
-      // ★★ 2026-10-08（第七批）：引擎 JSON（结构化逐条依据）—— 与旁挂同一条新鲜度纪律。
+      // ★★ 2026-10-08（第七批）：引擎 JSON（结构化逐条依据）。
       //   读不到 / 不新鲜 ⇒ 不带这个字段，下游**原样退回**从 `answer` 抠中文的老路
       //   （不许因为新路没通就少报东西）。
+      // ★★ 2026-10-15：**它此前只核"新鲜"，没核"是不是本单的"** —— 而它与旁挂一样是
+      //   固定文件、每次整份覆盖。10-15 那次串单里它是**同样被别人的那一单盖掉的**
+      //   （逐条依据 = 条款号/锚点/L0 直链，全是从这里来的）⇒ 现在按同一条身份判据收口。
+      //   它带的身份是 `decision.content_version` = `sha256(素材文本)` **全值**
+      //   （抽查最近 44 份评审报告，44/44 相符、0 例外）。
       let engineJson = null;
       try {
         const ep = path.join(KB_ROOT, 'kb/.work/last_engine_out.json');
         const raw = fs.readFileSync(ep, 'utf8');
         const at = fs.statSync(ep).mtimeMs;
-        if (Number.isFinite(t0) && at >= t0 - 2000) engineJson = JSON.parse(raw);
-        else console.log('[review] ⚠️ 引擎 JSON 不新鲜（早于本次起链）⇒ 不带结构化读数。');
+        const jj = JSON.parse(raw);
+        const dec = (jj && typeof jj.decision === 'object') ? jj.decision : {};
+        const gotFull = dec?.content_version ?? jj?.content_version
+          ?? (jj?.input_manifest?.sha256) ?? '';
+        const v = identityVerdict({
+          sinceMs: t0, at: new Date(at).toISOString(),
+          want: { full: textFullSha, cid: contentId },
+          got: { full: gotFull, cid: dec?.content_id ?? jj?.content_id },
+        });
+        if (v.accept) {
+          engineJson = jj;
+        } else {
+          console.log('[review] ⛔ 引擎 JSON **不是本单的 ⇒ 拒收**'
+            + `｜${v.why}`
+            + `｜内容指纹 引擎=${String(gotFull).slice(0, 8) || '（缺）'}（本单=${textSha8}）`
+            + `｜引擎自报 review_id=${dec?.review_id ?? '（缺）'}｜content_id=${dec?.content_id ?? '（缺）'}`
+            + '｜⇒ 本单逐条依据退回从回答里抠（**不是**「库里说没问题」）');
+        }
       } catch (e) {
         console.log(`[review] ⚠️ 读不到引擎 JSON（${e?.code ?? e?.message}）⇒ 本单逐条依据退回从回答里抠。`);
       }

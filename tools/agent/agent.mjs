@@ -11,12 +11,14 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { config, stateDir } from './config.mjs';
 import { buildSystemPrompt } from './persona.mjs';
 import * as llm from './llm.mjs';
 import * as mem from './memory.mjs';
 import * as feishu from './feishu.mjs';
 import * as vision from './vision.mjs';
+import * as sceneMod from './scene.mjs';
 // ★ 2026-10-09：OCR 水印摘除（Owner 看出图内文字里的用户名是水印）——见该模块头注
 import { stripOcrWatermark } from './ocr_watermark.mjs';
 import * as video from './video.mjs';
@@ -27,7 +29,7 @@ import { detectTruncation, annotateTruncation, tailOf, collapseToolMessages, cli
 import { parentIdOf, alreadyInHistory, buildQuoteBlock } from './thread.mjs';
 import * as reviewGate from './review_gate.mjs';
 import { mergeFindings, mergedState, kbFindingsOf, kbCoveredOf, renderMerged, mergeSummary, kbSideOf,
-         kbNoReadingOf, REPORT_LINK_MIN_ISSUES, evidenceBlock } from './dual_track.mjs';
+         mergedConfidence, kbNoReadingOf, REPORT_LINK_MIN_ISSUES, evidenceBlock } from './dual_track.mjs';
 import { renderMergedReportMd, publishMergedReport } from './merged_report.mjs';
 import { reviewModelSide, readingsForModelSide } from './model_side.mjs';
 import { generateAdvice } from './advice.mjs';
@@ -286,6 +288,11 @@ export async function readInboundContent(msg, {
   fetchImage = feishu.fetchMessageImage,
   fetchVideo = feishu.fetchMessageVideo,
   ocr = vision.ocrImage,
+  // ★★ 2026-10-15：**画面层**（PRD §5.1 的「基础视觉识别」那一半）。
+  //   此前两侧吃的都是同一份 OCR 文字 ⇒ 画面没人看（详见 `scene.mjs` 头注：
+  //   「模型不吃图」那句话当天被实测否掉了 —— 同一个端点 HTTP 200）。
+  //   注入点在这里，与 `ocr` 同级：测试要能打桩，否则这条路只能在联网+花 token 下才测得动。
+  scene = sceneMod.sceneRead,
   readVideoFn = video.readVideo,
   loadParent = feishu.getMessage,
   // ★★ 2026-10-09（Owner：「图上文字：刘华丽==》**还有我的名字**」）：
@@ -365,6 +372,30 @@ export async function readInboundContent(msg, {
         images.push({ index: i + 1, imageKey: k.imageKey, fromParent, failed: got?.error ?? '取图没有回路径' });
         continue;
       }
+      // ── 画面层（2026-10-15 加）：**字节还在盘上**时读一次 ─────────────────────
+      //   为什么放在 OCR **之前**、而且与 OCR **互不依赖**：
+      //     · PRD §5.1 把图片的输入写成两半（OCR ＋ 基础视觉）⇒ 两条读数各自独立；
+      //     · 实测那张「只有品牌字样」的图正好说明：OCR 几乎没字，**画面那一半才是全部信息**；
+      //     · 反过来 OCR 失败（占位图/1×1）也不该连带把画面一起丢掉。
+      //   失败**不影响**任何既有分支：`sceneRes` 只是挂在每一条 entry 上的一个读数。
+      //   ⚠️ 变量名**不许叫 `scene`** —— 那会把上面注入的那个 `scene` 参数**遮蔽掉**
+      //      （`let scene` 一写，`scene(got.path)` 当场 `scene is not a function`；
+      //       实测就是这么红的第一版）。
+      let sceneRes = null;
+      try {
+        sceneRes = await scene(got.path);
+      } catch (e) {
+        sceneRes = { ok: false, ms: 0, error: `画面读数抛异常：${e?.message ?? e}` };
+      }
+      if (sceneRes && !sceneRes.ok && !sceneRes.skipped) {
+        console.log(`[agent] 🖼 画面读数**没读到**（不是「没有画面」）：图 ${i + 1}｜${sceneRes.error}`);
+      } else if (sceneRes?.ok) {
+        console.log(`[agent] 🖼 画面读数｜图 ${i + 1}｜${sceneMod.sceneLine(sceneRes)} · ${sceneRes.ms}ms`);
+      }
+      const pushImg = (extra) => images.push({
+        index: i + 1, imageKey: k.imageKey, fromParent, bytes: got.bytes,
+        ...(sceneRes ? { scene: sceneRes } : {}), ...extra,
+      });
       // OCR 自己抛也要接住：本模块的契约是「**任何一张图读不到都不该让整条回话失败**」，
       // 而这一条是写测试时才发现的 —— 第一版的 throw 会穿过 finally 冒到 handleMessage 外面，
       // 后果是对方发图那一条消息**连正文都收不到回答**（正好复现我们要修的那个病）。
@@ -372,18 +403,15 @@ export async function readInboundContent(msg, {
       try {
         r = await ocr(got.path);
       } catch (e) {
-        images.push({ index: i + 1, imageKey: k.imageKey, fromParent, bytes: got.bytes,
-                      failed: `OCR 抛异常：${e?.message ?? e}` });
+        pushImg({ failed: `OCR 抛异常：${e?.message ?? e}` });
         continue;
       }
       if (!r?.ok) {
         // 「这一张我读不到」—— 与下面的「图上没字」分开记。
-        images.push({ index: i + 1, imageKey: k.imageKey, fromParent, bytes: got.bytes,
-                      failed: `OCR 失败（${r?.error ?? '未知'}）${r?.detail ? '：' + r.detail : ''}`,
-                      placeholder: !!r?.placeholder });
+        pushImg({ failed: `OCR 失败（${r?.error ?? '未知'}）${r?.detail ? '：' + r.detail : ''}`,
+                  placeholder: !!r?.placeholder });
       } else if (!r.text || !r.text.trim()) {
-        images.push({ index: i + 1, imageKey: k.imageKey, fromParent, bytes: got.bytes,
-                      ocrEmpty: true, w: r.w ?? null, h: r.h ?? null });
+        pushImg({ ocrEmpty: true, w: r.w ?? null, h: r.h ?? null });
       } else {
         // ★★ 2026-10-09（Owner 亲自看出「图上文字里的『刘华丽』是水印」）──────────────
         //   图内 OCR 里混着**文档水印**（用户名 + 工号，实测 `5615 RO0 / 刘华丽 / 刘华問`），
@@ -408,8 +436,7 @@ export async function readInboundContent(msg, {
         //     · `wm*`     = 留痕（摘了哪些行、靠哪条判据）—— 缺了它，摘除就是不可核的。
         const senderName = senderNameForWatermark ? await senderNameForWatermark() : null;
         const wm = stripOcrWatermark({ text: r.text, boxes: r.boxes, senderName });
-        images.push({ index: i + 1, imageKey: k.imageKey, fromParent, bytes: got.bytes,
-                      text: wm.text, textRaw: r.text,
+        pushImg({ text: wm.text, textRaw: r.text,
                       lines: r.lines ?? null, chars: r.chars ?? null,
                       w: r.w ?? null, h: r.h ?? null, truncated: !!r.truncated,
                       // `wlText` 保留为**同一份**（老读者还有人在用；值恒等，不再各挑各的）
@@ -540,13 +567,23 @@ export function buildImageBlock(inbound) {
   const quoted = inbound.fromParent && inbound.parentNote?.kind === 'parent_text' && inbound.parentNote.text
     ? `\n（她引用的那条消息，正文逐字是：${String(inbound.parentNote.text).slice(0, 500)}）`
     : '';
+  const hasScene = (inbound.images ?? []).some((i) => i?.scene?.ok);
   const parts = [
-    `【${src}，共 ${inbound.imageCount} 张。下面每一格是**本机 OCR 读出的图内文字**`
-    + `（逐字，可能有识别错误；也可能读不全）。`
-    + `你就此能判断的只有「图上写了什么字」—— 画面本身（构图、场景、人物、婴幼儿、`
-    + `产品怎么用、有没有换脸/合成痕迹）**不在这些字里，你看不到**。`
-    + `所以：可以按图内文字做文案与宣称层面的判定，但凡涉及画面本身的结论，`
-    + `必须写明「画面我看不到」这一条边界，并说明要看画面得由人来看。${quoted}】`,
+    `【${src}，共 ${inbound.imageCount} 张。下面每一格是**两条读数**：`
+    + `① **本机 OCR 读出的图内文字**（逐字，可能有识别错误；也可能读不全）；`
+    + `② **画面读数**（一个吃图的视觉模型看那张图写下的、只陈述看得见的：`
+    + `场景 / 人物（含是否婴幼儿）/ 物品是否在用 / 可见商标 / 画面线索）。`
+    + (hasScene
+      // ★★ 2026-10-15：这一条是**改口径**，不是改措辞 —— 此前写的是「画面本身你看不到」，
+      //   因为那时**画面层根本不存在**。现在读数在手，再说"看不到"就是**把有说成没有**；
+      //   但也不能放开成"你看过这张图"（那是模型读数，不是原图）。
+      ? `②是**模型给的读数，不是原图**：涉及画面的结论**只能依据它**，`
+        + `并写明「画面结论依据的是这份读数」；**读数里没写的（月龄、声音、这张图之外的情节）不许推断**；`
+        + `②**没读到**时如实说「画面这一层未测」，**不许**说成「画面没问题」。`
+      : `②**这一单没有**（画面层没跑或没读到）：涉及画面的结论**不许推断**，`
+        + `必须写明「画面我看不到、要看画面得由人来看」。`)
+    + `所以：可以按这两条读数做文案、宣称、产品使用、人物行为与场景层面的判定，`
+    + `但凡读数没覆盖的部分，都要把边界写出来。${quoted}】`,
   ];
   for (const im of inbound.images) {
     if (im.failed) {
@@ -570,6 +607,22 @@ export function buildImageBlock(inbound) {
       parts.push(`【图 ${im.index} 内文字${im.truncated ? '（已截断）' : ''}｜${im.lines ?? '?'} 行`
         + `${dropped ? `，另摘除水印 ${dropped} 行（不是素材内容）` : ''}】\n`
         + `${body}\n【/图 ${im.index}】`);
+    }
+    // ── ★★ 2026-10-15：**画面读数**（PRD §5.1「基础视觉识别」那一半）───────────
+    //   为什么单独一格、且**不放进上面那个 if/else**：两条读数**各自独立** ——
+    //   OCR 失败或"图上没字"的图，画面读数照样可能读到东西。
+    //   实测那次（2026-10-15 李倩怡那张图）正是这种：OCR 只有品牌字样 `momcozY`，
+    //   而画面读数给出了「婴幼儿出镜 / 产品正在被冲洗 / 疑似合成痕迹」——
+    //   把它挂在 OCR 的分支里，就会在**最需要它的那一类图上**正好丢掉。
+    if (im.scene?.ok) {
+      parts.push(`【图 ${im.index} 画面读数（视觉模型的读数，**不是原图**；涉及画面的结论只能依据这一格）】\n`
+        + `${sceneMod.sceneBlock(im.scene.scene)}\n【/图 ${im.index} 画面读数】`);
+    } else if (im.scene?.skipped) {
+      // 「这一单没跑」——**不是**失败、也不是「没有画面」：如实说没跑，别让它看起来像读过
+      parts.push(`【图 ${im.index} 画面读数：这一单**没跑**（${im.scene.error ?? '未开'}）】`);
+    } else if (im.scene && im.scene.error) {
+      parts.push(`【图 ${im.index} 画面读数：**没读到**（${im.scene.error}）—— `
+        + `画面这一层是**未测**，不是「没有画面」，也不许据此推断画面】`);
     }
   }
   if (inbound.skippedImages) {
@@ -651,9 +704,15 @@ export function buildVideoBlock(inbound) {
         + `  ⇒ 不得把上面这段当逐字口播引用；要谈口播，只能说「这一格**没测准**」，`
         + `并请对方把音轨里的原话贴过来。`;
     } else if (t.ok) {
+      // ★ 2026-10-14：长视频的转写是**分段**做的（`asr.mjs` 的 `ASR_CHUNK_SECONDS`——
+      //   识别器一次只肯啃 ~2 分钟，整条 57 分钟塞进去一个字都回不来）。
+      //   段内逐字、段间按时间顺序相接 ⇒ 「逐字」这个说法仍然成立，
+      //   但**必须说出来**：人要知道这行字是 12 段拼的，才好在回听时按 `chunks[].start_s` 对时间。
       audioPart = t.chars
         ? `音轨转写（本机识别，逐字，可能有错；语种 ${t.locale}`
-          + `${t.locale_basis ? `，选它的依据：${t.locale_basis}` : ''}）：\n「${t.text}」`
+          + `${t.locale_basis ? `，选它的依据：${t.locale_basis}` : ''}`
+          + `${t.chunked ? `；**分 ${t.n_chunks} 段转写**，每段 ≤${t.chunk_seconds}s、段间按时间顺序相接`
+              + `${t.chunk_fails ? `，其中 ${t.chunk_fails} 段没转成` : ''}` : ''}）：\n「${t.text}」`
         : `音轨转写：识别器回了一个**空结果**（chars=0）—— 这是「整条音轨里没识别出话」，`
           + `不是「转写没跑成」。`;
     } else if (t.kind === 'no_audio_track') {
@@ -853,7 +912,76 @@ export async function runSubmissionGate({
       //   逐条正则抠不到 ⇒ 库侧被读成「0 条」⇒ 合并把**库侧的 BLOCK 降级成 REVIEW**。
       const kbSide = kbSideOf(res);
       const merged = mergeFindings(kb.findings, model.findings);
-      const state = mergedState({ kbCovered: kbCoveredOf(res?.answer), merged: merged.items, kb: kbSide });
+      // ★★ 2026-10-14：**模型侧没跑成也要传进合并态**（与 `renderMerged` 里那个同名判据**一处口径**：
+      //   `model.ok === false`）。原先只传给卡片文案，**没传进 `mergedState`** ⇒
+      //   模型侧解析失败被当成「模型侧 0 条」⇒ 库侧安全词覆盖就能落 **PASS**
+      //   （实测 `MC-US-AMZ-B0CWLHKQNT`：模型侧 JSON 解析失败 ⇒ merged=[] ⇒ PASS）。
+      const modelFailed = !!(model && model.ok === false);
+      const state = mergedState({ kbCovered: kbCoveredOf(res?.answer), merged: merged.items,
+                                  kb: kbSide, modelFailed });
+      // ── ★★ 2026-10-15（Owner）：置信度 = **两侧各出一个档位 ⇒ 对外只出一个数** ──────────
+      //   为什么在这里算：两侧**并行起跑**（见上），只有**合并这一刻**两侧的东西才同时在手
+      //   （`kbCovered` / `merged.items` / `model.findings` / `modelFailed`）。
+      //   库侧：沿用旁挂里**引擎已算好**的那个数（本处不重算，只分档）；
+      //   模型侧：由它自己**已经输出**的命中结构派生（不新增 LLM 字段）；
+      //   合并：按 PRD §6.6 三档**取更保守一侧** —— 零自由权重。
+      //   模型侧未参与 ⇒ 不产出合并数，退回库侧读数并在 basis 写明（单轨语义不许漂）。
+      //   ★★ 2026-10-15（F1 收尾）：**入参这里不许提前 `Number()`** ——
+      //   `Number(null) === 0`、`Number('') === 0` ⇒「库侧没有读数」会在进 `mergedConfidence`
+      //   之前就被改写成"置信度 0"，然后落进 `focus` 档（0.65）。
+      //   `bandOf`/`mergedConfidence` 内部**本来**就按 null 处理（它们的注释就写着这个坑），
+      //   是这里多此一举的转换把它毁掉了。⇒ 空值原样透传，交给它们判。
+      const kbConfRaw = res?.review?.confidence ?? res?.confidence;
+      const kbConfidence = (kbConfRaw === null || kbConfRaw === undefined || kbConfRaw === '')
+        ? null
+        : (Number.isFinite(Number(kbConfRaw)) ? Number(kbConfRaw) : null);
+      const mergedConf = mergedConfidence({
+        kbConfidence,
+        kbCovered: kbCoveredOf(res?.answer),
+        model, modelFailed,
+        // ★ `both` = 双轨确认条数（§④「同一个问题取交集」那一格）。
+        //   没有它，v1 会把「库侧 PASS/0 条 ＋ 模型侧 2 条」这种**分歧**算成 direct ——
+        //   端到端实测（RC-78ce50b3732c）当场抓到这个不自洽，见 dual_track.mjs 里那段注释。
+        bothCount: merged.stats?.both ?? 0,
+      });
+      // ── ★★ 2026-10-15：合并置信度**落一行机读台账** ─────────────────────────────
+      //   为什么非落不可：这个数只活在"合并那一刻"的内存里 —— 事后既无法从表行反推
+      //   （表行只有结果），也无法从报告反推（报告是散文）。而 Owner 要"两侧统一出一个数"
+      //   就必然要**核对历史每一行**，库侧的标定器也**只能读机读件**（不读散文）。
+      //   ⇒ 追加式 NDJSON，一行一单；写失败**绝不影响回复**（try/catch，只打日志）。
+      //   `KB_CONF_LEDGER` 只给自证/离线验证用（把路径指到临时目录，§2.4.4：自证不许改真数据）。
+      try {
+        //   ★★ 2026-10-15 实测修：这里原来写的是 `path.join(stateDir, ...)` —— 而
+        //   `stateDir` 是从 `config.mjs` 进来的**函数**（`stateDir()`），不是字符串 ⇒
+        //   `path.join` 抛 "Received function stateDir" ⇒ **每一单都写不进去**，
+        //   而 try/catch 把它降级成一行日志 ⇒ 「台账」这件事**从来没成立过**
+        //   （实测：`PMO/shouheng-state/confidence-merged.ndjson` 至今不存在）。
+        //   修法 = 调它：`stateDir()`。判据：自证里这条 warn 必须消失，且真跑一单后台账文件出现。
+        const lp = process.env.KB_CONF_LEDGER
+          || path.join(stateDir(), 'confidence-merged.ndjson');
+        // ★ `material_sha8`：按**素材本身**的键。为什么不能用 content_id 当键 ——
+        //   实测（2026-10-15）：链"回缓存"时**旁挂不更新** ⇒ `res.review.content_id` 是
+        //   **上一单**那个号（四条不同素材落出同一个 `AD-20261015-001`）⇒ 台账按它对齐会串行。
+        //   素材哈希永远可得，且与"这一单是哪条素材"一一对应。
+        const materialSha8 = createHash('sha256')
+          .update(String(inbound?.text ?? ''), 'utf8').digest('hex').slice(0, 8);
+        fs.appendFileSync(lp, JSON.stringify({
+          at: new Date().toISOString(),
+          material_sha8: materialSha8,
+          content_id: res?.review?.content_id ?? res?.content_id ?? null,
+          state,
+          kb_value: kbConfidence,
+          kb_band: mergedConf.kb_band, model_band: mergedConf.model_band,
+          merged_value: mergedConf.value, band: mergedConf.band,
+          model_ok: !!(model && model.ok !== false),
+          model_findings: model?.findings?.length ?? null,
+          both: merged.stats?.both ?? null, kb_only: merged.stats?.kb_only ?? null,
+          model_only: merged.stats?.model_only ?? null,
+          basis: mergedConf.basis,
+        }) + '\n', 'utf8');
+      } catch (e) {
+        console.log('[agent] ⚠ 置信度台账没写成（**不影响本单回复**）：' + (e?.message ?? e));
+      }
       // ── ★★ 2026-10-09：「建议」的唯一产出者（Owner 的规则）────────────────────
       //   「有填的做参考，agent 输出最终具体建议；没填的 agent 直接出建议」
       //   为什么必须在这里（两侧都回来之后）：模型侧与链**并行**跑，模型侧产出它的发现时
@@ -923,7 +1051,24 @@ export async function runSubmissionGate({
       //     **失败不阻断结论**（报告与三态是两件事）；**失败必须照 detail 说**
       //     （把 `url=''` 说成「已出报告」是比不建更坏的一面）。
       let reportUrlOverride = null;
-      if (rendered0 && rendered0.total >= REPORT_LINK_MIN_ISSUES) {
+      // ★★ 2026-10-14（Owner 本地要求）：「问题数少于 3 个的，也输出审查报告，
+      //   格式跟大于 3 个问题数量的审查报告一致」。
+      //   ⇒ 去掉「卡内条数 ≥ `REPORT_LINK_MIN_ISSUES` 才建」这道闸：**只要有可并的条目就建**。
+      //      （判据 Z17 有一条**反向断言**：源码里不许再出现那个比较式 —— 所以这里也不写它。）
+      //   ⚠️ 这是**本地（这批跑/这张表）的要求**，不是 PRD 口径 ——
+      //      PRD §5.3.4 / §8.3 与库侧 `feishu_publish.py::REPORT_LINK_MIN_ISSUES = 3` **一个字没动**。
+      //      「格式一致」天然成立：报告正文由 `merged_report.mjs` 渲染，它**不按条数分支**
+      //      （该件头部明写「不再 import REPORT_LINK_MIN_ISSUES」），<3 与 ≥3 是同一套版式。
+      // ★★ 2026-10-15（Owner 报「**链接是空的**」，真单 `MC-US-YT-_xyLF4_AgAw-IMG`）：
+      //   **一条条目都没有 ⇒ 不建报告**。
+      //   病灶：那一单两侧都没命中（模型侧 0 条 ／ 库侧 `issue_count=0`），
+      //   而报告这一跳只看 `rendered0` 真不真 ⇒ 照样建了一份 docx，
+      //   里面只有标题 + 结论行 + 「（本单没有并进任何条目。）」⇒ **人点开是空的**，
+      //   而卡上还挂着那个链接（「一个点不开的链接比空格更坏」，何况是一个点开没内容的）。
+      //   ⇒ 闸改成「**有可并的条目**（`total > 0`）才建」。
+      //   ⚠️ Owner 2026-10-14 的本地要求「**<3 也出报告**」**一个字没动**：
+      //     只要**有**条目（1 条、2 条都算）就建，格式与 ≥3 完全一致（见下面 Z17 那两条判据）。
+      if (rendered0 && rendered0.total > 0) {
         try {
           const at = new Date().toISOString();
           // ★★ 2026-10-13（Owner 第四条）：**渲染两份** ——
@@ -946,7 +1091,7 @@ export async function runSubmissionGate({
             contentId: kbSide?.contentId ?? '', at, archiveMd: mdFull });
           if (pub.ok) {
             reportUrlOverride = pub.url;
-            console.log(`[agent] 📄 合并报告已建（问题数 ${rendered0.total} ≥ ${REPORT_LINK_MIN_ISSUES}）：${pub.url}`
+            console.log(`[agent] 📄 合并报告已建（问题数 ${rendered0.total}）：${pub.url}`
               + `｜留底（含附录）：${pub.archivePath ?? '(未留)'}`);
           } else {
             console.log(`[agent] ⚠️ 合并报告**没建成**（照实说，不编链接）：${pub.detail}`);
@@ -960,10 +1105,12 @@ export async function runSubmissionGate({
         //   ⚠️ 去掉 `!kbSide?.reportUrl` 挡条之后，走到这里**只剩两种正当原因**
         //      （「库侧已经给了链接」那一种已从结构上消失）：
         //        · `renderMerged` 返回 null（没有可并的条目）；
-        //        · 卡内总数 < 3（PRD §5.3.4 本就不该给报告）。
+        //        · ~~卡内总数 < 3（PRD §5.3.4 本就不该给报告）~~
+        //          ★ 2026-10-14：**这一种已消失** —— 本地要求改成「<3 也出报告」，
+        //            闸只剩「有没有可并的条目」。留此行是为了让下一个人知道它**曾经**是原因。
         const _ru = kbSide?.reportUrl ?? null;
         const _why = !rendered0 ? 'renderMerged 返回 null（没有可并的条目）'
-          : `卡内总数 ${rendered0.total} < ${REPORT_LINK_MIN_ISSUES} ⇒ 按 PRD 本就不该给报告`;
+          : `卡内总数 ${rendered0.total} ⇒ 本应已建（走到这里说明上面那一支没进，属异常）`;
         console.log(`[agent] 📄 合并报告：**未建**（${_why}）`
           + `｜卡内总数=${rendered0?.total ?? '—'}｜库侧链接=${_ru ?? '(无)'}`
           + `（kind=${kbSide?.reportUrlKind ?? '—'}）`);
@@ -981,7 +1128,7 @@ export async function runSubmissionGate({
                                        reportUrlOverride, kbHitsBlock: kb.kbHitsBlock ?? null,
                                        mergedStats: merged.stats })
         : rendered0;
-      dual = { model, kb, merged, state, rendered, kbSide, reportUrl: reportUrlOverride };
+      dual = { model, kb, merged, state, rendered, kbSide, mergedConf, reportUrl: reportUrlOverride };
       // ★ 2026-10-08：**模型侧没跑成时要把 raw 打出来**。
       //   原先只打 `model.error`，而「没跑成」的两种成因——「额度被 reasoning 烧光 ⇒ 正文 0 字」
       //   与「写了散文没写 JSON」——**报的是同一句话**（`输出里没有 JSON 数组`）。
@@ -1010,6 +1157,13 @@ export async function runSubmissionGate({
         + ' ⇒ ' + mergeSummary(merged.stats)
         + '｜合并态=' + state
         + '｜改写结论=' + (rendered ? '是' : '否（模型侧没报东西，仍用链给的那份）')
+        //   ★ 2026-10-15（F1）：`value` 可能是 `null`（库侧没读数 ⇒ 不出这个数）；
+        //     `Number.isFinite(Number(null))` 为真 ⇒ 会打成 `0`（又一次 `null`→`0`）。
+        //     没有数就打 `—`，并在后面那格说明档位也是 `—`。
+        + '｜置信度(两侧合并)=' + ((mergedConf?.value === null || mergedConf?.value === undefined
+            || mergedConf?.value === '' || !Number.isFinite(Number(mergedConf.value))) ? '—' : mergedConf.value)
+        + ' [' + (mergedConf?.band ?? '—') + ']'
+        + '（库侧 ' + (mergedConf?.kb_band ?? '—') + ' / 模型侧 ' + (mergedConf?.model_band ?? '未参与') + '）'
         + (model.dropped?.length ? '｜⚠ 解析丢掉 ' + model.dropped.length + ' 条：' + model.dropped.map((d) => d.why).join('；') : ''));
       if (rendered) {
         chainBlock = chainBlock
@@ -1097,7 +1251,7 @@ export async function runSubmissionGate({
       conclusion = 'NEEDS_INPUT';
       passBlockedByNoReading = true;
     }
-    const nums = reviewPublish.machineNumbers(res, conclusion);
+    const nums = reviewPublish.machineNumbers(res, conclusion, dual?.mergedConf);
 
     // ── 产品线 / 渠道：**先 KB 命中记录，再素材原文兜底**（Owner 2026-10-06）─────────
     //   · 第一优先：命中记录里的 `品线`/`平台`/`渠道/市场`
@@ -1258,7 +1412,52 @@ export async function runSubmissionGate({
       //   ⚠️ 条目在 **`dual.merged.items`**（不是 `dual.items`）—— 我第一版写的就是 `dual.items`，
       //     传进去一个 `undefined`，于是依据块**永远是空**，而日志、卡片、表行都不会报错。
       //     接线判据见 `test_agent.mjs` 的「逐条依据必须接在**真的条目数组**上」。
-      summary: summaryText + (dual ? evidenceBlock(dual?.merged?.items) : ''),
+      //
+      // ══════════════════════════════════════════════════════════════════════════
+      // ★★ 2026-10-15（Owner 裁定）：**这一格改成 PRD §5.3 的摘要块** ────────────────
+      // ══════════════════════════════════════════════════════════════════════════
+      //   Owner 原话（两条）：
+      //     ① 「80 条的分类问题汇总，直接按照 prd 的要求出问题分类汇总，**覆盖**飞书文档中旧汇总，
+      //         不用新建字段」（要的是 PRD §5.3.2/§5.3.3 那三样：结论行 · 分类汇总 · 报告链接）
+      //     ② 「模型侧输出问题必须带依据的 url，这个必须要有，**命中知识库侧的也是要带依据的 url**」
+      //   ⇒ 一格装两样，顺序即优先级：**PRD 块在上**（人先看到摘要），依据块在下（可回源），
+      //     口径说明（⚠️ 那两句）压尾。
+      //   ★ 复用**卡片那一份** `dual.rendered.block` —— 它与群里的卡**逐字同源**，
+      //     所以 PRD 要的四样（结论行／分类汇总／报告链接／动作行）一个字都不用在这儿重写，
+      //     也就不会有第二份口径（本库因为「同一个东西两个产出者」栽过多次）。
+      //   ⚠️ 已知缺口（照实写着，别以为已经覆盖）：**模型侧没报东西**时 `rendered` 为 null
+      //     （`renderMerged` 那一支要求「有可并的条目」），这一支仍走老写法 `summaryText`。
+      //     要把它也 PRD 化，得把 `verdict53`（PRD 结论行）的取值点提到这之前 —— 见
+      //     `PMO/` 的待办记录，不在本次改动里硬凑。
+      //     原先这里内联一份，卡片那边另一份，正是这一格「同一单两个长相」的来源（FIX-018）。
+      // ══════════════════════════════════════════════════════════════════════════
+      // ★★ 2026-10-15（Owner）：「**这一格只放 PRD 的『审查结论』块，不要自己加其他内容**」──
+      // ──────────────────────────────────────────────────────────────────────────
+      //   格式（Owner 给的逐字样例）：
+      //     【审查结论：BLOCK】共发现 9 处必须修改。
+      //     逐条问题
+      //     · 合规类问题：2 个 …
+      //     · 另有 3 条（明细在报告里）
+      //     → 查看完整问题清单与修改建议：<报告链接>
+      //     请修改后重新提交。
+      //   ⇒ 直接给**卡片那一份** `dual.rendered.block`（逐字同源 ⇒ 同一单不会有第二种长相）。
+      //   此前挂在这一格里的三样**全部撤掉**（它们不是 PRD 要的内容）：
+      //     · 【逐条依据（落库留痕）】（带 url）—— 依据在报告里（PRD 的设计＝摘要 ＋ 钻取报告）；
+      //     · 「双轨合并：卡内总数…」读数句 —— Owner 2026-10-13 已定这类口径读数不上卡，
+      //       同一条理由对表也成立（表与卡是同一条结论的两个落点）；
+      //     · ⚠️ 置信度 / 产品线·渠道的口径说明 —— 置信度有它自己那一列。
+      //   ⚠️ 与旧裁定（2026-10-09「口径必须跟数一起进表」）冲突 ⇒ **以本条为准**；
+      //      行为判据 `test_agent.mjs` 的 V6 已随之改写（原版要求格里有「库侧 N 条机器读数」）。
+      summary: (() => {
+        const block = String(dual?.rendered?.block ?? '').trim();
+        if (block) return block;
+        // 模型侧没报东西 ⇒ 没有 `rendered.block`，但这一格仍要是 PRD 形状：
+        //   结论行取「合并态派生」或「链自己的答案」；两处都没有（拒答/未判）才回落旧写法。
+        const count = Number.isFinite(dual?.rendered?.total) ? dual.rendered.total : nums.issueCount;
+        const line = deriveVerdictLine({ mergedState: conclusion, mergedCount: count })?.line
+          || deriveVerdictLine({ answer: String(res?.answer ?? '') })?.line || '';
+        return line || summaryText;
+      })(),
     }, { since: t0 - 1000, question: input.question, ctx: { actor: 'shouheng/review-gate' } });
     console.log(`[agent] 🧭 落表：${publish?.ok ? publish.action : '失败'}`
       + `${publish?.record_id ? `｜${publish.record_id}` : ''}`
@@ -1361,6 +1560,18 @@ export async function runSubmissionGate({
     dual: dual ? { state: dual.state, stats: dual.merged?.stats ?? null,
                    ok: dual.model?.ok ?? false,
                    model_ms: dual.model?.ms ?? null, overrode: !!dual.rendered,
+                   // ★ 2026-10-15：**两侧合并后的置信度**必须从这里出去 ——
+                   //   它是表行那一格的值来源（`machineNumbers(res, conclusion, dual.mergedConf)`），
+                   //   不投影出去的话，daemon 的 meta/留痕读不到"这一单最后算出来是几"，
+                   //   正是本仓治过的「改了但没人读」。库侧与模型侧两个档位**一并带出**，
+                   //   好让事后能回答"这个数是被哪一侧拉低的"。
+                   mergedConf: dual.mergedConf
+                     ? { value: dual.mergedConf.value ?? null,
+                         band: dual.mergedConf.band ?? null,
+                         kb_band: dual.mergedConf.kb_band ?? null,
+                         model_band: dual.mergedConf.model_band ?? null,
+                         basis: dual.mergedConf.basis ?? null }
+                     : null,
                    // 2026-10-09: 本仓建的那份合并报告的 URL —— daemon 拿它搬进卡片可见格
                    reportUrl: dual.reportUrl ?? null,
                    // ⚠️ 2026-10-13：`p0Boundary` 那一格撤了 —— 卡脚边界整个不上卡
@@ -1569,6 +1780,31 @@ export function mediaReadAppendix(inbound) {
     }
   }
   const vids = inbound.videos ?? [];
+  // ── ★★ 2026-10-15：**画面读数**（PRD §5.1「基础视觉识别」那一半）──────────────
+  //   为什么单开一节而不是并进「图内文字」：两者是**两种读数**，
+  //   一个是**原图里真有的字节**（OCR 逐行碎片），一个是**模型看图的描述**。
+  //   混在一节里，读报告的人会分不清「这句话是图上印的」还是「模型说的」——
+  //   而这条区分恰恰是这份报告能不能被复核的前提（§2.4.1：读数是谁的）。
+  if (inbound.imageCount && imgs.some((i) => i?.scene)) {
+    L.push('### 画面读数（视觉模型看图的描述 —— **不是原图，也不是图上印的字**）');
+    L.push('');
+    L.push('> ⚠️ 这一节由**吃图的模型**看一眼那张图写出，只陈述看得见的（场景/人物/物品/可见标识/画面线索）。');
+    L.push('> 它是**读数**：可以据此判「产品使用 / 人物行为 / 场景风险」，但**读数里没写的不要推断**。');
+    L.push('> 三种结局分得开：**有读数** ／ **读了没读到**（未测）／ **这一单没跑画面层**。');
+    L.push('');
+    for (const i of imgs) {
+      const sc = i?.scene;
+      if (!sc) { L.push(`- **图 ${i.index}**：这一单没跑画面层`); continue; }
+      if (sc.skipped) { L.push(`- **图 ${i.index}**：这一单**没跑**画面层（${sc.error ?? '未开'}）`); continue; }
+      if (!sc.ok) { L.push(`- **图 ${i.index}**：**没读到**（${sc.error}）—— 画面层是**未测**，不是「没有画面」`); continue; }
+      L.push(`- **图 ${i.index}**（${sc.ms}ms）：`);
+      L.push('');
+      L.push('```');
+      L.push(sceneMod.sceneBlock(sc.scene));
+      L.push('```');
+      L.push('');
+    }
+  }
   if (inbound.videoCount && vids.length) {
     L.push('### 关键帧文字与音轨转写');
     L.push('');

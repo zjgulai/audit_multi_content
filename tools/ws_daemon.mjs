@@ -24,6 +24,7 @@ import { config, describeConfig, LOG_DIR, REPO_ROOT, ensureDir, stateDir } from 
 import * as feishu from './agent/feishu.mjs';
 import { plainify } from './agent/plain.mjs';
 import * as vision from './agent/vision.mjs';
+import * as scene from './agent/scene.mjs';
 import * as video from './agent/video.mjs';
 import * as asr from './agent/asr.mjs';
 import { handleMessage, flushSeen, loadedTools, status, mediaWithoutChain } from './agent/agent.mjs';
@@ -853,6 +854,23 @@ try {
   }
 } catch (e) {
   log(`  读图/OCR              = ⚠️ 未测（自检自己抛了：${e?.message ?? e}）`);
+}
+
+// ★★ 2026-10-15 加：**画面层**（PRD §5.1「基础视觉识别」那一半）的启动自检。
+//   与读图同形状，代价不同：**这一条真发一次网络请求**（一张 26KB 试纸图 + 一次调用）。
+//   为什么仍要放第一屏：这一层断掉的表现是「结论看起来一样、只是少了画面那半」——
+//   没有任何东西会红，而 PRD 要求的那三类（产品使用 / 人物行为 / 场景风险）会**整类消失**。
+//   ⚠️ 它不影响启动：失败只打一行；`SHOUHENG_SCENE=0` 时如实报「未开」，不假装读过。
+try {
+  const sp = await scene.preflight();
+  if (sp.ok) log(`  画面层(吃图模型)      = ✅ 就绪（试纸 ${String(sp.detail).slice(0, 96)}）`);
+  else if (sp.skipped) log(`  画面层(吃图模型)      = ⏸ 未开（${sp.detail}）`);
+  else log(`  画面层(吃图模型)      = ❌ 不可用（${String(sp.detail).slice(0, 160)}）`);
+  if (!sp.ok && !sp.skipped) {
+    log('                          → 图片的「画面」那半会是**未测**（不是「没有画面」）；报告里也这么写');
+  }
+} catch (e) {
+  log(`  画面层(吃图模型)      = ⚠️ 未测（自检自己抛了：${e?.message ?? e}）`);
 }
 
 // ★ 2026-10-05 加：**视频**那条路的启动自检（抽帧 → OCR 读画面上的字）。

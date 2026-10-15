@@ -371,7 +371,7 @@ const pickModel = (f) => ({
  * @param {{kbCovered:boolean, merged:Array}} a
  * @returns {'PASS'|'REVIEW'|'BLOCK'|'拒答'}
  */
-export function mergedState({ kbCovered = false, merged = [], kb = null } = {}) {
+export function mergedState({ kbCovered = false, merged = [], kb = null, modelFailed = false } = {}) {
   // ★ 2026-10-07 加（Owner 同意，缺陷实测：**库侧零读数却落了 PASS**）——
   //   **「库侧没有读数」⇒ PASS 不可达。**
   //   实测：素材「这条社媒文案能不能发：这批婴幼儿用品的文案里写了医用级」
@@ -394,8 +394,45 @@ export function mergedState({ kbCovered = false, merged = [], kb = null } = {}) 
   if (merged.some((f) => f.severity === 'BLOCK')) return 'BLOCK';
   if (kb && String(kb.state).toUpperCase() === 'BLOCK') return 'BLOCK';
   if (merged.length) return 'REVIEW';
-  if (kb && String(kb.state).toUpperCase() === 'REVIEW') return 'REVIEW';
+  if (kb && String(kb.state).toUpperCase() === 'REVIEW') {
+    // ★★ 2026-10-15（Owner 裁定，原话：「**没有命中就是 pass**，按照 prd 的一句话结论走，
+    //   你不要自己定义」）────────────────────────────────────────────────────────
+    //
+    //   病灶（真单，`MC-US-YT-_xyLF4_AgAw-IMG`，群里那张卡）：库侧报 `state=REVIEW` 而
+    //   `issue_count=0`（覆盖缺口那一档：检索有命中，但「既被规则引用、又达门限」的单元 0 条）
+    //   ⇒ 这一支原样跟着出 REVIEW，**再被 `covEntries` 加上 1** ⇒ 卡上印
+    //   「共发现 **1** 处需人工确认」，而逐条里**一条都没有**、报告文档里也只有一句话。
+    //   Owner 的座位上看就是「一个问题要输出问题到卡片」而卡上什么都没有。
+    //
+    //   口径（Owner 2026-10-15）：**一条内容问题都没命中 ⇒ PASS**（§5.3.1 的一句话结论）。
+    //   ⚠️ 只放行**零条 ＋ 覆盖缺口**这一档，两条边界都收着：
+    //     · `issue_count > 0` 的 REVIEW **一个字不动**（那是真报了几条、只是明细没并进来
+    //       ⇒ 仍然要人去看，`kbGap` 那一套照旧）；
+    //     · 读不到条数（`null`）也**不许**放行（读不到 ≠ 零条）。
+    //   ⚠️ 两只形状都要认：**库侧有没有把这条缺口算进 `issue_count`，两个时代不一样** ——
+    //      · 2026-10-08 那一版把它算进去 ⇒ 缺口单是 `issue_count=1`（本文件 ⑭ 组的夹具就是它）；
+    //      · 2026-10-12 起 `issue_count` 只算库内依据 ⇒ 缺口单是 `issue_count=0`（今天真单）。
+    //     两种形状都**没有内容问题** ⇒ 都走 PASS。`≥2` 才当「还有别的内容问题」⇒ 照旧 REVIEW。
+    //     ⚠️ 读不到条数（`null`）**不许**放行（读不到 ≠ 零条）。
+    const kbZeroCount = Number.isFinite(kb?.issueCount)
+      && (kb.issueCount === 0 || kb.issueCount === 1);
+    if (kbZeroCount && kb?.coverageGap === true) return 'PASS';
+    return 'REVIEW';
+  }
   if (noReading) return '拒答';          // 库侧没读数 ⇒ 不出 PASS（理由见上）
+  // ★★ 2026-10-14（实测缺陷，Owner 报「报告链接点不开」那一轮顺带查出）——
+  //   **对称的那一条：模型侧没跑成 ⇒ 同样不出 PASS。**
+  //
+  //   病灶（逐字可核，`MC-US-AMZ-B0CWLHKQNT`）：模型侧输出 **JSON 解析失败**
+  //   （`raw` 里字符串内含未转义的双引号 ⇒ `Expected ',' or '}' …`），
+  //   `modelFailed = true` 只写进了**查证笔记**，**没进合并态** ⇒
+  //   模型侧按「0 条」参与合并 ⇒ 库侧安全词覆盖 → **落 PASS**。
+  //   而 PASS 是唯一的「放行」态 —— 模型侧压根没判，却说「可以发」。
+  //
+  //   这不是新放宽也不是新收紧：库侧早就有同一条（`noReading` ⇒ 不出 PASS），
+  //   本条只是把**同一个道理**补到另一侧。**只挡 PASS（单向）**：
+  //   BLOCK/REVIEW/NEEDS_INPUT 一个字不动，也不放宽任何既有判据。
+  if (modelFailed) return '拒答';
   return kbCovered === true ? 'PASS' : '拒答';
 }
 
@@ -405,6 +442,145 @@ export function mergeSummary(stats = {}) {
     + ` ⇒ 合并 ${stats.merged ?? 0} 条`
     + `（双轨确认 ${stats.both ?? 0} · 冲突降 REVIEW ${stats.conflict ?? 0}`
     + ` · 仅库侧 ${stats.kb_only ?? 0} · 仅模型侧 ${stats.model_only ?? 0}）`;
+}
+
+/* ═══════════ 置信度：**两侧各出一个**，对外**只出一个数**（Owner 2026-10-15 定）═══════════
+ *
+ * 口径（★ PRD 只给语义、**不给算法** —— 这一条必须写在明处，免得后人以为有出处）：
+ *   · PRD §6.6 定义的只有**三档语义**：≥0.90 直接出结论 ／ 0.70–0.89 出 REVIEW ＋「建议人工确认」
+ *     ／ <0.70 出 REVIEW ＋「不确定，建议人工重点看」；P0 不适用分流。全篇**没有**置信度算法
+ *     （§5.4 只有一个 `confidence` 字段；§11.3 五个指标里也没有它的口径）。
+ *   · 两侧各按这三档出一个档位：
+ *       库侧 —— 沿用引擎**已经算好**的派生量（`kb/l7/review-engine/core/review_engine.py::decide()`，
+ *                随机读旁挂的 `confidence` 进来）；本文件**不重算它**，只分档。
+ *       模型侧 —— **不新增 LLM 字段**，用它**已经输出**的东西派生：`model.ok` / `model.findings`
+ *                 （条数、是否逐条给了位置与理由）/ `model.dropped` / `kbCovered`。
+ *                 ★ 为什么不让模型自报：自报的数不可复算、不可标定，而且多半恒定在 0.9 上下；
+ *                   派生值可复算、可回归。这一条是**刻意的设计选择**，不是省略。
+ *   · 合并 = **取更保守的一侧**。与 `mergedState` 既有哲学**同一条**：`kbCovered` 认不出来判
+ *     "没覆盖"、`modelFailed` 不得当"0 条"。★ **零自由权重** —— 没有可拍的参数（这是要点：
+ *     两个未标定的数加权只会造出第二个"把猜测分类"的数）。
+ *   · 对外**只有一个数**（档位代表值）＋ 一行 `basis`，写明是**哪一侧拉低的**。
+ *   · 模型侧未参与 ⇒ **不产出合并数**，退回库侧读数并在 basis 里写明。否则同一个字段在
+ *     单轨/双轨两种情形下**含义不同**（那正是本库最忌的形状）。
+ *   · ★★ **库侧没有读数 ⇒ 同样不出这个数**（F1，2026-10-15，Owner 批「开始做」）——
+ *     库侧拒答／覆盖缺口时 `kbConfidence = null`，旧版会退回**模型侧单轨**，而"模型侧 0 条"
+ *     返回 direct ⇒【库侧没有判定 ＋ 模型侧没报】= **0.93「直接出结论」**。
+ *     100 条真数据里 15 条是库侧无读数，8 条正因此落进 direct（expected 是「拒答」）。
+ *     与 2026-10-07「库侧没有读数不许落 PASS」同一条纪律：**没有读数 ⇒ 不得产出"确定"**。
+ *     ⚠️ 与上一条**方向相反、不可合并**：模型侧没参与时**库侧可以单独出数**（库侧有依据）；
+ *        库侧没读数时**模型侧不能单独出数**（模型侧那一侧没有库内依据）。
+ *
+ * 反向对照：`--selftest` ㉔b（把"只有模型侧命中"当一致 ⇒ 必须红）
+ *          ㉔d（把模型侧失败当"0 条" ⇒ 必须红）
+ *          ㉔e2（库侧没读数时给出 direct ⇒ 必须红；且库侧有读数时仍须 direct，防恒真）。
+ */
+export const CONF_LINES = Object.freeze({ direct: 0.90, confirm: 0.70 });
+/** 档位 → 对外那个**代表值**（唯一一张表；换它 = 改口径，不是调参）。 */
+export const CONF_REPRESENTATIVE = Object.freeze({ direct: 0.93, confirm: 0.85, focus: 0.65 });
+const CONF_ORDER = ['focus', 'confirm', 'direct'];      // 越靠前越保守
+
+/** 一个数 → PRD §6.6 的档位（拿不到数就 `null`：**不猜档**）。 */
+export function bandOf(confidence) {
+  // ★ 不许用 `Number(x)` 一把梭：`Number(null) === 0` ⇒「没给数」会被当成「置信度 0」，
+  //   于是一个"库侧没读数"的单子会被判进 `focus` 档、把合并数拖到 0.65。
+  //   自证 ㉔e 就是照这个缺陷写的（第一版真栽在这上面）。
+  if (confidence === null || confidence === undefined || confidence === '') return null;
+  const c = Number(confidence);
+  if (!Number.isFinite(c)) return null;
+  if (c >= CONF_LINES.direct) return 'direct';
+  if (c >= CONF_LINES.confirm) return 'confirm';
+  return 'focus';
+}
+
+/** 模型侧置信度（**派生**，不让模型自报）。`bothCount` = 双轨确认条数（§④「取交集」那一格）。 */
+export function modelConfidenceOf({ model = null, kbCovered = false, bothCount = 0 } = {}) {
+  if (!model || model.ok === false || model.skipped === true) {
+    return { band: null, value: null, why: '模型侧未参与（没跑成或跳过）' };
+  }
+  const items = model.findings ?? [];
+  if (items.length === 0) {
+    // 与既有边界②一致（「模型侧没报东西就不改结论」）⇒ 它**不拉低**合并数。
+    return { band: 'direct', value: CONF_REPRESENTATIVE.direct,
+             why: '模型侧没报问题 ⇒ 不拉低（同「模型侧没报东西就不改结论」）' };
+  }
+  if ((model.dropped ?? []).length) {
+    return { band: 'confirm', value: CONF_REPRESENTATIVE.confirm,
+             why: `模型侧解析丢掉 ${model.dropped.length} 条 ⇒ 这一侧读数不完整` };
+  }
+  const missing = items.filter((f) => !String(f?.location ?? '').trim()
+                                  || !String(f?.reason ?? '').trim());
+  if (missing.length) {
+    return { band: 'confirm', value: CONF_REPRESENTATIVE.confirm,
+             why: `模型侧 ${missing.length} 条缺位置或缺理由` };
+  }
+  if (kbCovered !== true) {
+    // ★ 这一格是 policy 实测里**真的出现过**的那一类：29 份合并报告里「只有模型侧命中」9 份
+    //   （库侧对该题材没有可依据的条款）⇒ 它的命中**没有库内依据**，不该按"确定"计。
+    return { band: 'confirm', value: CONF_REPRESENTATIVE.confirm,
+             why: '只有模型侧命中（库侧未覆盖）⇒ 无库内依据' };
+  }
+  // ★★ 2026-10-15 **端到端实测抓到的形状**（真素材 RC-78ce50b3732c）：
+  //   库侧 PASS / 0 条 ＋ 模型侧 2 条 ⇒ 合并态 REVIEW，而 v1 只看 `kbCovered`
+  //   （它说的是"库里有该题材的条款"，**不是**"库侧命中了问题"）⇒ 给出 direct 0.93，
+  //   与它旁边那个 REVIEW **不自洽** —— 正是 Owner 要消灭的那种"数与结论不同源"。
+  //   按 §④ 的口径（同一个问题取交集）：**没有一条与库侧配上的命中是分歧，不是互证**。
+  if (!(Number(bothCount) >= 1)) {
+    return { band: 'confirm', value: CONF_REPRESENTATIVE.confirm,
+             why: '模型侧命中了，但没有一条与库侧互证（分歧）⇒ 不按确定计' };
+  }
+  return { band: 'direct', value: CONF_REPRESENTATIVE.direct,
+           why: '模型侧命中且逐条带位置与理由，且有库侧互证' };
+}
+
+/**
+ * 两侧一起作为输入 ⇒ **一个**数（对外只看这一个）。
+ * @returns {{value:number|null, band:string|null, kb_band:string|null,
+ *            model_band:string|null, basis:string}}
+ */
+export function mergedConfidence({ kbConfidence = null, kbCovered = false,
+                                   model = null, modelFailed = false, bothCount = 0 } = {}) {
+  const kbVal = (kbConfidence === null || kbConfidence === undefined || kbConfidence === '')
+    ? null
+    : (Number.isFinite(Number(kbConfidence)) ? Number(kbConfidence) : null);   // 同上：`null` 不是 0
+  const kbBand = bandOf(kbVal);
+  const mb = modelConfidenceOf({ model, kbCovered, bothCount });
+  if (mb.band === null || modelFailed) {
+    return { value: kbVal, band: kbBand, kb_band: kbBand, model_band: null,
+             basis: `本单模型侧未参与 ⇒ 用库侧读数（单轨）｜${mb.why}` };
+  }
+  if (kbBand === null) {
+    // ★★ F1（2026-10-15，Owner 批「开始做」）：库侧**没有读数** ⇒ **不出这个数**。
+    //
+    //   病灶（拿 100 条真数据离线复算抓到的，不是推测）：库侧拒答／覆盖缺口时
+    //   `kbConfidence = null`，而模型侧「0 条命中」返回 **direct** ⇒
+    //   「**库侧没有判定 ＋ 模型侧没看出问题**」= **0.93「直接出结论」**。
+    //   实测 100 条里 **15 条**是「库侧无读数」，其中 **8 条**正因此拿到 `direct`，
+    //   而它们的 expected 是「拒答」（7 条覆盖缺口）⇒ 高置信档判错率 100%。
+    //
+    //   与 2026-10-07「**库侧没有读数不许落 PASS**」是**同一条纪律**，只是落在置信度这条通道上：
+    //   **没有读数 ⇒ 不得产出"确定"**。
+    //
+    //   为什么不"降成 confirm 留着数"：库侧那条是**唯一有库内依据**的一侧；它没给数时，
+    //   模型侧"没看出问题"**不构成置信度**（它恰恰是那个假高置信的来源）。留个 0.85 在那儿，
+    //   等于把「库里没有这个题材」继续包装成「机器看过了、基本没问题」。
+    //   ⇒ 返回 `value: null`：下游按"**没有做出判定**"处理（0 自带解释，不是零风险）。
+    //
+    //   反向对照（自证 ㉔e2）：库侧**有**读数时照旧 —— 库侧 0.93 ＋ 模型侧 0 条 ⇒ 仍是 direct 0.93。
+    //   少了那条对照，本判据可能只是"所有输入都不给数"的恒真式。
+    return { value: null, band: null, kb_band: null, model_band: mb.band,
+             basis: `库侧没有置信度读数（拒答/覆盖缺口/未测）⇒ **不出这个数**；模型侧单轨不构成置信度｜${mb.why}` };
+  }
+  const iKb = CONF_ORDER.indexOf(kbBand); const iMo = CONF_ORDER.indexOf(mb.band);
+  const picked = CONF_ORDER[Math.min(iKb, iMo)];
+  const lowered = iMo < iKb ? '模型侧' : (iKb < iMo ? '库侧' : null);
+  return {
+    value: CONF_REPRESENTATIVE[picked], band: picked,
+    kb_band: kbBand, model_band: mb.band,
+    basis: lowered
+      ? `两侧按 PRD §6.6 三档**取更保守一侧**：${lowered}拉低（库侧 ${kbBand} ／ 模型侧 ${mb.band}）｜${mb.why}`
+      : `两侧同档（${kbBand}）｜${mb.why}`,
+  };
 }
 
 /** 合并结果的指纹：同一对输入必须同输出（用来做「确定性」断言）。 */
@@ -534,6 +710,33 @@ export function selftest() {
     const r2 = mergeFindings([], [F('全片', '措辞表达', 'REVIEW')]);
     eq('⑥ 反向对照：模型侧只有命中、库侧没覆盖 → REVIEW（仍不是 PASS）',
        mergedState({ kbCovered: false, merged: r2.items }), 'REVIEW');
+  }
+  // ⑥b ★★ 2026-10-14：**模型侧没跑成 ⇒ 同样不许 PASS**（与库侧那条对称）
+  //
+  //   病灶逐字可核：`MC-US-AMZ-B0CWLHKQNT` —— 模型侧输出 JSON 解析失败
+  //   （`raw` 里字符串内含未转义双引号），`modelFailed=true` 只写进查证笔记、
+  //   **没进合并态** ⇒ 模型侧按「0 条」参与合并 ⇒ 库侧安全词覆盖 → **落 PASS**。
+  //   PASS 是唯一的「放行」态：模型侧压根没判，却说「可以发」。
+  {
+    // 库侧确实覆盖了（安全词）—— 若只看库侧，这一单就是 PASS
+    // ⚠️ `kb` 必须**像一份真读数**：`kbNoReadingOf` 要求 `hasSidecar===true` ＋ `state` 非空，
+    //    否则会先被「库侧没读数」那条挡掉，本组就变成恒真（第一版就栽在这，反向对照全红）。
+    const kbOk = { hasSidecar: true, state: 'PASS', reportUrl: 'https://x/docx/1' };
+    eq('⑥b 前置：这份 kb 算「有读数」（否则本组恒真）',
+       kbNoReadingOf(kbOk), false);
+    eq('⑥b 模型侧没跑成 ⇒ 不出 PASS（库侧覆盖也不够）',
+       mergedState({ kbCovered: true, merged: [], kb: kbOk, modelFailed: true }), '拒答');
+    // ★ 反向对照：模型侧**跑成了、只是没报东西** ⇒ 仍必须能 PASS
+    //   （否则就是把「模型没跑」与「模型跑了没发现」混成一件事 —— 那正是本条要修的病）
+    eq('⑥b 反向对照：模型侧跑成了、没报东西 ⇒ 仍可 PASS（不许一刀切）',
+       mergedState({ kbCovered: true, merged: [], kb: kbOk, modelFailed: false }), 'PASS');
+    // ★ 反向对照 ②：默认值（老调用方不传）行为**一个字不变**
+    eq('⑥b 反向对照：不传 modelFailed ⇒ 与改动前逐字相同（向后兼容）',
+       mergedState({ kbCovered: true, merged: [], kb: kbOk }), 'PASS');
+    // ★ 单向：模型侧没跑成**不许**把已有的命中降级（只挡 PASS）
+    const rHit = mergeFindings([], [F('全文', '合规', 'REVIEW')]);
+    eq('⑥b 单向：模型侧没跑成、但已有命中 ⇒ 仍是 REVIEW（只挡 PASS，不动别的）',
+       mergedState({ kbCovered: true, merged: rHit.items, kb: kbOk, modelFailed: true }), 'REVIEW');
   }
   // ⑦ 恒等式：合并只许去重，不许凭空多出/静默吞掉
   {
@@ -674,23 +877,39 @@ export function selftest() {
   //     的单子说「另有 1 条未并进本卡：PRD §5.3.3 规定问题数 **≥3** 时库侧只出分类汇总」——
   //     解释与事实不符，排查会被带到错方向。
   //   病灶二：模型侧**没跑成**与「跑了没报东西」都写成「模型侧 0 条」。
+  //
+  //   ★★ 2026-10-15（Owner 第三次裁定，**明确推翻本组 ⑭a/⑭b 的旧口径**）──────────
+  //     Owner 原话：「**没有命中就是 pass**，按照 prd 的一句话结论走，**你不要自己定义**」。
+  //     起因是真单 `MC-US-YT-_xyLF4_AgAw-IMG`（群里那张卡）：两侧一条都没命中，
+  //     而卡上印着「共发现 **1** 处需人工确认」、逐条里一条没有、链接点开是一份空报告。
+  //     新口径三条（判据逐条钉在下面）：
+  //       · 覆盖缺口**不算一条内容问题** ⇒ 缺口单的合并态是 **PASS**；
+  //       · 结论行是 **§5.3.1 那一句话**，`block` 必须是 `null`（不许去抠链的逐条块）；
+  //       · 这一路**不产块、`total = 0`** ⇒ 不建报告、卡上不给链接。
   {
-    // —— 病灶一 ——
+    // —— 病灶一（新口径）——
     const covK = kbSideOf({ review: { state: 'REVIEW', issue_count: 1,
       refusal: { state: 'NEEDS_INPUT', reason_code: 'coverage_not_covered',
                  coverage: { covered: false, rule_cited_unit_hits: 0 } } } });
+    eq('⑭a ★ 覆盖缺口**不算一条内容问题** ⇒ 合并态 = PASS（Owner 2026-10-15「没有命中就是 pass」）',
+       mergedState({ kbCovered: false, merged: [], kb: covK }), 'PASS');
+    // —— 反向对照（缺一条，上面那条就退化成「一刀切成 PASS」）——
+    eq('⑭a2 反向对照①：库侧 REVIEW 且条数 ≥2 ⇒ **仍是 REVIEW**（库侧真报了内容问题）',
+       mergedState({ kbCovered: true, merged: [],
+                     kb: kbSideOf({ review: { state: 'REVIEW', issue_count: 2 } }) }), 'REVIEW');
+    eq('⑭a3 反向对照②：缺口单但**模型侧真报了几条** ⇒ REVIEW（有东西要人看，不是 PASS）',
+       mergedState({ kbCovered: false, merged: [F('全文', '合规', 'REVIEW')], kb: covK }), 'REVIEW');
+    eq('⑭a4 反向对照③：库侧**读不到条数** ⇒ 不许放行（读不到 ≠ 零条）',
+       mergedState({ kbCovered: true, merged: [],
+                     kb: kbSideOf({ review: { state: 'REVIEW' } }) }), 'REVIEW');
     const rdCov1 = renderMerged([], { state: 'REVIEW', kb: covK, kbTextCount: 0 });
-    eq('⑭a 覆盖缺口：那 1 条**不许**算进 kbGap（它不是「明细抠不出来」）',
-       rdCov1.kbGap, 0);
-    eq('⑭b 覆盖缺口：它**算**「需人工确认」⇒ 总数仍是 1（PRD §5.3.2 结论行不变）',
-       [rdCov1.total, rdCov1.line], [1, '【审查结论：REVIEW】共发现 1 处需人工确认。']);
-    eq('⑭c 覆盖缺口：卡里**不许**再出现「≥3 时库侧只出分类汇总」那句错误解释',
-       /≥3 时库侧只出分类汇总/.test(rdCov1.block), false);
-    eq('⑭d 覆盖缺口：「未报内容问题」＋「那 1 条就是覆盖缺口」要留着（在查证笔记里）',
-       [/未报内容问题/.test(rdCov1.internalNotes),
-        /上面那 1 条「需人工确认」就是它/.test(rdCov1.internalNotes)], [true, true]);
-    eq('⑭d2 反向对照：这两句都不上卡',
-       [/未报内容问题/.test(rdCov1.block), /就是它/.test(rdCov1.block)], [false, false]);
+    eq('⑭b ★ 缺口单**不许**再印「共发现 1 处」：这一路不产块、`total = 0`（⇒ 不建报告、不给链接）',
+       [rdCov1.block, rdCov1.total], [null, 0]);
+    eq('⑭d ★ 缺口单的**查证笔记**要留住 —— 对方追问「库里覆盖没覆盖／这算不算证明合规」答得出来',
+       [/没有可依据的条款/.test(rdCov1.internalNotes),
+        /未命中 ≠ 合规/.test(rdCov1.internalNotes)], [true, true]);
+    eq('⑭d2 反向对照：这段**不上卡**（缺口单没有块 ⇒ 卡上只有 §5.3.1 那一句）',
+       rdCov1.block, null);
     // 反向对照①：**非**覆盖缺口、kbN=3、明细抠 0 ⇒ §5.3.3 那句**必须**还在（没被一刀切掉）
     const rdBig = renderMerged([], { state: 'REVIEW',
       kb: kbSideOf({ review: { state: 'REVIEW', issue_count: 3 } }), kbTextCount: 0 });
@@ -1017,6 +1236,79 @@ export function selftest() {
     const noFlag = kbFindingsOf('', { decision: { risk_items: [{ ...seed, authoritative: undefined }, real] } });
     eq('㉓d 反向对照：摘掉 authoritative（真依据的形状）⇒ 必须回到 findings',
        [noFlag.findings.length, noFlag.candidates.length], [2, 0]);
+  }
+
+  // ── ㉔ 置信度：两侧各出一个档位、对外**只出一个数**（Owner 2026-10-15）─────────────
+  {
+    const mkModel = (n, { dropped = 0, ok = true, missing = 0 } = {}) => ({
+      ok,
+      dropped: Array.from({ length: dropped }, () => ({ why: '理由为空' })),
+      findings: Array.from({ length: n }, (_, i) => ({
+        location: i < missing ? '' : `帧 ${i + 1}`, reason: '一句话说清问题',
+        category: '合规', severity: 'REVIEW' })),
+    });
+    // ㉔a 两侧同档 ⇒ 取该档代表值，basis 说明「两侧同档」。
+    //   ★ 必须给 `bothCount`（有库侧互证）—— 这正是 v2 加的那一格：没有互证就不算 direct。
+    const a = mergedConfidence({ kbConfidence: 0.95, kbCovered: true, model: mkModel(2), bothCount: 2 });
+    eq('㉔a 两侧都 direct（且有互证）⇒ 0.93，且 basis 写明「两侧同档」',
+       [a.value, a.band, a.kb_band, a.model_band, /两侧同档/.test(a.basis)],
+       [0.93, 'direct', 'direct', 'direct', true]);
+    // ㉔b ★ 库侧高（PASS 档）＋ **只有模型侧命中**（库侧未覆盖）⇒ 必须降档并点名模型侧。
+    //   这一格是 policy 实测里**真出现过**的那一类：29 份合并报告里「只有模型侧命中」9 份。
+    const b = mergedConfidence({ kbConfidence: 0.95, kbCovered: false, model: mkModel(1) });
+    eq('㉔b 库侧高置信 ＋ 只有模型侧命中（库未覆盖）⇒ 必须降到 0.85 并点名「模型侧拉低」',
+       [b.value, b.band, b.model_band, /模型侧拉低/.test(b.basis)],
+       [0.85, 'confirm', 'confirm', true]);
+    // ㉔b2 **反向对照**：把「只有模型侧命中」当一致（不降档）⇒ 那个放宽版给的数必须与判据不同。
+    //   少了这条，㉔b 可能只是「所有输入都给 0.85」的恒真判据。
+    const bLoose = 0.93;                                    // 放宽版（不降档）会给的数
+    eq('㉔b2 反向对照：放宽版给 0.93 ⇒ 与判据要求的 0.85 **必须不同**',
+       bLoose !== b.value, true);
+    // ㉔c 这一侧读数不完整 ⇒ confirm（丢条 / 缺位置）
+    eq('㉔c 模型侧解析丢 1 条 ⇒ confirm',
+       mergedConfidence({ kbConfidence: 0.95, kbCovered: true, model: mkModel(2, { dropped: 1 }) }).band,
+       'confirm');
+    eq('㉔c2 模型侧 1 条缺位置 ⇒ confirm',
+       mergedConfidence({ kbConfidence: 0.95, kbCovered: true, model: mkModel(1, { missing: 1 }) }).band,
+       'confirm');
+    // ㉔d 模型侧**未参与** ⇒ 不产出合并数，退回库侧读数并写明单轨
+    const d = mergedConfidence({ kbConfidence: 0.93, kbCovered: true,
+                                 model: { ok: false, findings: [] }, modelFailed: true });
+    eq('㉔d 模型侧没跑成 ⇒ 退回库侧 0.93、model_band 为 null、basis 写明「模型侧未参与」',
+       [d.value, d.model_band, /模型侧未参与/.test(d.basis)], [0.93, null, true]);
+    // ㉔d2 **反向对照**：把「模型侧失败」当「0 条」（= 不拉低且不标注）⇒ 两句话必须能分辨。
+    const dLoose = mergedConfidence({ kbConfidence: 0.93, kbCovered: true,
+                                      model: { ok: true, findings: [] } });
+    eq('㉔d2 反向对照：当成「0 条」就没有「未参与」那句 ⇒ 判据必须能分辨这两种形状',
+       [/模型侧未参与/.test(dLoose.basis), /没报问题/.test(dLoose.basis)], [false, true]);
+    // ㉔e 库侧没给数（拒答/读数缺失）⇒ 用模型侧读数，**不许空**
+    //   （此时必然没有库侧命中 ⇒ 无互证 ⇒ 落 confirm；不许因为"没数"就给它 direct）
+    // ㉔e 库侧**没有读数** ⇒ **不出这个数**（F1，2026-10-15）
+    //   旧版写的是「用模型侧读数（不空）」，正是那个假高置信的来源；已按真数据改成不出数。
+    const e = mergedConfidence({ kbConfidence: null, kbCovered: true, model: mkModel(1) });
+    eq('㉔e 库侧没给置信度 ⇒ **不出这个数**（value/band 都为 null），且 basis 写明理由',
+       [e.value, e.band, /库侧没有置信度读数/.test(e.basis)], [null, null, true]);
+    // ㉔e2 ★★ **反向对照**（两半都要，缺一条这条判据就是恒真式）：
+    //   (a) 库侧没读数 ＋ 模型侧 **0 条** ⇒ **不许**给 direct —— 这正是「库侧拒答却拿到 0.93」
+    //       那个形状（100 条真数据里 8 条，高置信档判错率 100%）；
+    //   (b) 库侧**有**读数 ＋ 模型侧 0 条 ⇒ **照旧** direct 0.93（证判据不是"所有输入都不给数"）。
+    const e2a = mergedConfidence({ kbConfidence: null, kbCovered: false,
+                                   model: { ok: true, findings: [] } });
+    const e2b = mergedConfidence({ kbConfidence: 0.93, kbCovered: true,
+                                   model: { ok: true, findings: [] } });
+    eq('㉔e2 反向对照：库侧没读数＋模型侧 0 条 ⇒ 不许 direct；库侧有读数时 ⇒ 仍 direct 0.93',
+       [[e2a.value, e2a.band], [e2b.value, e2b.band]], [[null, null], [0.93, 'direct']]);
+    // ㉔f ★★ **端到端实测抓到的形状**（真素材 RC-78ce50b3732c）：库侧 PASS/0 条 ＋ 模型侧 2 条
+    //   ⇒ 合并态 REVIEW。v1 只看 `kbCovered`（"库里有该题材的条款"）⇒ 给了 direct 0.93，
+    //   与它旁边那个 REVIEW **不自洽**。v2：没有一条与库侧互证 ⇒ 分歧 ⇒ confirm。
+    const f = mergedConfidence({ kbConfidence: 0.95, kbCovered: true, model: mkModel(2), bothCount: 0 });
+    eq('㉔f 模型侧命中了但没有一条与库侧互证（分歧）⇒ 必须 confirm，且 basis 点名「没有…互证」',
+       [f.value, f.band, /没有一条与库侧互证/.test(f.basis)], [0.85, 'confirm', true]);
+    // ㉔f2 **反向对照**：同样两条命中，只要有 1 条与库侧对上 ⇒ 必须回到 direct。
+    //   少了它，㉔f 可能只是"所有带命中的输入都给 confirm"的恒真判据。
+    const f2 = mergedConfidence({ kbConfidence: 0.95, kbCovered: true, model: mkModel(2), bothCount: 1 });
+    eq('㉔f2 反向对照：有 1 条互证 ⇒ 必须回 direct（与 ㉔f 的档位必须不同）',
+       [f2.band, f2.band !== f.band], ['direct', true]);
   }
 
   console.log(`\n自证：通过 ${pass} / 失败 ${bad.length}`);
@@ -1994,7 +2286,17 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
     ? `\n⚠️ 另有 **${candN} 条非权威候选线索**（源规则已声明不权威/已被取代，`
       + `**无库内条款号、不构成依据**）—— 见报告完整清单。`
     : '';
-  const covEntries = covGap ? 1 : 0;              // ① 那 1 条覆盖缺口：算「需人工确认」
+  // ★★ 2026-10-15（Owner 裁定：「**没有命中就是 pass**，按照 prd 的一句话结论走，
+  //   **你不要自己定义**」）—— 这里原先写着 `const covEntries = covGap ? 1 : 0;`
+  //   （注释还自述「那 1 条覆盖缺口：算「需人工确认」」）。
+  //
+  //   病灶（真单 `MC-US-YT-_xyLF4_AgAw-IMG`，群里那张卡）：两侧**一条都没命中**
+  //   （模型侧 0 条 ／ 库侧 `issue_count=0`），却被这一行自己加了 1 ⇒ `total=1`
+  //   ⇒ 抬头「共发现 **1** 处需人工确认」，而逐条里一条都没有、报告文档里只有一句话
+  //   ⇒ Owner 看到的就是「一个问题要输出问题到卡片」而卡上什么都没有。
+  //   **覆盖缺口不是一条内容问题**（库侧自己的条数就是 0）⇒ 从今往后它**不进 `total`**。
+  //   它的说明（含「未命中 ≠ 合规」那条边界）照旧留在 `internalNotes` —— 守衡答得出来，
+  //   但**不上卡、不进报告正文**（Owner 2026-10-13 的裁定没变）。
   const kbMissingDetail = !covGap && kbN != null && kbN > 0 && (txtN == null || kbN > txtN);
   const kbGap = kbMissingDetail ? Math.max(0, kbN - (txtN ?? 0)) : 0;
 
@@ -2042,13 +2344,31 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
     };
   }
 
-  // 没有条目、库侧也没缺明细、**也没有覆盖缺口** ⇒ 交回链
-  //   （覆盖缺口那条例外：它必须落进卡里，否则「库管不到这个题材」这句话就没了）
-  if (!n && !kbMissingDetail && !covEntries) return null;
+  // 没有条目、库侧也没缺明细 ⇒ **这一路不产块**（2026-10-15 起：覆盖缺口不再算一条问题）
+  //   ★★ 2026-10-15（Owner：「没有命中就是 pass」）—— 这一路返回的东西有两件事要同时成立：
+  //     ① **不产块** ⇒ 卡上不会出现空的「逐条问题」分组；
+  //     ② **`total = 0`** ⇒ `agent.mjs` 那一跳（`rendered0.total > 0` 才建）**不建报告**
+  //        ⇒ **「链接点开是空的」从结构上不可能再发生**；
+  //     ③ ⚠️ 但**查证笔记必须留住** —— 对方问「库里到底覆盖没覆盖这个题材 /
+  //        这个 PASS 算不算证明合规」，守衡要答得出来（Owner 2026-10-13：
+  //        「输出到飞书群…不要展示在卡片上，**我问的时候，你要能回答**」）。
+  //        ⇒ 覆盖缺口那一档返回一个**只有笔记、没有块**的对象（`block: null`）。
+  if (!n && !kbMissingDetail) {
+    const notes = covGap ? coverageGapNote(kbN) : '';
+    // ⚠️ 这里**只给消费方真读的那几个字段**（`agent.mjs` 读的是
+    //   `rendered.block` / `.total` / `.internalNotes` / `.line` / `.kbGap` / `.hitsBlock`）——
+    //   多塞字段就是「传了但没人接」那个病；而 `kbNoReading` / `modelFailed` 这些
+    //   声明在下面 ⇒ 在这里引用会 **TDZ 报错**（本文件头部记着同一个坑）。
+    return notes
+      ? { block: null, line: null, total: 0, kbGap: 0, hitsBlock: null,
+          internalNotes: notes, coverageGap: true, refused: false, state }
+      : null;
+  }
   const must = state === 'BLOCK';
   // 条数口径：能并的条目 ＋ **库侧结构性条数里没并进来的那部分**（重叠未判 ⇒ 这是上限，写明）
-  //           ＋ **覆盖缺口那 1 条**（它不是内容问题，但确实是一处「需人工确认」）
-  const total = n + kbGap + covEntries;
+  //   ★★ 2026-10-15（Owner）：**覆盖缺口那 1 条已从算术里去掉** —— 「一处需人工确认」这个数
+  //   只许由**真条目**（并进来的 ＋ 库侧未并进的）构成，不许自己定义。
+  const total = n + kbGap;
   const line = must
     ? `【审查结论：BLOCK】共发现 ${total} 处必须修改。`
     : `【审查结论：REVIEW】共发现 ${total} 处需人工确认。`;
@@ -2139,8 +2459,7 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
           ? ` ／ ${modelTxt}`
           : ` ＋ 模型侧 ${fromModel} 条`
             + (dedupN ? ` − 计入 ${total} 处（去重 ${dedupN}：两侧指向同一处 ＋ 库侧未并入的）` : '')
-            + ` ＝ 本卡 **${total} 处**（**上限**：两轨重叠未判）`
-            + `${covEntries ? '（另 1 条是**覆盖缺口**，不是内容问题）' : ''}`))) + candNote + '\n';
+            + ` ＝ 本卡 **${total} 处**（**上限**：两轨重叠未判）`))) + candNote + '\n';
   // ★ 库侧明细缺失是**必须出声**的（2026-10-07）：否则读者会以为库侧真没报东西。
   // ★★ 2026-10-08：**解释必须按真实原因分支**。
   //   原先不分情形一律写「PRD §5.3.3 规定问题数 ≥3 时库侧只出分类汇总」——
@@ -2182,25 +2501,21 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
         + `逐条明细在库里${reportRef}`
         + '；**与模型侧的重叠未判 ⇒ 上面那个总数是上限**。')
     : '';
-  // ★ 覆盖缺口要单独说清含义（2026-10-07）：结论仍是 REVIEW，
-  //   但它是"库管不到这个题材 ⇒ 转人工看覆盖"，不是"发现了内容问题"。
-  const covNote = kb?.coverageGap
-    ? `\nℹ️ 知识库侧给了 **覆盖缺口**（\`coverage_not_covered\`）：检索有命中，`
-      + '但「既被规则引用、又达门限」的单元 0 条 ⇒ **库对该题材没有可依据的条款**。'
-      + (covEntries
-        // ★★ 2026-10-09：**这句话必须按「列表里到底有没有别的条目」分支** ────────────
-        //   病灶（实测视频单 `recvxvLfgsTqHF`）：卡上写「**上面那 1 条「需人工确认」就是它**
-        //   —— 它不是内容问题，别去逐条里找」，而**上面那一条其实是模型侧的对比风险**，
-        //   覆盖缺口条目**根本没渲染进清单** ⇒ 读者照着这句话去找，找到的是**另一条东西**。
-        //   这是「说了假话」，比不说更坏：它会让人把模型侧那条当成库侧覆盖缺口。
-        ? (n === 0
-          ? '**上面那 1 条「需人工确认」就是它** —— 它不是内容问题，别去逐条里找。'
-          : '⚠️ 这条覆盖缺口**本身不占下面清单里的任何一条**（下面那些都是模型侧的）；'
-            + '上面那个计数里的 1 是它。')
-        : '')
-      + '本单 REVIEW 的含义是**转人工看覆盖**，**不是发现了内容问题**；也**不得据此当 PASS**'
-      + '（库口径：未命中 ≠ 合规）。\n'
-    : '';
+  // ★ 覆盖缺口要单独说清含义（2026-10-07 起；★ 2026-10-15 按 Owner 新口径**整段改写**）。
+  //
+  //   ★★ 2026-10-15（Owner：「**没有命中就是 pass**，按照 prd 的一句话结论走，
+  //      你不要自己定义」）——
+  //     · 这一档**卡上只出一句 PASS**（§5.3.1 的一句话结论），覆盖缺口的解释**不上卡**
+  //       （Owner 2026-10-13 的裁定不变）；
+  //     · 这一段因此**只走 `internalNotes`**（模型上下文 ＋ 会话记忆）——
+  //       对方追问「库里到底覆盖没覆盖这个题材 / 这个 PASS 算不算证明合规」，守衡答得出来。
+  //     ⚠️「未命中 ≠ 合规」这句边界**一个字都不许丢**：PASS 是「**未发现已知底线风险**」，
+  //       不是「已证明合规」；这句是这一单里唯一拦住「把没查到念成没问题」的话。
+  //     ⚠️ 原先这里还写着「**上面那 1 条「需人工确认」就是它**」—— 那句话随 `covEntries`
+  //       一起作废（卡上已经没有那个数了），留着就是**说假话**（本文件的 ⑭d 那一组判据钉着）。
+  //     ⚠️ 文字与「一条条目都没有」那条早退路**同一份**（`coverageGapNote()`）——
+  //       抄成两份必然漂移。
+  const covNote = kb?.coverageGap ? coverageGapNote(kbN) : '';
   // ★ 库侧没读数：**这一句是硬要求**（2026-10-07，Owner 同意）。
   //   没有它，读者会把"库没参与"读成"库说没问题"，而这两件事的下一步完全不同。
   const noReadNote = kbNoReading
@@ -2348,7 +2663,17 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   //   ⇒ 口径：**条目在这里先收尾成一个整块**（去掉各自尾随的空行），
   //     块间与块后的空行由**拼装那一处**统一给。空行只有一个来源，就不会再叠。
   const itemBlocks = items.map((b) => String(b ?? '').replace(/\n+$/, ''));
-  const bodyText = summarized ? categorySummary(list, total) : itemBlocks.join('\n\n');
+  // ★★ 2026-10-15（Owner 给了逐字格式）：≥3 时，分类汇总前要有**「逐条问题」**这一行 ——
+  //   格式（Owner 原话）：
+  //     【审查结论：BLOCK】共发现 9 处必须修改。
+  //     逐条问题
+  //     · 合规类问题：2 个
+  //     …
+  //     · 另有 3 条（明细在报告里）
+  //   ⚠️ 这一行**不是**我加的说明文字，是 Owner 指定的格式件；1–2 条那条路（逐条展开）**不加**。
+  const bodyText = summarized
+    ? `逐条问题\n${categorySummary(list, total)}`
+    : itemBlocks.join('\n\n');
   // ══════════════════════════════════════════════════════════════════════════
   // ★★ 2026-10-13（Owner 裁定）：**库侧/模型侧的口径读数与解释不上卡，只留在守衡的记忆里**
   // ══════════════════════════════════════════════════════════════════════════
@@ -2396,7 +2721,7 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
     .filter(Boolean).join('\n').trim();
   return {
            line, total, kbGap, refused: false, coverageGap: !!kb?.coverageGap,
-           kbNoReading, covEntries, kbContentN, modelFailed, reportNote, summarized,
+           kbNoReading, kbContentN, modelFailed, reportNote, summarized,
            // ★ 2026-10-14：**这一单转给谁**（PRD §5.4 的 JSON 规范里就有 `next_owners`）。
            //   与 `action` 同一份读数 —— 卡上印的是它渲染出来的句子，下游（表行 / 报告）
            //   拿到的是结构化的那几个角色位。留痕用，不是第二份口径。
@@ -2427,6 +2752,32 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
            //   `bodyText` 有内容就给一个空行，没有就不留孤立的空行。
            block: `${line}\n\n${bodyText}${reportNote}${hitsNote}`
              + `${bodyText ? '\n\n' : '\n'}${action}` };
+}
+
+/**
+ * **覆盖缺口那条查证笔记**（只进记忆：**不上卡、不进报告正文**）。
+ *
+ * ★★ 2026-10-15（Owner：「**没有命中就是 pass**，按照 prd 的一句话结论走，
+ *   你不要自己定义」）—— 这一档卡上只出 §5.3.1 的**一句话结论**，覆盖缺口的解释
+ *   **没有地方上卡**（Owner 2026-10-13 的裁定不变）⇒ 它只走 `internalNotes`
+ *   （模型上下文 ＋ 会话记忆），对方追问时守衡答得出来。
+ *
+ * ⚠️ **两个调用点必须逐字同一份**：`renderMerged` 的主路（有别的条目时）
+ *   与「一条条目都没有」那条早退路。抄成两份必然漂移 —— 所以抽在这里。
+ * ⚠️「未命中 ≠ 合规」那句边界**一个字都不许丢**：PASS 是「**未发现已知底线风险**」，
+ *   不是「已证明合规」；这句是这一档里唯一拦住「把没查到念成没问题」的话。
+ *
+ * @param {number|null} kbN 库侧自己报的条数（结构化读数）
+ * @returns {string}
+ */
+function coverageGapNote(kbN) {
+  return `\nℹ️ 知识库侧给了 **覆盖缺口**（\`coverage_not_covered\`）：检索有命中，`
+    + '但「既被规则引用、又达门限」的单元 0 条 ⇒ **库对该题材没有可依据的条款**。'
+    + `库侧自己报的条数是 **${kbN ?? 0} 条** ⇒ 按 Owner 2026-10-15 口径「没有命中就是 PASS」，`
+    + '本单结论行走 §5.3.1 的**一句话结论**。'
+    + '⚠️ 这一条**不是发现了内容问题**，也不是「明细抠不出来」——它讲的是**覆盖**；'
+    + '⚠️ 但它也不是合规证明：`issue_count=0` 只表示「**未发现已知底线风险**」，'
+    + '不等于「已证明这个题材合规」——**未命中 ≠ 合规**，不得据此当合规依据。\n';
 }
 
 /**
@@ -2471,7 +2822,7 @@ export function categorySummary(list = [], total = null) {
     // ⚠️ 这一行**必须留**：没有它，读者把分类行加起来会小于抬头那个数
     //   （实测 19:08 那单：抬头 12、分类只有 7）—— 那是「卡内算术不闭合」，
     //   比多一句话坏得多。它只说「还有 N 条在哪」，不下口径解释。
-    rows.push(`· 另有 **${n - list.length} 条**（明细在报告里）`);
+    rows.push(`· 另有 ${n - list.length} 条（明细在报告里）`);   // 2026-10-15 Owner 格式：不加粗
   }
   // 汇总行**紧挨着**输出（不空行）—— 见上面那条口径
   return rows.map((r) => r.replace(/\n+$/, '')).join('\n');

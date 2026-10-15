@@ -217,7 +217,14 @@ export function isSubmission({ text = '', imageCount = 0, videoCount = 0 } = {})
  * ★ 素材的取法**按模态分开**，不是把整段提示词塞进去：
  *   · 图 / 视频 —— 送**本机读到的读数**（帧上的字 + 音轨转写 + 文件名与时长），
  *     不是送「提示词」；同时明写没读到的那部分（画面本身），否则链会以为素材就这些。
- *   · 链接 —— 送链接本身（链那边自己有 lark 工具会去读）。
+ *   · 链接 —— **正文照送，链接另附一份**（链那边自己有 lark 工具会去读）。
+ *     ⚠️ 2026-10-14 修：原先这里写成 `if (links.length) 送链接; else if (text) 送正文`
+ *        —— 只要正文里**出现任何一个 URL**，整段正文就被丢掉，链只收到一行
+ *        `【待读的链接】`。实测（80 条测试数据）：「正文 ＋ —— 来源（美国站）：<url>」
+ *        这种最常见的形态，997 字的素材链只收到 **65 字** ⇒ 依据侧 0 条读数、
+ *        覆盖判据判 `coverage_not_covered`，**整条链等于没审**，而卡片与报告
+ *        看上去和正常结论一模一样。
+ *        ⇒ 正文永远保留；链接按原样另附（重复一次无害，且不改变「链拿得到链接」这个既有保证）。
  *   · 纯文字 —— 逐字送原文。
  *
  * @param {{question:string, inbound:object}} input
@@ -270,8 +277,10 @@ export function chainInput({ question = '', inbound = {} } = {}) {
   }
   if ((inbound.images ?? []).length === 0 && (inbound.videos ?? []).length === 0) {
     const links = findLinks(inbound.text ?? '');
+    // ★★ 2026-10-14 修：正文**永远保留**（见函数头注释）。
+    //   原写法 `if (links.length) … else if (inbound.text) …` ⇒ 正文含 URL 时正文全丢。
+    if (inbound.text) parts.push(inbound.text);
     if (links.length) parts.push(`【待读的链接】\n${links.join('\n')}`);
-    else if (inbound.text) parts.push(inbound.text);
   }
 
   return {

@@ -215,9 +215,29 @@ export function sameValue(a, b) {
  *
  * @param {object} res 链/快路的返回（`res.review` 是旁挂，`res.p0_fastpath` 是 P0 标记）
  * @param {string|null} conclusion 已判定的三态/拒答
+ * @param {object|null} mergedConf **两侧合并后的置信度**（`dual_track.mergedConfidence()` 的产物，
+ *   Owner 2026-10-15）。给了就用它（并把它那句 `basis` 一并写进口径说明）；没给 ⇒ 回落库侧那个数
+ *   （旧口径，向后兼容：老调用点与老测试一行不用改）。
  * @returns {{issueCount:number, confidence:number, note:string}} `note` 为空 = 没做任何替换
  */
-export function machineNumbers(res = {}, conclusion = null) {
+
+/**
+ * ★★ 「这个数**没有标定**」的固定声明（Owner 2026-10-15 裁 ①：表里那个数照记，口径说明补一句）。
+ *
+ * 依据 = 双轨回归标定 A（`交付-置信度双轨回归标定-A-20261015.md`，带人工 expected 的 100 条）：
+ *   · **两侧合并数**：三态准确率 0.64；`direct` 档 n=8 **全错**；**同序不成立（且反向）**；≥0.90 误放率 1.00。
+ *   · **库侧单轨数**（同批对照）：0.61；同序也不成立；≥0.90 误放率 0.30。
+ *   ⇒ 结论：**这个数不携带可用于分流的信息**，只准当标签 —— 写数的地方必须自己带上这句，
+ *     否则读表的人会把它当成"机器很有把握"。
+ *
+ * ★ 为什么钉在**代码**里、而不是去表里手改一句：那张表是**机器逐行重写的**
+ *   （`batch_review_runner.mjs` 把结论表的 `问题分类汇总` 整格抄进采集表，实测 2026-10-15 一小时重写 28 行）
+ *   ⇒ 手改的标注会被下一次回填**抹掉**；写在产出它的地方，才是每行、每轮都自带。
+ */
+const CONF_UNCALIBRATED = '★ 本数**未标定**（2026-10-15 双轨回归标定：同序不成立、≥0.90 档 8/8 判错）'
+  + '⇒ **不得用作分流依据**，只作标签留痕';
+
+export function machineNumbers(res = {}, conclusion = null, mergedConf = null) {
   const rev = res?.review ?? null;
   const fin = (...vals) => vals.find((v) => Number.isFinite(v));
   const p0 = !!res?.p0_fastpath;
@@ -227,7 +247,25 @@ export function machineNumbers(res = {}, conclusion = null) {
   //   · `refused`：引擎**明确不做判定**（拒答/未测）⇒ 库的覆盖不够，不是坏了；
   //   · 其余：引擎给了结论却没给这个量。
   const missing = !rev;
-  const refused = state === 'NEEDS_INPUT' || !!rev?.refusal;
+  // ★★ 2026-10-15 修（Owner 裁定「先修置信度那个 bug」）—— **「拒答」只认顶层 `state`**，
+  //   与 `dual_track.mjs::kbSideOf` 那条 2026-10-07 已收紧的口径**对齐**（那边 `⑪c` 判据一直守着）。
+  //
+  //   病灶（拿今天真跑的 10 行核出来的，两行对得上）：`!!rev?.refusal` 把
+  //   **「顶层 state=REVIEW ＋ 依据侧记了 refusal」**（库侧覆盖缺口 `coverage_not_covered` 的形状）
+  //   也判成「引擎未做判定」⇒ `refusedExempt` 成立 ⇒ **把已经算好的两侧合并数丢掉、写 0**：
+  //     · `MC-US-YT-RLF9-789hh8-WEN`：同一次运行打印 `置信度(两侧合并)=0.85 [confirm]（库侧 — / 模型侧 confirm）` ⇒ 表里 0
+  //     · `MC-US-YT-_xyLF4_AgAw`   ：同一次运行打印 `置信度(两侧合并)=0.93 [direct]（库侧 — / 模型侧 direct）`   ⇒ 表里 0
+  //   而**恰好**只有这两行是「库侧没给置信度」⇒ 库侧一给档位（另 8 行）写进去的就都是合并数。
+  //   Owner 口径（原话）：「知识库侧、模型侧都会出置信度，最后汇总成一个置信度输出」
+  //   ⇒ 一侧没给就用另一侧（`mergedConfidence()` 已经这么做），**不是**回头写 0。
+  //
+  //   `refusal` 降为**原因码**：仍如实写进口径说明（覆盖缺口是"该转人工看覆盖"，不是"没判定"）。
+  const refused = state === 'NEEDS_INPUT';
+  const refusalWhy = rev?.refusal
+    ? String(typeof rev.refusal === 'string'
+      ? rev.refusal
+      : (rev.refusal.reason_code ?? rev.refusal.reason ?? rev.refusal.state ?? '有 refusal 记录'))
+    : '';
   const notes = [];
 
   let issueCount = fin(rev?.issue_count, res?.issue_count);
@@ -237,15 +275,61 @@ export function machineNumbers(res = {}, conclusion = null) {
                   : missing ? '问题数量按 **0** 记（**本单没读到引擎读数**）'
                             : '问题数量按 **0** 记（引擎未给出该读数）');
   }
-  let confidence = fin(rev?.confidence, res?.confidence);
-  if (confidence === undefined) {
-    confidence = 0;
-    notes.push(missing
-      ? '置信度按 **0** 记 —— **本单没读到引擎读数（机读旁挂缺失/不新鲜）**；这个 0 **不是**置信度'
-      : refused
-        // ★ 这一句是关键：0 必须自带解释，否则会被读成「零风险」。
-        ? '置信度按 **0** 记 —— **0 = 引擎未做判定（拒答/未测），不是「零风险」**'
-        : '置信度按 **0** 记（引擎未给出该读数）');
+  // ★★ 2026-10-15（Owner）：**两侧合并**的那个数优先（库侧与模型侧各出一个档位，取更保守一侧）。
+  //   为什么能直接替：它是**同一次合并**的产物（与卡/报告里的结论同一个来源），因此表行那个数
+  //   与它标注的结论**同源**——旧写法（只取库侧）会出现「结论是两侧合并的、置信度只反映库侧」。
+  //   库侧那个数**没有被丢掉**：它作为 `kb_band` 留在 `mergedConf` 里，`basis` 会写明是哪一侧拉低的。
+  //
+  //   ★★ 但有两格**不许**被合并数覆盖（2026-10-15，拿 80 行真数据核出来的）：
+  //     · **P0 命中**：PRD §6.6 逐字（**现行修订 rev 109**）「P0 层级规则**不适用置信度分流**，
+  //       命中即 BLOCK，**置信度记为 1.0**」⇒ **1.0 是 PRD 明文，不是本库自创口径**。
+  //       80 行里有 **12 行**是 P0；不守这一格 ⇒ 它们会被合并数**降成 0.93**
+  //       = 把"确定性命中"改写成"还有不确定性"，直接违反 PRD 那一句。
+  //       ★ 教训：先前引的是 **rev 36**（那一版只到「命中即 BLOCK。」，没有后三个字）
+  //         ⇒ **引用 PRD 前先核 `revision_id`**（`docs +fetch` 可能给到旧修订）。
+  //     · **拒答/未测**：`0` 在本库有专门语义 =「**没有做出判定**」（不是零风险）。
+  //       80 行里有 **40 行**是 0；policy 也写着「拒答态不是判定结果，没有置信度可分流」
+  //       ⇒ 拿模型侧的数去顶它，等于给一个**根本没有结论**的单子配一个"确定性"。
+  const p0Exempt = p0;                       // PRD §6.6：P0 不适用分流
+  const refusedExempt = refused || state === '拒答';
+  // ★★ F1 的另一半（2026-10-15）：**`Number(null) === 0`**。
+  //   旧写法 `const mergedVal = Number(mergedConf?.value)` 在「**没有**合并数」（`value: null`
+  //   —— 库侧没有读数时按 F1 就是这种形状）下得到 **0**，而 `Number.isFinite(0)` 为真
+  //   ⇒ `useMerged = true` ⇒ 表里落一个 **0**，注记却写「档位 —」。**这正是本库栽过的那类陷阱**
+  //   （`bandOf` 的注释里写着同一条），只是换了个变量名。
+  //   现在：三态空值（null/undefined/''）**一律**当"没有这个数"，与 `bandOf` 同一口径。
+  //   判据：自证 D6（`mergedConf.value = null` ⇒ 不许落 0 当成"确定性"）＋ D6b 反向对照。
+  const mergedGiven = mergedConf !== null && mergedConf !== undefined
+    && mergedConf.value !== null && mergedConf.value !== undefined && mergedConf.value !== ''
+    && Number.isFinite(Number(mergedConf.value));
+  const mergedVal = mergedGiven ? Number(mergedConf.value) : null;
+  const useMerged = !p0Exempt && !refusedExempt && mergedGiven;
+  let confidence = useMerged ? mergedVal : fin(rev?.confidence, res?.confidence);
+  if (useMerged) {
+    notes.push('置信度（两侧合并 · 档位 ' + (mergedConf.band ?? '—') + '）：' + String(mergedConf.basis ?? '')
+      + '；' + CONF_UNCALIBRATED
+      // ★ 2026-10-15：库侧记过 refusal、但顶层结论**不是**拒答 ⇒ 说明一句，免得读表的人
+      //   以为这个数漏掉了覆盖缺口。（refusal 是原因码，不再等于"没判定"。）
+      + (refusalWhy ? `（库侧记过 refusal=${refusalWhy}；顶层结论是 ${state} ⇒ **不算拒答**，合并数照用）` : ''));
+  } else {
+    if (mergedGiven && (p0Exempt || refusedExempt)) {
+      notes.push(p0Exempt
+        ? '置信度按本库 P0 口径记（PRD §6.6：**P0 不适用置信度分流**）⇒ 不采用两侧合并数'
+        : '置信度按 **0** 记（**引擎未做判定**）⇒ 不采用两侧合并数（拒答态没有可分流的结果）');
+    }
+    if (confidence === undefined) {
+      confidence = 0;
+      notes.push(missing
+        ? '置信度按 **0** 记 —— **本单没读到引擎读数（机读旁挂缺失/不新鲜）**；这个 0 **不是**置信度'
+        : refused
+          // ★ 这一句是关键：0 必须自带解释，否则会被读成「零风险」。
+          ? '置信度按 **0** 记 —— **0 = 引擎未做判定（拒答/未测），不是「零风险」**'
+          : '置信度按 **0** 记（引擎未给出该读数）');
+    } else if (!p0Exempt && !refusedExempt) {
+      // 库侧单轨：引擎给了数、但没有两侧合并数 ⇒ **同样未标定**，必须自带声明。
+      //   不补这一句就会出现一个"裸数"（表里一个 0.95，谁也不知道它意味着什么）。
+      notes.push('置信度（库侧单轨 · 引擎读数）：' + CONF_UNCALIBRATED);
+    }
   }
   return { issueCount, confidence, note: notes.join('；') };
 }
@@ -265,13 +349,36 @@ export function contentIdOf(materialText) {
   return `AUTO-${crypto.createHash('sha256').update(t, 'utf8').digest('hex').slice(0, 12)}`;
 }
 
-/** 结论 → 表里的 `状态`。**六档里没有「拒答」**，所以拒答落到「待审」（等人看）。 */
+/**
+ * 人/内容方的**终态**：机器不许写、也不许改回来（PRD §8.2 三档里机器只拥有「待审」）。
+ * 判别式只认这两档 —— `待审` 与空值照旧可写（第一次送审必须能落上）。
+ */
+export const HUMAN_TERMINAL_STATUS = Object.freeze(['已修改', '已发布']);
+
+/**
+ * 结论 → 表里的 `状态`。
+ *
+ * ══════════════════════════════════════════════════════════════════════════
+ * ★★ 2026-10-15（Owner）：**这一格的形状原来是错的 —— 三态被写进了「状态」**
+ * ══════════════════════════════════════════════════════════════════════════
+ *   Owner 原话：「状态按照 prd：待审 / 已修改 / 已发布，**现在填的错的**」。
+ *   PRD §8.2 逐字：「多维表字段：… Agent 结论、置信度、问题数量、问题分类汇总、报告链接 /
+ *   人工复核人、复核结论、sign-off 人、发布时间 / **状态：待审 / 已修改 / 已发布**」
+ *   ⇒ **三态（PASS/REVIEW/BLOCK）是 `Agent 结论` 的值域，不是这一格的**。
+ *
+ *   旧实现按结论返回三态（实测病灶：采集表 80/80 行、结论表 441/457 行被写成 BLOCK/REVIEW/PASS），
+ *   后果是「机器判定」与「流程状态」被压进同一格 —— 读表的人分不清
+ *   「这单判成 BLOCK」与「这单还没人处理」，`已修改／已发布` 两档也几乎从没被用过。
+ *
+ *   ⇒ 机器只拥有「待审」这一档：**送审进来、等人处理**。
+ *     「已修改」（内容方改完重新提交，§8.1）与「已发布」是人做的事，
+ *     机器既不写、也不把人的终态改回来（见 `HUMAN_TERMINAL_STATUS` 与 `ensureReviewRow` 的补丁闸）。
+ *
+ *   ⚠️ 形参 `conclusion` 保留**是有意的**：调用点一字未改（少传一个参数是散弹式改动），
+ *      而且将来若 PRD 给「已修改」定下机器可判的触发条件，判据就长在这里。
+ */
 export function statusOf(conclusion) {
-  const c = String(conclusion ?? '').toUpperCase();
-  if (c.includes('BLOCK')) return 'BLOCK';
-  if (c.includes('REVIEW')) return 'REVIEW';
-  if (c.includes('PASS')) return 'PASS';
-  // NEEDS_INPUT / 拒答 / 未测 / 空 —— 都落到「待审」：**它们都还没有定论，等人**
+  // 唯一的机器档位：等人处理。三态照旧只进 `Agent 结论`（`rowFieldsOf` 里那一格没动）。
   return '待审';
 }
 
@@ -492,6 +599,15 @@ export async function ensureReviewRow(row, { ctx = { actor: 'shouheng/review-gat
       //   现在把同一理由**推广到另外四格**：多轮送审结论会变（REVIEW→BLOCK），
       //   而「只补空」会让表**定格在第一轮**、甚至把一次写错**永久钉死**（见 `CONCLUSION_DERIVED_FIELDS` 注释）。
       if (has && !CONCLUSION_DERIVED_FIELDS.includes(k)) continue;
+      // ══════════════════════════════════════════════════════════════════════════
+      // ★★ 2026-10-15（Owner）：**`状态` 不许把人/内容方的终态改回「待审」** ────────────
+      // ──────────────────────────────────────────────────────────────────────────
+      //   PRD §8.2 逐字：「状态：**待审 / 已修改 / 已发布**」—— 三档里机器只拥有「待审」，
+      //   另外两档是**人/内容方**的动作（§8.1：「支持内容方回复『已修改，重新提交』」）。
+      //   此前 `状态` 属「总是可改写」⇒ 人把它设成「已修改／已发布」之后，**再送审一次就被改回**，
+      //   等于机器悄悄撤销了人的动作。这条边界 2026-10-08 就记着「等 Owner 一句话」，现在有了。
+      //   ⚠️ 只挡「人的终态」这一种：`待审` 与空值照旧可写（第一次送审必须能落上）。
+      if (k === '状态' && has && HUMAN_TERMINAL_STATUS.includes(plainOf(cur[k]).trim())) continue;
       // 值没变就不写：免得把一次「什么都没变」记成一次写入（`unchanged` 被报成 `updated`）。
       if (has && sameValue(cur[k], fields[k])) continue;
       patch[k] = fields[k];

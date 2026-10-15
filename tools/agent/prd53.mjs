@@ -159,9 +159,45 @@ export function conclusionBlock(text) {
  * @returns {{state:string, line:string, conform:object}|null}
  *   派生不出来时回 `null` —— **绝不编一个 N**（§2.4：「共发现 ? 处」比不搬更坏）。
  */
+/**
+ * §5.3.1 的 **PASS 一句话结论**（纯函数）。
+ *
+ * ★★ 2026-10-15（Owner 裁定，原话：「**没有命中就是 pass**，按照 prd 的一句话结论走，
+ *   **你不要自己定义**」）——
+ *   这一档**没有逐条、没有计数、没有报告链接**，就是那一句话（形状与 `conforms()` 里
+ *   §5.3.1 那条判据逐字一致，两处不许各写一份）。
+ *
+ * 收件人**不写死人名**（与 `routing.mjs` 同一条纪律：组织一变动，写死的人名就变成假话）：
+ * 句柄配了就 `@句柄`，没配就 `@角色名（未配置）` —— 角色名默认取库侧
+ * `kb/l7/registry/l7.json` 的 `approvers.pass_signoff.role`（=「sign-off 责任人」），
+ * 与库侧 `review_engine.py::_at()` 逐字同口径。
+ *
+ * @param {{role?:string, handle?:string|null}} [o]
+ * @returns {string}
+ */
+export function passLineFor({ role = 'sign-off 责任人', handle = null } = {}) {
+  const who = handle ? `@${handle}` : `@${role}（未配置）`;
+  return `【审查结论：PASS】未发现已知底线风险，可转交 ${who} 进行 sign-off。`;
+}
+
 export function verdictLineFor({ state, n } = {}) {
   const st = String(state ?? '').toUpperCase();
   const count = Number(n);
+  // ★★ 2026-10-15（Owner）：「**没有命中就是 pass**」——
+  //   PASS **本来就没有 N**，所以它不该被下面那条「N 不合法 ⇒ 不派生」挡住。
+  //   病灶（真单 `MC-US-YT-_xyLF4_AgAw-IMG`）：两侧一条都没命中那一档，
+  //   这里原先直接 `return null` ⇒ 拿不到 §5.3.1 那一行 ⇒ 只能回头抠链的正文，
+  //   而链在那一档给的是 `【审查结论：REVIEW】共发现 0 处需人工确认。`（自己跟自己矛盾）。
+  //   ⇒ 现在按 §5.3.1 **直接派生那一句话**。
+  //   ⚠️ 只认「**合并读数 = 0**」这一种（Owner 的口径就是「**没有命中**就是 pass」）：
+  //     条数**不进那一行**（§5.3.1 那句话里本来就没有 N），这里只拿它当**前提**。
+  //     读不到（`null`/`undefined`）、坏读数、或与 PASS 自相矛盾的 `n > 0`
+  //     ⇒ 照旧回 `null`（退回链那一行）—— `test_agent.mjs` 的 Z12/Z13 两条钉着不许松。
+  if (st === 'PASS') {
+    if (n !== 0) return null;
+    const line = passLineFor();
+    return { state: 'PASS', line, conform: conforms(line).ok };
+  }
   // 只认「≥1 的整数」：
   //   · `undefined` / `NaN` / 字符串 ⇒ 不派生
   //   · 小数、负数 ⇒ 不派生（那是坏读数，不是条数）
@@ -174,7 +210,7 @@ export function verdictLineFor({ state, n } = {}) {
   let line = null;
   if (st === 'REVIEW') line = `【审查结论：REVIEW】共发现 ${count} 处需人工确认。`;
   else if (st === 'BLOCK') line = `【审查结论：BLOCK】共发现 ${count} 处必须修改。`;
-  // PASS 的模板（§5.3.1）里**没有 N**，所以派生不出来；拒答 / NEEDS_INPUT 不在 §5.3 里。
+  // PASS 已在上面的分支里派生（它没有 N）；拒答 / NEEDS_INPUT 不在 §5.3 里。
   else return null;
 
   return { state: st, line, conform: conforms(line) };
@@ -218,6 +254,20 @@ export function deriveVerdictLine({ answer = '', p0Fastpath = null, replyText = 
   //   所以本支相对改动之前，**唯一**的差别就是那一行里的 N。
   const derived = verdictLineFor({ state: mState, n: mergedCount });
   if (derived) {
+    // ★★ 2026-10-15（Owner：「没有命中就是 pass」）：**PASS 是「一句话结论」，它没有逐条块**
+    //   （§5.3.1 就只有那一句：未发现已知底线风险 + 转交 sign-off）——
+    //   ⇒ `block` 必须是 `null`：不许再去链的正文里抠块。抠进来会让卡上出现
+    //   「**PASS 抬头 ＋ REVIEW 逐条**」这种自相矛盾的形状（而报告/链接那一跳也跟着复活，
+    //   真单上就表现为「链接点开是空的」）。
+    //   ⚠️ 链**自己**给了 PASS 行时优先用链那一行：它可能带着配好的 @句柄，
+    //     比这里的 `（未配置）` 回落准（句柄只从库侧 `l7.json` 的 approvers 取）。
+    if (derived.state === 'PASS') {
+      const chainPass = conclusionLine(answer);
+      const line = (chainPass && String(chainPass.state).toUpperCase() === 'PASS')
+        ? chainPass.line : derived.line;
+      return { state: 'PASS', line, from: 'dual-track-merged',
+               conform: conforms(line).ok, block: null };
+    }
     return { ...derived, from: 'dual-track-merged', block: conclusionBlock(answer) };
   }
 

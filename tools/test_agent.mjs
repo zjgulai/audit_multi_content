@@ -17,6 +17,12 @@ import assert from 'node:assert';
 //     ① 这里拉闸（就算谁漏传了桩，也写不进真表）；
 //     ② 单测/子进程一律显式传 `publishRunner` / `chainRunner` 桩。
 process.env.SHOUHENG_REVIEW_TABLE = 'off';
+// ★ 2026-10-15（F1）：**置信度台账同理** —— `PMO/shouheng-state/confidence-merged.ndjson` 是
+//   校准器要读的**真机读件**，跑自证往里追加行 = 往真数据里掺测试单（§2.4.4 同一个形状）。
+//   `KB_CONF_LEDGER` 这个开关本来就是为这件事留的（见 `agent.mjs` 落台账那段注释）
+//   ⇒ 自证一律指到 /tmp。修这条的背景：台账此前因 `stateDir` 少个 `()` **从来没写成过**，
+//   现在修好了，若不拉闸，第一次跑自证就会把测试单写进真台账。
+process.env.KB_CONF_LEDGER = '/tmp/shouheng-test-confidence-merged.ndjson';
 import fs from 'node:fs';
 import * as feishu from './agent/feishu.mjs';
 import { executeTool, runtimeContext, TOOL_SCHEMAS } from './agent/tools.mjs';
@@ -958,8 +964,17 @@ await t('提示词能构建，且人设正文里没有裸反引号', async () =>
   assert.ok(sp.includes('没有文字也一样'), '人设必须写明「带媒材但没文字，也一样走 kb_review_chain」');
   assert.ok(/图 \/ 视频 \/ 飞书文档链接[\s\S]{0,40}送审/.test(sp),
     '那条规则必须点名「图 / 视频 / 飞书文档链接」这三种媒材');
-  assert.ok(sp.includes('图片只读得到「字」'), '必须写明：图能读图内文字，但画面本身看不到');
-  assert.ok(sp.includes('画面本身你看不到'), '必须写明画面看不见 —— 否则模型会把「读到图上的字」说成「看过这张图」');
+  // ★★ 2026-10-15 改口径（**不是改措辞**）：这两句原先是
+  //   `sp.includes('图片只读得到「字」')` 与 `sp.includes('画面本身你看不到')` ——
+  //   那时**画面层根本不存在**，所以「看不到」是恒真的。现在画面读数真的进来了，
+  //   再要求人设说"看不到"就是**把有说成没有**；而放宽成"你看过这张图"又会让它
+  //   把自己想象的画面写进结论。⇒ 判据改成**两半都要在**：
+  //   ① 图能读图内文字；② 画面结论的依据是**读数**（不是原图），且**没读到要说未测**。
+  assert.ok(sp.includes('图内文字'), '必须写明：图能读图内文字');
+  assert.ok(sp.includes('画面读数') && sp.includes('不是你看到的原图'),
+    '必须写明：画面读数**是模型读数、不是原图** —— 否则模型会把「读到图上的字」说成「看过这张图」');
+  assert.ok(sp.includes('画面这层未测'),
+    '必须写明：画面读数没读到时要如实说「未测」，**不许**说成「画面没问题」');
   assert.ok(sp.includes('按规矩不取'), '附件必须说成「按规矩不取」，不许说成「没权限 / 能力还没做」');
   assert.ok(sp.includes('「我打不开飞书文档」通常是一句假话'),
     '必须写明：收到飞书链接时先说工作区里有没有那一份，再说读不读得了');
@@ -1250,15 +1265,118 @@ await t('行为级·图文混排：真取图 + 真 OCR，图块里带 OCR 文字
   assert.ok(r.text.includes('评审下下这个图片，能过吗？'), '正文不能因为带图就丢掉');
   const block = buildImageBlock(r);
   assert.ok(block.includes('Du bist Mama.'), '图内文字必须进图块');
-  assert.ok(/画面本身/.test(block), '图块必须写明「画面本身看不到」—— 否则模型会把读到的字说成看过这张图');
+  // ★★ 2026-10-15 改口径：**「画面本身看不到」不再是一句常量** ——
+  //   它取决于这一单到底有没有画面读数（此前画面层根本不存在，所以那句话恒真）。
+  //   这个用例的桩**没给** scene ⇒ 走的是「没有画面读数」那一支 ⇒ 必须写明看不到。
+  assert.ok(/画面我看不到|画面这一单没有/.test(block),
+    `没有画面读数时，图块必须写明「画面看不到」—— 否则模型会把读到的字说成看过这张图：\n${block}`);
   assert.ok(/OCR/.test(block), '图块必须写明这是 OCR 读数（可能有识别错误），不许当逐字原文引用');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 画面层（PRD §5.1「基础视觉识别」那一半，2026-10-15 补）
+//
+// 为什么补：PRD 把图片的输入写成两半（**OCR ＋ 基础视觉识别**），而这一层从来没做 ——
+// 知识库侧与模型侧吃的都是同一份图内文字，「产品使用 / 人物行为 / 场景风险」**整类没人判**。
+// 起因是 `vision.mjs` 头注那句「模型不吃图」，当天被实测否掉（同端点带 image_url ⇒ HTTP 200）。
+// 这一组钉三件事：① 读数真挂到 inbound 上（OCR 成功/失败/没字三种都要在）
+//                ② 图块与模型侧读数都拿到它，且**没读数时不许假装有**
+//                ③ 真跑一次试纸（这条**要发一次网络请求**，与 ASR 那几条真跑试纸同档）
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SCENE_JSON = JSON.stringify({
+  setting: '厨房',
+  people: [{ kind: '婴幼儿', doing: '被抱着' }],
+  products: [{ what: '粉色球形物', in_use: false }],
+  visible_marks: ['momcozy'],
+  risk_cues: ['婴幼儿出镜'],
+  unclear: ['月龄'],
+});
+
+const sceneOk = () => ({ ok: true, ms: 4200, scene: {
+  setting: '厨房', people: [{ kind: '婴幼儿', doing: '被抱着' }],
+  products: [{ what: '粉色球形物', in_use: false }], visible_marks: ['momcozy'],
+  risk_cues: ['婴幼儿出镜'], unclear: ['月龄'] } });
+
+await t('画面层·接线：读数挂到 inbound 上，且**不依赖 OCR 成功与否**', async () => {
+  const { readInboundContent, buildImageBlock, mediaReadAppendix } = await import('./agent/agent.mjs');
+  const { readingsForModelSide } = await import('./agent/model_side.mjs');
+  const base = {
+    fetchImage: async () => ({ path: '/tmp/假图.img', bytes: 745672, error: null, cleanup: () => {} }),
+  };
+  const only = { message_id: INCIDENT_MID, message_type: 'post', content: INCIDENT_POST };
+
+  // ① OCR 有字：两条读数都在
+  const r1 = await readInboundContent(only, { ...base, scene: async () => sceneOk(),
+    ocr: async () => ({ ok: true, text: 'Du bist Mama.', lines: 1, chars: 13, w: 940, h: 1162 }) });
+  assert.strictEqual(r1.images[0].scene?.ok, true, '画面读数没挂到 images[0] 上');
+  const b1 = buildImageBlock(r1);
+  assert.ok(/画面读数/.test(b1) && /婴幼儿/.test(b1), `图块没带上画面读数：\n${b1}`);
+  assert.ok(/不是原图/.test(b1), '图块必须写明「画面读数是模型读数，不是原图」，否则模型会说自己看过图');
+  assert.ok(!/画面我看不到/.test(b1), '有画面读数时**不许**再说「画面我看不到」—— 那是把有说成没有');
+  assert.ok(/婴幼儿/.test(readingsForModelSide(r1)), '模型侧读数没带上画面那一节');
+  assert.ok(/画面读数/.test(mediaReadAppendix(r1)), '报告附录没带上画面那一节');
+
+  // ② ★ 反向对照：**OCR 失败**时画面读数仍在（这正是那次事故那张图的形状 —— 图上只有品牌字样）
+  const r2 = await readInboundContent(only, { ...base, scene: async () => sceneOk(),
+    ocr: async () => ({ ok: false, error: 'perform_failed' }) });
+  assert.ok(r2.images[0].failed, 'OCR 失败要照实落 failed');
+  assert.strictEqual(r2.images[0].scene?.ok, true, 'OCR 失败把画面读数一起丢了 —— 挂在 OCR 分支里就会这样');
+  assert.ok(/婴幼儿/.test(buildImageBlock(r2)), 'OCR 失败时图块仍要带上画面读数');
+
+  // ③ 反向对照：**画面层没读到**时，图块必须说「未测」，不许说「没有画面」
+  const r3 = await readInboundContent(only, { ...base,
+    scene: async () => ({ ok: false, ms: 12, error: 'HTTP 500：boom' }),
+    ocr: async () => ({ ok: true, text: 'x', lines: 1, chars: 1, w: 10, h: 10 }) });
+  const b3 = buildImageBlock(r3);
+  assert.ok(/没读到/.test(b3) && /未测/.test(b3), `画面层没读到要写「未测」：\n${b3}`);
+  assert.ok(/HTTP 500/.test(b3), '要把原始错误带出来（否则排查只能靠猜）');
+  const side3 = readingsForModelSide(r3);
+  assert.ok(/没读到/.test(side3) && /未测/.test(side3), '模型侧也要拿到「未测」，不许静默');
+  assert.ok(/没读到/.test(mediaReadAppendix(r3)), '报告附录同样要写「未测」');
+
+  // ④ **这一单没跑画面层**（开关关掉）⇒ 如实说「没跑」，**不许**说成「没读到/没问题」，
+  //    也不许把它当成一份读数摊给模型（`readingsForModelSide` 那一侧要一个字都不写）。
+  const r4 = await readInboundContent(only, { ...base,
+    scene: async () => ({ ok: false, skipped: true, ms: 0, error: '画面层未开（SHOUHENG_SCENE=0）' }),
+    ocr: async () => ({ ok: true, text: 'x', lines: 1, chars: 1, w: 10, h: 10 }) });
+  const b4 = buildImageBlock(r4);
+  // ⚠️ 断言要**指得准**：块头那句写的是「画面层没跑**或**没读到」（分支未定时的措辞），
+  //   所以不能拿「整块里有没有『没读到』三个字」当判据 —— 那会误报（第一版就是这么红的）。
+  //   要判的是**这一张那一格走的是哪一支**：`这一单没跑` 还是 `没读到（…）`。
+  assert.ok(/这一单\*{0,2}没跑/.test(b4), `关掉时那一格要说「这一单没跑」：\n${b4}`);
+  assert.ok(!/没读到（/.test(b4), `关掉时不许用「没读到（…）」那种**失败**措辞：\n${b4}`);
+  assert.ok(!/画面读数（视觉模型/.test(readingsForModelSide(r4)), '关掉时不许把它当成读数摊给模型');
+  assert.ok(/没跑/.test(mediaReadAppendix(r4)), '报告附录也要写「没跑」');
+
+  // ⑤ 画面层抛异常 ⇒ **不许**让这次回话失败（与 OCR 那条契约同一条）
+  const r5 = await readInboundContent(only, { ...base,
+    scene: async () => { throw new Error('桩：画面层炸了'); },
+    ocr: async () => ({ ok: true, text: 'x', lines: 1, chars: 1, w: 10, h: 10 }) });
+  assert.strictEqual(r5.images[0].scene?.ok, false, '画面层抛异常要落成 ok:false');
+  assert.ok(/画面层炸了/.test(r5.images[0].scene.error), '异常原因要留下');
+  assert.strictEqual(r5.images[0].text, 'x', '画面层炸了不该影响 OCR 那条读数');
+});
+
+await t('画面层·真跑试纸：吃图模型这条路现在通不通（这条要发一次网络请求）', async () => {
+  const sceneMod = await import('./agent/scene.mjs');
+  if (!sceneMod.SCENE_ENABLED) { console.log('       （SHOUHENG_SCENE=0 ⇒ 跳过，如实跳过不算通过）'); return; }
+  const pf = await sceneMod.preflight();
+  assert.strictEqual(pf.ok, true,
+    `画面层试纸没跑通（${pf.detail}）—— 这一红就是「PRD 那半条范围又整类消失了」，`
+    + '而它在群里只表现为「结论少了一类」，没有任何东西会红。');
+  assert.ok(/场景=|人物=|物品=/.test(pf.detail), `试纸读数里必须看得见内容，不能只有 HTTP 200：${pf.detail}`);
 });
 
 await t('行为级·取不到 ≠ 图上没字（两句话必须不一样）', async () => {
   const { readInboundContent, buildImageBlock } = await import('./agent/agent.mjs');
   const only = { message_id: 'om_test', message_type: 'image', content: '{"image_key":"img_x"}' };
 
-  const fail = await readInboundContent(only, {
+  // ★ 2026-10-15：这两条验的是 **OCR 侧的措辞**，所以把画面层显式桩成「没跑」——
+  //   否则真 sceneRead 会对一个不存在的 /tmp 路径回一句「没读到」，那句里也带「读不到」，
+  //   把这一组本来要验的区分搅浑（实测就是这么红的第一版）。
+  const noScene = { scene: async () => ({ ok: false, skipped: true, ms: 0, error: '测试：不跑画面层' }) };
+  const fail = await readInboundContent(only, { ...noScene,
     fetchImage: async () => ({ path: null, bytes: 0, error: '取图失败 code=99991672 msg=权限不足', cleanup: () => {} }),
   });
   assert.ok(fail.images[0].failed, '取不到必须落成 failed');
@@ -1266,7 +1384,7 @@ await t('行为级·取不到 ≠ 图上没字（两句话必须不一样）', a
   assert.ok(bFail.includes('这一张我读不到') && bFail.includes('99991672'), `取不到的措辞不对：${bFail}`);
   assert.ok(!/没有可读的文字/.test(bFail), '取不到**不许**说成「图上没字」—— 那是把一个否定结论说过头');
 
-  const empty = await readInboundContent(only, {
+  const empty = await readInboundContent(only, { ...noScene,
     fetchImage: async () => ({ path: '/tmp/空.img', bytes: 1200, error: null, cleanup: () => {} }),
     ocr: async () => ({ ok: true, text: '', lines: 0, chars: 0, w: 10, h: 10 }),
   });
@@ -1826,6 +1944,141 @@ await t('真跑一次本机转写：试纸那句话必须转得出来（这条�
     `ASR 自检没过：${pf.error ?? ''} ${pf.hint ?? ''} ${pf.detail ?? ''}\n`
     + '       —— 授权没给或模型没装时，视频的「口播/旁白」这一半就是**未测**（不是「没有人说话」）');
   assert.ok(String(pf.text ?? '').includes(a.ASR_FIXTURE_TOKEN), `转写结果里没有特征串：${pf.text}`);
+});
+
+// ── 2026-10-14 加的：**长音频必须切段** —— Owner：「必须 asr 跑视频」 ──────────
+//
+// 病灶：`base/asr_speech.m:153` 写死 120s deadline，整条 57 分钟塞进去一个字都回不来
+// （实测 zh-CN / en-US 两条都撞死在 120s）。修法是**在 JS 侧按 PCM 切段**、不重编二进制
+// （重编换 cdhash ⇒ TCC 授权失效）。下面三条钉的就是这个修法。
+
+await t('★ 上限必须盖得住本批最长的一条真素材（3420s 的 webinar），否则口播整条读不到', async () => {
+  const v = await import('./agent/video.mjs');
+  assert.strictEqual(typeof v.MAX_TRANSCRIPT_SECONDS, 'number');
+  // 3420.0s = MC-US-YT-VwANGOaT4vs（57 分钟 webinar，78MB，超飞书上传上限走本机直读）
+  //  669.5s = MC-US-YT-88uvcSNxMdk —— 旧值 600 把这两条都挡在门外，正文里只剩一句「too_long」。
+  assert.ok(v.MAX_TRANSCRIPT_SECONDS > 3420,
+    `转写时长上限 ${v.MAX_TRANSCRIPT_SECONDS}s 盖不住 3420s 那条真素材 —— `
+    + '上限低于素材时，视频的「口播/旁白」这一半会以「转写没跑成（too_long）」的样子**静默缺失**');
+  const a = await import('./agent/asr.mjs');
+  // 与它配套的字节闸门：2h 的 22.05k/mono/s16 wav = 317MB，旧上限 200MB 会**先于时长闸门**拦掉。
+  assert.ok(a.ASR_CHUNK_SECONDS > 0 && a.ASR_CHUNK_SECONDS <= 600,
+    `切段粒度 ${a.ASR_CHUNK_SECONDS}s 不合理：必须明显小于识别器那个 120s deadline 的余量`);
+});
+
+await t('★ 切段：切出来的段接回去必须与原 PCM **逐字节相同**（错一帧就是一声爆音 / 丢字）', async () => {
+  const a = await import('./agent/asr.mjs');
+  // 造一段 40s 的「可辨认」PCM：每秒一个递增的 16bit 采样值 —— 接错了位一眼看得出来。
+  const SR = 22050, SEC = 40, N = SR * SEC;
+  const pcm = Buffer.alloc(N * 2);
+  for (let i = 0; i < N; i++) pcm.writeInt16LE(((i * 7) % 30011) - 15000, i * 2);
+  const mk = (p) => {
+    const h = Buffer.alloc(44);
+    h.write('RIFF', 0); h.writeUInt32LE(36 + pcm.length, 4); h.write('WAVE', 8);
+    h.write('fmt ', 12); h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22);
+    h.writeUInt32LE(SR, 24); h.writeUInt32LE(SR * 2, 28); h.writeUInt16LE(2, 32);
+    h.writeUInt16LE(16, 34); h.write('data', 36); h.writeUInt32LE(pcm.length, 40);
+    fs.writeFileSync(p, Buffer.concat([h, pcm]));
+  };
+  const long = '/tmp/shouheng-chunk-long.wav'; mk(long);
+  const short = '/tmp/shouheng-chunk-short.wav';
+  { const p = pcm.subarray(0, SR * 2 * 3);   // 3 秒
+    const h = Buffer.alloc(44);
+    h.write('RIFF', 0); h.writeUInt32LE(36 + p.length, 4); h.write('WAVE', 8);
+    h.write('fmt ', 12); h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22);
+    h.writeUInt32LE(SR, 24); h.writeUInt32LE(SR * 2, 28); h.writeUInt16LE(2, 32);
+    h.writeUInt16LE(16, 34); h.write('data', 36); h.writeUInt32LE(p.length, 40);
+    fs.writeFileSync(short, Buffer.concat([h, p])); }
+
+  // 反向对照①：**够短的不许切** —— 白切一段就是白起一次识别进程。
+  assert.strictEqual(a.planChunks(short, 300), null,
+    '3 秒的音频被切了 —— 够短就不该切（这条对了才说明「切段」是有条件的，不是无脑切）');
+  // 反向对照②：**不是 PCM wav 的不许猜着切**（切错位置出来的噪声会被当成转写结果）。
+  assert.strictEqual(a.planChunks(await (async () => {
+    const p = '/tmp/shouheng-chunk-notwav.bin';
+    fs.writeFileSync(p, Buffer.from('这不是 wav，别猜着切'.repeat(10)));
+    return p;
+  })(), 5), null, '认不出布局就必须回 null，不许硬切');
+
+  const plan = a.planChunks(long, 10);
+  assert.ok(plan, '40 秒的音频按 10 秒切，必须给出计划');
+  try {
+    assert.strictEqual(plan.chunks.length, 4, `10s×4 段，实际 ${plan.chunks.length}`);
+    const out = [];
+    for (let i = 0; i < plan.chunks.length; i++) {
+      const p = `/tmp/shouheng-chunk-${i}.wav`;
+      const wrote = plan.chunks[i].writeTo(p);
+      assert.ok(wrote > 0, `第 ${i} 段切出 0 字节`);
+      // 每一段自己必须还是一份**合法 wav**（识别器只认这个）。
+      const fd = fs.openSync(p, 'r');
+      const lay = a.readWavLayout(fd); fs.closeSync(fd);
+      assert.ok(lay, `第 ${i} 段不是合法 wav`);
+      assert.strictEqual(lay.channels, 1);
+      assert.strictEqual(lay.sampleRate, SR);
+      assert.ok(Math.abs(lay.seconds - plan.chunks[i].seconds) < 1e-6,
+        `第 ${i} 段头里写的秒数(${lay.seconds})与计划(${plan.chunks[i].seconds})不符`);
+      out.push(fs.readFileSync(p).subarray(44));
+    }
+    const joined = Buffer.concat(out);
+    assert.strictEqual(joined.length, pcm.length,
+      `接回去 ${joined.length} 字节 ≠ 原 ${pcm.length} 字节 —— 有采样点被丢了`);
+    assert.ok(joined.equals(pcm),
+      '★ 接回去与原 PCM **不逐字节相同** —— 这就等于音频被改过，转写出的字不能当逐字原文');
+  } finally { plan.close(); }
+
+  // ── 头里那个长度**不许直接信**（流式 wav 常把它写成 0xFFFFFFFF）──────────────
+  // 照着切会凭空切出成百上千个空段，而每段都要起一次识别进程。这条是那件事的反向对照。
+  { const fake = '/tmp/shouheng-chunk-liar.wav';
+    const real = pcm.subarray(0, SR * 2 * 8);          // 真身只有 8 秒
+    const h = Buffer.alloc(44);
+    h.write('RIFF', 0); h.writeUInt32LE(36 + real.length, 4); h.write('WAVE', 8);
+    h.write('fmt ', 12); h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22);
+    h.writeUInt32LE(SR, 24); h.writeUInt32LE(SR * 2, 28); h.writeUInt16LE(2, 32);
+    h.writeUInt16LE(16, 34); h.write('data', 36);
+    h.writeUInt32LE(0xFFFFFFFF, 40);                   // ← 谎报长度
+    fs.writeFileSync(fake, Buffer.concat([h, real]));
+    const fd = fs.openSync(fake, 'r');
+    const lay = a.readWavLayout(fd); fs.closeSync(fd);
+    assert.ok(lay, '谎报长度的 wav 仍然必须认得出来（否则整条音频干脆不转写了）');
+    assert.strictEqual(lay.size_clamped, true, '头里写的 0xFFFFFFFF 没被截住 —— 它会切出成千上万个空段');
+    assert.strictEqual(lay.dataSize, real.length, `截出来的长度必须等于真实长度 ${real.length}，实际 ${lay.dataSize}`);
+    assert.ok(Math.abs(lay.seconds - 8) < 0.01, `截出来的秒数应是 8s，实际 ${lay.seconds}`);
+    // 反向对照：**老实的 wav 不许被标成截过**（否则这个标记就是恒真的噪声）。
+    const fd2 = fs.openSync(long, 'r');
+    const lay2 = a.readWavLayout(fd2); fs.closeSync(fd2);
+    assert.strictEqual(lay2.size_clamped, false, '老实的 wav 被标成「截过」—— 这个标记从此不可信');
+    assert.ok(Math.abs(lay2.seconds - SEC) < 0.01, `老实 wav 的秒数应是 ${SEC}，实际 ${lay2.seconds}`); }
+});
+
+await t('★ 长音频真跑一次：切段后必须转得出字（这条红了就是「长视频口播整条读不到」又回来了）', async () => {
+  const a = await import('./agent/asr.mjs');
+  // 拿**真试纸**（7.1s 普通话）复读 6 遍 ⇒ 42.7s，再按 16s 切 ⇒ 3 段。
+  // 用真音频而不是合成噪声：合成噪声转不出字，那条判据会**恒绿**（转不出字也算过）。
+  const fd = fs.openSync(a.ASR_FIXTURE, 'r');
+  const lay = a.readWavLayout(fd);
+  const raw = Buffer.alloc(lay.dataSize);
+  fs.readSync(fd, raw, 0, lay.dataSize, lay.dataOff);
+  fs.closeSync(fd);
+  const pcm = Buffer.concat(Array.from({ length: 6 }, () => raw));
+  const long = '/tmp/shouheng-chunk-real.wav';
+  const h = Buffer.alloc(44);
+  h.write('RIFF', 0); h.writeUInt32LE(36 + pcm.length, 4); h.write('WAVE', 8);
+  h.write('fmt ', 12); h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22);
+  h.writeUInt32LE(lay.sampleRate, 24); h.writeUInt32LE(lay.byteRate, 28);
+  h.writeUInt16LE(lay.frameBytes, 32); h.writeUInt16LE(lay.bits, 34);
+  h.write('data', 36); h.writeUInt32LE(pcm.length, 40);
+  fs.writeFileSync(long, Buffer.concat([h, pcm]));
+
+  const r = await a.transcribe(long, { locales: ['zh-CN'], chunkSeconds: 16 });
+  assert.strictEqual(r.ok, true,
+    `切段转写没跑通：kind=${r.kind} detail=${r.detail ?? ''} —— `
+    + '这一条正是「57 分钟那条一个字都没转出来」的形状');
+  assert.strictEqual(r.chunked, true, '走了切段却没有 chunked 标记 —— 下游看不出这条读数是拼出来的');
+  assert.ok(r.n_chunks >= 3, `42.7s 按 16s 切应 ≥3 段，实际 ${r.n_chunks}`);
+  assert.ok(String(r.text ?? '').includes(a.ASR_FIXTURE_TOKEN),
+    `切段后转不出特征串「${a.ASR_FIXTURE_TOKEN}」：${String(r.text ?? '').slice(0, 200)}`);
+  assert.ok(Array.isArray(r.chunks) && r.chunks.length === r.n_chunks,
+    'chunks 逐段读数必须带回（回听时按 start_s 对时间）');
 });
 
 await t('反向对照·音频里没人说话 ≠ 转写没跑成（两种必须分得开）', async () => {
@@ -2632,21 +2885,29 @@ await t('W8 接线：`replyTo` 必须真的把结论行**传进** toCardOrText�
   assert.ok(/meta\?\.verdict53/.test(onMsg), 'onMessage 没有把 meta.verdict53 取出来 —— 内核算了也白算');
 });
 
-await t('W8b 接线：**逐条依据**必须接在**真的条目数组**上（不是 undefined）', () => {
-  // ★ 病灶（2026-10-13 实测）：我写成了 `evidenceBlock(dual.items)`，而条目其实在
-  //   `dual.merged.items` —— 传进去 `undefined` ⇒ `evidenceBlock` 返回 `''` ⇒
-  //   **依据块永远是空**，而日志、卡片、表行**一处都不会报错**。
-  //   这就是 §2.4 那个病：判据抓对了、接线在最后一跳断了，且断得静悄悄。
+await t('W8b 接线：逐条依据**走报告**、不许再进表列（Owner 2026-10-15 改口径）', () => {
+  // ── 这条判据的前身（2026-10-13）─────────────────────────────────────────────
+  //   病灶：我写成 `evidenceBlock(dual.items)`，而条目在 `dual.merged.items` ⇒ 传 undefined
+  //   ⇒ 依据块永远空，**日志/卡/表一处都不报错**（判据抓对了、最后一跳断了且断得静悄悄）。
+  //
+  // ── 2026-10-15（Owner）：「按照 prd 只出结论，不要自己加其他内容」────────────────
+  //   ⇒ 那一格改成**只放 PRD 块**，依据块**撤出表列**（依据在报告里 —— PRD 的设计＝摘要＋钻取报告）。
+  //   ⇒ 判据跟着改口径，且两半都要钉：
+  //     ① 表列那一格**不许**再出现依据块；
+  //     ② 依据仍然**必须**进报告 —— 报告渲染的入参必须是 `dual.merged.items`（同一个接线错误
+  //        在报告侧照样会静悄悄丢依据，所以这条断言不能删，只能挪）。
   const src = fs.readFileSync(new URL('./agent/agent.mjs', import.meta.url), 'utf8');
   const strip = (x) => x.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   const body = strip(src);
-  assert.ok(/evidenceBlock\(/.test(body), '落表那一格里没有调用 evidenceBlock —— 依据没落库');
-  assert.ok(/evidenceBlock\(\s*dual\??\.merged\??\.items\s*\)/.test(body),
-    'evidenceBlock 的入参不是 `dual.merged.items` —— 传 undefined 时它只会返回空串，且**不会有任何报错**');
-  // 反向对照：把入参改回 `dual.items` ⇒ 上面那条必须红（在内存里做，不碰盘）
-  const mutated = body.replace(/evidenceBlock\(\s*dual\??\.merged\??\.items\s*\)/, 'evidenceBlock(dual.items)');
-  assert.ok(!/evidenceBlock\(\s*dual\??\.merged\??\.items\s*\)/.test(mutated),
-    '反向对照失效：改回 dual.items 后判据仍然通过');
+  assert.ok(!/summary:\s*summaryCellText/.test(body) && !/evidenceBlock\(/.test(body),
+    '依据块又回到表列那一格了（Owner 2026-10-15：这一格只出 PRD 结论）');
+  assert.ok(/renderMergedReportMd\(/.test(body), '报告渲染那一跳不见了');
+  assert.ok(/merged:\s*itemsWithAdvice/.test(body) || /merged:\s*dual\??\.merged\??\.items/.test(body),
+    '报告渲染的入参不是真条目数组 —— 依据会在报告里静默消失（与 10-13 那次同一个形状）');
+  // 反向对照：把报告入参改成 undefined ⇒ 上面那条必须红（内存里做，不碰盘）
+  const mutated = body.replace(/merged:\s*(itemsWithAdvice|dual\??\.merged\??\.items)/, 'merged: undefined');
+  assert.ok(!/merged:\s*(itemsWithAdvice|dual\??\.merged\??\.items)/.test(mutated),
+    '反向对照失效：把报告入参改成 undefined 后判据仍然通过');
 });
 
 await t('W9 行为级：**逐条四要素整块**必须进卡片正文（不只是抬头）', async () => {
@@ -3125,8 +3386,23 @@ await t('Z12 纯判据：**编不出数的时候一个都不许编** —— 六�
   assert.strictEqual(P.verdictLineFor({ state: 'REVIEW', n: -1 }), null, '负数不许编');
   assert.strictEqual(P.verdictLineFor({ state: 'REVIEW', n: 2.5 }), null, '小数不许编');
   // PASS 的 §5.3.1 模板里**没有 N**；拒答 / NEEDS_INPUT 不在 §5.3 里
-  assert.strictEqual(P.verdictLineFor({ state: 'PASS', n: 3 }), null, 'PASS 模板无 N，派生不出来');
+  assert.strictEqual(P.verdictLineFor({ state: 'PASS', n: 3 }), null,
+    'PASS ＋ 自相矛盾的 n=3 ⇒ 不许编');
+  assert.strictEqual(P.verdictLineFor({ state: 'PASS' }), null, 'PASS 但**读不到条数** ⇒ 不许编');
   assert.strictEqual(P.verdictLineFor({ state: '拒答', n: 3 }), null, '拒答不在 §5.3 里');
+  // ★★ 2026-10-15（Owner 裁定：「**没有命中就是 pass**，按照 prd 的一句话结论走，
+  //   **你不要自己定义**」）—— 真单 `MC-US-YT-_xyLF4_AgAw-IMG`：两侧一条都没命中，
+  //   而我们自己给加了「1 处」⇒ 卡上说需人工确认、逐条里一条没有、报告链接点开是空的。
+  //   ⇒ 现在「合并读数 **恰好 0 条** ＋ PASS」派发 §5.3.1 的**那一句话**（条数不进那一行）。
+  {
+    const z = P.verdictLineFor({ state: 'PASS', n: 0 });
+    assert.ok(z && z.state === 'PASS', 'n=0 ＋ PASS 必须派得出 §5.3.1 那一句话');
+    assert.strictEqual(P.conforms(z.line).ok, true,
+      `派出来的 PASS 行必须过 §5.3.1 那把尺子，实际：${z?.line}`);
+    assert.ok(!/\d/.test(z.line), `§5.3.1 那一句里**没有 N**，实际：${z.line}`);
+    // 反向对照：REVIEW 那一档一个字没松（0 永远回 null）
+    assert.strictEqual(P.verdictLineFor({ state: 'REVIEW', n: 0 }), null, 'REVIEW ＋ 0 仍不许编');
+  }
   // 反向对照：合法的数**必须**派得出来 —— 否则上面六条恒真（一个全都返回 null 的实现也能过）
   assert.ok(P.verdictLineFor({ state: 'REVIEW', n: 1 }), 'n=1 是合法条数，必须派得出来');
 });
@@ -3156,6 +3432,38 @@ await t('Z13 ★ 反向对照：**不给合并数时，行为必须与改动前�
   assert.strictEqual(pass.from, 'chain', '合并态 PASS 不许被派生成 REVIEW/BLOCK 行');
   const nan = P.deriveVerdictLine({ answer: A, mergedCount: NaN, mergedState: 'REVIEW' });
   assert.strictEqual(nan.from, 'chain', 'NaN 必须退回，不许编数');
+});
+
+// ★★ 2026-10-15（Owner 报「链接是空的」那一单的根治）：**没有命中 ⇒ PASS 一句话结论**。
+//
+//   真单 `MC-US-YT-_xyLF4_AgAw-IMG`（群里那张卡，20:15 已撤回）：
+//     双轨读数 = 模型侧 0 条 ／ 库侧 `issue_count=0`（覆盖缺口）⇒ 两侧**一条都没命中**。
+//     旧口径：`covEntries` 自己加了 1 ⇒ 抬头「共发现 1 处需人工确认」，
+//     而逐条里一条没有、那份合并报告只有「（本单没有并进任何条目。）」⇒ **链接点开是空的**。
+//   Owner 的口径：**没有命中就是 pass**，走 PRD §5.3.1 那一句话，不许自己定义。
+await t('Z13b ★★ 没有命中 ⇒ PASS 一句话结论，且 block 必须是 null（不许抠链的逐条块）', async () => {
+  const P = await import('./agent/prd53.mjs');
+  // 链在覆盖缺口那一档自己给的是 `REVIEW 共发现 0 处…`（自己跟自己矛盾）——
+  // 正是这一句不许再上卡。
+  const CHAIN = '【审查结论：REVIEW】共发现 0 处需人工确认。\n\n1.【覆盖缺口】…\n\n建议转 @法务 复核。';
+  const v = P.deriveVerdictLine({ answer: CHAIN, mergedCount: 0, mergedState: 'PASS' });
+  assert.strictEqual(v.state, 'PASS', '两侧零命中必须是 PASS');
+  assert.strictEqual(v.from, 'dual-track-merged', '这一行必须由合并态派生，不是抠链的正文');
+  // ⚠️ 判据用 `conforms()`（§5.3.1 那把尺子），**不自己写正则** ——
+  //   我第一版写死 `@\S+ 进行 sign-off`，而「（未配置）」那一档中间有空格 ⇒ 把**对的**判红。
+  assert.strictEqual(P.conforms(v.line).ok, true,
+    `必须是 §5.3.1 的那一句话，实际：${v.line}`);
+  assert.ok(/^【审查结论：PASS】/.test(v.line) && !/\d/.test(v.line),
+    `PASS 那一句里不许有数字，实际：${v.line}`);
+  // ★ 这一条是**这次修复的核心**：PASS 没有逐条块 ⇒ 卡上不会出现空的「逐条问题」分组，
+  //   报告那一跳也建不起来（`total = 0`）⇒ **不会再有「链接点开是空的」**。
+  assert.strictEqual(v.block, null, 'PASS 那一档 block 必须是 null —— 抠进来就是「PASS 抬头 + REVIEW 逐条」');
+  // 反向对照①：REVIEW 那一档照旧**必须**带块（别把上面那条实现成「永远 block=null」）
+  const rv = P.deriveVerdictLine({ answer: CHAIN, mergedCount: 2, mergedState: 'REVIEW' });
+  assert.ok(rv.block, 'REVIEW 那一档必须照旧带逐条块（否则上面那条恒真）');
+  // 反向对照②：读不到合并数 ⇒ 一个字都不许动（照旧走链那一行）
+  const none = P.deriveVerdictLine({ answer: CHAIN });
+  assert.strictEqual(none.from, 'chain', '没有合并读数时必须照旧走链');
 });
 
 await t('Z14 ★ 行为级：卡片抬头那个数必须 == 卡里那个数（`rendered.total`），不是「并进来几条」', async () => {
@@ -3352,9 +3660,20 @@ await t('Z17 ★ 接线：建报告那一步**必须可注入**，且默认走�
   // ★ 反向对照：**不许**绕过注入点去直接调真函数 —— 那会让上面两条恒真
   assert.ok(!/await publishMergedReport\(md/.test(src),
     '接线里直接调了真函数 —— 注入点形同虚设，自证又会建真文档');
-  // 门槛必须读**卡里那个数**，不是「并进来几条」
-  assert.ok(/rendered0\.total >= REPORT_LINK_MIN_ISSUES/.test(src),
-    '门槛没读 `rendered0.total` —— 会退回「并进来几条」，把库侧未并进的那部分丢掉');
+  // ★★ 2026-10-14（Owner 本地要求）：闸从「卡内 ≥3」改成「**有可并的条目就建**」——
+  //   「问题数少于 3 个的，也输出审查报告，格式跟大于 3 个问题数量的审查报告一致」。
+  //   ⇒ 断言跟着改成两条（旧断言查的那个条件已按设计消失）：
+  //     ① 闸存在且**只看 `rendered0`**（不许有人把 `>= 3` 加回来 —— 那会退回本次要求之前的行为）；
+  //     ② 报告正文用的仍是**卡里那个数**（不是「并进来几条」）—— 旧断言的本意，保留。
+  // ★★ 2026-10-15（Owner 报「链接是空的」）：闸又补了一项 —— **一条条目都没有 ⇒ 不建报告**。
+  //   病灶：两侧都没命中那一档也建了 docx，里面只有「（本单没有并进任何条目。）」
+  //   ⇒ 卡上挂着一个**点开没内容**的链接。
+  assert.ok(/if \(rendered0 && rendered0\.total > 0\) \{/.test(src),
+    '报告闸不见了、或没带上「有可并的条目」这一项 —— 会重建空报告（Owner 2026-10-15）');
+  assert.ok(!/rendered0\.total >= REPORT_LINK_MIN_ISSUES/.test(src),
+    '`>= REPORT_LINK_MIN_ISSUES` 被加回来了 —— 那会让 <3 的行又没有报告');
+  assert.ok(/total: rendered0\.total/.test(src),
+    '报告正文没读 `rendered0.total` —— 会退回「并进来几条」，把库侧未并进的那部分丢掉');
 });
 
 // ═══ 第 28 组 · 报告链接必须在**收起区之外**（Owner 2026-10-09 第三次反馈）═══
@@ -4088,9 +4407,20 @@ await t('Z17 ★ 接线：建报告那一步**必须可注入**，且默认走�
   // ★ 反向对照：**不许**绕过注入点去直接调真函数 —— 那会让上面两条恒真
   assert.ok(!/await publishMergedReport\(md/.test(src),
     '接线里直接调了真函数 —— 注入点形同虚设，自证又会建真文档');
-  // 门槛必须读**卡里那个数**，不是「并进来几条」
-  assert.ok(/rendered0\.total >= REPORT_LINK_MIN_ISSUES/.test(src),
-    '门槛没读 `rendered0.total` —— 会退回「并进来几条」，把库侧未并进的那部分丢掉');
+  // ★★ 2026-10-14（Owner 本地要求）：闸从「卡内 ≥3」改成「**有可并的条目就建**」——
+  //   「问题数少于 3 个的，也输出审查报告，格式跟大于 3 个问题数量的审查报告一致」。
+  //   ⇒ 断言跟着改成两条（旧断言查的那个条件已按设计消失）：
+  //     ① 闸存在且**只看 `rendered0`**（不许有人把 `>= 3` 加回来 —— 那会退回本次要求之前的行为）；
+  //     ② 报告正文用的仍是**卡里那个数**（不是「并进来几条」）—— 旧断言的本意，保留。
+  // ★★ 2026-10-15（Owner 报「链接是空的」）：闸又补了一项 —— **一条条目都没有 ⇒ 不建报告**。
+  //   病灶：两侧都没命中那一档也建了 docx，里面只有「（本单没有并进任何条目。）」
+  //   ⇒ 卡上挂着一个**点开没内容**的链接。
+  assert.ok(/if \(rendered0 && rendered0\.total > 0\) \{/.test(src),
+    '报告闸不见了、或没带上「有可并的条目」这一项 —— 会重建空报告（Owner 2026-10-15）');
+  assert.ok(!/rendered0\.total >= REPORT_LINK_MIN_ISSUES/.test(src),
+    '`>= REPORT_LINK_MIN_ISSUES` 被加回来了 —— 那会让 <3 的行又没有报告');
+  assert.ok(/total: rendered0\.total/.test(src),
+    '报告正文没读 `rendered0.total` —— 会退回「并进来几条」，把库侧未并进的那部分丢掉');
 });
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -4226,10 +4556,32 @@ await t('V6 ★ 行为级：「问题数量」列必须与卡里那个数**同�
   // ★ 库侧那个读数**不许丢**：它必须还在汇总格里（差从"看不见"变成"看得见且同一个数"）。
   //   同理这里不能读 `g.dual.kbSide`（那是**函数内部**那个形状的字段）——
   //   本单注入的库侧读数是 5，直接断言这个数在正文里。
-  assert.ok(/库侧 5 条机器读数/.test(String(sent?.summary ?? '')),
-    `汇总格里没有留下库侧机器读数：${String(sent?.summary ?? '').slice(0, 160)}`);
-  assert.ok(/本列「问题数量」按卡里那个数记/.test(String(sent?.summary ?? '')),
-    '汇总格没写明这一列的口径（填了数不说口径 = 没人看得懂）');
+  // ★★ 2026-10-15（Owner）：**这一格只放 PRD 的「审查结论」块** ——
+  //   原版这两条断言要求格里有「库侧 N 条机器读数」与「本列问题数量按卡里那个数记」
+  //   （2026-10-09 的口径裁定）。Owner 当天明确推翻：「按照 prd 只出结论，不要自己加其他内容」，
+  //   并给出逐字格式（结论行 → 逐条问题 → 分类汇总 → 另有 N 条 → 报告链接 → 动作行）。
+  //   ⇒ 判据**跟着口径一起改**，而且改成**反向**断言：那几样内部读数**不许**再出现在这一格。
+  const summ = String(sent?.summary ?? '');
+  assert.ok(/^【审查结论：(PASS|REVIEW|BLOCK)】/.test(summ.slice(0, 40)),
+    `汇总格必须以 PRD 结论行开头（实得：${summ.slice(0, 80)}）`);
+  // ⚠️ 分类汇总那一路**只在有报告链接时**才走（`summarized` 就是按链接判的，见 dual_track 那段注释）——
+  //   本用例的 `mergedReportRunner` 回的是 `url: null`（报告没建成）⇒ 走**逐条回落**，
+  //   那时 PRD 也不要求分类块（只给分类却不给链接，等于把人指到空处）。
+  //   第一版我把这条写成无条件 ⇒ 判据比口径宽，当场假红（本次现场）。
+  // ⚠️ 判据要认**真的链接**：报告没建成时那一行写的是「本次未拿到报告链接」（同一句话头），
+  //   拿它当「走了汇总」会误判（本次现场：判据比口径宽 ⇒ 假红）。
+  if (/查看完整问题清单与修改建议：\s*https?:\/\//.test(summ)) {
+    assert.ok(summ.includes('逐条问题'), '走汇总那一路时：分类汇总前必须有「逐条问题」这一行（Owner 逐字格式）');
+    assert.ok(/·\s*[^·\n]{1,18}类问题：\s*\d+\s*个/.test(summ), '要有「· XX类问题：N 个」分类汇总行');
+  } else {
+    assert.ok(/\d+[.、]\s*【/.test(summ), '没有报告链接时按逐条回落：正文里必须有逐条条目');
+  }
+  assert.ok(/请修改后重新提交。|建议转 @/.test(summ), '要有动作行');
+  for (const [pat, what] of [['双轨合并', '双轨读数句'], ['机器读数', '库侧机器读数'],
+                             ['【逐条依据（落库留痕）】', '逐条依据块'], ['按卡里那个数记', '口径说明句'],
+                             ['⚠️', '口径警示行']]) {
+    assert.ok(!summ.includes(pat), `「${what}」不许再进这一格（Owner 2026-10-15：只出 PRD 结论）`);
+  }
 });
 
 await t('V7 ★ 行为级：本仓建的合并报告，URL 必须**同时**进卡片与表里那一格', async () => {
@@ -4406,7 +4758,9 @@ await t('V7 ★ 行为级：本仓建的合并报告，URL 必须**同时**进�
       [5, 5, 6, '库侧 5/5/6'], [0, 0, 8, '库侧 0'], [3, 3, 0, '只有库侧 3']]) {
       const { head, r } = probe(kb, txt, moN);
       const cats = [...r.block.matchAll(/^· .*类问题：(\d+) 个$/gm)].map((x) => Number(x[1]));
-      const extra = Number((r.block.match(/^· 另有 \*\*(\d+) 条\*\*/m) || [])[1] || 0);
+      // ★ 2026-10-15 Owner 逐字格式里这一行**不加粗**（`· 另有 3 条（明细在报告里）`）——
+      //   判据跟着改；同时兼容历史加粗形态，免得旧报告一读就红。
+      const extra = Number((r.block.match(/^· 另有 \*{0,2}(\d+) 条/m) || [])[1] || 0);
       const sum = cats.reduce((a, b) => a + b, 0) + extra;
       assert.strictEqual(sum, head, `${label}：分类 ${cats.join('+')} ＋ 另有 ${extra} ＝ ${sum} ≠ 抬头 ${head}`);
     }
@@ -5026,6 +5380,147 @@ await t('Z44 ★★ 「链答案 → 卡面」这一跳：路由后的动作行�
   assert.ok(/内容治理负责人/.test(cardOld),
     '旧动作行走同一条路却测不出「内容治理负责人」⇒ ④ 等于没写');
 });
+// ─────────────────────────────────────────────────────────────────────────────
+// 旁挂身份（2026-10-15 那次串单）—— 一把锁都对不上时**必须拒收**
+//
+// 现场（逐条可核）：李倩怡 17:51 发图（本机 OCR 只有 `momcozY`），本单的链 17:53:33
+// 跑完（素材指纹 `8381eb63`）；**另一单**（批跑在审一篇英文页面文案，原文真写着
+// `IBCLC`）17:54:39 跑完（`6aeaf105`），把**同一个固定旁挂文件**整份覆盖；
+// 本单 17:55 去读，读到的是别人那一单 ⇒ 发进群的那张卡里出现了一条
+// `逐字命中「ibclc」`——**命中是真的，贴错了素材**。
+// 当时的代码是「三把锁全不成立也照收（按时间口径采纳）」⇒ **判据看得见，结论照样错**。
+//
+// 这一组钉三件事：① 判据表（纯函数）② 真读文件的行为级（拒 + 反向对照）③ 素材规则接线。
+// ─────────────────────────────────────────────────────────────────────────────
+
+await t('N1 旁挂身份判据表：任一把锁对上就认，四把全不成立就拒（含反向对照）', async () => {
+  const { identityVerdict } = await import('./agent/tools.mjs');
+  const { createHash } = await import('node:crypto');
+  // ⚠️ 这两个时刻必须**离开 2 秒容差**再判：新鲜度判据是 `at >= sinceMs - 2000`
+  //   （链与守衡之间有一次 run 的时差）。第一版我把 since 写 1000ms、stale 写 500ms ——
+  //   差 500ms **在容差之内**，于是「过期旁挂」用例喂的其实是一份新鲜旁挂，
+  //   断言红在**我的样本**上，不是判据上。（同一个形状：样本错了，判据是对的。）
+  const since = 10_000;
+  const fresh = new Date(11_000).toISOString();       // 晚于起链 ⇒ 新鲜
+  const stale = new Date(1_000).toISOString();        // 早于起链 9 秒 ⇒ 超出容差
+  const text = '【图片 1 的图内文字（本机 OCR）】\nmomcozY';
+  const full = createHash('sha256').update(text, 'utf8').digest('hex');
+  const sha8 = full.slice(0, 8);
+  const want = { token: `/tmp/shouheng-material-${sha8}-abc.txt`, sha8, full,
+                 cid: `AUTO-${full.slice(0, 12)}` };
+  const A = (o) => identityVerdict({ sinceMs: since, at: fresh, ...o });
+
+  // ① ★ 反向对照：**本单自己的旁挂必须认** —— 连这一档都拒，闸门就是一块砖头
+  const own = A({ want, got: { sha8 } });
+  assert.strictEqual(own.accept, true, `本单的旁挂被拒了（闸门成砖头）：${JSON.stringify(own)}`);
+  assert.strictEqual(own.level, '文本指纹', '认下来靠的应该是文本指纹这一级');
+  // ② 令牌相符即认（同一内容换句话问，仍是同一内容）
+  assert.strictEqual(A({ want, got: { token: want.token, sha8: 'ffffffff' } }).accept, true,
+    '令牌相符却没认');
+  // ③ 内容指纹（全值）相符即认 —— 引擎 JSON 那一侧走的就是它
+  assert.strictEqual(A({ want, got: { full } }).accept, true, '内容指纹相符却没认');
+  // ④ ★★ 本单的形状：旁挂是**别人那一单**的 ⇒ 必须拒
+  const foreign = A({ want, got: { token: '', sha8: '6aeaf105', cid: 'AD-20261015-001' } });
+  assert.strictEqual(foreign.accept, false,
+    `别人的旁挂被采纳了（这正是 10-15 那次串单）：${JSON.stringify(foreign)}`);
+  // ⑤ 反向对照：**不新鲜时即便指纹相符也不认** —— 时间口径是必要条件，不是充分条件
+  assert.strictEqual(identityVerdict({ sinceMs: since, at: stale, want, got: { sha8 } }).accept, false,
+    '过期旁挂被采纳了');
+});
+
+await t('N2 行为级·真读文件：别人的旁挂/引擎 JSON 拒收，本单的采纳（+ 素材规则接线）', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const { createHash } = await import('node:crypto');
+  const os = await import('node:os');
+  const pathMod = await import('node:path');
+
+  const tmp = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'shouheng-sidecar-'));
+  const work = pathMod.join(tmp, 'kb', '.work');
+  fs.mkdirSync(work, { recursive: true });
+  fs.mkdirSync(pathMod.join(tmp, 'kb', 'l8'), { recursive: true });
+  fs.writeFileSync(pathMod.join(tmp, 'kb', 'l8', 'review_playbook.md'), 'PLAYBOOK-SENTINEL\n');
+
+  const text = '【图片 1 的图内文字（本机 OCR）】\nmomcozY';
+  const full = createHash('sha256').update(text, 'utf8').digest('hex');
+  const sha8 = full.slice(0, 8);
+
+  // 桩 dsh：链那一跳只回一句回答（这一条验的是**身份判定那一跳**，不是链本身）。
+  //   顺手把收到的 task 落一份 —— 素材规则接线那两条断言靠它。
+  const taskOut = pathMod.join(tmp, 'task.txt');
+  const stub = pathMod.join(tmp, 'stub-dsh.mjs');
+  fs.writeFileSync(stub,
+    "import fs from 'node:fs';\n"
+    + 'fs.writeFileSync(process.env.STUB_TASK_OUT, process.argv.slice(2).join("\\n"));\n'
+    + "console.log('状态：REVIEW ｜ 问题数：1');\n");
+
+  const run = ({ sidecar, engine }) => {
+    fs.writeFileSync(pathMod.join(work, 'last_review_result.json'), JSON.stringify(sidecar));
+    const ep = pathMod.join(work, 'last_engine_out.json');
+    if (engine) fs.writeFileSync(ep, JSON.stringify(engine));
+    else { try { fs.unlinkSync(ep); } catch { /* 本来就没有 */ } }
+    const script = `
+      const { executeTool } = await import(${JSON.stringify(new URL('./agent/tools.mjs', import.meta.url).href)});
+      const r = await executeTool('kb_review_chain', ${JSON.stringify({ question: '审一下这张图', text })});
+      const res = r.result ?? {};
+      console.log('RESULT ' + JSON.stringify({ ok: r.ok, hasReview: !!res.review,
+        issueCount: res.review?.issue_count ?? null, hasEngine: !!res.engine, err: res.error ?? null }));
+    `;
+    const r = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+      encoding: 'utf8', timeout: 60_000,
+      env: { ...process.env, SHOUHENG_STATE_DIR: tmp, SHOUHENG_KB_ROOT: tmp,
+             SHOUHENG_DSH_BIN: stub, STUB_TASK_OUT: taskOut, SHOUHENG_REVIEW_TABLE: 'off' },
+    });
+    return `${r.stdout ?? ''}\n${r.stderr ?? ''}`;
+  };
+  const resOf = (out) => {
+    const m = out.match(/RESULT (\{.*\})/);
+    assert.ok(m, `没拿到 RESULT —— 子进程没跑到底：\n${out.slice(-500)}`);
+    return JSON.parse(m[1]);
+  };
+  const ownSidecar = () => ({ at: new Date().toISOString(), base: 'TEST-OWN', text_sha8: sha8,
+    review_token: '', state: 'REVIEW', issue_count: 1 });
+  const foreignSidecar = () => ({ at: new Date().toISOString(), base: '20261015-1754',
+    text_sha8: '6aeaf105', review_token: '', content_id: 'AD-20261015-001',
+    state: 'REVIEW', issue_count: 1 });
+  const ownEngine = () => ({ decision: { content_version: full, content_id: 'AD-test', review_id: 'rv-test' } });
+  const foreignEngine = () => ({ decision: { content_version: '6aeaf105'.padEnd(64, '0'),
+    content_id: 'AD-20261015-001', review_id: 'rv-20261015-175442' } });
+
+  try {
+    // ① ★ 别人的旁挂 ⇒ 拒收，而且**不许把别人的条数带出来**（这就是那次串单的形状）
+    let out = run({ sidecar: foreignSidecar(), engine: null });
+    assert.ok(/不是本单的 ⇒ 拒收/.test(out), `没拒收别人的旁挂：\n${out.slice(-500)}`);
+    let res = resOf(out);
+    assert.strictEqual(res.hasReview, false, '别人的旁挂被当成本单带出去了');
+    assert.strictEqual(res.issueCount, null, '别人的条数不许出现在本单的读数里');
+
+    // ② ★ 反向对照：**本单的旁挂必须采纳**（否则每一单都掉库侧读数）
+    out = run({ sidecar: ownSidecar(), engine: null });
+    res = resOf(out);
+    assert.ok(/旁挂身份对齐/.test(out), `本单的旁挂没认出来：\n${out.slice(-500)}`);
+    assert.strictEqual(res.hasReview, true, '本单的旁挂被拒了（闸门成砖头）');
+    assert.strictEqual(res.issueCount, 1, `本单的条数没带出来：${JSON.stringify(res)}`);
+
+    // ③ 引擎 JSON 走同一条纪律（它此前**只核新鲜、没核身份**）
+    res = resOf(run({ sidecar: ownSidecar(), engine: foreignEngine() }));
+    assert.strictEqual(res.hasEngine, false, `别人的引擎 JSON 被采纳了：${JSON.stringify(res)}`);
+    res = resOf(run({ sidecar: ownSidecar(), engine: ownEngine() }));
+    assert.strictEqual(res.hasEngine, true, '本单的引擎 JSON 被拒了（闸门成砖头）');
+
+    // ④ 接线：素材规则必须**排在 playbook 之前**，且必须带着 `--material-file <路径>`
+    const task = fs.readFileSync(taskOut, 'utf8');
+    const mp = task.match(/\/tmp\/shouheng-material-[0-9a-f]{8}-[0-9a-z]+\.txt/);
+    assert.ok(mp, `任务文本里没有素材文件路径 ⇒ 链拿不到 --material-file：\n${task.slice(0, 400)}`);
+    assert.ok(task.includes(`--material-file ${mp[0]}`), '任务文本里没把 --material-file 与路径写在一起');
+    assert.ok(task.indexOf(mp[0]) < task.indexOf('PLAYBOOK-SENTINEL'),
+      '素材规则排到了 playbook 之后 —— 位置就是权重，这次修的就是它');
+    // ⑤ 用后即删（素材是客户内容，不许留在 /tmp）
+    assert.ok(!fs.existsSync(mp[0]), `素材文件没用后即删：${mp[0]}`);
+  } finally {
+    try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* 收尾失败不影响断言 */ }
+  }
+});
+
 // 汇总必须放在**所有**分组之后（2026-10-09 修：中间那两块重复的汇总+exit
 // 让「第 27 组」与「第 33 组」**从没被执行过**，而合计照样印得像全绿）。
 console.log(`\n═══ 合计：通过 ${pass} / 失败 ${fail} ═══`);

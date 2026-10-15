@@ -32,6 +32,12 @@ const REAL_BEFORE = realStat();
 const lw = await import('./lark_write.mjs');
 const rp = await import('./review_publish.mjs');
 
+/** 4b 用的「两侧合并置信度」样本（形状 = `dual_track.mergedConfidence()` 的产物）。 */
+const MERGED_CONF = Object.freeze({
+  value: 0.85, band: 'confirm', kb_band: 'direct', model_band: 'confirm',
+  basis: '两侧按 PRD §6.6 三档取更保守一侧：模型侧拉低（库侧 direct ／ 模型侧 confirm）',
+});
+
 let nPass = 0; const fails = [];
 const ta = async (name, fn) => {
   try { await fn(); nPass += 1; console.log(`  ✅ ${name}`); }
@@ -123,10 +129,26 @@ t('内容 ID = AUTO-<sha256(送审文本去尾空白) 前 12 位>，与链算的
   eq(rp.contentIdOf(''), null, '空文本没有内容 ID');
 });
 
-t('结论 → 状态：三态照搬，「拒答/未测/空」一律落「待审」', () => {
-  eq(rp.statusOf('BLOCK'), 'BLOCK'); eq(rp.statusOf('REVIEW'), 'REVIEW'); eq(rp.statusOf('PASS'), 'PASS');
-  eq(rp.statusOf('NEEDS_INPUT'), '待审', '拒答必须落「待审」—— PRD 六档里没有「拒答」');
+t('结论 → 状态：**三态不许进这一格**，机器只落「待审」（PRD §8.2 逐字）', () => {
+  // ★★ 2026-10-15（Owner）：「状态按照 prd：待审 / 已修改 / 已发布，现在填的错的」。
+  //   PRD §8.2 逐字：「… Agent 结论、置信度、问题数量、问题分类汇总、报告链接 /
+  //   人工复核人、复核结论、sign-off 人、发布时间 / **状态：待审 / 已修改 / 已发布**」
+  //   ⇒ 三态是 `Agent 结论` 的值域。旧断言把错的行为钉住了（`statusOf('BLOCK')==='BLOCK'`），
+  //     所以这条**必须与实现一起改** —— 否则判据本身在保护缺陷。
+  eq(rp.statusOf('BLOCK'), '待审', '三态不许进「状态」——它是 `Agent 结论` 的值域');
+  eq(rp.statusOf('REVIEW'), '待审'); eq(rp.statusOf('PASS'), '待审');
+  eq(rp.statusOf('NEEDS_INPUT'), '待审', '拒答/未测/空同样落「待审」—— 它们都还没有定论，等人');
   eq(rp.statusOf(null), '待审'); eq(rp.statusOf('未测'), '待审');
+  // **反向对照**：把结论原样返回（旧实现）⇒ 上面第一条必须不成立。没有它，
+  //   这条判据可能只是「所有输入都给待审」的恒真式，看不出实现是否又改回三态。
+  const asOld = (c) => (String(c ?? '').toUpperCase().includes('BLOCK') ? 'BLOCK' : '待审');
+  ok_(asOld('BLOCK') !== rp.statusOf('BLOCK'), '旧实现（三态照搬）必须与现实现给出不同的值');
+});
+
+t('「状态」的人设终态受保护：已修改 / 已发布 不许被机器改回「待审」', () => {
+  eq(rp.HUMAN_TERMINAL_STATUS, ['已修改', '已发布'], '终态清单就是 PRD 三档里机器不拥有的那两档');
+  ok_(rp.HUMAN_TERMINAL_STATUS.includes('已发布') && !rp.HUMAN_TERMINAL_STATUS.includes('待审'),
+      '「待审」是机器的档位，不能被当成终态挡住（第一次送审必须能落上）');
 });
 
 t('从链的回答里抽结论：抽不到就回 null，**不猜**', () => {
@@ -229,7 +251,8 @@ await ta('★ 结论派生列：**值变了就要改写**（不许定格在第�
   eq(patch['问题数量'], 3, '问题数量跟着本轮结论走');
   eq(patch['置信度'], 1, '置信度跟着本轮结论走');
   eq(patch['问题分类汇总'], '命中 S-1.2 / S-2.1', '汇总列必须换成本轮那份');
-  eq(patch['状态'], 'BLOCK', '状态照旧跟着结论走');
+  eq(patch['状态'], '待审',
+     '**状态不跟结论走**：PRD §8.2 的三档里机器只拥有「待审」；三态只进 `Agent 结论`');
   // 反向对照：**非**派生列照旧只补空 —— 报告链接只该被写一次（复跑不许把旧链接改掉）
   ok_(!('报告链接' in patch), '报告链接不是派生列：已有值 ⇒ 不许改写（否则复跑会把旧链接换掉）');
   ok_(!('内容 ID' in patch) && !('送审问题' in patch), '内容 ID / 送审问题照旧只补空');
@@ -240,7 +263,7 @@ await ta('反向对照·结论派生列**同值不写**：一次「什么都没�
   const rows = [{ record_id: 'recSAME', fields: {
     '写入时间': Date.now(), '送审问题': '审一下这张图能过吗？',
     '内容 ID': rp.contentIdOf(IMG_TEXT),
-    'Agent 结论': 'REVIEW', '问题数量': 2, '状态': 'REVIEW',
+    'Agent 结论': 'REVIEW', '问题数量': 2, '状态': '待审',   // 机器档位；库里已是本轮该写的值
   } }];
   const { sent } = install({ rows });
   const r = await rp.ensureReviewRow({
@@ -249,6 +272,33 @@ await ta('反向对照·结论派生列**同值不写**：一次「什么都没�
   }, { since: Date.now() - 60_000, question: '审一下这张图能过吗？' });
   eq(r.action, 'unchanged', `同值（'2' 与 2 也算同值）不许产生写入，实际 ${r.action}`);
   ok_(!sent.updated, '一次 API 都不该发');
+});
+
+await ta('★ 「状态」的人设终态受保护：已修改 / 已发布 不许被机器改回「待审」', async () => {
+  const rows = [{ record_id: 'recHUMAN', fields: {
+    '写入时间': Date.now(), '送审问题': '审一下这张图能过吗？',
+    '内容 ID': rp.contentIdOf(IMG_TEXT),
+    'Agent 结论': 'REVIEW', '问题数量': 2, '状态': '已发布',   // ← 人已经处理完了
+  } }];
+  const { sent } = install({ rows });
+  const r = await rp.ensureReviewRow({
+    contentId: rp.contentIdOf(IMG_TEXT), question: '审一下这张图能过吗？',
+    conclusion: 'REVIEW', issueCount: 2,
+  }, { since: Date.now() - 60_000, question: '审一下这张图能过吗？' });
+  const patch = (sent.updated ?? [])[0]?.fields ?? {};
+  ok_(!('状态' in patch), '「已发布」是人的终态 ⇒ 机器再送审一次也不许把它改回「待审」');
+  eq(r.action, 'unchanged', '除了状态没别的可写 ⇒ 这一轮不该产生写入');
+
+  // **反向对照**：把库里换成「待审」（机器的档位）⇒ 同一套输入**必须**照旧能写
+  //   （否则「保护终态」会顺手把「第一次送审落状态」也挡掉）。
+  const rows2 = [{ record_id: 'recWAIT', fields: { ...rows[0].fields, '状态': '待审', '问题数量': 1 } }];
+  const inst2 = install({ rows: rows2 });
+  const r2 = await rp.ensureReviewRow({
+    contentId: rp.contentIdOf(IMG_TEXT), question: '审一下这张图能过吗？',
+    conclusion: 'REVIEW', issueCount: 2,
+  }, { since: Date.now() - 60_000, question: '审一下这张图能过吗？' });
+  eq(r2.action, 'updated', '库里是「待审」时，本轮该写的东西照旧要写');
+  ok_(inst2.sent.updated?.length === 1, '反向对照必须真的发生过一次写入');
 });
 
 await ta('结论派生列的名单本身受判据守着（漏一个就是一类卡住的行）', () => {
@@ -376,8 +426,109 @@ t('落库字段：文本格摘掉 `**`，数字与链接格一个都不动', () 
   ok_(String(f['问题分类汇总']).includes('逐条依据'), '`**逐条依据**` 要变成 `逐条依据`，不是被删掉');
 });
 
-/* ─────────────────────────── 4. 自证自身无副作用 ─────────────────────────── */
-console.log('\n═══ 4. 自证自身不许有副作用 ═══');
+/* ───────────────── 4b. 两侧合并置信度的**两格豁免**（Owner 2026-10-15）─────────────────
+ *
+ * 为什么非钉不可：这两格是拿 **80 行真数据**核出来的 ——
+ *   · **12 行是 P0 命中**：PRD §6.6 逐字「P0 层级规则**不适用置信度分流**，命中即 BLOCK」
+ *     ⇒ 本库口径是 **1.0**。不守这一格 ⇒ 它们会被合并数降成 0.93（"确定性命中"被写成"还有不确定"）。
+ *   · **40 行是 `0`**（引擎未做判定）：`0` 在本库有专门语义 =「**没有做出判定**」，不是零风险。
+ *     拿模型侧的数去顶它 = 给一个**根本没有结论**的单子配一个"确定性"。
+ * ★ 反向对照也在下面：普通单不给合并数时，**不许**变成 0.85（否则这条判据可能只是"所有输入都改"）。
+ */
+console.log('\n═══ 4b. 两侧合并置信度：P0 与拒答两格豁免 ═══');
+t('D1 普通评审单（非 P0、非拒答）⇒ 用两侧合并数', () => {
+  const r = rp.machineNumbers({ review: { issue_count: 3, confidence: 0.95 } }, 'REVIEW', MERGED_CONF);
+  eq(r.confidence, 0.85, '普通单必须采用两侧合并数');
+  ok_(/两侧合并/.test(r.note), '填了合并数就必须同时填口径说明');
+});
+t('D2 ★ P0 命中 ⇒ **不许**被合并数覆盖（PRD §6.6 不适用分流）', () => {
+  const r = rp.machineNumbers({ p0_fastpath: true, confidence: 1.0 }, 'BLOCK', MERGED_CONF);
+  eq(r.confidence, 1, 'P0 命中的置信度是确定性命中（本库口径 1.0），不许降成 0.93/0.85');
+  ok_(/P0 不适用置信度分流/.test(r.note), '豁免必须写明理由，否则读表的人以为算错了');
+});
+t('D3 ★ 拒答/未判 ⇒ **不许**被合并数覆盖（0 = 没有做出判定）', () => {
+  const r = rp.machineNumbers({ review: { issue_count: 0, confidence: null } }, 'NEEDS_INPUT', MERGED_CONF);
+  eq(r.confidence, 0, '拒答态没有可分流的结果，不许拿模型侧的数去顶');
+  ok_(/未做判定/.test(r.note), '0 的含义必须自带解释（不能读成"零风险"）');
+});
+t('D4 ★★ 反向对照：普通单**不给**合并数时不许变成 0.85（否则 D1 只是"所有输入都改"）', () => {
+  const r = rp.machineNumbers({ review: { issue_count: 3, confidence: 0.95 } }, 'REVIEW');
+  eq(r.confidence, 0.95, '不给合并数 ⇒ 必须逐字回落旧口径（向后兼容，老调用点一行不改）');
+});
+/* ── 4b2. **覆盖缺口不是拒答**（2026-10-15 修；两行真数据逼出来的）────────────────────────
+ * 形状：顶层 `state = REVIEW` ＋ **依据侧**记了 `refusal`（`coverage_not_covered`）。
+ *   库侧**没给** confidence（拒答分支写 None），模型侧给了 ⇒ `mergedConfidence()` 已经按
+ *   「一侧没给就用另一侧」算出合并数。旧判据 `!!rev?.refusal` 把它当"没判定" ⇒ **丢掉合并数写 0**。
+ * 实测两行（同一批 10 行）：
+ *   · `MC-US-YT-RLF9-789hh8-WEN`：打印 置信度(两侧合并)=0.85 [confirm]（库侧 — / 模型侧 confirm）⇒ 表里 0
+ *   · `MC-US-YT-_xyLF4_AgAw`   ：打印 置信度(两侧合并)=0.93 [direct]（库侧 — / 模型侧 direct）   ⇒ 表里 0
+ * 与 `dual_track.mjs::kbSideOf` 的 2026-10-07 口径一致：**判拒答只认顶层 `state`**。
+ * ★ 变异自证：把 `review_publish.mjs` 的 `refused` 改回 `state === 'NEEDS_INPUT' || !!rev?.refusal`
+ *   ⇒ **D7 精确变红**（合并数被丢掉、写成 0）；D7b 守着另一头（真拒答不许被顶掉）。 */
+t('D7 ★ 覆盖缺口（顶层 REVIEW ＋ refusal 有值）⇒ 必须用两侧合并数，不是 0', () => {
+  const res = { review: { issue_count: 6, confidence: null,
+    refusal: { state: 'NEEDS_INPUT', reason_code: 'coverage_not_covered' } } };
+  const r = rp.machineNumbers(res, 'REVIEW', { ...MERGED_CONF, kb_band: null, value: 0.85 });
+  eq(r.confidence, 0.85, '库侧没给置信度、模型侧给了 ⇒ 用合并数（Owner：两侧汇总成一个输出）');
+  ok_(/coverage_not_covered/.test(r.note), '覆盖缺口是**原因码**，要如实写进口径说明');
+  ok_(/不算拒答/.test(r.note), '必须写明「顶层不是拒答 ⇒ 合并数照用」，否则读表的人以为漏了覆盖缺口');
+});
+t('D7b ★★ 反向对照：**真拒答**（顶层 NEEDS_INPUT）＋ refusal ⇒ 仍然不许被合并数顶掉', () => {
+  const res = { review: { issue_count: 0, confidence: null,
+    refusal: { state: 'NEEDS_INPUT', reason_code: 'claim_busy' } } };
+  const r = rp.machineNumbers(res, 'NEEDS_INPUT', MERGED_CONF);
+  eq(r.confidence, 0, '顶层就是拒答 ⇒ 0（没有可分流的结果），不许拿模型侧的数去顶');
+});
+
+/* ── 4c. 「这个数未标定」必须**写在产出它的地方**（Owner 2026-10-15 裁 ①）───────────────
+ * 为什么非钉不可：那张表是**机器逐行重写**的（批跑器把结论表的汇总整格抄进采集表，
+ *   实测 2026-10-15 一小时重写 28 行）⇒ 表里手改一句标注会被下一次回填**抹掉**。
+ *   写在代码里，才每行、每轮都自带。
+ * 变异自证：把 `CONF_UNCALIBRATED` 从两处注记里删掉 ⇒ **D1b / D5 精确变红**。
+ */
+console.log('\n═══ 4c. 置信度「未标定」声明（不得用作分流依据）═══');
+t('D1b 用了两侧合并数 ⇒ 注记必须带「未标定 / 不得用作分流依据」', () => {
+  const r = rp.machineNumbers({ review: { issue_count: 3, confidence: 0.95 } }, 'REVIEW', MERGED_CONF);
+  ok_(/未标定/.test(r.note), '标定结论必须跟着数走，否则读表的人以为这个数很硬');
+  ok_(/不得用作分流依据/.test(r.note), '★ 这句是 Owner 裁定的口径，不许省');
+});
+t('D5 库侧单轨（无合并数、引擎给了数）⇒ **也要**带这句，不许出现"裸数"', () => {
+  const r = rp.machineNumbers({ review: { issue_count: 3, confidence: 0.95 } }, 'REVIEW');
+  eq(r.confidence, 0.95, '值照旧回落（与 D4 同一条）');
+  ok_(/未标定/.test(r.note) && /不得用作分流依据/.test(r.note), '库侧单轨那个数同样没标定 ⇒ 必须自带声明');
+});
+t('D5b 反向对照：P0 / 拒答两格**不许**被套上这句（它们不是两侧合并数，另有 PRD 口径）', () => {
+  const p0 = rp.machineNumbers({ p0_fastpath: true, confidence: 1.0 }, 'BLOCK', MERGED_CONF);
+  ok_(!/未标定/.test(p0.note), 'P0 的 1.0 是 PRD §6.6 明文口径，不是"未标定的合并数"');
+  const rf = rp.machineNumbers({ review: { issue_count: 0, confidence: null } }, 'NEEDS_INPUT', MERGED_CONF);
+  ok_(!/未标定/.test(rf.note), '拒答的 0 有专门语义（没有做出判定），别混进这句');
+});
+
+/* ── 4d. F1：`Number(null) === 0` —— 「**没有**合并数」不许被当成「置信度 0」（2026-10-15）─────
+ * 来由：F1 让 `mergedConfidence` 在**库侧没有读数**时返回 `value: null`（不出这个数）。
+ *   而旧写法 `Number(mergedConf?.value)` 把 null 变成 **0**、`Number.isFinite(0)` 为真
+ *   ⇒ 表里落一个 0、注记却写「档位 —」。这是本库栽过的同一类陷阱（见 `bandOf` 的注释），
+ *   换了个变量名又长了一次。
+ * 变异自证：把守卫退回 `Number(mergedConf?.value)` ⇒ D6 **精确变红**（落 0 且带"两侧合并"注记）。
+ */
+console.log('\n═══ 4d. F1：没有合并数 ≠ 置信度 0 ═══');
+const NO_READING = Object.freeze({ value: null, band: null, kb_band: null, model_band: 'direct',
+  basis: '库侧没有置信度读数（拒答/覆盖缺口/未测）⇒ 不出这个数；模型侧单轨不构成置信度' });
+t('D6 ★ 合并数是 null（库侧没读数）⇒ 不许落 0＋「两侧合并」注记，必须走"没有读数"那条', () => {
+  const r = rp.machineNumbers({ review: { issue_count: 0, confidence: null } }, 'REVIEW', NO_READING);
+  eq(r.confidence, 0, '没有可用的数 ⇒ 按本库口径记 0（0 = 没有做出判定）');
+  ok_(!/两侧合并 · 档位/.test(r.note), '★ 没有数就不许出现"档位 —"那种自相矛盾的注记');
+  ok_(/置信度按 \*\*0\*\* 记/.test(r.note), '0 必须自带解释，否则会被读成"零风险"');
+});
+t('D6b 反向对照：合并数缺失、但**引擎给了数** ⇒ 照旧用引擎那个数（守卫不许一刀切）', () => {
+  const r = rp.machineNumbers({ review: { issue_count: 3, confidence: 0.95 } }, 'REVIEW', NO_READING);
+  eq(r.confidence, 0.95, '引擎有读数时照旧回落，不许因为合并数缺失就把 0.95 抹成 0');
+  ok_(!/两侧合并 · 档位/.test(r.note), '没用合并数就不许写"两侧合并"');
+  ok_(/不得用作分流依据/.test(r.note), '回落出来的数同样未标定 ⇒ 仍要自带声明');
+});
+
+/* ─────────────────────────── 5. 自证自身无副作用 ─────────────────────────── */
+console.log('\n═══ 5. 自证自身不许有副作用 ═══');
 t('C1 真留痕文件在这次运行前后**没被动过**', () => {
   eq(realStat(), REAL_BEFORE, '自证写了真台账 —— 那等于跑一次自证就改掉了它要保护的东西（§2.4.4）');
 });

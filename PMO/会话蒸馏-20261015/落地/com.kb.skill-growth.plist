@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  com.kb.skill-growth：知识库 skill「自生长」的消费端（每日 04:10）
+
+  跑什么：kb/l8/skill_growth.py （带 apply 档）
+  护栏（写在 kb/l7/registry/skill-growth.yaml，不由本文件管）：
+    · 只追加 references/ 两个文件；SKILL.md 的 frontmatter / 触发词 / 正文机器一律不许改
+    · 每条依据指针必须逐字回源，一条不过整轮不写
+    · 写完跑 skills_check，第 3 类不为 0 就整轮回滚
+  时序：生产端 com.kb.session-distill 在 03:50，本作业在 04:10（必须先生产后消费）。
+  退出码：0=长过或没得长 ｜ 1=有红（已回滚）｜ 2=未测（读不到候选包或政策）
+
+  ★ 本文件曾因注释里写了带双连字符的命令行参数而**不是合法 XML**（XML 注释里禁用双连字符），
+    而它当时仍出现在 launchctl list 里（旧实例残留）—— 一个解析不了的 plist 看起来是「在册的」。
+    改本文件后必须 `plutil -lint` 一次。
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.kb.skill-growth</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>-c</string>
+    <string>cd "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理" &amp;&amp; exec ./kb/kbpy l8/skill_growth.py --apply</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict><key>Hour</key><integer>4</integer><key>Minute</key><integer>10</integer></dict>
+  <key>RunAtLoad</key><false/>
+  <key>StandardOutPath</key><string>/Users/lute/Library/Logs/kb-skill-growth/out.log</string>
+  <key>StandardErrorPath</key><string>/Users/lute/Library/Logs/kb-skill-growth/err.log</string>
+  <key>ThrottleInterval</key><integer>300</integer>
+  <key>KeepAlive</key><false/>
+</dict>
+</plist>

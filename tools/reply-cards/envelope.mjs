@@ -1546,6 +1546,25 @@ function machineAnswerFold(kind, data, verdict53) {
       const cut = after.split(line53).join('').replace(/\n{3,}/g, '\n\n').trim();
       if (cut) after = cut;
     }
+    // ★★ 2026-10-15（真单 `MC-US-YT-_xyLF4_AgAw-IMG`，Owner 报「格式跟 prd 不符」）：
+    //   **过期的结论行也必须摘掉** —— 不只是「权威那一行印了两遍」这一种。
+    //   病灶：那一轮模型转录的是**当时的旧读数**（`【审查结论：REVIEW】共发现 1 处需人工确认。`），
+    //   而权威结论行现在是 §5.3.1 的一句 **PASS**（Owner：「没有命中就是 pass」）
+    //   ⇒ 同一张卡上**两个互相打架的三态**。这与 FIX-009 是同一条口径：
+    //   **三态只许出现在结论行一处**（逐条里挂「判定：REVIEW」当年也是这么被判红的）。
+    //   ⚠️ 摘的是**结论行那几行字**，不是「模型的话」：它本来就是**我们读数**的转述
+    //     （`machineAnswer` 声明的就是这一件事），原文仍在会话记忆里 —— 一个字没丢。
+    //   ★ 同一把尺子再往前一步：**光秃秃的三态重述**（`REVIEW：1 处＝…` 这种，
+    //     连 `【审查结论】` 标记都不带的）也是同一件事 —— 它是模型对我们读数的**转述**，
+    //     而权威那一行已经把态说死了（真单那一条正是 `REVIEW：1 处＝覆盖缺口本身…`，
+    //     挂在 PASS 抬头下面）。判据形状**收得很紧**：必须是**行首的三态词紧跟冒号**，
+    //     免得误伤「REVIEW 那一档要人看」这类正常句子里提到三态词的话。
+    const STALE_STATE_RE = /^\s*(?:【审查结论\s*[：:]|(?:PASS|REVIEW|BLOCK|NEEDS_INPUT)\s*[：:])/;
+    if (STALE_STATE_RE.test(after)) {
+      const kept = after.split('\n').filter((l) => !STALE_STATE_RE.test(l));
+      // 整格都是这些 ⇒ 摘空（下面那条分支会把这格摘空并留痕，不会留一个空组）
+      after = kept.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    }
     if (after === before.trim()) continue;
     // ★ 折进卡面的**只有真内容**：`（未填）` 这类占位符、以及摘完剩下的**短残句**
     //   （`< 12` 字、且整格已无实质内容时），折进去只是把噪声换个地方显示

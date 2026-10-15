@@ -151,8 +151,136 @@ export function orderLocalesByText(sample, { min = 20 } = {}) {
 const ASR_TIMEOUT_MS = 90_000;
 /** 结果文件轮询间隔 */
 const POLL_MS = 120;
-/** 音频文件上限：飞书侧视频最大 100MB，这里再收一道，防一次转写把内存打满。 */
-const MAX_AUDIO_BYTES = 200 * 1024 * 1024;
+/**
+ * 音频文件上限。
+ *
+ * ★ 2026-10-14：200MB → 1GiB。**旧值会先于时长闸门把长视频拦掉**：
+ *   `video.mjs` 的转写上限现在是 7200s（2h），而它抽出来的是 22.05k/mono/s16 wav
+ *   ＝ 44100 B/s ⇒ 2h ＝ **317MB** > 200MB ⇒ 会在 `transcribe()` 第一步就回 `too_large`，
+ *   两条闸门自相矛盾（一条放行、另一条拦下），且报出来的原因是「文件太大」而非「太长」。
+ *   放宽是安全的：切段之后**同一时刻只有一个 ≤300s 的片段在内存里**，
+ *   而这个上限再也起不到「防内存打满」的作用了 —— 它现在只挡明显荒谬的输入。
+ */
+const MAX_AUDIO_BYTES = 1024 * 1024 * 1024;
+
+/**
+ * 单段音频的秒数上限（长音频切段用）。
+ *
+ * ★★ 2026-10-14（Owner：「必须 asr 跑视频」）—— 长视频**必须切段**，整条塞进去一个字都回不来。
+ *
+ *   病灶在二进制里，不在这个文件里：`base/asr_speech.m:153` 写死一个 **120 秒**的墙钟 deadline，
+ *   到点就回 `{"ok":false,"error":"timeout"}`。本机实测（两条真视频、同一台机器）：
+ *     · 669.5s 音轨 ⇒ zh-CN 撞死在 120s；**en-US 20.3s 转完**（≈33× 实时）⇒ 成功；
+ *     · 3420.0s 音轨 ⇒ zh-CN 120s 撞死、**en-US 也 120s 撞死** ⇒ 整条 57 分钟一个字都没转出来。
+ *   ⇒ 失败的原因不是「识别不了这么长」，是「**一次塞太多，应用自己先超时**」。
+ *
+ *   为什么不直接改那个 deadline：`asr_speech.m` 一重编就换 cdhash，TCC 那条语音授权随之失效，
+ *   下一次识别会挂在那儿等人点弹窗（见文件头 ③，那是**已经踩过**的坑）。
+ *   ⇒ 改在 JS 侧按 PCM 切段：**零重编、零重新授权**，也不碰任何系统权限。
+ *
+ *   为什么是 300s：按实测 33× 实时，一段 300s 只要 ~9s；就算与别的活抢 CPU 掉到 5× 也才 60s，
+ *   离那个 120s deadline 还有一倍余量。57 分钟 ⇒ 12 段 ⇒ 额外开销只有十几次 `open`。
+ */
+export const ASR_CHUNK_SECONDS = 300;
+
+/* ─────────────── 长音频切段：纯 JS 切 PCM（**不动二进制**）───────────────
+ *
+ * ⚠️ 只读文件头，**不把整个 wav 读进内存** —— 143MB 的 wav 正是要避开的形状。
+ *   先读前 64KB，从中认出 `fmt `（声道/采样率/位深）与 `data`（起始偏移/字节数）。
+ * ⚠️ 认不出标准 PCM 布局就回 `null` ⇒ 调用方按**整条**走（行为与改动前逐字一致）。
+ *   **不许猜**：把 gzip 过的 aiif 当成线性 PCM 去切，出来的是噪声，而噪声会被当成
+ *   「转写结果」往下走 —— 那比「没转成」坏得多。
+ */
+
+/**
+ * 认出 wav 的 PCM 布局。认不出回 `null`。
+ * @param {number} fd 已打开的文件描述符
+ */
+export function readWavLayout(fd) {
+  const head = Buffer.alloc(65536);
+  let n = 0;
+  try { n = fs.readSync(fd, head, 0, head.length, 0); } catch { return null; }
+  if (n < 44) return null;
+  if (head.toString('ascii', 0, 4) !== 'RIFF' || head.toString('ascii', 8, 12) !== 'WAVE') return null;
+  let off = 12, fmt = null, data = null;
+  while (off + 8 <= n) {
+    const id = head.toString('ascii', off, off + 4);
+    const sz = head.readUInt32LE(off + 4);
+    const body = off + 8;
+    if (id === 'fmt ' && body + 16 <= n) {
+      fmt = { channels: head.readUInt16LE(body + 2), sampleRate: head.readUInt32LE(body + 4),
+              bits: head.readUInt16LE(body + 14) };
+    } else if (id === 'data') { data = { off: body, size: sz }; }
+    if (fmt && data) break;
+    off = body + sz + (sz % 2);   // RIFF 的块按偶数字节对齐
+  }
+  if (!fmt || !data) return null;
+  if (!fmt.channels || !fmt.sampleRate || !fmt.bits || fmt.bits % 8) return null;
+  // ⚠️ 头里写的 `data` 长度**不许直接信**：流式写出来的 wav 常把它写成 `0xFFFFFFFF`
+  //   （「还不知道多长」的意思）。照着切会凭空产生成百上千个空片段，
+  //   而每一段都要 `open -n` 起一次识别进程 —— 那不是慢，是把机器拖死。
+  //   ⇒ 按**真实文件长度**截住；截过就标出来（`size_clamped`），不静默。
+  let fileSize = 0;
+  try { fileSize = fs.fstatSync(fd).size; } catch { fileSize = 0; }
+  const avail = fileSize > data.off ? fileSize - data.off : data.size;
+  const sizeClamped = fileSize > 0 && data.size > avail;
+  const dataSize = sizeClamped ? avail : data.size;
+  const frameBytes = fmt.channels * (fmt.bits / 8);
+  const byteRate = frameBytes * fmt.sampleRate;
+  return { ...fmt, frameBytes, byteRate, dataOff: data.off, dataSize,
+           size_clamped: sizeClamped, declared_size: data.size,
+           seconds: dataSize / byteRate };
+}
+
+/** 从 `srcFd` 的 `[startByte, startByte+bytes)` 切出一段**自带头**的 wav（头按同一布局重写）。 */
+function writeWavSlice(srcFd, lay, startByte, bytes, outPath) {
+  const buf = Buffer.alloc(bytes);
+  let got = 0;
+  while (got < bytes) {
+    let r = 0;
+    try { r = fs.readSync(srcFd, buf, got, bytes - got, startByte + got); } catch { r = 0; }
+    if (r <= 0) break;
+    got += r;
+  }
+  if (got <= 0) return 0;
+  const pcm = got === bytes ? buf : buf.subarray(0, got);
+  const h = Buffer.alloc(44);
+  h.write('RIFF', 0, 'ascii');       h.writeUInt32LE(36 + pcm.length, 4);
+  h.write('WAVE', 8, 'ascii');
+  h.write('fmt ', 12, 'ascii');      h.writeUInt32LE(16, 16);
+  h.writeUInt16LE(1, 20);            // 1 = PCM
+  h.writeUInt16LE(lay.channels, 22); h.writeUInt32LE(lay.sampleRate, 24);
+  h.writeUInt32LE(lay.byteRate, 28); h.writeUInt16LE(lay.frameBytes, 32);
+  h.writeUInt16LE(lay.bits, 34);
+  h.write('data', 36, 'ascii');      h.writeUInt32LE(pcm.length, 40);
+  fs.writeFileSync(outPath, Buffer.concat([h, pcm]));
+  return pcm.length;
+}
+
+/**
+ * 切段计划。**够短或切不了 ⇒ `null`**（调用方按整条走）。
+ * 返回的 `chunks[i].writeTo(path)` 落一段；**用完必须 `close()`**（它握着 fd）。
+ *
+ * ★ 导出是**给判据用的**（`tools/test_agent.mjs` 第 17 节）：
+ *   「切出来的段接回去必须与原 PCM 逐字节相同」这条只有在这儿量得到。
+ */
+export function planChunks(filePath, chunkSeconds) {
+  let fd;
+  try { fd = fs.openSync(filePath, 'r'); } catch { return null; }
+  const close = () => { try { fs.closeSync(fd); } catch { /* 已关 */ } };
+  let lay = null;
+  try { lay = readWavLayout(fd); } catch { lay = null; }
+  if (!lay || !(lay.seconds > chunkSeconds)) { close(); return null; }
+  // 按**整帧**对齐切，否则最后半帧会被当成一个采样点，听起来是一声爆音。
+  const per = Math.ceil((chunkSeconds * lay.byteRate) / lay.frameBytes) * lay.frameBytes;
+  const chunks = [];
+  for (let b = 0; b < lay.dataSize; b += per) {
+    const bytes = Math.min(per, lay.dataSize - b);
+    chunks.push({ start_s: b / lay.byteRate, seconds: bytes / lay.byteRate,
+                  writeTo: (p) => writeWavSlice(fd, lay, lay.dataOff + b, bytes, p) });
+  }
+  return { chunks, seconds: lay.seconds, close };
+}
 
 let _buildAttempted = false;
 
@@ -244,31 +372,13 @@ async function runOnce(file, locale, { timeoutMs }) {
 }
 
 /**
- * 把一段**本机音频或视频文件**转成文字。
+ * 一次「把**一条**音频转成文字」的完整尝试：按 `locales` 语序试，第一个自洽的就算数。
  *
- * @param {string} filePath
- * @param {{locales?:string[], timeoutMs?:number}} [opt]
- * @returns {Promise<{ok:boolean, text?:string, chars?:number, locale?:string, ms?:number,
- *                    callbacks?:number, kind?:string, hint?:string, detail?:string, tried?:string[],
- *                    suspect?:boolean, script?:object, candidates?:Array<object>}>}
- *   `suspect:true` + `kind:'script_mismatch'` = **结果回来了，但字与被试的语种都不符**
- *   （实测成因：英文音轨被按 zh-CN 识别）。`ok` 仍是 true（文本确实有），
- *   但**下游不许把它当逐字原文引用** —— 见 `checkScript()` 的头注。
+ * 内部件 —— 长音频切段由下面的 `transcribe()` 负责（它把每一段喂给这个函数）。
+ * 它**只管一条**：`no_speech` 对一条 ≤300s 的片段来说是读数，但对整条 57 分钟的音轨来说
+ * 只说明「这一段没人说话」，不能据此判整条 —— 那个判断在 `transcribe()` 里做。
  */
-export async function transcribe(filePath, { locales = ASR_LOCALES, timeoutMs = ASR_TIMEOUT_MS } = {}) {
-  if (!filePath || !fs.existsSync(filePath)) {
-    return { ok: false, kind: 'not_found', detail: `文件不存在：${filePath ?? '(空路径)'}` };
-  }
-  let size = 0;
-  try { size = fs.statSync(filePath).size; } catch { /* 下面按 0 处理 */ }
-  if (!size) return { ok: false, kind: 'empty_file', detail: '音频字节是 0 —— 抽出来的就是个空文件' };
-  if (size > MAX_AUDIO_BYTES) {
-    return { ok: false, kind: 'too_large', detail: `${size} 字节 > 上限 ${MAX_AUDIO_BYTES}` };
-  }
-
-  const app = await ensureAsr();
-  if (!app.ok) return { ok: false, kind: app.error, detail: app.detail };
-
+async function transcribeOneTarget(filePath, { locales, timeoutMs }) {
   const tried = [];
   let firstFail = null;
   // 「结果回来了、但字与该语种不符」的候选 —— 见 `checkScript()` 的头注。
@@ -315,6 +425,122 @@ export async function transcribe(filePath, { locales = ASR_LOCALES, timeoutMs = 
     };
   }
   return firstFail ?? { ok: false, kind: 'error', tried };
+}
+
+/**
+ * 把一段**本机音频或视频文件**转成文字。
+ *
+ * ★★ 2026-10-14：**长音频先切段、再逐段转**（Owner：「必须 asr 跑视频」）。
+ *   为什么必须切、为什么切在 JS 侧而不是改二进制，见 `ASR_CHUNK_SECONDS` 的头注。
+ *   两件事特别说清：
+ *     · **切不动就按整条走**（不是标准 PCM wav，或本来就够短）⇒ 结果与改动前逐字一致；
+ *     · **一段没人说话 ≠ 整条没人说话** —— 57 分钟的 webinar 里大段是幻灯片静音，
+ *       所以 `no_speech` 只记进 `chunks`，判「整条没人说话」要等**每一段**都没字。
+ *
+ * @param {string} filePath
+ * @param {{locales?:string[], timeoutMs?:number, chunkSeconds?:number}} [opt]
+ * @returns {Promise<{ok:boolean, text?:string, chars?:number, locale?:string, ms?:number,
+ *                    callbacks?:number, kind?:string, hint?:string, detail?:string, tried?:string[],
+ *                    suspect?:boolean, script?:object, candidates?:Array<object>,
+ *                    chunked?:boolean, n_chunks?:number, chunk_seconds?:number,
+ *                    chunk_fails?:number, chunks?:Array<object>}>}
+ *   `suspect:true` + `kind:'script_mismatch'` = **结果回来了，但字与被试的语种都不符**
+ *   （实测成因：英文音轨被按 zh-CN 识别）。`ok` 仍是 true（文本确实有），
+ *   但**下游不许把它当逐字原文引用** —— 见 `checkScript()` 的头注。
+ *   `chunked:true` = 这条读数由 `n_chunks` 段拼成：**段内逐字，段与段按时间顺序相接**
+ *   （`chunks[].start_s` 给出每段在原音轨里的秒数，需要回听时按它对时间）。
+ */
+export async function transcribe(filePath, { locales = ASR_LOCALES, timeoutMs = ASR_TIMEOUT_MS,
+                                            chunkSeconds = ASR_CHUNK_SECONDS } = {}) {
+  if (!filePath || !fs.existsSync(filePath)) {
+    return { ok: false, kind: 'not_found', detail: `文件不存在：${filePath ?? '(空路径)'}` };
+  }
+  let size = 0;
+  try { size = fs.statSync(filePath).size; } catch { /* 下面按 0 处理 */ }
+  if (!size) return { ok: false, kind: 'empty_file', detail: '音频字节是 0 —— 抽出来的就是个空文件' };
+  if (size > MAX_AUDIO_BYTES) {
+    return { ok: false, kind: 'too_large', detail: `${size} 字节 > 上限 ${MAX_AUDIO_BYTES}` };
+  }
+
+  const app = await ensureAsr();
+  if (!app.ok) return { ok: false, kind: app.error, detail: app.detail };
+
+  const plan = planChunks(filePath, chunkSeconds);
+  if (!plan) return transcribeOneTarget(filePath, { locales, timeoutMs });
+
+  const t0 = Date.now();
+  let tmpDir = null;
+  try {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'shouheng-asr-chunk-'));
+    const chips = [];
+    const parts = [];
+    let usedLocale = null;    // 第一段试出来的语种，试出来就锁住（后面各段直接用，省掉白试一轮）
+    let nFail = 0;
+    let anySuspect = false;
+    let lastFail = null;
+    for (let i = 0; i < plan.chunks.length; i++) {
+      const c = plan.chunks[i];
+      const p = path.join(tmpDir, `c${String(i).padStart(3, '0')}.wav`);
+      let wrote = 0;
+      try { wrote = c.writeTo(p); } catch { wrote = 0; }
+      if (!wrote) {
+        nFail++;
+        chips.push({ i, start_s: c.start_s, seconds: c.seconds, ok: false, kind: 'slice_failed' });
+        continue;
+      }
+      // 语种：锁住了就只试它；**但它在这一段失手时退回完整语序再试一次** ——
+      // 一段的失手不该被算成整条的失败（长音轨里某一段全是音乐是常事）。
+      let r = await transcribeOneTarget(p, { locales: usedLocale ? [usedLocale] : locales, timeoutMs });
+      if (!r.ok && usedLocale && r.kind !== 'no_speech') {
+        r = await transcribeOneTarget(p, { locales, timeoutMs });
+      }
+      if (r.ok) {
+        if (!usedLocale && r.locale) usedLocale = r.locale;
+        if (r.suspect) anySuspect = true;
+        const text = String(r.text ?? '').trim();
+        if (text) parts.push(text);
+        chips.push({ i, start_s: c.start_s, seconds: c.seconds, ok: true, locale: r.locale ?? null,
+                     chars: r.chars ?? text.length, suspect: !!r.suspect, on_device: r.on_device === true,
+                     ms: r.ms ?? null, tried: r.tried ?? null });
+      } else {
+        // `no_speech` 是**读数**（这一段没人说话），不算失败 —— 长视频里大段是静音很正常。
+        if (r.kind !== 'no_speech') nFail++;
+        if (!lastFail || (lastFail.kind === 'no_speech' && r.kind !== 'no_speech')) lastFail = r;
+        chips.push({ i, start_s: c.start_s, seconds: c.seconds, ok: false, kind: r.kind ?? null,
+                     detail: r.detail ?? null });
+      }
+    }
+
+    const text = parts.join(' ').trim();
+    const meta = { chunked: true, n_chunks: plan.chunks.length, chunk_seconds: chunkSeconds,
+                   chunk_fails: nFail, chunks: chips };
+    if (!text) {
+      // 一个字都没有：**「没人说话」与「没转成」必须分得开**，且都要带上切段读数。
+      if (lastFail) return { ...lastFail, ...meta };
+      return { ...meta, ok: false, kind: 'no_speech',
+               hint: `这条音轨切成 ${plan.chunks.length} 段，**每一段都没转出字** —— `
+                   + `是「没有人说话」这个读数，不是「读不到」。` };
+    }
+    const oks = chips.filter((c) => c.ok);
+    return {
+      ...meta,
+      ok: true, text, chars: text.length,
+      locale: usedLocale ?? oks[0]?.locale ?? null,
+      ms: oks.reduce((a, c) => a + (c.ms ?? 0), 0) || null,
+      wallMs: Date.now() - t0,
+      on_device: oks.length > 0 && oks.every((c) => c.on_device === true),
+      tried: [...new Set(chips.flatMap((c) => c.tried ?? []))],
+      suspect: anySuspect || undefined,
+      kind: anySuspect ? 'script_mismatch' : undefined,
+      hint: anySuspect
+        ? `这条音轨切了 ${plan.chunks.length} 段，**其中至少一段**转出来的字与语种不符`
+          + `（逐段读数见 chunks）—— 转写文本大概不是语音的真实内容，别当逐字原文引用。`
+        : undefined,
+    };
+  } finally {
+    plan.close();
+    if (tmpDir) { try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* 删不掉不影响结果 */ } }
+  }
 }
 
 /* ─────────────────── 自检 / 预热（启动时跑一次） ─────────────────── */
