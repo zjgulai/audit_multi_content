@@ -478,7 +478,9 @@ export async function readInboundContent(msg, {
       }
       let r;
       try {
-        r = await readVideoFn(got.path, {});       // ← 本机抽帧 + OCR + 转写，全在这一个调用里
+        // ★ 2026-10-16：把本函数注入的 `scene` **一路传下去** —— 视频的「关键帧画面读数」
+        //   与图片的走**同一个**注入点（测试只要换一个桩，两条路一起被控住）。
+        r = await readVideoFn(got.path, { scene });   // ← 抽帧 + OCR + 转写 + 画面层，全在这一个调用里
       } catch (e) {
         videos.push({ index: i + 1, fileKey: v.fileKey, fileName: v.fileName, fromParent,
                       bytes: got.bytes, failed: `读视频抛异常：${e?.message ?? e}` });
@@ -496,6 +498,10 @@ export async function readInboundContent(msg, {
         index: i + 1, fileKey: v.fileKey, fileName: v.fileName, fromParent, bytes: got.bytes,
         meta: r.meta, frames: r.frames, framesRead: r.framesRead, framesFailed: r.framesFailed,
         ocrText: r.ocrText, ocrChars: r.ocrChars, ocrTruncated: r.ocrTruncated,
+        // ★ 2026-10-16：关键帧的画面读数 —— **必须原样带出去**（这一行漏了，
+        //   画面层就只在 `readVideo` 里跑一趟、结果谁也用不上：§2.4 那句
+        //   「算出来了但没人读」的形状。执行点：test_agent 的「画面层·视频」一组。）
+        frameScene: r.frameScene ?? [], sceneSkipReason: r.sceneSkipReason ?? null,
         transcript: r.transcript, notes: r.notes ?? [], ms: r.ms,
       });
     } finally {
@@ -657,15 +663,25 @@ export function buildVideoBlock(inbound) {
     ? `\n（她引用的那条消息，正文逐字是：${String(inbound.parentNote.text).slice(0, 500)}）`
     : '';
   const parts = [
-    `【${src}，共 ${inbound.videoCount} 段。下面每一格是**本机读出来的读数**：`
-    + `「关键帧上的文字」是按时长**均匀抽 ${video.VIDEO_MAX_FRAMES} 帧**做的 OCR，`
-    + `「音轨转写」是**整条音轨**在本机做的语音识别（开关是 requiresOnDeviceRecognition，音频不出机器）。`
-    + `你能据此判断的是：**画面上出现过的字**（硬字幕、贴片文案、logo、包装声明）`
-    + `与**整条音轨里说过的话**。`
-    + `你**看不到**的是：没抽到的那几帧、构图、场景、人物在做什么、婴幼儿的姿势、`
-    + `产品怎么用的、有没有换脸/合成痕迹。`
-    + `所以：涉及**画面本身**的结论必须写明「画面我只看得到抽样的这几帧」，`
-    + `不许说成「整条视频我都看了」。${quoted}】`,
+    `【${src}，共 ${inbound.videoCount} 段。下面每一格是**读数**：`
+    + `「关键帧上的文字」是按时长**均匀抽 ${video.VIDEO_MAX_FRAMES} 帧**做的 OCR；`
+    + `「音轨转写」是**整条音轨**在本机做的语音识别（requiresOnDeviceRecognition，音频不出机器）`
+    // ★ 2026-10-16：**没有画面读数时不许介绍它** —— 块头把一种"读数种类"写出来，
+    //   读的人（模型）就会以为这一格该有它。这是同一件事的第二个产者：
+    //   实测自证里红过一次（「没跑时不许凭空造一节」那条判据抓到的正是这一行）。
+    + ((inbound.videos ?? []).some((v) => (v.frameScene ?? []).some((s) => s?.ok))
+      ? `；「关键帧的画面读数」是一个吃图的视觉模型看**其中几帧**写下的（只陈述看得见的）。`
+        + `你能据此判断的是：**画面上出现过的字**、**整条音轨里说过的话**、`
+        + `以及**被看过的那几帧的画面**（场景 / 人物含是否婴幼儿 / 物品是否在用 / 画面线索）。`
+      : `。你能据此判断的是：**画面上出现过的字**与**整条音轨里说过的话**。`)
+    + ((inbound.videos ?? []).some((v) => (v.frameScene ?? []).some((s) => s?.ok))
+      ? `画面结论**只能依据那几帧的画面读数**，并写明它覆盖了哪些时间码；`
+        + `**没覆盖的帧、没抽到的帧、更细的构图**仍然是看不到的 —— 不许推断，`
+        + `也不许说成「整条视频的画面我都看了」。`
+      : `你**看不到**的是：没抽到的那几帧、构图、场景、人物在做什么、婴幼儿的姿势、`
+        + `产品怎么用的、有没有换脸/合成痕迹。所以涉及**画面本身**的结论必须写明`
+        + `「画面我只看得到抽样的这几帧」，不许说成「整条视频我都看了」。`)
+    + `${quoted}】`,
   ];
   for (const v of inbound.videos) {
     if (v.failed) {
@@ -726,7 +742,22 @@ export function buildVideoBlock(inbound) {
         + `。这一格是**未测**：声音里说了什么**我不知道**，不要当成「没有说话」。`;
     }
 
-    parts.push(`${head}\n${ocrPart}\n${audioPart}`
+    // ── ★★ 2026-10-16：**关键帧的画面读数**（PRD §5.1 对视频写的「画面关键帧」）──
+    //   三种结局必须长得不一样：**看过的**（带时间码）／**没读到的**（未测）／**这一单没跑**
+    //   （`SHOUHENG_SCENE_FRAMES=0` 或没抽到帧）。压成一句「画面我看不到」会把前两种抹平。
+    const fs2 = v.frameScene ?? [];
+    // 三种结局各由**产者**报出来：看过的（读数字段）／没跑（`sceneSkipReason`）／
+    // 没读到的（每个元素自己的 `error`）。**没有那两种标记时一个字都不印** ——
+    // 老数据/未知形状不许被猜成「没跑」，也不许被猜成「没读到」。
+    const scenePart = fs2.length
+      ? `关键帧的画面读数（视觉模型的读数，**不是原图**；只覆盖下面列出的时间码）：\n`
+        + fs2.map((s) => (s.ok
+          ? `- [${Number(s.t_s ?? 0).toFixed(1)}s] ${sceneMod.sceneLine(s)}`
+          : `- [${Number(s.t_s ?? 0).toFixed(1)}s] **没读到**（${s.error ?? '未知'}）—— 这一帧画面是**未测**`))
+          .join('\n')
+      : (v.sceneSkipReason ? `关键帧的画面读数：这一单**没跑**（${v.sceneSkipReason}）` : '');
+
+    parts.push([head, ocrPart, scenePart, audioPart].filter(Boolean).join('\n')
       + (v.notes?.length ? `\n附注：${v.notes.join('；')}` : '')
       + `\n【/视频 ${v.index}】`);
   }
@@ -1068,7 +1099,17 @@ export async function runSubmissionGate({
       //   ⇒ 闸改成「**有可并的条目**（`total > 0`）才建」。
       //   ⚠️ Owner 2026-10-14 的本地要求「**<3 也出报告**」**一个字没动**：
       //     只要**有**条目（1 条、2 条都算）就建，格式与 ≥3 完全一致（见下面 Z17 那两条判据）。
-      if (rendered0 && rendered0.total > 0) {
+      //   ★★ 2026-10-16（Owner 追问「重新发图还会出空链接吗」时当场核出来的**第二种形状**）：
+      //     **闸必须挂在「条目」上，不是挂在那个计数上**。
+      //     病灶（离线复现，`/tmp/shprobe2/p5.mjs` 的 B 例）：库侧报 `issue_count=3`、
+      //     明细抠不出来（`kbGap=3`）、模型侧 0 条 ⇒ `total=3 > 0` 照样建报告，
+      //     而 `itemsWithAdvice` 是**空的** ⇒ docx 里只有结论行 ＋「（本单没有并进任何条目。）」
+      //     ⇒ **链接还是空的**。更要命的是它还会**顶掉库侧自己的报告链接**
+      //     （`reportUrlOverride` 优先于 `kbSide.reportUrl`）—— 库侧那份是**有明细**的，
+      //     等于拿一个空文档换掉了一份有内容的。
+      //     ⇒ 改成「**有真条目才建**」：没有条目 ⇒ `reportUrlOverride` 保持 null ⇒
+      //       链接回落库侧那份（有明细），卡上照旧「另有 N 条未并进本卡：明细在报告里」。
+      if (rendered0 && itemsWithAdvice.length > 0) {
         try {
           const at = new Date().toISOString();
           // ★★ 2026-10-13（Owner 第四条）：**渲染两份** ——
@@ -1801,6 +1842,27 @@ export function mediaReadAppendix(inbound) {
       L.push('');
       L.push('```');
       L.push(sceneMod.sceneBlock(sc.scene));
+      L.push('```');
+      L.push('');
+    }
+  }
+  // ── ★★ 2026-10-16：**关键帧的画面读数**（PRD §5.1 对视频写的「画面关键帧」）──────
+  //   与图片那一节同一条纪律：**读数是谁的、覆盖了哪几帧**，都写在明处。
+  if (inbound.videoCount && vids.some((v) => (v.frameScene ?? []).length)) {
+    L.push('### 关键帧的画面读数（视觉模型看图的描述 —— **不是原图，也不是帧上的字**）');
+    L.push('');
+    L.push('> ⚠️ **只覆盖下面列出的时间码**：抽帧本来就是均匀抽样，画面层又只看了其中几帧 ——');
+    L.push('> **没列出的帧，画面这一层是「未测」**，不是「没问题」。');
+    L.push('');
+    for (const v of vids) {
+      const fs2 = v.frameScene ?? [];
+      if (!fs2.length) continue;
+      L.push(`- **视频 ${v.index}**：`);
+      L.push('');
+      L.push('```');
+      L.push(fs2.map((s) => (s.ok
+        ? `[${Number(s.t_s ?? 0).toFixed(1)}s] ${sceneMod.sceneBlock(s.scene)}`
+        : `[${Number(s.t_s ?? 0).toFixed(1)}s] 没读到（${s.error ?? '未知'}）—— 未测`)).join('\n'));
       L.push('```');
       L.push('');
     }

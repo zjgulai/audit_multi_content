@@ -1744,6 +1744,47 @@ await t('三种「声音那侧没有结果」必须分得开', async () => {
   assert.ok(!/音轨转写：(是)?.*没有人说话/.test(b3), `未测不许被写成读数：${b3}`);
 });
 
+// ⚠️ 这一条必须放在**视频夹具（`VIDEO_MEDIA_MSG`）之后**：
+//   放在图片那一段里会撞 TDZ（`const` 在声明前读 = ReferenceError）—— 实测就这么红过一次。
+await t('画面层·视频：关键帧的画面读数（看过的／没读到的／没跑，三种必须分得开）', async () => {
+  const { readInboundContent, buildVideoBlock, mediaReadAppendix } = await import('./agent/agent.mjs');
+  const { readingsForModelSide } = await import('./agent/model_side.mjs');
+  const mk = (frameScene) => readInboundContent(VIDEO_MEDIA_MSG, {
+    fetchVideo: async () => ({ path: '/tmp/v.mp4', bytes: 999, error: null, cleanup: () => {} }),
+    readVideoFn: async () => stubReadVideo({ frameScene })(),
+  });
+  const seen = (t_s) => ({ t_s, ok: true, ms: 3200, scene: {
+    setting: '厨房', people: [{ kind: '婴幼儿', doing: '坐着' }], products: [{ what: '折叠床', in_use: true }],
+    visible_marks: ['MOMCOZY'], risk_cues: ['婴幼儿出镜'], unclear: [] } });
+  const miss = (t_s) => ({ t_s, ok: false, ms: 30, error: 'HTTP 500' });
+
+  // ① 看过的 + 没读到的：两种都要在，且**长得不一样**
+  const r1 = await mk([seen(0.94), miss(8.42)]);
+  const b1 = buildVideoBlock(r1);
+  assert.ok(/画面读数/.test(b1), `视频块没带上关键帧的画面读数：\n${b1}`);
+  assert.ok(/\[0\.9s\]/.test(b1) && /婴幼儿/.test(b1), `看过的帧要带时间码与读数：\n${b1}`);
+  assert.ok(/\[8\.4s\][\s\S]{0,30}没读到/.test(b1), `没读到的那一帧要单独写出来：\n${b1}`);
+  assert.ok(/未测/.test(b1), '「没读到」必须写成**未测**，不许说成「画面没问题」');
+  assert.ok(/不是原图/.test(b1), '必须写明那是**模型读数、不是原图**');
+  // ★ 判据要分清「说」与「否认」（本项目 V25b 踩过这个坑）：块头那句**正是在禁止**这个说法，
+  //   所以不能写成「块里不许出现这串字」—— 那会把**正确的禁止**判红（实测第一版就这么红的）。
+  //   要判的是：这句话**只许**出现在「不许说成…」那个上下文里。
+  const claims = [...b1.matchAll(/整条视频的画面我都看了/g)].length;
+  const prohibits = [...b1.matchAll(/不许说成「整条视频的画面我都看了」/g)].length;
+  assert.strictEqual(claims, prohibits,
+    `「整条视频的画面我都看了」只许出现在禁止它的那句里（共 ${claims} 次，其中禁止 ${prohibits} 次）`);
+  const side1 = readingsForModelSide(r1);
+  assert.ok(/关键帧的画面读数/.test(side1) && /婴幼儿/.test(side1), '模型侧要拿到帧的画面读数');
+  assert.ok(/\[0\.9s\]|\[0\.94s\]/.test(side1), '模型侧也要带时间码（要它指位置就得给它位置）');
+  assert.ok(/画面读数/.test(mediaReadAppendix(r1)), '报告附录要带上关键帧的画面读数');
+
+  // ② ★ 反向对照：**没跑**（空数组）⇒ 两处都不许凭空造一节
+  const r2 = await mk([]);
+  assert.ok(!/画面读数/.test(buildVideoBlock(r2)), '没跑画面层时视频块不许凭空造一节');
+  assert.ok(!/画面读数/.test(mediaReadAppendix(r2)), '没跑画面层时附录不许凭空造一节');
+  assert.ok(!/画面读数/.test(readingsForModelSide(r2)), '没跑画面层时模型侧也不许凭空造一节');
+});
+
 await t('媒材块里必须挂着「这是送审素材 → 走 kb_review_chain」那一句', async () => {
   const { readInboundContent, buildImageBlock, buildVideoBlock, MEDIA_ROUTE_HINT } = await import('./agent/agent.mjs');
   // 图块
@@ -3665,11 +3706,15 @@ await t('Z17 ★ 接线：建报告那一步**必须可注入**，且默认走�
   //   ⇒ 断言跟着改成两条（旧断言查的那个条件已按设计消失）：
   //     ① 闸存在且**只看 `rendered0`**（不许有人把 `>= 3` 加回来 —— 那会退回本次要求之前的行为）；
   //     ② 报告正文用的仍是**卡里那个数**（不是「并进来几条」）—— 旧断言的本意，保留。
-  // ★★ 2026-10-15（Owner 报「链接是空的」）：闸又补了一项 —— **一条条目都没有 ⇒ 不建报告**。
+  // ★★ 2026-10-15（Owner 报「链接是空的」）：闸补了一项 —— **一条条目都没有 ⇒ 不建报告**。
   //   病灶：两侧都没命中那一档也建了 docx，里面只有「（本单没有并进任何条目。）」
   //   ⇒ 卡上挂着一个**点开没内容**的链接。
-  assert.ok(/if \(rendered0 && rendered0\.total > 0\) \{/.test(src),
-    '报告闸不见了、或没带上「有可并的条目」这一项 —— 会重建空报告（Owner 2026-10-15）');
+  // ★★ 2026-10-16（Owner 追问「重新发图还会出空链接吗」时核出的**第二种形状**）：
+  //   闸**必须挂在「条目」上**，不能挂在那个计数上 —— 库侧报 3 条、明细抠不出来（`kbGap=3`）
+  //   ＋ 模型侧 0 条时 `total=3`，而 `itemsWithAdvice` 是**空的** ⇒ 又建出一份空报告，
+  //   还**顶掉了库侧那份有明细的**（`reportUrlOverride` 优先于 `kbSide.reportUrl`）。
+  assert.ok(/if \(rendered0 && itemsWithAdvice\.length > 0\) \{/.test(src),
+    '报告闸不见了、或没挂在「条目」上 —— 会重建空报告（Owner 2026-10-15/16）');
   assert.ok(!/rendered0\.total >= REPORT_LINK_MIN_ISSUES/.test(src),
     '`>= REPORT_LINK_MIN_ISSUES` 被加回来了 —— 那会让 <3 的行又没有报告');
   assert.ok(/total: rendered0\.total/.test(src),
@@ -4412,11 +4457,15 @@ await t('Z17 ★ 接线：建报告那一步**必须可注入**，且默认走�
   //   ⇒ 断言跟着改成两条（旧断言查的那个条件已按设计消失）：
   //     ① 闸存在且**只看 `rendered0`**（不许有人把 `>= 3` 加回来 —— 那会退回本次要求之前的行为）；
   //     ② 报告正文用的仍是**卡里那个数**（不是「并进来几条」）—— 旧断言的本意，保留。
-  // ★★ 2026-10-15（Owner 报「链接是空的」）：闸又补了一项 —— **一条条目都没有 ⇒ 不建报告**。
+  // ★★ 2026-10-15（Owner 报「链接是空的」）：闸补了一项 —— **一条条目都没有 ⇒ 不建报告**。
   //   病灶：两侧都没命中那一档也建了 docx，里面只有「（本单没有并进任何条目。）」
   //   ⇒ 卡上挂着一个**点开没内容**的链接。
-  assert.ok(/if \(rendered0 && rendered0\.total > 0\) \{/.test(src),
-    '报告闸不见了、或没带上「有可并的条目」这一项 —— 会重建空报告（Owner 2026-10-15）');
+  // ★★ 2026-10-16（Owner 追问「重新发图还会出空链接吗」时核出的**第二种形状**）：
+  //   闸**必须挂在「条目」上**，不能挂在那个计数上 —— 库侧报 3 条、明细抠不出来（`kbGap=3`）
+  //   ＋ 模型侧 0 条时 `total=3`，而 `itemsWithAdvice` 是**空的** ⇒ 又建出一份空报告，
+  //   还**顶掉了库侧那份有明细的**（`reportUrlOverride` 优先于 `kbSide.reportUrl`）。
+  assert.ok(/if \(rendered0 && itemsWithAdvice\.length > 0\) \{/.test(src),
+    '报告闸不见了、或没挂在「条目」上 —— 会重建空报告（Owner 2026-10-15/16）');
   assert.ok(!/rendered0\.total >= REPORT_LINK_MIN_ISSUES/.test(src),
     '`>= REPORT_LINK_MIN_ISSUES` 被加回来了 —— 那会让 <3 的行又没有报告');
   assert.ok(/total: rendered0\.total/.test(src),
