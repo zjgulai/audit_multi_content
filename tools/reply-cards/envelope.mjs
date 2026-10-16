@@ -1182,6 +1182,22 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null, machi
     //     **模型自己给的抬头就没人接着了**（`dd.title` 还在，但卡面上不再是它）。
     //     那一句是模型写的，按「搬不是砍」必须落回正文（`J13a3e2` 钉着这一条）。
     //     ⚠️ 只在「抬头**确实被改写过**」时动手：`data.title` 仍是模型那句 ⇒ 一字不动。
+    // ══════════════════════════════════════════════════════════════════════════
+    // ★★ 2026-10-16（Owner 裁定）：「PASS 单**只要一句话结论**」——
+    //    模型那句原话与证据折叠区**都不上卡**。
+    // ══════════════════════════════════════════════════════════════════════════
+    //   Owner 原话（2026-10-16，看到修好的那张 PASS 卡之后）：
+    //     「**只需要一句话结论，去掉『DeepClean Lite 教程』和证据**」。
+    //   落法：**卡面只留抬头那一行**（`body.elements = []`）。
+    //   ⚠️ 为什么在**建完卡之后**动刀、而不是清 `data`：`query-answer` 的构造器
+    //      **恒定**推一个 `md(s(d.verdict))` —— 清空 `verdict` 会印出 **`（未填）`**
+    //      （那正是 FIX-037 刚修掉的东西）。所以在卡这一层收口，与构造器无关。
+    //   ⚠️ **砍的是卡面，不是内容**：删掉的元素逐条记进 `moved`；原文仍在模型那一轮的
+    //      回复里（会话记忆 ／ 批跑留档 `dm_ou_batch_runner.json`），报告与表行照旧是全份
+    //      —— 「搬是搬，砍是砍」。
+    //   ⚠️ 只认**权威结论行给的态**（`verdict53.state`）：闲聊、链没跑成、
+    //      REVIEW / BLOCK 一个字不动（它们的逐条块是 PRD §5.3.2+ 的格式件）。
+    const passOnly = verdict53?.state === 'PASS' && !!s(verdict53?.line).trim();
     const _mTitle = s(blk?.data?.title).trim();
     //   ⚠️ 「原本有没有正文字段」要拿**模型给的原始卡**（`blk.data`）去问，不能问 `data`：
     //     `applyVerdictLine` 可能已经把原抬头折进 `data.evidence` 了（回复那条路就是），
@@ -1189,7 +1205,10 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null, machi
     const _hasProse = !!s(blk?.data?.verdict).trim() || !!s(blk?.data?.reasoning).trim();
     const _alreadyKept = (Array.isArray(blk?.data?.evidence) ? blk.data.evidence : [])
       .some((x) => s(x).includes(_mTitle));
-    if (verdict53?.line && _mTitle && _mTitle !== s(verdict53.line).trim()
+    //   ⚠️ `passOnly` 时**这一跳整跳不做**：它会把模型那句搬进正文首行，而现在
+    //     正文整块都不上卡 ⇒ 做了会写出一条**假的搬迁记录**（说搬了、其实没有）。
+    //     模型那句的去向由下面 `passOnlyLine()` 那一条如实记账。
+    if (!passOnly && verdict53?.line && _mTitle && _mTitle !== s(verdict53.line).trim()
         && s(data.title).trim() === s(verdict53.line).trim() && !_alreadyKept) {
       if (_hasProse) {
         // 模型给的卡本来就有正文格 ⇒ 把原抬头补进正文首行，别让它只活在折叠区里
@@ -1235,7 +1254,15 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null, machi
       // 顺序不能颠倒：段落数只有卡建出来才存在。
       const capped = capSections(build(kd, data));
       if (capped.moved.length) moved.push(...capped.moved);
-      return { card: capped.card, data, moved, err: null };
+      // ★★ 2026-10-16（Owner）：「PASS 单只留一句话结论」—— 在**卡这一层**收口。
+      const collapsed = passOnlyLine(capped.card, verdict53);
+      if (collapsed.stripped) {
+        moved.push({ field: 'cardBody', to: '(不上卡)', chars: collapsed.chars,
+                     why: `PASS 单只留一句话结论（Owner 2026-10-16）：${collapsed.stripped} 个正文块`
+                        + '（含模型那句原话与证据折叠区）不上卡；'
+                        + '原文仍在模型那一轮的回复里（会话记忆 ／ 批跑留档），报告与表行照旧是全份' });
+      }
+      return { card: collapsed.card, data, moved, err: null };
     } catch (e) {
       return { card: null, data, moved, err: e.message };
     }
@@ -1543,6 +1570,50 @@ export function hasSubstance(text, { exclude = null } = {}) {
   //     不排掉它的话，这一判据对每一张评审单都会答「有内容」（实测踩到：就是这样一直挡着）。
   const ex = s(exclude).trim();
   return lines.some((l) => l !== ex && !placeholder.test(l) && !reading(l) && !renderNote.test(l));
+}
+
+/**
+ * **PASS 单只留一句话结论** —— 把卡面正文整块收掉（纯函数，Owner 2026-10-16 裁定）。
+ *
+ * ── Owner 原话（逐字）
+ *
+ *   看到修好的那张 PASS 卡之后：「**只需要一句话结论，去掉『DeepClean Lite 教程』和证据**」。
+ *   他指的两样是：模型那句原话（`「DeepClean Lite 教程」视频封面：链侧 PASS/0；本轮无合并稿`）
+ *   与下面那个 `证据 · 7 条` 折叠区。
+ *
+ * ── 为什么在**卡这一层**收口，而不是清 `data`
+ *
+ *   `cards.mjs` 的 `query-answer` 构造器**恒定**推一个 `md(s(d.verdict))` ——
+ *   清空 `verdict` 只会印出 **`（未填）`**（那正是 FIX-037 刚修掉的东西）。
+ *   所以在建完卡之后把 `body.elements` 收空：**与构造器无关**，
+ *   `validateCard` 只要求它是**数组**（空数组合法），`capSections` 对 0 段是空操作。
+ *
+ * ── 边界（三条，缺一条就会伤到别的卡）
+ *
+ *   ① **只认权威结论行给的态**：`verdict53.state === 'PASS'` 且 `line` 非空。
+ *      闲聊、链没跑成（`verdict53` 为 null）、REVIEW / BLOCK —— **一个字不动**
+ *      （它们的逐条块是 PRD §5.3.2+ 的格式件，PRD §5.3.1 才是「只有一句话」）。
+ *   ② **砍的是卡面，不是内容**：调用方把 `stripped` / `chars` 记进 `moved`；
+ *      原文仍在模型那一轮的回复里（会话记忆 ／ 批跑留档），报告与表行照旧是全份。
+ *   ③ **本来就没有正文的卡不许记一笔**（`stripped: 0`）—— 否则日志会把
+ *      「什么都没砍」说成「砍了 N 块」。
+ *
+ * @param {object} card 已经建好的卡
+ * @param {{state?:string,line?:string}|null} verdict53 权威结论行
+ * @returns {{card:object, stripped:number, chars:number}} `stripped` = 收掉的顶层块数
+ */
+export function passOnlyLine(card, verdict53) {
+  const line = s(verdict53?.line).trim();
+  if (!card || String(verdict53?.state ?? '').toUpperCase() !== 'PASS' || !line) {
+    return { card, stripped: 0, chars: 0 };
+  }
+  const els = card.body?.elements;
+  if (!Array.isArray(els) || !els.length) return { card, stripped: 0, chars: 0 };
+  //   计字数用**文本内容**，不用 JSON 长度 —— 后者把标签与引号也算进去，
+  //   日志里那个数会明显大于人眼看到的（`chars` 是给人核的，不许虚高）。
+  const textOf = (e) => (typeof e?.content === 'string' ? e.content : JSON.stringify(e ?? ''));
+  const chars = els.map(textOf).join('').length;
+  return { card: { ...card, body: { ...card.body, elements: [] } }, stripped: els.length, chars };
 }
 
 /**

@@ -921,21 +921,31 @@ head('J13 查证笔记 · 不上卡、但要答得出来（Owner 2026-10-13 三�
         const r = toCardOrText(MIXED, { verdict53: { state: 'PASS', line: line53, from: 'chain', block: null },
                                         machineAnswer: true });
         const whole = JSON.stringify(r.card ?? r.text ?? '');
+        //   ⚠️⚠️ 2026-10-16（Owner：「PASS 单只留一句话结论」）—— **卡面**现在只有那一行，
+        //     所以「有用的句子还在不在」**不能再拿卡面问**：卡面按定义是空的。
+        //     要问的是 **卡面 ＋ 数据** 的并集。
+        //     这一条真正守的是「**清洗没把模型的话吞掉**」，不是「它必须印在卡上」——
+        //     印不印由 §5.3.1 与 Owner 那条裁定管，**丢没丢由这一条管**。
+        //     （两者分开之后，这条判据才既没被削弱、也没跟新口径打架。）
+        const keptBlob = whole + JSON.stringify(r.data ?? '');
         const leaked = ['链侧 PASS ｜', '| 项 | 值 |', '| --- |', '（未填）', '问题数 0 ｜ 置信度'].filter((k) => whole.includes(k));
-        const kept = ['差异：同一张图', '为什么变：不确定', '未命中 ≠ 合规', '判定输入只有本机 OCR'].filter((k) => whole.includes(k));
+        const kept = ['差异：同一张图', '为什么变：不确定', '未命中 ≠ 合规', '判定输入只有本机 OCR'].filter((k) => keptBlob.includes(k));
         if (leaked.length) {
           no('J13a3b2 混排：读数一行都不许留', `漏了：${leaked.join(' / ')}`);
         } else if (kept.length !== 4) {
-          no('J13a3b2 混排：有用的句子一句都不许丢', `丢了：${['差异：同一张图', '为什么变：不确定', '未命中 ≠ 合规', '判定输入只有本机 OCR'].filter((k) => !whole.includes(k)).join(' / ')}`);
-        } else ok('J13a3b2 混排：读数摘干净 · 模型按口径写的边界声明一句没丢');
+          no('J13a3b2 混排：有用的句子一句都不许丢（卡面或数据里必须还在）',
+             `丢了：${['差异：同一张图', '为什么变：不确定', '未命中 ≠ 合规', '判定输入只有本机 OCR'].filter((k) => !keptBlob.includes(k)).join(' / ')}`);
+        } else ok('J13a3b2 混排：读数摘干净 · 模型按口径写的边界声明一句没丢（卡面已按 §5.3.1 收成一行）');
       }
 
       // J13a3c ★ 反向对照：**链跑挂时模型那段是真答复** —— 不许被这条判据一起吞掉
+      //   ⚠️ 2026-10-16：断言同样从「卡面」改成「**卡面 ＋ 数据**」——
+      //     PASS 单的卡面按 Owner 那条裁定已经是空的，再拿卡面问就测不到「吞没吞」了。
       const realAnswer = `${line53}\n\n这条链这次没跑成，我按能读到的部分给你三条建议，第一条是……`;
       const r2 = toCardOrText(realAnswer, { verdict53: V53P, machineAnswer: true });
-      if (!JSON.stringify(r2.card ?? '').includes('三条建议')) {
-        no('J13a3c 反向对照：机器答案里有真答复时不许丢', '答复被吞了');
-      } else ok('J13a3c 反向对照：机器答案里**有真内容**时照旧上卡（判据不是「一律丢」）');
+      if (!(JSON.stringify(r2.card ?? '') + JSON.stringify(r2.data ?? '')).includes('三条建议')) {
+        no('J13a3c 反向对照：机器答案里有真答复时不许丢', '答复被吞了（卡面与数据里都没有）');
+      } else ok('J13a3c 反向对照：机器答案里**有真内容**时不被吞（判据不是「一律丢」）');
 
       // ══════════════════════════════════════════════════════════════════════
       // J13a3e ★★ 2026-10-15（**第 7 张 PASS 卡**，Owner 再次报「格式不符」）
@@ -988,6 +998,10 @@ head('J13 查证笔记 · 不上卡、但要答得出来（Owner 2026-10-13 三�
                              reasoning: CARD_BODY }) + '\n[[/card]]';
         const r7 = toCardOrText(raw7, { verdict53: V53P2, machineAnswer: true });
         const whole7 = JSON.stringify(r7.card ?? r7.text ?? '');
+        //   ⚠️ 2026-10-16（Owner：「PASS 单只留一句话结论」）：这一单是 **PASS**，
+        //     卡面按新裁定只留一行 ⇒「模型写的话还在不在」要问 **卡面 ＋ 数据** 的并集。
+        //     这条判据守的是「**清洗没吞掉模型的话**」；印不印在卡上由 §5.3.1 与 Owner 那条裁定管。
+        const keptBlob7 = whole7 + JSON.stringify(r7.data ?? '');
         const leaks7 = ['引擎结论', '回读=consistent', '（未填）', 'heuristic_not_calibrated', '问题数 0 ｜',
                         '--content-type', 'source_sha256', 'record_id', '四道审计', '预演落章',
                         'feishu_publish', '发布件'].filter((k) => whole7.includes(k));
@@ -995,8 +1009,8 @@ head('J13 查证笔记 · 不上卡、但要答得出来（Owner 2026-10-13 三�
         //    抬头 + 正文；折叠区里的原文照留不算「卡面又印了一遍」。
         const face7 = publicTextOf(r7.card ?? {});
         const dup7 = (face7.match(/【审查结论：PASS】/g) ?? []).length;
-        const kept7 = [CARD_TITLE, '未命中 ≠ 合规', '本单没有合并块'].filter((k) => whole7.includes(k));
-        const lost7 = [CARD_TITLE, '未命中 ≠ 合规', '本单没有合并块'].filter((k) => !whole7.includes(k));
+        const kept7 = [CARD_TITLE, '未命中 ≠ 合规', '本单没有合并块'].filter((k) => keptBlob7.includes(k));
+        const lost7 = [CARD_TITLE, '未命中 ≠ 合规', '本单没有合并块'].filter((k) => !keptBlob7.includes(k));
         if (r7.mode !== 'card') {
           no('J13a3e 模型给了卡的机器答案也必须收成卡', `mode=${r7.mode}`);
         } else if (leaks7.length) {
@@ -1014,13 +1028,18 @@ head('J13 查证笔记 · 不上卡、但要答得出来（Owner 2026-10-13 三�
         {
           const r8 = toCardOrText(raw7, { verdict53: V53P2 });
           const whole8 = JSON.stringify(r8.card ?? r8.text ?? '');
+          //   ⚠️ 2026-10-16：这一条守的是「**清洗没被扩到回复那条路**」——
+          //     而 PASS 单的卡面现在被 Owner 那条裁定收成一行，**卡面问不出来了**
+          //     ⇒ 改成问 **卡面 ＋ 数据**：读数仍在（没被 `machineAnswerFold` 摘走）就算过。
+          //     ⚠️ 不许把这条改成「什么都不查」：它是 J13a3d2 那条接线的反向对照。
+          const whole8All = whole8 + JSON.stringify(r8.data ?? '');
           const stray = ['四道审计', 'feishu_publish', '--content-type', '问题数 0 ｜']
-            .filter((k) => !whole8.includes(k));
+            .filter((k) => !whole8All.includes(k));
           // 回复那条路：① 读数**一行都不许摘**（安全网，Owner 2026-10-13 定的）；
           //   ② 抬头仍是**权威结论行**（`applyVerdictLine` 的既定口径，FIX-010；
           //      「模型自己那句抬头当标题」从来不是口径 —— 这条我第一版写错过一次）；
           //   ③ 但模型给的抬头**一个字都不许丢**（它落进折叠区「原文照留」）。
-          const folded8 = JSON.stringify(r8.card ?? '');
+          const folded8 = whole8All;
           if (stray.length) {
             no('J13a3e2 反向对照：没声明机器答案时读数一行都不许摘', `被摘了：${stray.join(' / ')}`);
           } else if (String(r8.card?.header?.title?.content ?? '') !== line53p) {
@@ -1085,8 +1104,13 @@ head('J13 查证笔记 · 不上卡、但要答得出来（Owner 2026-10-13 三�
   //     dm_ou_batch_runner.json` 里模型那一轮的 `[[card:query-answer]]`）——
   //     `fields` 的**键名（`name`）与内容一字未改**：这个形状就是本次事故的全部。
   {
-    const line53q = '【审查结论：PASS】未发现已知底线风险，可转交 @sign-off 责任人（未配置） 进行 sign-off。';
-    const V53Q = { state: 'PASS', line: line53q, from: 'chain', block: null };
+    //   ⚠️ 这里的 `verdict53` 用 **REVIEW**（不是那张真单的 PASS）—— **有意的**：
+    //     2026-10-16 Owner 裁定「PASS 单只留一句话结论」之后，PASS 卡的卡面正文会被
+    //     `passOnlyLine()` 整块收掉，那会把本组几条断言（字段名认得出、读数摘净、
+    //     模型原话还在）**全部变成空转**（卡面本来就空，怎么都绿）。
+    //     ⇒ 本组测的是「**清洗**」，就该让卡面活着；PASS 收口另立 **J13a3g** 那一组。
+    const line53q = '【审查结论：REVIEW】共发现 0 处需人工确认。';
+    const V53Q = { state: 'REVIEW', line: line53q, from: 'chain', block: null };
     //   ★ 夹具**逐字取自真单**（`PMO/shouheng-state/sessions/dm_ou_batch_runner.json` 里模型
     //     那一轮的 `[[card:query-answer]]`；行 `MC-US-WEB-IMG-cleaning-and-on-the-go-bundle-…`）——
     //     `fields` 的**键名（`name`）与四格内容一字未改**：这个形状就是本次事故的全部。
@@ -1225,6 +1249,87 @@ head('J13 查证笔记 · 不上卡、但要答得出来（Owner 2026-10-13 三�
         no('J13a3f6 短卡（JSON < 800 字）不许降级成纯文本',
            `mode=${rs.mode}；text=${JSON.stringify(String(rs.text ?? '').slice(0, 160))}`);
       } else ok('J13a3f6 短卡（JSON < 800 字）照旧建得出卡 —— 护栏三：整段是合法 JSON 就不许改写');
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // J13a3g ★★ 2026-10-16（Owner 裁定）：**「PASS 单只需要一句话结论」**
+  // ══════════════════════════════════════════════════════════════════════════
+  //   Owner 原话（看到修好的那张 PASS 卡之后）：
+  //     「**只需要一句话结论，去掉『DeepClean Lite 教程』和证据**」。
+  //   真单：`PMO/logs/ws_outbound.jsonl` **04:03:20**（行 `MC-US-YT-v_WYO8laaPI-IMG`；
+  //   模型那一轮的卡在 `PMO/shouheng-state/sessions/dm_ou_batch_runner.json`，`fields` **3 格**）。
+  //   同一张卡实测对照：修复前 **1175 字 /（未填）×3 / 漏读数 5 类** ⇒ 收口后 **56 字**。
+  //   ⚠️ 本组**不能**并进 J13a3f：那一组的卡面会被这里收空 ⇒ 它的断言全部空转
+  //     （所以那一组的 `verdict53` 已改回 REVIEW，见它上方那段说明）。
+  {
+    const lineP = '【审查结论：PASS】未发现已知底线风险，可转交 @sign-off 责任人（未配置） 进行 sign-off。';
+    //   夹具照真单那个形状搭：`query-answer` ＋ `fields[{name,value}]` ＋ `evidence[]`，
+    //   且**故意**让正文里有读数（否则「收口」与「清洗」两件事分不开）。
+    const rawP = '[[card:query-answer]]\n' + JSON.stringify({
+      title: '「DeepClean Lite 教程」视频封面：链侧 PASS/0；本轮无合并稿',
+      verdict: 'PASS：链侧 0 处内容问题；本轮无合并稿',
+      reasoning: '链侧摘要原文：「未发现已知底线风险，可转交 @sign-off 责任人（未配置）进行 sign-off」。',
+      fields: [{ name: '链侧读数（照抄要点）',
+                 value: '自命中检查＝未命中（归一化 68 字符、扫过 181 条）；四道审计红 0；'
+                      + '`layer_preflight` 实为 `ok=true / mode=enforced / red_total=0`' }],
+      evidence: ['★ 判定对象：[视频] 「DeepClean Lite 教程」封面', '★ 本单链已跑完'],
+    }) + '\n[[/card]]';
+    const rp = toCardOrText(rawP, { verdict53: { state: 'PASS', line: lineP, from: 'chain', block: null }, machineAnswer: true });
+    const faceP = publicTextOf(rp.card ?? {});
+    const movedP = (rp.moved ?? []).filter((m) => m.field === 'cardBody');
+    if (rp.mode !== 'card') {
+      no('J13a3g PASS 单也要建得出卡', `mode=${rp.mode}`);
+    } else if (faceP.trim() !== lineP) {
+      no('J13a3g PASS 卡面**只许那一行**（Owner 2026-10-16）', JSON.stringify(faceP));
+    } else if (!movedP.length) {
+      no('J13a3g 收掉正文这一跳必须留痕', '`moved` 里没有 `cardBody` 记录 —— 「砍了什么」在日志里看不见');
+    } else if (String(rp.card?.body?.elements?.length) !== '0') {
+      no('J13a3g PASS 卡的 body 必须是空数组', JSON.stringify(rp.card?.body));
+    } else ok(`J13a3g PASS 单卡面只有那一行（收掉 ${movedP[0].chars} 字，留痕到「${movedP[0].to}」）`);
+
+    // ── J13a3g2 ★ 反向对照：**REVIEW 一个字不许少**（逐条块是 PRD §5.3.2+ 的格式件）
+    //   少了这一半，「只留一句话」就可能被写成「凡评审单一律收空」——
+    //   那会把 REVIEW 的逐条块一起吞掉，是比格式难看严重得多的事。
+    {
+      const rv = toCardOrText(rawP, { verdict53: { state: 'REVIEW', line: '【审查结论：REVIEW】共发现 2 处需人工确认。', from: 'chain', block: null }, machineAnswer: true });
+      const faceV = publicTextOf(rv.card ?? {});
+      if (faceV.trim() === '【审查结论：REVIEW】共发现 2 处需人工确认。') {
+        no('J13a3g2 反向对照：REVIEW 卡不许被一起收空', '正文整块没了');
+      } else if (!faceV.includes('DeepClean Lite')) {
+        no('J13a3g2 反向对照：REVIEW 卡的模型原话不许丢', JSON.stringify(faceV.slice(0, 140)));
+      } else ok('J13a3g2 反向对照：REVIEW 卡照旧有正文（收口只对 PASS 生效）');
+    }
+
+    // ── J13a3g3 ★ 反向对照：**没有权威结论行**（闲聊 ／ 链没跑成）⇒ 一个字不动
+    //   这一条守的是「回复那条路」：模型给人写的卡不该被这条收口碰到。
+    {
+      const rn2 = toCardOrText(rawP, { verdict53: null, machineAnswer: true });
+      const faceN = publicTextOf(rn2.card ?? {});
+      if (!faceN.includes('DeepClean Lite')) {
+        no('J13a3g3 反向对照：没有结论行时不许收正文（那是模型给人写的卡）',
+           JSON.stringify(faceN.slice(0, 140)));
+      } else ok('J13a3g3 反向对照：没有权威结论行 ⇒ 正文照旧（收口只认 `verdict53.state`）');
+    }
+
+    // ── J13a3g4 ★ 纯函数四态：`passOnlyLine()` 的边界各喂一次
+    //   ⚠️ 第 ④ 态是「**本来就没有正文 ⇒ 不许记一笔**」：少了它，日志会把
+    //     「什么都没砍」说成「砍了 N 块」（本项目「读数不许虚报」那条）。
+    {
+      const { passOnlyLine } = await import(path.join(CARDS_DIR, 'envelope.mjs'));
+      const c = { header: { title: { tag: 'plain_text', content: lineP } },
+                  body: { elements: [{ tag: 'markdown', content: '正文' }] } };
+      const a1 = passOnlyLine(c, { state: 'PASS', line: lineP });
+      const a2 = passOnlyLine(c, { state: 'REVIEW', line: '【审查结论：REVIEW】共发现 1 处需人工确认。' });
+      const a3 = passOnlyLine(c, null);
+      const a4 = passOnlyLine({ body: { elements: [] } }, { state: 'PASS', line: lineP });
+      const bad = [];
+      if (a1.stripped !== 1 || a1.card.body.elements.length !== 0) bad.push('① PASS 且有正文 ⇒ 必须收空');
+      if (a2.stripped !== 0 || a2.card.body.elements.length !== 1) bad.push('② 非 PASS ⇒ 一个字不动');
+      if (a3.stripped !== 0) bad.push('③ 没有结论行 ⇒ 不动');
+      if (a4.stripped !== 0) bad.push('④ 本来就没有正文 ⇒ 不许记「砍了 N 块」');
+      if (bad.length) no('J13a3g4 passOnlyLine 四态', bad.join('；'));
+      else ok('J13a3g4 passOnlyLine 四态：PASS 且有条目 ⇒ 收；非 PASS ／ 无结论行 ／ 本来空 ⇒ 不动、不记账');
     }
   }
 
