@@ -196,7 +196,14 @@ export function verdictLineFor({ state, n } = {}) {
   if (st === 'PASS') {
     if (n !== 0) return null;
     const line = passLineFor();
-    return { state: 'PASS', line, conform: conforms(line).ok };
+    // ★ 2026-10-16（FIX-043 现场撞出来的第二处）：`conform` 的**形状必须与别处一致** ——
+    //   它是 `{ok, state, why}`（`conforms()` 的原样产物），不是 `true`。
+    //   这一支原先写的是 `conform: conforms(line).ok`（一个布尔）⇒ 发送层那一行
+    //   `⚠️ 措辞不合 §5.3：${c.why}` 在**合规**时也会打出 `undefined`
+    //   （实测 `ws_daemon.log`：`PASS（来自 dual-track-merged）… ⚠️ 措辞不合 §5.3：undefined`）。
+    //   后果不在卡上，在**日志**：一句「措辞不合」配一个空原因 ——
+    //   回退本来是最该看得见的东西，却被打成了一句读不出对象的话（§2.4.1 第 5 行）。
+    return { state: 'PASS', line, conform: conforms(line) };
   }
   // 只认「≥1 的整数」：
   //   · `undefined` / `NaN` / 字符串 ⇒ 不派生
