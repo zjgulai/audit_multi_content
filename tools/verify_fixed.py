@@ -22,6 +22,8 @@ Owner 2026-10-14：「你修复完的问题记得落库，避免后面重复修�
       —— 这条是「名字出现过 ≠ 拦得住」的**反面**：它至少要求那行代码还在原处
   A5  `verify_cmd` 的脚本存在（不许指向一个不存在的自证命令）
   A6  没有两条记录在**同一条 `root_cause`** 上重复（同一形状修两遍 = 这份清单没起作用）
+  A7  **每条的 `ingest_ref` 都说得出话** —— 要么解析得到知识库条目、要么写出 `not_needed` 的理由
+      （FIX-037 起强制；更早的记**未测**，不判红）
   B1  人读的那份 md 里，**每一条 id 都出现**
   B2  md 里的条数 == jsonl 的条数（数字型说法必须算出来，不许写死；§2.2 第 1 条）
   B3  判据在本仓之外的记录**看得见**（未测几条，单列一行 —— 未测不是通过，也不是坏）
@@ -30,6 +32,9 @@ Owner 2026-10-14：「你修复完的问题记得落库，避免后面重复修�
         同一 root_cause / 没写执行点）
   C2  反向对照（成对）：记录级 `repo_root` 的**三半**都要咬得住 ——
       指不到 ⇒ 记未测不判红；**不写** ⇒ 照旧报红；它是**后备根**（本仓优先，混合记录两半都找得到）
+  C3  反向对照（成对·四半）：记录级 `ingest_ref` 的**四半**都要咬得住 ——
+      指向**真的**条目 ⇒ 不报红；指向**不存在的** ⇒ 必红；
+      FIX-037 起**不表态** ⇒ 必红；起点**之前**不表态 ⇒ 记**未测**、不判红
 
 ★ 2026-10-16（FIX-035）：A3/A4/A5 的根从「本仓一个」变成「本仓 ＋ 可选后备根」。
   起因：有 5 条记录（FIX-026/027/028/029/031）的判据**不在本仓**，而在**知识库工作区**
@@ -39,6 +44,18 @@ Owner 2026-10-14：「你修复完的问题记得落库，避免后面重复修�
   现在：记录可写可选字段 `repo_root`（后备根）；**本仓优先**，本仓找不到才到它下面找；
   它指不到时记**未测**（不判红，但必须看得见）。缺省不写 ⇒ 行为与改动前**逐字相同**。
 
+★ 2026-10-16（Owner 批准）：新增记录级 `ingest_ref`（A7 ＋ C3）——
+  「这条修复该不该进知识库」**必须显式表态**。起因见下面常量那段注释：
+  同一天那把覆盖率尺子（`tools/verify_ingest_coverage.py`）对**没产出留底件的改动是盲的**，
+  FIX-037/038 修完只进了本仓、读数却全绿。
+  ⚠️ **与本文件头部那条 2026-10-14 口径有一处字面张力，照实记在这里、不替谁裁决**：
+  2026-10-14 那版说「工程教训塞进那本内容侧的库是污染 ⇒ **不入那本库**」，
+  而 2026-10-16 Owner 那条「**你的修复验证后要落库，不要我每次提醒**」按当天实践
+  是**往库里入**了 8 条 `ref-shouheng-*` 参考实现（`kb_class: []`、注明「语义上的将就」）。
+  ⇒ 现行判据**不替两者选一个**：`ingest_ref` 的两态把选择权交回记录本身
+  （入 ⇒ 给条目 id；不入 ⇒ 写 `not_needed` 的理由），**只强制「表态」这一件事**。
+  哪一条口径为准，等 Owner 一句话再收口。
+
 用法：
   python3 tools/verify_fixed.py            # 全跑（零网络）
   python3 tools/verify_fixed.py --verbose
@@ -46,6 +63,8 @@ Owner 2026-10-14：「你修复完的问题记得落库，避免后面重复修�
 from __future__ import annotations
 
 import json
+import os
+import re
 import sys
 from pathlib import Path
 
@@ -54,6 +73,54 @@ JSONL = ROOT / "PMO" / "已修问题.jsonl"
 INDEX = ROOT / "PMO" / "已修问题索引.md"
 
 REQUIRED = ("id", "title", "symptom", "root_cause", "fix_files", "self_check", "verify_cmd")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ★★ 2026-10-16（Owner 批准 ①）：记录级 `ingest_ref` —— 「这条修复该不该进知识库」**必须显式表态**
+# ══════════════════════════════════════════════════════════════════════════════
+#   起因：Owner 那条「**你的修复验证后要落库，不要我每次提醒**」。我当天修完 FIX-037/038
+#   只提交进了本仓、**没入库**，而 `tools/verify_ingest_coverage.py` 那把尺子**看不见**它 ——
+#   它拿「今天动过的 PMO 留底件」对「今天入库的条目」，而我只动了 `已修问题索引.md`
+#   与 `守衡-回复卡片模版与语域规程.md`，**这两类正好在它逐个点名的豁免清单里**
+#   ⇒ 读数全绿，活儿一条没落。**没产出「留底件」的改动，那把尺子是盲的。**
+#
+#   取值两态（缺一不可，**不许不表态**）：
+#     · 字符串 ＝ 知识库条目 id（例 `ref-shouheng-card-fields-and-na-20261016`）⇒ 必须**真的解析得到**；
+#     · `{"not_needed": "<理由>"}` ⇒ 理由**非空**即可 —— 多数纯工程修复按本文件头部那条
+#       2026-10-14 口径（「工程教训塞进内容侧的库是污染」）就属这一档，但**理由要写出来**。
+#
+#   生效起点 `INGEST_REF_FROM`：更早的记录**没写＝未测**（不判红，但必须看得见）——
+#   同 FIX-035 的三态纪律：**一条假红会挤掉一个真问题**，而"这条规矩上线前的那批"不是坏。
+INGEST_REF_FROM = 37
+
+#   库在**另一个工作区**（与 FIX-035 的跨仓同一形状）。`~/.dsh/Momcozy知识库/kb/view`
+#   是宿主库视图的稳定入口（AGENTS.md：这本库所有工作区共用）；`KB_VIEW` 可覆盖。
+#   ⚠️ 它**找不到**时记 **未测**、不判红 —— 「本机核不了」不是「坏了」（FIX-035 同一条）。
+def _kb_view() -> Path | None:
+    cands = []
+    env = os.environ.get("KB_VIEW")
+    if env:
+        cands.append(Path(env).expanduser())
+    cands.append(Path.home() / ".dsh" / "Momcozy知识库" / "kb" / "view")
+    cands.append(ROOT.parent / "kb" / "view")
+    for c in cands:
+        if c.is_dir():
+            return c
+    return None
+
+
+def _id_num(eid: str):
+    """`FIX-037` → 37；不是这个形状回 None（反向对照用的 `FIX-T` 就是这一类）。"""
+    m = re.fullmatch(r"FIX-(\d+)", str(eid or "").strip())
+    return int(m.group(1)) if m else None
+
+
+def _entry_in_view(view: Path, eid: str) -> bool:
+    """条目在不在库里。**全库递归按文件名找，不写死子库名** —— 子库会变（`3_措辞表达库` 只是当下这一个）。"""
+    try:
+        return any(p.stem == eid for p in view.rglob(f"{eid}.md"))
+    except OSError:
+        return False
+
 
 results: list[tuple[str, bool, str]] = []
 
@@ -77,7 +144,7 @@ def load(path: Path):
     return out, errs
 
 
-def audit(entries, *, root: Path, index_path: Path):
+def audit(entries, *, root: Path, index_path: Path, kb_view: Path | None = None):
     """
     纯判据：回 `(problems, untested)`。坏样本也能直接喂进来做反向对照。
 
@@ -95,6 +162,11 @@ def audit(entries, *, root: Path, index_path: Path):
     """
     problems: list[str] = []
     untested: list[str] = []
+    # ★ 2026-10-16：知识库视图只解析**一次**（反向对照可以传 `kb_view` 顶替）。
+    view = kb_view if kb_view is not None else _kb_view()
+    #   `ingest_ref` 生效起点之前那批**逐条**打「未测」会刷 36 行屏 ⇒ 汇总成一条
+    #   （仍**看得见**：计数进 `untested`，`main` 会单列打印 —— 未测不是通过，也不是坏）。
+    old_no_ingest_ref = 0
     seen_ids, causes = set(), {}
     for e in entries:
         eid = str(e.get("id") or "(无 id)")
@@ -161,6 +233,45 @@ def audit(entries, *, root: Path, index_path: Path):
                 problems.append(f"{eid} 与 {causes[rc]} 的 `root_cause` 逐字相同 —— 同一个形状记两遍等于没记")
             causes[rc] = eid
 
+        # ── A7 ★★ 2026-10-16：「该不该进知识库」**不许不表态** ──────────────────────
+        #   三态，与 FIX-035 同一条纪律（坏 / 通过 / **未测**）：
+        #     · 给了条目 id ⇒ 必须真的解析得到，否则**红**（指着一个不存在的条目 ＝ 没落库）；
+        #     · 给了 `{"not_needed": 理由}` ⇒ 理由非空即通过（**多数纯工程修复就属这一档**）；
+        #     · **没给** ⇒ `INGEST_REF_FROM` 之后**红**（不表态就是把决策成本退回给人）；
+        #       之前的记 **未测**（那条规矩上线前落的，不是坏）。
+        #   ⚠️ 视图找不到时，`给了条目 id` 那一支记**未测** —— 「本机核不了」不是「坏了」。
+        iref_missing = "ingest_ref" not in e
+        iref = e.get("ingest_ref")
+        n = _id_num(eid)
+        if iref_missing or iref is None:
+            if n is not None and n >= INGEST_REF_FROM:
+                problems.append(
+                    f"{eid} 没写 `ingest_ref` —— 「这条修复该不该进知识库」不许不表态"
+                    f"（要么给条目 id，要么写 `not_needed: <理由>`；见本文件头部 2026-10-16 那段）")
+            else:
+                old_no_ingest_ref += 1
+        elif isinstance(iref, dict):
+            why = str(iref.get("not_needed") or "").strip()
+            if not why:
+                problems.append(f"{eid} 的 `ingest_ref.not_needed` 是空的 —— "
+                                f"声明「不需要入库」必须给理由，空声明等于没表态")
+        else:
+            s_ref = str(iref).strip()
+            if not s_ref:
+                problems.append(f"{eid} 的 `ingest_ref` 是空串 —— 要么给条目 id，要么写 `not_needed`")
+            elif view is None:
+                untested.append(f"{eid} 的 `ingest_ref`={s_ref} —— 知识库视图在本机**找不到**，"
+                                f"这条**未测**（不是通过，也不是坏）")
+            elif not _entry_in_view(view, s_ref):
+                problems.append(f"{eid} 的 `ingest_ref`={s_ref} 在知识库里**找不到** —— "
+                                f"指着一个不存在的条目（＝声称落了库、其实没有）")
+
+    if old_no_ingest_ref:
+        untested.append(
+            f"**{old_no_ingest_ref} 条**记录没写 `ingest_ref`，且都落在生效起点 FIX-{INGEST_REF_FROM:03d} 之前 "
+            f"⇒ **未测**（不是通过，也不是坏）。这一批是 Owner 那条「不要我每次提醒」上线**之前**落的；"
+            f"要回填得**逐条判**「这条该不该入库」，不许整批抄一个理由（那是「为了填而编」）")
+
     # B1/B2 人读的那份
     if not index_path.exists():
         problems.append(f"人读的那份不存在：{index_path.relative_to(root)}")
@@ -194,6 +305,10 @@ def main() -> int:
         check("A5", not any("自证命令" in p for p in problems), "自证命令指向的脚本都存在")
         check("A6", not any("root_cause" in p for p in problems),
               "没有两条记录共用同一条 `root_cause`（同一形状记两遍 = 这份清单没起作用）")
+        # ★ 2026-10-16：A7 —— 「这条修复该不该进知识库」不许不表态，且给了 id 就必须解析得到
+        check("A7", not any("ingest_ref" in p or "not_needed" in p for p in problems),
+              f"每条的 `ingest_ref` 都说得出话：要么解析得到知识库条目、要么写出 `not_needed` 的理由"
+              f"（FIX-{INGEST_REF_FROM:03d} 起强制；更早的记未测 —— Owner 2026-10-16「不要我每次提醒」）")
         check("B1", not any("没出现在" in p for p in problems), "人读的那份索引里每条 id 都在")
         check("B2", not any("实际" in p and "条" in p for p in problems),
               "索引里的条数**算出来**等于实际条数（不写死）")
@@ -210,7 +325,7 @@ def main() -> int:
             for p in problems:
                 print("  ·", p)
     else:
-        for cid in ("A2", "A3", "A4", "A5", "A6", "B1", "B2"):
+        for cid in ("A2", "A3", "A4", "A5", "A6", "A7", "B1", "B2"):
             check(cid, False, "清单读不出 ⇒ 这些判据都无从谈起")
 
     # ── C 反向对照：喂坏样本，判据必须报红（否则上面全是恒真）──────────────────
@@ -218,6 +333,9 @@ def main() -> int:
         "id": "FIX-T", "title": "t", "symptom": "s", "root_cause": "rc-1",
         "fix_files": ["tools/verify_fixed.py"], "enforced_by": ["def audit("],
         "self_check": "python3 tools/verify_fixed.py", "verify_cmd": "python3 tools/verify_fixed.py",
+        # ★ 2026-10-16：反向对照用的假记录也要**显式表态** —— 否则 A7 会把它记进 `untested`，
+        #   而下面 C2 的 ③ 断言「`p3` 与 `u3` 都为空」当场变红（实测就是这么发现必须补这一行的）。
+        "ingest_ref": {"not_needed": "反向对照用的假记录，本来就不该入库"},
     }]
     bad_cases = {
         "指着一个不存在的文件": [{**good[0], "fix_files": ["tools/__nope__.mjs"]}],
@@ -280,6 +398,61 @@ def main() -> int:
           "反向对照（成对）：`repo_root` 指不到 ⇒ 记**未测**、不判红；**不写** `repo_root` ⇒ 照旧报红；"
           "`repo_root` 是**后备根**（本仓优先，混合记录两半都找得到）"
           + (f" —— {c2_detail}" if c2_detail else ""))
+
+    # ── C3 ★★ 2026-10-16：`ingest_ref` 的**成对**反向对照 ──────────────────────────
+    #   要证明的是「未测」**不是**把 A7 变成恒绿的后门。三半，缺一条都证明不了：
+    #     ① 条目**真的在**库里（临时视图里放一个同名 `.md`）⇒ 不许报红；
+    #     ② 同一条指向**不存在的**条目 ⇒ 必须报红（「指着一个不存在的条目」＝声称落了库、其实没有）；
+    #     ③ 生效起点**之后**的记录**不写**这个字段 ⇒ 必须报红（**不许不表态**）。
+    #   ★ 视图用临时目录顶替（`kb_view=`）—— 反向对照**不许依赖本机库在不在**
+    #     （靠本机库在不在，这条判据在没装库的机器上就会恒绿）。
+    c3_ok, c3_detail = True, []
+    with tempfile.TemporaryDirectory() as td:
+        idx3 = Path(td) / "idx.md"
+        view3 = Path(td) / "view" / "3_措辞表达库" / "L1-facts"
+        view3.mkdir(parents=True)
+        REAL_ID = "ref-__c3__-20261016"
+        (view3 / f"{REAL_ID}.md").write_text("---\nid: x\n---\n", encoding="utf-8")
+
+        row_real = {**good[0], "ingest_ref": REAL_ID}
+        idx3.write_text(f"共 1 条 {row_real['id']}", encoding="utf-8")
+        p_real, u_real = audit([row_real], root=ROOT, index_path=idx3, kb_view=Path(td) / "view")
+        if p_real or u_real:
+            c3_ok = False
+            c3_detail.append(f"① 条目真的在库里却报红/未测：{p_real[:1] or u_real[:1]}")
+
+        row_ghost = {**good[0], "ingest_ref": "ref-__nope__-20990101"}
+        p_ghost, _ = audit([row_ghost], root=ROOT, index_path=idx3, kb_view=Path(td) / "view")
+        if not p_ghost:
+            c3_ok = False
+            c3_detail.append("② 指向不存在的条目竟然没报红")
+
+        row_silent = {**good[0], "id": f"FIX-{INGEST_REF_FROM}"}
+        row_silent.pop("ingest_ref")
+        idx3.write_text(f"共 1 条 {row_silent['id']}", encoding="utf-8")
+        p_silent, u_silent = audit([row_silent], root=ROOT, index_path=idx3, kb_view=Path(td) / "view")
+        if not p_silent:
+            c3_ok = False
+            c3_detail.append(f"③ FIX-{INGEST_REF_FROM:03d} 不写 `ingest_ref` 竟然没报红（不表态被放过了）")
+        if u_silent:
+            c3_ok = False
+            c3_detail.append("③ 生效起点之后的缺失被记成了「未测」（那是把新规矩也放进豁免里）")
+
+        # ④ **反向对照的反向对照**：生效起点**之前**的同一条 ⇒ 必须记**未测**、**不许**报红。
+        #    少了这一半，「未测」就可能被写成「一律报红」，那批历史记录会全红（一条假红挤掉一个真问题）。
+        row_old = {**row_silent, "id": f"FIX-{INGEST_REF_FROM - 1}"}
+        idx3.write_text(f"共 1 条 {row_old['id']}", encoding="utf-8")
+        p_old, u_old = audit([row_old], root=ROOT, index_path=idx3, kb_view=Path(td) / "view")
+        if p_old:
+            c3_ok = False
+            c3_detail.append(f"④ 起点之前的缺失被判红了：{p_old[:1]}")
+        if not u_old:
+            c3_ok = False
+            c3_detail.append("④ 起点之前的缺失没被记进「未测」（等于静默放过）")
+    check("C3", c3_ok,
+          "反向对照（成对·四半）：`ingest_ref` 指向**真的**条目 ⇒ 不报红；指向**不存在的** ⇒ 必红；"
+          f"FIX-{INGEST_REF_FROM:03d} 起**不表态** ⇒ 必红；起点**之前**不表态 ⇒ 记**未测**、不判红"
+          + (f" —— {c3_detail}" if c3_detail else ""))
 
     n_fail = sum(1 for _, ok, _ in results if not ok)
     print("\n" + "=" * 74)
