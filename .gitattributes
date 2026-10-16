@@ -1,0 +1,15 @@
+# ═══════════════════════════════════════════════════════════════════
+#  .gitattributes —— LFS 只用于**必须**用的件（GitHub 单文件 >100MB 硬拒）
+#
+#  ★ 口径：**不按扩展名通配，只逐条点名**。
+#    理由：GitHub LFS 免费额度 = 1GB 存储 / 1GB 月流量。按 `*.mp4`/`*.pdf` 通配会把
+#    attachments/ 下全部 11 个视频 + 36 个 PDF（合计 ~1.5GB）都变成 LFS 对象 ⇒ **直接超额度**。
+#    这里只收 4 个 >100MB、非 LFS 推不上去的件（合计 ~624MB）。
+#  ★ 代价照实写在明处：LFS 走的是额度，**公开仓被别人 clone 会消耗月流量**
+#    （一次完整 clone ≈ 624MB，占免费额度 62%）。额度耗尽时这 4 个件暂时拉不下来 ——
+#    届时回飞书侧找原件（L0 记录里有 entry_url 直链）。
+# ═══════════════════════════════════════════════════════════════════
+内容治理知识库/kb/l0/attachments/视频/I4H1bS4Mso6M0oxO__FD162D27-BD92-479B-B306-7B4121D2BC07.mp4 filter=lfs diff=lfs merge=lfs -text
+内容治理知识库/kb/l0/attachments/视频/VrvHb94rpopFnPxm__404237E1-A1A8-4EC8-A809-DB3881502F29.mp4 filter=lfs diff=lfs merge=lfs -text
+内容治理知识库/kb/l0/attachments/视频/AfOdbissZocC91xa__E3FBBF3D-ABD5-4AA3-BDD3-BBB8710F448F.mp4 filter=lfs diff=lfs merge=lfs -text
+内容治理知识库/kb/l0/attachments/外部资料库/FBjbwZbOaiLjeSk9M4rciLPrn7e.pdf filter=lfs diff=lfs merge=lfs -text
