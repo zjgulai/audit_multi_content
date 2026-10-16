@@ -5593,6 +5593,65 @@ await t('N2 行为级·真读文件：别人的旁挂/引擎 JSON 拒收，本�
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// N3 · 命令模板**真的被塞进 task**（2026-10-16 那次「探索 107.6 秒」的修复）
+//
+// 为什么单立一组：`reviewCmdTemplate()` 自己渲染得再对，也可能**压根没被拼进去** ——
+//   本库栽过不止一次「函数写好了、没人调」。kb 侧 S8（`kb/l8/workflow_smoke.py`）
+//   核的是**模板本身**（旗标真存在 / 两处不漂 / 照抄能跑），核**不到**这一跳；
+//   这一组补的就是那一跳。
+// 现场（逐条可核）：2026-10-16 09:50 那张私聊图，headless agent 花了
+//   **107.6 秒**在 `grep -rn "macos-vision"` / `grep -rn "review_run.sh"` 上，
+//   而真正的链只占 101.9 秒；根因是模板留了三处"要自己去查"的空。
+// ─────────────────────────────────────────────────────────────────────────────
+await t('N3 命令模板必须真被拼进 task，且三处"要自己查"的空必须堵死（含反向对照）', async () => {
+  const { reviewTaskFor } = await import('./agent/tools.mjs');
+  assert.strictEqual(typeof reviewTaskFor, 'function', 'reviewTaskFor 没导出（接线第一跳就断）');
+
+  const mp = '/tmp/shouheng-material-8381eb63-probe.txt';
+  const q = '【对方这条消息里附了图，共 1 张。】（提问原文探针）';
+  const tx = '【图片 1 的图内文字（本机 OCR）】\nmomcozY';
+  const task = reviewTaskFor({ question: q, text: tx, materialPath: mp });
+
+  // ① 命令模板在场，且**内联**了本单路径（不是留占位符让人去填）
+  assert.ok(task.includes('第 0 条之二'), 'task 里没有命令模板 —— 又只剩 playbook 那条中段模板了');
+  assert.ok(task.includes(`--material-file ${mp}`), '模板没把素材路径内联进 --material-file');
+  assert.ok(task.includes(`--token         ${mp}`), '模板没把同一个路径交给 --token（身份凭据那条腿断了）');
+  assert.ok(task.includes('禁止探索'), 'task 里没有「禁止探索」那一段');
+
+  // ② ★ 顺序：模板必须排在提问之前（位置就是权重）
+  const iTpl = task.indexOf('第 0 条之二');
+  const iQ = task.indexOf(q);
+  assert.ok(iQ > 0, 'task 里找不到提问原文（样本本身有问题）');
+  assert.ok(iTpl < iQ, `模板排在提问之后（${iTpl} vs ${iQ}）—— 它在几万字后面等于没说`);
+
+  // ③ ★★ 三处"要自己去查"的空必须堵死（就是那 107.6 秒的三个来源）
+  const block = task.slice(iTpl, iQ);
+  assert.ok(!/\$BASE\b/.test(block),
+    '模板里还引用 $BASE —— 它从没定义过，agent 只能自己发明（10-16 实测它就为这个去 grep 全仓）');
+  assert.ok(block.includes('$(date +%Y%m%d-%H%M)'), '模板没直接给出 --base 的取值方法');
+  assert.ok(/\$\(sw_vers -productVersion\)/.test(block) && /\$\(shasum -a 256 /.test(block),
+    '模板没给出 --coverage 的版本/哈希取值方法 —— agent 会去 grep `macos-vision`（实测 47.6 秒）');
+  assert.ok(block.includes('macos-vision'), '模板没写死 provider 名');
+  assert.ok(!block.includes('--text "<素材原文'), '模板又把 --text 当主路了（与 --material-file 打架）');
+
+  // ④ 反向对照：没有素材路径时**不许**凭空注入模板（空模板会污染 task）
+  const noMp = reviewTaskFor({ question: q, text: tx, materialPath: '' });
+  assert.ok(!noMp.includes('第 0 条之二'), '素材没落盘却仍注入了模板 —— 命令里的路径会是空的');
+  assert.ok(noMp.includes(q) && noMp.includes(tx), '退回老路时把提问/素材正文丢了');
+
+  // ⑤ 反向对照：判据本身不许恒真 —— 把模板标记抹掉后，同一条判据必须变假
+  //   ⚠️ 必须 `replaceAll`：`第 0 条之二` 在 task 里出现**两次**（素材规则里引一次、
+  //      模板标题一次）。第一版用 `replace(…, 1)` 只抹掉了素材规则那一处，
+  //      `wired()` 仍能从模板里找到它 ⇒ **反向对照当场判我不合格**（这条判据自己抓出了自己）。
+  const wired = (s) => s.includes('第 0 条之二') && s.includes(`--material-file ${mp}`);
+  assert.strictEqual(wired(task), true, '正向：真 task 应判为已接线');
+  assert.strictEqual(wired(task.replaceAll('第 0 条之二', '（已删）')), false,
+    '反向对照失效：模板标记被抹掉后判据仍为真 ⇒ 这条判据是恒真的');
+  assert.strictEqual(wired(task.replaceAll(`--material-file ${mp}`, '--text "…"')), false,
+    '反向对照失效：内联路径被拿掉后判据仍为真');
+});
+
 // 汇总必须放在**所有**分组之后（2026-10-09 修：中间那两块重复的汇总+exit
 // 让「第 27 组」与「第 33 组」**从没被执行过**，而合计照样印得像全绿）。
 console.log(`\n═══ 合计：通过 ${pass} / 失败 ${fail} ═══`);

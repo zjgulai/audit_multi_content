@@ -1653,6 +1653,67 @@ export async function facetsFromMaterial(text) {
 }
 
 
+/**
+ * **命令模板** —— 给 headless agent 的「照抄即可」完整命令（2026-10-16 加）。
+ *
+ * ── 为什么单列一个函数（根因，别再退回散文）────────────────────────────────
+ *   手册（`kb/l8/review_playbook.md`）**早就写了**「不要全库 grep」和一条命令模板，
+ *   但 2026-10-16 实测它**仍然**去全仓翻了 107.6 秒。原因是那份模板留了三处「要自己去查」：
+ *     ① `--base "$BASE"` 的 `$BASE` **从没定义过** ⇒ 它得自己发明 `date +%Y%m%d-%H%M`；
+ *     ② `--coverage …:macos-vision:<版本>:<sha256(素材文本)>:ok` 没说版本与哈希从哪来
+ *        ⇒ 它去 `grep -rn "macos-vision"`（**单条 47.6 秒**）；
+ *     ③ 手册给的是 `--text`，而本文件第 0 条给的是 `--material-file` ⇒ **两份文档互相矛盾**
+ *        ⇒ 它去 `grep -rn "review_run.sh"` 全仓找调用例子（**40.6 + 18.3 秒**）。
+ *   那一单的账：**探索 107.6 秒 ＞ 真正的链 101.9 秒** —— 找路比走路还贵。
+ *   ⇒ 现在把**本单路径内联进来**、三个取值写成 `$(…)` 就地展开，并把「禁探索」钉在命令下面。
+ *
+ * ── 边界（三条，别扩张）──────────────────────────────────────────────────
+ *   · 这里只**给命令**，不替它做判定：`--decision-owner` 仍由它自己选、自己用 skill 工具加载；
+ *   · `--coverage` 仍是**申报档**（库规：没真跑过 provider 不许填）—— 本函数**不代填**，
+ *     只是把「怎么算」写在命令里；
+ *   · 与 `kb/l8/review_playbook.md` 第 3 步的**旗标集合必须一致**（同一事实两处 ⇒ 用判据钉住）：
+ *     由 `kb/l8/workflow_smoke.py` 的 **S8** 三方对账（本模板 ／ 手册 ／ `review_run.sh` 的 `case` 解析器）。
+ */
+export function reviewCmdTemplate(materialPath) {
+  const mf = String(materialPath ?? '').trim();
+  if (!mf) return '';                       // 没落盘（写失败）⇒ 不发模板，退回老路（不阻断送审）
+  const sha = '$(shasum -a 256 ' + mf + " | awk '{print $1}')";
+  // ⚠️ 续行符只加在**前一行**上：最后一行带 `\` 会把后续内容接上去（实测验过注释行无碍，
+  //    但取消注释后就成了一条悬空续行）—— 这种细节正是"照抄模板"最容易踩的坑。
+  const cov = (m, cont) => '#   --coverage "' + m + ':macos-vision:$(sw_vers -productVersion):' + sha + ':ok"'
+    + (cont ? ' \\' : '');
+  return [
+    '【★ 第 0 条之二 —— 本单的完整命令：逐字照抄，不要探索】',
+    '下面这条**就是全部**。`--base` / `--session` / `--material-file` / `--token` / `--coverage`',
+    '的取值**都写在命令里**（`$(…)` 就地展开、素材路径已内联），**没有一个需要你先去查、去算、去翻源码**。',
+    '整条命令里只有**两个值要你自己定，且都是"选"不是"查"**：',
+    '  · `--decision-owner` = 第 2 步你**真的用 skill 工具加载过**的那个 skill 的装载目录名（`--loaded-skill` 填同一个）；',
+    '  · `--content-type` = `text` / `image` / `video` 三选一（按素材实际模态）。',
+    '',
+    '```bash',
+    'bash kb/l8/review_run.sh \\',
+    '  --base "$(date +%Y%m%d-%H%M)" \\',
+    '  --session "${DSH_SESSION_ID:-shouheng-chain-$(date +%s)}" \\',
+    '  --decision-owner <第 2 步选中的那个 skill 的装载目录名> \\',
+    '  --loaded-skill  <同一个名字> \\',
+    '  --material-file ' + mf + ' \\',
+    '  --token         ' + mf + ' \\',
+    '  --question "<提问原文，逐字>" \\',
+    '  --content-type <text|image|video>',
+    '# 素材是「读图 / 读视频」得来时，末尾**再加**这两行：',
+    cov('image', true),
+    cov('ocr', false),
+    '```',
+    '',
+    '★★ **禁止探索**（命令已给全；下面每个秒数都是 2026-10-16 实测的浪费）：',
+    '  · 不许 `grep` / `rg` / `find` 本仓、知识库或 `/Users/lute/Project/audit_multi_content` 找「怎么调」'
+      + '（**40.6s / 47.6s / 18.3s**）；',
+    '  · 不许读 `kb/l8/review_run.sh` 的源码找参数 —— 要看就看 `kb/l8/review_run.sh --help`，它给的就是真用法；',
+    '  · 不许去查 `macos-vision` 是什么 —— 它是**固定的 provider 名**，逐字照抄。',
+    '  那一单的账：**探索 107.6 秒 ＞ 真正的链 101.9 秒**。',
+  ].join('\n');
+}
+
 /* ── ★ 评审链执行手册（2026-10-05 加）──────────────────────────────────────
  * 目的：把 headless agent 从「探索者」压成「执行者」。
  *   实测它一单做 63 次工具调用（含一次 42 秒的全库递归 grep）、反复重跑闸门与重读同一文件，
@@ -1672,6 +1733,44 @@ export const REVIEW_PLAYBOOK = (() => {
     return '';
   }
 })();
+
+/**
+ * **送审任务文本的唯一拼装点**（2026-10-16 从 `run()` 里抽出来）。
+ *
+ * ── 为什么抽成纯函数 ──────────────────────────────────────────────────────
+ *   它原先内联在 `run()` 里 ⇒ **根本测不到**：`reviewCmdTemplate()` 自己渲染得再对，
+ *   也可能**压根没被塞进 task**（本库栽过不止一次「函数写好了、没人调」，
+ *   `test_agent.mjs` 里那一堆「接线三跳」判据就是为这个形状立的）。
+ *   抽出来之后，N3 组能**直接喂参数**验顺序，不必真起一条链。
+ *
+ * ── 顺序（**位置就是权重**，别调）────────────────────────────────────────
+ *   ① 素材规则（第 0 条：路径 + 身份凭据为什么重要）
+ *   ② 命令模板（第 0 条之二：**逐字照抄**的完整命令 + 禁探索）
+ *   ③ 提问 ④ 素材正文 ⑤ 两条硬规矩 ⑥ playbook（那一万字排最后）
+ *   10-15 把素材规则从第 3 位提到第 1 位，就是因为「排在几万字后面 = 等于没说」。
+ *
+ * ── 边界 ─────────────────────────────────────────────────────────────────
+ *   没有 `materialPath`（素材没落盘）⇒ 前两块自动消失，行为退回改动前（**不阻断送审**）。
+ */
+export function reviewTaskFor({ question = '', text = '', materialPath = '' } = {}) {
+  const mf = String(materialPath ?? '').trim();
+  const materialRule = mf
+    ? `【★ 第 0 条（先读这一条，再读下面所有内容）—— 本单素材已落盘，路径如下】\n`
+      + `${mf}\n`
+      + `调链时**必须原样**把这个路径带进 \`--material-file\`，并**同时**传给 \`--token\`（同一个路径）——`
+      + `完整命令见紧接着的「**第 0 条之二**」，**逐字照抄它，不要改**。`
+      + `链会把你收到的路径原样回写进旁挂，我**靠它认这份旁挂是不是本单的**。\n`
+      + `**不要**再给 \`--text\`（给了也以文件为准，只会让"审的是哪一段"变含糊）。\n`
+      + `**不要**自己把素材正文重新拼一遍再传（那样两边算出的指纹会对不上）。\n`
+      + `⚠️ 带漏了不会报错，但**并发时我会认错结论**（2026-10-15 实测：别人的 `
+      + `\`逐字命中「ibclc」\` 被当成你的素材判的，并随报告发进了群）—— `
+      + `宁可这一单回落成「库侧没读数」，也不许把别人的结论贴到你的素材上。\n`
+    : '';
+  return [materialRule, reviewCmdTemplate(mf), String(question ?? ''), String(text ?? ''),
+          REVIEW_HARD_RULES, REVIEW_PLAYBOOK]
+    .map((s) => s.trim()).filter(Boolean).join('\n');
+}
+
 register('kb_review_chain', {
   scope: 'write',
   schema: {
@@ -1742,24 +1841,12 @@ register('kb_review_chain', {
       try { fs.writeFileSync(materialPath, String(text ?? ''), 'utf8'); }
       catch { materialPath = ''; }        // 写不成就退回老路（不阻断送审）
     }
-    const materialRule = materialPath
-      ? `【★ 第 0 条（先读这一条，再读下面所有内容）—— 本单素材已落盘，路径如下】\n`
-        + `${materialPath}\n`
-        + `调链时必须用 \`bash kb/l8/review_run.sh ... --material-file ${materialPath}\`，`
-        + `**原样**把这个路径带给链：链会把你收到的路径原样回写进旁挂，`
-        + `我**靠它认这份旁挂是不是本单的**。\n`
-        + `**不要**自己把素材正文重新拼一遍再传（那样两边算出的指纹会对不上）。\n`
-        + `⚠️ 带漏了不会报错，但**并发时我会认错结论**（2026-10-15 实测：别人的 `
-        + `\`逐字命中「ibclc」\` 被当成你的素材判的，并随报告发进了群）—— `
-        + `宁可这一单回落成「库侧没读数」，也不许把别人的结论贴到你的素材上。\n`
-      : '';
-    // ★★ 2026-10-15：素材规则**排到最前面**（原来排第 3 位，夹在素材正文与 playbook 之间）。
-    //   为什么改：这条规则要 headless 去**转发一个路径**，而它此前 34 次里只照做过 1 次
-    //   （旁挂 `review_token` 基本是空的）。排在正文与 playbook 之后，等于把一件"附带请求"
-    //   塞在几万字后面 —— 位置就是权重。
-    //   执行点：`tools/test_agent.mjs`「素材规则必须排在 playbook 之前」。
-    const task = [materialRule, String(question ?? ''), String(text ?? ''), REVIEW_HARD_RULES, REVIEW_PLAYBOOK]
-      .map((s) => s.trim()).filter(Boolean).join('\n');
+    // ★★ 2026-10-16：原先把这一整块**内联在这里**（素材规则 + 直接拼 task）——
+    //   代价是「命令模板到底有没有被塞进 task」这件事**根本测不到**：
+    //   把 `reviewCmdTemplate(...)` 从数组里删掉，盘上不会有任何东西变红。
+    //   ⇒ 现在整块搬进纯函数 `reviewTaskFor()`（见文件上方），顺序与理由都在它的头注里。
+    //   执行点：`tools/test_agent.mjs` 的 **N3 组**（含反向对照：删掉模板必须被抓住）。
+    const task = reviewTaskFor({ question, text, materialPath });
     // ── 素材文件用后即删（不留在盘上）────────────────────────────────────────
     //   删在 `finally` 里：链**跑成 / 跑败 / 超时**三种结局都要删，
     //   否则 `/tmp` 会攒下一堆送审素材（而它们是可以拼出客户内容的）。
