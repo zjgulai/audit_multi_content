@@ -1412,6 +1412,19 @@ function machineReadingSentences(t, { dropFragments = false } = {}) {
   //   「我这次没能把回答组织成卡片（标记后没有对象）」那句兜底话。
   //   卡面里的读数**另有执行点**（`machineAnswerFold`），不必、也不能在这一层摘。
   if (para.startsWith('[[card:')) return para;
+  // ⚠️ 护栏三 ★★ 2026-10-16：**卡块 JSON 本体那一行也绝不许改写。**
+  //   护栏一只认「**本行**以 `[[card:` 开头」，而块标记与 JSON **经常不在同一行** ——
+  //   `toCardOrText` 的夹具与真模型输出都是 `[[card:kind]]\n{…}` 这个形状。
+  //   于是 JSON 那一行**没有任何护栏**，只剩下面那条 `> 800` 侥幸挡着。
+  //   实测（写 J13a3f 夹具时撞到）：一份 **769 字**的卡 JSON（< 800 ⇒ 护栏二不生效）
+  //   被下面的 `split('；')` 摘掉「读数句」⇒ **JSON 当场破掉** ⇒ `extractCardBlock`
+  //   报「对象括号没配平」⇒ 整条卡**降级成纯文本**发出。
+  //   ⚠️ 线上至今 **0 次**（`ws_outbound.jsonl` 里「没能把回答组织成卡片」= 0）——
+  //     因为真卡的 JSON 都超过 800 字、被护栏二挡住了。**这是个潜伏缺陷，不是已发事故。**
+  //   判据形状收得很紧：**整段是合法 JSON 对象**才算（一段散文不可能同时又解析成 JSON）。
+  if (/^\s*\{[\s\S]*\}\s*$/.test(para)) {
+    try { JSON.parse(para); return para; } catch { /* 不是完整 JSON ⇒ 照旧往下走 */ }
+  }
   // ⚠️ 护栏二：**只对「像一段话」的长度生效**。卡片块之外，一行几百上千字的多半是
   //   别的机器产物（JSON / 日志行），不是给人读的段落 —— 摘它风险大于收益。
   if (para.length > 800) return para;
@@ -1569,7 +1582,12 @@ function machineAnswerFold(kind, data, verdict53) {
   const moved = [];
   let d = { ...data };
   // 可见的字符串格 —— 与 `carryCardText` / `scrubInternal` 同一组字段，不另立一份清单
-  for (const f of ['title', 'verdict', 'reasoning', 'wrong', 'verdict_text']) {
+  // ★ 2026-10-16：补 `boundary`（第 8/9 张 PASS 卡那两张的 `boundary` 也是读数形状：
+  //   `链的 PASS 覆盖面来自 covered_by=case；画面结论只依据那份读数`）。
+  //   ⚠️ 它 2026-10-13 起已「整格不上卡」，所以这一条**今天看不出效果** ——
+  //     加它是因为清洗清单若漏格，将来谁把 `boundary` 放回卡面就又漏一次
+  //     （同一天在 `fields` 上栽的就是这个形状）。
+  for (const f of ['title', 'verdict', 'reasoning', 'wrong', 'verdict_text', 'boundary']) {
     if (typeof d[f] !== 'string' || !d[f].trim()) continue;
     const before = d[f];
     const st = stripInternalNotes(before, { machine: true, cardField: true });
@@ -1616,6 +1634,58 @@ function machineAnswerFold(kind, data, verdict53) {
       d = { ...d, [f]: after };
       moved.push({ field: f, to: '(同格·摘行)', chars: len(before) - len(after),
                    why: `批跑的机器答案：摘掉 ${st.removed.length} 行内部读数（其余内容一句没动）` });
+    }
+  }
+  // ══════════════════════════════════════════════════════════════════════════
+  // ★★ 2026-10-16（第 8/9 张 PASS 卡，Owner：「按照 prd 一句话结论，现在格式不对」）：
+  //    **`fields[]` 是第三个读数入口 —— 上面那张字符串清单一个都够不着它。**
+  // ══════════════════════════════════════════════════════════════════════════
+  //   实测（`PMO/logs/ws_outbound.jsonl` 第 1266 / 1270 行，两张 PASS 卡）：
+  //   卡面正文里的读数**全在 `fields[].value` 里** —— `链的口径：…` / `链侧三态 = …` /
+  //   `未命中 ≠ 合规：…` / `链侧：「飞书那一步：没有做」…`，
+  //   而清洗清单（`title`/`verdict`/`reasoning`/`wrong`/`verdict_text`）里没有 `fields`
+  //   ⇒ 清洗**一次都没跑**，读数原样上了卡面。
+  //   ⚠️ **为什么昨天修了两遍还漏**：FIX-020（15:11）与 FIX-025（17:45）的复现件
+  //     `.probe_pass_card_20261015.mjs` 造的是**只有 title/verdict/reasoning 三格**的卡；
+  //     **真卡多带一个 `fields`** —— 那一格恰好落在两次修复的缝里
+  //     （昨晚 20:12 / 20:19 两张卡已经在修复生效之后照样漏，见台账 1190 / 1197 行）。
+  //   ★ 判据与字符串格**同一把尺子**（`stripInternalNotes` ＋ `hasSubstance`，不新造）：
+  //     · 洗后**还有实质内容** ⇒ 留下（模型写的话一句不丢，J13a3c 那条反向对照同源）；
+  //     · 洗后**没有实质内容** ⇒ 这一格整格是读数 ⇒ **整格不留**
+  //       （值都没了、只剩一个标签，印出来只是噪声 —— 与 `autoCard` 那一支同一条口径）。
+  //   ⚠️ 摘下来的原文照旧进折叠区（`foldInto`）——「搬是搬，砍是砍」，一个字不丢。
+  if (Array.isArray(d.fields) && d.fields.length) {
+    const kept = [];
+    const dropped = [];
+    for (const f of d.fields) {
+      // 非对象 / 值不是字符串 ⇒ 原样留着（不猜、不动）
+      const raw = (f && typeof f === 'object' && typeof f.value === 'string') ? f.value : null;
+      if (raw === null || !raw.trim()) { kept.push(f); continue; }
+      const before = raw;
+      const st = stripInternalNotes(before, { machine: true, cardField: true });
+      const after = st.text.trim();
+      if (after && hasSubstance(after)) {
+        if (after !== before.trim()) {
+          kept.push({ ...f, value: after });
+          moved.push({ field: 'fields', to: '(同格·摘行)', chars: len(before) - len(after),
+                       why: `批跑的机器答案：摘掉 ${st.removed.length} 行内部读数（其余内容一句没动）` });
+        } else kept.push(f);
+        continue;
+      }
+      // 整格是读数（或被洗空）⇒ 这一格不留
+      dropped.push({ name: s(f.name ?? f.label ?? f.title).trim() || '(无标签)', text: before });
+    }
+    d = { ...d, fields: kept };
+    if (dropped.length) {
+      const beforeFold = d;
+      d = foldInto(kind, d, dropped.map((x) => `【${x.name}】\n${x.text}`).join('\n\n'), moved, 'fields');
+      // ★ 落点照实记：`foldIn` 没地方放时会**原样返回**（`foldInto` 里那条 `to === null` 分支）
+      //   ⇒ 不能一律写「进折叠区」，否则日志会把「没折成」说成「折成了」。
+      const landed = d !== beforeFold;
+      for (const x of dropped) {
+        moved.push({ field: 'fields', to: landed ? '(折叠区)' : '(不进公开格)', chars: len(x.text),
+                     why: `批跑的机器答案：这一格（${x.name}）整格是内部读数 ⇒ 不上卡` });
+      }
     }
   }
   return { data: d, moved };

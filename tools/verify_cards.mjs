@@ -1064,6 +1064,170 @@ head('J13 查证笔记 · 不上卡、但要答得出来（Owner 2026-10-13 三�
     } else ok('J13a3d2 带 verdict53 的调用点都声明了 machineAnswer: true（声明真的到了那一跳）');
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // J13a3f ★★ 2026-10-16（**第 8 / 9 张 PASS 卡**，Owner：「按照 prd 一句话结论，现在格式不对」）
+  // ══════════════════════════════════════════════════════════════════════════
+  //   真单：`PMO/logs/ws_outbound.jsonl` 第 1266 行（`…wellness-1-…`，10:50:06）
+  //         与第 1270 行（`…cleaning-and-on-the-go-bundle…`，10:54:45）。
+  //
+  //   ── 为什么上面那组 J13a3e **改前改后都绿**，而线上照样漏
+  //     J13a3e 的夹具是 `{title, verdict, reasoning}` **三格**，而且它把 `（未填）`
+  //     **当成模型正文里的一行**写死在 `reasoning` 字符串里。真单不是这样：
+  //       · 真卡是 `query-answer` ＋ **`fields[{name, value}]`**（真单 4 格）；
+  //       · `（未填）` **不是模型写的** —— 它是 `cards.mjs::fieldRow()` **渲染**出来的：
+  //         那一行读 `f.label`，而模型 **85/85 次全给 `f.name`**（批跑会话全量数的）
+  //         ⇒ `s(undefined)` ⇒ `NA = （未填）`；
+  //       · 读数**全在 `fields[].value` 里**（`链的口径：…` / `链侧三态 = …` /
+  //         `未命中 ≠ 合规：…` / `链侧：「飞书那一步：没有做」…`），而
+  //         `machineAnswerFold` 的清洗清单只有五个**字符串格** ⇒ 一次都没跑到它。
+  //     ⇒ 判据喂的是**写判据的人以为的形状**，事故正好落在它没喂的那一类上（FIX-023）。
+  //   ★ 本组夹具**逐字取自那两张真单的模型原卡**（`PMO/shouheng-state/sessions/
+  //     dm_ou_batch_runner.json` 里模型那一轮的 `[[card:query-answer]]`）——
+  //     `fields` 的**键名（`name`）与内容一字未改**：这个形状就是本次事故的全部。
+  {
+    const line53q = '【审查结论：PASS】未发现已知底线风险，可转交 @sign-off 责任人（未配置） 进行 sign-off。';
+    const V53Q = { state: 'PASS', line: line53q, from: 'chain', block: null };
+    //   ★ 夹具**逐字取自真单**（`PMO/shouheng-state/sessions/dm_ou_batch_runner.json` 里模型
+    //     那一轮的 `[[card:query-answer]]`；行 `MC-US-WEB-IMG-cleaning-and-on-the-go-bundle-…`）——
+    //     `fields` 的**键名（`name`）与四格内容一字未改**：这个形状就是本次事故的全部。
+    const rawQ = '[[card:query-answer]]\n' + JSON.stringify({
+      title: 'Cleaning & On-the-Go Bundle 图：REVIEW 2 处；库侧读数两说',
+      verdict: 'REVIEW：2 处（DeepClean 命名 · 37° 无单位）；库侧跑没跑成两说',
+      reasoning: '【审查结论：REVIEW】共发现 2 处需人工确认（模型侧 2 条）—— 1.【产品描述】素材正文第 1 句（图注）「**DeepClean Baby Bottle Washer(D8)**」—— **无库内条款 · 依据为外部标准**：「DeepClean」出现在商品名/图注首位，美国消费者通常会把这类命名理解成**功效暗示**（深层消毒、除菌、比普通清洗更彻底），而**本素材可见范围内没有任何检测数据、适用场景或「仅清洗、非消毒」的限定说明**，属**需要举证支撑的暗示性宣称**（本条只针对该命名与图注，**未覆盖页面正文（未读数）**）。依据：Amazon Ads《Claims and substantiation》· Prohibited content（全渠道禁止清单）→ https://advertising.amazon.com/help/G6UU66YLSCUYDULQ。建议：把 DeepClean 明确限定为**型号而非功效**（如「DeepClean (Model D8) Baby Bottle Washer — **cleaning only, not a sterilizer/sanitizer**」，或改中性名「Baby Bottle Washer D8」）；若确要表达除菌/消毒效果，需附**可核查的第三方测试结论**（机构、标准、菌种、去除率）后再写。2.【本地化】图 1 画面 · 可见标识「**37°**」（画面读数记录在**带数字显示的浅绿色保温杯/机身显示位**）—— **无库内依据 · 建议转人工**：画面里的温度读数「37°」**没有标单位**，美国站消费者日常以**华氏度**读温度，仅看「37」**既可能是 37°C（体温级）、也可能被读成 37°F**，**无法判断这是加热目标温度还是降温目标温度**；画面结论**依据的是本单视觉模型读数**（它同时自报机器内部结构、按键面板文字、产品是否实际使用看不清），故**只针对「37°」这一可见读数成立**。建议：补单位与含义（如「**37°C (98.6°F)**」）并在图注/产品图加一行说明「Display shows target warming temperature 37°C / 98.6°F」；若该读数属 Bottle Cooler（降温），则改为「4°C (39°F)」等并标注单位。建议转 @产品负责人（未配置） @法务（未配置） @北美同事（未配置） 复核。（两条均为**无库内依据的改法建议**，不是库规原文）',
+      boundary: '库侧跑没跑成，本单给了两份互不相容的读数（见字段）',
+      fields: [
+        { name: '★★ 一处互相打架的读数（我摆出来、不替你选）',
+          value: '本单材料对「**知识库侧这次跑没跑成**」给了**两种互不相容的说法**：\n**A**：链侧给了**完整的引擎读数** —— 状态 `REVIEW ｜ 0 ｜ 置信度 None`、**覆盖缺口**（`coverage_not_covered`、`fails_closed`）、L4–L7 各一 RUN（`20261016-1053-L4/-L5/-L6/-L7`）、四道审计红 0、发布失败 `log_id 20261016105340DC75F8F6E998372E0AD5`。\n**B**：另一处读数称 **本次知识库侧没有拿到引擎读数**（没跑到引擎 / 机读旁挂没落）。\n★ **两者不能同时成立** —— 我按 **A（链侧原文）**转述结论，但**这一处请你核**。★ **若 B 成立**，则「覆盖缺口」那段**不成立**，本单**只剩模型侧 2 条、无库内依据**，**应记为「未测」，而不是「REVIEW（覆盖缺口）」** —— 那它就不能当结论用，也不得据此当通过依据' },
+        { name: '链侧（A）读数要点',
+          value: '最高 BM25 **14.4819**（**素材自己的单元**、自己匹配自己），门限 16.0、合格单元 **0 条** ⇒ **不放行（不产出 PASS）**；**条款号 `?`**；② 自命中检查＝「**未命中**」（归一化 **40** 字、扫过 209 条）—— **不是 `status=error`**；本单唯一带指纹的读数：anchor `#素材/recvw2vgYX65Xf/图片素材/#img.3`、`source_sha256=333b23b370d54e9c…f489579a`；层前置 `ok=true / mode=enforced / red_total=0`（**L4/L5/L6 各 yellow=1 = 预演落章 E5、机制证据、不等于真落盘**；模板那行 `ok=None` 以 `evidence_meta.layer_preflight` 为准）；模态佐证是**申报档**（`image`+`ocr`、`macos-vision`、`declared_by=caller`）；链的推荐：**不补素材、直接把覆盖缺口转给法务/医学顾问定性**' },
+        { name: '★ 画面这一层（依据是视觉模型读数，不是原图）',
+          value: '**画面结论只能依据那份读数**：场景 = **影棚**；**人物：（读数里没有）**；物品 = 白色方形机器（**正面透明门**、左侧黑色竖排按键面板）、浅绿色渐变保温杯（带盖、**杯身有数字显示**）、绿色圆柱形水杯（带提环）；可见标识 = **`momcozy`；`37°`；`88:88`**；线索 = （读数里没有）。★ **读数自报看不清的**：机器内部结构、按键面板具体文字、**产品是否实际使用**；★ 链的口径：**我只拿到图内 OCR 与视觉模型读数，未做逐区域判定**；**凡读数没覆盖的（月龄、声音、图外情节）均未推断**' },
+        { name: '飞书两格（照抄，别混）',
+          value: '**链侧**：**删除** —— 原文是「**飞书那一步没有做**」：`published=false`（模板写「原因 未说明」）；同一处另给：`feishu_publish.py --apply` 退出码 1、错误码 `800030005 not_found`（**`log_id 20261016105340DC75F8F6E998372E0AD5`**）⇒ **结论有效，但没发出去**；链**没有**自行补写（避免重复行/越权写飞书）。**守衡侧**（落表读数）：**已新建这一单在表里的那一行**｜行号 reczz28NvMIHzpr5｜结论=REVIEW｜状态=待审｜回读=consistent' },
+      ],
+      evidence: ['★ 判定对象：[图片] 图注 `Cleaning and On-the-Go Bundle: DeepClean Baby Bottle Washer(D8)`'],
+    }) + '\n[[/card]]';
+    const rq = toCardOrText(rawQ, { verdict53: V53Q, machineAnswer: true });
+    //   ⚠️ 判据落在**公开卡面**（`publicTextOf`：抬头 ＋ 可见格），**不是整张卡** ——
+    //     摘下来的原文按纪律进**折叠区**（「搬是搬，砍是砍」），拿整张卡去比，
+    //     会把「原文照留」也一起判成漏。
+    const faceq = publicTextOf(rq.card ?? {});
+    const nafq = (faceq.match(/（未填）/g) ?? []).length;
+    const leaksq = ['链的口径', '链侧三态', '未命中 ≠ 合规', '飞书那一步', '回读=consistent',
+                    '四道审计', 'not_found', 'source_sha256'].filter((k) => faceq.includes(k));
+    if (rq.mode !== 'card') {
+      //   ⚠️ 降级时把**卡面文本**一起打出来：`mode=text` 有三个完全不同的成因
+      //     （块抽不出 / 校验不过 / 被上游判成纯文本），只报 `mode` 会让人再查一遍。
+      no('J13a3f 带 fields 的机器答案卡也要收成卡',
+         `mode=${rq.mode}；text=${JSON.stringify(String(rq.text ?? '').slice(0, 220))}`);
+    } else if (nafq) {
+      no('J13a3f 卡面不许出现「（未填）」（真单 4 处；它由 fieldRow 渲染，不是模型写的）',
+         `出现 ${nafq} 次；公开卡面=${JSON.stringify(faceq.slice(0, 200))}`);
+    } else if (leaksq.length) {
+      no('J13a3f fields[].value 里的内部读数一行都不许上卡面', `漏了：${leaksq.join(' / ')}`);
+    } else if (!faceq.includes('Cleaning & On-the-Go')) {
+      no('J13a3f 模型写的抬头一个字都不许丢', '抬头不见了');
+    } else ok('J13a3f 真单形状（query-answer ＋ fields[{name,value}]）：卡面无「（未填）」· 读数摘净 · 模型原话没丢');
+
+    // ── J13a3f2 ★ 反向对照：**不许「一律丢字段」**，也**不许只认一种键**
+    //   两个反面同时钉住：① 为了摘读数把整组 `fields` 砍掉（与 J13a3c 同一条纪律）；
+    //   ② 认名收口时把登记表那一种写法（`{label, value}`）弄丢。
+    {
+      const rawN = '[[card:query-answer]]\n' + JSON.stringify({
+        title: '换奶嘴周期', verdict: '建议 2–3 个月换一次',
+        fields: [
+          { label: '置信度', value: '查到' },
+          { name: '窗口', value: '最近 50 条' },
+          { name: '建议', value: '先把 DeepClean 限定为型号，再谈功效' },
+        ],
+      }) + '\n[[/card]]';
+      const rn = toCardOrText(rawN, { verdict53: null, machineAnswer: true });
+      const facen = publicTextOf(rn.card ?? {});
+      const lostN = ['置信度', '查到', '窗口', '最近 50 条', 'DeepClean'].filter((k) => !facen.includes(k));
+      const nafn = (facen.match(/（未填）/g) ?? []).length;
+      if (nafn) no('J13a3f2 反向对照：有标签的字段不许印「（未填）」', `出现 ${nafn} 次`);
+      else if (lostN.length) no('J13a3f2 反向对照：正常字段（两种写法）不许被丢', `丢了：${lostN.join(' / ')}`);
+      else ok('J13a3f2 反向对照：`{label,value}` 与模型真用的 `{name,value}` 都认 · 正常字段照旧上卡 · 都不印「（未填）」');
+    }
+
+    // ── J13a3f3 ★★ **源码级接线**：`fieldRow` 不许再自己认键
+    //   为什么单列一条：上面那两条是**行为级**的，谁把 `fieldRow` 改回 `s(f.label)`
+    //   它们照样能过（只要模型改用 `label`）—— 而模型**不会**改（85/85）。
+    //   这一条读**函数体本身**：认名必须走 `fieldPair`（唯一真源）。
+    {
+      const src = fs.readFileSync(path.join(CARDS_DIR, 'cards.mjs'), 'utf8');
+      const i = src.indexOf('export function fieldRow');
+      const j = src.indexOf('\nexport ', i + 10);
+      const fn = i < 0 ? '' : src.slice(i, j > i ? j : i + 1400);
+      //   ⚠️ 源码级判据的头号假阳性：**判据打到自己写的注释**。
+      //     实测（这一条第一次跑就中了）：`fieldRow` 上方那段病历注释里**逐字写着**
+      //     旧写法 `s(f.label)` —— 正则一头撞上去 ⇒ 在完全正确的代码上判红。
+      //     ⇒ 先把注释剥掉，只判**活代码**（`check_source_readonly.py` 的既有纪律同源）。
+      const code = fn.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/[^\n]*$/gm, '');
+      if (!fn) {
+        no('J13a3f3 fieldRow 必须还在（判据自己别空过）', '找不到 `export function fieldRow`');
+      } else if (/s\(\s*f\.label\s*\)/.test(code)) {
+        no('J13a3f3 fieldRow 不许直接读 f.label', '认名必须走 fieldPair —— 模型 85/85 给的是 name');
+      } else if (!/fieldPair\(/.test(code)) {
+        no('J13a3f3 fieldRow 必须用 fieldPair 认名', '没接上唯一真源（键表在 cards.mjs 的 LABEL_KEYS）');
+      } else ok('J13a3f3 fieldRow 走 fieldPair 认名（不再自己读 f.label）');
+    }
+
+    // ── J13a3f4 ★★ **源码级接线**：`machineAnswerFold` 必须覆盖 `fields[]`
+    //   同理：行为级那两条只在夹具那条路上有效，这一条钉「清洗清单里有没有 fields」。
+    {
+      const src = fs.readFileSync(path.join(CARDS_DIR, 'envelope.mjs'), 'utf8');
+      const i = src.indexOf('function machineAnswerFold(');
+      const j = src.indexOf('\nfunction ', i + 10);
+      const fn = i < 0 ? '' : src.slice(i, j > i ? j : i + 4000);
+      const code = fn.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/[^\n]*$/gm, '');   // 同 J13a3f3：只判活代码
+      if (!fn) {
+        no('J13a3f4 machineAnswerFold 必须还在（判据自己别空过）', '找不到 `function machineAnswerFold(`');
+      } else if (!/d\.fields/.test(code)) {
+        no('J13a3f4 machineAnswerFold 必须把 fields[] 也洗一遍',
+           '清洗清单只有字符串格 —— 真单的读数全在 fields[].value 里');
+      } else ok('J13a3f4 machineAnswerFold 覆盖了 fields[]（不只是那五个字符串格）');
+    }
+
+    // ── J13a3f5 ★ 反向对照：**链跑挂时模型写的真答复**放进 `fields[].value` ⇒ 一个字都不许摘
+    //   （与 J13a3c 同源：判据不是「fields 一律丢」，也不是「凡反引号就摘光」）
+    {
+      const rawA = '[[card:query-answer]]\n' + JSON.stringify({
+        title: '这条链这次没跑成', verdict: '链挂了，我按能读到的部分给你三条建议',
+        fields: [{ name: '我的建议', value: '先把 DeepClean 限定为型号再谈功效；温度那格补上单位；两条都建议转法务复核。' }],
+      }) + '\n[[/card]]';
+      const ra = toCardOrText(rawA, { verdict53: null, machineAnswer: true });
+      const facea = publicTextOf(ra.card ?? {});
+      const lostA = ['先把 DeepClean 限定为型号', '补上单位', '转法务复核'].filter((k) => !facea.includes(k));
+      if (lostA.length) no('J13a3f5 反向对照：fields 里的真答复不许被吞', `丢了：${lostA.join(' / ')}`);
+      else ok('J13a3f5 反向对照：fields 里有真内容时照旧上卡（判据不是「fields 一律丢」）');
+    }
+
+    // ── J13a3f6 ★★ 2026-10-16（写上面那条夹具时**撞出来的**）
+    //   病灶：`toCardOrText` 里 `stripInternalNotes(reply, {machine})` 跑在
+    //   `extractCardBlock` **之前**（那是有意的，见它上方注释），而
+    //   `machineReadingSentences` 的护栏一只认「**本行**以 `[[card:` 开头」——
+    //   块标记与 JSON **不在同一行**（`[[card:kind]]\n{…}` 是标准形状）
+    //   ⇒ JSON 那一行没有任何护栏，只剩「段长 > 800 就不动」那条**侥幸**挡着。
+    //   实测：一份 **769 字**的卡 JSON 被 `split('；')` 摘掉「读数句」⇒ JSON 当场破掉
+    //   ⇒ `extractCardBlock` 报「对象括号没配平」⇒ **整张卡降级成纯文本**发出去。
+    //   ⚠️ 线上至今 **0 次**（`ws_outbound.jsonl` 里「没能把回答组织成卡片」= 0）——
+    //     真卡的 JSON 都超过 800 字、被那条侥幸挡住了。**这是潜伏缺陷，不是已发事故。**
+    //   修法＝护栏三：**整段是合法 JSON 对象就不许改写**（散文不可能同时又解析成 JSON）。
+    {
+      const rawS = '[[card:query-answer]]\n' + JSON.stringify({
+        title: '这条很短', verdict: '短卡也是卡',
+        fields: [{ name: '窗口', value: '最近 50 条' }],
+        evidence: ['状态 PASS ｜ 问题数 0 ｜ 置信度 0.93；回读=consistent；四道审计红 0'],
+      }) + '\n[[/card]]';
+      const rs = toCardOrText(rawS, { machineAnswer: true });
+      if (rs.mode !== 'card') {
+        no('J13a3f6 短卡（JSON < 800 字）不许降级成纯文本',
+           `mode=${rs.mode}；text=${JSON.stringify(String(rs.text ?? '').slice(0, 160))}`);
+      } else ok('J13a3f6 短卡（JSON < 800 字）照旧建得出卡 —— 护栏三：整段是合法 JSON 就不许改写');
+    }
+  }
+
   // J13a4 **接线**：原文没有丢 —— 它是这一轮的回复正文（`ws_daemon` 记字数、memory 存这一轮）
     const W = fs.readFileSync(path.join(HERE, 'ws_daemon.mjs'), 'utf8');
     if (!/💬 回复 \$\{result\.reply\.length\} 字/.test(W)) {

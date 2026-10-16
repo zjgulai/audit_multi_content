@@ -180,12 +180,48 @@ export function columns(cols, opts = {}) {
   };
 }
 
+/**
+ * 「字段对象」里哪个键算**标签**、哪个算**值** —— **唯一真源**。
+ *
+ * ★★ 2026-10-16（真单第 8/9 张 PASS 卡，Owner：「按照 prd 一句话结论，现在格式不对」）：
+ *   登记表 `registry.mjs` 的样例写的是 `{label, value}`，
+ *   而**模型实际 85/85 次全写 `{name, value}`**（批跑会话里全量数的，`label` 一次都没出现过）。
+ *   而 `fieldRow` 原先只认 `f.label` ⇒ `s(undefined)` ⇒ 落 `（未填）`。
+ *   ⚠️ 这与 FIX-022 是**同一个病**（那次 `flat1` 也是「模型用的键不是我以为的那一个」），
+ *     区别只是它站在**第三个执行点**上（`flat1` → `carryCardText` → 这里）。
+ *     ⇒ 治法不是再补一处 `??`，而是**把键表立成唯一真源**，两个函数都从这儿读。
+ */
+export const LABEL_KEYS = ['label', 'name', 'title', 'key'];
+export const VALUE_KEYS = ['value', 'note', 'content', 'text'];
+
+/**
+ * 一个「字段」→ `{label, value}`（两样都是**已经文本化**的字符串）。
+ *
+ * `label` 认不出时返回**空串**（不是 `（未填）`）：一格没有名字**不等于缺字段**，
+ * 它只是「这一格本来就只有一个值」。`（未填）` 那一档留给**值真的缺了**的场合。
+ */
+export function fieldPair(v) {
+  if (v === null || v === undefined) return { label: '', value: '' };
+  if (typeof v !== 'object' || Array.isArray(v)) return { label: '', value: flat1(v).trim() };
+  const lk = LABEL_KEYS.find((k) => k in v && flat1(v[k]).trim());
+  if (!lk) return { label: '', value: flat1(v).trim() };
+  const rest = Object.entries(v).filter(([k]) => k !== lk);
+  const other = VALUE_KEYS.map((k) => rest.find(([r]) => r === k)).find(Boolean) ?? rest[0];
+  return { label: flat1(v[lk]).trim(), value: other ? flat1(other[1]).trim() : '' };
+}
+
 /** 一格字段排（用于边界声明：一行放 3–4 个短字段，而不是三句解释） */
 export function fieldRow(fields, opts = {}) {
   // ★ 2026-10-14：`f.value` 直接插进模板字面量，模型给对象就又是 `[object Object]`
   //   （同一个病根，只是换了一张卡）。走 `s()` 收口。
+  // ★★ 2026-10-16：**没有标签就不印标签格**。原先无论认不认得出标签都先印一行
+  //   `s(f.label)` —— 认不出时那一行正是 `（未填）`，卡面于是变成「（未填）␤内容」交替
+  //   （真单 4 张 PASS 卡，每张 3–4 组）。有标签、而**值缺了**时才落 `（未填）`。
   return columns(
-    fields.map((f) => ({ content: `**${s(f.label)}**\n${s(f.value)}` })),
+    fields.map((f) => {
+      const { label, value } = fieldPair(f);
+      return { content: label ? `**${label}**\n${s(value)}` : s(value) };
+    }),
     { backgroundStyle: 'grey', horizontalSpacing: '8px', ...opts },
   );
 }
@@ -297,13 +333,18 @@ export const flat1 = (v) => {
     //   判据：`verify_cards` 的 J17a–f（2026-10-14 为 `[object Object]` 那次写的）
     //   只喂了 `{能力, 边界}` 与 `{label, value}` 两种形状，**没喂 `{label, note}`**
     //   —— 模型真正用的那一种恰好漏在外面。
-    if ('label' in v) {
-      // 取值按**模型实际用的键**依次认：`note`（真单）→ `value`（既有约定）→ 其余单键
-      const rest = Object.entries(v).filter(([k]) => k !== 'label');
-      const other = rest.find(([k]) => k === 'note') ?? rest.find(([k]) => k === 'value') ?? rest[0];
-      return other ? kv(flat1(v.label), other[1]) : flat1(v.label);
-    }
     if ('title' in v && 'content' in v) return `【${flat1(v.title)}】${flat1(v.content)}`;
+    // ★★ 2026-10-16：标签键**不再只认 `label`** —— 见 `LABEL_KEYS` 头注
+    //   （模型给字段时 85/85 次写的是 `name`，`label` 一次都没出现过）。
+    //   ⚠️ 这一条必须排在 `{title, content}` **之后**：`title` 也在 `LABEL_KEYS` 里，
+    //     排前面会把 `【标题】正文` 那种格式吃掉、变成 `标题：正文`。
+    const lk = LABEL_KEYS.find((k) => k in v && flat1(v[k]).trim());
+    if (lk) {
+      // 取值按**模型实际用的键**依次认：`note`（能力卡真单）→ `value`（登记表约定）→ 其余单键
+      const rest = Object.entries(v).filter(([k]) => k !== lk);
+      const other = VALUE_KEYS.map((k) => rest.find(([r]) => r === k)).find(Boolean) ?? rest[0];
+      return other ? kv(flat1(v[lk]), other[1]) : flat1(v[lk]);
+    }
     return Object.entries(v).map(([k, vv]) => kv(k, vv)).filter(Boolean).join('；');
   }
   return v === undefined || v === null ? '' : String(v);
