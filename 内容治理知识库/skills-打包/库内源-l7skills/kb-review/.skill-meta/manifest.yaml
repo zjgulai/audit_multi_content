@@ -1,0 +1,39 @@
+skill:
+  name: kb-review
+  version: "1.1.0"
+  structure_version: "1.0"
+  created_at: 未登记
+  updated_at: "2026-10-15"
+  created_by: "**未登记 —— 本 skill 不是 root-skills-creator 创建的**"
+  format_aligned_at: "2026-10-15"
+  format_aligned_by: "tools/session_distill/align_skill_format.py（仅补本文件，未动 SKILL.md）"
+
+known_nonconformance:
+  - 项: "正文 12363 字符 > standard 上限 4000（validator 报 error）"
+    处置: "**不拆，登记为已知例外**"
+    为什么不能拆: >
+      2026-10-15 实测，不是推断。`## 1.5 层前置（驱动循环）` 单节 5844 字符，
+      其中**代码块只占 1219 字符（约 21 个百分点）**，其余 4625 字符是散文 ——
+      而散文全是**判断**：「为什么打印一句『该调谁』不算调过」、
+      「层前置恒定执行 vs 让位表定判定主体（别混）」、「四层为什么要各自的 RUN id」。
+      这些不是可搬的参考材料，**是硬教训**。搬进 references/ 后模型可能不读 ⇒ **真的会断链**。
+      `## 2 评审链`（2416）是路由顺序，同样动不得；`## 0 让位`（834）是第一动作。
+      要勉强压到 4000 附近，得把 1.5 加 6 加 4 全搬走 —— 而搬走的恰是最不能搬的那部分。
+    建议: >
+      要真解决只有两条路：① 先跑 root-skills-eval 触发回归（B 卷 10 条 + A 卷）
+      证明路由与判定不漂，再拆；② 架构上拆成「入口（让位+承接）」与「执行（层前置+评审链）」
+      两个 skill —— 那是改路由拓扑，需立项。
+      **在没做 ① 之前拆，等于用「把错误消掉」换「把链路拆坏」。**
+  - 项: "description 1064 字符 > 1024 上限"
+    处置: "**不改** —— Owner 2026-10-15 冻结令：description 是 DSH 的路由开关，一律不改"
+
+gates:
+  iron_law_red: "pending — **未跑**"
+  iron_law_green: pending
+  iron_law_refactor: pending
+  eval_track_c: "pending — 走 root-skills-eval"
+  pre_launch_checklist: "pending — 10 项未逐项审"
+
+note: >
+  本文件于 2026-10-15 补建（kb-review 是评审链入口，上一轮格式对齐只覆盖了
+  标 layer=L0–L7 的 14 个，漏了它）。★ 它**如实登记 pending**，不是「通过门禁」。
