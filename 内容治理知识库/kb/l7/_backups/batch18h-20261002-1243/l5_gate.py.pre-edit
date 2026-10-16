@@ -1,0 +1,151 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""l5_gate.py —— L5 层闸门（**包装 + 分类档**）：跑层的自检器，把「真失败」和「判据过期」分开。
+
+## 为什么不直接用 kb/.work/l5_integrity.py
+
+实测（2026-09-30）：它有 6 项，其中 **2 项在活库上必然 FAIL**，但都不是数据坏了：
+
+  1. `frozen_layers` —— 它比的是「l5 首次写入那一刻」的 l0/l1/l2 指纹。
+     活库每天在跑（实测 l0 最后修改 09-30 09:31、l1 09:43、l2 09:43），**必然不等**。
+     layers.yaml 的 notes 里已经登记过这个道理（冻结基线项在活库模式下变红是合法的），
+     但 `l5_integrity.py` 自己没有这条分类 —— 所以不能把它当日报闸门直接用。
+
+  2. `l3_append_only` —— 判据是 `new_ids == base_ids`（第 509 行之后的 rule_id 集合
+     必须等于前 509 行的集合），也就是「追加段必须覆盖基线」。实测当前
+     `kb/l3/candidates/rules.jsonl` **正好 509 行**（09-29 14:46 的收敛步把追加段收敛掉了，
+     历史版本留在 `kb/l3/history/rules-superseded-20260924-1230.jsonl`），
+     于是 `new_rows = []` → `new_ids = ∅` ≠ base_ids → 必 FAIL。
+     → 这是**判据过期**（为「未收敛」状态写的），不是丢了 509 条以外的规则。
+
+## 所以本闸门做两件事
+
+  1. 原样跑 `l5_integrity.py`（**它的输出一个字不改，全打出来**），解析 6 项的 PASS/FAIL；
+  2. 分类：
+       * 4 项实质判据（pattern_traceability / no_fabricated_words / version_discipline / offline）
+         **必须 PASS**，FAIL = 红；
+       * 2 项基线类判据（frozen_layers / l3_append_only）FAIL 时，必须逐项登记在
+         `kb/l7/registry/l5-known-drift.yaml`（带证据 + 修法）→ 未登记 = 红。
+         登记的只是**分类**，原始数照打，不抹掉。
+
+## 副作用（如实声明）
+
+`l5_integrity.py` 会写它自己的证据文件 `kb/.work/l5_integrity.json`（**不是层产物**，
+不在 kb/l0…l6 里）。本闸门不写任何别的文件。日报的「零写」口径看的是 l0…l6 产物，不受影响。
+
+用法：
+    kb/kbpy l7/scripts/l5_gate.py [--json] [--quiet]
+    KB_GATE_KB=<夹具目录> kb/kbpy l7/scripts/l5_gate.py      # 反测用（默认真库）
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+KB = os.environ.get("KB_GATE_KB") or os.path.dirname(os.path.dirname(HERE))
+ROOT = os.path.dirname(KB)
+REGISTRY = os.environ.get("KB_GATE_L7") or os.path.join(KB, "l7/registry")
+DRIFT_YAML = os.path.join(REGISTRY, "l5-known-drift.yaml")
+CHECKER = "kb/.work/l5_integrity.py"
+EVIDENCE = "kb/.work/l5_integrity.json"
+SUBSTANTIVE = ("pattern_traceability", "no_fabricated_words", "version_discipline", "offline")
+BASELINE_ITEMS = ("frozen_layers", "l3_append_only")
+ITEM = re.compile(r"^\[(PASS|FAIL)\]\s+(\S+)\s*$")
+
+
+def _declared():
+    if not os.path.exists(DRIFT_YAML):
+        return set(), {}
+    try:
+        import yaml
+        with open(DRIFT_YAML, encoding="utf-8") as fh:
+            d = yaml.safe_load(fh) or {}
+    except Exception:                                # noqa: BLE001
+        return set(), {}
+    raw = d.get("stale_criteria") or []
+    keys = {str(x.get("item")) for x in raw if isinstance(x, dict)}
+    return keys, {str(x.get("item")): x for x in raw if isinstance(x, dict)}
+
+
+def compute():
+    if not os.path.exists(os.path.join(ROOT, CHECKER)):
+        return None, "自检器不在位：%s" % CHECKER
+    py = os.environ.get("KB_PYTHON") or sys.executable
+    r = subprocess.run([py, CHECKER], cwd=ROOT, capture_output=True, text=True)
+    items = {}
+    for line in (r.stdout or "").splitlines():
+        m = ITEM.match(line.strip())
+        if m:
+            items[m.group(2)] = m.group(1)
+
+    declared, detail = _declared()
+    red, classified = [], []
+    for name in SUBSTANTIVE:
+        if items.get(name) != "PASS":
+            red.append([name, items.get(name, "未出现"), "实质判据必须 PASS"])
+    for name in BASELINE_ITEMS:
+        st = items.get(name)
+        if st == "PASS":
+            continue
+        if name in declared:
+            classified.append([name, st, detail[name].get("why", "")[:80]])
+        else:
+            red.append([name, st, "基线类判据 FAIL 且**未登记**在 %s"
+                        % os.path.relpath(DRIFT_YAML, ROOT)])
+
+    rep = {
+        "items": items, "checker_exit": r.returncode,
+        "substantive_red": [x for x in red if x[0] in SUBSTANTIVE],
+        "classified_baseline": classified,
+        "declared_items": sorted(declared),
+        "red": red, "red_total": len(red),
+        "raw_tail": (r.stdout or "").strip().splitlines()[-3:],
+        "evidence_file": EVIDENCE,
+    }
+    return rep, None
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--json", action="store_true")
+    ap.add_argument("--quiet", action="store_true")
+    a = ap.parse_args()
+
+    rep, err = compute()
+    if rep is None:
+        print("❌ 无法计算：%s" % err)
+        print("退出码：2")
+        return 2
+
+    ok = rep["red_total"] == 0
+    if a.json:
+        print(json.dumps({"gate": "l5_gate", "ok": ok, **rep}, ensure_ascii=False, indent=1))
+        return 0 if ok else 1
+
+    print("=" * 74)
+    print("L5 闸门（跑 kb/.work/l5_integrity.py 的 6 项，按「实质 / 基线」分类）")
+    for name in SUBSTANTIVE + BASELINE_ITEMS:
+        print("  %-22s %s" % (name, rep["items"].get(name, "未出现")))
+    print("-" * 74)
+    if not a.quiet:
+        for name, st, why in rep["red"]:
+            print("  ❌ %s = %s ｜ %s" % (name, st, why))
+        for name, st, why in rep["classified_baseline"]:
+            print("  ⚠️ %s = %s（已登记为**判据过期**，不判红）｜ %s" % (name, st, why))
+    print("-" * 74)
+    print("说明：本闸门会触发自检器写它自己的证据文件 %s（不是层产物）" % rep["evidence_file"])
+    print("      自检器退出码 %d ｜ 末行：%s" % (rep["checker_exit"], " / ".join(rep["raw_tail"])))
+    print("=" * 74)
+    print("结论：%s" % ("✅ 过（实质 4 项全 PASS，基线项异常已登记）" if ok
+                       else "❌ 未过（红 %d）" % rep["red_total"]))
+    print("退出码：%d" % (0 if ok else 1))
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

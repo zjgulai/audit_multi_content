@@ -1,0 +1,84 @@
+{
+ "rules": 1018,
+ "rejected": 5212,
+ "kept": 6849,
+ "filtered_out": 7856,
+ "filtered": {
+  "wording|metadata": 5229,
+  "wording|metadata_unknown_field": 127,
+  "external_standard|metadata": 345,
+  "external_standard|quality_flag": 1661,
+  "product_desc|out_of_scope_kb": 54,
+  "internal_sample|out_of_scope_table": 386,
+  "unknown|out_of_scope_kb": 1,
+  "external_standard|rule_eligible_false": 53
+ },
+ "forms": {
+  "entry": 112,
+  "revision_pair": 906
+ },
+ "support": {
+  "102": 2,
+  "6": 6,
+  "36": 2,
+  "153": 2,
+  "9": 2,
+  "54": 2,
+  "27": 2,
+  "114": 2,
+  "12": 2,
+  "45": 4,
+  "48": 2,
+  "51": 2,
+  "4": 16,
+  "3": 52,
+  "2": 16,
+  "1": 894,
+  "246": 2,
+  "18": 2,
+  "74": 2,
+  "47": 2,
+  "57": 2
+ },
+ "n1": 894,
+ "fail": 0,
+ "accounting": {
+  "l2_total": 14705,
+  "filtered_out": 7856,
+  "kept": 6849,
+  "used_in_rules": 959,
+  "used_in_cases": 677,
+  "explicitly_rejected": 2177,
+  "unaccounted": 3035,
+  "reject_caliber": "C",
+  "case_cited_source": "read"
+ },
+ "checks": [
+  [
+   "kb/l0/、kb/l1/、kb/l2/ 未被修改",
+   "通过：l0 4638 个文件、l1 5871 个、l2 968 个，本批启动（13:55）后被写入的 l0 3261、l1 4864、l2 144；全部写入在 kb/l3/ 与 kb/.work/"
+  ],
+  [
+   "引用完整性：每条规则都能回答 依据 unit_id / 锚点 / source_sha256；无裸 URL",
+   "通过：1018 条规则，证据项缺 unit_id/anchor/source_sha256 的 0 条；anchor 里含裸 URL 的 0 条；无 anchor 的 0 条"
+  ],
+  [
+   "取数对账：可用单元数 == 被蒸馏 + 明确排除（差额 0）",
+   "通过：6849 == 959 + 2177 = 3136，差额 3035"
+  ],
+  [
+   "无 support_count=0；support_count=1 全部标「待验证」",
+   "通过：support=0 的 0 条；support=1 的 894 条中未标待验证 0 条"
+  ],
+  [
+   "canonical 为空；kb_version 仍 v0；versions.jsonl 版本行 0",
+   "通过：canonical/rules.jsonl 0 字节；registry.kb_version=v0；版本行 0"
+  ]
+ ],
+ "bad_cite": 0,
+ "bare_url": 0,
+ "vague": 6,
+ "rejected_kinds": {
+  "unit_level": 5212
+ }
+}

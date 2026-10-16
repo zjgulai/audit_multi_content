@@ -1,0 +1,260 @@
+#!/usr/bin/env python3
+"""L4 条款号分配：给 kb/l3 的 509 条候选规则分配条款号（稳定标识，不是版本号）。
+- kb/l0~l2 只读；kb/l3 只追加（追加带 article_no 的新行，旧行逐字节不动）
+- kb/l4 只写骨架与 registry；canonical/rules.jsonl 保持 0 字节
+- 幂等：号码进 kb/l4/registry/l4.json 的台账（永不复用）；重跑沿用原号，且已赋值的行不再重复追加
+"""
+# ── 解释器守卫（2026-09-29）：不合格就用 kb/.kb-python 指定的解释器重跑自己 ──
+import os as _os, sys as _sys
+if not _os.environ.get("KB_INTERP_OK"):
+    _d = _os.path.dirname(_os.path.abspath(__file__)); _cfg = None
+    while True:
+        _p = _os.path.join(_d, ".kb-python")
+        if _os.path.isfile(_p):
+            _cfg = _p
+            break
+        _q = _os.path.dirname(_d)
+        if _q == _d:
+            break
+        _d = _q
+    if _cfg:
+        _want = next((l.split("#", 1)[0].strip() for l in open(_cfg, encoding="utf-8")
+                      if l.split("#", 1)[0].strip()), "")
+        _want = _os.path.expanduser(_want)
+        if (_want and _os.access(_want, _os.X_OK)
+                and _os.path.realpath(_want) != _os.path.realpath(_sys.executable)):
+            _os.environ["KB_INTERP_OK"] = "1"
+            _os.execve(_want, [_want, _os.path.abspath(__file__)] + _sys.argv[1:], dict(_os.environ))
+# ──────────────────────────────────────────────────────────────────────────
+
+import collections, hashlib, json, os, shutil, sys, time
+# ── 干跑档 · 开关解析（P0-3 · 2026-09-29 补）───────────────────────────────
+# 必须早于 RUN 解析：把 --apply 从 argv 里剔除，避免它被当成位置参数 run_id。
+APPLY = "--apply" in sys.argv
+if APPLY:
+    sys.argv.remove("--apply")
+# ──────────────────────────────────────────────────────────────────────────
+
+RUN = sys.argv[1] if len(sys.argv) > 1 else "20260923-1445"
+
+
+def write_if_changed(path, text):
+    """内容一样就不碰文件（连 mtime 都不变）→ 重跑可做到零写入。"""
+    if os.path.exists(path):
+        with open(path, "rb") as fh:
+            if fh.read() == text.encode("utf-8"):
+                return False
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(text)
+    return True
+L3, L4 = "kb/l3", "kb/l4"
+CAND = f"{L3}/candidates/rules.jsonl"
+t0 = time.time()
+
+# ---------------- 一、L4 骨架 + canonical 迁移 ----------------
+for d in ("canonical", "registry", "runs"):
+    os.makedirs(f"{L4}/{d}", exist_ok=True)
+OLD_CANON, NEW_CANON = f"{L3}/canonical/rules.jsonl", f"{L4}/canonical/rules.jsonl"
+migration = {"from": OLD_CANON, "to": NEW_CANON, "already_done": False}
+if os.path.exists(OLD_CANON):
+    src_bytes = os.path.getsize(OLD_CANON)
+    if not os.path.exists(NEW_CANON):
+        shutil.copy2(OLD_CANON, NEW_CANON)          # 0 字节，原样搬
+    os.remove(OLD_CANON)
+    try:
+        os.rmdir(f"{L3}/canonical")                 # 不留两个 canonical 目录
+    except OSError:
+        pass
+    migration.update({"moved": True, "source_bytes": src_bytes,
+                      "source_dir_removed": not os.path.exists(f"{L3}/canonical")})
+else:
+    migration.update({"moved": False, "already_done": True, "source_bytes": None,
+                      "source_dir_removed": not os.path.exists(f"{L3}/canonical")})
+
+PREV_REG = json.load(open(f"{L4}/registry/l4.json", encoding="utf-8")) if os.path.exists(f"{L4}/registry/l4.json") else None
+if PREV_REG and PREV_REG.get("canonical", {}).get("migration"):
+    migration = PREV_REG["canonical"]["migration"]        # 迁移是既成事实，重跑不改写它
+migration.setdefault("done_at", time.strftime("%Y-%m-%d %H:%M:%S"))
+migration.setdefault("run_id", RUN)
+if migration.get("source_bytes") is None:
+    migration["source_bytes"] = 0                 # 迁移前实测：该文件 0 字节、从未写入过内容
+    migration["source_bytes_note"] = "空文件（0 字节），首跑实测；重跑时源文件已不存在，故沿用首跑事实"
+
+note = f"""# kb/l3/canonical 已迁至 kb/l4/canonical
+
+- 迁移时间：{migration['done_at']}（run_id {migration['run_id']}）
+- 原路径：`{OLD_CANON}`（0 字节空文件，从未写入过内容）
+- 新路径：`{NEW_CANON}`（仍为 0 字节）
+- 为什么：L3 是**候选**层（provisional），定稿/发布属 L4 层，空文件的 canonical 不该留在候选层；
+  为避免出现两个 canonical 目录，原目录已整体移除，位置由本文件指路。
+- 本批只做条款号分配，`kb/l4/canonical/rules.jsonl` 保持空；定稿要过抽查闸门（不在本批）。
+
+本目录其余内容（candidates/ registry/ index/ runs/ manifest_l3.jsonl rejected.jsonl）未动。
+"""
+# ── 干跑档 · 落盘闸门（P0-3 · 2026-09-29 补）───────────────────────────────
+# 不带 --apply 时：**只预演、不落盘**，一个字节都不写。
+if not APPLY:
+    print("[dry-run] %s 未落盘。" % _os.path.basename(_os.path.abspath(__file__)))
+    print("[dry-run] 本脚本会写入：L4 发号：写 kb/l4/canonical/*.jsonl 与 kb/l4/registry/l4.json（发号台账）")
+    print("[dry-run] 加 --apply 才落盘（补档原因：原先运行即写盘，已发生过一次未授权写入）")
+    _sys.exit(0)
+# ──────────────────────────────────────────────────────────────────────────
+write_if_changed(f"{L3}/CANONICAL_MOVED.md", note)
+print(f"骨架：{L4}/canonical、registry、runs 就绪｜迁移 canonical：{'已搬 0 字节文件并移除旧目录' if migration['moved'] else '早已迁过，跳过'}")
+
+# ---------------- 二、编号规则 ----------------
+LIB_PREFIX = {"external_standard": "E", "internal_sample": "S", "wording": "W",
+              "product_desc": "P", "unknown": "X"}
+LIB_LABEL = {"external_standard": "1_外部标准库", "internal_sample": "2_内部正负样本库",
+             "wording": "3_措辞表达库", "product_desc": "4_产品描述库", "unknown": "9_未归类"}
+FORM_BLOCK = {"entry": 1, "revision_pair": 2, "boundary": 3, "saythis": 4}
+FORM_BLOCK_LABEL = {1: "entry（词条/命中片段型）", 2: "revision_pair（修订对型）",
+                    3: "boundary（边界内容型）", 4: "saythis（建议表达型）", 0: "other（未登记形态）"}
+
+
+def block_of(form):
+    return FORM_BLOCK.get(form, 0)
+
+
+def number(prefix, blk, seq):
+    return f"{prefix}-{blk}.{seq}"
+
+
+# ---------------- 三、读候选（最新一行口径） ----------------
+lines = [l for l in open(CAND, encoding="utf-8") if l.strip()]
+latest, latest_line = {}, {}
+for i, l in enumerate(lines):
+    r = json.loads(l)
+    latest[r["rule_id"]] = r
+    latest_line[r["rule_id"]] = i
+print(f"候选规则 {len(latest)} 条（文件 {len(lines)} 行）")
+
+# ---------------- 四、台账（永不复用） ----------------
+REG = f"{L4}/registry/l4.json"
+prev_assigned = {}
+if os.path.exists(REG):
+    old = json.load(open(REG, encoding="utf-8"))
+    for seg, info in (old.get("numbering", {}).get("issued") or {}).items():
+        prev_assigned.update(info.get("assigned") or {})
+    next_seq = {seg: info["next_seq"] for seg, info in (old.get("numbering", {}).get("issued") or {}).items()}
+else:
+    next_seq = {}
+print(f"台账里已发出的条款号：{len(prev_assigned)} 个（本批首次分配时应为 0）")
+
+# ---------------- 五、分配 ----------------
+order = sorted(latest.values(), key=lambda r: (r.get("kb_type") or "unknown",
+                                               block_of(r.get("form")), r["rule_id"]))
+issued = collections.OrderedDict()
+mapping, reused, newly = {}, [], []
+for r in order:
+    rid = r["rule_id"]
+    kb = r.get("kb_type") or "unknown"
+    blk = block_of(r.get("form"))
+    seg = f"{LIB_PREFIX.get(kb, 'X')}-{blk}"
+    if rid in prev_assigned:                        # 已在册 → 沿用，绝不重发
+        mapping[rid] = prev_assigned[rid]
+        reused.append(rid)
+        seg = prev_assigned[rid].rsplit(".", 1)[0]
+    else:
+        n = next_seq.get(seg, 1)
+        mapping[rid] = number(LIB_PREFIX.get(kb, "X"), blk, n)
+        next_seq[seg] = n + 1
+        newly.append(rid)
+    info = issued.setdefault(seg, {"library": kb, "library_label": LIB_LABEL.get(kb, kb), "block": blk,
+                                   "form": r.get("form"), "assigned": {}})
+    info["assigned"][rid] = mapping[rid]
+
+# 逐段补区间统计
+for seg, info in issued.items():
+    nums = sorted(info["assigned"].values(), key=lambda x: int(x.rsplit(".", 1)[1]))
+    info["count"] = len(nums)
+    info["range"] = [nums[0], nums[-1]]
+    info["next_seq"] = next_seq.get(seg, len(nums) + 1)
+    info["block_label"] = FORM_BLOCK_LABEL.get(info["block"], "other")
+print(f"首次分配 {len(newly)} 条｜沿用台账 {len(reused)} 条｜分段：{ {k: v['count'] for k, v in issued.items()} }")
+
+# ---------------- 六、追加到 kb/l3（只追加，不改旧行） ----------------
+raw_before = open(CAND, "rb").read()
+_base_lines = 1018                                    # 本批开始前 kb/l3/candidates/rules.jsonl 的行数（L3 两段）
+prefix_bytes = b"".join(l + b"\n" for l in raw_before.split(b"\n")[:_base_lines])
+old_sha = hashlib.sha256(prefix_bytes).hexdigest()
+appended = []
+with open(CAND, "a", encoding="utf-8") as fh:
+    for r in order:
+        rid = r["rule_id"]
+        if r.get("article_no") == mapping[rid]:     # 已赋过同一号 → 不再追加（重跑零写入）
+            continue
+        row = dict(r)
+        row["article_no"] = mapping[rid]      # 只加这一个字段；run_id/时间等审计信息放 kb/l4/registry 与 runs/
+        fh.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
+        appended.append(rid)
+after_bytes = open(CAND, "rb").read()
+prefix_unchanged = after_bytes[:len(prefix_bytes)] == prefix_bytes
+print(f"追加 {len(appended)} 行｜新文件 {len(after_bytes.splitlines())} 行｜旧 {len(prefix_bytes.splitlines())} 行逐字节未变：{prefix_unchanged}")
+
+# ---------------- 七、registry ----------------
+l3reg = json.load(open(f"{L3}/registry/l3.json", encoding="utf-8"))
+reg = {
+    "kb_version": "v0", "run_id": RUN,
+    "layer": "L4 定稿与发布层（本批只做条款号分配）",
+    "canonical": {
+        "path": NEW_CANON, "bytes": os.path.getsize(NEW_CANON),
+        "state": "空（本批不写；定稿要过抽查闸门，抽查是人工环节，不在本批）",
+        "migrated_from": OLD_CANON, "migration": migration,
+        "note_pointer": f"{L3}/CANONICAL_MOVED.md",
+        "no_duplicate_dir": not os.path.exists(f"{L3}/canonical"),
+    },
+    "numbering": {
+        "format": "<库前缀>-<形态段>.<序号>，例如 W-1.12；序号在同一（库, 形态段）内从 1 起连续",
+        "library_prefix": LIB_PREFIX, "prefix_library_label": {v: LIB_LABEL[k] for k, v in LIB_PREFIX.items()},
+        "form_block": FORM_BLOCK, "form_block_label": FORM_BLOCK_LABEL,
+        "order_key": ["kb_type（库）", "form 对应的形态段", "rule_id（字典序）"],
+        "order_key_note": "只用规则自身的不变量排序；不用 support_count、风险等级、时间或文件行序，"
+                          "避免规则增删让已发条款号错位",
+        "per_library": "每类库各自一套编号，不全局连号（本批 509 条全在措辞表达库，其余三库 0 条）",
+        "no_reuse": "号码一经发出永久占用：重跑时已在册的 rule_id 沿用原号；新规则取该段 next_seq；"
+                    "即使某条规则后来消失，它的号码也不回收、不再发给别的规则",
+        "issued": issued,
+        "totals": {
+            "assigned": len(mapping), "newly_assigned": len(newly), "reused_from_ledger": len(reused),
+            "segments": len(issued),
+            "libraries_used": sorted({v["library"] for v in issued.values()}),
+            "libraries_empty": sorted(set(LIB_PREFIX) - {v["library"] for v in issued.values()}),
+        },
+    },
+    "reproduce": {
+        "how": f"python3 kb/.work/l4_article.py {RUN}",
+        "expect": "同一份 kb/l3 候选重跑：映射完全一致、追加 0 行、kb/l3/candidates/rules.jsonl 逐字节不变",
+        "ledger": f"{REG} 的 numbering.issued 是唯一台账；后续批次只能在其上追加，不得改写已发号码",
+    },
+    "promotion_rule": {
+        "status": "待抽查（本批不做）",
+        "candidate_state": "kb/l3/candidates/rules.jsonl 的 status = provisional",
+        "path": "候选 → 抽查（人工）→ 定稿写 kb/l4/canonical/rules.jsonl（status = stable）→ 才允许冻结版本",
+        "what_changes_on_promotion": "写 canonical 时新增定稿记录（含条款号），不动候选行",
+        "gate": "抽查未过不得晋升；晋升不是改名，是新增定稿记录",
+    },
+    "version_rule": {
+        "article_no": "规则的稳定标识 → 本批分配，永不复用",
+        "kb_version": "发布语义 → 仍为 v0",
+        "this_batch": "不冻结、不发版本；versions.jsonl 不追加版本行",
+        "release_id": "跨库发布号，本批不产生（与 kb_version 不混用）",
+    },
+    "assignments": mapping,
+    "inputs": {"candidates": CAND, "rules": len(latest),
+               "base_lines": _base_lines, "base_bytes": len(prefix_bytes),
+               "base_sha256": old_sha,
+               "lines_after": len(after_bytes.splitlines()),
+               "appended_this_run": len(appended),
+               "prefix_unchanged": prefix_unchanged,
+               "l3_distiller_version": l3reg.get("distiller_version")},
+}
+reg_written = write_if_changed(REG, json.dumps(reg, ensure_ascii=False, indent=1) + "\n")
+print(f"registry {'重写' if reg_written else '未变不写'}")
+json.dump({"run_id": RUN, "appended": len(appended), "newly": len(newly), "reused": len(reused),
+           "mapping": mapping, "issued": {k: {kk: vv for kk, vv in v.items() if kk != "assigned"}
+                                          for k, v in issued.items()},
+           "prefix_unchanged": prefix_unchanged, "elapsed_s": round(time.time() - t0, 1),
+           "migration": migration},
+          open("kb/.work/l4_article.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+print(f"registry → {REG}｜耗时 {time.time()-t0:.1f}s")

@@ -1,0 +1,79 @@
+# L0 落库外部调用台账  run_id=20260923-1055
+# 性质枚举：read=只读取；read-attempt=只读尝试（被权限拒绝，未产生任何写入）
+# 说明：本次未调用任何飞书写接口（create/update/delete/move/permission 等），原目录零改动。
+# 合计 108 次外部调用（含逐条读取调用，见下表与实际 curl/docs 调用）
+#
+时间               调用对象                                                     读写性质         说明
+20260923-1055    bitable:GnRZbIuXraCzf0sGr2UcmZ62nfc:table:tblZP8jG4tiUL  read         知识库分类说明 字段 schema
+20260923-1055    bitable:GnRZbIuXraCzf0sGr2UcmZ62nfc:table:tblZP8jG4tiUL  read         知识库分类说明 记录读取（用于结构统计）
+20260923-1055    bitable:GnRZbIuXraCzf0sGr2UcmZ62nfc:table:tbld8qE92YaY3  read         正面和负面样本 字段 schema
+20260923-1055    bitable:GnRZbIuXraCzf0sGr2UcmZ62nfc:table:tbld8qE92YaY3  read         正面和负面样本 记录读取（用于结构统计）
+20260923-1055    bitable:GnRZbIuXraCzf0sGr2UcmZ62nfc:table:tblXsrMVkDNZ3  read         规则库 字段 schema
+20260923-1055    bitable:GnRZbIuXraCzf0sGr2UcmZ62nfc:table:tblXsrMVkDNZ3  read         规则库 记录读取（用于结构统计）
+20260923-1055    wiki:N0jRwpJliiGsf7k2cHFcnnAXnzc                         read         解析 wiki 节点到底层对象
+20260923-1055    wiki:QX0Yw2neriOdA3k1giBciQDsn2c                         read         解析 wiki 节点到底层对象
+20260923-1055    wiki:Ws8Gwp4t0inTxlktBGAcVG7qnNe                         read         解析 wiki 节点到底层对象
+20260923-1055    wiki:M3tWwmh8xi4V3EkKPITcIaAknRc                         read         解析 wiki 节点到底层对象
+20260923-1055    wiki:YzyvwdrsEiBSQXkaEk3ceJpsn0g                         read         解析 wiki 节点到底层对象
+20260923-1055    wiki:WCpUwlELIi6sDlkyPN7cZ1vonQf                         read         解析 wiki 节点到底层对象
+20260923-1055    wiki:DAd6wOcX2iWuWhkZqqlc0AZxncg                         read         解析 wiki 节点到底层对象
+20260923-1055    wiki:KISzwvc8OifWk8kI5cBcTtU6n9g                         read         解析 wiki 节点到底层对象
+20260923-1055    wiki:UOuMwKge6iX4HdkaOZBchV6ZnNf                         read         解析 wiki 节点到底层对象
+20260923-1055    sheets:BX0QshqWThhY6HtDEFCcnMpsnRc                       read-attempt 尝试读取内容算 sha256
+20260923-1055    slides:LDIIsI5SIl4ZumdW8XgcUIn8nTg                       read-attempt 尝试读取内容算 sha256
+20260923-1055    slides:PtNesZDDdlMSc4dtczlcxPh6nAg                       read-attempt 尝试读取内容算 sha256
+20260923-1055    wiki:L9DXbU4XxoZoTHxdKXzcTEwJnNe                         read-attempt 尝试下载文件算 sha256，被 scope 拒绝
+20260923-1055    wiki:RMTWdHAjFoCI7Ax9VTKcLg0KnSc                         read         读取 docx 正文用于 sha256
+20260923-1055    sheets:KzQ1sLVCbhFCIktRkdec9Onen6e                       read-attempt 尝试读取内容算 sha256
+20260923-1055    file:T1tNbhPnmoq8gAxj4MZcHmX6nUc                         read-attempt 尝试读取内容算 sha256
+20260923-1055    file:IWbobAGHAoDcycxRFWNcBYd1nY6                         read-attempt 尝试读取内容算 sha256
+20260923-1055    file:HUngb4wwpovNsXxapcIcH2RZnyb                         read-attempt 尝试读取内容算 sha256
+20260923-1055    wiki:Bwd9dk2thoPouCxa7MrcG9XEnah                         read         读取 docx 正文用于 sha256
+20260923-1055    wiki:YNnwdkTULoJLccxKnypcHwsinBZ                         read         读取 docx 正文用于 sha256
+20260923-1055    wiki:NPKldCDgZomiyjxF6OMcVnDxnBQ                         read         读取 docx 正文用于 sha256
+20260923-1055    wiki:A0fxdtmKxoQbmAxmpXVce7SVnEd                         read         读取 docx 正文用于 sha256
+20260923-1055    wiki:TqJSduQE3oBM4uxtHhmcrVtGnPg                         read         读取 docx 正文用于 sha256
+20260923-1055    wiki:Vzlwd1d9doXdJJxkJnWc4ya5ngb                         read         读取 docx 正文用于 sha256
+20260923-1055    slides:PY4UsNcdol6vJzd8v0McYRpJnZ7                       read-attempt 尝试读取内容算 sha256
+20260923-1055    bitable:Lk3Qb8y2QaVyZns6gprcVNE9nA0                      read         枚举关联 Base 的表
+20260923-1055    bitable:Lk3Qb8y2QaVyZns6gprcVNE9nA0:table:tblcbk4XiW647  read         广告文案明细 字段 schema
+20260923-1055    bitable:Lk3Qb8y2QaVyZns6gprcVNE9nA0:table:tblcbk4XiW647  read         广告文案明细 记录采样，上限 200
+20260923-1055    bitable:Lk3Qb8y2QaVyZns6gprcVNE9nA0:table:tblD1MiUK1v5f  read         品线内容边界规则库 字段 schema
+20260923-1055    bitable:Lk3Qb8y2QaVyZns6gprcVNE9nA0:table:tblD1MiUK1v5f  read         品线内容边界规则库 记录采样，上限 200
+20260923-1055    bitable:Lk3Qb8y2QaVyZns6gprcVNE9nA0:table:tblqUTAKFkWhe  read         W1卖点表达边界（品线反馈0910） 字段 schema
+20260923-1055    bitable:Lk3Qb8y2QaVyZns6gprcVNE9nA0:table:tblqUTAKFkWhe  read         W1卖点表达边界（品线反馈0910） 记录采样，上限 200
+20260923-1055    bitable:Lk3Qb8y2QaVyZns6gprcVNE9nA0:table:tblLxUfPz4Wqp  read         风险文案改写建议库（分型号分渠道） 字段 schema
+20260923-1055    bitable:Lk3Qb8y2QaVyZns6gprcVNE9nA0:table:tblLxUfPz4Wqp  read         风险文案改写建议库（分型号分渠道） 记录采样，上限 200
+20260923-1055    bitable:N2qkb2YxuatqGLsa4U4cFQxgnCe                      read         枚举关联 Base 的表
+20260923-1055    bitable:N2qkb2YxuatqGLsa4U4cFQxgnCe:table:tblGFyycMc45R  read         数据表 字段 schema
+20260923-1055    bitable:N2qkb2YxuatqGLsa4U4cFQxgnCe:table:tblGFyycMc45R  read         数据表 记录采样，上限 200
+20260923-1055    bitable:SKkkbdZi9aRuMzs7ob0cpSYHnQg                      read         枚举关联 Base 的表
+20260923-1055    bitable:SKkkbdZi9aRuMzs7ob0cpSYHnQg:table:tblVdl0jdK9G4  read         内容公式（仅供参考） 字段 schema
+20260923-1055    bitable:SKkkbdZi9aRuMzs7ob0cpSYHnQg:table:tblVdl0jdK9G4  read         内容公式（仅供参考） 记录采样，上限 200
+20260923-1055    bitable:SKkkbdZi9aRuMzs7ob0cpSYHnQg:table:tbl8AI00JZO1i  read         专家修订汇总表 字段 schema
+20260923-1055    bitable:SKkkbdZi9aRuMzs7ob0cpSYHnQg:table:tbl8AI00JZO1i  read         专家修订汇总表 记录采样，上限 200
+20260923-1055    sheets:BX0QshqWThhY6HtDEFCcnMpsnRc                       read-attempt 读取被 scope 拒绝，未写入
+20260923-1055    slides:LDIIsI5SIl4ZumdW8XgcUIn8nTg                       read-attempt 读取被 scope 拒绝，未写入
+20260923-1055    slides:PtNesZDDdlMSc4dtczlcxPh6nAg                       read-attempt 读取被 scope 拒绝，未写入
+20260923-1055    wiki:L9DXbU4XxoZoTHxdKXzcTEwJnNe                         read-attempt 读取被 scope 拒绝，未写入
+20260923-1055    sheets:KzQ1sLVCbhFCIktRkdec9Onen6e                       read-attempt 读取被 scope 拒绝，未写入
+20260923-1055    file:T1tNbhPnmoq8gAxj4MZcHmX6nUc                         read-attempt 读取被 scope 拒绝，未写入
+20260923-1055    file:IWbobAGHAoDcycxRFWNcBYd1nY6                         read-attempt 读取被 scope 拒绝，未写入
+20260923-1055    file:HUngb4wwpovNsXxapcIcH2RZnyb                         read-attempt 读取被 scope 拒绝，未写入
+20260923-1055    slides:PY4UsNcdol6vJzd8v0McYRpJnZ7                       read-attempt 读取被 scope 拒绝，未写入
+20260923-1055    url:https://advertising.amazon.com/help/G4U9JBZH3664JW  read         HTTP 抓取，结果=ok
+20260923-1055    url:https://advertising.amazon.com/help/G6UU66YLSCUYDU  read         HTTP 抓取，结果=ok
+20260923-1055    url:https://advertising.amazon.com/help/GFNDKT3FYGDL54  read         HTTP 抓取，结果=ok
+20260923-1055    url:https://advertising.amazon.com/help/GPSSMTEAA6AEWY  read         HTTP 抓取，结果=ok
+20260923-1055    url:https://advertising.amazon.com/help/GRW23T7LB4MFMB  read         HTTP 抓取，结果=ok
+20260923-1055    url:https://advertising.amazon.com/help/GZS8A5XCFQJTS8  read         HTTP 抓取，结果=ok
+20260923-1055    url:https://support.google.com/adspolicy/answer/176031  read         HTTP 抓取，结果=ok
+20260923-1055    url:https://support.google.com/adspolicy/answer/602095  read         HTTP 抓取，结果=ok
+20260923-1055    url:https://transparency.meta.com/policies/ad-standard  read         HTTP 抓取，结果=ok
+20260923-1055    url:https://transparency.meta.com/policies/ad-standard  read         HTTP 抓取，结果=ok
+20260923-1055    url:https://www.fda.gov/consumers/consumer-updates/it-  read         HTTP 抓取，结果=not_found
+20260923-1055    url:https://www.fda.gov/medical-devices/consumer-produ  read         HTTP 抓取，结果=not_found
+20260923-1055    url:https://www.fda.gov/regulatory-information/search-  read         HTTP 抓取，结果=not_found
+20260923-1055    url:https://www.ftc.gov/business-guidance/resources/he  read         HTTP 抓取，结果=ok
+20260923-1055    url:https://www.tiktok.com/legal/page/global/bc-policy  read         HTTP 抓取，结果=ok
+20260923-1055    https://docs.google.com/.../edit                         read         HTTP 抓取，正文 JS 渲染未取到

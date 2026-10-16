@@ -1,0 +1,252 @@
+{
+ "run_id": "20260930-0150",
+ "kind": "batch_notes",
+ "clock_discrepancy": {
+  "what": "本批 run id 用的是会话推进标号（20260930-0015 / -0140 / -0145 / -0150），比机器墙钟快约 5 小时 40 分：墙钟为 2026-09-29 18:2x~18:3x（CST），而标号写成 2026-09-30 00:15~01:50。",
+  "evidence": [
+   "date → 2026-09-29 18:36:05 CST",
+   "kb/l2/retired_units.jsonl mtime = 2026-09-29 18:23:28，而账内 retired_at=20260930-0015",
+   "kb/l6/selftest.json generated_at = 2026-09-29 18:35:53（来自 time.strftime，与墙钟一致）",
+   "上一批也有同样偏移：kb/l8/runs/20260929-2245-feishu-url-recrawl.json mtime = 18:12:17"
+  ],
+  "consequence": "run id 不能当时间读；以文件 mtime 与 generated_at 为准。已保留标号不重命名，因为退款账 retired_units.jsonl 是 append-only、行内已写 retired_at，改写它比留一条说明更糟。",
+  "going_forward": "后续批次 run id 与墙钟对齐；若要跨批排序，用 mtime 而不是 run id 字符串。"
+ },
+ "repairs_this_batch": [
+  {
+   "id": "R1",
+   "what": "L2 单元级退役（旧正文不退役就继续进 L6）",
+   "script": "kb/l8/l2_align_current.py",
+   "ledger": "kb/l2/retired_units.jsonl",
+   "number": "1,774 条 / 4,694,782 字退役；其中 31 条 / 88,588 字当时确实在 L6 索引里",
+   "guard": "kb/.work/l6_scope_lib.py 新增 _retired_unit_ids()（资源级失效之外补单元级）"
+  },
+  {
+   "id": "R2",
+   "what": "units.jsonl 双写去重",
+   "script": "kb/l8/l2_dedup_units.py",
+   "number": "10,650 → 10,629 行（21 个 unit_id 各两份，除 meta 外无字段冲突）",
+   "archive": "kb/l2/_archive/units.jsonl.before-dedup-20260930-0030"
+  },
+  {
+   "id": "R3",
+   "what": "pdf_ocr_vision 被误挡 → 扫描书 OCR 正文进不了 L6",
+   "number": "9 本里 7 本当时只索引了 OCR 前的 62~1,074 字外壳文本；修复后 11 本 765,143 字全部进索引",
+   "guard": "GOOD_QUALITY_FLAGS 加入 pdf_ocr_vision（与 recrawl_headless_rendered 同类：是正文本身）"
+  },
+  {
+   "id": "R4",
+   "what": "L1 层账失真（台账说 no_scope/0 字，产物里有正文）",
+   "script": "kb/l8/align_l1_manifest.py",
+   "number": "28 条补记 / 2,518,350 字",
+   "left_alone": "77 条 status=invalidated 故意作废的，不补 status=ok（补了会把作废资源复活）"
+  },
+  {
+   "id": "R5",
+   "what": "3 本大书正文被截在 200,000 字（声明了全文、只存了一成、指纹还对不上）",
+   "evidence": "产物自相矛盾：char_count=2,077,089 / 2,011,150 / 1,576,669，segments 里各只有 200,000 字；且 source_sha256 ≠ sha256(所存正文)。三本 status_reason 自己写着「pypdf 抽文本 2,077,089 字」——抽全了、写产物时被截。",
+   "why_it_happened": "写这批产物的脚本全树 grep 不到（当时的 heredoc 一次性脚本），所以没人能回头纠；l0_path 里那句 [内容治理/放开截断后补登记/…] 说明放开截断时只改对了元数据、正文没重抽。",
+   "fix": "kb/l8/extract_pdftext_full.py（新增、可重跑）：按同一份本地原件重抽、分 4000 字段、旧产物先归档",
+   "number": "补回 5,063,013 字（1,876,385 + 1,810,494 + 1,376,134）；L2 新增 1,418 单元 / 5,663,013 字；旧的 3 条 20 万字单元已退役",
+   "honest_caveat": "重抽字数与当年声明差 535~704 字（0.03%），且 sha 也对不上 → 当年声明的 char_count/sha **不可由存下来的原件复现**（pypdf 版本差异）。已核：本地 PDF 字节 sha 与 L0 台账 file_bytes 记录完全一致，所以是抽取器版本问题、不是源漂移。今后指纹必须与抽取器版本同记（脚本已记 pypdf_version）。",
+   "l6_impact": "无：这 3 本的单元是 20 万字的巨段，本来就过不了 8000 字尺寸护栏、从未进过 L6；新增的 1,418 单元也未进白名单。L6 仍是 2,774 段。"
+  },
+  {
+   "id": "R6",
+   "what": "官方缺口的判定口径会漏掉「单元已被取代」的资源",
+   "detail": "kb/l8/l2_split_run.py 原判据是 `rid not in U`（有没有**任何**单元行），而 units.jsonl 是 append-only、旧行不删，于是正文被重抽、旧单元已退役的资源会被当成「已覆盖」而永久漏切 —— R5 的 3 本书正是这样。",
+   "fix": "判据改为「没有**当前 sha** 的单元」，与 kb/l8/l2_staleness_audit.py 取齐（旧文件已归档 kb/l8/_archive/l2_split_run.py.before-current-sha-gap-19bc7c5ee5f442c6）",
+   "verification": "改后待判 44 → 补切 3（1,418 单元），改前只认到 41"
+  },
+  {
+   "id": "R7",
+   "what": "What to Expect 三部曲全文纳入 L6（用户 2026-09-30 定：选「纳入」）",
+   "scope": "First Year 2,076,385 字/520 段｜Pregnancy 2,010,494 字/503 段｜Second Year 1,576,134 字/395 段",
+   "result": "L6 2,774 → 4,192 段（+1,418 / 移除 0 / 保留 2,774）；BM25 4,192 文档（en 术语 17,715→31,145，en 平均长度 130.3→326.4）；向量 25,530 段（新增/变更 13,402，失败 0）；建索引 442s；L2 侧 5,663,013 字 == 进索引 5,663,013 字",
+   "trade_off_measured": "同 5 条人工可判查询、同 45 个 Top3 槽位：2,630 段 21/45 → 2,774 段 21/45 → 4,192 段 19/45。唯一变化的是 `FDA approved claims` 的向量/hybrid 各 1 个槽位（原「相关」被新单元挤出）；bm25 三项指标完全不变；B 组越界查询（python asyncio）三态都是 0。即：hit@3 全部保持 1.0，p@3 各降 1 槽，代价可量化、不在噪音外。",
+   "gain_demonstrated": "英文查询已能命中新书：`crib bumper sleep safety infant` → BM25_en #1（#l.1-47, sha d45e9b4d）；`how much should a newborn eat feeding schedule` → 命中喂养/泵奶章节（#l.1-138 / #l.1-240）"
+  },
+  {
+   "id": "R8",
+   "what": "L6 完整性闸门跑出 FAIL —— 两处都是**检查自己的**毛病，不是索引坏了",
+   "evidence": "首次运行：frozen_layers FAIL（L0–L2 因今日合法增长与 L5 快照不符）+ idempotent_rerun FAIL",
+   "fix1_idempotent": "检查原先不带 --apply 重跑建索引脚本，而该脚本后来加了干跑档 → 重跑只在干跑里空转，屏幕上打的是「[dry-run] 加 --apply 才落盘」，检查要的两句计量永远不出现，注定 FAIL。改为真跑第二遍；并实测重跑：索引/BM25/向量都「无变化 → 不重写文件」、切词 0、embedding 0，唯一变的是 registry 里 run_id 一个字段 → 判据改成「只有 registry 变且差异字段仅限事件标签才算实质幂等」",
+   "fix2_baseline": "frozen_layers 原先只对比 L5 一次性快照，**没有任何承认合法增长的通道**（红久了就没人看，比不检查更糟）。改成基线链：L5 快照原样留在 kb/.work/l5_integrity.json，另建 kb/l6/registry/frozen_layers_baseline.json 记「被正式承认过的基线」，每条必须带 at/reason/被取代的旧值；承认要走显式参数 --accept-frozen-baseline \"理由\"",
+   "result": "修后重跑：**10 项全 PASS**（frozen_layers / counts / idempotent_rerun / vector_traceability / segmentation / postings_consistency / version_discipline / offline / capability_declaration）；日志 kb/l8/_stage/l6-integrity-0330.log",
+   "old_checker": "kb/l8/_archive/l6_integrity.py.before-dryrun-and-baseline-fix-* 与 .before-registry-event-fix-*"
+  },
+  {
+   "id": "R9",
+   "what": "审计尾巴清零：7 个「小额自相矛盾」产物查明是**我的审计口径漏了 tables 字段**，不是数据丢失",
+   "evidence": "把表格行文字算进去后：NPKldCDgZ（差 1,289→25）、A0fxdtmKxo（421→21），其余 5 个残差 42/11/7/6/1 字",
+   "conclusion": "1,289 与 421 两笔的绝大部分是 tables 里的表格行文字（是合法内容、在 tables 字段里，不在 segments 里）；残差 ≤42 字属 markdown 语法/标题的计数口径差。**7 个都不是截断、无数据丢失**，与那 3 本 PDF（真截断、已补 5,063,013 字）性质不同。",
+   "correction": "我先前把「10 个产物自相矛盾」笼统报成缺陷，准确说法是：3 个真截断（已修）+ 7 个计数口径差（其中 2 个由 tables 解释）"
+  },
+  {
+   "id": "R10",
+   "what": "**依据优先**：给规则性字段的单元加融合/打分权重，把「依据」抬到「素材」前面（改的是检索口径）",
+   "trigger": "你确认「按你的建议来」；但查下去发现**我上一轮给的选项没一个是对的**，故按实测重定方案",
+   "measured_mechanism": "查 hospital grade pump：M05 词表单元（69 字、tf_en={grade:3,hospital:1}）BM25 得 10.198、**排第 52**；Top8 全是**同时含 hospital/grade/pump 三个词**的散文（广告 Primary Text + 刚纳入的英文育儿书 4000 字块）。根因不是索引坏、也不是 Primary Text 挤占：**规则是一张关键词清单，它没有 'pump' 这个词**——查询词里只要有一个泛词，短规则单元必输。因此「把 Primary Text 移出白名单」这条我原先的建议**撤回**：实测它救不了这个查询（移走广告后 Top3 变成 3 个 ext，规则仍在第 52），还会丢掉先例价值。",
+   "simulation_first": "离线模拟（先算再改）：字段权重 w=1.5 → M05 BM25 排名 52→3；融合侧也乘权重后 hospital grade pump 的 Top3 变成三个「命中片段」单元（直接点名 M05:hospital grade）",
+   "implemented": "kb/l6/retriever.py 加 FIELD_WEIGHT=1.5 + RULE_FIELDS（16 个规则性字段），在 **BM25 打分**与 **RRF 融合**两处都乘权重；纯读侧改动，不改倒排/分词/索引文件；开关 --no-field-weight 或 L6_NO_FIELD_WEIGHT=1；旧文件归档 kb/l6/_archive/retriever.py.before-field-weight-*",
+   "validation": "冻结判定集上 A/B 对照（w=1.0 → 1.5）：14 条查询 Top3 相关合计 **8 → 14**，**无一条退化**；hospital grade pump 0→2、无痛吸奶 0→1、绝对安全承诺 0→2、FDA approved claims 2→3；**B 组（库外问题、考拒答）三种模式仍是全 0** —— 拒答行为不变。人判 only 那一列（权威读法）p@3：bm25 0.667→0.75、hybrid 0.5→0.667、hit@3 不变",
+   "reproducibility": "旧行为随时可取：加 --no-field-weight 即回到 w=1.0"
+  },
+  {
+   "id": "R11",
+   "what": "判定缺口的**机制性**修法：双源判定报告器（只读），不再每次手搓对比",
+   "why": "索引或排序每变一次，Top3 里就冒出没判过的单元 → 自验「已判定」掉回 5/14、仪表盘变空。这是**结构性问题**，不是一次性事件。",
+   "artifact": "kb/l8/l6_judgment_report.py（只读）：并排报『人判 only（权威）』『人判∪agent判』『缺判槽位数』，写 kb/l6/runs/<RUN>-judgment-sources.json",
+   "no_overwrite": "agent 判定单独存 kb/.work/l6_judgments_ab.agent-*.json，**永不覆盖**人判文件；报告器在结论里印明「agent 那部分不是人权」",
+   "state_now": "缺判 **0/126 槽位**（此前 75 对缺口 → 25 → 0）；合并读法：A|bm25 1.0/1.0、A|hybrid 1.0/0.875、A|vector 0.75/0.667、B 三种模式全 0",
+   "self_caught": "我第二批标签里打错一个 unit_id（多打一位数字，落在一个不存在的 id 上）——被「id 必须存在于 L2 单元表」的核对当场抓出并改正"
+  },
+  {
+   "id": "R12",
+   "what": "**L0 ↔ 飞书增量对齐落地**（用户问「现在是对齐的吗」时实测发现并未对齐）",
+   "found": "2026-09-30 09:30 实时对账：一致 952｜飞书多 17 —— 飞书侧**昨夜新增 7 条负面样本**（created 09-29 20:08 ~ 09-30 03:30，每条 12~13 字段 + 图片素材）。L0 侧自证是干净的（0 未登记、0 缺文件），差的就是这 7 条新增。",
+   "ingested": "① 记录：7 条入库（kb/l0/records/负面样本/），sha 口径按 emit_l0_manifest_reconcile.py:rec_hash **逐字复刻**（先用既有 40 条验证复现 40/40 再动手）\n② 附件：21 张图 / 78.1 MB 字节落 kb/l0/attachments/负面样本/，sha 复核 21/21；台账 +21 metadata +21 file_bytes 行\n③ 素材库快照换成实时版（ocr_attachments.py 原先读 09-29 的旧快照，不含新增）\n④ L1：抽取 28 个资源（7 记录 + 21 附件）→ 85 段 / 8,175 字；21 张图 OCR 出 8,194 字；同时把 258 个「L0 已 gone 但 L1 未标」的资源标失效（实测这 258 个**没有任何 L2 单元、对 L6 零影响**）\n⑤ L2：+14 单元（每条记录 2 个：字段文本 + 图片 OCR 媒体容器）/ 14,398 字\n⑥ L6：纳入白名单并重建 4,192 → **4,206 段**；14/14 新单元进索引",
+   "final_align": "一致 **959**｜飞书多 10（材料收集规则排除，有痕）| L0 多 0 | 值变 0 | 拉取失败 0 | 未登记 **0**",
+   "cross_check": "入库脚本的准入闸门**独立复现**了那 10 条排除（材料审核状态=[] != [\"通过\"]），与 09-29 的规则排除一致",
+   "incident": "首版台账行**漏了 table_id/table_name** —— 而对账正是按 (table_id, record_id) 建索引，于是 7 条明明写了台账却被报「未登记」。我的守卫只查了「不许造新键」，没查「必需键齐不齐」，等于只防多不防少。已改成 REQUIRED_ROW_KEYS 硬校验 + `--restamp` 补记模式（补记前逐条复算 sha，文件被改过就停手）；补记后对账「未登记 0」。",
+   "artifacts": [
+    "kb/l8/ingest_l0_new_records.py（新增；含 --restamp / --attachments 两个模式）",
+    "kb/l8/runs/20260930-0930-l0-ingest.json",
+    "kb/l8/runs/20260930-0930-l0-attachments.json",
+    "kb/l8/runs/20260930-0950-l0-align.json",
+    "kb/l1/runs/20260930-1005.json",
+    "kb/l2/runs/20260930-1010.json",
+    "kb/l6/runs/20260930-1015-scope-append.json"
+   ]
+  },
+  {
+   "id": "R13",
+   "what": "**按 kb-l0-feishu skill 的契约补做收口**（此前没加载该 skill，漏了它的闸门）",
+   "why_missed": "我用的是库自带脚本，但没走 skill 规定的执行序列与交付物：漏了阶段 0 前置自检、阶段 2 --apply、阶段 5 非记录资源、阶段 7 视频结论、阶段 8 URL 判等、阶段 10 四项核验，以及**覆盖率矩阵 S_feishu ⊆ S_report**。",
+   "done": [
+    "阶段0 preflight.sh → 通过（1 WARNING：.work 30 分钟 1358 次写入 = 我自己刚跑的 L6 重建，非另一批）",
+    "阶段2 align_l0_schema --apply：**bot 身份对 2 张表读不到字段定义**（preflight 只验了「材料收集」一张）→ 改用 user 身份重刷，10 张表全部全量快照、0 改名/0 缺/0 删/0 类型漂移",
+    "阶段5 verify_l0_nonrecord + 2：184 条非记录资源 → ok 23 / unreachable 6 / drift 2 / not_verified 153（150 URL + 3 slides 无核验器）",
+    "阶段7 视频：字段级非空筛选 → 飞书侧 0 条 → 结论「不适用（附筛选证据）」",
+    "阶段8 URL：verify_l0_urls（unreachable 17 / recomputed_differ 122 / same 11，裸 HTTP 口径）+ verify_urls_shingles（词 8-gram 双向重叠，11 条可比：未变 2 / 部分变化 3 / 已变 6）",
+    "阶段10：workflow_check FAIL（预期内：今天 L0–L6 就是被改对象）/ projection_reconcile R1R2R4 投影过期 / roundtrip_check 投影缺 L2-concepts / envelope_census 活路径信封 1 → 已修 → 复跑 OK"
+   ],
+   "new_defects_fixed": [
+    {
+     "what": "L0 attachments/README.md 是**信封态**（python 侧 717 / node 侧 4813，差恒 4096）",
+     "how": "修前双重量测定位（python getsize vs stat -f）+ 内容 sha 前后一致 + 旧物理字节 dd 留底 kb/l8/_archive/enveloped-repair-20260930-1013/",
+     "note": "库里的 repair_enveloped_docs.py **明确不含 l0–l6**（只在报告里登记），但普查把它算作活路径失败 → 我按同一方法单独修了这一个文件"
+    },
+    {
+     "what": "4 条「登记时缺 scope、从未读内容」的 L0 缺口（1 sheets + 3 slides）",
+     "how": "新写 kb/l8/close_stale_scope_gaps.py：slides 走 `slides +xml-get`（XML 全文，矩阵⑥口径）、sheets 复用既有抽取快照；写 sha256(doc_text) 指纹，旧 no_scope 行保留不改（append-only）",
+     "result": "4 条全部关闭（sheets 1,320,605 字；slides rev 10 / 337 / 37）"
+    }
+   ],
+   "coverage_matrix": "S_feishu = 12 类资源；S_report = 同样 12 类 → **S_feishu ⊆ S_report 成立**（矩阵见本轮答复）",
+   "remaining_gaps": [
+    "投影 kb/view 过期（509 条规则已变 / 2036 处治理字段未传导 / L2-concepts 缺失）→ build_view.py --run <RUN>",
+    "5 个 wiki 节点 + 1 个 docx 资源级无权限（131006 ×5 / 3380004）→ 所有者把「守衡」加成可阅读协作者",
+    "3 条 file authorization 读不到 + 2 条 wiki unreachable → 所有者共享",
+    "URL 口径不统一（url_text_rendered_v1 102 / url_text_refresh_v1 12 / url_text 6）→ 统一口径前**不能算严格一致**",
+    "URL 内容 3 条「部分变化，需人工看」",
+    "sheets:KzQ1sLVCbhFCIktRkdec9Onen6e drift 待判"
+   ]
+  }
+ ],
+ "open_items": [
+  "5 个 wiki 节点 + 1 个 docx 仍是资源级无权限（131006 / 3380004），等所有者共享",
+  "77 条 L1 作废资源的产物仍留正文（7,600 字），状态即事实，未动",
+  "agent 判定（83 对，两批）要不要**正式并入**自验：现在只并行报数，人判仍是唯一权威。要并入请说一声（我会把人判与 agent 判分开标注）",
+  "5 个 wiki 节点 + 1 个 docx 仍是资源级无权限（131006 / 3380004），等所有者共享",
+  "77 条 L1 作废资源的产物仍留正文（7,600 字），状态即事实，未动"
+ ],
+ "verification": {
+  "index": "2,630 → 2,774 段（移除 31 == 曾进索引的退役条；新增 175 == SCOPE 新批）",
+  "closed_loop": "11 本扫描书 OCR 共 765,143 字 == 进索引 765,143 字（逐本核对，只少了退役的 OCR 前外壳文本）",
+  "selftest": "与 09-29 18:35 那版（2,630 段、同样 5/14 可判）逐项一致：A_all bm25 1.0/p0.667、vector 0.75/p0.5、hybrid 1.0/p0.583；同一批 5 条查询 45 个 Top3 槽位：21 相关 → 21 相关"
+ },
+ "live_verification": {
+  "at": "2026-09-29 18:41（用户身份 刘华丽，token 18:09 授、20:09 过期）",
+  "l0_feishu_align": "952 条字段逐字一致 / 0 值变 / 0 L0 多 / 0 拉取失败 / 0 未登记记录文件；报告 kb/l8/runs/20260930-0220-l0-align.json",
+  "the_10": "材料收集 飞书 32 条、L0 活跃 22 条，差额 10 条**不是缺口**：台账里 10 条都是 status=gone / change=l0_rule_excluded_material（按规则排除、有痕）。今日实测横切：通过 22 条 / 空 [] 10 条 / 暂不采用 0 条。",
+  "corrected_claim": "此前记录写成「9 条空 + 1 条暂不采用」不准确：实为 **10 条全是空 []**；那条曾为 [暂不采用] 的记录（recvvg2wL2qE3K）在飞书侧已变成空。",
+  "registry_drift": "kb/l0/registry/kb.json 的 filter 仍写 `材料审核状态 != 空`、expected_included=23（20260924-1000 那次口径变更），而数据实际按 `== 通过` 建的（kb/l0/_archive/材料收集-未通过-20260929-1045/_STATUS_CORRECTION.json 引「用户指令③」）。两条规则**今天得出同一集合**（那条记录的飞书状态已变成空，两条规则都排除它）→ 无数据后果，只是声明与实际口径不一致；若该记录将来恢复为「暂不采用」，两条规则会差 1 条。",
+  "permissions_still_blocked": {
+   "at": "2026-09-29 18:41:53 / 18:41:56（带 log_id，可用飞书排查页复核）",
+   "wiki_nodes_131006": [
+    "G5Gnwrzvwi2a24k4eonccg9BnJg",
+    "VFlhwj2ITiexpxk463vczG34ndf",
+    "Zqz7w1W9ZiP7i8kXNTGc9cBGnVb",
+    "Acl7w1Ax3iAY6GkW8rmcF5Bknkg",
+    "CDPHwzbbZi3RRnkdyHjcoxKQnm0"
+   ],
+   "docx_3380004": "Kts8dacyIo1zq1xElWOcqW1zncc（母婴设计常识清单 V2.0）",
+   "note": "都是**资源级**授权未给（131006 明确写着这不是 app scope 问题），只能等资源所有者共享，重试/换身份都没用。"
+  }
+ },
+ "final_state": {
+  "l6_index": "4,206 段（registry run 20260930-1020）",
+  "l2": "units.jsonl 12,144 行；退役账 retired_units.jsonl 1,777 行；陈旧性审计：索引内陈旧单元 0 条、缺口 0 个、待重切 0 个",
+  "l1": "产物 1,924 个；台账 4,752 行（含本轮补记 28 + 补全文 3）",
+  "l0": "台账 5,301 行；记录 1,163 个唯一 record_id（两套布局：原始快照 + 归类投影）",
+  "canonical": "kb/l4/canonical/rules.jsonl 仍为 0 字节",
+  "backups": [
+   "kb/l6/_archive/pre-20260930-0140（2,630 段那版）",
+   "kb/l6/_archive/pre-20260930-0245（2,774 段那版）",
+   "kb/l6/_archive/selftest.json.20260929-1835-runid-mislabeled / .20260930-0150",
+   "kb/l2/_archive/units.jsonl.before-dedup-20260930-0030",
+   "kb/l1/_archive/pdftext-truncated-20260930-0200"
+  ],
+  "l6_integrity": "**PASS**（10 项，20260930-0330）",
+  "frozen_baseline": "承认基线链 3 条",
+  "judgment_proposal": "kb/.work/l6_judgments_ab.agent-20260930.json（64 对，未覆盖人判文件）",
+  "pdftext_audit": "3 真截断（已补）＋7 计数口径差（无丢失）",
+  "retrieval": "依据优先权重 w_rule=1.5 已默认开启（可 --no-field-weight 关）",
+  "judgment_instrument": "缺判 0/126；双源报告 kb/l6/runs/20260930-0410-judgment-sources.json",
+  "l0_filter_declaration": "== 通过 / expected 22（与数据一致）",
+  "l0_feishu_align": "一致 959｜飞书多 10｜L0多 0｜值变 0｜拉取失败 0｜未登记 0（run 20260930-0950）",
+  "l0_records": "负面样本 115 条（108+7）｜附件含新增 21 张 / 78.1 MB"
+ },
+ "decisions_made_this_round": [
+  {
+   "what": "3 本 PDF 补全文：**保留**（不回退）",
+   "why": "① 截断本身就是缺陷（产物自己声明了全文、指纹也对不上所存正文）；② 你确认纳入 L6 的三部曲 1,418 段正是这次补出来的全文，回退等于把已确认的纳入一并撤掉；③ 可回退路径仍在（kb/l1/_archive/pdftext-truncated-20260930-0200 + 台账 append-only）"
+  },
+  {
+   "what": "判定缺口：按你未指定的默认推进（选 B）——**我给建议标签 + 逐条理由，单独成文，不覆盖人判**",
+   "artifact": "kb/.work/l6_judgments_ab.agent-20260930.json（provenance 写明「本批是 agent 判的、与 09-23 那批不同源」）",
+   "coverage": "待判 64 个 (查询,单元) 对全部覆盖；标签分布 不相关 46 / 弱相关 9 / 相关 9",
+   "instrument_readout": "人判 ∪ 我判（14 条查询全部可判，126 个 Top3 槽：人判 51 + 我判 75）：A bm25 hit@3 0.875 / p@3 0.708；A vector 0.5 / 0.333；A hybrid 0.875 / 0.625；**B 组三种模式一律 0.0 / 0.0**",
+   "note": "这只是把刻度补回来；要采用需你显式合并，或让 selftest 并行读两份分别报数"
+  },
+  {
+   "what": "撤回我上一轮「把 Primary Text 移出白名单」的建议",
+   "why": "实测它救不了目标查询，且会丢先例价值；改为字段权重方案（见 R10）"
+  },
+  {
+   "what": "l0 registry 的 filter 声明改成 `== 通过` / expected_included 22（原写 `!= 空` / 23）",
+   "why": "数据是按「用户指令③ == 通过」建的（_STATUS_CORRECTION.json 有记），声明与数据长期不一致；两条规则今天得出同一集合 → 无数据后果。旧值原样留在 prev 里，理由与证据写在 reason / expected_included_evidence",
+   "archive": "kb/l0/_archive/kb.registry.before-filter-wording-*.json"
+  },
+  {
+   "what": "两处检索口径改动都做成**可关、可复现**（--no-field-weight / 旧文件归档），并各留一条承认基线（frozen_layers_baseline.json 现有 2 条）"
+  }
+ ],
+ "new_finding_retrieval": {
+  "what": "**规则被它管辖的原始广告文案挤下去了** —— 用「hospital grade pump」查出来的 Top3 全是广告 Primary Text，不是规则",
+  "evidence": {
+   "库里其实有规则": "L3 里 10 条命中 hospital grade：M05（命中 hospital grade 判违规）、P1 等级背书边界（military/medical/hospital grade、医疗级/医用级/军用级）、P0 级原表述「Hospital-grade pump used in NICU」的修订；L2 里含 hospital grade 的单元 151 条（110 条已进索引）",
+   "M05 词表单元已进索引": "unit 224208605aa59cb7797a（69 字，词表原文含 hospital grade）在白名单=True、在索引=True",
+   "但 BM25 前 50 都进不去": "同一查询下：BM25 取回 50 条里 M05 词表未进前 50，广告「Hospital-Grade at Home」排第 5；向量/hybrid 里三条规则相关单元都未进前 50",
+   "机制": "该单元 lang=中英混排、tf_en={grade:3, hospital:1, …}、dl_en=7 —— 英文词**有**进倒排，不是没索引；是查询三个词（hospital/grade/pump）里它只中两个，而广告文案三个词全中且重复出现，BM25 纯字面就把它压下去了"
+  },
+  "why_it_matters": "凡是「查询词 = 被禁用语本身」的场景（hospital grade、more milk、FDA approved…），库里的**违规广告原文**都容易排在**判定该违规的规则**前面 —— 审查时会把「这条广告在投」当成依据，而看不到「这条为什么违规」",
+  "options": [
+   "给规则库单元加权 / 按字段角色加权（Primary Text 降权）",
+   "把 广告文案明细 的 Primary Text 字段移出 L6 白名单（只留 命中片段/修改建议/命中原因 等规则性字段）",
+   "查询侧加短语匹配（把 hospital grade 当一个整体词）"
+  ],
+  "not_done": "未擅自改权重或改白名单 —— 这会改变检索口径，属于要你点头的决定"
+ }
+}

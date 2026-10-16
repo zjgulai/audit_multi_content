@@ -1,0 +1,613 @@
+[review_run] --loaded-skill 申报：kb-canonical-lookup kb-p0-check kb-recall kb-check 图片安全审查 
+[review_run] ① 四层前置 L4→L5→L6→L7 …
+[preflight 19:10:10] 认领成功：20261008-1910
+[preflight 19:10:10] ② L4 闸门(自带)+引擎(预演)+记账 … invoked=kb-canonical-lookup session=session-5eacbfa3-cb36-4cb0-9464-f28b47e1e7c9
+[preflight 19:10:12] ② L4 记账完成 → kb/l7/runs/20261008-1910-L4.json
+[preflight 19:10:12] ③ L4 审计 …
+[preflight 19:10:15] ③ L4 审计 exit=0（红 0）
+[preflight 19:10:15] ② L5 闸门(自带)+引擎(预演)+记账 … invoked=kb-p0-check session=session-5eacbfa3-cb36-4cb0-9464-f28b47e1e7c9
+[preflight 19:10:29] ② L5 记账完成 → kb/l7/runs/20261008-1910-L5.json
+[preflight 19:10:29] ③ L5 审计 …
+[preflight 19:10:30] ③ L5 审计 exit=0（红 0）
+[preflight 19:10:30] ② L6 闸门(自带)+引擎(预演)+记账 … invoked=kb-recall session=session-5eacbfa3-cb36-4cb0-9464-f28b47e1e7c9
+[preflight 19:10:34] ② L6 记账完成 → kb/l7/runs/20261008-1910-L6.json
+[preflight 19:10:34] ③ L6 审计 …
+[preflight 19:10:36] ③ L6 审计 exit=0（红 0）
+[preflight 19:10:36] ② L7 闸门(自带)+引擎(预演)+记账 … invoked=kb-check session=session-5eacbfa3-cb36-4cb0-9464-f28b47e1e7c9
+[preflight 19:10:36] ② L7 记账完成 → kb/l7/runs/20261008-1910-L7.json
+[preflight 19:10:36] ③ L7 审计 …
+[preflight 19:10:37] ③ L7 审计 exit=0（红 0）
+[preflight 19:10:37] ✅ 四层前置全绿（L4–L7 各一 RUN，四道审计红 0）｜BASE=20261008-1910
+[preflight 19:10:37]    下一步：出结论 —— with_kb_evidence.py --require-layer-preflight 20261008-1910 --decision-owner <判定主体>
+[preflight 19:10:37] 已释放认领 20261008-1910
+[review_run] ② 自命中检查（素材 vs 库内 181 条反例/禁区）…
+===== ② 自命中检查（确定性；它只报事实，不判三态）=====
+自命中检查：未命中
+  素材归一化字符 436 ｜ 扫过条款 296 条 ｜ 阈值 ratio≥0.9 且 run≥80
+[review_run] 若上面是 status=error，那是「没查成」，**不是**「没命中」。
+[review_run] ③ 出结论（含默认发布到飞书）…
+===== ③ 引擎结论（唯一有权产出三态的地方）=====
+飞书发布：素材属性 → 渠道='' ｜ 产品线=''（由 l0_facets 推出：{}）
+飞书发布：自动调用 feishu_publish.py --apply …
+  ① 渲染完成：10348 字节 ｜ 本地留底 /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/reports/rv-20261008-191056.feishu.md ｜ 第一行 = '# 内容审查报告 · rv-20261008-191056'
+  ② 去向（读登记件）：table=tblCXPQVzfFWWCon ｜ base=RY2UbCRjXaeeWwscUPScVN5AnQc
+  ③ 既有同「内容 ID」行 0 条（本单**新增一行**，不更新它们）
+  ④ 云文档：新建 → https://momcozy-in.feishu.cn/docx/OQZXdtSTFojTG4xLFVDcU8iYn5g
+  ⑤ 表行：新建 recvxsiDhAWPoU
+  ⑥ 读回：表行 recvxsiDhAWPoU ｜ 内容 ID 与结论一致 ✅
+  完成：docx=https://momcozy-in.feishu.cn/docx/OQZXdtSTFojTG4xLFVDcU8iYn5g ｜ record=recvxsiDhAWPoU
+{
+ "decision": {
+  "review_id": "rv-20261008-191056",
+  "content_id": "AUTO-3146324f3f5a",
+  "content_version": "3146324f3f5ace283e26fa8d057e56bda4b42261c24d1bcd71a8b290322d447e",
+  "agent_version": "local-core-0.1.0",
+  "rule_version": "unfrozen",
+  "knowledge_version": "unfrozen",
+  "decision": "REVIEW",
+  "confidence": 0.78,
+  "summary": "【审查结论：REVIEW】共发现 5 处需人工确认。\n· 原则性错误类问题：1 个\n· 品牌一致性类问题：4 个\n→ 完整问题清单与修改建议在**本地报告**里（不是可点链接）：kb/l7/reports/20261008-191046.review.md\n建议转 @复核责任人（未配置） 复核。",
+  "issue_count": 5,
+  "issue_summary_by_category": {
+   "原则性错误-禁区（库内反例条款）": 1,
+   "品牌一致性-禁区（库内反例条款）": 4
+  },
+  "risk_items": [
+   {
+    "risk_id": "sc-a6b9b5f2f4b5f9b3",
+    "risk_type": "原则性错误-禁区（库内反例条款）",
+    "priority_tier": "P1",
+    "status": "confirmed",
+    "action": "review",
+    "location": "全文",
+    "original_text": "【原则性错误】图片 P16 海报上需要有“UP TO 201% OFF” (最高X折) 。\n【问题要点】\n1. 海报上需要有“UP TO 201% OFF” (最高X折) 的醒目标签\n2. 【初审-@关轶夫    】麻烦看看呀\n3. 项目背",
+    "reason": "库内反例条款 S-1.269（原则性错误）与本素材**同源/同题材**：【原则性错误】图片 P16 海报上需要有“UP TO 201% OFF” (最高X折) 。\n【问题要点】\n1. 海报上需要有“UP TO 201% OFF” (",
+    "suggestion": "可以有金色的秋日纸屑（Confetti）飘落的效果",
+    "rule_code": null,
+    "fact_or_inference": "事实",
+    "confidence": "中",
+    "evidence": {
+     "library": "内部正负样本库",
+     "article_no": "S-1.269",
+     "anchor": "#负面样本/recvw8Tx3zVihU/具体原因/分析",
+     "source_sha256": "9d417be17982c7231419383c82b9e80afd056b24e70dafedc7205d670457e9b6",
+     "excerpt": "【原则性错误】图片 P16 海报上需要有“UP TO 201% OFF” (最高X折) 。\n【问题要点】\n1. 海报上需要有“UP TO 201% OFF” (最高X折) 的醒目标签\n2. 【初审-@关轶夫    】麻烦看看呀\n3. 项目背",
+     "l0_entry_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw8Tx3zVihU"
+    },
+    "source": "kb-content-review",
+    "evidence_id": "《内部正负样本库 v0》第 S-1.269 条 @ #负面样本/recvw8Tx3zVihU/具体原因/分析 @ 9d417be17982",
+    "evidence_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw8Tx3zVihU",
+    "evidence_source": "L0 源记录直链（飞书）",
+    "severity": "low",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "sc-1d45c6ab106b2c58",
+    "risk_type": "品牌一致性-禁区（库内反例条款）",
+    "priority_tier": "P1",
+    "status": "confirmed",
+    "action": "review",
+    "location": "全文",
+    "original_text": "【品牌一致性】图片 1. 第一改吸奶器产品图海报，logo 下的slogan 去。\n【问题要点】\n1. 1. 第一改吸奶器产品图海报，logo 下的slogan 去掉\n2. 2. 第二张宝宝的头和暖奶壶撞到一起了，要么压暗让它往后退，空间上",
+    "reason": "库内反例条款 S-1.214（品牌一致性）与本素材**同源/同题材**：【品牌一致性】图片 1. 第一改吸奶器产品图海报，logo 下的slogan 去。\n【问题要点】\n1. 1. 第一改吸奶器产品图海报，logo 下的slogan",
+    "suggestion": "建议核心思路：Brand / Mom Lifestyle → Breastfeeding Support → Key Products；换成品牌日的规范字体标题",
+    "rule_code": null,
+    "fact_or_inference": "事实",
+    "confidence": "中",
+    "evidence": {
+     "library": "内部正负样本库",
+     "article_no": "S-1.214",
+     "anchor": "#负面样本/recvweKJlZYRQa/具体原因/分析",
+     "source_sha256": "cdae79bd4e1a3119c5a36703dab01cbb1c4c7ae22afbb62248f553def3723b0d",
+     "excerpt": "【品牌一致性】图片 1. 第一改吸奶器产品图海报，logo 下的slogan 去。\n【问题要点】\n1. 1. 第一改吸奶器产品图海报，logo 下的slogan 去掉\n2. 2. 第二张宝宝的头和暖奶壶撞到一起了，要么压暗让它往后退，空间上",
+     "l0_entry_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvweKJlZYRQa"
+    },
+    "source": "kb-content-review",
+    "evidence_id": "《内部正负样本库 v0》第 S-1.214 条 @ #负面样本/recvweKJlZYRQa/具体原因/分析 @ cdae79bd4e1a",
+    "evidence_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvweKJlZYRQa",
+    "evidence_source": "L0 源记录直链（飞书）",
+    "severity": "low",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "sc-3a7ce42c9c6b6267",
+    "risk_type": "品牌一致性-禁区（库内反例条款）",
+    "priority_tier": "P1",
+    "status": "confirmed",
+    "action": "review",
+    "location": "全文",
+    "original_text": "【品牌一致性】图片 其实我是在想Momcozy的内容发在ROOT的小红书账号上。\n【问题要点】\n1. 其实我是在想Momcozy的内容发在ROOT的小红书账号上，是不是也应该用ROOT的VI来做\n2. （Momcozy 的logo用纯log",
+    "reason": "库内反例条款 S-1.221（品牌一致性）与本素材**同源/同题材**：【品牌一致性】图片 其实我是在想Momcozy的内容发在ROOT的小红书账号上。\n【问题要点】\n1. 其实我是在想Momcozy的内容发在ROOT的小红书账号上",
+    "suggestion": "应该用ROOT的VI来做",
+    "rule_code": null,
+    "fact_or_inference": "事实",
+    "confidence": "中",
+    "evidence": {
+     "library": "内部正负样本库",
+     "article_no": "S-1.221",
+     "anchor": "#负面样本/recvwwiEKD6Vf8/具体原因/分析",
+     "source_sha256": "d192a60d172adf5f6bfda50f31111e7f6def3617ed6b2670cacc229993c6cf03",
+     "excerpt": "【品牌一致性】图片 其实我是在想Momcozy的内容发在ROOT的小红书账号上。\n【问题要点】\n1. 其实我是在想Momcozy的内容发在ROOT的小红书账号上，是不是也应该用ROOT的VI来做\n2. （Momcozy 的logo用纯log",
+     "l0_entry_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvwwiEKD6Vf8"
+    },
+    "source": "kb-content-review",
+    "evidence_id": "《内部正负样本库 v0》第 S-1.221 条 @ #负面样本/recvwwiEKD6Vf8/具体原因/分析 @ d192a60d172a",
+    "evidence_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvwwiEKD6Vf8",
+    "evidence_source": "L0 源记录直链（飞书）",
+    "severity": "low",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "sc-66bfd800b078cf85",
+    "risk_type": "品牌一致性-禁区（库内反例条款）",
+    "priority_tier": "P1",
+    "status": "confirmed",
+    "action": "review",
+    "location": "全文",
+    "original_text": "【品牌一致性】图片 【终审-   @吴礼芳   】麻烦看一下~。",
+    "reason": "库内反例条款 S-1.242（品牌一致性）与本素材**同源/同题材**：【品牌一致性】图片 【终审-   @吴礼芳   】麻烦看一下~。",
+    "suggestion": "advice 取自案例记录；实测 181 条反例里只有 46% 有 `建议` 列（这条**没有**）",
+    "rule_code": null,
+    "fact_or_inference": "事实",
+    "confidence": "中",
+    "evidence": {
+     "library": "内部正负样本库",
+     "article_no": "S-1.242",
+     "anchor": "#负面样本/recvwC9IMVtANl/具体原因/分析",
+     "source_sha256": "1b9efe8355efc14497c92f2a610e7e0deac0581fdc703d87a2384ac9a5f7d767",
+     "excerpt": "【品牌一致性】图片 【终审-   @吴礼芳   】麻烦看一下~。",
+     "l0_entry_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvwC9IMVtANl"
+    },
+    "source": "kb-content-review",
+    "evidence_id": "《内部正负样本库 v0》第 S-1.242 条 @ #负面样本/recvwC9IMVtANl/具体原因/分析 @ 1b9efe8355ef",
+    "evidence_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvwC9IMVtANl",
+    "evidence_source": "L0 源记录直链（飞书）",
+    "severity": "low",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "sc-844482017d2b22ab",
+    "risk_type": "品牌一致性-禁区（库内反例条款）",
+    "priority_tier": "P1",
+    "status": "confirmed",
+    "action": "review",
+    "location": "全文",
+    "original_text": "【品牌一致性】文案 2.卡片的花朵结构不做改变。\n原因：<u>**修改：需求变更：卡片为异色，花朵异形卡为单色（深色），由于卡片可做单面开槽，所以对背面的文案排版断句做了修改，并微调了文案位置，使正反面文案看起来更适配\n【问题要点】\n1. ",
+    "reason": "库内反例条款 S-1.257（品牌一致性）与本素材**同源/同题材**：【品牌一致性】文案 2.卡片的花朵结构不做改变。\n原因：<u>**修改：需求变更：卡片为异色，花朵异形卡为单色（深色），由于卡片可做单面开槽，所以对背面的文案排",
+    "suggestion": "advice 取自案例记录；实测 181 条反例里只有 46% 有 `建议` 列（这条**没有**）",
+    "rule_code": null,
+    "fact_or_inference": "事实",
+    "confidence": "中",
+    "evidence": {
+     "library": "内部正负样本库",
+     "article_no": "S-1.257",
+     "anchor": "#负面样本/recvw7XIUgbbCi/具体原因/分析",
+     "source_sha256": "16d727166c18093126279ebada9c3264fbc8182b7c654b637a4f7233fb72764a",
+     "excerpt": "【品牌一致性】文案 2.卡片的花朵结构不做改变。\n原因：<u>**修改：需求变更：卡片为异色，花朵异形卡为单色（深色），由于卡片可做单面开槽，所以对背面的文案排版断句做了修改，并微调了文案位置，使正反面文案看起来更适配\n【问题要点】\n1. ",
+     "l0_entry_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw7XIUgbbCi"
+    },
+    "source": "kb-content-review",
+    "evidence_id": "《内部正负样本库 v0》第 S-1.257 条 @ #负面样本/recvw7XIUgbbCi/具体原因/分析 @ 16d727166c18",
+    "evidence_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw7XIUgbbCi",
+    "evidence_source": "L0 源记录直链（飞书）",
+    "severity": "low",
+    "evidence_complete": true
+   }
+  ],
+  "report_url": "kb/l7/reports/20261008-191046.review.md",
+  "next_action": "转法务、医学、专家或北美本地同事人工复核",
+  "next_owners": [
+   "产品负责人",
+   "法务"
+  ],
+  "sla": {
+   "priority": "P1",
+   "target": "4 business hours",
+   "escalate_to": [
+    "项目统筹",
+    "对应专业负责人"
+   ],
+   "timezone": "America/Los_Angeles",
+   "clock_rules": [
+    "Start the clock when the required input manifest is complete.",
+    "Pause the clock while waiting for missing submitter material.",
+    "Record timezone and business-calendar version with each SLA event.",
+    "SLA breach never changes the decision automatically."
+   ]
+  },
+  "version_gate": {},
+  "coverage": {
+   "text": "complete",
+   "image": "complete",
+   "audio": "not_applicable",
+   "video": "not_applicable",
+   "ocr": "complete",
+   "asr": "not_applicable",
+   "keyframes": "not_applicable",
+   "note": "声明模态：image；未拿到 provider 佐证的模态记 incomplete（缺口，不是不适用）；其中 image、ocr 的「complete」来自**调用方申报**（不是引擎自测），按申报档看待",
+   "declared_by": "caller",
+   "declared_modalities": [
+    "image",
+    "ocr"
+   ]
+  },
+  "decision_trace": {
+   "reasons": [
+    "uncertain_or_review_item"
+   ],
+   "confidence_status": "heuristic_not_calibrated",
+   "evaluated_at": "2026-10-08T11:10:56.410068+00:00"
+  },
+  "submit_question": "审核下这张图"
+ },
+ "evidence_meta": {
+  "run_id": "20261008-191046",
+  "findings": 5,
+  "state": "REVIEW",
+  "report_path": "kb/l7/reports/20261008-191046.review.md",
+  "material_facets": {
+   "product_line": "",
+   "channel": "",
+   "from": {},
+   "all_product_lines": [],
+   "all_channels": [],
+   "anchors_used": 0,
+   "records_skipped": [
+    {
+     "anchor": "#负面样本/recvw8Tx3zVihU/具体原因/分析",
+     "table": "负面样本",
+     "why": "素材原文**不在**该记录里 ⇒ 它是命中记录（规则样本/依据），**不是本素材** ⇒ 不采信它的品线/平台（那是那条样本自己的投放属性）"
+    },
+    {
+     "anchor": "#负面样本/recvweKJlZYRQa/具体原因/分析",
+     "table": "负面样本",
+     "why": "素材原文**不在**该记录里 ⇒ 它是命中记录（规则样本/依据），**不是本素材** ⇒ 不采信它的品线/平台（那是那条样本自己的投放属性）"
+    },
+    {
+     "anchor": "#负面样本/recvwwiEKD6Vf8/具体原因/分析",
+     "table": "负面样本",
+     "why": "素材原文**不在**该记录里 ⇒ 它是命中记录（规则样本/依据），**不是本素材** ⇒ 不采信它的品线/平台（那是那条样本自己的投放属性）"
+    },
+    {
+     "anchor": "#负面样本/recvwC9IMVtANl/具体原因/分析",
+     "table": "负面样本",
+     "why": "素材原文**不在**该记录里 ⇒ 它是命中记录（规则样本/依据），**不是本素材** ⇒ 不采信它的品线/平台（那是那条样本自己的投放属性）"
+    },
+    {
+     "anchor": "#负面样本/recvw7XIUgbbCi/具体原因/分析",
+     "table": "负面样本",
+     "why": "素材原文**不在**该记录里 ⇒ 它是命中记录（规则样本/依据），**不是本素材** ⇒ 不采信它的品线/平台（那是那条样本自己的投放属性）"
+    }
+   ]
+  },
+  "trace": {
+   "p0": {
+    "engine": "kb/l5/matcher.py",
+    "exit_code": 0,
+    "total_elapsed_ms": 118.73,
+    "engine_elapsed_ms": 25.964,
+    "hits": []
+   },
+   "rules": {
+    "engine": "kb/l3/candidates/rules.jsonl",
+    "kb_type_filter": null,
+    "rules_scanned": 509,
+    "hits": [
+     {
+      "rule_id": "r-724b26ecb1dee9c4",
+      "article_no": "W-1.30",
+      "rule_code": "安全词",
+      "p_level": "P1",
+      "risk_level": "unknown",
+      "authority": null,
+      "kb_type": "wording",
+      "authority_source_table": null,
+      "matched_fragments": [
+       "comfort"
+      ],
+      "anchor": "#品线内容边界规则库/recvuJP2Ot474u/边界内容",
+      "source_sha256": "5a740e9d29e4a9defa82e99066118cb7a118d1d55a21b0e109f6a0aa0257d000",
+      "rule_text": "边界：客观功能/真实认证关键词（正面提示，不参与降级）；触发词：suction level, suction levels, adjustable suction, 9 levels, 10 levels, hands-free, wearable, portable, rechargeable, wireless, BPA-free, food-grade silicone, food grade, FDA cleared, FDA-cleared, FDA registered, easy to clean, dishwasher safe, dishwasher-safe, quiet mode, low noise, low-decibel, reduces pain, less pain, gentle, comfort",
+      "suggested_replacement": ""
+     }
+    ]
+   },
+   "units": {
+    "engine": "kb/l6/retriever.py",
+    "l6_mode": "vector_plus_bm25",
+    "semantic_recall": true,
+    "bm25_max": 301.371,
+    "cosine_max": 0.0,
+    "used_vector": false,
+    "no_semantic_annotation": null,
+    "top_bm25": [
+     {
+      "source": "bm25_en",
+      "unit_id": "b8f34791fab83663e82f",
+      "anchor": "#素材/recvw8Tx3zVihU/图片素材/#img.1",
+      "table": "素材",
+      "kb_type": "internal_sample",
+      "source_sha256": null,
+      "raw_bm25": 301.371,
+      "excerpt": "[image_ocr] Dein körper braucht ein gefühl von sicherheit, damit oxytocin seine wirkung entfalten kann. Entspannung Oxytocin wird im Gehirn freigesetzt Oxytocin"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "957b2506b73ba5e44ba8",
+      "anchor": "#素材/recvweKJlZYRQa/图片素材/#img.1",
+      "table": "素材",
+      "kb_type": "internal_sample",
+      "source_sha256": null,
+      "raw_bm25": 301.371,
+      "excerpt": "[image_ocr] Dein körper braucht ein gefühl von sicherheit, damit oxytocin seine wirkung entfalten kann. Entspannung Oxytocin wird im Gehirn freigesetzt Oxytocin"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "f11ced91f1b28be1ba4e",
+      "anchor": "#素材/recvwwiEKD6Vf8/图片素材/#img.1",
+      "table": "素材",
+      "kb_type": "internal_sample",
+      "source_sha256": null,
+      "raw_bm25": 301.371,
+      "excerpt": "[image_ocr] Dein körper braucht ein gefühl von sicherheit, damit oxytocin seine wirkung entfalten kann. Entspannung Oxytocin wird im Gehirn freigesetzt Oxytocin"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "8e51700f8ecf1b566b4a",
+      "anchor": "#素材/recvwC9IMVtANl/图片素材/#img.1",
+      "table": "素材",
+      "kb_type": "internal_sample",
+      "source_sha256": null,
+      "raw_bm25": 301.371,
+      "excerpt": "[image_ocr] Dein körper braucht ein gefühl von sicherheit, damit oxytocin seine wirkung entfalten kann. Entspannung Oxytocin wird im Gehirn freigesetzt Oxytocin"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "05fd410556e744a4096f",
+      "anchor": "#素材/recvw7XIUgbbCi/图片素材/#img.1",
+      "table": "素材",
+      "kb_type": "internal_sample",
+      "source_sha256": null,
+      "raw_bm25": 288.1202,
+      "excerpt": "[image_ocr] 秋促倒计时02 1800*1350 Parou The Season's bi iggest Savings Are Almost Here 2 DAYS LEFT! TO 20% OFF Get ready to upgrade your nursing journey with ultima"
+     }
+    ],
+    "vector_rows": [],
+    "adopted": [
+     {
+      "source": "bm25_en",
+      "unit_id": "b8f34791fab83663e82f",
+      "anchor": "#素材/recvw8Tx3zVihU/图片素材/#img.1",
+      "table": "素材",
+      "kb_type": "internal_sample",
+      "source_sha256": null,
+      "raw_bm25": 301.371,
+      "excerpt": "[image_ocr] Dein körper braucht ein gefühl von sicherheit, damit oxytocin seine wirkung entfalten kann. Entspannung Oxytocin wird im Gehirn freigesetzt Oxytocin",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "957b2506b73ba5e44ba8",
+      "anchor": "#素材/recvweKJlZYRQa/图片素材/#img.1",
+      "table": "素材",
+      "kb_type": "internal_sample",
+      "source_sha256": null,
+      "raw_bm25": 301.371,
+      "excerpt": "[image_ocr] Dein körper braucht ein gefühl von sicherheit, damit oxytocin seine wirkung entfalten kann. Entspannung Oxytocin wird im Gehirn freigesetzt Oxytocin",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "f11ced91f1b28be1ba4e",
+      "anchor": "#素材/recvwwiEKD6Vf8/图片素材/#img.1",
+      "table": "素材",
+      "kb_type": "internal_sample",
+      "source_sha256": null,
+      "raw_bm25": 301.371,
+      "excerpt": "[image_ocr] Dein körper braucht ein gefühl von sicherheit, damit oxytocin seine wirkung entfalten kann. Entspannung Oxytocin wird im Gehirn freigesetzt Oxytocin",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "8e51700f8ecf1b566b4a",
+      "anchor": "#素材/recvwC9IMVtANl/图片素材/#img.1",
+      "table": "素材",
+      "kb_type": "internal_sample",
+      "source_sha256": null,
+      "raw_bm25": 301.371,
+      "excerpt": "[image_ocr] Dein körper braucht ein gefühl von sicherheit, damit oxytocin seine wirkung entfalten kann. Entspannung Oxytocin wird im Gehirn freigesetzt Oxytocin",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "05fd410556e744a4096f",
+      "anchor": "#素材/recvw7XIUgbbCi/图片素材/#img.1",
+      "table": "素材",
+      "kb_type": "internal_sample",
+      "source_sha256": null,
+      "raw_bm25": 288.1202,
+      "excerpt": "[image_ocr] 秋促倒计时02 1800*1350 Parou The Season's bi iggest Savings Are Almost Here 2 DAYS LEFT! TO 20% OFF Get ready to upgrade your nursing journey with ultima",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     }
+    ],
+    "discarded": [],
+    "gate": {
+     "bm25_raw_min": 8.0,
+     "vector_cosine_min": 0.6,
+     "use_raw_scores_only": true,
+     "why_not_rrf": "RRF 分恒为 1/(60+k)，实测 Top1 恒在 0.016393，A 组与 B 组看起来一样高，没有区分度，不能当门限",
+     "why_single_threshold_not_enough": "实测 BM25 原始分在 A/B 两组有重叠（A 组最低 5.32 < B 组最高 10.02），所以门限只用于「够不够格当参考」，要成为「依据」还必须同时命中规则层",
+     "measured": {
+      "bm25_raw": {
+       "A_group_min": 5.32,
+       "A_group_median": 12.76,
+       "B_group_median": 6.44,
+       "B_group_max": 10.02,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      },
+      "cosine": {
+       "A_group_min": 0.512,
+       "A_group_median": 0.669,
+       "B_group_median": 0.384,
+       "B_group_max": 0.569,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      }
+     },
+     "threshold_reasoning": "BM25 门限取 8.0：落在 A 组最低(5.32)与 B 组最高(10.02)之间、贴近两组中位之间，偏保守；余弦门限取 0.60：实测它是唯一能把 B 组全部挡在外面的取值（B 组最高 0.569），代价是 A 组丢 2 条；即便如此门限仍单独不可靠，必须叠加「同时命中规则层」才算依据",
+     "below_threshold_label": "参考",
+     "above_threshold_without_rule_hit": "仍只能标参考，不得作为依据",
+     "coverage_bm25_min": 16.0,
+     "coverage_reasoning": "PASS 必须建立在「知识库认识这个主题」之上，覆盖信号二选一：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ coverage_bm25_min(=16.0)。16.0 = 依据门限的 2 倍：实测 A 组中位 12.76 / 最高 23.16，B 组最高 10.02，取 16 能把实测 B 组全部挡在外面。覆盖信号不成立 → 拒答，不得输出 PASS。"
+    }
+   },
+   "coverage": {
+    "safe_vocabulary_hits": [
+     "W-1.30"
+    ],
+    "rule_cited_unit_hits": [],
+    "same_source_unit_hits": [],
+    "case_unit_hits": [
+     {
+      "anchor": "#素材/recvw8Tx3zVihU/图片素材/#img.1",
+      "raw_bm25": 301.371,
+      "resource_id": "bitable__tbld8qE92YaY38Yz__recvw8Tx3zVihU"
+     },
+     {
+      "anchor": "#素材/recvweKJlZYRQa/图片素材/#img.1",
+      "raw_bm25": 301.371,
+      "resource_id": "bitable__tbld8qE92YaY38Yz__recvweKJlZYRQa"
+     },
+     {
+      "anchor": "#素材/recvwwiEKD6Vf8/图片素材/#img.1",
+      "raw_bm25": 301.371,
+      "resource_id": "bitable__tbld8qE92YaY38Yz__recvwwiEKD6Vf8"
+     },
+     {
+      "anchor": "#素材/recvwC9IMVtANl/图片素材/#img.1",
+      "raw_bm25": 301.371,
+      "resource_id": "bitable__tbld8qE92YaY38Yz__recvwC9IMVtANl"
+     },
+     {
+      "anchor": "#素材/recvw7XIUgbbCi/图片素材/#img.1",
+      "raw_bm25": 288.1202,
+      "resource_id": "bitable__tbld8qE92YaY38Yz__recvw7XIUgbbCi"
+     }
+    ],
+    "case_clause_pool": 239,
+    "rule_cited_anchor_pool": 959,
+    "rule_cited_resource_pool": 40,
+    "coverage_bm25_min": 16.0,
+    "covered_by": "safe_vocabulary",
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "covered": true
+   },
+   "elapsed_ms": 6654.7
+  },
+  "source": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py",
+  "findings_source": {
+   "mode": "live",
+   "path": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py"
+  },
+  "layer_preflight": {
+   "base": "20261008-1910",
+   "ok": true,
+   "red_total": 0,
+   "mode": "enforced",
+   "details": {
+    "L4": {
+     "run": "20261008-1910-L4",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L4": "session-5eacbfa3-cb36-4cb0-9464-f28b47e1e7c9"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L5": {
+     "run": "20261008-1910-L5",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L5": "session-5eacbfa3-cb36-4cb0-9464-f28b47e1e7c9"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L6": {
+     "run": "20261008-1910-L6",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L6": "session-5eacbfa3-cb36-4cb0-9464-f28b47e1e7c9"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L7": {
+     "run": "20261008-1910-L7",
+     "exit": 0,
+     "red": 0,
+     "yellow": 0,
+     "skill_sessions": {
+      "L7": "session-5eacbfa3-cb36-4cb0-9464-f28b47e1e7c9"
+     },
+     "pass": true,
+     "note": ""
+    }
+   }
+  },
+  "decision_owner": {
+   "skill": "图片安全审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check",
+    "图片安全审查"
+   ]
+  },
+  "publish": {
+   "mode": "enabled",
+   "published": true,
+   "docx": "https://momcozy-in.feishu.cn/docx/OQZXdtSTFojTG4xLFVDcU8iYn5g",
+   "record_id": "recvxsiDhAWPoU"
+  }
+ }
+}
+
+===== ③b 转述模板（照抄这一段即可，不必再跑任何命令）=====
+状态：REVIEW ｜ 问题数：5 ｜ 置信度：0.78
+摘要：【审查结论：REVIEW】共发现 5 处需人工确认。
+· 原则性错误类问题：1 个
+· 品牌一致性类问题：4 个
+→ 完整问题清单与修改建议在**本地报告**里（不是可点链接）：kb/l7/reports/20261008-191046.review.md
+建议转 @复核责任人（未配置） 复核。
+层前置：ok=None mode=None
+判定主体：图片安全审查 ｜ mode=declared
+  ● 条款号 ? ｜ 库内反例条款 S-1.269（原则性错误）与本素材**同源/同题材**：【原则性错误】图片 P16 海报上需要有“UP TO 201% OFF” (最高X折) 。
+【问题要点】
+1. 海报上需要有“UP TO 201% OFF” (
+  ● 条款号 ? ｜ 库内反例条款 S-1.214（品牌一致性）与本素材**同源/同题材**：【品牌一致性】图片 1. 第一改吸奶器产品图海报，logo 下的slogan 去。
+【问题要点】
+1. 1. 第一改吸奶器产品图海报，logo 下的slogan
+  ● 条款号 ? ｜ 库内反例条款 S-1.221（品牌一致性）与本素材**同源/同题材**：【品牌一致性】图片 其实我是在想Momcozy的内容发在ROOT的小红书账号上。
+【问题要点】
+1. 其实我是在想Momcozy的内容发在ROOT的小红书账号上
+  ● 条款号 ? ｜ 库内反例条款 S-1.242（品牌一致性）与本素材**同源/同题材**：【品牌一致性】图片 【终审-   @吴礼芳   】麻烦看一下~。
+  ● 条款号 ? ｜ 库内反例条款 S-1.257（品牌一致性）与本素材**同源/同题材**：【品牌一致性】文案 2.卡片的花朵结构不做改变。
+原因：<u>**修改：需求变更：卡片为异色，花朵异形卡为单色（深色），由于卡片可做单面开槽，所以对背面的文案排
+
+【飞书那一步已经做完了】published=true ｜ 记录 recvxsiDhAWPoU
+⇒ **你不要再写一次飞书表**（实测：有单子自己又跑 28~29 次 bash 去补写，把时间从 50 秒拖到 160 秒，还可能造出重复行）。照抄本段即可收工。
+[review_run] 机读旁挂已写：/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/.work/last_review_result.json

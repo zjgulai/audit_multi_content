@@ -1,0 +1,47 @@
+layer_freshness.py —— **「这层新鲜吗」的水位口径**（批次18 · 第0块 · 裁定 A 落地）。
+
+## 为什么要它（旧口径为什么不可行）
+
+旧口径（`daily_health.py:285-286`）只有一条：
+
+    陈旧 ⟺ kind == "data" 的产物 mtime 距今 > 86400 秒
+
+**它把「正确地什么都没变」判成陈旧，且永远清不掉。** 实测（2026-10-02）：
+
+    L2 本 RUN 跑过（`kb/l2/runs/20261002-1510.json`，`applied: true`、
+    `new_units: 0`、`refilled: 0`、`cov_before == cov_after`），
+    但 `kb/l2/units.jsonl` 的 mtime 仍是 `Oct 1 10:45:41` ⇒ 判陈旧。
+
+幂等层**本来就该不写盘**（L2 的 `cov_before == cov_after` 就是「无新增」的证据）。
+拿 mtime 当「跑过没有」的判据，在幂等层上**结构性失效**。
+更糟的是它**误导处置**：日报让它「跑 L2」，而 L2 刚跑过、结论就是「无需变更」——
+人会陷入反复重跑。
+
+## 新口径（裁定 A）
+
+    新鲜 ⟺ 该层最近一次**成功** RUN 在 24h 内
+            且（ change_state == "produced_changes"
+                 或 (change_state == "no_new_input" 且 input_watermark == 上游当前水位) ）
+
+三字段落章：
+
+    executed_at      这一跑是什么时候（墙钟，秒）
+    input_watermark  这一跑**读到**的上游水位（见 WATERMARK_SOURCES）
+    change_state     produced_changes ｜ no_new_input ｜ blocked
+
+## ★ 防假绿（硬要求，不许退化）
+
+`no_new_input` **不许由本层自证**。本模块的 `judge()` 一律**现算**上游水位
+（`current_watermark()` 直接读盘），与落章里的 `input_watermark` 比对：
+
+    水位变了 ⇒ 判陈旧（**即使这层 1 分钟前刚跑过**）
+
+⇒ 「只看跑过」这种退化**过不了反测 3**（见文件末 `selftest`）。
+**若某层拿不到水位（无落章 / 老格式落章）⇒ 如实报「无法交叉验证」并回退到旧 mtime 判据**
+（`fallback_used: True`），**不假装新鲜**。
+
+
+用法：
+  kb/kbpy l7/scripts/layer_freshness.py judge   <L0..L7>
+  kb/kbpy l7/scripts/layer_freshness.py measure <L0..L7> [--change-state X] [--run-id R] [--note N] [--kb-root P] -- <命令…>
+  kb/kbpy l7/scripts/layer_freshness.py selftest

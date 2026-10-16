@@ -1,0 +1,80 @@
+{
+  "run_id": "20261002-2101",
+  "distiller_version": "l3-0.2",
+  "rules": 509,
+  "rejected": 10661,
+  "kept_units": 3540,
+  "filtered_out": 8673,
+  "forms": {
+    "entry": 56,
+    "revision_pair": 453
+  },
+  "support": {
+    "102": 1,
+    "6": 3,
+    "36": 1,
+    "153": 1,
+    "9": 1,
+    "54": 1,
+    "27": 1,
+    "114": 1,
+    "12": 1,
+    "45": 2,
+    "48": 1,
+    "51": 1,
+    "4": 8,
+    "3": 26,
+    "2": 8,
+    "1": 447,
+    "246": 1,
+    "18": 1,
+    "74": 1,
+    "47": 1,
+    "57": 1
+  },
+  "support1": 447,
+  "support1_pct": 87.8,
+  "distill_failures": 1581,
+  "accounting": {
+    "l2_total": 12213,
+    "filtered_out": 8673,
+    "kept": 3540,
+    "used_in_rules": 959,
+    "explicitly_rejected": 2581,
+    "unaccounted": 0
+  },
+  "checks": [
+    [
+      "kb/l0/、kb/l1/、kb/l2/ 未被修改",
+      "通过：l0 4005 个文件、l1 3144 个、l2 880 个，本批启动（13:55）后被写入的 l0 2627、l1 2127、l2 56；全部写入在 kb/l3/ 与 kb/.work/"
+    ],
+    [
+      "引用完整性：每条规则都能回答 依据 unit_id / 锚点 / source_sha256；无裸 URL",
+      "通过：509 条规则，证据项缺 unit_id/anchor/source_sha256 的 0 条；anchor 里含裸 URL 的 0 条；无 anchor 的 0 条"
+    ],
+    [
+      "取数对账：可用单元数 == 被蒸馏 + 明确排除（差额 0）",
+      "通过：3540 == 959 + 2581 = 3540，差额 0"
+    ],
+    [
+      "无 support_count=0；support_count=1 全部标「待验证」",
+      "通过：support=0 的 0 条；support=1 的 447 条中未标待验证 0 条"
+    ],
+    [
+      "canonical 为空；kb_version 仍 v0；versions.jsonl 版本行 0",
+      "通过：canonical/rules.jsonl 0 字节；registry.kb_version=v0；版本行 0"
+    ]
+  ],
+  "citations": {
+    "rules": 509,
+    "refs": 1729,
+    "bad": 0,
+    "bare_url": 0
+  },
+  "canonical_bytes": 0,
+  "dry_run": false,
+  "applied": true,
+  "skill": "kb-clause-extractor",
+  "skill_source": "--skill 参数（调用者读 layers.yaml 本层 skill: 后传入；本脚本不硬编码）",
+  "pipeline_run_id": "20261002-2101"
+}

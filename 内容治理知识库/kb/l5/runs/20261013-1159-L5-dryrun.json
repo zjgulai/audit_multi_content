@@ -1,0 +1,1102 @@
+{
+  "run_id": "20261013-1159-L5",
+  "stage": "L5 P0 可执行导出",
+  "finished_at": "2026-10-13 11:59:17",
+  "exporter_version": "l5-0.1",
+  "kb_version": "v0",
+  "inputs_read_only": {
+    "kb/l0": {
+      "files": 4493,
+      "bytes": 2878270595,
+      "tree_sha256": "3e3b6b5c60f800ec4abff756b6b54004770848bcd543d5a2cf05239b64ac42df",
+      "max_mtime": "2026-10-13 03:51:59"
+    },
+    "kb/l1": {
+      "files": 5214,
+      "bytes": 1493147089,
+      "tree_sha256": "51c29ea218972302719109ed13e6e1d21ef40372b8bdf04012795bba7bb8c94e",
+      "max_mtime": "2026-10-13 03:56:47"
+    },
+    "kb/l2": {
+      "files": 953,
+      "bytes": 286807961,
+      "tree_sha256": "fb257d0569327006b99b470501f333023b8202316feeb185c8e921e3f18e5b7e",
+      "max_mtime": "2026-10-13 03:37:38"
+    },
+    "kb/l3/candidates/rules.jsonl": {
+      "lines": 1018,
+      "latest_view": 509
+    }
+  },
+  "precondition_a": {
+    "what": "给 509 条候选规则补齐 rule_kind / authority / p_level，只追加不覆盖",
+    "before_lines": 1018,
+    "before_sha256": "ee39dda777ed4eb32750e9a74a0034ddc87d390c843375d2cc9a9a5426fd9185",
+    "appended": 0,
+    "latest_total": 509,
+    "rule_kind": {
+      "atomic": 483,
+      "inductive": 26
+    },
+    "authority": {
+      "expert": 416,
+      "inferred": 93
+    },
+    "p_level": {
+      "P0": 22,
+      "P1": 476,
+      "P3": 4,
+      "P2": 7
+    },
+    "组合分布": {
+      "atomic|expert|P0": 12,
+      "atomic|expert|P1": 413,
+      "inductive|inferred|P1": 8,
+      "atomic|expert|P2": 5,
+      "atomic|inferred|P2": 1,
+      "inductive|inferred|P2": 6,
+      "inductive|inferred|P0": 6,
+      "atomic|inferred|P1": 52,
+      "inductive|expert|P1": 6
+    }
+  },
+  "precondition_b": {
+    "what": "atomic 规则配对抽查（回源核对 命中片段 与 修改建议 是否取自同一单元）",
+    "seed": 20260923,
+    "atomic_total": 483,
+    "sampled": 10,
+    "mismatches": [],
+    "rows": [
+      {
+        "rule_id": "r-e62ceee5c36f8a19",
+        "form": "revision_pair",
+        "record_id": null,
+        "anchor": "#专家修订汇总表/recvoyJ6L9GFFG/修订位置（原文引用）",
+        "source_sha256": "baf371102306e9a0813e3525cdbf8a1ac203464246a6131dc3d0d279f2ac43be",
+        "hit_fragment": "通常在产后6到8周前后，可以在医生评估后逐步减少使用时间",
+        "suggested_replacement": "改为：束腹带只是产后康复的辅助工具，何时逐步减少使用，应结合自身恢复情况和医生或康复师的评估，而非依据固定的时间节点。当",
+        "verdict": "✅ 同单元（前/后取自同一 revision_pair 单元）"
+      },
+      {
+        "rule_id": "r-b431f1a0067a728d",
+        "form": "revision_pair",
+        "record_id": null,
+        "anchor": "#专家修订汇总表/recvoyJ6L96D4I/修订位置（原文引用）",
+        "source_sha256": "cf3cd31055858aa7397c0197ad3bd9d0ff4b41620e1efc38a45007927ffbee23",
+        "hit_fragment": "就医指征列表中连续两次产检低于第10百分位",
+        "suggested_replacement": "删除该条目",
+        "verdict": "✅ 同单元（前/后取自同一 revision_pair 单元）"
+      },
+      {
+        "rule_id": "r-833206375b2c991d",
+        "form": "revision_pair",
+        "record_id": null,
+        "anchor": "#专家修订汇总表/recvoyJ6L9AH7O/修订位置（原文引用）",
+        "source_sha256": "026dc59b822b31c3f88a334d56d8cf0d42ce5a93c437800d3d273bde048ae6e3",
+        "hit_fragment": "乳腺炎 vs. 普通涨奶对比表中的【普通涨奶】",
+        "suggested_replacement": "将【普通涨奶】统一改为【生理性乳胀】，使用规范医学术语，便于读者理解两者的本质区别。",
+        "verdict": "✅ 同单元（前/后取自同一 revision_pair 单元）"
+      },
+      {
+        "rule_id": "r-3cdb837656c3b45b",
+        "form": "revision_pair",
+        "record_id": null,
+        "anchor": "#专家修订汇总表/recvoyJ6L9JUOz/修订位置（原文引用）",
+        "source_sha256": "dc11b19843db5ab484e54800e8c4d377b9ad74e45e790c0ce6b41214c302c0a3",
+        "hit_fragment": "营造专属的吸奶环境（在家中固定一个相对安静、私密的位置）",
+        "suggested_replacement": "改为：可以看自己喜欢的视频或与同伴线上互动，降低焦虑感；不必强调必须安静私密的固定环境",
+        "verdict": "✅ 同单元（前/后取自同一 revision_pair 单元）"
+      },
+      {
+        "rule_id": "r-83e012b69931f9bb",
+        "form": "revision_pair",
+        "record_id": null,
+        "anchor": "#专家修订汇总表/recvs40EGMiHYp/修订位置（原文引用）",
+        "source_sha256": "000c620bd24366a462a7c657068ea606e223216d715369d2a8172b9a14b9dbb0",
+        "hit_fragment": "开放式问题容易让选择变得没完没了，因此要提供有限的封闭式选项",
+        "suggested_replacement": "修订原因说明：有限选项更符合2～3岁儿童的认知处理能力，能够降低选择难度；不要表述为孩子会让选择“没完没了”。",
+        "verdict": "✅ 同单元（前/后取自同一 revision_pair 单元）"
+      },
+      {
+        "rule_id": "r-78810215b255e00c",
+        "form": "revision_pair",
+        "record_id": null,
+        "anchor": "#专家修订汇总表/recvoyJ6L95wAc/修订位置（原文引用）",
+        "source_sha256": "399b6a136085f90c5dbf310fb12545bdc4db89bdd2461a40f94743f9508e74d1",
+        "hit_fragment": "咖啡因：普遍建议控制在200-300毫克",
+        "suggested_replacement": "改为：普遍建议每日咖啡因摄入量控制在200毫克以下",
+        "verdict": "✅ 同单元（前/后取自同一 revision_pair 单元）"
+      },
+      {
+        "rule_id": "r-06ae8f80558f9637",
+        "form": "revision_pair",
+        "record_id": null,
+        "anchor": "#专家修订汇总表/recvoyJ6L9ONeH/修订位置（原文引用）",
+        "source_sha256": "e08baad3af9761f3824e99f6f117f27ab0671bf352485013e563f215b95c6428",
+        "hit_fragment": "受孕前3个月，是身体储备营养的关键阶段",
+        "suggested_replacement": "修订为：受孕前3个月是叶酸等关键营养素储备的重要阶段，尤其叶酸对神经管发育影响显著",
+        "verdict": "✅ 同单元（前/后取自同一 revision_pair 单元）"
+      },
+      {
+        "rule_id": "r-9cdc5af925dc9483",
+        "form": "revision_pair",
+        "record_id": null,
+        "anchor": "#专家修订汇总表/recvoyJ6L9WoYy/修订位置（原文引用）",
+        "source_sha256": "6f30d6d4381d49b55058bf6dc1fe191edda4f0445c8f0a9d6472032b6f8eb163",
+        "hit_fragment": "这一阶段准妈妈体内的泌乳素水平显著上升",
+        "suggested_replacement": "将\"显著上升\"改为\"大幅升高\"或\"处于较高水平\"",
+        "verdict": "✅ 同单元（前/后取自同一 revision_pair 单元）"
+      },
+      {
+        "rule_id": "r-bb68bd1d1a98626a",
+        "form": "revision_pair",
+        "record_id": null,
+        "anchor": "#专家修订汇总表/recvoyJ6L91LTC/修订位置（原文引用）",
+        "source_sha256": "b71112c3d49963d56faa01c17d01812c06b070564e37cec4b40d3b43e9562b10",
+        "hit_fragment": "原因很简单——乳汁的出口在乳晕下方的输乳管。宝宝需要利用下颌和舌头的运动，挤压这片区域（整段）",
+        "suggested_replacement": "按吸吮机制整体重写该段：正确含接时，宝宝将乳头及大部分乳晕深含入口腔，通过舌头与口腔产生的负压吸吮将乳汁吸出。含接越深，",
+        "verdict": "✅ 同单元（前/后取自同一 revision_pair 单元）"
+      },
+      {
+        "rule_id": "r-85348bba00a2b5a7",
+        "form": "entry",
+        "record_id": "bitable__Lk3Qb8y2QaVyZns6gprcVNE9nA0__recvuJYdObBgjg",
+        "anchor": "#广告文案明细/recvuJYdObBgjg/命中片段",
+        "source_sha256": "1ca01a6690922a697e9d428439674863df67709688a6b32fe846705603f5e011",
+        "hit_fragment": "M03:trusted by 6 million / M05:hospital grade,hospital-grade",
+        "suggested_replacement": "效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ hospital/medical gr",
+        "verdict": "✅ 同记录同一行"
+      }
+    ],
+    "verdict": "PASS（未发现错配，可导出）"
+  },
+  "selection": {
+    "p_level": "P0",
+    "rule_kind": "atomic",
+    "authority": [
+      "expert",
+      "legal"
+    ],
+    "code_allowlist": [
+      "H01",
+      "H03",
+      "H06",
+      "H08"
+    ],
+    "code_allowlist_note": "上游 authority=inferred 但证据逐字可溯的 P0 红线，按码准入（2026-09-23 补 H06）；不是放宽 authority 门槛",
+    "p0_total": 22,
+    "selected": 11,
+    "excluded": {
+      "non_P0": 487,
+      "P0_but_authority_insufficient": 5,
+      "P0_admitted_by_allowlist": 4,
+      "P0_but_inductive": 6
+    },
+    "excluded_p0_rules": [
+      {
+        "rule_id": "r-30d3b9b54135fa04",
+        "rule_code": "",
+        "form": "entry",
+        "rule_kind": "inductive",
+        "authority": "inferred",
+        "authority_source_table": null,
+        "anchor": "#W1卖点表达边界（品线反馈0910）/recvuNf8jlCiOn/建议表达（合规话术）"
+      },
+      {
+        "rule_id": "r-e919fda20cd2f95e",
+        "rule_code": "",
+        "form": "entry",
+        "rule_kind": "inductive",
+        "authority": "inferred",
+        "authority_source_table": null,
+        "anchor": "#W1卖点表达边界（品线反馈0910）/recvuNf8jlRMlk/建议表达（合规话术）"
+      },
+      {
+        "rule_id": "r-3b3460eab4528002",
+        "rule_code": "",
+        "form": "entry",
+        "rule_kind": "inductive",
+        "authority": "inferred",
+        "authority_source_table": null,
+        "anchor": "#W1卖点表达边界（品线反馈0910）/recvuNf8jlbH8T/建议表达（合规话术）"
+      },
+      {
+        "rule_id": "r-1cf94543649842a0",
+        "rule_code": "",
+        "form": "entry",
+        "rule_kind": "inductive",
+        "authority": "inferred",
+        "authority_source_table": null,
+        "anchor": "#W1卖点表达边界（品线反馈0910）/recvuNf8jlmVKJ/建议表达（合规话术）"
+      },
+      {
+        "rule_id": "r-039822ed5c8e3448",
+        "rule_code": "",
+        "form": "entry",
+        "rule_kind": "inductive",
+        "authority": "inferred",
+        "authority_source_table": null,
+        "anchor": "#W1卖点表达边界（品线反馈0910）/recvuNf8jlsHsc/建议表达（合规话术）"
+      },
+      {
+        "rule_id": "r-478f43899bcb5b8a",
+        "rule_code": "",
+        "form": "entry",
+        "rule_kind": "inductive",
+        "authority": "inferred",
+        "authority_source_table": null,
+        "anchor": "#W1卖点表达边界（品线反馈0910）/recvuNf8jlt712/建议表达（合规话术）"
+      },
+      {
+        "rule_id": "r-b8aea07e90a86b59",
+        "rule_code": "H02",
+        "form": "entry",
+        "rule_kind": "atomic",
+        "authority": "inferred",
+        "authority_source_table": null,
+        "anchor": "#品线内容边界规则库/recvuJP1dD7yNW/边界内容"
+      },
+      {
+        "rule_id": "r-9b672eff05199974",
+        "rule_code": "H04",
+        "form": "entry",
+        "rule_kind": "atomic",
+        "authority": "inferred",
+        "authority_source_table": null,
+        "anchor": "#品线内容边界规则库/recvuJP1dDAX79/边界内容"
+      },
+      {
+        "rule_id": "r-3b6c3c82dc667295",
+        "rule_code": "H05",
+        "form": "entry",
+        "rule_kind": "atomic",
+        "authority": "inferred",
+        "authority_source_table": null,
+        "anchor": "#品线内容边界规则库/recvuJP1dDumuM/边界内容"
+      },
+      {
+        "rule_id": "r-106e4c5b6475d0e3",
+        "rule_code": "H07",
+        "form": "entry",
+        "rule_kind": "atomic",
+        "authority": "inferred",
+        "authority_source_table": null,
+        "anchor": "#品线内容边界规则库/recvuJP1LV8KLr/边界内容"
+      },
+      {
+        "rule_id": "r-7489e156a5d2c7b2",
+        "rule_code": "H09",
+        "form": "entry",
+        "rule_kind": "atomic",
+        "authority": "inferred",
+        "authority_source_table": null,
+        "anchor": "#品线内容边界规则库/recvuNifmKBXoP/边界内容"
+      }
+    ],
+    "excluded_reason": {
+      "P0_but_authority_insufficient": "来源是内部品线边界规则（authority=inferred），不在 expert/legal 门槛内",
+      "P0_but_inductive": "由多条证据归纳出的模式（rule_kind=inductive），不是一对一原子映射",
+      "P0_admitted_by_allowlist": "authority 低于门槛，但码在 `l5_export.py::P0_CODE_ALLOWLIST` 里（Owner 按 PRD 显式准入，依据写在该常量注释里）⇒ 计入入选、不计排除"
+    }
+  },
+  "patterns": {
+    "pattern_count": 11,
+    "keyword_terms": 175,
+    "regex_terms": 28,
+    "avg_keyword_terms_per_rule": 15.91,
+    "avg_regex_terms_per_rule": 2.55,
+    "rules_with_whitelist": 11,
+    "rules_with_allowed_expressions": 4,
+    "per_rule": [
+      {
+        "rule_code": "H01",
+        "rule_id": "r-b10ee2b8361c8a3d",
+        "pattern_id": "p-334cd817a6f78136",
+        "keyword_terms": 62,
+        "regex_terms": 0,
+        "whitelist_guards": 15,
+        "whitelist_allowed_expressions": 0,
+        "support_count": 4,
+        "risk_level": "Critical",
+        "authority_source_table": null,
+        "anchor": "#品线内容边界规则库/recvuJP1dDHb7E/边界内容",
+        "source_sha256": "f452aeddd6adf8ab4601996f1482912a0ebef2f8d7bd7f211e216087a1d16c81",
+        "term_basis": {
+          "clear blocked": "verbatim_source",
+          "clear clogged": "verbatim_source",
+          "clear residual milk": "verbatim_source",
+          "clogged duct treatment": "verbatim_source",
+          "cure engorgement": "verbatim_source",
+          "cure mastitis": "verbatim_source",
+          "diagnos": "verbatim_source",
+          "engorgement treatment": "verbatim_source",
+          "fix clogged": "verbatim_source",
+          "heal": "verbatim_source",
+          "heat therapy for clogged": "verbatim_source",
+          "heat therapy for mastitis": "verbatim_source",
+          "nipple damage prevention": "verbatim_source",
+          "plugged duct treatment": "verbatim_source",
+          "prevent clogged": "verbatim_source",
+          "prevent mastitis": "verbatim_source",
+          "prevent nipple damage": "verbatim_source",
+          "prevent plugged": "verbatim_source",
+          "prevents mastitis": "verbatim_source",
+          "prevents nipple damage": "verbatim_source",
+          "reduce nipple damage": "verbatim_source",
+          "reduces nipple damage": "verbatim_source",
+          "reduces residual milk": "verbatim_source",
+          "remedy": "verbatim_source",
+          "remove residual milk": "verbatim_source",
+          "stop mastitis": "verbatim_source",
+          "thermal therapy": "verbatim_source",
+          "treat clogged": "verbatim_source",
+          "treat engorgement": "verbatim_source",
+          "treat mastitis": "verbatim_source",
+          "treat plugged": "verbatim_source",
+          "unblock ducts": "verbatim_source",
+          "unclog ducts": "verbatim_source",
+          "warmth treats clogged": "verbatim_source",
+          "warmth treats mastitis": "verbatim_source",
+          "乳头损伤预防": "verbatim_source",
+          "五区对应乳腺": "verbatim_source",
+          "五条乳腺管": "verbatim_source",
+          "减少乳头损伤": "verbatim_source",
+          "加热治疗": "verbatim_source",
+          "排残奶": "verbatim_source",
+          "根治乳腺炎": "verbatim_source",
+          "残余奶": "verbatim_source",
+          "残留乳汁": "verbatim_source",
+          "治愈乳腺炎": "verbatim_source",
+          "治疗乳腺炎": "verbatim_source",
+          "治疗堵奶": "verbatim_source",
+          "治疗涨奶": "verbatim_source",
+          "热敷治疗": "verbatim_source",
+          "热敷疏通": "verbatim_source",
+          "热敷通奶": "verbatim_source",
+          "疏通乳腺管": "verbatim_source",
+          "疏通堵奶": "verbatim_source",
+          "疗法": "verbatim_source",
+          "解决乳腺炎": "verbatim_source",
+          "解决堵奶": "verbatim_source",
+          "诊断": "verbatim_source",
+          "避免乳头损伤": "verbatim_source",
+          "防止乳头损伤": "verbatim_source",
+          "预防乳头损伤": "verbatim_source",
+          "预防乳腺炎": "verbatim_source",
+          "预防堵奶": "verbatim_source"
+        }
+      },
+      {
+        "rule_code": "H02",
+        "rule_id": "r-37b49eadb72d7dc2",
+        "pattern_id": "p-755f9ff377c3052c",
+        "keyword_terms": 24,
+        "regex_terms": 3,
+        "whitelist_guards": 15,
+        "whitelist_allowed_expressions": 5,
+        "support_count": 102,
+        "risk_level": "Critical",
+        "authority_source_table": null,
+        "anchor": "#广告文案明细/recvuJYdOb1Rm1/命中片段",
+        "source_sha256": "c77f576dcc392cb3e763e6462d0259e50fb039f924a4af8e100321197e5be577",
+        "term_basis": {
+          "augmente la production de lait": "verbatim_source",
+          "boost supply": "verbatim_source",
+          "easier let-down": "verbatim_source",
+          "easier letdown": "verbatim_source",
+          "improve pumping efficiency": "verbatim_source",
+          "increase milk supply": "verbatim_source",
+          "increases milk production": "verbatim_source",
+          "increasing milk supply": "verbatim_source",
+          "mehr milch": "verbatim_source",
+          "more milk": "verbatim_source",
+          "más leche": "verbatim_source",
+          "plus de lait": "verbatim_source",
+          "producción de leche": "verbatim_source",
+          "support faster let-down": "verbatim_source",
+          "triggers letdown": "verbatim_source",
+          "boost milk": "equivalent_of:boost supply",
+          "maximize milk": "equivalent_of:more milk",
+          "milk supply boost": "equivalent_of:boost supply",
+          "下奶": "equivalent_of:增产催奶",
+          "催乳": "verbatim_rule_text",
+          "催奶": "verbatim_rule_text",
+          "增产": "verbatim_rule_text",
+          "增加奶量": "equivalent_of:increase milk supply",
+          "奶量提升": "equivalent_of:increase milk supply"
+        }
+      },
+      {
+        "rule_code": "H03",
+        "rule_id": "r-16cac1c85580f8f7",
+        "pattern_id": "p-f37fa19956cc92d9",
+        "keyword_terms": 9,
+        "regex_terms": 0,
+        "whitelist_guards": 15,
+        "whitelist_allowed_expressions": 0,
+        "support_count": 2,
+        "risk_level": "Critical",
+        "authority_source_table": null,
+        "anchor": "#品线内容边界规则库/recvuJP1dD4jGX/边界内容",
+        "source_sha256": "baa7cddb96e5152a488d302a526c193afd4351d363a53d666c45ff4ee747f7ac",
+        "term_basis": {
+          "clinical studies show": "verbatim_source",
+          "clinically proven": "verbatim_source",
+          "clinically tested": "verbatim_source",
+          "clinically validated": "verbatim_source",
+          "scientifically proven": "verbatim_source",
+          "临床证明": "verbatim_source",
+          "临床试验证实": "verbatim_source",
+          "临床验证": "verbatim_source",
+          "医学证明": "verbatim_source"
+        }
+      },
+      {
+        "rule_code": "H04",
+        "rule_id": "r-3055901e5877f981",
+        "pattern_id": "p-521d9d1502ee0bfa",
+        "keyword_terms": 13,
+        "regex_terms": 2,
+        "whitelist_guards": 15,
+        "whitelist_allowed_expressions": 2,
+        "support_count": 6,
+        "risk_level": "Critical",
+        "authority_source_table": null,
+        "anchor": "#广告文案明细/recvuJYdObV6eR/命中片段",
+        "source_sha256": "6059659ad3f649c3ac1ff6ca602fdcd0368094a9d9490fa5dca0319872677af0",
+        "term_basis": {
+          "ibclc-recommended": "verbatim_source",
+          "ob-gyn recommended": "verbatim_source",
+          "recommended by 100+ experts": "verbatim_source",
+          "doctor recommended": "equivalent_of:ob-gyn recommended",
+          "doctor-recommended": "equivalent_of:ob-gyn recommended",
+          "expert recommended": "equivalent_of:recommended by 100+ experts",
+          "expert-recommended": "equivalent_of:recommended by 100+ experts",
+          "expert-tuned": "verbatim_rule_text",
+          "pediatrician recommended": "equivalent_of:ob-gyn recommended",
+          "专家推荐": "verbatim_rule_text",
+          "专家认证推荐": "equivalent_of:recommended by 100+ experts",
+          "专家调校": "verbatim_rule_text",
+          "医生推荐": "equivalent_of:ob-gyn recommended"
+        }
+      },
+      {
+        "rule_code": "H05",
+        "rule_id": "r-7baf7ceb47b2e5bc",
+        "pattern_id": "p-08487282e2d400fe",
+        "keyword_terms": 13,
+        "regex_terms": 12,
+        "whitelist_guards": 15,
+        "whitelist_allowed_expressions": 0,
+        "support_count": 36,
+        "risk_level": "Critical",
+        "authority_source_table": null,
+        "anchor": "#广告文案明细/recvuJYdOb1B8v/命中片段",
+        "source_sha256": "e7aabf7478753887ea85470fa114b4d0b22d74d21cb901b3a02e7672dff4f4c5",
+        "term_basis": {
+          "perfect pump": "verbatim_source",
+          "100% safe": "verbatim_rule_text",
+          "100%safe": "equivalent_of:100% safe",
+          "fits all breast shapes": "verbatim_rule_text",
+          "one size fits all": "verbatim_rule_text",
+          "risk-free": "equivalent_of:zero risk",
+          "safest": "verbatim_rule_text",
+          "zero risk": "verbatim_rule_text",
+          "一定不损伤": "verbatim_rule_text",
+          "完全安全": "equivalent_of:100% safe",
+          "绝对安全": "equivalent_of:safest",
+          "适合所有胸型": "verbatim_rule_text",
+          "零风险": "equivalent_of:zero risk"
+        }
+      },
+      {
+        "rule_code": "H06",
+        "rule_id": "r-15a607c4457c8b55",
+        "pattern_id": "p-485c67cc9af960bf",
+        "keyword_terms": 5,
+        "regex_terms": 3,
+        "whitelist_guards": 15,
+        "whitelist_allowed_expressions": 4,
+        "support_count": 4,
+        "risk_level": "Critical",
+        "authority_source_table": null,
+        "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/边界内容",
+        "source_sha256": "2e8bb36d6edf7c4971132b69ff6d39819a5a0e0e8043e9001e096be1bc2a02d6",
+        "term_basis": {
+          "FDA approved": "verbatim_source",
+          "FDA certified": "verbatim_source",
+          "FDA 批准": "verbatim_source",
+          "FDA 认证": "verbatim_source",
+          "FDA 通过": "verbatim_source"
+        }
+      },
+      {
+        "rule_code": "H07",
+        "rule_id": "r-d7290a0ee59c58ef",
+        "pattern_id": "p-964b3c2e22b48ade",
+        "keyword_terms": 17,
+        "regex_terms": 3,
+        "whitelist_guards": 15,
+        "whitelist_allowed_expressions": 6,
+        "support_count": 153,
+        "risk_level": "Critical",
+        "authority_source_table": null,
+        "anchor": "#广告文案明细/recvuJYdOb1u94/命中片段",
+        "source_sha256": "1e3bd4c1ca097ee1b7f0011014ff91c1012b258c1e691525e0df454790b4c011",
+        "term_basis": {
+          "indolore": "verbatim_source",
+          "no pain": "verbatim_source",
+          "pain-free": "verbatim_source",
+          "painlessly": "verbatim_source",
+          "sans douleur": "verbatim_source",
+          "say goodbye to cold, painful": "verbatim_source",
+          "schmerzfrei": "verbatim_source",
+          "sin dolor": "verbatim_source",
+          "zero pain": "verbatim_source",
+          "free of pain": "equivalent_of:pain-free",
+          "pain relief": "verbatim_rule_text",
+          "relieve pain": "equivalent_of:pain relief",
+          "without pain": "verbatim_rule_text",
+          "不痛": "equivalent_of:无痛",
+          "告别疼痛": "equivalent_of:缓解疼痛",
+          "无痛": "verbatim_rule_text",
+          "缓解疼痛": "verbatim_rule_text"
+        }
+      },
+      {
+        "rule_code": "H08",
+        "rule_id": "r-0823b2d08a7e4ec2",
+        "pattern_id": "p-6e9d6acf0040e80d",
+        "keyword_terms": 11,
+        "regex_terms": 0,
+        "whitelist_guards": 15,
+        "whitelist_allowed_expressions": 0,
+        "support_count": 3,
+        "risk_level": "Critical",
+        "authority_source_table": null,
+        "anchor": "#品线内容边界规则库/recvuJP1LVUEBx/边界内容",
+        "source_sha256": "fc3caadb7c52b5c4df5ace5e5ef3ea7d62bb60e165a92d64f53873367627fe7e",
+        "term_basis": {
+          "10x better": "verbatim_source",
+          "10x more": "verbatim_source",
+          "beats medela": "verbatim_source",
+          "beats willow": "verbatim_source",
+          "better than elvie": "verbatim_source",
+          "better than medela": "verbatim_source",
+          "better than willow": "verbatim_source",
+          "完胜": "verbatim_source",
+          "比.*好": "verbatim_source",
+          "碾压": "verbatim_source",
+          "秒杀": "verbatim_source"
+        }
+      },
+      {
+        "rule_code": "H09",
+        "rule_id": "r-006445396c95aa10",
+        "pattern_id": "p-d31dfbc932cb84ac",
+        "keyword_terms": 8,
+        "regex_terms": 3,
+        "whitelist_guards": 15,
+        "whitelist_allowed_expressions": 0,
+        "support_count": 9,
+        "risk_level": "Critical",
+        "authority_source_table": null,
+        "anchor": "#广告文案明细/recvuJYdOb61lT/命中片段",
+        "source_sha256": "67875346a75bd2f81a40b387652d6824faefe083f61c025c5801034ab6d4074e",
+        "term_basis": {
+          "mimics baby’s natural nursing": "verbatim_source",
+          "baby-like suckling": "equivalent_of:mimics baby",
+          "imitates baby": "equivalent_of:mimics baby",
+          "mimic baby": "equivalent_of:mimics baby",
+          "mimics a baby": "equivalent_of:mimics baby",
+          "模仿婴儿": "equivalent_of:模拟复制宝宝",
+          "模拟婴儿吸吮": "equivalent_of:模拟复制宝宝",
+          "还原婴儿吮吸": "equivalent_of:模拟复制宝宝"
+        }
+      },
+      {
+        "rule_code": "M03",
+        "rule_id": "r-4f309d6ebde80283",
+        "pattern_id": "p-49015412e02fc955",
+        "keyword_terms": 9,
+        "regex_terms": 0,
+        "whitelist_guards": 15,
+        "whitelist_allowed_expressions": 0,
+        "support_count": 114,
+        "risk_level": "Critical",
+        "authority_source_table": null,
+        "anchor": "#广告文案明细/recvuJYdOb02Rt/命中片段",
+        "source_sha256": "b82926594fb8a661ef525b7393a899ee552bf03533da3c91bb88355aef4a3888",
+        "term_basis": {
+          "28% faster": "verbatim_source",
+          "28% more": "verbatim_source",
+          "best-selling": "verbatim_source",
+          "bestseller": "verbatim_source",
+          "hotseller": "verbatim_source",
+          "top rated": "verbatim_source",
+          "top-rated": "verbatim_source",
+          "trusted by 6 million": "verbatim_source",
+          "trusted by 6m": "verbatim_source"
+        }
+      },
+      {
+        "rule_code": "U04",
+        "rule_id": "r-e879231d61c9bd08",
+        "pattern_id": "p-4d1fe41caef6e3b1",
+        "keyword_terms": 4,
+        "regex_terms": 2,
+        "whitelist_guards": 15,
+        "whitelist_allowed_expressions": 0,
+        "support_count": 6,
+        "risk_level": "Critical",
+        "authority_source_table": null,
+        "anchor": "#广告文案明细/recvuMGgT9p2zx/命中片段",
+        "source_sha256": "b5de79a05b4fe03cdd256ebc39f9d58183ebfc0e7cdbc7c1fba4770dfd4ef88b",
+        "term_basis": {
+          "painful pumping": "verbatim_source",
+          "clogged ducts": "verbatim_rule_text",
+          "sore breasts": "equivalent_of:sore",
+          "sore nipples": "equivalent_of:sore"
+        }
+      }
+    ],
+    "cannot_generate": []
+  },
+  "term_grounding": {
+    "checked": 175,
+    "basis_distribution": {
+      "verbatim_source": 126,
+      "equivalent_of": 31,
+      "verbatim_rule_text": 18
+    },
+    "dropped_ungrounded": 0,
+    "bad": [],
+    "verdict": "PASS",
+    "rule": "匹配表里每个词都必须带 basis，且 basis 要对得上规则原文：verbatim_source（逐字在命中片段里）/ verbatim_rule_text（逐字在 rule_text 或建议替换里）/ equivalent_of:<锚点词>（锚点词必须是该规则自己写过的词）。对不上即判为凭空加词。"
+  },
+  "benchmark": {
+    "requirement": "《内容审查 Agent PRD》§12：P0 匹配耗时 < 1 秒",
+    "exporter_version": "l5-0.1",
+    "pattern_count": 11,
+    "corpus": {
+      "source": "kb/l2/units.jsonl（anchor 前缀 #广告文案明细/，字段 Headline/Primary Text/Description/Long Headline/标题/正文）",
+      "lines_available": 464
+    },
+    "network": "无（matcher 只读本地 p0_patterns.jsonl，无任何网络调用）",
+    "env": {
+      "python": "3.9.6",
+      "platform": "macOS-26.6.2-arm64-arm-64bit"
+    },
+    "cases": [
+      {
+        "case": "single_primary_text",
+        "label": "单条广告文案（源侧第一条 Primary Text）",
+        "chars": 39,
+        "chars_human": "39 字符",
+        "lines": 1,
+        "rounds": 5,
+        "elapsed_ms": {
+          "min": 0.082,
+          "median": 0.087,
+          "max": 0.262
+        },
+        "hit_rules": [],
+        "hit_count": 0,
+        "under_1s": true,
+        "per_pattern_ms": 0.008,
+        "criterion": "hard_under_1s",
+        "limit_ms": 1000.0,
+        "pass": true
+      },
+      {
+        "case": "single_with_hit",
+        "label": "单条广告文案（语料里命中最多的一条）",
+        "chars": 751,
+        "chars_human": "751 字符",
+        "lines": 1,
+        "rounds": 5,
+        "elapsed_ms": {
+          "min": 2.249,
+          "median": 2.54,
+          "max": 3.049
+        },
+        "hit_rules": [
+          "H02",
+          "H05"
+        ],
+        "hit_count": 11,
+        "under_1s": true,
+        "per_pattern_ms": 0.231,
+        "criterion": "hard_under_1s",
+        "limit_ms": 1000.0,
+        "pass": true
+      },
+      {
+        "case": "batch_ad_copy",
+        "label": "一批广告文案（全部 Headline/Primary Text 共 464 条）",
+        "chars": 132585,
+        "chars_human": "129.5 KB",
+        "lines": 464,
+        "rounds": 3,
+        "elapsed_ms": {
+          "min": 717.267,
+          "median": 782.481,
+          "max": 816.839
+        },
+        "hit_rules": [
+          "H02",
+          "H04",
+          "H05",
+          "H07",
+          "H09",
+          "M03",
+          "U04"
+        ],
+        "hit_count": 345,
+        "under_1s": true,
+        "per_pattern_ms": 71.135,
+        "criterion": "hard_under_1s",
+        "limit_ms": 1000.0,
+        "pass": true
+      },
+      {
+        "case": "large_doc_1mb",
+        "label": "大文档（上述文案重复至 ≈1MB）",
+        "chars": 1060687,
+        "chars_human": "1035.8 KB",
+        "lines": 3712,
+        "rounds": 3,
+        "elapsed_ms": {
+          "min": 5880.253,
+          "median": 6355.523,
+          "max": 6505.919
+        },
+        "hit_rules": [
+          "H02",
+          "H04",
+          "H05",
+          "H07",
+          "H09",
+          "M03",
+          "U04"
+        ],
+        "hit_count": 2760,
+        "under_1s": false,
+        "per_pattern_ms": 577.775,
+        "criterion": "per_pattern_le_120ms",
+        "limit_ms": 120.0,
+        "pass": false
+      }
+    ],
+    "compile_ms": 3.348,
+    "compile_note": "冷启动：读 kb/l5/p0_patterns.jsonl 并编译全部正则一次；常驻服务只付一次",
+    "per_copy_avg_ms": 1.6864,
+    "artifact_sha256": {
+      "kb/l5/p0_patterns.jsonl": "b0e29b6187294ff3b252ff5ee711e75c4ad7ca2b231ccbec9d08c4e0dd04139e",
+      "kb/l5/matcher.py": "337e291c02feae29f96ff034e44a2d8177e02d028ddcba441dfdeeb3fc9179f5"
+    },
+    "verdict": "FAIL",
+    "verdict_note": "余量用例每模式耗时超 120 ms ⇒ **matcher 确实变慢了**（['large_doc_1mb']）",
+    "criterion": {
+      "hard_limit_ms": 1000.0,
+      "per_pattern_limit_ms": 120.0,
+      "real_cases": [
+        "single_primary_text",
+        "single_with_hit",
+        "batch_ad_copy"
+      ],
+      "margin_cases": [
+        "large_doc_1mb"
+      ],
+      "ruling": "Owner 2026-10-12：真实送审形态保持 <1s 硬门槛；1MB 余量用例改判每模式 ≤120 ms"
+    }
+  },
+  "selftest": {
+    "exit_code": 0,
+    "stdout": "载入 P0 模式 11 条\n\n--- positives\n  ✅ HIT  [H07                   ] Experience pain-free pumping with our hospital grade pum\n        建议改法: 「schmerzfrei」→ 删除/替换为:效果百分比/销量/评分声称需附测试来源与口径,否则删除(折扣百分比不在此列) ▸ 删除 pain\n  ✅ HIT  [H02                   ] This pump helps you get more milk in less time.\n        建议改法: 「easier letdown」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+\n  ✅ HIT  [H02                   ] She said the warm massage has been so relaxing and it ac\n        建议改法: 「easier letdown」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+\n  ✅ HIT  [H02                   ] It increased my milk supply within a week.\n        建议改法: 「easier letdown」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+\n  ✅ HIT  [H04                   ] Recommended by 100+ experts and trusted worldwide.\n        建议改法: 「ob-gyn recommended」→ 删除/替换为:删除医生/专家/IBCLC/OB-GYN 推荐背书;免费 IBCLC 服务可单独陈\n  ✅ HIT  [H05                   ] The safest, most perfect pump — 100% safe.\n        建议改法: 「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以\n  ✅ HIT  [H09                   ] Designed to mimic baby's natural nursing rhythm.\n        建议改法: 「mimics baby,mimics baby’s natural nursing」→ 删除/替换为:删除 more milk/增产催奶/\n  ✅ HIT  [H09                   ] Designed to follow a baby-like natural sucking rhythm.\n        建议改法: 「mimics baby,mimics baby’s natural nursing」→ 删除/替换为:删除 more milk/增产催奶/\n  ✅ HIT  [H09                   ] Follows a baby-like sucking motion.\n        建议改法: 「mimics baby,mimics baby’s natural nursing」→ 删除/替换为:删除 more milk/增产催奶/\n  ✅ HIT  [U04                   ] Say goodbye to painful pumping forever.\n        建议改法: 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺\n  ✅ HIT  [H02,H07               ] 采用无痛设计，缓解疼痛，帮助催奶增产。\n        建议改法: 「easier letdown」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+\n  ✅ HIT  [H04                   ] 医生推荐的专业选择，专家推荐品牌。\n        建议改法: 「ob-gyn recommended」→ 删除/替换为:删除医生/专家/IBCLC/OB-GYN 推荐背书;免费 IBCLC 服务可单独陈\n  ✅ HIT  [H02,H07               ] 禁用表达：pain-free。但我们这款提供无痛体验，还能帮助催奶。\n        建议改法: 「easier letdown」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+\n  ✅ HIT  [H02                   ] Don't miss out - it increases your milk supply.\n        建议改法: 「easier letdown」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+\n  ✅ HIT  [H02                   ] Don't wait - it increases your milk supply.\n        建议改法: 「easier letdown」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+\n  ✅ HIT  [H02                   ] Not only does it increase milk supply, but it also helps\n        建议改法: 「easier letdown」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+\n  ✅ HIT  [H02                   ] You won't believe how much more milk you'll get.\n        建议改法: 「easier letdown」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+\n  ✅ HIT  [H02                   ] You will not believe how much more milk you'll get.\n        建议改法: 「easier letdown」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+\n--- negatives_should_be_empty\n  ✅ MISS [                      ] Our device is not intended to treat, cure or prevent any\n  ✅ MISS [                      ] 本产品不能治疗乳腺炎，也不可以预防疾病。\n  ✅ MISS [                      ] 禁用表达：pain-free、more milk。\n  ✅ MISS [                      ] DO NOT SAY: pain-free; SAY THIS INSTEAD: comfortable.\n  ✅ MISS [                      ] 依据原文：「more milk」属于禁用表述。\n  ✅ MISS [                      ] The one-way valve prevents milk from flowing back while \n  ✅ MISS [                      ] Her milk supply is fine and the bottle keeps it warm.\n  ✅ MISS [                      ] It did not increase her milk supply.\n  ✅ MISS [                      ] It did not increase your milk supply.\n  ✅ MISS [                      ] Our pump won't increase milk supply.\n  ✅ MISS [                      ] It doesn't boost your milk supply.\n  ✅ MISS [                      ] Our pump cannot cure any disease.\n  ✅ MISS [                      ] The pump cannot treat mastitis.\n\n自测结论：✅ 正例全命中、负例零误报\n",
+    "stderr": "",
+    "positives": 18,
+    "negatives": 13,
+    "verdict": "PASS"
+  },
+  "integrity": {
+    "frozen_layers": {
+      "layers": {
+        "l0": {
+          "files": 4493,
+          "bytes": 2878270595,
+          "tree_sha256": "3e3b6b5c60f800ec4abff756b6b54004770848bcd543d5a2cf05239b64ac42df",
+          "max_mtime": "2026-10-13 03:51:59"
+        },
+        "l1": {
+          "files": 5214,
+          "bytes": 1493147089,
+          "tree_sha256": "51c29ea218972302719109ed13e6e1d21ef40372b8bdf04012795bba7bb8c94e",
+          "max_mtime": "2026-10-13 03:56:47"
+        },
+        "l2": {
+          "files": 953,
+          "bytes": 286807961,
+          "tree_sha256": "fb257d0569327006b99b470501f333023b8202316feeb185c8e921e3f18e5b7e",
+          "max_mtime": "2026-10-13 03:37:38"
+        }
+      },
+      "l5_first_write": "2026-09-23 13:22:33",
+      "verdict": "FAIL",
+      "note": "l0/l1/l2 全部文件最后修改时间早于 l5 首次写入；且记录内容指纹，供后续阶段比对漂移"
+    },
+    "l3_append_only": {
+      "lines": 1018,
+      "baseline_lines": 509,
+      "prefix_sha256_16": "afdb885f507261c3",
+      "prefix_recipe": "前 509 行以 \\n 连接 + 末尾换行，取 sha256",
+      "prefix_sha256": "afdb885f507261c35da91e2fe226c27017953388c8d4a7654d8045702d5642b1",
+      "prep_baseline_sha256": "ee39dda777ed4eb32750e9a74a0034ddc87d390c843375d2cc9a9a5426fd9185",
+      "byte_identical_to_pre_append": false,
+      "stale_note_value": "780d2a432db775e7",
+      "stale_note_reproduced": false,
+      "stale_note_explain": "阶段早期笔记里的 780d2a432db775e7 用 8 种候选拼接口径都复算不出来，判为口径未记录的旧值；改用前置 A 写入的 before_sha256 作为基线，本次复算逐字节一致",
+      "by_version": {
+        "None": 1018
+      },
+      "structural": {
+        "baseline_distiller_version": [
+          "None"
+        ],
+        "appended_distiller_version": [
+          "None"
+        ],
+        "baseline_ids_unique": true,
+        "appended_covers_baseline": true,
+        "baseline_has_expression_fix_pairs": 22,
+        "baseline_has_rule_kind": 0,
+        "rule_code_filled_in_append": 12,
+        "l3_rule_code_not_unique": {
+          "H07": 2,
+          "why": "品线内容边界规则库复用同一套规则码（authority=inferred，未进导出）"
+        }
+      },
+      "verdict": "FAIL",
+      "rules_latest_view": 509
+    },
+    "pattern_traceability": {
+      "patterns": 11,
+      "bad": [],
+      "verdict": "PASS",
+      "detail": [
+        {
+          "pattern_id": "p-334cd817a6f78136",
+          "rule_code": "H01",
+          "keywords": 62,
+          "regex": 0,
+          "whitelist": 15,
+          "shared_sha256": "f452aeddd6ad"
+        },
+        {
+          "pattern_id": "p-755f9ff377c3052c",
+          "rule_code": "H02",
+          "keywords": 24,
+          "regex": 3,
+          "whitelist": 15,
+          "shared_sha256": "c77f576dcc39"
+        },
+        {
+          "pattern_id": "p-f37fa19956cc92d9",
+          "rule_code": "H03",
+          "keywords": 9,
+          "regex": 0,
+          "whitelist": 15,
+          "shared_sha256": "baa7cddb96e5"
+        },
+        {
+          "pattern_id": "p-521d9d1502ee0bfa",
+          "rule_code": "H04",
+          "keywords": 13,
+          "regex": 2,
+          "whitelist": 15,
+          "shared_sha256": "6059659ad3f6"
+        },
+        {
+          "pattern_id": "p-08487282e2d400fe",
+          "rule_code": "H05",
+          "keywords": 13,
+          "regex": 12,
+          "whitelist": 15,
+          "shared_sha256": "e7aabf747875"
+        },
+        {
+          "pattern_id": "p-485c67cc9af960bf",
+          "rule_code": "H06",
+          "keywords": 5,
+          "regex": 3,
+          "whitelist": 15,
+          "shared_sha256": "2e8bb36d6edf"
+        },
+        {
+          "pattern_id": "p-964b3c2e22b48ade",
+          "rule_code": "H07",
+          "keywords": 17,
+          "regex": 3,
+          "whitelist": 15,
+          "shared_sha256": "1e3bd4c1ca09"
+        },
+        {
+          "pattern_id": "p-6e9d6acf0040e80d",
+          "rule_code": "H08",
+          "keywords": 11,
+          "regex": 0,
+          "whitelist": 15,
+          "shared_sha256": "fc3caadb7c52"
+        },
+        {
+          "pattern_id": "p-d31dfbc932cb84ac",
+          "rule_code": "H09",
+          "keywords": 8,
+          "regex": 3,
+          "whitelist": 15,
+          "shared_sha256": "67875346a75b"
+        },
+        {
+          "pattern_id": "p-49015412e02fc955",
+          "rule_code": "M03",
+          "keywords": 9,
+          "regex": 0,
+          "whitelist": 15,
+          "shared_sha256": "b82926594fb8"
+        },
+        {
+          "pattern_id": "p-4d1fe41caef6e3b1",
+          "rule_code": "U04",
+          "keywords": 4,
+          "regex": 2,
+          "whitelist": 15,
+          "shared_sha256": "b5de79a05b4f"
+        }
+      ]
+    },
+    "no_fabricated_words": {
+      "checked": 175,
+      "basis_distribution": {
+        "verbatim_source": 126,
+        "equivalent_of": 31,
+        "verbatim_rule_text": 18
+      },
+      "dropped_ungrounded": 0,
+      "bad": [],
+      "verdict": "PASS",
+      "rule": "匹配表里每个词都必须带 basis，且 basis 要对得上规则原文：verbatim_source（逐字在命中片段里）/ verbatim_rule_text（逐字在 rule_text 或建议替换里）/ equivalent_of:<锚点词>（锚点词必须是该规则自己写过的词）。对不上即判为凭空加词。"
+    },
+    "version_discipline": {
+      "canonical_rules_bytes": 0,
+      "versions_jsonl_rows": 0,
+      "kb_version_values": [
+        "v0"
+      ],
+      "registries_missing_kb_version": [
+        "l2/registry/l2.json"
+      ],
+      "verdict": "PASS"
+    },
+    "offline": {
+      "network_symbols_found": [],
+      "verdict": "PASS"
+    }
+  },
+  "artifacts": [
+    {
+      "path": "kb/l5/p0_patterns.jsonl",
+      "bytes": 148816,
+      "sha256": "b0e29b6187294ff3b252ff5ee711e75c4ad7ca2b231ccbec9d08c4e0dd04139e"
+    },
+    {
+      "path": "kb/l5/index/l5.jsonl",
+      "bytes": 1232,
+      "sha256": "5de866ea6de6d5c558aa0315151e507a10878de74ca37279012e676a663b6204"
+    },
+    {
+      "path": "kb/l5/registry/l5.json",
+      "bytes": 17974,
+      "sha256": "980e2340bc6f03e62036606baf6c9b899d070d68311290e35fe95a2cbee01ad5"
+    },
+    {
+      "path": "kb/l5/registry/l5_no_pattern.json",
+      "bytes": 2,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "path": "kb/l5/matcher.py",
+      "bytes": 13477,
+      "sha256": "337e291c02feae29f96ff034e44a2d8177e02d028ddcba441dfdeeb3fc9179f5"
+    },
+    {
+      "path": "kb/l5/benchmark.json",
+      "bytes": 3655,
+      "sha256": "ce551dd7af3fb4e23117fa1fe8f303a0769cda7e04e5448b65449002088ae45f"
+    },
+    {
+      "path": "kb/l5/runs/20261013-1159-L5.p0_patterns.superseded.jsonl",
+      "bytes": null,
+      "sha256": null,
+      "missing": true
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "decision": "匹配式分三层：keyword（词）+ regex（词形/组合）+ whitelist（豁免），匹配表即 kb/l5/p0_patterns.jsonl，matcher 只读它，不内嵌任何词表",
+      "why": "词表与代码分离，改词不用改代码；三层各自的误报/漏报可以单独调"
+    },
+    {
+      "id": "D2",
+      "decision": "词级溯源：每个词都要带 basis（verbatim_source / verbatim_rule_text / equivalent_of:<锚点词>），锚点词必须是该规则自己写过的词；对不上的词直接不进匹配表",
+      "why": "把「不许凭空加词」从口头约束变成可机验字段：31 个非逐字词（另一语言写法/连字符写法）全部列出锚点，越界的词会被导出脚本剔除并报出来"
+    },
+    {
+      "id": "D3",
+      "decision": "复合片段按「；」（L3 跨记录连接符）和「,，」（源侧单元格内并列）都切开——不切会拼出源里不存在的长串，匹配永远失败（H04 首轮即因此漏判）",
+      "why": "切分只是把源侧本来就并列写的片段拆回各自独立，不新增词；修完关键词从 64 个变 79 个"
+    },
+    {
+      "id": "D4",
+      "decision": "豁免按「句」生效而不是「行」：禁用表达：xxx。之后的正文照常判 BLOCK；因此匹配改为逐行做（换行不折叠），行首锚点 ^ 才有意义",
+      "why": "整行豁免会把「禁用表达：pain-free。但我们提供无痛体验」整行放过；按句豁免只覆盖标记到句号，既不误报规则陈述、也不漏判真违规"
+    },
+    {
+      "id": "D5",
+      "decision": "性能优化用预筛（每条规则全部 pattern 拼成一条超集 alternation）+ 白名单按行缓存；1MB 语料从 2226 ms 降到 647 ms，未改变任何匹配语义",
+      "why": "预筛是超集（keyword 项不带词边界），只会多扫不会漏扫，因此行为与优化前逐条一致；验收前先跑一遍自测确认 9 正例 5 负例结论不变"
+    },
+    {
+      "id": "D6",
+      "decision": "阶段早期笔记里的 L3 前缀哈希 780d2a432db775e7 复算不出来（8 种口径都不匹配），改用前置 A 写入的 before_sha256 作基线，本次复算逐字节一致",
+      "why": "不复现的旧值不能当基线用；换成有明确口径、能逐字节复算的哈希，并把两种口径都写进证据文件"
+    },
+    {
+      "id": "D7",
+      "decision": "首轮导出在同一阶段内被修正并重跑，旧文件另存为 runs/20261013-1159-L5.p0_patterns.superseded.jsonl；不新增版本号（仍是 l5-0.1），因为下游还未消费过首轮产物",
+      "why": "首轮产物没出过 kb/l5、也没有版本行，属同批内返工；旧文件留痕可追溯"
+    },
+    {
+      "id": "D8",
+      "decision": "kb/l2/registry/l2.json 缺 kb_version 字段——冻结层只报不改，留给后续阶段处理",
+      "why": "本批约定 kb/l0~l2 只读，动它就越界；已在自检里点名，后续阶段可一次性补齐"
+    },
+    {
+      "id": "D9",
+      "decision": "rule_code 在全套规则里不唯一（品线内容边界规则库复用 H01-H09/M01-M07/U01-U04）；变体表按 rule_code 查表，故加了「入选集合内 rule_code 必须唯一」的断言，当前 PASS",
+      "why": "不校验的话，将来若两条同码规则同时入选，会把前一条的变体悄悄套到后一条上；全部 21 条边界规则都是 inferred，本批不入选，所以当前无冲突"
+    }
+  ],
+  "not_done": [
+    "不发布、不生成版本号（kb_version 仍 v0，versions.jsonl 仍 0 条版本行）",
+    "不写 canonical/（kb/l3/canonical/rules.jsonl 仍 0 字节）",
+    "不调 embedding、不改 kb/l0~l2、不重写 kb/l3 已有行",
+    "不导出 P1/P2/P3、不导出 inductive、不导出 authority=inferred"
+  ],
+  "verdict": "FAIL",
+  "dry_run": true,
+  "applied": false,
+  "skill": "kb-p0-check",
+  "skill_source": "--skill 参数（调用者读 layers.yaml 本层 skill: 后传入；本脚本不硬编码）",
+  "pipeline_run_id": "20261013-1159-L5"
+}

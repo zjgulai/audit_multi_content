@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+# 冻结送审文本：从 lark xml 正文剥离媒体/结构引用，保留人类可读文字。
+# 规则与 _rt-yoga-20261005b/extract.py 逐字一致（可复算、可对照）
+import json, re, html, hashlib, sys, pathlib
+
+root = pathlib.Path(__file__).resolve().parent
+raw = json.load(open(sys.argv[1]))
+content = raw["data"]["document"]["content"]
+
+t = content
+t = re.sub(r"<figure\b[^>]*>.*?</figure>", " ", t, flags=re.S)
+t = re.sub(r"<sheet\b[^>]*>\s*</sheet>", " ", t, flags=re.S)
+t = re.sub(r"<sheet\b[^>]*/>", " ", t, flags=re.S)
+t = re.sub(r"<source\b[^>]*/>", " ", t, flags=re.S)
+t = re.sub(r"<img\b[^>]*/>", " ", t, flags=re.S)
+t = re.sub(r"!\[[^\]]*\]\([^)]*\)", " ", t)
+t = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", t)
+t = re.sub(r"<[^>]+>", " ", t)
+t = html.unescape(t)
+t = re.sub(r"^\s{0,3}#{1,6}\s*", "", t, flags=re.M)
+t = re.sub(r"[ \t]*\*\*[ \t]*", "", t)
+t = re.sub(r"[ \t]*\*[ \t]*", "", t)
+t = re.sub(r"^\s*>\s?", "", t, flags=re.M)
+
+lines = []
+for ln in t.split("\n"):
+    ln = re.sub(r"[ \t\u00a0]+", " ", ln).strip()
+    lines.append(ln)
+out = "\n".join(lines)
+out = re.sub(r"\n{2,}", "\n", out).strip() + "\n"
+
+(root / "yoga-text.txt").write_text(out, encoding="utf-8")
+b = out.encode("utf-8")
+print("chars", len(out), "bytes", len(b), "sha256", hashlib.sha256(b).hexdigest())

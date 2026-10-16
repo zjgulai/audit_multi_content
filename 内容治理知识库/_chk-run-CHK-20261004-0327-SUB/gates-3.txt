@@ -1,0 +1,79 @@
+########## ③ routes_reconcile —— 缺输入档（验证 exit 2）##########
+环境错：赢家表不存在 /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/reports/NO-SUCH-winners.json
+  提示：赢家表是**触发评测的运行时产物**（每条 prompt 每轮实际被谁接走），不是静态资产；缺输入时本闸门**不得报绿**，也不得静默按「全不一致」跑。
+[exit=2]
+
+########## ③ routes_reconcile —— 现有赢家表 kb/l7/reports/ 里没有；用 _eval-kb-manage/blind_v2.winners.txt（09-29）##########
+--- ③ 按成员命中率（逐条全轮命中 / 总条数；逐轮命中 / 总轮数）---
+    brand-ai-provenance-rights-review      0/5 条 ｜ 0/15 轮
+    brand-content-review-agent             0/5 条 ｜ 0/15 轮
+    brand-feishu-review-adapter            0/5 条 ｜ 0/15 轮
+    brand-image-safety-review              0/5 条 ｜ 0/15 轮
+    brand-policy-source-curator            0/5 条 ｜ 0/15 轮
+    brand-product-claim-verifier           0/5 条 ｜ 0/15 轮
+    brand-review-decision-engine           0/5 条 ｜ 0/15 轮
+    brand-review-evaluation                0/5 条 ｜ 0/15 轮
+    brand-review-intake-router             0/5 条 ｜ 0/15 轮
+    brand-review-report-memory             0/5 条 ｜ 0/15 轮
+    brand-text-compliance-review           0/5 条 ｜ 0/15 轮
+    brand-us-locale-cultural-review        0/5 条 ｜ 0/15 轮
+    brand-video-safety-review              0/5 条 ｜ 0/15 轮
+
+--- ④ 路由表自检 --- 0 条
+
+--- 备注 ---
+    · F1 交叉核对默认跳过：本表口径含 alias 折回；要核对请用 --alias 一致的 results 目录
+    · F1 由同批用例、同一打分器另跑（见 _eval-kb-manage/kb_routes_score.py）；本对账器只负责「期望 vs 实际」，不重算分
+
+==========================================================================
+逐条全轮命中：0/65（门槛：F1 >= 0.90，见打分器）
+四节问题：①=65 ②（同上）④=0 ｜合计 65
+退出码：1
+[exit=1]
+########## ③ routes_reconcile —— 今日赢家表（自 results_alias，115 条，--alias）##########
+    G5     brand-video-safety-review              视频安全审查 / 视频安全审查 / 视频安全审查                       是        ✅
+    H1     brand-us-locale-cultural-review        美国本地化审查 / 美国本地化审查 / 美国本地化审查                    是        ✅
+    H2     brand-us-locale-cultural-review        美国本地化审查 / 美国本地化审查 / 美国本地化审查                    是        ✅
+    H3     brand-us-locale-cultural-review        美国本地化审查 / 美国本地化审查 / 美国本地化审查                    是        ✅
+    H4     brand-us-locale-cultural-review        美国本地化审查 / 美国本地化审查 / 美国本地化审查                    是        ✅
+    H5     brand-us-locale-cultural-review        美国本地化审查 / 美国本地化审查 / 美国本地化审查                    是        ✅
+    … 另有 25 条未列
+
+--- ② 不一致清单 --- 5 条
+    · I1：期望 brand-ai-provenance-rights-review，实际 视频安全审查 / 视频安全审查 / 视频安全审查
+    · I2：期望 brand-ai-provenance-rights-review，实际 NONE / 图片安全审查 / NONE
+    · I3：期望 brand-ai-provenance-rights-review，实际 NONE / AI 溯源与权利审查 / NONE
+    · I4：期望 brand-ai-provenance-rights-review，实际 AI 溯源与权利审查 / NONE / NONE
+    · I5：期望 brand-ai-provenance-rights-review，实际 图片安全审查 / 图片安全审查 / CLARIFY
+
+    「被谁抢走」计数（本次不合格判定的接走者）：
+      NONE                                   6 次
+      brand-video-safety-review              3 次
+      brand-image-safety-review              3 次
+      CLARIFY                                1 次
+
+--- ③ 按成员命中率（逐条全轮命中 / 总条数；逐轮命中 / 总轮数）---
+    brand-ai-provenance-rights-review      0/5 条 ｜ 2/15 轮
+    brand-content-review-agent             5/5 条 ｜ 15/15 轮
+    brand-feishu-review-adapter            5/5 条 ｜ 15/15 轮
+    brand-image-safety-review              5/5 条 ｜ 15/15 轮
+    brand-policy-source-curator            5/5 条 ｜ 15/15 轮
+    brand-product-claim-verifier           5/5 条 ｜ 15/15 轮
+    brand-review-decision-engine           5/5 条 ｜ 15/15 轮
+    brand-review-evaluation                5/5 条 ｜ 15/15 轮
+    brand-review-intake-router             5/5 条 ｜ 15/15 轮
+    brand-review-report-memory             5/5 条 ｜ 15/15 轮
+    brand-text-compliance-review           5/5 条 ｜ 15/15 轮
+    brand-us-locale-cultural-review        5/5 条 ｜ 15/15 轮
+    brand-video-safety-review              5/5 条 ｜ 15/15 轮
+
+--- ④ 路由表自检 --- 0 条
+
+--- 备注 ---
+    · F1 由同批用例、同一打分器另跑（见 _eval-kb-manage/kb_routes_score.py）；本对账器只负责「期望 vs 实际」，不重算分
+
+==========================================================================
+逐条全轮命中：60/65（门槛：F1 >= 0.90，见打分器）
+四节问题：①=5 ②（同上）④=0 ｜合计 5
+退出码：1
+[exit=1]

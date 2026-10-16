@@ -1,0 +1,29 @@
+#!/bin/bash
+# 日更收尾（BASE=daily-20261010-1010）：③ 体检 → 审计 → ③b L0–L3 证据 → ③c L1 索引 → freshness
+cd "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理" || exit 2
+
+echo; echo "===== ③ 全链体检 daily_health.py（$(date '+%H:%M:%S')）====="
+sh kb/kbpy l7/scripts/daily_health.py; echo "HEALTH_RC=$?"
+
+echo; echo "===== 审计 skill_invocation_audit（L0–L7）====="
+for L in L0 L1 L2 L3 L4 L5 L6 L7; do
+  echo; echo "--- audit $L ---"
+  sh kb/kbpy l7/scripts/skill_invocation_audit.py --run "daily-20261010-1010-$L" 2>&1 | tail -10
+  echo "AUDIT_${L}_RC=${PIPESTATUS[0]}"
+done
+
+echo; echo "===== ③b L0–L3 skill 证据核验 ====="
+python3 kb/l8/l0_l3_skill_evidence.py --base daily-20261010-1010; echo "EVIDENCE_RC=$?"
+
+echo; echo "===== ③c L1 索引重建（--write 后立刻 --check）====="
+python3 kb/l1/index/rebuild_l1_index.py --write --run daily-20261010-1010; echo "IDX_WRITE_RC=$?"
+python3 kb/l1/index/rebuild_l1_index.py --check; echo "IDX_CHECK_RC=$?"
+
+echo; echo "===== freshness.py ====="
+sh kb/kbpy l7/scripts/freshness.py; echo "FRESH_RC=$?"
+
+echo; echo "===== 三个体检产物的 mtime ====="
+for f in kb/l7/reports/daily-health-latest.json "kb/l7/reports/$(date '+%Y-%m-%d')-daily-health.md" kb/l7/reports/l0-daily-sync-latest.json; do
+  stat -f "%Sm  %N" -t "%Y-%m-%d %H:%M:%S" "$f" 2>&1
+done
+echo; echo "===== 收尾结束（$(date '+%H:%M:%S')）====="

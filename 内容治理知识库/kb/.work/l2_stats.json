@@ -1,0 +1,81 @@
+{
+ "units": 9261,
+ "index": 9261,
+ "acct": {
+  "wording": {
+   "l1": 479,
+   "content": 385,
+   "split": 385,
+   "skipped": 94,
+   "units": 6829
+  },
+  "external_standard": {
+   "l1": 96,
+   "content": 42,
+   "split": 42,
+   "skipped": 54,
+   "units": 2037
+  },
+  "internal_sample": {
+   "l1": 604,
+   "content": 603,
+   "split": 0,
+   "skipped": 604,
+   "units": 395,
+   "extra_units": 395
+  },
+  "product_desc": {
+   "l1": 4,
+   "content": 1,
+   "split": 0,
+   "skipped": 4,
+   "units": 0
+  },
+  "unknown": {
+   "l1": 37,
+   "content": 23,
+   "split": 0,
+   "skipped": 37,
+   "units": 0
+  }
+ },
+ "checks": [
+  [
+   "kb/l0/、kb/l1/ 未被修改",
+   "通过：kb/l0 2411 个文件、kb/l1 1492 个文件中，本批启动（13:25）后被写入的 L0 0 个、L1 0 个；全部写入落在 kb/l2/ （836 个条目）与 kb/.work/"
+  ],
+  [
+   "每个单元都有锚点，且能回原文定位",
+   "通过：无锚点单元 0 个；锚点均取自 L1 的物理位置（#l.a-b 行区间 / #<表名>/<record_id>/<字段名> / #img.N）；单行超长正文另附 char_offset_in_source 精确定位"
+  ],
+  [
+   "单元总数与报告数字一致",
+   "通过：units.jsonl 9261 行 == index/l2.jsonl 9261 行 == 报告 9261"
+  ],
+  [
+   "措辞库成对单元未被拆散（各抽 5 例）",
+   "通过：形态② 专家修订 395/395 条记录各产出**恰好 1 个** revision_pair 单元且【前】【后】同时非空（拆散的 0、缺一侧的 0）；3_措辞表达库案例型 52 条同样各 1 个 pair（拆散 0、额外产出 entry 而可能拆开的 0）；**「前→后」被拆成两段的记录 0 条**"
+  ],
+  [
+   "kb_version 仍为 v0；versions.jsonl 版本行 0",
+   "通过：registry.kb_version=v0；版本行 0"
+  ],
+  [
+   "取数对账：L1 资源数 == 切分 + 跳过（差额 0）",
+   "通过：wording: 479 == 385+94；external_standard: 96 == 42+54"
+  ]
+ ],
+ "pairs": {
+  "paired": 354,
+  "lonely": 41,
+  "rate": 89.6
+ },
+ "length": {
+  "p50": 14,
+  "max": 42270,
+  "short": 4413,
+  "long": 144
+ },
+ "code_flagged": 1661,
+ "scope_skipped": 43
+}

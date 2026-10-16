@@ -1,0 +1,256 @@
+#!/usr/bin/env python3
+"""L5 自检证据：只读校验，产出 kb/.work/l5_integrity.json。
+
+覆盖 6 项：
+ 1) l0 / l1 / l2 未被改动（内容指纹 + mtime 上界）
+ 2) l3 只追加（前 509 行前缀哈希不变）
+ 3) 每条 pattern 都能回指 rule_id + anchor + source_sha256
+ 4) 每条 pattern 的词都出自规则本身（literal ⊆ 命中片段；synonym ⊆ rule_text/建议替换）→ 无凭空加词
+ 5) version discipline（canonical 仍 0 字节、kb_version 仍 v0、versions.jsonl 仍 0 条版本行）
+ 6) matcher 离线（只读本地文件，无网络依赖）
+"""
+# ── 解释器守卫（2026-09-29）：不合格就用 kb/.kb-python 指定的解释器重跑自己 ──
+import os as _os, sys as _sys
+if not _os.environ.get("KB_INTERP_OK"):
+    _d = _os.path.dirname(_os.path.abspath(__file__)); _cfg = None
+    while True:
+        _p = _os.path.join(_d, ".kb-python")
+        if _os.path.isfile(_p):
+            _cfg = _p
+            break
+        _q = _os.path.dirname(_d)
+        if _q == _d:
+            break
+        _d = _q
+    if _cfg:
+        _want = next((l.split("#", 1)[0].strip() for l in open(_cfg, encoding="utf-8")
+                      if l.split("#", 1)[0].strip()), "")
+        _want = _os.path.expanduser(_want)
+        if (_want and _os.access(_want, _os.X_OK)
+                and _os.path.realpath(_want) != _os.path.realpath(_sys.executable)):
+            _os.environ["KB_INTERP_OK"] = "1"
+            _os.execve(_want, [_want, _os.path.abspath(__file__)] + _sys.argv[1:], dict(_os.environ))
+# ──────────────────────────────────────────────────────────────────────────
+
+import hashlib, json, os, re, subprocess, sys, unicodedata
+from datetime import datetime
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+os.chdir(ROOT)
+L3_V01_LINES = 509
+L3_PREFIX_SHA = "780d2a432db775e7"
+
+
+def sha_file(p):
+    h = hashlib.sha256()
+    with open(p, "rb") as fh:
+        for b in iter(lambda: fh.read(1 << 20), b""):
+            h.update(b)
+    return h.hexdigest()
+
+
+def norm(s):
+    s = unicodedata.normalize("NFKC", s or "")
+    return re.sub(r"\s+", " ", s).strip().casefold()
+
+
+def tree_fp(d):
+    rows, total, mtimes = [], 0, []
+    for dp, _, fns in os.walk(d):
+        for fn in sorted(fns):
+            p = os.path.join(dp, fn)
+            rel = os.path.relpath(p, ROOT)
+            sz = os.path.getsize(p)
+            total += sz
+            mtimes.append(os.path.getmtime(p))
+            rows.append(f"{rel}\0{sz}\0{sha_file(p)}")
+    rows.sort()
+    h = hashlib.sha256("\n".join(rows).encode()).hexdigest()
+    return {"files": len(rows), "bytes": total,
+            "tree_sha256": h,
+            "max_mtime": datetime.fromtimestamp(max(mtimes)).strftime("%Y-%m-%d %H:%M:%S") if mtimes else None}
+
+
+ev = {"checked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "checks": {}}
+
+# ---- 1) l0/l1/l2 只读
+frozen = {d: tree_fp(f"kb/{d}") for d in ("l0", "l1", "l2")}
+l5_files = []
+for dp, _, fns in os.walk("kb/l5"):
+    for fn in fns:
+        l5_files.append(os.path.join(dp, fn))
+l5_first = min(os.path.getmtime(p) for p in l5_files)
+ev["checks"]["frozen_layers"] = {
+    "layers": frozen,
+    "l5_first_write": datetime.fromtimestamp(l5_first).strftime("%Y-%m-%d %H:%M:%S"),
+    "verdict": "PASS" if all(datetime.strptime(v["max_mtime"], "%Y-%m-%d %H:%M:%S").timestamp() < l5_first
+                             for v in frozen.values()) else "FAIL",
+    "note": "l0/l1/l2 全部文件最后修改时间早于 l5 首次写入；且记录内容指纹，供后续阶段比对漂移",
+}
+
+# ---- 2) l3 只追加
+raw = open("kb/l3/candidates/rules.jsonl", "rb").read().split(b"\n")
+if raw and raw[-1] == b"":
+    raw.pop()
+prefix = b"\n".join(raw[:L3_V01_LINES]) + b"\n"
+pre_sha_full = hashlib.sha256(prefix).hexdigest()
+pre_sha = pre_sha_full[:16]
+# 前置 A 在追加前记录过同一口径的哈希（未追加时整文件 = 这 509 行）
+try:
+    PREP_BASELINE = json.load(open("kb/.work/l5_prep.json", encoding="utf-8"))["before_sha256"]
+except Exception:
+    PREP_BASELINE = None
+base_rows = [json.loads(l) for l in raw[:L3_V01_LINES]]
+new_rows = [json.loads(l) for l in raw[L3_V01_LINES:]]
+base_ids = {r["rule_id"] for r in base_rows}
+new_ids = {r["rule_id"] for r in new_rows}
+structural = {
+    "baseline_distiller_version": sorted({str(r.get("distiller_version")) for r in base_rows}),
+    "appended_distiller_version": sorted({str(r.get("distiller_version")) for r in new_rows}),
+    "baseline_ids_unique": len(base_ids) == len(base_rows),
+    "appended_covers_baseline": new_ids == base_ids,
+    "baseline_has_expression_fix_pairs": sum(1 for r in base_rows if r.get("expression_fix_pairs")),
+    "baseline_has_rule_kind": sum(1 for r in base_rows if "rule_kind" in r),
+    "rule_code_filled_in_append": sum(1 for a, b in zip(base_rows, new_rows)
+                                      if not a.get("rule_code") and b.get("rule_code")),
+    "l3_rule_code_not_unique": {"H07": sum(1 for r in new_rows if r.get("rule_code") == "H07"),
+                                "why": "品线内容边界规则库复用同一套规则码（authority=inferred，未进导出）"},
+}
+ev["checks"]["l3_append_only"] = {
+    "lines": len(raw), "baseline_lines": L3_V01_LINES,
+    "prefix_sha256_16": pre_sha,
+    "prefix_recipe": "前 509 行以 \\n 连接 + 末尾换行，取 sha256",
+    "prefix_sha256": pre_sha_full,
+    "prep_baseline_sha256": PREP_BASELINE,
+    "byte_identical_to_pre_append": pre_sha_full == PREP_BASELINE,
+    "stale_note_value": L3_PREFIX_SHA,
+    "stale_note_reproduced": pre_sha == L3_PREFIX_SHA,
+    "stale_note_explain": "阶段早期笔记里的 780d2a432db775e7 用 8 种候选拼接口径都复算不出来，判为口径未记录的旧值；"
+                          "改用前置 A 写入的 before_sha256 作为基线，本次复算逐字节一致",
+    "by_version": {str(json.loads(l).get("distiller_version")): 1 for l in raw} and
+                  {v: sum(1 for l in raw if str(json.loads(l).get("distiller_version")) == v)
+                   for v in {str(json.loads(l).get("distiller_version")) for l in raw}},
+    "structural": structural,
+    "verdict": "PASS" if (pre_sha_full == PREP_BASELINE
+                          and structural["baseline_ids_unique"] and structural["appended_covers_baseline"]
+                          and structural["baseline_has_rule_kind"] == 0
+                          and sorted(structural["baseline_distiller_version"]) == ["None"]
+                          and sorted(structural["appended_distiller_version"]) == ["l3-0.2"]) else "FAIL",
+}
+cand = {}
+for ln in raw:
+    r = json.loads(ln)
+    cand[r["rule_id"]] = r
+ev["checks"]["l3_append_only"]["rules_latest_view"] = len(cand)
+
+# ---- 3) + 4) pattern 回指与词源
+pats = [json.loads(l) for l in open("kb/l5/p0_patterns.jsonl", encoding="utf-8") if l.strip()]
+trace_bad, word_bad, rows = [], [], []
+for p in pats:
+    r = cand.get(p["rule_id"])
+    eu = (r or {}).get("evidence_units") or [{}]
+    hit = {"pattern_id": p["pattern_id"], "rule_code": p.get("rule_code")}
+    if not r:
+        trace_bad.append({**hit, "why": "rule_id 在 l3 候选里不存在"})
+        continue
+    if p["anchor"] != eu[0].get("anchor") or p["source_sha256"] != eu[0].get("source_sha256"):
+        trace_bad.append({**hit, "why": "anchor/source_sha256 与规则 evidence_units[0] 不一致"})
+    for u in p["evidence_units"]:
+        if not (u.get("unit_id") and u.get("anchor") and u.get("source_sha256")):
+            trace_bad.append({**hit, "why": "证据三元组缺项"})
+            break
+    pool_source = norm(r["forbidden_expression"])
+    pool_rule = norm((r.get("rule_text") or "") + " " + (r.get("suggested_replacement") or ""))
+    pool = pool_source + " " + pool_rule
+    terms = {m["term"]: m for m in p.get("match_terms") or []}
+    for w in p["patterns"]:
+        m = terms.get(w)
+        if not m:
+            word_bad.append({**hit, "word": w, "kind": "no_basis", "why": "进了匹配表但没有词级溯源记录"})
+            continue
+        b = m.get("basis") or ""
+        if b == "verbatim_source" and norm(w) not in pool_source:
+            word_bad.append({**hit, "word": w, "kind": b, "why": "自称逐字来自命中片段，实际不在"})
+        elif b == "verbatim_rule_text" and norm(w) not in pool_rule:
+            word_bad.append({**hit, "word": w, "kind": b, "why": "自称逐字来自规则文本，实际不在"})
+        elif b.startswith("equivalent_of:"):
+            anc = norm(b.split(":", 1)[1])
+            if not anc or anc == norm(w) or anc not in pool:
+                word_bad.append({**hit, "word": w, "kind": b,
+                                 "why": "等价锚点词不是该规则自己写过的词"})
+        elif not b.startswith("verbatim_"):
+            word_bad.append({**hit, "word": w, "kind": b or "empty", "why": "basis 非法"})
+    rows.append({**hit, "keywords": len(p["patterns"]), "regex": len(p["regex_patterns"]),
+                 "whitelist": len(p["whitelist"]), "shared_sha256": p["source_sha256"][:12]})
+ev["checks"]["pattern_traceability"] = {
+    "patterns": len(pats), "bad": trace_bad,
+    "verdict": "PASS" if not trace_bad else "FAIL", "detail": rows,
+}
+basis_cnt = {}
+for p in pats:
+    for m in p.get("match_terms") or []:
+        basis_cnt[m["basis"].split(":")[0]] = basis_cnt.get(m["basis"].split(":")[0], 0) + 1
+ev["checks"]["no_fabricated_words"] = {
+    "checked": sum(len(p["patterns"]) for p in pats),
+    "basis_distribution": basis_cnt,
+    "dropped_ungrounded": sum(len((p.get("variant_sources") or {}).get("dropped_ungrounded") or [])
+                              for p in pats),
+    "bad": word_bad, "verdict": "PASS" if not word_bad else "FAIL",
+    "rule": "匹配表里每个词都必须带 basis，且 basis 要对得上规则原文："
+            "verbatim_source（逐字在命中片段里）/ verbatim_rule_text（逐字在 rule_text 或建议替换里）/ "
+            "equivalent_of:<锚点词>（锚点词必须是该规则自己写过的词）。对不上即判为凭空加词。",
+}
+
+# ---- 5) 版本纪律
+canon = os.path.getsize("kb/l3/canonical/rules.jsonl")
+vrows = [l for l in open("kb/versions/versions.jsonl", encoding="utf-8")
+         if l.strip() and not l.lstrip().startswith("#")]
+kbvs, kbv_missing = set(), []
+for d in ("l0/registry/kb.json", "l1/registry/l1.json", "l2/registry/l2.json",
+          "l3/registry/l3.json", "l5/registry/l5.json"):
+    v = json.load(open(f"kb/{d}", encoding="utf-8")).get("kb_version")
+    if v is None:
+        kbv_missing.append(d)
+    kbvs.add(v)
+ev["checks"]["version_discipline"] = {
+    "canonical_rules_bytes": canon,
+    "versions_jsonl_rows": len(vrows),
+    "kb_version_values": sorted(x for x in kbvs if x is not None),
+    "registries_missing_kb_version": kbv_missing,
+    "verdict": "PASS" if canon == 0 and not vrows and {x for x in kbvs if x is not None} == {"v0"} else "FAIL",
+}
+
+# ---- 6) 离线
+src = open("kb/l5/matcher.py", encoding="utf-8").read()
+net = re.findall(r"\b(requests|urllib|socket|http\.client|urlopen|lark|curl|wget)\b", src)
+ev["checks"]["offline"] = {"network_symbols_found": sorted(set(net)),
+                           "verdict": "PASS" if not net else "FAIL"}
+
+ev["verdict"] = "PASS" if all(v.get("verdict") == "PASS" for v in ev["checks"].values()) else "FAIL"
+json.dump(ev, open("kb/.work/l5_integrity.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+
+for k, v in ev["checks"].items():
+    print(f"[{v['verdict']}] {k}")
+    if k == "frozen_layers":
+        for d, x in v["layers"].items():
+            print(f"        kb/{d}: {x['files']} 文件 / {x['bytes']} 字节 / tree_sha256={x['tree_sha256'][:16]} / 最后修改 {x['max_mtime']}")
+        print(f"        l5 首次写入 {v['l5_first_write']}")
+    if k == "l3_append_only":
+        print(f"        行数 {v['lines']}，版本分布 {v['by_version']}")
+        print(f"        前 {v['baseline_lines']} 行前缀哈希 {v['prefix_sha256_16']}（{v['prefix_recipe']}）")
+        print(f"        旧笔记值 {v['stale_note_value']} 可复现={v['stale_note_reproduced']}；{v['stale_note_explain'][:60]}…")
+        for kk, vv in v["structural"].items():
+            print(f"        {kk}: {vv}")
+    if k == "pattern_traceability":
+        print(f"        {v['patterns']} 条 pattern 全部回指 rule_id/anchor/source_sha256，异常 {len(v['bad'])}")
+    if k == "no_fabricated_words":
+        print(f"        校验 {v['checked']} 个词，basis 分布 {v['basis_distribution']}，越界 {len(v['bad'])}，"
+              f"剔除凭空词 {v['dropped_ungrounded']}")
+        for b in v["bad"][:10]:
+            print("        !", b)
+    if k == "version_discipline":
+        print(f"        canonical {v['canonical_rules_bytes']} 字节 / versions 行 {v['versions_jsonl_rows']} / kb_version {v['kb_version_values']}")
+        if v["registries_missing_kb_version"]:
+            print(f"        ! 缺 kb_version 字段的 registry：{v['registries_missing_kb_version']}（冻结层，只报不改）")
+print(f"\n自检总计：{ev['verdict']}")
+sys.exit(0 if ev["verdict"] == "PASS" else 1)

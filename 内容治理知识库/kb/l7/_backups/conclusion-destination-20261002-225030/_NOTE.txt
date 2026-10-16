@@ -1,0 +1,14 @@
+2026-10-02 22:50:30  任务2「结论填此表」去向登记 —— 本批**只新增 1 个文件，未改动任何既有文件**
+
+落点：kb/l7/registry/conclusion-destination.yaml（新建）
+
+★ 为什么本目录没有 .pre-edit 备份（如实记，不是漏做）：
+  本批是**新建**文件，不是改动既有文件。kb/l8/pre_edit_backup.py 的契约是
+  「备份改前状态」，对不存在的路径**退 1 并拒绝后续写入**（本批实跑确认）——
+  新建文件没有「改前状态」可备，故该工具在本批**不适用**。
+  作为替代留痕，本目录存了登记前后的**目录级快照**：
+    · kb_l7_registry.pre-state.sha256   —— 写入前 kb/l7/registry/ 16 个文件的 sha256
+    · kb_l7_registry.after-state.sha256 —— 写入后 17 个文件的 sha256
+  两份相减 = 只多 conclusion-destination.yaml，既有 16 个文件 sha256 **逐一未变**。
+
+★ 边界：本批未碰 canonical 六件 / manifest_l3 历史行 / 任何判据文件。

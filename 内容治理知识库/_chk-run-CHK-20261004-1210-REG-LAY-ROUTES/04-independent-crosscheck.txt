@@ -1,0 +1,23 @@
+======================================================================
+A. 8 层 + cwd + python + 引擎路径（基准 = dirname(kb)）
+======================================================================
+层 id: ['L0', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7'] ｜齐 L0..L7: True
+cwd 非 {kb_root}: 无
+python 非 ${KB_PYTHON}: 无
+envelope 取值: ['required']
+引擎条目 30 条｜不存在: 无
+cwd 解析 realpath(<cwd>/kb)==realpath(kb)? True
+
+======================================================================
+C2. routes.yaml chains 成员 vs layers.yaml 各层 skill（跨文件一致性）
+======================================================================
+chain=supply   entry=kb-pipeline    成员7个
+   层 skill 未被列进该 chain 的: ['kb-ingest-extractor', 'kb-media-extractor', 'kb-ingest-extractor', 'kb-clause-extractor']
+chain=review   entry=kb-review      成员3个
+   层 skill 未被列进该 chain 的: ['kb-l0-feishu', 'kb-ingest-extractor', 'kb-media-extractor', 'kb-ingest-extractor', 'kb-clause-extractor', 'kb-canonical-lookup', 'kb-p0-check', 'kb-recall', 'kb-check']
+chain=manage   entry=kb-manage      成员1个
+   层 skill 未被列进该 chain 的: ['kb-l0-feishu', 'kb-ingest-extractor', 'kb-media-extractor', 'kb-ingest-extractor', 'kb-clause-extractor', 'kb-canonical-lookup', 'kb-p0-check', 'kb-recall', 'kb-check']
+
+routes.yaml 顶层键: ['meta', 'chains', 'routes', 'mutual_not_for', 'frozen_expectation', 'measured_20260929']
+frozen_expectation 键: ['source', 'dir_name_map', 'note']
+dir_name_map: {'brand-content-review-agent': '内容审查总控', 'brand-review-intake-router': '送审登记', 'brand-policy-source-curator': '证据源维护', 'brand-text-compliance-review': '文案合规审查', 'brand-product-claim-verifier': '产品宣称核验', 'brand-image-safety-review': '图片安全审查', 'brand-video-safety-review': '视频安全审查', 'brand-us-locale-cultural-review': '美国本地化审查', 'brand-ai-provenance-rights-review': 'AI溯源与权利审查', 'brand-review-decision-engine': '审查裁决', 'brand-review-report-memory': '审查报告与记忆', 'brand-review-evaluation': '审查流程评测', 'brand-feishu-review-adapter': '飞书审查流转'}

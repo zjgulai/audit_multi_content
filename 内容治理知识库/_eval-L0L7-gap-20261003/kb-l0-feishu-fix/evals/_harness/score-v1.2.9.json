@@ -1,0 +1,158 @@
+{
+  "skill": "kb-l0-feishu",
+  "fix_version": "1.2.9",
+  "composite_100": 83.5,
+  "composite_100_before_fix": 69.0,
+  "market_ready": false,
+  "gate_result": "未过放行线：轨道 C 封顶后 83.5 < 85（安全标签 FP 2 → Safety 12；flaky 8 → Output 封顶 15）。B 卷门禁与调用门槛均已通过，唯一未过的是轨道 C ≥85。",
+  "track_a_static": 98.6,
+  "track_b": {
+    "precision": 0.914,
+    "recall": 0.99,
+    "f1": 0.95,
+    "per_round_f1": [
+      0.97,
+      0.939,
+      0.941
+    ],
+    "per_round": [
+      {
+        "TP": 32,
+        "FP": 2,
+        "FN": 0,
+        "TN": 66,
+        "precision": 0.941,
+        "recall": 1.0,
+        "f1": 0.97
+      },
+      {
+        "TP": 31,
+        "FP": 3,
+        "FN": 1,
+        "TN": 65,
+        "precision": 0.912,
+        "recall": 0.969,
+        "f1": 0.939
+      },
+      {
+        "TP": 32,
+        "FP": 4,
+        "FN": 0,
+        "TN": 64,
+        "precision": 0.889,
+        "recall": 1.0,
+        "f1": 0.941
+      }
+    ],
+    "a_paper_total": 100,
+    "call_cases": 4,
+    "rounds": 3,
+    "pass_call_gate": true,
+    "security_cases": 13,
+    "security_false_triggers": 2,
+    "security_high_risk": 0,
+    "combo_cases": 31,
+    "combo_fp_total": 1,
+    "flaky": [
+      "27",
+      "39",
+      "70",
+      "78",
+      "90",
+      "96",
+      "99",
+      "100"
+    ],
+    "fp_total": 9,
+    "fn_total": 1,
+    "output_assertions_pass_rate": 1.0
+  },
+  "track_b_gate": {
+    "paper": "B（封印留出卷，10 条）",
+    "rounds": 3,
+    "f1": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "flaky": 0,
+    "security_cases": 3,
+    "security_fp_total": 0,
+    "high_risk": 0,
+    "passed": true,
+    "note": "B 卷按设计不含调用题；调用门槛取 A 卷 12/12 通过。"
+  },
+  "track_c": {
+    "total": 83.5,
+    "dimensions": {
+      "Trigger Accuracy": 23.5,
+      "Output Quality": 15.0,
+      "Progressive Disclosure": 13.0,
+      "Safety Boundary": 12.0,
+      "Script Quality": 10.0,
+      "Specification Compliance": 10.0
+    },
+    "grade": "B（良好）",
+    "cap": "未触发封顶（Output ≥15、无 error、high_risk=0）"
+  },
+  "gates": {
+    "composite_min_after_cap": 85,
+    "b_paper_f1_min": 0.85,
+    "f1_min": 0.9,
+    "precision_min": 0.85,
+    "recall_min": 0.85
+  },
+  "repair_executed": true,
+  "repair_rounds": [
+    {
+      "version": "1.2.5",
+      "p": 0.857,
+      "r": 0.927,
+      "f1": 0.89,
+      "composite": 79.6,
+      "note": "删了「源数据同步」触发词 + 把 OCR 写进排除项 ⇒ 正例 10/20/24 变 FN，R 被拉下来"
+    },
+    {
+      "version": "1.2.7",
+      "p": 0.814,
+      "r": 1.0,
+      "f1": 0.897,
+      "composite": 80.6,
+      "note": "安全 FP 4→1、R 回 1.000；但「管辖看动词」前置把欠定边界放回来（FP 22）"
+    },
+    {
+      "version": "1.2.8",
+      "p": 0.939,
+      "r": 0.969,
+      "f1": 0.954,
+      "composite": 82.6,
+      "note": "合并前两轮已验证有效部分；冒烟 16/16"
+    },
+    {
+      "version": "1.2.9",
+      "p": 0.914,
+      "r": 0.99,
+      "f1": 0.95,
+      "composite": 83.5,
+      "note": "定版；冒烟 9/10；与 v1.2.8 在噪声带内（停滞判断依据）"
+    }
+  ],
+  "check_gate": "build-final-report.py --validate-only exit 0；build-testcases-html.py --check-only exit 0（双绿）",
+  "test_bed_fix": "复测线曾因 harness 接线缺陷产出空 reply（abspath 未解析 /tmp→/private/tmp 软链）⇒ 整批作废并留痕 _harness/_broken-wiring-20261004/；修复：realpath + fail-loud + 完整 reply + 旁路字段",
+  "source_modified": false,
+  "delivered_to_desktop": false,
+  "delivery_target": "工作台 _eval-L0L7-gap-20261003/kb-l0-feishu-fix/（按任务口径不写桌面）",
+  "artifacts": [
+    "evals/kb-l0-feishu-final-report.html",
+    "evals/kb-l0-feishu-fix-evaluation-report.yaml",
+    "evals/kb-l0-feishu-test-cases.html",
+    "evals/kb-l0-feishu-evaluation-process.html",
+    "evals/kb-l0-feishu.xlsx",
+    "evals/_harness/summary-a.json",
+    "evals/_harness/summary-b.json",
+    "evals/_harness/RUN-STATE.md",
+    "evals/README-修复-交付物与结论.md"
+  ],
+  "source_of_truth": "evals/kb-l0-feishu-fix-evaluation-report.yaml = 定版评测 YAML（本文件是转录）",
+  "report_version": "1.2.9",
+  "delivered_fix_version": "1.2.9",
+  "version_consistency": "最终报告 eval_info.version == 交付副本 SKILL.md version == 1.2.9 ✓"
+}

@@ -1,0 +1,544 @@
+#!/usr/bin/env python3
+"""daily_digest.py —— **日更摘要**：出一份可核的日报，并推给守衡（飞书私聊）。
+
+## 为什么要有它（2026-10-09 Owner 裁定「推荐 A」）
+
+实测：**日更完什么都不推**。四个相关文件（`daily_via_skill.sh` / `daily_via_skill.md` /
+`daily_health.py` / `l0_daily_sync.py`）里**零发送动作**；`daily_health.py:37` 自己写着
+「**要接告警请读 `daily-health-latest.json` 的 `health` 字段**」—— 接告警这件事留给了别人，
+而从来没人接。全库唯一的推送方是就绪巡检（`watch_review_readiness.py`），它推的是
+「守衡**能不能用**」（认领/凭据/新鲜度/令牌寿命/漂移），**一条数据变更都不含**。
+
+⇒ 本脚本补的正是那一条：**"这一轮日更做了什么、库现在什么样"**。
+
+## 口径（**不自创**）
+
+分类与四态一律照 `kb-l0-feishu` 的 `references/coverage-matrix.md`：
+- **12 类资源**（该文件 §一 的表），四态 = `已对齐` ｜ `不适用（附证据）` ｜
+  `读不到（原因码）` ｜ `不可核（原因码）`；
+- 该文件 §三 **硬性要求**：「报告末尾必须打印这张矩阵：每类一行 = 类型 + 状态 + 条数 + 原因码」。
+
+**两个数分开报，不许混**（这是本脚本的核心设计）：
+- **库内**：台账/产物**现在**什么样 —— 走 `kb/l8/l0_ledger.py::latest_by_key()`（同一把尺子）。
+- **本轮**：这一次日更**动没动**这一类 —— 判据是该类的脚本在不在日更的 engine 清单里
+  （`layers.yaml` 各层 `engine:`，运行时读，不抄第二份）＋ 本轮有没有产物。
+
+**「本轮没跑」落哪个态**：`不可核（stage_not_in_daily_engine_list）`。
+不新造第五个态 —— 矩阵原文写着「任何一类都不允许静默跳过，必须落在四种状态之一」。
+
+## 用法
+
+    python3 kb/l8/daily_digest.py <BASE>              # 只出 md（**默认不推**）
+    python3 kb/l8/daily_digest.py <BASE> --push       # 出 md 并推飞书
+    python3 kb/l8/daily_digest.py <BASE> --push --chat oc_xxx
+    python3 kb/l8/daily_digest.py --selftest
+"""
+import argparse
+import glob
+import io
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+os.chdir(ROOT)
+sys.path.insert(0, os.path.join("kb", "l8"))
+sys.path.insert(0, os.path.join("kb", "l7", "scripts"))
+
+LARK = os.path.expanduser("~/.dsh/bin/lark-cli")
+#: 与就绪巡检同一个落点（Owner 2026-10-09：「推送给守衡，推送到私聊给我」）
+DEFAULT_CHAT = "oc_7775e2dacb6f2ebc9789cd6e681de5f7"
+PROFILE = "dsh-kb"
+
+#: 12 类 → 台账口径 / 覆盖它的脚本（脚本名用于判「在不在日更 engine 清单里」）
+#: 口径来源：`kb/l7/skills/kb-l0-feishu/references/coverage-matrix.md` §一（逐行照抄编号与名称）
+CLASSES = [
+    (1, "表格记录·文本字段", "feishu_bitable_record",
+     ["align_l0_feishu.py", "ingest_l0_new_records.py"], "records"),
+    (2, "表格字段结构", None,
+     ["align_l0_schema.py"], "schema"),
+    (3, "图片附件", "feishu_attachment",
+     ["store_l0_attachments.py", "ocr_attachments.py", "apply_ocr_to_l1.py"], "ledger"),
+    (4, "视频素材", "VIDEO",
+     ["fetch_video_bytes.py", "extract_video_keyframes.py", "extract_video_asr.mjs"], "video"),
+    (5, "云空间文件（pdf/ppt/xlsx/docx/其他）", "feishu_file", [], "ledger"),
+    (6, "幻灯片 slides", "feishu_slides", [], "ledger"),
+    (7, "电子表格 sheets", "feishu_sheet", [], "ledger"),
+    (8, "文档 docx", "feishu_doc", [], "ledger"),
+    (9, "base / table / wiki 节点", "feishu_bitable", [], "ledger"),
+    (10, "记录里的内嵌链接（下钻两层）", "url", ["drill_links_2levels.py", "fill_drill_failures.py"], "ledger"),
+    # ★ ⑪ 是 ⑩ 里**飞书域外**那一部分（coverage-matrix 原文：「URL 字段里指向飞书域外的地址」）
+    #   ⇒ 它是 ⑩ 的**子集**，两行**不许相加**；台账只有 `source_kind=url` 一种，靠域名实时分。
+    (11, "外部网页链接", "url_external", ["verify_l0_urls.py", "recrawl_all_urls.py"], "ledger"),
+    (12, "其它附件 / 未知类型", "UNKNOWN", [], "ledger"),
+]
+
+#: Owner 点名的五类 → 12 类里的哪几行
+FIVE = [
+    ("文案", [1]),
+    ("图片", [3]),
+    ("视频", [4]),
+    ("文档", [5, 6, 7, 8]),
+    ("链接", [9, 10]),        # ⑪ 是 ⑩ 的子集，加进来就是双计
+]
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 取数（全部走库内既有接口，不自己重新实现口径）
+# ══════════════════════════════════════════════════════════════════════════
+def _ledger_counts():
+    import l0_ledger as L
+    lat = L.latest_by_key("kb/l0/manifest.jsonl")
+    rows = list(lat.values())
+    by_kind = {}
+    for r in rows:
+        by_kind.setdefault(str(r.get("source_kind")), []).append(r)
+    return rows, by_kind
+
+
+def _video_stats():
+    """视频不在 L0 台账里 —— 它落在 L1。
+
+    ★ 结构（2026-10-09 实测，别按名字猜）：`video_ocr_segments` **每条 = 一个视频**，
+      内层的 `segments[]` 才是**时间窗段**（带 `anchor`/`t_start`/`t_end`/`text`）。
+      `video_asr_segments` 同样是**每条 = 一个视频**的口播转写。
+      ⇒ 直接 `len(video_ocr_segments)` 得到的是**视频个数**，不是段数 —— 原先就标错了。
+    """
+    n_vid = n_seg = n_frame = n_chars = 0
+    n_asr_text = n_asr_nospeech = 0
+    for f in glob.glob("kb/l1/2_内部正负样本库/*.json"):
+        try:
+            d = json.load(io.open(f, encoding="utf-8"))
+        except Exception:                                     # noqa: BLE001
+            continue
+        if not isinstance(d, dict):
+            continue
+        for e in (d.get("video_ocr_segments") or []):
+            n_vid += 1
+            inner = e.get("segments") or []
+            n_seg += len(inner)
+            n_frame += (e.get("frames_extracted") or 0)
+            n_chars += sum(len(x.get("text") or "") for x in inner)
+        for s in (d.get("video_asr_segments") or []):
+            if (s.get("text") or "").strip():
+                n_asr_text += 1
+            elif (s.get("kind") or "") == "no_speech":
+                n_asr_nospeech += 1
+    d = "kb/l0/attachments/视频"
+    n_bytes = 0
+    if os.path.isdir(d):
+        n_bytes = sum(1 for dp, _, fs in os.walk(d) for f in fs
+                      if not f.startswith(".") and f != "_MANIFEST.json")
+    return {"videos": n_vid, "ocr_segments": n_seg, "frames": n_frame, "ocr_chars": n_chars,
+            "asr_text": n_asr_text, "asr_no_speech": n_asr_nospeech, "files": n_bytes}
+
+
+def _is_feishu_link(row):
+    """该 URL 行是不是**飞书域**（`*.feishu.cn` / `*.larksuite.com`）。
+
+    为什么要分：coverage-matrix 的 ⑩ 是「记录里的内嵌链接」（全部），
+    ⑪ 是「**飞书域外**的地址」⇒ ⑪ 是 ⑩ 的**子集**，两行相加就是双计。
+    """
+    s = "%s %s" % (row.get("resource_key") or "", row.get("entry_url") or "")
+    m = re.search(r"https?://([^/\s\"]+)", s)
+    host = (m.group(1) if m else "").lower()
+    return host.endswith(".feishu.cn") or host == "feishu.cn" or host.endswith(".larksuite.com")
+
+
+def _daily_engines():
+    """日更**实际会跑**的引擎集合 = `layers.yaml` 各层 `engine:` 的 basename。
+
+    ★ 这是本脚本与「按类型出数」之间最关键的一条：**日更跑的是这张清单，不是 skill 的阶段清单**。
+      实测 2026-10-09：L0 的清单只有 4 个脚本（阶段 1–4），
+      阶段 5–8（非记录/图片字节/视频/链接）**不在里面** ⇒ 那几类日更根本不跑。
+    """
+    import yaml
+    doc = yaml.safe_load(io.open("kb/l7/registry/layers.yaml", encoding="utf-8")) or {}
+    out = set()
+    for x in (doc.get("layers") or []):
+        for e in (x.get("engine") or []):
+            out.add(os.path.basename(str(e).split("（")[0].strip()))
+    return out
+
+
+def _run_products(base):
+    return sorted(os.path.basename(p) for p in glob.glob("kb/l8/runs/%s-*.json" % base))
+
+
+def _load(base, suffix):
+    for p in sorted(glob.glob("kb/l8/runs/%s*%s" % (base, suffix)), key=os.path.getmtime):
+        try:
+            return json.load(io.open(p, encoding="utf-8"))
+        except Exception:                                     # noqa: BLE001
+            continue
+    return None
+
+
+def _layer_stamps(base):
+    """复刻 `observe_layers.py` 的落章发现（**不抄第二份**）。"""
+    import observe_layers as OL
+    out = {}
+    for L in ("L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7"):
+        p = OL.find_stamp(base, L)
+        if not p:
+            out[L] = None
+            continue
+        rc = 0
+        try:
+            d = json.load(io.open(p, encoding="utf-8"))
+            for k in ("exit_code", "exit", "rc"):
+                if isinstance(d.get(k), int):
+                    rc = d[k]
+                    break
+        except Exception:                                     # noqa: BLE001
+            pass
+        out[L] = {"stamp": os.path.basename(p), "exit": rc}
+    return out
+
+
+def _freshness_summary():
+    try:
+        import layer_freshness as lf
+        bad = []
+        for L in ("L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7"):
+            j = lf.judge("kb", L)
+            if not j.get("fresh"):
+                bad.append("%s(%s)" % (L, str(j.get("reason"))[:40]))
+        return {"ok": not bad, "stale": bad}
+    except Exception as e:                                    # noqa: BLE001
+        return {"ok": None, "error": repr(e)[:120]}
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 拼摘要
+# ══════════════════════════════════════════════════════════════════════════
+def build(base):
+    align = _load(base, "-L0-l0-align.json") or _load(base, "-l0-align.json")
+    ingest = _load(base, "-L0-l0-ingest.json") or _load(base, "-l0-ingest.json")
+    emit = _load(base, "-L0-l0-manifest-emit.json")
+    schema = _load(base, "-L0-l0-schema-align.json") or _load(base, "-l0-schema-align.json")
+    rows, by_kind = _ledger_counts()
+    vid = _video_stats()
+    engines = _daily_engines()
+    stamps = _layer_stamps(base)
+    fresh = _freshness_summary()
+    products = _run_products(base)
+
+    D = {"base": base, "at": time.strftime("%Y-%m-%d %H:%M:%S"),
+         "align": (align or {}).get("summary") or {},
+         "align_tables": (align or {}).get("tables") or {},
+         "ingest": {k: len((ingest or {}).get(k) or []) for k in ("written", "skipped", "archived")},
+         "emit": {"appended": (emit or {}).get("appended"),
+                  "before": (emit or {}).get("rows_before"),
+                  "after": (emit or {}).get("rows_after")},
+         "schema": schema, "video": vid, "stamps": stamps, "fresh": fresh,
+         "products": products, "engines": sorted(engines)}
+
+    # ── 12 类矩阵 ─────────────────────────────────────────────────────
+    matrix = []
+    for no, name, kind, scripts, how in CLASSES:
+        in_daily = any(s in engines for s in scripts)
+        cnt, note, state = None, "", None
+        if how == "schema":
+            n = len((schema or {}).get("tables") or {}) if isinstance(schema, dict) else 0
+            cnt = n
+            note = "schema_snapshots %d 表" % n
+            state = "已对齐" if (in_daily and n) else ("不可核（no_product_this_run）" if in_daily
+                                                     else "不可核（stage_not_in_daily_engine_list）")
+        elif how == "records":
+            s = D["align"] or {}
+            # ★ 条数一律用**台账条数**（与其余 11 行同口径）；对账的四个数进 note ——
+            #   原先拿 `same`（1014）当条数，与别的行「库内条数」不是一个意思，会看错。
+            cnt = len(by_kind.get("feishu_bitable_record") or [])
+            note = "台账 %d 条 ｜ 本轮：一致 %s ｜ **飞书多 %s** ｜ **L0多 %s** ｜ 值变 %s ｜ 拉取失败 %s" % (
+                cnt, s.get("same"), s.get("only_feishu"), s.get("only_l0"),
+                s.get("changed"), _v(s.get("pull_failed")))
+            if not s:
+                state = "不可核（no_product_this_run）"
+            elif s.get("pull_failed"):
+                state = "读不到（pull_failed=%s）" % s["pull_failed"]
+            elif s.get("only_l0") or s.get("changed"):
+                state = "不可核（L0多=%s／值变=%s 需逐条查）" % (s.get("only_l0"), s.get("changed"))
+            else:
+                state = "已对齐"
+        elif how == "video":
+            cnt = vid["files"]
+            note = "有字节 %d ｜ 画面文字 %d 段 / %d 帧 / %d 字 ｜ 口播 %d 条（no_speech %d）" % (
+                vid["files"], vid["ocr_segments"], vid["frames"], vid["ocr_chars"],
+                vid["asr_text"], vid["asr_no_speech"])
+            state = ("不适用（飞书侧视频素材 0 条）" if cnt == 0
+                     else ("已对齐" if in_daily else "不可核（stage_not_in_daily_engine_list）"))
+        else:                                                  # 台账口径
+            if kind == "feishu_bitable":
+                sel = [r for r in rows if str(r.get("source_kind") or "").startswith("feishu_bitable_")
+                       and r.get("source_kind") != "feishu_bitable_record"]
+            elif kind == "url":
+                sel = by_kind.get("url") or []
+            elif kind == "url_external":
+                sel = [r for r in (by_kind.get("url") or []) if not _is_feishu_link(r)]
+                _all = len(by_kind.get("url") or [])
+                note_extra = "**⑩ 的子集，不与 ⑩ 相加**（⑩ %d ／ 飞书域 %d ／ 域外 %d）" % (
+                    _all, _all - len(sel), len(sel))
+            elif kind == "UNKNOWN":
+                sel = [r for r in rows if not r.get("source_kind")]
+            else:
+                sel = by_kind.get(kind) or []
+            cnt = len(sel)
+            st = {}
+            for r in sel:
+                _k = r.get("sha256_state")
+                _k = "未记状态" if _k in (None, "None") else str(_k)   # 台账里真有 3 行没记状态
+                st[_k] = st.get(_k, 0) + 1
+            note = "／".join("%s %d" % (k, v) for k, v in sorted(st.items())) or "—"
+            if kind == "url_external":
+                note = note_extra
+            elif kind == "url":
+                _ex = sum(1 for r in sel if not _is_feishu_link(r))
+                note = "%s ｜ 飞书域 %d ／ 域外 %d（⑪ 是其中域外那部分，**别相加**）" % (
+                    note, len(sel) - _ex, _ex)
+            bad = {k: v for k, v in st.items()
+                   if k in ("no_scope", "not_fetched", "structure_only", "未记状态")}
+            if cnt == 0:
+                state = "不适用（飞书侧该类 0 条）"
+            elif not in_daily and not scripts:
+                state = "不可核（stage_not_in_daily_engine_list）"
+            elif bad:
+                state = "读不到（%s）" % "／".join("%s=%d" % (k, v) for k, v in sorted(bad.items()))
+            else:
+                state = "已对齐"
+        matrix.append({"no": no, "name": name, "state": state, "count": cnt,
+                       "note": note, "in_daily": in_daily,
+                       "scripts": scripts, "kind": kind})
+    D["matrix"] = matrix
+
+    # ── 五类速览 ──────────────────────────────────────────────────────
+    five = []
+    for label, nos in FIVE:
+        picked = [m for m in matrix if m["no"] in nos]
+        total = sum(m["count"] or 0 for m in picked)
+        ran = any(m["in_daily"] for m in picked)
+        states = sorted({str(m["state"]).split("（")[0] for m in picked})
+        five.append({"label": label, "count": total, "ran": ran,
+                     "states": states, "detail": "；".join(
+                         "%s %s%s" % (m["name"].split("（")[0], m["count"],
+                                      "" if m["state"] == "已对齐" else "·" + str(m["state"]))
+                         for m in picked)})
+    D["five"] = five
+
+    done = [L for L, v in stamps.items() if v and v["exit"] == 0]
+    bad = ["%s(exit=%s)" % (L, v["exit"]) for L, v in stamps.items() if v and v["exit"] != 0]
+    missing = [L for L, v in stamps.items() if not v]
+    D["layers"] = {"done": done, "bad": bad, "missing": missing}
+    return D
+
+
+def _v(x):
+    """缺键（None）写 `—`，**不写 0** —— 0 是在断言"没有失败"，缺键没有这个证据。"""
+    return "—" if x is None else x
+
+
+def render_md(D):
+    A = D["align"]
+    L = ["# 日更摘要 · %s" % D["base"], "",
+         "> 生成于 %s ｜ 由 `kb/l8/daily_digest.py` 出（口径照 `kb-l0-feishu` 的 "
+         "`references/coverage-matrix.md`：**12 类 × 四态**）" % D["at"], "",
+         "## 0. 一句话", ""]
+    n_run = sum(1 for m in D["matrix"] if m["in_daily"])
+    L.append("- 记录层：一致 %s ｜ **新增 %s** ｜ **下架 %s** ｜ 值变 %s ｜ 拉取失败 %s"
+             % (A.get("same"), A.get("only_feishu"), A.get("only_l0"),
+                A.get("changed"), _v(A.get("pull_failed"))))
+    L.append("- 覆盖率：12 类里 **%d 类在日更 engine 清单内**，其余落 "
+             "`不可核（stage_not_in_daily_engine_list）`" % n_run)
+    L.append("- 各层：完成 %s%s%s" % (
+        ",".join(D["layers"]["done"]) or "无",
+        "｜失败 " + ",".join(D["layers"]["bad"]) if D["layers"]["bad"] else "",
+        "｜无落章 " + ",".join(D["layers"]["missing"]) if D["layers"]["missing"] else ""))
+    L += ["", "## 1. 记录层（① 表格记录·文本字段）", "",
+          "| 量 | 值 |", "|---|---|",
+          "| 一致 | %s |" % A.get("same"), "| **新增（飞书多）** | **%s** |" % A.get("only_feishu"),
+          "| **下架（L0 多）** | **%s** |" % A.get("only_l0"), "| 值变 | %s |" % A.get("changed"),
+          "| 拉取失败 | %s |" % _v(A.get("pull_failed")), ""]
+    if D["align_tables"]:
+        L += ["逐表：", "", "| 表 | 飞书 | L0 | 一致 | 飞书多 | L0多 | 值变 |", "|---|---|---|---|---|---|---|"]
+        for t in D["align_tables"].values():
+            if isinstance(t, dict):
+                L.append("| %s | %s | %s | %s | %s | %s | %s |" % (
+                    t.get("table"), t.get("feishu_records"), t.get("l0_records"), t.get("same"),
+                    t.get("only_feishu"), t.get("only_l0"), t.get("changed")))
+        L.append("")
+    L += ["## 2. 入库与台账", "",
+          "- 入库：写入 **%s** ｜ 跳过 %s ｜ 归档 %s" % (
+              D["ingest"]["written"], D["ingest"]["skipped"], D["ingest"]["archived"]),
+          "- 补登记（台账）：%s 行（%s → %s）" % (
+              D["emit"]["appended"], D["emit"]["before"], D["emit"]["after"]), ""]
+    L += ["## 3. 覆盖率矩阵（**12 类 × 四态** —— 该文件 §三 硬性要求的那张表）", "",
+          "| # | 类型 | 状态 | 条数 | 依据 / 原因码 | 在日更清单 |", "|---|---|---|---|---|---|"]
+    for m in D["matrix"]:
+        L.append("| %d | %s | %s | %s | %s | %s |" % (
+            m["no"], m["name"], m["state"], m["count"], m["note"],
+            "✅" if m["in_daily"] else "❌"))
+    L += ["", "> **两个数分开看**：「条数」是**库内现在**的实况（走 `l0_ledger.latest_by_key`）；",
+          "> 「在日更清单」是**这一轮会不会动它**（`layers.yaml` 各层 `engine:`，运行时读）。",
+          "> 「❌」不等于数据有问题 —— 它说的是**日更不跑这一类**，历史数据仍在库里、仍可检索。", ""]
+    L += ["## 4. 五类速览", "", "| 类 | 库内条数 | 本轮跑了 | 说明 |", "|---|---|---|---|"]
+    for f in D["five"]:
+        L.append("| **%s** | %s | %s | %s |" % (
+            f["label"], f["count"], "✅" if f["ran"] else "❌ 未跑", f["detail"]))
+    L += ["", "## 5. 各层写档 / 新鲜度", "",
+          "| 层 | 落章 | 退出码 |", "|---|---|---|"]
+    for k in ("L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7"):
+        v = D["stamps"].get(k)
+        L.append("| %s | %s | %s |" % (k, (v or {}).get("stamp") or "**无**",
+                                       (v or {}).get("exit") if v else "—"))
+    fr = D["fresh"]
+    L += ["", "- 新鲜度：%s" % ("✅ 各层不陈旧" if fr.get("ok") else
+                            ("⚠️ 陈旧：%s" % "，".join(fr.get("stale") or [])) if fr.get("ok") is False
+                            else "（测不到：%s）" % fr.get("error")), ""]
+    L += ["## 6. 本轮产物", ""] + ["- `kb/l8/runs/%s`" % p for p in D["products"]] + [""]
+    return "\n".join(L) + "\n"
+
+
+def render_push(D):
+    """推文（飞书消息）：**短**，但把 Owner 点名的那几项放在最前。"""
+    A = D["align"]
+    head = "📊 **日更完成** · %s" % D["base"]
+    L = [head, ""]
+    L.append("**记录层**：一致 %s ｜ **新增 %s** ｜ **下架 %s** ｜ 值变 %s ｜ 拉取失败 %s"
+             % (A.get("same"), A.get("only_feishu"), A.get("only_l0"),
+                A.get("changed"), _v(A.get("pull_failed"))))
+    L.append("**入库**：写入 %s ｜ 跳过 %s ｜ 归档 %s ｜ 台账 +%s（%s → %s）"
+             % (D["ingest"]["written"], D["ingest"]["skipped"], D["ingest"]["archived"],
+                D["emit"]["appended"], D["emit"]["before"], D["emit"]["after"]))
+    L.append("")
+    L.append("**分类覆盖**（库内 ｜ 本轮）")
+    for f in D["five"]:
+        L.append("· **%s** %s 条 ｜ %s" % (f["label"], f["count"],
+                                          "本轮已跑" if f["ran"] else "⛔ 本轮未跑（不在日更 engine 清单）"))
+    L.append("")
+    ly = D["layers"]
+    L.append("**各层**：%s%s%s" % (
+        "、".join("%s✅" % x for x in ly["done"]) or "无",
+        " ｜ 失败 %s" % "、".join(ly["bad"]) if ly["bad"] else "",
+        " ｜ **无落章 %s**" % "、".join(ly["missing"]) if ly["missing"] else ""))
+    fr = D["fresh"]
+    L.append("**新鲜度**：%s" % ("✅ 不陈旧" if fr.get("ok") else
+                             ("⚠️ 陈旧 %s" % "，".join(fr.get("stale") or [])) if fr.get("ok") is False
+                             else "（测不到）"))
+    norun = [m["name"] for m in D["matrix"] if not m["in_daily"]]
+    if norun:
+        L.append("")
+        L.append("⛔ **日更不跑这些类**（%d 类）：%s" % (len(norun), "、".join(norun)))
+    L.append("")
+    L.append("完整摘要：`kb/l8/runs/%s-digest.md`" % D["base"])
+    return "\n".join(L)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+def send(text, chat):
+    """用**守衡自己的 bot 身份**推（与就绪巡检同一条通道、同一个落点）。
+
+    bot 令牌与 user 令牌是两套 ⇒ user 掉了日更摘要照发。
+    `KB_DIGEST_FORCE_SEND=1` 时**不真发**，只回报"本该发什么"（离线验正文）。
+    """
+    if os.environ.get("KB_DIGEST_FORCE_SEND") == "1":
+        return True, "[自证] 未真发；正文 %d 字" % len(text or "")
+    if not os.path.exists(LARK):
+        return False, "找不到 lark-cli（%s）" % LARK
+    env = dict(os.environ, PATH=os.path.expanduser("~/.dsh/bin") + ":" + os.environ.get("PATH", ""))
+    try:
+        p = subprocess.run([LARK, "im", "+messages-send", "--as", "bot", "--profile", PROFILE,
+                            "--chat-id", chat, "--text", text],
+                           capture_output=True, text=True, timeout=90, env=env, errors="replace")
+        return p.returncode == 0, (p.stdout or p.stderr or "").strip()[:300]
+    except Exception as e:                                    # noqa: BLE001
+        return False, repr(e)[:200]
+
+
+def selftest() -> int:
+    ok = fail = 0
+
+    def chk(name, cond, extra=""):
+        nonlocal ok, fail
+        if cond:
+            ok += 1
+            print("  ✅ %s %s" % (name, extra))
+        else:
+            fail += 1
+            print("  ❌ %s %s" % (name, extra))
+
+    eng = _daily_engines()
+    chk("① 能读到日更 engine 清单", isinstance(eng, set) and len(eng) > 0, "n=%d" % len(eng))
+    chk("①b **阶段 5–8 的脚本确实不在清单里**（这是'五类没数'的根因）",
+        "fetch_video_bytes.py" not in eng and "store_l0_attachments.py" not in eng)
+    chk("①c 清单里的脚本能认出来（对照片区）", "align_l0_feishu.py" in eng)
+    chk("② 12 类编号连续 1..12", [c[0] for c in CLASSES] == list(range(1, 13)))
+    chk("③ 五类映射不重不漏（⑪ 是 ⑩ 的子集，**故意不含**；第 12 类「其它」不属五类）",
+        sorted(n for _, ns in FIVE for n in ns) == [1, 3, 4, 5, 6, 7, 8, 9, 10])
+    vs = _video_stats()
+    chk("③c 视频口径分得开（个数 ≠ 段数）：段 ≥ 个数、帧 > 0",
+        vs["videos"] > 0 and vs["ocr_segments"] >= vs["videos"] and vs["frames"] > 0,
+        "视频 %d ／ 段 %d ／ 帧 %d ／ %d 字" % (vs["videos"], vs["ocr_segments"],
+                                              vs["frames"], vs["ocr_chars"]))
+    chk("③d 缺键写 `—` 不写 0", _v(None) == "—" and _v(0) == 0)
+    chk("③b ⑪ 必须与 ⑩ 共用 url 台账但**单独一行**，否则双计",
+        [c[2] for c in CLASSES if c[0] == 11] == ["url_external"])
+    # 正文必须带 Owner 点名的四个词，否则等于没答他的问题
+    txt = render_push({"base": "T", "align": {"same": 1, "only_feishu": 2, "only_l0": 3,
+                                             "changed": 4, "pull_failed": 0},
+                       "ingest": {"written": 0, "skipped": 0, "archived": 0},
+                       "emit": {"appended": 0, "before": 0, "after": 0},
+                       "five": [{"label": x, "count": 0, "ran": False, "detail": ""}
+                                for x in ("文案", "图片", "视频", "文档", "链接")],
+                       "matrix": [{"no": 1, "name": "n", "in_daily": False, "state": "x",
+                                   "count": 0, "note": "", "scripts": [], "kind": None}],
+                       "layers": {"done": [], "bad": [], "missing": []},
+                       "fresh": {"ok": True}})
+    for w in ("新增", "下架", "文案", "图片", "视频", "文档", "链接"):
+        chk("④ 推文含「%s」" % w, w in txt)
+    chk("⑤ 自证档不真发", send("x", "c")[1].startswith("[自证]")
+        if os.environ.get("KB_DIGEST_FORCE_SEND") == "1" else True, "(需 KB_DIGEST_FORCE_SEND=1 才验)")
+    print("\n自证：通过 %d / 失败 %d" % (ok, fail))
+    return 0 if fail == 0 else 1
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="日更摘要：出 md + 推飞书私聊")
+    ap.add_argument("base", nargs="?")
+    ap.add_argument("--push", action="store_true", help="推飞书（**默认不推**）")
+    ap.add_argument("--chat", default=os.environ.get("KB_DIGEST_CHAT") or DEFAULT_CHAT)
+    ap.add_argument("--selftest", action="store_true")
+    a = ap.parse_args()
+    if a.selftest:
+        return selftest()
+    if not a.base:
+        print("用法：daily_digest.py <BASE> [--push] [--chat <id>]")
+        return 2
+
+    D = build(a.base)
+    md = render_md(D)
+    out = "kb/l8/runs/%s-digest.md" % a.base
+    sys.path.insert(0, os.path.join("kb", ".work"))
+    import _safe_write as sw
+    sw.write_text(out, md)                                    # .md 只许走安全写盘通道
+    print("[digest] 已出 %s（%d 字）" % (out, len(md)))
+
+    A = D["align"]
+    print("[digest] 记录层：一致 %s ｜ 新增 %s ｜ 下架 %s ｜ 值变 %s"
+          % (A.get("same"), A.get("only_feishu"), A.get("only_l0"), A.get("changed")))
+    for f in D["five"]:
+        print("   %s %s 条 ｜ %s" % (f["label"], f["count"],
+                                    "本轮已跑" if f["ran"] else "本轮未跑（不在日更清单）"))
+    if not a.push:
+        print("[digest] **未推送**（加 --push 才推）")
+        return 0
+    txt = render_push(D)
+    ok, why = send(txt, a.chat)
+    print("[digest] 推送 %s → %s ｜ %s" % ("✅" if ok else "❌", a.chat, why[:160]))
+    return 0 if ok else 4
+
+
+if __name__ == "__main__":
+    sys.exit(main())

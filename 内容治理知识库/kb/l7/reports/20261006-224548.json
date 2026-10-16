@@ -1,0 +1,150 @@
+{
+  "review_id": "20261006-224548",
+  "content_id": "text-74acd2c1556a",
+  "content_type": "text",
+  "content_version": "74acd2c1556a997295c735fd110be70f352693b36b2ab88d13ffe647be47b1a5",
+  "content_hash": "74acd2c1556a997295c735fd110be70f352693b36b2ab88d13ffe647be47b1a5",
+  "agent_version": "kb-content-review@1.3.0",
+  "rule_version": "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02",
+  "knowledge_version": "v0",
+  "version_binding": {
+    "review_id": "20261006-224548",
+    "content_id": "text-74acd2c1556a",
+    "content_hash": "74acd2c1556a997295c735fd110be70f352693b36b2ab88d13ffe647be47b1a5",
+    "content_version": "74acd2c1556a997295c735fd110be70f352693b36b2ab88d13ffe647be47b1a5",
+    "agent_version": "kb-content-review@1.3.0",
+    "rule_version": "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02",
+    "knowledge_version": "v0",
+    "sources": {
+      "content_hash": "送审文本 utf-8 的 sha256",
+      "agent_version": "kb/l7/skills/kb-content-review/SKILL.md → frontmatter.version",
+      "rule_version": "kb/l7/registry/l7.json → article_no_source.scheme_version ＋ kb/l3/registry/l3.json → distiller_version ＋ kb/l3/candidates/rules.jsonl 的 sha256[:16]",
+      "knowledge_version": "kb/l7/registry/l7.json → kb_version"
+    }
+  },
+  "decision": "REVIEW",
+  "decision_raw": "REVIEW",
+  "confidence": "未标定（本入口逐条给 高/中/低；全局数值置信度属裁决侧）",
+  "input_manifest": {
+    "text": "M6 吸奶器支持医保报销，机身静音，错过即无。",
+    "sha256": "74acd2c1556a997295c735fd110be70f352693b36b2ab88d13ffe647be47b1a5",
+    "modality": [
+      "text"
+    ]
+  },
+  "coverage": {
+    "text": "complete",
+    "image": "not_applicable",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "本批只送审 text 一种模态；其余模态不适用（不是缺口）。本块是报告契约要求的覆盖状态，不等于 OCR/ASR/关键帧流水线已执行 —— 后者见 trace。"
+  },
+  "risk_items": [
+    {
+      "risk_id": "r-33ce99a813e0865a",
+      "risk_type": "平台与促销-促销紧迫感表述",
+      "priority_tier": "P1",
+      "priority_tier_basis": "规则层",
+      "layer": "规则层",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "错过即无, 限时, 最后机会, 不买后悔, 手慢无",
+      "reason": "逐字命中「错过即无」：（来源未给判定理由）（p_level=P1 risk_level=unknown authority=None，来源表 None）",
+      "suggestion": "",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.16",
+        "anchor": "#品线内容边界规则库/recvuJP2jyeza5/检测关键词",
+        "source_sha256": "f2ede7d0c93bb1ed2929a7ec0643762b718dd99876acd1bec6e0909c332cbd40",
+        "excerpt": "错过即无, 限时, 最后机会, 不买后悔, 手慢无"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.16 条 @ #品线内容边界规则库/recvuJP2jyeza5/检测关键词 @ f2ede7d0c93b",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.16"
+    },
+    {
+      "risk_id": "r-335f00d14cefe7f9",
+      "risk_type": "平台与促销-保险与支付资格宣称",
+      "priority_tier": "P1",
+      "priority_tier_basis": "规则层",
+      "layer": "规则层",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "医保",
+      "reason": "逐字命中「医保」：（来源未给判定理由）（p_level=P1 risk_level=unknown authority=None，来源表 None）",
+      "suggestion": "",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.15",
+        "anchor": "#品线内容边界规则库/recvuJP2Ot3owA/检测关键词",
+        "source_sha256": "4215ec016176f110d68680287be8a6306428ee38116805a418d509ea0fe66e0d",
+        "excerpt": "医保"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.15 条 @ #品线内容边界规则库/recvuJP2Ot3owA/检测关键词 @ 4215ec016176",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.15"
+    },
+    {
+      "risk_id": "r-ddf0f8360c7b53a7",
+      "risk_type": "平台与促销-静音绝对化表述",
+      "priority_tier": "P1",
+      "priority_tier_basis": "规则层",
+      "layer": "规则层",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "静音程度夸大（建议改为 low noise / quiet mo",
+      "reason": "逐字命中「静音」：（来源未给判定理由）（p_level=P1 risk_level=unknown authority=None，来源表 None）",
+      "suggestion": "",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.54",
+        "anchor": "#品线内容边界规则库/recvuJP1LV2uxa/边界内容",
+        "source_sha256": "1bf6ceb91a0d404e52dadd28aa2aa63585b57e03f3ac51a55f58635772e903d2",
+        "excerpt": "静音程度夸大（建议改为 low noise / quiet mo"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.54 条 @ #品线内容边界规则库/recvuJP1LV2uxa/边界内容 @ 1bf6ceb91a0d",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.54"
+    }
+  ],
+  "issue_count": 3,
+  "report_url": null,
+  "next_action": "建议转复核责任人复核。",
+  "next_owners": [
+    "复核责任人"
+  ],
+  "sla": {},
+  "version_gate": {
+    "reviewed_hash": "74acd2c1556a997295c735fd110be70f352693b36b2ab88d13ffe647be47b1a5",
+    "release_hash": null,
+    "note": "本入口不掌握发布版本；发布/送审版本比对属裁决侧（review_engine.py:115-119），此处不代替它下结论"
+  },
+  "decision_trace": {
+    "reasons": [
+      "findings_present_without_block"
+    ],
+    "confidence_status": "not_calibrated_by_this_entry",
+    "evaluated_at": "2026-10-06T22:45:54",
+    "decided_by": "kb-content-review/scripts/review.py（依据侧自身分支，:709-715）",
+    "note": "本报告不重算结论；三态由上表 decision_raw 原样带出"
+  },
+  "unmet_citation": []
+}

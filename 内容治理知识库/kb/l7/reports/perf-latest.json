@@ -1,0 +1,203 @@
+{
+ "measured_at": "2026-10-12T17:24:53",
+ "task_ref": "任务拆解 10/12–10/16 行 · 目标 15（报告 ≤30s）/ 17（端到端）/ 19（单条时效）",
+ "prd_ref": "内容审查 Agent PRD v1.2 §12 非功能需求",
+ "thresholds_s": {
+  "text": 10,
+  "image": 20,
+  "video": 60,
+  "report": 30,
+  "p0_fastpath": 1
+ },
+ "results": {
+  "text": {
+   "fixture": "text",
+   "content_type": "text",
+   "n": 3,
+   "wall": {
+    "n": 3,
+    "min_s": 3.991,
+    "median_s": 4.05,
+    "max_s": 5.13
+   },
+   "stage_median_ms": {
+    "p0_match_ms": 49.7,
+    "rule_layer_ms": 24.2,
+    "unit_layer_ms": 1693.4,
+    "assemble_ms": 125.5
+   },
+   "threshold_s": 10,
+   "verdict": "pass",
+   "errors": null,
+   "note": "★ 这是**证据层地板**（`KB_ENTRY=selftest`，不含四层前置 / 判定主体 / 发布）。",
+   "provenance": {
+    "measured_by": "kb/l8/perf_measure.py::measure_evidence",
+    "argv": "python3 kb/l8/perf_measure.py --evidence -n 3 --fixture text",
+    "at": "2026-10-12T17:24:53",
+    "fixture": "Our breast pump is FDA approved and 100% safe. It increases milk supply in 3 days."
+   }
+  },
+  "text_long": {
+   "fixture": "text_long",
+   "content_type": "text",
+   "n": 3,
+   "wall": {
+    "n": 3,
+    "min_s": 3.854,
+    "median_s": 3.94,
+    "max_s": 4.316
+   },
+   "stage_median_ms": {
+    "p0_match_ms": 49.8,
+    "rule_layer_ms": 24.5,
+    "unit_layer_ms": 1653.8,
+    "assemble_ms": 106.4
+   },
+   "threshold_s": 10,
+   "verdict": "pass",
+   "errors": null,
+   "note": "★ 这是**证据层地板**（`KB_ENTRY=selftest`，不含四层前置 / 判定主体 / 发布）。",
+   "provenance": {
+    "measured_by": "kb/l8/perf_measure.py::measure_evidence",
+    "argv": "python3 kb/l8/perf_measure.py --evidence -n 3 --fixture text_long",
+    "at": "2026-10-12T17:24:53",
+    "fixture": "Our breast pump is FDA approved and 100% safe for every mom. It mimics your baby's natural nursing rhythm and is clinically proven to increase milk supply in 3 days. The #1 best selling breast pump on Amazon, now with a doctor recommended flange that prevents clogged ducts."
+   }
+  },
+  "image_ocr_proxy": {
+   "fixture": "image_ocr_proxy",
+   "content_type": "image",
+   "n": 3,
+   "wall": {
+    "n": 3,
+    "min_s": 4.078,
+    "median_s": 4.348,
+    "max_s": 4.384
+   },
+   "stage_median_ms": {
+    "p0_match_ms": 55.9,
+    "rule_layer_ms": 27.7,
+    "unit_layer_ms": 1805.4,
+    "assemble_ms": 64.0
+   },
+   "threshold_s": 20,
+   "verdict": "pass",
+   "errors": null,
+   "note": "★ 这是**证据层地板**（`KB_ENTRY=selftest`，不含四层前置 / 判定主体 / 发布）。★ 图片/视频一档是**用 OCR/ASR 文本代输入**的**近似**，不含真实 OCR/ASR 与关键帧抽取成本 ⇒ **不能读成「图片链路 ≤20s 达标」**。",
+   "provenance": {
+    "measured_by": "kb/l8/perf_measure.py::measure_evidence",
+    "argv": "python3 kb/l8/perf_measure.py --evidence -n 3 --fixture image_ocr_proxy",
+    "at": "2026-10-12T17:24:53",
+    "fixture": "【图片 1 的图内文字】FDA approved. 100% safe. hospital grade. pain-free."
+   }
+  },
+  "video_asr_proxy": {
+   "fixture": "video_asr_proxy",
+   "content_type": "video",
+   "n": 3,
+   "wall": {
+    "n": 3,
+    "min_s": 4.045,
+    "median_s": 4.071,
+    "max_s": 4.314
+   },
+   "stage_median_ms": {
+    "p0_match_ms": 55.3,
+    "rule_layer_ms": 26.1,
+    "unit_layer_ms": 1738.3,
+    "assemble_ms": 101.6
+   },
+   "threshold_s": 60,
+   "verdict": "pass",
+   "errors": null,
+   "note": "★ 这是**证据层地板**（`KB_ENTRY=selftest`，不含四层前置 / 判定主体 / 发布）。★ 图片/视频一档是**用 OCR/ASR 文本代输入**的**近似**，不含真实 OCR/ASR 与关键帧抽取成本 ⇒ **不能读成「图片链路 ≤20s 达标」**。",
+   "provenance": {
+    "measured_by": "kb/l8/perf_measure.py::measure_evidence",
+    "argv": "python3 kb/l8/perf_measure.py --evidence -n 3 --fixture video_asr_proxy",
+    "at": "2026-10-12T17:24:53",
+    "fixture": "【视频口播转写】it mimics your baby's natural nursing rhythm, clinically proven to increase milk supply in 3 days, and it is 100% safe for baby."
+   }
+  },
+  "p0_judge": {
+   "wall": {
+    "n": 3,
+    "min_s": 0.116,
+    "median_s": 0.129,
+    "max_s": 0.132
+   },
+   "threshold_s": 1,
+   "engine_ms": {
+    "n": 3,
+    "min_s": 0.015,
+    "median_s": 0.015,
+    "max_s": 0.016
+   },
+   "verdict": "pass",
+   "errors": null,
+   "note": "★ 量的是**调一次 P0 快路 CLI 的墙钟**（含解释器启动）；`engine_ms` 是引擎自报的匹配耗时（更小）。",
+   "provenance": {
+    "measured_by": "kb/l8/perf_measure.py::measure_p0",
+    "argv": "python3 kb/l8/perf_measure.py --p0 -n 3",
+    "at": "2026-10-12T17:25:44",
+    "fixture": "吸奶器M5 SMART，是最好的吸奶器，这句能过审吗？"
+   }
+  },
+  "p0_with_report": {
+   "wall": {
+    "n": 3,
+    "min_s": 0.135,
+    "median_s": 0.141,
+    "max_s": 0.147
+   },
+   "threshold_s": 30,
+   "verdict": "pass",
+   "note": "★ 同一夹具 + `--report-out`（把**完整报告**写到文件）的墙钟。**不含**云文档创建与飞书落表（那两段属发布，不在这条预算里）。",
+   "provenance": {
+    "measured_by": "kb/l8/perf_measure.py::measure_p0",
+    "argv": "python3 kb/l8/perf_measure.py --p0 -n 3（带 --report-out）",
+    "at": "2026-10-12T17:25:44",
+    "fixture": "吸奶器M5 SMART，是最好的吸奶器，这句能过审吗？"
+   }
+  },
+  "batch_serial": {
+   "mode": "serial",
+   "n": 3,
+   "total_s": 15.0,
+   "per_item": {
+    "n": 3,
+    "min_s": 4.873,
+    "median_s": 4.878,
+    "max_s": 5.247
+   },
+   "throughput_per_min": 12.0,
+   "concurrency_measured": false,
+   "no_data_reason": "★ 入口**已建**：`kb/l8/batch_scan.py`（真读结论去向表 → 一批一次层前置 → 有界并发）。但**实测只跑过 1 条**（7.8 s）、**100-500 条从未压测** ⇒ 本项仍**不得读作并发能力**；逐条专项归属与结论写回也尚未做。串行吞吐见 `results.batch_serial`。"
+  }
+ },
+ "no_data": {
+  "group_response_5s": "★ **本机可测**：埋点已就位（`tools/agent/agent.mjs` 回执卡处），判据 = `kb/l8/measure_group_response.py`（口径：ingress → **回执卡**）。　现读：观测 **6** 次 ｜ 中位 **1063 ms** ｜ max 1334 ms ｜ 门槛 5000 ms ⇒ ✅ 达标。",
+  "concurrency_100_500": "★ 入口**已建**：`kb/l8/batch_scan.py`（真读结论去向表 → 一批一次层前置 → 有界并发）。但**实测只跑过 1 条**（7.8 s）、**100-500 条从未压测** ⇒ 本项仍**不得读作并发能力**；逐条专项归属与结论写回也尚未做。串行吞吐见 `results.batch_serial`。",
+  "image_video_real": "★ 图片/视频两档在**本台账**里是**用 OCR/ASR 文本代输入**的近似，**不含真实 OCR / ASR / 关键帧抽取成本** ⇒ 不能读成「图片链路 ≤20s 达标」。真实口径见 `kb/l8/measure_verdict_latency.py`（Owner 2026-10-12 裁定）。"
+ },
+ "end_to_end": {
+  "chain_wall_s": {
+   "n": 2,
+   "min_s": 34.9,
+   "median_s": 35.8,
+   "max_s": 36.7
+  },
+  "note": "整链 `review_run.sh`（含四层前置 + 认领 + 依据 + 发布 + 旁挂），n=2。**失败项：无（两次 exit=0）**。",
+  "segments": {
+   "四层前置+四道审计": "~15 s（前一轮独立实测 16:08:12→16:08:27）",
+   "证据层": "~4.2 s（本产物实测，`unit_layer` 占 1.7 s = 89%）",
+   "其余（引擎装配+发布飞书+旁挂）": "~16 s（**未逐段埋点**，属估算：35.8 − 15 − 4.2）"
+  },
+  "provenance": {
+   "kind": "archived",
+   "measured_at": "2026-10-10",
+   "measured_by": "当时会话留痕（review_run.sh 计时）",
+   "why": "整链会写生产结论表行 + 云文档 ⇒ **不许为测性能重跑**；本条只作历史读数保留"
+  }
+ },
+ "provenance_note": "★ 2026-10-12：`results` 六档（四档证据层 + P0 两档）**逐条带 provenance**，由 `python3 kb/l8/perf_measure.py --ledger` 重测产出；`end_to_end` 标 archived（不许重跑）。★ 三档「性能」时限（文字/图片/视频）**不是本台账量的** —— Owner 2026-10-12 裁定其口径为「守衡回复时间」，判据 = `kb/l8/measure_verdict_latency.py`；本台账的四档是**证据层地板**，读数低不等于用户等得短。"
+}

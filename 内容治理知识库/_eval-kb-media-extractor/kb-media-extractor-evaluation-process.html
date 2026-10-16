@@ -1,0 +1,88 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>kb-media-extractor 评测过程</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",Arial,sans-serif;max-width:1100px;margin:0 auto;padding:24px;line-height:1.7;color:#1f2933}h2{margin-top:32px;padding-bottom:6px;border-bottom:2px solid #e4e7eb}table.t{border-collapse:collapse;width:100%;margin:12px 0;font-size:13.5px}table.t th,table.t td{border:1px solid #dfe3e8;padding:7px 9px;text-align:left;vertical-align:top}table.t th{background:#f5f7fa;font-weight:600}code{background:#f2f4f7;padding:1px 5px;border-radius:3px;font-size:92%}.note{color:#52606d;font-size:13.5px}</style></head><body><h1>kb-media-extractor 评测过程</h1><h2 id="proc-overview">一、评测流程总览</h2>
+<p class="note">被测 skill：<code>kb-media-extractor</code>（源 v1.0.0）｜评测工具：root-skills-eval v3.19.1（双轨版）｜评测日期：2026-09-30｜complexity：<b>standard</b>（A 卷 50 条）</p>
+<table class="t"><thead><tr><th>步骤</th><th>内容</th><th>做法</th><th>状态</th></tr></thead><tbody>
+<tr><td>Step 0</td><td>判定复杂度</td><td>读 frontmatter：<code>complexity: "standard"</code> → A 卷 50 条（未改动复杂度字段）</td><td>✅</td></tr>
+<tr><td>Step 0</td><td>扫描关联 skill</td><td>知识库 <code>kb/l7/skills/</code> 下 13 个成员 + <code>kb/l7/registry/routes.yaml</code> 路由表 → 关联集合 S（9 个近邻）</td><td>✅</td></tr>
+<tr><td>Step 1</td><td>出题</td><td>A 卷 50 条（正例16/负例16/近似12/边界6）+ 调用 3 条 + B 卷 10 条（封印）</td><td>✅</td></tr>
+<tr><td>Step 2</td><td>出题自检</td><td>17 项逐项打印实测值（<code>verify_cases.py</code>，可复跑）</td><td>✅ 17/17</td></tr>
+<tr><td>Step 3</td><td>三轮盲测</td><td>53 条 × 3 轮 = 159 次全新一次性会话（回填员读表、被测会话只收提示词列）</td><td>✅ 159/159</td></tr>
+<tr><td>Step 4</td><td>TP/FP/FN/TN</td><td>score-trigger-eval.py 自动归类 + 回填员逐条复读定案</td><td>✅</td></tr>
+<tr><td>Step 5</td><td>轨道 C 评分</td><td>六维 100 分制</td><td>✅</td></tr>
+<tr><td>Step 6</td><td>B 卷最终门禁</td><td>B 卷 10 条 × 3 轮 = 30 次全新会话：F1 = 0.857（≥0.85）、P = 0.750、R = 1.000，安全标签 2 条 6 次判定 FP=0、组合标签 2 条 6 次判定 FP=0、无高危安全问题 → 门禁通过（但 A 卷调用门槛未过，按规则仍不交付副本）</td><td>✅ 通过</td></tr>
+<tr><td>Step 5.4/5.5</td><td>输出前闸门</td><td>root-skills-check 硬校验 + 15 项内部自检</td><td>✅ 全部通过</td></tr>
+</tbody></table>
+<h2 id="proc-selfcheck">二、出题自检（17 项）</h2>
+<p class="note">自检脚本 <code>_eval-kb-media-extractor/verify_cases.py</code>（可复跑）。结论：<b>17/17 通过</b>。</p>
+<table class="t"><thead><tr><th>#</th><th>检查项</th><th>实测证据</th></tr></thead><tbody>
+<tr><td>1</td><td>复杂度与总数</td><td>SKILL.md frontmatter complexity=standard → A 卷 50 条；实测主类型 50 条 + 调用 3 条</td></tr>
+<tr><td>2</td><td>主类型配比</td><td>正例 16 / 负例 16 / 近似命中 12 / 边界情况 6（要求 16/16/12/6）</td></tr>
+<tr><td>3</td><td>类型合法</td><td>类型集合 ['正例', '调用', '负例', '边界情况', '近似命中']；安全/组合只出现在「标签」列，未写进类型；非法值 无</td></tr>
+<tr><td>4</td><td>顺序与编号</td><td>1–53 连续；顺序正例→负例→近似→边界；调用 [51, 52, 53] 接在四类之后</td></tr>
+<tr><td>5</td><td>表头合规</td><td>Sheet1 表头 11 列（含「标签」）与要求逐字一致；Sheet2 表头 ['检查项', '结果', '证据', '说明']</td></tr>
+<tr><td>6</td><td>提示词质量</td><td>违禁词命中 0 处；非调用题面出现 skill 名 0 条；天气笑话类 0 条；过短正例 0 条；16/16 正例均含具体材料批次 + 交付物/去处；题面 0 处「见附件/打开某文件」（media 类样本无法内嵌图片，材料以批次描述给出，不引用外部文件）</td></tr>
+<tr><td>7</td><td>预期结果格式</td><td>正例 16/16「应触发 kb-media-extractor」；负例 16 + 近似 12 = 28 条「不应触发」；边界 6 条写清追问/不触发；调用 3 条写明应加载/不应加载（格式异常 0 条）</td></tr>
+<tr><td>8</td><td>优先级标注</td><td>P0 20 / P1 28 / P2 5（P0/P1/P2 齐全）</td></tr>
+<tr><td>9</td><td>安全标签覆盖</td><td>安全标签 7 条（≥6）：[22, 23, 26, 31, 36, 40, 43]；覆盖 4 类攻击面 提示注入(1)、敏感信息(2)、危险操作(2)、路径越界(2)；每条都与本 skill 能力相关（OCR 落库/缓存复用/附件字节/媒体目录）</td></tr>
+<tr><td>10</td><td>组合标签覆盖</td><td>组合标签 12 条（≥8）：[1, 3, 5, 9, 13, 17, 18, 19, 27, 37, 47, 50]；覆盖 4 类组合场景 当前 skill 主导(3)、其他 skill 主导(4)、多个 skill 顺序协作(2)、职责冲突(3)；关联 skill 集合 S = {kb-l0-feishu, kb-ingest-extractor, kb-clause-extractor, kb-pipeline, kb-check, kb-repair, 图片安全审查, 视频安全审查, 文案合规审查}</td></tr>
+<tr><td>11</td><td>执行结果留空</td><td>出题时三轮执行结果与执行日期全空（填充 0 条）</td></tr>
+<tr><td>12</td><td>Excel 可读</td><td>kb-media-extractor.xlsx 生成成功、openpyxl 可读（53 条 + 表头）；Sheet2 静态测试 12 项</td></tr>
+<tr><td>13</td><td>B 卷配比</td><td>B 卷 10 条 = 正例 3 + 负例 3 + 近似 3 + 边界 1；安全 2 条 ['B6', 'B8']、组合 2 条 ['B5', 'B10']；编号 B1、B2、B3、B4、B5、B6、B7、B8、B9、B10；独立文件 kb-media-extractor-b-cases.xlsx</td></tr>
+<tr><td>14</td><td>B 卷独立性</td><td>B 卷题面与 A 卷零重复（重复 0 条）、无 ≥12 字近义重叠（0 对）；三轮执行结果留空</td></tr>
+<tr><td>15</td><td>调用场景</td><td>调用 3 条 [51, 52, 53]：51 打对本名 /kb-media-extractor（应加载）、52 打成下游 /kb-ingest-extractor（不应加载 kb-media-extractor）、53 打了斜杠没给材料（应加载后追问）；name 为 ASCII，斜杠写法即为本名，无中英双名问题</td></tr>
+<tr><td>16</td><td>中英文触发</td><td>description 含中文触发词（图片抽取/媒体抽取/OCR 落库…）与英文触发词（media extractor / kb-media-extractor）→ 正例含中文题（纯中文+混写 14 条）与全英文题（[15, 16]）；题面均不出现 skill 名</td></tr>
+<tr><td>17</td><td>中英混写</td><td>A 卷正例语言三分 = 纯中文 8 / 中英混写 6 / 全英文 2（要求 8/6/2，混写占原全英文份额、不占纯中文）；B 卷正例混写 1 条（≥1）；逐条语言：{1: '纯中文', 2: '纯中文', 3: '纯中文', 4: '纯中文', 5: '纯中文', 6: '纯中文', 7: '纯中文', 8: '纯中文', 9: '中英混写', 10: '中英混写', 11: '中英混写', 12: '中英混写', 13: '中英混写', 14: '中英混写', 15: '全英文', 16: '全英文'}</td></tr>
+</tbody></table>
+<h2 id="proc-blind">三、盲测执行</h2>
+<p><b>盲测：被测会话仅收到提示词列。</b>每一条用例通过 <code>dsh --profile headless "&lt;提示词原文&gt;"</code> 开一个<b>全新的一次性会话</b>执行，会话里只有该条提示词原文，没有类型、标题、预期结果、标签、优先级，也没有任何「这是评测 / 请判断是否触发 skill」的提示；每条用例独立工作目录（<code>_eval/work/{a|b}&lt;轮次&gt;/item-&lt;编号&gt;</code>），会话之间不共享上下文。被测会话的最终回复（stdout）逐字留档，未做任何提炼或截断。</p>
+<p><b>只读沙箱（本轮评测的额外约束）</b>：被测会话一律以 <code>DSH_PERMISSION_MODE=read-only</code> 启动。本 skill 的背后是 <code>kb/l8/ocr_attachments.py</code> 这类<b>会建目录、下载图片、写 OCR 缓存</b>的引擎；按本次评测的要求（只针对触发与内容质量，不跑会写库的引擎），只读沙箱让被测会话在物理上无法写库、无法下载图片、无法落盘。实测：会话内写探测文件被拒（<code>file access denied under read-only mode</code>），且评测前后 <code>kb/l1</code> 文件清单指纹与 <code>kb/l0</code> 文件数完全一致（<code>_eval/_guard/</code> 留证）。</p>
+<p><b>触发判定的客观口径</b>（回填员侧计算，不采信被测会话自报）：本 skill 的<b>独有指纹</b>——① 引擎名 <code>ocr_attachments.py / drill_links_2levels.py / store_l0_attachments.py / apply_ocr_to_l1.py</code>；② 闸门 <code>l1_gate.py / l2_gate.py / ocr_cache_reusable</code>；③ 落盘路径与索引 <code>kb/l1/media/**、manifest_l1.jsonl、pending_ocr</code>；④ 幂等键字段 <code>extractor_version</code> 与「幂等键」术语；⑤ 红线术语「信封态」。命中 ①–⑤ 任一项记<b>强证据</b>；仅命中路径/术语类中证据需 ≥3 项才判触发；同时记录回复路由给了哪个邻近成员（反向信号）。</p>
+<table class="t"><thead><tr><th>轮次</th><th>卷</th><th>完成条数</th><th>版本</th><th>说明</th></tr></thead><tbody>
+<tr><td>第 1 轮</td><td>A</td><td>53 / 53</td><td>v1.0.0</td><td>独立一次性会话，只发提示词列，只读沙箱</td></tr>
+<tr><td>第 2 轮</td><td>A</td><td>53 / 53</td><td>v1.0.0</td><td>同上</td></tr>
+<tr><td>第 3 轮</td><td>A</td><td>53 / 53</td><td>v1.0.0</td><td>同上</td></tr>
+<tr><td>第 4 轮</td><td>B</td><td>10 / 10</td><td>v1.0.0</td><td>封印开卷，交付门禁</td></tr>
+</tbody></table>
+<h2 id="proc-static">四、静态验证</h2>
+<table class="t"><thead><tr><th>工具</th><th>对象</th><th>结果</th></tr></thead><tbody>
+<tr><td>root-skills-eval / validate-skill.py</td><td>源 v1.0.0（<code>kb/l7/skills/kb-media-extractor/</code>）</td><td>Validation passed！（2 warning：README.md / .skill-meta/ is recommended）；Quality Score <b>96/100</b></td></tr>
+<tr><td>root-skills-doctor / skill-doctor.py --check</td><td>源 v1.0.0</td><td><b>0 error</b> / 5 warning（D001 缺 README、D003 缺 .skill-meta/manifest.yaml、D006 ×3 相对路径误报）/ 1 info（D112 缺 evals/）</td></tr>
+<tr><td>root-skills-eval / verify_cases.py</td><td>用例集</td><td>17 项自检 17/17 通过</td></tr>
+<tr><td>库内真实文件对账</td><td>A2 断言底账</td><td>递归枚举 <code>kb/**</code> 建立真实文件/目录清单，回复里引用的路径逐条核对是否存在</td></tr>
+</tbody></table>
+<h2 id="proc-install">三·补、装机变更时间线（测量有效性登记）</h2>
+<p class="note">盲测是<b>新开会话加载整个技能目录</b>，所以任何一次改 <code>~/.dsh/skills/kb-media-extractor/</code> 都会影响同一时刻开跑的所有会话（包括 <code>kb-ingest-extractor</code>、<code>kb-clause-extractor</code> 的近邻用例）。本节登记墙钟时间 + 改前/改后 sha256，供其他评测判断自己的盲测窗口有没有落在变更段内。完整版见 <code>_eval/install-timeline.md</code> 与机器可读的 <code>_eval/install-timeline.json</code>。</p>
+<table class="t"><thead><tr><th>#</th><th>时刻（约）</th><th>装载位变更</th><th>改前 → 改后（SKILL.md sha256）</th><th>说明</th></tr></thead><tbody>
+<tr><td>0</td><td>~12:55 起</td><td>无</td><td>—（= <b>V0 原版</b> d5e63a5a…）</td><td>A 卷第 1/2/3 轮在此窗口内跑完（13:0x–13:34）</td></tr>
+<tr><td>1</td><td><b>13:42:22</b></td><td>写入 V1</td><td>V0 d5e63a5a… → <b>V1 027a6b4b…</b></td><td>低分修复：建 -fix 副本并装到装载位做路由复测；先备份 V0 到 ~/.dsh/skills-backup-kb-media-extractor-20260930-134222/</td></tr>
+<tr><td>2</td><td>13:44–13:52</td><td>无（停在 V1）</td><td>—</td><td>第 4/5/6 轮（V1）只跑 15–27 条即被中止，<b>半轮数据已删除、从未计分</b></td></tr>
+<tr><td>3</td><td><b>~13:53–13:55</b></td><td>写入 V2</td><td>V1 027a6b4b… → <b>V2 0a3a60a4…</b></td><td>按「description 靠正面收窄、让位逻辑放正文」重写（792→474 字符）后重启第 4/5/6 轮</td></tr>
+<tr><td>4</td><td><b>13:55:32 – 14:48:39</b></td><td>无（全程 V2）</td><td>—</td><td><b>本次评测最终计分的全部窗口</b>：A 卷 4/5/6 轮 + B 卷 4/5/6 轮；期间装载位未发生任何变更</td></tr>
+<tr><td>5</td><td><b>~14:49:5x</b></td><td>误还原为 V0</td><td>V2 → <b>V0 d5e63a5a…</b></td><td>收尾时按「不写回源」默认口径把装载位还原成备份的 V0，随后发现源已被同步成 V2、装载位反而落后（窗口仅 1–2 分钟）</td></tr>
+<tr><td>6</td><td><b>~14:51:0x</b></td><td>重新对齐到 V2</td><td>V0 → <b>V2 0a3a60a4…</b></td><td>cp -Rp &lt;源&gt;/. ~/.dsh/skills/kb-media-extractor/；此后源 = 装载位 = -fix 副本，<b>冻结</b></td></tr>
+</tbody></table>
+<p class="note"><b>对本评测自身的结论</b>：① 源版第 1/2/3 轮未跨变更（全程 V0 = 源），有效可比；② 修复版第 4/5/6 轮未跨变更（13:55:32–14:48:39 全程 V2），有效可比；③ 13:44–13:52 的 V1 半轮<b>已整轮作废</b>（jsonl 删除、work 目录重建，数据从未进入 P/R/F1）；④ <b>一处报告陈述已更正</b>：原写「安装位与源逐字节一致」——就源版窗口成立，但修复版复测窗口内装载位是 V2、源仍是 V0，<b>该陈述在那一窗口不成立</b>，已改为按窗口分别陈述。</p>
+<p class="note"><b>对其他评测的影响</b>：落在 <b>13:42:22–13:53</b>（V1：description 792 字符，且把「不接」清单与安全边界写进了 description，该类目显著度被抬高）或 <b>14:49:5x–14:51:0x</b>（退回 V0）的会话，读到的 kb-media-extractor 与冻结态不同，建议作废重跑；落在 <b>13:53–14:49:5x</b>（V2）的会话与冻结态一致，可比。判定方法：按自己的 <code>work/&lt;paper&gt;&lt;round&gt;/item-XXXX</code> 目录 mtime（= 会话开跑墙钟）落到上表。</p>
+<h2 id="proc-fix">五、低分修复流程</h2>
+<p>按 root-skills-eval 的三道门槛判定是否进入修复：<b>要不要修</b>看封顶后轨道 C &lt; 85、或轨道 A 仍有 error、或调用门槛未过。本轮结论见「📊 测试报告」的总结论区块。</p>
+<h2 id="proc-bgate">六、B 卷最终门禁</h2>
+<p></p>
+<h2 id="proc-selfcheck15">七、输出前自检（15 项）</h2>
+<p class="note">先做 Step 5.4（漏数据补齐 + 全部用例原文回补），再做以下 15 项；未全部通过禁止输出。</p>
+<table class="t"><thead><tr><th>检查项</th><th>结论与证据</th></tr></thead><tbody>
+<tr><td>格式校验</td><td>输出符合 YAML / results.json / 用例 HTML 模板；<code>build-final-report.py --validate-only</code> 与 <code>build-testcases-html.py --check-only</code> 均通过</td></tr>
+<tr><td>完整性校验</td><td>53 条 × 3 轮结论与 AI 原文齐全，无漏轮次、漏回复、漏区块；<code>track_b.rounds</code> 每轮 TP/FP/FN/TN 非空</td></tr>
+<tr><td>一致性校验</td><td>正文条数 / 分数与 results.json、score-trigger-eval.py、Excel 回填逐项对账一致</td></tr>
+<tr><td>逻辑校验</td><td>三轨结论自洽：轨道 A 六维 / 轨道 B P-R-F1 / 轨道 C 六维三者同源；封顶规则按 Output 与调用门槛执行</td></tr>
+<tr><td>边界校验</td><td>命中 Gotcha：调用不进 P/R/F1；安全标签不改变主类型归类；flaky 单独列出；边界「追问」按预期判定</td></tr>
+<tr><td>安全校验</td><td>报告不含密钥与库外内部路径；危险命令类用例原文只作留档，实测均被拒绝执行</td></tr>
+<tr><td>引用校验</td><td>references 引用（release-checklist / trigger-eval-cases / comprehensive-scoring）标注正确，未改写闸门</td></tr>
+<tr><td>报告数据格式校验</td><td>distribution 合计 = 50、百分比合计 = 100%、单项百分比 ∈ (0,100.5]；调用 / 安全 / 组合单独列</td></tr>
+<tr><td>Release 清单校验</td><td>release_checklist 10 项齐全，每项含复述标准的 evidence，fail 项含 impact；先读本轮 track_b 再判第 3/9 项</td></tr>
+<tr><td>标签统计校验</td><td>security_tag / combo_tag / call_tag 均含 cases；call_tag 含 passed_gate；tag_cases 逐条含 rounds 与 verdict</td></tr>
+<tr><td>桌面交付校验</td><td>按是否进入低分修复决定是否开 <code>--require-desktop-fix</code>（交付目标见 📊 总结论）</td></tr>
+<tr><td>HTML 输出自检</td><td>build-final-report.py 的 self_check_html 全部通过：顶部目录三段锚点、每轮 AI 原文、盲测声明、15 项自检、Release 影响上线列、scoring-formulas 锚点齐全</td></tr>
+<tr><td>Release 影响上线判定</td><td>Release 清单 fail 项逐条展示 evidence 与「是否影响上线」，🔴 影响上线项作为发布阻断项在剩余风险中提示</td></tr>
+<tr><td>原文回复校验</td><td>全部用例每轮 AI 回复均为真实会话 stdout 原文逐字（脚本采集，未经提炼/截断/改写）；由 build-testcases-html.py 自检通过</td></tr>
+<tr><td>盲测校验</td><td>盲测：被测会话仅收到提示词列 —— 类型/标题/预期结果/标签/优先级未进入被测会话，也未告知「这是评测」</td></tr>
+</tbody></table>
+<p class="note"><b>自检结论：全部通过（15 项）。</b>页脚与本结论一致。</p></body></html>

@@ -1,0 +1,169 @@
+# return-flow.yaml —— 「知识库回流」的**口径件**（L7 登记件 · 非生成件）
+#
+# 立此件的原因：PRD §10 第 7 项「知识库回流数量」长期是 `no_data`，
+# 而 `kb/l8/audit_metrics.mjs` 自己写着「本项**不是 0**，是**未接线** —— 写 0 会让人以为
+# 『核过了，没有回流』」。⇒ 先把**口径**钉死成一件，再谈接线；口径漂了，数字就是假的。
+#
+# 建档：2026-10-12　｜　Owner 批准「第 7 项按建议开始开发」（第一步：差异台账，零写库）
+# 状态：**第一步已接线**（只记账）　｜　**第二步未做**（真写权重，须单独报批）
+
+id: return-flow
+title: 知识库回流（人工复核结论 → 知识库）
+owner: 刘华丽
+created_at: 2026-10-12
+status: step1_wired_step2_pending
+
+# ── PRD 出处（回源核过，别在这儿抄第二份结论） ─────────────────────────
+# 回源命令：lark-cli docs +fetch --doc PXfBdjTwFokEQixtmTscqm7knNh --as bot --profile dsh-kb
+prd:
+  doc: PXfBdjTwFokEQixtmTscqm7knNh          # wiki NB55wAq8liEOdKkquL2cgtPEnmg
+  revision_checked_at: 2026-10-12
+  clauses:
+    - id: "§9 末句"
+      text: 人工复核结论回流知识库，更新规则权重和正负样本。
+      role: 定义了**落点**（规则权重 / 正负样本）—— 落点以本条为准
+    - id: "§10 第 7 项"
+      text: 知识库回流数量
+      role: 定义了**要统计的量**（数量），没有给公式
+    - id: "§11.2 保障机制 → 人工反馈回流"
+      text: ：人工复核结论回流知识库，持续优化规则和权重。
+      role: 重复要求；**未给落点**（措辞比 §9 宽）⇒ 不采本条定落点
+  note: >
+    PRD 只写了「回流数量」四个字，**没给定义、没给公式、没给粒度**。
+    本件把口径补齐 —— 补齐的部分是**我们的**口径，不是 PRD 的，
+    所以逐条标明依据，方便后人推翻。
+
+# ── 事件 schema（台账 kb/l7/registry/return-flow.ndjson 的每行） ────────
+ledger: kb/l7/registry/return-flow.ndjson
+write_mode: append_only                       # 只追加；已有行逐字节不动（判据 ⑦）
+idempotency_key: [run_id, item_id]            # 同一单同一条目只落一次（判据 ⑩）
+
+event:
+  event_id:      "RF-<YYYYMMDD>-<NNNN>"       # 台账内唯一
+  at:            ISO8601 本地时刻
+  source:        真实投放 | 历史打回 | 我构造   # 素材来源，决定 applies_to
+  applies_to:    weight_eligible | count_only  # ★ 见「红线」一节
+  target_layer:  L3 | L1-L2                    # 回流到哪一层
+  run_id:        机器那一单（kb/l7/runs/index.jsonl 的 run_id）
+  item_id:       稳定题号（金标集 GT-nnn / 抽检样本序号）
+  machine_state: PASS | REVIEW | BLOCK | NEEDS_INPUT
+  human_state:   PASS | REVIEW | BLOCK | NEEDS_INPUT
+  reviewer:      复核人（可空；空则 count_only，见红线）
+  reason:        人判理由（原样带过来，不改写）
+  evidence:      {csv, row}                    # 从哪份 csv 的哪一行来的
+
+# ── 计数口径 ───────────────────────────────────────────────────────────
+counting:
+  event_definition: 人工判定 ≠ 机器结论，且人工给出了**明确三态**（PASS/REVIEW/BLOCK）
+  count: 回流数量 = 事件条数（按 target_layer 分组）
+  excluded:
+    - when: human_state == NEEDS_INPUT
+      why: >
+        人工说「判不了」⇒ **没有纠错依据**。把它计成回流事件，等于把「不知道」当成
+        「知道它错了」。⇒ 不进事件，单独计入 not_comparable。
+    - when: machine_state == human_state
+      why: 一致 ⇒ 无纠错信息。PRD §9 的「更新权重」本质是**纠错**，一致的没有回流价值。
+  included_note: >
+    machine_state == NEEDS_INPUT 且人工给出明确三态 ⇒ **算事件**。
+    这是机器「判不了」而人「判了」—— 正是最该回流的一类（覆盖缺口）。
+
+# ── target_layer 默认映射（可被 --target-layer 覆盖） ──────────────────
+target_layer_default:
+  - when: machine PASS 且 human BLOCK/REVIEW
+    layer: L1-L2
+    why: 机器**放行**而人拦下 ⇒ 漏放 ⇒ 缺的是「负样本」，落正负样本层
+  - when: machine BLOCK/REVIEW 且 human PASS
+    layer: L3
+    why: 机器**拦下**而人放行 ⇒ 误报 ⇒ 规则过严，落规则权重层
+  - when: machine NEEDS_INPUT 且 human 明确三态
+    layer: L3
+    why: 机器判不了 ⇒ 多半是规则覆盖不到 ⇒ 落规则层（若实测是样本问题，人工可改）
+
+# ── ★★ 红线（这条是「我构造」的题带来的独有风险） ──────────────────────
+redlines:
+  - id: constructed-items-count-only
+    rule: >
+      `source == 我构造` ⇒ `applies_to = count_only`，**永远不许**进第二步（真写权重）。
+    why: >
+      构造题用于**测准确率**没问题（边界题的价值就在这）；但拿它的人判差异去改规则权重，
+      会把规则朝**不存在的素材**上调（过拟合虚构样本）。
+    consequence: 这类事件**只进台账、只计数**，第二步必须跳过。
+  - id: no-reviewer-count-only
+    rule: 复核人为空 ⇒ count_only
+    why: 回流要能追到人（PRD §9 的复核是**人的动作**，不是流水线动作）。追不到人 ⇒ 不得改库。
+  - id: never-write-authoritative-layers
+    rule: 本机制**第一步不写 kb/l0…l6 任何字节**，只写 kb/l7/registry/ 下的台账与产物。
+    why: 那是权威层，写它要归档 + 回滚，属 kb-pipeline 领地，评审链不许随手写。
+  - id: never-touch-feishu-source
+    rule: 不读也不写飞书源任何数据（按 base 令牌判）。
+    why: kb/l7/registry/source-readonly.yaml → rulings.no-feishu-source-write
+
+# ── ★ 三态（这是本件存在的第二个理由） ─────────────────────────────────
+# `audit_metrics.mjs` 原文：「这个 0 是『没接』不是『没有可回流的』—— 两者必须分开写。」
+# ⇒ 把两态拆成三态，任何时刻都能读出「卡在哪一步」。
+status_states:
+  not_wired:
+    when: 台账文件或写入器不存在
+    reports: no_data
+    reason_field: 「机制未接」
+  wired_no_input:
+    when: 台账在、但**可判定的对照样本数 == 0**（没有人判过）
+    reports: no_data            # ★ 仍报 no_data，不报 measured:0
+    reason_field: 「机制已接线；台账在建；**等首批人工复核**」
+    why_not_measured: >
+      机制接线 ≠ 有读数。此时报 measured:0 会退回本件要消灭的那个错误读法。
+  measured:
+    when: 可判定的对照样本数 > 0
+    reports: measured
+    value: 事件条数按 target_layer 分组
+
+inputs:                                        # 人判从哪来（都还没数据）
+  - kb/l7/reports/audit-sample-ALL.csv         # PRD §11.2 每周抽检 100 条（列：机器结论 / 人判）
+  - 60 题金标集回填表（模板 kb/l7/reports/gold-set-60-template.csv）
+consumers:
+  - kb/l8/audit_metrics.mjs → metricReflow()   # 第 7 项读取本台账
+writers:
+  - kb/l8/return_flow.py                       # 唯一写入器；带 --selftest
+
+# ── 飞书侧投影（**看板**，2026-10-12 建；Owner 建表，字段由本 agent 建议并落） ──
+# 方向：return-flow.ndjson  →  飞书表（**只出不进**）。人判的**输入**仍是 CSV，不在这张表填。
+feishu_projection:
+  wiki_token: Lntdw8XqmifewjkdEckcXYH8nOV
+  base_token: RY2UbCRjXaeeWwscUPScVN5AnQc      # ★ 与我们评审结论表**同一个 base**
+  table_id: tblJ2rkNG6Z47mKA
+  table_name: 内容处理知识库回流
+  url: https://momcozy-in.feishu.cn/wiki/Lntdw8XqmifewjkdEckcXYH8nOV?table=tblJ2rkNG6Z47mKA&view=vewUTjVcgN
+  write_channel: lark-cli base +record-batch-create --as bot --profile dsh-kb
+  readonly_status: >
+    **不是只读源** —— 它登记在 source-readonly.yaml 的 `write_targets_not_affected` 段落下
+    （原文：「评审结论**照旧写这里**。「源只读」不碰它，一个字都没动」）。
+    写它**合规**；`check_source_readonly.py` 实测 exit 0。
+  direction_guard: >
+    ★ 这张表是**看板（只出不进）**。若将来改成「复核人直接在表里填人判」，
+    那是**另一套设计**（输入方向反转），必须先改本件的 `inputs:` 与 `return_flow.py ingest`
+    的来源，**不许两边同时当输入**（会双计）。
+  field_map:                                   # 飞书列名 → 台账事件字段
+    事件ID: event_id
+    素材: item_id（或素材摘要）
+    机器结论: machine_state
+    人判: human_state
+    差异类型: 由 (machine_state, human_state) 派生：漏放 / 误报 / 覆盖缺口
+    回流层: target_layer（L3 规则权重 / L1-L2 正负样本）
+    可否改库: applies_to（✅ 可改库 = weight_eligible ／ ⛔ 只计数 = count_only）
+    来源: source
+    人判理由: reason
+    复核人: reviewer
+    判定时间: at
+    机器那一单: run_id
+  design_notes:
+    - 机器结论与人判**并排列出** ⇒ 差异一眼可见，不用来回翻两处
+    - "`差异类型` 是**大白话**（漏放 / 误报 / 覆盖缺口），省得人自己去比对两个状态"
+    - "`可否改库` 是**红线的可视化** —— 来源「我构造」或复核人不是真人 ⇒ ⛔ 只计数"
+    - 主字段「文本」已改名为「素材」（Bitable 主字段**不能删只能改名**）
+  api_gotchas:                                 # 2026-10-12 实测踩到的（省得下次再试）
+    - 字段类型枚举是 select，不是 single_select；且不接受 property 包一层，options 平铺
+    - 建记录的命令是 +record-batch-create（没有 +record-create）；json 里放 create_records 数组
+    - 改记录是 +record-batch-update，update_records 是对象映射（recordId 到字段表），不是数组
+    - +record-list 在这个 profile 下不回 JSON；用 +record-get 加 record-id 读单条最稳
+    - Bitable 主字段不能删，只能改名（默认的「文本」就是这么改成「素材」的）
+    - ★ YAML 坑（本件自己踩了三次）：普通标量不能以反引号起头；双引号串里的内层双引号必须转义

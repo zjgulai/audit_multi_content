@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# B 卷门禁：10 条 × 3 轮（被测会话只收「提示词」列；cwd 在 /tmp，评测树不可达）
+set -u
+cd "$(dirname "$0")"
+for r in 1 2 3; do
+  python3 run_round.py --paper b --round $r --concurrency 5 --timeout 600 \
+     --work-root /tmp/kb-l0fix-blind-b --outfile b-round-$r.jsonl > logs/b$r.log 2>&1 &
+done
+wait
+echo "=== B 卷 3 轮结束 ==="
+for f in b-round-*.jsonl; do echo -n "$f: "; wc -l < "$f"; done
+python3 - <<'PY'
+import json,glob
+tot=bad=0
+for f in glob.glob('b-round-*.jsonl'):
+    for l in open(f,encoding='utf-8'):
+        if l.strip():
+            o=json.loads(l); tot+=1
+            if not o.get('reply') or not o.get('session_found'): bad+=1
+print(f"总记录 {tot}/30 | 不可用 {bad}")
+PY

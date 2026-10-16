@@ -1,0 +1,1 @@
+sh kb/kbpy l7/scripts/skills_check.py

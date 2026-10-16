@@ -1,0 +1,140 @@
+[preflight 19:51:48] 认领成功：RT-20261005-IMG-10
+[preflight 19:51:48] ② L4 闸门(自带)+引擎(预演)+记账 … invoked=kb-canonical-lookup session=session-05efbdfc-2ca4-4bb1-815e-6aa4ba57ac81
+[preflight 19:51:49] ② L4 记账完成 → kb/l7/runs/RT-20261005-IMG-10-L4.json
+[preflight 19:51:49] ③ L4 审计 …
+[preflight 19:51:49] ③ L4 审计 exit=0（红 0）
+[preflight 19:51:49] ② L5 闸门(自带)+引擎(预演)+记账 … invoked=kb-p0-check session=session-05efbdfc-2ca4-4bb1-815e-6aa4ba57ac81
+[preflight 19:51:54] ② L5 记账完成 → kb/l7/runs/RT-20261005-IMG-10-L5.json
+[preflight 19:51:54] ③ L5 审计 …
+[preflight 19:51:55] ③ L5 审计 exit=0（红 0）
+[preflight 19:51:55] ② L6 闸门(自带)+引擎(预演)+记账 … invoked=kb-recall session=session-05efbdfc-2ca4-4bb1-815e-6aa4ba57ac81
+[preflight 19:51:56] ② L6 记账完成 → kb/l7/runs/RT-20261005-IMG-10-L6.json
+[preflight 19:51:56] ③ L6 审计 …
+[preflight 19:51:56] ③ L6 审计 exit=0（红 0）
+[preflight 19:51:56] ② L7 闸门(自带)+引擎(预演)+记账 … invoked=kb-check session=session-05efbdfc-2ca4-4bb1-815e-6aa4ba57ac81
+[preflight 19:51:57] ② L7 记账完成 → kb/l7/runs/RT-20261005-IMG-10-L7.json
+[preflight 19:51:57] ③ L7 审计 …
+[preflight 19:51:57] ③ L7 审计 exit=0（红 0）
+[preflight 19:51:57] ✅ 四层前置全绿（L4–L7 各一 RUN，四道审计红 0）｜BASE=RT-20261005-IMG-10
+[preflight 19:51:57]    下一步：出结论 —— with_kb_evidence.py --require-layer-preflight RT-20261005-IMG-10 --decision-owner <判定主体>
+[preflight 19:51:57] 已释放认领 RT-20261005-IMG-10
+===== ② 自命中检查（确定性；它只报事实，不判三态）=====
+自命中检查：未命中
+  素材归一化字符 143 ｜ 扫过条款 181 条 ｜ 阈值 ratio≥0.9 且 run≥80
+===== ③ 引擎结论（唯一有权产出三态的地方）=====
+{
+ "decision": {
+  "state": "NEEDS_INPUT",
+  "decision": "NEEDS_INPUT",
+  "confidence": null,
+  "review_id": "rv-20261005-195201",
+  "content_id": "AUTO-137ac087847b",
+  "content_version": "137ac087847b6d078ac909e736a24b15d6c413c03752f64c8bc1f0c297b59aed",
+  "issue_count": 0,
+  "summary": "【审查结论：NEEDS_INPUT】依据侧拒答（fail-closed）⇒ **不产出 PASS/BLOCK**。",
+  "risk_items": [],
+  "next_owners": [
+   "内容治理负责人"
+  ],
+  "fails_closed": true,
+  "refusal": {
+   "state": "NEEDS_INPUT",
+   "detail": "依据侧拒答（fail-closed）",
+   "fails_closed": true
+  },
+  "gate": null
+ },
+ "evidence_meta": {
+  "run_id": "20261005-195200",
+  "findings": 0,
+  "state": "NEEDS_INPUT",
+  "fails_closed": true,
+  "refusal": {
+   "state": "NEEDS_INPUT",
+   "detail": "依据侧拒答（fail-closed）",
+   "fails_closed": true
+  },
+  "report_path": null,
+  "source": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py",
+  "findings_source": {
+   "mode": "live",
+   "path": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py"
+  },
+  "layer_preflight": {
+   "base": "RT-20261005-IMG-10",
+   "ok": true,
+   "red_total": 0,
+   "mode": "enforced",
+   "details": {
+    "L4": {
+     "run": "RT-20261005-IMG-10-L4",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L4": "session-05efbdfc-2ca4-4bb1-815e-6aa4ba57ac81"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L5": {
+     "run": "RT-20261005-IMG-10-L5",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L5": "session-05efbdfc-2ca4-4bb1-815e-6aa4ba57ac81"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L6": {
+     "run": "RT-20261005-IMG-10-L6",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L6": "session-05efbdfc-2ca4-4bb1-815e-6aa4ba57ac81"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L7": {
+     "run": "RT-20261005-IMG-10-L7",
+     "exit": 0,
+     "red": 0,
+     "yellow": 0,
+     "skill_sessions": {
+      "L7": "session-05efbdfc-2ca4-4bb1-815e-6aa4ba57ac81"
+     },
+     "pass": true,
+     "note": ""
+    }
+   }
+  },
+  "decision_owner": {
+   "skill": "图片安全审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check",
+    "图片安全审查"
+   ]
+  },
+  "publish": {
+   "mode": "enabled",
+   "published": false,
+   "reason": "no_conclusion"
+  }
+ }
+}
+
+===== ③b 转述模板（照抄这一段即可，不必再跑任何命令）=====
+【引擎输出不可解析】—— 这是**没查成**，不是「没问题」。
+如实回「未能得出结论 · 引擎输出无法解析」，**不许**自己判三态、**不许**自己写飞书表。
+
+---- 便于定位：引擎 stdout 的头 300 字（原文，未加工）----
+

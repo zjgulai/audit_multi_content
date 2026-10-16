@@ -1,0 +1,16 @@
+# L0 补跑（batch4）外部调用台账  run_id=20260924-1100  scanner_version=0.7
+# 性质：read=只读；local=本地计算（哈希/索引重建/文件移动）
+# 本批对源侧（飞书）未做任何写操作：未改内容、字段、状态、权限，未建标记字段，未改任何视图或筛选条件。
+# gone 检测一律用 all_records 口径：`+record-list` 不带 --view-id；manifest 里 record_scope=all_records。
+#
+时间              调用                                          性质      对象 / 说明
+20260924-1100   base +table-list                            read    GnRZbIuXraCzf0sGr2UcmZ62nfc —— 入口 Base 表清单（4 张表）与 records_count/rev
+20260924-1100   base +record-download-attachment            read    240 个附件 file_token（图片素材/视频素材） —— 逐附件下载取 sha256(file_bytes)；失败 0，最多重试 2 次
+20260924-1100   base +field-list                            read    tbld8qE92YaY38Yz 正面和负面样本 —— 当前 schema：16 个字段（schema 漂移核对）
+20260924-1100   base +record-list                           read    正面和负面样本（tbld8qE92YaY38Yz） —— 201 条全字段；record_scope=all_records（不带 --view-id）；rev=1077
+20260924-1100   base +record-download-attachment            read    240 个附件 file_token —— 图片素材/视频素材字节流取 sha256(file_bytes)；失败 0 个
+20260924-1100   本地只读                                        read    kb/.work/ocr_cache.json —— 77 条既有 OCR（73 个唯一 file_bytes sha256 可作复用键）
+20260924-1100+rulefix   本地重跑求值（无外部调用）                               local   240 个本批附件 —— 件6 schema 同步晚于件5 登记，按同步后 registry 重求值，matched_rule R26 → R25；台账追加 240 行 updated
+#
+# 写操作数：0。本地计算（sha256 / index 重建 / 文件移动）落在 kb/ 内，不触及源侧。
+# 读取失败/无权限/下钻失败：0（240/240 附件下载成功）。

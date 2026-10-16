@@ -1,0 +1,151 @@
+{
+ "measured_at": "2026-10-10T16:25:11",
+ "task_ref": "任务拆解 10/12–10/16 行 · 目标 15（报告 ≤30s）/ 17（端到端）/ 19（单条时效）",
+ "prd_ref": "内容审查 Agent PRD v1.2 §12 非功能需求",
+ "thresholds_s": {
+  "text": 10,
+  "image": 20,
+  "video": 60,
+  "report": 30,
+  "p0_fastpath": 1
+ },
+ "results": {
+  "text": {
+   "fixture": "text",
+   "content_type": "text",
+   "n": 3,
+   "wall": {
+    "n": 3,
+    "min_s": 4.472,
+    "median_s": 5.145,
+    "max_s": 5.518
+   },
+   "stage_median_ms": {
+    "p0_match_ms": 61.8,
+    "rule_layer_ms": 28.9,
+    "unit_layer_ms": 1899.8,
+    "assemble_ms": 138.5
+   },
+   "threshold_s": 10,
+   "verdict": "pass",
+   "errors": null,
+   "note": "★ 这是**证据层地板**（`KB_ENTRY=selftest`，不含四层前置 / 判定主体 / 发布）。"
+  },
+  "text_long": {
+   "fixture": "text_long",
+   "content_type": "text",
+   "n": 3,
+   "wall": {
+    "n": 3,
+    "min_s": 4.262,
+    "median_s": 4.352,
+    "max_s": 4.423
+   },
+   "stage_median_ms": {
+    "p0_match_ms": 55.6,
+    "rule_layer_ms": 28.0,
+    "unit_layer_ms": 1820.5,
+    "assemble_ms": 125.1
+   },
+   "threshold_s": 10,
+   "verdict": "pass",
+   "errors": null,
+   "note": "★ 这是**证据层地板**（`KB_ENTRY=selftest`，不含四层前置 / 判定主体 / 发布）。"
+  },
+  "image_ocr_proxy": {
+   "fixture": "image_ocr_proxy",
+   "content_type": "image",
+   "n": 3,
+   "wall": {
+    "n": 3,
+    "min_s": 4.006,
+    "median_s": 4.132,
+    "max_s": 4.711
+   },
+   "stage_median_ms": {
+    "p0_match_ms": 53.0,
+    "rule_layer_ms": 24.9,
+    "unit_layer_ms": 1669.3,
+    "assemble_ms": 60.9
+   },
+   "threshold_s": 20,
+   "verdict": "pass",
+   "errors": null,
+   "note": "★ 这是**证据层地板**（`KB_ENTRY=selftest`，不含四层前置 / 判定主体 / 发布）。★ 图片/视频一档是**用 OCR/ASR 文本代输入**的**近似**，不含真实 OCR/ASR 与关键帧抽取成本 ⇒ **不能读成「图片链路 ≤20s 达标」**。"
+  },
+  "video_asr_proxy": {
+   "fixture": "video_asr_proxy",
+   "content_type": "video",
+   "n": 3,
+   "wall": {
+    "n": 3,
+    "min_s": 4.306,
+    "median_s": 5.786,
+    "max_s": 6.057
+   },
+   "stage_median_ms": {
+    "p0_match_ms": 70.7,
+    "rule_layer_ms": 39.5,
+    "unit_layer_ms": 2272.5,
+    "assemble_ms": 122.1
+   },
+   "threshold_s": 60,
+   "verdict": "pass",
+   "errors": null,
+   "note": "★ 这是**证据层地板**（`KB_ENTRY=selftest`，不含四层前置 / 判定主体 / 发布）。★ 图片/视频一档是**用 OCR/ASR 文本代输入**的**近似**，不含真实 OCR/ASR 与关键帧抽取成本 ⇒ **不能读成「图片链路 ≤20s 达标」**。"
+  },
+  "p0_judge": {
+   "wall": {
+    "n": 3,
+    "min_s": 0.14,
+    "median_s": 0.15,
+    "max_s": 0.178
+   },
+   "threshold_s": 1,
+   "verdict": "pass"
+  },
+  "p0_with_report": {
+   "wall": {
+    "n": 3,
+    "min_s": 0.161,
+    "median_s": 0.164,
+    "max_s": 0.169
+   },
+   "threshold_s": 30,
+   "verdict": "pass"
+  },
+  "batch_serial": {
+   "mode": "serial",
+   "n": 3,
+   "total_s": 15.0,
+   "per_item": {
+    "n": 3,
+    "min_s": 4.873,
+    "median_s": 4.878,
+    "max_s": 5.247
+   },
+   "throughput_per_min": 12.0,
+   "concurrency_measured": false,
+   "no_data_reason": "PRD §12 要「并发 100-500 条」，而**当前只有单条入口** —— 批量入口是任务拆解 11/23 那行的目标，**尚未建**。本项量的是**串行吞吐**，不得读作并发能力。"
+  }
+ },
+ "no_data": {
+  "group_response_5s": "★ **本机测不到**。PRD §12「飞书群 @Agent 响应时间 ≤5s」含**守衡侧**（另一仓库，`/Users/lute/Project/audit_multi_content`）与**模型侧 LLM 推断**。本库只能给它的**下界**：P0 快路判定 0.122s（命中即回 BLOCK）、证据层 4.2s。判「≤5s」需在守衡侧埋点，**不在本库范围**。",
+  "concurrency_100_500": "★ **未建**。PRD §12「支持批量扫描 100-500 条」需要批量入口，而当前位置只有单条入口（`--text`）；批量入口是任务拆解 11/23 那行的目标。本产物只给**串行吞吐**（13.42 条/分钟），**不得读作并发能力**。",
+  "image_video_real": "★ 图片/视频两档是**用 OCR/ASR 文本代输入**的近似，**不含真实 OCR / ASR / 关键帧抽取成本** ⇒ **不能读成「图片链路 ≤20s 达标」**。真实素材在 `kb/l1/media/`（295 个媒体目录），但抽取链是另一条，本轮未接。"
+ },
+ "end_to_end": {
+  "chain_wall_s": {
+   "n": 2,
+   "min_s": 34.9,
+   "median_s": 35.8,
+   "max_s": 36.7
+  },
+  "note": "整链 `review_run.sh`（含四层前置 + 认领 + 依据 + 发布 + 旁挂），n=2。**失败项：无（两次 exit=0）**。",
+  "segments": {
+   "四层前置+四道审计": "~15 s（前一轮独立实测 16:08:12→16:08:27）",
+   "证据层": "~4.2 s（本产物实测，`unit_layer` 占 1.7 s = 89%）",
+   "其余（引擎装配+发布飞书+旁挂）": "~16 s（**未逐段埋点**，属估算：35.8 − 15 − 4.2）"
+  }
+ }
+}

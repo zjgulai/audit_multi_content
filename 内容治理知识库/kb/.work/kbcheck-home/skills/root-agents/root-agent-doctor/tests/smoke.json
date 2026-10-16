@@ -1,0 +1,37 @@
+{
+  "agent": "root-agent-doctor",
+  "cases": [
+    {
+      "id": "smoke-001",
+      "dimension": "check_agent_package",
+      "difficulty": "L1",
+      "input": {
+        "agent_dir": "../root-agent-creater",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "verdict": "healthy",
+        "exit_code": 0
+      },
+      "required_tools": []
+    },
+    {
+      "id": "smoke-002",
+      "dimension": "check_agent_package",
+      "difficulty": "L1",
+      "input": {
+        "agent_dir": "/no/such/agent"
+      },
+      "expect": {
+        "ok": true,
+        "verdict": "unhealthy",
+        "exit_nonzero": true,
+        "must_contain": [
+          "\"id\": \"dir.exists\""
+        ]
+      },
+      "required_tools": []
+    }
+  ]
+}

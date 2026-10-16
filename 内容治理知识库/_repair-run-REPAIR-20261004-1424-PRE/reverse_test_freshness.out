@@ -1,0 +1,14 @@
+==========================================================================
+反测：裁定 A 的水位口径（夹具在 /tmp，**不碰真实库**）
+==========================================================================
+  反测1 层 5 分钟前跑过、水位一致                     期望=新鲜     实得=新鲜     ✅
+        change_state=no_new_input  watermark_match=True
+        判据：24h 内跑过；`change_state=no_new_input` 且**上游水位交叉验证通过**（现算水位与落章一致）⇒ 新鲜（无可处理的输入）
+  反测2 层 30 小时没跑                          期望=陈旧     实得=陈旧     ✅
+        change_state=no_new_input  watermark_match=None
+        判据：最近一次成功 RUN 距今 30.0 小时（> 24 小时）⇒ 陈旧
+  反测3 层刚跑过、上游水位变了                        期望=陈旧     实得=陈旧     ✅
+        change_state=no_new_input  watermark_match=False
+        判据：24h 内跑过，但 `change_state=no_new_input` 而**上游水位已变**（落章 l1/manifest_l1.jsonl:4:24 ≠ 现状 l1/manifest_l1.jsonl:5:42）⇒ **判陈旧**（防假绿：不许自证）
+
+三条反测：**全部通过 ✅**

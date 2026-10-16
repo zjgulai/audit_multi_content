@@ -1,0 +1,52 @@
+{
+ "run_id": "20261002-1200",
+ "at": "2026-10-02T07:31:42",
+ "source": "pipeline_sync",
+ "trigger": "--sync --via-skill L0",
+ "skills": [
+  "kb-pipeline",
+  "kb-l0-feishu"
+ ],
+ "commands": [
+  "kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L0 --run 20261002-1200 --invoked kb-l0-feishu --skill-session L0=batch12-pass1-L0"
+ ],
+ "products": [],
+ "verdict": "停在 L0 闸门红：exit=1 ｜ 退出码：1",
+ "human_involved": true,
+ "extra": {
+  "via_skill": true,
+  "skill_invoked_by": "agent",
+  "skill_evidence": "agent_reported",
+  "layers": [],
+  "layer_skills": [],
+  "declared_layer_skills": {},
+  "layer_skills_uniq": [],
+  "invoked_reported": [
+   "kb-l0-feishu"
+  ],
+  "skill_sessions": {
+   "L0": "batch12-pass1-L0"
+  },
+  "human_involved_basis": "--invoked 已上报（agent 按层 skill 走过）",
+  "verdict_basis": "层侧无落章或中途停下 → 退回现状文案",
+  "layer_stamps_applied": [],
+  "layer_stamps_dry": [],
+  "layer_stamps_unknown": [],
+  "write_gate": {
+   "id": "batch9-20261002",
+   "resolved": true,
+   "layers_authorized": [
+    "L0",
+    "L1",
+    "L2",
+    "L3",
+    "L4",
+    "L5",
+    "L6"
+   ],
+   "unauthorized_layers": [],
+   "readonly_declared": [],
+   "msg": "凭据命中 id=batch9-20261002（authorized_by=用户（批次9 任务书 §0 原文）, at=2026-10-02），覆盖层=['L0', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6']"
+  }
+ }
+}

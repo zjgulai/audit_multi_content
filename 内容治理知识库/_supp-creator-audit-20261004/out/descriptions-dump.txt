@@ -1,0 +1,168 @@
+====================================================================================================
+### kb-l0-feishu
+name: kb-l0-feishu
+description: |
+  把 Momcozy 内容治理知识库的 **L0** 与飞书侧源数据做每日同步核对；**只做 L0**，不跑 L1–L7。
+  「只对账 L0 / L0 同步 / 飞书侧对账 / 飞书侧改了什么 / 库和飞书一致吗 / 源数据同步 /
+  图片视频链接有没有漏 / 链接下钻两层 / attachment 的 OCR 四态 / 库里这条不见了 /
+  daily sync / reconcile L0」时使用。
+  **先追问、不要加载本 skill（欠定）**：只给一词或半句（「对账」「同步一下」）或只有意图没对象
+  →不加载，先问范围；**一句里已给约束（哪一侧/只读/范围）就算定，要加载**。
+  **破坏性或越界请求一律不加载本 skill**：rm -rf / 清空 / 删记录 / 改飞书源 / --apply 写系统文件 /
+  读他人目录 / curl|sh（哪怕宾语是 kb/l0）
+  不适用：整链或多层→kb-pipeline；飞书建字段→lark-base；要出图或文档→不触发；
+  L1–L2 抽取→kb-ingest-extractor；闸门修复→kb-repair；内容审核→kb-review。
+version: "1.3.0"
+last_updated: 2026-10-04
+license: "Proprietary — Momcozy internal use only"
+complexity: "complex"
+compatibility:
+  claude: { status: "native" }
+  kimi: { status: "native" }
+  cursor: { status: "native" }
+  gpt: { status: "bridge", limitations: ["脚本执行需适配"] }
+  minimax: { status: "bridge", limitations: ["长表格需简化"] }
+  dsh: { status: "native", notes: "lark-cli + python3 同机可用" }
+  codex: { status: "native" }
+====================================================================================================
+### kb-ingest-extractor
+name: kb-ingest-extractor
+description: |
+  Momcozy 内容治理知识库 **L1→L2 抽取与切分入口**：把素材抽成知识单元（L1），再切成可召回、可蒸馏单元（L2）。**只拆不合**。
+  当用户说「抽取单元/素材转条目/L1 抽取/L2 切分/补切/重切/切分规则/单元不对齐/有条目没切/查一下 L1 状态/L1 水位/单元行数/L2 预演/干跑/将追加多少行/+0 行/幂等跳过/sha 没变/缺口口径/kb-ingest-extractor」时使用；只想查状态走 §2.1 只读档（l1_status.py / l2_status.py）。
+  **先追问、别加载（欠定）**：只打本名、只有名词、指代不明、没给素材 → 不加载，先问清。
+  **破坏性/越权不加载**：rm -rf、清空、--apply、写库（归 kb-pipeline 写档）。
+  判归：图片/视频/附件 OCR→kb-media-extractor（不碰 OCR）；条款蒸馏→kb-clause-extractor（L3）；只对账 L0→kb-l0-feishu；整链同步→kb-pipeline；体检→kb-check；修闸门→kb-repair。
+version: "1.3.0"
+last_updated: 2026-10-04
+complexity: "standard"
+enabled: "true"
+user-invocable: true
+compatibility:
+  dsh: native
+  claude: bridge
+  codex: bridge
+license: "内部使用 —— Momcozy 内容治理知识库"
+====================================================================================================
+### kb-media-extractor
+name: kb-media-extractor
+description: |
+  Momcozy 内容治理知识库 **L1 媒体抽取入口**：把图片/附件/落地页链接转成可入库文本（OCR 正文），落进 L1 的 media 区与单元索引。
+  当用户说「图片抽取/媒体抽取/这批图 OCR 一下/附件入库/链接下钻/L1 媒体/图里的文字落库/OCR 缓存能不能复用/查一下媒体状态/有多少张图还没落文本/kb-media-extractor」时使用；只想查状态走 §2.1 只读档（media_status.py）。
+  **先追问、别加载（欠定）**：只打本名、只有名词、指代不明、没说抽哪批 → 不加载，先问清。
+  **破坏性/越权不加载**：rm -rf、清空、删媒体区、--apply、写库（归 kb-pipeline 写档）。
+  视频字幕/关键帧 OCR 未实现：先读 references/capability-matrix.md。
+  判归：只对账 L0→kb-l0-feishu；切成知识单元→kb-ingest-extractor；条款蒸馏→kb-clause-extractor；整链同步→kb-pipeline；体检→kb-check；修闸门→kb-repair。
+version: "1.2.0"
+last_updated: 2026-10-04
+complexity: "standard"
+enabled: "true"
+user-invocable: true
+license: "Proprietary (Momcozy internal)"
+compatibility:
+  dsh: "native"
+  claude: "native"
+  codex: "bridge"
+====================================================================================================
+### kb-clause-extractor
+name: kb-clause-extractor
+description: |
+  Momcozy 内容治理知识库 **L3 条款抽取与规则蒸馏入口**：输入外部标准/平台政策/内部规则原文（或条款级单元），产出可判定的规则候选（命中表达+处理方式），并维护拒绝台账。
+  当用户**带着原文或单元**说「抽条款/条款级单元/规则蒸馏/L3 蒸馏/规则候选/这条能不能成规则/拒绝台账/蒸馏漏了没/查一下 L3 状态/L3 现在多少条/规则有多少条/拒了多少条/L3 对得上吗/kb-clause-extractor」时使用；只想查状态走 §3.1 只读档（l3_status.py）。
+  **先追问、别加载（欠定）**：只打本名、只有名词、指代不明、没给原文 → 不加载，先问清。
+  **破坏性/越权不加载**：rm -rf、清空、--apply、写库（归 kb-pipeline 写档）。
+  判归：发号/定稿/canonical→kb-pipeline（L4）；查条款号→kb-canonical-lookup；判是不是 P0→kb-p0-check；召回单元→kb-recall；素材切成单元→kb-ingest-extractor（L1/L2）；体检→kb-check。
+version: "2.2.0"
+last_updated: 2026-10-04
+complexity: "standard"
+enabled: "true"
+user-invocable: true
+license: "Proprietary (Momcozy 内容治理知识库内部使用)"
+compatibility:
+  dsh: native
+  claude: bridge
+  codex: bridge
+====================================================================================================
+### kb-canonical-lookup
+name: kb-canonical-lookup
+description: |
+  Momcozy 内容治理知识库 **L4（定稿与发布层）**的**只读查询**入口：查**条款号**、条款号反查规则、查**定稿了没有**（canonical 状态/已发号/stable）。查询档只读：不写库、不发号、不晋升。
+  当用户问「这条规则的条款号是多少/这个条款号对应哪条规则/这条规则定稿了吗/进 canonical 了吗/发号了吗/条款号怎么分配的/这条还是草案吗/L4 里有没有这条/canonical 里有多少条/kb-canonical-lookup」时使用。
+  **先追问、别加载（欠定）**：只打本名、只有名词、指代不明、没说查哪条 → 不加载，先问清。
+  **写档与破坏性一律不加载**：发号/定稿/晋升 canonical/重建 L4/--apply/写库/rm -rf/清空 → 写操作归 kb-pipeline。
+  判归：要依据→kb-content-review；能不能发→kb-review；是不是 P0→kb-p0-check；召回→kb-recall；整链/同步→kb-pipeline；体检/闸门→kb-check。
+version: "1.4.0"
+last_updated: 2026-10-04
+license: "Proprietary — Momcozy internal use only"
+complexity: "minimal"
+compatibility:
+  claude: { status: "native" }
+  kimi: { status: "native" }
+  cursor: { status: "native" }
+  gpt: { status: "bridge", limitations: ["JSONL 解析需适配"] }
+  minimax: { status: "bridge", limitations: ["长表需分页"] }
+  dsh: { status: "native", notes: "查询档只读；写档档位由 kb-pipeline 以层身份调用；kbpy 同机可用" }
+  codex: { status: "native" }
+====================================================================================================
+### kb-p0-check
+name: kb-p0-check
+description: |
+  Momcozy 内容治理知识库 **L5（P0 判定层）**的**只读查询**入口。查询档只读：不写库、不改 P0 模式表。
+  当用户说「这个是 P0 吗 / 算不算 P0 / 命中哪些 P0 模式 / P0 模式有哪些 / 这段文字命中 P0 了吗 / 优先级是不是 P0 / 为什么是 P0 / P0 清单给我看一下 / 这条触碰红线了吗（红线口径=P0）/ L5 里有没有这条 / kb-p0-check」时使用。
+  **先追问、别加载（欠定）**：只打本名、只有名词、指代不明、只要判据不要判定 → 不加载先问清。
+  **破坏性/越权一律不加载**：重建或导出 P0 层、写库、改 P0 模式表、--apply → 归 kb-pipeline 的写档动作。
+  判归：条款号/定稿→kb-canonical-lookup；召回→kb-recall；能不能发→kb-review；要依据→kb-content-review；整链/同步→kb-pipeline；体检/闸门→kb-check；改 skill 质量→root-skills-eval/opt。
+version: "1.3.0"
+last_updated: 2026-10-04
+license: "Proprietary — Momcozy internal use only"
+complexity: "minimal"
+compatibility:
+  claude: { status: "native" }
+  kimi: { status: "native" }
+  cursor: { status: "native" }
+  gpt: { status: "bridge", limitations: ["长清单需分页"] }
+  minimax: { status: "bridge", limitations: ["需中文优化"] }
+  dsh: { status: "native", notes: "查询档只读；写档档位由 kb-pipeline 以层身份调用；kbpy 同机可用" }
+  codex: { status: "native" }
+====================================================================================================
+### kb-recall
+name: kb-recall
+description: |
+  Momcozy 内容治理知识库 **L6（召回层）**的**只读检索**入口（原 kb-retriever 已并入）：BM25+向量双索引召回知识单元，也支持本地库分层导航（PDF/Excel 先读 references）。查询档只读：不改索引、不写库。
+  当用户说「召回一下/检索单元/按语义召回/BM25 召回/向量召回/召回 top-k/知识库里有哪些相关单元/查资料/从知识库目录回答问题/分层索引导航/查一下有没有相关规则/这句话在库里能找到什么/kb-recall」时使用。
+  **先追问、别加载（欠定）**：只打本名、只有名词、指代不明、没说查什么 → 不加载，先问清。
+  **破坏性/越权不加载**：重建索引、--apply、写库、改索引、rm -rf、清空（归 kb-pipeline 写档）。
+  判归：条款号/定稿→kb-canonical-lookup；是不是 P0→kb-p0-check；能不能发→kb-review；要依据/逐字摘录→kb-content-review；整链/同步→kb-pipeline；体检/闸门→kb-check；问分工→kb-manage。
+version: "1.3.0"
+last_updated: 2026-10-04
+license: "Proprietary — Momcozy internal use only"
+complexity: "standard"
+compatibility:
+  claude: { status: "native" }
+  kimi: { status: "native" }
+  cursor: { status: "native" }
+  gpt: { status: "bridge", limitations: ["脚本执行需适配"] }
+  minimax: { status: "bridge", limitations: ["长结果需分页"] }
+  dsh: { status: "native", notes: "查询档只读；写档档位由 kb-pipeline 以层身份调用；需 kb/kbpy（受管 python 缺 numpy/fastembed）" }
+  codex: { status: "native" }
+====================================================================================================
+### kb-check
+name: kb-check
+description: |
+  Momcozy 内容治理知识库的**统一闸门**（只报不改）：把全库各层 check 一次跑完并汇总成体检表——登记表自检（应装未装/装了没登记/副本不一致/依赖缺失/自测缺失）、层契约自检、链路收口核验、信封闸门、投影一致性、路由表对账。跑完不改任何东西。
+  当用户说「知识库体检 / 检查一下知识库 / 跑一遍所有闸门 / 闸门过没过 / 全库自检 / 知识库健康检查 / 信封闸门过一遍 / 登记表对不对 / skills_check / workflow_check / kb-check」时使用。
+  **先追问、别加载（欠定）**：只打本名、只有名词、指代不明、只要判据不要跑 → 不加载，先问清跑哪几道闸门。
+  **破坏性/越权一律不加载**：修闸门、删副本、rm -rf、清空、套 token、绕开流程改库。
+  判归：闸门没过要修→kb-repair；跑 L0→L7 供给链→kb-pipeline；只对账 L0/飞书侧→kb-l0-feishu；能不能发→kb-review；评测或优化 skill 质量→root-skills-eval/opt。
+version: "1.2.0"
+last_updated: 2026-10-04
+license: "Proprietary — Momcozy internal use only"
+complexity: "standard"
+compatibility:
+  claude: { status: "native" }
+  kimi: { status: "native" }
+  cursor: { status: "native" }
+  gpt: { status: "bridge", limitations: ["长输出需分页"] }
+  minimax: { status: "bridge", limitations: ["需中文优化"] }
+  dsh: { status: "native", notes: "kbpy 同机可用" }
+  codex: { status: "native" }

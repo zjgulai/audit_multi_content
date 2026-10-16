@@ -1,0 +1,26 @@
+# l0-sync.yaml —— L0 每日自动对齐的**调度开关**（唯一真源）
+#
+# 谁读它：kb/l7/scripts/l0_daily_sync.py（read_auto_apply）
+# 为什么要有它：日更由 launchd 在 08:30 无人值守触发。行为若硬编码在命令里，
+#   关机/停用都得改系统 plist；放库内，改一个词就切换，且随库一起被审计。
+#
+# ⚠️ fail-closed：文件不存在、读不出、或没有 auto_apply 这一行 → **一律按不写处理**。
+#   即「配置出问题」的默认后果是**不写库**，不是乱写。
+
+auto_apply: true
+
+# 真删开关（P1 · 2026-10-02 用户裁定 (a)：**真删 + 立碑**）
+#   true  → 飞书侧已下架的记录：**先立碑（原子写+读回校验）→ 再删 L0 原件**
+#   false → 只报"删除候选 N 条"，不动数据
+# 立碑失败 ⇒ 该条不删（宁可不删，也不留无碑的空洞）。
+# 墓碑落 kb/l0/tombstones/<表>/<record_id>.json，含删前原文的 source_sha256 ——
+# 下游据此把"依据查不到"解释成"源已下架"，而不是一次数据丢失。
+auto_delete: true
+
+# 口径（2026-10-02 用户裁定）：
+#   · L0 与飞书侧**自动日更** —— 依据：token 走 bot/tenant_access_token 自动刷新，
+#     实测零授权交互（`lark-cli auth status` bot=ready），"有效期 2h ⇒ 必须人工"不成立。
+#   · 本开关**只覆盖 L0**（对齐源数据）。L1–L7 的写档仍走 kb_pipeline.py 的
+#     SYNC_ALLOWED 白名单，不因本文件放开 —— 两件事不要混。
+#   · 真删（飞书下架）**暂不在本开关内**：需先有墓碑机制，否则已定稿的
+#     632 条 evidence anchor 会静默指空。见 l0_daily_sync.py 的「删除缺口」一节。

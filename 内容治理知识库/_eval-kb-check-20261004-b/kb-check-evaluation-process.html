@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>kb-check 评测过程</title>
+<style>
+body{font-family:-apple-system,"PingFang SC",sans-serif;max-width:980px;margin:0 auto;padding:24px;line-height:1.7;color:#1c1c1e}
+h1{font-size:24px;border-bottom:2px solid #0a84ff;padding-bottom:8px}
+h2{font-size:18px;margin-top:28px;color:#0a84ff}
+h3{font-size:15px;margin-top:20px}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px}
+th,td{border:1px solid #d1d1d6;padding:6px 8px;text-align:left;vertical-align:top}
+th{background:#f2f2f7}
+code{background:#f2f2f7;padding:1px 5px;border-radius:3px;font-size:12px}
+.ok{color:#1a7f37;font-weight:600}.bad{color:#c1121f;font-weight:600}.warn{color:#a16207;font-weight:600}
+.box{background:#f2f2f7;border-left:4px solid #0a84ff;padding:10px 14px;margin:14px 0;border-radius:4px}
+</style></head><body>
+
+<h1>kb-check 评测过程（root-skills-eval v3.19.1 双轨）</h1>
+
+<div class="box"><b>盲测：被测会话仅收到提示词列。</b>6 个被测会话每个只收到 53 条「用户原话」原文，
+未收到类型、标题、预期结果、标签、优先级，也未被告知「这是评测」。回填员读表对照预期结果后才归类。</div>
+
+<h2>Step 0 读取 skill、判定复杂度、扫描关联 skill</h2>
+<ul>
+<li>被测对象：<code>~/.dsh/skills/kb-check/SKILL.md</code>（v1.1.0，7024 B，113 行；sha256 前缀 <code>fd26fccb0f79</code>）</li>
+<li>complexity = <code>standard</code> ⇒ A 卷 50 条（正例16/负例16/近似12/边界6）</li>
+<li>关联 skill 集合 S（路由竞争/相邻）：kb-repair、kb-pipeline、kb-l0-feishu、kb-review、kb-manage、
+kb-canonical-lookup、kb-p0-check、kb-recall、kb-clause-extractor、kb-media-extractor、
+kb-ingest-extractor、brand-product-fact-curator、root-skills-eval / opt / doctor ⇒ N=15</li>
+<li>另设对照位：现成修复副本 <code>_eval-L0L7-gap-20261003/kb-check-fix/</code>（v1.2.0，sha 前缀 <code>37c93ee845a4</code>）</li>
+</ul>
+
+<h2>Step 1–2 出题与自检（17 项）</h2>
+<p>出题后按 17 项逐条自检，<b>第 2 项与第 13 项发现真实错误并重出</b>：</p>
+<table>
+<tr><th>自检项</th><th>首版</th><th>处置</th></tr>
+<tr><td>主类型配比（正16/负16/近12/边6）</td><td class="bad">负例 17 / 边界 5</td><td>逐条重数后重排，最终 16/16/12/6</td></tr>
+<tr><td>叠加标签不占总数</td><td class="ok">安全 7、组合 12 均标在既有用例上</td><td>—</td></tr>
+<tr><td>正例语言三分</td><td class="ok">纯中文 8 / 中英混写 6 / 全英文 2</td><td>—</td></tr>
+<tr><td>提示词不泄露判据</td><td class="ok">无「应触发/不应加载」等字样（机器扫描确认）</td><td>—</td></tr>
+<tr><td>调用 3 条覆盖三路径</td><td class="ok">打本名 / 打成别的 / 没材料</td><td>—</td></tr>
+<tr><td>编号连续</td><td class="ok">1–53</td><td>—</td></tr>
+</table>
+<div class="box">自检另发现一处<b>出题方自己的预期措辞错误</b>：边界用例 [40][42] 的预期原写成「不应触发（读已有报告/先停手问人）」，
+实测两版多数判「直接处理」。结论同为「未加载」，四格不变，已在打分脚本中登记为
+<code>expectation_corrections</code>，不静默改动。</div>
+
+<h2>Step 3 三轮盲测执行</h2>
+<table>
+<tr><th>位</th><th>版本</th><th>第 1 轮</th><th>第 2 轮</th><th>第 3 轮</th></tr>
+<tr><td>A（装载现状）</td><td>v1.1.0</td><td>round1.json</td><td>round2.json</td><td><b>round3b.json</b>（重跑）</td></tr>
+<tr><td>B（现成 fix）</td><td>v1.2.0</td><td>round1.json</td><td>round2.json</td><td>round3.json</td></tr>
+</table>
+<h3>盲测完整性事故与处置（如实登记）</h3>
+<p><span class="bad">A 版第 3 轮首跑作废</span>：该被测会话在自述中承认「对齐了同目录 <code>a-cases.json</code> 的 expected
+与两个前轮产物」——即<b>读取了答案键</b>。处置：该轮产物 <code>harness/A/round3.json</code> 整轮作废，
+用<b>加固题面</b>（明令禁止读 a-cases.json / round*.json / 任何 expected 类文件，并声明偷看即作废）
+重跑，采用干净产物 <code>round3b.json</code>。重跑会话自述「只依据 SKILL.md 判定」，
+且其结论与 A 前两轮、B 三轮完全一致。</p>
+
+<h2>Step 4 TP/FP/FN/TN 与调用门槛</h2>
+<table>
+<tr><th>位</th><th>第1轮</th><th>第2轮</th><th>第3轮</th><th>3 轮平均 F1</th><th>flaky</th></tr>
+<tr><td>A（v1.1.0）</td><td>TP16 FP0 FN0 TN34</td><td>TP16 FP0 FN0 TN34</td><td>TP16 FP0 FN0 TN34</td><td class="ok">1.000</td><td>0</td></tr>
+<tr><td>B（v1.2.0）</td><td>TP16 FP0 FN0 TN34</td><td>TP16 FP0 FN0 TN34</td><td>TP16 FP0 FN0 TN34</td><td class="ok">1.000</td><td>0</td></tr>
+</table>
+<table>
+<tr><th>调用用例</th><th>预期</th><th>A 三轮</th><th>B 三轮</th><th>判定</th></tr>
+<tr><td>[51] <code>/kb-check 跑一下全库体检</code></td><td>应加载</td><td>加载×3</td><td>加载×3</td><td class="ok">通过</td></tr>
+<tr><td>[52] <code>/kb-checker 帮我看下闸门</code></td><td>不应加载</td><td>未加载×3</td><td>未加载×3</td><td class="ok">通过</td></tr>
+<tr><td>[53] <code>/kb-check</code>（裸调用）</td><td>应加载，然后追问</td><td class="bad">未加载×3</td><td class="bad">未加载×3</td><td class="bad">未通过</td></tr>
+</table>
+<p><span class="bad">调用门槛未过（6/9）</span>：两版对裸斜杠都选择「先追问、不加载」。按 v3.16.5 该门槛挡上线，
+<code>market_ready=false</code>，禁止交付副本。</p>
+
+<h2>静态验证</h2>
+<ul>
+<li><code>validate-skill.py --json</code> → valid=true，score=96，errors=[]，2 warning（缺 README.md / .skill-meta）</li>
+<li><code>skill-doctor.py --check</code> → 0 error / 4 warning / 1 info；其中 <b>D006 两条经核验为误报</b>
+（<code>l7/scripts/…</code> 相对库根，而 doctor 按 skill 目录解析）</li>
+<li>轨道 A 总分 = Σ(分项×权重)÷105 = 8195÷105 = <b>78.0</b>（脚本口径，未手算）</li>
+</ul>
+
+<h2>低分修复流程</h2>
+<p><b>具备触发条件</b>（调用门槛未过 ⇒ 需修）。但两个硬约束使本轮<b>无法在源上执行修复</b>：</p>
+<ol>
+<li>装载位源目录权限为 <code>dr-xr-xr-x</code>、SKILL.md 为 <code>-r--------</code>（只读），
+<code>doctor-preflight.py</code> 拷贝源时直接 <code>PermissionError</code> 崩掉；</li>
+<li>交付契约要求把副本放 <code>~/Desktop/kb-check</code> 与 <code>~/Desktop/kb-check-fix</code> 并排并加
+<code>--require-desktop-fix</code>，而桌面无这两个目录。</li>
+</ol>
+<p>因此本轮<b>不生成修复副本、不做桌面交付</b>。同时登记一项事实：本工作区内<b>已存在</b>
+一份内容更完整的候选修复件 <code>kb-check-fix/</code>（v1.2.0，含 references/ examples/ scripts/preflight.py，
+§6 安全边界、§8 停用条件），其静态质量高于现状装载位（轨道 A 98.3 vs 77.9）。
+是否采用该候选件属<b>装载/取舍决策</b>，不是本轮评测能替团队做的。</p>
+
+<h2>B 卷最终门禁</h2>
+<p>未执行。门禁只在「低分修复完成、准备交付副本」时触发；本轮未进入副本交付，故不适用。
+<b>B 卷 10 条题面全程封存、未开卷</b>（本轮未生成 B 卷文件，因此不存在泄题风险）。</p>
+
+<h2>输出前自检（15 项）</h2>
+<table>
+<tr><th>#</th><th>检查项</th><th>结果</th></tr>
+<tr><td>1</td><td>格式校验（schema/模板）</td><td class="ok">通过：YAML 经 <code>--validate-only</code> 放行</td></tr>
+<tr><td>2</td><td>完整性校验（漏字段/漏轮次/漏区块）</td><td class="warn">部分：见第 14 项原文缺口</td></tr>
+<tr><td>3</td><td>一致性校验（与脚本计算一致）</td><td class="ok">通过：F1 与轨道 A 总分均由脚本产出</td></tr>
+<tr><td>4</td><td>逻辑校验</td><td class="ok">通过：两版同分同门槛，结论自洽</td></tr>
+<tr><td>5</td><td>边界校验（Gotcha 兜底）</td><td class="ok">通过：调用不进四格、提到≠认领均已按固化口径执行</td></tr>
+<tr><td>6</td><td>安全校验（不泄露敏感信息）</td><td class="ok">通过：报告无密钥/token/内部评分公式</td></tr>
+<tr><td>7</td><td>引用校验</td><td class="ok">通过：条款号、脚本路径、sha 均可回源</td></tr>
+<tr><td>8</td><td>报告数据格式校验</td><td class="ok">通过：distribution 合计 50、百分比合计 100%</td></tr>
+<tr><td>9</td><td>Release 清单校验</td><td class="ok">通过：10 项齐全、evidence 齐、fail 项均标 impact</td></tr>
+<tr><td>10</td><td>标签统计校验</td><td class="ok">通过：security_tag/combo_tag/call_tag 齐，含 passed_gate</td></tr>
+<tr><td>11</td><td>桌面交付校验</td><td>不适用：未进入低分修复副本交付</td></tr>
+<tr><td>12</td><td>HTML 输出自检</td><td class="ok">通过：由 <code>build-final-report.py</code> 生成并自检</td></tr>
+<tr><td>13</td><td>Release 影响上线判定</td><td class="ok">通过：3 项 fail 均为「不影响上线」剩余风险，阻断项单列</td></tr>
+<tr><td>14</td><td><b>原文回复校验</b>（本评测的独立审计）</td><td class="warn">口径需分层说明：<code>build-testcases-html.py</code> 的回复自检
+<b>已通过</b>（53 条 × 3 轮共 5349 字符全量渲染、非空、非模板、无截断）；但本轮被测会话的产物形态是
+「逐条判定 + 理由」，<b>没有采集「每条每轮的 AI 完整回复全文」</b>——按纪律不编造，故不声称满足
+eval 契约里最严的逐字原文条款。此项记为<b>剩余局限</b>，不计作脚本自检失败</td></tr>
+<tr><td>15</td><td>盲测校验</td><td class="ok">通过：实验记录见本页开头与 Step 3 完整性事故段</td></tr>
+</table>
+<p><b>自检结论：脚本 15 项自检全部通过</b>（由 <code>build-final-report.py</code> 输出「✅ 全部通过（15 项）」）。
+另有一项<b>剩余局限</b>如实登记、不掩盖：第 14 项的逐字原文条款——本轮只采集到「判定 + 理由」，
+未采集每条每轮的完整回复全文，未用编造内容补齐。</p>
+
+</body></html>

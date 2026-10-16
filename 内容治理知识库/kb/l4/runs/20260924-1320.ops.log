@@ -1,0 +1,64 @@
+# L4 定稿与发布层 · 操作日志 run_id=20260924-1320
+# 生成时间 2026-09-24 13:23:13｜写入范围：kb/l3/registry、kb/l4、kb/l7/registry、kb/view/_meta；kb/l0~l2 零写入；未发布任何版本
+
+[00] 开工前置
+     $ find kb -newermt '-30 minutes' -type f | grep -v '^kb/.work/'
+       → 3 个文件，全部属并发 run 20260924-1115 的收尾（12:59:25/12:59:35）
+     $ find kb -newermt '-120 seconds' -type f   → 0（静默确认）
+     $ cat kb/.work/.kb.lock   → 陈旧锁 20260924-1240（pid 已退出），本批接管为 20260924-1320
+     $ 基线 12 文件 sha256 → kb/.work/batch9_baseline.json（全树 8737 文件）
+
+[01] 件0 判据 A 口径修正
+     $ python3 - # 复算 326 记录文件 × (源字段数, 台账状态)
+       → (16,'registered') 201 ；(11,'gone') 125
+     → 改 kb/l3/registry/l3.json 的 source_completeness_criteria：checked 326→201、gap 125→0、+excluded_not_registered 125
+
+[02] 件0.5 R1 硬编码修正 —— 影子评估闸门
+     $ python3 kb/.work/batch9_shadow_r1.py
+       → 预期新增 L2 单元 = 101（>0）
+       → 新 kb_type 分布 {"wording": 4, "product_desc": 5, "external_standard": 7, "internal_sample": 7}
+       → 136 段中 role==content = 0 → 101 个全是 L3 会丢的孤儿
+     ===== STOP：按任务书「若 >0 立即 STOP 并报告」，本件不执行 =====
+     未修 emitter、未追加更正台账、未动 9_未归类（保持 38）、未动 kb/l3/candidates/*
+     影子结果落盘 kb/.work/batch9/shadow_r1.json（kind=shadow_only_no_write）
+
+[03] 件1 条款号方案（先写方案）
+     → numbering.block_by_library：12 段（已发 2 / 新发 3 / 预留 6 / 禁止 1）
+     → 显式废止旧 form_block（其 boundary=3 与 W-3 冲突）
+
+[04] 件2 全量分配
+     首跑：W-3 新发 157 ｜ S-1 新发 201 ｜ E-1 新发 375（合计 733）
+     输出行 1446 → 唯一 1242（重复 204）；已有 509 逐号沿用未改
+     发现缺陷：sample_cases.jsonl 562 行中 204 行逐字节重复（102 个 case_id 各 3 份）
+       → 定稿按「一个 case 一条」收口，不重复发号；源头去重留给 L3
+
+[05] 件3 写 canonical
+     wording_entry              56 行    441188 B  cb8cfe3783e7d6ca
+     wording_revision_pair     453 行   1264773 B  3960435e89e149f9
+     sample_case               358 行   1448132 B  eb38a659bf9250b2
+     scoped_clause             375 行    469285 B  6683d5d063428e2a
+     promotion_rule.status → 「机器晋升（machine-promoted）· 人工抽查未做」，判据 8/8 通过
+
+[06] 件4 三处过期陈述改写
+     kb/view/_meta/GUIDE.md:17、:97(+1 行)、kb/view/_meta/acceptance.yaml:14
+     → 「l4/canonical 为空/尚未写入」改为「已写 1242 条（机器晋升）→ 仍不能声称已过正式验收」
+     productionReady/canonicalWrite 保持 false
+
+[07] 件5 同步 kb/l7/registry/l7.json 的 article_no_source
+     total_rules 509（沿旧义，+说明）；total_outputs 1242；ranges 2→5 段；+prefixes 5 项；read_at 更新
+     L7 skills 与自测未改
+
+[08] 件6 幂等与对账
+     python3 kb/.work/batch9_verify.py → 漂移 0 / missing 0 / duplicate 0 / 真冲突 0
+     连跑两轮 assign+canonical → 5 个输出文件逐字节不变；newly_assigned_this_invocation = 0
+
+[09] 事故与修复（留痕）
+     batch9_assign.py 首跑用 json.dump 直写目标文件，序列化中途抛 TypeError → l4.json 被截断（80394 B）
+     修复：现场 cp 到 kb/.work/batch9/l4.json.corrupt；完整前缀逐字节保留；
+           issued/assignments 用 kb/.work/l4_article.json 的 509 条 mapping 重建；
+           temp + json.load 预验 + os.replace 原子替换
+     教训：本批起所有目标文件一律走 save()/savejson()
+
+[10] 未做（明确不做，非遗漏）
+     不改 kb/l3/candidates/*.jsonl；不重跑 L3 蒸馏；不改 L7 skills 与自测；
+     不写 kb/versions/versions.jsonl；不生成 release_id；kb_version 保持 v0

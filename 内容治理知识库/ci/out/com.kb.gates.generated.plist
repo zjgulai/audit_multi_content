@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  com.kb.gates.plist —— L0–L7 闸门**只读**定时巡检（每日 14:00 本机时间）
+
+  ⚠️ 这是**模板，没有被安装**。安装前先读 ci/README.md 的「与现有定时任务的关系」。
+     装上以后本机就有两个 KB 定时任务：
+       com.kb.pipeline-daily  08:30  daily_sync.py   —— 会写 kb/l0…l6（L0 对齐 + 逐层写档）
+       com.kb.gates           14:00  run_gates.py    —— 只读，只写 ~/Library/Logs/kb-gates/
+     两者**故意错开 5.5 小时**：写档循环要跑 L0 对齐 + 逐层写档，撞在一起会争 kb/.work/.kb.lock。
+
+  为什么值得单独有一个只读巡检（而不是并入 08:30 那一次）：
+     08:30 那次是「**写完之后**顺手体检」，它报的是写档那一刻的状态。白天有人改数据、
+     有人手工发号、飞书侧改源，都不会再被看第二眼。14:00 这次补的是**日间漂移**。
+
+  本任务只读的依据（实测，不是声明）：
+     run_gates.py 只调闸门脚本，不传 --apply，不调 kb_loop_claim.py / kb_pipeline.py --apply /
+     daily_sync.py。八把层闸门各自的文件头都注明「只读档」。
+     （`l5_gate.py` 会写它自己的 `kb/.work/l5_integrity.json` —— 那是自检器的证据件、
+       不是层产物，闸门自己已在文件头说明。）
+
+  退出码：0 全过 ｜ 1 有红 ｜ 2 有「无法计算」｜ 3 runner 故障
+     ⚠️ launchd **不会**因为非 0 退出而通知你。要看结果得读日志或
+        `~/Library/Logs/kb-gates/gates-latest.json` 的 exit_code / summary 字段。
+        要接告警，请另配通道（库内已有飞书发布件，但那是给审查结论用的，别混用）。
+
+  ★ 范围 = `--scope core 把 = 12 把 + projection + envelope）—— 2026-10-04 14:1x 加。
+    为什么加：本文件此前**没有 `--scope`**，于是 `run_gates.py` 取默认 `core`（12 把），
+    而 CI 四份配置（GitHub / GitLab / Jenkinsfile / run-gates.sh 默认）全是 `full`。
+    实测口径（2026-10-04）：
+      · 14:07:14 那次定点触发 落 `scope: core`、`total 12`、红 `['l0']`
+        ⇒ **projection（实测真坏 3/6、退出码 1）不在日常巡检范围内** —— 门是关着的。
+      · `ci/out` 里另有一次 `scope full`、红 `['l0','projection']`。
+    ⇒ 加 `--scope core 后，本机每日红从 **1 把（l0）变成 2 把（l0 + projection）**。
+      两把都是**人做**的动作、CI 修不了（l0=取数身份；projection=权威侧 L3 回填空值），
+      所以这是「把已知真红纳入日常可见」的有意选择，不是回归。
+      要退回绿基线：把这里的 `--scope core 改回不写（或写 `--scope core
+        KB_GATES_SCOPE=core bash ci/install-launchd.sh
+
+  安装（在库根执行）：
+     bash ci/install-launchd.sh          # 推荐：会核对路径、建日志目录、装完立刻验证一次
+  或者手工：
+     mkdir -p ~/Library/Logs/kb-gates    # ★ launchd 不会自建日志目录
+     cp ci/launchd/com.kb.gates.plist ~/Library/LaunchAgents/
+     launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.kb.gates.plist
+  立刻验证一次（不等到 14:00）：
+     launchctl kickstart -p gui/$(id -u)/com.kb.gates
+  卸载：
+     launchctl bootout gui/$(id -u)/com.kb.gates
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.kb.gates</string>
+
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>-c</string>
+		<string>cd "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理" &amp;&amp; exec /usr/bin/python3 -u ci/run_gates.py --scope core --outdir "/Users/lute/Library/Logs/kb-gates"</string>
+	</array>
+
+	<!-- launchd 的 PATH 极简；kbpy 内部要调 python3（按 KB_BOOTSTRAP/PATH 找），
+	     不显式给 PATH 会报「找不到合格解释器」。 -->
+	<!-- HOME 必须显式给：L0 闸门要调 lark-cli，它按 `~/.dsh` 找配置与 keychain；
+	     HOME 缺失时 `expanduser("~/.dsh/bin")` 会解析成字面量 `~/.dsh/bin` ⇒ 找不到 lark-cli
+	     ⇒ l0 报「拉取失败」而**看起来像数据错**。实测同机的 com.kb.pipeline-daily 能跑通 L0，
+	     说明 HOME 实际有值，但**依赖隐式继承**这件事不该留着 —— 显式写死。 -->
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<key>LANG</key>
+		<string>en_US.UTF-8</string>
+		<key>HOME</key>
+		<string>/Users/lute</string>
+	</dict>
+
+	<!-- 每日 14:00（本机时区）。与 08:30 的写档任务错开。 -->
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key>
+		<integer>14</integer>
+		<key>Minute</key>
+		<integer>0</integer>
+	</dict>
+
+	<!-- 不用 RunAtLoad：开机/登录即跑会与用户操作抢 IO，且与 08:30 那次重复。
+	     要立刻验证用 kickstart（见文件头）。 -->
+	<key>RunAtLoad</key>
+	<false/>
+
+	<key>StandardOutPath</key>
+	<string>/Users/lute/Library/Logs/kb-gates/out.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/lute/Library/Logs/kb-gates/err.log</string>
+
+	<key>ProcessType</key>
+	<string>Background</string>
+</dict>
+</plist>

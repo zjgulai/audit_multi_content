@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+"""非记录类资源核验（第二轮）：修 wiki 解析 bug + 补 slides/file 两条通道。
+
+修的是什么：第一轮把 wiki 节点 token 直接当 base/sheet/slides token 用 ——
+  wiki:LLpMwb 因此报 unreachable，其实它是个 bitable（解析后能读 11 张表）。
+本轮：wiki: 前缀先 +node-get 解析出 obj_token 再调对应 API。
+新增通道：
+  · slides → slides +xml-get（第一轮记「CLI 无读命令」是错的）
+  · file   → drive +inspect 定性 + drive +download 取字节（现在有下载能力了）
+用法：python3 kb/l8/verify_l0_nonrecord2.py 20260929-1430 [--apply]
+"""
+import collections
+import hashlib
+import json
+import os
+import subprocess
+import sys
+
+RUN = sys.argv[1] if len(sys.argv) > 1 else "20260929-1430"
+APPLY = "--apply" in sys.argv
+AS_ID, PROFILE = os.environ.get("L8_AS", "user"), os.environ.get("L8_PROFILE", "dsh-kb")
+ENV = dict(os.environ, PATH=os.path.expanduser("~/.dsh/bin") + ":" + os.environ.get("PATH", ""))
+
+
+def sh(*a):
+    p = subprocess.run(list(a), capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", env=ENV, timeout=600)
+    try:
+        return json.loads(p.stdout)
+    except Exception:
+        return {"ok": False, "error": {"message": (p.stdout or p.stderr)[:160]}}
+
+
+lat = {}
+for line in open("kb/l0/manifest.jsonl", encoding="utf-8"):
+    if line.strip():
+        r = json.loads(line)
+        lat[r["resource_key"]] = r
+targets = [k for k, v in lat.items()
+           if v["status"] not in ("gone", "retracted")
+           and (v["source_kind"] in ("feishu_slides", "feishu_file")
+                or k in ("wiki:LLpMwbYEmiX5uSkntPucf893ncf", "docx:Kts8dacyIo1zq1xElWOcqW1zncc",
+                         "sheets:BX0QshqWThhY6HtDEFCcnMpsnRc"))]
+print(f"第二轮核验目标：{len(targets)} 条")
+
+results, rows = [], []
+for key in sorted(targets):
+    row = lat[key]
+    sk, tok = row["source_kind"], key.split(":", 1)[1]
+    ent = {"resource_key": key, "kind": sk}
+    obj = tok
+    if key.startswith("wiki:"):
+        n = sh("lark-cli", "wiki", "+node-get", "--node-token", tok, "--as", AS_ID, "--profile", PROFILE)
+        if n.get("ok"):
+            obj = n["data"]["obj_token"]
+            ent["resolved"] = {"title": n["data"].get("title"), "obj_type": n["data"].get("obj_type"),
+                               "obj_token": obj}
+        else:
+            ent.update(status="unreachable", why=json.dumps(n.get("error"), ensure_ascii=False)[:130])
+            results.append(ent)
+            continue
+    try:
+        if sk == "feishu_bitable_base":
+            t = sh("lark-cli", "base", "+table-list", "--base-token", obj, "--as", AS_ID, "--profile", PROFILE,
+                   "--format", "json")
+            if t.get("ok"):
+                tabs = t["data"]["tables"]
+                ent.update(status="ok", tables=len(tabs),
+                           table_names=[x["name"] for x in tabs][:12],
+                           total_records=sum(x.get("records_count") or 0 for x in tabs))
+            else:
+                ent.update(status="unreachable", why=json.dumps(t.get("error"), ensure_ascii=False)[:130])
+        elif sk == "feishu_slides":
+            x = sh("lark-cli", "slides", "+xml-get", "--presentation-id", obj, "--as", AS_ID, "--profile", PROFILE)
+            if x.get("ok"):
+                xml = json.dumps(x.get("data"), ensure_ascii=False)
+                ent.update(status="ok", chars=len(xml),
+                           sha256=hashlib.sha256(xml.encode()).hexdigest(),
+                           note="slides +xml-get 可读（第一轮误记『无读命令』）")
+            else:
+                ent.update(status="forbidden", why=json.dumps(x.get("error"), ensure_ascii=False)[:130])
+        elif sk == "feishu_file":
+            insp = sh("lark-cli", "drive", "+inspect", "--url",
+                      (row.get("entry_url") or f"https://feishu.cn/file/{tok}"),
+                      "--as", AS_ID, "--profile", PROFILE)
+            ent["inspect"] = {"ok": insp.get("ok"), "title": (insp.get("data") or {}).get("title"),
+                              "type": (insp.get("data") or {}).get("type")}
+            out = f"/tmp/_f2_{hashlib.sha1(key.encode()).hexdigest()[:8]}"
+            d = sh("lark-cli", "drive", "+download", "--file-token", obj, "--output", out,
+                   "--overwrite", "--as", AS_ID, "--profile", PROFILE)
+            if d.get("ok") and os.path.exists(out):
+                h = hashlib.sha256(open(out, "rb").read()).hexdigest()
+                ent.update(status="ok", bytes=os.path.getsize(out), sha256=h,
+                           note="本轮首次取到字节（file_bytes sha256）")
+                os.remove(out)
+            else:
+                ent.update(status="unreachable",
+                           why=json.dumps(d.get("error"), ensure_ascii=False)[:130])
+        elif sk == "feishu_doc":
+            f = sh("lark-cli", "docs", "+fetch", "--doc", obj, "--as", AS_ID, "--profile", PROFILE)
+            ent.update(status="ok" if f.get("ok") else "forbidden",
+                       why=None if f.get("ok") else json.dumps(f.get("error"), ensure_ascii=False)[:130])
+        elif sk == "feishu_sheet":
+            m = sh("lark-cli", "sheets", "+workbook-info", "--spreadsheet-token", obj, "--as", AS_ID, "--profile", PROFILE)
+            ent.update(status="ok" if m.get("ok") else "forbidden",
+                       why=None if m.get("ok") else json.dumps(m.get("error"), ensure_ascii=False)[:130])
+        else:
+            ent.update(status="not_verified", why="无核验器")
+    except Exception as e:
+        ent.update(status="error", why=f"{type(e).__name__}: {str(e)[:110]}")
+    results.append(ent)
+    print(f"  {ent['status']:<12} {key[:46]} {json.dumps({k: v for k, v in ent.items() if k in ('tables','chars','bytes','resolved','why')}, ensure_ascii=False)[:150]}")
+    if APPLY and ent["status"] == "ok":
+        n = dict(row)
+        n.update({"observed_at": RUN, "change": "l0_nonrecord_verify2", "status": "updated",
+                  "status_reason": "第二轮核验通过：" + (ent.get("note") or "可读")})
+        if ent.get("sha256"):
+            n.update({"sha256": ent["sha256"], "sha256_input": "file_bytes" if sk == "feishu_file" else "slides_xml",
+                      "sha256_state": "full", "sha256_prev": row.get("sha256")})
+        rows.append(n)
+
+rep = {"run": RUN, "kind": "nonrecord_verify2", "checked": len(results),
+       "by_status": dict(collections.Counter(r["status"] for r in results)), "results": results}
+json.dump(rep, open(f"kb/l8/runs/{RUN}-l0-nonrecord-verify2.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+print("汇总：", rep["by_status"])
+if APPLY:
+    with open("kb/l0/manifest.jsonl", "a", encoding="utf-8") as fh:
+        for r in rows:
+            fh.write(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n")
+    print(f"已追加 {len(rows)} 行")

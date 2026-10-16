@@ -1,0 +1,170 @@
+#!/usr/bin/env python3
+"""L0 非记录类资源 ↔ 飞书 对齐核验（第三层）。
+
+为什么用「版本号 + 字节指纹」而不是 sha256 比：
+  L0 里 feishu_doc 的 sha256 用的是当时抓取器的正文口径（本轮实测 3 种常见口径都不复现），
+  但同一行记了 revision —— 飞书侧 revision 不变即内容不变，这是可复核的对齐判据。
+  feishu_file 当初是 no_scope（拿不到字节），现在能取，直接补 file_bytes sha256。
+
+覆盖：feishu_doc / feishu_file / feishu_sheet / feishu_slides / feishu_bitable_table / feishu_bitable_base
+不覆盖：url（150 条外部网页，需重抓，另行报告）
+用法：python3 kb/l8/verify_l0_nonrecord.py 20260929-1350 [--apply]
+"""
+# ── 解释器守卫（2026-09-29）：不合格就用 kb/.kb-python 指定的解释器重跑自己 ──
+import os as _os, sys as _sys
+if not _os.environ.get("KB_INTERP_OK"):
+    _d = _os.path.dirname(_os.path.abspath(__file__)); _cfg = None
+    while True:
+        _p = _os.path.join(_d, ".kb-python")
+        if _os.path.isfile(_p):
+            _cfg = _p
+            break
+        _q = _os.path.dirname(_d)
+        if _q == _d:
+            break
+        _d = _q
+    if _cfg:
+        _want = next((l.split("#", 1)[0].strip() for l in open(_cfg, encoding="utf-8")
+                      if l.split("#", 1)[0].strip()), "")
+        _want = _os.path.expanduser(_want)
+        if (_want and _os.access(_want, _os.X_OK)
+                and _os.path.realpath(_want) != _os.path.realpath(_sys.executable)):
+            _os.environ["KB_INTERP_OK"] = "1"
+            _os.execve(_want, [_want, _os.path.abspath(__file__)] + _sys.argv[1:], dict(_os.environ))
+# ──────────────────────────────────────────────────────────────────────────
+
+import collections
+import hashlib
+import json
+import os
+import subprocess
+import sys
+
+RUN = sys.argv[1] if len(sys.argv) > 1 else "20260929-1350"
+APPLY = "--apply" in sys.argv
+AS_ID, PROFILE = os.environ.get("L8_AS", "user"), os.environ.get("L8_PROFILE", "dsh-kb")
+ENV = dict(os.environ, PATH=os.path.expanduser("~/.dsh/bin") + ":" + os.environ.get("PATH", ""))
+
+
+def sh(*a):
+    p = subprocess.run(list(a), capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", env=ENV, timeout=600)
+    try:
+        return json.loads(p.stdout)
+    except Exception:
+        return {"ok": False, "error": {"message": (p.stdout or p.stderr)[:160]}}
+
+
+lat = {}
+for line in open("kb/l0/manifest.jsonl", encoding="utf-8"):
+    if line.strip():
+        r = json.loads(line)
+        lat[r["resource_key"]] = r
+act = {k: v for k, v in lat.items()
+       if v["status"] not in ("gone", "retracted") and not k.startswith("audit:")
+       and v["source_kind"] not in ("feishu_bitable_record", "feishu_attachment")}
+print(f"待核非记录类资源：{len(act)} 条（按 kind：{dict(collections.Counter(v['source_kind'] for v in act.values()))}）")
+
+results, updated = [], []
+for key, row in sorted(act.items()):
+    sk = row["source_kind"]
+    ent = {"resource_key": key, "kind": sk, "l0_revision": row.get("revision"),
+           "l0_sha256": row.get("sha256"), "l0_sha_state": row.get("sha256_state")}
+    tok = key.split(":", 1)[1] if ":" in key else key
+    try:
+        if sk == "feishu_doc":
+            n = sh("lark-cli", "wiki", "+node-get", "--node-token", tok, "--as", AS_ID, "--profile", PROFILE) \
+                if key.startswith("wiki:") else {"ok": True, "data": {"obj_token": tok}}
+            if not n.get("ok"):
+                ent.update(status="unreachable", why=json.dumps(n.get("error"), ensure_ascii=False)[:120])
+            else:
+                f = sh("lark-cli", "docs", "+fetch", "--doc", n["data"]["obj_token"], "--as", AS_ID, "--profile", PROFILE)
+                if not f.get("ok"):
+                    ent.update(status="unreachable", why=json.dumps(f.get("error"), ensure_ascii=False)[:120])
+                else:
+                    doc = f["data"].get("document") or {}
+                    rev = f["data"].get("revision_id") or doc.get("revision_id") or doc.get("revision")
+                    ent.update(status="ok" if rev == row.get("revision") else "drift",
+                               feishu_revision=rev, title=doc.get("title"))
+        elif sk == "feishu_file":
+            ftok = tok
+            if key.startswith("wiki:"):
+                n = sh("lark-cli", "wiki", "+node-get", "--node-token", tok, "--as", AS_ID, "--profile", PROFILE)
+                if not n.get("ok"):
+                    ent.update(status="unreachable", why="wiki 解析失败")
+                    results.append(ent)
+                    continue
+                ftok = n["data"]["obj_token"]
+            out = f"/tmp/_l0file_{hashlib.sha1(key.encode()).hexdigest()[:8]}"
+            d = sh("lark-cli", "drive", "+download", "--file-token", ftok, "--output", out,
+                   "--overwrite", "--as", AS_ID, "--profile", PROFILE)
+            if d.get("ok") and os.path.exists(out):
+                h = hashlib.sha256(open(out, "rb").read()).hexdigest()
+                ent.update(status="ok" if not row.get("sha256") else ("ok" if h == row["sha256"] else "drift"),
+                           bytes=os.path.getsize(out), feishu_sha256=h,
+                           note="L0 原为 no_scope（无字节）；本轮首次取到并记 file_bytes sha256")
+                os.remove(out)
+            else:
+                ent.update(status="unreachable", why=json.dumps(d.get("error"), ensure_ascii=False)[:120])
+        elif sk == "feishu_sheet":
+            m = sh("lark-cli", "sheets", "+workbook-info", "--spreadsheet-token", tok,
+                   "--as", AS_ID, "--profile", PROFILE)
+            if m.get("ok"):
+                rev = (m["data"].get("spreadsheet") or {}).get("revision") or m["data"].get("revision")
+                ent.update(status="ok" if rev == row.get("revision") else "drift", feishu_revision=rev)
+            else:
+                ent.update(status="forbidden", why=json.dumps(m.get("error"), ensure_ascii=False)[:120])
+        elif sk == "feishu_bitable_table":
+            parts = key.split(":")
+            base, tid = parts[1], parts[-1]
+            t = sh("lark-cli", "base", "+table-list", "--base-token", base, "--as", AS_ID, "--profile", PROFILE,
+                   "--format", "json")
+            if t.get("ok"):
+                hit = next((x for x in t["data"]["tables"] if x["id"] == tid), None)
+                ent.update(status="ok" if hit else "gone", feishu_rev=(hit or {}).get("rev"),
+                           records_count=(hit or {}).get("records_count"))
+            else:
+                ent.update(status="unreachable", why=json.dumps(t.get("error"), ensure_ascii=False)[:120])
+        elif sk == "feishu_bitable_base":
+            t = sh("lark-cli", "base", "+table-list", "--base-token", tok, "--as", AS_ID, "--profile", PROFILE,
+                   "--format", "json")
+            ent.update(status="ok" if t.get("ok") else "unreachable",
+                       tables=len(t["data"]["tables"]) if t.get("ok") else None,
+                       why=None if t.get("ok") else json.dumps(t.get("error"), ensure_ascii=False)[:120])
+        elif sk == "feishu_slides":
+            ent.update(status="not_verified", why="slides 本轮无对应读命令（保持登记）")
+        else:
+            ent.update(status="not_verified", why="无核验器")
+    except Exception as e:
+        ent.update(status="error", why=f"{type(e).__name__}: {str(e)[:100]}")
+    results.append(ent)
+    if APPLY and ent["status"] in ("ok", "drift"):
+        new = dict(row)
+        new.update({"observed_at": RUN, "change": "l0_nonrecord_verify",
+                    "status": "updated" if ent["status"] == "ok" else "registered",
+                    "status_reason": f"非记录类核验：{ent['status']}"
+                                     + (f"；首次取得 file_bytes sha256" if ent.get("feishu_sha256") and not row.get("sha256") else "")})
+        if ent.get("feishu_revision") is not None:
+            new["revision"] = ent["feishu_revision"]
+        if ent.get("feishu_sha256"):
+            new["sha256"] = ent["feishu_sha256"]
+            new["sha256_input"] = "file_bytes"
+            new["sha256_state"] = "full"
+        updated.append(new)
+
+rep = {"run": RUN, "identity": f"{AS_ID}/{PROFILE}", "checked": len(results),
+       "by_status": dict(collections.Counter(r["status"] for r in results)),
+       "results": results, "manifest_rows_appended": len(updated)}
+json.dump(rep, open(f"kb/l8/runs/{RUN}-l0-nonrecord-verify.json", "w", encoding="utf-8"),
+          ensure_ascii=False, indent=1)
+print("=== 结果 ===", rep["by_status"])
+for r in results:
+    if r["status"] != "ok":
+        print(f"  {r['status']:<12} {r['resource_key'][:56]}  {str(r.get('why') or '')[:70]}")
+if APPLY:
+    with open("kb/l0/manifest.jsonl", "a", encoding="utf-8") as fh:
+        for r in updated:
+            fh.write(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n")
+    print(f"已追加 {len(updated)} 行核验记录 → kb/l8/runs/{RUN}-l0-nonrecord-verify.json")
+else:
+    print("未写入（加 --apply）")

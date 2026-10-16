@@ -1,0 +1,5 @@
+Momcozy 内容治理知识库 **L1→L2 抽取与切分入口**：把素材抽成知识单元（L1），再切成可召回、可蒸馏单元（L2）。**只拆不合**。
+当用户说「抽取单元/素材转条目/L1 抽取/L2 切分/补切/重切/切分规则/单元不对齐/有条目没切/查一下 L1 状态/L1 水位/单元行数/L2 预演/干跑/将追加多少行/+0 行/幂等跳过/sha 没变/缺口口径/kb-ingest-extractor」时使用；只想查状态走 §2.1 只读档（l1_status.py / l2_status.py）。
+**先追问、别加载（欠定）**：只打本名、只有名词、指代不明、没给素材 → 不加载，先问清。
+**破坏性/越权不加载**：rm -rf、清空、--apply、写库（归 kb-pipeline 写档）。
+判归：图片/视频/附件 OCR→kb-media-extractor（不碰 OCR）；条款蒸馏→kb-clause-extractor（L3）；只对账 L0→kb-l0-feishu；整链同步→kb-pipeline；体检→kb-check；修闸门→kb-repair。

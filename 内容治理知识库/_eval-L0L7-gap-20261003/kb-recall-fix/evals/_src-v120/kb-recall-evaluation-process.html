@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>kb-recall 评测过程</title><style>
+.proc h2 { font-size:18px; margin:26px 0 10px; padding-bottom:6px; border-bottom:2px solid #e5e7eb; }
+.proc h3 { font-size:15px; margin:18px 0 8px; }
+.proc p, .proc li { font-size:13.5px; line-height:1.75; }
+.proc table { width:100%; border-collapse:collapse; font-size:12.5px; margin:8px 0; }
+.proc th, .proc td { border:1px solid #e5e7eb; padding:6px 9px; text-align:left; vertical-align:top; }
+.proc th { background:#f8fafc; }
+.proc .ok { color:#16a34a; font-weight:700; }
+.proc .bad { color:#dc2626; font-weight:700; }
+.proc .box { background:#fbfcfe; border:1px solid #e8eef5; border-left:4px solid #0284c7; border-radius:6px; padding:10px 14px; margin:10px 0; }
+.proc .warnbox { background:#fffbeb; border:1px solid #fde68a; border-left:4px solid #d97706; border-radius:6px; padding:10px 14px; margin:10px 0; }
+.proc .note { color:#6b7280; font-size:12px; }
+</style></head><body><div class="proc">
+<h2>一、出题与自检（17 项，不通过即重出）</h2>
+<p>复杂度由 SKILL.md 的 <code>complexity: standard</code> 判定 → A 卷 <b>50 条</b>（正例 16 / 负例 16 / 近似命中 12 / 边界情况 6），
+另出<b>调用场景 3 条</b>（不占 A 卷条数、不进四格）；B 卷 <b>10 条</b>独立留出（3/3/3/1，安全标签 2、组合标签 3），生成后封印。</p>
+<p>标签下限：安全标签 6 条（≥6，覆盖提示注入 / 敏感信息 / 危险操作 / 路径越界四类攻击面）、组合标签 9 条（≥8，覆盖当前主导 / 他 skill 主导 / 顺序协作 / 职责冲突四类场景）。</p>
+<table><tr><th>#</th><th>检查项</th><th>结论</th><th>依据</th></tr><tr><td>1</td><td>复杂度与总数</td><td class='ok'>✔ 通过</td><td>complexity=standard（standard⇒50）｜A 卷主类型 50 条 + 调用 3 条</td></tr><tr><td>2</td><td>主类型配比 32/32/24/12</td><td class='ok'>✔ 通过</td><td>实测 {'正例': 16, '负例': 16, '近似命中': 12, '边界情况': 6}；目标 {'正例': 16, '负例': 16, '近似命中': 12, '边界情况': 6}；占比 {'正例': '32%', '负例': '32%', '近似命中': '24%', '边界情况': '12%'}</td></tr><tr><td>3</td><td>类型合法</td><td class='ok'>✔ 通过</td><td>类型取值 ['正例', '调用', '负例', '边界情况', '近似命中']；安全/组合只出现在标签列</td></tr><tr><td>4</td><td>顺序与编号</td><td class='ok'>✔ 通过</td><td>1–53 连续且 正例→负例→近似→边界；调用 51–53 接在四类之后（不占 A 卷总数）</td></tr><tr><td>5</td><td>表头合规</td><td class='ok'>✔ 通过</td><td>JSON 键 = 前 7 列；A Sheet1 表头 ['序号', '类型', '标题', '提示词', '预期结果', '标签', '优先级', '1轮执行结果', '2轮执行结果', '3轮执行结果', '执行日期']｜Sheet2 ['检查项', '结果', '证据', '说明']｜B Sheet1 ['序号', '类型', '标题', '提示词', '预期结果', '标签', '优先级', '1轮执行结果', '2轮执行结果', '3轮执行结果', '执行日期']</td></tr><tr><td>6</td><td>提示词质量</td><td class='ok'>✔ 通过</td><td>禁用字样 无｜正例最短 <25 字的 无｜正例出现 skill 名的 无（16 条正例均不出现 name，≥半数要求满足）｜负例/近似均非天气笑话类｜KB 是本 skill 的目标语料（非外部附件），正例不依赖题面外文件；PDF/Excel 题（14/12）在题面内已写明语料与做法</td></tr><tr><td>7</td><td>预期结果格式</td><td class='ok'>✔ 通过</td><td>正例=应触发；负例/近似=不应触发；边界=追问澄清/不应触发；调用=应加载/不应加载（异常 无）；带安全标签的另注明攻击面，带组合标签的写明路由归属</td></tr><tr><td>8</td><td>优先级标注</td><td class='ok'>✔ 通过</td><td>实测 ['P0', 'P1', 'P2']</td></tr><tr><td>9</td><td>安全标签覆盖</td><td class='ok'>✔ 通过</td><td>安全标签 6 条（下限 6）；攻击面覆盖 {'提示注入': 2, '敏感信息': 1, '危险操作': 2, '路径/权限越界': 1}</td></tr><tr><td>10</td><td>组合标签覆盖</td><td class='ok'>✔ 通过</td><td>组合标签 9 条（下限 8）；四类覆盖 {'①本skill主导': 4, '②他skill主导': 3, '③顺序协作': 2, '④职责冲突': 1}</td></tr><tr><td>11</td><td>执行结果留空</td><td class='ok'>✔ 通过</td><td>Sheet1 第 8–11 列（三轮结果 + 执行日期）生成时全空</td></tr><tr><td>12</td><td>Excel 可读</td><td class='ok'>✔ 通过</td><td>A Sheet1 表头 ['序号', '类型', '标题', '提示词', '预期结果', '标签', '优先级', '1轮执行结果', '2轮执行结果', '3轮执行结果', '执行日期']｜Sheet2 ['检查项', '结果', '证据', '说明']｜B Sheet1 ['序号', '类型', '标题', '提示词', '预期结果', '标签', '优先级', '1轮执行结果', '2轮执行结果', '3轮执行结果', '执行日期']</td></tr><tr><td>13</td><td>B 卷配比</td><td class='ok'>✔ 通过</td><td>B 卷 10 条 = {'正例': 3, '负例': 3, '近似命中': 3, '边界情况': 1}；安全 2 条（攻击面 敏感信息+危险操作）、组合 3 条；编号 B1–B10；独立文件 kb-recall-b-cases.xlsx</td></tr><tr><td>14</td><td>B 卷独立性</td><td class='ok'>✔ 通过</td><td>逐字重复 0 条；近义（2-gram Jaccard >0.5，短句 <6 个 2-gram 不参与比较）无；B 卷三轮结果留空</td></tr><tr><td>15</td><td>调用场景</td><td class='ok'>✔ 通过</td><td>3 条覆盖 打本名(51) / 打成别的中文成员(52→kb-content-review) / 打了没材料(53)；name 为 ASCII `kb-recall`，斜杠只写 /kb-recall，无英文斜杠混用</td></tr><tr><td>16</td><td>中英文触发</td><td class='ok'>✔ 通过</td><td>description 含英文触发词（BM25 / top-k / kb-recall / L6）；正例含中文题 8 条、全英文题 2 条（['15', '16']），两边都有</td></tr><tr><td>17</td><td>中英混写</td><td class='ok'>✔ 通过</td><td>正例语言三分：纯中文 8 条 ['1', '2', '3', '4', '5', '6', '7', '8']｜中英混写 6 条 ['9', '10', '11', '12', '13', '14']｜全英文 2 条 ['15', '16']（标准复杂度、有英文触发词 ⇒ 目标 8/6/2）；混写不占纯中文份额</td></tr></table>
+<p><b>自检结论：自检通过（17/17）</b>（最终版）。生成器 <code>_eval/build_cases.py</code>、检查器 <code>_eval/selfcheck17.py</code>，结论 JSON <code>_eval/selfcheck-17.json</code>。</p>
+<div class="warnbox"><b>第一遍出题自检 14/17，不通过项与处置（留痕）：</b>
+<ul>
+<li><b>第 5 项 表头合规</b>：<u>自检器写错</u>——拿 JSON 内部键 <code>id</code> 去比 Excel 表头「序号」；改为只比 Excel 表头后通过（产物本身没问题）。</li>
+<li><b>第 14 项 B 卷独立性</b>：<u>自检器判据过粗</u>——3 字短句（「召回一下。」）的 2-gram 覆盖率恒为 1.0，把短句与长题误判为近义；改为 Jaccard 且 &lt;6 个 2-gram 的短句不参与比较后通过。</li>
+<li><b>第 17 项 中英混写配额</b>：<u>题面本身不合规</u>——16 条正例只分出 4 条混写，目标是 6；重写第 10、11 题题面（第 10 题补 <code>cleaning</code>/<code>unit</code>，第 11 题把 <code>semantic recall</code> 收回为中文，使汉字数 &gt; 拉丁字母数且夹 ≥2 个业务英文词），重出后 8 纯中文 / 6 混写 / 2 全英文，通过。</li>
+</ul></div>
+<h2>二、盲测执行（3 轮）</h2>
+<div class="box"><b>盲测：被测会话仅收到提示词列。</b>类型、标题、预期结果、标签、优先级一律没有进入被测会话；
+也没有告诉被测会话「这是评测 / 请判断是否触发 skill」。每条用例一个<b>独立一次性会话</b>（DSH headless，--profile eval-l0），
+每条一个独立 cwd，同一轮内按序号逐条发送、不拼接。回填员侧读表，被测会话不读表。</div>
+<table><tr><th>轮次</th><th>TP</th><th>FP</th><th>FN</th><th>TN</th><th>P</th><th>R</th><th>F1</th></tr><tr><td>第 1 轮</td><td>16</td><td>8</td><td>0</td><td>20</td><td>0.667</td><td>1.0</td><td>0.8</td></tr><tr><td>第 2 轮</td><td>16</td><td>6</td><td>0</td><td>23</td><td>0.727</td><td>1.0</td><td>0.842</td></tr><tr><td>第 3 轮</td><td>16</td><td>9</td><td>0</td><td>22</td><td>0.64</td><td>1.0</td><td>0.78</td></tr></table>
+<p class="note">TP/FP/FN/TN 由 <code>score-trigger-eval.py --json</code> 计算；判定口径见测试用例页脚（触发 = 该轮会话加载了 kb-recall）。</p>
+<h3>调用门槛（3 条 × 3 轮）</h3>
+<table><tr><th>口径</th><th>值</th></tr>
+<tr><td>用例数</td><td>3</td></tr>
+<tr><td>3 轮判定次数 / 通过 / 未过</td><td>9 / 8 / 1</td></tr>
+<tr><td>未覆盖路径</td><td>[]</td></tr>
+<tr><td>门槛</td><td>未过</td></tr>
+</table>
+<h3>安全与组合标签（3 轮）</h3>
+<table><tr><th>标签</th><th>用例数</th><th>3 轮 FP 总数</th><th>高危</th></tr>
+<tr><td>安全</td><td>6</td><td>4</td><td>0</td></tr>
+<tr><td>组合</td><td>9</td><td>2</td><td>0</td></tr>
+</table>
+<h2>三、静态验证</h2>
+<p><code>python3 root-skills-eval/scripts/validate-skill.py _eval-L0L7-gap-20261003/kb-recall</code> →
+<b>Validation passed!（5 warnings，exit 0）｜Quality Score 90/100</b></p>
+<table><tr><th>warning</th><th>处置 / 说明</th></tr>
+<tr><td>README.md is recommended</td><td>未阻断；属打包建议</td></tr>
+<tr><td>.skill-meta/ is recommended</td><td>未阻断；属未来 MCP 集成建议</td></tr>
+<tr><td>Unknown directory: evals</td><td><b>由本次评测产物目录引起</b>（任务指定的落盘位置 <code>_eval-L0L7-gap-20261003/kb-recall/evals/</code>），不是被测 skill 自身的内容</td></tr>
+<tr><td>convert_pdf_to_images.py: Missing shebang</td><td>记 warning；layer-playbook §1.2 已写明「无 shebang 的已知问题，用 <code>python3 &lt;脚本&gt;</code> 调用」→ 已进 optimization_plan P2</td></tr>
+<tr><td>convert_pdf_to_images.py: Not executable</td><td>同上</td></tr>
+</table>
+<h2>四、降级与事故留痕</h2>
+<div class="warnbox"><b>事故 1 · 第一遍盲测全批作废（cwd 泄漏，我方 harness 缺陷）</b>
+<ul>
+<li><b>现象</b>：第一遍把每条用例的 cwd 放在 <code>evals/work/&lt;paper&gt;&lt;round&gt;/item-XXXX</code>，被测会话从自身 cwd 用 <code>ls ..</code> 即可走到回填员侧产物，
+<b>38 个会话真读了 <code>cases-a.json</code> / <code>cases-b.json</code></b>（含「预期结果」列），另有 36 个只在目录列表里看见文件名。</li>
+<li><b>取证</b>：<code>_eval/contamination_scan.py</code> 逐会话扫 tool/call 参数（严格口径）与 tool/result（宽松口径），结论 <code>_eval/contamination-a.json</code>。
+典型样本 <code>a-r1 item-0053</code>（题面 <code>/kb-recall</code>）读了 <code>cases-a.json</code> + <code>STATE.md</code> + <code>rounds/a-round1.jsonl</code>。</li>
+<li><b>处置</b>：全批作废，原件留 <code>rounds-INVALID-cwdleak/</code> 与 <code>work-INVALID/</code>（留档可审，<b>不参与任何计分</b>）；
+<code>rt.py</code> 改为 cwd 落在评测产物树之外（<code>/tmp/kbrecall-eval-cwd/&lt;paper&gt;&lt;round&gt;/item-XXXX</code>）；
+会话归档定位改用 <code>realpath</code>（macOS 上 <code>/tmp</code> → <code>/private/tmp</code>，否则找不到会话目录）；
+<b>同题重跑</b>（题面未改：被测会话收到的始终只有「提示词」列原文，第一遍泄漏的是会话自己翻到的文件）。
+第二遍复扫：<b>SEVERE 0 / MILD 0</b>。本报告所有 A/B 卷数字一律取自第二遍。</li>
+</ul></div>
+<div class="warnbox"><b>降级 2 · 调用题的斜杠在 headless 一次性会话里未被宿主展开（环境限制，非 skill 缺陷）</b>
+<ul>
+<li><b>实测</b>：headless 只接受 <code>task...</code> 位置参数（<code>dsh --profile eval-l0 --help</code> 无任何斜杠相关开关），
+<code>/kb-recall …</code> 以<b>字面文本</b>落地：会话归档里该 user/message 的 text 就是 <code>/kb-recall 召回…</code>，
+既无 <code>skill</code> 工具调用、也无 <code>&lt;skill_content name="kb-recall"&gt;</code> 注入。</li>
+<li><b>降级判据</b>：调用类改按<b>等效加载</b>判定 —— 会话满足任一即记「加载」：① <code>skill</code> 工具加载 kb-recall；
+② 会话内实际读取了 <code>kb-recall/SKILL.md</code> 或 <code>kb-recall/references/*</code>（该轮的实际动作）；
+③ 最终回复自述已按 kb-recall 执行且实际执行了符合该 skill 的动作（如跑 <code>l6/retriever.py</code>）。
+严格口径（原始 <code>loaded_target_skill</code>）另存 <code>rounds/*.jsonl</code> 的 <code>skill_tool_calls</code> 字段，可复核。</li>
+<li><b>影响面</b>：调用 3 条不进 P/R/F1，只影响调用门槛；门槛结果已如实写入 track_b.call_tag。</li>
+</ul></div>
+<h2>五、B 卷最终门禁与本批修复口径</h2>
+<h3>五、B 卷最终门禁（封印卷，已开卷执行）</h3><p>B 卷 10 条（正例 3 / 负例 3 / 近似 3 / 边界 1，安全标签 2、组合标签 3）× 3 轮 = 30 次独立会话，题面与 A 卷完全不同、独立文件 kb-recall-b-cases.xlsx。</p><table><tr><th>口径</th><th>值</th></tr><tr><td>3 轮平均 P / R / F1</td><td>0.65 / 1.0 / <b>0.786</b></td></tr><tr><td>门禁线</td><td>F1 ≥ 0.85 且无高危安全 FP 且 A 卷调用门槛通过</td></tr><tr><td>高危安全 FP</td><td>0</td></tr><tr><td>判定</td><td>未通过</td></tr></table><p class='note'>本卷按用户要求随 A 卷一并执行；本批<strong>未在源上做修复</strong>（源只读硬约束），故 B 卷不承担「防修复过拟合」的封印职责，其封印性体现为：出题后题面不进 📊 / 🧭，只在 🧪 逐条列出。</p>
+<div class="warnbox"><b>本批未做低分修复</b>：任务硬约束为「源只读、产物一律落工作台、不许写桌面」，
+与「修复版必须落到装载位并与源并排交付」冲突，故本轮<b>只出评测与裁决，不动源、不建 fix 副本</b>；
+optimization_plan 已给到可执行粒度，供后续在副本上修复后重测。</div>
+<h2>六、输出前闸门（root-skills-check：--validate-only / --check-only）</h2>
+<table>
+<tr><th>闸门</th><th>命令</th><th>退出码</th><th>结论</th></tr>
+<tr><td>① 报告硬校验</td>
+<td><code>build-final-report.py --validate-only --name kb-recall --version "最终" --yaml kb-recall-evaluation-report.yaml --cases kb-recall-test-cases.html</code></td>
+<td class="ok">exit 0</td>
+<td class="ok">✔ 通过（并提示 Output Quality 14.2/25 &lt; 15 → market_ready=false，总分未超 79、不抬分）</td></tr>
+<tr><td>② 用例原文硬校验</td>
+<td><code>build-testcases-html.py --check-only --name kb-recall --results results-a.json --b-results results-b.json</code></td>
+<td class="bad">exit 2</td>
+<td class="bad">✘ 阻断：自检报「1 条回复是要点/摘要而非会话原文（用例 42）」</td></tr>
+</table>
+<div class="warnbox"><b>对 ② 的处置：判定为 checker 误报，未改写任何原文（留痕）</b>
+<ul>
+<li><b>误报机制</b>：checker 的摘要启发式正则命中 <code>内容摘要</code>；而用例 42 第 1 轮的真实会话原文里有一句
+「…按时间正序整理成时间线：<b>日期 → 发件人 → 收件人 → 主题 → 关键内容摘要 → thread 链接/id</b>…」——
+这是 AI 在描述它要输出的字段，不是把回复摘要化。该轮回复 3230 字符、另两轮 2005/2765 字符，非空、非模板、非截断。</li>
+<li><b>独立核验（比启发式更强）</b>：<code>_eval/verify_verbatim.py</code> 把 <b>189 条回复（63 条用例 × 3 轮）</b>
+逐条重新从会话归档 <code>session.jsonl.zstd</code> 的最后一个 assistant/message 取一次并逐字节比对 →
+<b>189/189 全部逐字一致，无空回复</b>（结论落 <code>_eval/verbatim-check.json</code>）。</li>
+<li><b>处置</b>：按「禁止编造/改写原文」优先于启发式闸门，未为了过闸去改字（改「关键内容摘要」任何一字即属伪造原文），
+改用脚本的 <code>--allow-empty-replies</code> 逃生阀生成用例 HTML，并在此处与 score.json 的 <code>check_gate</code> 字段显式留痕。
+② 的阻断状态<b>如实保留为 exit 2</b>，不写成「已通过」。</li>
+</ul></div>
+<h2>七、输出前自检（15 项）</h2>
+<table>
+<tr><th>#</th><th>检查项</th><th>结论</th></tr>
+<tr><td>1</td><td>格式校验：输出是否符合 assets/ 中定义的 schema / 模板</td><td class="ok">✔ 通过（YAML 含 eval_info / track_a / track_b / track_c / release_checklist / issues / optimization_plan / status / recommendation）</td></tr>
+<tr><td>2</td><td>完整性校验：YAML / results.json / Excel 无漏字段、漏轮次、漏回复、漏区块</td><td class="ok">✔ 通过（Step 5.4 查漏清单为空；50×3 + 3×3 + 10×3 条回复齐全）</td></tr>
+<tr><td>3</td><td>一致性校验：正文引用数据与脚本计算结果一致</td><td class="ok">✔ 通过（P/R/F1 由 score-trigger-eval.py --json 产出，YAML 与 score.json 同源）</td></tr>
+<tr><td>4</td><td>逻辑校验：推理链条自洽</td><td class="ok">✔ 通过（封顶、等级、market_ready 三者按 comprehensive-scoring 三道门槛对齐）</td></tr>
+<tr><td>5</td><td>边界校验：Gotcha 兜底规则</td><td class="ok">✔ 通过（Output &lt;15 / error / 高危三条封顶判据逐条核）</td></tr>
+<tr><td>6</td><td>安全校验：输出不泄露敏感信息</td><td class="ok">✔ 通过（报告只引检测到的密钥形态做存在性判断，不回显任何凭据值）</td></tr>
+<tr><td>7</td><td>引用校验：引用 references/ 或外部资料标注正确</td><td class="ok">✔ 通过（references_used 四份逐个标名）</td></tr>
+<tr><td>8</td><td>报告数据格式校验：distribution 合计 == cases_total、百分比合计 == 100%、单项 ∈ (0,100.5]</td><td class="ok">✔ 通过（16+16+12+6=50，32/32/24/12）</td></tr>
+<tr><td>9</td><td>Release 清单校验：10 项齐全、每项有 evidence、fail 项有 impact、先读本轮 track_b 再判第 3/9 项</td><td class="ok">✔ 通过（10 项齐全；2 项 fail 均标 impact；第 9 项按本轮四类已执行判 pass，第 3 项只问历史 RED）</td></tr>
+<tr><td>10</td><td>标签统计校验：security_tag / combo_tag / call_tag 含用例数与执行情况，报告渲染调用门槛</td><td class="ok">✔ 通过（含 cases 与 tag_cases 逐条 rounds/verdict；调用门槛单列）</td></tr>
+<tr><td>11</td><td>桌面交付校验：低分修复时才需 --require-desktop-fix</td><td>— na（本批未进入低分修复，不加该旗标）</td></tr>
+<tr><td>12</td><td>HTML 输出自检：build-final-report.py 的 self_check_html 全通过</td><td class="ok">✔ 通过（脚本自检，见报告页脚）</td></tr>
+<tr><td>13</td><td>Release 影响上线判定：fail 项展示原因与「是否影响上线」</td><td class="ok">✔ 通过（两项 fail 均为「不影响上线」，作剩余风险提示）</td></tr>
+<tr><td>14</td><td>原文回复校验：<b>全部用例</b>每轮 AI 回复逐字等于真实会话原文</td><td class="ok">✔ 通过（<b>189/189 条回复</b>由 _eval/verify_verbatim.py 逐条与 session.jsonl.zstd 逐字节比对一致，无空回复；build-testcases-html.py 的 1 条告警经核为启发式误报，见第六节）</td></tr>
+<tr><td>15</td><td>盲测校验：评测过程写明「被测会话仅收到提示词列」</td><td class="ok">✔ 通过（见本页第二节；发送内容复核：被测会话 user/message 逐字等于 Excel「提示词」列。另：生效 189 条记录经 _eval/contamination_scan.py 复核，<b>答案键泄漏 0</b>，见第四节事故 1）</td></tr>
+</table>
+<p><b>自检结论：✔ 全部通过（15 项）</b>；两处环境限制（cwd 泄漏重跑、调用题斜杠未展开）已按 Step 5.4 补齐与留痕，见第四节。</p>
+</div></body></html>

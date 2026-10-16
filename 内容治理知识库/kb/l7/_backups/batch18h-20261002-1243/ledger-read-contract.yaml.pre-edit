@@ -1,0 +1,462 @@
+# ledger-read-contract.yaml —— 三本追加式台账的**读侧取用键与 keep_rule** 登记
+#
+# 谁读它：人（评审/新成员）与 `kb/l7/scripts/daily_health.py` 一类巡检；**不是**给闸门复算用的
+#         （本文件不含可复算数字，故无对应 checker —— 这点如实写明，不假装有闸门在管）。
+#
+# 为什么要有这份登记（批次11 · C-3，2026-10-02）：
+#   「同键取行序最靠后」这个取法**项目里早就在用**（`kb/.work/l5_prep.py:183`、
+#   `kb/.work/l5_export.py:58`、`kb/.work/l4_integrity.py:116-117`，并由
+#   `kb/l3/registry/l3.json` 的 `dedup.wording_last_wins` 登记在案），
+#   但 **L0/L1/L3 三本主台账各自的取用键与 keep_rule 从没登记过** ——
+#   只有 `sample_case` 有 `keep_rule`（且写的是「最靠前」）。
+#   后果：写入侧各自无条件追加、读侧各自默认取最后一行，**没有任何一处声明它们是同一套契约**，
+#   于是「台账每跑一遍就翻一倍」既没人拦、也说不清算不算违背契约。
+#
+# 与既有惯例的关系：**不另立一套**。字段名沿用 `l3.json:dedup.wording_last_wins`
+#   （file / key / rule / row_order_is_version_order / why / existing_consumers）。
+#
+# 纪律（与 `l3-known-drift.yaml`、`l0-expected-diffs.yaml` 同一套）：
+#   * 这里登记的是**读侧口径**，不是豁免；原始行数一律照打，不抹掉。
+#   * 登记之后，「同键取最后一行」就是**有据可依的契约**，
+#     写入侧据此才敢只在**内容真变**时追加（见 `kb/kb_ledger.py` 与 `kb/l8/l0_ledger.py`）。
+
+meta:
+  file: kb/l7/registry/ledger-read-contract.yaml
+  created_at: "2026-10-02"
+  batch: "批次11 · C-3"
+  owner: 刘华丽
+  checker: null
+  checker_note: "本文件登记的是读侧口径，不含可复算数字，故无闸门消费它（如实写明，不虚构 checker）"
+  baseline_measured_at: "2026-10-02（批次11 执行前实测；行数为当时值，随台账增长而变）"
+
+# ── 三本主台账 ────────────────────────────────────────────────────────────
+contracts:
+
+  l1_manifest:
+    file: kb/l1/manifest_l1.jsonl
+    layer: L1
+    key: resource_key
+    rule: "每个 resource_key 取【行序最靠后】的那一行（后写覆盖先写）"
+    row_order_is_version_order: true
+    why: >-
+      该文件是跨层 append-only：初抽取 → OCR 回填 → 失效标记 → 重抓刷新，
+      每次都是「同一 resource_key 再追加一行表达新状态」。
+      追加顺序即状态演进顺序，故取最后一行 = 取当前状态。
+    why_not_earliest: >-
+      取最靠前会读到初抽取时的状态，把后续的 invalidated / 刷新结果全部丢掉。
+    existing_consumers:
+      - "kb/l8/extract_l1_new_resources.py:85-88（l1_latest[...] = r）"
+      - "kb/l8/extract_pdftext_full.py:193-195（lat_l1[...] = r）"
+      - "kb/l8/l2_staleness_audit.py:89-91（l1_status[resource_id] = status）"
+      - "kb/l8/l2_align_current.py:77-78"
+      - "kb/l8/l2_gap_reconcile.py:98-99（注释明写「同 resource_id 取文件顺序最后一行」）"
+      - "kb/l8/align_l1_manifest.py"
+      - "kb/l1/index/rebuild_l1_index.py"
+      - "kb/l7/scripts/l1_status.py（只读全列，不合并状态）"
+      - "kb/l7/scripts/media_status.py"
+      - "kb/l7/scripts/l2_gate.py:192-198（C5 上游可溯：只取 resource_id 集合，与行序无关）"
+    baseline:
+      measured_at: "2026-10-02（批次11 前）"
+      rows: 6351
+      unique_keys: 2449
+      duplicate_rows: 3902
+      note: "重复组里 517 组仅时间戳不同；910 组有非时间戳差异（涉 status/status_reason/source_sha256 等，属真实状态演进）"
+
+  l3_manifest:
+    file: kb/l3/manifest_l3.jsonl
+    layer: L3
+    key: rule_id
+    rule: "每个 rule_id 取【行序最靠后】的那一行（后写覆盖先写）"
+    row_order_is_version_order: true
+    mixed_log_warning: >-
+      本文件是**混合日志**：规则行有 `rule_id`，later 批次追加的 sample_case 行只有 `id`。
+      取用时必须先判 `rule_id` 是否存在，否则会崩（`kb/l8/l3_distill_run.py:414-417` 已按此处理）。
+    why: >-
+      跨层 append-only：L3 蒸馏写 provisional 行 → L5 前置（l5_prep.py）追加带
+      rule_kind/authority/p_level 的富化副本。追加顺序即版本顺序。
+    existing_consumers:
+      - "kb/l8/l3_distill_run.py:409-417（prev[rule_id]，幂等比较用）"
+      - "kb/.work/l5_prep.py:195-196（latest[rule_id]）"
+      - "kb/l8/l3_clause_distill.py"
+      - "kb/l7/scripts/daily_health.py:69-70（只做 mtime 新鲜度，不取内容）"
+    baseline:
+      measured_at: "2026-10-02（批次11 前）"
+      rows: 11470
+      unique_keys: 633
+      duplicate_rows: 10837
+      note: >-
+        633 个键里 509 个组的 `distiller_version` 序列是
+        ('l3-0.1','l3-0.2','l3-0.2',…) —— 即版本升级那一行之后全是同内容重复，
+        仅 `observed_at` 在变。这是本批 C-2 去重收益最大的一本。
+
+  l0_manifest:
+    file: kb/l0/manifest.jsonl
+    layer: L0
+    key: resource_key
+    rule: "每个 resource_key 取【行序最靠后】的那一行（后写覆盖先写）"
+    row_order_is_version_order: true
+    why: >-
+      跨脚本 append-only：认领新记录 / 补记附件 / 核验 URL / 落附件字节，
+      各脚本各追加一行表达该资源的最新状态。
+    existing_consumers:
+      - "kb/l8/align_l0_feishu.py:103-110（man_latest[resource_key]；另计 man_rows 总行数）"
+      - "kb/l8/extract_l1_new_resources.py:75-81（l0_latest / l0_active / l0_gone 全按它取）"
+      - "kb/l8/ingest_l0_new_records.py:145-149"
+      - "kb/l8/verify_l0_urls.py:51-55"
+      - "kb/l8/store_l0_attachments.py:54-58"
+      - "kb/l8/audit_l0_duplicates.py:37-43（专门审行重复）"
+      - "kb/l7/scripts/l2_gate.py:83（L0_MANIFEST 路径常量；用于 input_set 判定）"
+      - "kb/l7/scripts/daily_health.py:66（只做 mtime 新鲜度）"
+    dedup_impl: >-
+      **本台账已有专门的去重写入器** `kb/l8/l0_ledger.py:append_changed()`（2026-09-30 补）：
+      未变的行不追加，只刷新 sidecar `kb/l0/registry/last_seen.json`（保住「这轮还看见它」，
+      使「失踪」与「没查」分得清）。批次11 把绕过它的两个写入点（
+      `emit_l0_manifest_reconcile.py`、`ingest_l0_new_records.py`）之一改回走它。
+    baseline:
+      measured_at: "2026-10-02（批次11 前）"
+      rows: 7020
+      unique_keys: 2167
+      duplicate_rows: 4853
+      note: >-
+        重复组里 `change` 字段在 2164 组中的 1978 组发生变化，但
+        `status` 序列多为 ('registered','registered') 这类**同值重复** ——
+        即大量行连业务状态都没变，只是又被登记了一遍。
+
+# ── 写入侧改动登记（批次12 · 第0块裁定①：哈希变化必须留痕，不许悄悄变）────────
+# 为什么单独开这一节：这三本台账的**写入侧**在批次11/12 被改过，改了实现就改了文件哈希。
+# 哈希变了却没人登记，下一个人拿到旧哈希会以为文件被篡改或版本对不上。
+# 本节只登记**写入侧实现文件的哈希演进**，不改任何读侧口径。
+writer_hash_ledger:
+  meta:
+    registered_at: "2026-10-02"
+    batch: "批次12 · 第0块"
+    ruling: >
+      用户批次12 第0块裁定①：`l5_prep.py` **不回滚**（理由：写 candidates/rules.jsonl 的
+      `:188` 未动，边界1保护区保住；manifest_l3 正是 +1527/遍 的源头，回滚等于留着膨胀；
+      「未动五脚本」是批9/10 的授权边界，批11 C-2 第3写入点已明确授权）——
+      **但必须把哈希变化登记进本文件，写明改了哪一段、为什么、边界在哪。**
+
+  kb/.work/l5_prep.py:
+    before_batch11: "7386105a8ca4c8de03f4d37f35e59e6c457ef66c4d20cc8a4aa39979c7a6d756"
+    after_batch11: "c2ccf62641df1468…（批11 报告原值，非重算）"
+    after_batch12: "f832b357356c84d2b29ebeb8269437da4a3d359b6c922957986b71396378ba84"
+    what_changed_batch11: >
+      **只改写 `kb/l3/manifest_l3.jsonl` 的那一段**（原 `:198-206` 的无条件 `"a"` 追加），
+      改走 `kb/kb_ledger.py` 的同键去重追加。该段正是 manifest_l3 每遍 +1527 行的两个源头之一。
+    what_changed_batch12: >
+      给同一处补 `last_seen_path="kb/l3/registry/last_seen.json"`（第0块裁定②：补 sidecar），
+      使未变化的行去刷新「这轮还看见它」。**未改任何业务字段、未改追加条件。**
+    boundary_untouched: >
+      **`:188` 写 `kb/l3/candidates/rules.jsonl` 的整块追加原样未动** ——
+      那是 L4 canonical 的上游，属保护区。用户批11 复核已独立确认该段未动。
+    authorized_by: "批次11 C-2 第3写入点 + 批次12 第0块裁定①"
+    not_silent: >
+      本文件是哈希变化的**唯一登记处**。若将来再改，必须在本节追加 after_batch<N>，
+      不许只改文件不登记。
+
+  other_writers_changed_batch11_12:
+    note: >
+      批次11/12 另改了 7 个写入侧文件与 2 个新增文件。本节只详列 `l5_prep.py`
+      （它同时落在「未动五脚本」清单里，属**需要裁定的擦边**）。
+    measured_hashes:
+      note: >
+        **诚实交代一处纪律缺口**：批次12 的 sidecar 改动**未能在改前 `cp -p`**
+        （改完才发现没建批次12 备份，随后补建了 post-edit 备份）。
+        因此下表 "before" 一列给的是**批次11 报的 after 值**（批11 报告原文），
+        不是逐字节的改前盘面。**结论仍然成立**：批次12 的改动只往
+        `dedup_append(...)` 调用里加了 `last_seen_path=` / `run=` 两个关键字实参，
+        未改去重判定、未改追加条件、未改任何业务字段；
+        且 sidecar 功能已由单元反测验证（变更行追加 / 未变行只刷 sidecar / last-wins 语义不变）。
+      kb/l8/apply_ocr_to_l1.py:
+        before_p11_after: "86d9d1114b1934eb"
+        now_p12: "f0fe9536a80bb520"
+        batch12_change: "dedup_append(...) 加 last_seen_path='kb/l1/registry/last_seen.json', run=L1_RUN"
+      kb/l8/extract_l1_new_resources.py:
+        before_p11_after: "a50db0956ee7f399"
+        now_p12: "5c1399a06efe1f71"
+        batch12_change: "同上（manifest_l1 那处）"
+      kb/.work/l5_prep.py:
+        before_p11_after: "c2ccf62641df1468"
+        now_p12: "f832b357356c84d2"
+        batch12_change: "manifest_l3 那处加 last_seen_path='kb/l3/registry/last_seen.json', run=RUN"
+      kb/l8/l3_distill_run.py:
+        before_p11_after: "f351b57b12025f0b"
+        now_p12: "4e97705ea7b93fcd"
+        batch12_change: "同上"
+    files:
+      - kb/l8/reconcile_l0_feishu.py      # 批次11 A 块：输入新鲜度闸门 + 读侧留痕
+      - kb/l8/align_l0_schema.py          # 批次11 C-2 写入点⑥：归档去重 + 限量
+      - kb/.work/l6_scope.py              # 批次11 B 块：改为调 l6_scope_lib（口径单一化）
+      - kb/l8/apply_ocr_to_l1.py          # 批次11 C-2 写入点①；批次12 补 sidecar
+      - kb/l8/extract_l1_new_resources.py # 批次11 C-2 写入点②；批次12 补 sidecar
+      - kb/l8/l3_distill_run.py           # 批次11 C-2 写入点④；批次12 补 sidecar
+      - kb/l8/emit_l0_manifest_reconcile.py # 批次11 C-2 写入点⑤：改走 l0_ledger.append_changed
+    new_files:
+      - kb/kb_ledger.py                   # 批次11：通用 JSONL 去重 + 批次12 的 last_seen sidecar
+      - kb/l8/materialize_l0_compare.py   # 批次11 A 块：补上 feishu-compare 的生产者
+
+# ── 批次18 · 判据⑤：政策层 → 应用层 的读取关系 ────────────────────────────────
+policy_to_application_governance:
+  registered_at: "2026-10-02"
+  batch: "批次18 · 第2块 判据⑤"
+  policy_layer:
+    file: kb/l3/registry/half-life-policy.json
+    policy_id: half-life-policy-20260929-1040
+    is_the_only_source_of_truth: true
+    fields_it_owns: [half_life_days, baseline_date, valid_until_formula, never_resets_on_regeneration]
+  application_layer:
+    file: kb/l8/backfill_l4_governance.py      # 批次18 新增（本批实际执行者）
+    predecessor: kb/.work/fix_f7_backfill.py   # 原应用器（保留，未删）
+    how_it_reads: >
+      **档位天数从政策文件读**（`half_life_tiers[*].half_life_days`）；
+      TierB 的来源表**从政策 `half_life_tiers.B.condition` 文本正则解析**
+      （实测解析出 `['W1卖点表达边界（品线反馈0910）', '广告文案明细']`）。
+      **应用层不另写档位表** —— 这是「单一真源」的可核形式：
+      `grep -n "365\\|90\\|180" kb/l8/backfill_l4_governance.py` 应**只命中注释**，
+      不命中任何档位赋值（判据④ 的 grep 证据即此）。
+  reads_direction: "政策层 →（派生）→ canonical 逐行字段；**反向不成立**（canonical 不改政策）"
+  write_scope: "应用层只写 `kb/l4/canonical/*.jsonl` 的行字段；不动政策文件"
+  drift_guard: >
+    政策文件的 `count` 三档是**历史快照**（见 `count_semantics`），
+    **不得**拿来与应用层行数比 —— 要比就**现算**。批18 实测：政策三档合计 509（旧候选集规模），
+    canonical 实测 `{A:0,B:34,C:1331}`。两者本就不同口径，不是漂移。
+
+# ── 批次18 · 已知错误注记登记（不回填）────────────────────────────────────────
+known_wrong_notes_not_backfilled:
+  registered_at: "2026-10-02"
+  batch: "批次18 · 第2块"
+  item:
+    where: "kb/l0/registry/kb.json → schema_snapshots"
+    which: "**10 条**（实测：带 `refresh_note` 且注记含「旧快照为 20260924-1100」的条目）"
+    wrong: "注记称「旧快照为 20260924-1100」"
+    correct: "实际被归档的最新旧快照时点是 `at=20260930-1105`（该注记写死了一个更早的日期）"
+    root_cause: "kb/l8/align_l0_schema.py:129 的 `refresh_note` **写死**日期，逐轮累积"
+    fixed_at: "2026-10-02（批次18）—— 已改为**动态**：写本轮 RUN + 动态列出实际被归档的旧快照时点"
+    why_not_backfilled: >
+      **不回填历史**（工程纪律 5）：那 10 条是**历史写入的既成事实**，
+      回填等于篡改审计留痕。正确做法是**修源头（已修）+ 登记事实（本条）**，
+      让读的人知道「这 10 条注记不可信」，而不是把它们改成好看的。
+    verify: >
+      `python3 -c 'import json;d=json.load(open("kb/l0/registry/kb.json"));
+      print(sum(1 for s in d["schema_snapshots"] if "20260924-1100" in (s.get("refresh_note") or "")))'`
+      → **10**（批次18 实测；修源头后**新写入**的条目不再带此错注记，但那 10 条历史条目照旧）
+
+  item2:
+    where: "kb/l7/skills/kb-content-review/scripts/review.py"
+    which: "`:662-663` 与 `:666` 直取 `h['authority']` / `h['authority_source_table']`"
+    risk: >
+      对「键存在但值为 None」**仍安全**（不 KeyError）；但 `clause` 形态**这 5 个键本身不存在**
+      （见 `clause_form_fields_have_no_source`）⇒ 一旦这些行走进该分支即 **KeyError**。
+    fixed_at: null
+    scheduled: "**第 8 块（裁决侧接 KB 依据）一并改 `.get()`** —— 按用户 2026-10-02 指示，不许漏"
+    why_not_now: "同文件同区域要在第 8 块统一接线，现在改会造成同一处两次改动、留痕割裂"
+
+# ── 批次18 · 第2块:clause 形态的五个字段「无源、留空」（用户裁定 (b)）────────────
+clause_form_fields_have_no_source:
+  registered_at: "2026-10-02"
+  batch: "批次18 · 第2块"
+  scope: "kb/l4/canonical/clause.jsonl 的 123 行"
+  fields: [authority, rule_kind, p_level_basis, authority_source_table, risk_evidence_records]
+  verification: >
+    **逐层翻过，三层都没有源**（批次18 实测，非推测）：
+      · 候选层 `kb/l3/candidates/external_standard.jsonl`：**没有**这 5 个键
+      · 台账层 `kb/l3/manifest_l3.jsonl`：涉及这 123 个 `rule_id` 的行 **123/123 命中**，
+        但 5 个字段**有值条数全为 0**（`authority:0 ／ rule_kind:0 ／ p_level_basis:0 ／
+        authority_source_table:0 ／ risk_evidence_records:0`）
+      · 上游 L2 单元层：这 123 条涉及的 8 个 `resource_id` 下有 1696 个单元，
+        但 `heading_path` **全为 `None`** ⇒ 无字段角色信息，**派生不出判定值**
+    ⇒ 用户批18 裁定：走 **(b) 显式登记为「本形态无此字段来源，留空」**。
+  ruling: >
+    **留空 ≠ 缺失。消费方必须容忍空值。**
+    不许为凑字段编造值；也不许把「空」误判成「这条没有权威依据因而降级」——
+    语义上它们是**未定义**，不是**否定**。
+  consumers_named:
+    - file: kb/l7/skills/kb-content-review/scripts/review.py
+      lines: "261-263"
+      how: "`r.get(...)` 取值 ⇒ 空值给 `None`，**容忍空值 ✅**"
+      risk: >
+        **同一文件 `:662-663` 与 `:666` 改用 `h['authority']` / `h['authority_source_table']` 直取**。
+        对「键存在但值为 None」**仍安全**（不会 KeyError）；但若 `clause` 行**键本身不存在**（本形态确实不存在），
+        一旦这些行走进该分支就会 **KeyError**。**本次未修**（属第 8 块「裁决侧接 KB 依据」的接线范围，
+        届时一并按 `.get()` 统一）。**如实登记为已知风险，不掩盖。**
+    - file: kb/.work/fix_f7_backfill.py
+      how: "读 `authority_source_table` 判 B 档 —— 空值落到 **C 档**，逻辑自洽 ✅"
+    - file: kb/.work/l4_sleep_clauses.py
+      how: "`.get()` 取值 ⇒ 容忍空值 ✅"
+    - file: kb/.work/l5_prep.py / kb/.work/fix_l4_repromote.py
+      how: "继承/重建时对缺键**不写入**（`if f not in o: continue`）⇒ 不会凭空造值 ✅"
+  side_effect_confirmed: >
+    旁证（用户给，我复算确认）：`clause` 无 `authority_source_table` ⇒ 按政策落 **Tier C（180 天）**，
+    这正是 `C:1331 = 1365 − 34` 的来源 —— **逻辑自洽**，不是副作用。
+
+# ── 批次16 · 第1块三项登记 ───────────────────────────────────────────────────
+batch16_registrations:
+  meta: {registered_at: "2026-10-02", batch: "批次16 · 第1块"}
+
+  # 1-1a：候选层只装生行；富化字段唯一真源 = manifest_l3
+  candidate_layer_raw_only:
+    file: kb/l3/candidates/rules.jsonl
+    rule: >
+      **候选层只装生行**。`rule_kind` / `authority` / `p_level` 三个富化字段的
+      **唯一真源 = `kb/l3/manifest_l3.jsonl`**（append-only，没人覆盖它）。
+      候选层里这三个键**要么没有、要么是初始值**，**不是判定值**。
+    why: >
+      批次13 定性：`kb/l8/l3_distill_run.py:426` 每遍用 `"w"` 把 `rules.jsonl` 覆盖成
+      只有生行的版本；富化行由 `kb/.work/l5_prep.py:192` 以 `"a"` 追加。
+      两个写入者的行**键集不同**（生行 7 键 / 富化行 10 键）⇒ 曾导致去重永不成立
+      （`manifest_l3` 每遍 +1018）。
+    history_2036: >
+      `rules.jsonl` 曾达 **2036 行** = 「生行 ×2 遍 + 富化行 ×2 遍」的累积产物
+      （实测按 `distiller_version`：`{None: 1018, 'l3-0.2': 1018}`）。
+      **不是丢数据** —— 批12 已定「候选层只装生行」，2036 是口径归位前的残留。
+      口径归位后该文件 = **509 行生行**，富化集 509 条在 `manifest_l3` 里一条不少。
+    consumers_must_not: >
+      **不许**从 `rules.jsonl` 直取 `rule_kind`/`authority`/`p_level`。
+      已知两处已按「从 `manifest_l3` 补缺键、**不覆盖已有值**」兜底：
+        · `kb/.work/l5_prep.py`（`:231` 附近，`latest` 回读兜底）
+        · `kb/.work/l5_export.py:88-101`（同一兜底；实测最终 `p_level` 取到富化值 `P0`）
+    measured_p_level_mismatch:
+      count: 42
+      observed_at: "2026-10-02（批次15 实测）"
+      what: >
+        **42 条**规则的生行 `p_level` 与富化行 `p_level` **不一致**（生行是初始值、
+        富化是判定值）。全部已由上述兜底纠正为富化值。
+      stability: >
+        **不保证稳定**：生行值随 L3 蒸馏重算，富化值随 L5-prep 重算；
+        只要上游分类口径变，差额就会变。**故不许把 42 当常数用** ——
+        需要时**现算**（`manifest_l3` last-wins vs `rules.jsonl` 对比）。
+      source_of_truth: kb/l3/manifest_l3.jsonl
+
+  # 1-1b：rejected.jsonl 口径变更 + 回滚点
+  rejected_ledger_scope_change:
+    file: kb/l3/rejected.jsonl
+    change: "10661 行 → 2611 行（批次13，L3 第三遍）"
+    diff: 8050
+    breakdown:
+      3871: "条款不可判定、或已被同库其它条款覆盖"
+      3637: "登记型字段值（元数据），不含可判定内容"
+      535:  "sample_only_no_verdict"
+      7:    "其它"
+    code_reference:
+      file: kb/l8/l3_reject_ledger_rebuild.py
+      note: >
+        **未逐行核到判据行** —— 批15/16 预算内没有把 8050 的每一类映射到该脚本的
+        具体过滤行。**如实标注为「未落到行」**，不假装落到了。
+        已知同族事实：`kb/l8/l3_distill_run.py` 的拒绝分桶现为
+        `{no_clause_text 30, clause_not_actionable 1551, no_rule_derivable 145,
+          sample_only_no_verdict 753, absorbed_as_reason 132}` 合计 2611。
+    rollback_point:
+      path: kb/l3/_archive/rejected-pre-20261002-1415.jsonl
+      rows: 10661
+      bytes: 6230994
+      must_not_delete: true
+    discipline: "与 `l3-known-drift.yaml` 同一套：原始数照打不抹掉；差额逐类说明；说不清就标说不清。"
+
+  # 1-1c：manifest_l3 是混合台账
+  manifest_l3_is_mixed:
+    file: kb/l3/manifest_l3.jsonl
+    total_rows: 13506
+    rows_with_rule_id: 12440
+    unique_rule_ids: 632
+    rows_without_rule_id: 1066
+    what_are_the_others: >
+      1066 行**不带 `rule_id`**，**不是只有 sample_case**（批次16 实测修正 ——
+      用户批15 描述为「是 `form=sample_case` 的行」，我实测**不止**，故按实测登记）：
+        · `form=sample_case`  **562** 行
+        · `form=scoped_clause` **375** 行
+        · `form=field_fix`     **129** 行
+        合计 562+375+129 = **1066** ✓
+      这些行以 `id` / `unit_id` / `resource_id` 为键（样例键：
+      `anchor/anchor_present/form/id/observed_at/resource_id/run_id/sha_present/source_sha256/unit_id`）。
+    requirement: >
+      **任何「按 `rule_id` 读全表」的消费点都会踩空**（批次13 我本人踩到过一次）。
+      消费点必须**显式过滤**（先判 `rule_id` 是否存在），**不许假定每行都有 `rule_id`**。
+    existing_correct_example: "kb/l8/l3_distill_run.py:409-417（先判 `r.get(\"rule_id\")` 再入 prev）"
+
+# ── `applied` 字段语义登记（批次13 · C-2）────────────────────────────────────
+applied_semantics:
+  registered_at: "2026-10-02"
+  batch: "批次13 · C-2"
+  where_chosen: "本文件（ledger-read-contract.yaml），不选 l0-expected-diffs.yaml"
+  why_this_file: >
+    本文件是**读侧/字段语义**的登记处（批次11 起就登记三本台账的取用键与 keep_rule）；
+    `l0-expected-diffs.yaml` 是**对账差异声明**（哪些差异按声明该存在）。
+    `applied` 是「字段怎么读」的问题，不是「差异该不该存在」的问题 ⇒ 归本文件。
+  the_change: >
+    批次11 实测：L0 落章的 `applied=true` 与「台账净增 0 行」并存
+    （801 个同内容候选被去重全跳过）。**两件事都真，老字段只表达了一件** ——
+    读的人极易把 `applied=true` 误读成「台账又写了一遍」。
+  split:
+    applied:
+      status: "**保留**（不许直接删 —— 改消费方会静默）"
+      semantics: "= `reconcile_applied`：**对账动作**是否执行并落盘"
+      not_meaning: "**不等于**「台账又写了一遍」"
+    reconcile_applied:
+      writer: "kb/l8/reconcile_l0_feishu.py"
+      semantics: "对账动作是否执行并落盘"
+    manifest_rows_delta:
+      writer: "kb/l8/emit_l0_manifest_reconcile.py"
+      semantics: "**台账净增行数**（可为 0 或负数）"
+    manifest_applied:
+      writer: "kb/l8/emit_l0_manifest_reconcile.py"
+      semantics: "emit 动作是否执行；与 manifest_rows_delta 各表一义"
+  does_not_relax_criteria: >
+    **本拆分不使任何判据变绿。** 批次12 A-2 判据 5（「七层整体 applied 且行数确实增长」）
+    仍照字面报红 —— 拆字段只是让「动作执行」与「台账变化」两件事不再挤在一个布尔里。
+  measured_before_after:
+    before_batch13: "kb/l0/runs/20261002-0833-l0-feishu-reconcile.json → applied=true（无拆分字段）"
+    after_batch13: "reconcile 写 applied + reconcile_applied + manifest_rows_delta + applied_semantics；emit 写 manifest_rows_delta + manifest_applied"
+
+# ── observed_at 语义变化登记（批次12 · 第0块裁定②）──────────────────────────
+observed_at_semantics:
+  registered_at: "2026-10-02"
+  batch: "批次12 · 第0块"
+  the_change: >
+    批次11 给三本台账加了写入侧去重（同键且除运行元数据外全等 ⇒ 不追加）之后，
+    台账里某一行 `observed_at` 的含义**变了**：
+      改前 = 「**最后一次被看到**」      改后 = 「**最后一次内容变化**」
+    这不是 bug，是去重的必然推论：内容没变就不追加，那一行当然停在上次变化的那一刻。
+  why_it_matters: >
+    任何把 `observed_at` 当**新鲜度**读的地方，从此会把「一直没变」误判成「很久没查」。
+  ruling: >
+    用户批次12 第0块裁定②给了二选一（补 sidecar ／ 不补但必须逐个点名消费点），
+    并要求「不许两不做」。**本库选「补 sidecar」**。
+  chosen: sidecar
+  chosen_impl: "kb/kb_ledger.py:refresh_last_seen()（批次12 新增）"
+  isomorphism: >
+    **与 `kb/l8/l0_ledger.py:append_changed()` 同构，不另造一套**（用户同一条纪律）。
+    实测字段对照：
+      l0_ledger 条目字段 = [run, sha256, sha256_input, status]
+      kb_ledger 条目字段 = [observed_at, run, sha256, source_sha256, status]
+      共同字段 = [run, sha256, status]
+    差集是各自台账有意义的量（L0 有 sha256_input；L1/L3 行没有它，但有 observed_at /
+    source_sha256）。共同字段完全一致，故为同构而非分叉。
+  sidecars:
+    - kb/l0/registry/last_seen.json   # 既有（l0_ledger 写，2026-09-30 起）
+    - kb/l1/registry/last_seen.json   # 批次12 新增（apply_ocr_to_l1 / extract_l1_new_resources 写）
+    - kb/l3/registry/last_seen.json   # 批次12 新增（l3_distill_run / l5_prep 写）
+  audit_of_observed_at_consumers:
+    method: "grep -rn 'observed_at' --include=*.py kb/ | 排除 _backups | 再筛 days/age/stale/now/delta/新鲜/陈旧/距今"
+    finding: >
+      **全库把 `observed_at` 当新鲜度计算的消费点：0 处。**
+    evidence:
+      - kb/l7/scripts/daily_health.py:142-145 → 新鲜度用的是 `os.path.getmtime`（**文件 mtime**），不读 observed_at
+      - kb/l8/l2_staleness_audit.py:150 → `"l1_observed_at": art.get("observed_at")` 只是把值抄进报告，**不比较、不判龄**
+    honest_note: >
+      ⇒ **本 sidecar 补的是「信息保全」，不是修一个正在发作的 bug。**
+      `observed_at` 的语义变化**当前不造成任何误判**（因为没人拿它算龄）。
+      之所以照裁定补，是因为它便宜、且能把「失踪 vs 没查」这个区分保住 ——
+      将来谁想用 observed_at 算龄时才不会踩空。这一点如实写明，不夸大成"修了一个缺陷"。
+
+# ── 与既有登记的关系（不另立一套，指回原处）────────────────────────────────
+related_registrations:
+  sample_case_keep_rule:
+    where: kb/l3/registry/l3.json（dedup.keep_rule）
+    rule: "每个 case_id 保留【行序最靠前】的那一行"
+    why_different: >-
+      它的重复行**逐字节相同**，故「最靠前」与「最靠后」等价；
+      本文件这三本台账的重复行**内容不同**，两者不等价，必须取最靠后。
+  rules_jsonl_keep_rule:
+    where: kb/l3/registry/l3.json（dedup.wording_last_wins，批次6 登记）
+    rule: "每个 rule_id 取【行序最靠后】的那一行"
+    why_reference: "本文件的字段结构与它逐字对齐；它管的是 candidates/rules.jsonl，本文件管另外三本。"

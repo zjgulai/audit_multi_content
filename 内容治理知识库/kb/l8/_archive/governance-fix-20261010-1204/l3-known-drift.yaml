@@ -1,0 +1,109 @@
+# l3-known-drift.yaml —— L3 注册表「自报块」与现台账对不上的**逐键声明**（不给豁免，只做分类）
+#
+# 谁读它：kb/l7/scripts/l3_gate.py 的 C3 判据。
+#
+# 规则（与 l0-expected-diffs.yaml 同一套纪律）：
+#   * 注册表 kb/l3/registry/l3.json 里每个自报键，要么能被闸门**复算并相符**，
+#     要么必须在本文件的 not_recomputable 里**逐键**登记；漏登记 = 闸门判红。
+#   * 登记的是「为什么现在复算不出来」+「证据」+「谁去做、做什么」，
+#     **不是**「这个数不算了」。原始数一律照打，不抹掉。
+#
+# 为什么会有这份声明（2026-09-30 实测）：
+#   l3.json 的 reconcile_partition / accounting 两块是 **20260924 快照**时算出来的；
+#   2026-09-29 台账被重建（kb/l8/l3_reject_ledger_rebuild.py，见 CANONICAL_MOVED.md 同批），
+#   重建后 rejected.jsonl 的**粒度**变了：从纯资源级变成「资源级 + 单元级」混合
+#   （kind 分布：unit_level 5858 行 / 其余资源级），行数与资源数都跟快照对不上。
+#   → 这三块数字**没有任何一个**能从现台账复算出来，属口径漂移，不是数据丢失。
+
+meta:
+  file: kb/l7/registry/l3-known-drift.yaml
+  checker: kb/l7/scripts/l3_gate.py
+  created_at: "2026-09-30"
+  owner: 刘华丽
+  snapshot_run: "20260924-1210（l3.json 自报块的产出时点）"
+  ledger_rebuilt_at: "20260929-1660"
+  measured_at: "2026-09-30（本文件里的实测值均可由 l3_gate.py 一键复现）"
+
+# ── 现台账实测画像（闸门每次都会重算，这里只是留一份可读基线）──────────────
+measured_now:
+  rejected_ledger: {rows: 6911, resources: 930}
+  archived_ledger_pre_rebuild: {file: "kb/l3/_archive/rejected-pre-20260929-1660.jsonl",
+                               rows: 6803, resources: 822}
+  candidates: {records: 1242, produced_resources: 560}
+  both_produced_and_rejected_resources: 359
+  l2_side: {resources: 1626, units: 12158}
+  evidence_refs_checked: 1729
+  reject_kind_distribution:
+    unit_level: 5858
+    sample_only_no_verdict: 753
+    no_rule_derivable: 136
+    absorbed_as_reason: 132
+    no_clause_text: 30
+    clause_not_actionable: 2
+
+not_recomputable:
+  - key: reconcile_partition.input
+    registry_value: 9469
+    why: 快照口径的「输入集」按当时口径统计；2026-09-29 台账重建后，rejected.jsonl 的粒度改为
+      「资源级 + 单元级」混合，输入集的分母定义随之改变，用现台账复算会得到另一个量纲的数。
+    evidence: "现台账 rejected 6911 行/930 资源；归档旧台账 6803 行/822 资源；候选件 1242 条/560 资源"
+    owner_action: 重跑 L3 时同步重算本块；或在 l3.json 里把 input 的口径（按行/按资源/按单元）写死
+  - key: reconcile_partition.only_produced
+    registry_value: 546
+    why: 同上。现台账可算出「产出资源 560 个」，但快照的 546 不是同一量纲（当时的输入集与拒绝集都不同）。
+    evidence: "本闸门实测：候选件产出资源 560 个（rules 41 ∪ sample_cases 358 ∪ scoped_clauses 30 去重后）"
+    owner_action: 同上（重算后在 l3.json 里更新，并在此处删掉本键）
+  - key: reconcile_partition.only_rejected
+    registry_value: 8736
+    why: 8736 是重建前台账的量（且是**行数**口径）；现台账 6911 行 / 930 资源。重建把资源级与单元级
+      行分开统计，行数不再可比。
+    evidence: "现 6911 行 / 930 资源；归档 6803 行 / 822 资源；kind 分布见 measured_now"
+    owner_action: 同上
+  - key: reconcile_partition.both
+    registry_value: 187
+    why: 「既产出又拒绝」在现台账下按资源算是 359 个；快照的 187 是当时口径。
+    evidence: "本闸门实测 both = 359 个资源（产出资源 560 ∩ 拒绝资源 930）"
+    owner_action: 同上
+  - key: reconcile_partition.neither
+    registry_value: 0
+    why: 「neither = 0」这条**本轮无法复核**：没有一份现成的输入集清单可对（输入集定义随重建改变）。
+    evidence: "l3.json 的 reconcile_partition 未附输入集清单文件；本轮只读，不重建"
+    owner_action: 重跑 L3 时输出一份「输入集清单」落 kb/l3/（可复算的前提），否则这条永远是自报
+  - key: reconcile_partition.check
+    registry_value: true
+    why: check=true 是**当时**的结论。按现台账无法复核该等式（input 定义已变），
+      因此它只能当历史结论看，不能当今天的放行依据。
+    evidence: "同 input/only_* 三条"
+    owner_action: 重建输入集清单后重算并把 check 改为带 run_id 的结论
+  - key: accounting.l2_total
+    registry_value: 10021
+    why: 10021 是快照时点的 L2 单元数；现 kb/l2/units.jsonl 已是 12158 条
+      （2026-09-29/30 又有追加，见 l2/registry/l2.json → changes）。
+    evidence: "本闸门实测 l2/units.jsonl = 12158 条 / 1626 个资源；l2_gate.py 同口径"
+    owner_action: 更新为当前值并注明 run_id；这是纯数值滞后，改一次即可
+  - key: accounting.filtered_out
+    registry_value: 8039
+    why: 依赖 l2_total 与 L3 过滤口径，两者都变了 → 不可复算。
+    evidence: "同上"
+    owner_action: 同 l2_total
+  - key: accounting.kept
+    registry_value: 1982
+    why: 同上（kept = l2_total − filtered_out）。
+    evidence: "同上"
+    owner_action: 同上
+  - key: accounting.used_in_rules
+    registry_value: 959
+    why: 快照时点的「被规则引用单元数」。现候选件 evidence_units 共 1729 条引用（本闸门逐条核过、
+      全部可回指），但其中多少与 rejected 重叠需要重建台账口径才能重算。
+    evidence: "本闸门实测证据引用 1729 条、回指失败 0 条；l3.json evidence_units_note 记的是 1729"
+    owner_action: 重算 overlap（evidence 引用 ∩ rejected）后更新本键
+  - key: accounting.explicitly_rejected
+    registry_value: 1023
+    why: 快照时点「显式拒绝的资源数」；现台账资源数 930（且含单元级行），量纲不同。
+    evidence: "现 930 个资源 / 6911 行"
+    owner_action: 同上
+  - key: accounting.unaccounted
+    registry_value: 0
+    why: 「未对账 = 0」在快照口径下成立；现台账无法复算（分母定义已变），故不能当今天的结论。
+    evidence: "同 reconcile_partition.neither"
+    owner_action: 重建输入集清单后重算；这是**唯一**一条「若是真 0 就说明台账收口完整」的键，值得优先

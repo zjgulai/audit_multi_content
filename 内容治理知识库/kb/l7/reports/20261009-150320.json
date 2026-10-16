@@ -1,0 +1,134 @@
+{
+  "review_id": "20261009-150320",
+  "content_id": "text-ad2b474c240d",
+  "content_type": "text",
+  "content_version": "ad2b474c240dae5f23e8717a3bca6ddaaa1083a744b3946e6fac0f5e25b6cb1f",
+  "content_hash": "ad2b474c240dae5f23e8717a3bca6ddaaa1083a744b3946e6fac0f5e25b6cb1f",
+  "agent_version": "kb-content-review@1.3.0",
+  "rule_version": "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02",
+  "knowledge_version": "v0",
+  "version_binding": {
+    "review_id": "20261009-150320",
+    "content_id": "text-ad2b474c240d",
+    "content_hash": "ad2b474c240dae5f23e8717a3bca6ddaaa1083a744b3946e6fac0f5e25b6cb1f",
+    "content_version": "ad2b474c240dae5f23e8717a3bca6ddaaa1083a744b3946e6fac0f5e25b6cb1f",
+    "agent_version": "kb-content-review@1.3.0",
+    "rule_version": "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02",
+    "knowledge_version": "v0",
+    "sources": {
+      "content_hash": "送审文本 utf-8 的 sha256",
+      "agent_version": "kb/l7/skills/kb-content-review/SKILL.md → frontmatter.version",
+      "rule_version": "kb/l7/registry/l7.json → article_no_source.scheme_version ＋ kb/l3/registry/l3.json → distiller_version ＋ kb/l3/candidates/rules.jsonl 的 sha256[:16]",
+      "knowledge_version": "kb/l7/registry/l7.json → kb_version"
+    }
+  },
+  "decision": "BLOCK",
+  "decision_raw": "BLOCK",
+  "confidence": "未标定（本入口逐条给 高/中/低；全局数值置信度属裁决侧）",
+  "input_manifest": {
+    "text": "Our pump mimics your baby's natural nursing rhythm.",
+    "sha256": "ad2b474c240dae5f23e8717a3bca6ddaaa1083a744b3946e6fac0f5e25b6cb1f",
+    "modality": [
+      "text"
+    ]
+  },
+  "coverage": {
+    "text": "complete",
+    "image": "not_applicable",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "本批只送审 text 一种模态；其余模态不适用（不是缺口）。本块是报告契约要求的覆盖状态，不等于 OCR/ASR/关键帧流水线已执行 —— 后者见 trace。"
+  },
+  "risk_items": [
+    {
+      "risk_id": "r-006445396c95aa10",
+      "risk_type": "功效宣称-智能与仿生宣称",
+      "priority_tier": "P0",
+      "priority_tier_basis": "P0 确定性匹配（依据不可逐字回源）",
+      "layer": "P0 确定性匹配（依据不可逐字回源）",
+      "severity": "BLOCK",
+      "status": "confirmed",
+      "action": "block",
+      "location": "全文",
+      "original_text": "\\bmimic(s|king)?\\b[^.]{0,30}\\bbaby\\b",
+      "reason": "P0 确定性命中（BLOCK）：「\\bmimic(s|king)?\\b[^.]{0,30}\\bbaby\\b」命中规则码 H09。H02 催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫；H07 疼痛功效承诺（pain-free/no pain/without pain/pain relief/less pain/缓解疼痛等；吸奶疼痛因人而异，只可讲 comfort/gentle 舒适与缓解胀满不适 discomfort）；H09 智能闭环/仿生虚假宣称（自动识别节奏、模拟/复制宝宝、饱腹反馈、降低奶量焦虑）；W1当前为用户主动调节+保存程序，非闭环生理识别【依据不可逐字回源：该说法为等价说法／正则命中，源侧无逐字原文；按 L5「P0 命中即 BLOCK」输出，出处为 P0 模式自身，需人工确认】",
+      "suggestion": "",
+      "verbatim_verified": false,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.1",
+        "anchor": "#广告文案明细/recvuJYdOb61lT/命中片段",
+        "source_sha256": "67875346a75bd2f81a40b387652d6824faefe083f61c025c5801034ab6d4074e",
+        "excerpt": "\\bmimic(s|king)?\\b[^.]{0,30}\\bbaby\\b"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.1 条 @ #广告文案明细/recvuJYdOb61lT/命中片段 @ 67875346a75b（**非逐字**：P0 模式自身声明，未经逐字回验）",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.1",
+      "evidence_gap": "「\\bmimic(s|king)?\\b[^.]{0,30}\\bbaby\\b」在该规则证据单元里无逐字原文（regex 命中）；本条目出处为 L5 P0 模式 p-d31dfbc932cb84ac 自身声明的 anchor / source_sha256，**未经逐字回验**"
+    },
+    {
+      "risk_id": "r-7489e156a5d2c7b2",
+      "risk_type": "功效宣称-智能与仿生宣称",
+      "priority_tier": "P1",
+      "priority_tier_basis": "规则层",
+      "layer": "规则层",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "mimics your baby, mimics a nursing baby, mimic",
+      "reason": "逐字命中「mimics your baby」：（来源未给判定理由）（p_level=P1 risk_level=unknown authority=None，来源表 None）",
+      "suggestion": "",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.31",
+        "anchor": "#品线内容边界规则库/recvuNifmKBXoP/检测关键词",
+        "source_sha256": "a2aca575cf6a2ec78155d31cbabf252fc145844429b89b01923226a720d231aa",
+        "excerpt": "mimics your baby, mimics a nursing baby, mimic"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.31 条 @ #品线内容边界规则库/recvuNifmKBXoP/检测关键词 @ a2aca575cf6a",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.31"
+    }
+  ],
+  "issue_count": 2,
+  "report_url": null,
+  "next_action": "请修改后重新提交。",
+  "next_owners": [
+    "内容方修改责任人"
+  ],
+  "sla": {},
+  "version_gate": {
+    "reviewed_hash": "ad2b474c240dae5f23e8717a3bca6ddaaa1083a744b3946e6fac0f5e25b6cb1f",
+    "release_hash": null,
+    "note": "本入口不掌握发布版本；发布/送审版本比对属裁决侧（review_engine.py:115-119），此处不代替它下结论"
+  },
+  "decision_trace": {
+    "reasons": [
+      "any_finding_severity_block"
+    ],
+    "confidence_status": "not_calibrated_by_this_entry",
+    "evaluated_at": "2026-10-09T15:03:23",
+    "decided_by": "kb-content-review/scripts/review.py（依据侧自身分支，:709-715）",
+    "note": "本报告不重算结论；三态由上表 decision_raw 原样带出"
+  },
+  "unmet_citation": [
+    {
+      "source": "P0",
+      "rule_id": "r-006445396c95aa10",
+      "article_no": "W-1.1",
+      "anchor": "#广告文案明细/recvuJYdOb61lT/命中片段",
+      "excerpt": "\\bmimic(s|king)?\\b[^.]{0,30}\\bbaby\\b",
+      "disposition": "output_as_block_with_gap",
+      "why": "该规则全部证据单元里都找不到这段摘录的逐字原文（等价说法／正则命中）；已按 P0 输出为 BLOCK，出处退到 P0 模式自身"
+    }
+  ]
+}

@@ -1,0 +1,97 @@
+{
+ "run": "20261008-2000",
+ "kind": "ledger_land",
+ "apply": true,
+ "archived": {
+  "kb/l1/manifest_l1.jsonl": {
+   "archive": "kb/l8/_archive/ledger-land-20261008-2000/manifest_l1.jsonl",
+   "bytes": 3581838,
+   "lines": 6402,
+   "sha256": "5d74d4a87037ff8aaa9f10a9f30f1b9034b527114dc466b96308e845e900a78d"
+  },
+  "kb/l0/manifest.jsonl": {
+   "archive": "kb/l8/_archive/ledger-land-20261008-2000/manifest.jsonl",
+   "bytes": 7405731,
+   "lines": 7380,
+   "sha256": "f78f190d5616c4b40a53707ab33fe9a1bdeeb0966be843358e6e36670a8c163d"
+  }
+ },
+ "l1_rows": 1,
+ "l0_rows": 1,
+ "plan": [
+  {
+   "token": "XVgVw8WZ3iZsTkkqEpwcbwjJnPh",
+   "artifact": "kb/l1/1_外部标准库/url__https____hapa8fkuicz.feishu.cn_wiki_XVgVw8WZ3iZsTkkqEpwcbwjJnPh.json",
+   "key": "url:https://hapa8fkuicz.feishu.cn/wiki/XVgVw8WZ3iZsTkkqEpwcbwjJnPh",
+   "prev": {
+    "bytes": 1190755,
+    "change": "l0_file_bytes_stored_via_preview",
+    "depth": 2,
+    "dup_of": null,
+    "entry_url": "https://hapa8fkuicz.feishu.cn/wiki/XVgVw8WZ3iZsTkkqEpwcbwjJnPh",
+    "extra": {
+     "backfill_reason": "URL 字段取消数量上限",
+     "bytes_channel": "drive +preview --type source_file（drive:file:download 通道仍不可用）",
+     "first_seen": {
+      "field": "文件/链接",
+      "record_id": "recvrjcVvYXMoS",
+      "table": "数据表"
+     },
+     "note": "放开 URL 数量上限后补登记 + wiki 解包",
+     "pdf_pages": 47,
+     "ref_count": 1,
+     "resolved": {
+      "node_token": "XVgVw8WZ3iZsTkkqEpwcbwjJnPh",
+      "obj_token": "FNAwb8MLEoWxFmxOuLycGwlfn5g",
+      "obj_type": "file",
+      "title": "EVIDEN~1.PDF"
+     }
+    },
+    "filter_passed": null,
+    "kb_type": "external_standard",
+    "kb_type_source": "继承所属记录的归属（数据表）",
+    "local_path": "kb/l0/attachments/外部资料库/FNAwb8MLEoWxFmxOuLycGwlfn5g.pdf",
+    "matched_rule": "R24",
+    "moved_from": null,
+    "observed_at": "20260930-1325",
+    "path": "[内容治理/放开截断后补登记/数据表/文件/链接]",
+    "resolved_object": {
+     "node_token": "XVgVw8WZ3iZsTkkqEpwcbwjJnPh",
+     "obj_token": "FNAwb8MLEoWxFmxOuLycGwlfn5g",
+     "obj_type": "file",
+     "title": "EVIDEN~1.PDF"
+    },
+    "resource_key": "url:https://hapa8fkuicz.feishu.cn/wiki/XVgVw8WZ3iZsTkkqEpwcbwjJnPh",
+    "revision": null,
+    "rule_eligible": true,
+    "rule_eligible_reason": "非「材料收集」来源，不受该门槛约束",
+    "rule_eligible_source": "not_material_collection",
+    "scanner_version": "0.8",
+    "sha256": "d575d5657f4fcf6439e8421d4a546963fab3ab0b1413fee2ad41bf03ee143d20",
+    "sha256_input": "file_bytes",
+    "sha256_prev": null,
+    "sha256_state": "full",
+    "source": {
+     "field_id": null,
+     "field_name": "文件/链接",
+     "record_id": "recvrjcVvYXMoS",
+     "table_id": "tblGFyycMc45RMga",
+     "table_name": "数据表"
+    },
+    "source_kind": "url",
+    "status": "updated",
+    "status_reason": "2026-09-30 实测：drive +download 被拒（无导出权限），改用 drive +preview --type source_file 取到原件（1190755 字节 / 47 页 / application/pdf）；字节副本 kb/l0/attachments/外部资料库/FNAwb8MLEoWxFmxOuLycGwlfn5g.pdf"
+   },
+   "text_sha": "9b8ee681ec6360e4c2f7356ac77a328c7635d012daa6d254016c263256dcd6bd",
+   "chars": 254553,
+   "segs": 64,
+   "ev": "l1-0.1+pdftext-fill-20261008-1500",
+   "pdf": "kb/l0/attachments/外部资料库/XVgVw8WZ3iZsTkkqEpwcbwjJnPh.pdf",
+   "pdf_bytes": 1190755,
+   "pdf_sha": "d575d5657f4fcf6439e8421d4a546963fab3ab0b1413fee2ad41bf03ee143d20",
+   "src": "pdf_text_layer",
+   "prev_status": "updated",
+   "prev_sha_input": "file_bytes"
+  }
+ ]
+}

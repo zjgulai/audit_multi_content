@@ -1,0 +1,41 @@
+#!/bin/bash
+# 日更 L5 批次（BASE=daily-20261010-1010）—— 闸门 → 红线（旧模式表人工归档）→ 引擎 --apply → 落章 → 记账
+# layers.yaml L5 engine 清单里 l5_bench.py 带「★ 驱动循环默认跳过」⇒ 日更不跑它（本行如实记录）。
+cd "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理" || exit 2
+R="daily-20261010-1010-L5"
+SID="${DSH_SESSION_ID:-session-e6e81bae-5167-478c-8311-8ab3b22cf2d1}"
+gate() {
+  echo; echo "### $(date '+%H:%M:%S') GATE: $* ###"
+  "$@"; local rc=$?
+  echo "### rc=$rc ###"
+  if [ $rc -ne 0 ]; then echo "### ⛔ 闸门红 ⇒ 停（不跑本层引擎） ###"; exit 9; fi
+}
+step() {
+  echo; echo "### $(date '+%H:%M:%S') CMD: $* ###"
+  "$@"; local rc=$?
+  echo "### rc=$rc ###"
+  return 0
+}
+
+gate sh kb/kbpy l7/scripts/l5_gate.py
+
+# ── 本层红线：旧模式表（覆盖式写入）必须**人工归档**成 <RUN>.p0_patterns.superseded.jsonl ──
+echo; echo "### $(date '+%H:%M:%S') 本层红线 归档旧 p0_patterns.jsonl ###"
+SRC="kb/l5/p0_patterns.jsonl"; DST="kb/l5/runs/${R}.p0_patterns.superseded.jsonl"
+if [ -f "$SRC" ]; then
+  /bin/cp "$SRC" "$DST" || { echo "### ⛔ 归档失败 ⇒ 停 ###"; exit 9; }
+  HA=$(shasum -a 256 < "$SRC" | cut -d' ' -f1); HB=$(shasum -a 256 < "$DST" | cut -d' ' -f1)
+  if [ "$HA" != "$HB" ]; then echo "### ⛔ 归档 sha 不一致 ⇒ 停 ###"; exit 9; fi
+  echo "### ✅ 已归档 → $DST（sha ${HA%${HA#????????????}}） ###"
+else
+  echo "### ⚠️ $SRC 不存在，跳过归档 ###"
+fi
+
+step sh kb/kbpy .work/l5_prep.py "$R" --apply
+step sh kb/kbpy .work/l5_export.py "$R" --apply
+# l5_bench.py —— layers.yaml 明写「驱动循环默认跳过」（无预演档，运行即写 kb/l5/benchmark.json）⇒ 日更不跑
+echo; echo "### $(date '+%H:%M:%S') SKIP: kb/.work/l5_bench.py（layers.yaml：驱动循环默认跳过） ###"
+step sh kb/kbpy .work/l5_report.py "$R" --skill kb-p0-check --apply
+step sh kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L5 --run "$R" \
+  --invoked kb-p0-check --skill-session "L5=$SID"
+echo; echo "### $(date '+%H:%M:%S') L5 批次结束 ###"

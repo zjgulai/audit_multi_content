@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Brand review evidence source",
+  "type": "object",
+  "required": ["source_id", "publisher", "canonical_url", "scope", "status", "owner"],
+  "properties": {
+    "source_id": {"type": "string"},
+    "publisher": {"type": "string"},
+    "canonical_url": {"type": "string", "format": "uri"},
+    "locator": {"type": "string"},
+    "scope": {"type": "object"},
+    "effective_from": {"type": ["string", "null"]},
+    "review_by": {"type": ["string", "null"]},
+    "retrieved_at": {"type": ["string", "null"]},
+    "snapshot_sha256": {"type": ["string", "null"]},
+    "status": {"enum": ["draft", "approved", "expired", "superseded"]},
+    "owner": {"type": "string"}
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,133 @@
+# kb-repair 修复记录 · 2026-10-04 10:03（信封态）
+
+**用户指令**：「闸门红了，帮我把它修好，改完再跑一遍同样的闸门证明修好了。」
+
+## 0. 一句话结论
+
+**红的是门④ `workflow_check` 的第 ⑥ 段（文档可见性）+ 信封闸门**，根因是**一个信封态文件**。
+已用 `cp` 通道重写 → **同一条闸门复跑转绿**（门④ ⑥ 段 PASS、信封闸门 exit 0、两读者一致）。
+
+**门④ 剩下的 ②③ 不是「没修」，是「不许修」** —— 登记为**判据过期**的合法红，
+改判据要单独走一轮并报批。另有门③（缺输入）、门⑥（要动 L3 数据）、宿主库视图（要人做）
+三项红/无结论，**均不在 kb-repair 授权内**，见 §4。
+
+## 1. 闸门红在哪（修前读数）
+
+| 读数来源 | 内容 |
+|---|---|
+| 门④ `kb/l8/workflow_check_CHK-20261004-0958-WFP.json` | 裁决 FAIL；第 ⑥ 段 FAIL，`buckets: {'其他': 1, '他人产物 hostlib': 510}`，`other: ./_eval-L0L7-gap-20261003/kb-check-fix/SKILL.md` |
+| 信封闸门（同范围） | 退出码 **1**，扫描 105 个，信封态 **1** 个：`python=7729 node=11825 差=-4096` |
+
+> 「他人产物 hostlib」510 个是判据本就容忍的桶；**唯一进「其他」桶的那 1 个就是本次要修的**。
+
+## 2. 修前 / 修后对照（同一条闸门，贴命令与退出码）
+
+| | 命令 | 退出码 | 读数 |
+|---|---|---|---|
+| 修前 | `python3 tools/envelope_gate.py _eval-L0L7-gap-20261003` | **1** | 正常 104 ｜ 信封态 **1** ｜ 两读者**不一致** |
+| 修后 | 同上 | **0** | 正常 105 ｜ 信封态 **0** ｜ 两读者**一致** |
+| 修前 | `python3 tools/envelope_gate.py`（默认全范围） | 0 | 1952 文件 0 信封（**该范围不含 `_eval-L0L7-gap-*`，所以它红不了**） |
+| 修后 | 同上 | **0** | 1952 文件 0 信封 |
+| 修前 | `sh kb/kbpy l8/workflow_check.py CHK-20261004-0958-WFP` | 1 | FAIL：**② ③ ⑥** |
+| 修后 | `sh kb/kbpy l8/workflow_check.py REPAIR-20261004-1003-ENV` | 1 | FAIL：**② ③**（⑥ 已转绿） |
+
+修后逐段（原文见证据落点）：
+
+```
+知识库工作流体检 · REPAIR-20261004-1003-ENV · 2026-10-04 10:03:45
+  PASS  ① 环境与版本纪律
+  FAIL  ② 权威库 l0~l6 未被改动          ← 判据过期，合法红（未动）
+  FAIL  ③ 前序产物哈希（45 项）          ← 判据过期，合法红（未动）
+  PASS  ④ 分层库 → 生成器 → 视图
+  PASS  ⑤ 装载位 → 加载器（读工具+体检）
+  PASS  ⑥ 文档可见性（agent 能否读到）   ← 本轮由红转绿
+  PASS  ⑦ 消费侧 skill 可用
+  PASS  ⑧ 工作台与服务
+  PASS  ⑨ 写入侧（ingest 闸门 + 落盘通道）
+  可见性：工作区 6220 md，不可读 510 {'他人产物 hostlib': 510}   ← 「其他」桶已消失
+  裁决：FAIL（未过：['② 权威库 l0~l6 未被改动', '③ 前序产物哈希（45 项）']）
+```
+
+读者矩阵（修前 → 修后，同一文件）：
+
+| 读者 | 修前 | 修后 |
+|---|---|---|
+| python `getsize` / `read` | 7729 ｜ sha `37c93ee845a4cf10` ｜ NUL 0 | 7729 ｜ sha `37c93ee845a4cf10` ｜ NUL 0 |
+| node `statSync().size` / `readFileSync`（**判据读者**） | **11825** ｜ sha `66e9dd467e79076d` ｜ **NUL 4096** | **7729** ｜ sha `37c93ee845a4cf10` ｜ **NUL 0** |
+
+## 3. 变更记录
+
+### 改动的文件（**1 个**）
+
+`_eval-L0L7-gap-20261003/kb-check-fix/SKILL.md`
+
+### 变更协议 5 问
+
+| # | 问题 | 答案 |
+|---|---|---|
+| 1 | **读者**（谁读它） | 判据读者 = DSH 内置 Electron（`node statSync().size` / `readFileSync`）；闸门 = `tools/envelope_gate.py`、`kb/l8/workflow_check.py` 第 ⑥ 段；另 `_eval-L0L7-gap-20261003` 这个 eval 工作区自身的会话 |
+| 2 | **写者**（谁写它） | **不是库内脚本** —— 全库 `grep -rn 'kb-check-fix' --include='*.py' --include='*.js' --include='*.sh'` **0 命中**。它是一次 skill 评测修复副本的产物，被 **python 通道**写成了信封态 |
+| 3 | **判据**（怎么算修好） | ① `envelope_gate.py _eval-L0L7-gap-20261003` 退出 0 且两读者一致；② 门④ 第 ⑥ 段 PASS（「其他」桶归零） |
+| 4 | **通道**（用什么写） | **`/bin/cp`**（安全通道）。**没有**用 python 写目标文件 —— python 直写会再次落成信封 |
+| 5 | **回滚** | 见下 |
+
+### 内容有没有被改动：**没有**
+
+`cp` 的源是 `.dsh/skills/kb-check/SKILL.md`，它与目标文件的**修前 python 读数逐字节相同**
+（7729 字节 / sha `37c93ee845a4cf10` / NUL 0）。即本次只**剥掉信封**，**正文一字未改**：
+
+```
+target sha 37c93ee845a4cf10
+source sha 37c93ee845a4cf10
+identical: True
+```
+
+### 回滚基线
+
+| 项 | 路径 |
+|---|---|
+| 备份目录 | `kb/l7/_backups/kb-repair-envelope-evalcopy-20261004-100313/` |
+| 备份件 | `SKILL.md.before`（7729 B，内容 = 修前正文） |
+| 回滚命令 | `/bin/cp kb/l7/_backups/kb-repair-envelope-evalcopy-20261004-100313/SKILL.md.before _eval-L0L7-gap-20261003/kb-check-fix/SKILL.md` |
+
+> ⚠ **回滚点的边界（如实说明）**：备份件是**内容**层面的回滚点，它**恢复不了 4096 字节的信封** ——
+> 信封是 python 写盘时产生的，只能用 python 直写复现，而 python 直写正是被禁止的通道。
+> 因此「回到修前状态」= 用 python 重写该文件（会重新落成信封），**不是** cp 备份件能达到的。
+> 本次修复的方向是「**去掉**信封」，故这个边界对本次交付无影响；但**不许把 cp 备份说成能原样还原信封态**。
+
+## 4. 没修的项 —— 逐条给依据（**不是漏了**）
+
+| # | 项 | 复跑读数 | 为什么不修 |
+|---|---|---|---|
+| 1 | 门④ **② 权威库 l0~l6 未被改动** | FAIL | **判据过期**（`kb/l7/registry/workflow-check-known-drift.yaml` 已登记）：判据拿 2026-09-23 / 10-02 的快照哈希（2036 行 / 1527 行时代）去比现行 **1018 行**的 L3，**在不回滚 L3 的前提下数学上不可能为真**。改判据属**机制改动**，要单独走一轮并**报批** |
+| 2 | 门④ **③ 前序产物哈希（45 项，20 项 mismatch）** | FAIL | 同属 `BASELINE-STALE`。其中 `kb/l7/registry/l7.json` 一项是**真发现**（`INPLACE_WRITE_WITHOUT_RUN_RECORD`：改了但没落 run 记录），修法要 `l7_article_source_refresh.py <RUN> --apply` **开闸写库 + 补 run 记录** ⇒ **越权，未动** |
+| 3 | 门③ `routes_reconcile` | **exit 2**（不是红） | **缺输入**：赢家表 `kb/l7/reports/<RUN>-routes-winners.json` 全库不存在，且**全库无生成者**（它只能在**触发电测**跑出来后才有）。闸门自己声明「缺输入时不得报绿、也不得静默按全不一致跑」⇒ 本维度**无结论**。**没有**拿 `_eval-kb-manage/results_alias/` 下的旧 txt 去伪造一个赢家表 —— 那正是闸门防的「假绿」 |
+| 4 | 门⑥ `projection_reconcile` | **exit 1**，3/6 漂移（R1 源指纹、R2 509 条指纹、R4 2036 处治理字段未传导） | 修法是 `kb/.work/fix_f7_backfill.py` **回填 L3 治理字段 + 补 L3 run 记录 + 重出视图** ⇒ **动 kb/l3 数据与台账，kb-repair 明确不授权（先停）**。且有一个**明令禁止**：L3 字段仍空时重生成视图会造假绿 |
+| 5 | 宿主库视图 `kb_check`（E026 ×454、孤岛率 0.94、W020 ×2218、验收契约 draft） | 不通过 | 全是**人的动作**（补正文 / 人工归类疑似重复 / 要来源表给真实关联列 / owner 验收）⇒ 交回人 |
+
+## 5. 并发与时效（必须一起读的一句）
+
+- 本次读数是 **10:03–10:05 的一次快照**；`workflow_check` 跑的是 `REPAIR-20261004-1003-ENV` 这一 RUN。
+- 同一时段**至少 6 个并发会话**在同一库上跑任务（`ps` 实测含 `l6_gate.py` ×2、`workflow_check.py` ×2、`align_l0_feishu.py --check`、`run_round.py` 触发评测、多个 `dsh` agent 会话）。
+- **本项有复发风险且已如实披露**：该信封是**别的会话的评测流程用 python 写的**（mtime 09:49:39，正是上一轮修复之后新长出来的）。
+  只要那个评测会话再写一次，信封就会**再长回来**。检测方法（一行）：
+  ```
+  python3 tools/envelope_gate.py _eval-L0L7-gap-20261003   # 退出非 0 ⇒ 又长回来了
+  ```
+  **根治不在 kb-repair 权限内** —— 要根治得让**产出该文件的评测流程改走 cp/node 通道**（属机制改动，待裁）。
+
+## 6. 本次证据落点（可复算）
+
+| 内容 | 路径 |
+|---|---|
+| 修前信封闸门输出（exit 1） | `_repair-run-20261004-envelope-20261004-100313/01-before-scoped.txt` |
+| 修前读者矩阵 | `…/01b-before-readers.txt` |
+| 源件洁净性证明 | `…/02-source-sanity.txt` |
+| 修后读者矩阵 | `…/03-after-readers.txt` |
+| 修后信封闸门（同范围 / 全范围） | `…/04-after-scoped.txt`、`…/05-after-full.txt` |
+| 修后门④ 九段读数 | `…/06-after-workflow_check.txt` ＋ `kb/l8/workflow_check_REPAIR-20261004-1003-ENV.json` |
+| 其余闸门当轮读数 | `…/10-skills_check.txt`、`11-layers_check.txt`、`12-routes.txt`、`13-projection.txt` |
+
+---
+
+报告 run：`REPAIR-20261004-1003-ENV`｜档位：**kb-repair 修复档（只修授权内、修完复跑同一条闸门）**｜生成时间：2026-10-04 10:05 CST

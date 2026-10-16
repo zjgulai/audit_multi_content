@@ -1,0 +1,307 @@
+{
+  "kb_types": {
+    "external_standard": {
+      "label": "外部标准库",
+      "kb_version": "v0"
+    },
+    "internal_sample": {
+      "label": "内部正面与负面样本库",
+      "kb_version": "v0"
+    },
+    "wording": {
+      "label": "措辞表达库",
+      "kb_version": "v0"
+    },
+    "product_desc": {
+      "label": "产品描述库",
+      "kb_version": "v0"
+    },
+    "unknown": {
+      "label": "未命中规则（不猜）",
+      "kb_version": "v0"
+    }
+  },
+  "rules": [
+    {
+      "id": "R1",
+      "match_type": "field_value",
+      "scope_table": "材料收集",
+      "pattern": "知识库分类",
+      "match_value": "产品描述库",
+      "kb_type": "product_desc",
+      "note": "入口表自带的分类单选值，直接采信源侧标签，不自行判定业务域"
+    },
+    {
+      "id": "R2",
+      "match_type": "field_value",
+      "scope_table": "材料收集",
+      "pattern": "知识库分类",
+      "match_value": "措辞表达库",
+      "kb_type": "wording",
+      "note": "同上，源侧标签命中措辞表达库"
+    },
+    {
+      "id": "R3",
+      "match_type": "field_value",
+      "scope_table": "材料收集",
+      "pattern": "知识库分类",
+      "match_value": "外部标准",
+      "kb_type": "external_standard",
+      "note": "同上，源侧标签命中外部标准库"
+    },
+    {
+      "id": "R4",
+      "match_type": "field_value",
+      "scope_table": "材料收集",
+      "pattern": "知识库分类",
+      "match_value": "正面与负面样本",
+      "kb_type": "internal_sample",
+      "note": "同上，源侧标签命中内部正面与负面样本库"
+    },
+    {
+      "id": "R5",
+      "match_type": "table_name",
+      "pattern": "材料收集",
+      "kb_type": "unknown",
+      "note": "兜底：入口表记录本身是「材料收集项」这个容器，不归属任何一类库；其 link 子资源的归属由 R1-R4 判定"
+    },
+    {
+      "id": "R6",
+      "match_type": "field_value",
+      "scope_table": "规则库",
+      "pattern": "规则类型",
+      "match_value": "外部法规|平台政策",
+      "kb_type": "external_standard",
+      "note": "规则类型为外部法规或平台政策的记录归外部标准库"
+    },
+    {
+      "id": "R7",
+      "match_type": "field_value",
+      "scope_table": "规则库",
+      "pattern": "规则类型",
+      "match_value": "内部品线规则|案例沉淀",
+      "kb_type": "internal_sample",
+      "note": "内部品线规则与案例沉淀归内部正面与负面样本库"
+    },
+    {
+      "id": "R8",
+      "match_type": "table_name",
+      "pattern": "规则库",
+      "kb_type": "external_standard",
+      "note": "兜底：规则库未标注规则类型的记录，按外部标准库登记（低置信度，见报告）"
+    },
+    {
+      "id": "R9",
+      "match_type": "table_name",
+      "pattern": "正面和负面样本",
+      "kb_type": "internal_sample",
+      "note": "兜底：表名直指内部正负样本库"
+    },
+    {
+      "id": "R10",
+      "match_type": "field_name",
+      "pattern": "知识库",
+      "kb_type": "unknown",
+      "note": "分类说明表的字段名即「知识库」，但表内 5 行分别描述五类材料的收料要求，属规则说明而非知识本体，故不归属任何一类库"
+    },
+    {
+      "id": "R11",
+      "match_type": "field_name",
+      "pattern": "来源链接",
+      "kb_type": "external_standard",
+      "note": "仅规则库生效（见 field_role_table_overrides）；规则库的来源链接指向外部标准原文"
+    },
+    {
+      "id": "R12",
+      "match_type": "field_name",
+      "pattern": "来源文档",
+      "kb_type": "external_standard",
+      "note": "规则库字段，来源文档即外部标准出处"
+    },
+    {
+      "id": "R13",
+      "match_type": "field_name",
+      "pattern": "具体内容（截图/文案/OCR）",
+      "kb_type": "internal_sample",
+      "note": "正负样本表的素材附件字段，归属内部样本库"
+    },
+    {
+      "id": "R14",
+      "match_type": "field_value",
+      "scope_table": "知识库分类说明",
+      "pattern": "知识库",
+      "match_value": "外部标准",
+      "kb_type": "external_standard",
+      "note": "分类说明表按「知识库」列值归属；该表是入口 Base 内同级表，非筛选入口，记录随结构下钻登记"
+    },
+    {
+      "id": "R15",
+      "match_type": "field_value",
+      "scope_table": "知识库分类说明",
+      "pattern": "知识库",
+      "match_value": "正面与负面样本",
+      "kb_type": "internal_sample",
+      "note": "同上，源侧标签命中内部样本库"
+    },
+    {
+      "id": "R16",
+      "match_type": "field_value",
+      "scope_table": "知识库分类说明",
+      "pattern": "知识库",
+      "match_value": "措辞表达库",
+      "kb_type": "wording",
+      "note": "同上，源侧标签命中措辞表达库"
+    },
+    {
+      "id": "R17",
+      "match_type": "field_value",
+      "scope_table": "知识库分类说明",
+      "pattern": "知识库",
+      "match_value": "产品描述库",
+      "kb_type": "product_desc",
+      "note": "同上，源侧标签命中产品描述库"
+    },
+    {
+      "id": "R18",
+      "match_type": "table_name",
+      "pattern": "内容公式（仅供参考）",
+      "kb_type": "wording",
+      "note": "表名即为内容结构公式，属措辞表达库（该表无分类字段，按表名判定，置信度中）",
+      "scope_table": "内容公式（仅供参考）"
+    },
+    {
+      "id": "R19",
+      "match_type": "table_name",
+      "pattern": "专家修订汇总表",
+      "kb_type": "internal_sample",
+      "note": "专家对内部稿件的修订，属内部样本库（按表名判定，置信度中）",
+      "scope_table": "专家修订汇总表"
+    },
+    {
+      "id": "R20",
+      "match_type": "table_name",
+      "pattern": "广告文案明细",
+      "kb_type": "wording",
+      "note": "广告文案明细即文案素材本体，属措辞表达库（按表名判定，置信度中）",
+      "scope_table": "广告文案明细"
+    },
+    {
+      "id": "R21",
+      "match_type": "table_name",
+      "pattern": "风险文案改写建议库（分型号分渠道）",
+      "kb_type": "wording",
+      "note": "风险文案改写建议即措辞建议，属措辞表达库（按表名判定，置信度中）",
+      "scope_table": "风险文案改写建议库（分型号分渠道）"
+    },
+    {
+      "id": "R22",
+      "match_type": "table_name",
+      "pattern": "品线内容边界规则库",
+      "kb_type": "wording",
+      "note": "品线内容边界规则指导措辞表达，属措辞表达库（按表名判定，置信度中）",
+      "scope_table": "品线内容边界规则库"
+    },
+    {
+      "id": "R23",
+      "match_type": "table_name",
+      "pattern": "W1卖点表达边界（品线反馈0910）",
+      "kb_type": "wording",
+      "note": "卖点表达边界与合规话术，属措辞表达库（按表名判定，置信度中）",
+      "scope_table": "W1卖点表达边界（品线反馈0910）"
+    },
+    {
+      "id": "R24",
+      "match_type": "table_name",
+      "pattern": "数据表",
+      "kb_type": "external_standard",
+      "note": "该表内容为外部出版资料（DK/Johnson 育儿百科等），属外部标准库（按表名+内容形态判定，置信度中）",
+      "scope_table": "数据表"
+    }
+  ],
+  "table_unknown_allowlist": {
+    "规则库": "该表是双态表：记录级「规则类型」分属外部标准库与内部样本库（见 R6/R7），表级无单一 kb_type，故表资源记 unknown",
+    "材料收集": "入口容器表，本身不是知识本体，记 unknown（见 R5）"
+  },
+  "rule_eval_order": "按 R1 → R13 顺序，第一条命中即停；命中不到任何规则则 kb_type=unknown，单独汇总，不猜。资源级规则（R1-R4/R10-R13）优先于表级兜底规则（R5/R8/R9）生效。",
+  "field_roles": {
+    "From": "text",
+    "知识库分类": "status",
+    "编号-自动生成": "other",
+    "知识库分类说明-自动映射": "other",
+    "材料链接": "link",
+    "细分": "text",
+    "agent使用范围": "text",
+    "材料审核状态": "status",
+    "建议字段/材料": "text",
+    "需向对接人收集的问题": "text",
+    "负责人": "text",
+    "知识库": "text",
+    "要包含什么": "text",
+    "素材类型": "other",
+    "品线": "text",
+    "具体内容（截图/文案/OCR）": "attachment",
+    "原因分类": "text",
+    "具体原因/分析": "text",
+    "来源": "text",
+    "提交时间": "other",
+    "分类": "other",
+    "填写/修改人": "text",
+    "渠道/市场": "other",
+    "备注（如处理结果/建议）": "text",
+    "审核人": "text",
+    "适用渠道": "other",
+    "来源文档": "text",
+    "状态": "other",
+    "原文逐字": "text",
+    "对判定的意义": "text",
+    "规则ID": "other",
+    "条款位置": "text",
+    "适用品类": "other",
+    "法域": "other",
+    "中文摘要": "text",
+    "确认日期": "other",
+    "来源链接": "link",
+    "规则类型": "other",
+    "关联现网规则": "text",
+    "确认人": "text",
+    "规则来源": "other"
+  },
+  "field_role_table_overrides": {
+    "规则库::来源链接": "link",
+    "规则库::来源文档": "text",
+    "材料收集::材料链接": "link",
+    "正面和负面样本::具体内容（截图/文案/OCR）": "attachment"
+  },
+  "field_role_resolution": "先查 field_role_table_overrides 的「表名::字段名」，未命中再查 field_roles 裸字段名。存在同名不同角色的字段时必须写 override，避免误下钻。",
+  "fingerprint_policy": {
+    "primary": "sha256",
+    "revision_as_aux": true,
+    "hash_size_limit_mb": 2048,
+    "normalization": {
+      "encoding": "utf-8",
+      "newline": "\\n",
+      "strip_trailing_space": true,
+      "collapse_blank_lines": true,
+      "sort_keys": true,
+      "exclude_fields": [
+        "last_modified_time",
+        "last_modified_by"
+      ]
+    },
+    "sha256_input_by_source_kind": {
+      "feishu_bitable_record": "record_fields",
+      "feishu_bitable_table": "structure",
+      "feishu_bitable_base": "structure",
+      "feishu_doc": "doc_text",
+      "feishu_sheet": "doc_text",
+      "feishu_slides": "doc_text",
+      "feishu_attachment": "file_bytes",
+      "feishu_file": "file_bytes",
+      "feishu_wiki_node": "structure",
+      "url": "url_text"
+    }
+  },
+  "excluded_policy": "记录未命中「材料审核状态 = 通过」时不登记为资源，只进入 runs/<run_id>.json 的排除清单，原因枚举：no_status / status_not_passed / status_unsupported",
+  "unmatched_policy": "kb_type=unknown，单独汇总，不猜",
+  "kb_version": "v0"
+}

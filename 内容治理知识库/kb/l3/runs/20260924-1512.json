@@ -1,0 +1,51 @@
+{
+ "run_id": "20260924-1512",
+ "layer": "l3",
+ "sections": [
+  "§8 去重",
+  "§9 计数同步"
+ ],
+ "dedup": {
+  "before": 562,
+  "after": 358,
+  "dropped": 204,
+  "dropped_all_byte_identical": true,
+  "keep_rule": "行序最靠前",
+  "dryrun": "kb/.work/batch12/sample_cases.dryrun.jsonl",
+  "dryrun_sha256": "0b8e2c7ce14e97b42db7cd5d45f01a65dc91255a6f2269288caba13f12999b49",
+  "dryrun_byte_identical_to_deduped": true,
+  "emitters_fixed": [
+   "kb/.work/batch7_l3_run.py:110",
+   "kb/.work/batch7_l3_fix.py:79"
+  ],
+  "case_id_kept_as_is_reason": "case_id 已进入 kb/l4 条款号台账；改它会让 1242 条 article_no 错位"
+ },
+ "judged": {
+  "l3": {
+   "sample_cases": 358,
+   "case_id_unique": 358,
+   "rules": 509,
+   "rules_sha": "a17552e1a0fabde5acbe84bf66cf50dc72f25a00241f91892977e53346b4bd52",
+   "scoped": 375,
+   "scoped_sha": "81f74b85b410d6de1c4c955000c6edbc6ca0cd444f4b706d9b0d9783e3b818cc",
+   "canonical_sample_case": 358,
+   "field_diff": {}
+  },
+  "l4": {
+   "output_rows": 1242,
+   "duplicate_rows": 0,
+   "assigned_total": 1242,
+   "assignments_unchanged": true
+  },
+  "l7": {
+   "candidate_rows": 1242,
+   "total_outputs": 1242,
+   "read_at": "2026-09-24 15:20:00"
+  },
+  "three_way_equal": true
+ },
+ "immutable": {
+  "rules_sha": "a17552e1a0fabde5acbe84bf66cf50dc72f25a00241f91892977e53346b4bd52",
+  "scoped_sha": "81f74b85b410d6de1c4c955000c6edbc6ca0cd444f4b706d9b0d9783e3b818cc"
+ }
+}

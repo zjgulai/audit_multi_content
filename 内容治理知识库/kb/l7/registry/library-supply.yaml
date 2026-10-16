@@ -1,0 +1,123 @@
+# library-supply.yaml —— 四类知识库**各自靠哪条路变成评审依据**（声明件）
+#
+# 谁读它：`kb/l8/check_external_standard_supply.py`（判据 E1 / E3）。
+#
+# ── 为什么需要这一件 ────────────────────────────────────────────────────────
+# PRD §7.1 定了**四类知识库**，`kb/l7/registry/l7.json → citation_contract.libraries`
+# 给了它们的机器名（`external_standard` / `internal_sample` / `wording` / `product_desc`）。
+# 但「库里有一类东西」**不等于**「这一类能变成评审依据」—— 中间隔着一条**供给路径**：
+#
+#     源 → L0 → L1 → L2 单元 ─┐
+#                             ├─→ ① 规则层命中（kb/l3/candidates/rules.jsonl）
+#                             └─→ ② 定稿件被活代码读作内容（kb/l4/canonical/<形态>.jsonl）
+#
+# 没有这两条里的任何一条 ⇒ 那一类**永远进不了结论**，而报告里看起来「库里有这一类」。
+# 本件把那条路**逐类写下来**，交给判据机械复核。
+#
+# ── 三条纪律（与 l3-known-drift.yaml / permission-matrix.yaml 同一套）────────
+# 1. **声明不算数** —— 每条路径都要被 checker 复核：`rules` 要能在该文件里数出该
+#    `kb_type` 的行；`canonical_consumer` 要能在**活代码 AST 的非 docstring 字符串**里
+#    找到该形态名。**声明了但没有真路径 ⇒ 照红。**
+# 2. **词表不在本件抄第二份** —— 类目名一律现读 `l7.json → citation_contract.libraries`。
+# 3. **缺口照实留空**（`to_evidence: []`）**并写明实测数**，不许编一条路径把它填上；
+#    要关掉这条红，唯一正当的做法是**真的接一条路**（写规则，或写一个消费者）。
+#
+# 登记时间 2026-10-10（任务拆解 目标 5 的收口前置）。
+
+meta:
+  file: kb/l7/registry/library-supply.yaml
+  answers: "四类知识库各自靠哪条路变成评审依据"
+  checker: kb/l8/check_external_standard_supply.py
+  library_vocab_source: "kb/l7/registry/l7.json → citation_contract.libraries（**唯一真源**，本件不抄）"
+  registered_at: "2026-10-10"
+  measured_at: "2026-10-10（本件里的每个数都可由 checker 一键复算）"
+
+# ── 逐类供给路径 ──────────────────────────────────────────────────────────
+libraries:
+
+  external_standard:
+    label: "外部标准库"
+    prd: "PRD §7.1 第 1 类 —— 美国法规、平台政策、行业标准、医学共识、本地常识；优先级覆盖 **P0 + P1**"
+    to_evidence: []          # ← ★ 已声明的缺口，**不是漏填**
+    gap_note: >
+      实测（2026-10-10）：L2 有 5421 个 `external_standard` 单元（其中 **5368 个合格** ——
+      另 53 个是 PRD §2.2 排除项，2026-10-10 17:56 起 `rule_eligible=false`，
+      见 `check_source_readonly.py` 的 C8 判据）；
+      L3 候选里 `scoped_clause` 6310 条、L4 `numbering.issued.E-1` 已发号 3155 条 —— **料很多**。
+      但两条路都断着：① `kb/l3/candidates/rules.jsonl` 里 `kb_type=external_standard` 的规则 **0 条**
+      （1018 条**全是** `wording`）；② `kb/l4/canonical/{scoped_clause,clause}.jsonl` 在活路径
+      （`kb/l7/**`、`kb/l8/**`）上只被 **gate / distiller** 读 —— 那是**生产者与检查者，不是消费者**。
+      ⇒ 这一类**目前不可依据**：覆盖判据永远不成立 ⇒ 引擎对这类题材一律 fail-closed 拒答。
+    consequence: "题材只要落在外部标准上（婴儿睡姿 / 乘车安全座椅 / 医学共识），引擎**必然拒答**，而库里其实有条款。"
+    refs:
+      - "诊断-外部标准库蒸馏空壳-20261010.md"
+      - "裁定-L4段位E-1处置-20261010.md"
+      - "交付-L4发号526条外部标准真条款-20261010.md"
+
+  internal_sample:
+    label: "内部正负样本库"
+    prd: "PRD §7.1 第 2 类 —— 正面：合规优秀内容；负面：投诉、下架、警告、返工、达人争议、审核争议；覆盖 P0 + P1 + P2"
+    to_evidence:
+      - kind: canonical_consumer
+        form: sample_case
+        file: "kb/l7/skills/kb-content-review/scripts/review.py"
+        how: "反例（`polarity=反例`）参与覆盖判据与自命中"
+      - kind: canonical_consumer
+        form: sample_case
+        file: "kb/l7/review-engine/core/selfhit_check.py"
+        how: "送审件与反例/禁区条款的同一性检查"
+
+  wording:
+    label: "措辞表达库"
+    prd: "PRD §7.1 第 3 类 —— Do not say / Say this instead、禁用/慎用/推荐表达、中英对照；覆盖 P0 + P3"
+    to_evidence:
+      - kind: rules
+        file: "kb/l3/candidates/rules.jsonl"
+        how: "规则层逐字命中（引擎第 2 层）—— 1018 条候选规则全部出自本类"
+
+  product_desc:
+    label: "产品描述库"
+    prd: "PRD §7.1 第 4 类 —— 功能边界、型号差异、允许/禁止描述、认证参数、常见误解；覆盖 P1 + P2"
+    to_evidence: []          # ← ★ 已声明的缺口
+    gap_note: >
+      实测（2026-10-10）：L2 有 54 个 `product_desc` 单元；`kb/l4/canonical/` 下**没有**
+      product_desc 形态的定稿文件；`rules.jsonl` 里该 `kb_type` **0 条** ⇒ 这一类**不可依据**。
+      另注：`kb/l3/registry/l7.json` 的 `vocabulary.categories` 里有 `product-info` 类目，
+      与 `citation_contract.libraries` 的 `product_desc` **不是同一个键名** —— 两处口径
+      要不要统一，**本件不代人裁**（登记进 checker 的 `open_questions`）。
+    consequence: "「产品能做什么、不能做什么」这类问题引擎给不出依据；PRD §7.2 里挂在 P1/P2 的域受影响。"
+
+# ── 发号 ↔ 定稿 的差额登记（判据 E3）───────────────────────────────────────
+#
+# 为什么单列：`kb/l4/registry/l4.json` 把**已发号**记进 `numbering.issued`，
+# 而**定稿**才写 `canonical/<形态>.jsonl`。「发号 ≠ 定稿」是设计（`promotion_rule` 明写），
+# 但**差额本身不写下来** ⇒ 读台账的人会以为「发了 4260 个号 = 库里有 4260 条可引条款」。
+# ⇒ 差额必须在这里登记，且**登记里的两个数由 checker 现算复核**（漂了就红，声明不能过期）。
+#
+# ★ 用**总数**而不是逐段 —— 第一版我按段算，当场被自检判红，**那是我的尺子错了**：
+#   段的 `form`（`numbering.issued[*].form`）**不是** canonical 文件名。实测：
+#     S-1 的 form = `sample_case_polarity` ｜ W-3 的 form = `sample_case_wording_sample`
+#   而这两个段**共同**落在 `kb/l4/canonical/sample_case.jsonl`（316 + 157 = 473 ✓）。
+#   `l4.json` 里**没有任何一处**声明「段 → canonical 文件」的映射
+#   （`canonical.files` 给的是「文件 → L3 源文件」，方向不同）。
+#   ⇒ 没有依据按段算，就不装作有。下面两个总数零歧义、可一键复算。
+numbering_gap:
+  issued_total_measured: 4260      # Σ numbering.issued[*].issued（W-1 56 + W-2 453 + W-3 157 + S-1 316 + E-1 3155 + E-2 123）
+  canonical_total_measured: 1480   # Σ kb/l4/canonical/*.jsonl 行数（56 + 453 + 473 + 375 + 123 + rules 0）
+  reason: >
+    差 **2780** 条 = **已发号但未定稿**。`promotion_rule.status = "待抽查（本批不做）"` ——
+    定稿要过「候选 → **抽查（人工）** → 写 canonical」那道，**本人不能自签**。
+    其中 E-1 段贡献最大：已发 3155、canonical 375 —— 而那 375 条是 ⑥ 睡眠RAG 的**元数据**
+    （L4 自己逐条标着 `evidence_strength: 资料登记元数据（field_value），非条款正文`）；
+    本次新蒸出的真条款按`裁定-L4段位E-1处置-20261010.md`**从 E-1.376 起继续发号**，
+    那 375 条**不动**（号不回收，`no_reuse`）。
+    另注：`rules.jsonl` 是 **0 字节**（版本纪律 C6 要求它保持空）—— 这是设计，不是差额。
+  owner_question: "AQ-E1 这 2780 条真条款谁来抽查签字？"
+
+# ── 边界（照抄，别外推）────────────────────────────────────────────────────
+boundaries:
+  - "本件是**声明件**，不写任何 L0–L7 数据；判据只读。"
+  - "`canonical_consumer` 的复核只认**活代码**（`kb/l7/**`、`kb/l8/**`）与 `.py/.mjs/.js/.sh`；
+    人手从 `.md` runbook 里抄命令读某个 canonical 文件，**本判据管不住**。"
+  - "「路径存在」≠「路径好用」—— 判据只证明**有一条被机械复核过的读路径**，
+    不证明那条路径的命中率、准确率或性能。"

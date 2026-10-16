@@ -1,0 +1,98 @@
+{
+ "checks": [
+  [
+   "源未改动；写入全在 kb/ 内；外部调用全为读",
+   "通过：本轮写入 kb/l0（资源文件/台账/边/index/registry/runs）、kb/l1（产物/台账/media 副本）、kb/.work；外部调用全为 read（base +record-list、wiki +node-get、docs +fetch），见 runs/20260923-1300.ops.log；未修改任何视图或筛选条件"
+  ],
+  [
+   "kb/l0/ 既有资源文件、records/、links/ 未被修改",
+   "通过：台账前 606 行前缀 sha256 = b200e222debb5db1（与本批基线一致）；12:30 前已存在的 1294 个文件里，**被写入的 0 个**；新增文件 1117 个，构成：{'manifest.jsonl（追加）': 1, '库目录资源文件（新增登记）': 621, 'records/（新增留痕）': 486, 'links/graph.jsonl（追加）': 1, 'registry/（元数据）': 1, 'index/l0.jsonl（重建投影）': 1, 'runs/（新报告）': 6}；links/graph.jsonl 仅追加 128 条、未重写"
+  ],
+  [
+   "台账按 key 取最新一行的条数 == 资源文件总数",
+   "通过：1220 == 1220"
+  ],
+  [
+   "三方一致：文件内 kb_type == 台账 == 所在库目录",
+   "通过：1220 个文件，0 处不符"
+  ],
+  [
+   "失败率 + 成功率 = 100%（同一分母）",
+   "通过：口径3（分母 I=1112）成功 94.78% + 失败 5.22% = 100.0%"
+  ],
+  [
+   "77 条图片状态为 extracted，且 OCR 产物路径可访问",
+   "通过：extracted 77 条；ocr_text_path 与 media_path 均存在 77/77"
+  ],
+  [
+   "kb_version 仍为 v0；versions.jsonl 版本行 0",
+   "通过：registry.kb_version=v0；版本行 0"
+  ]
+ ],
+ "rates": {
+  "A": 1256,
+  "B": 36,
+  "C": 1220,
+  "D": 1054,
+  "E": 92,
+  "F": 16,
+  "G": 58,
+  "H": 1204,
+  "I": 1112,
+  "rate1": {
+   "succ": 86.39,
+   "fail": 4.75,
+   "undecided": 8.85
+  },
+  "rate3": {
+   "succ": 94.78,
+   "fail": 5.22
+  },
+  "status": {
+   "no_content_expected": 13,
+   "no_scope": 47,
+   "ok": 977,
+   "forbidden": 7,
+   "empty": 3,
+   "unreachable": 4,
+   "retracted": 36,
+   "extracted": 77,
+   "pending_fetch": 92
+  }
+ },
+ "st": {
+  "no_content_expected": 13,
+  "no_scope": 47,
+  "ok": 977,
+  "forbidden": 7,
+  "empty": 3,
+  "unreachable": 4,
+  "retracted": 36,
+  "extracted": 77,
+  "pending_fetch": 92
+ },
+ "by_kb": {
+  "unknown": 37,
+  "wording": 479,
+  "external_standard": 96,
+  "product_desc": 4,
+  "internal_sample": 604
+ },
+ "index_rows": 11387,
+ "kinds": {
+  "field_value": 10971,
+  "paragraph": 143,
+  "image_ocr": 77,
+  "image_visual": 77,
+  "list_item": 60,
+  "heading": 53,
+  "table_row": 6
+ },
+ "new_resources": 614,
+ "edges": 128,
+ "visual_ok": 77,
+ "extracted": 77,
+ "ocr_paths_ok": 77,
+ "pdf_standards": 30,
+ "violations": 0
+}

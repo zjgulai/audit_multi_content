@@ -1,0 +1,190 @@
+{
+ "meta": {
+  "file": "kb/l7/registry/permission-matrix.yaml",
+  "answers": "PRD §13 六类角色 / §9 复核与 sign-off：谁能看哪些行、谁能写哪些列",
+  "checker": "python3 kb/l8/check_permission_matrix.py",
+  "checker_selftest": "python3 kb/l8/check_permission_matrix.py --selftest",
+  "prd_ref": "内容审查 Agent PRD v1.2 §13 权限与安全 / §9 人工复核与 sign-off / §8.1 飞书群交互",
+  "task_ref": "任务拆解 10/12–10/16 行 · 目标 16（权限按角色控制）",
+  "registered_at": "2026-10-10",
+  "registered_by": "DSH agent（本会话）",
+  "scope_note": "★ **本件是声明件，不是执行面**。PRD §13 的权限**执行面在飞书侧**（Base 高级权限 / 角色）。本库出的是**角色定义 + 矩阵**，配权限要人去飞书点。本件不改任何飞书权限。",
+  "readonly_note": "★ 本件的底数**只读**采集（结论去向表 18 个字段 + routing-policy **8** 个角色位（2026-10-12 由 7 补为 8））。**全程未写任何飞书源。**"
+ },
+
+ "conclusion_table": {
+  "what": "三态结论的落表（结论去向）",
+  "base_token": "RY2UbCRjXaeeWwscUPScVN5AnQc",
+  "table_id": "tblCXPQVzfFWWCon",
+  "fields_measured_20261010": [
+   "内容 ID", "写入时间", "sign-off 人", "问题分类汇总", "报告链接", "Agent 结论",
+   "发布时间", "内容类型", "问题数量", "复核结论", "渠道", "审核人", "置信度",
+   "状态", "送审问题", "产品线", "送审版本", "人工复核人"
+  ],
+  "fields_count": 18
+ },
+
+ "roles": {
+  "内容提交方": {
+   "prd_role_cells": ["内容提交方"],
+   "prd_roles": ["内容提交方"],
+   "prd_rights": "提交内容、查看自己内容的结论和报告",
+   "routing_policy_key": "submitter",
+   "bind_status": "已对应",
+   "read": {"scope": "own_only", "fields": "all"},
+   "write": ["送审问题", "送审版本", "内容类型", "渠道", "产品线"],
+   "write_note": "★ 只许写**送审侧**字段（自己填的那几格）；结论派生列与复核列**一律不可写**。",
+   "prd_basis": "§13「提交内容、查看自己内容的结论和报告」—— 「自己内容的」⇒ 读是 own_only"
+  },
+
+  "法务": {
+   "prd_role_cells": ["法务"],
+   "prd_roles": ["法务 / 医学 / 专家 / 北美"],
+   "prd_rights": "查看 REVIEW 内容、填写复核结论",
+   "routing_policy_key": "legal",
+   "bind_status": "已对应",
+   "read": {"scope": "review_and_block", "fields": "all"},
+   "write": ["复核结论", "人工复核人"],
+   "prd_basis": "§13「查看 REVIEW 内容、填写复核结论」＋ §9「REVIEW 自动转对应专业团队（法务、医学、专家、北美）」"
+  },
+
+  "医学顾问": {
+   "prd_role_cells": ["医学"],
+   "prd_name_alias": "★ PRD §13 写「**医学**」，本库 `routing-policy.json` 的收敛名是「**医学顾问**」—— 同一个角色位的两个名，此处显式声明别名。",
+   "prd_roles": ["法务 / 医学 / 专家 / 北美"],
+   "prd_rights": "查看 REVIEW 内容、填写复核结论",
+   "routing_policy_key": "medical",
+   "bind_status": "已对应",
+   "read": {"scope": "review_and_block", "fields": "all"},
+   "write": ["复核结论", "人工复核人"],
+   "prd_basis": "同上；`routing-policy` 里叫「医学顾问」，PRD 叫「医学」—— **同一个角色位的两个名**，本件以 routing-policy 为准并记别名"
+  },
+
+  "专家": {
+   "prd_role_cells": ["专家"],
+   "prd_roles": ["法务 / 医学 / 专家 / 北美"],
+   "prd_rights": "查看 REVIEW 内容、填写复核结论",
+   "routing_policy_key": "expert",
+   "bind_status": "已对应（2026-10-12 补）",
+   "gap": "★ **角色位缺口已于 2026-10-12 关闭**（Owner 指示，本会话执行）：`routing-policy.json` 补了 `roles.expert = 专家`（版本 role-routing-2026-09-24 → **role-routing-2026-10-12**，变更记在该件的 `changelog`）。原缺口逐字（留痕，不删）：PRD §13 把「专家」与法务/医学/北美并列为**四类专业团队之一**，§9 也写「转对应专业团队（法务、医学、专家、北美）」；而该件当时 7 个角色位里没有「专家」⇒ 本件当时照实留空、不编 key。",
+   "gap_open_after_fix": "★ **仍未闭的一半**：**触发条件**（哪类问题该转「专家」）PRD 未定义、库内**搜不到出处**⇒ 按「不编」口径**不猜**。后果照实说：角色位在了，但**现有 4 条 rules 没有一条会路由到它**；要闭环需 Owner 给一句「哪些问题转专家」。",
+   "read": {"scope": "review_and_block", "fields": "all"},
+   "write": ["复核结论", "人工复核人"],
+   "prd_basis": "§13 / §9 原文同上"
+  },
+
+  "北美同事": {
+   "prd_role_cells": ["北美"],
+   "prd_name_alias": "★ PRD §13 写「**北美**」，本库收敛名「**北美同事**」—— 同一角色位，显式声明别名。",
+   "prd_roles": ["法务 / 医学 / 专家 / 北美"],
+   "prd_rights": "查看 REVIEW 内容、填写复核结论",
+   "routing_policy_key": "north_america",
+   "bind_status": "已对应",
+   "read": {"scope": "review_and_block", "fields": "all"},
+   "write": ["复核结论", "人工复核人"],
+   "prd_basis": "§13 / §9 原文同上"
+  },
+
+  "Sign-off 负责人": {
+   "prd_role_cells": ["Sign-off 负责人"],
+   "prd_roles": ["Sign-off 负责人"],
+   "prd_rights": "查看审查记录、确认 sign-off",
+   "routing_policy_key": "signoff",
+   "bind_status": "已对应",
+   "read": {"scope": "all", "fields": "all"},
+   "write": ["sign-off 人", "发布时间", "状态"],
+   "write_note": "★ 按 §9，sign-off 要**确认四件事**（审查记录完整 / REVIEW 已有人工结论 / BLOCK 已修改重提 / 发布版本与送审版本一致）⇒ 他必须**读得到全部**，否则确认不了。",
+   "prd_basis": "§13「查看审查记录、确认 sign-off」＋ §9 四条确认项"
+  },
+
+  "项目统筹": {
+   "prd_role_cells": ["项目统筹"],
+   "prd_roles": ["项目统筹"],
+   "prd_rights": "查看全部记录、统计、导出",
+   "routing_policy_key": null,
+   "bind_status": "★ **无对应**",
+   "gap": "`routing-policy.json` 是**复核路由**表（问题该转给谁），不含「项目统筹」这类**管理面**角色位。⇒ 本件按 PRD §13 直接定义，不假装它已存在。",
+   "read": {"scope": "all", "fields": "all"},
+   "write": [],
+   "write_note": "★ **只读 + 统计 + 导出**。§13 原文没给「查看全部记录、统计、导出」之外的写权限 ⇒ **不授予任何写**（这与目标 21「多维表统计筛选导出」直接相关）。",
+   "prd_basis": "§13「查看全部记录、统计、导出」"
+  },
+
+  "IT / Agent 维护": {
+   "prd_role_cells": ["IT / Agent 维护"],
+   "prd_roles": ["IT / Agent 维护"],
+   "prd_rights": "管理规则、知识库、模型、接口",
+   "routing_policy_key": null,
+   "bind_status": "★ **无对应**",
+   "gap": "同上，属管理面角色位，不在复核路由表里。",
+   "read": {"scope": "all", "fields": "all"},
+   "write": [],
+   "write_note": "★ 他管的是**规则 / 知识库 / 模型 / 接口**（本库侧），**不是结论表**。结论表不给写 —— §13 原文没这条。",
+   "prd_basis": "§13「管理规则、知识库、模型、接口」"
+  },
+
+  "管理员": {
+   "prd_role_cells": ["管理员"],
+   "prd_roles": ["管理员"],
+   "prd_rights": "权限配置、审计日志",
+   "routing_policy_key": null,
+   "bind_status": "★ **无对应**",
+   "gap": "同上。",
+   "read": {"scope": "all", "fields": "all"},
+   "write": [],
+   "write_note": "★ 管的是**权限配置与审计日志**，**不是结论内容** ⇒ 结论表不给写。要配权限是**飞书侧动作**（本件 `scope_note` 已声明）。",
+   "prd_basis": "§13「权限配置、审计日志」"
+  }
+ },
+
+ "routing_policy_extra_roles": {
+  "note": "★ `routing-policy.json` 有、而 **PRD §13 没列**的两个角色位。**照实登记，不删不改**（它们属复核路由，本矩阵是权限面，两者不冲突）。",
+  "产品负责人": {"routing_policy_key": "product", "why_extra": "§13 未列；但 `routing-policy.rules` 里「产品/型号/功能/规格/容量/认证」类问题转给它 ⇒ 它在**复核路由**里是必要角色位。"},
+  "渠道负责人": {"routing_policy_key": "channel", "why_extra": "§13 未列；`routing-policy.rules` 里「背书/达人/排名/绝对化/平台」类问题转给它。"}
+ },
+
+ "rules": {
+  "r1_no_write_to_conclusion_columns_by_others": "★ **结论派生列只有机器与 sign-off 能写**：`Agent 结论 / 问题数量 / 置信度 / 问题分类汇总 / 报告链接 / 写入时间 / 内容 ID` 属机器列（`review_publish.mjs` 的 `CONCLUSION_DERIVED_FIELDS`），**任何人工角色都不授予写**（sign-off 例外见 r2）。",
+  "r2_signoff_state_write": "★ `状态` 与 `发布时间` 归 **Sign-off 负责人**。⚠️ 已知未决（照实登记，不自己挑）：`review_publish.mjs` 的补写规则里 `状态` 是「**总是可改写**」⇒ 人设的「已修改／已发布」再送审一次会被机器改回（**改动前就是这行为**）。要不要保护人设终态，**等 Owner 一句话**（该未决在 `report-output-contract.yaml` 也记着）。",
+  "r3_own_only_means_row_scope": "`内容提交方` 的 `own_only` 是**行级**范围（只看自己那条 `内容 ID`），不是列级 —— §13 原文「查看**自己内容的**结论和报告」。",
+  "r4_no_management_role_gets_conclusion_write": "★ **管理面三个角色位（项目统筹 / IT·Agent 维护 / 管理员）在结论表上只读** —— §13 给的职责分别是「统计导出」「管规则库模型接口」「权限与审计」，**没有一条是「改结论」**。",
+  "r5_matrix_is_declaration_not_enforcement": "★ 本件**不执行**任何权限。执行面 = 飞书 Base 高级权限（`+advperm-enable` / `+role-create`）。**本件不改飞书。**"
+ },
+
+ "open_questions": [
+  {
+   "id": "expert-role-missing",
+   "status": "resolved",
+   "resolved_at": "2026-10-12",
+   "resolution": "Owner 2026-10-12 指示：**补一个 `expert` 角色位**（采纳本件原有推荐）。已在 `routing-policy.json` 补 `roles.expert = 专家` 并升版；`routing_policy_key` 已置 `expert`。★ 剩余待定：触发条件（见「专家」条目的 `gap_open_after_fix`）。",
+   "question": "（原问，留痕）PRD §13/§9 四类专业团队里有「**专家**」，而 `routing-policy.json` **没有这个角色位** —— 是补一个（`expert`），还是「专家」在业务上已由医学顾问 / 产品负责人代？",
+   "current_default": "★ **不编**：本矩阵把「专家」列为独立角色位，`routing_policy_key=null` 并标 `无对应`。",
+   "needs": "Owner 一句话",
+   "my_recommendation": "**推荐补一个 `expert` 角色位**（在 `routing-policy.json` 加 key，不动其它）。理由：① PRD 两处（§13、§9）都把「专家」与法务/医学/北美**并列**，不是修饰语；② 若由医学顾问代，则 §9「转**对应**专业团队」在专家类问题上会转错人 —— 而转错人比不转更费时间（这一句 PRD §16 也写着）；③ 补齐成本极低（一个 key + 一条 rules）。**代价/前提**：要动 `routing-policy.json`（**本库文件，不是飞书源**），且**要人给出「专家」具体是谁**（本件只能给角色位，给不出人名）。"
+  },
+  {
+   "id": "role-name-binding-pending-product-side",
+   "status": "awaiting_external",
+   "raised_at": "2026-10-12",
+   "question": "9 个角色位（内容提交方 / 法务 / 医学顾问 / 专家 / 北美同事 / Sign-off 负责人 / 项目统筹 / IT·Agent 维护 / 管理员）**各自是谁**？",
+   "who": "**产品侧**",
+   "current_default": "★ **不编**：本件只给角色位，人名一格不填（实测 9 个角色位 `name` 全空）。",
+   "disposition": "Owner 2026-10-12 指示：**等产品侧提供，先记录、待后续提供**。⇒ 本项**不是本库能做的活**，别把它算成「未做」；拿到名单后回填 `bind_status` 与路由绑定即可。",
+   "needs": "产品侧的名单（一行一个角色位）"
+  },
+  {
+   "id": "manager-role-states-write",
+   "question": "`状态` 列要不要保护人设终态（「已修改／已发布」不被机器改回）？",
+   "current_default": "★ **不改**（照 `review_publish.mjs` 现状：`状态` 总是可改写）。本矩阵只在 r2 里登记这条未决。",
+   "needs": "Owner 一句话",
+   "my_recommendation": "**推荐保护人设终态**（机器只写 `待审 / PASS / REVIEW / BLOCK` 四态，人设的 `已修改 / 已发布` 不覆盖）。理由：sign-off 后的终态被机器改回，等于**签了字又被抹掉**；而 §9 要求「发布版本与送审版本一致」的确认是**人**给的。**代价/前提**：要改守衡侧 `review_publish.mjs`（**另一仓库**）的 `CONCLUSION_DERIVED_FIELDS` 逻辑，改完必须重启守衡。"
+  }
+ ],
+
+ "honest_limits": [
+  "★ **本件给角色位，给不出人名** —— §13 六类角色「谁是谁」的绑定**等产品侧提供**（Owner 2026-10-12 指示）。状态=**待后续提供**（**无截止日，不编日期、不编到人**）；拿到后回填本件各角色的 `bind_status`，本库在此之前不猜人名。",
+  "★ **本件不执行权限** —— 飞书侧 Base 高级权限配置是**人的动作**，本件只声明矩阵（`r5`）。",
+  "★ **「专家」角色位已补**（2026-10-12）—— `routing-policy.json` 的 `roles.expert` 在、`routing_policy_key=expert`；**但触发条件仍空**（PRD 未定义、库内无出处，不编）⇒ 现有 rules 尚无一条会路由到它。",
+  "★ 底数**只读采集**于 2026-10-10：结论去向表 18 字段 + `routing-policy.json` **8** 角色位（2026-10-12 由 7 补为 8）。表结构或路由表日后变更 ⇒ 本件需跟着复核。"
+ ]
+}

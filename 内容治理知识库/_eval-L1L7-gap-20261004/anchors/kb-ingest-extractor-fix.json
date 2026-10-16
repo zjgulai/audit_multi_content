@@ -1,0 +1,85 @@
+{
+ "skill": "kb-ingest-extractor",
+ "version": "1.3.0",
+ "complexity": "standard",
+ "weights": {
+  "Trigger Accuracy": 25,
+  "Output Quality": 25,
+  "Progressive Disclosure": 15,
+  "Safety Boundary": 15,
+  "Script Quality": 10,
+  "Specification Compliance": 10
+ },
+ "_purpose": "**修复版** anchors（1.3.0）：基线 anchors 的增量修订，逐项记明依据。\n① description 重写（折叠 491）并**恢复判归段**（现役真源把判归整段删掉了）；② 正文 4001→3527（§2/§2.1 下沉新建 `references/engine-commands.md`）⇒ **ERROR 消除**、references 0→1（被正文点名）。",
+ "_measured_facts": {
+  "body_chars": 4001,
+  "body_limit_standard": 4000,
+  "description_collapsed": 573,
+  "directory": "**只有 SKILL.md** —— 无 references/、无 scripts/、无 examples/、无 tests/",
+  "frontmatter": "version 1.2.0、last_updated 2026-10-01、complexity standard、enabled、user-invocable、license（内部使用 —— Momcozy 内容治理知识库）、compatibility 映射（dsh: native / claude: bridge / codex: bridge）✓",
+  "validate_skill": "1 ERROR（body 4001 > 4000 for standard，**超 1 个字符**）+ 2 WARNING（无 README.md、无 .skill-meta/）；Quality Score 86/100"
+ },
+ "track_a_error": false,
+ "_track_a_error_basis": "本次已消除（见 _purpose 的 note）。",
+ "track_c_anchors": {
+  "Progressive Disclosure": {
+   "score": 13.0,
+   "basis": "【修复版】**目录内只有 SKILL.md**：无 references/、无 scripts/，知识全在一层，未达锚点 13-15 的「references/ 拆分合理且被正文点名引用」。但有分层意识：§2.1 有**只读查询档**（`l1_status.py` / `l2_status.py`）、§2 用表格点齐引擎与闸门、§7 指向家族成员，命令细节不堆砌 ⇒ 按锚点「**9-12 有分层意识，但部分知识仍堆在正文**」取**下沿 9**。　★ 本次修订依据：**references 从 0 到 1** 且被正文点名 ⇒ 由「9-12 有分层意识但知识堆正文」升到 13-15 档取下沿 13"
+  },
+  "Safety Boundary": {
+   "score": 13.0,
+   "basis": "【修复版】正文 §3「安全边界（一律拒绝，无例外）」+ §4「三条红线」+ §5 错误处理 + §6 验收闭环；description 写明只读查询档与写档边界。引擎侧为层主统一入口（`kb/kbpy`），非本 skill 自带。安全标签用例 FP 以本轮 A 卷实测为准；此处按**静态结构完整性**取下沿 13。"
+  },
+  "Script Quality": {
+   "score": 7.0,
+   "basis": "【修复版】**skill 目录内无 scripts/** ⇒ 不能进 9-10 档（该档要求自带脚本且满足单一职责/自描述接口/输入验证/错误恢复/--help 五条）。但配套引擎真实且设计良好：`kb/l8/extract_l1_new_resources.py`、`kb/l8/l2_split_run.py`（正文实测写明**本仓库唯一「不带 --apply 即预演」的层主引擎**）、闸门 `kb/l7/scripts/l1_gate.py` / `l2_gate.py` ⇒ 不属于「<6 完全依赖 LLM」档，取 6-8 **中位 7**。"
+  },
+  "Specification Compliance": {
+   "score": 9.0,
+   "basis": "【修复版】name=kb-ingest-extractor（与目录一致、≤64、ASCII kebab-case）✓；description 折叠后 573 ≤ 1024 ✓；有 license、version 1.2.0、last_updated、complexity ✓；**compatibility 已写成映射**（dsh: native / claude: bridge / codex: bridge）✓ ⇒ 9/10（扣 1 分因无 README.md / 无 .skill-meta/，校验器 2 条 warning）。"
+  }
+ },
+ "yaml": {
+  "track_a": {
+   "total": 93.6,
+   "dimensions": {
+    "schema_compliance": {
+     "score": 95.0,
+     "weight": 20,
+     "basis": "【修复版】name 5/5 ✓、description 结构 5/5 ✓、description 格式 4/4 ✓、complexity 3/3 ✓、compatibility 3/3 ✓（已写成映射）→ 大项齐；扣分因家族校验器 2 条结构 warning（无 README.md、无 .skill-meta/）"
+    },
+    "frontmatter_quality": {
+     "score": 96.0,
+     "weight": 25,
+     "basis": "【修复版】长度 5/5（description 折叠后 573 ∈ 200-1024）、触发短语具体性 8/8、触发词覆盖 7/7、防过度触发 4.0/5 ⚠️**现役真源已删掉整段判归/让位说明**（`original_backup/SKILL.md.orig` 里有 4 条「不适用（各自点名）」，现役版没有）⇒ 防过度触发这一项缺了最主要的抓手，这也是本件实测 FP 偏高的机制性原因之一　★ 本次修订依据：description 补回判归段 ⇒ 防过度触发有抓手（4.0→5.0）"
+    },
+    "body_quality": {
+     "score": 95.0,
+     "weight": 30,
+     "basis": "【修复版】写作语态 6/6、核心工作流 8/8（§0 边界 → §1 管哪两层 → §2 引擎（含「L2 是唯一不带 --apply 即预演的层主引擎」这条关键判据）→ §2.1 查询档 → §3 安全边界 → §4 三条红线 → §5 错误处理 → §6 验收 → §7 关系 → §8 停用）、可操作性 5/5、无冗余 4/5 ⚠️**正文 4001 字符 > standard 上限 4000（超 1 个字符）**"
+    },
+    "methodology_audit": {
+     "score": 92.0,
+     "weight": 15,
+     "basis": "【修复版】私有引擎与私有口径（只拆不合；预演/幂等/缺口口径；sha 未变即跳过）真实且有行业性；失败案例偏少（§5 错误处理较薄）⇒ 90"
+    },
+    "quality_gate": {
+     "score": 100.0,
+     "weight": 10,
+     "basis": "【修复版】单一职责 2/2（只做 L1 抽取与 L2 切分，§0 明示让位对象）、差异化价值 2/2、触发准确 2/2、可测试 2/2（闸门带退出码、幂等键可校验）、可打包 2/2 → 10/10"
+    },
+    "directory_structure": {
+     "score": 60.0,
+     "weight": 5,
+     "basis": "【修复版】SKILL.md 2/2 ✓；**references/ 0/1 ✗、examples/ 0/1 ✗、scripts/ 0/1 ✗** ⇒ 2/5 = 40　★ 本次修订依据：references/ 由 0/1 → 1/1；examples/ 与 scripts/ 仍缺 ⇒ 3/5 = 60（**未用空目录凑分**）"
+    }
+   }
+  },
+  "release_checklist_note": "基线轮不产出交付用 release_checklist（本件当前被 error 封顶、不可能交付）。"
+ },
+ "_delta_why": {
+  "Progressive Disclosure": "**references 从 0 到 1** 且被正文点名 ⇒ 由「9-12 有分层意识但知识堆正文」升到 13-15 档取下沿 13",
+  "frontmatter_quality": "description 补回判归段 ⇒ 防过度触发有抓手（4.0→5.0）",
+  "directory_structure": "references/ 由 0/1 → 1/1；examples/ 与 scripts/ 仍缺 ⇒ 3/5 = 60（**未用空目录凑分**）"
+ }
+}

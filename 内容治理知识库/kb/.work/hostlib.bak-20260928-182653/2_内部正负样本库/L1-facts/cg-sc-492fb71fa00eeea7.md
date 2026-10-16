@@ -1,0 +1,197 @@
+---
+id: cg-sc-492fb71fa00eeea7
+title: "[S-1.50] 内部正负样本库：反例·品牌一致性·视频"
+collection: 2_内部正负样本库
+kb_class: [内部正负样本库]
+tier: L1
+topic: S-1.50
+kind: fact
+summary: "[S-1.50] 反例案例（视频/EDM）：原因归类「品牌一致性」；案例作参照、不构成规则。状态 stable。"
+owner: 刘华丽
+evidence_level: L1
+data_level: L2
+sensitivity_level: L2
+half_life_days: 180
+created_at: 2026-09-28
+valid_until: 2027-03-27
+asks:
+  - S-1.50 是正例还是反例
+  - S-1.50 的问题要点与原因归类是什么
+  - S-1.50 应该怎么做（合规做法 / 修改建议）
+not_proves: 案例是参照，不构成规则 —— 不能证明「和它像」就违规、也不能证明「和它像」就合规；不能证明该条已过正式验收；不能证明该条可替代合规/法务意见
+forbidden: 不许把案例当规则用（案例只作参照）；不许据本条直接判 BLOCK；不许把派生视图的字段改动当成新库改动（视图不写回）
+related:
+  - cg-sc-78c83591214f4f5f
+  - cg-sc-4334178760db4e1e
+  - cg-sc-1b8ae6e1a1091189
+source:
+  kind: feishu-base
+  ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
+  fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
+  captured_at: 2026-09-28
+provenance:
+  anchor: "kb/l4/canonical/sample_case.jsonl#sc-492fb71fa00eeea7"
+  confidence: 确定
+pii:
+  detected: true
+  masked: true
+  strategy: "案例正文与原因分析里的 @人名 不可逆脱敏（mask-at-name）；已检出并脱敏"
+article_no: S-1.50
+form: sample_case
+kb_type: internal_sample
+kb_version: v0
+case_id: sc-492fb71fa00eeea7
+status: stable
+polarity: 反例
+material_type: 视频
+channel: EDM
+reason_category: 品牌一致性
+evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
+promoted_from: provisional
+anchor: "#正面和负面样本/recvw2wE9M1dlp/原文反馈"
+source_sha256: e93b78992bec2993b04bed4060fc654c6d6b5b59a053beab75643c72d41c7d62
+resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M1dlp
+sample_body: '【审核 · 2026-08-12 23:36 · 饶雨诗】【终审-@[已脱敏] 】姐麻烦看看呀:YouAreTheBest: **项目名：社区母乳喂养EDM推宣 第三阶段** **设计要求：** 主图banner：整体使用真人生活方式实景图，不要插画感，整体不要像大促 EDM，也不要做成医疗科普图，要像一封温暖的社区活动邀请邮件。 人物画面建议使用1至3位妈妈一起查看手机、交流或阅读内容的自然生活场景，并且有bb在场，呈现母乳喂养的氛围。 搭配少量简洁的Tips卡片或勾选元素（可选，根据审美和构图协调来看要不要增加，只是不想画面太干），体现“妈妈们共同选择实用经验”.  ![Image](img_v3_0214g_96df999a-f81f-405b-9060-cf7de6b34b0g) **设计稿件：** ![Image](img_v3_0214g_0be0fd69-8a3e-485d-911f-e33e75f32b7g)  Breast Pumps U-b Monins momCOZY Bras Everyday & reeaing Body Pillows Fregnancy Feeding Geaar U-so Mountns. Breastfeeding - Month- Turn Your Tip Into Support Share what another mom may need on a hard feeding day. •Gift Boxes Worth Up to $59.99+ Add My Tip $59.99 A Little Thank-You Selected Support List Contributors may receive self- selected Momcozy gift boxes worth up to $59.99. Help Complete the Support List # 1 Share tips worth adding 2 Add #TipsWorth Adding #TipsWorthAdding 3 Selected tips may be featured later momcozy 1580 N Logan St Ste 660, #30327, Denver, CO 80203-1994, USA Privacy Policy Terms & Conditions Warranty Policy All Rights Reserved © 2026 Momcozy.  视觉风格参考最终EDM 图，整体使用真人生活方式实景图，不要插画感。整体是一张竖版长图，采用分区模块排版，不是多张图拼接。视觉风格温暖、真实、柔 和，有Momcozy Community 的亲和感。整体色调以奶油白、浅粉、暖米色、柔和黄色为主，可少量（交互按钮＋重点区域）加入Momcozy 品牌色。模块之间用浅 色卡片、圆角分区、柔和阴影或留白区隔，阅读顺序从上到下自然推进。整体不要像大促 EDM，也不要做成医疗科普图，要像一封温暖的社区活动邀请邮件。 人物画面建议使用1至3位妈妈一起查看手机、交流或阅读内容的自然生活场景，并且有bb在场，呈现母乳喂养的氛围。并搭配少量简洁的Tips卡片或勾选元素（可 选，根据审美和构图协调来看要不要增加，只是不想画面太干），体现“妈妈们共同选择实用经验”提到奖励部分可以使用礼盒的icon 参考图为edm侧的模板参考，以上参 考图头图可严肃参考，温馨有氛围感 What Vou Con Win 奖励模块采用一张横向圆角卡片：模块顶部放简洁标题； 卡片左侧展示礼盒； 可以在产品图旁增加一张醒目的 $59.99 Gift Card式标签，突出价值； 卡片右侧重点放"3位获奖者”和“最高价值$59.99”； 下方用一行小字明确奖励对象为最终入选的Support List Contributors； 不需要展示复杂评选机制，也不要放奖杯、票数排行榜或过多产品信息。 How It Works 第三阶段玩法模块建议做成3步横向流程，每一步配一个简洁icon：浏览精选 TTips、勾选 Top 3、完成 Support List。视觉上可加入卡片、勾选框或投票按钮元素。 整体要简洁、清楚，不做复杂投票界面或排行榜，让用户一眼理解参与路径： 查看精选 Tips 一选出最多3条一共同完善最终 Support List Eyebrow: Breastfeeding Month Main Title: Turn Your Tip Into Support Subtitle: Share what another mom may need on a hard feeding day. Reward badge: Gift Boxes Worth Up to $59.99 CTA: ADD MY TIP A Little Thank-You Selected Support List Contributors may receive self-selected Momcozy gift boxes worth up to $59.99. Help Complete the Support List 1. Share tips worth adding 2. Add #TipsWorthAdding 3. Selected tips may be featured later #TipsWorthAdding 顶部小标签： 母乳喂养月 主标题： 把你的Tip 变成支持 副标题： 分享一条可能在艰难喂养日帮助到另一位妈 妈的经验。 奖励角标： 价值最高＄59.99的自选礼盒 CTA: 添加我的 Tip 一份小小谢礼 入选的 Support List 贡献者有机会获得价值 最高 ＄59.99的Momcozy 自选礼盒。 共同完善 Support List 1.分享值得加入的经验 2. 添加 #TipsWorthAdding 3. 入选 tips 后续可能被精选展示 #TipsWorthAdding'
+reason_analysis: "【品牌一致性】视频 主图banner：整体使用真人生活方式实景图，不要插画感，整。 原因：建议使用1至3位妈妈一起查看手机、交流或阅读内容的自然生活场景，并且有bb在场，呈现母乳喂养的氛围 【问题要点】 1. 主图banner：整体使用真人生活方式实景图，不要插画感，整体不要像大促 EDM，也不要做成医疗科普图，要像一封温暖的社区活动邀请邮件 2. 人物画面建议使用1至3位妈妈一起查看手机、交流或阅读内容的自然生活场景，并且有bb在场，呈现母乳喂养的氛围 3. 搭配少量简洁的Tips卡片或勾选元素（可选，根据审美和构图协调来看要不要增加，只是不想画面太干），体现“妈妈们共同选择实用经验”. 4. 【终审-@[已脱敏] 】姐麻烦看看呀"
+advice: 建议使用1至3位妈妈一起查看手机、交流或阅读内容的自然生活场景，并且有bb在场，呈现母乳喂养的氛围
+---
+
+# [S-1.50] 内部正负样本库：反例·品牌一致性·视频
+
+**条款号**：S-1.50　|　**形态**：`sample_case`　|　**正/反例**：反例　|　**状态**：stable
+
+## 样本本体（照抄新库，未改写）
+
+【审核 · 2026-08-12 23:36 · 饶雨诗】【终审-@[已脱敏] 】姐麻烦看看呀:YouAreTheBest:
+**项目名：社区母乳喂养EDM推宣 第三阶段**
+**设计要求：**
+主图banner：整体使用真人生活方式实景图，不要插画感，整体不要像大促 EDM，也不要做成医疗科普图，要像一封温暖的社区活动邀请邮件。
+人物画面建议使用1至3位妈妈一起查看手机、交流或阅读内容的自然生活场景，并且有bb在场，呈现母乳喂养的氛围。
+搭配少量简洁的Tips卡片或勾选元素（可选，根据审美和构图协调来看要不要增加，只是不想画面太干），体现“妈妈们共同选择实用经验”. 
+![Image](img_v3_0214g_96df999a-f81f-405b-9060-cf7de6b34b0g)
+**设计稿件：**
+![Image](img_v3_0214g_0be0fd69-8a3e-485d-911f-e33e75f32b7g)
+
+Breast Pumps
+U-b Monins
+momCOZY
+Bras
+Everyday & reeaing
+Body Pillows
+Fregnancy
+Feeding Geaar
+U-so Mountns.
+Breastfeeding
+- Month-
+Turn Your Tip Into Support
+Share what another mom may need
+on a hard feeding day.
+•Gift Boxes Worth
+Up to $59.99+
+Add My Tip
+$59.99
+A Little Thank-You
+Selected Support List
+Contributors may receive self-
+selected Momcozy gift boxes
+worth up to $59.99.
+Help Complete the Support List
+#
+1 Share
+tips worth
+adding
+2 Add
+#TipsWorth
+Adding
+#TipsWorthAdding
+3
+Selected
+tips may be
+featured later
+momcozy
+1580 N Logan St Ste 660, #30327, Denver,
+CO 80203-1994, USA
+Privacy Policy
+Terms & Conditions
+Warranty Policy
+All Rights Reserved © 2026 Momcozy.
+
+视觉风格参考最终EDM 图，整体使用真人生活方式实景图，不要插画感。整体是一张竖版长图，采用分区模块排版，不是多张图拼接。视觉风格温暖、真实、柔
+和，有Momcozy Community 的亲和感。整体色调以奶油白、浅粉、暖米色、柔和黄色为主，可少量（交互按钮＋重点区域）加入Momcozy 品牌色。模块之间用浅
+色卡片、圆角分区、柔和阴影或留白区隔，阅读顺序从上到下自然推进。整体不要像大促 EDM，也不要做成医疗科普图，要像一封温暖的社区活动邀请邮件。
+人物画面建议使用1至3位妈妈一起查看手机、交流或阅读内容的自然生活场景，并且有bb在场，呈现母乳喂养的氛围。并搭配少量简洁的Tips卡片或勾选元素（可
+选，根据审美和构图协调来看要不要增加，只是不想画面太干），体现“妈妈们共同选择实用经验”提到奖励部分可以使用礼盒的icon
+参考图为edm侧的模板参考，以上参
+考图头图可严肃参考，温馨有氛围感
+What Vou Con Win
+奖励模块采用一张横向圆角卡片：模块顶部放简洁标题；
+卡片左侧展示礼盒；
+可以在产品图旁增加一张醒目的 $59.99 Gift Card式标签，突出价值；
+卡片右侧重点放"3位获奖者”和“最高价值$59.99”；
+下方用一行小字明确奖励对象为最终入选的Support List Contributors；
+不需要展示复杂评选机制，也不要放奖杯、票数排行榜或过多产品信息。
+How It Works
+第三阶段玩法模块建议做成3步横向流程，每一步配一个简洁icon：浏览精选 TTips、勾选 Top 3、完成 Support List。视觉上可加入卡片、勾选框或投票按钮元素。
+整体要简洁、清楚，不做复杂投票界面或排行榜，让用户一眼理解参与路径：
+查看精选 Tips 一选出最多3条一共同完善最终 Support List
+Eyebrow:
+Breastfeeding Month
+Main Title:
+Turn Your Tip Into Support
+Subtitle:
+Share what another mom may need on a
+hard feeding day.
+Reward badge:
+Gift Boxes Worth Up to $59.99
+CTA:
+ADD MY TIP
+A Little Thank-You
+Selected Support List Contributors may
+receive self-selected Momcozy gift boxes
+worth up to $59.99.
+Help Complete the Support List
+1. Share tips worth adding
+2. Add #TipsWorthAdding
+3. Selected tips may be featured later
+#TipsWorthAdding
+顶部小标签：
+母乳喂养月
+主标题：
+把你的Tip 变成支持
+副标题：
+分享一条可能在艰难喂养日帮助到另一位妈
+妈的经验。
+奖励角标：
+价值最高＄59.99的自选礼盒
+CTA:
+添加我的 Tip
+一份小小谢礼
+入选的 Support List 贡献者有机会获得价值
+最高 ＄59.99的Momcozy 自选礼盒。
+共同完善 Support List
+1.分享值得加入的经验
+2. 添加 #TipsWorthAdding
+3. 入选 tips 后续可能被精选展示
+#TipsWorthAdding
+
+## 原因分析
+
+【品牌一致性】视频 主图banner：整体使用真人生活方式实景图，不要插画感，整。
+原因：建议使用1至3位妈妈一起查看手机、交流或阅读内容的自然生活场景，并且有bb在场，呈现母乳喂养的氛围
+【问题要点】
+1. 主图banner：整体使用真人生活方式实景图，不要插画感，整体不要像大促 EDM，也不要做成医疗科普图，要像一封温暖的社区活动邀请邮件
+2. 人物画面建议使用1至3位妈妈一起查看手机、交流或阅读内容的自然生活场景，并且有bb在场，呈现母乳喂养的氛围
+3. 搭配少量简洁的Tips卡片或勾选元素（可选，根据审美和构图协调来看要不要增加，只是不想画面太干），体现“妈妈们共同选择实用经验”.
+4. 【终审-@[已脱敏] 】姐麻烦看看呀
+
+## 建议
+
+建议使用1至3位妈妈一起查看手机、交流或阅读内容的自然生活场景，并且有bb在场，呈现母乳喂养的氛围
+
+## 引用依据
+
+- 锚点：`#正面和负面样本/recvw2wE9M1dlp/原文反馈`
+- 指纹：`e93b78992bec2993b04bed4060fc654c6d6b5b59a053beab75643c72d41c7d62`
+- 原因归类：品牌一致性　|　素材类型：视频
+
+> 案例只作参照，不构成规则。

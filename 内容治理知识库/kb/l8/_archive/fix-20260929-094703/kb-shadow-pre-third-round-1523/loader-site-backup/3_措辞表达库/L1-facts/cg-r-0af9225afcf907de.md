@@ -1,0 +1,82 @@
+---
+id: cg-r-0af9225afcf907de
+title: "[W-2.25] 措辞表达库：命中「这类持续烦躁，大多是长期奶水摄入不足引发的情绪反应」等 1 类表达"
+collection: 3_措辞表达库
+kb_class: [措辞表达库]
+tier: L1-facts
+topic: 未登记规则码
+kind: judgment
+summary: "[W-2.25] 判为「禁用/必须修改」（P1·unknown）：命中表达 1 条、证据单元 1 条；处理方式是「修改措辞：持续烦躁应首先排查宝宝健康状况，结合体重、排尿等客观指标综合判断，而非直接归因于母乳不足」。状态 provisional、verification 待验证。"
+owner: 刘华丽
+evidence_level: observation
+data_level: L2
+sensitivity_level: L2
+half_life_days: 180
+created_at: 2026-09-23
+valid_until: 2027-03-22
+asks:
+  - W-2.25 判什么、命中什么算违规
+  - W-2.25 应该怎么改（合规替代写法）
+  - W-2.25 的证据有几条、证据级是什么
+  - W-2.25 是 P 几、风险等级是什么
+  - 「这类持续烦躁，大多是长期奶水摄入不足引发的情绪反应」这类表述能不能用
+not_proves: 不能证明该条已过新库的正式验收（新库 l3 全部为 provisional，l4 canonical 尚未写入）；不能证明该条可替代合规/法务意见；不能证明「W-2.25」以外的规则码（未命中 ≠ 合规）
+forbidden: 不许把本条的 P 级/风险等级当成放行结论 —— 未命中本规则不等于内容合规；不许据本条的 suggested_replacement 直接外发文案，外发前仍需人工复核；不许把派生视图的字段改动当成新库改动（视图不写回）
+related:
+source:
+  kind: derived
+  ref: "kb/l3/candidates/rules.jsonl#r-0af9225afcf907de"
+  fingerprint: 70b81c24d851682643754ec72cd79bdd
+  captured_at: 2026-09-23
+rule_id: r-0af9225afcf907de
+article_no: W-2.25
+rule_code: ""
+p_level: P1
+risk_level: unknown
+rule_status: provisional
+verification: 待验证
+support_count: 1
+form: revision_pair
+kb_type: wording
+derived_from: kb/l3/candidates/rules.jsonl
+---
+
+# [W-2.25] 措辞表达库：命中「这类持续烦躁，大多是长期奶水摄入不足引发的情绪反应」等 1 类表达
+
+**条款号**：W-2.25　|　**规则码**：（未登记）　|　**rule_id**：`r-0af9225afcf907de`　|　**判定**：P1 · unknown
+
+## 规则原文（照抄新库，未改写）
+
+原表述：这类持续烦躁，大多是长期奶水摄入不足引发的情绪反应；修订为：修改措辞：持续烦躁应首先排查宝宝健康状况，结合体重、排尿等客观指标综合判断，而非直接归因于母乳不足；修订原因：持续烦躁通常不是先判定母乳不足的指标，反而需要首先排查孩子疾病情况
+
+## 命中表达（1 条；来源：规则行 forbidden_expression 拆分）
+
+- `这类持续烦躁，大多是长期奶水摄入不足引发的情绪反应`
+
+## 判为违规的依据
+
+持续烦躁通常不是先判定母乳不足的指标，反而需要首先排查孩子疾病情况
+
+## 处理方式 / 合规替代
+
+修改措辞：持续烦躁应首先排查宝宝健康状况，结合体重、排尿等客观指标综合判断，而非直接归因于母乳不足
+
+## 禁用表达汇总
+
+这类持续烦躁，大多是长期奶水摄入不足引发的情绪反应
+
+## 适用范围与证据
+
+- 覆盖记录数：0
+- 证据单元数：1（support_count 取新库值 1）
+- 证据级（新库取值）：observation
+- 验证状态（新库取值）：待验证 · 规则状态：provisional
+- 形态：revision_pair　|　库：措辞表达库（wording）
+
+## 证据单元明细（前 30 条，unit_id 可回查 kb/l2/units.jsonl）
+
+- `5778864355e69b3858b4`　#专家修订汇总表/recvoyJ6L9JwbP/修订位置（原文引用）　→ 【前】这类持续烦躁，大多是长期奶水摄入不足引发的情绪反应 【后】修改措辞：持续烦躁应首先排查宝宝健康状况，结合体重、排尿等客观指标综合判断，而非直接归因于母乳不足 【原因】持续烦躁通常不是先判定母乳不足的指标，反而需要首先排查孩子疾病情况
+
+---
+
+> 本条是**派生视图**（由 `kb/.work/gen-host-library.py` 从新库 l3/l5 生成），不是新库的权威条目。字段来源见 frontmatter 的 `provenance`。

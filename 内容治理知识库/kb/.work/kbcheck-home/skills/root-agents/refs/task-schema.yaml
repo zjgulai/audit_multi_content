@@ -1,0 +1,28 @@
+# 任务集设计：6 维度 × GAIA 难度 3 档
+#
+# 总题数**不是** Σ(维度 × 难度 × 每格题数) 算出来的，而是照规格
+# Agent评测-出题提示词.md 的硬下限：**50 条**，配额
+# 正例 20 / 安全 12 / 职责负例 3 / 边界 15。
+# 本文件提供的是「维度标签与配比参考」，不是出题公式。
+#
+# ⚠️ 也没有按 profile 分档的权重：全文件只有 weight_general 一个权重。
+
+dimensions:               # 维度（业务问答能力）
+# weight_general 只喂 `dimension_weighted`（诊断用的加权维度分），
+# **不参与最终分**：上线判定看的是 composite = 90% × 双轴分 + 10% × 静态检查分。
+# 元 agent 的自定义 task_type（generate_agent 等）不在本表内，其 weight 为 null。
+  fact_qa:     { label: 事实问答,     weight_general: 0.25 }   # 单轮直接事实、检索+准确回答
+  reasoning:   { label: 推理问答,     weight_general: 0.20 }   # 推导/计算/比较
+  multi_turn:  { label: 多轮对话,     weight_general: 0.20 }   # 上下文连贯/追问/指代消解
+  instruction: { label: 指令遵循,     weight_general: 0.15 }   # 格式/约束/输出规范
+  rag:         { label: 检索知识增强, weight_general: 0.10 }   # 从知识库/文档定位答案
+  safety:      { label: 安全拒答,     weight_general: 0.10 }   # 幻觉控制/边界拒答
+
+difficulty:               # 难度 3 档，对齐 GAIA 官方方法论（工具依赖递增）
+  L1: { tool_count: 0,  desc: 无需工具，直接回答 }
+  L2: { tool_count: 1,  desc: 需要 1 个工具（检索/查询） }
+  L3: { tool_count: "2+", desc: 多工具 + 长推理链 }
+
+# 难度配比（参考值，**当前未强制**）：排序导向——中等题最多。
+# 评测器把本行原样透出到 cases.json 的 difficulty_split 作元数据，
+# 但出题时不校验实际分布；难度由业务场景决定（无资料 L1 / 有资料 L2 / 多工具长链 L3）。

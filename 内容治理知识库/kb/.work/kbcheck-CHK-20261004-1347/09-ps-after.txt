@@ -1,0 +1,23 @@
+41105       11:25 bash -c cd "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理"; sh _gate-run-CHK-20261004-1347.sh 2>&1
+41106       11:25 sh _gate-run-CHK-20261004-1347.sh
+68999       02:18 /Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/Resources/Python.app/Contents/MacOS/Python /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/scripts/kb_pipeline.py --check
+72097       01:09 /Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/Resources/Python.app/Contents/MacOS/Python /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/scripts/l6_gate.py
+73033       00:46 bash -c cd "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理" && sh kb/kbpy l8/workflow_check.py REPAIR-20261004-1358-WF > _repair-run-REPAIR-20261004-1358-PRE/04.out 2>&1; echo "exit=$?" | tee _repair-run-REPAIR-20261004-1358-PRE/04.exit
+73034       00:46 /Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/Resources/Python.app/Contents/MacOS/Python /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l8/workflow_check.py REPAIR-20261004-1358-WF
+74046       00:18 bash -c cd "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理"; BASE=PIPE-20261004-1358; date '+%H:%M:%S'; echo "BASE=$BASE"; echo '=== claim ==='; sh kb/kbpy l7/scripts/kb_loop_claim.py claim --base $BASE 2>&1 | tail -12; echo "claim_exit=$?"; echo; echo '=== step1: L0 gate-only ==='; sh kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L0 --gate-only --run $BASE-L0 2>&1 | tail -30; echo "step1_exit=$?"
+74440       00:09 sh kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L0 --gate-only --run PIPE-20261004-1358-L0
+74445       00:09 sh kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L0 --gate-only --run PIPE-20261004-1358-L0
+74507       00:07 sh kb/kbpy l7/scripts/skills_check.py --json
+74512       00:07 sh kb/kbpy l7/scripts/skills_check.py --json
+74525       00:07 bash -c cd "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理" && sh kb/kbpy l8/projection_reconcile.py --json 2>/dev/null | python3 -c "\012import sys,json\012d=json.load(sys.stdin)\012print('summary:', {k:v for k,v in d.items() if k!='checks'})\012c=d['checks']\012for k in ['R1_source_sha256','R2_entry_fingerprint','R4_governance_passthrough']:\012    v=c.get(k,{})\012    print('---',k,'ok=',v.get('ok'))\012    print('  detail:', str(v.get('detail'))[:220])\012    s=v.get('samples')\012    if s: print('  sample[0]:', json.dumps(s[0],ensure_ascii=False)[:220])\012"
+74526       00:07 sh kb/kbpy l8/projection_reconcile.py --json
+74531       00:07 sh kb/kbpy l8/projection_reconcile.py --json
+74586       00:04 bash -c kb/kbpy l8/envelope_census.py; echo "[exit=$?] END-05b envelope_census"
+74588       00:04 /bin/sh kb/kbpy l8/envelope_census.py
+74593       00:04 /bin/sh kb/kbpy l8/envelope_census.py
+74635       00:03 bash -c KB=/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理\012echo "=== kb_loop_claim help ==="; sh "$KB/kb/kbpy" l7/scripts/kb_loop_claim.py --help 2>&1 | head -40\012echo; echo "=== existing claims/status ==="; sh "$KB/kb/kbpy" l7/scripts/kb_loop_claim.py status 2>&1 | head -30
+74636       00:03 sh /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/kbpy l7/scripts/kb_loop_claim.py --help
+74641       00:03 sh /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/kbpy l7/scripts/kb_loop_claim.py --help
+74762       00:00 bash -c cd /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理\012echo "=== date ==="; date "+%Y-%m-%d %H:%M:%S %z"\012echo "=== kbpy interpreter ==="; sh kb/kbpy l8/_interp.py 2>&1 | head -20; echo "exit=$?"\012echo "=== kb.lock ==="; ls -la kb/.work/.kb.lock 2>&1; echo "---"; cat kb/.work/.kb.lock 2>/dev/null\012echo "=== kb_loop_claim status ==="; ls -la kb/.work/ | head -40
+74764       00:00 sh kb/kbpy l8/_interp.py
+74769       00:00 sh kb/kbpy l8/_interp.py

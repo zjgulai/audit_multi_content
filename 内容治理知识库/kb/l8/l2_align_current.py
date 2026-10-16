@@ -1,0 +1,225 @@
+#!/usr/bin/env python3
+"""把 L2 对齐到 L1 的**当前**正文：退役被取代的单元。
+
+## 修的是什么（2026-09-30）
+
+`kb/l8/l2_staleness_audit.py` 量出来的结构性漏洞：
+
+    资源被重切（重抓 / 重 OCR）后，**旧单元行留在 units.jsonl 里不删**，
+    而 manifest_l2 里该资源最新一行变成 `result=split`（不再是 `invalidated`），
+    于是 `l6_scope_lib._invalidated_resources()` 这个**资源级**护栏当场失效 ——
+    旧正文的单元继续进 L6 索引。
+
+实测（run 20260930-0010）：103 个资源有被取代的单元，共 1,774 条 / 4,694,782 字；
+其中 31 条 / 88,588 字**确实在 L6 索引里**（TikTok 广告政策页 6 条 / 20,134 字、
+Google 广告政策页 4 条 / 14,480 字…）—— 正是白名单决策要挡的「整页抓取」文本，
+换了个 sha 就绕过了护栏。
+
+## 口径
+
+对每个资源，令 `l1_sha` = L1 产物当前 `source_sha256`（当前正文的权威 sha）：
+
+    要退役的单元 = { u ∈ units[rid] : u.source_sha256 != l1_sha }
+
+**只在能确定权威正文时才退役**，三条前置缺一不可：
+  ① L1 产物有 segments（有正文）；
+  ② `l1_sha` 是非空字符串；
+  ③ L1 台账 status 不是 invalidated/retracted。
+否则一律不动 —— 「正文不知道是什么」不等于「现有单元是错的」，
+盲退役会把好好的单元一次清空（第一版口径就踩了这个坑，见下）。
+
+## 只做退役，不做重切
+
+实测 103 个被取代的资源**全部**已有当前 sha 的单元（`has_current_units`），
+没有一个是「该重切却没重切」，所以本脚本不做重切。
+真有缺口的资源走官方工具 `kb/l8/l2_split_run.py`（它专管「有正文没单元」）。
+本脚本**不写 manifest_l2**：那张台账记的是资源级的 split/invalidate 事件，
+单元级退役记在自己的账 `kb/l2/retired_units.jsonl` 里，两级事件不混账。
+
+用法：
+    python3 kb/l8/l2_align_current.py <RUN>            # 干跑，只报数
+    python3 kb/l8/l2_align_current.py <RUN> --apply    # 落盘
+"""
+import hashlib
+import json
+import os
+import sys
+import time
+
+APPLY = "--apply" in sys.argv
+
+
+# ── 落章档（批次13 加，2026-10-02）：`--skill <id>` = 本层**真正执行**的 skill id ──
+# 为什么本批必须补（批12 判据 7 的那条红就是这个）：
+#   L2 有**两个**写 `kb/l2/runs/<RUN>*.json` 的落章者：
+#     · `kb/l8/l2_split_run.py:43`   `SKILL=_take("--skill")` → 传了才有 `REC["skill"]`
+#     · `kb/l8/l2_align_current.py`  （本文件，**原先根本不认这个旗标**）
+#   批12 两遍走的都是 align 这条路径 ⇒ 落章**无 `skill` 字段** ⇒
+#   `skill_invocation_audit.py` 的 E2（逐层无落章）对该 RUN 判红。
+#   ⇒ 这不是「没落章」，是**落章契约在两个写入者之间不一致**。
+# 真源纪律（与 `l2_split_run.py:37-43` 逐字同一条）：`--skill` 的值由**调用者**读
+#   `kb/l7/registry/layers.yaml` 本层 `skill:` 后传入；**本脚本不硬编码任何 skill id**
+#   —— 同一事实写两处，第二处必然过期（本库已因此返工三次）。
+# 只在**被显式传入**时写该字段；不传则不写（不编造，保持与历史落章同形）。
+def _take_skill(argv):
+    for i, a in enumerate(list(argv)):
+        if a == "--skill" and i + 1 < len(argv):
+            return argv[i + 1]
+        if a.startswith("--skill="):
+            return a.split("=", 1)[1]
+    return None
+
+
+SKILL = _take_skill(sys.argv)
+
+RUN = next((a for a in sys.argv[1:] if not a.startswith("--")), time.strftime("%Y%m%d-%H%M"))
+L0, L1, L2 = "kb/l0", "kb/l1", "kb/l2"
+LEDGER = f"{L2}/retired_units.jsonl"
+KEYS = {"unit_id", "resource_id", "kb_type", "retired_at", "reason",
+        "sha_retired", "sha_current", "char_count", "text_chars", "retired_by"}
+
+
+def load_jsonl(p):
+    if not os.path.exists(p):
+        return []
+    return [json.loads(l) for l in open(p, encoding="utf-8") if l.strip()]
+
+
+# ── L1 产物（连接键 = resource_id = 文件名去扩展名）──────────────────────
+ART = {}
+for d in sorted(os.listdir(L1)):
+    dp = os.path.join(L1, d)
+    if not (os.path.isdir(dp) and d[0].isdigit()):
+        continue
+    for f in os.listdir(dp):
+        if f.endswith(".json"):
+            try:
+                o = json.load(open(os.path.join(dp, f), encoding="utf-8"))
+            except Exception:
+                continue
+            ART[o.get("resource_id") or f[:-5]] = o
+
+l1_status = {r["resource_id"]: r.get("status")
+             for r in load_jsonl(f"{L1}/manifest_l1.jsonl") if "resource_id" in r}
+units = load_jsonl(f"{L2}/units.jsonl")
+already = {r["unit_id"] for r in load_jsonl(LEDGER)}
+
+RET, skipped = [], []
+for rid, art in sorted(ART.items()):
+    us = [u for u in units if u["resource_id"] == rid]
+    if not us:
+        continue
+    l1_sha = art.get("source_sha256")
+    segs = art.get("segments") or []
+    if not segs or not l1_sha or l1_status.get(rid) in ("invalidated", "retracted"):
+        bad = [u for u in us if u.get("source_sha256") != l1_sha]
+        if bad:
+            skipped.append({"resource_id": rid, "kb_type": art.get("kb_type"),
+                            "units_not_retired": len(bad),
+                            "why": ("L1 无 segments" if not segs else
+                                    "L1 无 source_sha256" if not l1_sha else
+                                    f"L1 status={l1_status.get(rid)}")})
+        continue
+    for u in us:
+        if u.get("source_sha256") == l1_sha or u["unit_id"] in already:
+            continue
+        RET.append({"unit_id": u["unit_id"], "resource_id": rid, "kb_type": u.get("kb_type"),
+                    "retired_at": RUN,
+                    "reason": "该资源已被重切：本条文本出自旧 sha 的正文，现正文的 sha 已不同",
+                    "sha_retired": u.get("source_sha256"), "sha_current": l1_sha,
+                    "char_count": u.get("char_count"),
+                    "text_chars": len(u.get("text") or ""), "retired_by": "l2_align_current"})
+
+idx_ids, scope_ids = set(), set()
+if os.path.exists("kb/l6/index/l6.jsonl"):
+    idx_ids = {json.loads(l)["unit_id"] for l in open("kb/l6/index/l6.jsonl", encoding="utf-8") if l.strip()}
+if os.path.exists("kb/l6/SCOPE.txt"):
+    scope_ids = {l.strip() for l in open("kb/l6/SCOPE.txt", encoding="utf-8")
+                 if l.strip() and not l.startswith("#")}
+ret_ids = {r["unit_id"] for r in RET}
+
+print(f"[{RUN}] L2 ↔ L1 对齐（退役被取代的单元）{'【落盘】' if APPLY else '【干跑】'}")
+print(f"  待退役 {len(RET)} 条 / {sum(r['text_chars'] for r in RET)} 字"
+      f"，涉及 {len({r['resource_id'] for r in RET})} 个资源")
+print(f"  其中在 L6 索引里的 {len(ret_ids & idx_ids)} 条"
+      f"（{sum(r['text_chars'] for r in RET if r['unit_id'] in idx_ids)} 字）"
+      f"、在 SCOPE 白名单里的 {len(ret_ids & scope_ids)} 条")
+print(f"  已在退役账里的 {len(already)} 条（幂等：重复跑不会重复记账）")
+if skipped:
+    print(f"  ⚠ 因「权威正文不可确定」而未退役的 {len(skipped)} 个资源"
+          f"（共 {sum(s['units_not_retired'] for s in skipped)} 条单元），原因分布：")
+    agg = {}
+    for s in skipped:
+        agg[s["why"]] = agg.get(s["why"], 0) + 1
+    for k, v in sorted(agg.items(), key=lambda kv: -kv[1]):
+        print(f"      {k:<28} {v} 个资源")
+if not APPLY:
+    # ★ 2026-10-09：干跑档多一个转储口 —— 把**将要退役的那些行**原样写成 jsonl，
+    #   好让 `kb/l8/workflow_impact_gate.py --pending=<它>` 在**不落任何盘**的前提下
+    #   被真验一遍（否则那条闸门只能等下一次真写才首验，属"没红过的断言"）。
+    _dump = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--dump-pending=")), None)
+    if _dump:
+        with open(_dump, "w", encoding="utf-8") as fh:
+            for r in RET:
+                fh.write(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n")
+        print(f"  [转储] 待退役 {len(RET)} 行 → {_dump}（干跑，未写退役账）")
+    print("\n  [干跑] 未落盘。加 --apply 即写 kb/l2/retired_units.jsonl")
+    sys.exit(0)
+
+# ── ★★ 2026-10-09：**写前的「工作流影响面」闸门**（本文件是全库 L2 退役的唯一写点）──
+#
+# 病灶（实测事故）：run 20261009-1300 作废了 338 条**在册**单元，于是 L6 白名单
+#   （`kb/l6/SCOPE.txt`，按 unit id 记）指空 ⇒ 索引过期 ⇒ `l6_gate.py` 红 ⇒
+#   评审链「遇红即停」停在 L6、用户拿到拒答（`layer_gate_red`，退出码 4）。
+#   **而那个读数一直在这份报告里**（下面 `retired_in_scope_file`，以及上面打印的
+#   「在 SCOPE 白名单里的 N 条」）—— 它只是**没有执行点**（`AGENTS.md` §2.4 那个病）。
+#   现在它是执行点：影响面 > 0 时**默认先自动补偿**（只补已在册资源的现行单元，
+#   不放进任何新资源），补不干净就**拒写**；确有必要硬写要显式签字。
+#
+# ★ 位置很关键：**必须在写之前**。写在后面就只是"事后报告"，而这一刀已经落下去了。
+_impact_rc = 0
+if RET:
+    import subprocess
+    import tempfile
+    _ack = next((a.split("=", 1)[1] for a in sys.argv
+                 if a.startswith("--allow-workflow-impact=")), None)
+    _pf = tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False, encoding="utf-8")
+    for _r in RET:
+        _pf.write(json.dumps(_r, ensure_ascii=False, sort_keys=True) + "\n")
+    _pf.close()
+    _cmd = [sys.executable, "kb/l8/workflow_impact_gate.py", RUN, f"--pending={_pf.name}"]
+    _cmd += [f"--allow-workflow-impact={_ack}"] if _ack else ["--compensate"]
+    _p = subprocess.run(_cmd, capture_output=True, text=True, errors="replace")
+    print("\n" + "-" * 74)
+    print((_p.stdout or "").rstrip())
+    if _p.stderr:
+        print(_p.stderr.rstrip())
+    print("-" * 74)
+    os.unlink(_pf.name)
+    _impact_rc = _p.returncode
+    if _impact_rc != 0:
+        print(f"\n  ✗ 影响面闸门未放行（退出码 {_impact_rc}）⇒ **不写退役账**。")
+        print("     这一刀会打断评审链，而自动补偿没能补干净 —— 先处理上面点到的东西。")
+        sys.exit(_impact_rc)
+
+if RET:
+    with open(LEDGER, "a", encoding="utf-8") as fh:
+        for r in RET:
+            assert set(r) == KEYS, set(r) ^ KEYS
+            fh.write(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n")
+print(f"\n  [写入] {LEDGER} +{len(RET)} 行")
+_rec = {"run_id": RUN, "kind": "l2_align_current", "retired": len(RET),
+           "retired_chars": sum(r["text_chars"] for r in RET),
+           "retired_resources": len({r["resource_id"] for r in RET}),
+           "retired_in_l6_index": len(ret_ids & idx_ids),
+           "retired_in_scope_file": len(ret_ids & scope_ids),
+           "skipped_unresolvable": skipped,
+        "rows": RET}
+# 落章契约与 l2_split_run.py 对齐：显式传入才写（不传不编造）
+if SKILL:
+    _rec["skill"] = SKILL
+    _rec["skill_source"] = "--skill 参数（调用者读 layers.yaml 本层 skill: 后传入；本脚本不硬编码）"
+json.dump(_rec, open(f"kb/l2/runs/{RUN}.json", "w", encoding="utf-8"),
+          ensure_ascii=False, indent=1)
+print(f"  落章 skill={'（已写入 %s）' % SKILL if SKILL else '**未传 --skill，无落章**'}")
+print(f"  [报告] kb/l2/runs/{RUN}.json")

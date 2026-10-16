@@ -1,0 +1,84 @@
+{
+ "policy_id": "risk-category-policy-20261012",
+ "created_at": "2026-10-12",
+ "layer": "L7 评审链 · 问题维度标注（PRD §5.3 / §8.3）",
+ "status": "active",
+ "owner": "内容治理（角色位）",
+ "scope": "评审链产出的每条 finding（`kb/l7/skills/kb-content-review/scripts/review.py`）",
+ "prd_refs": {
+  "dimension_required": "PRD §5.3 逐字：「Agent 输出三态结论时，必须**先标注问题所属维度**，再给出总结和建议。」",
+  "four_dimensions": "PRD §5.3 的示例逐字给出四个维度：『【合规-医疗宣称】』『【消费者安全-使用姿势】』『【合规-绝对化用语】』『【消费者安全-车内场景】』『【措辞表达】』 ⇒ **合规 / 消费者安全 / 产品描述 / 措辞表达**",
+  "report_requires": "PRD §8.3 逐字：「完整问题清单，每条包含：**维度**、位置、问题描述、原因、依据文档链接、修改建议」＋「**按维度分组展示**」",
+  "json_field": "PRD §5.4 结构化 JSON 逐字同时给出两格：`\"risk_type\": \"合规-医疗宣称\"` 与 `\"risk_category\": \"合规\"` —— **后者就是本件要补的那一格**"
+ },
+ "why_this_file": "任务拆解 10/19–10/23 行「必须做」第 1 条逐字：「报告输出补「维度」（合规 / 消费者安全 / 产品描述 / 措辞表达）与「位置」……现状：引擎**没有 `risk_category`**（维度标注未实现）」。实测复核：活代码里 `risk_category` **0 命中**（`grep` `kb/l3..l7` 排除 `_archive`）。",
+ "two_category_systems": {
+  "note": "★★ 库内**两套类目体系并存**（本库的 `report-output-contract.yaml` 自己记着，且它自己先错了一次：第一版只认规则词表 ⇒ 跑真表立刻红）。两套都必须映射，否则一半问题没有维度。",
+  "system_1_rule_vocab": {
+   "source": "kb/l7/registry/l7.json → vocabulary.categories（规则词表，code_map 驱动）",
+   "values": ["功效宣称", "绝对化与安全承诺", "背书与资质", "平台与促销", "婴幼儿安全与场景", "人物肖像与 AI", "表述与术语准确性", "未分类"]
+  },
+  "system_2_case_vocab": {
+   "source": "kb/l4/canonical/sample_case.jsonl → reason_category（反例/禁区那套）",
+   "values": ["品牌一致性", "原则性错误", "措辞表达", "审核问题", "文化禁忌", "合规红线", "unknown"],
+   "measured_20261012": {"unknown": 214, "品牌一致性": 119, "原则性错误": 49, "措辞表达": 47, "审核问题": 31, "文化禁忌": 10, "合规红线": 3}
+  }
+ },
+ "dimensions": ["合规", "消费者安全", "产品描述", "措辞表达"],
+ "map": {
+  "功效宣称": {"risk_category": "合规", "prd_basis": "PRD §7.3-2「医疗功效宣称（治疗、预防疾病等）」；§5.3 示例逐字『【合规-医疗宣称】』", "hard": true},
+  "绝对化与安全承诺": {"risk_category": "合规", "prd_basis": "PRD §7.3-3「绝对化用语（最、第一、最佳、100%、纯天然等）」；§5.3 示例逐字『【合规-绝对化用语】』", "hard": true},
+  "人物肖像与 AI": {"risk_category": "合规", "prd_basis": "PRD §7.3-6「未成年人未经授权出镜 / 隐私暴露」＋ §7.3-7「AI 深度合成内容未标识」—— 两条都是一票否决", "hard": true},
+  "合规红线": {"risk_category": "合规", "prd_basis": "类别名即维度；该体系出自反例/禁区（§7.3）", "hard": true},
+  "婴幼儿安全与场景": {"risk_category": "消费者安全", "prd_basis": "PRD §7.2 九域里的一票否决域；§5.3 示例逐字『【消费者安全-使用姿势】』『【消费者安全-车内场景】』", "hard": true},
+  "品牌一致性": {"risk_category": "措辞表达", "prd_basis": "PRD §6.2 P3 逐字「品牌语气不一致」", "hard": true},
+  "措辞表达": {"risk_category": "措辞表达", "prd_basis": "同名词条；§5.3 示例逐字含『措辞表达』", "hard": true},
+  "背书与资质": {"risk_category": "合规", "prd_basis": "PRD §7.3-4「无依据的销量/排名宣称」＋ §5.3 示例的依据例《广告法禁用语》", "hard": false},
+  "平台与促销": {"risk_category": "合规", "prd_basis": "PRD §7.1 外部标准库含「平台政策」", "hard": false},
+  "表述与术语准确性": {"risk_category": "措辞表达", "prd_basis": "PRD §6.2 P3「措辞规范、用词不精准」", "hard": false},
+  "审核问题": {"risk_category": "合规", "prd_basis": "该类别出自反例/禁区（库内反例条款），按 §7.2/§7.3 归合规", "hard": false}
+ },
+ "unmapped": {
+  "原则性错误": "★ **不编，留空待裁**。它是反例体系里的一类（实测 49 行），语义是「原则性/事实性错误」—— 在 PRD §5.3 的四维度里**没有明确落点**（既不是合规红线，也不只是措辞）。要人裁：归「措辞表达」还是新开一维？",
+  "文化禁忌": "★ **不编，留空待裁**。属于本地化/文化语境（实测 10 行），PRD §5.3 四维度未覆盖；§5.2 的「品牌信任」也不完全对得上。",
+  "未分类": "受控枚举的兜底（`l7.json.vocabulary.closure` 逐字：出现词表以外的类别不得自造，记为「未分类-未分类」）⇒ 本来就没有维度，**不许编一个**。",
+  "unknown": "反例体系里的「还没判」（实测 214 行）⇒ 同上，**不许编**。"
+ },
+ "boundary": {
+  "product_desc_empty": "★★ PRD §5.3 列了四个维度，而库内**没有「产品描述」这一类**（15 个类别里一个都不是）⇒ 该维度**当前恒空**。这不是实现漏了，是**库内类别体系里没有对应物**；要它有值，得先有产品描述类的规则/反例（见 11/16 那行的产品事实库）。",
+  "risk_type_unchanged": "★ 本件**不动** `risk_type`。它现在是「库内类别-子类」（如 `功效宣称-催乳与通乳宣称`），而 PRD §5.4 的示例是「维度-子类」（`合规-医疗宣称`）。**改它 = 改既有输出**（工作流可见），故**留作待裁项**，本件只**新增** `risk_category` 一格。",
+  "location_note": "「位置」那一半：`risk_items[].location` **已存在**（`review.py` 的 `position`；图片类实测有『图片 1 的图内文字』这种值，报告里 48 处）。本件不动它。"
+ },
+ "validation": {
+  "implementation": "kb/l7/skills/kb-content-review/scripts/risk_category.py（纯函数；唯一实现，不许在别处再写一份）",
+  "consumer": "kb/l7/skills/kb-content-review/scripts/review.py → 每条 finding 加 `risk_category`",
+  "selftest": "python3 kb/l7/skills/kb-content-review/scripts/risk_category.py --selftest",
+  "unmapped_is_visible": "未映射的类别**不静默**：finding 的 `risk_category=null`、并记进 `risk_category_basis` 写明原因"
+ },
+ "revisit": {
+  "when": "Owner 对「原则性错误 / 文化禁忌」定维度时；或库内新增类别时",
+  "who": "内容治理",
+  "how": "改本文件的 `map` / `unmapped` 两段（唯一口径），代码不用动"
+ },
+ "rulings": [
+  {
+   "id": "unmapped-stay-blank",
+   "at": "2026-10-12",
+   "by": "Owner（内容治理）",
+   "question": "`原则性错误`（实测 49 行）与 `文化禁忌`（10 行）归 PRD §5.3 的哪个维度？",
+   "ruling": "**暂留空，等产品描述类目一起定**（`risk_category = null`，`basis` 写明「待裁」）。",
+   "cost": "这两类问题暂不参与「按维度分组展示」—— 如实记，不蒙。",
+   "boundary": "**不许**因为它们「没维度不好看」就蒙一个：留空人会去补，错值人不会回头看。"
+  },
+{
+ "id": "risk-type-not-reformatted",
+ "at": "2026-10-12",
+ "by": "Owner（内容治理）",
+ "question": "`risk_type` 要不要从「库内类别-子类」改成「维度-子类」（对齐 PRD §5.4 示例 `合规-医疗宣称`）？",
+ "ruling": "**不改**。已另开改动单《改动单-risk_type对齐PRD5.4-20261012.md》。",
+ "decisive_evidence": "★★ **改它会静默改「转给谁」** —— `review_engine.py::route_owners()` 拿 `risk_type` 做关键词匹配来定责任人（实测 6 条里 **3 条**路由变化）：`功效宣称-催乳与通乳宣称` 医学顾问+法务 → **法务+北美同事**（医学顾问丢了）；`绝对化与安全承诺-虚假安全承诺` 医学顾问+法务+**渠道负责人** → 医学顾问+法务；`背书与资质-监管认证宣称` 产品负责人+法务+**渠道负责人** → 产品负责人+法务。⇒ PRD §9「REVIEW **自动转对应专业团队**」被降级，属最坏的一类。",
+ "correct_fix": "`risk_type` **保留**（它同时承担「细分类型展示」与「路由关键词」两个职责，且信息量高于四维度）；PRD §8.3 要的「**按维度分组展示**」改用**新格 `risk_category`** —— `kb/l7/review-engine/core/report_memory.py:51` 现在按 `risk_type` 分组，应改为按 `risk_category`。那是一条**独立**的改动（改报告分组 = 工作流可见），走改动单。",
+ "evidence_cmd": "python3 - <<'EOF'  # 逐条对比现 risk_type 与「维度-子类」的路由结果（只读）\nEOF"
+}
+ ]
+}

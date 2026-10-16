@@ -1,0 +1,14 @@
+flowchart LR
+    A([提交]) --> B[待审]
+    B -->|预审| C{判定}
+    C -->|通过| P[PASS]
+    C -->|存疑| R[REVIEW]
+    C -->|红线| BL[BLOCK]
+    C -->|未覆盖| RF[拒答]
+    P --> H[人工复核]
+    R --> H
+    RF --> H
+    H --> PUB([已发布])
+    BL --> F[已修改]
+    F -->|重提| B
+    B -.->|缺料| NI[NEEDS_INPUT]

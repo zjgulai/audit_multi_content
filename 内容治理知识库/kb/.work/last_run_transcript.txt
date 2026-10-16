@@ -1,0 +1,495 @@
+[review_run] --loaded-skill 申报：kb-canonical-lookup kb-p0-check kb-recall kb-check 文案合规审查 
+[review_run] ① 四层前置 L4→L5→L6→L7 …
+[preflight 14:49:43] 认领成功：20261013-1449
+[preflight 14:49:44] ② L4 闸门(自带)+引擎(预演)+记账 … invoked=kb-canonical-lookup session=session-da7f8521-1ffa-4611-b53b-fdd104f28a45
+[preflight 14:49:45] ② L4 记账完成 → kb/l7/runs/20261013-1449-L4.json
+[preflight 14:49:45] ③ L4 审计 …
+[preflight 14:49:45] ③ L4 审计 exit=0（红 0）
+[preflight 14:49:45] ② L5 闸门(自带)+引擎(预演)+记账 … invoked=kb-p0-check session=session-da7f8521-1ffa-4611-b53b-fdd104f28a45
+[preflight 14:49:47] ② L5 记账完成 → kb/l7/runs/20261013-1449-L5.json
+[preflight 14:49:47] ③ L5 审计 …
+[preflight 14:49:47] ③ L5 审计 exit=0（红 0）
+[preflight 14:49:47] ② L6 闸门(自带)+引擎(预演)+记账 … invoked=kb-recall session=session-da7f8521-1ffa-4611-b53b-fdd104f28a45
+[preflight 14:49:49] ② L6 记账完成 → kb/l7/runs/20261013-1449-L6.json
+[preflight 14:49:49] ③ L6 审计 …
+[preflight 14:49:49] ③ L6 审计 exit=0（红 0）
+[preflight 14:49:49] ② L7 闸门(自带)+引擎(预演)+记账 … invoked=kb-check session=session-da7f8521-1ffa-4611-b53b-fdd104f28a45
+[preflight 14:49:49] ② L7 记账完成 → kb/l7/runs/20261013-1449-L7.json
+[preflight 14:49:49] ③ L7 审计 …
+[preflight 14:49:49] ③ L7 审计 exit=0（红 0）
+[preflight 14:49:49] ✅ 四层前置全绿（L4–L7 各一 RUN，四道审计红 0）｜BASE=20261013-1449
+[preflight 14:49:49]    下一步：出结论 —— with_kb_evidence.py --require-layer-preflight 20261013-1449 --decision-owner <判定主体>
+[preflight 14:49:49] 已释放认领 20261013-1449
+[review_run] ② 自命中检查（素材 vs 库内 181 条反例/禁区）…
+===== ② 自命中检查（确定性；它只报事实，不判三态）=====
+自命中检查：未命中
+  素材归一化字符 333 ｜ 扫过条款 296 条 ｜ 阈值 ratio≥0.9 且 run≥80
+[review_run] 若上面是 status=error，那是「没查成」，**不是**「没命中」。
+[review_run] ③ 出结论（含默认发布到飞书）…
+===== ③ 引擎结论（唯一有权产出三态的地方）=====
+飞书发布：素材属性 → 渠道='' ｜ 产品线=''（由 l0_facets 推出：{}）
+飞书发布：自动调用 feishu_publish.py --apply …
+  ③ 既有同「内容 ID」行 7 条（本单**新增一行**，不更新它们）
+  ④ 云文档：跳过（问题数 0 < 3 ⇒ 按 PRD 不生成报告；报告正文见本地 /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/reports/rv-20261013-144955.feishu.md）
+  ⑤ 表行：新建 recvxUtxj62941
+  ⑥ 读回：表行 recvxUtxj62941 ｜ 内容 ID 与结论一致 ✅
+  完成：docx= ｜ record=recvxUtxj62941
+  未生成报告：0 条 < PRD §5.3.4 门槛 3 ⇒ 库侧按 PRD 不建云文档；报告链接由守衡侧按「并集去重后的总数」口径补建。
+  门槛：report_link_required=False ｜ n_issues=0 ｜ min_issues=3 ｜ emitted=False ｜ form=itemized ｜ source=policy
+{
+ "decision": {
+  "review_id": "rv-20261013-144955",
+  "content_id": "AD-20261013-001",
+  "content_id_basis": "业务编号（PRD §5.4）：PRD §5.4 `AD-YYYYMMDD-NNN`；序号=1（表内同日前缀最大 +1）；读到 100 个内容 ID（表内 100 行）",
+  "content_version": "19f1f4cba3cca59a0014b9e49fb32fde6a5bffc62db17219bf1b94e0e1d48c5c",
+  "agent_version": "local-core-0.1.0",
+  "rule_version": "unfrozen",
+  "knowledge_version": "unfrozen",
+  "decision": "PASS",
+  "confidence": 0.93,
+  "summary": "【审查结论：PASS】未发现已知底线风险，可转交 @sign-off 责任人（未配置） 进行 sign-off。",
+  "issue_count": 0,
+  "issue_count_including_candidates": 0,
+  "candidate_count": 0,
+  "issue_count_basis": "issue_count（0 = 库内依据，**与分类汇总同一个数**，见 PRD §5.4）= 完整清单 0 − 非权威候选 0；候选无库内条款号、只作排查线索，不构成依据",
+  "issue_summary_by_category": {},
+  "risk_items": [],
+  "report_url": null,
+  "next_action": "转 sign-off 负责人确认送审版本与发布版本一致",
+  "next_owners": [
+   "Sign-off 负责人"
+  ],
+  "sla": {
+   "priority": "any",
+   "target": "1 business day",
+   "escalate_to": [
+    "项目统筹",
+    "Sign-off 负责人"
+   ],
+   "timezone": "America/Los_Angeles",
+   "clock_rules": [
+    "Start the clock when the required input manifest is complete.",
+    "Pause the clock while waiting for missing submitter material.",
+    "Record timezone and business-calendar version with each SLA event.",
+    "SLA breach never changes the decision automatically."
+   ]
+  },
+  "version_gate": {},
+  "coverage": {
+   "text": "complete",
+   "image": "not_applicable",
+   "audio": "not_applicable",
+   "video": "not_applicable",
+   "ocr": "not_applicable",
+   "asr": "not_applicable",
+   "keyframes": "not_applicable",
+   "note": "声明模态：text；未拿到 provider 佐证的模态记 incomplete（缺口，不是不适用）"
+  },
+  "decision_trace": {
+   "reasons": [
+    "no_known_blocking_or_review_risk"
+   ],
+   "confidence_status": "heuristic_not_calibrated",
+   "evaluated_at": "2026-10-13T06:49:57.129018+00:00",
+   "tier_trace": {
+    "P0": 0,
+    "P1": 0,
+    "P2": 0,
+    "P3": 0,
+    "p0_confirmed_blocking": 0,
+    "p0_without_evidence": 0,
+    "p3_advice_only": true,
+    "p0_confidence_flow": false
+   },
+   "confidence_route": {
+    "applies": true,
+    "band": "direct",
+    "range": ">= 0.90",
+    "effect": "keep",
+    "annotate": null,
+    "decision_before": "PASS",
+    "decision": "PASS",
+    "why": "PRD §6.6：≥0.90 直接输出结论（PASS / BLOCK）",
+    "p0_override": false,
+    "thresholds": {
+     "direct": 0.9,
+     "confirm": 0.7
+    },
+    "calibrated": false,
+    "thresholds_source": "kb/l7/registry/confidence-policy.json"
+   },
+   "confidence_derivation": {
+    "kind": "derived",
+    "base": 0.93,
+    "cat_bonus": 0.0,
+    "ev_penalty": 0.0,
+    "unc_p0_penalty": 0.0,
+    "raw": 0.93,
+    "clamped_to_keep_decision": null,
+    "final": 0.93,
+    "note": "**只让值有分布、不改结论**（截断到本结论自己的档）；动 0.90/0.70 两条线是下一步，先用 kb/l8/calibrate_confidence.py 量代价。"
+   },
+   "decision_before_confidence_flow": "PASS"
+  }
+ },
+ "evidence_meta": {
+  "run_id": "20261013-144952",
+  "findings": 0,
+  "state": "PASS",
+  "report_path": null,
+  "material_facets": {
+   "product_line": "",
+   "channel": "",
+   "from": {},
+   "all_product_lines": [],
+   "all_channels": [],
+   "anchors_used": 0
+  },
+  "trace": {
+   "p0": {
+    "engine": "kb/l5/matcher.py",
+    "exit_code": 0,
+    "total_elapsed_ms": 56.47,
+    "engine_elapsed_ms": 14.574,
+    "hits": []
+   },
+   "rules": {
+    "engine": "kb/l3/candidates/rules.jsonl",
+    "kb_type_filter": null,
+    "rules_scanned": 509,
+    "hits": [
+     {
+      "rule_id": "r-724b26ecb1dee9c4",
+      "article_no": "W-1.30",
+      "rule_code": "安全词",
+      "p_level": "P2",
+      "risk_level": "Low",
+      "authority": null,
+      "kb_type": "wording",
+      "authority_source_table": null,
+      "matched_fragments": [
+       "hands-free",
+       "wearable"
+      ],
+      "anchor": "#品线内容边界规则库/recvuJP2Ot474u/边界内容",
+      "source_sha256": "5a740e9d29e4a9defa82e99066118cb7a118d1d55a21b0e109f6a0aa0257d000",
+      "rule_text": "边界：客观功能/真实认证关键词（正面提示，不参与降级）；触发词：suction level, suction levels, adjustable suction, 9 levels, 10 levels, hands-free, wearable, portable, rechargeable, wireless, BPA-free, food-grade silicone, food grade, FDA cleared, FDA-cleared, FDA registered, easy to clean, dishwasher safe, dishwasher-safe, quiet mode, low noise, low-decibel, reduces pain, less pain, gentle, comfort",
+      "suggested_replacement": ""
+     }
+    ]
+   },
+   "units": {
+    "engine": "kb/l6/retriever.py",
+    "l6_mode": "vector_plus_bm25",
+    "semantic_recall": true,
+    "bm25_max": 151.3515,
+    "cosine_max": 0.0,
+    "used_vector": false,
+    "no_semantic_annotation": null,
+    "top_bm25": [
+     {
+      "source": "bm25_en",
+      "unit_id": "5313f7bddf8f6330ff6c",
+      "anchor": "#l.1-1",
+      "table": "l.1-1",
+      "kb_type": "wording",
+      "source_sha256": "1e1ae33b261494706a9915f5c9337339a5c7e4e21ac0db548e3175498dd44925",
+      "raw_bm25": 151.3515,
+      "excerpt": "Momcozy Autumn Sale | Up to 60% Off Canada Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether Toys B"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "f5f61479267faae933cd",
+      "anchor": "#l.1-4",
+      "table": "l.1-4",
+      "kb_type": "wording",
+      "source_sha256": "1bdb6973149054498f073654274e67a90f25ff8bd5a6e85d953fdd3a31d23ee1",
+      "raw_bm25": 134.7274,
+      "excerpt": "wearable pumps on the market: completely hands-free, very quiet, and designed for high mobility. Many exclusive pumpers use it as a primary wearable for work be"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "ba1dfd9b313cd1be23d6",
+      "anchor": "#l.1-5",
+      "table": "l.1-5",
+      "kb_type": "wording",
+      "source_sha256": "76348260d52928c194bc9c168de30aa909d071cac12a053f4d3019094c2af37e",
+      "raw_bm25": 122.6734,
+      "excerpt": "Bottle Warmer Routines for Combo-Fed Babies: Separate Cycles, Shared Safety Checks Why the Same Bottle-Warmer Setting Heats Cold Storage Breast Milk Differently"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "6a2fb3422f182cf6cdee",
+      "anchor": "#l.1-6",
+      "table": "l.1-6",
+      "kb_type": "wording",
+      "source_sha256": "130f06c60b491e125781d30db828a852c690348eba2684f72acf1188b3170ccb",
+      "raw_bm25": 122.1235,
+      "excerpt": "our pumping journey from a limiting necessity into empowering freedom. To further enhance your comfort, consider pairing your new device with a supportive nursi"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "e4690aa011886291574e",
+      "anchor": "#l.1-6",
+      "table": "l.1-6",
+      "kb_type": "wording",
+      "source_sha256": "1bdb6973149054498f073654274e67a90f25ff8bd5a6e85d953fdd3a31d23ee1",
+      "raw_bm25": 121.3872,
+      "excerpt": "arising from the use of this content. Breast Engorgement Relief: Why Common Remedies Sometimes Make It Worse Bottle Warmer Routines for Combo-Fed Babies: Separa"
+     }
+    ],
+    "vector_rows": [],
+    "adopted": [
+     {
+      "source": "bm25_en",
+      "unit_id": "5313f7bddf8f6330ff6c",
+      "anchor": "#l.1-1",
+      "table": "l.1-1",
+      "kb_type": "wording",
+      "source_sha256": "1e1ae33b261494706a9915f5c9337339a5c7e4e21ac0db548e3175498dd44925",
+      "raw_bm25": 151.3515,
+      "excerpt": "Momcozy Autumn Sale | Up to 60% Off Canada Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether Toys B",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "f5f61479267faae933cd",
+      "anchor": "#l.1-4",
+      "table": "l.1-4",
+      "kb_type": "wording",
+      "source_sha256": "1bdb6973149054498f073654274e67a90f25ff8bd5a6e85d953fdd3a31d23ee1",
+      "raw_bm25": 134.7274,
+      "excerpt": "wearable pumps on the market: completely hands-free, very quiet, and designed for high mobility. Many exclusive pumpers use it as a primary wearable for work be",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "ba1dfd9b313cd1be23d6",
+      "anchor": "#l.1-5",
+      "table": "l.1-5",
+      "kb_type": "wording",
+      "source_sha256": "76348260d52928c194bc9c168de30aa909d071cac12a053f4d3019094c2af37e",
+      "raw_bm25": 122.6734,
+      "excerpt": "Bottle Warmer Routines for Combo-Fed Babies: Separate Cycles, Shared Safety Checks Why the Same Bottle-Warmer Setting Heats Cold Storage Breast Milk Differently",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "6a2fb3422f182cf6cdee",
+      "anchor": "#l.1-6",
+      "table": "l.1-6",
+      "kb_type": "wording",
+      "source_sha256": "130f06c60b491e125781d30db828a852c690348eba2684f72acf1188b3170ccb",
+      "raw_bm25": 122.1235,
+      "excerpt": "our pumping journey from a limiting necessity into empowering freedom. To further enhance your comfort, consider pairing your new device with a supportive nursi",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "e4690aa011886291574e",
+      "anchor": "#l.1-6",
+      "table": "l.1-6",
+      "kb_type": "wording",
+      "source_sha256": "1bdb6973149054498f073654274e67a90f25ff8bd5a6e85d953fdd3a31d23ee1",
+      "raw_bm25": 121.3872,
+      "excerpt": "arising from the use of this content. Breast Engorgement Relief: Why Common Remedies Sometimes Make It Worse Bottle Warmer Routines for Combo-Fed Babies: Separa",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     }
+    ],
+    "discarded": [],
+    "gate": {
+     "bm25_raw_min": 8.0,
+     "vector_cosine_min": 0.6,
+     "use_raw_scores_only": true,
+     "why_not_rrf": "RRF 分恒为 1/(60+k)，实测 Top1 恒在 0.016393，A 组与 B 组看起来一样高，没有区分度，不能当门限",
+     "why_single_threshold_not_enough": "实测 BM25 原始分在 A/B 两组有重叠（A 组最低 5.32 < B 组最高 10.02），所以门限只用于「够不够格当参考」，要成为「依据」还必须同时命中规则层",
+     "measured": {
+      "bm25_raw": {
+       "A_group_min": 5.32,
+       "A_group_median": 12.76,
+       "B_group_median": 6.44,
+       "B_group_max": 10.02,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      },
+      "cosine": {
+       "A_group_min": 0.512,
+       "A_group_median": 0.669,
+       "B_group_median": 0.384,
+       "B_group_max": 0.569,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      }
+     },
+     "threshold_reasoning": "BM25 门限取 8.0：落在 A 组最低(5.32)与 B 组最高(10.02)之间、贴近两组中位之间，偏保守；余弦门限取 0.60：实测它是唯一能把 B 组全部挡在外面的取值（B 组最高 0.569），代价是 A 组丢 2 条；即便如此门限仍单独不可靠，必须叠加「同时命中规则层」才算依据",
+     "below_threshold_label": "参考",
+     "above_threshold_without_rule_hit": "仍只能标参考，不得作为依据",
+     "coverage_bm25_min": 16.0,
+     "coverage_reasoning": "PASS 必须建立在「知识库认识这个主题」之上，覆盖信号二选一：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ coverage_bm25_min(=16.0)。16.0 = 依据门限的 2 倍：实测 A 组中位 12.76 / 最高 23.16，B 组最高 10.02，取 16 能把实测 B 组全部挡在外面。覆盖信号不成立 → 拒答，不得输出 PASS。"
+    }
+   },
+   "coverage": {
+    "safe_vocabulary_hits": [
+     "W-1.30"
+    ],
+    "rule_cited_unit_hits": [],
+    "same_source_unit_hits": [],
+    "case_unit_hits": [],
+    "case_clause_pool": 239,
+    "rule_cited_anchor_pool": 959,
+    "rule_cited_resource_pool": 40,
+    "coverage_bm25_min": 16.0,
+    "covered_by": "safe_vocabulary",
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "covered": true
+   },
+   "elapsed_ms": 2191.6,
+   "perf": {
+    "p0_match_ms": 56.5,
+    "rule_layer_ms": 29.0,
+    "unit_layer_ms": 2029.6,
+    "assemble_ms": 76.5,
+    "content_type": "text",
+    "text_bytes": 525,
+    "threshold_s": 10
+   },
+   "risk_category": {
+    "with_dimension": 0,
+    "unmapped_or_pending": 0,
+    "policy": "kb/l7/registry/risk-category-policy.json"
+   }
+  },
+  "source": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py",
+  "findings_source": {
+   "mode": "live",
+   "path": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py"
+  },
+  "kb_hits": [
+   {
+    "anchor": "#l.1-1",
+    "bm25": 151.3515,
+    "kb_type": "wording",
+    "source_sha256": "1e1ae33b261494706a9915f5c9337339a5c7e4e21ac0db548e3175498dd44925",
+    "excerpt": "Momcozy Autumn Sale | Up to 60% Off Canada Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether Toys B",
+    "url": "https://ca.momcozy.com/collections/weekly-deals-ca"
+   },
+   {
+    "anchor": "#l.1-4",
+    "bm25": 134.7274,
+    "kb_type": "wording",
+    "source_sha256": "1bdb6973149054498f073654274e67a90f25ff8bd5a6e85d953fdd3a31d23ee1",
+    "excerpt": "wearable pumps on the market: completely hands-free, very quiet, and designed for high mobility. Many exclusive pumpers use it as a primary wearable for work be",
+    "url": "https://momcozy.com/blogs/breastfeeding/best-breast-pump-for-exclusive-pumping"
+   },
+   {
+    "anchor": "#l.1-5",
+    "bm25": 122.6734,
+    "kb_type": "wording",
+    "source_sha256": "76348260d52928c194bc9c168de30aa909d071cac12a053f4d3019094c2af37e",
+    "excerpt": "Bottle Warmer Routines for Combo-Fed Babies: Separate Cycles, Shared Safety Checks Why the Same Bottle-Warmer Setting Heats Cold Storage Breast Milk Differently",
+    "url": "https://momcozy.com/blogs/breastfeeding/momcozy-air-1-vs-m9-pump-comparison"
+   },
+   {
+    "anchor": "#l.1-6",
+    "bm25": 122.1235,
+    "kb_type": "wording",
+    "source_sha256": "130f06c60b491e125781d30db828a852c690348eba2684f72acf1188b3170ccb",
+    "excerpt": "our pumping journey from a limiting necessity into empowering freedom. To further enhance your comfort, consider pairing your new device with a supportive nursi",
+    "url": "https://momcozy.com/blogs/breastfeeding/best-wearable-breast-pumps-for-busy-moms"
+   },
+   {
+    "anchor": "#l.1-6",
+    "bm25": 121.3872,
+    "kb_type": "wording",
+    "source_sha256": "1bdb6973149054498f073654274e67a90f25ff8bd5a6e85d953fdd3a31d23ee1",
+    "excerpt": "arising from the use of this content. Breast Engorgement Relief: Why Common Remedies Sometimes Make It Worse Bottle Warmer Routines for Combo-Fed Babies: Separa",
+    "url": "https://momcozy.com/blogs/breastfeeding/best-breast-pump-for-exclusive-pumping"
+   }
+  ],
+  "layer_preflight": {
+   "base": "20261013-1449",
+   "ok": true,
+   "red_total": 0,
+   "mode": "enforced",
+   "details": {
+    "L4": {
+     "run": "20261013-1449-L4",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L4": "session-da7f8521-1ffa-4611-b53b-fdd104f28a45"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L5": {
+     "run": "20261013-1449-L5",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L5": "session-da7f8521-1ffa-4611-b53b-fdd104f28a45"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L6": {
+     "run": "20261013-1449-L6",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L6": "session-da7f8521-1ffa-4611-b53b-fdd104f28a45"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L7": {
+     "run": "20261013-1449-L7",
+     "exit": 0,
+     "red": 0,
+     "yellow": 0,
+     "skill_sessions": {
+      "L7": "session-da7f8521-1ffa-4611-b53b-fdd104f28a45"
+     },
+     "pass": true,
+     "note": ""
+    }
+   }
+  },
+  "decision_owner": {
+   "skill": "文案合规审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check",
+    "文案合规审查"
+   ]
+  },
+  "publish": {
+   "mode": "enabled",
+   "published": true,
+   "docx": null,
+   "record_id": null
+  },
+  "report_url": null,
+  "report_url_kind": null
+ }
+}
+
+===== ③b 转述模板（照抄这一段即可，不必再跑任何命令）=====
+状态：PASS ｜ 问题数：0 ｜ 置信度：0.93
+摘要：【审查结论：PASS】未发现已知底线风险，可转交 @sign-off 责任人（未配置） 进行 sign-off。
+层前置：ok=None mode=None
+判定主体：文案合规审查 ｜ mode=declared
+
+【飞书那一步已经做完了】published=true ｜ 记录 ?
+⇒ **你不要再写一次飞书表**（实测：有单子自己又跑 28~29 次 bash 去补写，把时间从 50 秒拖到 160 秒，还可能造出重复行）。照抄本段即可收工。
+[review_run] 机读旁挂已写：/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/.work/last_review_result.json

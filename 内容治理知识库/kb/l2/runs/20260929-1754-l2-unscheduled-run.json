@@ -1,0 +1,109 @@
+{
+  "run_id": "20260929-1754-l2-unscheduled",
+  "kind": "provenance-record",
+  "title": "非计划运行的溯源登记（L2）",
+  "at_local": "2026-09-29 17:54:18 +0800",
+  "status": "已评估 · 不回滚 · 已补登记",
+  "what_happened": {
+    "trigger": "为验证 l8 脚本的 cwd 约定（29 个脚本用 'kb/...' 相对路径，要求 cwd = kb 的上一级），执行了一条对照命令：cd ~/.dsh/Momcozy知识库 && /usr/bin/python3 kb/l8/l2_split_run.py",
+    "why_it_wrote": "l8/l2_split_run.py 当时是 6 个没有干跑档的写脚本之一 —— 无 --apply 概念，运行即落盘",
+    "operator": "Accio agent（未获该动作的预先授权）"
+  },
+  "effect": {
+    "files_rewritten_or_appended": {
+      "l2/units.jsonl": "10042 → 10551 行（两次均为实测）；19251196 B；mtime 17:54:18",
+      "l2/index/l2.jsonl": "10100 行；2221162 B；mtime 17:54:18",
+      "l2/manifest_l2.jsonl": "2451 行；718108 B；mtime 17:54:18",
+      "l2/registry/l2.json": "**本次未动**（mtime 09-24 12:37）→ 事后由本次溯源补登记"
+    },
+    "run_self_report": {
+      "note": "以下取自脚本自写的 l2/runs/20260929-1300.json（注意其 run_id 是脚本的**硬编码默认值**，不是真实运行时刻）",
+      "gap": 73,
+      "meta_closed": 41,
+      "refilled": 32,
+      "new_units": 64,
+      "cov_before": {
+        "with_segments": 1450,
+        "with_units": 1377
+      },
+      "cov_after": {
+        "with_segments": 1450,
+        "with_units": 1409
+      }
+    },
+    "attribution_limitation": "units.jsonl 是跨 run 追加的单一文件，且该脚本默认 run_id 硬编码，manifest 中同一标签的 unit_count 为 172；因此 **+509 行无法完整归因到本 run**。此处如实标注，不强行给出归因结论。"
+  },
+  "integrity_checks_done": {
+    "units_jsonl_rows": 10551,
+    "json_parse_failures": 0,
+    "duplicate_unit_id": 0,
+    "trailing_newline": true,
+    "unit_type_distribution": {
+      "entry": 7152,
+      "clause": 2278,
+      "sample": 667,
+      "revision_pair": 447,
+      "attribute": 7
+    },
+    "splitter_version_distribution": {
+      "l2-0.2": 9338,
+      "l2-0.3": 1213
+    },
+    "input_provenance": "读 kb/l1/manifest_l1.jsonl + 逐资源 L1 产物（l8/l2_split_run.py 第 33、39 行）；**不经过** l1/index/l1.jsonl（那个已知 DRIFT 的投影，且其 downstream_consumers=[]）→ 本次 L2 增量未建立在脏投影上",
+    "verdict": "结构完好；性质为 L2 设计内的增量步（把 73 个待处理资源闭合），不是数据损坏"
+  },
+  "rollback_assessment": {
+    "clean_baseline_exists": false,
+    "evidence": "l2/_archive/ 只有 units-pre-l2-0.3.jsonl（2026-09-24 12:05），是 l2-0.3 之前的版本；**没有** 17:54 之前 10042 行状态的快照",
+    "decision": "不回滚",
+    "reason": "强行回滚到 09-24 版本会丢掉 09-24 之后的全部 L2 进展，损失大于本次增量写入"
+  },
+  "three_fixes_applied": [
+    {
+      "id": 1,
+      "item": "刷新 l2/registry/l2.json（台账脱节）",
+      "done": "向 changes 追加条目 20260929-1754-l2-unscheduled（change=append_units，含 keys 与说明）；新增顶层键 index_projection 与 runner_defects",
+      "verified": "JSON 可解析，顶层键 17，changes 2 条"
+    },
+    {
+      "id": 2,
+      "item": "核对 index/l2.jsonl(10100) 与 units.jsonl(10551) 的口径差异",
+      "finding": "index 是**部分投影**：l2_split_run.py 每轮只对本次 NEW 批追加（open(...,'a')），历史批次若早于该写入逻辑则不在其中。缺 451 个**全部是 clause**（l2-0.2 ×62 + l2-0.3 ×389）。",
+      "consumers": "全库 grep 无引用 → 孤投影，不参与 L3–L6",
+      "action": "登记口径事实（写入 index_projection），**不重建** —— 重建会改动一个消费者未知的投影，风险大于收益；与本库既有「孤投影不参与判定」口径一致（对照 l1/index 的 downstream_consumers=[]）"
+    },
+    {
+      "id": 3,
+      "item": "把本次变更如实记入 L2 运行台账",
+      "done": "本文件 + l2/registry/l2.json 的 changes 条目（两处互相指向：registry 条目注明「本条目即为事后补登记」）"
+    }
+  ],
+  "lessons": [
+    {
+      "lesson": "在写脚本补齐干跑档之前，禁止对它们做「对照运行」这类验证",
+      "consequence": "原计划的「补 6 个脚本干跑档」从锦上添花升级为必要护栏，应提前做"
+    },
+    {
+      "lesson": "run_id 必须有默认时间戳，不能硬编码",
+      "consequence": "否则无参数运行会冒充历史 run，provenance 无法归因（本轮即因此无法完整追责增量）"
+    },
+    {
+      "lesson": "跨 run 追加的单一数据文件（units.jsonl）缺 per-run 单元台账",
+      "consequence": "无法按 run 核对增量；建议后续为 units.jsonl 增加 per-run 计数台账"
+    }
+  ],
+  "evidence_files": [
+    "l2/registry/l2.json",
+    "l2/runs/20260929-1300.json（脚本自写，标注意义有限——run_id 为硬编码默认值）",
+    "l2/units.jsonl",
+    "l2/index/l2.jsonl",
+    "l2/manifest_l2.jsonl",
+    "l7/_backups/（本轮改动前备份 145 个文件）"
+  ],
+  "concurrent_writer_observed": {
+    "observed_at": "2026-09-29 18:04 +0800",
+    "units_jsonl_rows": 10650,
+    "note": "本 agent 于 17:5x 实测 units.jsonl 为 10551 行；18:04 复测为 10650 行（+99）。**期间本 agent 未执行任何 --apply 写入**（已用 sha256 前后比对确认：本次只做了不带 --apply 的干跑预演，units.jsonl sha 未变）。→ 存在本 agent 之外的并发写入者。",
+    "implication": "① 本 run 的 +509 行增量更不可能归因到单一 run，已在本文件的 attribution_limitation 中标注；② **自动化级联必须处理并发**（库内已有 kb/.work/.kb.lock，说明这是既有已知关注点）；③ 任何『层已跑完』的结论都必须带 run_id 与时间戳，不能只看文件状态。"
+  }
+}

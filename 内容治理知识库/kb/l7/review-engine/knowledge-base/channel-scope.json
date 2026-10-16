@@ -1,0 +1,34 @@
+{
+  "scope_version": "channel-scope-2026-09-24",
+  "status": "confirmed_by_user",
+  "channels": [
+    {
+      "channel_id": "tiktok_ads",
+      "display_name": "TikTok 广告二创",
+      "aliases": ["TikTok", "TikTok Ads", "TikTok广告", "广告二创"],
+      "priority": "P0-pilot",
+      "required_inputs": ["creative_asset", "caption_or_ad_copy", "landing_page_or_destination_when_available", "creator_disclosure_metadata_when_applicable"],
+      "checks": ["misleading_or_unrealistic_claim", "health_or_safety_claim", "dangerous_activity", "endorsement_disclosure", "creative_destination_consistency", "manipulated_media_or_ai_disclosure", "ip_or_third_party_asset"],
+      "default_review_owners": ["法务", "渠道负责人", "北美同事"]
+    },
+    {
+      "channel_id": "amazon_listing",
+      "display_name": "Amazon Listing / 主图 / A+",
+      "aliases": ["Amazon", "Amazon Listing", "Listing", "A+", "主图"],
+      "priority": "P0-pilot",
+      "required_inputs": ["listing_text", "all_product_images", "sku_or_asin", "variant_and_package_scope"],
+      "checks": ["product_identity_match", "image_representation", "included_accessories_match", "prohibited_badges_or_logos", "claim_and_pricing_text", "title_bullet_spec_accuracy", "variant_consistency"],
+      "default_review_owners": ["产品负责人", "法务", "渠道负责人"]
+    },
+    {
+      "channel_id": "owned_site_pdp",
+      "display_name": "Momcozy 独立站 PDP / 落地页",
+      "aliases": ["独立站", "PDP", "Landing Page", "momcozy.com"],
+      "priority": "P0-pilot",
+      "required_inputs": ["page_url_or_export", "page_copy", "product_media", "sku_or_model_scope", "claims_and_disclosures"],
+      "checks": ["product_claim_substantiation", "health_and_safety_claim", "testimonial_or_expert_disclosure", "product_variant_consistency", "price_and_offer_accuracy", "locale_and_cultural_clarity", "privacy_or_child_media_metadata"],
+      "default_review_owners": ["产品负责人", "法务", "北美同事"]
+    }
+  ],
+  "out_of_scope_for_pilot": ["Meta paid ads", "YouTube paid ads", "historical content backfill", "creative brief", "script-only drafts"]
+}

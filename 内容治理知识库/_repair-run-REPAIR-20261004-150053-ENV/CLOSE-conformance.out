@@ -1,0 +1,19 @@
+==============================================================================
+skill_conformance —— 四方对账：skill 文本 ↔ 注册表 ↔ 层契约 ↔ 磁盘
+  注册表 71 行 ｜ 实际逐条核过的已装成员 59 个 ｜ 层契约 8 层
+------------------------------------------------------------------------------
+🟡 C2 间接依赖（正文没提文件名）：1 处（抽样）
+   · kb-repair ｜ l7/scripts/layers_check.py ｜ 不在 layers.yaml 的 engine 里，且正文没有它的文件名
+🟡 C3 正文提到但注册表没登记：58 处（抽样）
+   · kb-content-review ｜ KB-ROOT.json ｜ 正文提到但注册表没登记
+   · kb-content-review ｜ l6/registry/l6.json ｜ 正文提到但注册表没登记
+   · kb-content-review ｜ l7/review-engine/core/with_kb_evidence.py ｜ 正文提到但注册表没登记
+   · kb-content-review ｜ l0/registry/kb.json ｜ 正文提到但注册表没登记
+🟡 C4 触发词没写进 description：34 处（抽样）
+   · 蒸馏 ｜ 1 条触发词没写进 description ｜ ['把这份文档变成 skill']
+   · root-skills-creator ｜ 1 条触发词没写进 description ｜ ['创建生产级 skill']
+   · root-skills-eval ｜ 3 条触发词没写进 description ｜ ['批量评测', 'skills 回归', '执行 skills']
+   · root-skills-batch-driver ｜ 1 条触发词没写进 description ｜ ['batch evaluate']
+------------------------------------------------------------------------------
+结论：✅ 过（四方一致） ｜ 红 0 ｜ 黄（触发词）93
+退出码：0

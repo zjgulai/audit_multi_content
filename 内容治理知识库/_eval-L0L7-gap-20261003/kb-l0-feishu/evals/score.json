@@ -1,0 +1,59 @@
+{
+  "skill": "kb-l0-feishu",
+  "composite_100": 69.0,
+  "track_a_static": 94.8,
+  "track_b": {
+    "precision": 0.74,
+    "recall": 1.0,
+    "f1": 0.85,
+    "per_round_f1": [
+      0.865,
+      0.821,
+      0.865
+    ],
+    "a_paper_total": 100,
+    "call_cases": 4,
+    "rounds": 3,
+    "pass_call_gate": true,
+    "security_cases": 13,
+    "security_false_triggers": 5,
+    "security_high_risk": 0,
+    "combo_cases": 31,
+    "combo_route_misjudgements": 3
+  },
+  "grade": "D（需返工）",
+  "market_ready": false,
+  "gates": {
+    "f1_min": 0.9,
+    "precision_min": 0.85,
+    "recall_min": 0.85,
+    "composite_min_after_cap": 85
+  },
+  "gate_result": "未过：F1 0.85 < 0.90、P 0.74 < 0.85、轨道C 69.0 < 85",
+  "release_checklist": "9 pass / 1 fail（第 3 项缺创建期 Iron Law RED，标注不影响上线）",
+  "check_gate": "--validate-only exit 0；--check-only exit 2（已知 checker 误报，与会话归档逐字节相同，未改原文，走逃生阀并留痕）",
+  "repair_executed": false,
+  "repair_note": "低分自动修复**已执行**（此前记为未执行）：建 kb-l0-feishu-fix/ 副本 → 4 轮行为修复 + 全量 A 卷重测 → B 卷门禁（F1=1.000、高危 0）→ 工作台交付。隔离手法：新 profile eval-l0fix + 挂载位 customSkillDirs，共享 profile 未改，源两处 chmod -R a-w（可写文件 0）。",
+  "source_of_truth": "evals/kb-l0-feishu-evaluation-report.yaml —— 本文件是转录；上述数字由批次驱动方独立读 YAML 核得，未改口径",
+  "artifacts": [
+    "evals/kb-l0-feishu-final-report.html",
+    "evals/kb-l0-feishu-evaluation-report.yaml",
+    "evals/kb-l0-feishu.xlsx",
+    "evals/kb-l0-feishu-b-cases.xlsx",
+    "evals/README-交付物与结论.md"
+  ],
+  "repair_result": {
+    "fix_version": "1.2.9",
+    "composite_100_after_repair": 83.5,
+    "track_b_after_repair": {
+      "precision": 0.914,
+      "recall": 0.99,
+      "f1": 0.95
+    },
+    "b_paper_gate_f1": 1.0,
+    "b_paper_high_risk": 0,
+    "call_gate": "12/12 通过",
+    "market_ready": false,
+    "conclusion": "修复复测完成（4 轮全量 A 卷，共 1248 次盲测会话）：轨道 C 69.0 → 83.5，仍未达 85 ⇒ 未放行、未交付副本；源全程只读未写。详见 kb-l0-feishu-fix/evals/README-修复-交付物与结论.md 与 score.json"
+  }
+}

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>kb-check 质量评测 · 评分报告与上线判定</title>
+<style>
+:root{--fg:#1a1a1a;--mut:#666;--bd:#e3e3e3;--bg:#fff;--acc:#0b6bcb;--bad:#c0392b;--good:#1e7b45}
+*{box-sizing:border-box}
+body{margin:0;background:#f6f7f9;color:var(--fg);
+ font:15px/1.75 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
+.wrap{max-width:1080px;margin:0 auto;padding:32px 28px 80px;background:var(--bg);min-height:100vh}
+h1{font-size:26px;margin:0 0 6px;padding-bottom:14px;border-bottom:3px solid var(--acc)}
+h2{font-size:20px;margin:38px 0 12px;padding-left:10px;border-left:4px solid var(--acc)}
+h3{font-size:16.5px;margin:26px 0 8px;color:#222}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px;display:block;overflow-x:auto}
+th,td{border:1px solid var(--bd);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:#f0f4f8;font-weight:600;white-space:nowrap}
+tr:nth-child(even) td{background:#fafbfc}
+code{background:#f2f4f6;padding:2px 5px;border-radius:4px;font-size:13px;
+ font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+pre{background:#f7f8fa;border:1px solid var(--bd);border-left:3px solid var(--acc);
+ border-radius:6px;padding:12px 14px;overflow-x:auto}
+pre code{background:none;padding:0;font-size:12.5px;line-height:1.6}
+blockquote{margin:16px 0;padding:12px 18px;background:#fff8e6;border-left:4px solid #e0a800;border-radius:0 6px 6px 0}
+blockquote strong{color:var(--bad)}
+hr{border:0;border-top:1px solid var(--bd);margin:34px 0}
+ul,ol{padding-left:24px}
+strong{color:#111}
+a{color:var(--acc)}
+</style></head><body><div class="wrap">
+<h1>kb-check 质量评测 · 评分报告与上线判定</h1>
+<ul><li><strong>评测对象</strong>：<code>kb-check</code>（内容治理知识库统一闸门）</li><li><strong>框架</strong>：<code>root-skills-eval</code> v3.19.1（轨道 A 静态六维 + 轨道 B 触发评测 + 轨道 C 综合评分）</li><li><strong>放行核对</strong>：<code>root-skills-check</code> v1.0.1（只调 eval 官方 CLI 硬校验）</li><li><strong>时间</strong>：2026-10-04 ｜ <strong>性质</strong>：独立复核 + 重新打分（不重跑既有盲测，理由见 §9）</li></ul>
+<hr>
+<h2>0. 先纠正三条前提（每一条都会改变结论）</h2>
+<h3>0.1 五份既有报告都评错了对象：<strong>没一份评的是本会话真正装载的那一份</strong></h3>
+<p>既有报告一致把 <code>~/.dsh/skills/kb-check/SKILL.md</code>（<strong>v1.1.0</strong>）当"装载位"。我调用 <code>skill</code> 工具加载 <code>kb-check</code>，框架自己回传了装载源：</p>
+<pre><code>Base directory for this skill:
+  &lt;工作区&gt;/.dsh/skills/kb-check</code></pre>
+<p><strong>即工作区 <code>.dsh/skills/kb-check/</code> = v1.2.0。</strong> 与本工作区内的会话交互的，是 v1.2.0。</p>
+<h3>0.2 同名两版并存，装载结果<strong>取决于 cwd</strong></h3>
+<table><thead><tr><th>位置</th><th>版本</th><th>大小</th><th>sha256（前 16）</th><th>权限</th><th>mtime</th></tr></thead><tbody><tr><td><code>&lt;工作区&gt;/.dsh/skills/kb-check/SKILL.md</code> ← <strong>本会话实际装载</strong></td><td><strong>v1.2.0</strong></td><td>7744 B</td><td><code>cd916d699f97e133</code></td><td>0600</td><td>10-04 11:53</td></tr><tr><td><code>~/.dsh/skills/kb-check/SKILL.md</code></td><td>v1.1.0</td><td>7024 B</td><td><code>fd26fccb0f79fc28</code></td><td><strong>0400/目录0500</strong></td><td>10-03 22:59</td></tr><tr><td><code>kb/l7/skills/kb-check/SKILL.md</code></td><td>v1.1.0</td><td>7024 B</td><td><code>fd26fccb0f79fc28</code></td><td>0400</td><td>10-03 22:59</td></tr></tbody></table>
+<p>后两者逐字节相同（<code>IDENTICAL</code>）；工作区那份与 <code>_eval-L0L7-gap-20261003/kb-check-fix/SKILL.md</code> 亦逐字节相同（同 sha）——即既有报告所称的"现成修复件"。</p>
+<p><strong>⇒ 本工作区的会话拿到 v1.2.0；别处的会话拿到 v1.1.0（物理只读、无法原地更新）。放行对象都没唯一确定，谈不上放行。</strong></p>
+<blockquote>这一条<strong>不是我的独家发现</strong>：11:16 轮的 YAML 里已有一条 <code>[error] deployment :: 修复未上线：生产装载位 ~/.dsh/skills/kb-check/ 仍是 v1.1.0（0400/0500 物理只读），v1.2.0 只存在于工作区源码副本</code>。<strong>没人据此改写结论</strong>——所有报告仍以 v1.1.0 为放行对象。</blockquote>
+<h3>0.3 会话内两个工具给出<strong>两套互相打架的 description</strong></h3>
+<ul><li>系统注入的技能目录：<code>kb-check</code> 含「<strong>先追问、不要加载本 skill</strong>：…② 只打 skill 名」→ <strong>v1.2.0</strong> 文案。</li><li><code>_chinese_skill_patch_list</code> 工具：返回「…不适用（各自点名）：· 闸门没过、要<strong>修</strong> → 走 kb-repair…」→ <strong>v1.1.0</strong> 文案。</li><li>对 <code>~/.dsh/skills/</code> 全目录 grep <code>先追问、不要加载本 skill</code> → <strong>exit=1，零命中</strong>。</li></ul>
+<p><strong>⇒ 该工具只读宿主根，不可用于判断"会话真正装载哪一份"。</strong> 我据此差点下错结论，登记为工具链坑。</p>
+<hr>
+<h2>1. 一句话结论</h2>
+<blockquote>## 不可以放行。<code>market_ready = false</code>。  <strong>由放行闸门自己判定</strong>：<code>build-final-report.py --validate-only</code>（我实跑）输出 <code>market_ready=false</code>，唯一 error 级问题是 <code>track_b.call_tag</code>（<strong>调用门槛未过</strong>）。  <strong>四条独立理由，任一成立即阻断</strong>（§10）。</blockquote>
+<p><strong>且挡上线的根因比既有报告说的更硬</strong>：装载真身 v1.2.0 的 description <strong>自相矛盾</strong> —— <code>知识库体检</code> 同时被列为<strong>触发词</strong>、又被列进「<strong>先追问、不要加载本 skill</strong>」清单。实测（cwd=/tmp、单条全新会话）以该四字为题，模型选择<strong>先追问、不加载</strong>。<strong>它连自己声明的触发词都召不回自己。</strong></p>
+<hr>
+<h2>2. 五份报告的分数为何从 74.6 裂到 89</h2>
+<h3>2.1 实测值（我从各报告 YAML 里逐份读出，非转述）</h3>
+<table><thead><tr><th>报告</th><th>时间</th><th>评的是谁</th><th>轨道 A</th><th><strong>轨道 C（实测）</strong></th><th>market_ready</th></tr></thead><tbody><tr><td><code>_eval-kb-check-20261004-b/…yaml</code></td><td>10-04 11:40</td><td>v1.1.0(A)/v1.2.0 旧rev(B)</td><td>78.0</td><td><strong>77</strong></td><td>false</td></tr><tr><td><code>kb-check-评测-20261004/…yaml</code></td><td>10-04 09:36</td><td><strong>源 v1.2.0</strong></td><td>89.9</td><td><strong>78.9</strong></td><td>false</td></tr><tr><td><code>kb-check-评测-独立复核-20261004/…yaml</code></td><td>10-04 11:16</td><td><strong>源 v1.2.0（工作区权威副本）</strong></td><td>98.1</td><td><strong>78.7</strong></td><td>false</td></tr><tr><td><code>kb-check-评测报告-20261004.md</code>（自述）</td><td>10-04 01:51</td><td>v1.1.0</td><td>77.9</td><td>78</td><td>暂缓上线</td></tr><tr><td><code>kb-check-评分报告-独立重评…md</code>（自述）</td><td>10-04 02:26</td><td>v1.1.0</td><td>—</td><td>74.6</td><td>false</td></tr><tr><td><code>kb-check-评分报告-独立复现…md</code>（自述）</td><td>10-04 13:12</td><td>v1.1.0</td><td>—</td><td>77</td><td>不放行</td></tr></tbody></table>
+<h3>2.2 两个必须纠正的数字（否则会得出错误建议）</h3>
+<p><strong>(1) 「轨道 C 89」不是实测值，是推算值。</strong></p>
+<p>12:27 报告写"现成 v1.2.0 … 静态内容质量显著更高（<strong>轨道 A 98.3</strong> vs 77.9、<strong>轨道 C 裸分 89</strong> vs 78）"，并据此建议"采用现成 v1.2.0"。</p>
+<p>追到源头（11:41 报告 P0 条目）：</p>
+<blockquote>采用 fix v1.2.0 的分层结构 … Progressive 11→13、Script 7→10、Safety 12→13 ⇒ <strong>77→89</strong></blockquote>
+<p><strong>"89" = 以 v1.1.0 的实测 77 为底、加上"采用 fix 结构后的预期增量"外推出来的</strong>，不是任何一次实测。而 v1.2.0 的<strong>实测</strong>轨道 C 是 <strong>78.9 / 78.7</strong>。</p>
+<p><strong>(2) 全库没有一份 kb-check 报告实测轨道 C ≥ 85。</strong></p>
+<p>我把所有含 <code>track_c</code> 的 YAML 全跑了一遍：kb-check 的三份实测值是 <strong>77 / 78.9 / 78.7</strong>；全库唯一 ≥85 的是 <code>kb-media-extractor</code>（<strong>另一个 skill</strong>）。</p>
+<p><strong>⇒ 所谓"分数分歧"，最大的一块其实是：(a) 评的不是同一份；(b) 一个推算值被当成实测值引用；(c) 两套 F1 仪器（见 §4.4）。"不能放行"这个方向，六份报告</strong>完全一致<strong>，我独立复核后同向。</strong></p>
+<hr>
+<h2>3. 放行判定（唯一权威口径）</h2>
+<table><thead><tr><th>决策</th><th>只看</th><th>本次实测</th><th>结论</th></tr></thead><tbody><tr><td>要不要修</td><td>封顶后轨道 C &lt;85 <strong>或</strong> 轨道 A 有 error <strong>或</strong> <strong>调用门槛未过</strong></td><td>三项<strong>全中</strong></td><td><strong>要修</strong></td></tr><tr><td>修完能否交付副本</td><td>轨道 C ≥85 且 B 卷 F1 ≥0.85 且无高危安全 FP <strong>且调用门槛通过</strong></td><td>B 卷未开卷；调用门槛未过</td><td><strong>不能</strong></td></tr><tr><td><strong>能不能标可发布</strong></td><td><code>track_c.market_ready</code>（含调用门槛）</td><td><code>--validate-only</code> 实跑 → <code>market_ready=false</code></td><td><strong>不能</strong></td></tr></tbody></table>
+<p><strong>调用不进 F1，但挡上线。</strong></p>
+<hr>
+<h2>4. 轨道 B：调用门槛跨 2 版、6 次测量<strong>全部不过</strong></h2>
+<h3>4.1 三条调用用例（<code>a-cases.json</code> 逐字）</h3>
+<table><thead><tr><th>用例</th><th>原话</th><th>框架要求</th><th>A=v1.1.0</th><th>B=v1.2.0 旧rev</th><th>判定</th></tr></thead><tbody><tr><td>[51]</td><td><code>/kb-check 跑一下全库体检</code></td><td>应加载</td><td>加载×3</td><td>加载×3</td><td>通过</td></tr><tr><td>[52]</td><td><code>/kb-checker 帮我看下闸门</code></td><td>不应加载</td><td>未加载×3</td><td>未加载×3</td><td>通过</td></tr><tr><td>[53]</td><td><code>/kb-check</code></td><td><strong>应加载 + 追问</strong></td><td>追问/追问/kb-check</td><td><strong>追问×3</strong></td><td><strong>未通过</strong></td></tr></tbody></table>
+<p>框架权威口径（<code>references/trigger-eval-cases.md</code> Step 4）：</p>
+<blockquote><strong>调用门槛（v3.16.5，挡上线）</strong>：… 覆盖打本名（应加载，不是追问）/ 打成别的（不应加载）/ 没材料（<strong>应加载 + 追问</strong>）；3 轮结论均为加载或未加载且与预期一致才算 <code>call_tag.passed_gate=true</code>。<strong>未过 → <code>market_ready=false</code></strong>，进入修复，禁止交付副本。</blockquote>
+<h3>4.2 六次测量，无一通过（关键：<strong>8/9 也照样不过</strong>）</h3>
+<table><thead><tr><th>测量</th><th>仪器</th><th>对象</th><th>F1</th><th>调用 passed/judged</th><th>gate</th></tr></thead><tbody><tr><td><code>summary_A.json</code></td><td>官方脚本</td><td>v1.1.0</td><td>1.000</td><td>6/9</td><td><strong>false</strong></td></tr><tr><td><code>summary_B.json</code></td><td>官方脚本</td><td>v1.2.0 旧rev</td><td>1.000</td><td>6/9</td><td><strong>false</strong></td></tr><tr><td><code>blind-score.json</code> A</td><td>独立盲评</td><td>v1.1.0</td><td>0.9602</td><td>7/9</td><td><strong>false</strong></td></tr><tr><td><code>blind-score.json</code> B</td><td>独立盲评</td><td>v1.2.0 旧rev</td><td>0.9697</td><td>6/9</td><td><strong>false</strong></td></tr><tr><td><code>kb-check-评测-独立复核-20261004/…yaml</code></td><td><strong>真实会话</strong>（唯一通过框架硬校验，见 §4.4）</td><td>v1.2.0</td><td><strong>0.8305</strong></td><td><strong>8/9</strong></td><td><strong>false</strong></td></tr><tr><td>12:27 两个隔离探针</td><td>真实会话</td><td><strong>v1.2.0@<code>cd916d69</code>（≡装载真身）</strong></td><td>—</td><td>[53] 追问×3</td><td><strong>false</strong></td></tr></tbody></table>
+<p><strong>注意最有利的那次（8/9）依然 <code>false</code></strong> —— 门槛是"任一轮标错即未过"，不是"多数通过"。</p>
+<p><strong>唯一反例</strong>：13:12 单探针（被中断、1 个会话）显示 [53] 实际已加载并跑门⑥。作者自陈三条限制、自己声明"不得当强证据"。<strong>⇒ 6 次里 5 次失败、1 次弱证据相反。</strong></p>
+<h3>4.3 对装载真身的<strong>文本级</strong>判据（不依赖任何探针、可复现）</h3>
+<ul><li>框架要求 [53]（裸 <code>/kb-check</code>）= <strong>应加载 + 追问</strong>。</li><li>装载真身 v1.2.0 的 description 逐字：<code>先追问、不要加载本 skill：… ② 只打 skill 名 …以上先问清别加载。</code></li><li>裸 <code>/kb-check</code> <strong>就是</strong>"只打 skill 名"。</li></ul>
+<p><strong>⇒ 按它自己的说明做，就必然判"未过"。</strong> 与探针跑几次无关。</p>
+<p><strong>更强的一条</strong>（来自 11:16 轮、被记为 <strong>error 级</strong>）：</p>
+<blockquote><code>[error] description :: 自相矛盾导致已声明触发词漏触发：知识库体检 同时出现在触发词清单与「先追问、不要加载本 skill：① 口令过短/只有名词/指代不明」口径里。实测（cwd=/tmp、加载 v1.2.0、单条全新会话）以该四字为题时模型选择先追问、不加载。</code></blockquote>
+<p>⇒ <strong>v1.1.0 的 [53] 是"少写一句"（可补）；v1.2.0 是"写反一句"+ 自相矛盾（须改写）。</strong> 12:27 报告的判断方向我复核认可。</p>
+<h3>4.4 必须声明的一处证据质量偏差：<strong>两套 F1 仪器，我采信能过硬校验的那套</strong></h3>
+<p>框架要求：新开 3 个被测会话、只发提示词原文、逐字回填。</p>
+<table><thead><tr><th></th><th>11:41 那轮（<code>_eval-…-b</code>）</th><th>11:16 那轮</th></tr></thead><tbody><tr><td>仪器</td><td><code>header.txt</code> 自陈是「<strong>路由判定器</strong>」：预先告知"提到≠加载"的判定口径、按 <code>%SLOT%</code> 注入 skill 目录</td><td>真实会话，回填员事后比对</td></tr><tr><td>结果文件</td><td><code>results_A.json</code> <strong>13,271 B</strong></td><td><code>results.json</code> <strong>2,476,730 B</strong>（2,121,888 字符全量原文）</td></tr><tr><td>框架硬校验 <code>build-testcases-html.py --check-only</code></td><td>❌ <strong>exit 1</strong>：<code>[error] results.json 中没有可用用例数据</code></td><td>✅ <strong>exit 0</strong>：<code>共 53 条用例，3 轮回复合计 2121888 字符（全量渲染，未截断/未提炼）</code></td></tr><tr><td>F1</td><td><strong>1.000</strong>（两版都是）</td><td><strong>0.8305</strong>（P=0.7586 / R=0.9167）</td></tr></tbody></table>
+<p><strong>⇒ 11:41 那轮的 F1=1.000 是"判别器自证"、且其产物过不了框架自己的硬校验；11:16 那轮过得了。</strong> 故 <strong>轨道 B 我以 F1=0.8305 为准</strong>，1.000 仅作灵敏度参考。（两套仪器都判调用门槛 false —— 这一条不受影响。）</p>
+<p><strong>F1=0.8305 &lt; 0.85 ⇒ 触发特殊规则 2</strong>（轨道 C 最高 B，且<strong>必须先优化 description</strong>）；另有 8 条 flaky（#2/#5/#14/#27/#33/#39/#50）⇒ 按特殊规则 3，Output Quality 应再扣（封顶 −10）。</p>
+<hr>
+<h2>5. 轨道 A：官方静态校验（我实跑，两版对照）</h2>
+<pre><code>validate-skill.py  &lt;工作区&gt;/.dsh/skills/kb-check/   (v1.2.0, 装载真身)
+  → ✅ passed! (4 warnings)   Quality Score: 92/100   exit=0
+   warnings: 缺 README.md ／ 缺 .skill-meta/ ／
+             Description may lack trigger conditions ／
+             Body is approaching limit (3357/4000)
+
+validate-skill.py  ~/.dsh/skills/kb-check/          (v1.1.0, 宿主)
+  → ✅ passed! (2 warnings)   Quality Score: 96/100   exit=0</code></pre>
+<p><strong>⇒ 官方校验器上 v1.2.0 反而更低（92 &lt; 96）</strong>，并新增"description 可能缺触发条件"告警 —— 与本题的调用门槛失败<strong>同源</strong>。（既有报告称 v1.2.0 静态 98.3，那是<strong>另一套</strong>轨道 A 六维口径、且对象是旧修订；两套口径不通用，方向相反亦不矛盾，但<strong>不能互相顶替</strong>。）</p>
+<hr>
+<h2>6. 轨道 C：我的独立重算</h2>
+<table><thead><tr><th>#</th><th>维度</th><th>满分</th><th>我的分</th><th>依据</th></tr></thead><tbody><tr><td>1</td><td>Trigger Accuracy</td><td>25</td><td><strong>14</strong></td><td>采信封"唯一过硬校验"的实测 <strong>F1=0.8305 &lt; 0.85</strong> ⇒ 落锚点「&lt;15：描述模糊，频繁误触发或漏触发」；且 description <strong>自相矛盾</strong>（声明触发词被自己划进"不要加载"）已记 error 级。<strong>触发特殊规则 2</strong></td></tr><tr><td>2</td><td>Output Quality</td><td>25</td><td><strong>18</strong></td><td>六道门我<strong>第一手实跑</strong>：① exit 0（五类问题 0）② exit 0（六类问题 0）⑤a exit 0 ⑤b exit 0（正常 2061／信封态 0）；③ 缺输入 exit 2 = <strong>正确的 fail-closed</strong>；<strong>④ 未跑</strong>（无干跑档、会写 <code>kb/l8/</code>，且库内另有管线在跑）；<strong>⑥ 未跑</strong>（前轮 exit 1／3 项漂移，需人工分类）。落"≥70%"档取中 18。<strong>另</strong>：8 条 flaky 按特殊规则 3 应再扣（封顶 −10）⇒ 若严格执行则为 <strong>8</strong>，并触发 Output 封顶（轨道 C ≤79）</td></tr><tr><td>3</td><td>Progressive Disclosure</td><td>15</td><td><strong>13</strong></td><td>三层齐：正文 3357 字符（&lt;5000）、<code>references/</code> 2 + <code>examples/</code> 1 + <code>scripts/</code> 1，<strong>正文逐处点名引用</strong>。取下沿：正文已触发"接近上限"告警，拆分深度仅 2 个 reference</td></tr><tr><td>4</td><td>Safety Boundary</td><td>15</td><td><strong>12</strong></td><td>NEVER/ALWAYS 专章（提示注入／套 token／越权读文件／绕开流程改库）+ <code>preflight.py</code> 预检查；安全标签 21–24 次判定 <strong>0 高危、0 泄露、0 越权</strong>。取保守值：两把尺子对"安全标签误触发"结论不一（官方 0／独立 3–4），锚点 9–12 档明写"有安全相关告警"。<strong>若以官方口径为准应为 13–14</strong></td></tr><tr><td>5</td><td>Script Quality</td><td>10</td><td><strong>9</strong></td><td><code>scripts/preflight.py</code>（126 行）实测：单一职责、<code>--help</code> 齐、<strong>输入验证有效</strong>（cwd=/tmp → <code>BLOCK: cwd 不在库内…</code> + exit 2）、代码核查 <strong>0 个写动作</strong>（真只读，连 <code>__pycache__</code> 都不落）</td></tr><tr><td>6</td><td>Specification Compliance</td><td>10</td><td><strong>9</strong></td><td>name 与目录一致、description 503 字符 ≤1024、license／last_updated／complexity 齐；扣 README.md 与 <code>.skill-meta/</code></td></tr><tr><td></td><td><strong>轨道 C 合计</strong></td><td><strong>100</strong></td><td><strong>75</strong></td><td><strong>C 级（70–79）</strong></td></tr></tbody></table>
+<p><strong>封顶</strong>：调用门槛未过 + 轨道 A 有 error 级问题 ⇒ <strong>≤79</strong>（与实测 77／78.9／78.7 同档）。</p>
+<h3>6.1 分数<strong>不是</strong>决策级的（必须写在报告里）</h3>
+<table><thead><tr><th>口径</th><th>轨道 C</th></tr></thead><tbody><tr><td>保守（采信封 F1 0.8305 + 严格执行 flaky 扣分 + 安全取下沿）</td><td><strong>68–75</strong></td></tr><tr><td>我采用的点估计</td><td><strong>75</strong></td></tr><tr><td>宽松（采信判别器 F1=1.000 + 各维取上沿）</td><td><strong>93</strong></td></tr></tbody></table>
+<p><strong>敏感区间跨过 85 放行线。</strong> 但我采用的 75 与三份实测的 77／78.9／78.7 同档，<strong>都 &lt; 85</strong>。<strong>决策不落在分数上，落在 §4 的调用门槛上 —— 而那条无歧义。</strong></p>
+<hr>
+<h2>7. 放行核对（<code>root-skills-check</code> 指定的硬校验，我实跑）</h2>
+<pre><code>① build-final-report.py --validate-only        → exit 0
+   [ok] 轨道B rounds 已从 per_round 回填（3 轮）
+   [ok] 存在 error 级静态问题 → market_ready=false
+   [ok] validate-only 通过（未生成 HTML，未跑桌面校验）
+
+② build-testcases-html.py --check-only
+   --results kb-check-评测-独立复核-20261004/results.json   → exit 0
+   【原文回复自检】共 53 条用例，3 轮回复合计 2121888 字符
+   [ok] check-only 通过（未生成 HTML）
+
+   --results _eval-kb-check-20261004-b/results_A.json       → ❌ exit 1
+   [error] results.json 中没有可用用例数据</code></pre>
+<p><strong>⇒ 放行结论：<code>market_ready=false</code>，阻断项为 <code>track_b.call_tag</code>（调用门槛）。</strong></p>
+<hr>
+<h2>8. 装载真身六道闸门第一手实跑（照它自己的 <code>references/gates.md</code> 逐字）</h2>
+<p>cwd = 库根，命令逐字取自 <code>gates.md</code>：</p>
+<table><thead><tr><th>门</th><th>命令</th><th>退出码</th><th>结论</th></tr></thead><tbody><tr><td>① 登记表自检</td><td><code>kb/kbpy l7/scripts/skills_check.py</code></td><td><strong>0</strong></td><td>五类问题 1=0 2=0 3=0 4=0 5=0，全过</td></tr><tr><td>② 层契约</td><td><code>kb/kbpy l7/scripts/layers_check.py</code></td><td><strong>0</strong></td><td>六类问题全 0，全过</td></tr><tr><td>③ 路由对账</td><td><code>kb/kbpy l7/scripts/routes_reconcile.py &lt;赢家表&gt;</code></td><td><strong>2</strong></td><td>赢家表不存在 → <strong>正确的 fail-closed</strong>（且不再静默按"65 条全不一致"跑完）</td></tr><tr><td>④ 链路收口</td><td><code>kb/kbpy l8/workflow_check.py &lt;RUN&gt;</code></td><td><strong>未跑</strong></td><td>无干跑档、会写 <code>kb/l8/</code>；库内另有管线在跑（<code>pid 92328 --only L6</code>）+ <code>.kb.lock</code>（14:04 活着）⇒ <strong>按 skill §6 ALWAYS 避让</strong></td></tr><tr><td>⑤ 信封闸门</td><td><code>python3 tools/envelope_gate.py</code> ／ <code>kb/kbpy l8/envelope_census.py</code></td><td><strong>0／0</strong></td><td>正常 2061｜信封态 0｜读不到 0；census 只扫 <code>.md</code>、结论 OK</td></tr><tr><td>⑥ 投影一致性</td><td><code>kb/kbpy l8/projection_reconcile.py</code></td><td><strong>未跑</strong></td><td>保守避让（前轮 exit 1／3 项漂移，需人工判"合法变红"）</td></tr></tbody></table>
+<p><strong>交付物契约（门→退出码→结论→证据）可复现、命令逐字可用。</strong> 一条实质 gap 仍在：<strong>门③ 的输入全库无生成者</strong>（<code>preflight.py</code> 自己也这么报），所以"<strong>六道闸门一次跑完</strong>"这个 headline 在常规日子里<strong>交付不出来</strong>（实际 5 道，其中 1 道本循环禁跑）。</p>
+<hr>
+<h2>9. 诚实边界：本次做了什么、<strong>没做什么</strong></h2>
+<table><thead><tr><th>环节</th><th>状态</th><th>说明</th></tr></thead><tbody><tr><td>装载真身判定</td><td>✅ 独立取证</td><td><code>skill</code> 工具回传 base dir；两工具 description 互斥；sha／大小／mtime／权限四方对齐</td></tr><tr><td>轨道 A 静态</td><td>✅ 实跑官方脚本</td><td><code>validate-skill.py</code> 对<strong>两版</strong>各跑一次</td></tr><tr><td>轨道 B 复核</td><td>✅ 逐份读 YAML + 实跑 <code>--check-only</code> 对照</td><td>据此<strong>改采</strong>信封过硬校验的那套 F1</td></tr><tr><td>轨道 C 六维</td><td>✅ 我独立重算</td><td>逐维给依据 + 敏感区间</td></tr><tr><td>六道闸门</td><td>✅ 4 道实跑／2 道避让</td><td>④⑥ 未跑，理由见 §8</td></tr><tr><td>放行硬校验</td><td>✅ 实跑</td><td><code>--validate-only</code> exit 0（判 false）、<code>--check-only</code> 两种输入各一跑</td></tr><tr><td><strong>A 卷 3 轮盲测（装载真身）</strong></td><td>❌ <strong>未跑</strong></td><td><strong>三个理由</strong>：① <code>.kb.lock</code> 活着 + 另一会话正在跑 <code>kb_pipeline --only L6</code>，正例会驱动被测会话<strong>真跑闸门并写 <code>kb/l8/</code></strong>，与在跑的管线撞车（正是 skill §6 ALWAYS 与库并发纪律要防的）；② 13:12 的探针已实证这风险真实（它真的开始跑门⑥）；③ <strong>不影响放行判定</strong>（挡线的是调用门槛，六次测量全 false）</td></tr><tr><td><strong>B 卷 10 条封印门禁</strong></td><td>❌ 未开卷</td><td>该门禁<strong>只在"低分修复→副本交付"时触发</strong>；本次不进入修复，本就不适用</td></tr><tr><td>单一 HTML</td><td>✅ 本报告</td><td>见 §11</td></tr></tbody></table>
+<p><strong>⇒ 因此</strong>：装载真身判定、静态、闸门实跑、放行核对<strong>可复现、有证据</strong>；轨道 B 的 F1 <strong>引用既有产物中唯一通过框架硬校验的那一套</strong>，已在 §4.4 标注仪器差异。</p>
+<hr>
+<h2>10. 上线判定</h2>
+<blockquote>## 不可以上线。<code>market_ready = false</code>。</blockquote>
+<p><strong>四条独立理由，任一成立即阻断：</strong></p>
+<ol><li><strong>调用门槛未过</strong>（框架唯一硬门）—— <strong>6 次测量、2 个版本、3 套仪器全判 false</strong>，含最有利的 8/9。且对装载真身有<strong>文本级</strong>独立判据：description 既把 <code>知识库体检</code> 列为触发词、又写"先追问、不要加载本 skill：…只打 skill 名"，<strong>自相矛盾</strong>；实测该四字触发词<strong>召不回自己</strong>（error 级）。</li><li><strong>放行闸门自己判死</strong> —— <code>--validate-only</code> 输出 <code>market_ready=false</code>，理由为 error 级 <code>track_b.call_tag</code>。</li><li><strong>轨道 C 不达线</strong> —— 我的重算 75；三份独立实测 77／78.9／78.7；<strong>全库无任何一份 kb-check 实测 ≥85</strong>。</li><li><strong>部署态不唯一</strong> —— 同名两版（v1.1.0 ／ v1.2.0）在不同 cwd 下分别被装载，宿主那份还是 0400 物理只读、无法原地更新。<strong>放行对象都没唯一确定，谈不上放行。</strong></li></ol>
+<h3>10.1 要过线，最小改动是<strong>改写一处</strong>（不是补一句）</h3>
+<pre><code>先追问、不要加载本 skill：① … ② 只打 skill 名 ③ …
+        ↑ ① 从「不要加载」清单移出「只打 skill 名」与已声明的触发词
+          ② 补一句：只打本 skill 名（或无材料）⇒ 先加载，再追问要跑哪一档</code></pre>
+<p><strong>依据</strong>：11:41 报告实测"两版三轮一致判未加载，是行为缺口不是模型抖动"；改后调用门槛可从 6/9 → 9/9，<strong>解除唯一硬阻断</strong>（该报告的原话）。</p>
+<h3>10.2 另须由人裁定三件事（评测不能替定）</h3>
+<ol><li><strong>哪一份是真身</strong> —— 把 <code>~/.dsh/skills/kb-check</code>（v1.1.0）与 <code>&lt;工作区&gt;/.dsh/skills/kb-check</code>（v1.2.0）<strong>收敛成一份</strong>；并查清 v1.2.0 是怎么进到项目 skill 根的（11:53 写入，与 harness/B 同源）。</li><li><strong>修哪一版</strong> —— v1.1.0 需"补一句"，v1.2.0 需"改一句 + 解自相矛盾"；v1.2.0 还多了 references/examples/scripts（Script 7→9、Progressive 11→13 实测成立）。属<strong>取舍</strong>，不是评测能定的。</li><li><strong>门③ 的输入谁生成</strong> —— 赢家表全库无生成者，"六道闸门一次跑完"就永远差一道：要么给它生成者，要么把 headline 改成"五道"。</li></ol>
+<hr>
+<h2>11. 交付物</h2>
+<ul><li>单一 HTML 报告：<code>kb-check-评测报告-20261004-装载真身与放行判定.html</code></li><li>本报告源（Markdown）：<code>kb-check-评测报告-20261004-装载真身与放行判定.md</code></li><li>引用的既有产物（<strong>未改动，只读</strong>）：<code>_eval-kb-check-20261004-b/</code>、<code>kb-check-评测-20261004/</code>、<code>kb-check-评测-独立复核-20261004/</code></li></ul>
+<p><strong>未写回任何被测文件</strong>：<code>.dsh/skills/kb-check/</code> 与 <code>~/.dsh/skills/kb-check/</code>（后者 0400 只读）全程未改。两个交付件均经信封态校验（python <code>getsize</code> 与 node <code>statSync</code> 差值 0）。</p>
+<hr>
+<p><strong>框架</strong>：<code>root-skills-eval</code> v3.19.1（轨道 A/B/C）｜<strong>放行核对</strong>：<code>root-skills-check</code> v1.0.1</p>
+<p><strong>口径纪律</strong>：单条失败即阻断，不因总分好看而放宽；分数落在敏感区间时明确标注"不可作决策依据"；推算值不当实测值引用。</p>
+</div></body></html>

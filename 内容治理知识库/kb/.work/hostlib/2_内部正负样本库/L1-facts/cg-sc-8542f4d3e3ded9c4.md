@@ -1,0 +1,96 @@
+---
+id: cg-sc-8542f4d3e3ded9c4
+title: "[S-1.101] 内部正负样本库：正例·品牌一致性·文字"
+collection: 2_内部正负样本库
+kb_class: [内部正负样本库]
+tier: L1
+topic: S-1.101
+kind: fact
+summary: "[S-1.101] 正例案例（文字/展会）：原因归类「品牌一致性」；案例作参照、不构成规则。状态 stable。"
+owner: 刘华丽
+evidence_level: L1
+data_level: L2
+sensitivity_level: L2
+half_life_days: 180
+created_at: 2026-10-16
+valid_until: 2027-04-14
+asks:
+  - S-1.101 是正例还是反例
+  - S-1.101 的问题要点与原因归类是什么
+  - S-1.101 应该怎么做（合规做法 / 修改建议）
+not_proves: 案例是参照，不构成规则 —— 不能证明「和它像」就违规、也不能证明「和它像」就合规；不能证明该条已过正式验收；不能证明该条可替代合规/法务意见
+forbidden: 不许把案例当规则用（案例只作参照）；不许据本条直接判 BLOCK；不许把派生视图的字段改动当成新库改动（视图不写回）
+related:
+  - cg-sc-212d0636bd85aad3
+  - cg-sc-af2116911001b754
+  - cg-sc-3f01654a7e9cc308
+source:
+  kind: feishu-base
+  ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
+  fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
+  captured_at: 2026-10-16
+provenance:
+  anchor: "kb/l4/canonical/sample_case.jsonl#sc-8542f4d3e3ded9c4"
+  confidence: 确定
+pii:
+  detected: true
+  masked: true
+  strategy: "案例正文与原因分析里的 @人名 不可逆脱敏（mask-at-name）；已检出并脱敏"
+article_no: S-1.101
+form: sample_case
+kb_type: internal_sample
+kb_version: v0
+case_id: sc-8542f4d3e3ded9c4
+status: stable
+polarity: 正例
+material_type: 文字
+channel: 展会
+reason_category: 品牌一致性
+evidence_strength: 标杆可复现：有完整样本本体 + 原因分析
+promoted_from: provisional
+anchor: "#正面和负面样本/recvw2wE9MbZdr/原文反馈"
+source_sha256: d435e8a8f368dad3910e60e81610af61f7358acac5d7dfc08649d563a3b451a3
+resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MbZdr
+sample_body: "【审核 · 2026-09-16 23:22 · 连家杰】【 终审-@[已脱敏] 】辛苦看看这个呀:YouAreTheBest: **项目名：Witt瑞典2C展会海报** **设计要求：** 1. **材质：布艺面料，展位墙面悬挂（textile）** 2. **尺寸：4*2.5M （L*H）** 3. **文案：**momcozy logo+slogan Slogan: Evolving for Mom and Cozy（与需求方确认过使用这个slogan） **设计稿件(截图)：** ![Image](img_v3_0215j_1570ea07-9fa4-40a2-8656-0059d2f8420g)  Evolving for Mom and Cozy（与需求方确认过使用这个slogan）  momcozy Evolving for Mom and Cozy"
+reason_analysis: "【品牌一致性】文案 1. 材质：布艺面料，展位墙面悬挂（textile）。 【问题要点】 1. 1. 材质：布艺面料，展位墙面悬挂（textile） 2. 2. **尺寸：4*2.5M （L*H） 3. 3. 文案：momcozy logo+slogan 4. 【 终审-@[已脱敏] 】辛苦看看这个呀 5. Slogan: Evolving for Mom and Cozy（与需求方确认过使用这个slogan）"
+advice: ""
+---
+
+# [S-1.101] 内部正负样本库：正例·品牌一致性·文字
+
+**条款号**：S-1.101　|　**形态**：`sample_case`　|　**正/反例**：正例　|　**状态**：stable
+
+## 样本本体（照抄新库，未改写）
+
+【审核 · 2026-09-16 23:22 · 连家杰】【 终审-@[已脱敏] 】辛苦看看这个呀:YouAreTheBest:
+**项目名：Witt瑞典2C展会海报**
+**设计要求：**
+1. **材质：布艺面料，展位墙面悬挂（textile）**
+2. **尺寸：4*2.5M （L*H）**
+3. **文案：**momcozy logo+slogan
+Slogan: Evolving for Mom and Cozy（与需求方确认过使用这个slogan）
+**设计稿件(截图)：**
+![Image](img_v3_0215j_1570ea07-9fa4-40a2-8656-0059d2f8420g)
+
+Evolving for Mom and Cozy（与需求方确认过使用这个slogan）
+
+momcozy
+Evolving for Mom and Cozy
+
+## 原因分析
+
+【品牌一致性】文案 1. 材质：布艺面料，展位墙面悬挂（textile）。
+【问题要点】
+1. 1. 材质：布艺面料，展位墙面悬挂（textile）
+2. 2. **尺寸：4*2.5M （L*H）
+3. 3. 文案：momcozy logo+slogan
+4. 【 终审-@[已脱敏] 】辛苦看看这个呀
+5. Slogan: Evolving for Mom and Cozy（与需求方确认过使用这个slogan）
+
+## 引用依据
+
+- 锚点：`#正面和负面样本/recvw2wE9MbZdr/原文反馈`
+- 指纹：`d435e8a8f368dad3910e60e81610af61f7358acac5d7dfc08649d563a3b451a3`
+- 原因归类：品牌一致性　|　素材类型：文字
+
+> 案例只作参照，不构成规则。

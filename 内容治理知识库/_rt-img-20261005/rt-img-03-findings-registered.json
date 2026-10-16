@@ -1,0 +1,128 @@
+{
+  "review_id": "rv-20261005-112501",
+  "review_base": "RT-20261005-IMG-03",
+  "content_id": "AD-20261005-002",
+  "content_type": "社媒图片",
+  "channel": "社媒",
+  "product_line": "洗瓶机/喂养",
+  "content_version": "224430cf4e4825b343a1b0137fb31c655a11fd7b5d14cdc35bc8f9b7b7c8c978",
+  "registered_at": "2026-10-05",
+  "registered_under": "Owner 2026-10-05 现场定的硬规矩①（自命中是反面依据，不是拒答的理由）—— 明示优先于默认流程",
+  "decision": "BLOCK",
+  "issue_count": 1,
+  "decision_provenance": {
+    "engine_state": "NEEDS_INPUT",
+    "engine_exit_code": 3,
+    "engine_reason": "依据侧拒答（fail-closed）—— 规则层 0 命中且无覆盖信号",
+    "statement": "本 BLOCK **不是引擎产出的**：引擎自身输出为拒答（NEEDS_INPUT / 退出码 3）。BLOCK 由判定主体（图片安全审查）按 Owner 规则① 从已定稿反例/禁区条款 S-1.2（近重复 S-1.175）登记得出。两者冲突已在本单报告中如实摆出。",
+    "conflict_disclosed": true
+  },
+  "findings": [
+    {
+      "finding_id": "F-1",
+      "severity": "BLOCK",
+      "category": "原则性错误",
+      "sub": "禁区：不能这么做 + 为什么",
+      "position": "图片 1（整图）",
+      "summary": "送审素材自命中库内已定稿反例/禁区条款 S-1.2（material_type=图片，近重复 S-1.175，material_type=文字）—— 同一图片文件实体（sha256 a3c7828f…）的审核定论是「奶瓶不建议倒着放」。",
+      "basis_kind": "self_hit_on_finalized_counter_example",
+      "clauses": [
+        {
+          "article_no": "S-1.2",
+          "role": "主条款（material_type=图片，与本素材同模态）",
+          "form": "sample_case",
+          "polarity": "反例",
+          "semantics": "禁区：不能这么做 + 为什么",
+          "reason_category": "原则性错误",
+          "status": "stable",
+          "owner": "刘华丽",
+          "valid_until": "2027-03-28",
+          "effective_from": "2026-09-29",
+          "baseline_date": "2026-09-29",
+          "case_id": "sc-03ae58f67eceddc0",
+          "channel": "社媒",
+          "material_type": "图片",
+          "evidence_strength": "禁区可复现：有完整样本本体 + 原因分析",
+          "trace": {
+            "l4_article_no": "S-1.2",
+            "l4_anchor": "#正面和负面样本/recvw2vgYXHKgM/原文反馈",
+            "l2_unit_id": "f8e2ee3741a6d1b8c307",
+            "l2_media_anchor": "#素材/recvw2vgYXHKgM/图片素材/#img.1",
+            "l1_source_sha256": "9f39a37061cf6d1e33af111127156a9a38e69d2cfd6de70e6c71f3e8685c5136",
+            "l0_sha256_input": "record_fields",
+            "l0_entry_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw2vgYXHKgM",
+            "l0_record_id": "recvw2vgYXHKgM",
+            "l1_file": "kb/l1/2_内部正负样本库/bitable__tbld8qE92YaY38Yz__recvw2vgYXHKgM.json",
+            "sha_note": "与 L0 记录值比对一致（**不是重算**）：L0 的 sha 输入是 record_fields 字段 blob，本地 L0 件不含该 blob，重算在本地结构上不可能；要真核对只能点上面那条飞书直链。"
+          }
+        },
+        {
+          "article_no": "S-1.175",
+          "role": "近重复同案（material_type=文字；reason_analysis 与 S-1.2 仅差「图片 / 文案」二字）",
+          "form": "sample_case",
+          "polarity": "反例",
+          "semantics": "禁区：不能这么做 + 为什么",
+          "reason_category": "原则性错误",
+          "status": "stable",
+          "owner": "刘华丽",
+          "valid_until": "2027-03-28",
+          "material_type": "文字",
+          "trace": {
+            "l4_article_no": "S-1.175",
+            "l4_anchor": "#正面和负面样本/recvw2wE9MmvI2/原文反馈",
+            "l2_unit_id": "ce49d00481ce3e18785e",
+            "l2_media_anchor": "#素材/recvw2wE9MmvI2/图片素材/#img.1",
+            "l1_source_sha256": "a39db867fa9cdd73bc2013dcb5d4639209d0974cf36ce6700c635f674cfbe773",
+            "l0_entry_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw2wE9MmvI2",
+            "l0_record_id": "recvw2wE9MmvI2",
+            "l0_table_name": "正面和负面样本",
+            "sha_note": "与 L0 记录值比对一致（**不是重算**），口径同 S-1.2。"
+          }
+        }
+      ],
+      "material_identity_evidence": {
+        "submitted_ocr_verbatim": "mOmCOZY\nBereit Für Die Nacht,\nSupermama?\nManche Superkräfte\nPassen Auf Den\nNachttisch\n\"Was Sind Deine Mama-Hacks Für Ruhigere Nächte?\"",
+        "kb_ocr_verbatim": "mOmCOZY\nBereit Für Die Nacht,\nSupermama?\nManche Superkräfte\nPassen Auf Den\nNachttisch\n\"Was Sind Deine Mama-Hacks Für Ruhigere Nächte?\"",
+        "match": "逐字相同（送审侧 OCR 把 ä/ü 读成 a/u、把 , 读成 ，，属 OCR 归一化差异）",
+        "image_file_sha256": "a3c7828f2f66554dfa574e112d66026473023265f771df1d63410de11423ff8a",
+        "image_file_bytes": 123988,
+        "image_sha256_seen_in_records": [
+          "recvw2vgYXHKgM",
+          "recvw2wE9MmvI2",
+          "recvw7XIUg72fA",
+          "recvwwiEKDTDWq",
+          "recvwC9IMVeaGY"
+        ],
+        "residual_uncertainty": "送审图片**文件本体未到达本机**（无文件、无 URL、无 content_hash）⇒ 无法对送审件复算 sha256 与 a3c7828f… 逐字节比对。同一性由「OCR 逐字相同 + 同一图片文件实体在库内被 5 条记录引用」确立，不是字节级证明。",
+        "why_still_conclusive": "Owner 规则① 明示：命中已定稿反例/禁区条款即为「这条素材本身有定论」，**不许**以自命中/同源留痕/循环论证为由降级。残留不确定性不改变结论。"
+      },
+      "l0_verbatim_excerpts": {
+        "分类": "反例",
+        "原因分类": "原则性错误",
+        "具体原因/分析": "【原则性错误】图片 奶瓶不建议倒着放，对于宝宝和妈妈来说，奶瓶的卫生重要至极，所。\n原因：我们的产品才会有奶瓶消毒器，喝完奶、喝之前都要消毒杀菌的，所以随意倒着放这个行为不符合用户习惯",
+        "原文反馈（首段）": "【审核 · 2026-08-11 22:53 · 吴礼芳】@饶雨诗 奶瓶不建议倒着放，对于宝宝和妈妈来说，奶瓶的卫生重要至极，所以我们的产品才会有奶瓶消毒器，喝完奶、喝之前都要消毒杀菌的，所以随意倒着放这个行为不符合用户习惯",
+        "项目名": "欧洲社媒德国 8.14 Jeder Schritt der Stillreise",
+        "审核人": "吴礼芳",
+        "提交时间": "2026-08-11T22:53:00.000+08:00"
+      },
+      "reason": "同一图片文件实体（sha256 a3c7828f…，123,988 字节）在库内已被定稿为**反例/禁区**（S-1.2 图片 / S-1.175 文字，均为 原则性错误），审核定论为「奶瓶不建议倒着放…不符合用户习惯」。本素材与其实质同一 ⇒ 该定论直接适用于本素材。",
+      "suggestion": "按已定稿反例处置：改正画面中奶瓶的摆放（不得倒置），改后重新提交。原文「修改建议」逐字（L0 记录值）：建议倒着放，对于宝宝和妈妈来说，奶瓶的卫生重要至极，所以我们的产品才会有奶瓶消毒器，喝完奶、喝之前都要消毒杀菌的，所以随意倒着放这个行为不符合用户习惯。",
+      "suggestion_field_warning": "L0「建议」字段文本与「具体原因/分析」逐字相同（首句为否定句「不建议倒着放」），疑为采集时字段复制错误 ⇒ 该字段**不得直接外发**，需先由业务确认应为「不得倒置」还是「建议倒置」。"
+    }
+  ],
+  "mechanism_gaps_registered": [
+    {
+      "gap_id": "GAP-SELFHIT-1",
+      "title": "评审引擎对「已定稿反例 / 禁区条款」没有消费者（自命中必落拒答）",
+      "status": "未见登记（未在 kb/l7/registry/*.yaml 检索到「自命中」，sample_case 提及均为 L3/L4 数据文件，非引擎消费）",
+      "evidence": [
+        "grep -n 'sample_case|polarity|禁区' ~/.dsh/skills/kb-content-review/scripts/review.py → 0 命中",
+        "grep -rln 'sample_case|polarity|禁区' kb/l7/review-engine/ → 0 命中",
+        "实跑：with_kb_evidence.py --text <本素材> → state=NEEDS_INPUT / exit 3；trace: p0 0 命中、rules 0 命中、coverage.covered=false",
+        "review.py:711-728：covered = bool(safe_hits or cited_unit_hits)，而 cited_unit_hits 要求 anchor 先被**规则**引用 ⇒ 规则层 0 命中时结构上不可能有覆盖信号"
+      ],
+      "impact": "凡「素材本身已定稿为反例/禁区、但库内没有对应规则或 P0 模式」的单子，引擎一律拒答 —— 正是本单与 RT-20261005-IMG-02 的情形。",
+      "do_not": "未判定前不要改 review.py 或 with_kb_evidence.py。本单按 Owner 规则① 在流程层处置（登记 findings + 三态结论），并如实登记缺口。"
+    }
+  ]
+}

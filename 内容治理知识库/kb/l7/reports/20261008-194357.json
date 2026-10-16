@@ -1,0 +1,209 @@
+{
+  "review_id": "20261008-194357",
+  "content_id": "text-e6e1c27efcf5",
+  "content_type": "text",
+  "content_version": "e6e1c27efcf5458fbf930975fdc50b5972ccaa20e9da2b6e76663dc92ed20590",
+  "content_hash": "e6e1c27efcf5458fbf930975fdc50b5972ccaa20e9da2b6e76663dc92ed20590",
+  "agent_version": "kb-content-review@1.3.0",
+  "rule_version": "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02",
+  "knowledge_version": "v0",
+  "version_binding": {
+    "review_id": "20261008-194357",
+    "content_id": "text-e6e1c27efcf5",
+    "content_hash": "e6e1c27efcf5458fbf930975fdc50b5972ccaa20e9da2b6e76663dc92ed20590",
+    "content_version": "e6e1c27efcf5458fbf930975fdc50b5972ccaa20e9da2b6e76663dc92ed20590",
+    "agent_version": "kb-content-review@1.3.0",
+    "rule_version": "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02",
+    "knowledge_version": "v0",
+    "sources": {
+      "content_hash": "送审文本 utf-8 的 sha256",
+      "agent_version": "kb/l7/skills/kb-content-review/SKILL.md → frontmatter.version",
+      "rule_version": "kb/l7/registry/l7.json → article_no_source.scheme_version ＋ kb/l3/registry/l3.json → distiller_version ＋ kb/l3/candidates/rules.jsonl 的 sha256[:16]",
+      "knowledge_version": "kb/l7/registry/l7.json → kb_version"
+    }
+  },
+  "decision": "REVIEW",
+  "decision_raw": "REVIEW",
+  "confidence": "未标定（本入口逐条给 高/中/低；全局数值置信度属裁决侧）",
+  "input_manifest": {
+    "text": "秋促倒计时02 1800*1350 Pairuu The Season Savings Are Almost Here 2 DAYS LEFT! 20% OFF Get ready to upgrade your nursing journey with ultimate comfort (CTA) Shop now momcozy",
+    "sha256": "e6e1c27efcf5458fbf930975fdc50b5972ccaa20e9da2b6e76663dc92ed20590",
+    "modality": [
+      "text"
+    ]
+  },
+  "coverage": {
+    "text": "complete",
+    "image": "not_applicable",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "本批只送审 text 一种模态；其余模态不适用（不是缺口）。本块是报告契约要求的覆盖状态，不等于 OCR/ASR/关键帧流水线已执行 —— 后者见 trace。"
+  },
+  "risk_items": [
+    {
+      "risk_id": "sc-a6b9b5f2f4b5f9b3",
+      "risk_type": "原则性错误-禁区（库内反例条款）",
+      "priority_tier": "P1",
+      "priority_tier_basis": "案例层（L4 定稿「反例/禁区」）",
+      "layer": "案例层（L4 定稿「反例/禁区」）",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "【原则性错误】图片 P16 海报上需要有“UP TO 201% OFF” (最高X折) 。\n【问题要点】\n1. 海报上需要有“UP TO 201% OFF” (最高X折) 的醒目标签\n2. 【初审-@关轶夫    】麻烦看看呀\n3. 项目背",
+      "reason": "库内反例条款 S-1.269（原则性错误）与本素材**同源/同题材**：【原则性错误】图片 P16 海报上需要有“UP TO 201% OFF” (最高X折) 。\n【问题要点】\n1. 海报上需要有“UP TO 201% OFF” (",
+      "suggestion": "可以有金色的秋日纸屑（Confetti）飘落的效果",
+      "verbatim_verified": false,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "内部正负样本库",
+        "article_no": "S-1.269",
+        "anchor": "#负面样本/recvw8Tx3zVihU/具体原因/分析",
+        "source_sha256": "9d417be17982c7231419383c82b9e80afd056b24e70dafedc7205d670457e9b6",
+        "excerpt": "【原则性错误】图片 P16 海报上需要有“UP TO 201% OFF” (最高X折) 。\n【问题要点】\n1. 海报上需要有“UP TO 201% OFF” (最高X折) 的醒目标签\n2. 【初审-@关轶夫    】麻烦看看呀\n3. 项目背"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《内部正负样本库 v0》第 S-1.269 条 @ #负面样本/recvw8Tx3zVihU/具体原因/分析 @ 9d417be17982（**非逐字**：P0 模式自身声明，未经逐字回验）",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#S-1.269",
+      "evidence_gap": "本条依据是**库内已定稿的反例条款**（`polarity=反例`、`semantics=禁区：不能这么做 + 为什么`），命中判据是「检索命中单元与被引锚点**同源**」；该锚点的 L0 件本地无字段值 ⇒ 摘录取自案例记录本身，**需人工点开核对**"
+    },
+    {
+      "risk_id": "sc-1d45c6ab106b2c58",
+      "risk_type": "品牌一致性-禁区（库内反例条款）",
+      "priority_tier": "P1",
+      "priority_tier_basis": "案例层（L4 定稿「反例/禁区」）",
+      "layer": "案例层（L4 定稿「反例/禁区」）",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "【品牌一致性】图片 1. 第一改吸奶器产品图海报，logo 下的slogan 去。\n【问题要点】\n1. 1. 第一改吸奶器产品图海报，logo 下的slogan 去掉\n2. 2. 第二张宝宝的头和暖奶壶撞到一起了，要么压暗让它往后退，空间上",
+      "reason": "库内反例条款 S-1.214（品牌一致性）与本素材**同源/同题材**：【品牌一致性】图片 1. 第一改吸奶器产品图海报，logo 下的slogan 去。\n【问题要点】\n1. 1. 第一改吸奶器产品图海报，logo 下的slogan",
+      "suggestion": "建议核心思路：Brand / Mom Lifestyle → Breastfeeding Support → Key Products；换成品牌日的规范字体标题",
+      "verbatim_verified": false,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "内部正负样本库",
+        "article_no": "S-1.214",
+        "anchor": "#负面样本/recvweKJlZYRQa/具体原因/分析",
+        "source_sha256": "cdae79bd4e1a3119c5a36703dab01cbb1c4c7ae22afbb62248f553def3723b0d",
+        "excerpt": "【品牌一致性】图片 1. 第一改吸奶器产品图海报，logo 下的slogan 去。\n【问题要点】\n1. 1. 第一改吸奶器产品图海报，logo 下的slogan 去掉\n2. 2. 第二张宝宝的头和暖奶壶撞到一起了，要么压暗让它往后退，空间上"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《内部正负样本库 v0》第 S-1.214 条 @ #负面样本/recvweKJlZYRQa/具体原因/分析 @ cdae79bd4e1a（**非逐字**：P0 模式自身声明，未经逐字回验）",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#S-1.214",
+      "evidence_gap": "本条依据是**库内已定稿的反例条款**（`polarity=反例`、`semantics=禁区：不能这么做 + 为什么`），命中判据是「检索命中单元与被引锚点**同源**」；该锚点的 L0 件本地无字段值 ⇒ 摘录取自案例记录本身，**需人工点开核对**"
+    },
+    {
+      "risk_id": "sc-3a7ce42c9c6b6267",
+      "risk_type": "品牌一致性-禁区（库内反例条款）",
+      "priority_tier": "P1",
+      "priority_tier_basis": "案例层（L4 定稿「反例/禁区」）",
+      "layer": "案例层（L4 定稿「反例/禁区」）",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "【品牌一致性】图片 其实我是在想Momcozy的内容发在ROOT的小红书账号上。\n【问题要点】\n1. 其实我是在想Momcozy的内容发在ROOT的小红书账号上，是不是也应该用ROOT的VI来做\n2. （Momcozy 的logo用纯log",
+      "reason": "库内反例条款 S-1.221（品牌一致性）与本素材**同源/同题材**：【品牌一致性】图片 其实我是在想Momcozy的内容发在ROOT的小红书账号上。\n【问题要点】\n1. 其实我是在想Momcozy的内容发在ROOT的小红书账号上",
+      "suggestion": "应该用ROOT的VI来做",
+      "verbatim_verified": false,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "内部正负样本库",
+        "article_no": "S-1.221",
+        "anchor": "#负面样本/recvwwiEKD6Vf8/具体原因/分析",
+        "source_sha256": "d192a60d172adf5f6bfda50f31111e7f6def3617ed6b2670cacc229993c6cf03",
+        "excerpt": "【品牌一致性】图片 其实我是在想Momcozy的内容发在ROOT的小红书账号上。\n【问题要点】\n1. 其实我是在想Momcozy的内容发在ROOT的小红书账号上，是不是也应该用ROOT的VI来做\n2. （Momcozy 的logo用纯log"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《内部正负样本库 v0》第 S-1.221 条 @ #负面样本/recvwwiEKD6Vf8/具体原因/分析 @ d192a60d172a（**非逐字**：P0 模式自身声明，未经逐字回验）",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#S-1.221",
+      "evidence_gap": "本条依据是**库内已定稿的反例条款**（`polarity=反例`、`semantics=禁区：不能这么做 + 为什么`），命中判据是「检索命中单元与被引锚点**同源**」；该锚点的 L0 件本地无字段值 ⇒ 摘录取自案例记录本身，**需人工点开核对**"
+    },
+    {
+      "risk_id": "sc-66bfd800b078cf85",
+      "risk_type": "品牌一致性-禁区（库内反例条款）",
+      "priority_tier": "P1",
+      "priority_tier_basis": "案例层（L4 定稿「反例/禁区」）",
+      "layer": "案例层（L4 定稿「反例/禁区」）",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "【品牌一致性】图片 【终审-   @吴礼芳   】麻烦看一下~。",
+      "reason": "库内反例条款 S-1.242（品牌一致性）与本素材**同源/同题材**：【品牌一致性】图片 【终审-   @吴礼芳   】麻烦看一下~。",
+      "suggestion": "",
+      "verbatim_verified": false,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "内部正负样本库",
+        "article_no": "S-1.242",
+        "anchor": "#负面样本/recvwC9IMVtANl/具体原因/分析",
+        "source_sha256": "1b9efe8355efc14497c92f2a610e7e0deac0581fdc703d87a2384ac9a5f7d767",
+        "excerpt": "【品牌一致性】图片 【终审-   @吴礼芳   】麻烦看一下~。"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《内部正负样本库 v0》第 S-1.242 条 @ #负面样本/recvwC9IMVtANl/具体原因/分析 @ 1b9efe8355ef（**非逐字**：P0 模式自身声明，未经逐字回验）",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#S-1.242",
+      "evidence_gap": "本条依据是**库内已定稿的反例条款**（`polarity=反例`、`semantics=禁区：不能这么做 + 为什么`），命中判据是「检索命中单元与被引锚点**同源**」；该锚点的 L0 件本地无字段值 ⇒ 摘录取自案例记录本身，**需人工点开核对**"
+    },
+    {
+      "risk_id": "sc-844482017d2b22ab",
+      "risk_type": "品牌一致性-禁区（库内反例条款）",
+      "priority_tier": "P1",
+      "priority_tier_basis": "案例层（L4 定稿「反例/禁区」）",
+      "layer": "案例层（L4 定稿「反例/禁区」）",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "【品牌一致性】文案 2.卡片的花朵结构不做改变。\n原因：<u>**修改：需求变更：卡片为异色，花朵异形卡为单色（深色），由于卡片可做单面开槽，所以对背面的文案排版断句做了修改，并微调了文案位置，使正反面文案看起来更适配\n【问题要点】\n1. ",
+      "reason": "库内反例条款 S-1.257（品牌一致性）与本素材**同源/同题材**：【品牌一致性】文案 2.卡片的花朵结构不做改变。\n原因：<u>**修改：需求变更：卡片为异色，花朵异形卡为单色（深色），由于卡片可做单面开槽，所以对背面的文案排",
+      "suggestion": "",
+      "verbatim_verified": false,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "内部正负样本库",
+        "article_no": "S-1.257",
+        "anchor": "#负面样本/recvw7XIUgbbCi/具体原因/分析",
+        "source_sha256": "16d727166c18093126279ebada9c3264fbc8182b7c654b637a4f7233fb72764a",
+        "excerpt": "【品牌一致性】文案 2.卡片的花朵结构不做改变。\n原因：<u>**修改：需求变更：卡片为异色，花朵异形卡为单色（深色），由于卡片可做单面开槽，所以对背面的文案排版断句做了修改，并微调了文案位置，使正反面文案看起来更适配\n【问题要点】\n1. "
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《内部正负样本库 v0》第 S-1.257 条 @ #负面样本/recvw7XIUgbbCi/具体原因/分析 @ 16d727166c18（**非逐字**：P0 模式自身声明，未经逐字回验）",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#S-1.257",
+      "evidence_gap": "本条依据是**库内已定稿的反例条款**（`polarity=反例`、`semantics=禁区：不能这么做 + 为什么`），命中判据是「检索命中单元与被引锚点**同源**」；该锚点的 L0 件本地无字段值 ⇒ 摘录取自案例记录本身，**需人工点开核对**"
+    }
+  ],
+  "issue_count": 5,
+  "report_url": null,
+  "next_action": "建议转复核责任人复核。",
+  "next_owners": [
+    "复核责任人"
+  ],
+  "sla": {},
+  "version_gate": {
+    "reviewed_hash": "e6e1c27efcf5458fbf930975fdc50b5972ccaa20e9da2b6e76663dc92ed20590",
+    "release_hash": null,
+    "note": "本入口不掌握发布版本；发布/送审版本比对属裁决侧（review_engine.py:115-119），此处不代替它下结论"
+  },
+  "decision_trace": {
+    "reasons": [
+      "findings_present_without_block"
+    ],
+    "confidence_status": "not_calibrated_by_this_entry",
+    "evaluated_at": "2026-10-08T19:43:59",
+    "decided_by": "kb-content-review/scripts/review.py（依据侧自身分支，:709-715）",
+    "note": "本报告不重算结论；三态由上表 decision_raw 原样带出"
+  },
+  "unmet_citation": []
+}

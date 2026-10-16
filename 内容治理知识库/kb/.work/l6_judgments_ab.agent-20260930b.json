@@ -1,0 +1,123 @@
+{
+ "run_id": "20260930-0400",
+ "kind": "l6_judgments_agent_proposal",
+ "batch": "第二批：依据优先权重上线后新进 Top3 的 19 对",
+ "provenance": "**本批仍是 agent 判的**，与 kb/.work/l6_judgments_ab.json 里 2026-09-23 那批人判不同源；单独文件，不覆盖人判。",
+ "rule": "判据：该单元是否回答了查询想找的东西。A 组应当命中，B 组（库外问题）应当全不相关。",
+ "verdicts": {
+  "催奶增产||a494e31e49e878cfb324": {
+   "query": "催奶增产",
+   "unit_id": "a494e31e49e878cfb324",
+   "verdict": "相关",
+   "reason": "命中原因原文点名 H02 催乳/增产/奶量产出承诺及其合规替代路径"
+  },
+  "催奶增产||926ac5ca340c9e242676": {
+   "query": "催奶增产",
+   "unit_id": "926ac5ca340c9e242676",
+   "verdict": "相关",
+   "reason": "同上，另一条广告的同一命中原因"
+  },
+  "无痛吸奶||367a39e272206d930157": {
+   "query": "无痛吸奶",
+   "unit_id": "367a39e272206d930157",
+   "verdict": "相关",
+   "reason": "修改建议：删除 pain-free/no pain/无痛/缓解疼痛等疼痛功效承诺——正是本查询的规则"
+  },
+  "无痛吸奶||47453fc83566f743d449": {
+   "query": "无痛吸奶",
+   "unit_id": "47453fc83566f743d449",
+   "verdict": "相关",
+   "reason": "同上，另一条广告的同一修改建议"
+  },
+  "无痛吸奶||115c7ea5b20a67b77a72": {
+   "query": "无痛吸奶",
+   "unit_id": "115c7ea5b20a67b77a72",
+   "verdict": "不相关",
+   "reason": "禁用清单讲的是催乳/治疗类表述，与「无痛」诉求无关（它在「催奶增产」下判相关）"
+  },
+  "无痛吸奶||2aca7fd69c15fb548e0b": {
+   "query": "无痛吸奶",
+   "unit_id": "2aca7fd69c15fb548e0b",
+   "verdict": "相关",
+   "reason": "命中原因含 H07 疼痛功效承诺（pain-free/no pain/…），直接对题"
+  },
+  "无痛吸奶||35f13795b78accecf696": {
+   "query": "无痛吸奶",
+   "unit_id": "35f13795b78accecf696",
+   "verdict": "相关",
+   "reason": "同上，另一条广告的命中原因含 H07"
+  },
+  "绝对安全承诺||6bd4e7315823e42ef28d": {
+   "query": "绝对安全承诺",
+   "unit_id": "6bd4e7315823e42ef28d",
+   "verdict": "相关",
+   "reason": "H05 检测关键词：safest/100% safe/zero risk/guaranteed safe/最安全/零风险——正是本查询词表"
+  },
+  "hospital grade pump||0e8a16219d4ff3533a03": {
+   "query": "hospital grade pump",
+   "unit_id": "0e8a16219d4ff3533a03",
+   "verdict": "相关",
+   "reason": "命中片段直接点名 M05:hospital grade,hospital-grade——本条就是该用语的违规判定记录"
+  },
+  "more milk supply||3db49273026dc107607a": {
+   "query": "more milk supply",
+   "unit_id": "3db49273026dc107607a",
+   "verdict": "相关",
+   "reason": "H02 检测关键词词表（more milk/增奶/追奶/trigger oxytocin 等）"
+  },
+  "more milk supply||ec8aa40b6b158aecb065": {
+   "query": "more milk supply",
+   "unit_id": "ec8aa40b6b158aecb065",
+   "verdict": "相关",
+   "reason": "命中片段 H02:more milk——该用语的违规判定记录"
+  },
+  "more milk supply||5ff80f5422e3f9c107ce": {
+   "query": "more milk supply",
+   "unit_id": "5ff80f5422e3f9c107ce",
+   "verdict": "相关",
+   "reason": "命中片段 H02:increasing milk supply"
+  },
+  "基金定投和股票的区别||1a2002b4a312fc7ad18d": {
+   "query": "基金定投和股票的区别",
+   "unit_id": "1a2002b4a312fc7ad18d",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中单元讲的是奶量个体差异，与理财无关"
+  },
+  "钢琴考级曲目推荐||dcbe0ffa1f84d60a41fe": {
+   "query": "钢琴考级曲目推荐",
+   "unit_id": "dcbe0ffa1f84d60a41fe",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中单元是专家背书修改建议，与钢琴考级无关"
+  },
+  "钢琴考级曲目推荐||b46fc211f15f844dd6e2": {
+   "query": "钢琴考级曲目推荐",
+   "unit_id": "b46fc211f15f844dd6e2",
+   "verdict": "不相关",
+   "reason": "同上"
+  },
+  "python asyncio tutorial||054ded9d6291ce914535": {
+   "query": "python asyncio tutorial",
+   "unit_id": "054ded9d6291ce914535",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中单元是「模仿宝宝」正则，与 asyncio 无关"
+  },
+  "python asyncio tutorial||19b2539a4a322b4a2277": {
+   "query": "python asyncio tutorial",
+   "unit_id": "19b2539a4a322b4a2277",
+   "verdict": "不相关",
+   "reason": "同上，节奏检测词表"
+  },
+  "python asyncio tutorial||fa5fb81fa4a7ef46a54c": {
+   "query": "python asyncio tutorial",
+   "unit_id": "fa5fb81fa4a7ef46a54c",
+   "verdict": "不相关",
+   "reason": "同上，专家调校话术"
+  },
+  "hospital grade pump||9f37bfde3a67139feecb": {
+   "query": "hospital grade pump",
+   "unit_id": "9f37bfde3a67139feecb",
+   "verdict": "弱相关",
+   "reason": "命中片段里是 H05:perfect pump / U03:hospital，碰到 hospital 但不是等级背书规则"
+  }
+ }
+}

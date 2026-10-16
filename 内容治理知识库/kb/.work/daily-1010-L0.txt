@@ -1,0 +1,37 @@
+#!/bin/bash
+# 日更 L0 批次（BASE=daily-20261010-1010）—— 按 layers.yaml L0 的 engine: 清单 + 脚本版①的等价件
+# 顺序照 2026-10-10 0627 轮成功跑法：对齐 → 入库 → 结构 → 落章 → 台账 → 视频 → 抽帧 → 链接 → 核验
+cd "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理" || exit 2
+R="daily-20261010-1010-L0"
+set -e
+step() {
+  echo
+  echo "### $(date '+%H:%M:%S') CMD: $* ###"
+  "$@"
+  local rc=$?
+  echo "### rc=$rc ###"
+  return $rc
+}
+
+# ① 对齐（只读对账；脚本版步骤①的等价件）
+step sh kb/kbpy l8/align_l0_feishu.py "$R"
+# ①' L0 日更：对齐 + 新增入库 + 下架立碑真删（脚本版 daily_sync.py 的 ①）
+step sh kb/kbpy l7/scripts/l0_daily_sync.py --run "$R" --apply
+# 结构层对齐
+step env L8_AS=bot sh kb/kbpy l8/align_l0_schema.py "$R" --apply
+# ★ L0 落章引擎（带 --skill 的非预演章）
+step sh kb/kbpy l8/reconcile_l0_feishu.py "$R" --skill kb-l0-feishu --apply
+# 台账补齐
+step sh kb/kbpy l8/emit_l0_manifest_reconcile.py "$R" --apply
+# 视频字节（bot 二级通道）
+step env L8_VIDEO_AS=bot sh kb/kbpy l8/fetch_video_bytes.py "$R" --apply
+# 抽帧 + 画面文字（收尾自动接口播转写）
+step sh kb/kbpy l8/extract_video_keyframes.py "$R" --apply
+# 内嵌链接下钻两层（写 kb/l1/sources）
+step sh kb/kbpy l8/drill_links_2levels.py "$R" --apply
+# 链接核验
+step sh kb/kbpy l8/verify_l0_urls.py "$R" --apply
+# 文档类核验（缺 user 令牌则按守卫跳过，退出 0）
+step sh kb/kbpy l8/verify_l0_nonrecord2.py "$R" --apply
+echo
+echo "### $(date '+%H:%M:%S') L0 批次全部完成 ###"

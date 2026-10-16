@@ -1,0 +1,181 @@
+{
+ "run_id": "20260924-1210",
+ "part": "batch6 · 件0 / 件0.5 / 件7",
+ "item0_eval_excluded": {
+  "count": 4,
+  "keys": [
+   "local:review-case:img-1",
+   "local:review-case:img-2",
+   "local:review-case:img-3",
+   "local:review-case:img-4"
+  ],
+  "moved": [],
+  "archive_dir": "kb/l0/_archive/eval-material-excluded-20260924-1210",
+  "l0_effective_before": 1473,
+  "l0_effective_after": 1469,
+  "l1_invalidated": 4,
+  "source_kind_retired": {
+   "source_kind": "local_file",
+   "retired_at": "20260924-1210",
+   "status": "retired",
+   "decision": "user_decision_20260924",
+   "reason": "非源侧入口：会让「L0 == 源侧投影」这个核心不变量失效。曾用于 4 张评测对照报告案图（local:review-case:img-1..4），已按用户裁决从知识库移出",
+   "resource_count_removed": 4,
+   "archived_to": "kb/l0/_archive/eval-material-excluded-20260924-1210",
+   "history": "该 source_kind 由 run 20260924-1115 引入（其 changes 条目保留，未删）"
+  },
+  "history_change_kept": "run_id=20260924-1115 的 changes 条目未删（审计）"
+ },
+ "item0_5_ocr_remount": {
+  "attachment_artifacts": 240,
+  "mismatched": 229,
+  "remounted": 229,
+  "empty_both": 1,
+  "reverse_bad": [
+   {
+    "resource_key": "bitable:tbld8qE92YaY38Yz:recvw2wE9MESWo/fldnvxjaSr/FU6cb3odDo4OTIxZCLLcC7GKn7g",
+    "why": "双方皆空"
+   }
+  ],
+  "uffff_in_artifact_before": 36,
+  "mismatch_detail_sample": [
+   {
+    "resource_key": "bitable:tbld8qE92YaY38Yz:recvw2vgYXjM74/fldnvxjaSr/CgjxbJizpon6TrxUrt8cGvNEnub",
+    "artifact_len": 285,
+    "sidecar_len": 285,
+    "artifact_uffff": false,
+    "artifact_han": 0,
+    "sidecar_han": 0,
+    "status_reason": "OCR 已完成"
+   },
+   {
+    "resource_key": "bitable:tbld8qE92YaY38Yz:recvw2vgYXjM74/fldnvxjaSr/QFMibb8IaoAIrbx5nfEcxpw1n0f",
+    "artifact_len": 355,
+    "sidecar_len": 355,
+    "artifact_uffff": false,
+    "artifact_han": 0,
+    "sidecar_han": 0,
+    "status_reason": "OCR 已完成"
+   },
+   {
+    "resource_key": "bitable:tbld8qE92YaY38Yz:recvw2vgYXjM74/fldnvxjaSr/G3iMbOexCoP9igxxIHkcXwovneb",
+    "artifact_len": 222,
+    "sidecar_len": 224,
+    "artifact_uffff": false,
+    "artifact_han": 0,
+    "sidecar_han": 0,
+    "status_reason": "OCR 已完成"
+   },
+   {
+    "resource_key": "bitable:tbld8qE92YaY38Yz:recvw2vgYXfHpO/fldnvxjaSr/GGD0bP3NpoNhV2xVDCDccyDUnxf",
+    "artifact_len": 124,
+    "sidecar_len": 124,
+    "artifact_uffff": false,
+    "artifact_han": 0,
+    "sidecar_han": 0,
+    "status_reason": "OCR 复用既有产物（sha256 命中 recvvPK3EbyYKn_3.png）"
+   },
+   {
+    "resource_key": "bitable:tbld8qE92YaY38Yz:recvw2vgYXfHpO/fldnvxjaSr/PuDib5yl5o85U8xFlhTcXobonmc",
+    "artifact_len": 419,
+    "sidecar_len": 419,
+    "artifact_uffff": false,
+    "artifact_han": 0,
+    "sidecar_han": 0,
+    "status_reason": "OCR 已完成"
+   }
+  ],
+  "gate": {
+   "at": "20260924-1210",
+   "applies_to": "所有「按 sha256 命中缓存就复用 OCR」的路径",
+   "code_point": "kb/.work/kb_ocr_gate.py::ocr_cache_reusable(cache_entry) —— L1 抽取脚本（kb/.work/l1_batch5_run.py）的复用分支必须改为调用它",
+   "rule": [
+    "拒绝 ocr_version != vision-jxa-2.0 的缓存条目",
+    "拒绝 ocr_text 含 U+FFFF 的缓存条目",
+    "拒绝 ocr_line_count == 0 且 ocr_text 为空但图片字节数 > 4096 的条目（疑似坏引擎整图丢失）",
+    "不通过则**重跑 OCR**，而不是复用"
+   ],
+   "why": "坏引擎（recognitionLevel=1）在 macOS 26.6.2 上不支持中文，静默退回纯拉丁识别；命中的旧缓存正是坏引擎产物 → 曾把 240 条附件文本批量污染",
+   "measured": {
+    "mismatched_before_fix": 229,
+    "remounted": 229,
+    "uffff_before": 36
+   }
+  }
+ },
+ "item7_url": {
+  "l0_url_resources": 145,
+  "source_unique_urls": 204,
+  "suspect_count": 2,
+  "suspect": [
+   {
+    "key": "url:http://吸奶器广告文案审计_红绿灯.xlsx",
+    "url": "http://吸奶器广告文案审计_红绿灯.xlsx",
+    "reasons": [
+     "filename_like"
+    ],
+    "l0_status": "registered",
+    "l1_status": "unreachable",
+    "conclusion": "无法复原",
+    "reason": "源侧「品线内容边界规则库」的「依据来源」字段里就是文件名本身（`吸奶器广告文案审计_红绿灯.xlsx 规则库`），没有对应的 http(s) 地址；该 key 被当作 URL 登记属历史误判，本批保留 unreachable 并写明原因"
+   },
+   {
+    "key": "url:http://W1利益点边界表(SWMYUF",
+    "url": "http://W1利益点边界表(SWMYUF",
+    "reasons": [
+     "invalid_url"
+    ],
+    "l0_status": "registered",
+    "l1_status": "unreachable",
+    "reason": "源侧「W1卖点表达边界」表的字段值本身就是这样一串残缺文本（把表名当成了 URL），源侧任何字段里都不存在对应的完整 http(s) URL —— 不是被截断，是源头就没有 URL",
+    "conclusion": "无法复原"
+   }
+  ],
+  "restorable": [],
+  "unrestorable": [
+   {
+    "key": "url:http://吸奶器广告文案审计_红绿灯.xlsx",
+    "url": "http://吸奶器广告文案审计_红绿灯.xlsx",
+    "reasons": [
+     "filename_like"
+    ],
+    "l0_status": "registered",
+    "l1_status": "unreachable",
+    "conclusion": "无法复原",
+    "reason": "源侧「品线内容边界规则库」的「依据来源」字段里就是文件名本身（`吸奶器广告文案审计_红绿灯.xlsx 规则库`），没有对应的 http(s) 地址；该 key 被当作 URL 登记属历史误判，本批保留 unreachable 并写明原因"
+   },
+   {
+    "key": "url:http://W1利益点边界表(SWMYUF",
+    "url": "http://W1利益点边界表(SWMYUF",
+    "reasons": [
+     "invalid_url"
+    ],
+    "l0_status": "registered",
+    "l1_status": "unreachable",
+    "reason": "源侧「W1卖点表达边界」表的字段值本身就是这样一串残缺文本（把表名当成了 URL），源侧任何字段里都不存在对应的完整 http(s) URL —— 不是被截断，是源头就没有 URL",
+    "conclusion": "无法复原"
+   }
+  ],
+  "ok_but_suspect_count": 0,
+  "ok_but_suspect": [],
+  "old_plan_claimed": 68,
+  "note": "旧计划记的「URL 字段截断 68 个」实测不成立：145 条 url 资源的 key 里 0 条与源侧完整 URL 不一致；真正的问题是**物理文件名**被 slug()[:90] 截断（如 …general-wellness-policy-l.json），resource_key 本身是完整的",
+  "conclusion_coverage": "2/2 有结论",
+  "filename_slug_check": {
+   "slug_cap": 90,
+   "truncated_filenames": 8,
+   "collisions": {
+    "de.momcozy.com_products_momcozy-s12-pro-wearable-breast-pump": 2
+   },
+   "note": "resource_key 完整（145/145 与源侧一致）；物理文件名被 slug()[:90] 截断，本批实测碰撞数 = 1。截断只影响文件名可读性，不影响 key/检索；碰撞才需要改 filename_policy"
+  }
+ },
+ "ops": [
+  {
+   "op": "本地只读",
+   "nature": "read",
+   "target": "kb/.work/{full_urls.json,规则库.ndjson,…}",
+   "note": "源侧完整 URL 汇总，去重 204 个"
+  }
+ ]
+}

@@ -1,0 +1,11 @@
+# 闸门脚本级退出码 · CHK-20261004-1212-WFPRJ · 2026-10-04 12:08–12:12
+# 格式：闸门 <TAB> 退出码 <TAB> 命令
+①	0	sh kb/kbpy l7/scripts/skills_check.py
+②	0	sh kb/kbpy l7/scripts/layers_check.py
+③	2	sh kb/kbpy l7/scripts/routes_reconcile.py            # 缺 winners 输入，按设计 exit 2（非数据坏）
+④	1	sh kb/kbpy l8/workflow_check.py CHK-20261004-1212-WFPRJ   # 9 段 3 红：②③ 合法变红 / ⑥ 真坏
+⑤a	0	python3 tools/envelope_gate.py                      # 默认范围 1989 个全绿
+⑤a'	1	python3 tools/envelope_gate.py --reader consumer .   # 加宽 2906 个，信封 2 只
+⑤b	0	sh kb/kbpy l8/envelope_census.py                    # 仅 .md，1079 不可读全部已分类
+⑥	1	sh kb/kbpy l8/projection_reconcile.py               # 3/6 红：R1 R2 R4
+# 说明：④/⑥ 是「一个脚本一次运行一个退出码」，其内部 9 段 / 6 项判据没有各自退出码（见体检表 §0.2）

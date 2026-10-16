@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<style>
+  html,body{margin:0;padding:0;background:#fff;}
+  body{padding:26px 30px;display:inline-block;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;}
+  .diagram svg{display:block;}
+</style></head>
+<body><div class="diagram"><pre class="mermaid">flowchart LR
+    A[① 入口路由] --> B[② 多模态标准化] --> C[③ 待审对象标定]
+    C --> D[④ 知识库检索] --> E[⑤ 双轨校验] --> F[⑥ 合并]
+    F --> G[⑦ 决策三态] --> H[⑧ 报告留痕] --> I[⑨ 飞书输出]
+    I --> J[⑩ 人工确认] --> K[⑪ 回流迭代]
+    B -.->|缺料| NI[NEEDS_INPUT]
+    E -.->|P0 命中| BL[立即 BLOCK]
+    BL -.-> I</pre></div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+mermaid.initialize({startOnLoad:true,theme:'default',
+  flowchart:{curve:'basis',nodeSpacing:46,rankSpacing:64,useMaxWidth:false},
+  securityLevel:'loose'});
+</script></body></html>

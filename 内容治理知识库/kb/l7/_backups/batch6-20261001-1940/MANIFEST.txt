@@ -1,0 +1,13 @@
+# 批次6 备份清单 · RUN=20261001-1945（A/B/C/E 块）
+# 格式: 原路径 | 备份文件 | pre sha16 → post sha16 | 字节 before→after
+kb/.work/fix_l4_repromote.py                      | kb_.work_fix_l4_repromote.py                      | f0a00cd4d2e6bde6 → 68b402f139faee51 | 12361 → 24313
+kb/.work/l5_prep.py                               | kb_.work_l5_prep.py                               | ba56c5636f47833c → 7386105a8ca4c8de | 13009 → 14097
+kb/.work/l6_report.py                             | kb_.work_l6_report.py                             | e6777cf0d517c2c8 → 15ce17c12a80c23b | 31875 → 32188
+kb/l7/registry/layers.yaml                        | kb_l7_registry_layers.yaml                        | 633ab6208463f3d9 → b2dfc3029b236cf9 | 45736 → 51462
+kb/l7/skills/kb-content-review/scripts/review.py  | kb_l7_skills_kb-content-review_scripts_review.py  | 3d2b909e5e9d434a → 4fe7735c569fe12c | 56372 → 73034
+kb/l7/review-engine/core/report_memory.py         | kb_l7_review-engine_core_report_memory.py         | 3327ce5699557e02（未改，只被调用）
+kb/.work/L6_integrity.py 未备份
+# ★★ 自曝两处未先备份就改的文件（本批纪律瑕疵，如实登记）：
+kb/.work/l6_scope.py                              | 无 pre 备份（POST 态存为 kb_.work_l6_scope.py.POST） | ? → 0b7d4c35e9fa65e6
+kb/l7/skills/kb-pipeline/SKILL.md                 | 无 pre 备份 | cd9c65802b92145b → a044ab9dcbe0957c | 236 → 251 行
+# 两处的改动 delta 完整记在本批变更记录的「一处纪律瑕疵」一节（old/new 文本齐全，可人工还原）。

@@ -1,0 +1,475 @@
+{
+ "artifact": "L6 召回 · 婴幼儿睡眠安全 · BM25 top10",
+ "generated_at": "2026-10-04 00:27 (+0800)",
+ "kb_root": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理",
+ "how": {
+  "entry": "sh kb/kbpy l6/retriever.py --query '婴幼儿睡眠安全' --top 10 --mode bm25_only --json",
+  "engine": "kb/l6/retriever.py（自实现倒排 BM25，非 jieba / 非 rank_bm25）",
+  "tokenizer": "l6-tok-0.1",
+  "k1": 1.2,
+  "b": 0.75,
+  "field_weight_rule_fields": 1.5,
+  "index_built_at": "2026-10-01 10:55:53",
+  "index_run_id": "20261001-1120",
+  "docs_total": 4261,
+  "note_score": "输出里的 score 是 RRF 名次分（w/(60+rank)，Top1 恒为 0.016393），不可当阈值；本文件的 raw_bm25 是同一引擎 search_lang 的原始分（只读复取）",
+  "note_scope": "只覆盖 kb/l6/SCOPE.txt 白名单的 4261 个可用单元，不是全库",
+  "note_wording": "以下均为「候选」，不是「命中」——L6 无命中阈值"
+ },
+ "zh_query": {
+  "query": "婴幼儿睡眠安全",
+  "zh_tokens": [
+   "婴幼",
+   "幼儿",
+   "儿睡",
+   "睡眠",
+   "眠安",
+   "安全"
+  ],
+  "en_tokens": [],
+  "lists": {
+   "bm25_zh": 254
+  },
+  "score_curve": [
+   {
+    "rank": 1,
+    "raw_bm25": 24.989572
+   },
+   {
+    "rank": 2,
+    "raw_bm25": 24.327013
+   },
+   {
+    "rank": 3,
+    "raw_bm25": 24.327013
+   },
+   {
+    "rank": 4,
+    "raw_bm25": 20.830735
+   },
+   {
+    "rank": 5,
+    "raw_bm25": 19.608137
+   },
+   {
+    "rank": 6,
+    "raw_bm25": 19.471463
+   },
+   {
+    "rank": 7,
+    "raw_bm25": 18.232155
+   },
+   {
+    "rank": 8,
+    "raw_bm25": 18.232155
+   },
+   {
+    "rank": 9,
+    "raw_bm25": 14.451249
+   },
+   {
+    "rank": 10,
+    "raw_bm25": 13.62144
+   },
+   {
+    "rank": 11,
+    "raw_bm25": 13.27435
+   },
+   {
+    "rank": 12,
+    "raw_bm25": 13.197263
+   },
+   {
+    "rank": 13,
+    "raw_bm25": 13.101211
+   },
+   {
+    "rank": 14,
+    "raw_bm25": 13.077862
+   },
+   {
+    "rank": 15,
+    "raw_bm25": 13.077862
+   },
+   {
+    "rank": 16,
+    "raw_bm25": 11.409786
+   },
+   {
+    "rank": 17,
+    "raw_bm25": 10.856904
+   },
+   {
+    "rank": 18,
+    "raw_bm25": 10.825895
+   },
+   {
+    "rank": 19,
+    "raw_bm25": 10.770571
+   },
+   {
+    "rank": 20,
+    "raw_bm25": 10.732526
+   }
+  ]
+ },
+ "zh_top10": [
+  {
+   "sub_index": "bm25_zh",
+   "sub_rank": 1,
+   "raw_bm25": 24.989572,
+   "field_weight": 1.0,
+   "unit_id": "0101c8bb985406c64ae4",
+   "kb_type": "external_standard",
+   "table": "数据表",
+   "lang": "中英混排",
+   "anchor": "#数据表/recvrjcY3KZyHS/资料名称",
+   "source_sha256": "6a3b9c4605c2a26dcb122ef726915203d41bfeeaf751db3c411c799d2c1697e0",
+   "text_excerpt": "About Sleep – CDC 睡眠推荐概览（含婴幼儿睡眠时长）",
+   "global_rank": 1
+  },
+  {
+   "sub_index": "bm25_zh",
+   "sub_rank": 2,
+   "raw_bm25": 24.327013,
+   "field_weight": 1.0,
+   "unit_id": "11fca426e8adf7530e36",
+   "kb_type": "external_standard",
+   "table": "数据表",
+   "lang": "中文",
+   "anchor": "#数据表/recvrjZ9EBwxcB/资料名称",
+   "source_sha256": "b0184cb1ed57051c9edff648df41200b70be822f7ba427dd7b9241ef2c6d6bcb",
+   "text_excerpt": "韦氏婴幼儿睡眠圣经 0-1.5岁适用 (（美）凯南著)",
+   "global_rank": 2
+  },
+  {
+   "sub_index": "bm25_zh",
+   "sub_rank": 3,
+   "raw_bm25": 24.327013,
+   "field_weight": 1.0,
+   "unit_id": "8b186442b501594964c9",
+   "kb_type": "external_standard",
+   "table": "数据表",
+   "lang": "中文",
+   "anchor": "#数据表/recvrjZa1I7lk5/资料名称",
+   "source_sha256": "62bc85cf42af22e94ae0f0a11fad06bd978fdbc354cac5f84fff79598e645e57",
+   "text_excerpt": "韦氏婴幼儿睡眠圣经 1.5-5岁适用 (（美）凯南著)",
+   "global_rank": 3
+  },
+  {
+   "sub_index": "bm25_zh",
+   "sub_rank": 4,
+   "raw_bm25": 20.830735,
+   "field_weight": 1.0,
+   "unit_id": "c718fc1b02e3dc13ba4d",
+   "kb_type": "external_standard",
+   "table": "正文",
+   "lang": "中英混排",
+   "anchor": "#正文",
+   "source_sha256": "2c6705703d8c2c26b3df351a1775762bfb457086257a8f5ee23dfc751728a779",
+   "text_excerpt": "ICS 13.100 C 56 WS 中 华 人 民 共 和 国 卫生 行 业 标 准 WS/T 579—2017 0 岁～5 岁儿童睡眠卫生指南 Guideline for sleep hygiene among children aged 0～5 years 2017 - 10 - 12 发布 2018 - 04 ",
+   "global_rank": 4
+  },
+  {
+   "sub_index": "bm25_zh",
+   "sub_rank": 5,
+   "raw_bm25": 19.608137,
+   "field_weight": 1.0,
+   "unit_id": "ed24550ff40fde64deb0",
+   "kb_type": "internal_sample",
+   "table": "专家修订汇总表",
+   "lang": "中文",
+   "anchor": "#专家修订汇总表/recvs40EGMDJKM/修订位置（原文引用）",
+   "source_sha256": "62d87b30663ffbe88e1684cb4a17a37f232270b6d7d395e4fa642ec9f0d92616",
+   "text_excerpt": "【前】把冷白光夜灯换成一盏低亮度、不会直射眼睛的暖色光小夜灯，可能会改善睡眠环境 【后】统一改为：如果确实需要保留夜灯，应优先降低亮度并避免光线直射眼睛；暖色光可以作为选择，但目前缺乏证据证明某一种颜色的小夜灯能够明确改善幼儿睡眠。 【原因】结论仍容易让读者理解为暖色光本身可以改善幼儿睡眠，与前文“缺乏证据证明某一种颜",
+   "global_rank": 5
+  },
+  {
+   "sub_index": "bm25_zh",
+   "sub_rank": 6,
+   "raw_bm25": 19.471463,
+   "field_weight": 1.0,
+   "unit_id": "f9b38c656417e4bb1e61",
+   "kb_type": "internal_sample",
+   "table": "负面样本",
+   "lang": "中英混排",
+   "anchor": "#负面样本/recvw7XIUgZO5T/具体原因/分析",
+   "source_sha256": "6d34444482b915dce06d3e0158c5d24a2e4e1d27a92039d3c20ffb858dd32c76",
+   "text_excerpt": "具体原因/分析: 【原则性错误】文案 图1 【终审-@吴礼芳 】麻烦看看呀。 【问题要点】 1. 【终审-@吴礼芳 】麻烦看看呀 2. 图1：配图熟睡的宝宝 3. 图2: 简单插画流程图 4. 图3: 配图宝宝脸部特写，睁着大眼睛 5. 图4: 常见光源展示：白炽灯、电视、电脑、手机 原文反馈: 【审核 · 2026-",
+   "global_rank": 6
+  },
+  {
+   "sub_index": "bm25_zh",
+   "sub_rank": 7,
+   "raw_bm25": 18.232155,
+   "field_weight": 1.0,
+   "unit_id": "9c41b65784b61714ff78",
+   "kb_type": "internal_sample",
+   "table": "负面样本",
+   "lang": "中英混排",
+   "anchor": "#负面样本/recvw7XIUgXEvk/具体原因/分析",
+   "source_sha256": "1d95d1f1236b6f33daf9a9e5c4216cf4346ee8bdee2218fb247e766632244e76",
+   "text_excerpt": "具体原因/分析: 【原则性错误】视频 图 1 主标题醒目柔和，画面是宝宝跟爸爸同床，并且睡在柔软的枕头上（。 【问题要点】 1. 主标题醒目柔和，画面是宝宝跟爸爸同床，并且睡在柔软的枕头上（画面是新手爸爸带婴儿错误睡觉，呈现危险的错误场景） 2. 配图使用Slide1插图，添加箭头指引，左侧标注错误项：婴儿侧睡 3. ",
+   "global_rank": 7
+  },
+  {
+   "sub_index": "bm25_zh",
+   "sub_rank": 8,
+   "raw_bm25": 18.232155,
+   "field_weight": 1.0,
+   "unit_id": "da27b67d70984a52f2bb",
+   "kb_type": "internal_sample",
+   "table": "负面样本",
+   "lang": "中英混排",
+   "anchor": "#负面样本/recvwHbaKaiZgZ/原文反馈",
+   "source_sha256": "15b3338c40c7debbff1eee48403512d80854c9a4aed9e0d175f7c4b8e21d937d",
+   "text_excerpt": "原文反馈: 【审核 · 2026-09-19 01:22 · 李新】【终审-@吴礼芳 】麻烦看看呀:YouAreTheBest: **项目名：Momcozybabycare-ig-AAP睡眠安全注意事项-5张插画贴** **设计需求：**图 1（封面页 主标题醒目柔和，画面是宝宝跟爸爸同床，并且睡在柔软的枕头上（画面是",
+   "global_rank": 8
+  },
+  {
+   "sub_index": "bm25_zh",
+   "sub_rank": 9,
+   "raw_bm25": 14.451249,
+   "field_weight": 1.0,
+   "unit_id": "778680c11fc9d6f20fef",
+   "kb_type": "external_standard",
+   "table": "l.1-1",
+   "lang": "中英混排",
+   "anchor": "#l.1-1",
+   "source_sha256": "b3bd94713f7f86a33c9e0423b826d7b243054a6fe28ec52322ba78074ccc2741",
+   "text_excerpt": "[p1] D DK科学育儿小百科 宝宝的安全 EVERYDAY BABYCARE: BABY & CHILD SAFETY • 安全是什么•睡眠安全 • 食品安全 •玩具 •食物过敏 • 呼吸监视器 • 游戏防护 • 看护员 • 户外防范 • 旅行安全 寇子足業出版社 PUBLISHING HOUSE OF ELECT",
+   "global_rank": 9
+  },
+  {
+   "sub_index": "bm25_zh",
+   "sub_rank": 10,
+   "raw_bm25": 13.62144,
+   "field_weight": 1.0,
+   "unit_id": "ab9dfc4aea9c75aa67aa",
+   "kb_type": "external_standard",
+   "table": "l.1-1",
+   "lang": "中英混排",
+   "anchor": "#l.1-1",
+   "source_sha256": "0d639bdde9d504b0ae0509b567aeb8995dde27762eac757bee03a4f9f1e553de",
+   "text_excerpt": "[p1] DK DK科学育儿小百科 宝宝睡眠 EVERYDAY BABYCARE: SLEEP 好的睡眠习惯 •睡眠安全 • 婴儿床 • 睡眠周期 • 呼吸 • 亲子同睡 恐惧 •睡眠征兆 •外出睡觉 ［英］凯蒂•霍兰德（Katy Holland）著飞思少儿科普出版中心 改编 電子工業出版社 PUBLISHING HO",
+   "global_rank": 10
+  }
+ ],
+ "probe_under_zh_query": {
+  "467b6d0c4fca0cca8db0": {
+   "desc": "Safe Sleep Guidelines (2022 AAP Safe Sleep Guidelines) — 数据表 资料名称",
+   "rank_under_zh_query": null,
+   "present": false
+  },
+  "c9fddff6b495bc6201e9": {
+   "desc": "back-to-sleep（英文正文 l.1-161）",
+   "rank_under_zh_query": null,
+   "present": false
+  },
+  "1853876d70aa0702058b": {
+   "desc": "Infant and Child Sleep – Sleep routines and sleep needs",
+   "rank_under_zh_query": null,
+   "present": false
+  },
+  "6bd4e7315823e42ef28d": {
+   "desc": "wording 检测关键词：safest, most safe, 100% safe…",
+   "rank_under_zh_query": 48,
+   "present": true
+  }
+ },
+ "crosscheck_en": {
+  "infant sleep safety": {
+   "query": "infant sleep safety",
+   "en_tokens": [
+    "infant",
+    "sleep",
+    "safety"
+   ],
+   "lists": {
+    "bm25_en": 844
+   },
+   "overlap_with_zh_top10": [],
+   "top10": [
+    {
+     "global_rank": 1,
+     "unit_id": "a3a9ca50deff8fe140c1",
+     "anchor": "#l.1-218",
+     "source_sha256": "d45e9b4d54898eeee8306299c94a5306241373266c5a97361d4b8ac61907faaa",
+     "kb_type": "external_standard",
+     "text_excerpt": "ur baby in the hos- pital. The evaluation often uncovers a specific treatable cause for such an event—an infection, a seizure disorder, GERD (gastroesophageal r"
+    },
+    {
+     "global_rank": 2,
+     "unit_id": "c9fddff6b495bc6201e9",
+     "anchor": "#l.1-161",
+     "source_sha256": "d45e9b4d54898eeee8306299c94a5306241373266c5a97361d4b8ac61907faaa",
+     "kb_type": "external_standard",
+     "text_excerpt": "y to Sleep W ith all the significant health and safety benefits of back-to-sleep come a couple of relatively minor draw- backs. One—that newborns sleep less coz"
+    },
+    {
+     "global_rank": 3,
+     "unit_id": "500564f7a2e858c8d811",
+     "anchor": "#素材/recvwwiEKDgRaq/图片素材/#img.1",
+     "source_sha256": null,
+     "kb_type": "internal_sample",
+     "text_excerpt": "[image_ocr] 4 SIGNS baby's too hot Damp Hair Hot Chest ≤ Sweating Flushed Skin ≤ Swipe for reasons why babies are heat-sensitive momcozy [image_ocr] Keep the ro"
+    },
+    {
+     "global_rank": 4,
+     "unit_id": "751b16f4ab3c01b3510c",
+     "anchor": "#素材/recvw8Tx3zafet/图片素材/#img.1",
+     "source_sha256": null,
+     "kb_type": "internal_sample",
+     "text_excerpt": "[image_ocr] 4 SIGNS baby's too hot Damp Hair Hot Chest ≤ Sweating Flushed Skin ≤ Swipe for reasons why babies are heat-sensitive momcozy [image_ocr] Keep the ro"
+    },
+    {
+     "global_rank": 5,
+     "unit_id": "eee5642f597472e0e97a",
+     "anchor": "#素材/recvw7XIUgaYJS/图片素材/#img.1",
+     "source_sha256": null,
+     "kb_type": "internal_sample",
+     "text_excerpt": "[image_ocr] 4 SIGNS baby's too hot Damp Hair Hot Chest ≤ Sweating Flushed Skin ≤ Swipe for reasons why babies are heat-sensitive momcozy [image_ocr] Keep the ro"
+    },
+    {
+     "global_rank": 6,
+     "unit_id": "d0b5b718ab6491889f30",
+     "anchor": "#l.1-4",
+     "source_sha256": "96b7cc31b73b3562aef56bb41e300f692ce2de4bfb91e6e66f6cc27c807c3511",
+     "kb_type": "external_standard",
+     "text_excerpt": "uch as meal replacements or diet shakes, or products for the management of diseases that can be managed through modification of the normal diet alone. Medical f"
+    },
+    {
+     "global_rank": 7,
+     "unit_id": "d611ed3081742b9970ad",
+     "anchor": "#l.1-129",
+     "source_sha256": "d45e9b4d54898eeee8306299c94a5306241373266c5a97361d4b8ac61907faaa",
+     "kb_type": "external_standard",
+     "text_excerpt": "infant seat, use a convertible seat, YOUR NEWBORN 157 which can accommodate larger babies in the rear-facing position. ■ Place the infant safety seat, if at all"
+    },
+    {
+     "global_rank": 8,
+     "unit_id": "1853876d70aa0702058b",
+     "anchor": "#数据表/recvrjcYE2pco3/资料名称",
+     "source_sha256": "5718bff74d6785dcdf22c64f1092bcac4ce9a627c37acb2d2e9094210c6afe33",
+     "kb_type": "external_standard",
+     "text_excerpt": "Infant and Child Sleep – Sleep routines and sleep needs"
+    },
+    {
+     "global_rank": 9,
+     "unit_id": "3195fa3f7cd2afac00f6",
+     "anchor": "#l.1-57",
+     "source_sha256": "d45e9b4d54898eeee8306299c94a5306241373266c5a97361d4b8ac61907faaa",
+     "kb_type": "external_standard",
+     "text_excerpt": "washable, breathable fabric, a well-padded and comfortable strap, and trimness (one that isn’t bulky with extra fabric). Just remember that different babies and"
+    },
+    {
+     "global_rank": 10,
+     "unit_id": "57b00a421aa928434295",
+     "anchor": "#l.1-508",
+     "source_sha256": "d45e9b4d54898eeee8306299c94a5306241373266c5a97361d4b8ac61907faaa",
+     "kb_type": "external_standard",
+     "text_excerpt": "r seats, 53, 157, 308 Insomnia, parent’s, 356 Insulin deregulation, as cause of low milk supply, 187 Insurance disability, 58 health, 20, 125; see also Health i"
+    }
+   ]
+  },
+  "safe sleep": {
+   "query": "safe sleep",
+   "en_tokens": [
+    "safe",
+    "sleep"
+   ],
+   "lists": {
+    "bm25_en": 898
+   },
+   "overlap_with_zh_top10": [],
+   "top10": [
+    {
+     "global_rank": 1,
+     "unit_id": "467b6d0c4fca0cca8db0",
+     "anchor": "#数据表/recvrjcVvYXMoS/资料名称",
+     "source_sha256": "16704eec559c445496e1b09ae1a7d52736d0a15d58df6119dc737aeafdf7de51",
+     "kb_type": "external_standard",
+     "text_excerpt": "Safe Sleep Guidelines (2022 AAP Safe Sleep Guidelines)"
+    },
+    {
+     "global_rank": 2,
+     "unit_id": "9292c6ba25725f078bf6",
+     "anchor": "#l.1-4",
+     "source_sha256": "f9d17d755dad8efdebdcbc2918cb22852850e2b4bbc2f35f4bd56f4c0cae431d",
+     "kb_type": "external_standard",
+     "text_excerpt": "Outlets for High-Energy Toddlers • In the Swim • Ways to Unwind CHAPTER 4 Feeding. 84 The Second Year Diet.84 Introducing... Healthy Habits • Additives Add Up •"
+    },
+    {
+     "global_rank": 3,
+     "unit_id": "c5b3f2a662f757bf85fb",
+     "anchor": "#l.1-4",
+     "source_sha256": "d45e9b4d54898eeee8306299c94a5306241373266c5a97361d4b8ac61907faaa",
+     "kb_type": "external_standard",
+     "text_excerpt": "• Can Foods Make Milk? • What You Drink • What Medication You Take • Back on the Menu • What You Should Avoid CHAPTER 4 A First Year Timeline: The First Year at"
+    },
+    {
+     "global_rank": 4,
+     "unit_id": "6ba9ea9b125836e34e19",
+     "anchor": "#l.1-6",
+     "source_sha256": "d45e9b4d54898eeee8306299c94a5306241373266c5a97361d4b8ac61907faaa",
+     "kb_type": "external_standard",
+     "text_excerpt": "he Air • Rethinking Y our Home Decor • Purify with Plants • Testing the Waters • A Safer W alk on the Wild Side • The Dirty Dozen . . . and the Clean Team • Che"
+    },
+    {
+     "global_rank": 5,
+     "unit_id": "3b97c1c4aaf286c97a41",
+     "anchor": "#l.1-414",
+     "source_sha256": "4b7fd1d7387ebf00cd9eb8c820b0bb3bac001652c6106fe3cfbe8dabff69ae8e",
+     "kb_type": "external_standard",
+     "text_excerpt": "her you can open the medicine cabinet more often (and with less worry) when you’re breastfeeding than when you were expecting? The good news is that most medica"
+    },
+    {
+     "global_rank": 6,
+     "unit_id": "c9fddff6b495bc6201e9",
+     "anchor": "#l.1-161",
+     "source_sha256": "d45e9b4d54898eeee8306299c94a5306241373266c5a97361d4b8ac61907faaa",
+     "kb_type": "external_standard",
+     "text_excerpt": "y to Sleep W ith all the significant health and safety benefits of back-to-sleep come a couple of relatively minor draw- backs. One—that newborns sleep less coz"
+    },
+    {
+     "global_rank": 7,
+     "unit_id": "647eb5e48aab1e8d288e",
+     "anchor": "#l.1-279",
+     "source_sha256": "d45e9b4d54898eeee8306299c94a5306241373266c5a97361d4b8ac61907faaa",
+     "kb_type": "external_standard",
+     "text_excerpt": "ther or using another means of getting baby to sleep. The good news is that by the end of the first week of nighttime sleep teaching, naptimes should be smoothe"
+    },
+    {
+     "global_rank": 8,
+     "unit_id": "15cceb4cf59e2fbf9079",
+     "anchor": "#l.1-173",
+     "source_sha256": "4b7fd1d7387ebf00cd9eb8c820b0bb3bac001652c6106fe3cfbe8dabff69ae8e",
+     "kb_type": "external_standard",
+     "text_excerpt": "t) to ease nighttime stuffi- ness. A cool mist humidifier in your room may also help overcome the dry- ness associated with any congestion. Medications or antih"
+    },
+    {
+     "global_rank": 9,
+     "unit_id": "535b1d5c7c1d7ecd521b",
+     "anchor": "#l.1-238",
+     "source_sha256": "d45e9b4d54898eeee8306299c94a5306241373266c5a97361d4b8ac61907faaa",
+     "kb_type": "external_standard",
+     "text_excerpt": "ur baby will be. Be sure the center follows the same safety and childproofing rules you follow at home (see page 391). Make sure, too, that the toys they use ar"
+    },
+    {
+     "global_rank": 10,
+     "unit_id": "bc42e115ec80ca7328b8",
+     "anchor": "#l.1-514",
+     "source_sha256": "d45e9b4d54898eeee8306299c94a5306241373266c5a97361d4b8ac61907faaa",
+     "kb_type": "external_standard",
+     "text_excerpt": "ant seat Seborrheic dermatitis, 253, 281 Second language, 247 Secondhand smoke, hazards of; see Smoking Security objects, 442–444 Seedy stool; see Bowel movemen"
+    }
+   ]
+  }
+ },
+ "integrity": {
+  "L6_anchor_vs_L2": "10/10 一致",
+  "L6_source_sha256_vs_L2": "10/10 一致",
+  "checked_against": "kb/l2/units.jsonl",
+  "not_checked": "L0 侧逐字原文与 sha（本地 L0 件不含 sha 输入 blob，只能点飞书直链核对）"
+ }
+}

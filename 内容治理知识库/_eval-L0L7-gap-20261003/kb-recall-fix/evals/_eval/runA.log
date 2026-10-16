@@ -1,0 +1,61 @@
+===== A round 1 =====
+[rt2] profile = eval-recallfix | cwd root = /tmp/kbrecall-fix-cwd-v130 | timeout = 120
+[rt2] a-round1 total=53 done=0 todo=53
+_eval/runA.sh: line 5: 40961 Terminated: 15          python3 rt2.py --paper a --round $R --concurrency 8 --timeout 120
+===== rerun invalid A round 1 =====
+Traceback (most recent call last):
+  File "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/_eval-L0L7-gap-20261003/kb-recall-fix/evals/_eval/rerun2.py", line 69, in <module>
+    sys.exit(main())
+  File "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/_eval-L0L7-gap-20261003/kb-recall-fix/evals/_eval/rerun2.py", line 36, in main
+    recs = [json.loads(l) for l in open(path, encoding="utf-8") if l.strip()]
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/_eval-L0L7-gap-20261003/kb-recall-fix/evals/rounds/a-round1.jsonl'
+===== A round 2 =====
+[rt2] profile = eval-recallfix | cwd root = /tmp/kbrecall-fix-cwd-v130 | timeout = 120
+Traceback (most recent call last):
+  File "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/_eval-L0L7-gap-20261003/kb-recall-fix/evals/_eval/rt2.py", line 224, in <module>
+    sys.exit(main())
+  File "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/_eval-L0L7-gap-20261003/kb-recall-fix/evals/_eval/rt2.py", line 210, in main
+    cases = json.load(open(os.path.join(EV, f"cases-{a.paper}.json"), encoding="utf-8"))
+PermissionError: [Errno 13] Permission denied: '/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/_eval-L0L7-gap-20261003/kb-recall-fix/evals/cases-a.json'
+===== rerun invalid A round 2 =====
+Traceback (most recent call last):
+  File "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/_eval-L0L7-gap-20261003/kb-recall-fix/evals/_eval/rerun2.py", line 69, in <module>
+    sys.exit(main())
+  File "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/_eval-L0L7-gap-20261003/kb-recall-fix/evals/_eval/rerun2.py", line 36, in main
+    recs = [json.loads(l) for l in open(path, encoding="utf-8") if l.strip()]
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/_eval-L0L7-gap-20261003/kb-recall-fix/evals/rounds/a-round2.jsonl'
+===== A round 3 =====
+[rt2] profile = eval-recallfix | cwd root = /tmp/kbrecall-fix-cwd-v130 | timeout = 120
+[rt2] a-round3 total=53 done=0 todo=53
+[a-r3] 1/53 id=7 valid=True loaded=True exit=-9 120.7s reply=0c 
+[a-r3] 2/53 id=4 valid=True loaded=True exit=-9 120.7s reply=84c 
+[a-r3] 3/53 id=2 valid=True loaded=True exit=-9 120.8s reply=109c 
+[a-r3] 4/53 id=3 valid=True loaded=True exit=-9 123.5s reply=0c 
+[a-r3] 5/53 id=6 valid=True loaded=True exit=-9 123.6s reply=0c 
+[a-r3] 6/53 id=5 valid=True loaded=True exit=-9 123.9s reply=257c 
+[a-r3] 7/53 id=8 valid=True loaded=True exit=-9 124.0s reply=71c 
+[a-r3] 8/53 id=1 valid=True loaded=True exit=-9 126.8s reply=0c 
+[a-r3] 9/53 id=9 valid=True loaded=True exit=-9 120.4s reply=73c 
+[a-r3] 10/53 id=10 valid=True loaded=True exit=-9 120.4s reply=0c 
+[a-r3] 11/53 id=12 valid=True loaded=True exit=-9 120.4s reply=71c 
+[a-r3] 12/53 id=15 valid=True loaded=True exit=-9 120.2s reply=188c 
+[a-r3] 13/53 id=11 valid=True loaded=True exit=-9 123.4s reply=103c 
+[a-r3] 14/53 id=16 valid=True loaded=True exit=-9 120.3s reply=0c 
+[a-r3] 15/53 id=13 valid=True loaded=True exit=-9 123.8s reply=73c 
+[a-r3] 16/53 id=14 valid=True loaded=True exit=-9 126.6s reply=87c 
+[a-r3] 17/53 id=17 valid=True loaded=False exit=-9 120.3s reply=24c 
+[a-r3] 18/53 id=18 valid=True loaded=False exit=-9 120.2s reply=94c 
+[a-r3] 19/53 id=19 valid=True loaded=False exit=-9 120.3s reply=0c 
+[a-r3] 20/53 id=20 valid=True loaded=False exit=-9 120.3s reply=0c 
+[a-r3] 21/53 id=21 valid=True loaded=False exit=-9 120.3s reply=0c 
+[a-r3] 22/53 id=22 valid=True loaded=False exit=-9 120.3s reply=23c 
+[a-r3] 23/53 id=23 valid=True loaded=False exit=-9 120.4s reply=80c 
+[a-r3] 24/53 id=24 valid=True loaded=False exit=-9 120.2s reply=0c 
+[a-r3] 25/53 id=31 valid=True loaded=False exit=0 102.6s reply=920c 
+[a-r3] 26/53 id=30 valid=True loaded=False exit=0 112.8s reply=1110c 
+[a-r3] 27/53 id=26 valid=True loaded=False exit=-9 120.3s reply=116c 
+[a-r3] 28/53 id=25 valid=True loaded=False exit=-9 120.4s reply=0c 
+[a-r3] 29/53 id=28 valid=True loaded=False exit=-9 120.2s reply=0c 
+[a-r3] 30/53 id=27 valid=True loaded=False exit=-9 120.4s reply=202c 
+[a-r3] 31/53 id=29 valid=True loaded=True exit=-9 120.5s reply=0c 
+[a-r3] 32/53 id=32 valid=False loaded=False exit=-9 120.2s reply=91c timeout_partial_reply（限时半截回复，证据不足）

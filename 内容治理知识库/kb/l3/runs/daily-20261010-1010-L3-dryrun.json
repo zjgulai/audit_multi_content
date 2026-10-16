@@ -1,0 +1,83 @@
+{
+  "run_id": "daily-20261010-1010-L3",
+  "distiller_version": "l3-0.2",
+  "rules": 1018,
+  "rejected": 3792,
+  "kept_units": 5429,
+  "filtered_out": 8808,
+  "forms": {
+    "entry": 112,
+    "revision_pair": 906
+  },
+  "support": {
+    "102": 2,
+    "6": 6,
+    "36": 2,
+    "153": 2,
+    "9": 2,
+    "54": 2,
+    "27": 2,
+    "114": 2,
+    "12": 2,
+    "45": 4,
+    "48": 2,
+    "51": 2,
+    "4": 16,
+    "3": 52,
+    "2": 16,
+    "1": 894,
+    "246": 2,
+    "18": 2,
+    "74": 2,
+    "47": 2,
+    "57": 2
+  },
+  "support1": 894,
+  "support1_pct": 87.8,
+  "distill_failures": 0,
+  "accounting": {
+    "l2_total": 14237,
+    "filtered_out": 8808,
+    "kept": 5429,
+    "used_in_rules": 959,
+    "used_in_cases": 677,
+    "explicitly_rejected": 3792,
+    "unaccounted": 0,
+    "reject_caliber": "C",
+    "case_cited_source": "read"
+  },
+  "checks": [
+    [
+      "kb/l0/、kb/l1/、kb/l2/ 未被修改",
+      "通过：l0 4408 个文件、l1 4464 个、l2 943 个，本批启动（13:55）后被写入的 l0 3031、l1 3457、l2 119；全部写入在 kb/l3/ 与 kb/.work/"
+    ],
+    [
+      "引用完整性：每条规则都能回答 依据 unit_id / 锚点 / source_sha256；无裸 URL",
+      "通过：1018 条规则，证据项缺 unit_id/anchor/source_sha256 的 0 条；anchor 里含裸 URL 的 0 条；无 anchor 的 0 条"
+    ],
+    [
+      "取数对账：可用单元数 == 被蒸馏 + 明确排除（差额 0）",
+      "通过：5429 == 959 + 3792 = 4751，差额 0"
+    ],
+    [
+      "无 support_count=0；support_count=1 全部标「待验证」",
+      "通过：support=0 的 0 条；support=1 的 894 条中未标待验证 0 条"
+    ],
+    [
+      "canonical 为空；kb_version 仍 v0；versions.jsonl 版本行 0",
+      "通过：canonical/rules.jsonl 0 字节；registry.kb_version=v0；版本行 0"
+    ]
+  ],
+  "citations": {
+    "rules": 1018,
+    "refs": 3458,
+    "bad": 0,
+    "bare_url": 0
+  },
+  "canonical_bytes": 0,
+  "dry_run": true,
+  "applied": false,
+  "skill": "kb-clause-extractor",
+  "skill_source": "--skill 参数（调用者读 layers.yaml 本层 skill: 后传入；本脚本不硬编码）",
+  "pipeline_run_id": "daily-20261010-1010-L3"
+}

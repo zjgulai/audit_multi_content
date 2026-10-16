@@ -1,0 +1,83 @@
+# l0-expected-diffs.yaml —— L0 对账的「**预期差异**」声明（治理判断，不是原始事实）
+#
+# ## 为什么要有这份文件
+#
+# 库自带的 `kb/l8/align_l0_feishu.py` 只报**原始差异**（这是对的：对账器不该带政策判断）。
+# 但闸门必须回答「**这些差异是不是预期的**」—— 否则 `材料收集` 那 10 条按声明就该排除的记录
+# 会**永远**被算成差异，L0 闸门永远红。无人值守的日报如果每天报同一个假红，
+# 第三天就没人看了 —— 这是自动化最大的隐形杀手。
+#
+# → 原始事实留在对账器里；**「哪些差异按声明就该存在」放这里**，由 `kb/l7/scripts/l0_gate.py` 读。
+#
+# ## 纪律（三条，破坏任一条这份文件就变成"把闸门调绿"的工具）
+#
+#   1. **每条必须带 `evidence`**：指向库内可复核的文件或 run，不许写"众所周知"。
+#   2. **条数变了要重新评估，不是自动放宽**：`l0_gate.py` 把「实际 > 预期」的部分算成**真差异**并判红。
+#      预期项**减少**时判黄并提示复核声明（可能是别人修好了，也可能是对账口径变了）。
+#   3. **预期项必须有 `owner_action`**：写清"要人做什么"，哪怕是"无需动作"。
+
+meta:
+  file: kb/l7/registry/l0-expected-diffs.yaml
+  checker: kb/l7/scripts/l0_gate.py
+  upstream_reporter: kb/l8/align_l0_feishu.py
+  declared_at: "2026-09-30"
+  baseline_run: "2026-09-30 09:3x（实测：一致 557 ｜ 飞书多 10 ｜ L0多 0 ｜ 值变 0 ｜ 拉取失败 2）"
+  raw_facts_stay_in_reporter: >
+    本文件**不改任何原始计数**。`l0_gate.py` 的输出里始终同时给出「原始」「预期内」「真差异」
+    三个数 —— 预期项只是从"差异"里**分类出来**，不是抹掉。
+
+expected:
+
+  # ── EX-1：材料收集的 10 条「飞书多」= 按声明不入库 ─────────────────────────────
+  - id: EX-1
+    table: 材料收集
+    kind: only_feishu
+    expected: 10
+    reason: >
+      `kb/l0/registry/kb.json → filter` 声明：只收「材料审核状态 == 通过」的记录；
+      未命中者按 `excluded_policy` **只在 runs/<run_id>.json 留痕，不登记资源、不进库目录、不进索引**。
+      所以它们在飞书侧存在、在 L0 不存在 —— 这是**声明的结果**，不是漏抓。
+    evidence:
+      - "kb/l0/registry/kb.json → filter（operator == / value 通过 / changed_at 20260930-0410）"
+      - "kb/l0/registry/kb.json → excluded_policy（原因枚枚举与去向）"
+      - "kb/l8/runs/20260930-0150-batch-notes.json → live_verification.the_10（逐条说明这 10 条为何不是缺口）"
+    declared_at: "2026-09-30"
+    owner_action: "无需动作（按声明预期）。**仅当条数从 10 变化时**重新评估：多了 = 飞书侧新增了未通过的记录；少了 = 有人清了或改了状态。"
+
+  # ── EX-2 / EX-3：两张表资源级 ACL 读不到 ────────────────────────────────────
+  - id: EX-2
+    table: 专家修订汇总表
+    table_id: tbl8AI00JZO1iZtp
+    kind: pull_failed
+    expected: 1
+    code: 91403
+    reason: >
+      资源级 ACL：bot 身份（守衡）不在该表的协作者里。**「用户自己打开得开」≠「应用读得到」，是两套权限**。
+      按 kb-l0-feishu §3.2 的判定顺序，91403 属于「资源级 ACL → 要所有者在能调接口的那个应用上加协作者」，
+      **重试 / 换身份都没用**。
+    evidence:
+      - "kb/l8/runs/20260930-0150-batch-notes.json → live_verification.permissions_still_blocked"
+      - "kb/l7/reports/2026-09-30-daily-health.md §5"
+    declared_at: "2026-09-30"
+    owner_action: "在飞书侧把「守衡」加成这张表的**可阅读协作者**。加完把本条从 expected 移除（闸门会自动失去豁免）。"
+    reopen_when: "所有者共享后，`align_l0_feishu.py --check` 该表不再报拉取失败"
+
+  - id: EX-3
+    table: 内容公式（仅供参考）
+    table_id: tblVdl0jdK9G4ld3
+    kind: pull_failed
+    expected: 1
+    code: 91403
+    reason: "同 EX-2：资源级 ACL，bot 身份读不到。"
+    evidence:
+      - "kb/l8/runs/20260930-0150-batch-notes.json → live_verification.permissions_still_blocked"
+    declared_at: "2026-09-30"
+    owner_action: "同 EX-2：把「守衡」加成可阅读协作者。"
+    reopen_when: "所有者共享后自动失去豁免"
+
+# ── 反面清单：**明确不豁免**的差异类型（防止有人往上面加宽泛豁免）─────────────
+not_exemptable:
+  - "only_l0（L0 有、飞书无）：可能是飞书侧删除或整批替换 —— 必须逐条查，**不许豁免**"
+  - "changed（字段值变了）：值变了就是值变了 —— 必须逐条查，**不许豁免**"
+  - "manifest 未登记的 L0 记录文件（record_files_not_registered_total > 0）：会让下游永远抽不出来 —— **不许豁免**"
+  - "任何新出现的表 / 新出现的差异类目：**先查再声明**，不许预豁免"

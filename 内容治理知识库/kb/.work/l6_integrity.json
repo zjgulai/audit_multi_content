@@ -1,0 +1,282 @@
+{
+ "run_id": "daily-20261014-0330-L6",
+ "checked_at": "2026-10-14 03:42:27",
+ "checks": {
+  "frozen_layers": {
+   "baseline_chain": {
+    "l5_snapshot": {
+     "l0": "13e4867dbd49e97ac042cebd9bbb1059b2384aa76a0066ab0affda9d32af031f",
+     "l1": "7dfea617d9d0ffef1ab05a28257646b2ef7c12a1505b8b6888b47da2a9bdfdd8",
+     "l2": "c493618cdcd44929a87ca740066137156c68ee9f23ec8e972d57eaef0afde176"
+    },
+    "accepted_baseline": {
+     "at": "20261009-final-l6",
+     "reason": "L2 去重：20261009-dedup 压掉 85 行逐字段相同的重复单元（归档 kb/l2/_archive/units.jsonl.before-dedup-20261009-dedup），7 对真冲突冻住并写入 kb/l2/duplicate_conflicts.jsonl 待人工裁决",
+     "layers": {
+      "l0": "2ba659bd561052af0c897df0133a785ffeaf5fe94e2d9a70d444a00aa68c894f",
+      "l1": "c11262b160296b76d0e8412927958addaa3dff3127ae35a31b0ade05ad92c942",
+      "l2": "04d87a17138f164db7a7872714015f751ecc5bf0f10cab465e72ec1671e390a8"
+     }
+    }
+   },
+   "l0_l2_vs_L5_baseline": {
+    "l0": {
+     "files": 4577,
+     "bytes": 2878632044,
+     "max_mtime": "2026-10-14 03:34:02",
+     "tree_sha256": "13e4867dbd49e97ac042cebd9bbb1059b2384aa76a0066ab0affda9d32af031f",
+     "L5_baseline": "13e4867dbd49e97ac042cebd9bbb1059b2384aa76a0066ab0affda9d32af031f",
+     "same": true,
+     "same_as_accepted_baseline": false,
+     "matched_by": "L5 快照"
+    },
+    "l1": {
+     "files": 5703,
+     "bytes": 1529003846,
+     "max_mtime": "2026-10-14 03:38:09",
+     "tree_sha256": "7dfea617d9d0ffef1ab05a28257646b2ef7c12a1505b8b6888b47da2a9bdfdd8",
+     "L5_baseline": "7dfea617d9d0ffef1ab05a28257646b2ef7c12a1505b8b6888b47da2a9bdfdd8",
+     "same": true,
+     "same_as_accepted_baseline": false,
+     "matched_by": "L5 快照"
+    },
+    "l2": {
+     "files": 964,
+     "bytes": 286967323,
+     "max_mtime": "2026-10-14 03:35:07",
+     "tree_sha256": "c493618cdcd44929a87ca740066137156c68ee9f23ec8e972d57eaef0afde176",
+     "L5_baseline": "c493618cdcd44929a87ca740066137156c68ee9f23ec8e972d57eaef0afde176",
+     "same": true,
+     "same_as_accepted_baseline": false,
+     "matched_by": "L5 快照"
+    }
+   },
+   "l3_candidates": {
+    "lines": 1018,
+    "bytes": 4457012,
+    "max_mtime": "2026-10-13 16:14:24",
+    "sha256": "d4a9607befd7ad7b8b4474e87e58abce7b4ea87eaa1ed78667e44d36026f581d",
+    "prefix_matches_L5": true
+   },
+   "verdict": "PASS"
+  },
+  "counts": {
+   "usable": 6029,
+   "projection_lines": 6029,
+   "bm25_docs": 6029,
+   "bm25_indexed": 6028,
+   "bm25_failed": 1,
+   "vector_units": 6026,
+   "vector_segments": 44754,
+   "units_segmented": 3993,
+   "vector_skipped_p0": 3,
+   "vector_failed": 0,
+   "dup_unit_id_in_projection": [],
+   "dup_unit_segment_in_vectors": [],
+   "bm25_failed_units": [
+    {
+     "unit_id": "00fa63e07ffead5207da",
+     "anchor": "#广告文案明细/recvuMGgT9Nm8K/广告名称",
+     "reason": "文本切不出任何词元（正文只有 '-'）"
+    }
+   ],
+   "vector_not_indexed_reasons": {
+    "P0 规则的证据单元：P0 走 kb/l5/matcher.py 确定性匹配，不入向量": 3
+   },
+   "reconcile": "6029 = BM25 6028 + 失败 1 = 向量单元 6026 + 不入向量 3",
+   "verdict": "PASS"
+  },
+  "idempotent_rerun": {
+   "invoked_with": "--apply（见本检查上方注释：不带 --apply 会落进干跑档）",
+   "dry_run_detected": false,
+   "exit_code": 0,
+   "files_changed": [],
+   "registry_field_diff": [],
+   "registry_only_event_fields": false,
+   "substantive_changes": [],
+   "tokenize_work_zero": true,
+   "embedding_work_zero": true,
+   "stdout_tail": [
+    "索引投影 6029 行（未变不写）｜registry（未变不写）｜总耗时 242.9s",
+    "分段分布：{1: 2033, 2: 459, 3: 131, 4: 73, 5: 59, 6: 47, 7: 50, 8: 297, 9: 1401, 10: 595, 11: 103, 12: 73, 13: 13, 14: 6, 15: 4, 16: 5, 17: 10, 18: 19, 19: 2, 20: 4, 21: 12, 22: 14, 23: 22, 24: 135, 25: 236, 26: 150, 27: 37, 28: 19, 29: 2, 30: 1, 32: 2, 33: 3, 34: 2, 35: 1, 36: 1, 37: 2, 38: 2, 47: 1}｜最长单元 7042 字 → 47 段"
+   ],
+   "artifact_state": {
+    "kb/l6/bm25/docs.jsonl": {
+     "mtime": 1791528210.6249566,
+     "size": 29756413,
+     "sha256_16": "a3a24d29d841d564"
+    },
+    "kb/l6/bm25/meta.json": {
+     "mtime": 1791528212.2534842,
+     "size": 599,
+     "sha256_16": "139e96d98702263f"
+    },
+    "kb/l6/bm25/postings_zh.jsonl": {
+     "mtime": 1791528211.7675204,
+     "size": 21451762,
+     "sha256_16": "69a9cbc27f442115"
+    },
+    "kb/l6/bm25/postings_en.jsonl": {
+     "mtime": 1791528212.2516708,
+     "size": 10990661,
+     "sha256_16": "973501cfb3445a0b"
+    },
+    "kb/l6/vectors/vectors.jsonl": {
+     "mtime": 1791880278.9562185,
+     "size": 30542520,
+     "sha256_16": "6551ab3a67a742dd"
+    },
+    "kb/l6/vectors/matrix.npy": {
+     "mtime": 1791880279.349784,
+     "size": 68742272,
+     "sha256_16": "e9c822f1ea96e0d1"
+    },
+    "kb/l6/vectors/meta.json": {
+     "mtime": 1791880279.462737,
+     "size": 1881,
+     "sha256_16": "49af4c44f4bdbd83"
+    },
+    "kb/l6/index/l6.jsonl": {
+     "mtime": 1791880279.8131895,
+     "size": 2800290,
+     "sha256_16": "f6ad3922649baf39"
+    },
+    "kb/l6/registry/l6.json": {
+     "mtime": 1791920522.1035373,
+     "size": 26178,
+     "sha256_16": "681df3ce76088abe"
+    },
+    "kb/l6/retriever.py": {
+     "mtime": 1790683206.9833374,
+     "size": 22736,
+     "sha256_16": "bf2ae37a0551073b"
+    },
+    "kb/l6/runs/build_runs.jsonl": {
+     "mtime": 1791880279.8612704,
+     "size": 8278,
+     "sha256_16": "14a2e8081bdb3619"
+    }
+   },
+   "verdict": "PASS"
+  },
+  "vector_traceability": {
+   "rows": 44754,
+   "matrix_shape": [
+    44754,
+    384
+   ],
+   "dim": 384,
+   "all_finite": true,
+   "norm_min": 0.9999998807907104,
+   "norm_max": 1.0000001192092896,
+   "quantization_values": [
+    "fp16（ONNX initializer 全部为 FLOAT16，且无 QuantizeLinear/MatMulInteger 等量化算子）"
+   ],
+   "p0_in_vector": [],
+   "doc_id_mismatch": 0,
+   "bad_count": 0,
+   "bad": [],
+   "verdict": "PASS"
+  },
+  "segmentation": {
+   "units_indexed": 6026,
+   "segments": 44754,
+   "units_segmented": 3993,
+   "segment_count_histogram": {
+    "1": 2033,
+    "2": 459,
+    "3": 131,
+    "4": 73,
+    "5": 59,
+    "6": 47,
+    "7": 50,
+    "8": 297,
+    "9": 1401,
+    "10": 595,
+    "11": 103,
+    "12": 73,
+    "13": 13,
+    "14": 6,
+    "15": 4,
+    "16": 5,
+    "17": 10,
+    "18": 19,
+    "19": 2,
+    "20": 4,
+    "21": 12,
+    "22": 14,
+    "23": 22,
+    "24": 135,
+    "25": 236,
+    "26": 150,
+    "27": 37,
+    "28": 19,
+    "29": 2,
+    "30": 1,
+    "32": 2,
+    "33": 3,
+    "34": 2,
+    "35": 1,
+    "36": 1,
+    "37": 2,
+    "38": 2,
+    "47": 1
+   },
+   "longest_unit": [
+    "d1a3b2105a95cbd33be9",
+    7042,
+    47
+   ],
+   "max_segment_tokens": 120,
+   "seg_max_tokens": 120,
+   "effective_model_max_tokens": 128,
+   "exact_reconstruction_bad": 0,
+   "exact_reconstruction_examples": [],
+   "index_vs_recount_bad": 0,
+   "index_vs_recount_examples": [],
+   "segment_index_bad": [],
+   "segment_count_field_bad": [],
+   "verdict": "PASS",
+   "note": "用同一套 segmenter 对每个单元复算：各段拼接逐字等于原文、段号连续、char_offset 单调且落在正文内、每段 token ≤ 上限（模型实测 128 截断，本批上限 120）"
+  },
+  "postings_consistency": {
+   "docs": 6029,
+   "mismatch_docs": 0,
+   "verdict": "PASS",
+   "note": "逐文档重算 tf 与倒排完全一致"
+  },
+  "version_discipline": {
+   "canonical_rules_bytes": 0,
+   "versions_jsonl_rows": 0,
+   "kb_version_values": [
+    "v0"
+   ],
+   "l6_kb_version": "v0",
+   "verdict": "PASS"
+  },
+  "offline": {
+   "network_symbols": [],
+   "verdict": "PASS",
+   "note": "检索只读本地索引；查询向量由本地 ONNX 模型算，权重已在本机稳定目录，运行时不联网"
+  },
+  "capability_declaration": {
+   "fields": {
+    "mode": "vector_plus_bm25",
+    "semantic_recall": true,
+    "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    "dim": 384,
+    "quantization": "fp16（ONNX initializer 全部为 FLOAT16，且无 QuantizeLinear/MatMulInteger 等量化算子）",
+    "known_limitations": 8,
+    "no_hit_semantics": {
+     "bm25_only": "字面未匹配，不代表合规",
+     "vector_only": "语义未匹配，不代表合规",
+     "hybrid": "字面与语义均未匹配，但仍不代表合规"
+    }
+   },
+   "no_hit_semantics_matches_spec": true,
+   "verdict": "PASS",
+   "note": "registry.retrieval_capability 的下游必需字段与 no_hit_semantics 固定文案都已核对"
+  }
+ },
+ "verdict": "PASS"
+}

@@ -1,0 +1,121 @@
+// Jenkinsfile —— KB 闸门只读巡检（Jenkins 版；此前 ci/ 下只有 GitHub / GitLab 两份）
+//
+// ⚠️ 放哪：**代码仓库根**的 `Jenkinsfile`（不是库根、也不是 ci/ 下）。
+//    若走 Jenkins 的「Pipeline script from SCM」，本文件就是那一条；
+//    也可以把下面 pipeline{} 整段贴进 Job 的 Pipeline script。
+//
+// ⚠️ 前提（与另外两份配置**完全相同**，不因为换了平台就放宽）：
+//   1. **agent 必须打在这台 Mac 上**（`label 'kb-host'` 换成你给该 agent 打的标签）。
+//      闸门读的是**活库**（`kb/l0…l7` 的真实数据）+ 库内约定的解释器
+//      （`kb/.kb-python` = /usr/bin/python3，L6 召回需要 numpy+fastembed）。
+//      Jenkins 的 Linux 容器 agent 上这三样一个都没有 ⇒ **跑不了真数据**。
+//   2. `KB_LIVE_ROOT` 必须改成**这台 agent 上的库根绝对路径**；
+//      run-gates.sh 会自检，缺 kb/KB-ROOT.json 就退出码 90（与环境问题分档，不冒充数据红）。
+//   3. Jenkins agent 的 **HOME 必须是该用户的 home**：l0 闸门要调 lark-cli 取数，
+//      HOME 不对会表现为「拉取失败」——看起来像数据错，其实是环境问题。
+//
+// ★★ 与另两份配置同一个关键设计：**不 checkout、读活库** ★★
+//   Jenkins 默认会 checkout 一份**快照副本**，而闸门要评的是 08:30 写档任务正在改的那个活库。
+//   ⇒ 这里 `skipDefaultCheckout(true)`，每一步都 `cd "$KB_LIVE_ROOT"`。
+//   （checkout 出来的副本**不会被评**，所以本文件也不依赖仓库里有什么。）
+//
+// 调度：Jenkins 的 `cron` 用的是 **Jenkins master 的时区**，且 `H` 是散列（避免整点争抢）。
+//   · `H 18 * * *` ≈ 18:00–18:59 之间某个固定分钟 —— 故意与 08:30 的写档循环错开。
+//   · Jenkins cron **不支持**标准 cron 的步进写法（如 `*/5`），且**至少 5 个字段**。
+//   · ⚠️ **multibranch pipeline 里 `triggers` 会被忽略**（触发器属于 Branch Source 的
+//     Scan 配置，要在 Job 配置里勾）。单 Job 的 Pipeline 才吃这一段。这条最容易白等一天。
+//
+// 退出码（ci/run_gates.py 定义，本文件不重新解释；`sh` 步骤非 0 即步骤失败）：
+//   0 全过 ｜ 1 有红 ｜ 2 有「无法计算」｜ 3 runner 故障 ｜ 90 前提不满足（库根/kbpy/python 缺）
+//
+// 范围默认 **full**（12 把 + projection + envelope）。
+//   ⚠️ full 下**预期就是红的**：`l0`（取数身份坏）与 `projection`（实测真坏 3/6）都是真红，
+//      两件的修法都要**人做**（见 ci/README.md §6 与 ci/接线手札-挂CI前必读.md §2）。
+//      想要一条绿基线：把 SCOPE 参数选 core。
+
+pipeline {
+  agent { label 'kb-host' }        // ★ 换成你给这台 Mac 上的 agent 打的标签
+
+  options {
+    timestamps()
+    timeout(time: 30, unit: 'MINUTES')
+    disableConcurrentBuilds()      // 与写档循环互斥：同一时间只允许一个 KB 作业
+    skipDefaultCheckout(true)      // ★ 故意不 checkout —— 见文件头「关键设计」
+  }
+
+  triggers {
+    cron('H 18 * * *')             // ≈ 18:00–18:59（Jenkins master 时区）；multibranch 下无效，见文件头
+  }
+
+  parameters {
+    choice(name: 'SCOPE', choices: ['full', 'core'], description: 'full=12把+projection+envelope；core=只12把')
+    booleanParam(name: 'STRICT_WARN', defaultValue: false, description: '把告警（如供给链超期）也当失败')
+  }
+
+  environment {
+    // ★ 改成这台 agent 上的库根绝对路径（含 kb/KB-ROOT.json 的那一层）
+    KB_LIVE_ROOT = '/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理'
+  }
+
+  stages {
+    stage('环境自检') {
+      steps {
+        script {
+          if (!fileExists("${env.KB_LIVE_ROOT}/kb/KB-ROOT.json")) {
+            error("KB_LIVE_ROOT 不是权威库根（缺 kb/KB-ROOT.json）：${env.KB_LIVE_ROOT} —— 请改成这台 agent 上的库根绝对路径")
+          }
+        }
+        sh '''
+          set -eu
+          echo "agent 主机：$(hostname)"
+          cd "$KB_LIVE_ROOT"
+          test -f kb/KB-ROOT.json || { echo "缺 kb/KB-ROOT.json"; exit 1; }
+          test -x kb/kbpy         || { echo "缺 kb/kbpy 解释器入口"; exit 1; }
+          echo "库根：$(pwd)"
+          echo "HOME：${HOME}（l0 取数要它正确，否则会报成「拉取失败」）"
+        '''
+      }
+    }
+
+    stage('L0 取数身份自检（只提示，不判成败）') {
+      steps {
+        // 取数身份一坏，l0 必红且**不是数据错**。把根因提前摊开，省得值班的去查数据。
+        sh '''
+          "$HOME/.dsh/bin/lark-cli" auth status --profile dsh-kb 2>&1 || true
+        '''
+      }
+    }
+
+    stage('跑闸门') {
+      steps {
+        // 报告落在 $WORKSPACE/ci-out，好让 archiveArtifacts 稳定找得到
+        // （archiveArtifacts 的路径是相对 $WORKSPACE 解析的，不是相对活库）
+        sh '''
+          set -u
+          cd "$KB_LIVE_ROOT"
+          ARGS=(--scope "$SCOPE" --outdir "$WORKSPACE/ci-out")
+          if [ "$STRICT_WARN" = "true" ]; then ARGS+=(--strict-warn); fi
+          bash "$KB_LIVE_ROOT/ci/run-gates.sh" "${ARGS[@]}"
+        '''
+      }
+    }
+  }
+
+  post {
+    always {
+      archiveArtifacts artifacts: 'ci-out/gates-latest.json, ci-out/gates-latest.md',
+                       allowEmptyArchive: true,
+                       fingerprint: true
+      script {
+        // 把结论写进构建描述，省得每次点进 console 才知道红没红
+        def md = fileExists("${env.WORKSPACE}/ci-out/gates-latest.md") ?
+                 readFile("${env.WORKSPACE}/ci-out/gates-latest.md") : ''
+        def m = (md =~ /(?m)^\*\*退出码 (\d+)\*\*.*红：(.+?) ｜/)
+        currentBuild.description = m.find() ? "退出码 ${m.group(1)} ｜ 红：${m.group(2)}" : '没落到报告'
+      }
+    }
+    // 可选：红了往飞书群推。库内 feishu_publish.py 是给**审查结论**用的，不是给闸门告警用的
+    // —— 要接告警请单独确认去向，别混用那条通道（同 ci/README.md §8 第 5 条）。
+    // failure { sh './ci/notify.sh' }
+  }
+}

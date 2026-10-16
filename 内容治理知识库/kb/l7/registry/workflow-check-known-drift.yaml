@@ -1,0 +1,854 @@
+# workflow-check-known-drift.yaml —— kb/l8/workflow_check.py 里**判据写在一个已经过去的时点**的两段（只做分类，不给豁免）
+#
+# ★★ 先读这一句：**今天没有任何闸门读本文件。**
+#   · `kb/l8/workflow_check.py` 自己**不读**它 —— 建本文件的**唯一目的是分类留痕**，
+#     **不是为了让谁转绿**：登记后复跑，②③ **仍然是 FAIL**（2026-10-04 实测，见 repro_runs）。
+#   · 姊妹文件的差别（同款先例，见 l4-known-drift.yaml 的文件头）：
+#       l0-expected-diffs.yaml 由 l0_gate.py 读、l3-known-drift.yaml 由 l3_gate.py 读、
+#       l5-known-drift.yaml 由 l5_gate.py 读 —— 那三份**会改变闸门判定**；
+#       l4-known-drift.yaml **不会**，本文件**也不会**。
+#   · 用途只有一个：把「②③ 为什么是**判据**过期、而不是**数据**坏了」逐条写下来，
+#     免得后人（或日报）把这两段 FAIL 当成缺陷去「修数据」。**改判据要单独走一轮。**
+#
+# 规则（与 l0-expected-diffs / l3-known-drift / l4-known-drift / l5-known-drift 同一套纪律）：
+#   * 登记的是「为什么这是**判据**的问题而不是**数据**坏了」+ 证据 + 谁去做什么；
+#     **不是**「这两段不算了」。原始读数一律照打，不抹掉（见 raw_readings）。
+#   * 本文件**不豁免**任何实质判据：workflow_check 其余 7 段（①④⑤⑥⑦⑧⑨）是实质判据，
+#     红了必须真修；只有第 ②③ 两段属"冻结基线 vs 活库"这一类。
+#   * 判据：`kb/l7/registry/*.yaml` 的登记**不改变任何闸门语义**（本文件不被任何脚本读）。
+
+meta:
+  file: kb/l7/registry/workflow-check-known-drift.yaml
+  checker: kb/l8/workflow_check.py
+  read_by_gate: none                       # ← 与 l3-/l5-known-drift.yaml 的关键差别，见文件头
+  created_at: "2026-10-04"
+  created_by: "kb-repair 会话（用户指令：把 workflow_check 失败项按原因码修掉）"
+  owner: 刘华丽
+  measured_at: "2026-10-04 00:22:05（runs.REPAIR-REPRO 的 checked_at）"
+  last_reverified: >
+    2026-10-04 14:52–15:12 / run `REPAIR-20261004-150800-WF-POST3`（**第 13 轮 kb-repair**，用户指令＝
+    「有几道闸门报红，按原因码把它们修完再复跑一遍证明修好了」，与前几轮同义、仍不点名闸门）。
+    ★★ **本轮与前 12 轮不同：真把一段实质判据修绿了 —— ⑥ 文档可见性 FAIL → PASS。**
+    · 修前读数：⑥ FAIL，`{"md_total":6416,"enveloped":512,"buckets":{"其他":2,"他人产物 hostlib":510}}`；
+      非豁免桶里的 `.md` 是**信封态**（判据＝消费方运行时 `statSync().size` ≠ python `os.path.getsize`，
+      差值 4096）。
+    · 根因（本轮自己量到）：`_eval-L0L7-gap-20261003/kb-l0-feishu-fix/` 下的 `.md` 由 **python 通道**落盘。
+      四通道对照探针（同机同时刻、同一载荷）：python `open(w)` ⇒ delta **+4096**；
+      node `fs.writeFileSync` ⇒ **0**；`/bin/cp` ⇒ **0**；bash 重定向 ⇒ **0**。
+    · 修法：`kb/.work/write_via_node.mjs`（内容走 stdin → 消费方运行时写 → 写回逐字节断言，
+      `identical:true`）。**内容零改动** —— python 侧 sha256 修前 == 修后。
+    · 修后读数：⑥ PASS，`{"md_total":6417,"enveloped":510,"buckets":{"他人产物 hostlib":510},"other":[]}`。
+    · 全程共修 **4 个**文件：`kb-l0-feishu-fix/{SKILL.md, evals/README-修复-交付物与结论.md,
+      references/CHANGELOG.md}` ＋ `kb-recall-fix/SKILL.md`
+      （electron 侧 20416→16320 / 20047→15951 / 26796→22700 / 11840→7744）。
+    ★ **本轮推翻了一条本文件此前隐含的前提**：原因码 `gate_red.workflow_check` 的 `symptom` 限定
+      「**只有**第 ②③ 段红」才算「判据过期」，`do` 明写「其余 7 段是实质判据，红了**要真修**」。
+      本轮实测 ⑥ **会独立变红、且确实能真修绿** ⇒ **不许拿 ②③ 的豁免去覆盖 ⑥**。
+      前 12 轮 ⑥ 恒 PASS，本文件从未登记过 ⑥ 的修法 —— 本轮补上。
+    ★ **新登记：⑧ 工作台与服务是 flaky 判据（环境噪声，不是缺陷）**。同一批 4 次跑：
+      PRE PASS → POST FAIL(`workbench_4317:"000"`) → POST2 FAIL(同样 "000") → POST3 PASS。
+      判据＝`curl -s -o /dev/null -w %{http_code} --max-time 4 http://127.0.0.1:4317/` 必须 `200`
+      且 launchd jobs 非 0（`kb/l8/workflow_check.py:228-234`）。
+      独立端口监控 58 次采样实测 **4 次 000**（15:07:51 / 15:08:22 / 15:08:28 / 15:09:22），
+      同期命令内 `curl` 连续 8/8、`python urllib` 连续 6/6 均得 200，`lsof` 显示 4317 在 LISTEN，
+      同刻 `load averages: 20.90 15.75 11.74` ⇒ **服务间歇性拒连**。
+      ⇒ ⑧ 判红时**先看端口监控**，别当成"服务坏了"去重启；**本轮未改判据，只登记现象**。
+    ★ 并发披露（本轮最硬的一条）：修 ⑥ 时**目标集合在几分钟内自己长大** —— 14:57 扫到 2 个 →
+      15:00 扫到 3 个（新增 `kb-l0-feishu-fix/SKILL.md`）→ 15:02 又冒出 1 个（`kb-recall-fix/SKILL.md`）。
+      **产生者是另一个仍在运行的会话**（它用 python 写 `.md`），不是本库、也不是本轮 kb-repair。
+      ★★ **并且实测到"修了又被改回去"**（不是推测，是抓到的）：15:02 把 `kb-recall-fix/SKILL.md`
+      修明文（7744B）→ 15:22 复核时 ⑥ **又变红**，同一路径被那个会话**用一个新版本重新 python 落盘**
+      （electron 11812 / python 7716，是一份**新内容**，不是我的回滚）→ 15:2x 再修一次明文（7716B，sha 前后相同）
+      → 15:27 `REPAIR-20261004-152800-WF-FINAL2` ⇒ ⑥ **PASS**。
+      ⇒ ⚠ **这一段的绿是"当下有效"、不是"长效"**：真正的 `reopen_when` 挂在**那个会话的写通道**上，不在本库。
+      本轮共修 **5 次/4 个路径**；**没有**去改那个会话的脚本（不抢在飞的工作、不碰别人的产物生成器）。
+    ★ 本轮**未做**（与第 4–12 轮相同，逐条是原因码明文禁止或要求报批）：未改 ②③ 判据、
+      未给那 3 项补落章、未写任何 run 记录、未改 `kb/l0~l6` 任何数据或台账、未重生成投影视图、
+      未动 `l0-expected-diffs.yaml` 的 `expected`、未抢循环认领、未开 `--apply`、未 `--take-over`。
+      改 `kb/l7/registry/*.yaml` 后按 kb-repair 纪律复跑：`skills_check.py` ⇒ 退出 0、五类全 0；
+      `tools/envelope_gate.py` ⇒ 退出 0（扫 2068、信封态 0）。
+    2026-10-04 14:24–14:40 / run `REPAIR-20261004-1428-WF`（**第 12 轮 kb-repair**，用户指令＝
+    「有几道闸门报红，按原因码把它们修完再复跑一遍证明修好了」，与前几轮同义）。★ 本轮**仍未修任何闸门**，
+    且**首次拿到库外旁证**：本库自己的 CI 层**独立地**把两条红声明为「人做、CI 修不了」——
+    `ci/run-gates.sh` 文件头原文「full 下**预期就是红的**：`l0`（取数身份坏）与 `projection`（实测真坏 3/6）
+    都是真红，两件的修法都是**人做**的动作、CI 修不了」，`ci/README.md §6` 同款。
+    ⇒ 此前 11 轮这条结论只由 kb-repair 自己得出；本轮它被**库内第三方文档**独立确认（本文件此前未引过 `ci/`）。
+    本轮**范围收敛**（前几轮常不点名闸门，本轮"几道"＝全量重测）：
+    自有闸门面实测非绿 **4 道** —— `l0_gate`=1（真差异 2）｜ `workflow_check`=1（②③）｜
+    `projection_reconcile`=1（R1/R2/R4，3/6）｜ `routes_reconcile`=**2（缺输入）**；
+    其余全绿：L1–L7 层闸门 =0、`skills_check`=0（五类 0）、`layers_check`=0、`skill_conformance`=0、
+    `envelope_gate`=0、`envelope_census`=0、`freshness`=0、`review_freshness_gate`=0、`reverse_test_freshness`=0。
+    库自带入口复跑同一结论：`bash ci/run-gates.sh --full` ⇒ **过 12/14 红 `['l0','projection']`**（退出 1）；
+    `--core` ⇒ 过 11/12 红 `['l0']`；`kb_pipeline.py --check` ⇒ 硬问题 1 条（L0 闸门未过）、零写自证 ✅ 变化 0 个。
+    ★ 本轮的**新增可执行证据**两条：
+    (1) **② 的判据在源码层复核过了**（不只看读数）：`kb/l8/workflow_check.py:110-116` 把活库
+    「前 1018 行 / 前 1527 行」各自**补回车拼成前缀再 sha**；活库今天 1018 行 ⇒ 两条前缀哈希**都等于整文件**
+    （本轮独立复算：1018 行、整文件 sha `743dc62398311b02…`），而两条基线分别取自 **2036 行时代**
+    (`kb/.work/l6_integrity.json`) 与 **1527 行时代** (`kb/l4/runs/20260923-1445.json`)
+    ⇒ 结构上不可能相等。**这条是源码级证据，不是读数推断。**
+    (2) **"随便拿一张历史赢家表喂给 ③ 就能绿"这条捷径实测被堵死**（本轮首次验）：
+    `_eval-kb-manage/results_alias/routes-winners_20261004-0327-SUB.txt`（真跑出来的、当天 03:27）
+    ⇒ strict 口径 **0/65**（用例期望英文 id、表里记中文装载名），加 `--alias` 后 **60/65、退出码 1**
+    （5 条 `brand-ai-provenance-rights-review` 被 图片/视频安全审查 抢走）
+    ⇒ **喂历史赢家表既不能转绿、也不是可用证据**；③ 要转绿只能**真跑一次触发电测**（归 `kb-manage`）。
+    本轮**写盘仅两处**：本文件（登记，+约 50 行 / −0 行）＋ 工作区修复记录
+    `kb-repair-修复记录-20261004-1444-四道红第十二轮.md`；
+    证据落 `_repair-run-REPAIR-20261004-1424-PRE/`（各闸门 `.out` + `.exit`，**均无扩展名**）；
+    回滚基线 `kb/l7/_backups/kb-repair-workflow-R12-20261004-144403/`
+    （`.before` ＋ `BEFORE.sha256`；改前 sha `118c9dcb708956b12682c2139d164cf36c4d464ed856de97c6d1c6a316515699`）。
+    2026-10-04 14:07 / run `REPAIR-20261004-1407-WF`（**第 11 轮 kb-repair**，用户指令回到第 1–9 轮那句
+    「workflow_check 没过，帮我把失败项按原因码修掉，修完复跑」）。★ 本轮**没有**修任何闸门 ——
+    并且**首次量到「就算批 (A) 也修不绿」**：把 (A) 的新判据在活数据上只读模拟后，
+    ② 会转绿（L3 现 sha 被 58 条 run 记录申报、最新一次 == 活库），但 ③ **仍红 3 项/45**
+    （`kb-content-review/SKILL.md`、`kb/l7/registry/l7.json`、`kb-content-review/scripts/review.py`
+    —— 三者的最新申报仍停在 09-23）⇒ **唯一能转绿的组合是 (A) ＋ (C)**，两者分别要报批与开闸，
+    本轮均**未**执行（详见 `pending_decision` 与 `raw_readings.repro_runs` 第 11 条）。
+    本轮只做：独立复算（③ 来源审计重做：1827 份 run 记录 / 17+3 结论不变）＋ 登记（本条）＋ 复跑同一条闸门。
+    2026-10-04 13:56:56 / run `REPAIR-20261004-1358-WF`（**第 10 轮 kb-repair**）。★ 本轮的用户指令
+    与前 9 轮**不同**：不是「workflow_check 没过…」，而是「**闸门红了，帮我把它修好，改完再跑一遍同样的闸门证明修好了**」
+    —— **没点名是哪一道闸门**。故本轮先把全库闸门面**自己量了一遍**（不引用任何他单的报告）：
+    ① skills_check=0 ｜ ② layers_check=0 ｜ ⑤a envelope_gate=0（扫 2049、信封 0）｜
+    ③ routes_reconcile=**2**（缺输入）｜ ④ workflow_check=**1**（②③；其余 7 段 PASS）｜
+    ⑥ projection_reconcile=**1**（R1/R2/R4）｜ L0 层闸门=**1**（真差异 2）。
+    ⇒ 非绿共四道，**没有一道能由 kb-repair 在授权内转绿**；本轮**没有修任何闸门**，
+    只按 `gate_red.workflow_check` 的 `reopen_when` 走了合规默认动作＝**只登记**（就是本条），
+    并复跑同一把闸门证明**读数原样、无回归**。四道的定性逐条：
+    (1) **④②③**（本文件的正主）：判据过期，第 10 次独立复现读数逐项相同 ⇒ 要绿只能改判据（报批，**未授权**）。
+    (2) **③ 路由表对账 exit 2**：**缺输入**（赢家表是触发电测的运行时产物，全库无生成者），
+        不是「路由 65 条全不一致」；归 `kb-manage` 的触发电测重新生成 ⇒ 不在 kb-repair 的动作面。
+    (3) **⑥ 投影一致性 exit 1**：真坏（R1 源指纹 / R2 509 条指纹 / R4 2036 处治理字段），
+        但 `failure-playbook.yaml → gate_red.projection_reconcile` 明写**不许按脚本自带 fix 重生成视图**
+        （R4 照样红 ＋ 把逐条治理值抹成常量 = 假绿）；正确顺序是先补 L3 治理字段，
+        而那条（`finding.l3_governance_backfill_lost`）明文写着「kb-repair 无权直接改 kb/l0…l6 的数据或台账 ⇒ 先停、报批」。
+    (4) **L0 层闸门 exit 1**：真差异 2（两张表 `pull_failed`）。本轮**自己量了根因**：
+        `~/.dsh/bin/lark-cli auth status --profile dsh-kb` ⇒ bot `ready` / user **`missing`（keychain 无 token）**
+        ⇒ 「bot 拿不到就回落 user」这条路断。★ **2026-10-06 更正（Owner 开通 bot 权限后，下面这句已不成立）**：守衡 bot 已被加成可阅读协作者，实测 **5 张 L0 源表 bot 直读全部通过**（专家修订汇总表 395 行、内容公式 7 行）、PRD wiki 与评审结果表也可读 ⇒ **不必再去加协作者、也不必再扫码**。读到失败时：先把 bot 原始错误原样贴出，再分「缺资源权限 `131006`」与「缺 scope `app_scope_not_applied`」——两者修的地方不同，不许混成一句「没权限」。
+        修法要**飞书侧的人**（把「守衡」bot 加成该 Base 的可阅读协作者）
+        或重走 `lark-cli auth login`（Device Flow，**需人授权**）；`gate_red.L0` 的 `forbidden` 明写
+        不许把这两条 `pull_failed` 写进 `expected`「声明掉」。
+    本轮**未动判据、未改 kb/l0~l6 任何数据与台账、未写任何 run 记录、未抢循环认领、未开 `--apply`**。
+    2026-10-04 13:13:30 / run `REPAIR-20261004-1314-R9-AFTER`（**第 9 轮 kb-repair**，同一句用户指令
+    「workflow_check 没过，帮我把失败项按原因码修掉，修完复跑」）。
+    ★★ **本轮与第 1–8 轮有一处实质不同：抓到并真修掉了一个「非 ②③」的红（⑥）** —— 所以本轮的 failed_legs
+    是「先 ②③⑥、后只剩 ②③」，不是又一次原样复现。逐条如下：
+    (1) **⑥ 首跑实测红**（run `REPAIR-20261004-1307-R9`，13:07:54）：`其他` 桶 = 1，
+        文件 = `_eval-L0L7-gap-20261003/kb-l0-feishu-fix/SKILL.md`，读数 **python 17358 B / node 21454 B
+        （差值 4096）**、node 侧尾部是二进制（不是正文）⇒ 属 kb-repair §2 的「**信封态（差值 4096）**」，
+        是**实质红**（⑦ 之外的实质判据，按 failure-playbook `gate_red.workflow_check` 的 do 段「其余 7 段红了要真修」处理）。
+    (2) **按登记修法真修**：python 读内容 → 写**无扩展名**临时件 `/tmp/kb-repair-R9-md-tmp`（该件两读者一致 17358/17358）
+        → `/bin/cp` 落到目标（rc=0）。内容 sha 前后一致 `76f0cfd53ab60f61…`、**零内容改动**，只去掉 4096 B 二进制尾。
+        证据：`_repair-run-REPAIR-20261004-1307-R9/02-envelope-fix.json`（含 BEFORE/TMP/AFTER 三份读数）。
+    (3) **复跑取证**：`tools/envelope_gate.py --reader consumer .` ⇒ 扫 **3080** 个、**信封态 0**、退出 0；
+        `workflow_check.py REPAIR-20261004-1314-R9-AFTER`（13:13:30）⇒ **⑥ 转 PASS**，
+        可见性读数「工作区 6348 md，不可读 510」且 510 全在判据容忍的 `他人产物 hostlib` 桶、`其他` 桶 = 0。
+    (4) ★ **第 9 轮的新机制发现（⑥ 为什么会反复红）**：这个信封不是"库坏了"，是**另一个活会话写出来的**——
+        实测 `ps`：`smoke_fp.py --ids … --round 93 --concurrency 8`（cwd 就在
+        `_eval-L0L7-gap-20261003/kb-l0-feishu-fix/evals/_harness`），并带 `--profile eval-l0fix` 的多个 DSH 子进程；
+        该 SKILL.md 的 mtime = **13:10:28**，即**在我 13:07:54 那次跑之后**又被写了一次。
+        ⇒ ⑥ 的红/绿跟着**那个写者的写通道**走：它用 python 通道写 .md 就红，用 cp/node 通道就绿。
+        （第 5 轮那把 3 个信封态也是同一棵树、同一机制，见下面第 5 轮 note。）
+        **持久修法不在闸门侧**：要让 ⑥ 稳定绿，得让**那个写者**改走 cp/node 通道（本文件不做、也做不到）。
+    (5) **②③ 不变**（仍 FAIL）：本轮**不采信本文件自述**，四项复算全部重做（口径与读数见下面 repro_runs 第 9 条）：
+        L3 现行 1018 行、整文件 sha `743dc62398311b02…`，`lines[:1018]` 与 `lines[:1527]` 两条前缀哈希
+        **都 == 整文件哈希**（实测 True）；两条基线分别是 2036 行时代（`kb/.work/l6_integrity.json`）与
+        1527 行时代（`kb/l4/runs/20260923-1445.json`）⇒ **结构上不可能相等**，`structurally_impossible: true`。
+        ③ 的来源审计（本轮口径：`kb/l*/runs/*.json` ∪ `kb/l*/*/runs/*.json`，排除 `kb/l8`，共 **1565** 份 run 记录）
+        复得 **17/20 有来源、3/20 无落章**（`kb/l7/skills/kb-content-review/SKILL.md`、`kb/l7/registry/l7.json`、
+        `kb/l7/skills/kb-content-review/scripts/review.py`）、**20/20 全部存在、缺失 0**；
+        l7.json 与 pre-edit 备份逐字段比对**差异仍恰好 1 个字段**（`article_no_source.field_lives_in` 措辞）。
+        ⇒ 与第 4–8 轮**逐项一致**；**未授权 ⇒ 未动判据、未改 kb/l0~l6 数据、未写任何 run 记录**。
+    2026-10-04 12:27:22 / run `CHK-20261004-1226-WFREP`（**第 8 次独立复现**，第 8 轮 kb-repair，同一句用户指令
+    「workflow_check 没过，帮我把失败项按原因码修掉，修完复跑」）—— ②③ 的 detail 与本文件第 7 轮**逐字段相同**，
+    另 7 段（①④⑤⑥⑦⑧⑨）全 PASS ⇒ failed_legs **仍只剩 ②③**，**无新的实质红**。
+    本轮**不采信本文件任何自述**，四项复算全部重做：
+    (1) **L3 算术**（独立重算）：`kb/l3/candidates/rules.jsonl` 现行 **1018 行**、整文件 sha `743dc62398311b02…`；
+        `lines[:1018]` 与 `lines[:1527]` 两条前缀哈希**都 == 整文件哈希**（实测 True）⇒ 与基线
+        `7d00454e…`（`kb/.work/l6_integrity.json`，2036 行时代）/ `aa83d1f9…`（`kb/l4/runs/20260923-1445.json`）
+        **结构上不可能相等**；判据代码 `kb/l8/workflow_check.py:112-125` 本轮逐行读过。
+    (2) **③ 来源审计**（独立扫 **1767** 份 run 记录，递归其全部 `artifacts[]`，只读原始记录）：
+        **17/20 有来源**（现 sha 被更新的 run 记录记过，最新基本停在并发会话的 `RVW-LISTING-20261004-L{4,5,6}`）、
+        **3/20 无落章**（l7.json / kb-content-review/SKILL.md / review.py）——与第 4–7 轮**逐项一致**。
+    (3) ★ **第 8 轮新增证据：20 项 mismatch 逐项 `os.path.exists` 实测**——**20/20 全部存在、无一缺失**
+        ⇒ 连「有人偷删产物」这一层也一并排除（判据只报 sha 不符，不区分"改了"与"没了"；
+        第 8 轮把这两种情形分开了，结果全是"改了"）。
+    (4) **l7.json 逐字段比对**（与 `kb/l7/_backups/batch18b-20261002-1201/l7.json.pre-edit`）：
+        差异**仍恰好 1 个字段**（`article_no_source.field_lives_in`），自报 `run_id` 仍是 `20260923-1500`
+        ⇒ `real_findings` 那条（原地改写未落章）第 5 次实测成立，**不是假红**。
+    ★★ **第 8 轮对已登记分析的两处更正**（请连同下文一起读，别再照抄旧句子）：
+    (a) `real_findings[0].impact` 那句「`total_rules` 自报 632，而 L3 现为 1018」**单位不可比，应撤回**：
+        632 是**规则类形态条数**的跨文件计数（`wording_entry 56 + wording_revision_pair 453 +
+        external_standard_clause 123 = 632`），1018 是 `rules.jsonl` 的**行数**（509 条 × 2 行）。
+        本轮实测**现库仍正好 632**（`rules.jsonl` 1018 行 ⇒ 509 条；`external_standard.jsonl` 246 行 ⇒ 123 条）
+        ⇒ **`total_rules` 并没过期**，该句把一个没坏的数字报成了落后。
+    (b) 真正过期的是别的字段：干跑 `kb/.work/l7_article_source_refresh.py CHK-20261004-1226-WFREP`
+        （**未加 `--apply`，零写盘**）实测差异为 **6 个字段**——`field_lives_in`（措辞进一步精确化）、
+        `total_outputs_note`（canonical 落盘 1242 → **1365**）、`candidate_rows`（1997 → **2730**）、
+        `read_at`、`read_at_previous`、`candidate_rows_note`、`refreshed_by`；
+        **`total_rules` 不在差异清单里** ⇒ 与 (a) **互证**。
+        ⇒ 「计数落后现库」这个判断本身成立，但**落后的是 outputs/candidate_rows，不是 total_rules**。
+    (c) 环境面本轮复测：**⑥ 段仍 PASS**（不可读 510 全在判据容忍的 `他人产物 hostlib` 桶、`其他` 桶 = 0）；
+        加宽口径 `python3 tools/envelope_gate.py --reader consumer .` ⇒ 扫 **2966** 个、**信封态 0**、退出 0
+        ⇒ 11:47/11:53 那批信封态**已由并发会话在 12:14–12:16 修掉且未复发**。
+    并发披露（第 8 轮实测）：跑闸门时**另有活会话在探测同一道闸门**
+    （实测 pid 59341/59348 在跑 `kb/l8/workflow_check.py --help`），且 12:24–12:28 有
+    `P0MILK-20261004-1219` 的 L4/L5/L6/L7 run 记录连续落盘；
+    `kb_loop_claim.py status` 报「陈旧（可 --take-over）」但**确有活进程在写库** ⇒
+    本轮**不抢、不 claim、不写任何 run 记录**（与第 6/7 轮同一条纪律）。
+    本轮**未授权 ⇒ 未动判据、未改数据、未写 run 记录**；`ask_user_question` 仍被宿主拒
+    （原文「human interaction is unavailable while the calling agent is owned by another live agent」）
+    ⇒ 第 8 轮**仍问不到人**，`pending_decision` 原样带回委派方。
+    本轮写盘仅四处：本文件（登记）、`kb/l8/workflow_check_CHK-20261004-1226-WFREP.json`（闸门自身产物）、
+    工作区 `_repair-run-REPAIR-20261004-1226-WF/`（证据）、回滚基线
+    `kb/l7/_backups/kb-repair-workflow-R8-20261004-1226/`（含本文件与 `workflow_check.py` 的 `.before` + `BEFORE.sha256`）。
+    2026-10-04 11:35:30 / run `REPAIR-20261004-R7`（**第 7 次独立复现**，第 7 轮 kb-repair，同一句用户指令）
+    —— ②③ 的 detail 与 R6、以及同分钟的体检跑 `healthcheck-20261004-1133` **三方逐字节相同**
+    （`json.dumps(sort_keys=True)` 比对，脚本实测非肉眼）；另 7 段全 PASS ⇒ **无新的实质红**。
+    本轮两项复算**全部重做**（不采信本文件自述）：
+    (1) **L3 算术**：1018 行 / 整文件 sha `743dc623…`；`lines[:1018]` 与 `lines[:1527]` 两条前缀哈希
+        **都 == 整文件哈希**（实测 True）⇒ 与 `7d00454e…`（2036 行时代）/ `aa83d1f9…`（09-23，2778734 B）
+        两条基线**结构上不可能相等**；判据代码 `kb/l8/workflow_check.py:112-125` 逐行读过并复核。
+    (2) **③ 来源审计**：本轮扫 **1713** 份 run 记录（R6 为 1677），仍 **17/20 有来源、3/20 无落章**，
+        无来源的**仍是同三项**（l7.json / kb-content-review/SKILL.md / review.py）。
+        l7.json 那项**独立重测**：与 pre-edit 备份 `kb/l7/_backups/batch18b-20261002-1201/l7.json.pre-edit`
+        逐字段比对，**差异恰好 1 个字段**（`article_no_source.field_lives_in`：「五个形态文件」↔「四个」），
+        现 sha `b36c86f7…` / mtime 2026-10-02 12:02:35 / 自报 `run_id` 仍是 `20260923-1500`
+        ⇒ `real_findings` 那一条（**原地改写未落章**）本轮第 4 次实测成立，**不是假红**。
+    2026-10-04 10:13:05 / run `REPAIR-20261004-R6`（**第 6 次独立复现**，第 6 轮 kb-repair，同一句用户指令）
+    —— 本轮**不采信本文件自述，独立重做了两项复算**：
+    (1) **L3 算术**（独立重算，非引用）：`kb/l3/candidates/rules.jsonl` 现行 **1018 行**、整文件 sha
+        `743dc62398311b02…`；`l3[:1018]` 与 `l3[:1527]` 的前缀哈希**都等于整文件哈希**（实测 True）
+        ⇒ 两条基线 `7d00454e…`（kb/.work/l6_integrity.json，lines=2036）与 `aa83d1f9…`
+        （kb/l4/runs/20260923-1445.json，1527 行时代整文件）**结构上不可能相等**（判据 :115-116,124-125）；
+        且现 sha `743dc623…` 就写在 kb/l3/registry/l3.json 的 `appended_fields.old_lines_untouched.sha256`
+        —— **L3 的这次演进有出处**。
+    (2) **③ 来源审计**（独立扫 kb/l*/runs/*.json 共 **1677** 份，只读原始 `artifacts[]`）：
+        20 项 mismatch 中 **17/20** 有 run 记录记过现 sha（最新基本停在**本轮并发会话**的
+        `RT-20261004-LISTING-L{4,5,6}` @ 10:07–10:13），**3/20 无 run 落章**
+        （l7.json / kb-content-review/SKILL.md / kb-content-review/scripts/review.py）
+        —— 与第 4/5 轮的 **17/3 逐项一致**。l7.json 那项另行独立实测：与 pre-edit 备份
+        `kb/l7/_backups/batch18b-20261002-1201/l7.json.pre-edit` 逐字段比对，**差异仍只有 1 个字段**
+        （`article_no_source.field_lives_in`：「四个形态文件」→「五个」），现 sha `b36c86f7…` 被两份
+        **后续备份清单**独立记过 ⇒ 定性不变：**合法改动 + 流程缺落章**。
+    ② 段三项读数与 ③ 段 20 项 mismatch 与第 5 轮**逐字段相同**（本轮以 `json.dumps(sort_keys=True)` 比对
+    legs[②]/legs[③] 的 detail，对 R5 与 CHK-20261004-1012-ISO **两次比对均 identical: True**，脚本实测非肉眼）。
+    ★ 与第 5 轮唯一的差别：⑥ 段**仍 PASS**（不可读 510 全在判据容忍的 `他人产物 hostlib` 桶、`其他` 桶 = 0）
+    ⇒ failed_legs **仍只剩 ②③**，无新的实质红。并发披露：跑闸门时另一会话（循环认领 base
+    `RT-20261004-LISTING`，pid 57201 在跑 `kb_pipeline.py --sync --via-skill --only L6 --gate-only`）
+    正在写各层 runs；本轮 RUN 名不同，**未碰 kb/l7/runs 与 index.jsonl**。
+    ⚠ 本会话仍是**被委派的子 agent**：`ask_user_question` 被宿主拒绝（原文「human interaction is
+    unavailable while the calling agent is owned by another live agent」）⇒ **第 6 轮仍问不到人**，
+    pending_decision 原样带回委派方。**未授权 ⇒ 未动判据、未动数据、未写任何 run 记录。**
+    2026-10-04 09:33:11 / run `REPAIR-20261004-R5`（**第 5 次独立复现**，第 5 轮 kb-repair，同一句用户指令）：
+    ② 段三项读数与 ③ 段的 20 项 mismatch 与第 4 轮**逐字段相同**（`json.dumps(...,sort_keys=True)` 比对
+    `legs[②].detail` / `legs[③].detail` 均 `identical: True`，脚本实测非肉眼）。
+    ★ 本轮新增**决定性算术证据**（把「结构上不可能」从推论变成实测数字）：现行 L3 恰好 1018 行
+    ⇒ `l3[:1018]` 与 `l3[:1527]` **都等于整文件**（实测两条前缀哈希与整文件哈希同为
+    `743dc62398311b02…`），而两条基线分别是 2036 行时代（`kb/.work/l6_integrity.json` 记
+    `7d00454e…`, lines=2036）与 1527 行时代（`kb/l4/runs/20260923-1445.json` 记 `aa83d1f9…`）的
+    **整文件**哈希 ⇒ ② 的两条子判据**在不回滚 L3 的前提下数学上不可能为真**
+    （判据代码：`kb/l8/workflow_check.py:115-116,124-125`）。
+    本轮**仍未**改判据、未改数据、未写任何 run 记录。⑥ 段本轮实测 **PASS**：3 个信封态 md
+    （`_eval-L0L7-gap-20261003/` 下）已于 09:31:20–26 被**另一并发会话**用 cp 通道修掉，
+    本轮独立复核（`envelope_gate.py _eval-L0L7-gap-20261003` → 退出 0、扫描 104 个、信封 0）
+    ⇒ **本轮的实质红（⑥）已消失，剩下的 ②③ 是判据问题、不是数据问题**。
+    （第 4 次：2026-10-04 03:08:30 / run `CHK-20261004-REPAIR-BEFORE`，第 4 轮 kb-repair，同一句用户指令）：
+    ② 段三项读数与 ③ 段的 **20 项 mismatch 与前三轮逐字节相同**（`json.dumps(sort_keys=True)` 比对 `legs[②].detail`
+    与 `legs[③].detail` 均 `identical: True`）；本轮**仍未**改判据、未改数据。⑥ 段本轮实测 PASS
+    （上一轮那两个信封态文件未复发；工作区不可读 510 全是判据本就容忍的「他人产物 hostlib」）。
+    ★ 本轮新增的决定性证据见 stale_criteria[1].evidence 的「第 4 次复算」段：**20 项 mismatch 全部有出处**，
+    其中 l7.json 那一项的改动已实测出**具体差异内容**（1 个字段），故 real_findings 里该项从"内容可疑"
+    降级为**纯流程缺落章**。
+    （第 3 次：2026-10-04 01:46:10 / run `REPAIR-20261004-0146`；② 三项与 ③ 的 20 项 mismatch 与首两次逐项一致。）
+  first_red_observed: "PIPE-20261003-2354-L7（kb/l8/workflow_check_PIPE-20261003-2354-L7.json，at=2026-10-04 00:19:59）"
+  note: >
+    这两段不是「库坏了」，是**判据写死在了一个已经过去的时点**：② 拿 2026-09-23 / 2026-10-02 的
+    快照哈希去比活库，③ 拿 2026-09-23 四份 run 记录的产物哈希当"不许变"的基线。
+    活库每天在跑（L3 在 09-24 / 10-02 各演进过一次），一条"一个字节都不许动"的判据**必然**FAIL。
+    它想证明的是「没人偷改权威库」，而正确形式应该是「**改动都能追到出处**」——
+    不是「改动不许发生」。这与 l5-known-drift.yaml 对 frozen_layers 的判定同一道理。
+
+# ── 本次失败的两段（原样照抄 kb/l8/workflow_check_REPAIR-REPRO-20261004-0020.json；
+#    2026-10-04 第 3 轮 kb-repair 追加了 REPAIR-20261004-0146；
+#    第 4 轮追加了 CHK-20261004-REPAIR-BEFORE；
+#    第 5 轮追加了 REPAIR-20261004-R5 —— 均逐字照抄其 json）──
+raw_readings:
+  repro_runs:                       # 同一把闸门、两次独立跑，读数逐条相同（可复现）
+    - run: "PIPE-20261003-2354-L7"
+      at: "2026-10-04 00:19:59"
+      verdict: "FAIL"
+      failed_legs: ["② 权威库 l0~l6 未被改动", "③ 前序产物哈希（45 项）"]
+      source: "kb/l8/workflow_check_PIPE-20261003-2354-L7.json"
+    - run: "REPAIR-REPRO-20261004-0020"
+      at: "2026-10-04 00:22:05"
+      verdict: "FAIL"
+      failed_legs: ["② 权威库 l0~l6 未被改动", "③ 前序产物哈希（45 项）"]
+      source: "kb/l8/workflow_check_REPAIR-REPRO-20261004-0020.json"
+    - run: "REPAIR-20261004-0146"          # ← 第 3 次独立复现（2026-10-04 第 3 轮 kb-repair，同一句用户指令）
+      at: "2026-10-04 01:46:10"
+      verdict: "FAIL"
+      failed_legs: ["② 权威库 l0~l6 未被改动", "③ 前序产物哈希（45 项）"]
+      source: "kb/l8/workflow_check_REPAIR-20261004-0146.json"
+      note: >
+        本次跑在**并发写窗口内**（另一会话持有循环认领，claim base `REVIEW-20261004-0140-静音续航-LISTING`）：
+        ⑤ 段的装载位维度确实跟着动过（利用率 0.2317→0.2322）、⑥ 段工作区 md 4996→5032，
+        但 ② 段三项读数（l0/l1/l2 tree/sha 与 l3 两条 false）与 ③ 段的 **20 项 mismatch 逐字未变**
+        ⇒ 失败集合是**稳定的判据常量**，不是并发抖动造成的偶然红（这一点是本条第三次复现新增的证据）。
+    - run: "CHK-20261004-REPAIR-BEFORE"     # ← 第 4 次独立复现（2026-10-04 第 4 轮 kb-repair，同一句用户指令）
+      at: "2026-10-04 03:08:30"
+      verdict: "FAIL"
+      failed_legs: ["② 权威库 l0~l6 未被改动", "③ 前序产物哈希（45 项）"]
+      source: "kb/l8/workflow_check_CHK-20261004-REPAIR-BEFORE.json"
+      note: >
+        与第 3 次跑同一形态：② 三项、③ 20 项 mismatch **逐字节未变**（本轮以 json 比对实测，非肉眼）。
+        新增两点：(1) **⑥ 段转绿**（`其他` 桶 = 0；不可读 510 个全在判据容忍的 `他人产物 hostlib` 桶内），
+        说明上一轮的修复**没有复发**；(2) ③ 的 20 项本轮做了**逐项来源审计**（见 stale_criteria[1].evidence），
+        首次把"17 有来源 / 3 无 run 落章"精确到**每一项**，并把那 3 项的改动出处也逐条查实。
+        并发披露：跑闸门时另一会话（循环认领 base `RVW-LISTING-20261004`）正在写
+        kb/l7/runs/index.jsonl 与各层 runs —— 本轮 RUN 名不同，未与它抢任何文件。
+    - run: "REPAIR-20261004-R5"             # ← 第 5 次独立复现（2026-10-04 第 5 轮 kb-repair，同一句用户指令）
+      at: "2026-10-04 09:33:11"
+      verdict: "FAIL"
+      failed_legs: ["② 权威库 l0~l6 未被改动", "③ 前序产物哈希（45 项）"]
+      source: "kb/l8/workflow_check_REPAIR-20261004-R5.json"
+      note: >
+        与第 4 次**逐字节相同**（本轮以 `json.dumps(sort_keys=True)` 比对 legs[②]/legs[③] 的 detail，
+        非肉眼）。与前四次的差别只有一处：**⑥ 段已转绿**（不可读 510 全在 `他人产物 hostlib` 桶、
+        `其他` 桶 = 0），故本轮 failed_legs **只剩 ②③**（前三轮 ⑥ 也红）。
+        ⑥ 的修不是本轮做的：3 个信封态 md 由**另一并发会话**在 09:31:20–26 用 cp 通道修掉
+        （其证据留痕：工作区 `_repair-run-20261004-093101-envelope/`，
+        `05a-envelope-F1-{BEFORE,AFTER}.txt` 记 BEFORE 信封 3 个 / AFTER 0 个）。
+        本轮独立复核：`python3 tools/envelope_gate.py _eval-L0L7-gap-20261003` → 退出 0、
+        「正常 104 ｜ 信封态 0 ｜ 读不到 0」。另跑 `skills_check.py` → 五类全 0、退出 0。
+        并发披露：本轮跑闸门时另有两个 `workflow_check.py` 进程在跑（`REPAIR-20261004-0933`、
+        `CHK-20261004-HLT-A`）；本轮 RUN 名不同，未与它们抢任何文件。
+    - run: "REPAIR-20261004-R6"             # ← 第 6 次独立复现（2026-10-04 第 6 轮 kb-repair，同一句用户指令）
+      at: "2026-10-04 10:13:05"
+      verdict: "FAIL"
+      failed_legs: ["② 权威库 l0~l6 未被改动", "③ 前序产物哈希（45 项）"]
+      source: "kb/l8/workflow_check_REPAIR-20261004-R6.json"
+      note: >
+        与第 5 轮**逐字段相同**（本轮以 `json.dumps(sort_keys=True)` 比对 legs[②]/legs[③] 的 detail，
+        对 R5 与 CHK-20261004-1012-ISO 两次比对均 `identical: True`）。本轮**独立重做两段复算**：
+        ② 的 L3 算术独立重算出「前缀哈希 == 整文件哈希」（1018 行，两条前缀都 == 整文件），
+        证实结构上不可能为真；③ 的来源审计独立扫 1677 份 run 记录，复得 **17/20 有来源、3/20 无落章**，
+        与第 4/5 轮**逐项一致**。l7.json 那项独立与 pre-edit 备份逐字段比对，**差异仍只有 1 个字段**。
+        **⑥ 段仍 PASS** ⇒ failed_legs 仍只剩 ②③，**无新的实质红**（这是本轮的实质结论）。
+        并发披露：跑闸门时另一会话（认领 base `RT-20261004-LISTING`，pid 57201 在跑 L6 gate-only）
+        在写各层 runs；本轮 RUN 名不同，**未碰 kb/l7/runs 与 index.jsonl**，**未改判据、未改数据**。
+        本轮唯一写盘：本文件（登记）+ `kb/l8/workflow_check_REPAIR-20261004-R6.json`（闸门自身产物）
+        + 工作区 `_repair-run-20261004-R6/`（证据）；回滚基线
+        `kb/l7/_backups/kb-repair-workflow-R6-20261004-1015/`（含本文件与 workflow_check.py 的 .before + BEFORE.sha256）。
+    - run: "REPAIR-20261004-R7"             # ← 第 7 次独立复现（2026-10-04 第 7 轮 kb-repair，同一句用户指令）
+      at: "2026-10-04 11:35:30"
+      verdict: "FAIL"
+      failed_legs: ["② 权威库 l0~l6 未被改动", "③ 前序产物哈希（45 项）"]
+      source: "kb/l8/workflow_check_REPAIR-20261004-R7.json"
+      note: >
+        与第 6 轮**逐字节相同**（以 `json.dumps(sort_keys=True)` 比对 legs[②]/legs[③] 的 detail，
+        对 R6 与同分钟的 `healthcheck-20261004-1133` 两次比对均 `identical: True`）；另 7 段
+        （①④⑤⑥⑦⑧⑨）全 PASS，只有 ① 的 mtime 读数与 ⑥ 的工作区 md 计数随时间自然变化。
+        ★ 本轮**未采纳本文件任何自述**，两项复算全部重做：② 的 L3 算术（1018 行、两条前缀 == 整文件）、
+        ③ 的来源审计（扫 1713 份 run 记录 ⇒ 17/20 有来源、3/20 无落章，无来源者仍是同三项）、
+        l7.json 的逐字段比对（差异仍恰好 1 个字段）。
+        并发披露（比第 6 轮更硬）：`kb_loop_claim.py status` 报**「进行中」**（session `7c45a331-…`、
+        pid 88906、BASE `RT-20261004-1133-LISTING`、11:32:46），而 pid 88906 **已不在**；
+        但 11:36:22–11:36:34 **确有活进程在跑**（`kb_pipeline.py --check [--json] --no-gates` ×多个、
+        `skill_conformance.py --json`），且 11:34:53 仍有 L4 run 落盘
+        ⇒ **单槽确实被一个活会话占着**，本轮**不抢、不 claim、不写任何 run 记录**
+        （这也是今天走不了 (C)/(A) 的现实原因）。
+        本轮**未授权 ⇒ 未动判据、未改数据、未写 run 记录**。写盘仅四处：本文件（登记）、
+        `kb/l8/workflow_check_REPAIR-20261004-R7.json`（闸门自身产物）、工作区 `_repair-run-20261004-R7/`
+        （证据）、回滚基线 `kb/l7/_backups/kb-repair-workflow-R7-20261004-1138/`
+        （含本文件与 workflow_check.py 的 `.before` + `BEFORE.sha256`）。
+    - run: "CHK-20261004-1226-WFREP"        # ← 第 8 次独立复现（2026-10-04 第 8 轮 kb-repair，同一句用户指令）
+      at: "2026-10-04 12:27:22"
+      verdict: "FAIL"
+      failed_legs: ["② 权威库 l0~l6 未被改动", "③ 前序产物哈希（45 项）"]
+      source: "kb/l8/workflow_check_CHK-20261004-1226-WFREP.json"
+      note: >
+        与第 7 轮**逐字段相同**（`legs[②].detail` / `legs[③].detail` 的读数：l0/l1/l2 三棵树与 L5 基线相符、
+        `l3_lines=1018`、两条子判据 false、`checked=45 / mismatch=20` 且 20 项清单逐条相同）。
+        另 7 段全 PASS ⇒ failed_legs 仍只剩 ②③。
+        ★ 本轮四项复算重做（不采信本文件自述）：L3 算术、③ 来源审计（扫 1767 份 run 记录，17/20 有来源、3/20 无落章）、
+        **20 项 mismatch 逐项存在性实测（20/20 全部存在、无一缺失 —— 本轮新增，排除"偷删"）**、
+        l7.json 逐字段比对（差异仍恰好 1 个字段）。
+        ★ 并**更正了本文件此前的一处误报**：`real_findings[0].impact` 原把 `total_rules=632` 报成落后于
+        「L3 现为 1018」是**单位不可比**（632 = 规则类形态条数跨文件计数；1018 = rules.jsonl 行数）；
+        实测现库仍正好 632，真正落后的是 `total_outputs_note` / `candidate_rows` 等 6 个字段（干跑差异清单）。
+        并发披露：跑闸门时另有活会话在探测同一道闸门（pid 59341/59348 跑 `workflow_check.py --help`），
+        且 12:24–12:28 有 `P0MILK-20261004-1219` 的 L4/L5/L6/L7 run 连续落盘；
+        认领报「陈旧（可 --take-over）」但确有活进程在写库 ⇒ 本轮**不抢、不 claim、不写 run 记录**。
+        本轮唯一写盘见 `last_reverified` 末段。
+    - run: "REPAIR-20261004-1307-R9 → REPAIR-20261004-1314-R9-AFTER"   # ← 第 9 轮（2026-10-04）
+      at: "2026-10-04 13:07:54（修前） / 2026-10-04 13:13:30（修后）"
+      verdict: "FAIL（两次都 FAIL，但失败集合从 ②③⑥ 收窄到 ②③）"
+      failed_legs: ["② 权威库 l0~l6 未被改动", "③ 前序产物哈希（45 项）"]
+      failed_legs_before_fix: ["② 权威库 l0~l6 未被改动", "③ 前序产物哈希（45 项）", "⑥ 文档可见性（agent 能否读到）"]
+      source: "kb/l8/workflow_check_REPAIR-20261004-1307-R9.json（修前）/ kb/l8/workflow_check_REPAIR-20261004-1314-R9-AFTER.json（修后）"
+      note: >
+        ★ **本轮不是又一次原样复现**：首跑多出一个 ⑥，且**被真修掉并复跑证明转绿**（修法见 last_reverified 第 (1)–(3) 条）：
+        · ⑥ 修前：`其他` 桶 = 1 = `_eval-L0L7-gap-20261003/kb-l0-feishu-fix/SKILL.md`，py 17358 / node 21454（Δ4096）；
+        · 修法：无扩展名临时件 + `cp`（内容 sha `76f0cfd5…` 前后一致，零内容改动）；
+        · ⑥ 修后：`其他` 桶 = 0、不可读 510 全在 `他人产物 hostlib` 桶；`envelope_gate --reader consumer .`
+          扫 3080 个 / 信封 0 / 退出 0。
+        · **第三方独立确认**（另一会话同一把闸门的产物）：`kb/l8/workflow_check_CHK-20261004-1316-HLT.json`
+          （`at=13:17:00`）⇒ `failed_legs` 只剩 ②③，⑥ 的 `buckets` = `{"他人产物 hostlib": 510}`、`other: []`。
+        · 第三次跑 `REPAIR-20261004-1318-R9-FINAL` 在 ⑤ 段 `loader_probe` 上被并发评测台压住
+          （实测 `load averages: 10.48 12.27 12.86`）8 分钟无进展 ⇒ 已主动终止并清理进程、**未产出 JSON**
+          （替代证据＝上面两条 ＋ 13:16:52 的全工作区信封扫描「扫 3088 / 信封 0 / 退出 0」）。
+        ★ **新机制（⑥ 反复红的来源）**：该文件由**另一个活会话**的评测台写出（`smoke_fp.py --round 93`，
+        `--profile eval-l0fix`；文件 mtime 13:10:28 **晚于**我 13:07:54 的首跑）⇒ ⑥ 的红绿挂在**那个写者的通道**上。
+        ★ ②③ 读数与第 4–8 轮**逐项一致**（本轮四项复算全部重做，method/读数见
+        `_repair-run-REPAIR-20261004-1307-R9/01-recompute.json`）：1018 行 / 前缀==整文件 True /
+        `structurally_impossible: true`；③ 扫 1565 份 run 记录 ⇒ 17 有来源、3 无落章、0 缺失；l7.json 差异 1 字段。
+        并发披露：本轮跑闸门时确有活进程（`freshness.py`、`roundtrip_check.py 20261004-1300`、
+        评测台 8 并发子进程、`kb/l8/_interp.py` 多个）；`kb_loop_claim.py status` 报「陈旧（可 --take-over）」
+        （BASE=PIPE-20261004-1257）⇒ 本轮**不抢、不 claim、不写任何 run 记录**。
+        本轮写盘：本文件（登记）、`kb/l8/workflow_check_{REPAIR-20261004-1307-R9,REPAIR-20261004-1314-R9-AFTER}.json`
+        （闸门自身产物）、目标 SKILL.md（cp 修信封，内容零改动）、工作区 `_repair-run-REPAIR-20261004-1307-R9/`
+        （证据）、回滚基线 `kb/l7/_backups/kb-repair-workflow-R9-20261004-1313/`（含 4 份 `.before` + `BEFORE.sha256`）。
+    - run: "REPAIR-20261004-1358-WF"        # ← 第 10 次独立复现（2026-10-04 第 10 轮 kb-repair）
+      at: "2026-10-04 13:56:56"
+      verdict: "FAIL"
+      failed_legs: ["② 权威库 l0~l6 未被改动", "③ 前序产物哈希（45 项）"]
+      source: "kb/l8/workflow_check_REPAIR-20261004-1358-WF.json"
+      note: >
+        与第 4–9 轮**逐项一致**：9 段 **7 PASS / 2 FAIL**；② 三项读数（l0/l1/l2 与 L5 基线相符、
+        `l3_lines=1018`、两条子判据 false）与 ③ `checked=45 / mismatch=20` 的 20 项清单均照旧
+        （读数落 `_repair-run-REPAIR-20261004-1358-PRE/04.out`）。
+        ★ 本轮用户指令与前 9 轮**不同**（「闸门红了，帮我把它修好，改完再跑一遍同样的闸门证明修好了」，
+        **未点名是哪一道闸门**），故本轮**先自己把全库闸门面量了一遍**（读数见 `last_reverified` 第 10 轮那段），
+        结论：非绿四道（③ 缺输入 / ④②③ 判据过期 / ⑥ 投影真坏 / L0 真差异 2），
+        **没有一道能在 kb-repair 的授权内转绿** ⇒ 本轮**未修任何闸门**，按 `gate_red.workflow_check`
+        的 `reopen_when` 走**合规默认动作＝只登记**（本文件），并复跑同一把闸门证明读数原样、无回归：
+        改后 `REPAIR-20261004-1401-AFTER`（13:59:38）⇒ ②③ 的 `detail` 与本次**逐字段相同**
+        （`json.dumps(sort_keys=True)` 实测 `identical: True`；③ 的 20 项 mismatch 清单逐项相同）；
+        同次跑 ⑧ 段出现**瞬时红**（`workbench_4317: "000"`）—— 【事实】第三跑 `REPAIR-20261004-1404-AFTER2`
+        （14:00:59）⑧ **转回 PASS**、`failed_legs` 回到**只剩 ②③**；且我另用 `curl` 直测两端口
+        （4317 → 200 / 0.047s；4508/health → 200 / 0.044s，同刻 `load averages: 13.95 18.82 19.71`、
+        11 个 `--profile eval-l0fix` 进程）⇒ **⑧ 的 `000` 是争用下探针超时，不是服务坏了，无可修之物**。
+        **⑥ 文档可见性本轮仍 PASS**（不可读 510 全在 `他人产物 hostlib` 桶、`其他` 桶 = 0）
+        ⇒ 第 9 轮修掉的那个信封态**未复发**；本轮全工作区 `tools/envelope_gate.py` ⇒ 扫 **2049**、**信封态 0**、退出 0。
+        ⚠ 第 9 轮记的机制仍在：并发评测台（`--profile eval-l0fix`，本轮实测 15+ 个子进程）若再用
+        python 通道写 .md，⑥ 会再次变红 —— **本轮未观察到复发**。
+        并发披露：本轮跑各闸门期间确有多个活会话在写库（实测 `workflow_check.py CHK-20261004-1358-SELF`、
+        多个 kb-check / kb-l0-feishu 评测会话在跑；`kb_loop_claim.py status` = 「无认领」）
+        ⇒ 本轮**不 claim、不抢、不写任何 run 记录**。
+        本轮写盘仅四处：本文件（登记）、`kb/l8/workflow_check_REPAIR-20261004-1358-WF.json`（闸门自身产物）、
+        工作区 `_repair-run-REPAIR-20261004-1358-PRE/`（证据）、回滚基线
+        `kb/l7/_backups/kb-repair-workflow-R10-20261004-1400/`（本文件 `.before` + `BEFORE.sha256`）。
+    - run: "REPAIR-20261004-1407-WF"        # ← 第 11 次独立复现（2026-10-04 第 11 轮 kb-repair，同一句用户指令）
+      at: "2026-10-04 14:07:xx"
+      verdict: "FAIL"
+      failed_legs: ["② 权威库 l0~l6 未被改动", "③ 前序产物哈希（45 项）"]
+      source: "kb/l8/workflow_check_REPAIR-20261004-1407-WF.json"
+      note: >
+        ②③ 读数与第 4–10 轮**逐字段相同**（② l0/l1/l2 三项 `match_L5_baseline=true`、`l3_lines=1018`、
+        两条子判据 false；③ `checked=45 / mismatch=20`，20 项清单逐项相同）。读数落
+        `_repair-run-REPAIR-20261004-1407-WF-PRE/04.out`。并发披露：跑前 14:04:11 观测到
+        `kb/.work/.kb.lock`（run `20261004-1357-L6`，`kb_pipeline.py --sync`），**跑前已释放**
+        （14:06 复测：该文件不存在、无 `kb_pipeline` 进程）；`kb_loop_claim.py status` = 「无认领」。
+        ★★ **本轮新增一条决定性实测，它改写了未决问题的问法**（不再是"第 11 次复现"）：
+        把 `pending_decision.option_A_impl_sketch` 的 (A) 判据**在活数据上只读模拟**了一遍
+        （口径：扫 `kb/l*/runs/*.json` 全部 `artifacts[]`，按 run 记录自身 `at/checked_at` 排序，
+        每个路径取**最新一次申报**的 sha 与活库比）：
+        · **② 在新判据下会转绿**：`kb/l3/candidates/rules.jsonl` 现 sha `743dc6239831…` 被 **58** 条 run 记录申报过，
+          最新一条 = `RVW-LISTING-20261004-L4-dryrun.json`，其申报值 **== 活库现 sha**（实测 `True`）。
+        · **③ 在新判据下仍红，且恰好红 3 项 / 45**：`kb/l7/skills/kb-content-review/SKILL.md`、
+          `kb/l7/registry/l7.json`、`kb/l7/skills/kb-content-review/scripts/review.py`
+          —— 三者的「最新一次申报」**仍停在 `kb/l7/runs/20260923-1500.json`**（09-23 的老 sha）。
+        ⇒ **结论（本轮首次量到，前 10 轮只有定性）**：**(A) 单独不足以让闸门转绿**；
+          能让 `workflow_check` 转绿的**唯一组合 = (A) 改判据 ＋ (C) 为那 3 项补落章**。
+          这也把「(C) 只是数据卫生」补全了：在 (A) 成立的前提下，(C) 恰好就是剩下的那 3 项。
+        ⇒ 本轮据此**仍未动判据、未补落章**（两者分别要报批与开闸），只做登记 ＋ 复跑。
+        另：③ 的来源审计本轮**独立重做**（不采信本文件自述）：扫 **1827** 份 run 记录、**1323** 条 `artifacts[]`
+        ⇒ **17/20 有更新来源、3/20 无落章**（与第 4–10 轮逐项一致，仍是那同 3 项）、20/20 文件**均存在、缺失 0**。
+    - run: "REPAIR-20261004-1428-WF"        # ← 第 12 次独立复现（2026-10-04 第 12 轮 kb-repair）
+      at: "2026-10-04 14:29:01"
+      verdict: "FAIL"
+      failed_legs: ["② 权威库 l0~l6 未被改动", "③ 前序产物哈希（45 项）"]
+      source: "kb/l8/workflow_check_REPAIR-20261004-1428-WF.json"
+      note: >
+        ②③ 与第 4–11 轮**逐字段相同**（`json.dumps(sort_keys=True)` 实测：② 三项读数照旧
+        —— l0/l1/l2 均 `match_L5_baseline=true`（4007/3152/887 个文件）、`l3_lines=1018`、
+        `l3_base1018_matches_L6=false`、`l3_whole1527_matches_L4=false`；③ `checked=45 / mismatch=20`，
+        20 项清单与本文件所记**逐项一致**）。其余 7 段全 PASS。读数落
+        `_repair-run-REPAIR-20261004-1424-PRE/workflow_check.out` 与
+        `kb/l8/workflow_check_REPAIR-20261004-1428-WF.json`。
+        ★ 本轮用户指令＝「有几道闸门报红，按原因码把它们修完再复跑一遍证明修好了」，
+        与第 10 轮同义（不点名闸门）⇒ 本轮**先把全库闸门面自己重量了一遍**（各闸门 `.out`/`.exit` 落
+        `_repair-run-REPAIR-20261004-1424-PRE/`），实测**非绿 4 道**：本段（②③）、`l0_gate`（真差异 2）、
+        `projection_reconcile`（R1/R2/R4）、`routes_reconcile`（**退出码 2 ＝ 缺输入**，不是"65 条全不一致"）。
+        ★★ **本轮两条新增证据**：
+        (1) **② 的判据在源码层复核**（`kb/l8/workflow_check.py:110-116`）：判据把活库
+        「前 1018 行 / 前 1527 行」**各自补回车拼成前缀再取 sha**；活库今天 1018 行
+        ⇒ 两条前缀哈希**都等于整文件哈希**（本轮独立复算，整文件 sha `743dc62398311b02…`），
+        而 `kb/.work/l6_integrity.json` 的基线取自 **2036 行时代**、
+        `kb/l4/runs/20260923-1445.json` 的基线取自 **1527 行时代** ⇒ **结构上不可能相等**。
+        这条把「判据过期」从读数推断提升为**源码级证据**（前 11 轮引的是读数，不是判据构造本身）。
+        (2) **"喂历史赢家表就能让 ③ 转绿"这条捷径本轮实测被堵死**（对应 `routes_reconcile` 那一道）：
+        拿当天真跑出来的 `_eval-kb-manage/results_alias/routes-winners_20261004-0327-SUB.txt`（115 行）去喂
+        ⇒ strict 口径 **0/65**（用例期望英文登记 id、表里记的是中文装载名）、加 `--alias` 后 **60/65、退出 1**
+        （5 条 `brand-ai-provenance-rights-review` 被 图片安全审查／视频安全审查 抢走；
+        证据 `_chk-run-CHK-20261004-1125-REG-LAY-ROUTES/03b-routes_histwinners_alias.txt`、
+        `03c-routes_histwinners_strict.txt`）⇒ **既不能转绿、也不构成证据**。
+        ⇒ ③ 要转绿只能**真跑一次触发电测**（属 `kb-manage` 的口径），kb-repair **不许自造赢家表**。
+        (3) **库外（＝库内 CI 层）旁证首次登记**：`ci/run-gates.sh` 头部与 `ci/README.md §6`
+        独立声明 `l0` 与 `projection` 两把是「**人做**的动作、CI 修不了」；本轮 `bash ci/run-gates.sh --full`
+        复跑得 **过 12/14 红 `['l0','projection']`**（`--core` ⇒ 过 11/12 红 `['l0']`），与本轮逐闸门读数一致。
+        ⚠ 本轮**未做**的事（与第 4–11 轮相同，逐条都是原因码明文禁止或要求报批的）：未改 ②③ 判据、
+        未给那 3 项补落章、未写任何 run 记录、未改 `kb/l0~l6` 任何数据或台账、未重生成投影视图、
+        未动 `l0-expected-diffs.yaml` 的 `expected`、未抢循环认领、未开 `--apply`。
+        并发披露：跑闸门期间实测有**多个并发会话**在各跑同一批闸门（`ps` 见 `kb_pipeline.py --check`
+        两路、`skills_check.py` 三路、`l6_gate.py`、`l5_gate.py`、`envelope_gate`／`envelope_census` 各一路，
+        `load averages: 12.82 10.10 11.28`）；`kb_loop_claim.py status` = 「无认领」、
+        `kb/.work/.kb.lock` 不存在 ⇒ 本轮**不 claim、不抢、不写 run 记录**（只读闸门互不抢文件）。
+        本轮改 `kb/l7/registry/*.yaml` 后**按 kb-repair 纪律复跑**：`skills_check.py` ⇒ 退出 0、五类全 0；
+        `tools/envelope_gate.py` ⇒ 退出 0、信封态 0。
+    - run: "REPAIR-20261004-145212-WF → REPAIR-20261004-150800-WF-POST3"   # ← 第 13 轮（2026-10-04）
+      at: "2026-10-04 14:57:29（PRE）→ 15:08:01（POST3）"
+      verdict: "FAIL → FAIL（②③ 未变；**⑥ 由 FAIL 修成 PASS**）"
+      failed_legs_pre: ["② 权威库 l0~l6 未被改动", "③ 前序产物哈希（45 项）", "⑥ 文档可见性（agent 能否读到）"]
+      failed_legs_post: ["② 权威库 l0~l6 未被改动", "③ 前序产物哈希（45 项）"]
+      legs_changed: {"⑥ 文档可见性（agent 能否读到）": "FAIL → PASS"}
+      legs_detail_identical_except: ["① 环境与版本纪律", "⑥ 文档可见性（agent 能否读到）", "⑧ 工作台与服务"]
+      note: >
+        ★ ⑥ 是本轮**唯一被真修绿**的判据：信封态（消费方运行时比 python 多读 4096 字节）
+        用 `kb/.work/write_via_node.mjs` 内容保真重写为明文，python 侧 sha256 修前 == 修后。
+        ②③ 的 `detail` 在 PRE/POST/POST2/POST3 四次跑之间**逐字段相同** ⇒ 登记不改变任何闸门语义。
+        ⑧ 的 `workbench_4317:"000"` 是**环境噪声**（独立端口监控 58 采样 4 次 000），POST3 复跑即 PASS，
+        与 ⑥ 的修复无关。① 的差异是时间自然变量（`/env/*` mtime）。
+        全库闸门面改前/改后**逐把相同**：`l0`=1、`l1`–`l7`=0、`skills_check`=0、`layers_check`=0、
+        `skill_conformance`=0、`freshness`=0、`envelope_gate`=0、`envelope_census`=0、`projection`=1、
+        `routes_reconcile`=2、`kb_pipeline.py --check`=1。
+      source: >
+        kb/l8/workflow_check_REPAIR-20261004-145212-WF.json ／ …-145212-WF-POST.json ／
+        …-151500-WF-POST2.json ／ …-150800-WF-POST3.json
+      evidence_dir: "_repair-run-REPAIR-20261004-150053-ENV/（各闸门 .out ＋ .exit，均无扩展名）"
+      rollback: "kb/l7/_backups/kb-repair-envelope-R13-20261004-150043/（4 个 .before 明文副本）"
+  legs_still_pass: ["① 环境与版本纪律", "④ 分层库 → 生成器 → 视图", "⑤ 装载位 → 加载器（读工具+体检）",
+                    "⑥ 文档可见性（agent 能否读到）", "⑦ 消费侧 skill 可用", "⑧ 工作台与服务",
+                    "⑨ 写入侧（ingest 闸门 + 落盘通道）"]
+  leg2_detail:
+    layers:                         # l0/l1/l2 三棵树**与 L5 基线相符** —— 漂移只在 L3
+      l0: {match_L5_baseline: true, files: 4007, tree_sha256_16: "bd36cbb89dedb48f"}
+      l1: {match_L5_baseline: true, files: 3152, tree_sha256_16: "099ad8afdc1a0be2"}
+      l2: {match_L5_baseline: true, files: 887, tree_sha256_16: "183f6265c0666688"}
+    l3_lines: 1018
+    l3_base1018_matches_L6: false
+    l3_whole1527_matches_L4: false
+  leg3_detail:
+    checked: 45
+    mismatch_count: 20
+    mismatched: ["kb/l3/candidates/rules.jsonl", "kb/l4/registry/l4.json", "kb/l5/registry/l5.json",
+                 "kb/l5/benchmark.json", "kb/l6/runs/build_runs.jsonl", "kb/l6/bm25/docs.jsonl",
+                 "kb/l6/bm25/meta.json", "kb/l6/bm25/postings_zh.jsonl", "kb/l6/bm25/postings_en.jsonl",
+                 "kb/l6/vectors/vectors.jsonl", "kb/l6/vectors/matrix.npy", "kb/l6/vectors/meta.json",
+                 "kb/l6/index/l6.jsonl", "kb/l6/registry/l6.json", "kb/l6/retriever.py",
+                 "kb/l6/selftest.json", "kb/l6/benchmark.json",
+                 "kb/l7/skills/kb-content-review/SKILL.md", "kb/l7/registry/l7.json",
+                 "kb/l7/skills/kb-content-review/scripts/review.py"]
+
+stale_criteria:
+  # ── 第 ② 段 ────────────────────────────────────────────────────────────
+  - item: "② l3_base1018_matches_L6 / l3_whole1527_matches_L4"
+    recorded_verdict: FAIL
+    what_it_checks: >
+      workflow_check.py:112-125 —— 把**活库** kb/l3/candidates/rules.jsonl 的「前 1018 行」哈希
+      与 kb/.work/l6_integrity.json 记的 `l3_candidates.sha256` 比，
+      再把「前 1527 行」哈希与 kb/l4/runs/20260923-1445.json 记的 rules.jsonl sha 比。
+    why_stale: >
+      ① 两条判据的**基线都取自「整文件」哈希，却拿「前缀」去比**：只有当活库文件**正好是那个行数、
+      且内容一字节未动**时才会相等。活库 L3 今天 1018 行，而 L4 那条基线是 **1527 行时代**的整文件哈希
+      ⇒ 「前 1527 行」= 整个文件，比出来的必然是 false，**结构上不可能变真**（除非把 L3 回滚到 09-23，
+      那就毁掉 2026-10-02 那轮蒸馏 —— 禁止）。
+      ② L6 那条基线取自 kb/.work/l6_integrity.json（checked_at 2026-10-02 00:10:57），
+      它当时记的是 **2036 行**的整文件哈希（sha 7d00454e…，lines=2036）；活库今天 1018 行
+      ⇒ 同样是「前缀比整文件」，同样是结构上不可能相等。
+      ③ 关键：**L3 的每一次演进都有出处**（见 evidence）——这是"变了"，不是"坏了"。
+    evidence: >
+      · 活库 L3：kb/l3/candidates/rules.jsonl 1018 行 / sha256 743dc62398311b02… / mtime 2026-10-02 22:45:07；
+        该 sha **同时写在它自己的注册表** kb/l3/registry/l3.json 的 `appended_fields.old_lines_untouched.sha256`
+        （= 743dc62398311b02…，与活库逐字节一致）。
+      · L3 行数变迁（每一步都能对上出版物）：1527（09-23，kb/l3/history/rules-pre-converge-20260924-1230.jsonl
+        实测 1527 行）→ 509（09-24 收敛，见 l3-known-drift.yaml 的 l3_append_only 条）→
+        2036（10-02 00:07，见 l6_integrity.json 自报 lines=2036）→ 1018（现行）。
+      · 现行 1018 条**自身闸门过**：kb/l3/runs/PIPE-20261003-2354-L3-dryrun.json 报 rules=1018、
+        5 项 checks 全「通过」、citations.bad=0、accounting.unaccounted=0；l3_gate.py 在本轮 pipeline 里 exit 0。
+      · 与 ② 同源的判定在先前的体检表里已经下过：体检表-20261003-2347-六道闸门.md §2「合法变红：漂移只在 L3」；
+        整链同步-PIPE-20261003-2354-L0-L7-链路结论.md §②「登记在案的冻结基线…不等于坏了」。
+    owner_action: >
+      **改判据要单独走一轮（本文件不动判据）**。建议的下一轮改法（保留全部原始读数）：
+      把两条改成「**与当前基线比 + 来源可溯才降级**」——即：活库 L3 的 sha 若能在**更新的** run 记录/注册表里
+      找到出处，则记为「已溯源的演进」（照打读数，不定红）；找不到出处的改动仍判红。
+      这样它证明的才是它本来想证的那件事：「**没人偷改权威库**」。
+      另一条路（等价但更弱）：给 workflow_check 加 `--accept-frozen-baseline <RUN>`，把基线显式前移。
+      两条路都**不许**顺手改 kb/.work/l6_integrity.json 或 kb/l4/runs/20260923-1445.json 里的历史哈希（见 forbidden）。
+    forbidden: >
+      不许改写历史 run 记录（kb/l4/runs/20260923-1445.json 等）里的 artifact sha 来"对齐"活库 —— 那是伪造台账；
+      不许把 L3 回滚到 1527 行时代的状态来让判据成立 —— 那是毁掉 2026-10-02 的蒸馏成果。
+    reopen_when: "按 owner_action 改判据并复跑得 exit 0；或本段被新判据取代后从本文件删除。"
+
+  # ── 第 ③ 段 ────────────────────────────────────────────────────────────
+  - item: "③ 前序产物哈希（45 项，20 项 mismatch）"
+    recorded_verdict: FAIL
+    what_it_checks: >
+      workflow_check.py:128-137 —— 把 2026-09-23 四份 run 记录
+      （kb/l4/runs/20260923-1445.json、kb/l5/runs/20260923-1430.json、kb/l6/runs/20260923-1440.json、
+      kb/l7/runs/20260923-1500.json）里列出的 45 个产物，逐个要求**今天仍与记录里的 sha 相同**。
+    why_stale: >
+      这 4 份记录是 **2026-09-23 那一刻**的历史事实。09-23 之后 L3→L7 每一层都被合法重建过
+      （09-24 收敛、09-30 发号补齐、10-01 批次5 真写、10-02 L3 重蒸、10-03 防线1 落地），
+      产物哈希**必然**变。判据把"历史记录"当成了"当前基线"⇒ 活库上恒红，且**每一次合法重建都会再加一项**。
+      正确形式是「**当前**产物与**最新**一次 run 记录的申报一致」，而不是「与 09-23 的一致」。
+      · 2026-10-04 01:5x 第 3 轮**再次独立复算**（同一方法、同样不采信脚本自述）：扫 kb/l*/runs 共 **1469** 份
+        run 记录，20 项 mismatch 里 **17 项**查到「比 09-23 更新的 run 记录记过现 sha」、**3 项**查不到
+        （仍是 l7.json / kb-content-review/SKILL.md / review.py 这 3 个），与第 2 轮结论**逐项一致**。
+        注意：其中 l4.json / l6.json 两项的"更新来源"是本轮**并发会话**的 dryrun 记录
+        （`REVIEW-20261004-0140-静音续航-LISTING-L4-dryrun.json`）—— 活库在被别的会话推着长，
+        这正是本条判据恒红的机制。
+    evidence: >
+      2026-10-04 独立复算（不采信脚本自述）：扫 kb/l*/runs/*.json 共 1360 份 run 记录，
+      对 20 项 mismatch 逐项查「活库现 sha 是否被**更新的** run 记录记过」——
+      · **17 项有来源**（活库现 sha 出现在 09-23 之后的 run 记录里），例：
+        kb/l6/bm25/docs.jsonl、kb/l6/vectors/matrix.npy、kb/l6/retriever.py、kb/l6/selftest.json、
+        kb/l6/index/l6.jsonl、kb/l5/benchmark.json、kb/l5/registry/l5.json、kb/l4/registry/l4.json、
+        kb/l3/candidates/rules.jsonl —— 现 sha 分别被 PIPE-20261003-2354-L6（10-04 00:18）、
+        REVIEW-20261003-LISTING-L4（10-03 23:47）、RV-20261003-1057-L5（10-03 11:01）等记录在案。
+      · **3 项在 run 记录里查不到现 sha**（哈希级无落章，但改动本身有文档出处）：
+        (a) kb/l7/skills/kb-content-review/scripts/review.py —— 2026-10-03「防线1 入口唯一化」
+            （登记：kb/l7/registry/report-output-contract.yaml 的 applied_20261003；
+            同批 workflow_check 第 ⑦ 段判据也随之改过，见 kb/l7/_backups/kb-repair-20261003-225435/）；
+        (b) kb/l7/skills/kb-content-review/SKILL.md —— 同批「层前置」正文改动
+            （登记：report-output-contract.yaml:381-383 引到该文件 §层前置）；
+        (c) kb/l7/registry/l7.json —— 见下 real_findings，**这是红里唯一带流程缺陷的一项**
+            （第 4 轮实测其内容改动正确、只差落章，故已从"内容可疑"收窄为"流程缺落章"）。
+      ★ **第 4 次复算（2026-10-04 03:0x，run `CHK-20261004-REPAIR-BEFORE`）—— 逐项来源审计，判据不变**：
+        扫 kb/l{3,4,5,6,7}/runs/*.json 的全部 `artifacts[]`（只读原始记录，不采信脚本自述），
+        对 20 项 mismatch 逐项问「活库现 sha 是否被某条 run 记录记过」，结果：
+        · **17/20 有 run 记录来源**，且每项都不止一条（例：kb/l3/candidates/rules.jsonl 有 35 条记录记过现 sha、
+          kb/l6/bm25/docs.jsonl 41 条、kb/l5/registry/l5.json 43 条）；最新的一条基本都停在
+          `RVW-LISTING-20261004-L{4,5,6}` —— **本轮并发会话**的跑批。这正是"判据恒红"的机制本身：
+          **活库每被合法推进一步，这条判据就多红一项**。
+        · **3/20 在 run 记录里查不到**：l7.json / kb-content-review/SKILL.md / kb-content-review/scripts/review.py。
+          三者的改动各有出处（l7.json 见 real_findings 的 `measured_diff` / `provenance`；
+          另两个是 2026-10-03「防线1 入口唯一化」同批，登记在 report-output-contract.yaml 的 applied_20261003）。
+        ⇒ 第 4 轮结论：**③ 的 20 项里没有一项是"无人认领的黑改"**；红是判据把"变过"等同于"偷改"造成的。
+          要它转绿**只能**改成下方 owner_action 那条「最新 run 记录 + 来源审计」的形式。
+    real_findings:
+      - id: l7_registry_inplace_write_without_run_record
+        severity: 中（不是数据坏了，是流程缺落章）
+        finding: >
+          kb/l7/registry/l7.json mtime = 2026-10-02 12:02:35，但它自己声明的 `run_id` 仍是
+          **20260923-1500**，且**没有任何 run 记录**记过它现行的 sha（b36c86f74d86a0a7…）；
+          `article_no_source.read_at` 停在 2026-09-30 17:45:27。
+          ⇒ 这是一次**原地改写未落章**：正是第 ③ 段本来该抓到的那类事（判据在这里**不是**假红）。
+        measured_diff: >
+          ★ 2026-10-04 第 4 轮实测（本轮新增，把"可疑"降到"已定性"）：与 pre-edit 备份
+          `kb/l7/_backups/batch18b-20261002-1201/l7.json.pre-edit`（sha 766ac16b2e3ed104…）逐字段比对，
+          差异**只有一个字段、一处措辞**：
+          `article_no_source.field_lives_in` 的「canonical/*.jsonl（定稿，**四个**形态文件）」
+          → 「（定稿，**五个**形态文件）」。
+          即：这是一次**内容上正确的声明点更正**，不是内容损坏、也不是可疑改写。
+        provenance: >
+          改动**不是完全无出处**，只是没落在 run 台账里（两件事要分开说）：
+          · 有 pre-edit 备份 + `_NOTE.txt`：`kb/l7/_backups/batch18b-20261002-1201/` 的 NOTE 记着
+            `2026-10-02 12:02:35  批次18 第1块 余下活声明点` —— 与 mtime 12:02:35 **同一秒**；
+          · 现 sha `b36c86f74d86a0a7…` 被**后续两次备份清单**独立记过（作 pre-state 与 after-state 各两次）：
+            `kb/l7/_backups/conclusion-destination-20261002-225030/kb_l7_registry.{pre,after}-state.sha256`、
+            `kb/l7/_backups/report-output-contract-20261002-230616/kb_l7_registry.{pre,after}-state.sha256`；
+          · 缺的只有 **run 记录**（kb/l7/runs/*.json 的 `artifacts[]` 里查不到现 sha）。
+          ⇒ 定性收窄为：**合法改动 + 流程缺落章**（不是"没人认领的黑改"）。
+        impact: >
+          ★ **2026-10-04 第 8 轮更正（原句有误，已撤回）**：原写「`total_rules` 自报 632，而 L3 现为 1018」
+          —— 这是**单位不可比**的误报：632 是**规则类形态条数**的跨文件计数
+          （`wording_entry 56 + wording_revision_pair 453 + external_standard_clause 123 = 632`），
+          1018 是 `rules.jsonl` 的**行数**（509 条 × 2 行）。第 8 轮实测现库**仍正好 632** ⇒
+          **`total_rules` 没有过期，不在落后清单里**。
+          该块真正落后于现库的是**计数与快照字段**，以干跑
+          `kb/.work/l7_article_source_refresh.py <RUN>`（不加 `--apply`）的差异清单为准，第 8 轮实测为 6 个字段：
+          `total_outputs_note`（canonical 落盘 1242 → **1365**）、`candidate_rows`（1997 → **2730**）、
+          `field_lives_in`（措辞进一步精确化）、`read_at`、`read_at_previous`、`candidate_rows_note`、`refreshed_by`；
+          与 整链同步-PIPE-20261003-2354-L0-L7-链路结论.md §③-2 的独立复算一致，本轮**预演未写**。
+        owner_action: >
+          开闸后跑一次 `kb/.work/l7_article_source_refresh.py <RUN> --apply`，**并补一条 L7 run 记录**
+          （该脚本在 layers.yaml 里声明为 L7 引擎，写的是本层已声明的 outputs 之一）。
+          流程侧建议：L7 registry 的原地改写必须落章（run_id 同步更新），否则下一次体检还会在这里红。
+        status: "OPEN（要人开闸；kb-repair 无权开 --apply）"
+    owner_action: >
+      **改判据要单独走一轮**。建议下一轮把 ③ 从「4 份固定历史记录」改成
+      「**最新** run 记录 + 来源审计」：逐产物比"最新一次申报的 sha"，并对查不到出处的改动判红
+      （即：把本条 real_findings 里那类"未落章改写"继续判红，其余降级为「已溯源的演进」）。
+      在那之前，本条按"已登记"分类，**不判数据缺陷**。
+    forbidden: >
+      不许为了让 ③ 变绿去改写那 4 份 09-23 run 记录里的 sha（伪造台账）；
+      不许把 20 项 mismatch 一律读成"假红"—— 其中 l7.json 那一项是真发现（见 real_findings）。
+    reopen_when: "按 owner_action 改判据并复跑得 exit 0；或本段被新判据取代后从本文件删除。"
+
+# ── 变更协议 5 问（kb-repair 铁律①；本文件是一次**登记**，不是改判据）──────────
+questions:
+  reader: "跑 kb-check 体检档的人 / 看 workflow_check 报告的人 / 准备把 ②③ 修绿的人 / 写日报的人"
+  writer: "kb-repair 会话（本次）；后续由维护 kb/l7/registry 的人按 owner_action 更新"
+  criterion: "本文件**不改变任何闸门判定**（今天没有任何脚本读它）；它只把 ②③ 的失败定性为判据过期并留证"
+  channel: "write 工具写 .yaml（.yaml/.json 不走 4096 字节信封；写后仍按两读者核对）"
+  rollback: "`rm kb/l7/registry/workflow-check-known-drift.yaml` 即回到登记前状态；layers.yaml / failure-playbook.yaml 的回滚基线见 kb/l7/_backups/kb-repair-workflow-②③-20261004-002649/"
+
+# ── 复算命令（证据可复现，只读）────────────────────────────────────────────
+reproduce: >
+  cd "<库根>" &&
+  sh kb/kbpy l8/workflow_check.py <RUN>                       # 看 ②③ 原始读数（仍是 FAIL）
+  python3 -c "import hashlib;p='kb/l3/candidates/rules.jsonl';print(hashlib.sha256(open(p,'rb').read()).hexdigest())"
+  # 20 项 mismatch 的来源审计：扫 kb/l*/runs/*.json，查"活库现 sha 是否被更新的 run 记录记过"
+
+# ── ★ 未决事项（2026-10-04 第 4 轮 kb-repair 留下，**等一次人的点头**）──────────────
+# 为什么写在这里：同一条红已连续 4 轮。kb-repair 的纪律是「同一条闸门修了两次还红 ⇒ 停，
+# 报『判据可能有缺陷』」——本轮执行的正是这一条。**在没有拿到明确授权之前，不许动判据。**
+pending_decision:
+  raised_at: "2026-10-04 03:1x（run CHK-20261004-REPAIR-BEFORE，第 4 轮）"
+  still_unanswered_at: >
+    2026-10-04 15:1x（**第 13 轮**，run `REPAIR-20261004-150800-WF-POST3`）。★ 本轮**真修绿了一段（⑥ 文档可见性）**，
+    但请裁的三件**一件没变、仍无人回答**：**(A)＋(C)** 改 ②③ 判据并补落章 ｜ **⑥ 投影**补 L3 治理字段（报批）
+    ｜ **L0** 飞书侧授权或人重走 `auth login`。本轮 L0 的根因**自己复测过**（不引用他单）：
+    `lark-cli auth status` 在 `dsh-kb` 与默认 profile 上**都**报 `user: status missing`
+    （`no token in keychain`），同时两张表 bot 侧 `code 91403`（整库级 permission_denied）
+    ⇒ **bot 与回落身份同时不可用**，两条修法**都要人**（加协作者 / Device Flow 授权）。
+    ⇒ 本轮结论：**"几道闸门报红"里能由 agent 转绿的只有 ⑥**（信封态，已转绿）；
+    其余 4 道（`l0` / `projection` / `routes` / workflow 的 ②③）各自卡在**人**或**报批**上，见上。
+    ⚠ 第 13 轮仍是**被委派的子 agent**：按宿主约定，未决决定随最终结果带回委派方，不在会话内追问人。
+    2026-10-04 14:44（**第 12 轮**，run `REPAIR-20261004-1428-WF`）。★ 本轮**第一次拿到库外旁证**，
+    且**第一次实测堵死了「喂历史赢家表」这条捷径**（详见 `last_reverified` 与 `repro_runs` 第 12 条）：
+      · **旁证**：本库自己的 CI 层独立声明 `l0` 与 `projection` 是「**人做**的动作、CI 修不了」
+        （`ci/run-gates.sh` 头部；`ci/README.md §6`）；`bash ci/run-gates.sh --full` 复跑 ⇒
+        过 12/14 红 `['l0','projection']`。⇒ 前 11 轮这条结论只有 kb-repair 自己说过，**本轮被库内第三方文档独立确认**。
+      · **捷径被堵**：`routes_reconcile` 的退出码 2（缺输入）**不能**用历史赢家表糊过去 ——
+        实测 strict 0/65、`--alias` 60/65 退出 1 ⇒ 既不能转绿，也不是可用证据。
+    ⇒ **请裁的仍是同一件事、同一句话没变（第 12 轮，仍无人回答）**：**(A)＋(C)** ——
+      改 `kb/l8/workflow_check.py` 的 ②③ 判据（草案见 `option_A_impl_sketch`，含反向测试）
+      **并同时**为 3 项未落章产物补落章；另有 **⑥ 投影**（补 L3 治理字段，报批）与
+      **L0**（飞书侧加 bot 协作者，或人重走 `lark-cli auth login`）两件同样要人的决定。
+      ★ **本文件已积累 12 轮逐字相同的复现与 3 个反复重述的未决决定** —— 这个"条数"本身是信号：
+        卡点不是"agent 不够努力"，而是**三项授权决定没有被回答**。请裁其中任意一项，或明确"接受长期红"。
+    ⚠ 第 12 轮仍是**被委派的子 agent**：`ask_user_question` **本轮再次实测被宿主拒**
+    （原文 `human interaction is unavailable while the calling agent is owned by another live agent;
+    include the unresolved question or decision in the child agent's final result`）
+    ⇒ 三项决定**原样带回委派方**（这是宿主指定的交付路径，不是我漏问）。
+    2026-10-04 14:07（**第 11 轮**，run `REPAIR-20261004-1407-WF`）。★ 本轮的**新证据把问法改了** ——
+    此前 10 轮问的是「**要不要批 (A)**」，本轮实测出 **(A) 单独不够**：
+    在 (A) 的新判据下 ② 转绿、③ 仍红 3 项（那 3 个「未落章」的路径，其最新申报停在 09-23）。
+    ⇒ 请裁的由 1 件事变成 **1 个组合**：
+      **(A)＋(C)** = 改 `kb/l8/workflow_check.py` 的 ②③ 判据（草案见 `option_A_impl_sketch`，含反向测试）
+      **并同时**为那 3 项补落章 ⇒ 这是**唯一**能让 `workflow_check` 转绿的路；
+      (A) 单独 ⇒ ②绿/③红3；(C) 单独 ⇒ 17+2 仍红（= 仍 FAIL）；(B) ⇒ 接受长期红。
+    ⚠ 与第 10 轮相同：本会话仍是**被委派的子 agent**（`ask_user_question` 前几轮实测被宿主拒）
+    ⇒ 决定**原样带回委派方**，本轮**未动判据、未补落章、未改 kb/l0~l6、未写任何 run 记录、未抢认领**。
+    2026-10-04 13:5x（**第 10 轮**，run `REPAIR-20261004-1358-WF`）。★ 本轮的**用户指令变了** ——
+    从「workflow_check 没过，帮我把失败项按原因码修掉，修完复跑」变成
+    「**闸门红了，帮我把它修好，改完再跑一遍同样的闸门证明修好了**」，而且**未点名是哪一道闸门**。
+    本轮据此把全库闸门面**自己量了一遍**，发现**本单的卡点不止 ②③**：同一窗口内非绿还有
+    ③（缺输入，归 kb-manage 触发电测）、⑥ 投影（真坏 R1/R2/R4，修法要报批补 L3 治理字段）、
+    L0（真差异 2，要飞书侧的人）。但**结论不变**：让 ④ 转绿仍然**只有 (A)**（改判据，报批）；
+    (C) 仍不会转绿；**(B) 仍等于接受长期红**。
+    ★ 本轮**新增一条可执行的要人动作**（第 10 轮首次量到根因）：L0 的红**不是**库坏了 ——
+    `~/.dsh/bin/lark-cli auth status --profile dsh-kb` 实测 bot `ready` / user **`missing`（keychain 无 token）**
+    ⇒ 「bot 拿不到就回落 user」那条路断。要人做：**飞书侧**把「守衡」bot 加成该 Base 的可阅读协作者（根治），
+    或由人重走 `lark-cli auth login --profile dsh-kb --domain base --domain wiki`（Device Flow）。
+    ⚠ ⑥ 投影的红**不属于本文件的范围**（`gate_red.projection_reconcile` ＋
+    `finding.l3_governance_backfill_lost` 已在 `failure-playbook.yaml` 登记），
+    本轮只在修复记录里点名：**它会挡住「闸门全绿」这句话**，别再只盯 ②③。
+    ⚠ 本轮仍是**被委派的子 agent**：`ask_user_question` 依前 3 轮实测**被宿主拒**
+    （原文「human interaction is unavailable while the calling agent is owned by another live agent」）
+    ⇒ **决定原样带回委派方**；本轮**未动判据、未改 kb/l0~l6 数据、未写任何 run 记录、未抢认领**。
+    2026-10-04 13:1x（**第 9 轮**，run `REPAIR-20261004-1307-R9` / `…-R9-AFTER`，仍是同一句用户指令）。
+    ★ 第 9 轮**带回一件实质交付 + 一条新机制**，不是纯重复：
+    (1) **实质交付**：修掉了本轮首跑多出来的那个 **⑥**（信封态，见 repro_runs 第 9 条），复跑证明转绿 ⇒
+        **未过的只剩 ②③**，其余 7 段全 PASS。
+    (2) **新机制（⑥ 反复红的根因，供后人别再当"库坏了"查）**：该信封由**另一个活会话的评测台**
+        写出来（`smoke_fp.py --round 93`、`--profile eval-l0fix`，cwd 在
+        `_eval-L0L7-gap-20261003/kb-l0-feishu-fix/evals/_harness`），文件 mtime 13:10:28 **晚于**我 13:07:54 的首跑
+        ⇒ ⑥ 的红绿挂在**那个写者的写通道**上（python 通道写 .md ⇒ 红；cp/node 通道 ⇒ 绿）。
+        这一条也解释了第 5 轮那 3 个信封态为何"修完又会回来"。
+    (3) 决定**仍是同一个**，**未变**：能让闸门变绿的**只有 (A)**；(C) 只补落章、闸门仍红；(B) 接受长期红。
+        第 9 轮 `ask_user_question` 的状态见本轮修复记录（`workflow_check-修复记录-20261004-1313-R9.md`）；
+        本轮按原因码 `gate_red.workflow_check` 的 `reopen_when` 走了**合规的默认动作＝只登记 + 修实质红 ⑥**，
+        **未动判据、未改 kb/l0~l6 数据、未写任何 run 记录、未抢循环认领**。
+    2026-10-04 12:31（run `CHK-20261004-1226-WFREP`，**第 8 轮**，仍是同一句用户指令）。第 8 轮**仍未带回授权**，
+    但带回**两条新证据 + 一处更正**，不是纯粹重复：
+    (1) **新证据（排除"偷删"）**：③ 的 20 项 mismatch 逐项做 `os.path.exists` 实测 ⇒ **20/20 全部存在、无一缺失**
+        ⇒ 判据只报「sha 不符」，本轮把「改了」与「没了」分开验，结果全是「改了」；连"产物被删"这一层也排除了。
+    (2) **新证据（闸门当前只剩两条子判据是判据问题）**：另 7 段全 PASS，且加宽信封口径实测
+        「扫 2966 个文件、信封态 0」⇒ 第 7 轮之前那批实质红（⑥ 信封态）**已修且未复发**。
+    (3) **更正本文件一处误报**：`real_findings[0].impact` 原把 `total_rules=632` 报成"落后于 L3 现为 1018"
+        —— 632 与 1018 **单位不可比**（前者是规则类形态条数跨文件计数，后者是 `rules.jsonl` 行数），
+        实测现库 `total_rules` **仍正好 632**、**不在** refresh 干跑的差异清单里 ⇒ 该句已撤回并按干跑清单改写。
+    ★ 决定仍是**同一个**（见 `question` 的 (A)/(B)/(C)），**未变**：
+    能让闸门变绿的**只有 (A)**；(C) 只补落章、闸门仍红；(B) 接受长期红。
+    第 8 轮 `ask_user_question` **仍被宿主拒**（原文「human interaction is unavailable while the calling agent
+    is owned by another live agent」）⇒ **第 8 轮仍问不到人**，决定原样带回委派方；
+    本轮按原因码 `gate_red.workflow_check` 的 `reopen_when` 走了**合规的默认动作＝只登记**，
+    **未动判据、未改数据、未写任何 run 记录、未抢循环认领**。
+    2026-10-04 11:38（run `REPAIR-20261004-R7`，**第 7 轮**，仍是同一句用户指令）。第 7 轮**没有带回新证据** ——
+    ②③ 的读数与第 6 轮逐字节相同，两项复算重做后结论不变 ⇒ 本单已进入「同一句话、同一结论」的循环，
+    卡点**只剩一个**：**要不要批 (A)**。★ 本轮补了一条**可执行的实现草案**（见 `option_A_impl_sketch`）：
+    批了就能直接落地，不必再问第二次。第 7 轮 `ask_user_question` **仍被宿主拒**（原文同上：
+    "human interaction is unavailable while the calling agent is owned by another live agent"）
+    ⇒ 决定原样带回委派方。另：本轮实测单槽被**活会话**占着
+    （见 `raw_readings.repro_runs` 的 `REPAIR-20261004-R7` 并发披露）
+    ⇒ 即便拿到 (A)/(C) 的授权，**也要等这个会话收工**才能补落章（或由人拍 `--take-over`）。
+    2026-10-04 10:15（run `REPAIR-20261004-R6`，**第 6 轮**，仍是同一句用户指令「workflow_check 没过，
+    帮我把失败项按原因码修掉，修完复跑」）。★ 第 6 轮新增的**决定性判据**：`kb_loop_claim.py status`
+    报的「陈旧」**是假象** —— 认领文件记 pid 49228（已不在），但**同一 BASE 的活进程仍在写库**
+    （实测 pid 57201 在跑 `kb_pipeline.py --sync --via-skill --only L6 --gate-only`，10:07–10:13 连续落
+    L4/L5/L6 的 run 记录）⇒ **「陈旧认领」≠「槽是空的」**，走 (A)/(C) 之前必须**先确认活进程真的停了**，
+    否则就是并发双写。第 6 轮已实测 `ask_user_question` 仍被宿主拒（原文「human interaction is unavailable
+    while the calling agent is owned by another live agent」）⇒ 仍**问不到人**，决定原样带回委派方。
+    2026-10-04 09:33（run `REPAIR-20261004-R5`，第 5 轮）。第 5 轮把**卡点收窄到一个问题**：
+    本轮实测「实质红只剩 ⑥、且 ⑥ 已被并发会话修掉」，②③ 是本单**唯一**未决项；
+    同时**单槽已空**（`kb_loop_claim.py status` 报「陈旧（可 --take-over）」，pid 45984 已不在）
+    ⇒ 若走 (A)/(C)，**补落章不再需要 `--take-over` 抢锁**，剩下的唯一阻塞就是**要不要批**。
+    ⚠ 本会话是**被委派的子 agent**，`ask_user_question` 被宿主拒绝
+    （"human interaction is unavailable while the calling agent is owned by another live agent"）
+    ⇒ 本轮**问不到人**，已把该决定原样带回给委派方。**未授权 ⇒ 未动判据、未写 run 记录。**
+  question: >
+    ②③ 要**永久转绿**只有一条路：按 owner_action 改 kb/l8/workflow_check.py 的判据
+    （改成「最新 run 记录 + 来源审计」，查不到出处的改动仍判红）。
+    failure-playbook.yaml → gate_red.workflow_check 的 `forbidden` 明写这条要**单独走一轮并报批**，
+    故本轮**只登记、不动手**。请裁：
+    (A) 授权改判据（并同时为那 3 项补落章，否则按新判据它们仍然红）；
+    (B) 维持现状（②③ 长期红，体检恒 FAIL）；
+    (C) 只补 3 项落章、判据下一轮再谈。
+    ★ 第 6 轮把 (C) 的**效果**算清楚了，别再把它当"半个修法"读：
+    (C) **不会让闸门转绿**。补齐那 3 项落章后，③ 段仍有 **17 项** mismatch（判据比的是 09-23 的四份固定
+    历史记录），② 段两条 L3 子判据仍是假 ⇒ 复跑**照样 FAIL**。故 (C) = **数据卫生**（消掉"未落章"这个
+    流程缺陷），**不是**本次「修完复跑」能收口的那条路。
+    ⇒ **能让闸门变绿的只有 (A)**；(B) 是接受长期红；(C) 是先把唯一那处真流程缺陷补掉但闸门仍红。
+  option_A_impl_sketch:            # ← 第 7 轮新增：把 (A) 写成可直接落地的草案（**未应用**，等批）
+    status: "草案，**未**写入 kb/l8/workflow_check.py；批了照此跑一轮（含反向测试）"
+    leg2_new: >
+      `②`：把「前缀哈希 == 历史**整文件**哈希」换成**分层溯源** ——
+      l0/l1/l2 仍比 L5 基线（这三棵树今天实测相符，判据有效，**不动**）；
+      l3 改成：活库 sha 若能在**不早于** `kb/l3/registry/l3.json` 声明的最近一次演进的 run 记录里查到出处，
+      记「**已溯源的演进**」（**照打读数，不定红**），查不到出处才判红。
+    leg3_new: >
+      `③`：把基线从「2026-09-23 那四份固定 run 记录」换成「**最新**一次申报该产物 sha 的 run 记录」，
+      逐产物比最新申报值；**查不到任何 run 记录出处**的改动**仍判红**
+      （即 l7.json 那类「原地改写未落章」照红 —— 绊线不许一起拆掉）。
+    reverse_test: >
+      **必须做，否则等于把绊线拆了**：① 故意原地改一个层产物、**不落章** ⇒ 新判据必须**仍判红**；
+      ② 跑一次正常链路（产物 + 落章）⇒ 新判据必须**绿**。①不过就不许合入。
+    cost: "改 kb/l8/workflow_check.py 的 ②③ 两段（约 15 行）+ 一个反向测试；**不动任何 kb/l0~l6 数据**。"
+    channels: "edit 工具改 `.py`（禁 python 直写，防 4096 信封）；回滚 = cp `kb/l7/_backups/kb-repair-workflow-R7-20261004-1138/workflow_check.py.before` 回来"
+  blocker_if_A: >
+    走 (A)/(C) 都要**补落章**，而补落章要写 kb/l7/runs/ 与 index.jsonl —— 属**开闸写档**，
+    且**必须独占循环**（kb_loop_claim）。2026-10-04 03:0x 实测：循环被另一会话占着
+    （claim base `RVW-LISTING-20261004`，其 pid 已死但**认领未过期**，且确有活会话在写 run 记录）。
+    按并发纪律**不抢**：要接手须走 `kb_loop_claim.py claim --base <BASE> --take-over`，由人来拍。
+  five_questions_if_A:
+    reader: "跑 kb-check / 看 workflow_check 报告 / 写日报的人"
+    writer: "改判据那一轮的会话（本轮不是）"
+    criterion: "改的是 kb/l8/workflow_check.py 的 ②③ 两段；改完必须做**反向测试**：故意原地改一个层产物、不落章 ⇒ 新判据必须仍判红"
+    channel: "edit/`cp`（.py 不许用 python 直写，否则 4096 信封）"
+    rollback: "改前把 workflow_check.py 备份到 kb/l7/_backups/<动作>-<时间戳>/；回滚 = cp 回来"
+  do_not: >
+    本轮**没有**改 kb/l8/workflow_check.py、**没有**写任何 run 记录、**没有**碰 kb/l0~l6 数据与台账、
+    **没有**抢循环认领。本轮只做了三件事：登记（本文件）+ 建回滚基线 + 复跑证明无回归。
+    （第 7 轮同此，逐条实测；第 7 轮新增的只有 `option_A_impl_sketch` 这份**草案文本**，它不改变任何判据。）

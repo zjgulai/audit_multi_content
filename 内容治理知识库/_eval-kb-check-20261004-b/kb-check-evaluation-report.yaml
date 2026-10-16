@@ -1,0 +1,201 @@
+eval_info:
+  skill: kb-check
+  skill_path: ~/.dsh/skills/kb-check/SKILL.md
+  evaluated_version: "1.1.0（装载位现状，sha256 fd26fccb0f79…，113 行）"
+  evaluator: root-skills-eval（双轨：轨道 A 静态 + 轨道 B 真实盲测 + 轨道 C 综合）
+  eval_date: 2026-10-04
+  framework: root-skills-eval v3.19.1
+  note: >
+    本轮与既有报告 kb-check-评测报告-20261004.md 的关键差别：**轨道 B 三轮盲测真实执行
+    （6 个被测会话，A=现状 v1.1.0，B=现成 fix v1.2.0，各 3 轮）**，不再推算。
+    既有报告当时无会话分派能力，轨道 B 未执行、Trigger 为推算值。
+
+track_a:
+  total: 78.0
+  dims:
+    schema_compliance: 100
+    frontmatter_quality: 90
+    body_quality: 68
+    methodology_audit: 73
+    quality_gate: 60
+    directory_structure: 40
+  dimensions:
+    schema_compliance:
+      score: 100
+      basis: "validate-skill.py --json → valid=true, score=96, errors=[]；name 与目录一致；complexity/compatibility 声明有效"
+    frontmatter_quality:
+      score: 90
+      basis: "description 5 类负例点名、中英触发词齐、license/version 齐；扣分因首句为功能陈述、info 字段偏多"
+    body_quality:
+      score: 68
+      basis: "命令逐条可执行、判据明确（三种红的区分是亮点）；但无编号工作流章节、无显式 Error Handling / 安全边界章节"
+    methodology_audit:
+      score: 73
+      basis: "私有脚本 + 退出码 + 真实事故记录（2026-10-03 实测）+ 自身判据缺陷登记；歧义未完全消解（L7-C2 声明冲突已登记未裁）"
+    quality_gate:
+      score: 60
+      basis: "交付物明确、三态判据可测；但零 runtime 文件、可打包性弱、无 CI 化路径"
+    directory_structure:
+      score: 40
+      basis: "仅 SKILL.md 一个文件，无 references/ scripts/ examples/ assets/"
+  evidence:
+    validate_skill: "validate-skill.py --json → valid=true, score=96, errors=[]（2 条 warning：缺 README.md / .skill-meta）"
+    doctor: "skill-doctor.py --check → 0 error / 4 warning / 1 info（D001 README、D003 manifest、D006×2 路径引用、D112 缺 evals）"
+    d006_ruling: "D006 两条经核验为**误报**：kb-check 的 `l7/scripts/...` 是相对**库根**（SKILL.md §1 明写 `cd \"<本次库根>\"`），而 doctor 按 skill 目录解析；库根下文件实际存在。"
+    track_a_formula: "总分 = Σ(分项得分 × 权重) ÷ 105 = 8195 ÷ 105 = 78.0（脚本口径，未手算）"
+
+track_b:
+  protocol: "6 个被测会话；每个会话只收到 53 条「用户原话」，未收到类型/标题/预期结果/标签/优先级；回填员读表对照预期"
+  rounds: 3
+  cases_total: 50
+  cases_call: 3
+  distribution:
+    正例: 16
+    负例: 16
+    近似命中: 12
+    边界情况: 6
+  pass_enterprise_gate: true
+  replies_verbatim_available: false
+  replies_note: >
+    本轮被测会话的产物是「逐条判定 + 理由」（id/skill/why），**不是每条每轮的 AI 回复原文全文**，
+    因此 build-testcases-html.py 的原文回复自检无法通过、results.json 无法按官方 schema 生成。
+    按纪律**不编造回复**，宁缺勿造：🧪 测试用例区以判定+理由呈现，逐字原文缺口如实登记。
+  lang_split_positive: {纯中文: 8, 中英混写: 6, 全英文: 2}
+  per_round:
+    - {round: 1, TP: 16, FP: 0, FN: 0, TN: 34, P: 1.000, R: 1.000, F1: 1.000}
+    - {round: 2, TP: 16, FP: 0, FN: 0, TN: 34, P: 1.000, R: 1.000, F1: 1.000}
+    - {round: 3, TP: 16, FP: 0, FN: 0, TN: 34, P: 1.000, R: 1.000, F1: 1.000}
+  average: {P: 1.000, R: 1.000, F1: 1.000}
+  flaky: []
+  security_tag: {cases: 7, fp_total: 0, high_risk: 0}
+  combo_tag: {cases: 12, fp_total: 0, high_risk: 0}
+  call_tag:
+    cases: 3
+    judged: 9
+    passed: 6
+    failed: 3
+    passed_gate: false
+    detail:
+      - {id: 51, title: "斜杠打本名", expected: 应加载, rounds: [加载, 加载, 加载], verdict: 通过}
+      - {id: 52, title: "斜杠打成别的名字", expected: 不应加载, rounds: [未加载, 未加载, 未加载], verdict: 通过}
+      - {id: 53, title: "打本名但没材料", expected: "应加载，然后追问", rounds: [未加载, 未加载, 未加载], verdict: 未通过}
+  pass_call_gate: false
+  integrity:
+    note: "A 版第 3 轮首跑的被测会话自述读取了答案键 a-cases.json 与前轮产物 ⇒ **该轮作废**，已用加固题面（明令禁止读评测文件）重跑，采用干净产物 round3b.json。"
+    contamination_round: "harness/A/round3.json（未采用）"
+    clean_round: "harness/A/round3b.json（采用）"
+
+track_c:
+  total: 77
+  total_uncapped: 77
+  grade: "C（及格，有明显 gaps）"
+  cap_reason: "调用门槛未过（v3.16.5：market_ready=false）。注：分项直加 77，未触发任何分数封顶（Output 17 ≥ 15、无 error 封顶），77 为裸分"
+  output_cap_applied: false
+  market_ready: false
+  dimensions:
+    trigger_accuracy:
+      score: 21
+      basis: "真实盲测 3 轮 F1=1.000（四类主类型 TP16/FP0/FN0/TN34，零 flaky）。扣 4：description 首句仍是功能陈述（doctor P004 同类建议），触发句式在第二句才出现，仍有信息位置风险"
+    output_quality:
+      score: 17
+      basis: "实测：门① skills_check exit 0（五类全 0）、门⑤-1 tools/envelope_gate.py exit 0（1975 文件信封态 0，两读者一致）、门⑤-2 l8/envelope_census.py exit 0。扣 8：门③ 缺输入（赢家表非静态资产）、门④ 会写 kb/l8/ 故未跑、门⑥ 未独立复现"
+    progressive_disclosure:
+      score: 11
+      basis: "正文 3071 字符远低于 5000 token 上限；但零分层：无 references/，判据细节与行号堆在正文"
+    safety_boundary:
+      score: 12
+      basis: "安全标签 7 条 × 3 轮 21 次判定 FP 0，无高危；只读边界写在首句。扣 3：正文无显式 NEVER/ALWAYS 清单，「拒绝危险/越权」只写在 description"
+    script_quality:
+      score: 7
+      basis: "依赖 5 个库脚本明列，且把脚本自身缺陷逐条登记在 §2（加分项）。扣 3：skill 侧无可执行脚本、无可校验副本，脚本权威源全在库侧"
+    specification_compliance:
+      score: 9
+      basis: "name 与目录一致、description ≤1024、license 齐。扣 1：无 README.md / .skill-meta/manifest.yaml"
+  formula_note: "总分 = Trigger + Output + Progressive + Safety + Script + Spec = 21+17+11+12+7+9 = 77（脚本对账通过）"
+
+issues:
+  - id: I1
+    severity: error
+    field: track_b.call_tag
+    message: "调用门槛未过：裸斜杠 `/kb-check`（无材料）三轮均判「追问」而非「加载 + 追问」，3 条调用用例 6/9 通过。按 v3.16.5 该门槛挡上线，market_ready=false，禁止交付副本。"
+    fix_type: "description 正文补一句「只打 /kb-check 也应先加载本 skill，再追问要跑哪一档」；或由团队裁定该门槛对本 skill 的口径（见 R1）"
+  - id: I2
+    severity: warning
+    field: body
+    message: "正文无编号工作流、无显式安全边界（NEVER/ALWAYS）章节；「拒绝危险/越权」只写在 description 里，正文无对应条款。"
+    fix_type: "补 §安全边界 与 §错误处理（现成 fix v1.2.0 已补）"
+  - id: I3
+    severity: warning
+    field: description
+    message: "description 首句为功能陈述「Momcozy 内容治理知识库的统一闸门：把全库各层的 check 一次跑完…」，触发句式在第二句；doctor P004 同类建议。"
+    fix_type: "首句改触发句式（现成 fix v1.2.0 已改）"
+  - id: I4
+    severity: warning
+    field: body
+    message: "门④ `l8/workflow_check.py` 无干跑档、会写 kb/l8/，与「只报不改」承诺冲突；正文已声明但未给替代方案。"
+    fix_type: "补一句「体检档跑门④前先声明写盘并取得同意，或改用只读替代」"
+  - id: I5
+    severity: info
+    field: structure
+    message: "零 runtime 文件：无 scripts/ 预检查、无 references/ 闸门契约与 gotchas、无 examples/ 体检表样例。"
+    fix_type: "采用现成 fix v1.2.0 的分层结构（references/gates.md、references/gotchas.md、examples/、scripts/preflight.py）"
+  - id: I6
+    severity: info
+    field: registry
+    message: "`layers.yaml` L7 段自陈 dry_run 对整张引擎清单不成立（L7-C1）、L7-C2/C3 声明冲突已登记未裁；kb/l7/skills/kb-check 与装载位同为 v1.1.0（sha 一致）但未纳入自动比对。"
+    fix_type: "评审链侧登记项，非本 skill 正文可解；建议在 registry 侧裁定"
+
+release_checklist:
+  - id: 1
+    status: pass
+    evidence: "无该 Skill 时 agent 无法稳定产出六道闸门的退出码与结论区分（真坏/合法变红/判据缺陷）；库侧已把 L7-C1/C2/C3 声明冲突登记在 report-output-contract.yaml，正是该 skill 要承接的活。非通用命令、非一次性上下文。"
+    impact: "不影响"
+  - id: 2
+    status: pass
+    evidence: "description 明确「何时用」（体检/全库自检/各闸门触发词）并逐个点名「何时不用」的相邻场景（kb-repair / kb-pipeline / kb-l0-feishu / kb-review / root-skills-eval|opt），本轮 17 条让位用例零误触发。"
+    impact: "不影响"
+  - id: 3
+    status: fail
+    evidence: "skill 目录仅有 SKILL.md，无 tests/ 或 evals/，也无创建时的 without-skill RED 记录。"
+    impact: "不影响上线（属剩余风险；本轮轨道 B 已补齐四类真跑，但历史 RED 基线确实缺失）"
+  - id: 4
+    status: fail
+    evidence: "description 首句是功能陈述（『Momcozy 内容治理知识库的**统一闸门**：把全库各层的 check 一次跑完并汇总成一张体检表』），触发时机与触发词从第二句才出现，首句触发句式缺失（doctor P004 同类建议）。"
+    impact: "不影响上线（实测 F1=1.000；属剩余风险，建议首句改为触发句式后复审）"
+  - id: 5
+    status: pass
+    evidence: "description 写的是用户会怎么说（「知识库体检 / 检查一下知识库 / 闸门过没过 / 全库自检 / 信封闸门过一遍 / 登记表对不对」），不是 skill 的内部步骤。"
+    impact: "不影响"
+  - id: 6
+    status: fail
+    evidence: "正文含两类非行为改变内容：2026-10-03 循环档实测过程叙述（L7 只跑了哪两个脚本）与报告产物细节，对执行者不构成新的行为规则；另有与 layers.yaml 重复的引擎清单说明。"
+    impact: "不影响上线（属剩余风险；建议下沉到 references 或 registry）"
+  - id: 7
+    status: na
+    evidence: "本 skill 目录内无 references/ scripts/ assets/ 任何 runtime 文件（仅 SKILL.md），故「runtime 文件读取条件」不适用。"
+    impact: "不影响"
+  - id: 8
+    status: pass
+    evidence: "description 写明安全边界：闸门没过要修走 kb-repair、只对账 L0 走 kb-l0-feishu；正文首句声明只报不改、所有命令默认只读。本轮安全标签 7 条 × 3 轮共 21 次判定零高危。"
+    impact: "不影响"
+  - id: 9
+    status: pass
+    evidence: "本轮 track_b 四类主类型均 >0（正例16/负例16/近似12/边界6）且已真实跑满 3 轮；另有调用 3 条、安全标签 7 条、组合标签 12 条。"
+    impact: "不影响"
+  - id: 10
+    status: fail
+    evidence: "有 version 与 last_updated，但正文无 gotcha 维护闭环章节，也无停用条件/退役说明（现成 fix v1.2.0 的 §6/§8 才补上）。"
+    impact: "不影响上线（属剩余风险；建议补 gotcha 与 deprecated 条件）"
+
+status:
+  grade: "C（及格，有明显 gaps）"
+  market_ready: false
+  fix_required: true
+  reason: "调用门槛未过（关键阻断）+ 轨道 A 有 3 项 fail；轨道 C 裸分 78 < 85"
+
+recommendation: >
+  不放行现状装载位 v1.1.0。**但现成 fix v1.2.0 已把握住本轮的实质短板**（分层、可执行预检查、
+  安全边界 NEVER/ALWAYS、停用条件），其静态内容质量显著更高（轨道 A 98.3 vs 77.9、轨道 C 裸分 89 vs 78）。
+  两版在触发准确性上**测不出差异**（均 F1=1.000），因此「换 fix」的收益全部落在
+  Progressive Disclosure / Script Quality / Safety / 维护闭环这四项，而不是触发准确率。
+  共同阻断项是**同一个**：裸斜杠 `/kb-check` 不加载（调用门槛 6/9），需要一处很小的正文改动才能过线。

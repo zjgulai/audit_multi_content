@@ -1,0 +1,41 @@
+{
+ "checked_at": "2026-09-23 14:13:27",
+ "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+ "dim": 384,
+ "token_count_samples": {
+  "空 字/词": 2,
+  "200 字中文 字/词": 128,
+  "1000 字中文 字/词": 128,
+  "3000 词英文 字/词": 128
+ },
+ "truncation_test": {
+  "how": "两段文本共享前 300 字、其余完全不同，比对向量是否相同",
+  "cosine": 0.9999999999999998,
+  "identical": true,
+  "verdict": "完全相同 → 长文本被静默截断，必须分段（不许截断）"
+ },
+ "effective_max_tokens": 128,
+ "description_says": "Text embeddings, Unimodal (text), Multilingual (~50 languages), 512 input tokens truncation, Prefixes for queries/documents: not necessary, 2019 year.",
+ "description_vs_reality": "fastembed 元信息写 512 input tokens truncation，实测 token_count 封顶 128（tokenizer.json 里 truncation.max_length=128），以实测为准",
+ "weights": {
+  "hf_repo": "qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q",
+  "model_file": "model_optimized.onnx",
+  "local_path": "/Users/lute/.dsh/models/fastembed/models--qdrant--paraphrase-multilingual-MiniLM-L12-v2-onnx-Q/snapshots/faf4aa4225822f3bc6376869cb1164e8e3feedd0/model_optimized.onnx",
+  "stable_cache_dir": "/Users/lute/.dsh/models/fastembed",
+  "bytes": 235052644,
+  "initializer_dtype_histogram": {
+   "FLOAT16(fp16)": 149
+  },
+  "initializer_count": 149,
+  "quantization_op_hits": {
+   "QuantizeLinear": 0,
+   "DequantizeLinear": 0,
+   "MatMulInteger": 0,
+   "DynamicQuantizeLinear": 0,
+   "QLinearMatMul": 0,
+   "ConvInteger": 0
+  },
+  "quantization": "无量化算子，权重为 FLOAT16(fp16)",
+  "quantization_verdict": "fp16（ONNX initializer 全部为 FLOAT16，且无 QuantizeLinear/MatMulInteger 等量化算子）"
+ }
+}

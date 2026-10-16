@@ -1,0 +1,9 @@
+# 采集口径修订（batch8）外部调用台账  run_id=20260924-1240
+# 性质：read=只读；local=本地计算
+# 源只读；本批**无任何外部调用**（全部是本地读 + 本地写）
+时间              调用                                      性质      对象 / 说明
+20260924-1240   本地只读                                    read    kb/l0/manifest.jsonl + registry + records/ —— rule_eligible 派生与 R1 诊断
+20260924-1240   本地只读                                    read    kb/l2/units.jsonl —— 9469 单元补 rule_eligible
+20260924-1240   本地只读                                    read    kb/l3/candidates/*.jsonl —— 1446 条产出回扫
+#
+# 写操作数：0（无外部写）。kb/l1 零写入。

@@ -1,0 +1,320 @@
+# retired-candidates.yaml —— 候选层退场名单（PRD §2.2 排除项）
+#
+# 谁写它：`kb/l8/retire_excluded_candidates.py --apply`（**本件由脚本生成，人手别改**）
+# 谁读它：`kb/l8/check_external_standard_supply.py` 的判据 **E4**
+#
+# 三条纪律（照抄 `kb/l7/scripts/l4_retire.py` 的语义，它在定稿层，本件在候选层）：
+#   ① **绝不删号** —— `numbering.no_reuse`：号码一经发出永久占用，不回收、不重发；
+#   ② **不删证据** —— 候选行**一个字没动**（仍在 `kb/l3/candidates/scoped_clauses.jsonl` 里、
+#      仍是 `status: provisional`）；本件只**另立声明**；
+#   ③ **重跑零写入** —— 名单由数据现算，同样的数据跑第二次产出同一份。
+#
+# ★ 为什么落在这里而不是候选件里：候选件是 L3 蒸馏器的**覆盖写目标**，
+#   写进去下次重跑就被抹掉，退场记录消失而无人知道。
+# ★ 「下次重跑还会不会又蒸出这批」由**另一处**解决：
+#   `kb/l8/l3_scope.py::exclusion_of` 的 `rule_eligible_false` 那道门（防复发）；
+#   本件管**清存量**。两件事互补。
+
+meta:
+  generated_by: kb/l8/retire_excluded_candidates.py
+  generated_at: "2026-10-10T18:06:51+08:00"
+  authority: kb/l7/registry/source-readonly.yaml → prd_scope_exclusions
+  checker: kb/l8/check_external_standard_supply.py（判据 E4）
+  reason_code: prd_scope_exclusion
+  basis_sha256_12:
+    kb/l2/units.jsonl: "07cc75ae6e93"
+    kb/l3/candidates/scoped_clauses.jsonl: "0e1aecde3c91"
+    kb/l4/registry/l4.json: "b8a9b2de73ce"
+  no_reuse_note: >
+    号不回收 ⇒ 退场后这 %d 个 E-1 号**永久保留**，台账上会显示为
+    「有号、无（可用）候选」。**那不是缺号，是退场。**
+
+counts:
+  hits_total: 47
+  hits_with_article_no: 47
+  retired: 47
+
+retired:
+  - clause_id: scl-m-110ffef06f644e18
+    article_no: E-1.1051
+    unit_id: 0ed99283e9ddd887d4ec
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQEjS4P
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-12093a5d7d0f85ec
+    article_no: E-1.1057
+    unit_id: 0a2ed8a4306c817460cc
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQEjS4P
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-15e59e98da198eaa
+    article_no: E-1.1085
+    unit_id: 976413fff947165e653a
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQEjS4P
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-20af5737b7e2f4f0
+    article_no: E-1.1188
+    unit_id: 70beca19bc89558c2982
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQEjS4P
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-21542948b4a731ba
+    article_no: E-1.1196
+    unit_id: ac72728da4f6a629927e
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQETJyc
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-2b83b29aeffde559
+    article_no: E-1.1275
+    unit_id: 1bef80138390428837bc
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQETJyc
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-310789398d88ca4b
+    article_no: E-1.1325
+    unit_id: fda1c25d970a3d689b08
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQErVcR
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-31d7d905ebff6b8b
+    article_no: E-1.1334
+    unit_id: a16d73f46620723d1481
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQEjS4P
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-324fe5dbe9576172
+    article_no: E-1.1343
+    unit_id: 4a440fd12c25e517c407
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQErVcR
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-3855f1a258113dab
+    article_no: E-1.1392
+    unit_id: f9d4c26bcc30faef8705
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQETJyc
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-416d2f625888e661
+    article_no: E-1.1473
+    unit_id: 85b973a988ddf275e630
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQErVcR
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-4b00e9915c6d137b
+    article_no: E-1.1575
+    unit_id: 0f29f2a1f01ad7f28ba9
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQETJyc
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-5003813fb597aad3
+    article_no: E-1.1610
+    unit_id: 0590f2d0ad7609af80d5
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQErVcR
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-53a400572c905398
+    article_no: E-1.1642
+    unit_id: ab57b6c23e81ed72aa78
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQErVcR
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-5e05a2ca18c50c5d
+    article_no: E-1.1730
+    unit_id: 2c86d9bbfeb66d21071a
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQETJyc
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-5f2c40d490a4946e
+    article_no: E-1.1743
+    unit_id: 6d1f8ebb5069ef06c45c
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQErVcR
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-62a5041f0e3c21cf
+    article_no: E-1.1765
+    unit_id: 5545e61ab5b2ef091fc1
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQEjS4P
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-64aad1f1004b7018
+    article_no: E-1.1783
+    unit_id: df2ceab36db1e5cb5c06
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQEjS4P
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-69eff2a839c9f049
+    article_no: E-1.1822
+    unit_id: 4bb37d09d073ee7a3748
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQErVcR
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-6cbca45376482740
+    article_no: E-1.1839
+    unit_id: b1ea15e3b2f36c2a2285
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQEjS4P
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-7055424acf5b0cb1
+    article_no: E-1.1871
+    unit_id: 0ac211e7dd6a3ec9557e
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQETJyc
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-717a9da3d23b1414
+    article_no: E-1.1888
+    unit_id: e562918b5fdf7eed6739
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQETJyc
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-761a2e1667a56c32
+    article_no: E-1.1934
+    unit_id: d3f354c3457d7cf1e343
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQEjS4P
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-872c1acafabf5c92
+    article_no: E-1.2090
+    unit_id: 9a498c511fa9a12f0c35
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQEjS4P
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-88a312930d87df37
+    article_no: E-1.2103
+    unit_id: e18b398eb9559ef25cac
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQETJyc
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-8c2a24e729132b68
+    article_no: E-1.2138
+    unit_id: 851dde0810a971bf1cbd
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQErVcR
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-90a8a33cdd89807f
+    article_no: E-1.2170
+    unit_id: a63d641559b4b5a59b32
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQEjS4P
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-9cd486990561e3d6
+    article_no: E-1.2288
+    unit_id: 2142ccbcd0300a803524
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQETJyc
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-a1e775427568b85a
+    article_no: E-1.2334
+    unit_id: 941e4f5439d798c8128a
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQErVcR
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-a817f3ad7ec641a3
+    article_no: E-1.2382
+    unit_id: 5f1572ab4a7a220cfda8
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQETJyc
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-ad89cc8866b9a41d
+    article_no: E-1.2423
+    unit_id: 2d0613f45a97e17732c7
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQEjS4P
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-b431044e45767838
+    article_no: E-1.2480
+    unit_id: 763efe8689a347701853
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQETJyc
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-bcf894723a86e1d1
+    article_no: E-1.2548
+    unit_id: 5009d5aca6f2e46c3cda
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQErVcR
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-c496d653edcb9b0c
+    article_no: E-1.2607
+    unit_id: f3f56f3d3f688263bc2f
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQETJyc
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-d0fee3e175744210
+    article_no: E-1.2729
+    unit_id: 66b4040bcc6a854a634e
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQErVcR
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-d259a92da537400f
+    article_no: E-1.2739
+    unit_id: 8d52ce6f213d10530100
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQEjS4P
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-d29c9049097c3cda
+    article_no: E-1.2743
+    unit_id: 6dc92b2943d7166520b4
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQErVcR
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-d7bd96ba8e801481
+    article_no: E-1.2784
+    unit_id: 62103d1a1779efb33564
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQErVcR
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-d9b3fc7174e8a4c3
+    article_no: E-1.2802
+    unit_id: 9e31e0ab126c976a545d
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQETJyc
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-da6bf7d9db5259eb
+    article_no: E-1.2805
+    unit_id: f5c618262c1edaa2e5be
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQErVcR
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-dd120492435a4ec4
+    article_no: E-1.2827
+    unit_id: 85bbcee5267cdff71696
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQErVcR
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-e34352633b4e3b00
+    article_no: E-1.2879
+    unit_id: 0c0f3cec1c7e83da0412
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQETJyc
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-f389301d4cc1109d
+    article_no: E-1.3040
+    unit_id: 8d387286e9e6fa69404f
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQETJyc
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-f4daa860b941335e
+    article_no: E-1.3052
+    unit_id: 0b415fe0e151a8f6320b
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQEjS4P
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-0126160fe59a2a52
+    article_no: E-1.910
+    unit_id: 3c087a01549de99e4911
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQErVcR
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-05972d7bd9f26248
+    article_no: E-1.935
+    unit_id: 9f9fc3d216971f8f64dd
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQEjS4P
+    status: retired
+    reason_code: prd_scope_exclusion
+  - clause_id: scl-m-0b70d257541b36d4
+    article_no: E-1.992
+    unit_id: 549f5806037e8c135dff
+    resource_id: bitable__tblMGtPfe8ZUsEdP__recvvrLzQETJyc
+    status: retired
+    reason_code: prd_scope_exclusion
+

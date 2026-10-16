@@ -1,0 +1,58 @@
+# L6 建两套索引（向量 + BM25）· 操作日志 run_id=20261001-2356
+# 生成时间 2026-10-01 23:56:01｜写入范围：只写 kb/l6/；kb/l0~l3 全程只读；未发布任何版本
+
+[01] 探针：本机有没有可用的 embedding 模型/接口
+     $ python3 kb/.work/l6_probe.py
+     → 首轮 bm25_only（curl 只给 3 秒超时误判网络）→ 复测 200 → 装依赖后 vector_plus_bm25
+
+[02] 装 ONNX 路线依赖（不拉 torch）
+     $ python3 -m pip install --user fastembed
+     → fastembed 0.7.4；副作用 pillow 11.3.0 → 10.4.0
+
+[03] 模型事实核查：维度 / 有效截断长度 / 权重 dtype
+     $ python3 kb/.work/l6_model_probe.py
+     → dim=384；实测 128 token 截断（两段只共享前 300 字的文本向量完全相同）；149 个 initializer 全 FLOAT16、量化算子 0 命中 → 量化方式=fp16
+
+[04] 把权重从 /var/folders 临时缓存复制到稳定目录
+     $ cp -R …/fastembed_cache/models--qdrant--… ~/.dsh/models/fastembed
+     → 约 224MB；retriever 通过 meta.cache_dir 指过去，保证离线可执行
+
+[05] 确定范围：复算 L3 过滤后的可用单元并与 l3_stats 对账
+     $ python3 kb/.work/l6_scope.py
+     → L2 9,261 → 可用 1,899（过滤分布逐项一致）
+
+[06] 首版建索引（单元级、被截断）
+     $ python3 kb/.work/l6_build.py 20260923-1400
+     → BM25 1,899 文档；向量 1,578 条 → 随后发现截断与编号两处硬伤，产物另存 runs/20260923-1400.vectors.presegment.*
+
+[07] 发现并修正两处硬伤：①模型静默截断 ②向量行号与 BM25 文档号不同源
+     $ python3 (matmul/编号核对)
+     → 编号对不上 1,573/1,578；截断使 31,450 字单元只进前约 128 字
+
+[08] 改成按段落分段、不截断（segmenter 进 retriever.py）
+     $ python3 kb/.work/l6_build.py 20260923-1440
+     → 1,578 单元 → 2,088 段；被分段 281；最长单元 31,450 字 → 201 段；embedding 66 次批量调用、0 重试、0 失败
+
+[09] 自检发现切句丢换行（168 个单元拼不回原文）
+     $ python3 kb/.work/l6_integrity.py
+     → FAIL：exact_reconstruction_bad=168 → 改成换行/标点并入前一块，逐字可还原
+
+[10] 自检发现复算用了错的 token 计数器（拿字符长度当 token）
+     $ python3 kb/.work/l6_integrity.py
+     → FAIL：index_vs_recount_bad=532 → 复算改用模型自带 token_count，归零；同时修了分布统计口径
+
+[11] 性能实测（纯 Python 倒排）
+     $ python3 kb/.work/l6_bench.py
+     → 1,899 单元：单查询 p50 0.181 ms、吞吐 5522.3 q/s；L5 扫 1MB 是 631.6 ms（约 1.4 万倍）→ 不换实现
+
+[12] 自验：A/B 两组 × 三模式 × Top3 + 人工判断
+     $ python3 kb/.work/l6_selftest.py --show-pairs → 写判断 → python3 kb/.work/l6_selftest.py --run <RUN> --apply（批次5 起：不带 --apply 只写预演件，**不刷新** kb/l6/selftest.json）
+     → A 组 bm25_only hit@3 1.0 / hybrid 0.875 / vector_only 0.625；B 组三模式 hit@3 全 0（都不对题）｜★ 判断面只有 5/14 条（kb/.work/l6_judgments_ab.json 停在 2026-09-23，且不在 engine 清单里）——hit@3 那些数**不是** 14 条全覆盖
+
+[13] 自检 9 项
+     $ python3 kb/.work/l6_integrity.py 20261001-2356
+     → 全部 PASS（冻结层与 L5 基线逐字节一致；条数对账 0 差额；幂等零写入；分段可逐字还原；编号同源；能力声明在位）
+
+[14] 生成留痕
+     $ python3 kb/.work/l6_report.py
+     → runs/20261001-2356.json / .report.md / .ops.log

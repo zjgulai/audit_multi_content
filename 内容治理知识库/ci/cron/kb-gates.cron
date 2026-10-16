@@ -1,0 +1,66 @@
+# kb-gates.cron —— KB 闸门巡检的**crontab 形态**调度（给 Linux 调度机 / 内网自研 / 任意 crontab）
+#
+# ⚠️ 这不是一份能直接 `crontab kb-gates.cron` 灌进去的文件（注释与空行会被 crontab 拒或忽略，
+#    各平台行为不一）。**它是三件事**：① 一行可直接抄的 crontab 条目；② 抄之前必须知道的坑；
+#    ③ 本机该怎么挂（答案：**别用 cron，用已装好的 launchd**）。
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# ① 可直接抄的条目（**整行，含环境变量前缀**）
+# ─────────────────────────────────────────────────────────────────────────────
+#
+#   # KB 闸门只读巡检：每日 18:15（本机时区）｜ 库根含中文与空格，路径一律加引号
+#   15 18 * * * KB_GATES_SCOPE=full /bin/bash "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/ci/run-gates.sh" >> "$HOME/Library/Logs/kb-gates/cron.log" 2>&1
+#
+#   # 想先要一条绿基线（只跑 12 把，与现有 launchd 巡检一致）：
+#   # 15 18 * * * KB_GATES_SCOPE=core /bin/bash "<库根>/ci/run-gates.sh" >> "$HOME/Library/Logs/kb-gates/cron.log" 2>&1
+#
+#   # 发布前门禁（告警也算失败）：加 KB_GATES_STRICT_WARN=true
+#
+# ⚠️ cron 条目里的 `%` 是特殊字符（转成换行），本命令行里没有 `%`，可直接用。
+# ⚠️ 退出码：cron 只看非 0，**不区分** 1/2/3/90。要分档就得在调度器侧读
+#    `ci/out/gates-latest.json` 的 `exit_code` 字段（那份才是机读真源）。
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# ② 抄之前必须知道的 5 个坑（每一条都会让你「以为挂了、其实没跑」）
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# 1. **别与本机已有的 launchd 任务双挂**。本机 `com.kb.gates` **已经装着**（每日 14:00，
+#    `launchctl list | grep kb` 可见）。再加一条 cron ⇒ 一天跑两遍：飞书侧取数翻倍、
+#    与写档循环抢 I/O 的窗口翻倍。**要用 cron 就先 `bash ci/install-launchd.sh --uninstall`。**
+#
+# 2. **PATH 极窄**。cron 给的环境基本只有 `/usr/bin:/bin`。run-gates.sh 只用标准库并优先取
+#    `/usr/bin/python3`，所以这里不炸；但 `l0` 要调 `$HOME/.dsh/bin/lark-cli`，
+#    **靠的是 HOME 而不是 PATH** —— 见第 3 条。
+#
+# 3. **HOME 必须正确**。变体 cron（/etc/cron.d、systemd timer、容器调度）经常不设 HOME，
+#    于是 l0 报「拉取失败」——**看起来像数据错，其实是取数身份没拿到**。
+#    要显式写：`HOME=/Users/lute`（放在命令行同一行的前缀里，或写进调度器的环境）。
+#
+# 4. **这条是只读巡检，不抢锁**。`run-gates.py` 不调 `kb_pipeline.py --apply`、不调
+#    `kb_loop_claim.py`，所以**不会**与 08:30 的写档循环抢 `kb/.work/.kb.lock`。
+#    但**同一时间只允许一个 KB 作业**是库内硬纪律：本条目故意排在 18:15，
+#    与写档循环（08:30 起，实测跑到 ~08:45，满载更久）错开。
+#
+# 5. **macOS 上 crontab 不是首选**（本机就是 macOS）。两个理由：
+#    · `launchd` 这条路**已经端到端跑通过**（装载 → 触发 → 出报告 → 读回校验），cron 没跑过；
+#    · cron 读 `~/Documents` 下的库会受 macOS 权限（TCC）影响，需给 cron 授 Full Disk Access。
+#      **这一条我没有实测**（本机没启用 cron），所以只作为「要试就先验一次」的提醒，
+#      不当成结论。要试的最小验证：先手工跑通 `bash ci/run-gates.sh`，再挂 cron 看 cron.log。
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# ③ 本机（macOS）该怎么做：用 launchd，不用 cron
+# ─────────────────────────────────────────────────────────────────────────────
+#
+#   bash ci/install-launchd.sh            # 幂等；装 + 立刻跑一次 + 读回报告验证
+#   bash ci/install-launchd.sh --dry-run  # 只看会生成什么，不安装
+#
+# 现状（2026-10-04 03:2x 实测）：
+#   · `launchctl list | grep kb` → `com.kb.gates` 在册，last exit `1`（= 真红，见下）
+#   · 报告落 `~/Library/Logs/kb-gates/gates-latest.{json,md}`，`err.log` 0 字节
+#   · 计划：每日 14:00；跑的是 `run_gates.py --outdir ~/Library/Logs/kb-gates`
+#     —— **没有 `--scope`，即 scope=core（12 把）**。要它跑满 **14 把**（+projection+envelope），
+#     得改 `ci/launchd/com.kb.gates.plist` 的命令行并重装（重装会 bootout，
+#     脚本里已有「在飞守卫」，会等它跑完再动）。
+#
+# 下方按原样留一行给非 macOS 的 Linux 调度机（去掉行首 `#` 即可用）：
+# 15 18 * * * HOME=/home/lute KB_GATES_SCOPE=full /bin/bash "/opt/kb/内容治理/ci/run-gates.sh" >> /var/log/kb-gates.log 2>&1

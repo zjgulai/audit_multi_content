@@ -1,0 +1,27 @@
+/Users/lute/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/.work/l6_integrity.py:256: UserWarning: The model sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 now uses mean pooling instead of CLS embedding. In order to preserve the previous behaviour, consider either pinning fastembed version to 0.5.1 or using `add_custom_model` functionality.
+  _model = TextEmbedding(model_name=_vm["model"], cache_dir=_vm["cache_dir"]) \
+[PASS] frozen_layers
+        kb/l0: 3578 文件/1,444,815,375 字节/最后修改 2026-09-29 18:41:05  tree_sha256=0a1b7241604bc66d 与 L5 一致=False
+        kb/l1: 2734 文件/212,773,484 字节/最后修改 2026-09-29 18:41:05  tree_sha256=f5571ac0e486dad5 与 L5 一致=False
+        kb/l2: 850 文件/71,505,619 字节/最后修改 2026-09-29 18:41:34  tree_sha256=bd9102fff05bdb09 与 L5 一致=False
+        kb/l3/candidates: 509 行/1,387,672 字节/最后修改 2026-09-29 14:46:46  前509行与 L5 一致=True
+[PASS] counts
+        可用 4192｜投影 4192｜BM25 4191（失败 1）｜向量单元 4192 → 段 25530（被分段单元 2584）
+        对账：4192 = BM25 4191 + 失败 1 = 向量单元 4192 + 不入向量 0｜未入向量原因：{}
+[FAIL] idempotent_rerun
+        退出码 0｜变更文件 ['kb/l6/registry/l6.json']｜切词 0=True｜embedding 0=True
+[PASS] vector_traceability
+        25530 段 × 384 维｜范数 [1.000000, 1.000000]｜doc_id 不一致 0｜P0 混入 0｜回指异常 0
+[PASS] segmentation
+        4192 个单元 → 25530 段｜被分段 2584｜分布 {'1': 1608, '2': 355, '3': 76, '4': 45, '5': 29, '6': 29, '7': 22, '8': 36, '9': 1115, '10': 553, '11': 65, '12': 51, '13': 5, '14': 2, '15': 2, '20': 1, '21': 6, '22': 5, '23': 8, '24': 33, '25': 62, '26': 43, '27': 22, '28': 17, '29': 2}
+        最长单元 6282 字 → 13 段｜最大段 token 120（上限 120，模型实测 128 截断）｜拼接不一致 0｜重建对不上 0
+[PASS] postings_consistency
+[PASS] version_discipline
+        canonical 0 字节｜versions 行 0｜kb_version ['v0']
+[PASS] offline
+[PASS] capability_declaration
+        mode=vector_plus_bm25 semantic_recall=True model=sentence-transformers/paraphrase-multili dim=384 limitations=8 条｜no_hit_semantics 合规=True
+
+自检总计：FAIL

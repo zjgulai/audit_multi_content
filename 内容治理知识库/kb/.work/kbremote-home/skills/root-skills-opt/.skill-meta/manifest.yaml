@@ -1,0 +1,116 @@
+skill:
+  name: root-skills-opt
+  version: "3.5.7"
+  structure_version: "1.0"
+  created_at: "2026-04-02"
+  updated_at: "2026-09-02"
+  description: "读取 root-skills-eval 评估报告，全自主完成副本修复、回归验证、B 卷门禁与桌面副本交付（不写回被测 skill 原文）；借鉴 SkillOpt 训练纪律（留出验证门/编辑预算/拒绝缓冲/元记忆）；全程不需用户确认"
+
+directories:
+  scripts:
+    exists: true
+    count: 3
+    files:
+      - validate-skill.py
+      - plan-fixes.py
+      - split-gate.py
+    description: "验证 shim + 修复计划生成器 + 留出验证门（家族内优先）"
+  references:
+    exists: true
+    count: 3
+    files:
+      - universal-skill-schema.md
+      - optimization-patterns.md
+      - human-collaboration-guide.md
+    description: "参考文档（优化模式库/人机协作）"
+  examples:
+    exists: true
+    count: 0
+    description: "使用示例"
+  tests:
+    exists: true
+    count: 2
+    files:
+      - test_plan_fixes.py
+      - test_split_gate.py
+    description: "测试用例"
+
+dependencies:
+  tools:
+    - name: validate-skill.py
+      path: scripts/validate-skill.py
+      required: true
+    - name: plan-fixes.py
+      path: scripts/plan-fixes.py
+      required: true
+    - name: split-gate.py
+      path: scripts/split-gate.py
+      required: true
+  skills:
+    - name: root-skills-eval
+      relation: "前置依赖（生成评估报告；方式2时自动调用）"
+      required: true
+      interface:
+        input: "skill-folder-path"
+        output: "evaluation-report.yaml + trigger-eval.xlsx"
+    - name: root-skills-doctor
+      relation: "结构/规范静态检查（优化前可先诊断）"
+      required: false
+    - name: root-skills-creator
+      relation: "validate-skill.py 权威实现来源（家族内）"
+      required: true
+
+schema:
+  version: "1.1.0"
+  source: "universal-skill-schema"
+  path: "references/universal-skill-schema.md"
+  input:
+    format: "yaml"
+    interface_version: "2.0.0"
+    consumed_from: "root-skills-eval"
+    required_keys:
+      - skill_info
+      - eval_info
+      - scores
+      - issues
+      - optimization_plan
+      - status
+
+compatibility:
+  claude:
+    status: "native"
+    tested: true
+  cursor:
+    status: "native"
+    tested: true
+  kimi:
+    status: "native"
+    tested: true
+  dsh:
+    status: "native"
+    tested: true
+  codex:
+    status: "native"
+    tested: true
+    notes: "发现实测通过（gpt-5.4-mini 5/5 可见）"
+
+workflow:
+  input:
+    - evaluation-report.yaml
+    - skill-folder-path (with --auto-eval)
+  output:
+    - optimized-skill-folder
+    - optimization-report.md
+  previous_step: root-skills-eval
+  pipeline: "创建(creator) → 质检(doctor+eval) → 优化(opt) → 闭环"
+  confirmation_required: false
+  writeback: "不写回被测 skill 原文（含桌面源，只读）；副本达标 + B 卷门禁通过后复制到桌面与源并排交付"
+
+framework:
+  family: root-skills
+  manager: root-skills-manage
+
+created_by:
+  skill: root-skills-creator
+  version: 4.0.0
+  record: ../../creation-records/root-skills-opt.md

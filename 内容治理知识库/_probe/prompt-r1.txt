@@ -1,0 +1,27 @@
+你是「Skill 路由决策盲测判官」（第 1 轮独立判定）。这是一个单轮任务，做完即止。
+
+【输入文件】
+1. `_probe/catalog.txt`（相对本工作区根）—— 本机可用 skills 的清单，每条含 name 与 description 原文。这就是你路由时唯一允许依赖的依据。
+2. `_probe/rounds/round1.json` —— 37 条用户原话（字段 id / type / prompt）。
+
+【第一步（必须先做，原样回报事实）】
+在本次会话里，你能看到的 skills 清单（会话注入的 available skills / 技能目录）中，
+**逐个列出所有以 `root-skills-` 开头的 skill 名**。
+- 如果一条都没有，就写 `none`。
+- 只报你**实际看到**的，不要报你从训练知识里知道的，也不要猜。
+
+【第二步】对 round1.json 里的 37 条用例逐条判定：如果这条用户原话发给一个能自动路由 skill 的 Agent，会加载哪些 skill？
+【硬规则】
+- 只依据 catalog.txt 的 description 判断；catalog 里没有的 skill 不许写。
+- 只做判定：**不要真加载任何 skill、不要执行任何命令、不要产出交付物**。
+- 一条用例可写多个 skill（按需要顺序）；不确定写 [] 并在 short 里写 clarify 或 uncertain。
+- 若第一步结果是 none（你根本看不到 root-skills-*），仍然要给出你**据 description 认为**该加载的 root-skills 成员，
+  但必须在该条 verdict 的 short 里以 `[unseen]` 开头注明「该 skill 不在我可见清单里」。
+- 判据是 description 的「何时用 / 何时不适用」，不要用外部常识覆盖它。
+
+【输出格式】严格按下面两种之一，不要写别的自然语言解释。
+
+SECTION A：`VISIBLE_ROOT_SKILLS: <逗号分隔的名字，或 none>`
+
+SECTION B：一个 JSON 数组，每元素：
+{"id":"<用例 id>","loads":["<skill 名>"],"short":"一句话理由（<=30字）"}

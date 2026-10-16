@@ -1,0 +1,86 @@
+name: root-skills-doctor
+description: |
+  检测 Skill 目录结构问题并执行自动修复，支持单 Skill 和批量模式。
+  覆盖目录结构（D001-D007）与规范/安全静态检查（D100 系列）。
+  当用户提及"修复 skill 结构"、"skill 目录整理"、"批量修复 skills"、
+  "skill 体检"、"检查 skill 规范"时使用。
+version: "2.0.4"
+author:
+  name: "root-skills 家族"
+  email: ""
+license: "MIT"
+keywords:
+  - skill-structure
+  - directory-fix
+  - batch-fix
+  - skill-validation
+  - auto-repair
+  - compliance-check
+  - security-scan
+categories:
+  - root-skills
+  - tooling
+  - maintenance
+complexity: complex
+compatibility:
+  claude:
+    status: native
+    features:
+      - file_system
+      - subprocess
+  kimi:
+    status: native
+    features:
+      - file_system
+      - subprocess
+  cursor:
+    status: native
+    features:
+      - file_system
+      - subprocess
+  gpt:
+    status: bridge
+    limitations:
+      - "File system operations need manual execution"
+  minimax:
+    status: bridge
+    limitations:
+      - "File system operations need manual execution"
+  dsh:
+    status: native
+  codex:
+    status: native
+triggers:
+  keywords:
+    - "修复 skill 结构"
+    - "skill 目录整理"
+    - "批量修复 skills"
+    - "skill 结构检测"
+    - "整理 skill 目录"
+    - "修复目录结构"
+    - "skill-doctor"
+    - "skill 体检"
+    - "规范检查"
+  phrases:
+    - "检测 skill 目录问题"
+    - "修复 skill 目录"
+    - "批量整理 skills"
+    - "skill 结构扫描"
+    - "检查 skill 是否符合规范"
+  contexts:
+    - "skill 目录"
+    - "结构修复"
+    - "批量处理"
+    - "目录整理"
+    - "规范合规"
+entry_points:
+  - SKILL.md
+  - scripts/skill-doctor.py
+framework:
+  family: root-skills
+  manager: root-skills-manage
+
+created_by:
+  skill: root-skills-creator
+  version: 4.0.0
+  record: ../../creation-records/root-skills-doctor.md

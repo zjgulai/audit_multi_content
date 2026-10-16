@@ -1,0 +1,21 @@
+# 由 kb/.work/fix_f3_gen.py 生成（修复计划 F3a）—— 顶层键必须在加载器 WIRED_META_KEYS 白名单内，
+# 顶层键：groups / ranking / require_on_new
+# 条目「拿来干什么」。与 tier（加工到哪层）/ evidence_level（证据多强）/ topic（规则 vs 知识）正交。
+
+groups:
+  rule: "可直接判定的红线规则（命中即有问题）"
+  evidence: "支撑判定的依据材料（法规条文、指南、平台政策）"
+  sample: "正负样本案例（参照用，本身不是规则）"
+  clause: "逐字保留的条款原文"
+  clue: "线索型材料（登记元数据、待确认项）"
+  coordinate: "坐标型材料（分类说明、口径定义）"
+
+# F3a 口径：ranking 留空 = 全部 1.0（不参与排序偏好），与 DEFAULT_EVIDENCE_GROUPS 等价。
+# 收紧（按组给系数）留 F3b。
+ranking: {}
+
+# ⚠⚠ F3a 必须为 false —— 这是本文件最容易踩的坑：
+#   E042 判据 = 缺 evidence_group 且 require_on_new 为真 且 created_at >= 2026-09-22。
+#   本库 509 条 created_at 是 2026-09-23，**晚于切换日** —— 一旦改为 true，
+#   509 个 W036 告警会全部升级成 E042 错误。回填完 evidence_group 之后才允许打开（F3b）。
+require_on_new: false

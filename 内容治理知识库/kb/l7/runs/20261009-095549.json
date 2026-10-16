@@ -1,0 +1,38 @@
+{
+ "run_id": "20261009-095549",
+ "at": "2026-10-09T09:55:49",
+ "source": "review_machine",
+ "trigger": "【送审素材缺失】用户原话：「审核下这个视频」。本次未收到任何视频素材：无文件、无链接、无字幕/转写、无关键帧、无时间码，…",
+ "skills": [
+  "kb-content-review",
+  "审查裁决"
+ ],
+ "commands": [
+  "kb-content-review/scripts/review.py --text …",
+  "l7/review-engine/core/review_engine.py decide()"
+ ],
+ "products": [],
+ "verdict": "NEEDS_INPUT ｜ issue_count=0",
+ "human_involved": false,
+ "extra": {
+  "decision_owner": {
+   "skill": "视频安全审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check",
+    "视频安全审查"
+   ]
+  },
+  "loaded_skills": [
+   "kb-canonical-lookup",
+   "kb-p0-check",
+   "kb-recall",
+   "kb-check",
+   "视频安全审查"
+  ]
+ }
+}

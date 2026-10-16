@@ -1,0 +1,152 @@
+{
+ "base": "RT-20261005-LISTING-M5E",
+ "session": "session-683805fa-2db5-4965-9ccd-81976901b6f1",
+ "run_at": "2026-10-05T15:35-15:40+08:00",
+ "material": {
+  "text_verbatim": "M5 吸奶器是销量最高，最好用的吸奶器了",
+  "text_sha256": "81961315ad1497d11a7c34e45cb641c67dcdb2b33c86cca98cc293c217e08007",
+  "note": "送审句尾的问号属用户提问，不属文案；已用 sha256 与既有 RUN 的 content_version 逐字对齐后确认",
+  "question_verbatim": "这段 listing 文案能不能发：M5 吸奶器是销量最高，最好用的吸奶器了？帮我看看有没有踩红线",
+  "content_type": "listing 文案"
+ },
+ "layer_preflight": {
+  "base": "RT-20261005-LISTING-M5E",
+  "mode": "enforced",
+  "ok": true,
+  "red_total": 0,
+  "runs": ["RT-20261005-LISTING-M5E-L4", "RT-20261005-LISTING-M5E-L5", "RT-20261005-LISTING-M5E-L6", "RT-20261005-LISTING-M5E-L7"],
+  "yellow_note": "L4/L5/L6 落章来自预演（E5）；L7 无黄 ⇒ 机制证据，本次未 --apply 写库"
+ },
+ "decision_owner": {
+  "skill": "文案合规审查",
+  "mode": "declared",
+  "loaded_skills": ["文案合规审查", "kb-canonical-lookup", "kb-p0-check", "kb-recall", "kb-check", "飞书审查流转", "审查报告与记忆"],
+  "evidence_grade": "agent 自述档（--loaded-skill 申报），不得当强证据"
+ },
+ "engine_raw_pass": {
+  "cmd_note": "with_kb_evidence.py --findings-out（无 --findings-from）",
+  "review_id": "rv-20261005-153628",
+  "decision": "PASS",
+  "issue_count": 0,
+  "confidence": 0.99,
+  "p0_hits": 0,
+  "rules_scanned": 1018,
+  "coverage_covered": true,
+  "why": "M03 检测关键词只有英文（bestseller/best-selling/hotseller/top rated/trusted by 6m…），无中文等价词 ⇒ 中文『销量最高』结构性漏匹配"
+ },
+ "second_evidence_path": {
+  "l5_p0_matcher": "python3 kb/l5/matcher.py --text … → 结论 PASS，0 命中",
+  "l3_l4_scan": "509 条 L3 候选 + 1365 条 L4 定稿逐条筛：命中 W-1.25（M03/P2, kb_type=wording）与 W-1.51（M03/P1, kb_type=wording）",
+  "l6_bm25": "kb/l6/retriever.py --mode bm25 → 仅有低频候选，无可援引为『命中』的条目（无阈值 ⇒ 只能算候选）",
+  "conclusion": "候选扫描 0 条 ≠ 合规；依据由 L4 定稿条款给出"
+ },
+ "self_hit_check": {
+  "rule_definition": "Owner 规则① 判据：polarity=反例，或 semantics 以「禁区」开头（示例 S-1.2）",
+  "scope": "kb/l4/canonical 五个形态文件全量（sample_case 358 / wording_entry 56 / wording_revision_pair 453 / scoped_clause 375 / clause 123）",
+  "forbidden_total": 181,
+  "forbidden_by_form": {"sample_case": 181, "wording_entry": 0, "wording_revision_pair": 0, "scoped_clause": 0, "clause": 0},
+  "method": "NFKC + 小写 + 去非字母数字后，素材与每条禁区条款正文算最长共同片段（LCS）",
+  "max_lcs_len": 5,
+  "max_lcs_fragments": ["m5吸奶器 (S-1.184 图片/中东易拉宝)", "m5吸奶器 (S-1.182 文字/中东易拉宝)", "用的吸奶 (S-1.190)", "的吸奶器 (S-1.191)"],
+  "count_lcs_ge12": 0,
+  "count_lcs_ge16": 0,
+  "verdict": "no_selfhit",
+  "verdict_note": "最长共同片段仅 5 字且全是『产品名 + 通用词』噪声：4 条近邻逐条读原文后均为中东易拉宝产品摆放清单/会员杂志配图需求，与『销量/排名/最好用』宣称无关 ⇒ 无反例/禁区可援引，本单未以自命中为由拒答或降级（Owner 规则① 的条件不成立，而不是被绕过）。",
+  "l0_self_source": "kb/l0 全库 grep『销量最高』『最好用的吸奶器』= 0 命中 ⇒ 素材本身不是库内 L0 源记录"
+ },
+ "registered_findings": {
+  "registered_by": "文案合规审查（判定主体）",
+  "cache": "_rt-m5e-20261005/findings-registered.json",
+  "count": 1,
+  "items": [
+   {
+    "text": "销量最高",
+    "severity": "REVIEW",
+    "article_no": "W-1.25",
+    "rule_code": "M03",
+    "library": "措辞表达库",
+    "p_level": "P2",
+    "anchor": "#广告文案明细/recvuJYdOb02Rt/命中片段",
+    "source_sha256": "b82926594fb8a661ef525b7393a899ee552bf03533da3c91bb88355aef4a3888",
+    "excerpt": "M03:bestseller",
+    "entry_url": "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJYdOb02Rt",
+    "co_clause": {
+     "article_no": "W-1.51",
+     "rule_code": "M03",
+     "p_level": "P1",
+     "anchor": "#品线内容边界规则库/recvuJP2jyATC9/边界内容",
+     "source_sha256": "ad8d438b24904752eb4c4384b13669d07728b114c126050b15095fe23392ef97",
+     "excerpt": "未标注来源的效果数据声明",
+     "entry_url": "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblD1MiUK1v5fdjD&record=recvuJP2jyATC9",
+     "l0_适用产品": ["W1", "M5", "M6", "M9", "Air1"],
+     "note": "L0 字段『适用产品』逐字含 M5 ⇒ 该品线边界条款对本素材成立"
+    },
+    "clause_verbatim": "效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列）"
+   }
+  ]
+ },
+ "non_findings": [
+  {
+   "text": "最好用",
+   "article_no": "W-1.22",
+   "rule_code": "H05",
+   "reason": "H05 边界逐字：『best/#1/No.1/最佳/最好等排名最高级按 2026-09-09 口径放开，海外广告允许，不再判险』；且 H05 触发词逐字不含『最好』『销量』⇒ 不作 finding（与 L5 P0 0 命中一致）"
+  }
+ ],
+ "final_engine_result": {
+  "review_id": "rv-20261005-153948",
+  "decision": "REVIEW",
+  "issue_count": 1,
+  "issue_summary_by_category": {"绝对化与安全承诺-无依据的销量排名声称": 1},
+  "confidence": 0.78,
+  "confidence_status": "heuristic_not_calibrated",
+  "outcome_basis": "review.py:722-729 原口径：findings 有 BLOCK → BLOCK；有 findings → REVIEW；都没有才用 covered 在 PASS 与拒答间选。本条 severity=REVIEW（p_level=P2≠P0）⇒ REVIEW，非手写三态",
+  "next_owners": ["法务", "渠道负责人", "医学顾问"],
+  "next_owners_note": "『医学顾问』由引擎按 reason 文本确定性路由挂上，不是本单建议"
+ },
+ "feishu_rows": [
+  {
+   "record_id": "recvx9T3siIxLt",
+   "content_id": "AD-20261005-016",
+   "written_at": "2026-10-05T15:36:35+08:00",
+   "agent_conclusion": "PASS",
+   "issue_count": 0,
+   "confidence": 0.99,
+   "status": ["PASS"],
+   "role": "引擎 raw pass 留痕（词表缺口 GAP-LEX-ZH-M03 的现场证据）"
+  },
+  {
+   "record_id": "recvx9TTjP3qZX",
+   "content_id": "AD-20261005-017",
+   "written_at": "2026-10-05T15:39:54+08:00",
+   "agent_conclusion": "REVIEW",
+   "issue_count": 1,
+   "confidence": 0.78,
+   "status": ["REVIEW"],
+   "问题分类汇总": "绝对化与安全承诺-无依据的销量排名声称 1",
+   "送审问题": "这段 listing 文案能不能发：M5 吸奶器是销量最高，最好用的吸奶器了？帮我看看有没有踩红线",
+   "role": "本单权威结论行（已独立回读 ✅）"
+  }
+ ],
+ "row_policy_note": "发布件按用户 2026-10-03 裁定**每次审查新增一行**、历史行一律不动 ⇒ 本单两行同内容 ID 并存（引擎 raw pass 一行 + 裁决结论一行），非重复落表；已登记 GAP-RO-6。飞书审查流转 skill 正文仍写『按内容 ID upsert、重复发布不新增行』，与代码行为不一致（代码优先）。",
+ "gap_registered": {
+  "id": "GAP-LEX-ZH-M03",
+  "title": "M03 缺中文等价检测词 ⇒ 中文 listing 的销量/排名声称在本链上结构性漏匹配",
+  "impact": "中文 listing 的销量类声称会拿到引擎字面口径的 PASS",
+  "do_not": "改 M03 关键词表属写档，须走 kb-pipeline + 人工开闸；本件只登记，不修",
+  "handoff": "kb-repair"
+ },
+ "local_reports": {
+  "report": "kb/l7/reports/rv-20261005-153948.review.md（= rv-20261005-153948.feishu.md，问题数 1 < 3 ⇒ 按 PRD 不建云文档、报告链接留空）",
+  "reports_dir_note": "本次未生成云文档：PRD 门槛为问题数 ≥ 3"
+ },
+ "not_proves": [
+  "本单不能证明『该 listing 可以发布』—— 结论是 REVIEW，不是 PASS",
+  "『未命中 ≠ 合规』：L5 P0 0 命中、引擎 live 路径 0 命中，都不等于内容合规",
+  "『最好用』不判险只对海外/美区口径成立（H05 2026-09-09 口径）；若投放市场不在该口径内须另判",
+  "本单未判渠道特有条款（渠道未指定）、未核产品事实基线（销量是否为真的事实，本单未核；M03 只要求补来源与口径）",
+  "sha 值为『与 L0 记录值比对一致』，不是重算（L0 的 sha 输入是 record_fields blob，本地 L0 件不含该 blob）",
+  "层前置四层全绿只证明逐层调用机制通了（L4/L5/L6 落章来自预演，黄 E5），不等于这些层真落盘过",
+  "判定主体留痕是 agent 自述档（--loaded-skill 申报），不得当强证据"
+ ]
+}

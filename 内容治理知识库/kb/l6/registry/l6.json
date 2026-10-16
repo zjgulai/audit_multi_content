@@ -1,0 +1,945 @@
+{
+ "kb_version": "v0",
+ "run_id": "daily-20261016-0330-L6",
+ "mode": "vector_plus_bm25",
+ "mode_note": "必装项已完成：本地 ONNX 多语模型可用（真实握手通过），向量与 BM25 双索引都落盘",
+ "retrieval_capability": {
+  "mode": "vector_plus_bm25",
+  "semantic_recall": true,
+  "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "dim": 384,
+  "quantization": "fp16（ONNX initializer 全部为 FLOAT16，且无 QuantizeLinear/MatMulInteger 等量化算子）",
+  "provider": "fastembed 0.7.4 + onnxruntime 1.19.2（本地 CPU）",
+  "weights_repo": "qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q",
+  "weights_file": "model_optimized.onnx",
+  "weights_cache_dir": "/Users/lute/.dsh/models/fastembed",
+  "weights_bytes": 235052644,
+  "effective_max_tokens": 128,
+  "handshake": {
+   "how": "向模型发一次真实 embedding 请求，校验返回向量合法且维度一致（不用端口/依赖存在性判定）",
+   "text": "握手自检：这是一次真实的 embedding 请求。",
+   "dim_returned": 384,
+   "dim_expected": 384,
+   "all_finite": true,
+   "norm": 3.119,
+   "verdict": "可用"
+  },
+  "known_limitations": [
+   "跨语言只有多语模型的弱对齐：中文查询能拿到英文素材的较高相似度，但不等价于翻译级召回",
+   "同义改写受限：2019 年的多语 MiniLM（384 维），对行业黑话/新造词的语义区分有限",
+   "规避型表述（拼音、拆字、谐音、符号分隔、小语种）召回受限：这类本来就绕开字面，向量也未必抓到",
+   "无重排（本轮不做 rerank 模型），Top-N 只做 RRF 融合，长尾排序质量未校验",
+   "无命中阈值：检索器一律返回 Top-N，不带相关性阈值，是否采纳由下游判定",
+   "融合分不能当阈值用：RRF 分只是名次的倒数（Top1 恒为 1/(k+1)=0.016393），A 组与 B 组看起来一样高；真要设阈值得取原始分（BM25 分 / 余弦分），而原始分在 A/B 两组之间仍有重叠（实测 A 组 BM25 最低 5.32 < B 组最高 10.02）",
+   "超长单元分段后每段独立成向量，段间语义依赖未建模",
+   "P0 证据单元（321 条）不在向量索引内，只能走 kb/l5/matcher.py"
+  ],
+  "no_hit_semantics": {
+   "bm25_only": "字面未匹配，不代表合规",
+   "vector_only": "语义未匹配，不代表合规",
+   "hybrid": "字面与语义均未匹配，但仍不代表合规"
+  },
+  "no_hit_note": "向量检索会让『无命中』看起来更权威，但它仍然召不到语料里没有的东西；规避型文案本来就绕开字面，无命中不是放行理由。"
+ },
+ "scope": {
+  "usable_units": 6029,
+  "source": "kb/l2/units.jsonl 经 L3 口径过滤",
+  "filter_distribution": {
+   "wording|metadata": 5229,
+   "wording|metadata_unknown_field": 127,
+   "external_standard|metadata": 345,
+   "external_standard|quality_flag": 1575,
+   "external_standard|oversize_gt_8000": 103,
+   "internal_sample|l2_invalidated": 200,
+   "internal_sample|oversize_gt_8000": 15,
+   "product_desc|out_of_scope_kb": 54,
+   "external_standard|l2_unit_retired": 96,
+   "wording|oversize_gt_8000": 80,
+   "wording|l2_unit_retired": 365,
+   "internal_sample|l2_unit_retired": 7,
+   "unknown|out_of_scope_kb": 1,
+   "*|outside_scope_file": 479
+  },
+  "scope_file": "kb/l6/SCOPE.txt",
+  "scope_file_info": {
+   "specified": 6448,
+   "distinct_specified": 6448,
+   "hits": 6029,
+   "excluded_from_usable": 479,
+   "specified_but_not_usable": [
+    "004ec83c502f7d3d6095",
+    "0189075efc46127b83b1",
+    "02248fa88516e3c36187",
+    "026f4e35224bf138e36e",
+    "02db8070202048b93535",
+    "03973770ebf0df83cb3e",
+    "0452db7854ed3e46a268",
+    "056f96cb753654671880",
+    "0609c85b04be9584dd76",
+    "086defaac7ef07090894",
+    "08961e12cb4633690677",
+    "095f1384a774928b7f14",
+    "09cf5e6607951e601321",
+    "0a3b8ef51ce7e0c41edf",
+    "0b64a05f15432f7bffbd",
+    "0b6c71833dc0749f8496",
+    "0b76083e603699407c35",
+    "0b9ad47183b1f46523fa",
+    "0d965d5a868bdb1846c7",
+    "0db8486958b71317be0f",
+    "0e035473f34b110207f4",
+    "0e3937d6bf4c9680d778",
+    "0e6e050d5dad0b9a0b8d",
+    "0e824be52c137bdff487",
+    "0ff514cd2585876e598b",
+    "1042319473f763291f85",
+    "11a126ed4b3d99efd42b",
+    "11bb572ba90b087a1f0c",
+    "12852d05f3fc8fec7cc7",
+    "139fd7b5aa4fc00f44d8",
+    "152ca874c9ac077605e0",
+    "159779aa86e67b6b1168",
+    "1925bc51c0a40652ec7a",
+    "1a551d2f10817e7b9faa",
+    "1a94f0e1d27e4f01aaa6",
+    "1ac9ac6c02af47f6435c",
+    "1ad7ec49054d132cc931",
+    "1c627fdd2955f250acfc",
+    "1d0d50fc1b899b73ed50",
+    "1e169890a80eccd69780",
+    "1e9b565797c3098fbd0b",
+    "209f5ef098ec92c065c1",
+    "20a51e64d569147ba0a2",
+    "2171f42e7f1edae22c74",
+    "217cf675af76a038a53e",
+    "222157e39f33b8fca599",
+    "223fdb746bc121e9cf91",
+    "2267f50bf11f1564f100",
+    "22ac3028f8568fad9231",
+    "23338e93efeb9a4b37d3",
+    "2335519943fb3bb717a2",
+    "233c0082a2a60055e330",
+    "2460f51f851ed05847e0",
+    "248bd434eafe57a6d9b3",
+    "24dcfe44530380fe5e8f",
+    "24df7fee67112fd265f3",
+    "262083c50005862d9a53",
+    "2869c82aedae9ffcfc5d",
+    "291b77502c4c79d7eee5",
+    "294b54292b6b4e3fa2b4",
+    "2982d6485eaca52665d3",
+    "2aa3a20b445a910ec1aa",
+    "2ac9f308259b9d3386de",
+    "2b75ff16612d9a6412d3",
+    "2e06a19c3525e6f39f25",
+    "2e0d3adfa031d2779df4",
+    "2e436cc5563334539d93",
+    "2edf7581fdf440d1de84",
+    "2f1e5b52cd602acf4bdb",
+    "2f25063ae380f3acc182",
+    "2ffe33b1b400b09b3d91",
+    "301e9089994814e26298",
+    "305f73a4239c88b2fd38",
+    "30e2a281740794a412d7",
+    "31a6f21ae7a796f82efc",
+    "31d8a747896b3b6e2e51",
+    "324df81538e4b630d64e",
+    "331152d5128a9adc9008",
+    "3478a2e7316f1698a7a3",
+    "360a44f62d2a637ee4c6",
+    "3666563dd1b2c12f950f",
+    "379217d3e8e6cd16a46d",
+    "37a0b80a5808813eab1c",
+    "380e6c2c33e0a18097e9",
+    "38d9ad90598efb73bcf5",
+    "3910ad9275499f855e22",
+    "39cd5535d66c12c413f7",
+    "39fb9a9db13f59869ef9",
+    "3abc433c245f82fd522b",
+    "3c07e1a70674dbb2a530",
+    "3e0164d4f1a765c62c09",
+    "3f095d15b6c6eb9c4414",
+    "40221d0f33b3a15c6999",
+    "4038aabd38c22d25727b",
+    "417eee10e1bb0fa00ef2",
+    "42290a66a6fa5f0b1a0a",
+    "42e1350d907eff99b7bc",
+    "42e5de9514b83f7b9fb0",
+    "42f78ed486f7b61005b6",
+    "43233e82b290937eba98",
+    "4486fde68a44eabe3af1",
+    "4559358fbfb9f6ee9c68",
+    "4565f6ea66243bbb094b",
+    "4578d32ff3a992b629ad",
+    "4a4ab1abe56f3c2ffed1",
+    "4ac23d999c0442f4115f",
+    "4ad41a666af2c6f9d8e3",
+    "4b87990ed933df85e72d",
+    "4be712f047680c8c8b8b",
+    "4bfac4a065b4e41c4b27",
+    "4d26bc3693e1c5d9ae9a",
+    "4dbc5921d96a58cc8def",
+    "4de69316c7fb8a4bcd2d",
+    "4e72b059a2d21027b97b",
+    "4f064adbd0f434d388d1",
+    "4ffaca66f3d20e71aae4",
+    "50112efa66054a61d9ee",
+    "50c8ea609903f779c23e",
+    "50cbf4caed7004b3078f",
+    "5120e6153066da5be124",
+    "51404ad0f08df5b8f959",
+    "523d8d5315b5a9fd07fe",
+    "527778628f132d39e2eb",
+    "53d2683b5f7977c7926b",
+    "544d33993513779b51fd",
+    "554181899579a5a70c45",
+    "5608ed5a8d52631f697b",
+    "577e5537048ba6449c7b",
+    "5825a1b250169eb7de29",
+    "58575b1624ed1b7874f4",
+    "58591d97f355478fc32a",
+    "592caca057fb15d2478c",
+    "593aa8ca1d6cdba2b10e",
+    "5983dbacab7d466b6936",
+    "59e58caeca42c2b5e8e2",
+    "59f8f612719487a9b9c4",
+    "5aa7e64aa5e0215e3242",
+    "5b00ce0dcaf6b03f8dd9",
+    "5bc56d6230e88c1b2abc",
+    "5c7bde9d952153932c2c",
+    "5d08b42a249daa947fda",
+    "5d1d9d4a93cc24fb6297",
+    "5d1f502a1f38b62cd0e9",
+    "5d83a6c7270296f1f294",
+    "5d84d4eee1eb358b8772",
+    "5d8701ad463c0af38737",
+    "5df2a703ea01a1603a58",
+    "5ef3b476e99992688345",
+    "5f66e0f82c18683dcddd",
+    "5f6e24d84f53a46172e3",
+    "601d99c3ce1d793eaafc",
+    "6028afb9d2f7c2940025",
+    "60f39e8c7c3bb72a61c5",
+    "618959dd4b55236edec9",
+    "6191a382bdccfb65c6de",
+    "61e9e8caa566be5b703e",
+    "6228a4170dc5adcc60b9",
+    "631d7d5a23712859efa9",
+    "63442a782b83729272f3",
+    "646212465311da6b9eee",
+    "6472fac437f3b1007280",
+    "64d1d74ee8a7b74d7e55",
+    "65e9d59d8357049810f9",
+    "6b08d2427127caeb91d2",
+    "6b287e8e6c6c54f9ffa8",
+    "6b3b7d8a9c2a52d20584",
+    "6b501ac67a7e6bc07f62",
+    "6beb5c7a05d5639fd7d5",
+    "6c3aedb110bf8b06004d",
+    "6cb683ac4c4e72e51f99",
+    "6cbd877ac0d371ba6963",
+    "6de755a2a91ce762269e",
+    "6e5652bec21653fcb08c",
+    "6e6d4e8cf3ff2d0034e4",
+    "6f08629baa7270d4713a",
+    "6fa6dedb8cf8fd2e0f48",
+    "6ffa48dc26fc6dd3c4ee",
+    "7002645c08e8ed230b25",
+    "7006a7545ad157e4f5b0",
+    "7081a3bb48a1ccd46220",
+    "7172784ab81bcf06f63d",
+    "71bcd636075ed4094f57",
+    "738f668982c5384cebf6",
+    "73b2dba4eeca6521cac7",
+    "73c8cce391b4a2ddad5b",
+    "746b6acd9f5a685bb4a1",
+    "75a9e8b03cad1ae2f99d",
+    "76e69ea0d9bcd3f4ac9b",
+    "77eaf883ff8bb6cb90e1",
+    "784b16633e5fd98359ba",
+    "793e0de197081f021100",
+    "7a17a6a26527b6e6fe8e",
+    "7af03fad93364f08dec7",
+    "7b0226c7284db023976a",
+    "7b4656e5fcb17dab82a2",
+    "7b61ac4a6028f5430ddf",
+    "7c4311eae2355f68bf37",
+    "7cb362df70a56b10bb0c",
+    "7e0f38ecb3b6fd7d7185",
+    "7e104721a34345618750",
+    "7e97e5587b5bcb14734d",
+    "7e9b5c8b6f621eb357b3",
+    "7f292781e3fe3535a634",
+    "7fc2b09860786388fbc1",
+    "7ff5bbcd014203bd8244",
+    "8015f1ad6ab0208a7ab1",
+    "801d03fc3bc3ab6ec88d",
+    "80d1ee64d07dd0390759",
+    "80d2ff1ea404d302d78e",
+    "81bc6385bb426594387f",
+    "83cc2d29f1909b34f9ae",
+    "84ec0cac391b62c62669",
+    "852271bf6f7cf1ee42a4",
+    "857aba4fbfe1a00c2a55",
+    "8733e2127abbab7b3233",
+    "87fee2b93f93154ce7c9",
+    "88a52dca5f5076e020fa",
+    "88b0711121b79219c75a",
+    "89ac81843ad361bbdd8f",
+    "8a7d3fc0a20d68ab07b4",
+    "8a9e40e462204b848464",
+    "8b3dd6a5a5762e2c831d",
+    "8c866bbf69e08761fd50",
+    "8cdb56dae57d44258d8f",
+    "8d555854a52770f78036",
+    "8e0ebe854a78b2afc842",
+    "8e2ab0b47fe96f50efcd",
+    "915e0dad384906bed526",
+    "91fae21088e1278c4d9e",
+    "921dee31492f6d98fc3d",
+    "925582fb14eba5b338ca",
+    "92c91ba92558fc8814fb",
+    "932b9fba128270ca28aa",
+    "9332cf05c881a517b286",
+    "939447e8cb2375f15828",
+    "95a4f1b39559d9757ce5",
+    "96380055469f1dc1cf2a",
+    "98c4f809d8db7d4b7b6e",
+    "99dbe7888d362a559ab7",
+    "9b9fd5aa07a7d53f611d",
+    "9be6d92cef7bc19ba690",
+    "9c15ad718ce96cf1fe12",
+    "9c7a52a1bc804137cfaa",
+    "9c7eeed7af5b66e42fcd",
+    "9d2b1ccd2e20a81079f7",
+    "9d4b9b1c32f5f352702b",
+    "9d8684ba98c34e135940",
+    "9e313b1ebbac378200f4",
+    "a018f87a1b8d5a9b056e",
+    "a03eb32bc95bbd923315",
+    "a056990e336845e30aaa",
+    "a0cb0c214b7d3b76347d",
+    "a0ddc218db36b764ca27",
+    "a152bcb3c0417b6a5e14",
+    "a1833889897f76333bd7",
+    "a429ab63168c1aaa4223",
+    "a438915f43849e253688",
+    "a44ccd93369d4bc7707e",
+    "a4b6217c0e4a70f0fe23",
+    "a4d1779a908af39d8704",
+    "a5131d3ef56f2aaf46a3",
+    "a66c03e0d28f186e324f",
+    "a74171b6fc1e741a04ed",
+    "a78a5b5cd6ec2cbb8ab9",
+    "a79c944799c31738c2d4",
+    "a7d6c6f169771d9a5f64",
+    "a854da74167f25013279",
+    "a8730506727e7bb16359",
+    "a87e7716345608618f03",
+    "aa655515bd82d2ba16f7",
+    "ab782202329e90c6e8a9",
+    "ad2fbf1d0ec2428d3a4d",
+    "ad45009cf856c477d00f",
+    "ad7154283e4663849870",
+    "ad7535a1aba81f757e5c",
+    "ad911ce50941935611c1",
+    "adb2a1b6af1a106ba868",
+    "add65c55fca603ab3a56",
+    "ae001b389cb604e8e31a",
+    "af966ba8ba527678b299",
+    "afd538d3943ce6f2d59a",
+    "b0d530d6f3c59b27e2f1",
+    "b1b0b435ac9e4f0a0656",
+    "b258f9672108c3a77c63",
+    "b25da2e3496f5c883e09",
+    "b2ee855f27b90fe84e79",
+    "b4323310a7a3b1391083",
+    "b4732e1f49bb40c21fa7",
+    "b5e382333fce49e5e7b2",
+    "b5f101e7cc2e89cc5266",
+    "b685ef1a4439b037e97b",
+    "b6faee572e2814a138f9",
+    "b708b7db2e4c8d642a35",
+    "b78acd9b3864e3f4b4c1",
+    "b7d7ac286441105bfc8d",
+    "b94cdb7487217a0613dd",
+    "b9d2ab145c90255c62de",
+    "bc5a7423dca47e27035e",
+    "be2d6812591e67a901f7",
+    "c14a40999cbc0a977c1e",
+    "c2adf2b7b5ccbcc678ae",
+    "c3048274eee89481978e",
+    "c3177638a8576814cce9",
+    "c32b9bf53cff3cdc4262",
+    "c351cff2be25e7aee7c4",
+    "c422ea85b236e749a613",
+    "c48d0eaf4521e228f28d",
+    "c4f1e5fdf9b88496dc49",
+    "c569c591c4ce335154f9",
+    "c59109dac4db7cacbfac",
+    "c65b3042c0342cf1b5b0",
+    "c6c6a6ba4c762e48f49d",
+    "c6d148312d3463011783",
+    "c6de3dfe82d1c69d4781",
+    "c731e0bab02390f46cf5",
+    "c7dad42db632088eba4b",
+    "c81432191a05b9edf8f7",
+    "c831fbdca83dcb96bb79",
+    "c99dc2888e937a8a6aa2",
+    "ca1ca6c42d8b4fc31ac1",
+    "ca30b58577abed9f8c3f",
+    "ca5c30b5c6f058d8d2c2",
+    "cbd576827efdd1f00c0e",
+    "cca248301fd397004e58",
+    "cd0bea4eec18ea3b0da7",
+    "cd320cc456808befa314",
+    "cd69af71eae6228a9c24",
+    "cdbb43e6ced97a141174",
+    "cdbd014a54f9f6310cb1",
+    "cdc61dfc35b4921f0baa",
+    "cdf4c7188c3d359609de",
+    "ce7fb02049828814fa92",
+    "cf02130525f7cca16f24",
+    "cf23569c1802084eee59",
+    "cf40241bd5fd8679c7f8",
+    "cf7af378974b9c33c8f2",
+    "cf9e99ec8bc8e27f0399",
+    "d03cd61b5644d30db94a",
+    "d09507c248f2eb0af5ca",
+    "d15b9bc6890669231340",
+    "d19191f2e0aa2948fbc8",
+    "d29bc5a904ea7a054885",
+    "d2f1bbfc3a092d2c6147",
+    "d390fa743176ba15be79",
+    "d3c7918e4123b9506e7a",
+    "d43fc48ee6a66f0ed12e",
+    "d4ca2374dc720750fe8b",
+    "d565b38577bdf349b740",
+    "d670aa40524dd1d7e5f1",
+    "d709c37e55805604ea7f",
+    "d75e913e22a38aa07a84",
+    "d7ed12544b5acbf0afbc",
+    "d7f33ebec4a97891d2e1",
+    "d881eb497bac0b4ecb67",
+    "d89f06d6b5a5f37ab8b3",
+    "d914df5aceb437020428",
+    "d9ee6400992dc709f89c",
+    "da1aec9743b83a69f00f",
+    "da43b531614f100d14cb",
+    "daa12e5c1761fc77403e",
+    "dc7655112f248c72541b",
+    "dca73e283d78d9d48644",
+    "dd3a587cf8927eb4e3f5",
+    "de05aa538d6d2eac4cb5",
+    "dea0d639f97d6ff8235d",
+    "df2b88164ee00fd8bf68",
+    "e02a49b2a0d8bac0def6",
+    "e09c48c66b44b0dfa6a7",
+    "e227ecf0a49cf55b237c",
+    "e3cd575897d11c1f9797",
+    "e40faa13879bcd3c45e2",
+    "e41d235b8bad184e4afe",
+    "e4774707b8392a5c5af5",
+    "e484d99d59e8e18920c8",
+    "e62dc347489bf02b7163",
+    "e6f2bb94ff9c02a75956",
+    "e75d05a8ff8a72a8a52c",
+    "e7ac68b47bda67bb9417",
+    "e81da3fdb7ae0b074ea0",
+    "ea87d21b838bff5a4ff7",
+    "eaba1f5c80cfdc0a4ca4",
+    "ead7b38c978b0bb23897",
+    "ec0fe820bc6c3f42368f",
+    "ec4db4bc61775432d6c0",
+    "ec60c439a4661ffff0c7",
+    "ecf53ff13b136fbbdebe",
+    "ed17966781fdfa97775a",
+    "ed2e044c8093f03b26f0",
+    "ee256d46264908ebdf12",
+    "ef7fac36911245b2daeb",
+    "efed20fb8fc85afa9aed",
+    "f06638579f17a2ea5feb",
+    "f078369ed53e48aaabf8",
+    "f08e0acee74b2dbef6b8",
+    "f0d21d133b2e9d6afc68",
+    "f12f5ed7056b1958c51d",
+    "f1b80ec701669745741d",
+    "f38196b95aade009ae66",
+    "f3de1549c178739bb8af",
+    "f4ae750b439db8eed7fc",
+    "f589fd6ccbceadfe9ca6",
+    "f6585142296bc76a06fe",
+    "f6f31d2c0c616e2c5bdf",
+    "f7eaa82430796b83288a",
+    "f810cb8de254872b464b",
+    "f84e40b20a281a73957b",
+    "f88db779db0499205b0b",
+    "f88efcc3f3ba0620ef45",
+    "f92641cb9c2fff16e329",
+    "fb55145cfb1962168920",
+    "fc15884e8fa170fd7a04",
+    "fc1967f75aebfd6f1d6b",
+    "fea6d7e2fdae1eacc142",
+    "feac4c6185041675da51",
+    "feb1b44dfcbe2d5108d9",
+    "fedf6a304bcdecdd8b4d",
+    "ff2c1e6fe7480854352d",
+    "ff64830bd7c79eb2c970",
+    "ff73b3466fd9bdcd01c9"
+   ]
+  },
+  "scope_file_note": "SCOPE.txt 是人工核定白名单，由 l6_scope_lib.apply_scope_file() 在建索引侧生效；不在此文件里的可用单元**不会**进索引（宁可少收，不可把整页抓取混进来稀释检索）。",
+  "scope_delta": {
+   "prev_recorded_usable": 6029,
+   "prev_indexed": 6029,
+   "now_in_scope": 6029,
+   "delta_vs_prev_recorded": 0,
+   "delta_vs_prev_indexed": 0,
+   "added": {
+    "count": 0,
+    "unit_ids": [],
+    "truncated": false
+   },
+   "removed": {
+    "count": 0,
+    "unit_ids": [],
+    "truncated": false
+   },
+   "accepted_by_flag": false
+  },
+  "scope_delta_note": "与上一次已索引集合的逐 id 差额；added/removed 只留前 50 个 id，count 为全量数。口径变化必须由人用 --accept-scope-delta 确认，不允许静默漂移。"
+ },
+ "tokenizer": {
+  "version": "l6-tok-0.1",
+  "rrf_k": 60,
+  "bm25": {
+   "k1": 1.2,
+   "b": 0.75
+  },
+  "implementation": "自实现倒排（无 jieba / 无 rank_bm25）",
+  "zh": "按字符类别切出连续汉字段 → 直接 bigram（不依赖分词库）；单字段退化为 unigram",
+  "en": "小写化 → 按标点/空白分词 → 轻词干（复数/时态/副词后缀保守剥离）",
+  "mixed": "按字符类别分段，各段用各自的切法；词表与倒排分语言存放，不混",
+  "why": "中文 bigram 对英文会明显劣化；素材里英文占比高，混一套切法会拉低英文侧召回"
+ },
+ "segmentation": {
+  "segmenter_version": "l6-seg-0.1",
+  "seg_max_tokens": 120,
+  "effective_model_max_tokens": 128,
+  "how": "按段落换行 + 句末标点切句，贪心打包到 ≤seg_max_tokens；单句超限时按 token 二分硬切。不截断、不丢内容：各段文本拼回来等于原文。",
+  "why": "实测该模型在 128 token 处静默截断（两条只有前 300 字相同的文本得到完全相同向量）",
+  "segment_count_histogram": {
+   "1": 2033,
+   "2": 918,
+   "3": 393,
+   "4": 292,
+   "5": 295,
+   "6": 282,
+   "7": 350,
+   "8": 2376,
+   "9": 12609,
+   "10": 5950,
+   "11": 1133,
+   "12": 876,
+   "13": 169,
+   "14": 84,
+   "15": 60,
+   "16": 80,
+   "17": 170,
+   "18": 342,
+   "19": 38,
+   "20": 80,
+   "21": 252,
+   "22": 308,
+   "23": 506,
+   "24": 3240,
+   "25": 5900,
+   "26": 3900,
+   "27": 999,
+   "28": 532,
+   "29": 58,
+   "30": 30,
+   "32": 64,
+   "33": 99,
+   "34": 68,
+   "35": 35,
+   "36": 36,
+   "37": 74,
+   "38": 76,
+   "47": 47
+  }
+ },
+ "embedding": {
+  "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "dim": 384,
+  "quantization": "fp16（ONNX initializer 全部为 FLOAT16，且无 QuantizeLinear/MatMulInteger 等量化算子）",
+  "provider": "fastembed 0.7.4 + onnxruntime 1.19.2（本地 CPU）",
+  "normalized": "l2",
+  "batch": 32,
+  "max_retry": 3,
+  "weights_repo": "qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q",
+  "weights_file": "model_optimized.onnx",
+  "weights_cache_dir": "/Users/lute/.dsh/models/fastembed",
+  "handshake": {
+   "how": "向模型发一次真实 embedding 请求，校验返回向量合法且维度一致（不用端口/依赖存在性判定）",
+   "text": "握手自检：这是一次真实的 embedding 请求。",
+   "dim_returned": 384,
+   "dim_expected": 384,
+   "all_finite": true,
+   "norm": 3.119,
+   "verdict": "可用"
+  },
+  "p0_excluded_units": 3,
+  "p0_policy": "走 kb/l5/matcher.py 的确定性匹配，因此不重复建向量"
+ },
+ "fusion": {
+  "method": "RRF",
+  "k": 60,
+  "how": "先在 bm25_zh / bm25_en 两个语言子索引之间按名次融合，再与 vector 名次融合",
+  "why": "RRF 只用名次不用原始分，规避 BM25 分与余弦分量纲不同；两路统一用全局 doc_id 当键",
+  "rerank": "本轮不做 rerank 模型"
+ },
+ "idempotency": {
+  "vector_key": [
+   "unit_id",
+   "segment_index",
+   "content_hash",
+   "model",
+   "dim",
+   "quantization"
+  ],
+  "bm25_key": [
+   "unit_id",
+   "content_hash",
+   "tokenizer_version"
+  ],
+  "content_hash": "向量的 content_hash = sha256(该段文本)[:32]；另存 unit_content_hash = sha256(单元全文)[:32]",
+  "unchanged": "键全同 → 复用已有向量/词频表，不重新切词、不重新调 embedding；全量无变化时不重写索引文件"
+ },
+ "embedding_probe": {
+  "checked_at": "2026-09-23 14:02:42",
+  "get": {
+   "py:sentence_transformers": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:transformers": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:torch": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:onnxruntime": {
+    "ok": true,
+    "version": "1.19.2"
+   },
+   "py:numpy": {
+    "ok": true,
+    "version": "2.0.2"
+   },
+   "py:fastembed": {
+    "ok": true,
+    "version": "0.7.4"
+   },
+   "py:text2vec": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:FlagEmbedding": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:openai": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:cohere": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:dashscope": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:modelscope": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:jieba": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:rank_bm25": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:sklearn": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:faiss": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "bin:ollama": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:llama-server": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:llama-cli": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:mlx_lm.generate": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:vllm": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:text-embeddings-router": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:infinity": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:lmstudio": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:localai": {
+    "ok": false,
+    "path": ""
+   },
+   "port:11434": {
+    "ok": false
+   },
+   "port:1234": {
+    "ok": false
+   },
+   "port:8080": {
+    "ok": false
+   },
+   "port:8000": {
+    "ok": false
+   },
+   "port:9997": {
+    "ok": false
+   },
+   "port:5000": {
+    "ok": false
+   },
+   "port:43121": {
+    "ok": false
+   }
+  },
+  "model_files_found": [],
+  "network": {
+   "https://huggingface.co": "200",
+   "https://pypi.org": "200",
+   "https://api.openai.com": "421"
+  },
+  "usable_embedding_found": true,
+  "why": "发现候选：['py:fastembed']",
+  "mode": "vector_plus_bm25"
+ },
+ "embedding_probe_initial": {
+  "checked_at": "2026-09-23 13:56:51",
+  "get": {
+   "py:sentence_transformers": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:transformers": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:torch": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:onnxruntime": {
+    "ok": true,
+    "version": "1.19.2"
+   },
+   "py:numpy": {
+    "ok": true,
+    "version": "2.0.2"
+   },
+   "py:fastembed": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:text2vec": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:FlagEmbedding": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:openai": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:cohere": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:dashscope": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:modelscope": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:jieba": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:rank_bm25": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:sklearn": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:faiss": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "bin:ollama": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:llama-server": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:llama-cli": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:mlx_lm.generate": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:vllm": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:text-embeddings-router": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:infinity": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:lmstudio": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:localai": {
+    "ok": false,
+    "path": ""
+   },
+   "port:11434": {
+    "ok": false
+   },
+   "port:1234": {
+    "ok": false
+   },
+   "port:8080": {
+    "ok": false
+   },
+   "port:8000": {
+    "ok": false
+   },
+   "port:9997": {
+    "ok": false
+   },
+   "port:5000": {
+    "ok": false
+   },
+   "port:43121": {
+    "ok": false
+   }
+  },
+  "model_files_found": [],
+  "network": {
+   "https://huggingface.co": "200",
+   "https://pypi.org": "200",
+   "https://api.openai.com": "421"
+  },
+  "usable_embedding_found": false,
+  "why": "没找到任何可产出真实向量的本地模型或接口：无 embedding 运行时依赖、无本地服务端口、磁盘无 .onnx/.gguf/.safetensors 模型文件、外网不可达（远程 embedding API 也用不了）",
+  "mode": "bm25_only"
+ },
+ "mode_history": [
+  {
+   "step": "首轮探测（13:56）",
+   "result": "bm25_only",
+   "why": "curl 只给 3 秒超时，huggingface/pypi 全判不可达；本机也确实没有现成 embedding 依赖与模型文件"
+  },
+  {
+   "step": "复测网络（13:58）",
+   "result": "可达",
+   "why": "两站均 200，首轮是超时太短导致的误判"
+  },
+  {
+   "step": "装 ONNX 路线依赖（13:59）",
+   "result": "fastembed 0.7.4",
+   "why": "onnxruntime 已在本机，fastembed 走 ONNX 不拉 torch"
+  },
+  {
+   "step": "权重落稳（14:12）",
+   "result": "复制到 ~/.dsh/models/fastembed",
+   "why": "fastembed 默认缓存在 /var/folders 临时目录，系统清理后离线就跑不了；挪到稳定目录并让 retriever 指过去"
+  },
+  {
+   "step": "发现截断（14:13）",
+   "result": "必须分段",
+   "why": "实测该模型 128 token 截断，31,450 字的单元只进前 ~128 字；本版改为按段落分段"
+  },
+  {
+   "step": "修正融合编号（14:15）",
+   "result": "统一 doc_id",
+   "why": "上一版向量用矩阵行号、BM25 用文档号，两套编号不同源（1,573/1,578 对不上），融合会张冠李戴"
+  }
+ ],
+ "counts": {
+  "usable": 6029,
+  "usable_distinct_unit_ids": 6029,
+  "duplicate_unit_id_rows": 0,
+  "bm25_indexed": 6028,
+  "bm25_failed": 1,
+  "vector_units_indexed": 6026,
+  "vector_segments": 44754,
+  "units_segmented": 3993,
+  "vector_skipped_p0": 3,
+  "vector_failed": 0,
+  "note": "全部为持久口径（索引里到底有没有这条）；本次运行做了什么写在 runs/ 里"
+ },
+ "bm25_scale": {
+  "docs_total": 6029,
+  "N_zh": 2192,
+  "N_en": 5689,
+  "avgdl_zh": 858.712,
+  "avgdl_en": 306.286,
+  "terms_zh": 193307,
+  "terms_en": 41117,
+  "postings_zh": 1210547,
+  "postings_en": 837212
+ }
+}

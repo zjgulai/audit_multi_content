@@ -1,0 +1,72 @@
+---
+name: kb-ingest-extractor
+description: |
+  Momcozy 内容治理知识库 **L1→L2 的抽取与切分入口**：把素材提取成知识单元（L1），
+  再按切分器切成可召回、可蒸馏的单元（L2）。
+  当用户说「抽取单元 / 素材转条目 / 这批素材落库 / L1 抽取 / L2 切分 / 重切 / 补切 /
+  切分规则 / 单元对不上 / 有条目没切」时使用。
+  触发词：抽取单元、素材转条目、L1 抽取、L2 切分、补切、重切、切分规则、单元对账、
+  ingest extractor、kb-ingest-extractor。
+  不适用（各自点名）：
+    · 图片 / 视频 / 附件的文本抽取 → 走 **kb-media-extractor**（L1 媒体，本 skill 不碰 OCR）；
+    · 条款级抽取与规则蒸馏 → 走 **kb-clause-extractor**（L3）；
+    · 只对账 L0 → **kb-l0-feishu**；整链同步 → **kb-pipeline**。
+version: "1.0.0"
+last_updated: 2026-09-30
+complexity: "standard"
+enabled: "true"
+user-invocable: true
+---
+
+# kb-ingest-extractor —— L1 抽取 / L2 切分
+
+**一句话**：素材 → 知识单元。**只拆不合**（合并在 L3 的规则层做）。
+
+## 1. 它管哪两层
+
+| 项 | L1 | L2 |
+|---|---|---|
+| 幂等键 | `(resource_id, extractor_version, source_sha256)` | `(resource_id, source_sha256, splitter_version)` |
+| 落盘 | `kb/l1/manifest_l1.jsonl`、`kb/l1/<子库>/<rid>.json` | `kb/l2/units.jsonl`、`kb/l2/index/l2.jsonl`、`kb/l2/manifest_l2.jsonl` |
+| 闸门 | `kb/l7/scripts/l1_gate.py` | `kb/l7/scripts/l2_gate.py` |
+
+## 2. 干活的引擎
+
+```bash
+# L1：把新资源抽成单元（写 kb/l1/**）
+kb/kbpy l8/extract_l1_new_resources.py <RUN> [--apply]
+
+# L2：切分（**本仓库唯一「不带 --apply 即预演」的层主引擎**）
+kb/kbpy l8/l2_split_run.py <RUN>              # 预演：只打印将追加多少行
+kb/kbpy l8/l2_split_run.py <RUN> --apply      # 落盘：追加 units / index / manifest
+```
+
+L2 引擎的缺口口径（2026-09-30 修正，理解它才知道会不会漏切）：
+**缺口 = 该资源没有「当前正文」的单元** —— `units.jsonl` 是 append-only、旧单元行不删，
+所以判据是「正文 sha 不在已有单元里」，不是「有没有任何单元行」。
+
+## 3. 三条红线
+
+1. **不许不预演就落盘**：L2 先跑不带 `--apply` 的那次，看清「将追加 N 行」再决定。
+2. **台账是 append-only**：不许删 `units.jsonl` / `manifest_l2.jsonl` 的行来让闸门变绿 —— 那会毁掉出处。
+3. **unit_count 的口径还没写死**：实测三种口径（最新 split 行 / split 行求和 / 全行求和）
+   分别 1520 / 1624 / 1320 相符 —— L2 闸门因此在说明项里报「口径歧义」而**不猜公式**。
+   改口径要落到 `kb/l2/registry/l2.json`，别在会话里口头约定。
+
+## 4. 验收
+
+| # | 判据 |
+|---|---|
+| A1 | `kb/kbpy l7/scripts/l2_gate.py` 退出 0（5 条判据：行可解析 / run 内序列合法 / 账实上下界 / 产物归属 / 上游可溯） |
+| A2 | 预演说「将追加 N 行」→ 落盘后 `units.jsonl` 确实 +N 行（不多不少） |
+| A3 | 再跑一次预演 → 报 **+0 行**（幂等收敛） |
+| A4 | `kb/kbpy l7/scripts/l1_gate.py` 仍过；产物无信封态 |
+
+## 5. 与其他成员的关系
+
+| 关系 | 成员 | 说明 |
+|---|---|---|
+| 上游 | `kb-media-extractor`（媒体文本）/ `kb-l0-feishu`（L0 对账） | L1 的输入来自这两处 |
+| 下游 | `kb-clause-extractor`（L3 蒸馏） | 单元是蒸馏的原料 |
+| 编排 | `kb-pipeline` | 整链拓扑序；本 skill 是 L1/L2 的 owner |
+| 体检 / 修复 | `kb-check` / `kb-repair` | 闸门红了的定位与修复 |

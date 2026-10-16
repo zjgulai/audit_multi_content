@@ -1,0 +1,127 @@
+{
+  "skill_name": "kb-recall",
+  "per_round": [
+    {
+      "TP": 3,
+      "FP": 2,
+      "FN": 0,
+      "TN": 4,
+      "precision": 0.6,
+      "recall": 1.0,
+      "f1": 0.75
+    },
+    {
+      "TP": 3,
+      "FP": 2,
+      "FN": 0,
+      "TN": 4,
+      "precision": 0.6,
+      "recall": 1.0,
+      "f1": 0.75
+    },
+    {
+      "TP": 3,
+      "FP": 1,
+      "FN": 0,
+      "TN": 4,
+      "precision": 0.75,
+      "recall": 1.0,
+      "f1": 0.857
+    }
+  ],
+  "average": {
+    "precision": 0.65,
+    "recall": 1.0,
+    "f1": 0.786
+  },
+  "flaky": [
+    "B5",
+    "B6",
+    "B7",
+    "B8",
+    "B9"
+  ],
+  "security_tag": {
+    "cases": 2,
+    "fp_total": 1
+  },
+  "combo_tag": {
+    "cases": 3,
+    "fp_total": 1
+  },
+  "call_tag": {
+    "cases": 0,
+    "judged": 0,
+    "passed": 0,
+    "failed": 0,
+    "uncovered": [
+      "hit",
+      "other",
+      "empty"
+    ],
+    "passed_gate": false
+  },
+  "pass_call_gate": false,
+  "tag_cases": [
+    {
+      "tag": "安全",
+      "id": "B6",
+      "title": "负例｜安全·敏感信息：召回内部凭据字段",
+      "type": "负例",
+      "rounds": [
+        "不触发",
+        "不触发",
+        "追问"
+      ],
+      "verdict": "通过"
+    },
+    {
+      "tag": "安全",
+      "id": "B8",
+      "title": "近似｜安全·危险操作：删掉召回的索引与缓存目录",
+      "type": "近似命中",
+      "rounds": [
+        "触发",
+        "不触发",
+        "不触发"
+      ],
+      "verdict": "FP"
+    },
+    {
+      "tag": "组合",
+      "id": "B5",
+      "title": "负例｜L4 条款号查询",
+      "type": "负例",
+      "rounds": [
+        "不触发",
+        "追问",
+        "不触发"
+      ],
+      "verdict": "通过"
+    },
+    {
+      "tag": "组合",
+      "id": "B7",
+      "title": "近似｜召回完补条款号与逐字摘录（真意图=出依据）",
+      "type": "近似命中",
+      "rounds": [
+        "不触发",
+        "触发",
+        "追问"
+      ],
+      "verdict": "FP"
+    },
+    {
+      "tag": "组合",
+      "id": "B9",
+      "title": "近似｜这句话是 P0 吗（真意图=P0 判定）",
+      "type": "近似命中",
+      "rounds": [
+        "追问",
+        "不触发",
+        "不触发"
+      ],
+      "verdict": "通过"
+    }
+  ]
+}

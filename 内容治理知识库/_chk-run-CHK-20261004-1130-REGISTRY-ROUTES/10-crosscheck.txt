@@ -1,0 +1,46 @@
+== 登记表基线 ==
+skills.yaml 行数: 71
+scope=本项目: 52 | 其中 status=生产: 40
+id 前缀 kb-*: 14 ['kb-canonical-lookup', 'kb-check', 'kb-clause-extractor', 'kb-content-review', 'kb-ingest-extractor', 'kb-l0-feishu', 'kb-manage', 'kb-media-extractor', 'kb-p0-check', 'kb-pipeline', 'kb-recall', 'kb-repair', 'kb-retriever', 'kb-review']
+id 前缀 brand-*: 14
+prefix brand-* = ['brand-ai-provenance-rights-review', 'brand-content-review-agent', 'brand-feishu-review-adapter', 'brand-image-safety-review', 'brand-policy-source-curator', 'brand-product-claim-verifier', 'brand-product-fact-curator', 'brand-review-decision-engine', 'brand-review-evaluation', 'brand-review-intake-router', 'brand-review-report-memory', 'brand-text-compliance-review', 'brand-us-locale-cultural-review', 'brand-video-safety-review']
+
+== A. routes.yaml -> skills.yaml（id 存在性，独立复算）==
+  A 小计问题: 0
+
+== B. frozen_expectation.dir_name_map: key 在登记表? value == skills.yaml 的 dir_name? ==
+  条目数: 13
+  key 不在登记表的: []
+  value 与 skills.yaml.dir_name 不一致的: []
+  登记表里 brand-* 共 14 ｜dir_name_map 覆盖 13 ｜未覆盖: ['brand-product-fact-curator'] ｜多余: []
+
+== C. 登记表里「装了但任何路由/链都不指它」的成员（孤儿）==
+  被 routes/chains 点到的 id 数: 11
+  登记表里没被点到的 id（60 个）: ['MECE知识提取器', 'agent-build-flow', 'brand-ai-provenance-rights-review', 'brand-feishu-review-adapter', 'brand-image-safety-review', 'brand-policy-source-curator', 'brand-product-claim-verifier', 'brand-product-fact-curator', 'brand-review-decision-engine', 'brand-review-evaluation', 'brand-review-intake-router', 'brand-review-report-memory', 'brand-text-compliance-review', 'brand-us-locale-cultural-review', 'brand-video-safety-review', 'code-review', 'compliance-review-planner', 'context-handoff', 'dataset-health-audit', 'domain-modeling', 'grill-me', 'grill-with-docs', 'grilling', 'handoff', 'implement', 'kb-clause-extractor', 'kb-ingest-extractor', 'kb-media-extractor', 'kb-retriever', 'knowledge-distillation', 'lark-base', 'lark-doc', 'lark-drive', 'lark-shared', 'lark-wiki', 'minimax-multimodal-toolkit', 'prototype', 'root-agents', 'root-skills-batch-driver', 'root-skills-check', 'root-skills-creator', 'root-skills-doctor', 'root-skills-eval', 'root-skills-manage', 'root-skills-opt', 'setup-matt-pocock-skills', 'shuorenhua', 'sop-writer', 'tdd', 'to-spec', 'to-tickets', 'vision-analysis', 'web-testcase', 'web-执行测试用例', '术语标准化器', '知识相似度分析器', '蒸馏', '语义分桶器', '语义文档分块器', '锚点文本分割器']
+
+== D. layers.yaml 各层 skill: 字段 vs 登记表 vs 装载位 ==
+  L0  skill=['kb-l0-feishu']
+  L1  skill=['kb-ingest-extractor', 'kb-media-extractor']
+  L2  skill=['kb-ingest-extractor']
+  L3  skill=['kb-clause-extractor']
+  L4  skill=['kb-canonical-lookup']
+  L5  skill=['kb-p0-check']
+  L6  skill=['kb-recall']
+  L7  skill=['kb-check']
+  layers.yaml 引用的 skill 数: 8
+  layers.yaml 引用但不在 routes.yaml 任何 to/chains 里的: ['kb-clause-extractor', 'kb-ingest-extractor', 'kb-media-extractor']
+
+== E. 装载位实目录 vs 登记表 dir_name ==
+  装载位目录数: 59
+  登记了 dir_name 但装载位没有的: []
+  装载位有目录但登记表没有该 dir_name/id 的: []
+
+== F. 赢家表里的名字 vs 登记名 ==
+  赢家表出现过的取值: ['AI 溯源与权利审查', 'CLARIFY', 'NONE', 'kb-canonical-lookup', 'kb-check', 'kb-content-review', 'kb-l0-feishu', 'kb-manage', 'kb-p0-check', 'kb-pipeline', 'kb-recall', 'kb-repair', 'kb-review', '产品宣称核验', '内容审查总控', '图片安全审查', '审查报告与记忆', '审查流程评测', '审查裁决', '文案合规审查', '美国本地化审查', '视频安全审查', '证据源维护', '送审登记', '飞书审查流转']
+  其中既不是登记 id 也不是登记 dir_name 的: ['AI 溯源与权利审查', 'CLARIFY', 'NONE']
+
+== G. 「让位表」到底在哪个文件（routes.yaml 被指为出处）==
+  routes.yaml 第 81 行写「见 kb-review 的让位表」；routes.yaml 自身含 '让位表' 的行: [49, 81]
+  kb-review/SKILL.md 是否存在: True
+  kb-review/SKILL.md 含 '让位表' 的行号: [58, 96, 99, 212, 274]
+  routes.yaml 顶层键: ['meta', 'chains', 'routes', 'mutual_not_for', 'frozen_expectation', 'measured_20260929']

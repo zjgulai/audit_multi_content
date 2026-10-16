@@ -1,0 +1,23 @@
+{
+  "agent": "root-agent-check",
+  "cases": [
+    {
+      "id": "smoke-001",
+      "dimension": "grow_agent",
+      "difficulty": "L1",
+      "input": {
+        "targets": [],
+        "run_id": "smoke",
+        "memory_dir": "/tmp/root-agent-check-probe"
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "growth_verdict": "insufficient_evidence"
+        }
+      },
+      "notes": "无目标 → insufficient_evidence，退出码 0，零副作用",
+      "required_tools": []
+    }
+  ]
+}

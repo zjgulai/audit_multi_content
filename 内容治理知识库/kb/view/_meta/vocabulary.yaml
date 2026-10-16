@@ -1,0 +1,428 @@
+# 由 kb/.work/fix_f3_gen.py 生成（修复计划 F3a）—— 顶层键必须在加载器 WIRED_META_KEYS 白名单内，
+# 词表来源：kb/l7/registry/l7.json → vocabulary（受控词表，PRD §7.2 九域 / §7.3 七项一票否决）
+# 作用：kb_search 检索前把查询词扩成「主词 + 别名」，别名权重 0.5。
+#       命中概念的 entries 另给排序加分（ranking.yaml 的 vocabulary）。
+# ⚠ 扩的是查询词，不是把正文拉进检索 —— 「正文不参与检索」的纪律没破。
+concepts:
+  - id: c-h01
+    canonical: "疾病治疗宣称"
+    aliases:
+      - "H01"
+      - "功效宣称"
+      - "医疗功效宣称"
+      - "医疗宣称"
+      - "治愈"
+      - "治疗"
+      - "治疗/治愈/诊断类宣称"
+      - "疾病治疗宣称"
+      - "诊断类宣称"
+      - "预防疾病等"
+    entries:
+      - cg-r-b10ee2b8361c8a3d
+    collections:
+      - 3_措辞表达库
+  - id: c-h02
+    canonical: "催乳与通乳宣称"
+    aliases:
+      - "H02"
+      - "乳腺炎"
+      - "催乳"
+      - "催乳、增产、通乳、乳腺炎/堵奶处置"
+      - "催乳与通乳宣称"
+      - "功效宣称"
+      - "医疗功效宣称"
+      - "医疗宣称"
+      - "堵奶处置"
+      - "增产"
+      - "治疗"
+      - "通乳"
+      - "预防疾病等"
+    entries:
+      - cg-r-37b49eadb72d7dc2
+      - cg-r-b8aea07e90a86b59
+    collections:
+      - 3_措辞表达库
+  - id: c-h03
+    canonical: "临床与实验证据宣称"
+    aliases:
+      - "H03"
+      - "临床与实验证据宣称"
+      - "临床证明"
+      - "临床证明/测试/验证类"
+      - "功效宣称"
+      - "医疗功效宣称"
+      - "医疗宣称"
+      - "治疗"
+      - "测试"
+      - "预防疾病等"
+      - "验证类"
+    entries:
+      - cg-r-16cac1c85580f8f7
+    collections:
+      - 3_措辞表达库
+  - id: c-h07-u04
+    canonical: "疼痛功效承诺"
+    aliases:
+      - "H07"
+      - "U04"
+      - "功效宣称"
+      - "医疗功效宣称"
+      - "医疗宣称"
+      - "无痛"
+      - "无痛、缓解疼痛、痛点消除暗示"
+      - "治疗"
+      - "疼痛功效承诺"
+      - "痛点消除暗示"
+      - "缓解疼痛"
+      - "预防疾病等"
+    entries:
+      - cg-r-106e4c5b6475d0e3
+      - cg-r-5c056bc02cdd770c
+      - cg-r-d7290a0ee59c58ef
+      - cg-r-e879231d61c9bd08
+    collections:
+      - 3_措辞表达库
+  - id: c-m07
+    canonical: "效率与漏奶宣称"
+    aliases:
+      - "M07"
+      - "功效宣称"
+      - "医疗功效宣称"
+      - "医疗宣称"
+      - "奶流"
+      - "排空效率"
+      - "排空效率、奶流、漏奶、移除量"
+      - "效率与漏奶宣称"
+      - "治疗"
+      - "漏奶"
+      - "移除量"
+      - "预防疾病等"
+    entries:
+      - cg-r-379572868aa01151
+      - cg-r-b301be45b8cd64a9
+    collections:
+      - 3_措辞表达库
+  - id: c-h09
+    canonical: "智能与仿生宣称"
+    aliases:
+      - "H09"
+      - "功效宣称"
+      - "医疗功效宣称"
+      - "医疗宣称"
+      - "智能与仿生宣称"
+      - "模拟婴儿吸吮"
+      - "治疗"
+      - "自动识别节奏"
+      - "自动识别节奏、模拟婴儿吸吮"
+      - "预防疾病等"
+    entries:
+      - cg-r-006445396c95aa10
+      - cg-r-7489e156a5d2c7b2
+    collections:
+      - 3_措辞表达库
+  - id: c-h05
+    canonical: "虚假安全承诺"
+    aliases:
+      - "100%"
+      - "100%安全"
+      - "H05"
+      - "完美"
+      - "无依据的销量/排名宣称"
+      - "最佳"
+      - "最安全"
+      - "最安全/100%安全/零风险/完美"
+      - "第一"
+      - "纯天然等"
+      - "绝对化与安全承诺"
+      - "绝对化用语"
+      - "绝对化表述"
+      - "虚假安全承诺"
+      - "零风险"
+    entries:
+      - cg-r-3b6c3c82dc667295
+      - cg-r-7baf7ceb47b2e5bc
+    collections:
+      - 3_措辞表达库
+  - id: c-m02-h08
+    canonical: "绝对化性能表述"
+    aliases:
+      - "100%"
+      - "H08"
+      - "M02"
+      - "倍数碾压"
+      - "无依据的销量/排名宣称"
+      - "无敌"
+      - "最佳"
+      - "极致"
+      - "第一"
+      - "纯天然等"
+      - "绝对化与安全承诺"
+      - "绝对化性能表述"
+      - "绝对化用语"
+      - "绝对化表述"
+      - "超强"
+      - "超强/极致/无敌/倍数碾压"
+    entries:
+      - cg-r-0823b2d08a7e4ec2
+      - cg-r-252ba6cf5ee92b00
+      - cg-r-c767bb12e6a8698d
+    collections:
+      - 3_措辞表达库
+  - id: c-m03
+    canonical: "无依据数据与销量排名"
+    aliases:
+      - "100%"
+      - "M03"
+      - "best-selling"
+      - "倍数"
+      - "排名"
+      - "无依据数据与销量排名"
+      - "无依据的销量/排名宣称"
+      - "最佳"
+      - "百分比"
+      - "百分比、倍数、best-selling、排名"
+      - "第一"
+      - "纯天然等"
+      - "绝对化与安全承诺"
+      - "绝对化用语"
+      - "绝对化表述"
+    entries:
+      - cg-r-4f309d6ebde80283
+      - cg-r-d00103c52a98512e
+    collections:
+      - 3_措辞表达库
+  - id: c-m06
+    canonical: "竞品对比"
+    aliases:
+      - "100%"
+      - "M06"
+      - "优于"
+      - "对比竞品"
+      - "无依据的销量/排名宣称"
+      - "最佳"
+      - "比同类"
+      - "比同类/优于/对比竞品"
+      - "竞品对比"
+      - "第一"
+      - "纯天然等"
+      - "绝对化与安全承诺"
+      - "绝对化用语"
+      - "绝对化表述"
+    entries:
+      - cg-r-3b18c7d1af8f8d4d
+      - cg-r-870bf797d240b725
+    collections:
+      - 3_措辞表达库
+  - id: c-h04
+    canonical: "医生专家推荐"
+    aliases:
+      - "H04"
+      - "专家"
+      - "儿科医生推荐背书"
+      - "医生"
+      - "医生/专家/儿科医生推荐背书"
+      - "医生专家推荐"
+      - "无依据的销量/排名宣称"
+      - "背书与资质"
+      - "资质背书"
+      - "达人背书"
+    entries:
+      - cg-r-3055901e5877f981
+      - cg-r-9b672eff05199974
+    collections:
+      - 3_措辞表达库
+  - id: c-h06
+    canonical: "监管认证宣称"
+    aliases:
+      - "FDA 等监管机构认证"
+      - "FDA 等监管机构认证/批准"
+      - "H06"
+      - "批准"
+      - "无依据的销量/排名宣称"
+      - "监管认证宣称"
+      - "背书与资质"
+      - "资质背书"
+      - "达人背书"
+    entries:
+      - cg-r-15a607c4457c8b55
+    collections:
+      - 3_措辞表达库
+  - id: c-m05
+    canonical: "等级与资质背书"
+    aliases:
+      - "M05"
+      - "hospital grade"
+      - "军用级"
+      - "医疗级"
+      - "医疗级/军用级/hospital grade"
+      - "无依据的销量/排名宣称"
+      - "等级与资质背书"
+      - "背书与资质"
+      - "资质背书"
+      - "达人背书"
+    entries:
+      - cg-r-21786ac5aff9be34
+      - cg-r-38148746d4e6516d
+    collections:
+      - 3_措辞表达库
+  - id: c-u01
+    canonical: "专业头衔与合作"
+    aliases:
+      - "IBCLC"
+      - "IBCLC、泌乳顾问、专家调校"
+      - "U01"
+      - "专业头衔与合作"
+      - "专家调校"
+      - "无依据的销量/排名宣称"
+      - "泌乳顾问"
+      - "背书与资质"
+      - "资质背书"
+      - "达人背书"
+    entries:
+      - cg-r-65198e7c3e5b833e
+      - cg-r-c40ed52e71a07743
+    collections:
+      - 3_措辞表达库
+  - id: c-u03
+    canonical: "医疗场景宣称"
+    aliases:
+      - "NICU 场景"
+      - "U03"
+      - "临床适用性"
+      - "医疗场景宣称"
+      - "医院"
+      - "医院/NICU 场景、临床适用性"
+      - "无依据的销量/排名宣称"
+      - "背书与资质"
+      - "资质背书"
+      - "达人背书"
+    entries:
+      - cg-r-85348bba00a2b5a7
+      - cg-r-9878294c87d29582
+    collections:
+      - 3_措辞表达库
+  - id: c-m01
+    canonical: "静音绝对化表述"
+    aliases:
+      - "100%"
+      - "M01"
+      - "几乎无声"
+      - "平台与促销"
+      - "最佳"
+      - "第一"
+      - "纯天然等"
+      - "绝对化用语"
+      - "零噪音"
+      - "静音"
+      - "静音/零噪音/几乎无声"
+      - "静音绝对化表述"
+    entries:
+      - cg-r-0ffc53715dfa4e43
+      - cg-r-ddf0f8360c7b53a7
+    collections:
+      - 3_措辞表达库
+  - id: c-m04
+    canonical: "促销紧迫感表述"
+    aliases:
+      - "100%"
+      - "M04"
+      - "促销紧迫感表述"
+      - "平台与促销"
+      - "最佳"
+      - "最后机会"
+      - "第一"
+      - "纯天然等"
+      - "绝对化用语"
+      - "错过即无"
+      - "限时"
+      - "限时/最后机会/错过即无"
+    entries:
+      - cg-r-33ce99a813e0865a
+      - cg-r-cbfa62aa397fc6ba
+    collections:
+      - 3_措辞表达库
+  - id: c-u02
+    canonical: "保险与支付资格宣称"
+    aliases:
+      - "100%"
+      - "FSA"
+      - "HSA"
+      - "U02"
+      - "保险与支付资格宣称"
+      - "保险可报销"
+      - "保险可报销/HSA/FSA"
+      - "平台与促销"
+      - "最佳"
+      - "第一"
+      - "纯天然等"
+      - "绝对化用语"
+    entries:
+      - cg-r-335f00d14cefe7f9
+    collections:
+      - 3_措辞表达库
+  - id: c-安全词
+    canonical: "允许表述（安全词）"
+    aliases:
+      - "允许表述（安全词）"
+      - "命中不作为违规"
+      - "安全词"
+      - "源侧明确放开的表述"
+      - "源侧明确放开的表述，命中不作为违规"
+      - "表述与术语准确性"
+    entries: []
+    collections:
+      - 3_措辞表达库
+  - id: c-domain-车内场景
+    canonical: "车内场景"
+    aliases:
+      - "车内场景"
+    entries: []
+    collections: []
+  - id: c-domain-功效宣称与广告用语
+    canonical: "功效宣称与广告用语"
+    aliases:
+      - "功效宣称与广告用语"
+    entries: []
+    collections: []
+  - id: c-domain-喂养场景
+    canonical: "喂养场景"
+    aliases:
+      - "喂养场景"
+    entries: []
+    collections: []
+  - id: c-domain-人物-肖像与-AI
+    canonical: "人物、肖像与 AI"
+    aliases:
+      - "人物、肖像与 AI"
+    entries: []
+    collections: []
+  - id: c-domain-睡眠场景
+    canonical: "睡眠场景"
+    aliases:
+      - "睡眠场景"
+    entries: []
+    collections: []
+  - id: c-domain-洗护与沐浴
+    canonical: "洗护与沐浴"
+    aliases:
+      - "洗护与沐浴"
+    entries: []
+    collections: []
+  - id: c-domain-出行与户外
+    canonical: "出行与户外"
+    aliases:
+      - "出行与户外"
+    entries: []
+    collections: []
+  - id: c-domain-居家与用电
+    canonical: "居家与用电"
+    aliases:
+      - "居家与用电"
+    entries: []
+    collections: []
+  - id: c-domain-玩具与玩乐
+    canonical: "玩具与玩乐"
+    aliases:
+      - "玩具与玩乐"
+    entries: []
+    collections: []

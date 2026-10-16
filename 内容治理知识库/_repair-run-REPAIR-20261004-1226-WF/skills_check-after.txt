@@ -1,0 +1,43 @@
+====================================================================
+skills_check —— DSH 宿主 skill 登记表自检
+====================================================================
+库根    : /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb
+登记表  : l7/registry/skills.yaml
+解析器  : PyYAML（版本 6.0.3）
+  行数  : 71（本项目 52 / 宿主通用 19）
+装载位  : /Users/lute/.dsh/skills
+  扫到  : 59 个目录
+另一装载位: /Users/lute/.agents/skills（本项目不装这里，仅作对照）
+lark 基准: ~/.dsh/bin/lark-cli
+
+--- 1. 应装未装（scope=本项目 且 status=生产，但装载位里没有） --- 0 条
+--- 1b. 预期未装（scope=本项目 且 status=候选/规划，本阶段只登记不安装）--- 0 条【不算错误】
+
+--- 2. 装了但没登记（装载位里有目录，表里没有对应 id） --- 0 条
+
+--- 3. 副本不一致（source 非 null 的逐文件 cmp；lark-* 另比官方基准） --- 0 条
+
+--- 4. 依赖缺失（depends_on_engine 路径在库内不存在） --- 0 条
+
+--- 5. 自测缺失（selftest 路径不存在） --- 0 条
+
+--- 未登记 selftest（单独归类，不算错误）--- 62 条
+    蒸馏、root-skills-check、root-skills-creator、root-skills-doctor、root-skills-eval、root-skills-manage、root-skills-opt、root-skills-batch-driver、lark-doc、lark-drive、lark-wiki、lark-base、lark-shared、agent-build-flow、code-review、context-handoff、domain-modeling、grill-me、grill-with-docs、grilling
+
+--- 备注 ---
+    · 3 备注：lark-base 与 CLI 输出不一致，但本地版本 1.2.23 高于 CLI 1.2.22（属超前，不告警）
+    · 3 跳过：12 个登记了 source 的条目尚未安装，未做副本比对：kb-retriever（废弃）、锚点文本分割器（参考）、语义文档分块器（参考）、MECE知识提取器（参考）、术语标准化器（参考）、语义分桶器（参考）、知识相似度分析器（参考）、vision-analysis（参考）…（共 12 个）
+
+====================================================================
+汇总
+====================================================================
+本项目要用：40 个（生产 40 + 候选 0 + 规划 0）
+  已装    ：40 个
+  还差    ：0 个（候选 0 + 规划 0）
+另：status=参考 11 个（只参考 / 只收编，一律不安装、不复制）
+    宿主通用 19 个（登记归属，不参与「应装未装」判定）
+
+五类问题：1=0 2=0 3=0 4=0 5=0 ｜合计 0
+结论：全过。
+退出码：0
+EXIT=0

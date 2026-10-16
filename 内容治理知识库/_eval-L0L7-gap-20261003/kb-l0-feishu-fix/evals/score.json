@@ -1,0 +1,134 @@
+{
+  "skill": "kb-l0-feishu",
+  "fix_version": "1.3.0",
+  "evaluated_at": "2026-10-08",
+  "composite_100": 85.7,
+  "composite_100_uncapped": 85.7,
+  "cap": "未触发封顶（Output ≥15、无 error 级 issue、security_tag.high_risk=0）",
+  "grade": "B（良好）",
+  "market_ready": true,
+  "track_a_static": 98.6,
+  "track_b": {
+    "a_paper_total": 100,
+    "average": {
+      "precision": 0.99,
+      "recall": 0.99,
+      "f1": 0.99
+    },
+    "per_round": [
+      {
+        "TP": 32,
+        "FP": 1,
+        "FN": 0,
+        "TN": 67,
+        "precision": 0.97,
+        "recall": 1.0,
+        "f1": 0.985
+      },
+      {
+        "TP": 32,
+        "FP": 0,
+        "FN": 0,
+        "TN": 68,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      {
+        "TP": 31,
+        "FP": 0,
+        "FN": 1,
+        "TN": 68,
+        "precision": 1.0,
+        "recall": 0.969,
+        "f1": 0.984
+      }
+    ],
+    "flaky": [
+      20,
+      89,
+      90,
+      91,
+      94,
+      95,
+      96,
+      97,
+      99
+    ],
+    "flaky_count": 9,
+    "security_tag": {
+      "cases": 13,
+      "fp_total": 0,
+      "high_risk": 0
+    },
+    "combo_tag": {
+      "cases": 31,
+      "fp_total": 0,
+      "high_risk": 0
+    },
+    "call_tag": {
+      "cases": 4,
+      "judged": 12,
+      "passed": 12,
+      "failed": 0,
+      "uncovered": [],
+      "passed_gate": true
+    },
+    "pass_call_gate": true,
+    "output_assertions": {
+      "source": {
+        "checks": 1560,
+        "pass": 1559,
+        "O1": [
+          311,
+          312
+        ],
+        "O2": [
+          312,
+          312
+        ],
+        "O3": [
+          312,
+          312
+        ],
+        "O4": [
+          312,
+          312
+        ],
+        "O5": [
+          312,
+          312
+        ]
+      },
+      "pass_rate": 0.9994
+    },
+    "b_paper_gate": {
+      "cases": 10,
+      "rounds": 3,
+      "f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "flaky": 1,
+      "security_cases": 3,
+      "security_fp_total": 0,
+      "combo_cases": 3,
+      "combo_fp_total": 0,
+      "high_risk": 0,
+      "passed": true,
+      "call_gate": "A 卷调用门槛通过（12/12）—— B 卷按设计不含调用题"
+    }
+  },
+  "track_c_dimensions": {
+    "Trigger Accuracy": 24.7,
+    "Output Quality": 15.0,
+    "Progressive Disclosure": 13.0,
+    "Safety Boundary": 13.0,
+    "Script Quality": 10.0,
+    "Specification Compliance": 10.0
+  },
+  "gate_result": "修复复测完成：轨道 A 静态六维 98.6/100（0 个 error 级问题）；轨道 B A 卷 100 条 + 调用 4 条 × 3 轮（P=0.99 / R=0.99 / F1=0.99）；轨道 C 综合 85.7/100（B（良好））",
+  "recommendation": "**建议放行**：轨道 C 封顶后 85.7≥ 85（market_ready=true）。触发精度由源版 P=0.740 / F1=0.850 收敛到 P=0.99 / F1=0.99，误触发由 34 次降到 1 次，且召回未受损（R=0.99）、无高危安全 FP。",
+  "generated_from": "kb-l0-feishu-fix-evaluation-report.yaml",
+  "generated_at": "2026-10-09T19:44:17",
+  "generator": "make_score_json.py（现读生成，禁手工转录）"
+}

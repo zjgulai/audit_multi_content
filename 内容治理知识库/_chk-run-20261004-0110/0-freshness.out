@@ -1,0 +1,33 @@
+==============================================================================
+供给链新鲜度检查（L0–L7，只读）｜陈旧判定**读 daily_health 自己的结论**
+==============================================================================
+逐层关键 data 产物（age 为 daily_health 按**墙钟**算的值）：
+  L0  l0/manifest.jsonl                            1.8 天前  
+  L1  l1/manifest_l1.jsonl                         2.0 天前  
+  L1  l1/index/l1.jsonl                            1.5 天前  
+  L2  l2/units.jsonl                               2.6 天前  
+  L2  l2/manifest_l2.jsonl                         2.6 天前  
+  L3  l3/candidates/rules.jsonl                    1.1 天前  
+  L3  l3/rejected.jsonl                            1.1 天前  
+  L3  l3/manifest_l3.jsonl                         1.7 天前  
+  L4  l4/canonical/wording_entry.jsonl             1.1 天前  
+  L5  l5/p0_patterns.jsonl                        3.9 小时前  
+  L6  l6/selftest.json                             1.7 天前  
+
+健康色：**（本次未跑闸门，健康色不可用）**
+  原因：本脚本调用 daily_health 时带 `--no-gates`（`freshness.py:92`，为省时间；新鲜度判定不依赖闸门）。
+  ⚠️ 因此 `health=YELLOW` 是「没跑闸门」的产物，**不代表真实健康色**，**不要**把它当供给链状态读。
+  要真实健康色：看带闸门的那份产物 ——
+    `kb/l7/reports/daily-health-latest.json`（`daily_health.py` 不带 `--no-gates` 跑出来的）
+
+L1/L2/L3 查询档（调用 = 调该层 skill 的只读查询档）：
+  L1  ✅ 可调
+  L2  ✅ 可调
+  L3  ✅ 可调
+
+L6 索引 vs L3 规则（时序事实，本脚本只报不判因果）：
+  L6 索引 10-02 22:47 ｜ L3 规则 10-02 22:45 ｜ 索引比规则旧：False（差 -0.04 小时）
+  ⚠️ 「索引比规则旧」**不等于**「索引坏了」—— 是否存在真实 L3→L6 数据边需人裁
+     （l6_build.py 读的是 L2 units 与 L5 matcher，不是 L3 规则）
+
+结论：✅ 各层关键 data 产物都不陈旧（**不代表业务上正确**，只代表不陈旧）

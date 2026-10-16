@@ -1,0 +1,91 @@
+name: agent-build-flow
+description: |
+  把一个模糊业务需求推成能上线的 Agent 包：入口三筛 → 无情追问 → TUI 跑通 →
+  规格 → 垂直切片拆解 → TDD 开发 → 验证上线 → 交接迭代，全程 20 道门禁。
+  当用户说"要做个 agent"、"agent 立项"、"agent 开发流程"、"agent 规格"、
+  "agent 契约"、"交付物定义"、"接缝怎么选"、"agent 上线判定"时使用。
+version: "1.1.1"
+author:
+  name: "self"
+  email: ""
+license: "MIT"
+keywords:
+  - agent-development
+  - agent-spec
+  - agent-contract
+  - deliverables
+  - eval-gates
+  - vertical-slice
+  - tdd
+  - seam-selection
+categories:
+  - agent-engineering
+  - process
+  - workflow
+complexity: complex
+compatibility:
+  claude:
+    status: native
+    features:
+      - file_system
+      - subprocess
+  kimi:
+    status: native
+    features:
+      - file_system
+      - subprocess
+  cursor:
+    status: native
+    features:
+      - file_system
+      - subprocess
+  dsh:
+    status: native
+  gpt:
+    status: bridge
+    limitations:
+      - "File system operations need manual execution"
+triggers:
+  keywords:
+    - "agent 立项"
+    - "做个 agent"
+    - "建一个智能体"
+    - "agent 开发流程"
+    - "从问题到上线"
+    - "agent 规格"
+    - "agent 契约"
+    - "交付物定义"
+    - "给 agent 出题"
+    - "上线判定"
+    - "接缝选择"
+    - "工单拆解"
+    - "agent 交接"
+    - "build an agent"
+    - "agent spec"
+    - "agent contract"
+    - "deliverables"
+  phrases:
+    - "这个需求要不要做成 agent"
+    - "帮我从头做一个 agent"
+    - "接缝怎么选"
+    - "怎么拆工单"
+    - "这个 agent 能上线吗"
+  contexts:
+    - "agent 开发"
+    - "规格与契约"
+    - "上线门禁"
+entry_points:
+  - SKILL.md
+  - scripts/check-flow.py
+  - scripts/render-contract.py
+framework:
+  family: root-skills
+  manager: root-skills-manage
+related_skills:
+  - 蒸馏
+  - root-agents
+  - root-skills-eval
+  - root-skills-doctor
+created_by:
+  skill: root-skills-creator
+  version: 4.1.3

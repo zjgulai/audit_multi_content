@@ -1,0 +1,113 @@
+{
+  "kb_version": "v0",
+  "layer": "l1",
+  "extractor_version": "l1-0.1",
+  "ocr_version": "vision-jxa-1.0",
+  "dir_map": {
+    "1_外部标准库": "external_standard",
+    "2_内部正负样本库": "internal_sample",
+    "3_措辞表达库": "wording",
+    "4_产品描述库": "product_desc",
+    "9_未归类": "unknown"
+  },
+  "dir_map_reverse": {
+    "external_standard": "1_外部标准库",
+    "internal_sample": "2_内部正负样本库",
+    "wording": "3_措辞表达库",
+    "product_desc": "4_产品描述库",
+    "unknown": "9_未归类"
+  },
+  "kb_types": {
+    "external_standard": {
+      "label": "外部标准库",
+      "dir": "1_外部标准库",
+      "kb_version": "v0"
+    },
+    "internal_sample": {
+      "label": "内部正负样本库",
+      "dir": "2_内部正负样本库",
+      "kb_version": "v0"
+    },
+    "wording": {
+      "label": "措辞表达库",
+      "dir": "3_措辞表达库",
+      "kb_version": "v0"
+    },
+    "product_desc": {
+      "label": "产品描述库",
+      "dir": "4_产品描述库",
+      "kb_version": "v0"
+    },
+    "unknown": {
+      "label": "未归类（不猜）",
+      "dir": "9_未归类",
+      "kb_version": "v0"
+    }
+  },
+  "anchor_spec": {
+    "version": "anchor-1.0",
+    "principle": "锚点必须来自原文的物理位置，不得由模型编造；定位不到就写进报告的「无法定位锚点」清单，不硬编。",
+    "by_resource_type": {
+      "pdf": {
+        "page": "#p.12",
+        "table_cell": "#p.12/tbl.3/r.5",
+        "note": "页号从 1 起"
+      },
+      "docx": {
+        "heading": "#h.<标题路径>",
+        "paragraph": "#para.35",
+        "note": "有标题用标题路径"
+      },
+      "pptx": {
+        "slide": "#s.7"
+      },
+      "xlsx": {
+        "range": "#<Sheet>!B4:D9",
+        "note": "保留单元格区域"
+      },
+      "md_txt": {
+        "line_range": "#l.120-140",
+        "heading": "#h.<标题路径>"
+      },
+      "image": {
+        "index": "#img.<序号>",
+        "region": "#img.2@r120,80,400,300"
+      },
+      "video": {
+        "time_window": "#t.00:12:30-00:15:10"
+      },
+      "feishu_doc": {
+        "block": "#block.<block_id>",
+        "heading": "#h.<标题路径>"
+      },
+      "feishu_bitable_record": {
+        "cell": "#<表名>/<record_id>/<字段名>"
+      },
+      "feishu_bitable_table": {
+        "field": "#<表名>/field/<字段名>"
+      },
+      "feishu_bitable_base": {
+        "table": "#<Base>/table/<表名>"
+      },
+      "url": {
+        "line_range": "#l.120-140"
+      }
+    },
+    "actual_usage": {}
+  },
+  "note": "L1 继承 L0 的 dir_map / kb_types；anchor_spec 由 L1 定义（L0 registry 只读，不回写）",
+  "anchor_sha256_binding": {
+    "rule": "引用锚点时必须同时给出 source_sha256；只有锚点不算完整定位。",
+    "why": "锚点（行号 / 标题路径 / #img.N）会随原文编辑而漂移；sha256 指向被锚定的那一版原文。锚点 + source_sha256 才是可复核的定位。",
+    "applies_to": "L1 及下游（结构化切分、蒸馏）的一切引用",
+    "required_pair": [
+      "anchor",
+      "source_sha256"
+    ],
+    "artifact_lookup": "kb/l0/snapshots/<resource_key>@<sha256>.md（正文快照按 sha256 版本并存）",
+    "on_mismatch": "锚点在当前正文中定位不到 → 视为失效引用，不得静默改写锚点；应回到该 sha256 的快照核对，或重新抽取生成新版本。",
+    "since": "20260923-1245",
+    "enforced_in": "kb/l1/index/l1.jsonl（每行可由此 join 到所属资源的 source_sha256）",
+    "index_join": "index 行的 resource_id → 产物 json 的 source_sha256 → 快照文件"
+  }
+}

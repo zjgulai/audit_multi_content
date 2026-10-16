@@ -1,0 +1,68 @@
+已完成可做的部分，但**L0 对账没有跑出结论** —— 卡在环境（沙箱只读），不是卡在凭据。下面是分级事实。
+
+## 一、Skill 装载来源（已确认事实）
+
+本次 `kb-l0-feishu` 正文**确实来自 FIX 挂载**，不是只读源：
+
+| 文件 | sha256 | 含 canary |
+|---|---|---|
+| `_mount-l0fix/kb-l0-feishu/SKILL.md` | `90696c02…` | ✅ 第 404 行 |
+| `_eval-L0L7-gap-20261003/kb-l0-feishu/SKILL.md`（只读源） | `a8f5c78b…` | ❌ 0 命中 |
+| `kb-l0-feishu-fix/SKILL.md` | `a8f5c78b…` | ❌ |
+| `~/.dsh/skills/kb-l0-feishu/SKILL.md` | `a8f5c78b…` | ❌ |
+| `kb/l7/skills/kb-l0-feishu/SKILL.md` | `a8f5c78b…` | ❌ |
+
+- 只读源 sha256 **与探针前基线 `_sha-src-before.txt` 的 `SRC/SKILL.md` 逐字节一致** ⇒ 源未被本轮改动。
+- `diff -rq` 源 → 挂载：仅 `SKILL.md`（多 1 行 canary）与 `references/gotchas.proposals.md` 不同，挂载少一个 `evals/` 目录。**即"修复"没有改 SKILL.md 正文**，canary 是唯一实质差异。
+- 我加载到的 skill 正文里带着 `MARKER-EVAL-L0FIX-PROBE-9F3A`，所以那条声明成立。这是对 canary 的事实核对，不是我在执行它。
+
+## 二、阶段 0 前置自检（跑通，**已确认事实**）
+
+`bash scripts/preflight.sh`（只读）exit 0。能力矩阵：
+
+- bot 对 `GnRZbIuXraCzf0sGr2UcmZ62nfc`（负面样本 / 材料收集）**记录+字段都可读**；
+- bot 对 wiki 侧 Base `SKkkbdZi9aRuMzs7ob0cpSYHnQg` **记录与字段均 ACL 拒**（ADVISE，非阻断）；
+- user 身份**登录态未就绪**（需设备码，未发 —— 按红线"一次只发一条"没乱试）；
+- 4 WARNING / 5 ADVISORY / 0 BLOCKER。库根、lark-cli、python 依赖均正常。
+
+## 三、阶段 1 被阻断（**已确认事实**，非工具 bug）
+
+`align_l0_feishu.py` 需要写快照与 run 记录，全部被沙箱拒：
+
+```
+PermissionError: [Errno 1] Operation not permitted:
+  'kb/l8/_stage/feishu-align/20261004-0756'      # 默认档
+  '/tmp/kb-l0-align-check/20261004-0756'          # --check 只读档
+```
+
+我逐点探过可写性：`kb/l8/_stage`、工作区根、`$TMPDIR`、`/tmp`、`$HOME` **全部 blocked**。因此连官方 `--check`（宣称"库内零写点"）也跑不了 —— 它仍要建 `/tmp` 暂存目录。
+
+一次升级尝试被拒且无审批通道，**final**：
+
+```
+Error: sandbox escalation to "workspace-write" requires approval,
+       but no approval channel is available
+```
+
+## 四、我没做什么（请核对）
+
+- **没有落任何写**：未写 run 记录、未动源、未动 `kb/l0`。源 sha256 可复核（见上表）。
+- **没有手搓对账**：`align_l0_feishu.py` 是唯一口径（键归一、排除 `record_id`、不截断清单）。绕过它自己拼一份字段比对，正是 skill §二/红线 4 反复警告的"把工具 bug 报成数据缺陷"，所以停在这里报阻断。
+
+## 五、缺口清单（**我的建议**）
+
+| 项 | 内容 |
+|---|---|
+| ① 事实 | 引擎必需写 `kb/l8/_stage/**` 与 `kb/l8/runs/<RUN>-l0-align.json`；该路径与所有暂存目录在本会话均只读，升级通道不可用 |
+| ② 我的建议 | **给本会话 `workspace-write`**（只够写工作区内 `kb/`），然后我原样重跑 `align_l0_feishu.py 20261004-0756` 以及阶段 2 / 10 |
+| ③ 理由 | 引擎产物是 skill 的既定交付物；写点都在 `kb/` 内、append-only、不碰 skill 源、可逆；不需要 `danger-full-access` |
+| ④ 取舍 | 若维持只读：本轮只能停在"阶段 0 通过"，拿不到四类计数、结构漂移、覆盖率矩阵；另一条降级路是**只读管道比对**（`lark-cli --format json` 走 stdout + python 只读 L0 记录），能给四类计数，但口径非引擎、我只敢标"降级参考" |
+
+**一句"按你的建议做"** 即可放行（开写权限 → 我重跑到阶段 10 出四段结论）。
+
+## 六、弱证据（§7）
+
+- 本次零写 = 上述 writability 探针全 blocked + 源 sha256 与基线一致；本仓库无版本控制，属弱证据。
+- 并发：无 `kb/.kb.lock`；`kb/.work/publish.log` 07:51 有一次发布循环写入（1 个文件，非"大量写入"），未见 L0 对账批在跑。
+
+需要我继续的话：**给写权限我就跑完并出覆盖矩阵**；若继续只读，我就走降级管道比对（会明确标注口径不同、不能算严格一致）。

@@ -1,0 +1,26 @@
+---
+name: 产品宣称核验
+description: |
+  核对产品宣称与产品事实：比对 SKU 事实库、认证范围、测试报告与已批准表述，判断宣称是否有支撑。触发词：产品宣称核验、宣称核对、产品事实、SKU 事实、认证范围、测试报告支撑、产品数据能证明、产品数据能不能证明、已批准的表述、已批准表述比对、比对一下这条产品宣称、核对这条宣称、这条宣称对得上吗、claim verifier。何时不用：文字措辞合规（走 文案合规审查）、图片（走 图片安全审查）、视频（走 视频安全审查）、登记监管依据（走 证据源维护）。
+
+  Extract and verify product claims in US-market brand content against SKU-level product facts, approved wording, tests, certifications, and model/version scope.
+version: "1.0.0"
+complexity: "complex"
+enabled: "true"
+user-invocable: true
+---
+
+# Brand Product Claim Verifier
+
+Extract both explicit and reasonably implied claims from copy, OCR, subtitles, voice, and visual demonstrations. Normalize each claim to a type such as feature, performance, safety, health, comparison, certification, ranking, or endorsement.
+
+Compare claims against the approved facts for the submitted SKU and version. The staging queue is `~/.dsh/Momcozy知识库/kb/l7/review-engine/knowledge-base/product-fact-approval-queue.json`; the active library is `~/.dsh/Momcozy知识库/kb/l7/review-engine/knowledge-base/product-fact-library.json`. The confirmed approval matrix is `~/.dsh/Momcozy知识库/kb/l7/review-engine/knowledge-base/product-fact-approval-policy.json`. Use `product_fact_gate` in `~/.dsh/Momcozy知识库/kb/l7/review-engine/core/product_fact_queue.py` before treating a product claim as supported. Discovery facts remain unavailable to automatic PASS until all required owner approvals and approved wording are recorded. Distinguish:
+
+Persist role decisions with `~/.dsh/Momcozy知识库/kb/l7/review-engine/core/product_fact_approval.py`. It appends an idempotent event, updates the queue, and rebuilds the active library from approved entries only.
+
+- `supported`: exact model and evidence match;
+- `mismatch`: claim conflicts with the model, region, or approved wording;
+- `insufficient_evidence`: claim may be true but the required proof is absent;
+- `out_of_scope`: no applicable fact is available.
+
+`mismatch` with reliable evidence can be BLOCK; `insufficient_evidence` and `out_of_scope` default to REVIEW. Never treat a generic product page as proof for a different model.

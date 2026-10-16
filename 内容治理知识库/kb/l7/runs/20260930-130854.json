@@ -1,0 +1,20 @@
+{
+ "run_id": "20260930-130854",
+ "at": "2026-09-30T13:08:54",
+ "source": "agent_manual",
+ "trigger": "这段文案能不能发？「全网最低价，宝宝用了绝对不哭闹」",
+ "skills": [
+  "文案合规审查",
+  "kb-content-review"
+ ],
+ "commands": [
+  "kb/l5/matcher.py --text \"全网最低价，宝宝用了绝对不哭闹\" --json",
+  "kb/l7/review-engine/core/rule_engine.py \"全网最低价，宝宝用了绝对不哭闹\"",
+  "kb/l6/retriever.py --query \"全网最低价，宝宝用了绝对不哭闹\" --top 5"
+ ],
+ "products": [
+  "kb/l7/reports/20260930-130830.review.md"
+ ],
+ "verdict": "REVIEW ｜ issue_count=4（2 处缺口：价格类/婴儿行为承诺零覆盖）",
+ "human_involved": true
+}

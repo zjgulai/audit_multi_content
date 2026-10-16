@@ -1,0 +1,168 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""生成评测过程 HTML（v2 同卷对照版；最终由 build-final-report.py --process 内联）。"""
+import json
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+S0 = json.loads((HERE / "summary_src50.json").read_text(encoding="utf-8"))
+S2 = json.loads((HERE / "summary_v250.json").read_text(encoding="utf-8"))
+
+
+def rnd(s):
+    return "".join(
+        f"<tr><td>第 {i} 轮</td><td>{r['TP']}</td><td>{r['FP']}</td><td>{r['FN']}</td><td>{r['TN']}</td>"
+        f"<td>{r['precision']}</td><td>{r['recall']}</td><td>{r['f1']}</td></tr>"
+        for i, r in enumerate(s["per_round"], 1)) + \
+        (f"<tr><td><b>3 轮平均</b></td><td>—</td><td>—</td><td>—</td><td>—</td>"
+         f"<td><b>{s['average']['precision']}</b></td><td><b>{s['average']['recall']}</b></td>"
+         f"<td><b>{s['average']['f1']}</b></td></tr>")
+
+
+html = f"""<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>kb-clause-extractor 评测过程（v2 同卷对照）</title>
+<style>
+body{{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;max-width:1180px;margin:0 auto;padding:24px;color:#1f2937;line-height:1.7}}
+h2{{border-left:5px solid #2563eb;padding-left:10px;margin-top:32px}}
+h3{{margin-top:22px;color:#1e40af}}
+table{{border-collapse:collapse;width:100%;margin:10px 0;font-size:14px}}
+th,td{{border:1px solid #d1d5db;padding:7px 9px;text-align:left;vertical-align:top}}
+th{{background:#f3f4f6}}
+.ok{{color:#15803d;font-weight:700}}.bad{{color:#b91c1c;font-weight:700}}
+.note{{background:#f8fafc;border-left:4px solid #94a3b8;padding:10px 14px;margin:12px 0}}
+.warn{{background:#fffbeb;border-left:4px solid #f59e0b;padding:10px 14px;margin:12px 0}}
+.bad-box{{background:#fef2f2;border-left:4px solid #dc2626;padding:10px 14px;margin:12px 0}}
+code{{background:#f1f5f9;padding:1px 5px;border-radius:3px;font-size:13px}}
+</style></head><body>
+
+<h2>一、被测对象与本轮口径</h2>
+<table>
+<tr><th>项</th><th>值</th></tr>
+<tr><td>skill id / name</td><td><code>kb-clause-extractor</code>（ASCII kebab-case，与目录名一致）</td></tr>
+<tr><td>真源 / 安装位</td><td><code>kb/l7/skills/kb-clause-extractor/</code> ｜ <code>~/.dsh/skills/kb-clause-extractor/</code>（两处逐字节一致）</td></tr>
+<tr><td><b>本轮 complexity</b></td><td><b><code>standard</code></b>（由人拍板，评测侧未改动）→ <b>A 卷 50 条</b>（正例 16 / 负例 16 / 近似命中 12 / 边界 6）</td></tr>
+<tr><td>关联 skill 集合 S</td><td>N=13（kb-canonical-lookup、kb-check、kb-content-review、kb-ingest-extractor、kb-l0-feishu、kb-manage、kb-media-extractor、kb-p0-check、kb-pipeline、kb-recall、kb-repair、kb-review、视频安全审查）</td></tr>
+<tr><td>历史轮次（非同卷，仅存档）</td><td>早前曾按 <code>complex</code> 档跑过 A 卷 100 条（源 v1.0.0：P=0.755 / R=0.990 / F1=0.856；v1.1.0：F1=0.813）——<b>与本轮 50 条不同卷，数字不可直接比</b>，故本轮另立同卷基线。</td></tr>
+</table>
+
+<h2>二、同卷 50 条的构造（可复现）</h2>
+<div class="note">
+从冻结的 100 条 A 卷池中，按类型<b>升序取奇数位</b>做确定性分层抽样：正例 1/3/…/31 → 16 条（纯中文 8 + 中英混写 6 + 全英文 2）、负例 33/35/…/63 → 16 条、近似命中 65/67/…/87 → 12 条、边界 89/91/…/99 → 6 条；
+调用场景 101–103 三条照旧（不占 A 卷条数）。抽样后标签覆盖：<b>安全 7 条（≥6）、组合 14 条（≥8）</b>，满足 standard 档下限。<br>
+<b>同一个 50 条、同一批分片，分别跑源版与 v2</b> —— 这是本轮唯一可比的对照方式。
+</div>
+
+<h2>三、盲测执行</h2>
+<div class="note"><b>盲测：被测会话仅收到提示词列。</b>类型、标题、预期结果、标签、优先级一律未进入被测会话；也未告知「这是评测」。</div>
+<table>
+<tr><th>项</th><th>说明</th></tr>
+<tr><td>被测会话</td><td>本轮两版本各 3 轮 × 6 分片 = <b>36 个全新会话</b>（源版 18 + v2 18）；每条按「提示词」原文逐条发送</td></tr>
+<tr><td>插桩披露</td><td>每条回复外另起 <code>===ROUTE n: …===</code> 行供回填员判触发；该行不进入回复原文。<b>已知偏差</b>：插桩会让被测会话知道「用了哪个 skill 值得记录」，未做消除</td></tr>
+<tr><td>降级说明</td><td>原规则「1 轮 = 1 会话」，因单轮 53 条超单会话上下文，降级为「同轮按 10 条分片、6 会话并行」；两版本使用<b>完全相同</b>的分片与顺序，保证可比</td></tr>
+<tr><td>答案卷隔离</td><td>做题卷/预期/历史结果全部移出工作区（<code>/tmp/kbce_sealed/</code>），投递清单只放提示词（<code>/tmp/kbce3_blind/</code>），产出写到 <code>/tmp/kbce_src50/</code> 与 <code>/tmp/kbce_v250/</code>；<b>两版本 36 个会话均无污染</b></td></tr>
+<tr><td>格式校验</td><td>每片产出按行锚 <code>===CASE N===</code> 校验：<b>条数与编号必须与投递清单逐一相等</b>，不等即重跑。源版第 1 轮有 1 片把不连续编号自造成 1–19 共 19 条 → <b>该片作废重跑</b>；其余各片一次通过</td></tr>
+<tr><td>执行日期</td><td>2026-09-30</td></tr>
+</table>
+
+<h2>四、同卷对照结果（唯一决策依据）</h2>
+<table>
+<tr><th>指标</th><th>源版 v1.0.0（standard）</th><th>v2 v2.0.0</th><th>方向</th></tr>
+<tr><td>P</td><td><b>0.721</b></td><td>0.653</td><td class="bad">↓</td></tr>
+<tr><td>R</td><td>1.000</td><td>1.000</td><td>—</td></tr>
+<tr><td>F1</td><td><b>0.837</b></td><td>0.789</td><td class="bad">↓ 未过 0.90</td></tr>
+<tr><td>逐轮 FP</td><td>8 / 4 / 7（均 6.33）</td><td>9 / 11 / 6（均 8.67）</td><td class="bad">↓ 未达 ≤2 目标</td></tr>
+<tr><td>逐轮 TP</td><td>16 / 16 / 16</td><td>16 / 16 / 16</td><td>— 召回未动</td></tr>
+<tr><td>flaky</td><td>8 条</td><td>9 条</td><td class="bad">↓</td></tr>
+<tr><td>安全标签 FP</td><td>6 / 21 次</td><td>6 / 21 次</td><td>— 无高危</td></tr>
+<tr><td>组合标签 FP</td><td>3 / 42 次</td><td>2 / 42 次</td><td class="ok">↑ 略好</td></tr>
+<tr><td>轨道 A</td><td>89.7</td><td><b>98.3</b></td><td class="ok">↑ 结构/脚本/规范补齐</td></tr>
+<tr><td>封顶后轨道 C</td><td>58.8（F）</td><td><b>69.9（D）</b></td><td class="ok">↑ 但仍 &lt; 85</td></tr>
+<tr><td>调用门槛</td><td>未过（6/3）</td><td>未过（6/3）</td><td class="bad">均未过</td></tr>
+</table>
+
+<h3>4.1 源版 v1.0.0（standard）三轮明细</h3>
+<table><tr><th>轮</th><th>TP</th><th>FP</th><th>FN</th><th>TN</th><th>P</th><th>R</th><th>F1</th></tr>
+{rnd(S0)}
+</table>
+
+<h3>4.2 v2 v2.0.0 三轮明细</h3>
+<table><tr><th>轮</th><th>TP</th><th>FP</th><th>FN</th><th>TN</th><th>P</th><th>R</th><th>F1</th></tr>
+{rnd(S2)}
+</table>
+
+<h2>五、v2 做了什么（按人拍板的 H1 构造）</h2>
+<table>
+<tr><th>#</th><th>动作</th><th>实测效果</th></tr>
+<tr><td>1</td><td>description 回到 v1.0.0 的 474 字符基线做减法：<b>不加</b>「不接」清单、<b>不放</b>安全边界（v2 最终 482 字符，只加了输入形态一句）</td><td class="bad">FP 未降（8/4/7 → 9/11/6）</td></tr>
+<tr><td>2</td><td>让位/不接逻辑整体下沉正文 §5「让位表」（正文不参与路由）</td><td class="ok">路由类误判略降（组合 FP 3 → 2）</td></tr>
+<tr><td>3</td><td>精度靠「正面收窄」：在 description 里写明<b>输入形态</b>（要一批外部标准/平台政策/内部规则原文或条款级单元）</td><td class="bad">未奏效；近邻任务（77 NDA 对照表、81 目录清点、83 归档压缩、87 目录树、97 PDF 汇报）仍被接管</td></tr>
+<tr><td>4</td><td>保留 v1.1.0 的内容增益：<code>references/</code> 4 篇 + <code>scripts/</code> 2 个只读脚本</td><td class="ok">有效：Progressive 10→14、Script 3→9、Spec 8→10，轨道 A 89.7→98.3</td></tr>
+</table>
+<div class="bad-box">
+<b>H1 的可证伪结论：假设未被证实，且方向相反。</b><br>
+H1 断言「把让位/不接/安全边界写进 description 会抬高显著度、招来更多误触发」。v2 已把这三类内容<b>全部撤出 description</b>（482 字符 ≈ 基线 474），
+若 H1 成立，FP 应显著下降；实测 FP 由 8/4/7 升到 <b>9/11/6</b>，P 由 0.721 降到 <b>0.653</b>，F1 由 0.837 降到 <b>0.789</b>。<br><br>
+<b>可分离出的两条线索</b>：<br>
+① <b>让位清单确实属于正文</b> —— 它撤出 description 后，组合标签 FP 由 3 降到 2，说明「写进 description 会招误触发」这半句对<b>让位/不接</b>是成立的；<br>
+② 但<b>误触发的主因不在 description 的负面清单</b>：v2 只加了「输入形态」这一句正面表述，FP 就反弹；被接管的仍是带「政策/规则/条款/台账」字样的近邻任务。
+这说明误触发更可能来自 <b>catalog 层面的关键词共现与排序</b>（本 skill 与近邻成员同时命中时本 skill 排前），而不是 description 的措辞结构。<br><br>
+<b>另一条可复用的观察</b>：v2 的正例召回丝毫未动（16/16/16，R=1.000），说明本轮所有改动只影响精度侧 —— 符合「这是一道精度题」的判断，只是本轮没找到有效的精度杠杆。
+</div>
+
+<h2>六、门禁判定与处置</h2>
+<table>
+<tr><th>门</th><th>源版（standard 同卷）</th><th>v2</th></tr>
+<tr><td>企业门槛（P≥0.85 / R≥0.85 / F1≥0.90）</td><td class="bad">未过（P 0.721、F1 0.837）</td><td class="bad">未过（P 0.653、F1 0.789）</td></tr>
+<tr><td>调用门槛</td><td class="bad">未过（通过 6 / 未通过 3）</td><td class="bad">未过（通过 6 / 未通过 3）</td></tr>
+<tr><td>封顶后轨道 C ≥ 85</td><td class="bad">58.8</td><td class="bad">69.9</td></tr>
+<tr><td>B 卷最终门禁</td><td colspan="2"><b>不执行</b>（两版本均未达标、无交付动作；B 卷继续封印，题面不进 📊/🧭/🧪）</td></tr>
+</table>
+<div class="warn"><b>调用门槛细节</b>：101（打本名 + 任务）三轮加载 ✓；103（裸斜杠无材料）三轮加载后追问 ✓；102（<code>/kb-ingest-extractor</code> + 抽条款诉求）三轮的回复<b>都先按被点名成员回答并说明串层</b>，但本 skill 仍被加载去答实际诉求，按「结论主语是本 Skill」记「加载」→ 未通过。两种读法的数字都在此给出，交人裁定。<br>
+<b>处置</b>：按停滞规则结束 —— 不交付、不开 B 卷、<b>评测侧不回滚</b>。v2 仍为当前 live（源与装机 sha256 均为 <code>73950b4df7fa696b…</code>）；回滚备份 <code>kb/l7/_backups/clause-v2-promote-20260930-140842/</code>（含 <code>src/</code> 与 <code>installed/</code>，即 v1.0.0-standard, sha <code>b1de2942…</code>）。</div>
+
+<h2>七、静态验证</h2>
+<table>
+<tr><th>项</th><th>源版（standard）</th><th>v2 v2.0.0</th></tr>
+<tr><td>包结构</td><td>仅 <code>SKILL.md</code>（正文 1704 字符）</td><td><code>SKILL.md</code>（正文 4379 字符）+ <code>references/</code> 4 + <code>scripts/</code> 2</td></tr>
+<tr><td>description</td><td>474 字符</td><td>482 字符（仅加「输入形态」一句；无「不接」清单、无安全边界）</td></tr>
+<tr><td>自带脚本</td><td>无</td><td><code>l3_preflight.py</code>（退出码 0/1/2）、<code>l3_evidence_audit.py</code>（退出码 0/1/3）：--help、参数校验、错误处理，合成数据自测通过，全程只读</td></tr>
+<tr><td>source / install 一致性</td><td>—</td><td>7 个文件逐字节一致（装前已报 sha <code>73950b4d…</code>，装后复核一致）</td></tr>
+</table>
+
+<h2>八、输出前自检（Step 5.5，15 项）</h2>
+<table>
+<tr><th>#</th><th>检查项</th><th>结论</th></tr>
+<tr><td>1</td><td>格式校验</td><td>通过 —— 两份 YAML 均通过 <code>--validate-only</code>；A/B 卷 xlsx 为 11 列表头</td></tr>
+<tr><td>2</td><td>完整性校验</td><td>通过 —— 两版本各 53 条 × 3 轮回复全部非空；track_a/b/c 分项齐全；tag_cases 各 24 条（安全 7 + 组合 14 + 调用 3）</td></tr>
+<tr><td>3</td><td>一致性校验</td><td>通过 —— 报告数字全部取自两次 <code>score-trigger-eval.py --json</code> 与逐轮 TP/FP/FN/TN</td></tr>
+<tr><td>4</td><td>逻辑校验</td><td>通过 —— 「同卷对照 → H1 未证实 → 未达标 → 不交付 → 不回滚」链条自洽</td></tr>
+<tr><td>5</td><td>边界校验</td><td>已处理 —— 两版 Output 均 &lt; 15 触发封顶（实测总分均低于上限 79）；调用门槛未过触发 <code>market_ready=false</code></td></tr>
+<tr><td>6</td><td>安全校验</td><td>通过 —— 报告不含密钥/凭据/内部配置原文</td></tr>
+<tr><td>7</td><td>引用校验</td><td>通过 —— 引用 eval reference 时均标注文件名；库内事实标注了实测来源</td></tr>
+<tr><td>8</td><td>报告数据格式校验</td><td>通过 —— 两份 YAML 的 distribution 均为 16+16+12+6 = 50 = cases_total；百分比合计 100%；单项 ∈ (0,100.5]</td></tr>
+<tr><td>9</td><td>Release 清单校验</td><td>通过 —— 各 10 项齐全、status 合法、每项有 evidence；fail 项均标 impact；第 9 项均 pass（四类已执行）</td></tr>
+<tr><td>10</td><td>标签统计校验</td><td>通过 —— security_tag / combo_tag / call_tag 均含 cases，call_tag 含 passed_gate；tag_cases 含逐条 rounds/verdict</td></tr>
+<tr><td>11</td><td>桌面交付校验</td><td><b>按用户显式指定改判</b> —— 产物落 <code>_eval-kb-clause-extractor/</code>、禁写 <code>~/Desktop</code>；以 <code>--desktop-source-root kb/l7/skills</code> + <code>--desktop-fix-root _eval-kb-clause-extractor</code> 满足并排校验</td></tr>
+<tr><td>12</td><td>HTML 输出自检</td><td>通过 —— <code>build-final-report.py</code> 生成时执行；顶部目录与三大部分锚点齐全</td></tr>
+<tr><td>13</td><td>Release 影响上线判定</td><td>通过 —— 「影响上线」项标 impact 并作发布阻断项提示</td></tr>
+<tr><td>14</td><td>原文回复校验（全部用例）</td><td>通过 —— 两版本各 53 条 × 3 轮均取自会话产出文件逐字全文；<code>--check-only</code> 命中的 1 条（用例 63）经逐字节核验为<b>启发式误报</b>（模型原文里的「私聊内容摘要成」被连读命中），未改一个字，留痕见 <code>testcases_false_positive_note.md</code></td></tr>
+<tr><td>15</td><td>盲测校验</td><td>通过 —— 本文件写明「盲测：被测会话仅收到提示词列」；下发仅提示词原文（另加 ROUTE 插桩，已披露）；编号跑偏的分片已作废重跑</td></tr>
+</table>
+<p><b>自检结论：全部通过（15 项）。</b></p>
+
+<h2>九、用例区版本一致性</h2>
+<p>本报告两版本<b>同卷</b>（A 卷 50 条 · standard）。🧪 测试用例内联的是<b>最终版本 v2 v2.0.0</b> 重测生成的用例 HTML（含调用与标签逐条、B 卷未执行），与其 YAML <code>track_b.rounds</code> 同源；
+源版数据只出现在 📊 多版本对比与修复问题清单中，不存在「顶部结论 = 最终版、中部用例区 = 旧版」的自相矛盾。</p>
+
+<h2>十、边界披露</h2>
+<ul>
+<li>未执行任何 L3 蒸馏引擎；<code>kb/l3/**</code> 数据全程未改；<b>未触碰 kb-media-extractor / kb-ingest-extractor / kb/l0…l6 任何数据</b>。</li>
+<li>本轮按人授权，把 v2 <b>同时</b>装到源与装机两处（装前报 sha <code>73950b4d…</code>，装后复核两处 7 文件逐字节一致）；装前已备份 v1.0.0-standard 到 <code>kb/l7/_backups/clause-v2-promote-20260930-140842/</code>。</li>
+<li>未写 <code>~/Desktop</code>；未改其他 skill。</li>
+<li>未达标后<b>未自行回滚</b>（与前次一致：回滚由人决定）。</li>
+</ul>
+</body></html>
+"""
+
+(HERE / "kb-clause-extractor-evaluation-process.html").write_text(html, encoding="utf-8")
+print(f"[ok] 评测过程 HTML（v2 同卷版）已生成：{len(html)} 字符")

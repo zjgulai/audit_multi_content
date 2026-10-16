@@ -1,0 +1,211 @@
+{
+ "run_id": "20260923-170033",
+ "generated_at": "2026-09-23 17:00:38",
+ "kb_root": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/view",
+ "loader": "/Users/lute/.dsh/plugins/dsh-kb/lib/kb.js",
+ "runtime": "v24.18.1",
+ "items": [
+  {
+   "n": 1,
+   "name": "文件数",
+   "expected_entries": 509,
+   "disk_entries": 509,
+   "payload_files": 514,
+   "missing": [],
+   "extra_not_in_payload": [
+    "_meta/acceptance.yaml",
+    "_meta/GUIDE.md"
+   ],
+   "pass": true
+  },
+  {
+   "n": 2,
+   "name": "frontmatter 解析成功数",
+   "loader_E001": 0,
+   "entries_fm_ok": 509,
+   "entries_id_ok": 509,
+   "entries_total": 509,
+   "pass": true
+  },
+  {
+   "n": 3,
+   "name": "子库归属数",
+   "collections": [
+    {
+     "id": "3_措辞表达库",
+     "count": 509,
+     "status": "derived"
+    }
+   ],
+   "library": "Momcozy知识库 · 内容治理（派生视图）",
+   "assigned": 509,
+   "unassigned": 0,
+   "pass": true
+  },
+  {
+   "n": 4,
+   "name": "sha256 读回一致（随机 10）+ 全量正文逐字",
+   "baseline": "kb/l8/_stage/view_payload_20260923-165821.json",
+   "baseline_note": "冻结基准：本批写入时的载荷；被外部重新生成后会失配",
+   "sample10": [
+    {
+     "rel": "3_措辞表达库/L1-facts/cg-r-c48fb9cca3c40f48.md",
+     "bytes": 4915,
+     "sha256_match": false,
+     "expected_sha256": "147d7793f9f2fa0d",
+     "actual_sha256": "1fcf8f9734338688"
+    },
+    {
+     "rel": "3_措辞表达库/L1-facts/cg-r-b00d53230757caf6.md",
+     "bytes": 4198,
+     "sha256_match": false,
+     "expected_sha256": "858074c15e65d729",
+     "actual_sha256": "b92b36be73c2b222"
+    },
+    {
+     "rel": "3_措辞表达库/L1-facts/cg-r-f1e4839bc0fb5265.md",
+     "bytes": 3620,
+     "sha256_match": false,
+     "expected_sha256": "ed781b24a7fab8e4",
+     "actual_sha256": "0951105d39f76d81"
+    },
+    {
+     "rel": "3_措辞表达库/L1-facts/cg-r-8e87721769ffa61e.md",
+     "bytes": 4642,
+     "sha256_match": false,
+     "expected_sha256": "a91b99fd08e6933c",
+     "actual_sha256": "77dfadc0ca52df59"
+    },
+    {
+     "rel": "3_措辞表达库/L1-facts/cg-r-ad1e572f9222c386.md",
+     "bytes": 4423,
+     "sha256_match": false,
+     "expected_sha256": "ac38d61bd10dbda5",
+     "actual_sha256": "f9e532a53fa9e517"
+    },
+    {
+     "rel": "3_措辞表达库/L1-facts/cg-r-17f5d2d2dbd05c13.md",
+     "bytes": 4113,
+     "sha256_match": false,
+     "expected_sha256": "f0ef4adce17210b7",
+     "actual_sha256": "9439f4c61ae8f70a"
+    },
+    {
+     "rel": "3_措辞表达库/L2-concepts/cg-r-e879231d61c9bd08.md",
+     "bytes": 7352,
+     "sha256_match": false,
+     "expected_sha256": "142d1f1f2f901d36",
+     "actual_sha256": "a7b740406da9f9ed"
+    },
+    {
+     "rel": "3_措辞表达库/L1-facts/cg-r-e62ceee5c36f8a19.md",
+     "bytes": 5444,
+     "sha256_match": false,
+     "expected_sha256": "34451940aea6a950",
+     "actual_sha256": "cba5dafa7f007038"
+    },
+    {
+     "rel": "3_措辞表达库/L1-facts/cg-r-b7d8c9e322eec780.md",
+     "bytes": 4375,
+     "sha256_match": false,
+     "expected_sha256": "86b023fd973be5a3",
+     "actual_sha256": "ac855286df852418"
+    },
+    {
+     "rel": "3_措辞表达库/L1-facts/cg-r-833206375b2c991d.md",
+     "bytes": 4599,
+     "sha256_match": false,
+     "expected_sha256": "f4a7847bc5520d2c",
+     "actual_sha256": "5cb25a563f978d8d"
+    }
+   ],
+   "sample10_all_match": false,
+   "entries_verbatim_ok_loader": 0,
+   "full_entries_checked": 509,
+   "body_mismatch": [],
+   "frontmatter_mismatch_ignoring_kb_class": [],
+   "kb_class_line_present": 509,
+   "unparsable": [],
+   "pass": false
+  },
+  {
+   "n": 5,
+   "name": "关键词检索可达",
+   "hits": [
+    {
+     "query": "W-2.1",
+     "expect_zero": false,
+     "matched": 111,
+     "entries": 509,
+     "top1": "cg-r-00277648c524fe69",
+     "passed": true
+    },
+    {
+     "query": "乳腺组织",
+     "expect_zero": false,
+     "matched": 1,
+     "entries": 509,
+     "top1": "cg-r-00277648c524fe69",
+     "passed": true
+    },
+    {
+     "query": "合规替代",
+     "expect_zero": false,
+     "matched": 509,
+     "entries": 509,
+     "top1": "cg-r-14056187c2923e38",
+     "passed": true
+    }
+   ],
+   "all_hit": true,
+   "no_hit_negative": {
+    "query": "量子纠缠配色调参",
+    "matched": 0,
+    "expect": 0
+   },
+   "pass": true
+  },
+  {
+   "n": 6,
+   "name": "加载器体检",
+   "health_score": 100,
+   "floor": 60,
+   "triplet": {
+    "value": 1,
+    "threshold": "== 1.0",
+    "ok": true
+   },
+   "island": {
+    "value": 0,
+    "threshold": "<= 0.2",
+    "ok": true,
+    "note": "派生视图固有：条目之间不互相引用；装载修复前实测也是 1.00，与读写通道无关"
+   },
+   "other_dims": {
+    "新鲜度": 1,
+    "一致性": 1,
+    "覆盖率": null,
+    "利用率": null
+   },
+   "pass": true
+  }
+ ],
+ "all_pass": false,
+ "loader_side_extra": {
+  "errors_total": 508,
+  "warnings_total": 3327,
+  "code_hist": {
+   "W036": 509,
+   "W019": 1,
+   "W020": 2803,
+   "W021": 10,
+   "W023": 1,
+   "W025": 1,
+   "W035": 1,
+   "W037": 1,
+   "E026": 452,
+   "E021": 56
+  },
+  "note": "上面这组码不属于六项判据：它们是 Z 修复前被 E001 整体掩盖的字段级问题，装载前一条都看不见（因为没有任何条目解析成功）。逐条影响见 runs/<run_id>.report.md 第八节。"
+ }
+}

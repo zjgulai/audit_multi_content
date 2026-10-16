@@ -1,0 +1,68 @@
+{
+ "run_id": "20261002-0003",
+ "at": "2026-10-02T00:03:49",
+ "source": "pipeline_sync",
+ "trigger": "--sync --via-skill L3",
+ "skills": [
+  "kb-pipeline",
+  "kb-clause-extractor"
+ ],
+ "commands": [
+  "kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L3 --run 20261002-0003 --invoked kb-clause-extractor --skill-session L3=kb-layer-L3-kb-clause-extractor"
+ ],
+ "products": [
+  "kb/l3/runs/20261002-0003.json",
+  "kb/l3/runs/20261002-0003-reject-rebuild.json"
+ ],
+ "verdict": "全走完",
+ "human_involved": true,
+ "extra": {
+  "via_skill": true,
+  "skill_invoked_by": "agent",
+  "skill_evidence": "agent_reported",
+  "layers": [
+   "L3"
+  ],
+  "layer_skills": [
+   "kb-clause-extractor"
+  ],
+  "declared_layer_skills": {
+   "L3": [
+    "kb-clause-extractor"
+   ]
+  },
+  "layer_skills_uniq": [
+   "kb-clause-extractor"
+  ],
+  "invoked_reported": [
+   "kb-clause-extractor"
+  ],
+  "skill_sessions": {
+   "L3": "kb-layer-L3-kb-clause-extractor"
+  },
+  "human_involved_basis": "--invoked 已上报（agent 按层 skill 走过）",
+  "verdict_basis": "层侧落章 applied=true → 真落盘",
+  "layer_stamps_applied": [
+   "L3:kb/l3/runs/20261002-0003.json"
+  ],
+  "layer_stamps_dry": [],
+  "layer_stamps_unknown": [
+   "L3:kb/l3/runs/20261002-0003-reject-rebuild.json"
+  ],
+  "write_gate": {
+   "id": "batch8-20261001",
+   "resolved": true,
+   "layers_authorized": [
+    "L1",
+    "L2",
+    "L3",
+    "L4",
+    "L5",
+    "L6"
+   ],
+   "unauthorized_layers": [],
+   "readonly_declared": [],
+   "msg": "凭据命中 id=batch8-20261001（authorized_by=用户（批次8 任务书 A-3 原文）, at=2026-10-01），覆盖层=['L1', 'L2', 'L3', 'L4', 'L5', 'L6']"
+  }
+ }
+}

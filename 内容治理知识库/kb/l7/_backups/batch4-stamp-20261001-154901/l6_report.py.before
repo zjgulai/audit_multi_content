@@ -1,0 +1,386 @@
+#!/usr/bin/env python3
+"""生成 L6 运行留痕：kb/l6/runs/<run_id>.json | .report.md | .ops.log
+数字全部从证据文件读，不手抄。run_id 默认 20260923-1440。
+"""
+# ── 解释器守卫（2026-09-29）：不合格就用 kb/.kb-python 指定的解释器重跑自己 ──
+import os as _os, sys as _sys
+if not _os.environ.get("KB_INTERP_OK"):
+    _d = _os.path.dirname(_os.path.abspath(__file__)); _cfg = None
+    while True:
+        _p = _os.path.join(_d, ".kb-python")
+        if _os.path.isfile(_p):
+            _cfg = _p
+            break
+        _q = _os.path.dirname(_d)
+        if _q == _d:
+            break
+        _d = _q
+    if _cfg:
+        _want = next((l.split("#", 1)[0].strip() for l in open(_cfg, encoding="utf-8")
+                      if l.split("#", 1)[0].strip()), "")
+        _want = _os.path.expanduser(_want)
+        if (_want and _os.access(_want, _os.X_OK)
+                and _os.path.realpath(_want) != _os.path.realpath(_sys.executable)):
+            _os.environ["KB_INTERP_OK"] = "1"
+            _os.execve(_want, [_want, _os.path.abspath(__file__)] + _sys.argv[1:], dict(_os.environ))
+# ──────────────────────────────────────────────────────────────────────────
+
+import hashlib, json, os, sys, time
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+os.chdir(ROOT)
+RUN = sys.argv[1] if len(sys.argv) > 1 else "20260923-1440"
+L6 = "kb/l6"
+
+
+def rd(p):
+    return json.load(open(p, encoding="utf-8"))
+
+
+def sha(p):
+    return hashlib.sha256(open(p, "rb").read()).hexdigest()
+
+
+now = time.strftime("%Y-%m-%d %H:%M:%S")
+mp, build, integ, self_, reg, bench = (rd("kb/.work/l6_model_probe.json"), rd("kb/.work/l6_build.json"),
+                                       rd("kb/.work/l6_integrity.json"), rd(f"{L6}/selftest.json"),
+                                       rd(f"{L6}/registry/l6.json"), rd(f"{L6}/benchmark.json"))
+scope = rd("kb/.work/l6_scope.json")
+build_log = [json.loads(l) for l in open(f"{L6}/runs/build_runs.jsonl", encoding="utf-8") if l.strip()]
+FIRST_SEG = next((b for b in build_log if b.get("units_segmented")), {})
+cap = reg["retrieval_capability"]
+ck = integ["checks"]
+
+ART = [f"{L6}/runs/build_runs.jsonl", f"{L6}/bm25/docs.jsonl", f"{L6}/bm25/meta.json",
+       f"{L6}/bm25/postings_zh.jsonl", f"{L6}/bm25/postings_en.jsonl", f"{L6}/vectors/vectors.jsonl",
+       f"{L6}/vectors/matrix.npy", f"{L6}/vectors/meta.json", f"{L6}/index/l6.jsonl",
+       f"{L6}/registry/l6.json", f"{L6}/retriever.py", f"{L6}/selftest.json", f"{L6}/benchmark.json"]
+for f in ("20260923-1400.vectors.presegment.vectors.jsonl", "20260923-1400.vectors.presegment.matrix.npy"):
+    if os.path.exists(f"{L6}/runs/{f}"):
+        ART.append(f"{L6}/runs/{f}")
+
+run = {
+    "run_id": RUN, "stage": "L6 建两套索引（向量 + BM25，分段版）", "finished_at": now, "kb_version": "v0",
+    "mode": cap["mode"], "semantic_recall": cap["semantic_recall"], "retrieval_capability": cap,
+    "why_this_mode": "embedding 是必装项：本机 onnxruntime/numpy 就绪、外网可达，按推荐方向装 fastembed（ONNX，不拉 torch）"
+                     "并复用已下载的多语权重；真实握手（发一次 embedding 请求校验维度）通过 → 双索引都落盘，没有回退",
+    "model": {"model": mp["model"], "dim": mp["dim"], "quantization": cap["quantization"],
+              "quantization_evidence": mp["weights"]["quantization_verdict"],
+              "dtype_histogram": mp["weights"]["initializer_dtype_histogram"],
+              "quantization_op_hits": mp["weights"]["quantization_op_hits"],
+              "weights_repo": mp["weights"]["hf_repo"], "weights_file": mp["weights"]["model_file"],
+              "weights_bytes": mp["weights"]["bytes"], "weights_cache_dir": cap["weights_cache_dir"],
+              "effective_max_tokens": mp["effective_max_tokens"], "truncation_test": mp["truncation_test"],
+              "handshake": cap["handshake"]},
+    "counts": ck["counts"], "segmentation": ck["segmentation"], "segmentation_policy": reg["segmentation"],
+    "bm25": {"scale": reg["bm25_scale"], "implementation": reg["tokenizer"]["implementation"],
+             "tokenizer": reg["tokenizer"], "libs_installed": "无第三方检索库（未装 jieba / rank_bm25）"},
+    "benchmark": bench,
+    "selftest": {"query_count": self_["query_count"], "judged": self_["judged_count"],
+                 "summary": self_["summary"], "b_group_behavior": self_["b_group_behavior"],
+                 "raw_score_comparison": self_["raw_score_comparison"], "results": self_["results"]},
+    "embedding_calls": {"first_segmented_build_calls": FIRST_SEG.get("embedding_calls"),
+                        "first_segmented_build_segments": FIRST_SEG.get("vector_segments_new_or_changed"),
+                        "batch": reg["embedding"]["batch"], "max_retry": reg["embedding"]["max_retry"],
+                        "retries": FIRST_SEG.get("embedding_retries"), "failures": FIRST_SEG.get("embedding_failures"),
+                        "rerun_calls": 0, "build_log": build_log},
+    "integrity": ck, "integrity_verdict": integ["verdict"],
+    "artifacts": [{"path": p, "bytes": os.path.getsize(p), "sha256": sha(p)} for p in ART],
+    "superseded": {
+        "what": "20260923-1400 那一版向量索引（单元级，被模型静默截断；且融合时向量行号与 BM25 文档号不同源）",
+        "kept_at": [f"{L6}/runs/20260923-1400.vectors.presegment.vectors.jsonl",
+                    f"{L6}/runs/20260923-1400.vectors.presegment.matrix.npy"],
+        "why": "留痕可追溯；本版改为按段落分段 + 统一 doc_id，旧记录缺 segment_index 字段即不被复用",
+    },
+    "env_side_effects": [
+        "装了 fastembed 0.7.4（+ huggingface-hub/tokenizers/loguru/pillow 等依赖，ONNX 路线，未装 torch）",
+        "该安装把 pillow 11.3.0 降级到 10.4.0；还原：python3 -m pip install --user 'pillow==11.3.0'",
+        "多语权重约 224MB，原本落在 /var/folders 临时缓存，已复制到 ~/.dsh/models/fastembed 并在 registry 记明",
+        "未改动 kb/l0~l3 任何文件；未写版本号；未发布",
+    ],
+    "decisions": [
+        {"id": "D1", "decision": "embedding 按必装项处理：装 fastembed（ONNX）并复用已有权重，不回退 bm25_only",
+         "why": "不能让向量路径成为没跑过的代码路径；缺 embedding 才允许回退，而本机条件满足（onnxruntime 就绪 + 外网可达）"},
+        {"id": "D2", "decision": "判定模型能不能用靠真实握手：发一次 embedding 请求，校验返回 384 维、全有限、范数正常",
+         "why": "端口开着或依赖存在都不算数；握手结果写进 registry"},
+        {"id": "D3", "decision": "超长单元按段落/句边界分段（每段 ≤120 token），单句超限按 token 二分硬切；不截断",
+         "why": "实测该模型在 128 token 处静默截断（两段只共享前 300 字的文本得到完全相同向量），31,450 字的单元只进约 1% 内容"},
+        {"id": "D4", "decision": "分段上限取 120 而不是 128",
+         "why": "空串就已占 2 个特殊 token，贴边切有被截断的风险"},
+        {"id": "D5", "decision": "切块时把换行与标点留在前一块，保证各段顺序拼接**逐字等于原文**，并写进自检",
+         "why": "第一版切句丢了换行符，1,899 个单元里 168 个拼不回去；不修就等同静默丢内容"},
+        {"id": "D6", "decision": "BM25 侧不装任何库，继续用自实现倒排；先拿耗时再谈换不换",
+         "why": "实测单查询 p50 0.044 ms、吞吐 2.25 万 q/s，比 L5 扫 1MB（631ms）快约 1.4 万倍；换库还会改切词与得分口径，把已跑通的索引与自验作废"},
+        {"id": "D7", "decision": "向量与 BM25 统一用全局 doc_id（单元在可用集合里的序号）当融合键",
+         "why": "上一版向量用矩阵行号、BM25 用文档号，1,573/1,578 对不上，融合会张冠李戴；本版加了编号同源断言"},
+        {"id": "D8", "decision": "向量只建一套多语索引，不按语言分库；BM25 才分语言子索引",
+         "why": "BM25 必须分是因为切法不同；向量用同一多语空间，中文查询才可能碰到英文素材"},
+        {"id": "D9", "decision": "A/B 分组与判断标准照任务来：A 组用库里现成的等价词（词面型），B 组选语料 0 命中的主题",
+         "why": "A 组词面型会让 BM25 占优，这是构造使然，如实写，不挑查询把数字做漂亮"},
+        {"id": "D10", "decision": "相关性判断给三档（相关/弱相关/不相关），命中率只按「相关」算；B 组一律不相关",
+         "why": "避免用「弱相关」抬命中率；B 组返回内容确实都不对题"},
+        {"id": "D11", "decision": "把「RRF 分不能当阈值」写进 registry.known_limitations",
+         "why": "实测 RRF Top1 分恒为 0.016393（名次倒数），A/B 两组看起来一样高；下游拿它当相关性阈值会被误导"},
+    ],
+    "not_done": [
+        "不发布、不写版本号（kb_version 仍 v0，versions.jsonl 仍 0 条版本行）",
+        "不写 kb/l3/canonical/（仍 0 字节）、不改任何规则、不改 kb/l0~l3",
+        "不做 rerank 模型、不设相关性阈值（阈值策略交下游，registry 给了 no_hit_semantics）",
+    ],
+}
+run["verdict"] = "PASS" if (integ["verdict"] == "PASS" and scope["reconcile_ok"]) else "FAIL"
+os.makedirs(f"{L6}/runs", exist_ok=True)
+json.dump(run, open(f"{L6}/runs/{RUN}.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+
+ops = [
+    ("探针：本机有没有可用的 embedding 模型/接口", "python3 kb/.work/l6_probe.py",
+     "首轮 bm25_only（curl 只给 3 秒超时误判网络）→ 复测 200 → 装依赖后 vector_plus_bm25"),
+    ("装 ONNX 路线依赖（不拉 torch）", "python3 -m pip install --user fastembed",
+     "fastembed 0.7.4；副作用 pillow 11.3.0 → 10.4.0"),
+    ("模型事实核查：维度 / 有效截断长度 / 权重 dtype", "python3 kb/.work/l6_model_probe.py",
+     "dim=384；实测 128 token 截断（两段只共享前 300 字的文本向量完全相同）；149 个 initializer 全 FLOAT16、"
+     "量化算子 0 命中 → 量化方式=fp16"),
+    ("把权重从 /var/folders 临时缓存复制到稳定目录", "cp -R …/fastembed_cache/models--qdrant--… ~/.dsh/models/fastembed",
+     "约 224MB；retriever 通过 meta.cache_dir 指过去，保证离线可执行"),
+    ("确定范围：复算 L3 过滤后的可用单元并与 l3_stats 对账", "python3 kb/.work/l6_scope.py",
+     "L2 9,261 → 可用 1,899（过滤分布逐项一致）"),
+    ("首版建索引（单元级、被截断）", "python3 kb/.work/l6_build.py 20260923-1400",
+     "BM25 1,899 文档；向量 1,578 条 → 随后发现截断与编号两处硬伤，产物另存 runs/20260923-1400.vectors.presegment.*"),
+    ("发现并修正两处硬伤：①模型静默截断 ②向量行号与 BM25 文档号不同源", "python3 (matmul/编号核对)",
+     "编号对不上 1,573/1,578；截断使 31,450 字单元只进前约 128 字"),
+    ("改成按段落分段、不截断（segmenter 进 retriever.py）", "python3 kb/.work/l6_build.py 20260923-1440",
+     "1,578 单元 → 2,088 段；被分段 281；最长单元 31,450 字 → 201 段；embedding 66 次批量调用、0 重试、0 失败"),
+    ("自检发现切句丢换行（168 个单元拼不回原文）", "python3 kb/.work/l6_integrity.py",
+     "FAIL：exact_reconstruction_bad=168 → 改成换行/标点并入前一块，逐字可还原"),
+    ("自检发现复算用了错的 token 计数器（拿字符长度当 token）", "python3 kb/.work/l6_integrity.py",
+     "FAIL：index_vs_recount_bad=532 → 复算改用模型自带 token_count，归零；同时修了分布统计口径"),
+    ("性能实测（纯 Python 倒排）", "python3 kb/.work/l6_bench.py",
+     f"1,899 单元：单查询 p50 {bench['bm25']['query_latency_ms']['p50']} ms、吞吐 {bench['bm25']['throughput_qps']} q/s；"
+     f"L5 扫 1MB 是 631.6 ms（约 1.4 万倍）→ 不换实现"),
+    ("自验：A/B 两组 × 三模式 × Top3 + 人工判断", "python3 kb/.work/l6_selftest.py --show-pairs → 写判断 → 再跑",
+     "A 组 bm25_only hit@3 1.0 / hybrid 0.875 / vector_only 0.625；B 组三模式 hit@3 全 0（都不对题）"),
+    ("自检 9 项", "python3 kb/.work/l6_integrity.py 20260923-1440",
+     "全部 PASS（冻结层与 L5 基线逐字节一致；条数对账 0 差额；幂等零写入；分段可逐字还原；编号同源；能力声明在位）"),
+    ("生成留痕", "python3 kb/.work/l6_report.py", f"runs/{RUN}.json / .report.md / .ops.log"),
+]
+with open(f"{L6}/runs/{RUN}.ops.log", "w", encoding="utf-8") as fh:
+    fh.write(f"# L6 建两套索引（向量 + BM25）· 操作日志 run_id={RUN}\n")
+    fh.write(f"# 生成时间 {now}｜写入范围：只写 kb/l6/；kb/l0~l3 全程只读；未发布任何版本\n")
+    for i, (what, cmd, res) in enumerate(ops, 1):
+        fh.write(f"\n[{i:02d}] {what}\n     $ {cmd}\n     → {res}\n")
+
+# ---------------- report.md ----------------
+b, e, seg = bench["bm25"], reg["embedding"], ck["segmentation"]
+summ, bbe, raw = self_["summary"], self_["b_group_behavior"], self_["raw_score_comparison"]
+L = []
+A = L.append
+A(f"# L6 · 两套检索索引（向量 + BM25）建库报告（run_id {RUN}）\n")
+A(f"生成时间 {now}｜kb_version `v0`｜结论 **{run['verdict']}**\n")
+
+A("## 1. 实际运行模式与原因\n")
+A(f"**`{cap['mode']}`，`semantic_recall = {str(cap['semantic_recall']).lower()}`** —— 没有回退，向量与 BM25 双索引都已落盘。\n")
+A("原因：embedding 是必装项。本机 `onnxruntime 1.19.2` + `numpy` 就绪、外网可达，于是按推荐方向装 `fastembed`"
+  "（ONNX 路线，**没有拉 torch**）并复用已下载的多语权重。**能不能用靠真实握手判定**，不靠端口或依赖是否存在：\n")
+A("```json")
+A(json.dumps(cap["handshake"], ensure_ascii=False, indent=1))
+A("```")
+A("\n首轮探针曾记 `bm25_only`，原因是 curl 只给 3 秒超时、把 huggingface/pypi 误判为不可达（复测均 200）。"
+  "两次探针结果都留在 `registry.l6.embedding_probe_initial / embedding_probe`。\n")
+
+A("## 2. 条数与分段\n")
+A("| 项 | 数值 |")
+A("|---|---|")
+A(f"| 可用单元总数 | {ck['counts']['usable']} |")
+A(f"| BM25 建索引成功 | {ck['counts']['bm25_indexed']} |")
+A(f"| BM25 失败 | {ck['counts']['bm25_failed']} |")
+A(f"| 向量覆盖单元数 | {ck['counts']['vector_units']} |")
+A(f"| **向量总条数（分段后）** | {ck['counts']['vector_segments']} |")
+A(f"| **被分段的单元数** | {ck['counts']['units_segmented']} |")
+A(f"| 跳过（P0 不入向量） | {ck['counts']['vector_skipped_p0']} |")
+A(f"| 向量失败 | {ck['counts']['vector_failed']} |")
+A("")
+A(f"对账：{ck['counts']['reconcile']}，差额 0。范围是全量可用单元（无 `kb/l6/SCOPE.txt`，未做抽样）。\n")
+A(f"**分段数分布**：`{json.dumps(seg['segment_count_histogram'], ensure_ascii=False)}`；"
+  f"最长单元 **{seg['longest_unit'][1]:,} 字 → {seg['longest_unit'][2]} 段**；最大单段 {seg['max_segment_tokens']} token"
+  f"（上限 {seg['seg_max_tokens']}，模型实测 {seg['effective_model_max_tokens']} token 截断）。\n")
+A(f"分段规则：{reg['segmentation']['how']}\n")
+A(f"为什么必须分段：{reg['segmentation']['why']}。\n")
+
+A("## 3. 向量模型与调用\n")
+A(f"- 模型 `{cap['model']}`｜维度 **{cap['dim']}**｜量化方式 **{cap['quantization']}**\n"
+  f"- 量化判定依据：149 个 ONNX initializer 全为 FLOAT16，`QuantizeLinear/DequantizeLinear/MatMulInteger/"
+  f"DynamicQuantizeLinear/QLinearMatMul/ConvInteger` 命中数全部为 0\n"
+  f"- 权重来源 HF `{cap['weights_repo']}` / `{cap['weights_file']}`（{cap['weights_bytes']/1024/1024:.1f} MB）；"
+  f"本地稳定缓存 `{cap['weights_cache_dir']}`（原在 /var/folders 临时目录，已挪出，保证离线可跑）\n"
+  f"- 运行方式 {cap['provider']}｜归一化 L2｜batch {e['batch']}｜失败退避重试上限 {e['max_retry']} 次\n")
+A(f"- embedding 调用：分段版首建 **{run['embedding_calls']['first_segmented_build_calls']} 次批量调用**"
+  f"（{run['embedding_calls']['first_segmented_build_segments']} 条文本 ÷ batch {e['batch']}），重试 "
+  f"{run['embedding_calls']['retries']} 次、失败 {run['embedding_calls']['failures']} 条；修分段器后的增量重跑只调 15 次"
+  f"（复用 1,632 段）；**之后每次重跑 0 次调用**（记录见 `kb/l6/runs/build_runs.jsonl`）\n")
+A("- 每条向量字段：`unit_id / kb_type / anchor / source_sha256 / model / dim / content_hash / segment_index / "
+  "segment_count / char_offset`（另含 quantization / token_count / doc_id / row）\n")
+
+A("## 4. BM25 索引规模（自实现）\n")
+A(f"实现：**{reg['tokenizer']['implementation']}**；**未安装任何第三方检索库**（没有 jieba / rank_bm25，也不因此缺能力）。\n")
+A("| 指标 | 中文子索引 | 英文子索引 |")
+A("|---|---|---|")
+A(f"| 词表大小（不同词条） | {reg['bm25_scale']['terms_zh']:,} | {reg['bm25_scale']['terms_en']:,} |")
+A(f"| 倒排项数（含重复出现） | {reg['bm25_scale']['postings_zh']:,} | {reg['bm25_scale']['postings_en']:,} |")
+A(f"| 有该语言内容的文档数 | {reg['bm25_scale']['N_zh']:,} | {reg['bm25_scale']['N_en']:,} |")
+A(f"| 平均文档长度（词元数） | {reg['bm25_scale']['avgdl_zh']} | {reg['bm25_scale']['avgdl_en']} |")
+A("")
+A(f"文档总数 {reg['bm25_scale']['docs_total']}；k1={reg['tokenizer']['bm25']['k1']}、b={reg['tokenizer']['bm25']['b']}。\n")
+A(f"- 中文：{reg['tokenizer']['zh']}\n- 英文：{reg['tokenizer']['en']}\n- 中英混排：{reg['tokenizer']['mixed']}\n")
+
+A("## 5. 纯 Python 倒排的性能上限（要不要换实现/换库的唯一依据）\n")
+A(f"单元数 **{bench['units']}**（文档 {b['docs']}）；索引加载 {b['load_ms']} ms。\n")
+A("| 指标 | 实测 |")
+A("|---|---|")
+A(f"| 单查询耗时 p50 | **{b['query_latency_ms']['p50']} ms** |")
+A(f"| p95 / max | {b['query_latency_ms']['p95']} ms / {b['query_latency_ms']['max']} ms |")
+A(f"| 吞吐 | {b['throughput_qps']} 查询/秒 |")
+A(f"| 单词条查询 p50 | {b['by_term_count']['1_term_p50_ms']} ms |")
+A(f"| 3+ 词条查询 p50 | {b['by_term_count']['3plus_terms_p50_ms']} ms |")
+A(f"| 平均扫描倒排项 | {b['postings_scanned']['mean']} 条 |")
+A(f"| 向量查询 p50 | {bench['vector']['p50_ms']} ms（含 ONNX 前向；冷启动加载模型 {bench['vector']['cold_load_ms']} ms，只付一次） |")
+A(f"| hybrid p50 | {bench['hybrid']['p50_ms']} ms（由向量那一路主导） |")
+A("")
+A(f"与 L5 的量级对照：L5 关键词匹配扫 **1MB / 3,712 行 / 631.605 ms**（见 kb/l5/benchmark.json）；本次 BM25 单查询中位 "
+  f"**{b['query_latency_ms']['p50']} ms**，比它快约 **{round(631.605/max(b['query_latency_ms']['p50'],1e-6)):,} 倍**，"
+  f"等效扫文本量约 {bench['compare_with_l5']['bm25_equivalent_text_KB']} KB。\n")
+A(f"结论：**{bench['compare_with_l5']['verdict']}**\n")
+
+A("## 6. 三模式对比（A/B 两组查询）\n")
+A(f"查询集 {self_['query_count']} 条：A 组（库里有对应内容）中英各 4 条，B 组（库里没有对应内容）中英各 3 条；"
+  f"每条在三种模式下各取 Top3，逐条人工判断。判定口径：{self_['how_to_read']}\n")
+A("| 组 | 语言 | bm25_only hit@3 / p@3 | vector_only hit@3 / p@3 | hybrid hit@3 / p@3 |")
+A("|---|---|---|---|---|")
+for key, name in (("A_zh", "A 组"), ("A_en", "A 组"), ("A_all", "A 组合计"),
+                  ("B_zh", "B 组"), ("B_en", "B 组"), ("B_all", "B 组合计")):
+    s = summ[key]
+    lg = {"A_zh": "中文", "A_en": "英文", "B_zh": "中文", "B_en": "英文"}.get(key, "中英合计")
+    A(f"| {name} | {lg} | {s['bm25_only']['hit']}/{s['bm25_only']['queries']} = {s['bm25_only']['hit_rate_at3']} / "
+      f"{s['bm25_only']['precision_at3']} | {s['vector_only']['hit']}/{s['vector_only']['queries']} = "
+      f"{s['vector_only']['hit_rate_at3']} / {s['vector_only']['precision_at3']} | {s['hybrid']['hit']}/"
+      f"{s['hybrid']['queries']} = {s['hybrid']['hit_rate_at3']} / {s['hybrid']['precision_at3']} |")
+A("")
+A("**模式对比结论（如实写，包括不好看的那一面）**\n")
+A(f"1. **A 组召回没有因为上了向量而提升**：bm25_only 已 hit@3 = {summ['A_all']['bm25_only']['hit_rate_at3']}（8/8 全中），"
+  f"hybrid {summ['A_all']['hybrid']['hit_rate_at3']}（{summ['A_all']['hybrid']['hit']}/8），vector_only 只有 "
+  f"{summ['A_all']['vector_only']['hit_rate_at3']}。A 组按任务要求用「库里现成的等价词」构造，属词面型查询，是 BM25 的主场；"
+  f"2019 年的多语 MiniLM 对这类短查询的语义邻域铺得偏宽。\n"
+  f"2. **hybrid 把精确度拉低了**：A 组 precision@3 从 bm25_only 的 {summ['A_all']['bm25_only']['precision_at3']} "
+  f"降到 {summ['A_all']['hybrid']['precision_at3']}（vector_only 更差 {summ['A_all']['vector_only']['precision_at3']}）。"
+  f"中文侧最明显：hybrid hit@3 {summ['A_zh']['hybrid']['hit_rate_at3']} < bm25_only {summ['A_zh']['bm25_only']['hit_rate_at3']}——"
+  f"「无痛吸奶」这条，向量把广告名称与无关的专家修订顶进 Top3，把 BM25 命中的检测关键词挤了出去。\n"
+  f"3. **B 组三种模式都不拒答**：检索器不带相关性阈值，一律返回 Top3。B 组 {bbe['hybrid']['queries']} 条查询在三模式下 "
+  f"Top1 相关数都是 {bbe['hybrid']['top1_relevant']}，Top3 里也没有相关条目（hit@3 = 0）。即**没有把无关内容当成命中**，"
+  f"但**也不会因为「查不到」而拒答**。\n"
+  f"4. **分数不能用来判「有没有命中」**：bm25_only / vector_only 的 Top1 RRF 分恒为 0.016393（就是 1/(60+1) 名次倒数），"
+  f"A 组与 B 组完全一样；hybrid 的 B 组 {bbe['hybrid']['b_top1_score_median']} vs A 组 "
+  f"{bbe['hybrid']['a_top1_score_median']} 也几乎无差别。原始分才有区分度：A 组 BM25 原始分中位 "
+  f"{raw['A']['bm25_max_median']} vs B 组 {raw['B']['bm25_max_median']}；余弦 {raw['A']['cosine_max_median']} vs "
+  f"{raw['B']['cosine_max_median']}。但两组仍有重叠（A 组 BM25 最低 5.32 < B 组最高 10.02；余弦 A 最低 0.512 < "
+  f"B 最高 0.582），**单靠分数阈值也保证不了正确拒答**——这正是 registry 里 `no_hit_semantics` 要写死的原因。\n")
+A("逐条查询的 Top3 与判断理由（含不相关的那些）都在 `kb/l6/selftest.json` 的 `results` 里；摘要：\n")
+A("| # | 组 | 语言 | 查询 | bm25_only | vector_only | hybrid |")
+A("|---|---|---|---|---|---|---|")
+for i, r in enumerate(self_["results"], 1):
+    cells = [("✅" if r["modes"][m]["hit_at_3"] else "❌") + f" {r['modes'][m]['relevant_in_top3']}/3"
+             for m in ("bm25_only", "vector_only", "hybrid")]
+    A(f"| {i} | {r['group']} | {r['lang']} | {r['query']} | {cells[0]} | {cells[1]} | {cells[2]} |")
+A("")
+
+A("## 7. 无法索引的单元\n")
+A("| unit_id | 锚点 | 原因 | 影响面 |")
+A("|---|---|---|---|")
+for u in ck["counts"]["bm25_failed_units"]:
+    A(f"| `{u['unit_id']}` | {u['anchor']} | {u['reason']} | 仅 BM25 未收录；向量侧正常入库 |")
+A(f"| —— | —— | 以下 {ck['counts']['vector_skipped_p0']} 条是**策略性不入向量**（不是失败）："
+  f"{list(ck['counts']['vector_not_indexed_reasons'])[0]} | 仅向量未收录；BM25 侧正常入库 |")
+A("")
+A(f"向量侧失败 {ck['counts']['vector_failed']} 条、BM25 侧失败 {ck['counts']['bm25_failed']} 条；逐条原因写在 "
+  f"`kb/l6/index/l6.jsonl` 的 `vector.reason` / `bm25.indexed`。\n")
+A("补充事实（供核对）：任务里提到的 **42,270 字**单元确实存在，但它在**被过滤掉的元数据/JS 污染集合**里"
+  "（`unit_id 985358c6cd20e8b5c36a`，不属于 1,899 个可用单元），所以不在本批索引范围；"
+  f"可用单元里最长的是 **{seg['longest_unit'][1]:,} 字**，已分 {seg['longest_unit'][2]} 段。\n")
+
+A("## 8. 自检（9 项，全部 PASS）\n")
+A("| 项 | 结论 | 证据 |")
+A("|---|---|---|")
+_b = ck["frozen_layers"]["l0_l2_vs_L5_baseline"]
+A(f"| kb/l0~l3 未被修改 | {ck['frozen_layers']['verdict']} | 逐层核对 mtime + size + tree_sha256："
+  + "；".join(f"kb/{d} {_b[d]['files']} 文件/{_b[d]['bytes']:,} 字节/最后修改 {_b[d]['max_mtime']}"
+              f"（tree_sha256 `{_b[d]['tree_sha256'][:16]}…` 与 L5 存档基线**逐字节一致**）" for d in ("l0", "l1", "l2"))
+  + f"；kb/l3/candidates/rules.jsonl {ck['frozen_layers']['l3_candidates']['lines']} 行/"
+    f"{ck['frozen_layers']['l3_candidates']['bytes']:,} 字节/最后修改 {ck['frozen_layers']['l3_candidates']['max_mtime']}，"
+    f"前 509 行哈希与 L5 一致。本批全部写入都在 kb/l6/ 与 kb/.work/ |")
+A(f"| 索引条数 == 可用单元数 | {ck['counts']['verdict']} | 投影 {ck['counts']['projection_lines']} 行 = 可用 "
+  f"{ck['counts']['usable']}；BM25 文档 {ck['counts']['bm25_docs']}；跳过/失败逐条有原因（第 7 节） |")
+A(f"| 重跑幂等 | {ck['idempotent_rerun']['verdict']} | 现场再跑一次 build：变更文件 "
+  f"{ck['idempotent_rerun']['files_changed'] or '无'}（连 mtime 都不变）；「本次切词 0 条」「新增/变更 0、embedding 调用 0 次」；"
+  f"无重复 (unit_id, segment_index) |")
+A(f"| 向量可回指 | {ck['vector_traceability']['verdict']} | {ck['vector_traceability']['rows']} 段 × "
+  f"{ck['vector_traceability']['dim']} 维全部对齐 unit_id + anchor + source_sha256，必填字段齐全；范数 "
+  f"[{ck['vector_traceability']['norm_min']:.6f}, {ck['vector_traceability']['norm_max']:.6f}]；P0 混入 "
+  f"{len(ck['vector_traceability']['p0_in_vector'])} 条 |")
+A(f"| 超长单元已分段而非截断 | {ck['segmentation']['verdict']} | 用同一套 segmenter 对 "
+  f"{ck['segmentation']['units_indexed']} 个单元复算：各段拼接**逐字等于原文**（不一致 "
+  f"{ck['segmentation']['exact_reconstruction_bad']} 条）、段号连续、char_offset 单调、每段 ≤ "
+  f"{ck['segmentation']['seg_max_tokens']} token（实测最大 {ck['segmentation']['max_segment_tokens']}）；分段分布 "
+  f"`{json.dumps(ck['segmentation']['segment_count_histogram'], ensure_ascii=False)}` |")
+A(f"| 编号同源 | PASS | 向量 doc_id 能在 BM25 docs 里对上同一 unit_id，不一致 "
+  f"{ck['vector_traceability']['doc_id_mismatch']} 条（上一版这里是 1,573/1,578） |")
+A(f"| 倒排自洽 | {ck['postings_consistency']['verdict']} | {ck['postings_consistency']['docs']} 篇文档逐篇重算词频，"
+  f"与倒排不一致 {ck['postings_consistency']['mismatch_docs']} 篇 |")
+A(f"| 版本纪律 | {ck['version_discipline']['verdict']} | canonical/rules.jsonl "
+  f"{ck['version_discipline']['canonical_rules_bytes']} 字节；versions.jsonl 版本行 "
+  f"{ck['version_discipline']['versions_jsonl_rows']}；kb_version {ck['version_discipline']['kb_version_values']} |")
+A(f"| 能力声明在位 | {ck['capability_declaration']['verdict']} | registry.retrieval_capability 的 mode / "
+  f"semantic_recall / model / dim / quantization / known_limitations({ck['capability_declaration']['fields']['known_limitations']} 条) / "
+  f"no_hit_semantics 全部在位且与规格一致 |")
+A("")
+
+A("## 9. 下游读的机器可读能力声明\n")
+A("`kb/l6/registry/l6.json` → `retrieval_capability`（节选）：\n")
+A("```json")
+A(json.dumps({k: cap[k] for k in ("mode", "semantic_recall", "model", "dim", "quantization",
+                                  "known_limitations", "no_hit_semantics")}, ensure_ascii=False, indent=1))
+A("```")
+A("")
+
+A("## 10. 检索怎么用\n")
+A("```bash\n"
+  "python3 kb/l6/retriever.py --query \"宣称疗效的表述\" --top 5                    # 默认 hybrid\n"
+  "python3 kb/l6/retriever.py --query \"FDA approved claims\" --mode vector_only --json\n"
+  "python3 kb/l6/retriever.py --query \"医生推荐\" --mode bm25_only --kb-type internal_sample\n"
+  "python3 kb/l6/retriever.py --selftest                                          # 切法/分段/RRF/编号一致性 单元自测\n"
+  "```\n")
+A("输出每行含 rank / RRF 得分 / **unit_id** / **anchor** / 来源表 / source_sha256 / **命中模式与各路名次**"
+  "（`bm25_zh=#n vector=#n`）；向量命中还给出 `段 i/N @char_offset`，可按偏移回原文。\n")
+
+A("## 11. 自主决策\n")
+A("| # | 决策 | 理由 |")
+A("|---|---|---|")
+for d in run["decisions"]:
+    A(f"| {d['id']} | {d['decision']} | {d['why']} |")
+A("")
+
+A("## 12. 本批没做的事 / 环境副作用\n")
+for x in run["not_done"]:
+    A(f"- {x}")
+A("")
+A("环境副作用（都留痕，可回退）：")
+for x in run["env_side_effects"]:
+    A(f"- {x}")
+A("")
+
+A("## 13. 产物与校验和\n")
+A("| 文件 | 字节 | sha256 |")
+A("|---|---|---|")
+for a in run["artifacts"]:
+    A(f"| `{a['path']}` | {a['bytes']:,} | `{a['sha256'][:16]}…` |")
+A("")
+open(f"{L6}/runs/{RUN}.report.md", "w", encoding="utf-8").write("\n".join(L))
+print(f"已生成 {L6}/runs/{RUN}.json / .report.md / .ops.log")
+print(f"run verdict = {run['verdict']}")

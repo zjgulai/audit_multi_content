@@ -1,0 +1,103 @@
+---
+id: cg-sc-e7d24e2ffe74e2f4
+title: "[S-1.178] 内部正负样本库：反例·合规红线·视频"
+collection: 2_内部正负样本库
+kb_class: [内部正负样本库]
+tier: L1
+topic: S-1.178
+kind: fact
+summary: "[S-1.178] 反例案例（视频/社媒）：原因归类「合规红线」；案例作参照、不构成规则。状态 superseded。"
+owner: 刘华丽
+evidence_level: L1
+data_level: L2
+sensitivity_level: L2
+half_life_days: 180
+created_at: 2026-10-16
+valid_until: 2027-04-14
+asks:
+  - S-1.178 是正例还是反例
+  - S-1.178 的问题要点与原因归类是什么
+  - S-1.178 应该怎么做（合规做法 / 修改建议）
+not_proves: 案例是参照，不构成规则 —— 不能证明「和它像」就违规、也不能证明「和它像」就合规；不能证明该条已过正式验收；不能证明该条可替代合规/法务意见
+forbidden: 不许把案例当规则用（案例只作参照）；不许据本条直接判 BLOCK；不许把派生视图的字段改动当成新库改动（视图不写回）
+related:
+  - cg-sc-2acb48247247a1c5
+  - cg-sc-d6a12c8d85197a91
+  - cg-sc-dbb4f2f797c2b53f
+source:
+  kind: feishu-base
+  ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
+  fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
+  captured_at: 2026-10-16
+provenance:
+  anchor: "kb/l4/canonical/sample_case.jsonl#sc-e7d24e2ffe74e2f4"
+  confidence: 确定
+pii:
+  detected: true
+  masked: true
+  strategy: "案例正文与原因分析里的 @人名 不可逆脱敏（mask-at-name）；已检出并脱敏"
+article_no: S-1.178
+form: sample_case
+kb_type: internal_sample
+kb_version: v0
+case_id: sc-e7d24e2ffe74e2f4
+status: superseded
+polarity: 反例
+material_type: 视频
+channel: 社媒
+reason_category: 合规红线
+evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
+promoted_from: provisional
+anchor: "#正面和负面样本/recvw2wE9MnpNS/原文反馈"
+source_sha256: 4c07f7f1af5d29b1ec8c01bdd05f7d067f8fa9478ee2d330bd08e08787997c20
+resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MnpNS
+sample_body: "【审核 · 2026-07-25 03:21 · 蓝涵】【终审-@[已脱敏] 】帮忙看看呀:YouAreTheBest: **项目名**: P21实际有效负压小游戏 **设计要求**:  连线小游戏：连出 100% 实际有效负压。让用户从左联线到右边，最后得到吸奶量很多的效果。 最左侧：画一个大大的、可爱的卡通宝宝嘟起嘴唇的侧面像虚影，实影是P21 中间：Airtight Seal、Raw Motor Horsepower Only、Focused suction、 Structural Support、Feeling stronger suction ( actually less suction)、Ultra-Soft Flimsy Material 👉 最右侧：最终收益 (The Result) 视觉画面： 一瓶满爆满、甚至快溢出来的卡通奶瓶，旁边放一个一脸满足、微笑的妈妈。 **设计稿件：** ![Image](img_v3_0213t_32a4df4b-5fbc-4d49-b137-13df0ec73abg)  The Pumping Puzzle Challenge: Connect for Actual Effective Vacuum! Airtight Seal Raw Motor Horsepower Only Focused suction Structural Support Feeling stronger suction (actually less suction) Ultra-Soft Flimsy Material - 180 150 120 90 60 Paruu"
+reason_analysis: "【合规红线】视频 P21 【终审-@[已脱敏] 】帮忙看看呀。 【问题要点】 1. 【终审-@[已脱敏] 】帮忙看看呀 2. 项目名P21实际有效负压小游戏 3. 连线小游戏：连出 100% 实际有效负压 4. 让用户从左联线到右边，最后得到吸奶量很多的效果"
+advice: ""
+---
+
+# [S-1.178] 内部正负样本库：反例·合规红线·视频
+
+**条款号**：S-1.178　|　**形态**：`sample_case`　|　**正/反例**：反例　|　**状态**：superseded
+
+## 样本本体（照抄新库，未改写）
+
+【审核 · 2026-07-25 03:21 · 蓝涵】【终审-@[已脱敏] 】帮忙看看呀:YouAreTheBest:
+**项目名**: P21实际有效负压小游戏
+**设计要求**: 
+连线小游戏：连出 100% 实际有效负压。让用户从左联线到右边，最后得到吸奶量很多的效果。 最左侧：画一个大大的、可爱的卡通宝宝嘟起嘴唇的侧面像虚影，实影是P21 中间：Airtight Seal、Raw Motor Horsepower Only、Focused suction、 Structural Support、Feeling stronger suction ( actually less suction)、Ultra-Soft Flimsy Material 👉 最右侧：最终收益 (The Result) 视觉画面： 一瓶满爆满、甚至快溢出来的卡通奶瓶，旁边放一个一脸满足、微笑的妈妈。
+**设计稿件：**
+![Image](img_v3_0213t_32a4df4b-5fbc-4d49-b137-13df0ec73abg)
+
+The Pumping Puzzle Challenge:
+Connect for Actual Effective Vacuum!
+Airtight Seal
+Raw Motor Horsepower Only
+Focused suction
+Structural Support
+Feeling stronger suction
+(actually less suction)
+Ultra-Soft Flimsy Material
+- 180
+150
+120
+90
+60
+Paruu
+
+## 原因分析
+
+【合规红线】视频 P21 【终审-@[已脱敏] 】帮忙看看呀。
+【问题要点】
+1. 【终审-@[已脱敏] 】帮忙看看呀
+2. 项目名P21实际有效负压小游戏
+3. 连线小游戏：连出 100% 实际有效负压
+4. 让用户从左联线到右边，最后得到吸奶量很多的效果
+
+## 引用依据
+
+- 锚点：`#正面和负面样本/recvw2wE9MnpNS/原文反馈`
+- 指纹：`4c07f7f1af5d29b1ec8c01bdd05f7d067f8fa9478ee2d330bd08e08787997c20`
+- 原因归类：合规红线　|　素材类型：视频
+
+> 案例只作参照，不构成规则。

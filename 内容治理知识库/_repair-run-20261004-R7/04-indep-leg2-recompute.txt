@@ -1,0 +1,20 @@
+活库 kb/l3/candidates/rules.jsonl
+  行数          = 1018
+  字节          = 2,778,872
+  mtime         = 2026-10-02 22:45:07
+  整文件 sha256 = 743dc62398311b0287e1e99fbcc438397ca8c721a0556d534cc69f3ee6eff840
+  前 1018 行 sha256 = 743dc62398311b0287e1e99fbcc438397ca8c721a0556d534cc69f3ee6eff840   == 整文件? True
+  前 1527 行 sha256 = 743dc62398311b0287e1e99fbcc438397ca8c721a0556d534cc69f3ee6eff840   == 整文件? True
+
+基线 A（② 的第一条子判据）：kb/.work/l6_integrity.json
+  sha256 = 7d00454e80e2a1cc226a26a7ce416f99f07274da0137f4eaeeac79ad1df2a2cb   行数 = 2036   字节 = 5,762,300   max_mtime = 2026-10-02 00:07:19
+  整体 checked_at = 2026-10-02 00:10:57
+
+基线 B（② 的第二条子判据）：kb/l4/runs/20260923-1445.json
+  sha256 = aa83d1f98bc86857254bfa4f908ebd6d1a869f868cb04970522d154f776b0dac   字节 = 2,778,734   finished_at = 2026-09-30 16:50:35
+
+结论：两条基线都是**当时那个整文件**的哈希（2036 行 / 1527 行时代）。
+      活库今天 1018 行，两条前缀哈希都 == 整文件哈希 = 743dc62398311b02…
+      要让子判据为真，活库必须逐字节回到那两个时点 ⇒ 在不回滚 L3 的前提下**结构上不可能**。
+      且现 sha 有出处：kb/l3/registry/l3.json 的 appended_fields.old_lines_untouched.sha256
+      = 743dc62398311b0287e1e99fbcc438397ca8c721a0556d534cc69f3ee6eff840  == 活库? True

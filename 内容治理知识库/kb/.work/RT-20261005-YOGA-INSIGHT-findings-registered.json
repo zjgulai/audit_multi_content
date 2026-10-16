@@ -1,0 +1,317 @@
+{
+ "review_id": "rv-20261005-113729",
+ "review_base": "RT-20261005-YOGA-INSIGHT",
+ "content_id": "AD-20261005-004",
+ "content_type": "广告洞察文档（竞品素材+AI拟定文案）",
+ "channel": "未指定",
+ "product_line": "未指定",
+ "submitted_link": "https://my.feishu.cn/wiki/O0unwH2Cfi29ipk50u2cVdACnMc",
+ "doc": {
+  "title": "【瑜伽球】广告洞察",
+  "doc_token": "EdVPd3Y6PoIzULx08MJcPiVYnuh",
+  "revision_id": 787
+ },
+ "registered_at": "2026-10-05",
+ "registered_under": "Owner 2026-10-05 两条硬规矩（① 自命中不当拒答理由；② 每一单必须落表）—— 明示优先于默认流程",
+ "engine_result": {
+  "state": "BLOCK",
+  "confidence": 0.97,
+  "issue_count": 9,
+  "findings": 5,
+  "exit_code": 0,
+  "driving_reason": [
+   "confirmed_p0"
+  ],
+  "decide_path": "kb/l7/review-engine/core/review_engine.py:145-148（confirmed_p0 非空 ⇒ BLOCK）"
+ },
+ "decision_owner": {
+  "skill": "文案合规审查",
+  "loaded": true,
+  "evidence_grade": "agent 自述档（--loaded-skill 申报），不得当强证据"
+ },
+ "self_hit_check": {
+  "conclusion": "不成立",
+  "method": [
+   "wiki/doc token 全量搜 kb/l0…l6 → 0 命中",
+   "文档特性词（瑜伽球/Babygo/BABYGO/FIT4MOM/Fridamom/Tridder/PregActive）搜 kb/l0…l4 → 0 命中",
+   "自有文案短语（产后焦虑/生存必需品/支援村/免提解放/一站式解决方案/乳汁漏出/乳头破裂/一次性内裤/Survival Kit/Stop feeding your shirt/孕产赛道）搜 canonical → 0 命中",
+   "与 181 条 polarity=反例 / semantics=禁区 条款做规范化字符 n-gram 重叠：n=16 → 0 条；n=20 → 0 条；n=12 仅 4 条、n=8 有 70 条，逐条读过均为泛用营销词且分属别的项目",
+   "引擎命中的 5 条 KB 条款形态全为 form=entry、polarity=None（措辞表达层边界规则），无一条是 反例/禁区"
+  ],
+  "consequence": "无 反例/禁区 findings 可登记；本单未拒答、未以自命中为由降级"
+ },
+ "attribution_adjudication": {
+  "by": "文案合规审查（判定主体）",
+  "rule_applied": "Do not block a phrase merely because a token appears in a negation, warning, quote, or comparison.（专项正文）",
+  "quote_side": [
+   "#1 perfect（FIT4MOM 引用帖文）",
+   "#2 乳房胀痛（Fridamom 素材描述）",
+   "#5 hospital（Fridamom/Amazon 引用帖文）",
+   "#6-9 best×4（BABYGO/NCT/FIT4MOM/Amazon 引用）"
+  ],
+  "analysis_or_negation": [
+   "#4 完美×6（5 处分析文本 + 1 处自有文案否定式）"
+  ],
+  "own_copy_out_of_scope": [
+   "#3 超级（W-1.12 边界=吸力，此处指柔软度）"
+  ],
+  "own_copy_items_requiring_human_judgment": [
+   {
+    "text": "半夜漏奶和疼痛，让你心力交瘁？搞定！",
+    "clause": "W-1.26",
+    "why": "该条款自述「需人工判定是痛点场景描述还是功效承诺」；与消除性表述（搞定！）连用应升级 H01/H07"
+   },
+   {
+    "text": "别让产后焦虑消耗你！",
+    "clause": null,
+    "why": "知识库查不到（产后焦虑 在 canonical 0 命中）—— 不得由常识补"
+   },
+   {
+    "text": "让你在清晨多睡一小时的免提神器。",
+    "clause": null,
+    "why": "效果类具体数值，无对应条款；需测试来源与口径"
+   }
+  ]
+ },
+ "findings": [
+  {
+   "finding_id": "F-1",
+   "severity": "BLOCK(engine)",
+   "attribution": "第三方引用",
+   "category": "绝对化与安全承诺-虚假安全承诺",
+   "rule_code": "H05",
+   "article_no": "W-1.33",
+   "form": "entry",
+   "polarity": null,
+   "semantics": null,
+   "status": "stable",
+   "owner": "法务 + 产品负责人",
+   "valid_until": "2026-12-28",
+   "matched_token": "\\\\b(safest|perfect|zero[\\\\s-]?risk|risk[\\\\s-]?free)\\\\b",
+   "occurrence_offset": 5219,
+   "occurrence_verbatim": "Working out outside not only gives you that mood-boosting vitamin D, but it’s also a perfect way to meet other moms, share stories, and motivate each other to be our best.",
+   "location_note": "该句是文档引用的 FIT4MOM Instagram 帖文，不是本文件自有文案；语义与产品安全承诺无关",
+   "trace": {
+    "l4_article_no": "W-1.33",
+    "l4_anchor": "#广告文案明细/recvuJYdOb1B8v/命中片段",
+    "l3_rule_code": "H05",
+    "l2_unit_id": "6778ea95201740e84dab",
+    "l1_source_sha256": "e7aabf7478753887ea85470fa114b4d0b22d74d21cb901b3a02e7672dff4f4c5",
+    "l0_record_id": "recvuJYdOb1B8v",
+    "l0_table": "广告文案明细",
+    "l0_entry_url": "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJYdOb1B8v",
+    "l0_verbatim_field": "命中片段",
+    "l0_verbatim_value": "H05:perfect pump",
+    "verbatim_check": "不一致 ❌ —— 摘录是正则，不是 L0 字段值的逐字片段",
+    "sha_note": "与 L0 记录值比对一致（不是重算）：L0 的 sha 输入是 record_fields blob，本地 L0 件不含该 blob；要真核对只能点 L0 直链。"
+   },
+   "engine_self_flag": {
+    "unmet_citation": true,
+    "disposition": "output_as_block_with_gap",
+    "why": "该规则全部证据单元里都找不到这段摘录的逐字原文（等价说法／正则命中）；已按 P0 输出为 BLOCK，出处退到 P0 模式自身"
+   }
+  },
+  {
+   "finding_id": "F-2",
+   "severity": "REVIEW",
+   "attribution": "第三方引用/描述",
+   "category": "功效宣称-疼痛功效承诺",
+   "rule_code": "U04",
+   "article_no": "W-1.26",
+   "form": "entry",
+   "polarity": null,
+   "semantics": null,
+   "status": "stable",
+   "owner": "法务 + 医学顾问",
+   "valid_until": "2027-03-28",
+   "matched_token": "乳房胀痛",
+   "occurrence_offset": 6237,
+   "occurrence_verbatim": "素材中直接展示了**乳汁漏出弄湿衣服**、**乳头破裂**、**乳房胀痛**、以及**产后穿着一次性内裤**（穿着宽松的产后内衣在浴室）的场景。",
+   "location_note": "该句是文档对 Fridamom 竞品素材画面的中文**描述**，不是本文件自有文案",
+   "clause_self_disposition": "边界：疼痛/堵奶场景化名词表述 —— **需人工判定**是痛点场景描述还是功效承诺；与 goodbye/no more/not anymore/relieve 等消除性表述连用应升级 H01/H07",
+   "trace": {
+    "l4_article_no": "W-1.26",
+    "l4_anchor": "#品线内容边界规则库/recvuMNZc45BSy/检测关键词",
+    "l3_rule_code": "U04",
+    "l2_unit_id": "c296ab61df24e38e0e04",
+    "l1_source_sha256": "8d94242a1fdbe4dbb16481ef4ad72aeda3d555a6e47a53d1e8cddc62c254f367",
+    "l0_record_id": "recvuMNZc45BSy",
+    "l0_table": "品线内容边界规则库",
+    "l0_entry_url": "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblD1MiUK1v5fdjD&record=recvuMNZc45BSy",
+    "l0_verbatim_field": "检测关键词",
+    "verbatim_check": "逐字命中 ✅"
+   }
+  },
+  {
+   "finding_id": "F-3",
+   "severity": "REVIEW",
+   "attribution": "本文件自有文案（超条款范围）",
+   "category": "绝对化与安全承诺-绝对化性能表述",
+   "rule_code": "M02",
+   "article_no": "W-1.12",
+   "form": "entry",
+   "polarity": null,
+   "semantics": null,
+   "status": "stable",
+   "owner": "法务 + 产品负责人",
+   "valid_until": "2027-03-28",
+   "matched_token": "超级",
+   "occurrence_offset": 9509,
+   "occurrence_verbatim": "✅ **免提吸奶，边带娃边工作？** 搞定！ ✅ **产后身体敏感，需要超级柔软的支撑？** 搞定！ ✅ **半夜漏奶和疼痛，让你心力交瘁？** 搞定！",
+   "location_note": "本文件**自有**文案（文案版本 A）",
+   "out_of_scope": "W-1.12 的边界是『**吸力**夸大用语』（触发词 super strong / ultra powerful / max suction / strongest suction / 超强 / 极致 / 无敌 / 超级），此处『超级柔软的支撑』指柔软度，**不在该条款适用范围**",
+   "trace": {
+    "l4_article_no": "W-1.12",
+    "l4_anchor": "#品线内容边界规则库/recvuJP1LVe2xP/检测关键词",
+    "l3_rule_code": "M02",
+    "l2_unit_id": "71b7540b8885ea5eaf93",
+    "l1_source_sha256": "a240aa6a49af138054084674abb583e90b40090afc5fefc550aecb5b9537dc05",
+    "l0_record_id": "recvuJP1LVe2xP",
+    "l0_table": "品线内容边界规则库",
+    "l0_entry_url": "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblD1MiUK1v5fdjD&record=recvuJP1LVe2xP",
+    "l0_verbatim_field": "检测关键词",
+    "verbatim_check": "逐字命中 ✅"
+   }
+  },
+  {
+   "finding_id": "F-4",
+   "severity": "REVIEW",
+   "attribution": "分析文本 + 自有文案否定式",
+   "category": "绝对化与安全承诺-虚假安全承诺",
+   "rule_code": "H05",
+   "article_no": "W-1.22",
+   "form": "entry",
+   "polarity": null,
+   "semantics": null,
+   "status": "stable",
+   "owner": "法务 + 产品负责人",
+   "valid_until": "2027-03-28",
+   "matched_token": "完美",
+   "occurrence_offsets": [
+    1834,
+    2267,
+    2709,
+    6139,
+    6827,
+    9418
+   ],
+   "occurrence_verbatim_own": "🤱 **Momcozy 懂你。** 我们**没有**完美无缺的模特，只有和你一样，在现实生活中努力的妈妈。",
+   "location_note": "6 处：5 处在中文分析文本里（『完美地平衡』『不是完美的训练状态』『达到完美』『虚假完美』『不完美』），1 处在自有文案 A 里且为**否定式**",
+   "negation_exempt": "判定主体正文：token 落在否定里不得据此拦",
+   "clause_note": "W-1.22 自身明写：best/#1/No.1/最佳/最好等排名最高级按 2026-09-09 口径放开，海外广告允许，不再判险",
+   "trace": {
+    "l4_article_no": "W-1.22",
+    "l4_anchor": "#品线内容边界规则库/recvuJP1dDumuM/检测关键词",
+    "l3_rule_code": "H05",
+    "l2_unit_id": "6bd4e7315823e42ef28d",
+    "l1_source_sha256": "1c61c44b09ff77d121546f5ec15f74eba03afda2b77c1c77eb70b1e7525337fb",
+    "l0_record_id": "recvuJP1dDumuM",
+    "l0_table": "品线内容边界规则库",
+    "l0_entry_url": "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblD1MiUK1v5fdjD&record=recvuJP1dDumuM",
+    "l0_verbatim_field": "检测关键词",
+    "verbatim_check": "逐字命中 ✅"
+   }
+  },
+  {
+   "finding_id": "F-5",
+   "severity": "REVIEW",
+   "attribution": "第三方引用",
+   "category": "背书与资质-医疗场景宣称",
+   "rule_code": "U03",
+   "article_no": "W-1.35",
+   "form": "entry",
+   "polarity": null,
+   "semantics": null,
+   "status": "stable",
+   "owner": "法务 + 产品负责人",
+   "valid_until": "2026-12-28",
+   "matched_token": "hospital",
+   "occurrence_offsets": [
+    7081,
+    7149
+   ],
+   "occurrence_verbatim": "Get everything mom actually needs at the hospital, pre-packaged and ready to deliver with one motherload[ed] hospital bag.",
+   "location_note": "该句是文档引用的 Fridamom（Amazon 落地）帖文，不是本文件自有文案",
+   "trace": {
+    "l4_article_no": "W-1.35",
+    "l4_anchor": "#广告文案明细/recvuJYdObBgjg/命中片段",
+    "l3_rule_code": "U03",
+    "l2_unit_id": "0e8a16219d4ff3533a03",
+    "l1_source_sha256": "1ca01a6690922a697e9d428439674863df67709688a6b32fe846705603f5e011",
+    "l0_record_id": "recvuJYdObBgjg",
+    "l0_table": "广告文案明细",
+    "l0_entry_url": "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJYdObBgjg",
+    "l0_verbatim_field": "命中片段",
+    "l0_verbatim_value": "M03:trusted by 6 million / M05:hospital grade,hospital-grade / M07:leak / U01:ibclc / U03:hospital",
+    "verbatim_check": "逐字命中 ✅"
+   }
+  },
+  {
+   "finding_id": "F-6..F-9",
+   "severity": "REVIEW(uncertain)",
+   "attribution": "全部第三方引用",
+   "category": "Absolute or ranking claim requires context and proof",
+   "rule_code": null,
+   "article_no": null,
+   "status": "uncertain",
+   "evidence": "无 KB 依据（`rule_engine.py` 5 条 US 种子规则候选，非结论）",
+   "occurrence_offsets": [
+    361,
+    1603,
+    5300,
+    7315
+   ],
+   "occurrences": [
+    {
+     "offset": 361,
+     "verbatim": "\"Best birthing ball on the market! Amazing quality and helped a lot with my back and pelvic pain!\"",
+     "source": "BABYGO 引用"
+    },
+    {
+     "offset": 1603,
+     "verbatim": "Learn about best practice for posture during yoga for pregnancy.",
+     "source": "NCT 引用（best practice，非排名）"
+    },
+    {
+     "offset": 5300,
+     "verbatim": "...motivate each other to be our best.",
+     "source": "FIT4MOM 引用"
+    },
+    {
+     "offset": 7315,
+     "verbatim": "Our postpartum kits are bestsellers for a reason.",
+     "source": "Fridamom/Amazon 引用"
+    }
+   ],
+   "note": "W-1.22 / W-1.33 明写 best/#1/No.1 排名最高级按 2026-09-09 口径已放开、不再判险"
+  }
+ ],
+ "engine_gap_registered": {
+  "id": "GAP-QUOTE-1",
+  "title": "decide() 的 confirmed_p0 不区分「自有文案」与「文档引用的第三方文案」，且不因 unmet_citation 降级",
+  "evidence": "本单：唯一 P0 命中落在 FIT4MOM 引用帖文的 `perfect`，decide() 据此给 BLOCK/0.97；引擎同单已把该引据标为不可逐字回源",
+  "impact": "对研究/洞察/竞品分析类文档会产出**引文误报型 BLOCK**",
+  "status": "只登记，不修（按 report-output-contract.yaml gaps_standing_rule：要动代码前必须先有人判定这是缺陷并另行开单）",
+  "do_not": "在未判定前改 decide() 的 confirmed_p0 分支或让 unmet_citation 自动降级"
+ },
+ "feishu_row": {
+  "base_token": "RY2UbCRjXaeeWwscUPScVN5AnQc",
+  "table_id": "tblCXPQVzfFWWCon",
+  "record_id": "recvx8VOBkqXju",
+  "cloud_doc": "https://momcozy-in.feishu.cn/docx/VJHldABAOoOWWvxSjGMcpAu1nyf",
+  "written_at": "2026-10-05T11:41:16+08:00",
+  "identity": "--profile dsh-kb --as bot",
+  "readback": "✅ 逐字段核过"
+ },
+ "local_reports": {
+  "adjudicated": "kb/l7/reports/rv-20261005-113729.review.md",
+  "engine_rendered": "kb/l7/reports/rv-20261005-113729.feishu.md"
+ },
+ "not_proves": [
+  "本件不能证明『该文档可以发布』——结论是 BLOCK，且自有文案侧也拿不到 PASS（渠道/SKU 未指定、三项待人工判）",
+  "本件不能证明内嵌 16 个视频 / 约 30 张图片 / 4 张表格合规——它们本体未到达本机，一个专项都没跑",
+  "第五、七节的归属裁定是人（判定主体）的判断，不是引擎产出；不得当作引擎结论引用",
+  "sha 值为『与 L0 记录值比对一致』，不是重算"
+ ],
+ "content_version": "38ebc5b2df212f2262db9f6ead67cbbcbf5fc87a73cb1bbe41faa34725f99c6d"
+}

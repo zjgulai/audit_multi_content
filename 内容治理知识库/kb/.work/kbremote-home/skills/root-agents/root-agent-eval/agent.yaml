@@ -1,0 +1,48 @@
+# root-agent-eval 自己的契约。它按 root-agents/refs/ 的维度与评分公式评测别人，自己也守同一份契约。
+#
+# tools 为空是如实的：eval 没有 tool-calling 循环，它通过子进程执行被测 agent，
+# 不虚报工具。
+name: root-agent-eval
+version: "0.1.0"
+stage: verify
+interface: cli
+run: python3 agent.py
+input: stdin-json
+profile: meta
+task_types:
+  - eval_agent
+deliverables:
+  - id: eval_report
+    name: 评测报告
+    format: json
+    fields:
+      - scores
+      - dimensions
+      - deliverables
+      - findings
+    acceptance: 含 pass_rate / coverage / composite_100，以及维度分解与交付物分解，结论可追溯到具体用例
+tools: []
+env:
+  API_KEY: ${managed}
+  ROOT_AGENT_LLM_BASE_URL: ${managed}   # 选填：只用来判断本机有无模型端点，不进密钥
+scope:                    # 选填节（第 3 项）：管什么 / 不管什么
+  does:
+    - 给单个 agent 包出题、执行用例、打分、出报告
+    - 按双轴分与静态检查给出 composite_100 与上线判定
+  not_for:
+    - 改被测包，评测只读
+    - 替被测 agent 作答，eval 只判不答题
+limits:                   # 选填节（第 8 项）：终止预算
+  timeout_s: 120          # 单条用例执行超时，等于 RUN_TIMEOUT
+  max_rounds: 3           # 正例最多的轮数，等于 ROUNDS_BY_TYPE
+
+# 健康探针：eval 收 {"agent_dir": ...}，question 探针会被正确拒绝。
+# 三点要求：
+#   1. 指向仓库外的独立探针包 /tmp/root-agent-eval-probe —— 探针绝不能在被评包内
+#      写 evals/，否则体检会污染被检对象（doctor 的只读断言会失败）；
+#   2. stage=write 是最小非破坏性验证：只读 agent.yaml 并产出 cases.json；
+#   3. 绝对路径（eval 以自身目录为 cwd 执行）。
+health:
+  input:
+    agent_dir: /tmp/root-agent-eval-probe
+    stage: write

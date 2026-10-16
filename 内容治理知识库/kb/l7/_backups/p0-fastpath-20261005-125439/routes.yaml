@@ -1,0 +1,257 @@
+# routes.yaml —— Momcozy 内容治理知识库 · 路由表（意图 → 成员）
+#
+# 这份表回答一件事：**这句话该谁接**。它与两张表互补：
+#   * kb/l7/registry/skills.yaml  答「有哪些成员」
+#   * kb/l7/registry/layers.yaml  答「链路怎么跑」
+#   * kb/l7/registry/routes.yaml  答「这句话该谁接」（本表）
+#
+# 三条口径：
+#   1. 本表是**静态真源**：只写「应该由谁接」。**「实际谁接走了」是运行时算出来的，
+#      绝不写回本表** —— 对账器 kb/l7/scripts/routes_reconcile.py 负责把两者并排。
+#   2. `to` / `members` 里的每个 id 必须是 kb/l7/registry/skills.yaml 里登记过的成员。
+#   3. 两条链不许互相抢活：
+#        · **供给链**（数据：L0→L7）入口 = kb-pipeline
+#        · **评审链**（内容：能不能用）入口 = kb-review
+#      两个入口的 `not_for` **互相点名**；kb-pipeline ↔ kb-l0-feishu 也互相点名。
+
+meta:
+  file: kb/l7/registry/routes.yaml
+  checker: kb/l7/scripts/routes_reconcile.py
+  scorer: "~/.dsh/skills/root-skills-eval/scripts/score-trigger-eval.py"
+  frozen_cases: "/Users/lute/Desktop/skill/内容治理中文skill/_基线用例.json"
+  frozen_cases_note: >
+    13 个 brand-* × 5 条 = 65 条**纯中文**用例，2026-09-29 冻结。复测必须沿用同一批用例、
+    同一套打分（门槛 F1 ≥ 0.90），只换「实际谁接走了」这一侧。
+  baseline_record: "/Users/lute/Desktop/skill/内容治理中文skill/_中文基线.md（翻译前 · 轮 1）"
+  threshold: "F1 >= 0.90"
+
+# ─────────────────────────────────────────────── 两条链（不重叠）
+
+chains:
+  - id: supply
+    name: 供给链
+    scope: "知识库**数据**：L0 → L7"
+    entry: kb-pipeline
+    members: [kb-pipeline, kb-l0-feishu, kb-canonical-lookup, kb-p0-check, kb-recall, kb-check, kb-repair]
+    note: >
+      L0–L3 更新后 L4–L6 **不会自动同步** —— skill 跑完不会自动调下一个。
+      同步由 kb-pipeline 按 layers.yaml 编排 + 各层幂等键完成。
+  - id: review
+    name: 评审链
+    scope: "**内容**能不能用：三态结论 + 依据"
+    entry: kb-review
+    members: [kb-review, kb-content-review, brand-content-review-agent]
+    note: >
+      13 个 brand-* 是**消费侧子能力 / 链内成员**，不单独对外当入口；
+      由 kb-review 或 brand-content-review-agent 编排。它们不计入 kb-manage 的 14 个成员。
+      ★ **层前置（2026-10-03 加，用户裁定；2026-10-05 改为「一次执行」）**：评审任务在**出依据之前**恒定跑
+      L4 → L5 → L6 层 skill（**skill 必须逐层用 skill 工具真加载**，落章由执行本层的进程写）
+      ＋ L7 跨层闸门**单独跑**；**与让位表无关、不因专项归属而豁免**（让位只决定"判定主体"）。
+      ★ **2026-10-05 起不再逐层起 subagent**：四层由**一次执行**跑完 ——
+      `bash kb/l8/review_preflight.sh --base <BASE> --session "$DSH_SESSION_ID"`（实测 832.6 s → 114 s）。
+      **判据未变**：逐层一 RUN：`<BASE>-L4 / -L5 / -L6 / -L7`；出报告前
+      `skill_invocation_audit.py --run <BASE>-L{4,5,6,7}` 必须**红 0**。
+      现状：**文字约束**，未落成代码级阻断（登记见 report-output-contract.yaml 的 GAP-RO-5）。
+      正文出处：`kb-review §1.5`、`内容审查总控 §Layer pre-stage`、`kb-content-review §层前置`。
+  - id: manage
+    name: 管理面
+    scope: "注册表 + 路由 + 生命周期"
+    entry: kb-manage
+    members: [kb-manage]
+
+# ─────────────────────────────────────────────── 路由表（意图 → 成员）
+
+routes:
+  # ---- 供给链入口
+  - intent: 全链同步 / 整条链路
+    say: ["同步一下知识库", "跑一遍知识库链路", "知识库同步到最新", "全链体检", "L0 到 L7 走一遍", "知识库该更新了"]
+    to: kb-pipeline
+    not_for: ["只对账 L0（走 kb-l0-feishu）", "单条内容能不能发（走 kb-review）",
+              "查条款号（走 kb-canonical-lookup）", "是不是 P0（走 kb-p0-check）", "召回（走 kb-recall）"]
+
+  - intent: 只看 L0
+    say: ["只对账 L0", "飞书侧改了什么", "L0 对齐一下", "L0 落库", "跑一下每日同步"]
+    to: kb-l0-feishu
+    not_for: ["整条链路（走 kb-pipeline）", "判断内容该怎么判（走 kb-review）"]
+
+  # ---- 评审链入口
+  - intent: 单条内容能不能用（专项归属不明 / 跨模态）
+    say: ["这段内容能不能发", "审一下", "帮我审", "合规检查", "合规审查", "内容审核",
+          "会不会违规", "能过审吗", "有没有风险", "踩线", "禁用", "敏感", "评审一下", "评审这条", "这个评审一下"]
+    to: kb-review
+    not_for: ["跑知识库供给链（走 kb-pipeline）", "只对账 L0（走 kb-l0-feishu）",
+              "已能识别专项时交给 13 个 brand-*（见 kb-review 的让位表）",
+              "只要依据 / 条款号 / 逐字摘录（走 kb-content-review）"]
+
+  - intent: 一批素材的发布前审查全流程（多模态 + 统一结论）
+    say: ["送审", "走一遍发布前审查", "审查全流程", "这批素材一起审", "给个统一结论"]
+    to: brand-content-review-agent
+    not_for: ["单条内容 / 已能识别专项（交给对应 brand-*）", "只要依据（走 kb-content-review）",
+              "只要送审登记（走 brand-review-intake-router）"]
+
+  # ---- 评审链 · 链内组件（出依据）
+  - intent: 某条判定的依据
+    say: ["为什么判 BLOCK", "依据是哪条规则", "条款号", "知识库怎么说",
+          "三态结论的依据", "审查依据", "逐字摘录"]
+    to: kb-content-review
+    not_for: ["刚开始送来待判内容（走 kb-review）", "单独查某条规则的条款号 / 定稿了没有（走 kb-canonical-lookup）"]
+
+  # ---- 只读查询（同一层「读」与「写」分开：读只读，写由 kb-pipeline 在 --apply 下做）
+  - intent: 条款号 / 定稿状态查询
+    say: ["这条规则的条款号是多少", "这个条款号对应哪条规则", "这条规则定稿了吗", "进 canonical 了吗", "article_no"]
+    to: kb-canonical-lookup
+    not_for: ["发号 / 晋升 canonical（写操作，走 kb-pipeline）", "判断内容能不能用（走 kb-review）",
+              "是不是 P0（走 kb-p0-check）", "召回（走 kb-recall）"]
+
+  - intent: P0 判定查询
+    say: ["这个是 P0 吗", "命中哪些 P0 模式", "P0 模式清单", "是不是最高优先级"]
+    to: kb-p0-check
+    not_for: ["判断内容能不能用（走 kb-review）", "查条款号（走 kb-canonical-lookup）",
+              "重建 / 导出 P0 层（写操作，走 kb-pipeline）"]
+
+  - intent: 召回 / 检索
+    say: ["召回一下", "检索单元", "按语义召回", "BM25 召回", "向量召回", "查资料",
+          "从知识库目录回答问题", "分层索引导航"]
+    to: kb-recall
+    not_for: ["重建索引（写操作，走 kb-pipeline）", "判断内容能不能用（走 kb-review）",
+              "查条款号（走 kb-canonical-lookup）", "是不是 P0（走 kb-p0-check）"]
+
+  # ---- 闸门与修复
+  - intent: 体检 / 闸门
+    say: ["知识库体检", "全库自检", "跑一遍所有闸门", "闸门过没过", "信封闸门", "登记表自检"]
+    to: kb-check
+    not_for: ["修不过的项（走 kb-repair）", "跑链路本身（走 kb-pipeline）",
+              "评测 skill 质量（走 root-skills-eval）"]
+
+  - intent: 不过就修
+    say: ["闸门没过帮我修", "知识库哪里坏了修一下", "不过就修", "修复失败项", "副本不一致帮我同步"]
+    to: kb-repair
+    not_for: ["只体检不修（走 kb-check）", "跑链路（走 kb-pipeline）",
+              "新增 / 停用家族成员（走 kb-manage）"]
+
+  # ---- 管理面
+  - intent: 家族管理 / 注册表 / 路由 / 生命周期
+    say: ["知识库这几个 skill 怎么分工", "谁负责什么", "这个说法该走哪个 skill",
+          "skill 注册表", "路由表", "家族全景", "成员列表", "新增一个知识库 skill 登记到哪"]
+    to: kb-manage
+    not_for: ["创建一个新 skill（走 root-skills-creator）", "评测 / 优化 / 诊断 skill（走 root-skills-*）",
+              "跑知识库链路（走 kb-pipeline）", "判断内容能不能用（走 kb-review）"]
+
+# ─────────────────────────────────────────────── 互斥点名（硬约束，对账器会核）
+
+mutual_not_for:
+  # 2026-09-30 补（盲测 T20 暴露的真歧义）：
+  #   「达人视频的字幕 / 口播转写里有没有踩线的话」两个成员都声称是自己的活 ——
+  #   文案合规审查 的 description 列了「字幕、口播转写」，视频安全审查 的触发词里也有「字幕审查、口播转写审查」。
+  #   分界（按两个 skill 正文里自己写的边界取，不另立新口径）：
+  #     · 带视频的（视频本身的字幕/口播/画面）→ 视频安全审查
+  #     · 脱离视频的纯文本（listing / PDP / 社媒 / 单独给的字幕文本）→ 文案合规审查
+  #   两个 skill 的正文都已各自点名对方，所以这条约束**不需要改 skill 正文**即可成立。
+  - pair: ["文案合规审查", "视频安全审查"]
+    rule: >
+      文案合规审查.not_for 必须点名 视频安全审查（视频画面/带视频的字幕口播）；
+      视频安全审查.not_for 必须点名 文案合规审查（脱离视频的纯文本）。
+      盲测实测：T20 的新开 agent 选了 视频安全审查 —— 与「有视频就归视频」这条一致。
+
+  - pair: [kb-pipeline, kb-l0-feishu]
+    rule: "kb-pipeline.not_for 必须点名 kb-l0-feishu；kb-l0-feishu.not_for 必须点名 kb-pipeline"
+  - pair: [kb-l0-feishu, kb-review]
+    rule: "kb-l0-feishu.not_for 必须点名 kb-review"
+  - pair: [kb-pipeline, kb-review]
+    rule: "kb-pipeline.not_for 必须点名 kb-review（单条内容能不能发）"
+  - pair: [kb-pipeline, kb-canonical-lookup]
+    rule: "kb-pipeline.not_for 必须点名 kb-canonical-lookup"
+  - pair: [kb-pipeline, kb-p0-check]
+    rule: "kb-pipeline.not_for 必须点名 kb-p0-check"
+  - pair: [kb-pipeline, kb-recall]
+    rule: "kb-pipeline.not_for 必须点名 kb-recall"
+
+# ─────────────────────────────────────────────── 冻结用例的期望归属（65 条）
+#
+# 逐条期望值直接读 `frozen_cases`（每条的 `skill` 字段就是期望成员）。
+# 这里只登记**无歧义映射**：期望成员 id → 装载目录名（dir_name）。
+# 13 个 brand-* 都是「批次全流程 / 专项」类，期望接走者就是各自本身 —— 不要转移到入口。
+
+frozen_expectation:
+  source: "_基线用例.json → 用例[].skill"
+  #: 期望成员 id → 2026-09-29 并发中文翻译轮次后的**真实装载目录名**（= frontmatter name）。
+  #: 对账器 kb/l7/scripts/routes_reconcile.py 的 --alias 口径用这张表把两边归一。
+  dir_name_map:
+    brand-content-review-agent: 内容审查总控
+    brand-review-intake-router: 送审登记
+    brand-policy-source-curator: 证据源维护
+    brand-text-compliance-review: 文案合规审查
+    brand-product-claim-verifier: 产品宣称核验
+    brand-image-safety-review: 图片安全审查
+    brand-video-safety-review: 视频安全审查
+    brand-us-locale-cultural-review: 美国本地化审查
+    brand-ai-provenance-rights-review: AI溯源与权利审查
+    brand-review-decision-engine: 审查裁决
+    brand-review-report-memory: 审查报告与记忆
+    brand-review-evaluation: 审查流程评测
+    brand-feishu-review-adapter: 飞书审查流转
+  note: >
+    这 65 条的期望接走者**就是 13 个 brand-* 本身**，不是 kb-review / kb-content-review。
+    kb-content-review 此前在 195 次判定里抢走 45 次，是 7 个 brand-* 未过门槛的**唯一根因**；
+    本轮把它收窄成「链内出依据的组件」后必须复测。
+
+# ─────────────────────────────────────────────── 本轮实测（2026-09-29 · 轮 2）
+
+measured_20260929:
+  harness: >
+    协议 = 冻结基线的**盲测**协议（每条 prompt 交给一个新开 agent，只给提示词，由它自己的
+    skill 目录决定加载谁；115 条用例 × 3 轮 = 345 次判定，0 次解析失败）。
+    打分 = ~/.dsh/skills/root-skills-eval/scripts/score-trigger-eval.py（门槛 F1 ≥ 0.90）。
+    产物 = _eval-kb-manage/blind_before_v2.winners.txt（改动前 65 条）、
+           _eval-kb-manage/blind_after_r3.winners.txt（改动后 115 条）。
+  before_65cases: "13 个 brand-* 中 **0 个**过门槛（6/65 逐条全轮命中；kb-content-review 抢走 88/195 次）"
+  after_115cases: "23 个成员中 **22 个**过门槛；110/115 逐条全轮命中（第 4 轮 · 最终 · 345 次判定 0 失败）"
+  by_member:
+    kb-manage: 1.000
+    kb-pipeline: 1.000
+    kb-review: 1.000
+    kb-check: 1.000
+    kb-repair: 1.000
+    kb-canonical-lookup: 1.000
+    kb-p0-check: 1.000
+    kb-recall: 1.000
+    kb-l0-feishu: 1.000
+    kb-content-review: 1.000
+    brand-content-review-agent: 1.000
+    brand-review-intake-router: 1.000
+    brand-policy-source-curator: 1.000
+    brand-text-compliance-review: 1.000
+    brand-product-claim-verifier: 1.000
+    brand-image-safety-review: 0.939
+    brand-video-safety-review: 0.909
+    brand-us-locale-cultural-review: 1.000
+    brand-review-decision-engine: 1.000
+    brand-review-report-memory: 1.000
+    brand-review-evaluation: 1.000
+    brand-feishu-review-adapter: 1.000
+    brand-ai-provenance-rights-review: 0.440   # ★ 未过（第3轮 0.333 → 第4轮 0.440，仍 < 0.90）
+    # 2026-09-30 另修一件**与上面这个分无关**的事：「装了，但任何会话里都选不到」。
+    # 两个彼此独立的缺陷叠在同一个 SKILL.md 上：① 缺 frontmatter 起始围栏 `---`（宿主按
+    # `missing YAML frontmatter` 整份忽略）；② frontmatter name 里有一个空格（宿主
+    # `^[\p{L}0-9]+(?:-[\p{L}0-9]+)*$` 判 invalid skill name）。任一单独存在都足以让它永远不可选。
+    # 已改名 `AI溯源与权利审查`（只去空格，触发词里的带空格形态有意保留）。上面 0.440 是**冻结用例集**
+    # 上的路由分，本次没动 description、也没改用例，那个分不变、仍代表"路由质量未过门槛"这件事。
+    # 证据与复验：kb/l7/reports/20260930-1450-修复-AI溯源成员装了选不到.md
+  known_conflict: >
+    **I3–I5 与 G3/I1 是冻结用例集自身的歧义**：G3「这条视频的 AI 生成痕迹没标出来要紧吗」期望走
+    视频安全审查，I1「这个达人视频是 AI 生成的但没有标识，有风险吗」期望走 AI溯源与权利审查 ——
+    两句语义几乎相同却要求两个不同归属，任何 description 都无法稳定区分（实测 G3/I1 都落到视频安全审查）。
+    这是**用例集缺陷**，不是 skill 缺陷；要么合并这两条、要么给它们加上可区分的限定语，再复测
+    brand-ai-provenance-rights-review。
+    **v2 用例修订实验（已执行）**：另出 cases_v2.json（只改 G3/I2，v1 未动），全量重跑 345 次判定 →
+    `AI 溯源` **0.222（比 v1 第 4 轮的 0.440 更差）**，其余 22 个成员全过。
+    → 结论修正：根因**不只在用例集**，`I` 组有三类缺陷（① I1↔G3 近重复，v2 已解；
+    ② **I5↔F5 近重复，未解 —— 这才是主因**；③ I2 欠定义，"补模态"这个处方本身是错的）。
+    详见变更记录 §9；**不再继续改用例（避免把测试改到过），也不再调 description（避免过拟合 judge）**。
+    第 4 轮我把「按问题路由、不按载体路由」写成硬边界（AI 溯源 + 图片安全审查 + 视频安全审查 三处对齐），
+    AI 溯源 F1 从 0.333 升到 0.440、判成 NONE 的次数从 7 降到 5，但**仍未过门槛** ——
+    **继续调 description 是过拟合 judge，不是修 skill**。剩下的是**用例边界**问题：
+    · `I1` ↔ `G3` 近重复（同一意图、两个归属）；
+    · `I2`「这条素材用了 AI 换脸，需要标注吗？帮我审一下」3 轮全判 NONE —— 它没说是文字/图片/视频，
+      judge 认为"信息不足"，而用例集要求直接归 AI 溯源。
+    **建议**：改这两条用例（合并 I1/G3；给 I2 补上模态），再复测；**不建议**再改这三个 skill 的 description。

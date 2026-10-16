@@ -1,0 +1,17 @@
+{
+ "rows": [
+  {
+   "cmd": "build-final-report.py --validate-only --name kb-l0-feishu --version \"最终 v1.2.9\" --yaml kb-l0-feishu-fix-evaluation-report.yaml --cases kb-l0-feishu-test-cases.html",
+   "exit": 0,
+   "verdict": "✔ 放行",
+   "note": "distribution / release_checklist / track_a.total / track_c.total / 安全·组合·调用标签统计 / tag_cases / B 卷门禁字段对账全部通过；未生成 HTML、未跑桌面校验"
+  },
+  {
+   "cmd": "build-testcases-html.py --check-only --name kb-l0-feishu --results _harness/results-a.json --b-results _harness/results-b.json",
+   "exit": 0,
+   "verdict": "✔ 放行",
+   "note": "原文回复自检通过：114 条用例（A 卷 104 + B 卷 10）× 3 轮 = 1,001,940 字符，全量渲染、无截断/无提炼/无模板句/无多条共用长回复"
+  }
+ ],
+ "conclusion": "放行核对结论：两项硬校验**均 exit 0**（源版当时 check-only 因 checker 误报为 exit 2）。本轮报告可写「validate-only 与 check-only 双绿」。"
+}

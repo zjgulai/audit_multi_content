@@ -1,0 +1,38 @@
+{
+ "run_id": "20261009-102812",
+ "at": "2026-10-09T10:28:12",
+ "source": "review_machine",
+ "trigger": "【视频 1】这一段我读不到：取视频失败 code=(无) msg=Request failed with status …",
+ "skills": [
+  "kb-content-review",
+  "审查裁决"
+ ],
+ "commands": [
+  "kb-content-review/scripts/review.py --text …",
+  "l7/review-engine/core/review_engine.py decide()"
+ ],
+ "products": [],
+ "verdict": "NEEDS_INPUT ｜ issue_count=0",
+ "human_involved": false,
+ "extra": {
+  "decision_owner": {
+   "skill": "视频安全审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check",
+    "视频安全审查"
+   ]
+  },
+  "loaded_skills": [
+   "kb-canonical-lookup",
+   "kb-p0-check",
+   "kb-recall",
+   "kb-check",
+   "视频安全审查"
+  ]
+ }
+}

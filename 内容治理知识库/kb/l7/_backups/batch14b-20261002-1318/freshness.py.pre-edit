@@ -1,0 +1,209 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""freshness.py —— 供给链「各层新鲜度」汇总检查器（L0–L7，只读）。
+
+## 它是给谁用的
+
+给**评审链做前置**：用户说「这个评审一下」时，先跑本脚本确认各层数据新不新鲜；
+不新鲜就**如实拒答**（退出码 3），而不是拿陈旧数据出一份看着完整的报告。
+
+## 它不重造判据（关键设计）
+
+「每层关键产物的新鲜度 / 落后量 / 陈旧」这套判据**已经存在**：
+`kb/l7/scripts/daily_health.py`（判据：只看 `kind=data` 的关键产物 mtime，超 24 小时判陈旧；
+注册表被改不算这层跑过）。本脚本**调用它、读它的机读产物**，不在本文件里复述判据。
+
+**陈旧结论直接读它的，不自己算**（2026-10-01 修正）：本脚本原先用「报告文件的 mtime」当"现在"
+重算 age，而 daily_health 用**墙钟**（`daily_health.py:207` `now = time.time()`）——
+两个基准差一次运行间隔，实测**同一次体检它判 3 项陈旧、本脚本判 6 项**。
+现改为读 `todos_with_playbook` 里 `sig.startswith("stale.")` 的条目。
+**同一判据算两遍必然分叉** —— 这是本库反复栽过的同一类问题。
+
+**但调用它必须不写权威库**：`daily_health.py` 默认落 `kb/l7/reports/`。
+本脚本用 `--outdir <临时目录>` 把它引开 —— 实测（2026-10-01）零写权威库。
+
+## 它新增的两样（daily_health 没有的）
+
+  ① **L1/L2/L3 查询档状态** —— 调 `l1_status.py` / `l2_status.py` / `l3_status.py`，
+     把「逐层都有只读入口可调」这件事落成一条可核的输出（调用 = 调该层 skill 的查询档）。
+  ② **L6 索引 vs L3 规则的时序** —— daily_health 只看「age > 24h」，
+     报不出「L6 索引比 L3 规则旧」。本脚本**把两者 mtime 并排报出**。
+     ⚠️ 注意：**"索引比规则旧"不等于"索引坏了"** —— 是否存在真实的 L3→L6 数据边，
+     需人裁（`l6_build.py` 读的是 L2 units 与 L5 matcher，不是 L3 规则）。本脚本只报事实，不判因果。
+
+## 只读
+
+只读各层台账与产物；唯一写盘是**临时目录**（跑完即删），**不写 kb/l0…kb/l7 任何文件**。
+
+## 退出码
+
+    0 = 各层 data 产物都在 24 小时内（不代表业务上正确）
+    3 = 有层超期 → **评审链应拒答**（同 kb-content-review 的拒答码 3）
+    2 = 用法错 / 库根不对 / 取不到新鲜度数据
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+
+ROOT_MARKER = os.path.join("kb", "KB-ROOT.json")
+KBPY = os.path.join("kb", "kbpy")
+DAILY = os.path.join("kb", "l7", "scripts", "daily_health.py")  # 存在性校验用（库根相对）
+#: 陈旧阈值**不在本脚本** —— 由 daily_health.py 定（24 小时，见该脚本第 284-286 行）。
+#: 本脚本只读它的结论，不自己算（原先自算导致同一次体检 3 vs 6 分叉，2026-10-01 修）。
+
+
+def check_root() -> None:
+    if not os.path.isdir("kb"):
+        sys.exit("freshness: 没有 kb/ 目录。请把 cwd 设成 kb/ 的上一级（库根）。")
+    if not os.path.exists(ROOT_MARKER):
+        sys.exit("freshness: 缺 %s —— 这里不是权威库根。" % ROOT_MARKER)
+
+
+def mtime(p):
+    try:
+        return os.path.getmtime(os.path.join("kb", p))
+    except OSError:
+        return None
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="供给链各层新鲜度汇总（只读）")
+    ap.add_argument("--json", action="store_true")
+    ap.add_argument("--skip-layer-status", action="store_true",
+                    help="跳过 L1/L2/L3 查询档调用（只想快点看新鲜度时用）")
+    a = ap.parse_args()
+    check_root()
+
+    if not os.path.exists(KBPY) or not os.path.exists(DAILY):
+        print("freshness: 找不到 kb/kbpy 或 %s" % DAILY, file=sys.stderr)
+        return 2
+
+    tmp = tempfile.mkdtemp(prefix="kb-freshness-")
+    try:
+        # ── ① 复用 daily_health（outdir 引到临时目录，零写权威库）
+        # 注意：kbpy 收的是** kb 内相对路径**（不是库根相对）—— kb/kbpy l7/scripts/xxx.py
+        cmd = ["sh", KBPY, "l7/scripts/daily_health.py", "--no-gates", "--outdir", tmp]
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        blob_path = os.path.join(tmp, "daily-health-latest.json")
+        if not os.path.exists(blob_path):
+            print("freshness: daily_health 没产出机读文件（exit=%s）" % proc.returncode, file=sys.stderr)
+            print((proc.stderr or "")[-800:], file=sys.stderr)
+            return 2
+        blob = json.load(open(blob_path, encoding="utf-8"))
+
+        fresh = [r for r in (blob.get("freshness") or []) if r.get("kind") == "data"]
+
+        # ── 陈旧结论：**读 daily_health 自己的判定，不自己算**（2026-10-01 修正）
+        # 为什么改：本脚本原先用「报告文件的 mtime」当"现在"重算 age，而 daily_health 用
+        # **墙钟**（`daily_health.py:207` `now = time.time()`）—— 两个基准差一次运行间隔，
+        # 实测同一次体检它判 3 项陈旧、本脚本判 6 项。**同一判据算两遍必然分叉。**
+        # 改为读它的 `todos_with_playbook` 里 `sig.startswith("stale.")` 的条目
+        # （它连 owner / command 都给了，本脚本不必再拼）。
+        stale_rows = [t for t in (blob.get("todos_with_playbook") or [])
+                      if str(t.get("sig") or "").startswith("stale.")]
+        stale_layers = sorted({str(t.get("sig")).replace("stale.", "") for t in stale_rows})
+        stale = stale_layers
+        by_layer = {}
+        for r in fresh:
+            by_layer.setdefault(r.get("layer"), []).append(r)
+
+        # ── ② L1/L2/L3 查询档（调用 = 调该层 skill 的查询档）
+        layer_status = {}
+        if not a.skip_layer_status:
+            for name, script in (("L1", "l1_status.py"), ("L2", "l2_status.py"), ("L3", "l3_status.py")):
+                p = os.path.join("kb", "l7", "scripts", script)
+                if not os.path.exists(p):
+                    layer_status[name] = {"ok": False, "why": "脚本不存在：%s" % p}
+                    continue
+                r = subprocess.run(["sh", KBPY, "l7/scripts/" + script, "--json"],
+                                   capture_output=True, text=True)
+                got = None
+                for line in (r.stdout or "").splitlines():
+                    if line.strip().startswith("{"):
+                        got = line
+                        break
+                layer_status[name] = {"ok": r.returncode == 0, "json": got}
+
+        # ── ③ L6 索引 vs L3 规则的时序（daily_health 不报这个）
+        m_idx = mtime("l6/index/l6.jsonl")
+        m_rules = mtime("l3/candidates/rules.jsonl")
+        index_vs_rules = None
+        if m_idx and m_rules:
+            index_vs_rules = {
+                "l6_index_mtime": m_idx,
+                "l3_rules_mtime": m_rules,
+                "index_older_than_rules": m_idx < m_rules,
+                "delta_hours": round((m_rules - m_idx) / 3600.0, 2),
+            }
+
+        # ── 汇总
+        print("=" * 78)
+        print("供给链新鲜度检查（L0–L7，只读）｜陈旧判定**读 daily_health 自己的结论**")
+        print("=" * 78)
+        print("逐层关键 data 产物（age 为 daily_health 按**墙钟**算的值）：")
+        for lay in sorted(by_layer):
+            for r in by_layer[lay]:
+                flag = "⚠️ 陈旧" if lay in stale_layers else ""
+                print("  %-3s %-42s %8s  %s" % (lay, r.get("file"), r.get("age") or "?", flag))
+        print()
+        print("健康总判（daily_health 自报）: %s ｜ 闸门 ok=%s red=%s 未执行/声明式=%s"
+              % (blob.get("health"), blob.get("gate_ok"), blob.get("gate_red"), blob.get("gate_undecided")))
+        if layer_status:
+            print()
+            print("L1/L2/L3 查询档（调用 = 调该层 skill 的只读查询档）：")
+            for k in ("L1", "L2", "L3"):
+                v = layer_status.get(k) or {}
+                print("  %-3s %s" % (k, "✅ 可调" if v.get("ok") else "❌ 不可用：%s" % v.get("why")))
+        if index_vs_rules:
+            print()
+            print("L6 索引 vs L3 规则（时序事实，本脚本只报不判因果）：")
+            print("  L6 索引 %s ｜ L3 规则 %s ｜ 索引比规则旧：%s（差 %.2f 小时）" % (
+                _ts(index_vs_rules["l6_index_mtime"]), _ts(index_vs_rules["l3_rules_mtime"]),
+                index_vs_rules["index_older_than_rules"], index_vs_rules["delta_hours"]))
+            print("  ⚠️ 「索引比规则旧」**不等于**「索引坏了」—— 是否存在真实 L3→L6 数据边需人裁")
+            print("     （l6_build.py 读的是 L2 units 与 L5 matcher，不是 L3 规则）")
+
+        print()
+        if stale_rows:
+            print("结论：❌ 有 %d 个关键 data 产物超期 → 评审链应**拒答**（退出码 3），不许拿陈旧数据出结论"
+                  % len(stale_rows))
+            for t in stale_rows:
+                print("   · %s" % str(t.get("text") or "")[:150])
+            rc = 3
+        else:
+            print("结论：✅ 各层关键 data 产物都不陈旧（**不代表业务上正确**，只代表不陈旧）")
+            rc = 0
+
+        if a.json:
+            print(json.dumps({
+                "stale_threshold_note": "由 daily_health.py 定（24 小时）；本脚本不自己算",
+                "health": blob.get("health"),
+                "gate_ok": blob.get("gate_ok"),
+                "gate_red": blob.get("gate_red"),
+                "gate_undecided": blob.get("gate_undecided"),
+                "freshness": fresh,
+                "stale_layers": stale_layers,
+                "stale_items": stale_rows,
+                "layer_status": layer_status,
+                "index_vs_rules": index_vs_rules,
+                "verdict": ("stale" if stale_rows else "fresh"),
+            }, ensure_ascii=False, indent=1))
+        return rc
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _ts(epoch):
+    import time
+    return time.strftime("%m-%d %H:%M", time.localtime(epoch))
+
+
+if __name__ == "__main__":
+    sys.exit(main())

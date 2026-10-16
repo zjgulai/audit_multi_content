@@ -1,0 +1,96 @@
+{
+  "review_id": "20261009-150413",
+  "content_id": "text-f601f12382b2",
+  "content_type": "text",
+  "content_version": "f601f12382b22fc28ed17e93595d046b0119fcefa5f3357055eca0e9e7821200",
+  "content_hash": "f601f12382b22fc28ed17e93595d046b0119fcefa5f3357055eca0e9e7821200",
+  "agent_version": "kb-content-review@1.3.0",
+  "rule_version": "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02",
+  "knowledge_version": "v0",
+  "version_binding": {
+    "review_id": "20261009-150413",
+    "content_id": "text-f601f12382b2",
+    "content_hash": "f601f12382b22fc28ed17e93595d046b0119fcefa5f3357055eca0e9e7821200",
+    "content_version": "f601f12382b22fc28ed17e93595d046b0119fcefa5f3357055eca0e9e7821200",
+    "agent_version": "kb-content-review@1.3.0",
+    "rule_version": "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02",
+    "knowledge_version": "v0",
+    "sources": {
+      "content_hash": "送审文本 utf-8 的 sha256",
+      "agent_version": "kb/l7/skills/kb-content-review/SKILL.md → frontmatter.version",
+      "rule_version": "kb/l7/registry/l7.json → article_no_source.scheme_version ＋ kb/l3/registry/l3.json → distiller_version ＋ kb/l3/candidates/rules.jsonl 的 sha256[:16]",
+      "knowledge_version": "kb/l7/registry/l7.json → kb_version"
+    }
+  },
+  "decision": "REVIEW",
+  "decision_raw": "REVIEW",
+  "confidence": "未标定（本入口逐条给 高/中/低；全局数值置信度属裁决侧）",
+  "input_manifest": {
+    "text": "The M6 pump has a quiet motor and detachable parts that are easy to clean.",
+    "sha256": "f601f12382b22fc28ed17e93595d046b0119fcefa5f3357055eca0e9e7821200",
+    "modality": [
+      "text"
+    ]
+  },
+  "coverage": {
+    "text": "complete",
+    "image": "not_applicable",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "本批只送审 text 一种模态；其余模态不适用（不是缺口）。本块是报告契约要求的覆盖状态，不等于 OCR/ASR/关键帧流水线已执行 —— 后者见 trace。"
+  },
+  "risk_items": [
+    {
+      "risk_id": "r-0ffc53715dfa4e43",
+      "risk_type": "平台与促销-静音绝对化表述",
+      "priority_tier": "P1",
+      "priority_tier_basis": "规则层",
+      "layer": "规则层",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "M01:whisper,whisper-quiet",
+      "reason": "逐字命中「quiet」：H02 催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫；M01 静音程度夸大（建议改为 low noise / quiet mode）（p_level=P2 risk_level=unknown authority=None，来源表 None）",
+      "suggestion": "",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.5",
+        "anchor": "#广告文案明细/recvuJYdOb1Rm1/命中片段",
+        "source_sha256": "c77f576dcc392cb3e763e6462d0259e50fb039f924a4af8e100321197e5be577",
+        "excerpt": "M01:whisper,whisper-quiet"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.5 条 @ #广告文案明细/recvuJYdOb1Rm1/命中片段 @ c77f576dcc39",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.5"
+    }
+  ],
+  "issue_count": 1,
+  "report_url": null,
+  "next_action": "建议转复核责任人复核。",
+  "next_owners": [
+    "复核责任人"
+  ],
+  "sla": {},
+  "version_gate": {
+    "reviewed_hash": "f601f12382b22fc28ed17e93595d046b0119fcefa5f3357055eca0e9e7821200",
+    "release_hash": null,
+    "note": "本入口不掌握发布版本；发布/送审版本比对属裁决侧（review_engine.py:115-119），此处不代替它下结论"
+  },
+  "decision_trace": {
+    "reasons": [
+      "findings_present_without_block"
+    ],
+    "confidence_status": "not_calibrated_by_this_entry",
+    "evaluated_at": "2026-10-09T15:04:15",
+    "decided_by": "kb-content-review/scripts/review.py（依据侧自身分支，:709-715）",
+    "note": "本报告不重算结论；三态由上表 decision_raw 原样带出"
+  },
+  "unmet_citation": []
+}

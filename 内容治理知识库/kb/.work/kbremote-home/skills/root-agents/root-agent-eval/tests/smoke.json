@@ -1,0 +1,37 @@
+{
+  "agent": "root-agent-eval",
+  "cases": [
+    {
+      "id": "smoke-001",
+      "dimension": "eval_agent",
+      "difficulty": "L1",
+      "input": {
+        "agent_dir": "/tmp/root-agent-eval-probe",
+        "stage": "write"
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "stage": "write"
+        }
+      },
+      "notes": "写用例阶段：只读被测包 Agent.yaml 并产出 cases.json",
+      "required_tools": []
+    },
+    {
+      "id": "smoke-002",
+      "dimension": "eval_agent",
+      "difficulty": "L1",
+      "input": {
+        "agent_dir": "/no/such/agent"
+      },
+      "expect": {
+        "ok": false,
+        "error_code": "agent_dir_missing",
+        "exit_nonzero": true
+      },
+      "notes": "不存在的包必须结构化失败",
+      "required_tools": []
+    }
+  ]
+}

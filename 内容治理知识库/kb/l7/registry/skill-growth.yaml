@@ -1,0 +1,92 @@
+# skill-growth.yaml —— 知识库 skill「自生长」的**政策**（护栏在这里，不在脚本里）
+#
+# 谁读它：`kb/l8/skill_growth.py`（每轮生长前读一次）
+# 谁写它：人。**机器不许改本文件** —— 改它等于改护栏。
+#
+# 一句话：**长的是「这个 skill 知道的事」，不是「它被要求怎么做」。**
+#
+meta:
+  file: kb/l7/registry/skill-growth.yaml
+  created_at: "2026-10-15"
+  owner: 刘华丽
+  checker: kb/l8/skill_growth.py（`--selftest` 11 项；每轮出生台账）
+  why: >
+    用户 2026-10-15 的两条要求：① 优化知识库里的 skill；② skill 必须设置自生长。
+    前提是**不影响现有工作流** —— 所以自动生长被限制成「只追加 references/」，
+    SKILL.md 的 frontmatter / 触发词 / 正文**一个字节都不许被机器改**。
+    这不是保守：改触发词就是改路由，改正文就是改行为，两者都会让「现在能跑的」变成「现在不跑了」。
+
+# ────────────────────────────────────────────────────────────────
+# 护栏（缺一条都会让「自生长」变成「自损坏」）
+# ────────────────────────────────────────────────────────────────
+guardrails:
+  # ① 可写面：只许这两个文件，且**只许追加**
+  writable:
+    - references/会话蒸馏回灌.md      # 知识本体（长这个）
+    - references/自生长台账.md        # 每轮一行（长了什么、过没过闸）
+  # ② 禁写面：机器碰它就是越界
+  forbidden:
+    - SKILL.md 的 frontmatter（name / description / 触发词 / version）—— 改它 = 改路由
+    - SKILL.md 的正文段落 —— 改它 = 改行为
+    - agents/ · scripts/ · tests/ —— 那些是被人评测过的
+    - kb/l7/registry/*.yaml —— 登记表与政策本身
+  # ③ 每轮上限：宁可少长，不许一次长一堆看不完
+  max_cards_per_round: 20
+  # ④ 回验：每条指针必须**逐字**回源，一条不过就整轮不写
+  verify: 引文必须逐字出现在该 case_id 的 ask 或 next_human 里；待人工复核的案例不许当依据
+  # ⑤ 关门：写完必须跑 skills_check，第 3 类不为 0 就整轮回滚
+  close_with: python3 kb/l7/scripts/skills_check.py --json  →  第 3 类「副本不一致」必须 == 0
+  # ⑥ 单一写者（抄 `kb/l7/registry/skills.yaml` 的 single_writer_rule）
+  single_writer: 唯一可写位置 = 源目录；装载位 `~/.dsh/skills/` 一律由 `cp -p` 从源同步，不许直写
+  # ⑦ 回滚点：每轮开写前把将改的文件备份到 kb/l8/_backups/skill-growth-<轮次>/
+  backup_to: kb/l8/_backups/skill-growth-<round_id>/
+
+# ────────────────────────────────────────────────────────────────
+# 可生长的 skill 白名单（**不在表里的一律不长** —— 白名单语义，不是黑名单）
+# ────────────────────────────────────────────────────────────────
+skills:
+
+  kb-l0-feishu:
+    source: /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-l0-feishu/
+    dir_name: kb-l0-feishu
+    layer: L0
+    growth_from: [会话蒸馏]
+
+  kb-repair:
+    source: /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-repair/
+    dir_name: kb-repair
+    layer: L4
+    growth_from: [会话蒸馏]
+
+  kb-recall:
+    source: /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-recall/
+    dir_name: kb-recall
+    layer: L6
+    growth_from: [会话蒸馏]
+
+  kb-pipeline:
+    source: /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-pipeline/
+    dir_name: kb-pipeline
+    layer: 编排
+    growth_from: [会话蒸馏]
+
+  内容审查总控:
+    source: /Users/lute/Desktop/skill/内容治理中文skill/内容审查总控/
+    dir_name: 内容审查总控
+    layer: 评审链
+    growth_from: [会话蒸馏]
+
+  飞书审查流转:
+    source: /Users/lute/Desktop/skill/内容治理中文skill/飞书审查流转/
+    dir_name: 飞书审查流转
+    layer: 出口
+    growth_from: [会话蒸馏]
+
+# ────────────────────────────────────────────────────────────────
+# 明确的**不做**
+# ────────────────────────────────────────────────────────────────
+not_doing:
+  - 不自动改 SKILL.md（连那一节的正文也不改）—— 指针节由人过一次，之后脚本**只校验它还在**
+  - 不自动发号 / 不自动写 kb/l0…l7 —— 那条要 write-gate 凭据，是人的动作
+  - 不自动装到别的装载位（`~/.agents/skills/` 本项目不装）
+  - 一轮出现任何一条指针回验不过 ⇒ **整轮不写**（不做半批）

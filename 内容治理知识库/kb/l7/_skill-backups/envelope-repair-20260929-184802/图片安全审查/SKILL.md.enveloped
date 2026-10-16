@@ -1,0 +1,19 @@
+---
+name: 图片安全审查
+description: |
+  审查图片素材：图上文字与 OCR 内容、产品与场景准确性、婴幼儿安全（安全座椅/睡眠/喂养/洗浴等）、隐私与孩子出镜，产出带区域证据的结论。触发词：图片安全审查、图片审查、主图能过审吗、审一下图片、图片有没有合规问题、图片合规、婴幼儿安全、图里的场景、产品用法有没有风险、主图上的文字、图上识别出来的内容、孩子出镜、图片隐私、素材图、image safety、image review。何时不用：视频画面（走 视频安全审查）、纯文字（走 文案合规审查）、肖像与商标的授权归属（走 AI 溯源与权利审查）、多条发现汇总裁决（走 审查裁决）。
+
+  Review US-market brand images for OCR text, product and scene accuracy, infant and child safety, privacy, AI provenance, endorsement, and other locatable content risks.
+version: "1.0.0"
+complexity: "complex"
+enabled: "true"
+user-invocable: true
+---
+
+# Brand Image Safety Review
+
+Use the provider-neutral contract in `~/.dsh/Momcozy知识库/kb/l7/review-engine/knowledge-base/multimodal-provider-contract.json` for OCR, object, person, activity, and scene observations. A vendor adapter may use `vision-analysis` or another provider, but it must return the material hash, provider version, coverage status, and region evidence. Add domain rules for car seats, sleep, feeding, washing, bathing, household power, infant handling, privacy, and AI-generated or composited scenes.
+
+Record bounding-box or region descriptions and the image hash for each finding. Pass OCR and textual visual observations through `~/.dsh/Momcozy知识库/kb/l7/review-engine/core/product_fact_integration.py` when the submission has a SKU, so unapproved product claims become REVIEW and missing evidence becomes NEEDS_INPUT. Separate observation from interpretation: “infant is on an adult bed” is evidence; the safety classification and applicable rule are a subsequent finding.
+
+If the image is too small, occluded, or ambiguous to establish a safety fact, emit REVIEW or NEEDS_INPUT rather than PASS. Do not judge aesthetics, typography, or color unless they create a safety, claim, or platform-policy issue.

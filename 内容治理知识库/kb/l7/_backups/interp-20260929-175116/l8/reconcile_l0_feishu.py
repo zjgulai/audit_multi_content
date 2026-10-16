@@ -1,0 +1,179 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""L0（源层）与飞书侧对账：认领新记录 + 归档被替换/不符合抓取规则的记录（不删除）。
+
+依据用户 2026-09-29 的四条指令：
+  ① 规则库：本期不做；
+  ② 负面样本：先核实是否重建 → 决定旧的处置并认领新的；
+  ③ 材料收集：**只抓「材料审核状态 = 通过」的**；
+  ④ L0 是源层，就是飞书侧知识库的副本（→ L0 应与飞书一致，差异即缺陷）。
+
+本次核实结论（证据见 kb/l8/_stage/feishu-compare/）：
+  · 负面样本（tbld8qE92YaY38Yz）：16 个 field_id 与本地旧快照**完全一致**（表没重建）；
+    但 108 条现记录的 record_id 与本地 326 条**交集为 0**，且抽查 3 个旧 id 在飞书返回
+    `Record not found` → **记录被整批替换（旧记录已删除）**。
+  · 材料收集（tblMGtPfe8ZUsEdP）：飞书侧 32 条中 **通过 22 / 空 10** → 按指令③ L0 只留 22 条。
+
+动作（全部可回滚、不删除任何文件）：
+  1. 旧 326 条 → kb/l0/_archive/正面和负面样本-superseded-<run>/（附 manifest）
+  2. 材料收集被保留的 22 条：重抓前副本 → kb/l0/_archive/材料收集-重抓前-<run>/，随后按飞书现值刷新
+  3. 材料收集非「通过」的 10 条 → kb/l0/_archive/材料收集-未通过-<run>/
+  4. 认领新 108 条 → kb/l0/records/负面样本/
+  5. 登记：kb/l0/runs/<run>-l0-feishu-reconcile.json（账本）+ kb/l0/registry/kb.json 追加式补记
+
+用法：python3 kb/l8/reconcile_l0_feishu.py <run_id>
+"""
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+
+WS = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+os.chdir(WS)
+LARK = os.path.expanduser("~/.dsh/bin/lark-cli")
+BASE = "GnRZbIuXraCzf0sGr2UcmZ62nfc"
+D = "kb/l8/_stage/feishu-compare"
+RUN = sys.argv[1] if len(sys.argv) > 1 else time.strftime("%Y%m%d-%H%M")
+OBS = RUN
+TZ = "Asia/Shanghai"
+sha = lambda p: hashlib.sha256(open(p, "rb").read()).hexdigest()
+ledger = {"run": RUN, "at": time.strftime("%Y-%m-%d %H:%M:%S"), "base_token": BASE,
+          "instructions": ["规则库本期不做", "负面样本核实重建并处置", "材料收集只抓 通过", "L0 = 飞书副本"],
+          "actions": []}
+
+
+def cli(*args):
+    p = subprocess.run([LARK, *args, "--as", "bot", "--profile", "dsh-kb"], capture_output=True, text=True)
+    return p.stdout
+
+
+def fields_of(table_id, cache):
+    """取字段 schema：name → {id, type}（落盘缓存，避免重复调用）。"""
+    if os.path.exists(cache):
+        raw = json.load(open(cache, encoding="utf-8"))
+    else:
+        raw = json.loads(cli("base", "+field-list", "--base-token", BASE, "--table-id", table_id))
+        json.dump(raw, open(cache, "w", encoding="utf-8"), ensure_ascii=False)
+    fs = raw["data"].get("fields") or raw["data"].get("items") or []
+    return {f["name"]: {"field_id": f["id"], "field_type": f["type"]} for f in fs}
+
+
+def ndjson(path):
+    return [json.loads(l) for l in open(path, encoding="utf-8") if l.strip()]
+
+
+def write_record(dirname, row, fmap, filter_obj, note):
+    rid = row["record_id"]
+    fields = {}
+    for name, meta in fmap.items():
+        val = row.get(name)
+        fields[name] = {"field_id": meta["field_id"], "field_type": meta["field_type"],
+                        "value": val, "raw_verbatim": val}
+    doc = {"record_id": rid, "source_table": dirname, "table_id": row["_table_id"],
+           "base_token": BASE,
+           "entry_url": f"https://momcozy-in.feishu.cn/base/{BASE}?table={row['_table_id']}&record={rid}",
+           "timezone": TZ, "observed_at": OBS,
+           "filter": filter_obj,
+           "schema": {name: meta for name, meta in fmap.items()},
+           "fields": fields,
+           "raw_record": {k: v for k, v in row.items() if not k.startswith("_")},
+           "note": note}
+    os.makedirs(os.path.join("kb/l0/records", dirname), exist_ok=True)
+    dst = os.path.join("kb/l0/records", dirname, rid + ".json")
+    json.dump(doc, open(dst, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    return dst
+
+
+def archive(src_dir, tag, reason):
+    """把整个目录移到 kb/l0/_archive/<name>-<tag>/（移动=不删除），并写 manifest。"""
+    if not os.path.isdir(src_dir):
+        return None
+    dst = os.path.join("kb/l0/_archive", f"{os.path.basename(src_dir)}-{tag}")
+    if os.path.exists(dst):
+        shutil.rmtree(dst)
+    files = [os.path.join(r, f) for r, _d, fs in os.walk(src_dir) for f in fs]
+    man = {"from": src_dir, "to": dst, "moved_at": time.strftime("%Y-%m-%d %H:%M:%S"), "reason": reason,
+           "files": len(files), "bytes": sum(os.path.getsize(p) for p in files),
+           "sha256": {os.path.basename(p): sha(p) for p in files}}
+    shutil.move(src_dir, dst)
+    json.dump(man, open(os.path.join(dst, "_MANIFEST.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    return man
+
+
+# ── ② 负面样本：归档旧 326 + 认领新 108 ─────────────────────────────
+neg_fmap = fields_of("tbld8qE92YaY38Yz", f"{D}/fields-负面样本.json")
+neg_rows = ndjson(f"{D}/feishu-负面样本.ndjson")
+for r in neg_rows:
+    r["_table_id"] = "tbld8qE92YaY38Yz"
+man_neg = archive("kb/l0/records/正面和负面样本", f"superseded-{RUN}",
+                  "飞书侧记录整批替换：本地 326 条的 record_id 在飞书返回 Record not found（抽查 3 个）；表未重建（16 个 field_id 不变）")
+if man_neg:
+    ledger["actions"].append({"table": "负面样本", "table_id": "tbld8qE92YaY38Yz", "action": "archive_old",
+                              "files": man_neg["files"], "to": man_neg["to"], "reason": man_neg["reason"]})
+wrote = [write_record("负面样本", r, neg_fmap,
+                      {"result": "not_filtered", "note": "独立入口表（R26）：不按材料审核状态筛选；本批全字段 verbatim"},
+                      "字段原值 verbatim；由 l8 对账脚本按飞书现值补抓（源侧记录整批替换后的新一代）；scanner_version=0.7")
+         for r in neg_rows]
+ledger["actions"].append({"table": "负面样本", "table_id": "tbld8qE92YaY38Yz", "action": "claim_new",
+                          "files": len(wrote), "dir": "kb/l0/records/负面样本",
+                          "ids_sha16": hashlib.sha256("|".join(sorted(r["record_id"] for r in neg_rows)).encode()).hexdigest()[:16]})
+
+# ── ③ 材料收集：只留「通过」的 22 条，并刷新为飞书现值 ────────────────
+mat_fmap = fields_of("tblMGtPfe8ZUsEdP", f"{D}/fields-材料收集.json")
+mat_rows = ndjson(f"{D}/feishu-材料收集.ndjson")
+approved, rejected = [], []
+for r in mat_rows:
+    st = r.get("材料审核状态")
+    st = st[0] if isinstance(st, list) and st else (st or "")
+    (approved if str(st).strip() == "通过" else rejected).append(r)
+# 顺序要紧：① 先把非「通过」的移出 ② 再把剩下的（已通过的、刷新前的）整目录归档 ③ 最后写刷新后的记录
+rej_dir = f"kb/l0/_archive/材料收集-未通过-{RUN}"
+os.makedirs(rej_dir, exist_ok=True)
+for r in rejected:
+    src = os.path.join("kb/l0/records/材料收集", r["record_id"] + ".json")
+    if os.path.exists(src):
+        shutil.move(src, os.path.join(rej_dir, os.path.basename(src)))
+man_pre = archive("kb/l0/records/材料收集", f"pre-refresh-{RUN}", "重抓前副本（刷新为飞书现值前的留档，仅含通过件）")
+if man_pre:
+    ledger["actions"].append({"table": "材料收集", "action": "archive_prerefresh", "files": man_pre["files"], "to": man_pre["to"]})
+json.dump({"moved_at": time.strftime("%Y-%m-%d %H:%M:%S"), "reason": "按用户指令③：材料收集只抓「材料审核状态=通过」的，其余不入 L0（移动不删除）",
+           "count": len(rejected), "ids": [r["record_id"] for r in rejected]},
+          open(os.path.join(rej_dir, "_MANIFEST.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+ledger["actions"].append({"table": "材料收集", "action": "drop_unapproved_to_archive", "files": len(rejected), "to": rej_dir,
+                          "rule": "材料审核状态 == 通过"})
+for r in approved:
+    r["_table_id"] = "tblMGtPfe8ZUsEdP"
+    write_record("材料收集", r, mat_fmap,
+                 {"result": "filtered", "field": "材料审核状态", "op": "==", "value": "通过",
+                  "note": "按用户 2026-09-29 指令：只抓通过的材料"},
+                 "字段原值 verbatim；由 l8 对账脚本按飞书现值刷新（含字段名/枚举/lookup 对齐）")
+ledger["actions"].append({"table": "材料收集", "table_id": "tblMGtPfe8ZUsEdP", "action": "refresh_capture",
+                          "files": len(approved), "filter": "材料审核状态 == 通过"})
+
+# ── 账本 + 登记补记 ───────────────────────────────────────────────
+os.makedirs("kb/l0/runs", exist_ok=True)
+lp = f"kb/l0/runs/{RUN}-l0-feishu-reconcile.json"
+json.dump(ledger, open(lp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+
+reg_p = "kb/l0/registry/kb.json"
+reg = json.load(open(reg_p, encoding="utf-8"))
+reg.setdefault("l0_feishu_reconcile", []).append({
+    "run": RUN, "at": time.strftime("%Y-%m-%d %H:%M:%S"),
+    "rule_change": "材料收集（tblMGtPfe8ZUsEdP）抓取规则由「不按审核状态筛选」改为「只抓 材料审核状态=通过」；R26 的旧说明随之失效",
+    "negative_sample_rebuild": {"table_id": "tbld8qE92YaY38Yz", "old_local": 326, "new_feishu": 108,
+        "evidence": "16 个 field_id 与旧快照一致（表未重建）；旧 record_id 在飞书 Record not found（记录被整批替换）",
+        "old_disposition": f"历史留档 → kb/l0/_archive/正面和负面样本-superseded-{RUN}（不删除）",
+        "new_disposition": "认领 → kb/l0/records/负面样本/"},
+    "rule_library": "飞书侧「规则库」(tblXsrMVkDNZ3oW8, 50 条) 本期不做（用户指令①）",
+    "ledger": lp})
+json.dump(reg, open(reg_p, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+
+print(f"对账完成 {RUN}")
+for a in ledger["actions"]:
+    print("  ", json.dumps(a, ensure_ascii=False)[:150])
+print(f"  账本 → {lp}")
+print(f"  现役 L0：负面样本 {len(os.listdir('kb/l0/records/负面样本'))} 条 / 材料收集 "
+      f"{len([f for f in os.listdir('kb/l0/records/材料收集') if f.endswith('.json')])} 条")

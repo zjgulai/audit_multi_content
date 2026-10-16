@@ -1,0 +1,154 @@
+{
+  "ok": true,
+  "identity": "bot",
+  "data": {
+    "data": [
+      [
+        "AUTO-48cac901ac43",
+        "2026-10-05T10:51:28.000+08:00",
+        null,
+        "【引擎自己的数是 0 —— 它拒答了，没有产出 risk_items】本次报告逐条列明的**素材级发现 5 条、库/机制级 6 条**（问题数量=5 指素材级）：\n素材级：① 画面里可能出现内部标识（OCR 读到「刘华丽 / 5615 ROOT / 5615 ROC」人名+编号串，是否真烧进成图需人看画面确认）；② 语言/市场归属未明（文案德语，本库专项以美国市场为主）；③ 图片本体未被读取（无文件、无 URL、无 content_hash）⇒ 按库内已确认口径不出 PASS；④ 本素材在库里是「自命中」——与 sample_case #32 逐字重合，条款号 S-1.2（禁区，owner 刘华丽，有效至 2027-03-28）；⑤ 近重复 S-1.175（两条互为近重复）。\n库/机制级（不是素材的问题）：⑥ L5 matcher 跨行短语漏判（mehr milch 命中 / mehr\\nmlich 不命中）；⑦ 德语词表仅 2 词，覆盖极窄；⑧ kb/l4/registry/l4.json 的 sha/bytes 与磁盘 5 个形态文件全不符；⑨ L4 正文口径不一致（1365 / 1242 / 4 files，clause.jsonl 123 两处漏记）；⑩ 宿主档 kb_check 健康分 79.3（未熔断），E026×454 / W020×2218；⑪ 本单 index.jsonl 双计（操作瑕疵，RUN 文件正确）。\n结论：NEEDS_INPUT（拒答 fail-closed）—— 没有放行依据，既不是 PASS 也不是 REVIEW/BLOCK。",
+        "[审查报告·图片 RT-20261005-IMG-02](https://momcozy-in.feishu.cn/docx/HYPjdVgrIoJUcIxfw9Actagkncd)",
+        "NEEDS_INPUT",
+        null,
+        "社媒图片",
+        5,
+        null,
+        "社媒",
+        null,
+        null,
+        [
+          "待审"
+        ],
+        "审一下这张图能过吗？",
+        null,
+        "48cac901（送审文本 sha256 前 8 位）",
+        null
+      ],
+      [
+        "AD-20261005-001",
+        "2026-10-05T11:19:13.000+08:00",
+        null,
+        "链已跑完（329s）。结论原文见对话与报告；本行由守衡在链返回后核对落表。",
+        null,
+        "PASS",
+        null,
+        "listing 文案",
+        0,
+        null,
+        "未指定",
+        null,
+        0.99,
+        [
+          "PASS"
+        ],
+        "这段 listing 文案能不能发：M5 吸奶器是销量最高，最好用的吸奶器了？帮我看看有没有踩红线",
+        "未指定",
+        "v1.0",
+        null
+      ],
+      [
+        "AD-20261005-002",
+        "2026-10-05T11:27:51.000+08:00",
+        null,
+        "原则性错误：1 个（自命中已定稿反例/禁区条款 S-1.2，近重复 S-1.175）。引擎侧原输出 NEEDS_INPUT（缺「反例/禁区」消费者，GAP-SELFHIT-1）；本结论按 Owner 2026-10-05 规则① 登记得出。",
+        null,
+        "BLOCK",
+        null,
+        "社媒图片",
+        1,
+        null,
+        "社媒",
+        null,
+        null,
+        [
+          "BLOCK"
+        ],
+        "审一下这张图能过吗？",
+        "洗瓶机/喂养",
+        "v1.0",
+        null
+      ]
+    ],
+    "field_id_list": [
+      "fldMbXAaOd",
+      "fld1th7lJs",
+      "fld5Sx7RdT",
+      "fldbi4SwgQ",
+      "fldbMrQ34i",
+      "fldc0gWdzv",
+      "fldEuZejom",
+      "fldeX7XGI2",
+      "fldheGayox",
+      "fldhTcB8TM",
+      "fldiTHdkWl",
+      "fldlPSItPt",
+      "fldMXbPzIj",
+      "fldNt7FcrQ",
+      "fldqhvDTs0",
+      "fldRehYx65",
+      "fldUA8u1Cq",
+      "fldud98aBe"
+    ],
+    "field_type_list": [
+      "text",
+      "created_at",
+      "user",
+      "text",
+      "text",
+      "text",
+      "datetime",
+      "text",
+      "number",
+      "text",
+      "text",
+      "user",
+      "number",
+      "select",
+      "text",
+      "text",
+      "text",
+      "user"
+    ],
+    "fields": [
+      "内容 ID",
+      "写入时间",
+      "sign-off 人",
+      "问题分类汇总",
+      "报告链接",
+      "Agent 结论",
+      "发布时间",
+      "内容类型",
+      "问题数量",
+      "复核结论",
+      "渠道",
+      "审核人",
+      "置信度",
+      "状态",
+      "送审问题",
+      "产品线",
+      "送审版本",
+      "人工复核人"
+    ],
+    "has_more": false,
+    "query_context": {
+      "field_scope": "all_fields",
+      "record_scope": "all_records"
+    },
+    "record_id_list": [
+      "recvx8JhbIsQCo",
+      "recvx8QgurQ5T4",
+      "recvx8Sr5f8ufX"
+    ],
+    "rev": 129,
+    "timezone": "Asia/Shanghai"
+  },
+  "_notice": {
+    "update": {
+      "command": "lark-cli update",
+      "current": "1.0.95",
+      "latest": "1.0.97",
+      "message": "lark-cli 1.0.97 available, current 1.0.95, run: lark-cli update"
+    }
+  }
+}

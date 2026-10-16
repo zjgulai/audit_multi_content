@@ -1,0 +1,496 @@
+{
+ "schema": "kb-evidence-findings-cache/1",
+ "cached_at": "2026-10-12T11:54:21",
+ "text_sha256": "c05b07ca847d481fd2e22e55dcb41b62c7a6b13bfa464ae2132db1d65f73aa5f",
+ "source": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py",
+ "payload": {
+  "state": "BLOCK",
+  "findings": [
+   {
+    "severity": "BLOCK",
+    "layer": "规则层",
+    "category": "功效宣称",
+    "sub": "催乳与通乳宣称",
+    "p_level": "P0",
+    "risk_level": "Critical",
+    "position": "全文",
+    "excerpt": "堵奶, 通乳, 催乳, 下奶, 追奶, 回奶, 增奶, 增产,",
+    "matched_term": "堵奶",
+    "anchor": "#品线内容边界规则库/recvuJP1dD7yNW/检测关键词",
+    "source_sha256": "a4c587f8a609019660d8488c4663dde8e621fbad0cf2d610d4790355730579fa",
+    "article_no": "W-1.47",
+    "l0_entry_url": "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblD1MiUK1v5fdjD&record=recvuJP1dD7yNW",
+    "rule_id": "r-b8aea07e90a86b59",
+    "rule_code": "H02",
+    "kb_type": "wording",
+    "library": "措辞表达库",
+    "reason": "逐字命中「堵奶」：（来源未给判定理由）（p_level=P0 risk_level=Critical authority=None，来源表 None）",
+    "advice": "可改为（本规则豁免表达）：不能治疗乳腺炎, 不可以治疗乳腺炎, 无法治疗乳腺炎, 不能预防乳腺炎, 不可以预防乳腺炎, 不能治愈乳腺炎, 不是乳腺炎治疗设备, 乳腺炎治疗设备, natural let-down, natural letdown, your natural let-down, your natural letdown, relaxation supports, may help your flow, 自然奶阵, 放松",
+    "advice_note": "同源检查：无配对命中，建议全部来自规则原文豁免表达",
+    "fact_or_inference": "事实",
+    "confidence": "中",
+    "verbatim_source": {
+     "path": "kb/l0/records/广告文案风控库__品线内容边界规则库/recvuJP1dD7yNW.json",
+     "field": "检测关键词",
+     "entry_url": "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblD1MiUK1v5fdjD&record=recvuJP1dD7yNW"
+    },
+    "classification_basis": "rule_code=H02",
+    "risk_category": "合规",
+    "risk_category_basis": "类别「功效宣称」⇒ 合规（硬引 PRD：PRD §7.3-2「医疗功效宣称（治疗、预防疾病等）」；§5.3 示例逐字『【合规-医疗宣称】』）"
+   },
+   {
+    "severity": "BLOCK",
+    "layer": "P0 确定性匹配（依据不可逐字回源）",
+    "p_level": "P0",
+    "category": "绝对化与安全承诺",
+    "sub": "虚假安全承诺",
+    "position": "全文",
+    "excerpt": "最\\s*(好|佳|优|强|安全|低价|便宜|有效|快|大|高|省|舒适)",
+    "matched_term": "最\\s*(好|佳|优|强|安全|低价|便宜|有效|快|大|高|省|舒适)",
+    "verbatim_verified": false,
+    "anchor": "#广告文案明细/recvuJYdOb1B8v/命中片段",
+    "source_sha256": "e7aabf7478753887ea85470fa114b4d0b22d74d21cb901b3a02e7672dff4f4c5",
+    "l0_entry_url": "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJYdOb1B8v",
+    "article_no": "W-1.33",
+    "rule_id": "r-7baf7ceb47b2e5bc",
+    "rule_code": "H05",
+    "pattern_id": "p-08487282e2d400fe",
+    "match_kind": "regex",
+    "kb_type": "wording",
+    "library": "措辞表达库",
+    "evidence_gap": "「最\\s*(好|佳|优|强|安全|低价|便宜|有效|快|大|高|省|舒适)」在该规则证据单元里无逐字原文（regex 命中）；本条目出处为 L5 P0 模式 p-08487282e2d400fe 自身声明的 anchor / source_sha256，**未经逐字回验**",
+    "reason": "P0 确定性命中（BLOCK）：「最\\s*(好|佳|优|强|安全|低价|便宜|有效|快|大|高|省|舒适)」命中规则码 H05。H05 虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按2026-09-09口径放开，海外广告允许，不再判险）【依据不可逐字回源：该说法为等价说法／正则命中，源侧无逐字原文；按 L5「P0 命中即 BLOCK」输出，出处为 P0 模式自身，需人工确认】",
+    "advice": null,
+    "advice_note": "依据不可逐字回源，按硬闸门不给改法建议",
+    "fact_or_inference": "事实",
+    "confidence": "中",
+    "verbatim_source": null,
+    "classification_basis": "rule_code=H05",
+    "risk_category": "合规",
+    "risk_category_basis": "类别「绝对化与安全承诺」⇒ 合规（硬引 PRD：PRD §7.3-3「绝对化用语（最、第一、最佳、100%、纯天然等）」；§5.3 示例逐字『【合规-绝对化用语】』）"
+   },
+   {
+    "severity": "BLOCK",
+    "layer": "P0 确定性匹配",
+    "category": "背书与资质",
+    "sub": "监管认证宣称",
+    "p_level": "P0",
+    "position": "全文",
+    "excerpt": "FDA approved, FDA certified, FDA 认证, FDA 批准, FDA 通过",
+    "matched_term": "FDA 认证",
+    "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/检测关键词",
+    "source_sha256": "2e8bb36d6edf7c4971132b69ff6d39819a5a0e0e8043e9001e096be1bc2a02d6",
+    "article_no": "W-1.8",
+    "rule_id": "r-15a607c4457c8b55",
+    "rule_code": "H06",
+    "kb_type": "wording",
+    "library": "措辞表达库",
+    "reason": "P0 规则命中（BLOCK）：（来源未给判定理由）",
+    "advice": "可改为（本规则豁免表达）：FDA cleared, FDA-cleared, FDA registered, FDA 注册",
+    "advice_note": "同源检查：无配对命中，建议全部来自规则原文豁免表达",
+    "fact_or_inference": "事实",
+    "confidence": "高",
+    "verbatim_source": {
+     "path": "kb/l0/records/广告文案风控库__品线内容边界规则库/recvuJP1LVW6E0.json",
+     "field": "检测关键词",
+     "entry_url": "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblD1MiUK1v5fdjD&record=recvuJP1LVW6E0"
+    },
+    "classification_basis": "rule_code=H06",
+    "risk_category": "合规",
+    "risk_category_basis": "类别「背书与资质」⇒ 合规（软判（按 §6.2/§5.2 语义归类）：PRD §7.3-4「无依据的销量/排名宣称」＋ §5.3 示例的依据例《广告法禁用语》）"
+   }
+  ],
+  "unmet_citation": [
+   {
+    "source": "P0",
+    "rule_id": "r-7baf7ceb47b2e5bc",
+    "article_no": "W-1.33",
+    "anchor": "#广告文案明细/recvuJYdOb1B8v/命中片段",
+    "excerpt": "最\\s*(好|佳|优|强|安全|低价|便宜|有效|快|大|高|省|舒适)",
+    "disposition": "output_as_block_with_gap",
+    "why": "该规则全部证据单元里都找不到这段摘录的逐字原文（等价说法／正则命中）；已按 P0 输出为 BLOCK，出处退到 P0 模式自身"
+   }
+  ],
+  "trace": {
+   "p0": {
+    "engine": "kb/l5/matcher.py",
+    "exit_code": 1,
+    "total_elapsed_ms": 54.48,
+    "engine_elapsed_ms": 13.656,
+    "hits": [
+     {
+      "pattern_id": "p-08487282e2d400fe",
+      "rule_id": "r-7baf7ceb47b2e5bc",
+      "rule_code": "H05",
+      "level": "P0",
+      "match_note": "BLOCK",
+      "matched": [
+       {
+        "kind": "regex",
+        "pattern": "最\\s*(好|佳|优|强|安全|低价|便宜|有效|快|大|高|省|舒适)",
+        "line": 1,
+        "span": [
+         38,
+         40
+        ],
+        "line_text": "momcozy 吸奶器已通过 fda 认证,100% 安全,能治好堵奶,全网最好用。"
+       },
+       {
+        "kind": "regex",
+        "pattern": "100\\s*%\\s*(安全|有效|无痛|无副作用|纯|天然|放心|保障|满意)",
+        "line": 1,
+        "span": [
+         22,
+         29
+        ],
+        "line_text": "momcozy 吸奶器已通过 fda 认证,100% 安全,能治好堵奶,全网最好用。"
+       }
+      ],
+      "matched_count": 2,
+      "lines": [
+       1
+      ],
+      "anchor": "#广告文案明细/recvuJYdOb1B8v/命中片段",
+      "source_sha256": "e7aabf7478753887ea85470fa114b4d0b22d74d21cb901b3a02e7672dff4f4c5",
+      "suggested_replacement": "「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开);「perfect pump」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+限定语,如 relaxation supports your natural let-down, which may help your flow(因为放松,自然奶阵可能更顺畅),只描述自然生理过程、不承诺产品带来结果;faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开) ▸ 奶流/移除量/排空效率/漏奶/短时排乳类claim需W1自身对照数据(样本、对照、统计口径齐全),或改为放松叙事+限定语(may help/natural);内部测试数值(28.2%/10%/70%)补齐前不得公开传播;「perfect pump」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+限定语,如 relaxation supports your natural let-down, which may help your flow(因为放松,自然奶阵可能更顺畅),只描述自然生理过程、不承诺产品带来结果;faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开) ▸ 奶流/移除量/排空效率/漏奶/短时排乳类claim需W1自身对照数据(样本、对照、统计口径齐全),或改为放松叙事+限定语(may help/natural);内部测试数值(28.2%/10%/70%)补齐前不得公开传播;「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开);「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开) ▸ hospital/NICU 场景表述需事实依据,否则删除;「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开);「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开);「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开) ▸ 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺(含 sans douleur/schmerzfrei/sin dolor),只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述(另 4 组同码修订建议见证据单元)",
+      "whitelist_suppressed": 0
+     },
+     {
+      "pattern_id": "p-485c67cc9af960bf",
+      "rule_id": "r-15a607c4457c8b55",
+      "rule_code": "H06",
+      "level": "P0",
+      "match_note": "BLOCK",
+      "matched": [
+       {
+        "kind": "keyword",
+        "pattern": "FDA 认证",
+        "line": 1,
+        "span": [
+         15,
+         21
+        ],
+        "line_text": "momcozy 吸奶器已通过 fda 认证,100% 安全,能治好堵奶,全网最好用。"
+       },
+       {
+        "kind": "regex",
+        "pattern": "FDA\\s*(认证|批准|通过)",
+        "line": 1,
+        "span": [
+         15,
+         21
+        ],
+        "line_text": "momcozy 吸奶器已通过 fda 认证,100% 安全,能治好堵奶,全网最好用。"
+       }
+      ],
+      "matched_count": 2,
+      "lines": [
+       1
+      ],
+      "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/边界内容",
+      "source_sha256": "2e8bb36d6edf7c4971132b69ff6d39819a5a0e0e8043e9001e096be1bc2a02d6",
+      "suggested_replacement": "",
+      "whitelist_suppressed": 0
+     }
+    ]
+   },
+   "rules": {
+    "engine": "kb/l3/candidates/rules.jsonl",
+    "kb_type_filter": null,
+    "rules_scanned": 509,
+    "hits": [
+     {
+      "rule_id": "r-15a607c4457c8b55",
+      "article_no": "W-1.8",
+      "rule_code": "H06",
+      "p_level": "P0",
+      "risk_level": "Critical",
+      "authority": null,
+      "kb_type": "wording",
+      "authority_source_table": null,
+      "matched_fragments": [
+       "FDA 认证"
+      ],
+      "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/边界内容",
+      "source_sha256": "2e8bb36d6edf7c4971132b69ff6d39819a5a0e0e8043e9001e096be1bc2a02d6",
+      "rule_text": "边界：FDA 表述错误（吸奶器为 cleared/registered，非 approved/certified）；触发词：FDA approved, FDA certified, FDA 认证, FDA 批准, FDA 通过；豁免：FDA cleared, FDA-cleared, FDA registered, FDA 注册",
+      "suggested_replacement": ""
+     },
+     {
+      "rule_id": "r-b8aea07e90a86b59",
+      "article_no": "W-1.47",
+      "rule_code": "H02",
+      "p_level": "P0",
+      "risk_level": "Critical",
+      "authority": null,
+      "kb_type": "wording",
+      "authority_source_table": null,
+      "matched_fragments": [
+       "堵奶"
+      ],
+      "anchor": "#品线内容边界规则库/recvuJP1dD7yNW/边界内容",
+      "source_sha256": "a4c587f8a609019660d8488c4663dde8e621fbad0cf2d610d4790355730579fa",
+      "rule_text": "边界：催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫；触发词：prevent mastitis, mastitis treatment, clogged duct cure, 乳腺炎, 堵奶, 通乳, 催乳, 下奶, 追奶, 回奶, 增奶, 增产, 提升奶量, 追奶量, more milk, 增加奶量, 提高奶量, 奶量增长, 催奶, 发奶, 增多奶量, trigger oxytocin, release oxytocin, oxytocin release, boost oxytocin, increase oxytocin, stimulate oxytocin, long-term milk supply, long term milk supply, increase long-term supply, faster letdown, faster let-down, quicker letdown, quicker let-down, easier letdown, easier let-down, speed up letdown, speeds up letdown, improve letdown, milk ejection reflex, improve emptying, more efficient emptying, improve pumping efficiency, increase emptying, 触发催产素, 促进催产素, 分泌催产素, 刺激催产素, 长期奶量, 更快奶阵, 加速奶阵, 促进奶阵, 刺激奶阵, 提高排空, 提升排空, 排空效率, 提高排空效率, 奶阵更快, 加快奶阵；豁免：不能治疗乳腺炎, 不可以治疗乳腺炎, 无法治疗乳腺炎, 不能预防乳腺炎, 不可以预防乳腺炎, 不能治愈乳腺炎, 不是乳腺炎治疗设备, 乳腺炎治疗设备, natural let-down, natural letdown, your natural let-down, your natural letdown, relaxation supports, may help your flow, 自然奶阵, 放松",
+      "suggested_replacement": ""
+     }
+    ]
+   },
+   "units": {
+    "engine": "kb/l6/retriever.py",
+    "l6_mode": "vector_plus_bm25",
+    "semantic_recall": true,
+    "bm25_max": 20.2181,
+    "cosine_max": 0.0,
+    "used_vector": false,
+    "no_semantic_annotation": null,
+    "top_bm25": [
+     {
+      "source": "bm25_zh",
+      "unit_id": "d6800a3309f5d76dc6c6",
+      "anchor": "#正文/p2",
+      "table": "正文",
+      "kb_type": "external_standard",
+      "source_sha256": "e33789cc35391b318f590075bba6740e110ec8e08b63b5811fada607c6304ead",
+      "raw_bm25": 20.2181,
+      "excerpt": "宝宝月龄与动作能力匹配（不会出现\"新生儿自己坐着\"等错误） 抱姿正确（小月龄托头颈，单手竖抱≥6个月） 小月龄宝宝不可被举起/举过头顶 宝宝服装符合月龄（新生儿穿和尚服/连体衣；春秋连体衣长袖长裤连袜） 婴儿睡姿为仰卧，不可趴睡（不到1岁绝对不可趴睡） 婴儿床内无玩偶/被子/枕头 婴儿床围挡至少3面高，床板高度合理 妈"
+     },
+     {
+      "source": "bm25_zh",
+      "unit_id": "ccdb44ea5d38076e07b6",
+      "anchor": "#广告文案明细/recvuMGgT9p2zx/命中原因",
+      "table": "广告文案明细",
+      "kb_type": "wording",
+      "source_sha256": "b5de79a05b4fe03cdd256ebc39f9d58183ebfc0e7cdbc7c1fba4770dfd4ef88b",
+      "raw_bm25": 16.5038,
+      "excerpt": "H07 疼痛功效承诺（pain-free/no pain/without pain/pain relief/less pain/缓解疼痛等；吸奶疼痛因人而异，只可讲 comfort/gentle 舒适与缓解胀满不适 discomfort）；U04 疼痛/堵奶场景化名词表述（sore/painful/clogged du"
+     },
+     {
+      "source": "bm25_zh",
+      "unit_id": "fc7a720240bd777fc6d0",
+      "anchor": "#广告文案明细/recvuMGgT9pH6N/命中原因",
+      "table": "广告文案明细",
+      "kb_type": "wording",
+      "source_sha256": "54e9574695f19fda6c0eec0d749ed13998a96270b352a39fc4d240bb86cf254e",
+      "raw_bm25": 16.5038,
+      "excerpt": "H07 疼痛功效承诺（pain-free/no pain/without pain/pain relief/less pain/缓解疼痛等；吸奶疼痛因人而异，只可讲 comfort/gentle 舒适与缓解胀满不适 discomfort）；U04 疼痛/堵奶场景化名词表述（sore/painful/clogged du"
+     },
+     {
+      "source": "bm25_zh",
+      "unit_id": "e5e6b1688783e119e9c7",
+      "anchor": "#l.1-22",
+      "table": "l.1-22",
+      "kb_type": "external_standard",
+      "source_sha256": "c784ab1f7208849c5ac25501e9e54eb5f60c1c51114fbdaa04097a82c1900c16",
+      "raw_bm25": 15.942,
+      "excerpt": "如果你在两次体检期间不放心，可以打电话再预约一次体检。不要 使用家用体重秤给孩子称重，因为它对小婴儿而言不太准确。 参考文献：《美国儿科学会母乳喂养指南（第3版）》，美国儿 科学会，J.Y. 米克主编。 可以用奶瓶喂母乳吗？ 新生儿通常需要不分昼夜地喂奶，所以你在分娩后最好选择母婴同 室，让孩子一直和你在一起。你可能希"
+     },
+     {
+      "source": "bm25_zh",
+      "unit_id": "57891fad8f64caf7c5f6",
+      "anchor": "#W1的利益点边界!A1:T200",
+      "table": "W1的利益点边界!A1:T200",
+      "kb_type": "external_standard",
+      "source_sha256": "f112478a951861c9c702dd17ca408059f5aad9bb0d9e5e53d28f0eb112fe05ec",
+      "raw_bm25": 15.2443,
+      "excerpt": "[row=1] W1的利益点边界,,,,,,,,,,,,,,,,,,, [row=2] \"乳腺炎是一个高痛点、高搜索量、高咨询需求的话题，在美国哺乳期患病概率是7%–10%，属于常见并发症，通常可治愈，但对妈妈的疼痛、情绪和持续母乳喂养的影响很大，是提前停止母乳喂养的重要原因之一。 乳腺炎通常不是突然发生的，而是一个逐"
+     }
+    ],
+    "vector_rows": [],
+    "adopted": [
+     {
+      "source": "bm25_zh",
+      "unit_id": "d6800a3309f5d76dc6c6",
+      "anchor": "#正文/p2",
+      "table": "正文",
+      "kb_type": "external_standard",
+      "source_sha256": "e33789cc35391b318f590075bba6740e110ec8e08b63b5811fada607c6304ead",
+      "raw_bm25": 20.2181,
+      "excerpt": "宝宝月龄与动作能力匹配（不会出现\"新生儿自己坐着\"等错误） 抱姿正确（小月龄托头颈，单手竖抱≥6个月） 小月龄宝宝不可被举起/举过头顶 宝宝服装符合月龄（新生儿穿和尚服/连体衣；春秋连体衣长袖长裤连袜） 婴儿睡姿为仰卧，不可趴睡（不到1岁绝对不可趴睡） 婴儿床内无玩偶/被子/枕头 婴儿床围挡至少3面高，床板高度合理 妈",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_zh",
+      "unit_id": "ccdb44ea5d38076e07b6",
+      "anchor": "#广告文案明细/recvuMGgT9p2zx/命中原因",
+      "table": "广告文案明细",
+      "kb_type": "wording",
+      "source_sha256": "b5de79a05b4fe03cdd256ebc39f9d58183ebfc0e7cdbc7c1fba4770dfd4ef88b",
+      "raw_bm25": 16.5038,
+      "excerpt": "H07 疼痛功效承诺（pain-free/no pain/without pain/pain relief/less pain/缓解疼痛等；吸奶疼痛因人而异，只可讲 comfort/gentle 舒适与缓解胀满不适 discomfort）；U04 疼痛/堵奶场景化名词表述（sore/painful/clogged du",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_zh",
+      "unit_id": "fc7a720240bd777fc6d0",
+      "anchor": "#广告文案明细/recvuMGgT9pH6N/命中原因",
+      "table": "广告文案明细",
+      "kb_type": "wording",
+      "source_sha256": "54e9574695f19fda6c0eec0d749ed13998a96270b352a39fc4d240bb86cf254e",
+      "raw_bm25": 16.5038,
+      "excerpt": "H07 疼痛功效承诺（pain-free/no pain/without pain/pain relief/less pain/缓解疼痛等；吸奶疼痛因人而异，只可讲 comfort/gentle 舒适与缓解胀满不适 discomfort）；U04 疼痛/堵奶场景化名词表述（sore/painful/clogged du",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_zh",
+      "unit_id": "e5e6b1688783e119e9c7",
+      "anchor": "#l.1-22",
+      "table": "l.1-22",
+      "kb_type": "external_standard",
+      "source_sha256": "c784ab1f7208849c5ac25501e9e54eb5f60c1c51114fbdaa04097a82c1900c16",
+      "raw_bm25": 15.942,
+      "excerpt": "如果你在两次体检期间不放心，可以打电话再预约一次体检。不要 使用家用体重秤给孩子称重，因为它对小婴儿而言不太准确。 参考文献：《美国儿科学会母乳喂养指南（第3版）》，美国儿 科学会，J.Y. 米克主编。 可以用奶瓶喂母乳吗？ 新生儿通常需要不分昼夜地喂奶，所以你在分娩后最好选择母婴同 室，让孩子一直和你在一起。你可能希",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_zh",
+      "unit_id": "57891fad8f64caf7c5f6",
+      "anchor": "#W1的利益点边界!A1:T200",
+      "table": "W1的利益点边界!A1:T200",
+      "kb_type": "external_standard",
+      "source_sha256": "f112478a951861c9c702dd17ca408059f5aad9bb0d9e5e53d28f0eb112fe05ec",
+      "raw_bm25": 15.2443,
+      "excerpt": "[row=1] W1的利益点边界,,,,,,,,,,,,,,,,,,, [row=2] \"乳腺炎是一个高痛点、高搜索量、高咨询需求的话题，在美国哺乳期患病概率是7%–10%，属于常见并发症，通常可治愈，但对妈妈的疼痛、情绪和持续母乳喂养的影响很大，是提前停止母乳喂养的重要原因之一。 乳腺炎通常不是突然发生的，而是一个逐",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     }
+    ],
+    "discarded": [],
+    "gate": {
+     "bm25_raw_min": 8.0,
+     "vector_cosine_min": 0.6,
+     "use_raw_scores_only": true,
+     "why_not_rrf": "RRF 分恒为 1/(60+k)，实测 Top1 恒在 0.016393，A 组与 B 组看起来一样高，没有区分度，不能当门限",
+     "why_single_threshold_not_enough": "实测 BM25 原始分在 A/B 两组有重叠（A 组最低 5.32 < B 组最高 10.02），所以门限只用于「够不够格当参考」，要成为「依据」还必须同时命中规则层",
+     "measured": {
+      "bm25_raw": {
+       "A_group_min": 5.32,
+       "A_group_median": 12.76,
+       "B_group_median": 6.44,
+       "B_group_max": 10.02,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      },
+      "cosine": {
+       "A_group_min": 0.512,
+       "A_group_median": 0.669,
+       "B_group_median": 0.384,
+       "B_group_max": 0.569,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      }
+     },
+     "threshold_reasoning": "BM25 门限取 8.0：落在 A 组最低(5.32)与 B 组最高(10.02)之间、贴近两组中位之间，偏保守；余弦门限取 0.60：实测它是唯一能把 B 组全部挡在外面的取值（B 组最高 0.569），代价是 A 组丢 2 条；即便如此门限仍单独不可靠，必须叠加「同时命中规则层」才算依据",
+     "below_threshold_label": "参考",
+     "above_threshold_without_rule_hit": "仍只能标参考，不得作为依据",
+     "coverage_bm25_min": 16.0,
+     "coverage_reasoning": "PASS 必须建立在「知识库认识这个主题」之上，覆盖信号二选一：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ coverage_bm25_min(=16.0)。16.0 = 依据门限的 2 倍：实测 A 组中位 12.76 / 最高 23.16，B 组最高 10.02，取 16 能把实测 B 组全部挡在外面。覆盖信号不成立 → 拒答，不得输出 PASS。"
+    }
+   },
+   "coverage": {
+    "safe_vocabulary_hits": [],
+    "rule_cited_unit_hits": [
+     {
+      "anchor": "#广告文案明细/recvuMGgT9p2zx/命中原因",
+      "raw_bm25": 16.5038
+     },
+     {
+      "anchor": "#广告文案明细/recvuMGgT9pH6N/命中原因",
+      "raw_bm25": 16.5038
+     }
+    ],
+    "same_source_unit_hits": [],
+    "case_unit_hits": [],
+    "case_clause_pool": 239,
+    "rule_cited_anchor_pool": 959,
+    "rule_cited_resource_pool": 40,
+    "coverage_bm25_min": 16.0,
+    "covered_by": "rule",
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "covered": true
+   },
+   "elapsed_ms": 2066.6,
+   "perf": {
+    "p0_match_ms": 54.6,
+    "rule_layer_ms": 27.4,
+    "unit_layer_ms": 1786.3,
+    "assemble_ms": 198.4,
+    "content_type": "text",
+    "text_bytes": 90,
+    "threshold_s": 10
+   },
+   "risk_category": {
+    "with_dimension": 3,
+    "unmapped_or_pending": 0,
+    "policy": "kb/l7/registry/risk-category-policy.json"
+   }
+  },
+  "registry": {
+   "gate": {
+    "bm25_raw_min": 8.0,
+    "vector_cosine_min": 0.6,
+    "use_raw_scores_only": true,
+    "why_not_rrf": "RRF 分恒为 1/(60+k)，实测 Top1 恒在 0.016393，A 组与 B 组看起来一样高，没有区分度，不能当门限",
+    "why_single_threshold_not_enough": "实测 BM25 原始分在 A/B 两组有重叠（A 组最低 5.32 < B 组最高 10.02），所以门限只用于「够不够格当参考」，要成为「依据」还必须同时命中规则层",
+    "measured": {
+     "bm25_raw": {
+      "A_group_min": 5.32,
+      "A_group_median": 12.76,
+      "B_group_median": 6.44,
+      "B_group_max": 10.02,
+      "source": "kb/l6/selftest.json → raw_score_comparison"
+     },
+     "cosine": {
+      "A_group_min": 0.512,
+      "A_group_median": 0.669,
+      "B_group_median": 0.384,
+      "B_group_max": 0.569,
+      "source": "kb/l6/selftest.json → raw_score_comparison"
+     }
+    },
+    "threshold_reasoning": "BM25 门限取 8.0：落在 A 组最低(5.32)与 B 组最高(10.02)之间、贴近两组中位之间，偏保守；余弦门限取 0.60：实测它是唯一能把 B 组全部挡在外面的取值（B 组最高 0.569），代价是 A 组丢 2 条；即便如此门限仍单独不可靠，必须叠加「同时命中规则层」才算依据",
+    "below_threshold_label": "参考",
+    "above_threshold_without_rule_hit": "仍只能标参考，不得作为依据",
+    "coverage_bm25_min": 16.0,
+    "coverage_reasoning": "PASS 必须建立在「知识库认识这个主题」之上，覆盖信号二选一：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ coverage_bm25_min(=16.0)。16.0 = 依据门限的 2 倍：实测 A 组中位 12.76 / 最高 23.16，B 组最高 10.02，取 16 能把实测 B 组全部挡在外面。覆盖信号不成立 → 拒答，不得输出 PASS。"
+   },
+   "routing": {
+    "problems_1_2": "逐条输出（编号 + 类别-子类 + 位置 + 引文 + 原因 + 依据；BLOCK 另给建议）",
+    "problems_3_plus": "只输出分类汇总 + 报告链接；完整清单必须真的写到 kb/l7/reports/ 下并在结论里给路径",
+    "tail": {
+     "PASS": "转 sign-off 责任人",
+     "REVIEW": "建议转复核责任人",
+     "BLOCK": "请修改后重新提交"
+    }
+   },
+   "approvers": {
+    "_note": "不硬编码人名：组织变动后模板会失效。这里是角色位，上线前由内容治理负责人填入真实 @ 句柄；未填时输出保留角色名并标注「未配置」",
+    "configured": false,
+    "pass_signoff": {
+     "role": "sign-off 责任人",
+     "handle": null
+    },
+    "review_reviewers": {
+     "role": "复核责任人",
+     "handle": null
+    },
+    "block_owner": {
+     "role": "内容方修改责任人",
+     "handle": null
+    }
+   },
+   "no_hit_semantics": {
+    "bm25_only": "字面未匹配，不代表合规",
+    "vector_only": "语义未匹配，不代表合规",
+    "hybrid": "字面与语义均未匹配，但仍不代表合规"
+   }
+  },
+  "run_id": "20261012-115419",
+  "content": "Momcozy 吸奶器已通过 FDA 认证，100% 安全，能治好堵奶，全网最好用。",
+  "query_words": "Momcozy 吸奶器已通过 FDA 认证，100% 安全，能治好堵奶，全网最好用。",
+  "rendered": "【审查结论：BLOCK】共发现 3 处必须修改。\n\n· 功效宣称类问题：1 个\n· 绝对化与安全承诺类问题：1 个\n· 背书与资质类问题：1 个\n\n→ 查看完整问题清单与修改建议：（未写报告，见 --report-dir）\n\n请修改后重新提交。",
+  "report_path": null,
+  "report_memory": null
+ }
+}

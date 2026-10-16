@@ -1,0 +1,63 @@
+# l5-known-drift.yaml —— L5 自检器里**判据已过期**的两项（只做分类，不给豁免）
+#
+# 谁读它：kb/l7/scripts/l5_gate.py。
+#
+# 规则（与 l0-expected-diffs.yaml / l3-known-drift.yaml 同一套纪律）：
+#   * 实质判据（pattern_traceability / no_fabricated_words / version_discipline / offline）
+#     **必须 PASS**，FAIL 一律判红，本文件管不着。
+#   * 基线类判据（frozen_layers / l3_append_only）FAIL 时，必须逐项登记在这里，
+#     写清「为什么这是判据过期而不是数据坏了」+ 证据 + 谁去做什么；漏登记 = 判红。
+#   * 原始数一律照打（l5_gate.py 会把自检器输出原样带出来），不抹掉。
+
+meta:
+  file: kb/l7/registry/l5-known-drift.yaml
+  checker: kb/l7/scripts/l5_gate.py
+  created_at: "2026-09-30"
+  owner: 刘华丽
+  measured_at: "2026-09-30 09:55（自检器自报 checked_at）"
+  upstream_checker: kb/.work/l5_integrity.py
+  note: >
+    这两条不是「库坏了」，是**自检器的判据写在了一个已经过去的时点**上。
+    登记的用途是让日报能把它们分类出来，而不是每天报同一个假红。
+
+stale_criteria:
+  - item: frozen_layers
+    recorded_verdict: FAIL
+    what_it_checks: l0/l1/l2 的内容指纹与 mtime 上界必须等于「l5 首次写入（2026-09-23 13:22:33）」那一刻
+    why_stale: >
+      活库每天在跑：实测 l0 最后修改 2026-09-30 09:31:58、l1 09:43:09、l2 09:43:17。
+      一条「下游层冻结上游快照」的判据在日更库上**必然**FAIL —— 它想证明的是
+      「L5 没偷偷改上游」，而正确形式应该是「上游变更都有 L0/L1/L2 自己的 run_id 台账」，
+      不是「上游一个字节都不许动」。layers.yaml 的 notes 早就登记过这个道理
+      （冻结基线项在活库模式下变红是合法的），只是自检器自己没分类。
+    evidence: >
+      kb/l0 3607 文件 / 1.53 GB / tree_sha256=38369d9f4b62bf64 / mtime 2026-09-30 09:31:58；
+      kb/l1 3064 文件 / 1.14 GB / tree_sha256=42194061cfc94f3f / mtime 2026-09-30 09:43:09；
+      kb/l2 851 文件 / 71.5 MB / tree_sha256=dee44596d3238695 / mtime 2026-09-30 09:43:17。
+      三处变更都能在各自层的 run 台账里找到出处（l8/runs/20260930-09*.json、
+      l2/registry/l2.json → changes）。
+    owner_action: >
+      把 `l5_integrity.py` 的 frozen_layers 判据改成「上游变更必须可追溯到 run_id 台账」，
+      或给它加一个 `--accept-frozen-baseline <run_id>` 档（与 l6_integrity.py 同款），
+      然后把本项从本文件删掉。改之前，日报按本登记分类，不判红。
+
+  - item: l3_append_only
+    recorded_verdict: FAIL
+    what_it_checks: >
+      kb/l3/candidates/rules.jsonl 的第 509 行之后（追加段）的 rule_id 集合必须等于前 509 行
+      （基线段）的集合 —— 即「追加段必须覆盖基线」。
+    why_stale: >
+      该判据为「未收敛」状态写的。实测当前文件**正好 509 行**（2026-09-29 14:46 落盘）：
+      09-24 的收敛步把追加段收敛掉了，历史版本留在 kb/l3/history/rules-superseded-20260924-1230.jsonl。
+      于是自检器里 `new_rows = raw[509:] = []` → `new_ids = ∅ ≠ base_ids` → 必然 FAIL。
+      **不是**丢了 509 条以外的规则：现行 509 条 rule_id 唯一、前 509 行前缀哈希与
+      l5_prep.json 的 before_sha256 逐字节一致（自检器自己也报 prep_baseline_sha256 == prefix_sha256）。
+    evidence: >
+      wc -l kb/l3/candidates/rules.jsonl = 509（09-29 14:46）；
+      rule_id 唯一 509/509；
+      prefix_sha256 = 54691908da8e8b59f4ca5e3affd6a565bc760b614258052cc0646a17c70cab1d
+      == prep_baseline_sha256（同一份证据文件 .work/l5_integrity.json 里）；
+      l3/candidates/*.jsonl 的三形态共 1242 条，全部可在 l4/canonical 找到对应 rule_id（见 l4_gate.py）。
+    owner_action: >
+      把 l3_append_only 判据改成「基线段哈希不变 **且** 收敛段有 history 落档」，
+      或在收敛步之后重取基线；改完把本项从本文件删掉。

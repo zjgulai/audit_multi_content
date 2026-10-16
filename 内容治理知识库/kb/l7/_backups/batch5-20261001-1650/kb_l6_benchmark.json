@@ -1,0 +1,92 @@
+{
+ "generated_at": "2026-09-30 16:53:19",
+ "units": 4206,
+ "bm25": {
+  "load_ms": 25155.4,
+  "docs": 4206,
+  "terms": {
+   "zh": 102493,
+   "en": 31306
+  },
+  "avgdl": {
+   "zh": 408.658,
+   "en": 325.655
+  },
+  "implementation": "自实现倒排（无 jieba / 无 rank_bm25）",
+  "query_latency_ms": {
+   "queries": 20,
+   "runs_per_query": 5,
+   "samples": 100,
+   "min": 0.07,
+   "p50": 0.737,
+   "p95": 89.661,
+   "max": 202.627,
+   "mean": 13.875
+  },
+  "throughput_qps": 1356.8,
+  "postings_scanned": {
+   "mean": 777.2,
+   "max": 3728,
+   "detail": [
+    {
+     "query": "one size fits all",
+     "terms": 4,
+     "postings_scanned": 3728
+    },
+    {
+     "query": "more milk supply",
+     "terms": 3,
+     "postings_scanned": 2760
+    },
+    {
+     "query": "pain-free pumping",
+     "terms": 3,
+     "postings_scanned": 2028
+    },
+    {
+     "query": "hospital grade pump",
+     "terms": 3,
+     "postings_scanned": 1283
+    },
+    {
+     "query": "boosts milk supply",
+     "terms": 3,
+     "postings_scanned": 1252
+    }
+   ]
+  },
+  "by_term_count": {
+   "1_term_p50_ms": 0.566,
+   "3plus_terms_p50_ms": 0.869,
+   "n_single": 1,
+   "n_multi": 14
+  }
+ },
+ "vector": {
+  "queries": 8,
+  "runs_per_query": 3,
+  "p50_ms": 420.76,
+  "max_ms": 22592.174,
+  "min_ms": 39.506,
+  "cold_load_ms": 9328.1
+ },
+ "hybrid": {
+  "queries": 8,
+  "runs_per_query": 3,
+  "p50_ms": 526.114,
+  "max_ms": 1458.671,
+  "min_ms": 35.191
+ },
+ "compare_with_l5": {
+  "L5": {
+   "bytes": 1060659.2,
+   "lines": 3712,
+   "elapsed_ms": 631.605,
+   "source": "kb/l5/benchmark.json（L5 P0 匹配器：6 条 P0 规则 / 79 关键词 / 16 正则，逐行扫全文）"
+  },
+  "L5_per_KB_ms": 0.61,
+  "bm25_p50_ms": 0.737,
+  "bm25_equivalent_text_KB": 1.21,
+  "verdict": "BM25 单查询中位 0.737 ms；L5 扫 1MB 是 631.605 ms（约 857 倍）。自实现倒排不是瓶颈，本批不需要换实现或换库（jieba / rank_bm25 未安装，也未因此缺能力）。"
+ }
+}

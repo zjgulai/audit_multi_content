@@ -1,0 +1,834 @@
+{
+ "decision": {
+  "review_id": "rv-20261001-195012",
+  "content_id": "text-3d26bb745acf",
+  "content_version": "3d26bb745acf6466d2f071c68dea4a560d87c0815bd7bc6dd08e44dbafd0886b",
+  "agent_version": "local-core-0.1.0",
+  "rule_version": "unfrozen",
+  "knowledge_version": "unfrozen",
+  "decision": "BLOCK",
+  "confidence": 0.97,
+  "summary": "【审查结论：BLOCK】共发现 8 处需处理问题。\n· 功效宣称-催乳与通乳宣称：1 个\n· 功效宣称-智能与仿生宣称：2 个\n· 功效宣称-疼痛功效承诺：1 个\n· 绝对化与安全承诺-虚假安全承诺：1 个\n· 背书与资质-监管认证宣称：1 个\n· 背书与资质-医疗场景宣称：1 个\n· 背书与资质-等级与资质背书：1 个\n请修改后重新提交。",
+  "issue_count": 8,
+  "issue_summary_by_category": {
+   "功效宣称-催乳与通乳宣称": 1,
+   "功效宣称-智能与仿生宣称": 2,
+   "功效宣称-疼痛功效承诺": 1,
+   "绝对化与安全承诺-虚假安全承诺": 1,
+   "背书与资质-监管认证宣称": 1,
+   "背书与资质-医疗场景宣称": 1,
+   "背书与资质-等级与资质背书": 1
+  },
+  "risk_items": [
+   {
+    "risk_id": "r-37b49eadb72d7dc2",
+    "risk_type": "功效宣称-催乳与通乳宣称",
+    "priority_tier": "P0",
+    "status": "confirmed",
+    "action": "block",
+    "location": "全文",
+    "original_text": "H02:boost supply,more milk,triggers letdown /",
+    "reason": "P0 规则命中（BLOCK）：H02 催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫；M01 静音程度夸大（建议改为 low noise / quiet mode）",
+    "suggestion": "记录级改法：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用",
+    "rule_code": "H02",
+    "fact_or_inference": "事实",
+    "confidence": "高",
+    "evidence": {
+     "library": "措辞表达库",
+     "article_no": "W-1.18",
+     "anchor": "#广告文案明细/recvuJYdObWZ2t/命中片段",
+     "source_sha256": "351f2c9d403a1e1c6e014c051ab32f0f641b0b5db22862b0fd906fefda23d240",
+     "excerpt": "H02:boost supply,more milk,triggers letdown /"
+    },
+    "source": "kb-content-review",
+    "evidence_id": "《措辞表达库 v0》第 W-1.18 条 @ #广告文案明细/recvuJYdObWZ2t/命中片段 @ 351f2c9d403a",
+    "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.18",
+    "severity": "low",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "r-006445396c95aa10",
+    "risk_type": "功效宣称-智能与仿生宣称",
+    "priority_tier": "P0",
+    "status": "confirmed",
+    "action": "block",
+    "location": "全文",
+    "original_text": "\\bmimic(s|king)?\\b[^.]{0,30}\\bbaby\\b",
+    "reason": "P0 确定性命中（BLOCK）：「\\bmimic(s|king)?\\b[^.]{0,30}\\bbaby\\b」命中规则码 H09。H02 催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫；H07 疼痛功效承诺（pain-free/no pain/without pain/pain relief/less pain/缓解疼痛等；吸奶疼痛因人而异，只可讲 comfort/gentle 舒适与缓解胀满不适 discomfort）；H09 智能闭环/仿生虚假宣称（自动识别节奏、模拟/复制宝宝、饱腹反馈、降低奶量焦虑）；W1当前为用户主动调节+保存程序，非闭环生理识别【依据不可逐字回源：该说法为等价说法／正则命中，源侧无逐字原文；按 L5「P0 命中即 BLOCK」输出，出处为 P0 模式自身，需人工确认】",
+    "suggestion": "依据不可逐字回源，按硬闸门不给改法建议",
+    "rule_code": "H09",
+    "fact_or_inference": "事实",
+    "confidence": "中",
+    "evidence": {
+     "library": "措辞表达库",
+     "article_no": "W-1.1",
+     "anchor": "#广告文案明细/recvuJYdOb61lT/命中片段",
+     "source_sha256": "67875346a75bd2f81a40b387652d6824faefe083f61c025c5801034ab6d4074e",
+     "excerpt": "\\bmimic(s|king)?\\b[^.]{0,30}\\bbaby\\b"
+    },
+    "source": "kb-content-review",
+    "evidence_id": "《措辞表达库 v0》第 W-1.1 条 @ #广告文案明细/recvuJYdOb61lT/命中片段 @ 67875346a75b",
+    "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.1",
+    "severity": "low",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "r-7489e156a5d2c7b2",
+    "risk_type": "功效宣称-智能与仿生宣称",
+    "priority_tier": "P1",
+    "status": "confirmed",
+    "action": "block",
+    "location": "全文",
+    "original_text": "mimics baby, mimics nursing, copies your",
+    "reason": "逐字命中「mimics baby」：（来源未给判定理由）（p_level=P0 risk_level=高危 authority=inferred，来源表 品线内容边界规则库）",
+    "suggestion": "可改为（本规则豁免表达）：inspired by, inspired by natural nursing, 参考自然哺乳, 参考宝宝, 借鉴, 设计思路, 参考思路, 灵感",
+    "rule_code": "H09",
+    "fact_or_inference": "事实",
+    "confidence": "中",
+    "evidence": {
+     "library": "措辞表达库",
+     "article_no": "W-1.31",
+     "anchor": "#品线内容边界规则库/recvuNifmKBXoP/检测关键词",
+     "source_sha256": "a2aca575cf6a2ec78155d31cbabf252fc145844429b89b01923226a720d231aa",
+     "excerpt": "mimics baby, mimics nursing, copies your"
+    },
+    "source": "kb-content-review",
+    "evidence_id": "《措辞表达库 v0》第 W-1.31 条 @ #品线内容边界规则库/recvuNifmKBXoP/检测关键词 @ a2aca575cf6a",
+    "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.31",
+    "severity": "low",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "r-d7290a0ee59c58ef",
+    "risk_type": "功效宣称-疼痛功效承诺",
+    "priority_tier": "P0",
+    "status": "confirmed",
+    "action": "block",
+    "location": "全文",
+    "original_text": "H07:pain-free / H09:mimics baby,mimics baby",
+    "reason": "P0 规则命中（BLOCK）：M03 未标注来源的效果数据声明；H07 疼痛功效承诺（pain-free/no pain/without pain/pain relief/less pain/缓解疼痛等；吸奶疼痛因人而异，只可讲 comfort/gentle 舒适与缓解胀满不适 discomfort）",
+    "suggestion": "记录级改法：删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述",
+    "rule_code": "H07",
+    "fact_or_inference": "事实",
+    "confidence": "高",
+    "evidence": {
+     "library": "措辞表达库",
+     "article_no": "W-1.53",
+     "anchor": "#广告文案明细/recvuJYdOb61lT/命中片段",
+     "source_sha256": "67875346a75bd2f81a40b387652d6824faefe083f61c025c5801034ab6d4074e",
+     "excerpt": "H07:pain-free / H09:mimics baby,mimics baby"
+    },
+    "source": "kb-content-review",
+    "evidence_id": "《措辞表达库 v0》第 W-1.53 条 @ #广告文案明细/recvuJYdOb61lT/命中片段 @ 67875346a75b",
+    "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.53",
+    "severity": "low",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "r-7baf7ceb47b2e5bc",
+    "risk_type": "绝对化与安全承诺-虚假安全承诺",
+    "priority_tier": "P0",
+    "status": "confirmed",
+    "action": "block",
+    "location": "全文",
+    "original_text": "删除 safest/100% safe/zero risk/perfect 等虚假安全承诺，以及",
+    "reason": "P0 规则命中（BLOCK）：H05 虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按2026-09-09口径放开，海外广告允许，不再判险）",
+    "suggestion": "同源检查：既无本规则豁免表达，也无同源配对 → 不给建议",
+    "rule_code": "H05",
+    "fact_or_inference": "事实",
+    "confidence": "高",
+    "evidence": {
+     "library": "措辞表达库",
+     "article_no": "W-1.33",
+     "anchor": "#广告文案明细/recvuJYdOb1B8v/修改建议",
+     "source_sha256": "e7aabf7478753887ea85470fa114b4d0b22d74d21cb901b3a02e7672dff4f4c5",
+     "excerpt": "删除 safest/100% safe/zero risk/perfect 等虚假安全承诺，以及"
+    },
+    "source": "kb-content-review",
+    "evidence_id": "《措辞表达库 v0》第 W-1.33 条 @ #广告文案明细/recvuJYdOb1B8v/修改建议 @ e7aabf747875",
+    "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.33",
+    "severity": "low",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "r-15a607c4457c8b55",
+    "risk_type": "背书与资质-监管认证宣称",
+    "priority_tier": "P0",
+    "status": "confirmed",
+    "action": "block",
+    "location": "全文",
+    "original_text": "FDA approved, FDA certified, FDA 认证, FDA 批",
+    "reason": "P0 规则命中（BLOCK）：（来源未给判定理由）",
+    "suggestion": "可改为（本规则豁免表达）：FDA cleared, FDA-cleared, FDA registered, FDA 注册",
+    "rule_code": "H06",
+    "fact_or_inference": "事实",
+    "confidence": "高",
+    "evidence": {
+     "library": "措辞表达库",
+     "article_no": "W-1.8",
+     "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/检测关键词",
+     "source_sha256": "2e8bb36d6edf7c4971132b69ff6d39819a5a0e0e8043e9001e096be1bc2a02d6",
+     "excerpt": "FDA approved, FDA certified, FDA 认证, FDA 批"
+    },
+    "source": "kb-content-review",
+    "evidence_id": "《措辞表达库 v0》第 W-1.8 条 @ #品线内容边界规则库/recvuJP1LVW6E0/检测关键词 @ 2e8bb36d6edf",
+    "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.8",
+    "severity": "low",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "r-85348bba00a2b5a7",
+    "risk_type": "背书与资质-医疗场景宣称",
+    "priority_tier": "P1",
+    "status": "confirmed",
+    "action": "review",
+    "location": "全文",
+    "original_text": "M05:hospital grade,hospital-grade / M07:le",
+    "reason": "逐字命中「hospital」：M03 未标注来源的效果数据声明；M05 等级背书用语（需核实是否有对应认证）；M07 效率/漏奶/奶流/移除量/短时排乳类claim需W1自身对照数据（当前仅内部测试或外部研究，28.2%/10%/70%待补样本与统计），或限定为放松叙事；未补证据前需限定或删除；U01 含泌乳顾问/认证头衔，需核实是否真实合作；U03 涉及医院/NICU 场景，需核实临床适用性声明（p_level=P1 risk_level=审慎·黄；高危·红 authority=expert，来源表 广告文案明细）",
+    "suggestion": "",
+    "rule_code": "U03",
+    "fact_or_inference": "事实",
+    "confidence": "高",
+    "evidence": {
+     "library": "措辞表达库",
+     "article_no": "W-1.35",
+     "anchor": "#广告文案明细/recvuJYdObBgjg/命中片段",
+     "source_sha256": "1ca01a6690922a697e9d428439674863df67709688a6b32fe846705603f5e011",
+     "excerpt": "M05:hospital grade,hospital-grade / M07:le"
+    },
+    "source": "kb-content-review",
+    "evidence_id": "《措辞表达库 v0》第 W-1.35 条 @ #广告文案明细/recvuJYdObBgjg/命中片段 @ 1ca01a669092",
+    "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.35",
+    "severity": "low",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "r-21786ac5aff9be34",
+    "risk_type": "背书与资质-等级与资质背书",
+    "priority_tier": "P1",
+    "status": "confirmed",
+    "action": "review",
+    "location": "全文",
+    "original_text": "M05:hospital grade,hospital-grade / M07:leak / U",
+    "reason": "逐字命中「hospital grade」：M03 未标注来源的效果数据声明；M05 等级背书用语（需核实是否有对应认证）；M07 效率/漏奶/奶流/移除量/短时排乳类claim需W1自身对照数据（当前仅内部测试或外部研究，28.2%/10%/70%待补样本与统计），或限定为放松叙事；未补证据前需限定或删除；U01 含泌乳顾问/认证头衔，需核实是否真实合作；U03 涉及医院/NICU 场景，需核实临床适用性声明（p_level=P1 risk_level=审慎·黄；高危·红 authority=expert，来源表 广告文案明细）",
+    "suggestion": "",
+    "rule_code": "M05",
+    "fact_or_inference": "事实",
+    "confidence": "高",
+    "evidence": {
+     "library": "措辞表达库",
+     "article_no": "W-1.11",
+     "anchor": "#广告文案明细/recvuJYdObBgjg/命中片段",
+     "source_sha256": "1ca01a6690922a697e9d428439674863df67709688a6b32fe846705603f5e011",
+     "excerpt": "M05:hospital grade,hospital-grade / M07:leak / U"
+    },
+    "source": "kb-content-review",
+    "evidence_id": "《措辞表达库 v0》第 W-1.11 条 @ #广告文案明细/recvuJYdObBgjg/命中片段 @ 1ca01a669092",
+    "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.11",
+    "severity": "low",
+    "evidence_complete": true
+   }
+  ],
+  "report_url": null,
+  "next_action": "修改内容后以新版本重新提交",
+  "next_owners": [
+   "内容提交方"
+  ],
+  "sla": {
+   "priority": "P0",
+   "target": "immediate",
+   "escalate_to": [
+    "项目统筹",
+    "内容提交方"
+   ],
+   "timezone": "America/Los_Angeles",
+   "clock_rules": [
+    "Start the clock when the required input manifest is complete.",
+    "Pause the clock while waiting for missing submitter material.",
+    "Record timezone and business-calendar version with each SLA event.",
+    "SLA breach never changes the decision automatically."
+   ]
+  },
+  "version_gate": {},
+  "coverage": {
+   "text": "complete",
+   "image": "not_applicable",
+   "audio": "not_applicable",
+   "video": "not_applicable",
+   "ocr": "not_applicable",
+   "asr": "not_applicable",
+   "keyframes": "not_applicable",
+   "note": "本批只送审文字；其余模态不适用（不是缺口）"
+  },
+  "decision_trace": {
+   "reasons": [
+    "confirmed_p0"
+   ],
+   "confidence_status": "heuristic_not_calibrated",
+   "evaluated_at": "2026-10-01T11:50:12.848290+00:00"
+  }
+ },
+ "evidence_meta": {
+  "run_id": "20261001-195011",
+  "findings": 8,
+  "state": "BLOCK",
+  "report_path": null,
+  "trace": {
+   "p0": {
+    "engine": "kb/l5/matcher.py",
+    "exit_code": 1,
+    "total_elapsed_ms": 66.7,
+    "engine_elapsed_ms": 9.046,
+    "hits": [
+     {
+      "pattern_id": "p-755f9ff377c3052c",
+      "rule_id": "r-37b49eadb72d7dc2",
+      "rule_code": "H02",
+      "level": "P0",
+      "match_note": "BLOCK",
+      "matched": [
+       {
+        "kind": "keyword",
+        "pattern": "boost supply",
+        "line": 1,
+        "span": [
+         98,
+         110
+        ],
+        "line_text": "fda approved breast pump. hospital grade. 100% safe and pain-free. mimics baby natural nursing to boost supply."
+       }
+      ],
+      "matched_count": 1,
+      "lines": [
+       1
+      ],
+      "anchor": "#广告文案明细/recvuJYdOb1Rm1/命中片段",
+      "source_sha256": "c77f576dcc392cb3e763e6462d0259e50fb039f924a4af8e100321197e5be577",
+      "suggested_replacement": "「easier letdown」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+限定语,如 relaxation supports your natural let-down, which may help your flow(因为放松,自然奶阵可能更顺畅),只描述自然生理过程、不承诺产品带来结果;faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 静音表述改客观参数(as low as 48 dB),避免 whisper/silent/ultra-quiet 绝对化;「increase milk supply,more milk」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+限定语,如 relaxation supports your natural let-down, which may help your flow(因为放松,自然奶阵可能更顺畅),只描述自然生理过程、不承诺产品带来结果;faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 奶流/移除量/排空效率/漏奶/短时排乳类claim需W1自身对照数据(样本、对照、统计口径齐全),或改为放松叙事+限定语(may help/natural);内部测试数值(28.2%/10%/70%)补齐前不得公开传播;「plus de lait」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+限定语,如 relaxation supports your natural let-down, which may help your flow(因为放松,自然奶阵可能更顺畅),只描述自然生理过程、不承诺产品带来结果;faster let-down/提高排空效率在拿到W1自身对照数据前禁用;「augmente la production de lait」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+限定语,如 relaxation supports your natural let-down, which may help your flow(因为放松,自然奶阵可能更顺畅),只描述自然生理过程、不承诺产品带来结果;faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺(含 sans douleur/schmerzfrei/sin dolor),只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述;「increase milk supply」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+限定语,如 relaxation supports your natural let-down, which may help your flow(因为放松,自然奶阵可能更顺畅),只描述自然生理过程、不承诺产品带来结果;faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺(含 sans douleur/schmerzfrei/sin dolor),只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述 ▸ 删除自动识别节奏/模拟复制宝宝/饱腹反馈/降低奶量焦虑等智能闭环与仿生宣称;仿生表达只允许 inspired by natural nursing(参考自然哺乳节奏的设计思路);「easier letdown」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+限定语,如 relaxation supports your natural let-down, which may help your flow(因为放松,自然奶阵可能更顺畅),只描述自然生理过程、不承诺产品带来结果;faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 静音表述改客观参数(as low as 48 dB),避免 whisper/silent/ultra-quiet 绝对化;「improve pumping efficiency」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+限定语,如 relaxation supports your natural let-down, which may help your flow(因为放松,自然奶阵可能更顺畅),只描述自然生理过程、不承诺产品带来结果;faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开) ▸ 奶流/移除量/排空效率/漏奶/短时排乳类claim需W1自身对照数据(样本、对照、统计口径齐全),或改为放松叙事+限定语(may help/natural);内部测试数值(28.2%/10%/70%)补齐前不得公开传播;「improve pumping efficiency」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+限定语,如 relaxation supports your natural let-down, which may help your flow(因为放松,自然奶阵可能更顺畅),只描述自然生理过程、不承诺产品带来结果;faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开) ▸ 奶流/移除量/排空效率/漏奶/短时排乳类claim需W1自身对照数据(样本、对照、统计口径齐全),或改为放松叙事+限定语(may help/natural);内部测试数值(28.2%/10%/70%)补齐前不得公开传播(另 26 组同码修订建议见证据单元)",
+      "whitelist_suppressed": 0
+     },
+     {
+      "pattern_id": "p-08487282e2d400fe",
+      "rule_id": "r-7baf7ceb47b2e5bc",
+      "rule_code": "H05",
+      "level": "P0",
+      "match_note": "BLOCK",
+      "matched": [
+       {
+        "kind": "keyword",
+        "pattern": "100% safe",
+        "line": 1,
+        "span": [
+         42,
+         51
+        ],
+        "line_text": "fda approved breast pump. hospital grade. 100% safe and pain-free. mimics baby natural nursing to boost supply."
+       },
+       {
+        "kind": "regex",
+        "pattern": "\\b100\\s*%\\s*(safe|safety)\\b",
+        "line": 1,
+        "span": [
+         42,
+         51
+        ],
+        "line_text": "fda approved breast pump. hospital grade. 100% safe and pain-free. mimics baby natural nursing to boost supply."
+       }
+      ],
+      "matched_count": 2,
+      "lines": [
+       1
+      ],
+      "anchor": "#广告文案明细/recvuJYdOb1B8v/命中片段",
+      "source_sha256": "e7aabf7478753887ea85470fa114b4d0b22d74d21cb901b3a02e7672dff4f4c5",
+      "suggested_replacement": "「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开);「perfect pump」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+限定语,如 relaxation supports your natural let-down, which may help your flow(因为放松,自然奶阵可能更顺畅),只描述自然生理过程、不承诺产品带来结果;faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开) ▸ 奶流/移除量/排空效率/漏奶/短时排乳类claim需W1自身对照数据(样本、对照、统计口径齐全),或改为放松叙事+限定语(may help/natural);内部测试数值(28.2%/10%/70%)补齐前不得公开传播;「perfect pump」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+限定语,如 relaxation supports your natural let-down, which may help your flow(因为放松,自然奶阵可能更顺畅),只描述自然生理过程、不承诺产品带来结果;faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开) ▸ 奶流/移除量/排空效率/漏奶/短时排乳类claim需W1自身对照数据(样本、对照、统计口径齐全),或改为放松叙事+限定语(may help/natural);内部测试数值(28.2%/10%/70%)补齐前不得公开传播;「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开);「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开) ▸ hospital/NICU 场景表述需事实依据,否则删除;「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开);「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开);「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开) ▸ 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺(含 sans douleur/schmerzfrei/sin dolor),只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述(另 4 组同码修订建议见证据单元)",
+      "whitelist_suppressed": 0
+     },
+     {
+      "pattern_id": "p-485c67cc9af960bf",
+      "rule_id": "r-15a607c4457c8b55",
+      "rule_code": "H06",
+      "level": "P0",
+      "match_note": "BLOCK",
+      "matched": [
+       {
+        "kind": "keyword",
+        "pattern": "FDA approved",
+        "line": 1,
+        "span": [
+         0,
+         12
+        ],
+        "line_text": "fda approved breast pump. hospital grade. 100% safe and pain-free. mimics baby natural nursing to boost supply."
+       },
+       {
+        "kind": "regex",
+        "pattern": "\\bFDA\\s+(approved|certified)\\b",
+        "line": 1,
+        "span": [
+         0,
+         12
+        ],
+        "line_text": "fda approved breast pump. hospital grade. 100% safe and pain-free. mimics baby natural nursing to boost supply."
+       },
+       {
+        "kind": "regex",
+        "pattern": "\\bFDA[\\s-]*(approved|certified)\\b",
+        "line": 1,
+        "span": [
+         0,
+         12
+        ],
+        "line_text": "fda approved breast pump. hospital grade. 100% safe and pain-free. mimics baby natural nursing to boost supply."
+       }
+      ],
+      "matched_count": 3,
+      "lines": [
+       1
+      ],
+      "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/边界内容",
+      "source_sha256": "2e8bb36d6edf7c4971132b69ff6d39819a5a0e0e8043e9001e096be1bc2a02d6",
+      "suggested_replacement": "",
+      "whitelist_suppressed": 0
+     },
+     {
+      "pattern_id": "p-964b3c2e22b48ade",
+      "rule_id": "r-d7290a0ee59c58ef",
+      "rule_code": "H07",
+      "level": "P0",
+      "match_note": "BLOCK",
+      "matched": [
+       {
+        "kind": "keyword",
+        "pattern": "pain-free",
+        "line": 1,
+        "span": [
+         56,
+         65
+        ],
+        "line_text": "fda approved breast pump. hospital grade. 100% safe and pain-free. mimics baby natural nursing to boost supply."
+       },
+       {
+        "kind": "regex",
+        "pattern": "\\bpain[\\s-]*(free|less)\\b",
+        "line": 1,
+        "span": [
+         56,
+         65
+        ],
+        "line_text": "fda approved breast pump. hospital grade. 100% safe and pain-free. mimics baby natural nursing to boost supply."
+       }
+      ],
+      "matched_count": 2,
+      "lines": [
+       1
+      ],
+      "anchor": "#广告文案明细/recvuJYdOb1u94/命中片段",
+      "source_sha256": "1e3bd4c1ca097ee1b7f0011014ff91c1012b258c1e691525e0df454790b4c011",
+      "suggested_replacement": "「schmerzfrei」→ 删除/替换为:效果百分比/销量/评分声称需附测试来源与口径,否则删除(折扣百分比不在此列) ▸ 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺(含 sans douleur/schmerzfrei/sin dolor),只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述;「sans douleur」→ 删除/替换为:删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺(含 sans douleur/schmerzfrei/sin dolor),只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述;「schmerzfrei」→ 删除/替换为:效果百分比/销量/评分声称需附测试来源与口径,否则删除(折扣百分比不在此列) ▸ 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺(含 sans douleur/schmerzfrei/sin dolor),只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述;「indolore」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+限定语,如 relaxation supports your natural let-down, which may help your flow(因为放松,自然奶阵可能更顺畅),只描述自然生理过程、不承诺产品带来结果;faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺(含 sans douleur/schmerzfrei/sin dolor),只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述;「pain-free」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+限定语,如 relaxation supports your natural let-down, which may help your flow(因为放松,自然奶阵可能更顺畅),只描述自然生理过程、不承诺产品带来结果;faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺(含 sans douleur/schmerzfrei/sin dolor),只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述 ▸ 删除自动识别节奏/模拟复制宝宝/饱腹反馈/降低奶量焦虑等智能闭环与仿生宣称;仿生表达只允许 inspired by natural nursing(参考自然哺乳节奏的设计思路);「schmerzfrei」→ 删除/替换为:效果百分比/销量/评分声称需附测试来源与口径,否则删除(折扣百分比不在此列) ▸ 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺(含 sans douleur/schmerzfrei/sin dolor),只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述;「sans douleur」→ 删除/替换为:删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺(含 sans douleur/schmerzfrei/sin dolor),只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述 ▸ 静音表述改客观参数(as low as 48 dB),避免 whisper/silent/ultra-quiet 绝对化;「schmerzfrei」→ 删除/替换为:删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺(含 sans douleur/schmerzfrei/sin dolor),只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述(另 43 组同码修订建议见证据单元)",
+      "whitelist_suppressed": 0
+     },
+     {
+      "pattern_id": "p-d31dfbc932cb84ac",
+      "rule_id": "r-006445396c95aa10",
+      "rule_code": "H09",
+      "level": "P0",
+      "match_note": "BLOCK",
+      "matched": [
+       {
+        "kind": "regex",
+        "pattern": "\\bmimic(s|king)?\\b[^.]{0,30}\\bbaby\\b",
+        "line": 1,
+        "span": [
+         67,
+         78
+        ],
+        "line_text": "fda approved breast pump. hospital grade. 100% safe and pain-free. mimics baby natural nursing to boost supply."
+       }
+      ],
+      "matched_count": 1,
+      "lines": [
+       1
+      ],
+      "anchor": "#广告文案明细/recvuJYdOb61lT/命中片段",
+      "source_sha256": "67875346a75bd2f81a40b387652d6824faefe083f61c025c5801034ab6d4074e",
+      "suggested_replacement": "「mimics baby,mimics baby’s natural nursing」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+限定语,如 relaxation supports your natural let-down, which may help your flow(因为放松,自然奶阵可能更顺畅),只描述自然生理过程、不承诺产品带来结果;faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺(含 sans douleur/schmerzfrei/sin dolor),只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述 ▸ 删除自动识别节奏/模拟复制宝宝/饱腹反馈/降低奶量焦虑等智能闭环与仿生宣称;仿生表达只允许 inspired by natural nursing(参考自然哺乳节奏的设计思路);「mimics baby」→ 删除/替换为:删除自动识别节奏/模拟复制宝宝/饱腹反馈/降低奶量焦虑等智能闭环与仿生宣称;仿生表达只允许 inspired by natural nursing(参考自然哺乳节奏的设计思路);「mimics baby」→ 删除/替换为:删除自动识别节奏/模拟复制宝宝/饱腹反馈/降低奶量焦虑等智能闭环与仿生宣称;仿生表达只允许 inspired by natural nursing(参考自然哺乳节奏的设计思路)",
+      "whitelist_suppressed": 0
+     }
+    ]
+   },
+   "rules": {
+    "engine": "kb/l3/candidates/rules.jsonl",
+    "kb_type_filter": null,
+    "rules_scanned": 509,
+    "hits": [
+     {
+      "rule_id": "r-37b49eadb72d7dc2",
+      "article_no": "W-1.18",
+      "rule_code": "H02",
+      "p_level": "P0",
+      "risk_level": "高危·红",
+      "authority": "expert",
+      "kb_type": "wording",
+      "authority_source_table": "广告文案明细",
+      "matched_fragments": [
+       "boost supply"
+      ],
+      "anchor": "#广告文案明细/recvuJYdOb1Rm1/命中片段",
+      "source_sha256": "c77f576dcc392cb3e763e6462d0259e50fb039f924a4af8e100321197e5be577",
+      "rule_text": "规则码 H02：命中「augmente la production de lait；boost supply,more milk,triggers letdown；easier let-down；easier letdown；faster let-down,support faster let-down；improve pumping efficiency；increase milk supply；increase milk supply,more milk」判定为违规；处理：「easier letdown」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 静音表述改客观参数（as low as 48 dB），避免 whisper/silent/ultra-quiet 绝对化；「increase milk suppl；依据：H02 催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫；M01 静音程度夸",
+      "suggested_replacement": "「easier letdown」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 静音表述改客观参数（as low as 48 dB），避免 whisper/silent/ultra-quiet 绝对化；「increase milk supply,more milk」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 奶流/移除量/排空效率/漏奶/短时排乳类claim需W1自身对照数据（样本、对照、统计口径齐全），或改为放松叙事+限定语（may help/natural）；内部测试数值（28.2%/10%/70%）补齐前不得公开传播；「plus de lait」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用；「augmente la production de lait」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述；「increase milk supply」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述 ▸ 删除自动识别节奏/模拟复制宝宝/饱腹反馈/降低奶量焦虑等智能闭环与仿生宣称；仿生表达只允许 inspired by natural nursing（参考自然哺乳节奏的设计思路）；「easier letdown」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 静音表述改客观参数（as low as 48 dB），避免 whisper/silent/ultra-quiet 绝对化；「improve pumping efficiency」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 safest/100% safe/zero risk/perfect 等虚假安全承诺，以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺（best/#1/No.1 排名最高级已放开） ▸ 奶流/移除量/排空效率/漏奶/短时排乳类claim需W1自身对照数据（样本、对照、统计口径齐全），或改为放松叙事+限定语（may help/natural）；内部测试数值（28.2%/10%/70%）补齐前不得公开传播；「improve pumping efficiency」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 safest/100% safe/zero risk/perfect 等虚假安全承诺，以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺（best/#1/No.1 排名最高级已放开） ▸ 奶流/移除量/排空效率/漏奶/短时排乳类claim需W1自身对照数据（样本、对照、统计口径齐全），或改为放松叙事+限定语（may help/natural）；内部测试数值（28.2%/10%/70%）补齐前不得公开传播（另 26 组同码修订建议见证据单元）"
+     },
+     {
+      "rule_id": "r-d7290a0ee59c58ef",
+      "article_no": "W-1.53",
+      "rule_code": "H07",
+      "p_level": "P0",
+      "risk_level": "高危·红",
+      "authority": "expert",
+      "kb_type": "wording",
+      "authority_source_table": "广告文案明细",
+      "matched_fragments": [
+       "pain-free"
+      ],
+      "anchor": "#广告文案明细/recvuJYdOb1u94/命中片段",
+      "source_sha256": "1e3bd4c1ca097ee1b7f0011014ff91c1012b258c1e691525e0df454790b4c011",
+      "rule_text": "规则码 H07：命中「indolore；indolore,sans douleur；no pain,painless；pain-free；painlessly；sans douleur；say goodbye to cold, painful；schmerzfrei」判定为违规；处理：「schmerzfrei」→ 删除/替换为：效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述；「sans douleur」→ 删除/替换为：删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛；依据：M03 未标注来源的效果数据声明；H07 疼痛功效承诺（pain-free/no pain/without pain/pain relief/less pain/缓解疼痛等；吸奶疼痛因人而异，只可讲 comfort/gentle 舒适与缓解",
+      "suggested_replacement": "「schmerzfrei」→ 删除/替换为：效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述；「sans douleur」→ 删除/替换为：删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述；「schmerzfrei」→ 删除/替换为：效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述；「indolore」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述；「pain-free」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述 ▸ 删除自动识别节奏/模拟复制宝宝/饱腹反馈/降低奶量焦虑等智能闭环与仿生宣称；仿生表达只允许 inspired by natural nursing（参考自然哺乳节奏的设计思路）；「schmerzfrei」→ 删除/替换为：效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述；「sans douleur」→ 删除/替换为：删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述 ▸ 静音表述改客观参数（as low as 48 dB），避免 whisper/silent/ultra-quiet 绝对化；「schmerzfrei」→ 删除/替换为：删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述（另 43 组同码修订建议见证据单元）"
+     },
+     {
+      "rule_id": "r-006445396c95aa10",
+      "article_no": "W-1.1",
+      "rule_code": "H09",
+      "p_level": "P0",
+      "risk_level": "高危·红",
+      "authority": "expert",
+      "kb_type": "wording",
+      "authority_source_table": "广告文案明细",
+      "matched_fragments": [
+       "mimics baby",
+       "mimics baby"
+      ],
+      "anchor": "#广告文案明细/recvuJYdOb61lT/命中片段",
+      "source_sha256": "67875346a75bd2f81a40b387652d6824faefe083f61c025c5801034ab6d4074e",
+      "rule_text": "规则码 H09：命中「mimics baby；mimics baby,mimics baby’s natural nursing」判定为违规；处理：「mimics baby,mimics baby’s natural nursing」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 pain-free/no pain/without pain/pain relief/less pai；依据：H02 催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫；H07 疼痛功效承",
+      "suggested_replacement": "「mimics baby,mimics baby’s natural nursing」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述 ▸ 删除自动识别节奏/模拟复制宝宝/饱腹反馈/降低奶量焦虑等智能闭环与仿生宣称；仿生表达只允许 inspired by natural nursing（参考自然哺乳节奏的设计思路）；「mimics baby」→ 删除/替换为：删除自动识别节奏/模拟复制宝宝/饱腹反馈/降低奶量焦虑等智能闭环与仿生宣称；仿生表达只允许 inspired by natural nursing（参考自然哺乳节奏的设计思路）；「mimics baby」→ 删除/替换为：删除自动识别节奏/模拟复制宝宝/饱腹反馈/降低奶量焦虑等智能闭环与仿生宣称；仿生表达只允许 inspired by natural nursing（参考自然哺乳节奏的设计思路）"
+     },
+     {
+      "rule_id": "r-21786ac5aff9be34",
+      "article_no": "W-1.11",
+      "rule_code": "M05",
+      "p_level": "P1",
+      "risk_level": "审慎·黄；高危·红",
+      "authority": "expert",
+      "kb_type": "wording",
+      "authority_source_table": "广告文案明细",
+      "matched_fragments": [
+       "hospital grade",
+       "hospital grade"
+      ],
+      "anchor": "#广告文案明细/recvuJYdObBgjg/命中片段",
+      "source_sha256": "1ca01a6690922a697e9d428439674863df67709688a6b32fe846705603f5e011",
+      "rule_text": "规则码 M05：命中「hospital grade；hospital grade,hospital-grade；hospital-grade；qualité hospitalière」判定为违规；处理：「hospital grade,hospital-grade」→ 删除/替换为：效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ hospital/medical grade 需认证依据，否则删除 ▸ 奶流/移除量/排空效率/漏奶/短时排乳类claim需W1自身对照数据（样本、对照、统计口径齐全），或改为放松叙事+限定语（may help/natural）；内部测试数值（28.2%/10%/70%）补齐前不得公开传播 ▸ 核验 IBCLC/专家身份、参与方式、程序设计依据与 COI 披露后再保留（含 expert-tuned/专家调校/专家程序） ▸ hospi；依据：M03 未标注来源的效果数据声明；M05 等级背书用语（需核实是否有对应认证）；M07 效率/漏奶/奶流/移除量/短时排乳类claim需W1自身对照数据（当前仅内部测试或外部研究，28.2%/10%/70%待补样本与统计），或限定为放松叙事",
+      "suggested_replacement": "「hospital grade,hospital-grade」→ 删除/替换为：效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ hospital/medical grade 需认证依据，否则删除 ▸ 奶流/移除量/排空效率/漏奶/短时排乳类claim需W1自身对照数据（样本、对照、统计口径齐全），或改为放松叙事+限定语（may help/natural）；内部测试数值（28.2%/10%/70%）补齐前不得公开传播 ▸ 核验 IBCLC/专家身份、参与方式、程序设计依据与 COI 披露后再保留（含 expert-tuned/专家调校/专家程序） ▸ hospital/NICU 场景表述需事实依据，否则删除；「hospital-grade」→ 删除/替换为：hospital/NICU 场景表述需事实依据，否则删除 ▸ hospital/medical grade 需认证依据，否则删除；「hospital-grade」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ hospital/NICU 场景表述需事实依据，否则删除 ▸ hospital/medical grade 需认证依据，否则删除 ▸ 吸力表述改客观参数（up to -300 mmHg、15 adjustable levels），删除 maximum/strongest；「qualité hospitalière」→ 删除/替换为：静音表述改客观参数（as low as 48 dB），避免 whisper/silent/ultra-quiet 绝对化 ▸ hospital/medical grade 需认证依据，否则删除 ▸ hospital/NICU 场景表述需事实依据，否则删除；「hospital-grade」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ hospital/NICU 场景表述需事实依据，否则删除 ▸ hospital/medical grade 需认证依据，否则删除；「hospital-grade」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ 静音表述改客观参数（as low as 48 dB），避免 whisper/silent/ultra-quiet 绝对化 ▸ hospital/NICU 场景表述需事实依据，否则删除 ▸ 吸力表述改客观参数（up to -300 mmHg、15 adjustable levels），删除 maximum/strongest ▸ hospital/medical grade 需认证依据，否则删除；「hospital-grade」→ 删除/替换为：hospital/NICU 场景表述需事实依据，否则删除 ▸ hospital/medical grade 需认证依据，否则删除；「hospital grade」→ 删除/替换为：hospital/medical grade 需认证依据，否则删除 ▸ 奶流/移除量/排空效率/漏奶/短时排乳类claim需W1自身对照数据（样本、对照、统计口径齐全），或改为放松叙事+限定语（may help/natural）；内部测试数值（28.2%/10%/70%）补齐前不得公开传播 ▸ hospital/NICU 场景表述需事实依据，否则删除（另 7 组同码修订建议见证据单元）"
+     },
+     {
+      "rule_id": "r-85348bba00a2b5a7",
+      "article_no": "W-1.35",
+      "rule_code": "U03",
+      "p_level": "P1",
+      "risk_level": "审慎·黄；高危·红",
+      "authority": "expert",
+      "kb_type": "wording",
+      "authority_source_table": "广告文案明细",
+      "matched_fragments": [
+       "hospital"
+      ],
+      "anchor": "#广告文案明细/recvuJYdObBgjg/命中片段",
+      "source_sha256": "1ca01a6690922a697e9d428439674863df67709688a6b32fe846705603f5e011",
+      "rule_text": "规则码 U03：命中「hospital；krankenhaus」判定为违规；处理：「hospital」→ 删除/替换为：效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ hospital/medical grade 需认证依据，否则删除 ▸ 奶流/移除量/排空效率/漏奶/短时排乳类claim需W1自身对照数据（样本、对照、统计口径齐全），或改为放松叙事+限定语（may help/natural）；内部测试数值（28.2%/10%/70%）补齐前不得公开传播 ▸ 核验 IBCLC/专家身份、参与方式、程序设计依据与 COI 披露后再保留（含 expert-tuned/专家调校/专家程序） ▸ hospital/NICU 场景表述需事实依据，否则；依据：M03 未标注来源的效果数据声明；M05 等级背书用语（需核实是否有对应认证）；M07 效率/漏奶/奶流/移除量/短时排乳类claim需W1自身对照数据（当前仅内部测试或外部研究，28.2%/10%/70%待补样本与统计），或限定为放松叙事",
+      "suggested_replacement": "「hospital」→ 删除/替换为：效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ hospital/medical grade 需认证依据，否则删除 ▸ 奶流/移除量/排空效率/漏奶/短时排乳类claim需W1自身对照数据（样本、对照、统计口径齐全），或改为放松叙事+限定语（may help/natural）；内部测试数值（28.2%/10%/70%）补齐前不得公开传播 ▸ 核验 IBCLC/专家身份、参与方式、程序设计依据与 COI 披露后再保留（含 expert-tuned/专家调校/专家程序） ▸ hospital/NICU 场景表述需事实依据，否则删除；「hospital」→ 删除/替换为：hospital/NICU 场景表述需事实依据，否则删除 ▸ hospital/medical grade 需认证依据，否则删除；「hospital」→ 删除/替换为：删除 safest/100% safe/zero risk/perfect 等虚假安全承诺，以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺（best/#1/No.1 排名最高级已放开） ▸ hospital/NICU 场景表述需事实依据，否则删除；「hospital」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ hospital/NICU 场景表述需事实依据，否则删除 ▸ hospital/medical grade 需认证依据，否则删除 ▸ 吸力表述改客观参数（up to -300 mmHg、15 adjustable levels），删除 maximum/strongest；「hospital」→ 删除/替换为：静音表述改客观参数（as low as 48 dB），避免 whisper/silent/ultra-quiet 绝对化 ▸ hospital/medical grade 需认证依据，否则删除 ▸ hospital/NICU 场景表述需事实依据，否则删除；「hospital」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ hospital/NICU 场景表述需事实依据，否则删除 ▸ hospital/medical grade 需认证依据，否则删除；「krankenhaus」→ 删除/替换为：删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述 ▸ hospital/NICU 场景表述需事实依据，否则删除；「hospital」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ 静音表述改客观参数（as low as 48 dB），避免 whisper/silent/ultra-quiet 绝对化 ▸ hospital/NICU 场景表述需事实依据，否则删除 ▸ 吸力表述改客观参数（up to -300 mmHg、15 adjustable levels），删除 maximum/strongest ▸ hospital/medical grade 需认证依据，否则删除（另 9 组同码修订建议见证据单元）"
+     },
+     {
+      "rule_id": "r-106e4c5b6475d0e3",
+      "article_no": "W-1.6",
+      "rule_code": "H07",
+      "p_level": "P0",
+      "risk_level": "高危",
+      "authority": "inferred",
+      "kb_type": "wording",
+      "authority_source_table": "品线内容边界规则库",
+      "matched_fragments": [
+       "pain-free"
+      ],
+      "anchor": "#品线内容边界规则库/recvuJP1LV8KLr/边界内容",
+      "source_sha256": "49c1781fadff4539d4b79ac217916465065ff76085807af92b12786c36237eca",
+      "rule_text": "边界：疼痛功效承诺（pain-free/no pain/without pain/pain relief/less pain/缓解疼痛等；吸奶疼痛因人而异，只可讲 comfort/gentle 舒适与缓解胀满不适 discomfort）；触发词：eliminates pain, pain-free, no pain ever, completely painless, 100% pain, 完全不痛, 零疼痛, 无痛, 无痛吸奶, painlessly, painless, pain relief, relieve pain, relieves pain, relieved pain, relief from pain, stop the pain, stops pain, stop pain, kill pain, ends pain, end pain, less pain, reduce pain, reduces pain, reduced pain, pain solution, solve pain, pain gone, 缓解疼痛, 解决疼痛, 消除疼痛, 减轻疼痛, 告别疼痛, guaranteed no pain, guaranteed painless, never hurts, never painful, won't hurt you, it won't hurt, 一定不疼, 绝对不疼, 绝不疼痛, 完全不疼, 一点都不疼, 一点不疼；豁免：comfort, comfortable, gentle, gentler, gently, discomfort, reduced discomfort, reduce discomfort, reduces discomfort, relieve discomfort, relieves discomfort, easing discomfort, ease discomfort, soothe tension",
+      "suggested_replacement": ""
+     },
+     {
+      "rule_id": "r-15a607c4457c8b55",
+      "article_no": "W-1.8",
+      "rule_code": "H06",
+      "p_level": "P0",
+      "risk_level": "高危",
+      "authority": "inferred",
+      "kb_type": "wording",
+      "authority_source_table": "品线内容边界规则库",
+      "matched_fragments": [
+       "FDA approved"
+      ],
+      "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/边界内容",
+      "source_sha256": "2e8bb36d6edf7c4971132b69ff6d39819a5a0e0e8043e9001e096be1bc2a02d6",
+      "rule_text": "边界：FDA 表述错误（吸奶器为 cleared/registered，非 approved/certified）；触发词：FDA approved, FDA certified, FDA 认证, FDA 批准, FDA 通过；豁免：FDA cleared, FDA-cleared, FDA registered, FDA 注册",
+      "suggested_replacement": ""
+     },
+     {
+      "rule_id": "r-3b6c3c82dc667295",
+      "article_no": "W-1.22",
+      "rule_code": "H05",
+      "p_level": "P0",
+      "risk_level": "高危",
+      "authority": "inferred",
+      "kb_type": "wording",
+      "authority_source_table": "品线内容边界规则库",
+      "matched_fragments": [
+       "100% safe"
+      ],
+      "anchor": "#品线内容边界规则库/recvuJP1dDumuM/边界内容",
+      "source_sha256": "1c61c44b09ff77d121546f5ec15f74eba03afda2b77c1c77eb70b1e7525337fb",
+      "rule_text": "边界：虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按2026-09-09口径放开，海外广告允许，不再判险）；触发词：safest, most safe, 100% safe, 100% painless, zero risk, guaranteed safe, perfect pump, 最安全, 唯一, 百分百安全, 零风险, 完美, fits all breast shapes, fits every breast, all breast shapes, every breast shape, one size fits all, fits all moms, universal fit, guaranteed no damage, no damage guaranteed, cannot damage, won't damage nipples, 适合所有乳房, 适合所有胸型, 各种胸型, 所有乳房形态, 适合所有妈妈, 一定不损伤, 绝不损伤, 零损伤, 不会损伤乳头, 万能适配",
+      "suggested_replacement": ""
+     },
+     {
+      "rule_id": "r-9878294c87d29582",
+      "article_no": "W-1.40",
+      "rule_code": "U03",
+      "p_level": "P3",
+      "risk_level": "待复核",
+      "authority": "inferred",
+      "kb_type": "wording",
+      "authority_source_table": "品线内容边界规则库",
+      "matched_fragments": [
+       "hospital"
+      ],
+      "anchor": "#品线内容边界规则库/recvuJP2Ot5BZl/边界内容",
+      "source_sha256": "404eb88073072281dfa568468b5b1536d83294b047a42e1a6797c909c17b9ccb",
+      "rule_text": "边界：涉及医院/NICU 场景，需核实临床适用性声明；触发词：hospital, NICU, nicu grade, 医院, 新生儿",
+      "suggested_replacement": ""
+     },
+     {
+      "rule_id": "r-38148746d4e6516d",
+      "article_no": "W-1.19",
+      "rule_code": "M05",
+      "p_level": "P1",
+      "risk_level": "审慎",
+      "authority": "inferred",
+      "kb_type": "wording",
+      "authority_source_table": "品线内容边界规则库",
+      "matched_fragments": [
+       "hospital grade"
+      ],
+      "anchor": "#品线内容边界规则库/recvuJP2jyPiol/边界内容",
+      "source_sha256": "da6b33667bbd74317bc3f204a4a19914a27e9785ff62ea83740809c580375bb5",
+      "rule_text": "边界：等级背书用语（需核实是否有对应认证）；触发词：military grade, medical grade silicone, hospital grade, 医疗级, 医用级, 军用级",
+      "suggested_replacement": ""
+     },
+     {
+      "rule_id": "r-7489e156a5d2c7b2",
+      "article_no": "W-1.31",
+      "rule_code": "H09",
+      "p_level": "P0",
+      "risk_level": "高危",
+      "authority": "inferred",
+      "kb_type": "wording",
+      "authority_source_table": "品线内容边界规则库",
+      "matched_fragments": [
+       "mimics baby"
+      ],
+      "anchor": "#品线内容边界规则库/recvuNifmKBXoP/边界内容",
+      "source_sha256": "a2aca575cf6a2ec78155d31cbabf252fc145844429b89b01923226a720d231aa",
+      "rule_text": "边界：智能闭环/仿生虚假宣称（自动识别节奏、模拟/复制宝宝、饱腹反馈、降低奶量焦虑）；只允许“参考自然哺乳节奏的设计思路/inspired by”表达；触发词：auto-detects rhythm, automatically detects your rhythm, automatically finds the best rhythm, detects the best rhythm, smart rhythm detection, mimics your baby, mimics a nursing baby, mimics baby, mimics nursing, copies your baby, simulates your baby, simulates a nursing baby, baby fullness feedback, fullness feedback, reduces milk supply anxiety, ease milk supply anxiety, milk supply anxiety, 自动识别最佳节奏, 自动识别节奏, 自动识别节律, 智能识别节奏, 模拟宝宝, 模拟婴儿, 复制宝宝, 模仿宝宝吃奶, 饱腹反馈, 模拟饱腹, 降低奶量焦虑, 缓解奶量焦虑, 减少奶量焦虑；豁免：inspired by, inspired by natural nursing, 参考自然哺乳, 参考宝宝, 借鉴, 设计思路, 参考思路, 灵感",
+      "suggested_replacement": ""
+     }
+    ]
+   },
+   "units": {
+    "engine": "kb/l6/retriever.py",
+    "l6_mode": "vector_plus_bm25",
+    "semantic_recall": true,
+    "bm25_max": 40.8166,
+    "cosine_max": 0.0,
+    "used_vector": false,
+    "no_semantic_annotation": null,
+    "top_bm25": [
+     {
+      "source": "bm25_en",
+      "unit_id": "74d1ba6b94a5336853dd",
+      "anchor": "#广告文案明细/recvuJYdOb61lT/命中片段",
+      "table": "广告文案明细",
+      "kb_type": "wording",
+      "source_sha256": "67875346a75bd2f81a40b387652d6824faefe083f61c025c5801034ab6d4074e",
+      "raw_bm25": 40.8166,
+      "excerpt": "H02:increase milk supply / H07:pain-free / H09:mimics baby,mimics baby’s natural nursing"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "488307f73e44e64c1eb2",
+      "anchor": "#品线内容边界规则库/recvuJP2Ot474u/检测关键词",
+      "table": "品线内容边界规则库",
+      "kb_type": "wording",
+      "source_sha256": "5a740e9d29e4a9defa82e99066118cb7a118d1d55a21b0e109f6a0aa0257d000",
+      "raw_bm25": 35.6454,
+      "excerpt": "suction level, suction levels, adjustable suction, 9 levels, 10 levels, hands-free, wearable, portable, rechargeable, wireless, BPA-free, food-grade silicone, f"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "9c7a52a1bc804137cfaa",
+      "anchor": "#l.1-3",
+      "table": "l.1-3",
+      "kb_type": "wording",
+      "source_sha256": "c980467fcc387abfbd6d2b63e8ed3da60c76f85d55f3c3ff1fdd61c917883787",
+      "raw_bm25": 34.6187,
+      "excerpt": "ion. It is an easy, budget-friendly way to add hands-free pumping to your routine. Hospital-strength suction up to 260 mmHg across 9 levels 4 pump modes to mimi"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "c731e0bab02390f46cf5",
+      "anchor": "#l.1-3",
+      "table": "l.1-3",
+      "kb_type": "wording",
+      "source_sha256": "f99059ec1952273d2ebf7e4c2022073ee2a9a9730cfdc49a7fbb5f436624404f",
+      "raw_bm25": 33.7673,
+      "excerpt": "at add up over time. V1 Pro / V2 Pro Hospital-Grade Wearable Breast Pump Replacement Parts 5. Does It Fit Your Daily Routine? Consider your actual lifestyle. Tr"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "a152bcb3c0417b6a5e14",
+      "anchor": "#l.1-1",
+      "table": "l.1-1",
+      "kb_type": "wording",
+      "source_sha256": "c84a575238a000283fc775563be3619d0879bef585d249abfd8ff9c0814316e8",
+      "raw_bm25": 33.7544,
+      "excerpt": "The Best Breast Pump for Exclusive Pumping Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether Toys B"
+     }
+    ],
+    "vector_rows": [],
+    "adopted": [
+     {
+      "source": "bm25_en",
+      "unit_id": "74d1ba6b94a5336853dd",
+      "anchor": "#广告文案明细/recvuJYdOb61lT/命中片段",
+      "table": "广告文案明细",
+      "kb_type": "wording",
+      "source_sha256": "67875346a75bd2f81a40b387652d6824faefe083f61c025c5801034ab6d4074e",
+      "raw_bm25": 40.8166,
+      "excerpt": "H02:increase milk supply / H07:pain-free / H09:mimics baby,mimics baby’s natural nursing",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "488307f73e44e64c1eb2",
+      "anchor": "#品线内容边界规则库/recvuJP2Ot474u/检测关键词",
+      "table": "品线内容边界规则库",
+      "kb_type": "wording",
+      "source_sha256": "5a740e9d29e4a9defa82e99066118cb7a118d1d55a21b0e109f6a0aa0257d000",
+      "raw_bm25": 35.6454,
+      "excerpt": "suction level, suction levels, adjustable suction, 9 levels, 10 levels, hands-free, wearable, portable, rechargeable, wireless, BPA-free, food-grade silicone, f",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "9c7a52a1bc804137cfaa",
+      "anchor": "#l.1-3",
+      "table": "l.1-3",
+      "kb_type": "wording",
+      "source_sha256": "c980467fcc387abfbd6d2b63e8ed3da60c76f85d55f3c3ff1fdd61c917883787",
+      "raw_bm25": 34.6187,
+      "excerpt": "ion. It is an easy, budget-friendly way to add hands-free pumping to your routine. Hospital-strength suction up to 260 mmHg across 9 levels 4 pump modes to mimi",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "c731e0bab02390f46cf5",
+      "anchor": "#l.1-3",
+      "table": "l.1-3",
+      "kb_type": "wording",
+      "source_sha256": "f99059ec1952273d2ebf7e4c2022073ee2a9a9730cfdc49a7fbb5f436624404f",
+      "raw_bm25": 33.7673,
+      "excerpt": "at add up over time. V1 Pro / V2 Pro Hospital-Grade Wearable Breast Pump Replacement Parts 5. Does It Fit Your Daily Routine? Consider your actual lifestyle. Tr",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "a152bcb3c0417b6a5e14",
+      "anchor": "#l.1-1",
+      "table": "l.1-1",
+      "kb_type": "wording",
+      "source_sha256": "c84a575238a000283fc775563be3619d0879bef585d249abfd8ff9c0814316e8",
+      "raw_bm25": 33.7544,
+      "excerpt": "The Best Breast Pump for Exclusive Pumping Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether Toys B",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     }
+    ],
+    "discarded": [],
+    "gate": {
+     "bm25_raw_min": 8.0,
+     "vector_cosine_min": 0.6,
+     "use_raw_scores_only": true,
+     "why_not_rrf": "RRF 分恒为 1/(60+k)，实测 Top1 恒在 0.016393，A 组与 B 组看起来一样高，没有区分度，不能当门限",
+     "why_single_threshold_not_enough": "实测 BM25 原始分在 A/B 两组有重叠（A 组最低 5.32 < B 组最高 10.02），所以门限只用于「够不够格当参考」，要成为「依据」还必须同时命中规则层",
+     "measured": {
+      "bm25_raw": {
+       "A_group_min": 5.32,
+       "A_group_median": 12.76,
+       "B_group_median": 6.44,
+       "B_group_max": 10.02,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      },
+      "cosine": {
+       "A_group_min": 0.512,
+       "A_group_median": 0.669,
+       "B_group_median": 0.384,
+       "B_group_max": 0.569,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      }
+     },
+     "threshold_reasoning": "BM25 门限取 8.0：落在 A 组最低(5.32)与 B 组最高(10.02)之间、贴近两组中位之间，偏保守；余弦门限取 0.60：实测它是唯一能把 B 组全部挡在外面的取值（B 组最高 0.569），代价是 A 组丢 2 条；即便如此门限仍单独不可靠，必须叠加「同时命中规则层」才算依据",
+     "below_threshold_label": "参考",
+     "above_threshold_without_rule_hit": "仍只能标参考，不得作为依据",
+     "coverage_bm25_min": 16.0,
+     "coverage_reasoning": "PASS 必须建立在「知识库认识这个主题」之上，覆盖信号二选一：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ coverage_bm25_min(=16.0)。16.0 = 依据门限的 2 倍：实测 A 组中位 12.76 / 最高 23.16，B 组最高 10.02，取 16 能把实测 B 组全部挡在外面。覆盖信号不成立 → 拒答，不得输出 PASS。"
+    }
+   },
+   "coverage": {
+    "safe_vocabulary_hits": [],
+    "rule_cited_unit_hits": [
+     {
+      "anchor": "#广告文案明细/recvuJYdOb61lT/命中片段",
+      "raw_bm25": 40.8166
+     },
+     {
+      "anchor": "#品线内容边界规则库/recvuJP2Ot474u/检测关键词",
+      "raw_bm25": 35.6454
+     }
+    ],
+    "rule_cited_anchor_pool": 959,
+    "coverage_bm25_min": 16.0,
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；两者都没有 → 拒答（无命中不等于合规）",
+    "covered": true
+   },
+   "elapsed_ms": 1069.4
+  },
+  "source": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-content-review/scripts/review.py",
+  "findings_source": {
+   "mode": "live",
+   "path": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-content-review/scripts/review.py"
+  }
+ }
+}

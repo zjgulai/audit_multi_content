@@ -1,0 +1,450 @@
+{
+ "schema": "kb-evidence-findings-cache/1",
+ "cached_at": "2026-10-05T12:51:50",
+ "text_sha256": "7d4313146d6710da9aa6573b79ff014d740376bc7ca172f9369d2b333406a9be",
+ "source": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py",
+ "payload": {
+  "state": "BLOCK",
+  "findings": [
+   {
+    "severity": "BLOCK",
+    "layer": "P0 确定性匹配",
+    "category": "绝对化与安全承诺",
+    "sub": "虚假安全承诺",
+    "position": "全文",
+    "excerpt": "删除 safest/100% safe/zero risk/perfect 等",
+    "matched_term": "safest",
+    "anchor": "#广告文案明细/recvuJYdOb1B8v/修改建议",
+    "source_sha256": "e7aabf7478753887ea85470fa114b4d0b22d74d21cb901b3a02e7672dff4f4c5",
+    "article_no": "W-1.33",
+    "rule_id": "r-7baf7ceb47b2e5bc",
+    "rule_code": "H05",
+    "kb_type": "wording",
+    "library": "措辞表达库",
+    "reason": "P0 规则命中（BLOCK）：H05 虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按2026-09-09口径放开，海外广告允许，不再判险）",
+    "advice": null,
+    "advice_note": "同源检查：既无本规则豁免表达，也无同源配对 → 不给建议",
+    "fact_or_inference": "事实",
+    "confidence": "高",
+    "verbatim_source": {
+     "path": "kb/l0/records/广告文案风控库__广告文案明细/recvuJYdOb1B8v.json",
+     "field": "修改建议"
+    },
+    "classification_basis": "rule_code=H05",
+    "merged_articles": [
+     "W-1.22"
+    ]
+   },
+   {
+    "severity": "REVIEW",
+    "layer": "规则层",
+    "category": "人物肖像与 AI",
+    "sub": "AI 合成标识",
+    "position": "全文",
+    "excerpt": "guaranteed",
+    "matched_term": "guaranteed",
+    "anchor": "#风险文案改写建议库（分型号分渠道）/recvuNn4RsFeU9/风险原句示例",
+    "source_sha256": "e1498549e30900966a96926b8ea839aa16bbb667647851c2ef7f4f2dd1c97c08",
+    "article_no": "W-2.294",
+    "rule_id": "r-ad1ad30cf52bf707",
+    "rule_code": "",
+    "kb_type": "wording",
+    "library": "措辞表达库",
+    "reason": "逐字命中「guaranteed」：承认个体差异，给可调可控的舒适方案，不做无痛保证（p_level=P1 risk_level=unknown authority=None，来源表 None）",
+    "advice": null,
+    "advice_note": "",
+    "fact_or_inference": "事实",
+    "confidence": "中",
+    "verbatim_source": {
+     "path": "kb/l0/records/广告文案风控库__风险文案改写建议库（分型号分渠道）/recvuNn4RsFeU9.json",
+     "field": "风险原句示例"
+    },
+    "classification_basis": "keyword_map:AI|深度合成|生成图片|生成视频|数字人"
+   },
+   {
+    "severity": "REVIEW",
+    "layer": "规则层",
+    "category": "功效宣称",
+    "sub": "疾病治疗宣称",
+    "position": "全文",
+    "excerpt": "treat, cure, heal, remedy, diagnos, 治疗, 治",
+    "matched_term": "cure",
+    "anchor": "#品线内容边界规则库/recvuJP1dDHb7E/检测关键词",
+    "source_sha256": "f452aeddd6adf8ab4601996f1482912a0ebef2f8d7bd7f211e216087a1d16c81",
+    "article_no": "W-1.43",
+    "rule_id": "r-b10ee2b8361c8a3d",
+    "rule_code": "H01",
+    "kb_type": "wording",
+    "library": "措辞表达库",
+    "reason": "逐字命中「cure」：（来源未给判定理由）（p_level=P1 risk_level=unknown authority=None，来源表 None）",
+    "advice": null,
+    "advice_note": "",
+    "fact_or_inference": "事实",
+    "confidence": "中",
+    "verbatim_source": {
+     "path": "kb/l0/records/广告文案风控库__品线内容边界规则库/recvuJP1dDHb7E.json",
+     "field": "检测关键词"
+    },
+    "classification_basis": "rule_code=H01"
+   }
+  ],
+  "unmet_citation": [],
+  "trace": {
+   "p0": {
+    "engine": "kb/l5/matcher.py",
+    "exit_code": 1,
+    "total_elapsed_ms": 48.47,
+    "engine_elapsed_ms": 8.26,
+    "hits": [
+     {
+      "pattern_id": "p-08487282e2d400fe",
+      "rule_id": "r-7baf7ceb47b2e5bc",
+      "rule_code": "H05",
+      "level": "P0",
+      "match_note": "BLOCK",
+      "matched": [
+       {
+        "kind": "keyword",
+        "pattern": "safest",
+        "line": 1,
+        "span": [
+         32,
+         38
+        ],
+        "line_text": "our wearable breast pump is the safest choice and guaranteed to cure low milk supply. m5 吸奶器是销量最高,最好用的吸奶器了"
+       },
+       {
+        "kind": "regex",
+        "pattern": "\\b(safest|perfect|zero[\\s-]?risk|risk[\\s-]?free)\\b",
+        "line": 1,
+        "span": [
+         32,
+         38
+        ],
+        "line_text": "our wearable breast pump is the safest choice and guaranteed to cure low milk supply. m5 吸奶器是销量最高,最好用的吸奶器了"
+       }
+      ],
+      "matched_count": 2,
+      "lines": [
+       1
+      ],
+      "anchor": "#广告文案明细/recvuJYdOb1B8v/命中片段",
+      "source_sha256": "e7aabf7478753887ea85470fa114b4d0b22d74d21cb901b3a02e7672dff4f4c5",
+      "suggested_replacement": "「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开);「perfect pump」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+限定语,如 relaxation supports your natural let-down, which may help your flow(因为放松,自然奶阵可能更顺畅),只描述自然生理过程、不承诺产品带来结果;faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开) ▸ 奶流/移除量/排空效率/漏奶/短时排乳类claim需W1自身对照数据(样本、对照、统计口径齐全),或改为放松叙事+限定语(may help/natural);内部测试数值(28.2%/10%/70%)补齐前不得公开传播;「perfect pump」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+限定语,如 relaxation supports your natural let-down, which may help your flow(因为放松,自然奶阵可能更顺畅),只描述自然生理过程、不承诺产品带来结果;faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开) ▸ 奶流/移除量/排空效率/漏奶/短时排乳类claim需W1自身对照数据(样本、对照、统计口径齐全),或改为放松叙事+限定语(may help/natural);内部测试数值(28.2%/10%/70%)补齐前不得公开传播;「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开);「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开) ▸ hospital/NICU 场景表述需事实依据,否则删除;「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开);「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开);「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开) ▸ 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺(含 sans douleur/schmerzfrei/sin dolor),只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述(另 4 组同码修订建议见证据单元)",
+      "whitelist_suppressed": 0
+     }
+    ]
+   },
+   "rules": {
+    "engine": "kb/l3/candidates/rules.jsonl",
+    "kb_type_filter": null,
+    "rules_scanned": 509,
+    "hits": [
+     {
+      "rule_id": "r-b10ee2b8361c8a3d",
+      "article_no": "W-1.43",
+      "rule_code": "H01",
+      "p_level": "P1",
+      "risk_level": "unknown",
+      "authority": null,
+      "kb_type": "wording",
+      "authority_source_table": null,
+      "matched_fragments": [
+       "cure"
+      ],
+      "anchor": "#品线内容边界规则库/recvuJP1dDHb7E/边界内容",
+      "source_sha256": "f452aeddd6adf8ab4601996f1482912a0ebef2f8d7bd7f211e216087a1d16c81",
+      "rule_text": "边界：医疗功效声明（治疗/治愈/诊断/疏通堵奶/治疗或预防乳腺炎；边界允许：缓解涨奶 ease/relieve engorgement、降低堵奶风险 reduce the risk of clogged、支持奶阵 let-down）；触发词：treat, cure, heal, remedy, diagnos, 治疗, 治愈, 诊断, 疗法, 根治, unclog, unclog ducts, unblock ducts, clear clogged, clear blocked, fix clogged, treat clogged, treat plugged, treat engorgement, cure engorgement, cure mastitis, treat mastitis, prevent mastitis, prevents mastitis, prevent clogged, prevent plugged, stop mastitis, engorgement treatment, clogged duct treatment, plugged duct treatment, 疏通堵奶, 疏通乳腺, 通乳腺, 解决堵奶, 治疗堵奶, 预防堵奶, 治疗涨奶, 治疗乳腺炎, 预防乳腺炎, 治愈乳腺炎, 解决乳腺炎, 根治乳腺炎, heat therapy for mastitis, heat therapy for clogged, warmth treats clogged, warmth treats mastitis, thermal therapy, residual milk, remove residual milk, reduces residual milk, clear residual milk, prevent nipple damage, reduce nipple damage, prevents nipple damage, reduces nipple damage, nipple damage prevention, 热敷治疗, 热敷通奶, 加热治疗, 热敷疏通, 通堵奶, 疏通乳腺管, 排残奶, 残余奶, 残留乳汁, 五条乳腺管, 五区对应乳腺, 预防乳头损伤, 减少乳头损伤, 防止乳头损伤, 避免乳头损伤, 乳头损伤预防；豁免：treat yourself, doesn't treat, does not treat, do not treat, not intended to treat, not to treat, not a treatment, not a medical device, not intended to cure, doesn't cure, cannot cure, can't cure, 不用于治疗, 不是治疗, 不能治疗, 不可治疗, 不可以治疗, 不能治愈, 无法治疗, 并非治疗, relieve engorgement, relieves engorgement, relieving engorgement, engorgement relief, ease engorgement, eases engorgement, easing engorgement, soothe engorgement, soothes engorgement, soulage les engorgements, soulager les engorgements, reduce the risk of clogged, reduces the risk of clogged, reducing the risk of clogged, reduce the risk of plugged, risk of clogged ducts, risk of plugged ducts, or cure, or treat, cannot treat, can't treat, does not cure, do not cure, won't cure",
+      "suggested_replacement": ""
+     },
+     {
+      "rule_id": "r-3b6c3c82dc667295",
+      "article_no": "W-1.22",
+      "rule_code": "H05",
+      "p_level": "P1",
+      "risk_level": "unknown",
+      "authority": null,
+      "kb_type": "wording",
+      "authority_source_table": null,
+      "matched_fragments": [
+       "safest"
+      ],
+      "anchor": "#品线内容边界规则库/recvuJP1dDumuM/边界内容",
+      "source_sha256": "1c61c44b09ff77d121546f5ec15f74eba03afda2b77c1c77eb70b1e7525337fb",
+      "rule_text": "边界：虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按2026-09-09口径放开，海外广告允许，不再判险）；触发词：safest, most safe, 100% safe, 100% painless, zero risk, guaranteed safe, perfect pump, 最安全, 唯一, 百分百安全, 零风险, 完美, fits all breast shapes, fits every breast, all breast shapes, every breast shape, one size fits all, fits all moms, universal fit, guaranteed no damage, no damage guaranteed, cannot damage, won't damage nipples, 适合所有乳房, 适合所有胸型, 各种胸型, 所有乳房形态, 适合所有妈妈, 一定不损伤, 绝不损伤, 零损伤, 不会损伤乳头, 万能适配",
+      "suggested_replacement": ""
+     },
+     {
+      "rule_id": "r-724b26ecb1dee9c4",
+      "article_no": "W-1.30",
+      "rule_code": "安全词",
+      "p_level": "P1",
+      "risk_level": "unknown",
+      "authority": null,
+      "kb_type": "wording",
+      "authority_source_table": null,
+      "matched_fragments": [
+       "wearable"
+      ],
+      "anchor": "#品线内容边界规则库/recvuJP2Ot474u/边界内容",
+      "source_sha256": "5a740e9d29e4a9defa82e99066118cb7a118d1d55a21b0e109f6a0aa0257d000",
+      "rule_text": "边界：客观功能/真实认证关键词（正面提示，不参与降级）；触发词：suction level, suction levels, adjustable suction, 9 levels, 10 levels, hands-free, wearable, portable, rechargeable, wireless, BPA-free, food-grade silicone, food grade, FDA cleared, FDA-cleared, FDA registered, easy to clean, dishwasher safe, dishwasher-safe, quiet mode, low noise, low-decibel, reduces pain, less pain, gentle, comfort",
+      "suggested_replacement": ""
+     },
+     {
+      "rule_id": "r-ad1ad30cf52bf707",
+      "article_no": "W-2.294",
+      "rule_code": "",
+      "p_level": "P1",
+      "risk_level": "unknown",
+      "authority": null,
+      "kb_type": "wording",
+      "authority_source_table": null,
+      "matched_fragments": [
+       "guaranteed"
+      ],
+      "anchor": "#风险文案改写建议库（分型号分渠道）/recvuNn4RsFeU9/风险原句示例",
+      "source_sha256": "e1498549e30900966a96926b8ea839aa16bbb667647851c2ef7f4f2dd1c97c08",
+      "rule_text": "原表述：Pump without the pain — it never hurts, guaranteed；修订为：Every body is different, so we focus on comfort: soft seals, gentle modes and adjustable levels let you tune each session to what feels okay for you.；修订原因：承认个体差异，给可调可控的舒适方案，不做无痛保证",
+      "suggested_replacement": "Every body is different, so we focus on comfort: soft seals, gentle modes and adjustable levels let you tune each session to what feels okay for you."
+     }
+    ]
+   },
+   "units": {
+    "engine": "kb/l6/retriever.py",
+    "l6_mode": "vector_plus_bm25",
+    "semantic_recall": true,
+    "bm25_max": 33.9943,
+    "cosine_max": 0.0,
+    "used_vector": false,
+    "no_semantic_annotation": null,
+    "top_bm25": [
+     {
+      "source": "bm25_en",
+      "unit_id": "6bd4e7315823e42ef28d",
+      "anchor": "#品线内容边界规则库/recvuJP1dDumuM/检测关键词",
+      "table": "品线内容边界规则库",
+      "kb_type": "wording",
+      "source_sha256": "1c61c44b09ff77d121546f5ec15f74eba03afda2b77c1c77eb70b1e7525337fb",
+      "raw_bm25": 33.9943,
+      "excerpt": "safest, most safe, 100% safe, 100% painless, zero risk, guaranteed safe, perfect pump, 最安全, 唯一, 百分百安全, 零风险, 完美, fits all breast shapes, fits every breast, all b"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "1010ec247e6b7c9dd897",
+      "anchor": "#l.1-2",
+      "table": "l.1-2",
+      "kb_type": "wording",
+      "source_sha256": "b3f3972493a08970b17eb607367b13c3afe3e8acd12de4c3e2c22d6ccbdd2e6c",
+      "raw_bm25": 33.5377,
+      "excerpt": "crease milk supply. Flanges that are the correct size and shape for your breasts can prevent discomfort and ensure a proper seal, which helps to maximize milk f"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "c6de3dfe82d1c69d4781",
+      "anchor": "#l.1-4",
+      "table": "l.1-4",
+      "kb_type": "wording",
+      "source_sha256": "fd99dbfd8be3903b37603263dcb095f735822518c3a37017d785360a3abc2593",
+      "raw_bm25": 32.916,
+      "excerpt": "ith low supply, stubborn clogs, or engorgement and need stronger suction (up to -280 mmHg) and specialized modes like Milk Boost™ or Milk Relief™. You value max"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "88a52dca5f5076e020fa",
+      "anchor": "#l.1-2",
+      "table": "l.1-2",
+      "kb_type": "wording",
+      "source_sha256": "dcee10c98c500f9f0cd300f361cd445fd027cfff717c7d88f21672444ff5e62e",
+      "raw_bm25": 31.1631,
+      "excerpt": "ou pump near colleagues or on calls. Discretion also means a private, non-bathroom space—not pumping in a bathroom because the cup is quiet. In our lineup, M9 i"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "84b468af458d5b5565d3",
+      "anchor": "#l.1-2",
+      "table": "l.1-2",
+      "kb_type": "wording",
+      "source_sha256": "5c4799500b3b9647b82df102bf74610a502997ceafb9fdf8109c17427e107670",
+      "raw_bm25": 30.4439,
+      "excerpt": "l you aren't producing enough breast milk when pumping, you aren't alone. Many Canadian mums worry about their supply, particularly during stressful transitions"
+     }
+    ],
+    "vector_rows": [],
+    "adopted": [
+     {
+      "source": "bm25_en",
+      "unit_id": "6bd4e7315823e42ef28d",
+      "anchor": "#品线内容边界规则库/recvuJP1dDumuM/检测关键词",
+      "table": "品线内容边界规则库",
+      "kb_type": "wording",
+      "source_sha256": "1c61c44b09ff77d121546f5ec15f74eba03afda2b77c1c77eb70b1e7525337fb",
+      "raw_bm25": 33.9943,
+      "excerpt": "safest, most safe, 100% safe, 100% painless, zero risk, guaranteed safe, perfect pump, 最安全, 唯一, 百分百安全, 零风险, 完美, fits all breast shapes, fits every breast, all b",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "1010ec247e6b7c9dd897",
+      "anchor": "#l.1-2",
+      "table": "l.1-2",
+      "kb_type": "wording",
+      "source_sha256": "b3f3972493a08970b17eb607367b13c3afe3e8acd12de4c3e2c22d6ccbdd2e6c",
+      "raw_bm25": 33.5377,
+      "excerpt": "crease milk supply. Flanges that are the correct size and shape for your breasts can prevent discomfort and ensure a proper seal, which helps to maximize milk f",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "c6de3dfe82d1c69d4781",
+      "anchor": "#l.1-4",
+      "table": "l.1-4",
+      "kb_type": "wording",
+      "source_sha256": "fd99dbfd8be3903b37603263dcb095f735822518c3a37017d785360a3abc2593",
+      "raw_bm25": 32.916,
+      "excerpt": "ith low supply, stubborn clogs, or engorgement and need stronger suction (up to -280 mmHg) and specialized modes like Milk Boost™ or Milk Relief™. You value max",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "88a52dca5f5076e020fa",
+      "anchor": "#l.1-2",
+      "table": "l.1-2",
+      "kb_type": "wording",
+      "source_sha256": "dcee10c98c500f9f0cd300f361cd445fd027cfff717c7d88f21672444ff5e62e",
+      "raw_bm25": 31.1631,
+      "excerpt": "ou pump near colleagues or on calls. Discretion also means a private, non-bathroom space—not pumping in a bathroom because the cup is quiet. In our lineup, M9 i",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "84b468af458d5b5565d3",
+      "anchor": "#l.1-2",
+      "table": "l.1-2",
+      "kb_type": "wording",
+      "source_sha256": "5c4799500b3b9647b82df102bf74610a502997ceafb9fdf8109c17427e107670",
+      "raw_bm25": 30.4439,
+      "excerpt": "l you aren't producing enough breast milk when pumping, you aren't alone. Many Canadian mums worry about their supply, particularly during stressful transitions",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     }
+    ],
+    "discarded": [],
+    "gate": {
+     "bm25_raw_min": 8.0,
+     "vector_cosine_min": 0.6,
+     "use_raw_scores_only": true,
+     "why_not_rrf": "RRF 分恒为 1/(60+k)，实测 Top1 恒在 0.016393，A 组与 B 组看起来一样高，没有区分度，不能当门限",
+     "why_single_threshold_not_enough": "实测 BM25 原始分在 A/B 两组有重叠（A 组最低 5.32 < B 组最高 10.02），所以门限只用于「够不够格当参考」，要成为「依据」还必须同时命中规则层",
+     "measured": {
+      "bm25_raw": {
+       "A_group_min": 5.32,
+       "A_group_median": 12.76,
+       "B_group_median": 6.44,
+       "B_group_max": 10.02,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      },
+      "cosine": {
+       "A_group_min": 0.512,
+       "A_group_median": 0.669,
+       "B_group_median": 0.384,
+       "B_group_max": 0.569,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      }
+     },
+     "threshold_reasoning": "BM25 门限取 8.0：落在 A 组最低(5.32)与 B 组最高(10.02)之间、贴近两组中位之间，偏保守；余弦门限取 0.60：实测它是唯一能把 B 组全部挡在外面的取值（B 组最高 0.569），代价是 A 组丢 2 条；即便如此门限仍单独不可靠，必须叠加「同时命中规则层」才算依据",
+     "below_threshold_label": "参考",
+     "above_threshold_without_rule_hit": "仍只能标参考，不得作为依据",
+     "coverage_bm25_min": 16.0,
+     "coverage_reasoning": "PASS 必须建立在「知识库认识这个主题」之上，覆盖信号二选一：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ coverage_bm25_min(=16.0)。16.0 = 依据门限的 2 倍：实测 A 组中位 12.76 / 最高 23.16，B 组最高 10.02，取 16 能把实测 B 组全部挡在外面。覆盖信号不成立 → 拒答，不得输出 PASS。"
+    }
+   },
+   "coverage": {
+    "safe_vocabulary_hits": [
+     "W-1.30"
+    ],
+    "rule_cited_unit_hits": [
+     {
+      "anchor": "#品线内容边界规则库/recvuJP1dDumuM/检测关键词",
+      "raw_bm25": 33.9943
+     }
+    ],
+    "rule_cited_anchor_pool": 959,
+    "coverage_bm25_min": 16.0,
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；两者都没有 → 拒答（无命中不等于合规）",
+    "covered": true
+   },
+   "elapsed_ms": 916.7
+  },
+  "registry": {
+   "gate": {
+    "bm25_raw_min": 8.0,
+    "vector_cosine_min": 0.6,
+    "use_raw_scores_only": true,
+    "why_not_rrf": "RRF 分恒为 1/(60+k)，实测 Top1 恒在 0.016393，A 组与 B 组看起来一样高，没有区分度，不能当门限",
+    "why_single_threshold_not_enough": "实测 BM25 原始分在 A/B 两组有重叠（A 组最低 5.32 < B 组最高 10.02），所以门限只用于「够不够格当参考」，要成为「依据」还必须同时命中规则层",
+    "measured": {
+     "bm25_raw": {
+      "A_group_min": 5.32,
+      "A_group_median": 12.76,
+      "B_group_median": 6.44,
+      "B_group_max": 10.02,
+      "source": "kb/l6/selftest.json → raw_score_comparison"
+     },
+     "cosine": {
+      "A_group_min": 0.512,
+      "A_group_median": 0.669,
+      "B_group_median": 0.384,
+      "B_group_max": 0.569,
+      "source": "kb/l6/selftest.json → raw_score_comparison"
+     }
+    },
+    "threshold_reasoning": "BM25 门限取 8.0：落在 A 组最低(5.32)与 B 组最高(10.02)之间、贴近两组中位之间，偏保守；余弦门限取 0.60：实测它是唯一能把 B 组全部挡在外面的取值（B 组最高 0.569），代价是 A 组丢 2 条；即便如此门限仍单独不可靠，必须叠加「同时命中规则层」才算依据",
+    "below_threshold_label": "参考",
+    "above_threshold_without_rule_hit": "仍只能标参考，不得作为依据",
+    "coverage_bm25_min": 16.0,
+    "coverage_reasoning": "PASS 必须建立在「知识库认识这个主题」之上，覆盖信号二选一：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ coverage_bm25_min(=16.0)。16.0 = 依据门限的 2 倍：实测 A 组中位 12.76 / 最高 23.16，B 组最高 10.02，取 16 能把实测 B 组全部挡在外面。覆盖信号不成立 → 拒答，不得输出 PASS。"
+   },
+   "routing": {
+    "problems_1_2": "逐条输出（编号 + 类别-子类 + 位置 + 引文 + 原因 + 依据；BLOCK 另给建议）",
+    "problems_3_plus": "只输出分类汇总 + 报告链接；完整清单必须真的写到 kb/l7/reports/ 下并在结论里给路径",
+    "tail": {
+     "PASS": "转 sign-off 责任人",
+     "REVIEW": "建议转复核责任人",
+     "BLOCK": "请修改后重新提交"
+    }
+   },
+   "approvers": {
+    "_note": "不硬编码人名：组织变动后模板会失效。这里是角色位，上线前由内容治理负责人填入真实 @ 句柄；未填时输出保留角色名并标注「未配置」",
+    "configured": false,
+    "pass_signoff": {
+     "role": "sign-off 责任人",
+     "handle": null
+    },
+    "review_reviewers": {
+     "role": "复核责任人",
+     "handle": null
+    },
+    "block_owner": {
+     "role": "内容方修改责任人",
+     "handle": null
+    }
+   },
+   "no_hit_semantics": {
+    "bm25_only": "字面未匹配，不代表合规",
+    "vector_only": "语义未匹配，不代表合规",
+    "hybrid": "字面与语义均未匹配，但仍不代表合规"
+   }
+  },
+  "run_id": "20261005-125149",
+  "content": "Our wearable breast pump is the safest choice and guaranteed to cure low milk supply. M5 吸奶器是销量最高，最好用的吸奶器了",
+  "query_words": "Our wearable breast pump is the safest choice and guaranteed to cure low milk supply. M5 吸奶器是销量最高，最好用的吸奶器了",
+  "rendered": "【审查结论：BLOCK】共发现 3 处必须修改。\n\n· 绝对化与安全承诺类问题：1 个\n· 人物肖像与 AI类问题：1 个\n· 功效宣称类问题：1 个\n\n→ 查看完整问题清单与修改建议：（未写报告，见 --report-dir）\n\n请修改后重新提交。",
+  "report_path": null,
+  "report_memory": null
+ }
+}

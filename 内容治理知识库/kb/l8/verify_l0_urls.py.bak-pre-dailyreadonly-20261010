@@ -1,0 +1,199 @@
+#!/usr/bin/env python3
+"""外部 URL 资源对齐核验（L0 里 150 条 url: 资源）。
+
+判据：L0 行记了 sha256（sha256_input 多为 url_text）+ revision。重抓正文，按同一「去标签取文本」口径算 sha256 比对。
+★ 2026-10-09：**按台账记的 `sha256_input` 分派管线** —— `url_text_rendered_v1` 走渲染
+（`url_render_lib.fetch_rendered`），其余走裸 HTTP。混用一条管线会让 100 条永远报「复现不出」。
+口径诚实性：若复现不出原摘要，就只报「可达/不可达 + 正文长度」，并把新旧摘要都记下来，不硬说一致。
+用法：python3 kb/l8/verify_l0_urls.py 20260929-1420
+"""
+# ── 解释器守卫（2026-09-29）：不合格就用 kb/.kb-python 指定的解释器重跑自己 ──
+import os as _os, sys as _sys
+if not _os.environ.get("KB_INTERP_OK"):
+    _d = _os.path.dirname(_os.path.abspath(__file__)); _cfg = None
+    while True:
+        _p = _os.path.join(_d, ".kb-python")
+        if _os.path.isfile(_p):
+            _cfg = _p
+            break
+        _q = _os.path.dirname(_d)
+        if _q == _d:
+            break
+        _d = _q
+    if _cfg:
+        _want = next((l.split("#", 1)[0].strip() for l in open(_cfg, encoding="utf-8")
+                      if l.split("#", 1)[0].strip()), "")
+        _want = _os.path.expanduser(_want)
+        if (_want and _os.access(_want, _os.X_OK)
+                and _os.path.realpath(_want) != _os.path.realpath(_sys.executable)):
+            _os.environ["KB_INTERP_OK"] = "1"
+            _os.execve(_want, [_want, _os.path.abspath(__file__)] + _sys.argv[1:], dict(_os.environ))
+# ──────────────────────────────────────────────────────────────────────────
+
+import collections
+import hashlib
+import html as H
+import json
+import os
+import re
+import sys
+import urllib.request
+
+# ★ 2026-10-09：渲染管线共用件（口径分派用）——与 recrawl_all_urls.py 同一份实现
+from url_render_lib import fetch_text_like_recrawl  # noqa: E402
+
+RUN = sys.argv[1] if len(sys.argv) > 1 else "20260929-1420"
+APPLY = "--apply" in sys.argv
+# ★ 2026-10-08 批次一：失败项是否落台账。默认 **不落**（保持只读）；显式加才写。
+APPEND_FAILURES = "--append-failures" in sys.argv
+# ★ 2026-10-08 批次一修正：原来写死「假 Chrome UA」，实测被 FDA / CDC 反爬命中 ——
+#   fda.gov 对假 Chrome UA **整站返回 404**（连首页、robots.txt 都 404），
+#   于是 3 条 FDA 监管依据 + CDC 被误报「不可达」（当天实测 8 条假红，且差点被当成
+#   「FDA 依据失效」去修数据）。改成：默认用 urllib 默认 UA；
+#   确需伪装时用环境变量 L0_URL_UA 显式指定 —— 别再把 UA 写死在代码里。
+UA = os.environ.get("L0_URL_UA") or None
+
+
+def strip_html(h):
+    h = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", h, flags=re.S | re.I)
+    h = re.sub(r"<(title|h1|h2|h3|h4|p|li|br|tr|/p|/li|/h1|/h2|/h3|/h4|/tr)[^>]*>", "\n", h)
+    h = re.sub(r"<[^>]+>", "", h)
+    return re.sub(r"\n{2,}", "\n", H.unescape(h)).strip()
+
+
+def is_bad_key(row):
+    """★ 2026-10-08 批次一：台账里 09-29 就把「字段显示文本被当成 URL 主机名」的键
+    定性为坏键（change=l0_url_bad_key_note / status_reason 写「供下游忽略」），
+    但本脚本原先只看 status，于是把坏键当真 URL 去抓 → UnicodeEncodeError / unknown url type。
+    判据两条：① 键体不是 http(s):// 开头；② 台账已标坏键备注。命中即跳过，不再计入对账分母。"""
+    if not re.match(r"^https?://", (row.get("resource_key") or "").split(":", 1)[-1]):
+        return True
+    note = str(row.get("status_reason") or "") + str(row.get("change") or "")
+    return ("坏键" in note) or ("bad_key" in note)
+
+
+lat = {}
+for line in open("kb/l0/manifest.jsonl", encoding="utf-8"):
+    if line.strip():
+        r = json.loads(line)
+        lat[r["resource_key"]] = r
+all_url = [(k, v) for k, v in lat.items()
+           if v["source_kind"] == "url" and v["status"] not in ("gone", "retracted")]
+urls = [(k, v) for k, v in all_url if not is_bad_key(v)]
+bad_keys = [k for k, v in all_url if is_bad_key(v)]
+print(f"待重抓 URL：{len(urls)} 条 ｜ 跳过已登记坏键：{len(bad_keys)} 条")
+for k in bad_keys:
+    print(f"   [skip 坏键] {k[:90]}")
+
+results, rows = [], []
+for key, row in sorted(urls):
+    url = key.split(":", 1)[1]
+    ent = {"resource_key": key, "l0_sha256": row.get("sha256"), "l0_sha256_input": row.get("sha256_input"),
+           "l0_revision": row.get("revision")}
+    try:
+        # ── ★ 2026-10-09 **口径分派**（Owner 批「按口径分派核验器」）────────────────
+        # 病灶实测：150 条活跃 url **按 sha256_input 干净地分成两堆** ——
+        #   `url_text_rendered_v1` 103 条（**渲染管线**记的）
+        #   `url_text_refresh_v1`  40 条（**裸 HTTP** 记的）
+        # 而本脚本只会裸 HTTP ⇒ 那 103 条**结构上永远复现不出**，只能报 `recomputed_differ`，
+        # 而它**读起来像「内容变了」—— 那是假信号**（实测 13:15：same 40 / differ 100，分堆吻合）。
+        # ⇒ 按台账记的 `sha256_input` 选管线：渲染件走共用件 `kb/l8/url_render_lib.py`
+        #   （与 `recrawl_all_urls.py` **同一份实现**，已实测能逐字复现原摘要）。
+        if row.get("sha256_input") == "url_text_rendered_v1":
+            txt, _method = fetch_text_like_recrawl(url)
+            if not txt:
+                raise RuntimeError("render_empty：两级都取不到正文")
+            h = hashlib.sha256(txt.encode()).hexdigest()
+            ent.update({"http_status": None, "bytes": None, "chars": len(txt),
+                        "feishu_sha256": h, "render_mode": _method, "pipeline": "recrawl_equivalent",
+                        "verdict": ("same" if row.get("sha256") and h == row["sha256"]
+                                    else ("recomputed_differ" if row.get("sha256") else "first_hash")),
+                        "text_head": txt[:80]})
+        else:
+            headers = {"Accept-Language": "en,zh;q=0.8"}
+            if UA:
+                headers["User-Agent"] = UA
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=25) as resp:
+                raw = resp.read()
+                status = resp.status
+            txt = strip_html(raw.decode("utf-8", "ignore"))
+            h = hashlib.sha256(txt.encode()).hexdigest()
+            ent.update({"http_status": status, "bytes": len(raw), "chars": len(txt),
+                        "feishu_sha256": h, "pipeline": "http",
+                        "verdict": ("same" if row.get("sha256") and h == row["sha256"]
+                                    else ("recomputed_differ" if row.get("sha256") else "first_hash")),
+                        "text_head": txt[:80]})
+    except urllib.error.HTTPError as e:
+        # ★ 2026-10-08 批次一：把「不可达」细分，因为处置完全不同（见 status_reason）。
+        #   ⚠️ 404 不等于 gone：skill 红线要求「标 gone 要双证（人确认 + API 报不存在）」，
+        #   所以这里只记可复现的 missing，等的就是多轮复现 —— 别直接判死。
+        ent.update({"http_status": e.code, "verdict": "unreachable", "why": f"HTTP {e.code}",
+                    "fail_class": ("missing_page_candidate" if e.code == 404 else
+                                   ("blocked_candidate" if e.code in (400, 403) else f"http_{e.code}"))})
+    except urllib.error.URLError as e:
+        rsn = str(getattr(e, "reason", e))
+        ent.update({"verdict": "unreachable", "why": f"URLError: {rsn[:100]}",
+                    "fail_class": "dns_fail" if "nodename" in rsn or "Name or service" in rsn else "network_error"})
+    except Exception as e:
+        ent.update({"verdict": "unreachable", "why": f"{type(e).__name__}: {str(e)[:110]}",
+                    "fail_class": ("render_empty" if "render_empty" in str(e)
+                                   else ("timeout" if "timed out" in str(e) else "other"))})
+    results.append(ent)
+    if APPLY and ent["verdict"] in ("same", "recomputed_differ", "first_hash"):
+        n = dict(row)
+        # ★ 2026-10-09：写回的口径名**必须反映实际走的管线** —— 原先无条件写
+        #   `url_text_refresh_v1`，会把**渲染件**（`url_text_rendered_v1`）标错口径，
+        #   下一轮核验又按错口径去复现，口径就永远统一不了（这正是本次要修的病根之一）。
+        _inp = (row.get("sha256_input") if ent.get("pipeline") == "recrawl_equivalent"
+                and row.get("sha256_input") == "url_text_rendered_v1"
+                else "url_text_refresh_v1")
+        n.update({"observed_at": RUN, "change": "l0_url_reverify",
+                  "status": "updated" if ent["verdict"] != "recomputed_differ" else "registered",
+                  "status_reason": f"URL 重抓核验：{ent['verdict']}"
+                                   f"（管线 {ent.get('pipeline')}／{ent.get('render_mode')}；"
+                                   f"HTTP {ent.get('http_status')}）"
+                                   + ("；正文摘要与原行不同 → 网页内容可能已变，需人工看"
+                                      if ent["verdict"] == "recomputed_differ" else ""),
+                  "sha256_prev": row.get("sha256"), "sha256": ent["feishu_sha256"],
+                  "sha256_input": _inp, "sha256_state": "full"})
+        rows.append(n)
+    # ★ 失败项留痕（只在显式 --append-failures 时写；默认不写，保持只读）。
+    #   status 取 **非终态**：missing 是「疑似没了，待复现/人确认」，不是 gone。
+    if APPEND_FAILURES and ent["verdict"] == "unreachable":
+        fc = ent.get("fail_class")
+        if fc in ("missing_page_candidate", "blocked_candidate", "dns_fail"):
+            n = dict(row)
+            n.update({
+                "observed_at": RUN, "change": "l0_url_unreachable_observed",
+                "status": ("missing" if fc == "missing_page_candidate" else
+                           ("blocked_by_ua_policy" if fc == "blocked_candidate" else "dns_fail")),
+                "status_reason": {
+                    "missing_page_candidate": f"HTTP 404（第 N 轮复现才可判 gone）：{ent['why']}",
+                    "blocked_candidate": f"HTTP {ent.get('http_status')} —— 疑似反爬拦截，非页面失效；"
+                                         f"本轮 UA={'自定义 ' + str(UA) if UA else 'urllib 默认'}。"
+                                         f"实测同站换 UA 结果相反（FDA 假 Chrome UA 整站 404、默认 UA 200）",
+                    "dns_fail": f"DNS 解析失败：{ent['why']}",
+                }[fc],
+            })
+            rows.append(n)
+
+rep = {"run": RUN, "kind": "url_reverify", "checked": len(results),
+       "by_verdict": dict(collections.Counter(r["verdict"] for r in results)),
+       "fail_classes": dict(collections.Counter(r.get("fail_class") for r in results if r.get("fail_class"))),
+       "skipped_bad_keys": bad_keys,
+       "user_agent": UA or "urllib-default",
+       "same_count": sum(1 for r in results if r["verdict"] == "same"),
+       "differ_count": sum(1 for r in results if r["verdict"] == "recomputed_differ"),
+       "results": results}
+json.dump(rep, open(f"kb/l8/runs/{RUN}-l0-url-verify.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+print("结果：", rep["by_verdict"])
+if rep["fail_classes"]:
+    print("失败分类：", rep["fail_classes"])
+if APPLY or APPEND_FAILURES:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from l0_ledger import append_changed
+    _n = append_changed("kb/l0/manifest.jsonl", rows, run=RUN)
+    print(f"已追加 {_n['appended']} 行；{_n['skipped_unchanged']} 行未变（只刷新 last_seen，不再重复登记）")
+    print(f"  （闸门：APPLY={APPLY} ｜ APPEND_FAILURES={APPEND_FAILURES}；"
+          f"只加 --append-failures 时仅失败项会进台账，正常项不写）")

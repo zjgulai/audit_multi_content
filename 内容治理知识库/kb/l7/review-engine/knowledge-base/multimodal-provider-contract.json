@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Provider-neutral multimodal extraction result",
+  "type": "object",
+  "required": ["provider", "provider_version", "content_hash", "status"],
+  "properties": {
+    "provider": {"type": "string"},
+    "provider_version": {"type": "string"},
+    "content_hash": {"type": "string"},
+    "status": {"enum": ["complete", "partial", "failed"]},
+    "ocr_status": {"enum": ["complete", "not_applicable", "incomplete", "failed"]},
+    "asr_status": {"enum": ["complete", "not_applicable", "incomplete", "failed"]},
+    "keyframes_status": {"enum": ["complete", "not_applicable", "incomplete", "failed"]},
+    "transcript": {"type": "array"},
+    "ocr": {"type": "array"},
+    "keyframes": {"type": "array"},
+    "observations": {"type": "array"},
+    "errors": {"type": "array"}
+  },
+  "additionalProperties": true
+}

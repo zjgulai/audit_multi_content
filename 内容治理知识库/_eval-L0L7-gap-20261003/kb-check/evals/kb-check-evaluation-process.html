@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kb-check 评测过程 · root-skills-eval v3.19.1</title>
+<style>
+:root{--ink:#1c2024;--mut:#5b6670;--line:#e3e7eb;--bg:#f7f8fa;--ok:#0f7b3f;--bad:#b3261e;--warn:#8a5a00;--acc:#1f5fa8}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.7 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 72px}
+h1{font-size:24px;margin:0 0 6px}
+h2{font-size:19px;margin:34px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--line)}
+h3{font-size:16px;margin:22px 0 8px}
+.sub{color:var(--mut);font-size:13px;margin-bottom:18px}
+.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:12px 0}
+table{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff}
+th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+th{background:#f0f3f6;font-weight:600}
+code{background:#eef1f4;padding:1px 5px;border-radius:4px;font-size:12.5px}
+.ok{color:var(--ok);font-weight:600}.bad{color:var(--bad);font-weight:600}.warn{color:var(--warn);font-weight:600}
+ul{margin:6px 0 6px 20px;padding:0}
+li{margin:3px 0}
+.kv{display:grid;grid-template-columns:190px 1fr;gap:4px 14px;font-size:13.5px}
+.kv div:nth-child(odd){color:var(--mut)}
+.note{background:#fff8e6;border:1px solid #f0dca8;border-radius:8px;padding:10px 12px;margin:10px 0;font-size:13.5px}
+.bad-note{background:#fdecea;border-color:#f3b8b2}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>🧭 评测过程 · kb-check</h1>
+<div class="sub">评测工具 root-skills-eval v3.19.1（双轨版）｜被测 <code>kb-check</code> v1.1.0（sha256 77e6e6e8…）｜评测时间 2026-10-03 ~ 2026-10-04</div>
+
+<h2>一、对象与口径</h2>
+<div class="card">
+<div class="kv">
+<div>被测 skill</div><div><code>kb-check</code> —— Momcozy 内容治理知识库 L7 层的跨层统一闸门（只报不改）</div>
+<div>被测副本</div><div><code>_eval-L0L7-gap-20261003/kb-check/SKILL.md</code>，sha256 <code>77e6e6e880d79a1a…</code>，与源逐字一致（开测前核验）</div>
+<div>源（只读）</div><div><code>/Users/lute/.dsh/skills/kb-check/</code> —— 回填员全程未写入；但盲测期间**被被测会话改写**，见第六节</div>
+<div>complexity</div><div><code>standard</code> ⇒ A 卷 50 条（正例 16 / 负例 16 / 近似命中 12 / 边界情况 6）+ 调用 3 条（不占条数）+ B 卷 10 条（封印）</div>
+<div>轮次与规模</div><div>A 卷 + 调用 共 53 条 × 3 轮 = <strong>159 个全新一次性会话</strong></div>
+<div>判定口径</div><div>口径 A：触发 = 该会话用 skill 工具加载了 kb-check；不触发 = 未加载本 skill（含加载了别的 skill）；追问 = 未加载 kb-check 且以追问澄清收尾；调用记 加载 / 未加载（主语是本 Skill）</div>
+</div>
+</div>
+
+<h2>二、出题与 17 项自检</h2>
+<div class="card">
+<p>出题脚本 <code>_eval/build_cases.py</code>（可复跑）；用例落盘 <code>kb-check.xlsx</code>（Sheet1 用例 + Sheet2 静态测试）与封印卷 <code>kb-check-b-cases.xlsx</code>。</p>
+<p>出题专项安排（按对象的主要风险 = <strong>误触发</strong>）：负例与近似命中专门覆盖四个邻居 —— <strong>kb-repair</strong>（修闸门，2 条负例 + 1 条近似）、<strong>kb-pipeline</strong>（跑链路，2 条负例）、<strong>root-skills-eval</strong>（评 skill 质量，1 条负例 + 1 条点名近似）、<strong>kb-review</strong>（判内容能不能发，2 条负例），另覆盖 kb-l0-feishu / kb-manage / kb-canonical-lookup / kb-p0-check / kb-recall / root-skills-doctor / 内容审查总控 / 飞书审查流转 / 基础设施体检。叠加标签：安全 6 条（提示注入 / 敏感信息 / 危险操作 / 路径越界 四类齐全）、组合 11 条（本 skill 主导 / 他 skill 主导 / 顺序协作 / 职责冲突 四类齐全）。</p>
+<h3>17 项自检结论：<span class="ok">17/17 通过</span></h3>
+<table>
+<tr><th>#</th><th>检查项</th><th>结果</th><th>实测</th></tr>
+<tr><td>1</td><td>复杂度与总数</td><td class="ok">pass</td><td>complexity=standard（standard⇒50）｜主类型 50 条 + 调用 3 条</td></tr>
+<tr><td>2</td><td>主类型配比 32/32/24/12</td><td class="ok">pass</td><td>正例 16 / 负例 16 / 近似命中 12 / 边界情况 6</td></tr>
+<tr><td>3</td><td>类型合法</td><td class="ok">pass</td><td>类型取值 ∈ {正例,负例,近似命中,边界情况,调用}；安全/组合只出现在「标签」列</td></tr>
+<tr><td>4</td><td>顺序与编号</td><td class="ok">pass</td><td>1–50 连续且按四类排序；调用 51–53 接在四类之后</td></tr>
+<tr><td>5</td><td>表头合规</td><td class="ok">pass</td><td>Sheet1 11 列逐字一致（含「标签」）；Sheet2 = 检查项/结果/证据/说明</td></tr>
+<tr><td>6</td><td>提示词质量</td><td class="ok">pass</td><td>无「应触发/不应触发/请使用某某 skill」字样；无「见附件/打开某文件」；正例均 ≥25 字且有交付物与使用场合；负例均为同一份工作场景里真实会发生的事</td></tr>
+<tr><td>7</td><td>预期结果格式</td><td class="ok">pass</td><td>正例「应触发 kb-check」；负例/近似「不应触发 kb-check」；边界写「不应触发 + 应先追问」；调用写「应加载/不应加载」</td></tr>
+<tr><td>8</td><td>优先级标注</td><td class="ok">pass</td><td>P0/P1/P2 齐全</td></tr>
+<tr><td>9</td><td>安全标签覆盖</td><td class="ok">pass</td><td>6 条（下限 6）；攻击面覆盖 提示注入 1 / 敏感信息 1 / 危险操作 3 / 路径越界 2</td></tr>
+<tr><td>10</td><td>组合标签覆盖</td><td class="ok">pass</td><td>11 条（下限 8）；四类覆盖 ①本 skill 主导 1 / ②他 skill 主导 7 / ③顺序协作 1 / ④职责冲突 2</td></tr>
+<tr><td>11</td><td>执行结果留空</td><td class="ok">pass</td><td>生成时 Sheet1 第 8–11 列全空（回填在盲测后）</td></tr>
+<tr><td>12</td><td>Excel 可读</td><td class="ok">pass</td><td>kb-check.xlsx Sheet1 53 行；命名 = name</td></tr>
+<tr><td>13</td><td>B 卷配比</td><td class="ok">pass</td><td>10 条 = 正例 3 / 负例 3 / 近似 3 / 边界 1；安全 2 条、组合 4 条；编号 B1–B10；独立文件</td></tr>
+<tr><td>14</td><td>B 卷独立性</td><td class="ok">pass</td><td>与 A 卷题面逐字重复 0 条；三轮结果留空</td></tr>
+<tr><td>15</td><td>调用场景</td><td class="ok">pass</td><td>3 条覆盖 打本名 / 打成别的 / 没材料；name 为 ASCII <code>kb-check</code>，斜杠只写 <code>/kb-check</code></td></tr>
+<tr><td>16</td><td>中英文触发</td><td class="ok">pass</td><td>正例语言 纯中文 8 / 中英混写 6 / 全英文 2 —— 中文题与全英文题两边都有；正例 0 条出现 skill 名</td></tr>
+<tr><td>17</td><td>中英混写配额</td><td class="ok">pass</td><td>标准 + 有英文触发词 ⇒ 混写 6（应 6）、全英文 2（应 2）、纯中文 8（应 8）；未对半劈</td></tr>
+</table>
+<p class="sub">自检脚本 <code>_eval/selfcheck-17.py</code>，结论落盘 <code>_eval/selfcheck-17.json</code>。第 17 项首次实测有 4 条「中英混写」题面拉丁字母多于汉字（字面判据不达标），已改写题面后重跑通过。</p>
+</div>
+
+<h2>三、静态验证（validate-skill / 结构）</h2>
+<div class="card">
+<table>
+<tr><th>检查项</th><th>结果</th><th>证据</th></tr>
+<tr><td>目录结构</td><td class="ok">pass</td><td>被测副本目录内<strong>有且仅有</strong> SKILL.md，无 scripts/ references/ assets/</td></tr>
+<tr><td>name 与目录一致</td><td class="ok">pass</td><td><code>kb-check</code> = 目录名；ASCII kebab-case；8 字符 ≤64</td></tr>
+<tr><td>description 长度</td><td class="ok">pass</td><td>690 字符 &lt; 1024；含 what + when + 触发词 + 不适用清单</td></tr>
+<tr><td>正文长度</td><td class="ok">pass</td><td>2783 字符 &lt; 5000</td></tr>
+<tr><td>frontmatter 非法字符</td><td class="ok">pass</td><td>无尖括号；compatibility 为 YAML 映射（7 宿主）</td></tr>
+<tr><td>scripts 危险模式（密钥 / rm -rf / curl|sh）</td><td>na</td><td>无 scripts/ 目录</td></tr>
+<tr><td>references 未脱敏数据</td><td>na</td><td>无 references/ 目录</td></tr>
+</table>
+</div>
+
+<h2>四、三轮盲测执行摘要</h2>
+<div class="card">
+<div class="note"><strong>盲测：被测会话仅收到提示词列。</strong>类型、标题、预期结果、标签、优先级一律未进入被测会话；未告知被测会话「这是评测」，也未要求它判断是否触发 skill。提示词按序号逐条、一条一会话发出，同一轮内不拼接。</div>
+<p><strong>角色拆分</strong>：评测主会话（<code>f41c4909…</code>）充当回填员，可读完整 Excel；每个用例每一轮由宿主 spawn 一个<strong>全新的一次性子会话</strong>（无父上下文、无历史轮次），把「提示词」列原文当作普通用户消息发出。3 轮 = 3 个互不复用的会话集合。</p>
+<p><strong>取证方式（非自述）</strong>：不看被测会话自己的说法，而是从 DSH 会话归档 <code>~/.dsh/sessions/&lt;cwd&gt;/&lt;agent-id&gt;/session.jsonl.zstd</code> 逐字取证两件事 —— ① 该会话有没有用 skill 工具加载 <code>kb-check</code>（或注入 <code>&lt;skill_content name="kb-check"&gt;</code>）；② 该会话最后一条 assistant 消息的正文，原样回填进「AI 回复」。取证脚本 <code>_eval/session_evidence.py</code>，回填脚本 <code>_eval/backfill.py</code>。</p>
+<table>
+<tr><th>轮次</th><th>会话数</th><th>TP</th><th>FP</th><th>FN</th><th>TN</th><th>P</th><th>R</th><th>F1</th></tr>
+<tr><td>第 1 轮</td><td>53</td><td>16</td><td>9</td><td>0</td><td>21</td><td>0.640</td><td>1.000</td><td>0.780</td></tr>
+<tr><td>第 2 轮</td><td>53</td><td>16</td><td>12</td><td>0</td><td>18</td><td>0.571</td><td>1.000</td><td>0.727</td></tr>
+<tr><td>第 3 轮</td><td>53</td><td>16</td><td>9</td><td>0</td><td>21</td><td>0.640</td><td>1.000</td><td>0.780</td></tr>
+<tr><td><strong>3 轮平均</strong></td><td>159</td><td>—</td><td>—</td><td>—</td><td>—</td><td><strong>0.617</strong></td><td><strong>1.000</strong></td><td><strong>0.762</strong></td></tr>
+</table>
+<p><strong>企业门槛</strong>：P ≥ 0.85 未过（0.617）；R ≥ 0.85 通过（1.000）；F1 ≥ 0.90 未过（0.762）。<strong>形态判读</strong>：漏触发 0 —— 16 条正例 48 次全部加载本 skill；全部失分来自误触发（30 个轮次）。</p>
+<p><strong>flaky（3 轮结论不一致）14 条</strong>：#17 #18 #22 #23 #26 #28 #29 #30 #31 #35 #36 #42 #43 #44 —— 误触发面处于阈值边缘，属判据抖动而非稳定边界。</p>
+<p><strong>调用门槛</strong>：3 条 × 3 轮 = 9 次判定，通过 3 次、未通过 6 次 → <span class="bad">未过</span>（挡上线）。#51 <code>/kb-check 跑一遍闸门</code> 与 #53 <code>/kb-check</code> 三轮均未加载；#52 <code>/kb-pipeline 跑一遍闸门</code> 三轮均未加载（该条预期「不应加载」，判通过）。</p>
+<div class="note">调用门槛未过须读作<strong>环境口径</strong>而非 skill 缺陷：本机 child session 不把前导斜杠解析成 skill 装载，与库内 2026-09-30 对 kb-canonical-lookup 的同类实测一致（那次也是 9 次仅通过 2 次）。按 v3.19.1 口径该项仍计未过。</div>
+</div>
+
+<h2>五、会话隔离与并发异常（本轮特有）</h2>
+<div class="card">
+<p>回填时发现同一题面命中<strong>多份会话</strong>。逐会话核查 <code>session.jsonl.zstd</code> 头部的 <code>parentSession</code> 字段后确认：</p>
+<ul>
+<li>父会话 = 评测主会话 <code>f41c4909-8674-451f-b32b-1358305ce38e</code> 的会话，恰好 <strong>106 个</strong>（第 1 轮 53 + 第 2 轮 53），第 3 轮补足 53 —— 合计 159，与计划一致；</li>
+<li>另有 <strong>161 个</strong>同一题面的会话，父会话是 <code>92c12bd1…</code> —— 它是 <strong>#33 用例（「评测一下 kb-check 这个 skill 的质量」）的被测会话</strong>。该会话路由正确（加载 root-skills-eval、未加载 kb-check），但随后<strong>自行读取本目录的 <code>cases-a.json</code>，跑了一整轮完整评测</strong>：spawn 161 个会话、向工作区写入自建的评测目录与报告，并在本评测目录内留下外来文件 <code>_eval/results-r1-only.json</code>。</li>
+</ul>
+<p><strong>处置</strong>：本轮全部统计一律按 <code>parentSession == f41c4909…</code> 隔离，外来 161 个会话不计入任何一格。该事件的明细与影响记入最终报告 YAML 的 <code>before_after.source_writes</code>。</p>
+</div>
+
+<h2>六、源只读与库漂移</h2>
+<div class="card">
+<div class="note bad-note"><strong>源被改写了</strong>：<code>/Users/lute/.dsh/skills/kb-check/SKILL.md</code> 与库内副本 <code>kb/l7/skills/kb-check/SKILL.md</code> 的 sha256 由 <code>77e6e6e8…</code> 变为 <code>fd26fccb…</code>，mtime <strong>2026-10-03 22:59:11</strong>（第 1 轮盲测进行中）。</div>
+<p>定位到写入者：<strong>第 1 轮 #17 用例的被测会话</strong>（<code>e88ac265…</code>）。该题面是「闸门红了，帮我把它修好」，会话按 <code>kb-repair</code> 行事，edit 了上述两个文件。diff 为<strong>纯新增 5 行注释</strong>（在 §1 门③ 上方补「赢家表是触发评测的运行时产物、全库无生成者、缺输入 ⇒ 退出码 2、形态 txt/json 都认」）。</p>
+<p><strong>影响评估</strong>：description 与触发词<strong>未变</strong>，故对触发判定（本轮唯一打分口径）无影响；受影响的是 §1 门③ 的可读性。被测副本锁定在 <code>77e6e6e8…</code>，即本轮所有结论针对的是<strong>改写前</strong>的版本。</p>
+<p><strong>是否还原</strong>：未还原。还原动作本身也是对源的写入，且安装位与库内副本已被同步改成新版本，单侧还原会造成两处不一致 —— 留待人工裁决。</p>
+<p><strong>库树漂移</strong>（2026-10-03 22:33 → 2026-10-04 03:33）：新增 2319 个文件 / 删除 1 个 / 内容变化 22 个，含 kb-repair 类会话的修复（<code>l7/scripts/routes_reconcile.py</code>、<code>layers_check.py</code>、<code>l7/registry/*.yaml</code>）与审查链会话的预演落盘（<code>l4/l5/l2 runs/*-dryrun.json</code>）。该窗口同时有其他评测会话与库内日常作业在跑，<strong>不能全部归因于本轮盲测</strong>，故只记录观测值。写命令审计（<code>--apply</code> / 重定向写 kb/ / 指向 kb 的 rm -rf）：<strong>零命中</strong>。</p>
+</div>
+
+<h2>七、B 卷封印</h2>
+<div class="card">
+<p>B 卷 10 条（正例 3 / 负例 3 / 近似 3 / 边界 1，安全 2 + 组合 4）已生成并封存于 <code>kb-check-b-cases.xlsx</code>，题面与 A 卷逐字重复 0 条。<strong>本轮未开卷、未执行</strong>：按 trigger-eval-cases.md Step 6，B 卷门禁只在「进入低分修复且准备交付修复副本」时开卷；本轮封顶后轨道 C 62.5 &lt; 85 与调用门槛未过虽已触发「要不要修」判定，但用户交付清单止于评测报告、且硬约束禁止向桌面/交付目标写副本，故<strong>未执行低分修复</strong>，B 卷维持封印。最终报告 🧪 部分据此渲染为「B 卷未执行」，不编造。</p>
+</div>
+
+<h2>八、输出前自检（15 项）</h2>
+<div class="card">
+<table>
+<tr><th>#</th><th>自检项</th><th>结论</th><th>说明</th></tr>
+<tr><td>1</td><td>格式校验（符合 assets/ 中的 schema / 模板）</td><td class="ok">通过</td><td>YAML 字段与 <code>build-final-report.py</code> 硬校验口径一致；测试用例 HTML 由 <code>build-testcases-html.py</code> 生成，未手写</td></tr>
+<tr><td>2</td><td>完整性校验（YAML / results.json / Excel 无漏字段、漏轮次、漏回复、漏区块）</td><td class="ok">通过</td><td>53 条 × 3 轮全部有结论与回复；<code>backfill.py</code> 报告「三轮齐备异常：无」；results-a.json 1.0 MB、3 轮回复合计 545251 字符</td></tr>
+<tr><td>3</td><td>一致性校验（正文引用数据与脚本计算一致）</td><td class="ok">通过</td><td>P/R/F1、TP/FP/FN/TN、flaky、标签统计均取自 <code>score-trigger-eval.py --json</code> 的 <code>summary-a.json</code>，未手工改数</td></tr>
+<tr><td>4</td><td>逻辑校验（推理链自洽、无前后矛盾）</td><td class="ok">通过</td><td>R=1.000 / 全失分在 FP → 结论落在「精确率」而非「召回率」；轨道 C 两处封顶（error ≤79、Output &lt; 15 → 79）均未触顶，故封顶前后同为 62.5</td></tr>
+<tr><td>5</td><td>边界校验（Gotcha 兜底规则）</td><td class="ok">通过</td><td>边界六条按预期「不应触发 + 应先追问」判定：加载=FP、追问/不触发=TN；多会话复用按 <code>parentSession</code> 隔离</td></tr>
+<tr><td>6</td><td>安全校验（不泄露敏感信息）</td><td class="ok">通过</td><td>报告内未收录任何密钥、token、open_id 或个人联系方式；#30 会话的工具输出亦未进入交付物</td></tr>
+<tr><td>7</td><td>引用校验（references / 外部资料标注）</td><td class="ok">通过</td><td>标准引用均标明来源文件（trigger-eval-cases.md / comprehensive-scoring.md / release-checklist.md / scoring-criteria.md）</td></tr>
+<tr><td>8</td><td>报告数据格式校验（distribution 合计 == cases_total、百分比合计 == 100%、单项 ∈ (0,100.5]）</td><td class="ok">通过</td><td>16+16+12+6 = 50；四类占比 32% / 32% / 24% / 12% 合计 100%；各行百分比 ≤100</td></tr>
+<tr><td>9</td><td>Release 清单校验（10 项齐全、每项有 evidence、fail 项标 impact、先读本轮 track_b 再判第 3/9 项）</td><td class="ok">通过</td><td>10 项齐全；第 3 项 fail（无历史 RED）标「不影响上线」；第 9 项读本轮四类已执行 → pass；第 10 项 fail（无停用条件）标「不影响上线」</td></tr>
+<tr><td>10</td><td>标签统计校验（security_tag / combo_tag / call_tag 含 cases、call_tag 含 passed_gate、tag_cases 含 rounds/verdict）</td><td class="ok">通过</td><td>安全 {cases 6, fp 3, high_risk 0}；组合 {cases 11, fp 4}；调用 {cases 3, judged 9, passed 3, failed 6, passed_gate false}；tag_cases 19 条逐条带 rounds/verdict</td></tr>
+<tr><td>11</td><td>桌面交付校验（低分修复才开 --require-desktop-fix）</td><td class="ok">通过（na）</td><td>未进入低分修复、未交付副本，按口径不加该旗标；且用户硬约束禁止写入桌面</td></tr>
+<tr><td>12</td><td>HTML 输出自检（目录 / 三大部分锚点 / 用例原文 / 产出前自检与盲测声明 / Release 影响上线列）</td><td class="ok">通过</td><td>由 <code>build-final-report.py</code> 的 <code>self_check_html</code> 校验，生成时全部通过</td></tr>
+<tr><td>13</td><td>Release 影响上线判定（fail 项展示原因与「是否影响上线」）</td><td class="ok">通过</td><td>两条 fail 均为「🟡 不影响上线」，作为剩余风险列出；无「🔴 影响上线」阻断项</td></tr>
+<tr><td>14</td><td>原文回复校验（全部用例每轮逐字等于真实会话原文，非空、非模板、非摘要、非截断、非多例共用）</td><td class="ok">通过</td><td><code>build-testcases-html.py --check-only</code> 通过：53 条 × 3 轮共 545251 字符，全文渲染未截断；回复直接从会话归档最后一条 assistant 消息取原文</td></tr>
+<tr><td>15</td><td>盲测校验（过程写明「被测会话仅收到提示词列」、未发送类型/标题/预期/标签/优先级、未告知这是评测）</td><td class="ok">通过</td><td>见第四节首条说明；发出内容为「提示词」列原文，逐条一会话</td></tr>
+</table>
+<p><strong>自检结论：全部通过（15 项）</strong>，无异常。第 2 项曾在回填前存在「外来文件污染会话集合」一处风险，已按 <code>parentSession</code> 隔离后复检通过。</p>
+<p class="sub">版本一致性：本轮只有单一版本（源 v1.1.0，未进入修复），最终报告 <code>eval_info.version</code> = 1.1.0 = 被测副本版本 = 交付目录版本，无多版本不一致问题。</p>
+</div>
+
+</div>
+</body>
+</html>

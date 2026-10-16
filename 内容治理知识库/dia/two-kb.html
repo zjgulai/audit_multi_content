@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<style>
+  html,body{margin:0;padding:0;background:#fff;}
+  body{padding:26px 30px;display:inline-block;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;}
+  .diagram svg{display:block;}
+</style></head>
+<body><div class="diagram"><pre class="mermaid">flowchart LR
+    subgraph KB["权威分层库（真源）"]
+        direction TB
+        L0[L0 登记+指纹] --> L1[L1 抽取+锚点] --> L2[L2 单元化]
+        L2 --> L3[L3 蒸馏] --> L4[L4 定稿发号]
+        L4 --> L5[L5 P0 匹配] --> L6[L6 召回] --> L7[L7 消费契约]
+    end
+    subgraph V["DSH 装载位（派生视图，只读）"]
+        direction TB
+        V1[Momcozy知识库] --> V2[kb_search / kb_read / kb_ingest / kb_check]
+    end
+    L4 -.->|装载规则| V1</pre></div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+mermaid.initialize({startOnLoad:true,theme:'default',
+  flowchart:{curve:'basis',nodeSpacing:46,rankSpacing:64,useMaxWidth:false},
+  securityLevel:'loose'});
+</script></body></html>

@@ -1,0 +1,27 @@
+结论：NEEDS_INPUT
+依据命中 0 处（检索时库内规则 1018 条 + P0 匹配；库规模按运行时实读，不硬编码）
+依据来源：本次现跑 review.py
+层前置：L4=✅ / L5=✅ / L6=✅ / L7=✅ ｜ 红合计 0 ｜ 会话 {'L4': 'session-9e4db9fb-56fd-43c1-b3ed-a634d5551bf7', 'L5': 'session-9e4db9fb-56fd-43c1-b3ed-a634d5551bf7', 'L6': 'session-9e4db9fb-56fd-43c1-b3ed-a634d5551bf7', 'L7': 'session-9e4db9fb-56fd-43c1-b3ed-a634d5551bf7'}
+判定主体：视频安全审查（declared）
+{
+ "state": "NEEDS_INPUT",
+ "decision": "NEEDS_INPUT",
+ "confidence": null,
+ "review_id": "rv-20261005-155056",
+ "content_id": "AUTO-65882f22b54e",
+ "content_version": "65882f22b54e7f7ad6b385808abdcf84e762b2f6f73ea8ae36caa3da50ffde7f",
+ "issue_count": 0,
+ "summary": "【审查结论：NEEDS_INPUT】依据侧拒答（fail-closed）⇒ **不产出 PASS/BLOCK**。",
+ "risk_items": [],
+ "next_owners": [
+  "内容治理负责人"
+ ],
+ "fails_closed": true,
+ "refusal": {
+  "state": "NEEDS_INPUT",
+  "detail": "依据侧拒答（fail-closed）",
+  "fails_closed": true
+ },
+ "gate": null
+}
+飞书发布：跳过（结论是 NEEDS_INPUT，没有三态结论可发）

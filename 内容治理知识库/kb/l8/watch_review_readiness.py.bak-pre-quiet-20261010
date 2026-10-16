@@ -1,0 +1,1624 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""watch_review_readiness.py —— 「@守衡 能不能出结论」的**前置就绪看门狗**。
+
+## 为什么需要它（2026-10-05 事故驱动）
+
+用户实测：10-04 09:05 @守衡 拿到结论，10-04 22:18 超时 30 分钟，10-05 仍然不行。
+查下来是**两个互相独立的拦路虎**，但都只在「用户 @ 了一次、等 30 分钟」之后才暴露：
+
+  ① **陈旧认领**：`kb/.work/.kb-loop-claim.json` 持有者 pid 已死，但 TTL 未到
+     ⇒ `claim` 一律 exit 3 ⇒ 链子卡在门口 ⇒ 30 分钟超时。
+     ★ 而 TTL 过期**不会自动放行**（`claim` 对陈旧认领默认仍拒），
+       只提示"它是陈旧的" ⇒ **一次崩溃 = 此后每条 @ 都失败，直到有人 --take-over**。
+  ② **数据层陈旧**：user 身份令牌丢失 ⇒ 两张表 `pull_failed` ⇒ `daily_sync` 按库规
+     「L0 未对齐就跳过 L1–L6 写档」⇒ L1–L6 产物冻结 ⇒ `freshness.py` 判超期
+     ⇒ 评审链 ②c 复判仍超期 ⇒ 拒答。
+
+这两件事**都不该由用户 @ 一次才发现**。本脚本把「就绪」变成可定时巡检的谓词：
+  · 能自愈的**当场自愈**（陈旧认领 → `release --force`）；
+  · 不能自愈的（缺 user 令牌 / 数据陈旧）→ **主动推飞书**，并给出**可直接复制的那条命令**。
+
+**2026-10-05 追加（③）——修掉看门狗自己的盲区：令牌寿命**：
+
+  ③ **令牌撑不到下次日更**：user 令牌只有 **2 小时**寿命、**没有 refresh token**
+     （`auth status` 的 `refreshExpiresAt` 与 `expiresAt` 同值）。
+     原先只查「现在在不在」，于是 07:54 对着一枚 09:36 即死的令牌报了 ✅ ——
+     而**次日那次日更必然回落失败**。即：这条故障**不是随机的，是每 2 小时必然发生一次**，
+     （当年实测时日更在 08:30；2026-10-06 已挪到 03:30 —— **时刻一律从 plist 现读，别在这里写死**）
+     只看「现在」的巡检查不出来。现在改成**与下次日更时刻比较**（排期从 launchd plist 读，
+     不抄第二份），余量不足一个巡检周期就提前告警。
+
+     ★ 它**非阻断**（与 AGENTS.md 漂移同类）：就绪谓词的语义是「**现在**能不能跑」，
+       令牌还没死 ⇒ 现在确实能跑 ⇒ 混进 `ready` 会把这个问题答错。
+       它的价值是**前瞻**：让「明天会坏」在**今天**就说出来，而不是等 @ 了一次。
+
+## 它不做什么（刻意）
+
+  · **不改任何闸门判据**：新鲜度结论直接读 `freshness.py`，不自己算、不放宽。
+    「陈旧」是去跑供给链的理由，不是可以被豁免的状态 —— 库规写死「不许把这两张表的
+    pull_failed 写进 expected 去声明掉，它是回落失效的报警」。本脚本只**报**，不改判据。
+  · **不自动跑供给链**：那要持锁、要按层前置口径走，属人工/编排器决策，不在看门狗职责内。
+
+## 用法
+
+    python3 kb/l8/watch_review_readiness.py            # 巡检一次，就绪退出 0，被挡退出 3
+    python3 kb/l8/watch_review_readiness.py --no-send  # 不推飞书（调试）
+    python3 kb/l8/watch_review_readiness.py --json     # 机读
+
+环境变量：
+    KB_ALERT_CHAT   告警落到哪个会话（默认取 2026-10-05 实测的那个 p2p 会话）
+    KB_ALERT_COOLDOWN_H  同一原因的告警冷却小时数（默认 6；签名变化则立刻再报）
+"""
+from __future__ import annotations
+
+import argparse
+import datetime
+import json
+import os
+import plistlib
+import re
+import subprocess
+import sys
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(HERE))          # …/知识库/内容治理
+KBPY = os.path.join(ROOT, "kb", "kbpy")
+LARK = os.path.expanduser("~/.dsh/bin/lark-cli")
+STATE = os.path.join(ROOT, "kb", ".work", ".review-readiness-alert.json")
+DEFAULT_CHAT = "oc_7775e2dacb6f2ebc9789cd6e681de5f7"
+
+# 日更排期的**唯一真源**是 launchd 的 plist —— 不在这里抄第二份（AGENTS.md 的纪律：
+# 抄出去的第二份必然过期）。读不到就返回 None，由调用方按「判断不了」处理。
+DAILY_PLIST = os.path.expanduser("~/Library/LaunchAgents/com.kb.pipeline-daily.plist")
+HORIZON_MARGIN_MIN = 30          # 巡检周期；留一个周期当缓冲
+
+COOLDOWN_H = float(os.environ.get("KB_ALERT_COOLDOWN_H") or 6)
+
+# ── ★★ 受控自愈（2026-10-07，Owner 批准「先修复新鲜度问题」）──────────────────────────
+#  为什么必须有它（2026-10-07 事故实测，全链条三处叠在一起）：
+#    ① **零余量**：陈旧阈值 24h（`daily_health.py`），日更每 24h 一次（03:30）
+#       ⇒ 日更失败一次，次日同一时刻起**必然**全量降级；
+#    ② **自愈路径不可能自愈**：引擎发现陈旧会「自动跑层」，但那是 **dry-run**（不带 --apply）
+#       ⇒ 推不动水位。实测那句原话：`跑层后仍超期 ⇒ 拒答（fail-closed）`；
+#    ③ **告警只告警**：本巡检每 30 分钟巡到红、推一条飞书，然后**什么都不做**；
+#       而「同因 6h 冷却」还会把一个**全量拒答级**的问题压成沉默（2026-10-07 15:35/16:05 两条
+#       都是 `冷却中（0.5h < 6.0h）`）。
+#  ⇒ 本段只做一件事：**前端全部满足时，踢一次那条本来就该跑的日更作业**
+#     （`launchctl kickstart -k`，launchd 里那条日常作业自己会认领、自己会释放 —— 不是我临时拼的写库命令）。
+HEAL_COOLDOWN_MIN = float(os.environ.get("KB_HEAL_COOLDOWN_MIN") or 45)
+HEAL_MAX_PER_DAY = int(os.environ.get("KB_HEAL_MAX_PER_DAY") or 3)
+HEAL_STATE = os.path.join(ROOT, "kb", ".work", ".review-readiness-heal.json")
+HEAL_LEDGER = os.path.join(ROOT, "kb", ".work", "freshness-heal.ndjson")
+DAILY_SKILL_LABEL = "com.kb.pipeline-daily-skill"
+#: 「阻断级」问题的重报间隔 —— 比 6h 短得多：一个让**整条评审链拒答**的问题，
+#: 沉默 6 小时等于让人在黑暗里等（2026-10-07 就是这么发生的：警报响过，然后没声了）。
+BLOCKING_COOLDOWN_H = float(os.environ.get("KB_ALERT_COOLDOWN_BLOCKING_H") or 1)
+
+
+def run(argv, timeout=180):
+    """跑一条命令，返回 (exit, stdout, stderr)。**不抛** —— 巡检不许因为一条命令挂掉而中断。"""
+    try:
+        p = subprocess.run(argv, cwd=ROOT, capture_output=True, text=True,
+                           timeout=timeout, errors="replace")
+        return p.returncode, p.stdout, p.stderr
+    except subprocess.TimeoutExpired:
+        return 124, "", f"timeout after {timeout}s"
+    except Exception as exc:                                    # noqa: BLE001
+        return 125, "", repr(exc)
+
+
+# ────────────────────────────────────────────── 三项阻断检查（认领 / 凭据 / 新鲜度）
+
+def check_claim():
+    """陈旧认领 → **当场自愈**（release --force）。返回 (ok, detail)。"""
+    rc, out, err = run(["sh", KBPY, "l7/scripts/kb_loop_claim.py", "status"], timeout=60)
+    text = (out or "") + (err or "")
+    if "无认领" in text:
+        return True, "空闲（无认领）"
+    if "陈旧" in text:
+        rc2, out2, err2 = run(["sh", KBPY, "l7/scripts/kb_loop_claim.py",
+                               "release", "--force"], timeout=60)
+        ok = (rc2 == 0)
+        return ok, {
+            "action": "自愈：释放陈旧认领",
+            "before": text.strip()[:300],
+            "release_exit": rc2,
+            "release_out": (out2 or err2).strip()[:200],
+        }
+    # 新鲜认领：别人正在跑，这是**正常状态**，不算故障
+    return True, {"note": "有新鲜认领（别的会话在跑），非故障", "status": text.strip()[:300]}
+
+
+def _lark_env():
+    return dict(os.environ, PATH=os.path.expanduser("~/.dsh/bin") + ":" + os.environ.get("PATH", ""))
+
+
+# 两张「曾经只有 user 身份才读得到」的表 —— 日更的 L0 pull 必须能拿到它们。
+PROBLEM_TABLES = (
+    ("SKkkbdZi9aRuMzs7ob0cpSYHnQg", "tbl8AI00JZO1iZtp", "专家修订汇总表"),
+    ("SKkkbdZi9aRuMzs7ob0cpSYHnQg", "tblVdl0jdK9G4ld3", "内容公式（仅供参考）"),
+)
+
+
+def _interpret_bot_probe(rc, stdout, stderr):
+    """把一次探针的**原始读数**翻译成三态。**纯函数**，不联网 —— 自证直接喂样本进来。
+
+    ★ 为什么把这一步单独拆出来（2026-10-06）：判据必须**能被调用**才有判据可言。
+      事故里那句话之所以能发出去，是因为「探针的原始输出」与「结论」之间隔着一个 subprocess，
+      没有任何用例走得进去。`AGENTS.md` §2.4.7 的方法教训写的就是这一条：
+      **判据没盖住的那一跳，就是事故所在的那一跳。**
+    """
+    raw = (stdout or "").strip()
+    i = raw.find("{")
+    if i < 0:
+        # ★ 08:19:59 那一格的形状，逐字复刻在这里：stdout 里没有 JSON。
+        #   旧代码把它读成 `ok=False`（「bot 读不到」），而它真正说的是「这一次什么都没测到」。
+        err = (stderr or "").strip()[:120]
+        return None, (f"未测：探针 stdout 里没有 JSON（rc={rc}｜stdout {len(raw)} 字｜"
+                      f"stderr：{err or '空'}）—— 这**不是**「bot 读不到」")
+    try:
+        d = json.loads(raw[i:])
+    except json.JSONDecodeError as exc:
+        return None, f"未测：探针输出不是合法 JSON（{exc}）"
+    if not isinstance(d, dict) or "ok" not in d:
+        keys = sorted(d)[:8] if isinstance(d, dict) else type(d).__name__
+        return None, f"未测：返回里没有 `ok` 字段（形状不认识：{keys}）"
+
+    if d.get("ok"):
+        return True, None
+    e = d.get("error") or {}
+    if not e:
+        # `ok:false` 却连 error 都没有 ⇒ 判不出是不是权限问题。落未测，**不许**当成被拒。
+        return None, "未测：`ok=false` 但 error 为空 —— 判不出是权限还是别的原因"
+    return False, f"{e.get('type')}/{e.get('subtype')}｜{str(e.get('message'))[:160]}"
+
+
+def _bot_can_read(base, table):
+    """用 **bot 身份**直读一张表（只取 1 条，不写库）。返回**三态** `True | False | None`。
+
+    **事故（这条改动的全部理由）**：08:19:59 那次巡检报了「审查链**当前不可用**」并推了飞书，
+    而同一张表在 **30 分钟前（07:49）** 与 **3 分钟后（08:23）** 都是通的 ——
+    直读 5/5、连打 20/20 全通。它留下的错误串是 `None/None｜None`：**字段全空**。
+    飞书真拒绝会带 type/subtype/message；全空只说明**探针的 stdout 里没有可解析的 JSON**。
+
+    三态的含义见 `_interpret_bot_probe`；这一层只负责跑进程与把超时/异常归进「未测」。
+    """
+    try:
+        p = subprocess.run(
+            [LARK, "base", "+record-list", "--base-token", base, "--table-id", table,
+             "--page-size", "1", "--as", "bot", "--profile", "dsh-kb", "--json"],
+            capture_output=True, text=True, timeout=60, env=_lark_env(), errors="replace")
+    except subprocess.TimeoutExpired:
+        # 超时 ≠ 读不到：它连一句话都还没说。旧代码把它归进「bot 直读失败」。
+        return None, "未测：探针 60s 超时（CLI/网络卡住，**不是**「bot 读不到」）"
+    except Exception as exc:                                    # noqa: BLE001
+        return None, f"未测：探针跑不起来 {exc!r}"
+    return _interpret_bot_probe(p.returncode, p.stdout, p.stderr)
+
+
+def _user_identity():
+    """回落身份（user 令牌）现在还能不能用。返回 `(available_or_None, info)`。
+
+    `None` 表示**未测**（auth status 跑不起来）—— 与「明确不可用」分开，
+    否则「问不到」会被当成「没有」。
+    """
+    try:
+        p = subprocess.run([LARK, "auth", "status", "--profile", "dsh-kb", "--json"],
+                           capture_output=True, text=True, timeout=60, env=_lark_env(), errors="replace")
+        d = json.loads(p.stdout or "{}")
+    except Exception as exc:                                    # noqa: BLE001
+        return None, {"reason": f"未测：auth status 跑不起来：{exc!r}"}
+    user = ((d.get("identities") or {}).get("user") or {})
+    return bool(user.get("available")), user
+
+
+def check_credential():
+    """日更的凭据够不够 —— **按 pull 的真实主身份（bot）判，不按 user 判**。
+
+    ★ 2026-10-06 改（旧判据会天天误报）。旧版问的是「user 身份可用吗」，并断言
+      「缺了 ⇒ 两张表必然 pull_failed」。**该断言已失效**：Owner 在飞书侧把守衡 bot
+      加成可阅读协作者后，**bot 直读两张表都成功**；而
+      `kb/l8/align_l0_feishu.py` 的 `AS_ID = os.environ.get("L8_AS", "bot")` 说明
+      **pull 的主身份本来就是 bot**，user 只是回落（`L8_AS_FALLBACK`）。
+      ⇒ 旧判据会在 bot 完全够用的情况下报红、并推飞书告警（冷却 6h）。
+
+    ★ 同日再改（**未测不是红**）：08:19:59 那次报红的真身是**探针没输出**，不是权限被拒。
+      现在三态各自分开：两张都读到 ⇒ 绿；飞书明确拒绝且无回落 ⇒ 红；
+      **探针没跑起来 ⇒ 未测（`None`）**，且这一格**决定不了一句话**说「链坏了」。
+    """
+    if not os.path.exists(LARK):
+        # 找不到 CLI 是**确定的**坏（日更的 `align_l0_feishu.py` 也走它）⇒ 红，不是未测。
+        return False, {"reason": f"找不到 lark-cli：{LARK}"}
+
+    # ① 主身份：bot 直读两张表（这正是日更 pull 走的那条路）
+    bad = {}                     # name -> (state, detail)，state ∈ {False, None}
+    for base, table, name in PROBLEM_TABLES:
+        st, detail = _bot_can_read(base, table)
+        if st is not True:
+            bad[name] = (st, detail)
+    if not bad:
+        return True, {
+            "identity": "bot",
+            "bot_direct_read": "两张表都通（专家修订汇总表 / 内容公式）",
+            "note": "日更 pull 的主身份就是 bot（`L8_AS` 默认 bot）⇒ **user 令牌不再是它的前置条件**。",
+        }
+
+    denied = {n: d for n, (s, d) in bad.items() if s is False}      # 飞书明确拒绝
+    untested = {n: d for n, (s, d) in bad.items() if s is None}     # 探针没跑起来
+
+    # ② 回落身份：user 令牌还能不能用（这道回落与「凭据寿命」非阻断项是同一件事的两面）
+    user_ok, user = _user_identity()
+    if user_ok:
+        return True, {"identity": "user(回落)", "bot_fail": {**denied, **untested},
+                      "user": user.get("userName"),
+                      "note": "bot 读不到/没测成，靠 user 令牌回落 —— 能跑，但令牌只活 2 小时。"}
+
+    if denied:
+        return False, {
+            "reason": "**飞书明确拒绝 bot 直读**，且 user 令牌也不可用 ⇒ 这两张表 pull_failed，"
+                      "→ 日更会跳过 L1–L6 写档 → 数据停更 → 评审链拒答",
+            "bot_fail": denied,
+            **({"bot_untested": untested} if untested else {}),
+            "detail": user.get("message"),
+            "fix": "【先核这一句】bot 直读在 2026-10-06 实测**已经通了**（两张表都读得到）⇒ "
+                   "先按上面 `bot_fail` 里的 error 类型判断是**资源权限**还是 **scope**"
+                   "（两者修的地方不同，别混），并确认是不是**回退了**"
+                   "（协作者被移除 / Base 或表被换掉）—— 别把已经加好的协作者再加一遍。"
+                   "  【应急】~/.dsh/bin/lark-cli auth login --profile dsh-kb（需本人扫码；令牌只活 2 小时）",
+        }
+
+    # ③ 只有「未测」：探针没跑起来 + 没有回落 ⇒ **判不出此刻能不能跑**。
+    #    这一格以前会被说成「审查链当前不可用」—— 那句话说出去的时候没有依据。
+    return None, {
+        "reason": "**未测**：bot 探针没跑起来，且 user 令牌不可用 ⇒ "
+                  "**判不出**此刻能不能跑（这既不是「读不到」，也不是「链坏了」）。"
+                  "→ 处置：隔几分钟再巡一次；同一张表连着两次未测才值得动手查。",
+        "bot_untested": untested,
+        "detail": user.get("message"),
+    }
+
+
+def _read_plist_tolerant(path):
+    """读 launchd plist，**先严格、后宽松**。
+
+    为什么要两档（2026-10-05 实测）：本机 `com.kb.pipeline-daily.plist` **不是 well-formed XML** ——
+    它的注释里写了 `kb_pipeline.py --check`，而 **XML 注释内禁止出现 `--`**。
+    `plutil -lint` 与 launchd 都宽容（照跑不误），python 的 expat 不宽容（直接抛 ExpatError）。
+    ⇒ 巡检**不能把「能不能读到排期」押在解析器的宽容度上**，否则它会静默降级成「判断不了」。
+    严格档读不到时退回正则只取 Hour/Minute（够本用途；排期不是这份文件的安全边界）。
+    """
+    try:
+        with open(path, "rb") as fh:
+            raw = fh.read()
+    except Exception as exc:                                    # noqa: BLE001
+        return None, f"读不到文件（{exc!r}）"
+    try:
+        d = plistlib.loads(raw)
+        return (d if isinstance(d, dict) else {}), "plistlib"
+    except Exception:                                           # noqa: BLE001
+        pass
+    try:
+        txt = raw.decode("utf-8", "replace")
+        blk = re.search(r"<key>StartCalendarInterval</key>\s*<dict>(.*?)</dict>",
+                        txt, re.S)
+        if not blk:
+            return None, "宽松档：找不到 StartCalendarInterval 段"
+        seg = blk.group(1)
+        out = {}
+        for fld in ("Hour", "Minute"):
+            m = re.search(r"<key>%s</key>\s*<integer>(\d+)</integer>" % fld, seg)
+            if m:
+                out[fld] = int(m.group(1))
+        if not out:
+            return None, "宽松档：段里没有 Hour/Minute"
+        return {"StartCalendarInterval": out}, "regex（原文非 well-formed XML）"
+    except Exception as exc:                                    # noqa: BLE001
+        return None, f"宽松档也失败（{exc!r}）"
+
+
+def next_daily_run(now=None):
+    """下次日更的时刻。**从 launchd 的 plist 读**，读不到返回 None。
+
+    返回 None 表示「判断不了」—— 调用方**不许**把它当「没问题」。
+    """
+    now = now or datetime.datetime.now().astimezone()
+    d, how = _read_plist_tolerant(DAILY_PLIST)
+    if d is None:
+        return None, how
+    cal = d.get("StartCalendarInterval") or {}
+    if isinstance(cal, list):                       # 多档排期：取最早的一档
+        cal = cal[0] if cal else {}
+    try:
+        hh, mm = int(cal.get("Hour", 8)), int(cal.get("Minute", 30))
+    except Exception as exc:                                    # noqa: BLE001
+        return None, f"排期字段读不出（{exc!r}）"
+    cand = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    if cand <= now:
+        cand += datetime.timedelta(days=1)
+    return cand, how
+
+
+def check_credential_horizon():
+    """user 令牌**撑得到下次日更吗** —— 撑不到就提前报，别等日更那天才发现。
+
+    为什么必须单列这一条（2026-10-05 实测出来的**看门狗自身盲区**）：
+      守衡的 L0 回落靠 user 令牌，而这枚令牌**只有 2 小时寿命、且没有 refresh token**
+      （`auth status` 的 `refreshExpiresAt` 与 `expiresAt` **同值**；登录时输出
+      `[WARN] no refresh_token in response`）。
+      ⇒ 「现在可用」**根本不等于**「日更那天可用」。
+      只看「现在在不在」的就绪巡检，会对着一枚 2 小时后即死的令牌报 ✅（实测 07:54 就报了），
+      然后在**次日那次日更**让 L0 回落失败 → 跳过 L1–L6 → 数据停更 → 评审链拒答。
+      那正是用户抱怨的「每次 @ 一次就要重新解决」的**复发路径**：
+      故障不是随机发生的，是**每 2 小时必然发生一次**，只是以前要等 @ 了一次才知道。
+
+    ★ **非阻断**：此刻评审链确实能用（令牌还没死），把它混进 `ready` 会让就绪谓词失真 ——
+      就绪谓词的语义是「现在能不能跑」，不是「明天能不能跑」。所以它与 AGENTS.md 漂移同类：
+      **要告警，但不改 ready、不改退出码**。
+    """
+    if not os.path.exists(LARK):
+        return True, {"note": "lark-cli 不在，凭据项已单独报"}
+    env = dict(os.environ, PATH=os.path.expanduser("~/.dsh/bin") + ":" + os.environ.get("PATH", ""))
+    try:
+        p = subprocess.run([LARK, "auth", "status", "--profile", "dsh-kb", "--json"],
+                           capture_output=True, text=True, timeout=60, env=env, errors="replace")
+        d = json.loads(p.stdout or "{}")
+    except Exception as exc:                                    # noqa: BLE001
+        return False, {"reason": f"取令牌寿命失败：auth status 跑不起来（{exc!r}）"}
+    user = ((d.get("identities") or {}).get("user") or {})
+    if not user.get("available"):
+        return True, {"note": "user 身份当前不可用 —— 由「凭据」项报，本项不重复报"}
+
+    exp_raw = user.get("expiresAt") or user.get("refreshExpiresAt")
+    try:
+        exp = datetime.datetime.fromisoformat(exp_raw)
+        if exp.tzinfo is None:
+            exp = exp.astimezone()
+    except Exception:                                           # noqa: BLE001
+        return False, {"reason": f"拿不到可解析的令牌到期时间（expiresAt={exp_raw!r}）"
+                                 " ⇒ **判断不了**它能不能撑到下次日更，按不通过报（读不到 ≠ 没问题）"}
+
+    nxt, how = next_daily_run()
+    if nxt is None:
+        return False, {"reason": "读不到日更排期（" + DAILY_PLIST + f"，原因：{how}）"
+                                 " ⇒ **判断不了**令牌能不能撑到下次日更（读不到 ≠ 没问题）",
+                       "expires_at": exp.isoformat()}
+
+    # ★ 结构性事实（2026-10-05 实测，三个数都能重算）：
+    #   令牌寿命 2.0h ＜ 日更间隔 24h ⇒ **一次扫码最多只能覆盖一次日更**，
+    #   想让它天天有效，就得**在每天那次日更之前重扫一次**（旧写法把「06:30–08:30」写死在这里，
+    #   日更一挪就成假话；此刻**从 plist 现读**，不抄第二份）—— 那不是一个可接受的运维动作。
+    #   ⇒ 「扫码」治不了这个病，根治只有两条：拿到 refresh token，或给守衡 bot 授该 Base 阅读权。
+    #   这条事实**每次都报**（进输出与 JSON），但**不单独告警** —— 它是常驻状态，
+    #   每 30 分钟推一次会把告警淹掉（库规：无人值守的日报如果每天报同一个假红，第三天就没人看）。
+    structural = None
+    life_h = None
+    try:
+        g = datetime.datetime.fromisoformat(user.get("grantedAt") or "")
+        if g.tzinfo is None:
+            g = g.astimezone()
+        life_h = (exp - g).total_seconds() / 3600.0
+        interval_h = (nxt - (nxt - datetime.timedelta(days=1))).total_seconds() / 3600.0
+        if life_h < interval_h:
+            structural = (f"令牌寿命仅 {life_h:.1f}h ＜ 日更间隔 {interval_h:.0f}h ⇒ "
+                          "**一次扫码最多只覆盖一次日更**；想天天有效就得**在每天日更（"
+                          f"{nxt.strftime('%H:%M')}）之前重扫一次**，"
+                          "那不是可接受的运维动作。⇒ 扫码治不了这个病，根治只有两条："
+                          "① 在飞书侧把「守衡」bot 加成 Base SKkkbdZi9aRuMzs7ob0cpSYHnQg 的可阅读协作者"
+                          "（bot 直读成功，回落与令牌整条链路不再需要）；"
+                          "② 拿到带 refresh token 的授权方式。")
+    except Exception:                                           # noqa: BLE001
+        pass
+
+    margin = datetime.timedelta(minutes=HORIZON_MARGIN_MIN)
+    covers = exp > nxt + margin
+    base = {"expires_at": exp.isoformat(), "next_daily_run": nxt.isoformat(),
+            "lifetime_h": round(life_h, 2) if life_h is not None else None,
+            "covers_next_run": covers, "structural_recurs": bool(structural),
+            "structural_note": structural}
+    if covers:
+        return True, {**base, "note": "令牌撑得过下次日更"}
+
+    remain_h = (exp - datetime.datetime.now().astimezone()).total_seconds() / 3600.0
+    return False, {
+        **base,
+        "reason": f"user 令牌**撑不到下次日更**：它到期时，下一次日更（{nxt.strftime('%H:%M')}）还没开始。"
+                  "届时 L0 的两张表会回落失败 ⇒ 日更跳过 L1–L6 ⇒ 数据停更 ⇒ 评审链拒答。"
+                  "**这不是随机故障，是每 2 小时必然发生一次**，现在提前报，别等它发作。",
+        "remaining_h": round(remain_h, 2),
+        "now_usable": "此刻评审链**仍可用**（令牌还没死）—— 本条是前瞻预警，不是当前阻断",
+        "fix": "在下次日更前重扫一次： ~/.dsh/bin/lark-cli auth login --profile dsh-kb"
+               "   （device flow，需本人手机确认，链接 10 分钟内有效）"
+               "   ▶ **一次性根治**：在飞书侧把「守衡」bot 加成 Base "
+               "SKkkbdZi9aRuMzs7ob0cpSYHnQg 的可阅读协作者 ⇒ bot 直读成功，"
+               "回落链路整条不再触发，从此不再依赖这枚 2 小时令牌。",
+    }
+
+
+def check_skill_links():
+    """装机位的**符号链接**是否都还解析得开（2026-10-05 加，symlink 试点配套护栏）。
+
+    为什么必须有一条（试点工具自己写明的代价）：
+      `dsh-skill-filesystem` 的 `nodeEntryKind()` 在 `isSymbolicLink()` 之后用 `stat()` 跟随链接；
+      **链接断裂时它只打一条 warning 就 `return void 0`** ⇒ 该 skill 会**从技能目录里静默消失**。
+      实测过的形态：`kb-l0-feishu` 曾因文件表示层损坏而不进目录，症状同样是"skill 不见了"，
+      但**没有任何闸门报红** —— 直到有人 @ 一次、链路断在第 1 层才发现。
+    ⇒ 既然我们把装机位从"实体镜像"改成"指向真源的符号链接"（kb-p0-check / kb-l0-feishu 已改），
+      就必须有人替那条链接**定期解析一次**，否则是我们自己引入了一个静默失效点。
+
+    ★ **阻断项**：某层 skill 消失 ⇒ 评审链那一层的"逐层调 skill"必然做不到 ⇒ 确实不该说"就绪"。
+    """
+    root = os.path.expanduser("~/.dsh/skills")
+    if not os.path.isdir(root):
+        return False, {"reason": f"找不到技能根 {root}"}
+    try:
+        names = sorted(os.listdir(root))
+    except Exception as exc:                                    # noqa: BLE001
+        return False, {"reason": f"列不出技能根（{exc!r}）"}
+    links, broken, dirs = [], [], []
+    for n in names:
+        p = os.path.join(root, n)
+        if os.path.islink(p):
+            links.append(n)
+            if not os.path.exists(p):            # exists() 跟随链接 ⇒ False 即断链
+                broken.append({"skill": n, "target": os.readlink(p)})
+        elif os.path.isdir(p):
+            dirs.append(n)
+    if broken:
+        return False, {
+            "reason": "装机位有**断链的符号链接** ⇒ 这些 skill 会**从技能目录里静默消失**，"
+                      "评审链那一层的『逐层调 skill』会直接做不到（且不会有别的闸门报红）",
+            "broken": broken,
+            "fix": "重建链接或在真源在位时直接指回真源："
+                   " ln -sfn \"<库内真源路径>\" ~/.dsh/skills/<skill>"
+                   "   ▶ 复核：git -C ... 无需；直接 `python3 _eval-*/tools/extract_catalog.py "
+                   "--skill <skill> <新会话文件>` 看它是否回到目录里",
+        }
+    return True, {"symlink_装载位": len(links), "实体目录": len(dirs), "断链": 0,
+                  "已链接": links[:12]}
+
+
+def check_freshness():
+    """直接读 freshness.py 的结论（**不自己算、不放宽**）。
+
+    ★ 自证专用闸门（2026-10-07）：`KB_FRESHNESS_FORCE_STALE=1` ⇒ **强制判陈旧**，
+      只为让「陈旧 ⇒ 自愈」这条分支能被人**真的跑一遍**（否则它只能等下次真事故才首验）。
+      与 `SHOUHENG_REVIEW_TABLE=off` 同一种做法：**只认环境变量、默认关**，
+      launchd 不会设它 ⇒ 定时跑永远走真判据；且命中时在读数里**写明是强制**（不许冒充真读数）。
+    """
+    if os.environ.get("KB_FRESHNESS_FORCE_STALE") == "1":
+        return False, {
+            "reason": "**自证用闸门 `KB_FRESHNESS_FORCE_STALE=1`：本次是强制判陈旧**"
+                      "（不是真读数；只为验证自愈分支）",
+            "exit": 3, "forced": True,
+            "stale_items": ["（强制）L0 的 manifest.jsonl 落后 N 天",
+                            "（强制）最近一次成功 RUN 距今 > 24 小时 ⇒ 陈旧"],
+            "fix": "这条是自证用的强制读数；真实修法见下面的自愈动作。",
+        }
+    rc, out, err = run(["sh", KBPY, "l7/scripts/freshness.py"], timeout=300)
+    text = (out or "") + (err or "")
+    stale = (rc == 3) or ("拒答" in text) or ("超期" in text and "❌" in text)
+    if not stale:
+        return True, {"exit": rc, "tail": text.strip()[-300:]}
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip().startswith("·")]
+    return False, {
+        "reason": "数据层超期 ⇒ 评审链 ②c 复判仍会超期 ⇒ 拒答",
+        "exit": rc,
+        "stale_items": lines[:6],
+        "fix": "**受控自愈会自动接手**：本巡检在「认领空闲 ＋ 日更没在跑 ＋ 无活锁」时"
+               "会踢一次日更（`launchctl kickstart -k gui/<uid>/com.kb.pipeline-daily-skill`），"
+               "跑完（~15 分钟）新鲜度应恢复；动作与结果都进 `kb/.work/freshness-heal.ndjson`。"
+               "若当日连续 3 次都没救回来（上限），说明不是「日更没跑」而是别处红了 ——"
+               " 那时人去看那份台账与日更日志 `~/Library/Logs/kb-pipeline-skill/out.log`。",
+    }
+
+
+# ────────────────────────────────────────────── 层闸门：工作流的前置还成立吗（**阻断项**）
+
+#: 评审链的层前置，按链上顺序。**只读档**（不加 `--apply`），与链自己跑的是同一条命令。
+LAYER_GATES = [("L4", "l7/scripts/l4_gate.py"), ("L5", "l7/scripts/l5_gate.py"),
+               ("L6", "l7/scripts/l6_gate.py"), ("L7", "l7/scripts/l7_gate.py")]
+
+
+def _gate_verdict(rc):
+    """一次闸门运行的退出码 → 三态。**只认契约里写死的三个码**，其余一律「未测」。
+
+    契约（见各 `kb/l7/scripts/*_gate.py` 头部）：`0` = 过 ｜ `1` = 红 ｜ `2` = 未测。
+    为什么其余码不许归成红或绿：`124`（本巡检查超时自己发的）／`125`（子进程起不来）／
+    `137`（被 kill）／`127`（命令不存在）都**不是闸门的判断结果** ——
+    说成「红」会让人去修一个不存在的红项，说成「绿」则是把一个没跑起来的东西声明成通过。
+    """
+    if rc == 0:
+        return True
+    if rc == 1:
+        return False
+    return None
+
+
+def check_layer_gates(_runner=None):
+    """评审链的**层前置**（L4→L5→L6→L7 只读闸门）此刻过不过。返回 (ok, detail)。
+
+    ★ 为什么必须有这一条（2026-10-09 实测事故，本巡检建成以来第三次同形状）：
+
+      13:10 一次 L2 重切把 338 条**在册**单元作废（那次运行自己的报告里就写着
+      `retired_in_scope_file: 338`），L6 索引随之过期 ⇒ `l6_gate.py` 红 ⇒
+      评审链按「遇红即停」停在 L6、库侧拒答（`layer_gate_red`，退出码 4）。
+      **而本巡检查了 7 条、一条都不看层闸门** ⇒ 13:10 断的，直到 14:12 有人
+      在群里发了一张图才发现（62 分钟里没有任何东西会响）。
+      这与 10-04（陈旧认领／凭据）、10-05（装机位符号链接）那两次是**同一个形状**，
+      那两次的修法都是「给本巡检加一条判据」—— 这次也一样。
+
+    ★ **阻断项**：层闸门红 ⇒ 评审链**必然**停在那一层并拒答。它不是"文档过期"那类
+      非阻断项，混进 ready 会把「此刻能不能出结论」答错。
+
+    ★ 代价与档位：四条闸门都是只读的，L6 那条要复算可用集（实测 ~55s），
+      四条合计约 1~2 分钟，每 30 分钟一次 ⇒ 可接受。
+      自证／离线档用 `KB_READINESS_GATES_FIXTURE`（如 `L6=1,L4=2`）注入读数，一条命令都不跑。
+    """
+    fixture = os.environ.get("KB_READINESS_GATES_FIXTURE")
+    rows, bad, untested = [], [], []
+    for layer, rel in LAYER_GATES:
+        if fixture is not None and _runner is None:
+            want = {kv.split("=")[0].strip(): kv.split("=")[1].strip()
+                    for kv in fixture.split(",") if "=" in kv}
+            rc = int(want.get(layer, "0"))
+            out = f"[夹具] {layer} 退出码 {rc}"
+        elif _runner is not None:
+            rc, out = _runner(layer, rel)
+        else:
+            rc, out, err = run(["sh", KBPY, rel], timeout=600)
+            out = (out or "") + (err or "")
+        ok = _gate_verdict(rc)
+        tail = [l.strip() for l in (out or "").strip().splitlines() if l.strip()]
+        rows.append({"layer": layer, "exit": rc, "ok": ok,
+                     "tail": (tail[-1][:140] if tail else "")})
+        if ok is False:
+            bad.append(layer)
+        elif ok is None:
+            untested.append(layer)
+
+    detail = {"gates": rows}
+    if bad:
+        # 复开的判据 = 闸门自己那一行；命令逐层给出，可原样复制。
+        detail |= {
+            "reason": f"层闸门**红**：{'、'.join(bad)} ⇒ 评审链会停在那一层并拒答（`layer_gate_red`）",
+            "fix": " cd \"" + ROOT + "\" && " + " ; ".join(
+                f"sh kb/kbpy kb/l7/scripts/l{ly[1]}_gate.py" for ly in bad)
+                   + "   # 逐条看红项；L6 红时按它的「处置」块走（数据档见 kb/.work/l6_integrity.py）",
+        }
+        return False, detail
+    if untested:
+        detail |= {
+            "reason": f"层闸门**未测**：{'、'.join(untested)}（退出码不在契约的 0/1/2 里 —— "
+                      "多半是超时或被拒，不是「过」）",
+            "fix": " 手动跑一次看现场： cd \"" + ROOT + "\" && sh kb/kbpy kb/l7/scripts/"
+                   + f"l{untested[0][1]}_gate.py",
+        }
+        return None, detail
+    return True, detail
+
+
+def check_agents_drift():
+    """AGENTS.md 是否已过期（读 `check_agents_md_drift.py` 的结论）。
+
+    ★ 这是**非阻断**项：AGENTS.md 漂移不必然让评审链跑不起来，
+      但会让 agent **按错的口径干活** —— 2026-10-05 就因「守衡在外机」那句错话误判过一轮。
+      ⇒ 它**要告警**（否则又是「等踩到才发现」），但不改 `ready`，也不改退出码。
+    """
+    script = os.path.join(ROOT, "kb", "l8", "check_agents_md_drift.py")
+    if not os.path.exists(script):
+        return False, {"reason": f"找不到 {script}"}
+    rc, out, err = run(["python3", script, "--json"], timeout=120)
+    try:
+        d = json.loads(out or "{}")
+    except Exception:                                           # noqa: BLE001
+        return False, {"reason": f"漂移自检跑不起来：{(err or out)[:200]}"}
+    if d.get("drift", 1) == 0:
+        return True, {"claims": d.get("claims"), "drift": 0}
+    bad = [r for r in (d.get("rows") or []) if not r.get("ok")]
+    return False, {
+        "reason": f"AGENTS.md 有 {len(bad)} 条断言与真值不符（agent 会按错的口径干活）",
+        "rows": [{"id": r.get("id"), "claim": r.get("claim"),
+                  "truth": str(r.get("truth"))[:160], "fix": r.get("fix")} for r in bad],
+        "fix": " cd \"" + ROOT + "\" && python3 kb/l8/check_agents_md_drift.py"
+               "   # 看逐条真值与修法；改完 AGENTS.md 后重跑确认无漂移",
+    }
+
+
+# ────────────────────────────────────────────── L1 索引：重建有没有被执行（非阻断）
+
+L1_INDEX_STALE_H = float(os.environ.get("KB_L1_INDEX_STALE_H") or 25)
+L1_INDEX = os.path.join(ROOT, "kb", "l1", "index", "l1.jsonl")
+# ★ 2026-10-10 加：L5 落章存在性（可注入，供自证用临时目录，**不碰真库**）。
+#   路径可注入：`KB_L5_STAMP_DIR` / `KB_L5_RUN_RECORDS` —— 只为**离线复现与自证**，
+#   默认值一个字不改（launchd 不会设这两个变量）。
+L5_STAMP_DIR = os.environ.get("KB_L5_STAMP_DIR") or os.path.join(ROOT, "kb", "l5", "runs")
+L5_RUN_RECORDS = os.environ.get("KB_L5_RUN_RECORDS") or os.path.join(ROOT, "kb", "l7", "runs")
+L5_STAMP_GRACE_MIN = float(os.environ.get("KB_L5_STAMP_GRACE_MIN") or 30)
+
+
+def _l1_index_verdict(mtime, now, threshold_h=None):
+    """纯函数：索引 mtime + 现在 ⇒ `(ok, age_h)`。**喂样本就能判，不碰盘**（自证靠它）。
+
+    `mtime is None` ⇒ `(None, None)` = **未测**，既不是「刚重建」也不是「没重建」。
+    """
+    th = L1_INDEX_STALE_H if threshold_h is None else threshold_h
+    if mtime is None:
+        return None, None
+    age_h = (now - mtime) / 3600.0
+    return (age_h <= th), age_h
+
+
+def check_l1_index_rebuilt(now=None):
+    """`kb/l1/index/l1.jsonl` 有没有被**重建**过（阈值 25h = 一个日更周期 + 1h）。
+
+    ★ 为什么要它（2026-10-08）：这本索引是**全量重建**产物（`layers.yaml` L1 的 `write_mode`
+      原话：「manifest_l1.jsonl append-only；资源 json 就地覆盖；**index/l1.jsonl 全量重建**」），
+      但它在编排器里**只被登记成只读闸门**（`kb_pipeline.py:91` 的 `GATE_WHITELIST` 是 `["--check"]`）
+      ⇒ launchd 与全库**没有任何自动流程**调 `--write` ⇒ **源一变它就漂**，
+      `--check` 天天红、没人修。实测（2026-10-08）：mtime 停在 10-02 12:51 而源已到 15:33；
+      多余 3 段僵尸；重建 14707 → 15114。
+      ⇒ 治法是把重建**接进日更任务书**（`kb/l8/daily_via_skill.md` 步骤 ③c）。
+      **本条就是那条接线的防线**：任务书是**给 agent 的指令、不是代码**，
+      agent 漏做**不会报错** —— 这条 25h 的巡检是「漏做了会有人知道」的那一环。
+
+    ★ 阈值为什么 25h 而不是 24h：重建**一天一次**。白天源变过、索引 mtime 比源旧，
+      那是日更批处理的**固有语义**，不是漂移，**不该告警**。
+      超过一个日更周期还没重建，才是「那一步没被执行」。
+      ⇒ 所以本判据**只看 mtime、不跑 `--check`** —— 跑内容检查会整天误报。
+
+    ★ **非阻断**：`kb/l6/` 里引用 `l1/index` 的处数 = **0**（实测）⇒ 它**不在检索路径上**，
+      是审计投影。它坏不坏不影响此刻能不能评审，只影响「拿索引当分母的对账数字」。
+      ⇒ 只进告警，不改 `ready`、不改退出码。
+    """
+    now = time.time() if now is None else now
+    if not os.path.exists(L1_INDEX):
+        return None, {"reason": f"找不到 {L1_INDEX} —— **未测**（不是「没重建」）"}
+    mtime = os.path.getmtime(L1_INDEX)
+    ok, age_h = _l1_index_verdict(mtime, now)
+    stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime(mtime))
+    if ok:
+        return True, {"age_h": round(age_h, 2), "threshold_h": L1_INDEX_STALE_H, "mtime": stamp}
+    return False, {
+        "reason": f"L1 索引已有 **{age_h:.1f} 小时**没重建（阈值 {L1_INDEX_STALE_H:g}h）"
+                  "—— 日更任务书步骤 ③c 没有被执行",
+        "before": stamp,
+        "detail": "它是**审计投影**（实测 `kb/l6/` 引用 `l1/index` 0 处，**不在检索路径上**），"
+                  "**不影响此刻能不能评审**；但 `--check` 会一直红（源变过、索引没跟上），"
+                  "且任何拿它当分母的对账数字会偏。",
+        "fix": " ① 立刻补一次："
+               "`python3 kb/l1/index/rebuild_l1_index.py --write --run manual-$(date +%Y%m%d-%H%M)`"
+               "\n        ② 立刻确认：`python3 kb/l1/index/rebuild_l1_index.py --check` —— **必须 `[OK]`**"
+               "\n        ③ 若连着两天都是这条 ⇒ 说明任务书那条指令**没被 agent 执行**，"
+               "改成在 `kb/l8/daily_via_skill.sh` 里加一步 shell（确定性执行，不依赖 agent 记得）。",
+    }
+
+
+# ────────────────────────────────────────────── 受控自愈（陈旧 ⇒ 踢一次日更）
+
+def _pid_alive(pid):
+    """pid 还在不在。判据与 `kb_pipeline.lock_state()` 同款（那里是锁口径的真源）。"""
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:                        # 活着但不属于我
+        return True
+    except OSError:
+        return False
+
+
+def kb_lock_alive():
+    """`kb/.work/.kb.lock` 的持有者进程是否还活着（活锁 ⇒ 有人在写库 ⇒ 不抢）。"""
+    path = os.path.join(ROOT, "kb", ".work", ".kb.lock")
+    if not os.path.exists(path):
+        return False, "无锁"
+    try:
+        rec = json.load(open(path, encoding="utf-8"))
+    except Exception:                               # noqa: BLE001
+        return True, "锁文件读不出（当活锁处理，宁可不抢）"
+    if _pid_alive(rec.get("pid")):
+        return True, f"持有者 pid={rec.get('pid')} 还活着"
+    return False, f"锁在但 pid={rec.get('pid')} 已不在（陈旧锁，交给 kb_pipeline 自己判）"
+
+
+def job_running(label):
+    """launchd 里这个作业此刻有没有在跑（有 PID 就是在跑）。"""
+    rc, out, err = run(["launchctl", "list"], timeout=30)
+    for ln in (out or "").splitlines():
+        parts = ln.split()
+        if len(parts) >= 3 and parts[2] == label:
+            return parts[0].isdigit(), parts[0]
+    return None, "没有这个作业（launchd 里查不到）"
+
+
+def heal_decision(*, freshness_stale, claim_free, job_running_pid, lock_alive,
+                  last_heal_ts=0.0, attempts_today=0, now_ts=None):
+    """**纯函数**：这一次要不要踢日更（自证里正反两面逐条喂样本）。
+
+    五道前置缺一不可 —— 每一道拦的都是一种真实碰撞：
+      · 新鲜度没问题 ⇒ 根本不该有动作；
+      · 认领槽被占 ⇒ 有会话在跑这条循环，**不许抢**（库规）；
+      · 日更已在跑 ⇒ 不重复踢；
+      · `kb/.work/.kb.lock` 持有者活着 ⇒ 有人在写库，不抢；
+      · 冷却 / 当日次数上限 ⇒ 防抖动（自愈不是重试风暴）。
+    """
+    now_ts = time.time() if now_ts is None else now_ts
+    if not freshness_stale:
+        return False, "新鲜度没问题 ⇒ 不自愈"
+    if not claim_free:
+        return False, "认领槽被占（有会话在跑这条循环）⇒ 不抢"
+    if job_running_pid is True:
+        return False, "日更作业已在跑 ⇒ 不重复踢"
+    if job_running_pid is None:
+        return False, f"launchd 里查不到日更作业 ⇒ 不自愈（要人看一眼）"
+    if lock_alive:
+        return False, "kb/.work/.kb.lock 的持有者进程还活着（有人在写库）⇒ 不抢"
+    if attempts_today >= HEAL_MAX_PER_DAY:
+        return False, f"今天已自愈 {attempts_today} 次（上限 {HEAL_MAX_PER_DAY}）⇒ 停手交人"
+    if last_heal_ts and (now_ts - last_heal_ts) < HEAL_COOLDOWN_MIN * 60:
+        mins = (now_ts - last_heal_ts) / 60.0
+        return False, f"距上次自愈 {mins:.0f} 分钟（< {HEAL_COOLDOWN_MIN:.0f}）⇒ 等它跑完"
+    return True, "陈旧 ＋ 认领空闲 ＋ 日更未在跑 ＋ 无活锁 ⇒ 踢一次日更"
+
+
+def _heal_state(now=None):
+    """读自愈台账（`.review-readiness-heal.json`）：返回 (上次 ts, 当日次数)。"""
+    try:
+        d = json.load(open(HEAL_STATE, encoding="utf-8"))
+    except Exception:                               # noqa: BLE001
+        return 0.0, 0
+    today = time.strftime("%Y-%m-%d", time.localtime(now or time.time()))
+    n = int(d.get("attempts") or 0) if d.get("day") == today else 0
+    return float(d.get("at_ts") or 0), n
+
+
+def _remember_heal(now=None):
+    now = now or time.time()
+    last, n = _heal_state(now)
+    os.makedirs(os.path.dirname(HEAL_STATE), exist_ok=True)
+    tmp = HEAL_STATE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump({"at_ts": now, "at": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now)),
+                   "day": time.strftime("%Y-%m-%d", time.localtime(now)),
+                   "attempts": n + 1}, fh, ensure_ascii=False, indent=1)
+    os.replace(tmp, HEAL_STATE)
+
+
+def attempt_heal(reason):
+    """真踢一次日更；**留痕**（ndjson，一行一次，含前后读数）。返回 detail dict。"""
+    uid = os.getuid()
+    rec = {"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "why": reason,
+           "label": DAILY_SKILL_LABEL}
+    rc, out, err = run(["launchctl", "kickstart", "-k",
+                        f"gui/{uid}/{DAILY_SKILL_LABEL}"], timeout=60)
+    rec["returncode"] = rc
+    rec["stdout"] = (out or "").strip()[:300]
+    rec["stderr"] = (err or "").strip()[:300]
+    rec["ok"] = (rc == 0)
+    try:
+        os.makedirs(os.path.dirname(HEAL_LEDGER), exist_ok=True)
+        with open(HEAL_LEDGER, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except OSError as exc:                          # 台账写不进去也要把动作结果带出去
+        rec["ledger_error"] = repr(exc)
+    return rec
+
+
+# ────────────────────────────────────────────── 告警（带冷却去重）
+
+def signature(problems):
+    """同一原因只报一次；原因变了立刻再报。"""
+    return "|".join(sorted(problems))
+
+
+def should_alert(sig, cooldown_h=None):
+    """同一原因只报一次；原因变了立刻再报。
+
+    ★ 2026-10-07：**冷却按严重度分档** —— 阻断级（`problems` 非空，例如"陈旧 ⇒ 整条链拒答"）
+      用 `BLOCKING_COOLDOWN_H`（默认 1h），非阻断提醒仍用 6h。
+      为什么改：当天 15:35 与 16:05 两条巡检都是 `冷却中（0.5h < 6.0h）` ——
+      **一个让评审链全量拒答的问题，响过两声之后就沉默了**，而人还在群里等结果。
+    """
+    cooldown_h = COOLDOWN_H if cooldown_h is None else cooldown_h
+    try:
+        d = json.load(open(STATE, encoding="utf-8"))
+    except Exception:                                           # noqa: BLE001
+        return True, "首次"
+    if d.get("sig") != sig:
+        return True, "原因变化"
+    age_h = (time.time() - float(d.get("at_ts") or 0)) / 3600.0
+    if age_h >= cooldown_h:
+        return True, f"冷却已过 {age_h:.1f}h"
+    return False, f"冷却中（{age_h:.1f}h < {cooldown_h}h）"
+
+
+def remember(sig):
+    os.makedirs(os.path.dirname(STATE), exist_ok=True)
+    tmp = STATE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump({"sig": sig, "at_ts": time.time(),
+                   "at": time.strftime("%Y-%m-%dT%H:%M:%S")}, fh, ensure_ascii=False, indent=1)
+    os.replace(tmp, STATE)
+
+
+def alert(text, chat):
+    """用**守衡自己的 bot 身份**推飞书。bot 令牌与 user 令牌是两套 ⇒ user 丢了也能报。
+
+    ★ 自证用闸门：`KB_ALERT_FORCE_SEND=1` 时**不真发**，只回报"本该发什么"（离线验告警正文）。
+    """
+    if os.environ.get("KB_ALERT_FORCE_SEND") == "1":
+        return True, "[自证] 未真发；正文长度 %d" % len(text or "")
+    if not os.path.exists(LARK):
+        return False, "找不到 lark-cli"
+    env = dict(os.environ, PATH=os.path.expanduser("~/.dsh/bin") + ":" + os.environ.get("PATH", ""))
+    try:
+        p = subprocess.run([LARK, "im", "+messages-send", "--as", "bot", "--profile", "dsh-kb",
+                            "--chat-id", chat, "--text", text],
+                           capture_output=True, text=True, timeout=90, env=env, errors="replace")
+        ok = (p.returncode == 0)
+        return ok, (p.stdout or p.stderr or "").strip()[:300]
+    except Exception as exc:                                    # noqa: BLE001
+        return False, repr(exc)
+
+
+def compose(problems=(), untested=(), warnings=(), heal=()):
+    """拼告警正文。三段分开、各有各的首行 —— **不许把未测说成不可用**。
+
+    ★ 2026-10-06：首行原先恒为「审查链**当前不可用**」。而 08:19:59 那次唯一的依据是
+      **一个探针没输出**；那句话在说出去的时候没有依据（§2.4.3：说出去的话比手上的依据大）。
+      同一个函数里还要把「非阻断」项（令牌寿命 / AGENTS.md 漂移）与「被挡」分清 ——
+      两者的严重性差一个量级，混进同一句话里，读的人只能全按最坏的那个理解。
+    """
+    if problems:
+        head = "⚠️ 守衡 · 审查链**当前不可用**（就绪巡检自动告警）"
+    elif untested:
+        head = "⚠️ 守衡 · 审查链**就绪未测** —— 读数没采到，**不代表链坏了**"
+    else:
+        head = "ℹ️ 守衡 · 就绪巡检（**非阻断**提醒：此刻能跑）"
+    L = [head, ""]
+    for i, p in enumerate([*problems, *untested, *heal, *warnings], 1):
+        L.append(f"{i}. {p['title']}")
+        for k in ("reason", "before", "detail"):
+            if p.get(k):
+                L.append(f"   {k}：{str(p[k])[:400]}")
+        if p.get("fix"):
+            L.append(f"   ▶ 修法：{p['fix']}")
+        L.append("")
+    if untested and not problems:
+        L.append("★ **这一条不是「链坏了」**：它说的是「这一次没读到」。"
+                 "同一次巡检里其余各项若是绿的，链此刻多半能跑 —— "
+                 "隔几分钟的下一轮会自己给出答案。"
+                 "（**例外**：L5 落章缺失是「读不到层侧证据」，不是抖动 —— "
+                 "它会让图片/视频送审按 `layer_audit_red` 拒答，要按它的修法处置。）")
+        L.append("")
+    # ★ 2026-10-10 修：原先条件是 `not problems and not untested` ——
+    #   只要同一次里**有未测项**，非阻断组的说明就被整段吞掉（读了等于没读）。
+    #   未测说的是「这一次没读到」，与「这些非阻断项不影响此刻能不能跑」并不冲突。
+    if warnings and not problems:
+        L.append("★ 上面这些**不影响此刻能不能跑**（非阻断）：它们说的是「再往后会出问题」。")
+        L.append("")
+    L.append("（本告警由 kb/l8/watch_review_readiness.py 自动发出；同一原因不重复 —— "
+             f"**阻断级 {BLOCKING_COOLDOWN_H:g}h ／ 非阻断 {COOLDOWN_H:g}h**："
+             "拒答级的问题不许被沉默 6 小时。）")
+    return "\n".join(L)
+
+
+def selftest():
+    """判据自证：**三态必须分得开**，且这次事故的形状不许再被判成「红」。
+
+    全部离线（喂样本给纯函数 `_interpret_bot_probe`，一次网络都不发）。
+    每一项都能红 —— 红了就是这条判据坏了，不是环境坏了。
+    """
+    P, F = [], []
+    def chk(name, cond, extra=""):
+        (P if cond else F).append(name)
+        print(f"  {'✅' if cond else '❌'} {name}{('  ' + extra) if extra else ''}")
+
+    OK = json.dumps({"ok": True, "data": {"items": [{"record_id": "rec1"}]}})
+    DENIED = json.dumps({"ok": False, "error": {"type": "forbidden", "subtype": "resource_permission",
+                                                "message": "you do not have permission"}})
+    NOERR = json.dumps({"ok": False})
+    SHAPE = json.dumps({"data": {"items": []}})          # 没有 ok 字段
+    WARN = "[warn] profile token refreshed\n" + OK       # CLI 常会先打一行噪声
+
+    # ① 读到 ⇒ True
+    st, _ = _interpret_bot_probe(0, OK, "")
+    chk("① ok:true ⇒ True（读到）", st is True)
+
+    # ② 飞书明确拒绝（带 error）⇒ False，且 detail 里要能读出 type/subtype
+    st, d = _interpret_bot_probe(1, DENIED, "")
+    chk("② ok:false + error ⇒ False（真拒绝）", st is False, f"detail={d!r}")
+    chk("② detail 里带得出 type/subtype（否则修的人不知道修哪儿）",
+        "forbidden" in d and "resource_permission" in d)
+
+    # ③ ★ 这次事故的形状：stdout 空 / 非 JSON / 没 ok / ok:false 却没 error
+    #    —— 四个**全都必须是 None（未测）**，一个都不许是 False。
+    #    第一版把 ③ 读成 False，于是「探针没跑起来」被说成了「审查链当前不可用」。
+    for name, (rc, out, err) in {
+        "③a stdout 空（08:19:59 的形状）": (1, "", "dial tcp: lookup open.feishu.cn: no such host"),
+        "③b stdout 完全不是 JSON": (0, "not json at all", ""),
+        "③c 有 JSON 但没有 ok 字段": (0, SHAPE, ""),
+        "③d ok:false 但 error 为空": (1, NOERR, ""),
+    }.items():
+        st, d = _interpret_bot_probe(rc, out, err)
+        chk(f"{name} ⇒ None（未测，**不许**判成 red）", st is None, f"detail={str(d)[:60]!r}")
+
+    # ③e 反向对照：未测的 detail 里必须**说得出它是未测**，不许长得像权限被拒
+    st, d = _interpret_bot_probe(1, "", "")
+    chk("③e 未测的文案里写着「未测」且说明不是「读不到」", "未测" in d and "不是" in d, f"detail={d[:70]!r}")
+
+    # ④ CLI 前面有噪声行时仍要读到（别把「有噪声」当成「读不到」）
+    st, _ = _interpret_bot_probe(0, WARN, "")
+    chk("④ stdout 前面有警告行 ⇒ 仍判 True", st is True)
+
+    # ⑤ 三态互不相同 —— 否则「分得开」是假的
+    trio = {_interpret_bot_probe(0, OK, "")[0], _interpret_bot_probe(1, DENIED, "")[0],
+            _interpret_bot_probe(1, "", "")[0]}
+    chk("⑤ 三种读数给出三个互不相同的结论", len(trio) == 3, f"got={trio}")
+
+    # ⑥ ★ 告警首行：只有未测时**不许**出现「当前不可用」
+    u = [{"title": "凭据：**未测**（读数没采到）"}]
+    p = [{"title": "凭据：不满足"}]
+    chk("⑥ 只有未测时，告警首行不许写「当前不可用」",
+        "当前不可用" not in compose([], u).splitlines()[0])
+    chk("⑥ 有红时，告警首行必须写「当前不可用」", "当前不可用" in compose(p, u).splitlines()[0])
+    chk("⑥ 未测的告警正文里必须明说「不是链坏了」", "不代表链坏了" in compose([], u))
+
+    # ⑦ 非阻断项（令牌寿命 / AGENTS.md 漂移）单独一段，不许被说成被挡
+    w = [{"title": "凭据寿命：撑不到下次日更"}]
+    chk("⑦ 只有非阻断项时，首行不许写「当前不可用」也不许写「未测」",
+        "当前不可用" not in compose([], [], w).splitlines()[0]
+        and "未测" not in compose([], [], w).splitlines()[0])
+
+    # ══ ⑧ **受控自愈的判据**（2026-10-07；五道前置，正例一条 + 反向对照五条）══════════
+    #   为什么每道都要单独喂样本：这五条拦的是**五种不同的碰撞**（抢认领 / 重复踢 /
+    #   抢正在写库的锁 / 抖动 / 停不下来），任何一条写反了都会变成"该自愈时不自愈"
+    #   或"不该动时乱动" —— 后者会在别人跑评审时抢库。
+    NOW = 1_800_000_000.0          # 固定时刻，判据里不许出现"现在几点"
+    base = dict(freshness_stale=True, claim_free=True, job_running_pid=False,
+                lock_alive=False, last_heal_ts=0.0, attempts_today=0, now_ts=NOW)
+    go, why = heal_decision(**base)
+    chk("⑧ 正例：陈旧＋认领空闲＋日更没在跑＋无活锁 ⇒ 踢一次", go is True, why)
+
+    # ⑧a 新鲜度没问题 ⇒ 不许动（否则"每天踢一次"变成常态）
+    g, w2 = heal_decision(**{**base, "freshness_stale": False})
+    chk("⑧a 反向对照：新鲜度没问题 ⇒ 不自愈", g is False, w2)
+    # ⑧b 认领被占 ⇒ 不许抢（库规：同一时间只准一个会话跑这条循环）
+    g, w2 = heal_decision(**{**base, "claim_free": False})
+    chk("⑧b 反向对照：认领槽被占 ⇒ 不抢", g is False, w2)
+    # ⑧c 日更已在跑 ⇒ 不重复踢
+    g, w2 = heal_decision(**{**base, "job_running_pid": True})
+    chk("⑧c 反向对照：日更已在跑 ⇒ 不重复踢", g is False, w2)
+    # ⑧c2 查不到这个作业 ⇒ 也不许自作主张（要人看一眼）
+    g, w2 = heal_decision(**{**base, "job_running_pid": None})
+    chk("⑧c2 反向对照：launchd 里查不到作业 ⇒ 不自愈", g is False, w2)
+    # ⑧d 有人正在写库（活锁）⇒ 不抢
+    g, w2 = heal_decision(**{**base, "lock_alive": True})
+    chk("⑧d 反向对照：kb.lock 持有者活着 ⇒ 不抢", g is False, w2)
+    # ⑧e 抖动：刚踢过 ⇒ 等它跑完；当日次数到顶 ⇒ 停手交人
+    g, w2 = heal_decision(**{**base, "last_heal_ts": NOW - 10 * 60})
+    chk("⑧e 反向对照：10 分钟前刚踢过 ⇒ 等它跑完（不自愈）", g is False, w2)
+    g, w2 = heal_decision(**{**base, "last_heal_ts": NOW - (HEAL_COOLDOWN_MIN + 5) * 60})
+    chk("⑧e2 冷却已过 ⇒ 允许再踢一次（不是一次就永久停手）", g is True, w2)
+    g, w2 = heal_decision(**{**base, "attempts_today": HEAL_MAX_PER_DAY})
+    chk(f"⑧f 反向对照：当日已达上限（{HEAL_MAX_PER_DAY} 次）⇒ 停手交人", g is False, w2)
+
+    # ⑧g 冷却分档：阻断级问题的重报间隔必须**短于**非阻断 —— 否则"全量拒答"会被沉默 6 小时
+    #     （2026-10-07 实测：15:35/16:05 两条都是「冷却中（0.5h < 6.0h）」）
+    chk("⑧g 阻断级冷却短于非阻断冷却（拒答级不许被沉默 6 小时）",
+        BLOCKING_COOLDOWN_H < COOLDOWN_H, f"{BLOCKING_COOLDOWN_H}h < {COOLDOWN_H}h")
+
+    # ⑧h **动作层**：它会执行什么、留什么痕 —— 用假 runner 抓 argv，
+    #     台账指到临时路径（**不许往真台账里塞自证行**：那是污染，比没测更坏）。
+    import tempfile
+    global run, HEAL_LEDGER
+    captured = {}
+    real_run, real_ledger = run, HEAL_LEDGER
+    tmpd = tempfile.mkdtemp(prefix="heal-selftest-")
+    try:
+        def fake_run(argv, timeout=180):
+            captured["argv"] = list(argv)
+            return 0, "ok", ""
+        run = fake_run
+        HEAL_LEDGER = os.path.join(tmpd, "heal.ndjson")
+        rec = attempt_heal("自证：不许真的踢")
+        chk("⑧h 自愈动作 = `launchctl kickstart -k gui/<uid>/com.kb.pipeline-daily-skill`"
+            "（不是 kill、也不是临时拼的写库命令）",
+            captured.get("argv") == ["launchctl", "kickstart", "-k",
+                                     f"gui/{os.getuid()}/{DAILY_SKILL_LABEL}"],
+            json.dumps(captured.get("argv"), ensure_ascii=False))
+        lines = open(HEAL_LEDGER, encoding="utf-8").read().strip().splitlines() if os.path.exists(HEAL_LEDGER) else []
+        one = json.loads(lines[0]) if lines else {}
+        chk("⑧i 动作必留痕：台账一行含 why / returncode / ok",
+            bool(lines) and one.get("why") == "自证：不许真的踢" and one.get("ok") is True,
+            f"行数={len(lines)}")
+    finally:
+        run, HEAL_LEDGER = real_run, real_ledger
+        import shutil
+        shutil.rmtree(tmpd, ignore_errors=True)
+
+    # ⑭ L1 索引重建判据（2026-10-08 加）：阈值只认「**超过**一个日更周期」，
+    #    且「文件不在」必须与「没重建」分得开 —— 两者混了，修的人会去修错的东西。
+    #    先喂纯函数（离线、不碰盘）：
+    T = 1780000000.0                                     # 任取一个固定时刻
+    chk("⑭a 1 小时前重建过 ⇒ True", _l1_index_verdict(T - 3600, T)[0] is True)
+    chk("⑭b 恰 25h（等于阈值）⇒ True —— 判据是「**超过**」才红，不是「达到」",
+        _l1_index_verdict(T - 25 * 3600, T)[0] is True)
+    chk("⑭c 26h（刚过一个日更周期没重建）⇒ False", _l1_index_verdict(T - 26 * 3600, T)[0] is False)
+    chk("⑭d 反向对照：6 天没重建（2026-10-08 的真实形状）⇒ False",
+        _l1_index_verdict(T - 6 * 24 * 3600, T)[0] is False)
+    chk("⑭e mtime 为 None（文件不在）⇒ None（**未测**），不许判成「没重建」",
+        _l1_index_verdict(None, T)[0] is None)
+    chk("⑭f 阈值可传（自证口不依赖 env）", _l1_index_verdict(T - 30 * 3600, T, threshold_h=40)[0] is True)
+
+    # ⑭g–⑭i 真函数：拿**临时文件**当索引，**不碰真库**（与 ⑧i 同一套做法）。
+    #    要证明两件纯函数证不了的事：① 红里带得出修法；② 「文件不在」走的是 None 而不是 False。
+    import tempfile
+    global L1_INDEX
+    _real_idx = L1_INDEX
+    try:
+        _fd, _tmp_idx = tempfile.mkstemp(suffix=".jsonl")
+        os.close(_fd)
+        _now = time.time()
+        os.utime(_tmp_idx, (_now - 30 * 3600, _now - 30 * 3600))
+        L1_INDEX = _tmp_idx
+        _ro, _rd = check_l1_index_rebuilt(now=_now)
+        chk("⑭g 真函数：30h 前重建过 ⇒ False，且 reason 与 **fix** 都在"
+            "（带不出修法的红等于没红）",
+            _ro is False and isinstance(_rd, dict) and bool(_rd.get("reason")) and bool(_rd.get("fix")),
+            f"ok={_ro}")
+        os.utime(_tmp_idx, (_now - 3600, _now - 3600))
+        _rn, _dn = check_l1_index_rebuilt(now=_now)
+        chk("⑭h 反向对照：同一个真函数、mtime 改成 1h 前 ⇒ True（⑭g 的红确实来自 mtime）",
+            _rn is True and isinstance(_dn, dict) and _dn.get("age_h") is not None, f"ok={_rn}")
+        os.remove(_tmp_idx)
+        L1_INDEX = os.path.join(ROOT, "kb", "l1", "index", "__自证__不存在__.jsonl")
+        _rz, _ = check_l1_index_rebuilt(now=_now)
+        chk("⑭i 文件不在 ⇒ None（**未测**），**不许**判成 False（否则修的人会去修错的东西）",
+            _rz is None, f"ok={_rz}")
+    finally:
+        L1_INDEX = _real_idx
+
+    # ⑮ 层闸门（2026-10-09 加）：三态必须分得开，且**认不出来的退出码不许当红／当绿**。
+    #    这是 2026-10-09 那次事故的形状：闸门红了，而本巡检查了 7 条却一条都不看层闸门。
+    chk("⑮a 退出码 0 ⇒ True（过）", _gate_verdict(0) is True)
+    chk("⑮b 退出码 1 ⇒ False（红）", _gate_verdict(1) is False)
+    chk("⑮c 退出码 2 ⇒ None（**未测**，不是红）", _gate_verdict(2) is None)
+    for code in (124, 125, 127, 137, 3):
+        chk(f"⑮d 反向对照：退出码 {code} ⇒ 未测（说成红会让人去修不存在的项）",
+            _gate_verdict(code) is None, f"got {_gate_verdict(code)}")
+    _g_all_ok = check_layer_gates(_runner=lambda ly, rel: (0, f"{ly} 过"))
+    chk("⑮e 四层全绿 ⇒ True，且四层读数都在", _g_all_ok[0] is True
+        and len(_g_all_ok[1]["gates"]) == 4, f"ok={_g_all_ok[0]}")
+    _g_red = check_layer_gates(_runner=lambda ly, rel: (1 if ly == "L6" else 0, "L6 复算 5717 ≠ 5979"))
+    chk("⑮f L6 红 ⇒ False，且 reason 点名到层、fix 给出可复制的命令",
+        _g_red[0] is False and "L6" in _g_red[1].get("reason", "")
+        and "l6_gate.py" in _g_red[1].get("fix", ""), f"ok={_g_red[0]}")
+    _g_untested = check_layer_gates(_runner=lambda ly, rel: (2 if ly == "L4" else 0, ""))
+    chk("⑮g 某层未测（码 2）⇒ None，**不许**等于 False（两件事的处置不同）",
+        _g_untested[0] is None, f"ok={_g_untested[0]}")
+    chk("⑮h 反向对照：夹具全 0 ⇒ 不许报红（红必须来自读数，不来自「这条检查总会红」）",
+        check_layer_gates(_runner=lambda ly, rel: (0, ""))[0] is True)
+    chk("⑮i 阻断性：层闸门挂在 `checks`（阻断项）里，不在非阻断那几段",
+        '("层闸门", check_layer_gates())' in open(__file__, encoding="utf-8").read())
+
+    # ⑯ L5 落章存在性（2026-10-10 加）：三态必须分得开，且**落章不在**与**测不了**不许混。
+    #    这是 2026-10-10 那次事故的形状：`l5_report.py` 崩了 ⇒ 落章一个字节没写 ⇒
+    #    图片/视频送审全挂，而本巡检查了 8 条、一条都不看"落章有没有写出来"。
+    #    用**临时目录**当 D 与 R（不碰真库，与 ⑧i / ⑭g 同一套做法）。
+    _l5_tmp = tempfile.mkdtemp(prefix="l5stamp-selftest-")
+    try:
+        _l5_D = os.path.join(_l5_tmp, "runs_stamp"); os.makedirs(_l5_D)
+        _l5_R = os.path.join(_l5_tmp, "runs_rec"); os.makedirs(_l5_R)
+        _l5_now = 1780000000.0                                   # 固定时刻，不吃当前时间
+        _l5_rec = os.path.join(_l5_R, "RUNX-L5.json")
+        with open(_l5_rec, "w", encoding="utf-8") as _fh:
+            json.dump({"run_id": "RUNX-L5", "at": "2026-05-28T00:00:00"}, _fh)
+        os.utime(_l5_rec, (_l5_now - 3600, _l5_now - 3600))       # 1 小时前
+
+        # ⑯a 落章在 ⇒ True（反向对照：证明 ⑯b 的红来自"落章不在"，不是"这条检查总会红"）
+        with open(os.path.join(_l5_D, "RUNX-L5-dryrun.json"), "w", encoding="utf-8") as _fh:
+            json.dump({"run_id": "RUNX-L5"}, _fh)
+        _a = check_l5_stamp(now=_l5_now, stamp_dir=_l5_D, records_dir=_l5_R)
+        chk("⑯a 落章在 ⇒ True（且报出的是最近一次的 run_id）",
+            _a[0] is True and _a[1].get("newest_run_id") == "RUNX-L5", f"ok={_a[0]}")
+
+        # ⑯b 落章不在 + 过了宽限 ⇒ False，**且 reason / how_to_confirm / fix 三样都得在**
+        os.remove(os.path.join(_l5_D, "RUNX-L5-dryrun.json"))
+        _b = check_l5_stamp(now=_l5_now, stamp_dir=_l5_D, records_dir=_l5_R)
+        chk("⑯b 落章不在（1h 前，过宽限）⇒ False，且 reason＋how_to_confirm＋fix 都在"
+            "（带不出复核与修法的红等于没红）",
+            _b[0] is False and bool(_b[1].get("reason")) and bool(_b[1].get("how_to_confirm"))
+            and bool(_b[1].get("fix")), f"ok={_b[0]}")
+        chk("⑯b2 reason 点明后果（`E2 逐层无落章` ⇒ 前置 exit=5），不是一句「没落章」",
+            "E2" in _b[1].get("reason", "") and "exit=5" in _b[1].get("reason", ""))
+        chk("⑯b3 fix 明确禁止续用已停死的 RUN（否则人会去重跑一个不会好的 RUN）",
+            _b[1].get("newest_run_id") in _b[1].get("fix", "")
+            and "不要" in _b[1].get("fix", ""))
+
+        # ⑯c 在飞（记账刚写成 5 分钟）⇒ True：宽限内不许误报。
+        #     ★ `at` 与 mtime **一起推进** —— 只动 mtime 是本自证第一版写错的地方：
+        #       判据优先读记账里的 `at`，mtime 根本不参与 ⇒ 那样测的是空气。
+        def _l5_age(minutes):
+            _t = _l5_now - minutes * 60
+            with open(_l5_rec, "w", encoding="utf-8") as _fh:
+                json.dump({"run_id": "RUNX-L5",
+                           "at": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(_t))}, _fh)
+            os.utime(_l5_rec, (_t, _t))
+
+        _l5_age(5)
+        _c = check_l5_stamp(now=_l5_now, stamp_dir=_l5_D, records_dir=_l5_R)
+        chk("⑯c 反向对照：记账写成仅 5 分钟（宽限 30 分钟内）⇒ True，不许误报在飞的运行",
+            _c[0] is True and "宽限" in (_c[1].get("note") or ""), f"ok={_c[0]}")
+        # …而 35 分钟（刚过宽限）⇒ False：证明 ⑯c 的绿确实来自宽限，不是"这条检查不看时间"
+        _l5_age(35)
+        _c2 = check_l5_stamp(now=_l5_now, stamp_dir=_l5_D, records_dir=_l5_R)
+        chk("⑯c2 反向对照：同一条记录改成 35 分钟前（刚过宽限）⇒ False"
+            "（拆掉宽限判据 ⇒ ⑯c 精确变红；把宽限写成「永不报」⇒ 本条变红）",
+            _c2[0] is False, f"ok={_c2[0]}")
+        _l5_age(60)
+
+        # ⑯d 一份记账都没有 ⇒ None（**未测**）：不许判成 False，否则人去修不存在的落章
+        _l5_R2 = os.path.join(_l5_tmp, "runs_rec_empty"); os.makedirs(_l5_R2)
+        _d = check_l5_stamp(now=_l5_now, stamp_dir=_l5_D, records_dir=_l5_R2)
+        chk("⑯d 一份 L5 记账都没有 ⇒ None（**未测**），不许判成 False", _d[0] is None, f"ok={_d[0]}")
+
+        # ⑯e 记账目录不存在 ⇒ None（未测），不是红
+        _e = check_l5_stamp(now=_l5_now, stamp_dir=_l5_D,
+                            records_dir=os.path.join(_l5_tmp, "__不存在__"))
+        chk("⑯e 记账目录列不出来 ⇒ None（**未测**），不许判成 False", _e[0] is None, f"ok={_e[0]}")
+
+        # ⑯f 只认**非预演**记账：`*-dryrun.json` 不算记账（层侧落章才是留痕）
+        _l5_R3 = os.path.join(_l5_tmp, "runs_rec_dry"); os.makedirs(_l5_R3)
+        with open(os.path.join(_l5_R3, "DRY-L5-dryrun.json"), "w", encoding="utf-8") as _fh:
+            json.dump({"run_id": "DRY-L5"}, _fh)
+        _f = check_l5_stamp(now=_l5_now, stamp_dir=_l5_D, records_dir=_l5_R3)
+        chk("⑯f 反向对照：目录里只有 `*-dryrun.json` ⇒ **未测**（记账本来就该是非预演档）",
+            _f[0] is None, f"ok={_f[0]}")
+    finally:
+        import shutil as _sh2
+        _sh2.rmtree(_l5_tmp, ignore_errors=True)
+
+    # ⑯g–⑯i 接线与档位：改坏了要精确变红，而不是"看起来还行"。
+    _src = open(__file__, encoding="utf-8").read()
+    chk("⑯g 接线：L5落章 挂在 `checks` 里（读数进结果），且落进 `l5stamp` 那一组",
+        '("L5落章", check_l5_stamp())' in _src and '"l5_stamp_missing"' in _src)
+    chk("⑯h 冷却档：L5 落章存在时走**阻断级**冷却（拆掉 `or l5stamp` ⇒ 本条精确变红）",
+        "BLOCKING_COOLDOWN_H if (problems or l5stamp) else COOLDOWN_H" in _src)
+    chk("⑯i 判据不看 verdict（本件任何地方都不得**读**该字段：它混着三条既有红灯 ⇒ 一读就恒红）",
+        not re.search(r'\[[\'"]verdict[\'"]\]|\.get\([\'"]verdict[\'"]', _src))
+    chk("⑯j 退出码：L5 落章缺失 ⇒ **未测(2)**，不是被挡(3) —— 文案走快路此刻确实能跑，"
+        "说成「链坏了」是夸大（拆掉 `or l5stamp` ⇒ 本条精确变红）",
+        "return 2 if (untested or l5stamp) else 0" in _src)
+    # ⑯k 真跑 compose 验**首行说了什么** —— 源码字符串证不了行为（⑯k 第一版就栽在这上面）。
+    _l5w = {"title": "L5 落章：最近一次运行没有落章", "reason": "x"}
+    _hd_ok = compose(untested=[_l5w])                     # L5 走「未测」那一格
+    _hd_bad = compose(warnings=[_l5w])                    # 若留在纯 warnings 会是什么首行
+    chk("⑯k L5 落章走「未测」⇒ 首行是**未测**语义，不是「此刻能跑」",
+        "未测" in _hd_ok.splitlines()[0] and "此刻能跑" not in _hd_ok.splitlines()[0],
+        f"首行={_hd_ok.splitlines()[0][:40]}")
+    chk("⑯k2 反向对照：同一个告警项放进 warnings ⇒ 首行确实会说「此刻能跑」"
+        "（证明 ⑯k 的红来自归类，不是来自这句话本来就不出现）",
+        "此刻能跑" in _hd_bad.splitlines()[0], f"首行={_hd_bad.splitlines()[0][:40]}")
+    chk("⑯k3 未测与「链坏了」分开说：首行**不含**「当前不可用」",
+        "当前不可用" not in _hd_ok.splitlines()[0])
+    # ⑯l/⑯m 钉死 2026-10-10 实测踩到的那个形状：L5 落章**同时**进了 problems 与 untested
+    #   ⇒ 退出码变 3、告警正文列两遍。（第一版把特判写在通用分支**后面**，就是这个后果。）
+    _l5c = [("认领", (True, {})), ("层闸门", (True, {})), ("L5落章", (False, {"reason": "r"}))]
+    _g = _alert_groups(_l5c)
+    chk("⑯l L5 落章缺失 ⇒ **只**进 untested，**不许**同时进 problems（重复归类会让退出码变 3）",
+        [x["title"] for x in _g["problems"]] == []
+        and len([x for x in _g["untested"] if x["title"].startswith("L5 落章")]) == 1,
+        f"problems={[x['title'] for x in _g['problems']]}")
+    chk("⑯m 退出码契约：L5 缺失 ⇒ 2；有真阻断项 ⇒ 3；L5 在宽限内(ok=True)→不报",
+        exit_code_for([], [], [{"t": 1}]) == 2
+        and exit_code_for([{"t": 1}], [], []) == 3
+        and exit_code_for([], [{"t": 1}], []) == 2
+        and exit_code_for([], [], []) == 0)
+    _gn = _alert_groups([("L5落章", (True, {"note": "该运行写成仅 5 分钟，在 30 分钟宽限内 ⇒ 本次不报"}))])
+    chk("⑯m2 宽限内 ⇒ 进 nonblocking（**看得见**，但不算问题、不改退出码）",
+        exit_code_for([], [], []) == 0 and len(_gn["nonblocking"]) == 1
+        and "宽限" in _gn["nonblocking"][0]["title"])
+    chk("⑯k4 有未测项时，非阻断组的说明**不许被吞掉**（原先 `not untested` 会吞掉它）",
+        "不影响此刻能不能跑" in compose(untested=[_l5w], warnings=[{"title": "w", "reason": "y"}]))
+
+    print(f"\n自证：通过 {len(P)} / 失败 {len(F)}")
+    for x in F:
+        print(f"  · 失败：{x}")
+    return 1 if F else 0
+
+
+def check_l5_stamp(now=None, stamp_dir=None, records_dir=None):
+    """L5 那次运行，**留痕到底写出来了没有**。返回 (ok, detail)。
+
+    ★ 为什么必须有这一条（2026-10-10 事故；本巡检第四次补同形状的洞）：
+        `kb/.work/l5_report.py:108` 直取 `r["rule_kind"]`，而 `kb/l3/candidates/rules.jsonl`
+        自 2026-10-09 20:01 起被归一化成**只有生行**（无 rule_kind/authority）⇒ `KeyError`
+        ⇒ **L5 落章一个字节都没写**。而编排器把这一层标成「全走完（预演）」照常记账、
+        日更四层也照常"跑完" ⇒ **03:30/04:25/05:26/06:52 四次都坏着，零告警**。
+        代价落在评审链上：四层前置的 L5 审计红 `E2 逐层无落章` ⇒ 前置 exit=5 ⇒
+        守衡侧只能回「我这侧出故障了、这一次没判」——**图片/视频送审全挂**，
+        直到 09:30 有人真送了一单才发现。
+
+    ★ 判据（**只看落章在不在，不看它写的是 PASS 还是 FAIL**）：
+        取 `kb/l7/runs/*-L5.json` 里 **mtime 最新**的一份记账（= 最近一次 L5 运行），
+        读它的 `run_id`，再看 `kb/l5/runs/` 里有没有 `<run_id>*.json`。
+        记账在 ⟺ 「这一层跑过」；落章不在 ⟺ 「这次运行没留下任何层侧证据」。
+      · **不看 `verdict`**：`verdict` 里混着既有红灯（自测 / L3 只追加 / 冻结层），
+        把它们算进来会让这条判据**恒红**、立刻失去分辨力（同 `check_layer_gates` 的纪律）。
+      · 记账文件写成（`at`）后 **宽限 `L5_STAMP_GRACE_MIN`（默认 30 分钟）**，防误报在飞的运行。
+      · 认定不了新旧 ⇒ **`None`（未测）**，不许当红：判成红会让人去修不存在的东西。
+
+    ★ **非阻断项**（对齐 `check_layer_gates` 的档位理由）：落章不在 ⇒
+      **图片/视频送审必然 `layer_audit_red` / 前置 exit=5 拒答**，而**文案类走 P0 快路不受影响**
+      （`p0_fastpath.py` 自述「未跑四层前置/评审链」）。
+      ⇒ 它不是「此刻能不能跑」这个谓词的一部分（那会因为一条模态通道坏了就把整库答成不可用），
+        但它自己**要按阻断级冷却报**（见 `main` 里的 `l5stamp`），
+        不许被「同因 6 小时」压成一声沉默 —— 这正是当天白等 6 小时的那个形状。
+    """
+    sd = stamp_dir or L5_STAMP_DIR
+    rd_ = records_dir or L5_RUN_RECORDS
+    now = now or time.time()
+    detail: dict = {}
+
+    try:
+        names = [n for n in os.listdir(rd_)
+                 if n.endswith("-L5.json") and not n.endswith("-dryrun.json")]
+        recs = [(n, os.path.join(rd_, n)) for n in names]
+    except OSError as exc:
+        return None, {"reason": f"列不出记账目录（{exc!r}）⇒ **未测**，不是「落章丢了」"}
+
+    if not recs:
+        return None, {"reason": f"`{os.path.relpath(rd_, ROOT)}` 里一份 `*-L5.json` 记账都没有 "
+                                f"⇒ **未测**（不是「落章丢了」）"}
+
+    def _mt(item):
+        try:
+            return os.path.getmtime(item[1])
+        except OSError:
+            return 0.0
+
+    fname, fpath = max(recs, key=_mt)
+    mtime = _mt((fname, fpath))
+    run_id, at_raw = None, None
+    try:
+        with open(fpath, encoding="utf-8") as fh:
+            rec = json.load(fh)
+        run_id = rec.get("run_id")
+        at_raw = rec.get("at")
+    except Exception as exc:                                       # noqa: BLE001
+        detail["record_error"] = f"读记账失败（{exc!r}）"
+
+    run_id = run_id or fname[:-len("-L5.json")]
+    if at_raw:
+        try:
+            _dt = datetime.datetime.fromisoformat(at_raw)
+            age_h = (datetime.datetime.fromtimestamp(now) - _dt).total_seconds() / 3600.0
+        except ValueError:
+            age_h = (now - mtime) / 3600.0
+    else:
+        age_h = (now - mtime) / 3600.0
+
+    try:
+        stamps = sorted(n for n in os.listdir(sd)
+                        if n.startswith(run_id) and n.endswith(".json"))
+    except OSError as exc:
+        return None, {"reason": f"列不出落章目录（{exc!r}）⇒ **未测**"}
+
+    detail |= {"newest_run_record": fname, "newest_run_id": run_id, "age_h": round(age_h, 2),
+               "stamps_found": stamps, "stamp_dir": os.path.relpath(sd, ROOT)}
+
+    if stamps:
+        return True, detail
+    if age_h * 60.0 < L5_STAMP_GRACE_MIN:
+        return True, detail | {"note": f"该运行写成仅 {age_h * 60:.0f} 分钟，"
+                                       f"在 {L5_STAMP_GRACE_MIN:g} 分钟宽限内 ⇒ 本次不报"}
+    detail |= {
+        "reason": f"最近一次 L5 运行（`{run_id}`，{age_h:.1f} 小时前）**没有落章**："
+                  f"`{os.path.relpath(sd, ROOT)}/` 里找不到以它开头的 `.json` "
+                  f"⇒ 这一层「跑了但没留下任何层侧证据」。"
+                  "演示链的后果是确定的：`skill_invocation_audit` 判 **E2 逐层无落章** ⇒ "
+                  "四层前置 exit=5 ⇒ **图片/视频送审拒答**（文案走 P0 快路，不受影响）。",
+        "how_to_confirm": f" cd \"{ROOT}\" && sh kb/kbpy kb/l7/scripts/skill_invocation_audit.py "
+                          f"--run {run_id}   # 看它是否报 E2",
+        "fix": f" ① 先看编排器日志里这一层引擎的 exit：`grep -A4 '{run_id}' /tmp/preflight-L5.acct.out`"
+               f"（历史同类：`l5_report.py` KeyError ⇒ 引擎 exit=1、产物变化 0 个）；"
+               f" ② 修好后**换一个新 RUN** 重跑入口："
+               f"`bash kb/l8/review_run.sh --base <新BASE> --session <会话> "
+               f"--decision-owner <判定主体> --content-type image|video --text \"<素材原文>\"`；"
+               f" ③ **不要**续用 `{run_id}` 这个已停死的 RUN。",
+        "not_proves": "落章在 ≠ 这一层判得对（`verdict` 里另有三条既有红灯，本判据不看它）；"
+                      "落章不在也 ≠ 素材有问题 —— 它只说明这一次没判。",
+    }
+    return False, detail
+
+
+def exit_code_for(problems, untested, l5stamp=()):
+    """完成一次巡检该退什么码。**纯函数** —— 好让自证能离线喂样本。
+
+    契约（2026-10-06 定，2026-10-10 扩到 L5）：0=就绪 ｜ 3=被挡（红） ｜ **2=未测**。
+    ★ L5 落章缺失走 **2（未测）**，不走 3：
+      文案类走 P0 快路此刻确实能跑（`p0_fastpath.py` 自述「未跑四层前置/评审链」），
+      把它说成「审查链当前不可用」是**说法比依据大**；
+      而它又确实不是「能跑」⇒ 也不能进 0。
+    """
+    if problems:
+        return 3
+    return 2 if (untested or l5stamp) else 0
+
+
+def _alert_groups(checks):
+    """把 `checks` 分成告警用的三组：`problems` / `untested`（含 L5 落章）/ 其余非阻断名。
+
+    ★ 为什么要有它（2026-10-10）：`--alert-preview` 第一版**自己又拼了一遍**分组，
+      结果 L5 那一条被列了两遍（`checks` 里出现一次、preview 又补一次）。
+      两份实现必然漂移 ⇒ 分组只留这一份，preview 与 main 都调它。
+    """
+    groups = {"problems": [], "untested": [], "nonblocking": []}
+    for name, (ok, detail) in checks:
+        d = detail if isinstance(detail, dict) else {"reason": str(detail)}
+        # ★ L5 落章**先特判**：它的 `False` 归「未测」那一格，**不许**落进通用的
+        #   `ok is False ⇒ problems`（2026-10-10 实测：那会让它同时进 problems 与 untested，
+        #   于是退出码变 3、告警正文里还列两遍 —— 两处自相矛盾）。
+        if name == "L5落章":
+            continue
+        if ok is False:
+            groups["problems"].append({"title": f"{name}：不满足", **d})
+        elif ok is None:
+            groups["untested"].append({"title": f"{name}：**未测**（读数没采到）", **d})
+
+    # ★ L5 落章缺失 ⇒ 进 `untested` 这一格（不是 problems，也不是纯 warnings）：
+    #   文案走 P0 快路此刻确实能跑 ⇒ 说「链坏了」是夸大；
+    #   但图片/视频送审会 `layer_audit_red` 拒答 ⇒ 也不能说「此刻能跑」。
+    l5_ok, l5_detail = next(((ok, d) for n, (ok, d) in checks if n == "L5落章"), (True, {}))
+    l5_d = l5_detail if isinstance(l5_detail, dict) else {"reason": str(l5_detail)}
+    if l5_ok is False:
+        groups["untested"].append({"title": "L5 落章：最近一次运行没有落章", **l5_d})
+    elif l5_ok is None:
+        groups["untested"].append({"title": "L5 落章：**未测**（读数没采到）", **l5_d})
+    elif l5_d.get("note"):
+        # `ok=True` 且带 `note` = **在宽限内**先不报。这一档必须看得见：
+        # 否则「刚判过、还没到报的时候」会被读成「没这条检查」。
+        groups["nonblocking"].append({"title": f"L5 落章：{l5_d['note']}", **l5_d})
+    return groups
+
+
+# ────────────────────────────────────────────── main
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--json", action="store_true")
+    ap.add_argument("--no-send", action="store_true")
+    ap.add_argument("--no-heal", action="store_true",
+                    help="只算「该不该自愈」并打印，**不真踢日更**（手工诊断用；"
+                         "判据与自动跑时同一套）")
+    ap.add_argument("--selftest", action="store_true",
+                    help="只跑判据自证（离线，不联网、不推飞书）：三态必须分得开")
+    ap.add_argument("--alert-preview", action="store_true",
+                    help="只打印**会发出去的告警正文**（不推飞书、不写冷却状态）")
+    ap.add_argument("--chat", default=os.environ.get("KB_ALERT_CHAT") or DEFAULT_CHAT)
+    a = ap.parse_args()
+
+    if a.selftest:
+        print("就绪巡检 · 判据自证（离线；喂样本给纯函数，一次网络都不发）")
+        return selftest()
+    if a.alert_preview:
+        # 只把**会发出去的那段正文**打出来，不推飞书、不写冷却状态。
+        # 为什么要有它：告警正文本身是判据的一部分（「不许把未测说成不可用」），
+        # 而它此前只能靠真发一次才看得见 —— 那等于拿群消息当测试环境。
+        _c = [("认领", check_claim()), ("凭据", check_credential()),
+              ("新鲜度", check_freshness()), ("技能链接", check_skill_links()),
+              ("层闸门", check_layer_gates()), ("L5落章", check_l5_stamp())]
+        _g = _alert_groups(_c)                          # 与 main **同一把尺子**
+        print(compose(_g["problems"], _g["untested"], _g["nonblocking"], []))
+        return 0
+
+    checks = [("认领", check_claim()), ("凭据", check_credential()),
+              ("新鲜度", check_freshness()), ("技能链接", check_skill_links()),
+              # ★ 2026-10-09 加（**阻断项**）：层闸门就是评审链的前置本身。
+              #   放在这里而不是"非阻断"那几段：闸门红 ⇒ 链必然拒答。
+              ("层闸门", check_layer_gates()),
+              # ★ 2026-10-10 加：L5 落章存在性。**非阻断**（文案走快路不受影响），
+              #   但按阻断级冷却报 —— 理由见 check_l5_stamp 的 docstring。
+              ("L5落章", check_l5_stamp())]
+    # ★ 三态分流（2026-10-06）：`ok is None` 是**未测**，既不是通过也不是红。
+    #   混进 problems 会把它说成「不可用」（08:19:59 那条告警就是这么发出去的）；
+    #   混进「没它就算过」则会让一次读数失败静默通过 —— 两个方向都错。
+    _groups = _alert_groups(checks)
+    problems, untested = _groups["problems"], _groups["untested"]
+
+    # ★ AGENTS.md 漂移：**非阻断** —— 单独收集，只进告警，不改 ready / 退出码。
+    #   理由见 check_agents_drift 的 docstring：它会让 agent 按错的口径干活，值得报，
+    #   但「文档过期」不等于「评审链跑不起来」，混进 ready 会让就绪谓词失真。
+    # ★ L5 落章（2026-10-10）：分组由 `_alert_groups` 统一负责 —— 缺失时它落在
+    #   `untested` 里，宽限内落在 `nonblocking` 里（看得见，但不算问题）。
+    l5stamp = [w for w in untested if w["title"].startswith("L5 落章")]
+    l5_note = _groups["nonblocking"]
+
+    drift_ok, drift_detail = check_agents_drift()
+    drift = []
+    if not drift_ok:
+        d = drift_detail if isinstance(drift_detail, dict) else {"reason": str(drift_detail)}
+        drift.append({"title": "AGENTS.md：已过期", **d})
+
+    # ★ L1 索引重建：同样**非阻断**（2026-10-08 加）—— 它是**审计投影**，
+    #   实测 `kb/l6/` 引用 `l1/index` 0 处 ⇒ **不在检索路径上**，坏不坏不影响此刻能不能评审。
+    #   理由见 check_l1_index_rebuilt 的 docstring：它守的是「日更任务书 ③c 有没有被执行」。
+    idx_ok, idx_detail = check_l1_index_rebuilt()
+    l1idx = []
+    if idx_ok is not True:
+        d = idx_detail if isinstance(idx_detail, dict) else {"reason": str(idx_detail)}
+        l1idx.append({"title": ("L1 索引：**日更的 ③c 没被执行**" if idx_ok is False
+                                else "L1 索引：**未测**（索引文件不在）"), **d})
+
+    # ★ 令牌寿命：同样**非阻断** —— 此刻能跑，但撑不到下次日更就会复发。
+    #   理由见 check_credential_horizon 的 docstring：这是「每 2 小时必然发生一次」的
+    #   复发路径，提前报才有意义；混进 ready 则会把「现在能不能跑」答错。
+    hz_ok, hz_detail = check_credential_horizon()
+    horizon = []
+    if not hz_ok:
+        d = hz_detail if isinstance(hz_detail, dict) else {"reason": str(hz_detail)}
+        horizon.append({"title": "凭据寿命：撑不到下次日更", **d})
+
+    result = {
+        # ★ `ready` 的语义是「**此刻**能不能跑」。未测 ⇒ 答不出这个问题 ⇒ 不是 ready。
+        #   但它也**不是** problem —— 两个字段分开，让读的人分得清「坏了」与「没测到」。
+        "ready": not problems and not untested,
+        "agents_md_drift": bool(drift),
+        "credential_horizon": bool(horizon),
+        "l1_index_stale": bool(l1idx),
+        "l5_stamp_missing": bool(l5stamp),
+        "l5_stamp_note": [w["title"] for w in l5_note],
+        "checked_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "checks": {n: (ok, d if not isinstance(d, str) else d) for n, (ok, d) in checks},
+        "problems": problems,
+        "untested": untested,
+        "drift": drift,
+        "horizon": horizon,
+        # ★ 结构性事实**始终**进结果（含"通过"时）—— 它是常驻状态，不是事件：
+        #   就算令牌此刻撑得过下次日更，2h 寿命也撑不过再下一次。放在这里才不会被"✅ 就绪"盖掉。
+        "credential_horizon_note": (hz_detail or {}).get("structural_note")
+        if isinstance(hz_detail, dict) else None,
+    }
+
+    # ★★ 受控自愈（2026-10-07）：陈旧 ⇒ **在五道前置全过时踢一次日更**。
+    #   放在告警**之前**：这样同一条告警里就能写清「我做了什么、成了没成」，
+    #   而不是等下一次巡检才说 —— 人看到的是一句话，不是两半。
+    heal_items, heal_rec = [], None
+    cd = dict(checks)
+    fresh_ok = cd.get("新鲜度", (True, {}))[0]
+    claim_ok = cd.get("认领", (True, {}))[0]
+    if fresh_ok is False:
+        jr_pid, jr_why = job_running(DAILY_SKILL_LABEL)
+        lock_on, lock_why = kb_lock_alive()
+        last_ts, n_today = _heal_state()
+        go, why = heal_decision(freshness_stale=True, claim_free=(claim_ok is not False),
+                                job_running_pid=jr_pid, lock_alive=lock_on,
+                                last_heal_ts=last_ts, attempts_today=n_today)
+        heal_rec = {"decided": go, "why": why, "job": jr_why, "lock": lock_why,
+                    "attempts_today": n_today}
+        if go and a.no_heal:
+            r = {"ok": False, "returncode": None, "dry_run": True,
+                 "would_run": f"launchctl kickstart -k gui/{os.getuid()}/{DAILY_SKILL_LABEL}"}
+        elif go:
+            r = attempt_heal(why)
+        else:
+            r = None
+        if go:
+            heal_rec["attempt"] = r
+            if r.get("ok"):
+                _remember_heal()
+            heal_items.append({
+                "title": ("**该自愈，但本次是 --no-heal（只算不做）**"
+                          if (r or {}).get("dry_run") else
+                          "**已自动处置：踢了一次日更**（受控自愈）"),
+                "reason": why,
+                "detail": ("已执行 `launchctl kickstart -k "
+                           f"gui/{os.getuid()}/{DAILY_SKILL_LABEL}`（rc={r.get('returncode')}）。"
+                           "它会自己认领、自己释放；跑完（~15 分钟）新鲜度应恢复。"
+                           "台账：`kb/.work/freshness-heal.ndjson`"),
+            })
+        else:
+            heal_items.append({
+                "title": "**没有自动处置**（有一道前置不满足）",
+                "reason": why,
+                "detail": f"作业：{jr_why} ｜ 锁：{lock_why} ｜ 今日已自愈 {n_today} 次",
+            })
+    result["heal"] = heal_rec
+
+    sent = None
+    to_alert = problems + untested + horizon + drift + l1idx + l5_note
+    # ★ 自愈动作本身**必须发得出去** —— 绕过冷却：它是「我替你动了手」，不是重复提醒。
+    force_alert = bool(heal_rec and (heal_rec.get("attempt") or {}).get("ok"))
+    if to_alert and not a.no_send:
+        sig = signature(p["title"] for p in to_alert)
+        # ★ 2026-10-10：L5 落章也在**阻断级**冷却里 —— 它让图片/视频送审全量拒答，
+        #   与「整条链拒答」同档；落进 6h 档就会重演当天「响两声就沉默」的形状。
+        go, why = should_alert(sig, BLOCKING_COOLDOWN_H if (problems or l5stamp) else COOLDOWN_H)
+        if force_alert and not go:
+            go, why = True, f"{why} ⇒ **但本次有自愈动作，强制报一次**"
+        if go:
+            ok, info = alert(compose(problems, untested, horizon + drift + l1idx + l5_note, heal_items), a.chat)
+            sent = {"sent": ok, "why": why, "info": info}
+            if ok:
+                remember(sig)
+        else:
+            sent = {"sent": False, "why": why}
+    result["alert"] = sent
+
+    if a.json:
+        print(json.dumps(result, ensure_ascii=False, indent=1))
+    else:
+        # ★ 2026-10-10：`untested`/`l5stamp` 都算「未测」，判定要与退出码**同一把尺子**
+        #   （原先只看 `problems`：L5 落章丢了会打印「被挡」却退 2，两处自相矛盾）。
+        _untested_any = bool(untested or l5stamp)
+        verdict = ("✅ 就绪" if result["ready"]
+                   else ("❌ 被挡" if problems else "⚠️ 未测（读数没采到，不代表链坏了）"))
+        print(f"就绪巡检 @ {result['checked_at']}  ⇒  {verdict}"
+              + ("（★ 令牌撑不到下次日更，见下）" if horizon else "")
+              + ("（另有 AGENTS.md 漂移，见下）" if drift else "")
+              + ("（★ L1 索引没重建，见下）" if l1idx else "")
+              + ("（★ L5 落章丢了：图片/视频送审会拒答，见下）" if l5stamp else ""))
+        for n, (ok, d) in checks:
+            mark = "✅" if ok is True else ("❌" if ok is False else "⚠️")
+            print(f"  {mark} {n}: "
+                  f"{json.dumps(d, ensure_ascii=False)[:220] if isinstance(d, (dict, list)) else d}")
+        for w in horizon:
+            print(f"  ⚠️ {w['title']}: 到期 {w.get('expires_at')} ｜ 下次日更 {w.get('next_daily_run')}"
+                  f" ｜ 余 {w.get('remaining_h')}h")
+            print(f"     {str(w.get('reason'))[:200]}")
+        # ★ L1 索引（非阻断）：只在该红时印 —— 绿时留白，免得把常驻状态说成事件。
+        for w in l1idx:
+            print(f"  ⚠️ {w['title']}: {str(w.get('reason'))[:200]}")
+            if w.get("before"):
+                print(f"     上次重建 {w['before']} ｜ 阈值 {L1_INDEX_STALE_H:g}h")
+            if w.get("fix"):
+                print(f"     ▶ 修法：{str(w['fix'])[:300]}")
+        for w in l5_note:
+            print(f"  ℹ️ {w['title']}")
+        # ★ L5 落章（非阻断）：只在该红时印。
+        for w in l5stamp:
+            print(f"  ⚠️ {w['title']}: {str(w.get('reason'))[:240]}")
+            print(f"     最近一次记账 {w.get('newest_run_record')} ｜ {w.get('age_h')}h 前 "
+                  f"｜ 落章 {w.get('stamps_found')}")
+            if w.get("how_to_confirm"):
+                print(f"     ▶ 复核：{str(w['how_to_confirm'])[:300]}")
+            if w.get("fix"):
+                print(f"     ▶ 修法：{str(w['fix'])[:400]}")
+        if result.get("credential_horizon_note"):
+            print(f"  ⏳ 凭据寿命: {result['credential_horizon_note']}")
+        if result.get("heal"):
+            h = result["heal"]
+            at = h.get("attempt") or {}
+            tail = (" ｜ **--no-heal：只算不做**" if at.get("dry_run")
+                    else (f" ｜ 已执行 rc={at.get('returncode')}" if at else ""))
+            print(f"  🩺 自愈: 决定={h.get('decided')} ｜ {str(h.get('why'))[:90]}{tail}")
+        if sent:
+            print(f"  告警: {json.dumps(sent, ensure_ascii=False)[:200]}")
+
+    # ★ 三个退出码必须各不相同（2026-10-06）：0=就绪 / 3=被挡（红） / **2=未测**。
+    #   原先只有 0 与 3，于是「读数没采到」只能挤进「被挡」那一格 ——
+    #   而它们要人说出口的话完全不同（一个是「链坏了」，一个是「没测到」）。
+    #   同口径见 AGENTS.md §2.4.2 的 L3（未测退 2，不是 0）与 §2.7 的 E1/E4。
+    # ★ L5 落章（2026-10-10）：**进"未测"这一格，但不进"被挡"**。
+    #   为什么不进 problems：文案类走 P0 快路，此刻确实能跑 ⇒ 说成「链坏了」是夸大。
+    #   为什么不留在纯 warnings：`compose()` 在**没有阻断项**时首行是
+    #     「ℹ️ 就绪巡检（非阻断提醒：**此刻能跑**）」—— 而 L5 落章丢了的时候
+    #     图片/视频送审**跑不了**（前置 exit=5）。那句话在说出去的时候就没有依据，
+    #     正是本库反复记过的「说出去的话比手上的依据大」。
+    #   放进 untested 后首行是「就绪**未测** —— 读数没采到，不代表链坏了」：
+    #     「这次没拿到这一层的证据」是准确描述，且两个方向都不夸。
+    return exit_code_for(problems, untested, l5stamp)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,105 @@
+{
+ "policy_id": "half-life-policy-20260929-1040",
+ "created_at": "20261010-1206",
+ "layer": "L3 蒸馏层 · 治理元数据",
+ "status": "active",
+ "owner": "法务 + 内容治理（角色位）",
+ "scope": "l3/candidates/rules.jsonl 全部 1018 条规则",
+ "why_this_file": "half_life_days / valid_until / owner 此前是**派生视图生成器里的常量**（DERIVED_HALF_LIFE_DAYS=180、OWNER=刘华丽）。常量写在反规范化步骤里有两个后果：① 补在视图上会随重生成丢失；② kb_check 的「新鲜度 1.00」是假绿 —— 509 条 valid_until 全是同一个 created_at+180，不是「都新鲜」，是「都写了同一个数」。本文件把政策**搬进权威库并写明理由**，逐条数据由本文件派生（实现 = kb/kb_governance.py，写方 = 日更 l3_distill_run.py 与本回填脚本）。",
+ "honest_limits": [
+  "half_life_days 本质是**政策值**，不是从数据推出来的。权威库与 L0 原始记录里没有日期字段（effective_from/effective_to/superseded_at 全空；13 张源表只有 3 张有日期列）。",
+  "effective_from 只能给**策略基线日** 2026-09-29，不是条文原始生效日 —— 源侧没有该信息。这是**源侧缺口**，要回源侧加日期列才能真解决。",
+  "owner 只到「角色位」（不写死人名）。无 rule_code 的规则无法按域路由 ⇒ 落到「法务」。真正的解法是补 rule_code（**源侧动作**）。",
+  "★ **档 B 当前恒为 0 条，这是缺口不是结论**：判据字段 `authority_source_table` 在 `kb/l3/candidates/rules.jsonl` 里**连键都不存在**（0/1018），上游 `kb/l2/units.jsonl` 也没有承载来源表的字段 ⇒ `TIER_B_SOURCES` 永远不命中。本文件早先记的「B=22 条」是**早期数据的读数**，与现行文件对不上（同 owner/half_life 那次丢失是同一类病）。要真修：回 L1/L2 补「来源表」字段并逐层带到 L3。"
+ ],
+ "validation": {
+  "baseline_date": "2026-09-29",
+  "valid_until_formula": "valid_until = effective_from + half_life_days",
+  "never_resets_on_regeneration": true,
+  "why_not_created_at_today": "若用「重生成当天」算 valid_until，每次重生成都会把时钟归零 —— 那又是另一种假绿（永远不过期）。用固定的 effective_from 算，条目才会**真的**到期，新鲜度才成为活指标。",
+  "derivation_module": "kb/kb_governance.py（唯一派生实现；自证 python3 kb/kb_governance.py --selftest）",
+  "writers": [
+   "kb/l8/l3_distill_run.py（日更，mode=force）",
+   "kb/.work/fix_f7_backfill.py（一次性回填，mode=fill_empty）"
+  ]
+ },
+ "half_life_tiers": {
+  "A": {
+   "condition": "p_level = P0",
+   "half_life_days": 365,
+   "why": "法务红线，依据法规与监管口径，按年复核",
+   "count": 20
+  },
+  "B": {
+   "condition": "authority_source_table ∈ ['W1卖点表达边界（品线反馈0910）', '广告文案明细']（且非 P0）",
+   "half_life_days": 90,
+   "why": "源自具体文案样本或批次性品线反馈，随投放周期与品线口径迭代，季度复核",
+   "count": 0
+  },
+  "C": {
+   "condition": "其余措辞规则",
+   "half_life_days": 180,
+   "why": "中位保守值 —— 与 PRD/技术方案里「措辞类 180」一致",
+   "count": 998
+  }
+ },
+ "tier_order": "A 优先于 B：P0 的红线属性比来源域更重要",
+ "owner_roles": {
+  "rule": "按 rule_code 的域分组；无 rule_code 时以「法务」兜底",
+  "法务 + 医学顾问": {
+   "rule_codes": [
+    "H01",
+    "H02",
+    "H03",
+    "H07",
+    "U04"
+   ],
+   "count": 16,
+   "why": "医疗功效 / 疼痛承诺类宣称，法务与医学共同把关"
+  },
+  "法务 + 渠道负责人": {
+   "rule_codes": [
+    "M01",
+    "M03",
+    "M04",
+    "M05",
+    "M06",
+    "M07",
+    "U02"
+   ],
+   "count": 26,
+   "why": "平台与促销类表述，涉及渠道政策，渠道负责人共同把关"
+  },
+  "法务 + 产品负责人": {
+   "rule_codes": [
+    "H04",
+    "H05",
+    "H06",
+    "H08",
+    "H09",
+    "M02",
+    "U01",
+    "U03"
+   ],
+   "count": 28,
+   "why": "背书 / 资质 / 安全承诺类，需产品事实支撑，产品负责人共同把关"
+  },
+  "法务": {
+   "rule_codes": [],
+   "count": 948,
+   "why": "无 rule_code ⇒ 无法按域路由，以法务兜底。**这是 rule_code 覆盖率低的后果**"
+  }
+ },
+ "fields_backfilled": {
+  "half_life_days": "新增（整数天数）",
+  "valid_until": "新增（YYYY-MM-DD）= effective_from + half_life_days",
+  "effective_from": "**原有字段、原为空串**，填入策略基线日",
+  "effective_to": "保持空串（未定义失效终点；失效由 half_life_days/valid_until 表达）",
+  "owner": "**原有字段、原为空串**，填入角色位"
+ },
+ "revisit": {
+  "when": "任一档的 valid_until 到期前 30 天，或法规/平台政策发生变更时",
+  "who": "法务 + 内容治理",
+  "how": "改本文件的 half_life_tiers 天数并重跑 kb/.work/fix_f7_backfill.py；改的是政策，不是逐条数据 —— 逐条数据由政策派生（kb/kb_governance.py 每次写盘都会重算，**不会**随重生成归零）"
+ }
+}

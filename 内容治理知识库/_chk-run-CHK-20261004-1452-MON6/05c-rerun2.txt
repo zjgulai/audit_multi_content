@@ -1,0 +1,25 @@
+==========================================================================
+envelope_gate —— 信封闸门（python getsize vs node statSync().size）
+==========================================================================
+基准目录: /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理
+扫描范围: .
+扩展名  : .py .txt .md
+node 侧 : DSH Desktop 内置 Electron（ELECTRON_RUN_AS_NODE=1）（判据读者；--reader 可换）
+扫描到  : 3328 个文件
+
+--- 信封态（|差值| == 4096）--- 5 个
+    · /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/_chk-run-CHK-20261004-1320/00-index-before.txt ｜ python=32 node=4128 差=-4096
+    · /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/_chk-run-CHK-20261004-1347-LAYERCLOSE/00-pre-index-lines.txt ｜ python=9 node=4105 差=-4096
+    · /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/_chk-run-CHK-20261004-1347-LAYERCLOSE/99-post-index-lines.txt ｜ python=9 node=4105 差=-4096
+    · /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/_eval-L0L7-gap-20261003/kb-l0-feishu-fix/evals/README-修复-交付物与结论.md ｜ python=15951 node=20047 差=-4096
+    · /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/_eval-L0L7-gap-20261003/kb-l0-feishu-fix/references/CHANGELOG.md ｜ python=22700 node=26796 差=-4096
+
+--- 两读者交叉核对（PATH 里的 node）--- **不一致 ⇒ 报红**
+    该读者读到的信封态：3 个
+    只有消费方读者判为信封（PATH 读者判绿）：/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/_eval-L0L7-gap-20261003/kb-l0-feishu-fix/evals/README-修复-交付物与结论.md、/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/_eval-L0L7-gap-20261003/kb-l0-feishu-fix/references/CHANGELOG.md
+    只有 PATH 读者判为信封：
+
+==========================================================================
+正常：3323 ｜ 信封态：5 ｜ 读不到：0
+结论：判据读者与 PATH 读者**读数不一致** —— 信封判据本身不可信，报红。
+退出码：1

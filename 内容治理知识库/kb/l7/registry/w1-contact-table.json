@@ -1,0 +1,107 @@
+{
+ "generated_at": "2026-10-10 18:14:52",
+ "source": "kb/l7/registry/permission-matrix.yaml → roles（**只取角色位**）",
+ "prd_ref": "PRD §14 W1「对接人表」/ §13 权限与安全 / §9 复核与 sign-off",
+ "roles": [
+  {
+   "role": "内容提交方",
+   "prd_rights": "提交内容、查看自己内容的结论和报告",
+   "routing_policy_key": "submitter",
+   "bind_status": "已对应",
+   "read_scope": "own_only",
+   "name": null,
+   "feishu_user": null,
+   "backup": null,
+   "confirmed_at": null
+  },
+  {
+   "role": "法务",
+   "prd_rights": "查看 REVIEW 内容、填写复核结论",
+   "routing_policy_key": "legal",
+   "bind_status": "已对应",
+   "read_scope": "review_and_block",
+   "name": null,
+   "feishu_user": null,
+   "backup": null,
+   "confirmed_at": null
+  },
+  {
+   "role": "医学顾问",
+   "prd_rights": "查看 REVIEW 内容、填写复核结论",
+   "routing_policy_key": "medical",
+   "bind_status": "已对应",
+   "read_scope": "review_and_block",
+   "name": null,
+   "feishu_user": null,
+   "backup": null,
+   "confirmed_at": null
+  },
+  {
+   "role": "专家",
+   "prd_rights": "查看 REVIEW 内容、填写复核结论",
+   "routing_policy_key": null,
+   "bind_status": "★ **无对应**",
+   "read_scope": "review_and_block",
+   "name": null,
+   "feishu_user": null,
+   "backup": null,
+   "confirmed_at": null
+  },
+  {
+   "role": "北美同事",
+   "prd_rights": "查看 REVIEW 内容、填写复核结论",
+   "routing_policy_key": "north_america",
+   "bind_status": "已对应",
+   "read_scope": "review_and_block",
+   "name": null,
+   "feishu_user": null,
+   "backup": null,
+   "confirmed_at": null
+  },
+  {
+   "role": "Sign-off 负责人",
+   "prd_rights": "查看审查记录、确认 sign-off",
+   "routing_policy_key": "signoff",
+   "bind_status": "已对应",
+   "read_scope": "all",
+   "name": null,
+   "feishu_user": null,
+   "backup": null,
+   "confirmed_at": null
+  },
+  {
+   "role": "项目统筹",
+   "prd_rights": "查看全部记录、统计、导出",
+   "routing_policy_key": null,
+   "bind_status": "★ **无对应**",
+   "read_scope": "all",
+   "name": null,
+   "feishu_user": null,
+   "backup": null,
+   "confirmed_at": null
+  },
+  {
+   "role": "IT / Agent 维护",
+   "prd_rights": "管理规则、知识库、模型、接口",
+   "routing_policy_key": null,
+   "bind_status": "★ **无对应**",
+   "read_scope": "all",
+   "name": null,
+   "feishu_user": null,
+   "backup": null,
+   "confirmed_at": null
+  },
+  {
+   "role": "管理员",
+   "prd_rights": "权限配置、审计日志",
+   "routing_policy_key": null,
+   "bind_status": "★ **无对应**",
+   "read_scope": "all",
+   "name": null,
+   "feishu_user": null,
+   "backup": null,
+   "confirmed_at": null
+  }
+ ],
+ "note": "★ **人名一律留空** —— 权限矩阵 honest_limits 逐字：本件给角色位、给不出人名，绑定要 Owner 或统筹提供，**本库无从推断**。填法：逐行补 name（具名）＋ feishu_user。"
+}

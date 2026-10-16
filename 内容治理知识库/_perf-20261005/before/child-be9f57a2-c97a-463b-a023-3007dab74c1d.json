@@ -1,0 +1,65 @@
+{
+ "meta": {
+  "id": "be9f57a2-c97a-463b-a023-3007dab74c1d",
+  "parent": "session-280d55f8-d0f5-47a2-843d-9949b5a06db3",
+  "origin": "subagent",
+  "cwd": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理",
+  "label": "L6 layer preflight",
+  "model": "deepseek-flash",
+  "provider": "deepseek-official",
+  "effort": "max"
+ },
+ "span_s": 324.87,
+ "tool_busy_s": 151.09,
+ "llm_plus_overhead_s": 173.78,
+ "n_calls": 42,
+ "by_tool": {
+  "skill": {
+   "n": 1,
+   "sum_s": 0.01,
+   "max_s": 0.01
+  },
+  "read": {
+   "n": 9,
+   "sum_s": 0.18,
+   "max_s": 0.03
+  },
+  "bash": {
+   "n": 30,
+   "sum_s": 150.68,
+   "max_s": 45.88
+  },
+  "grep": {
+   "n": 1,
+   "sum_s": 0.25,
+   "max_s": 0.25
+  },
+  "report": {
+   "n": 1,
+   "sum_s": 0.01,
+   "max_s": 0.01
+  }
+ },
+ "top": [
+  {
+   "sec": 45.88,
+   "name": "bash",
+   "desc": "set -o pipefail sh kb/kbpy l6/retriever.py --query \"baby monitor night sleep nightstand\" --top 10 --json | /usr/bin/python3 -c ' import json,sys d=json.load(sys.stdin) print(\"query=\",d[\"query\"],\"| mod"
+  },
+  {
+   "sec": 32.38,
+   "name": "bash",
+   "desc": "set -o pipefail for Q in \"夜间不吵醒宝宝\" \"夜间 婴儿监视器 床头柜 睡眠\" \"baby monitor night sleep nightstand\"; do echo \"=== --mode bm25_only | $Q ===\" sh kb/kbpy l6/retriever.py --query \"$Q\" --top 10 --mode bm25_only --"
+  },
+  {
+   "sec": 15.59,
+   "name": "bash",
+   "desc": "set -o pipefail sh kb/kbpy l6/retriever.py --query \"夜间不吵醒宝宝\" --top 10 --json 2>/dev/null | /usr/bin/python3 -c ' import json,sys d=json.load(sys.stdin) print(\"query=\",d[\"query\"],\"| mode=\",d[\"mode\"],\"|"
+  },
+  {
+   "sec": 14.92,
+   "name": "bash",
+   "desc": "set -o pipefail sh kb/kbpy l6/retriever.py --query \"夜间 婴儿监视器 床头柜 睡眠\" --top 10 --json | /usr/bin/python3 -c ' import json,sys d=json.load(sys.stdin) print(\"query=\",d[\"query\"],\"| mode=\",d[\"mode\"],\"| lis"
+  }
+ ]
+}

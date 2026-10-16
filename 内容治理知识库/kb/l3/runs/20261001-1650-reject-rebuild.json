@@ -1,0 +1,34 @@
+{
+ "run": "20261001-1650",
+ "layer": "l3",
+ "kind": "incident_fix",
+ "incident": {
+  "at": "20260929-1300",
+  "file": "kb/l3/rejected.jsonl",
+  "before_lines": 11860,
+  "before_sha256": "05a8e2cd6b4d92ccf5d7c3e43a5c031951f7d2549deaf3bc186333a2a241617d",
+  "after_lines_before_fix": 2611,
+  "cause": "l3_distill2.py 以 'w' 重建 L3；此前多批次以 'a' 追加的逐单元拒绝被覆盖",
+  "recoverable": false,
+  "searched": [
+   "git（无仓库）",
+   "APFS 本地快照（无）",
+   "kb/.work 中间产物（无完整数组）",
+   "kb/l8/_stage 与 ../_l8-sandbox-archive-20260923（无副本）",
+   "~/.dsh/Momcozy知识库（符号链接，同一份）"
+  ]
+ },
+ "rebuild": {
+  "method": "按同一判据从 kb/l2/units.jsonl 重算逐单元拒绝（非原始行，带 rebuild_note）",
+  "units": 12213,
+  "rule_units": 959,
+  "case_units": 3204,
+  "rejected_rows_appended": 8050,
+  "partition_ok": true,
+  "lines_after": 10661
+ },
+ "unchanged_invariants": {
+  "rules": 509,
+  "canonical_rules_bytes": 0
+ }
+}

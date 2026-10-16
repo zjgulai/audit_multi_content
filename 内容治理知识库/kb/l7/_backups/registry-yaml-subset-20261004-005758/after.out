@@ -1,0 +1,21 @@
+== 修后 2026-10-04 00:58:47 ==
+---- skills_check.py 
+
+五类问题：1=0 2=0 3=0 4=0 5=0 ｜合计 0
+结论：全过。
+退出码：0
+exit=0
+---- skills_check.py --no-yaml --quiet
+
+五类问题：1=0 2=0 3=0 4=0 5=0 ｜合计 0
+结论：全过。
+退出码：0
+exit=0
+---- skills_check.py --verify-parsers
+两条解析路径比对：/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/registry/skills.yaml
+  A 路径 : PyYAML 6.0.3
+  B 路径 : 内置子集解析器
+  结果   : 2 处不一致
+    · $.meta.engine_packages[0].installed_at 不同：PyYAML datetime.date(2026, 9, 29)(date) / 内置 '2026-09-29'(str)
+    · $.meta.single_writer_rule 不同：PyYAML '**单一写入者纪律（2026-09-30 起）**：一个 skill 只有**一个可写位置** = 源目录 `kb/l7/skills/<id>/`。 装载位 `~/.dsh/skills/<id>/` 是**只读运行副本**，任何写入者（脚本 / agent / promote 流程 / 手工编辑） 都不得直接改装载位里的文件。 改动一律走三步：① 改源目录 → ② `cp -p`（或 rsync）到装载位 → ③ 跑 `skills_check.py`， 第 3 类「副本不一致」必须为 0。 为什么写死这条（2026-09-30 实测的两个反面案例）：\n  · `kb-media-extractor`：源停在 v1.0.0，装位已是 v1.0.1（且 `-fix` 副本与装位逐字节相同）——\n    说明有人把结果直接装到位、却没回灌源；\n  · `kb-l0-feishu/references/gotchas.proposals.md`：装位比源多两段 retro 追加记录。\n两者都被 skills_check 第 3 类判红，最后靠 promote（装位 → 源）收口。 已知的**唯一复现机制**（根因，别再踩）：`kb-l0-feishu/scripts/retro.py:47` 用 `SKILL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))` 把输出写在**脚本自己旁边** —— 因此**从装载位调用 retro.py，就会直接写进装载位**。 纪律：`retro.py` 只许从**源目录**调用；不要从 `~/.dsh/skills/` 下调用它。 **2026-09-30 第 4 次复发 → 已根治（kb-l0-feishu v1.2.4）**：同一对象又红一次 （14:50:59，run `20260930-1449`；前三次 13:10 / 13:38 / 13:46， 见 `kb/l7/reports/20260930-1427-闸门修复-第三次复发-停手待裁.md` 的修法 B）。 本轮改的不是数据、是**产生漂移的那个脚本**：`retro.py` 的 `PROPOSALS` 改为按**库根**解析到 `<KB>/l7/skills/kb-l0-feishu/references/gotchas.proposals.md`，并新增护栏 「落点命中 `~/.dsh/skills/` 或 `~/.agents/skills/` 即拒跑」；库内源目录不存在时**不写候选** （台账照记），不许退回"写脚本旁边"。 **并且候选写完当场镜像到装载位**（`mirror_to_install_slots()`，只镜自己刚写的这一个文件、 只在权威库根下发生）—— 因为四次红的形态**全都是"只写了一侧"**：写装位则源旧、写源则装位旧， **两种都红**。让唯一的写者把两个副本当**一次事务**写完，这条死路才算堵上； 别的文件万一漂移仍由 `skills_check` 发现，不被顺手抹平。 文档同步：`kb-l0-feishu/references/scripts.md` 的收尾调用式由装位路径改为**库内源**路径（原写法等于教人踩坑）； `SKILL.md §8.3` 新增第 5 步「回灌装载位 + 跑 `skills_check` 证明第 3 类为 0」。 → 上面那条「只许从源目录调用」的纪律**降级为建议**：现在**从装载位调用也不会再写装载位** （沙箱实测：从装位副本调用，候选落库内源、装位那份一个字节没动），且一次跑完两侧逐字节一致 （`HOME` 重定向到假家目录的 D 档实测；真装位 sha 前 16 位 `5a1b29295cceaff6` 全程未被测试污染）。\n'(str) / 内置 '**单一写入者纪律（2026-09-30 起）**：一个 skill 只有**一个可写位置** = 源目录 `kb/l7/skills/<id>/`。 装载位 `~/.dsh/skills/<id>/` 是**只读运行副本**，任何写入者（脚本 / agent / promote 流程 / 手工编辑） 都不得直接改装载位里的文件。 改动一律走三步：① 改源目录 → ② `cp -p`（或 rsync）到装载位 → ③ 跑 `skills_check.py`， 第 3 类「副本不一致」必须为 0。 为什么写死这条（2026-09-30 实测的两个反面案例）： · `kb-media-extractor`：源停在 v1.0.0，装位已是 v1.0.1（且 `-fix` 副本与装位逐字节相同）—— 说明有人把结果直接装到位、却没回灌源； · `kb-l0-feishu/references/gotchas.proposals.md`：装位比源多两段 retro 追加记录。 两者都被 skills_check 第 3 类判红，最后靠 promote（装位 → 源）收口。 已知的**唯一复现机制**（根因，别再踩）：`kb-l0-feishu/scripts/retro.py:47` 用 `SKILL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))` 把输出写在**脚本自己旁边** —— 因此**从装载位调用 retro.py，就会直接写进装载位**。 纪律：`retro.py` 只许从**源目录**调用；不要从 `~/.dsh/skills/` 下调用它。 **2026-09-30 第 4 次复发 → 已根治（kb-l0-feishu v1.2.4）**：同一对象又红一次 （14:50:59，run `20260930-1449`；前三次 13:10 / 13:38 / 13:46， 见 `kb/l7/reports/20260930-1427-闸门修复-第三次复发-停手待裁.md` 的修法 B）。 本轮改的不是数据、是**产生漂移的那个脚本**：`retro.py` 的 `PROPOSALS` 改为按**库根**解析到 `<KB>/l7/skills/kb-l0-feishu/references/gotchas.proposals.md`，并新增护栏 「落点命中 `~/.dsh/skills/` 或 `~/.agents/skills/` 即拒跑」；库内源目录不存在时**不写候选** （台账照记），不许退回"写脚本旁边"。 **并且候选写完当场镜像到装载位**（`mirror_to_install_slots()`，只镜自己刚写的这一个文件、 只在权威库根下发生）—— 因为四次红的形态**全都是"只写了一侧"**：写装位则源旧、写源则装位旧， **两种都红**。让唯一的写者把两个副本当**一次事务**写完，这条死路才算堵上； 别的文件万一漂移仍由 `skills_check` 发现，不被顺手抹平。 文档同步：`kb-l0-feishu/references/scripts.md` 的收尾调用式由装位路径改为**库内源**路径（原写法等于教人踩坑）； `SKILL.md §8.3` 新增第 5 步「回灌装载位 + 跑 `skills_check` 证明第 3 类为 0」。 → 上面那条「只许从源目录调用」的纪律**降级为建议**：现在**从装载位调用也不会再写装载位** （沙箱实测：从装位副本调用，候选落库内源、装位那份一个字节没动），且一次跑完两侧逐字节一致 （`HOME` 重定向到假家目录的 D 档实测；真装位 sha 前 16 位 `5a1b29295cceaff6` 全程未被测试污染）。\n'(str)
+exit=1

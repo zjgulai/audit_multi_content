@@ -1,0 +1,74 @@
+# conclusion-destination.yaml —— 内容治理 · **验证结论的填写去向**登记
+#
+# 这条登记只回答一件事：**评审链出的三态结论，人应当填到哪里**。
+# 它与 kb/l7/registry/ 下的三张姊妹表互补：
+#   * skills.yaml                    答「有哪些成员」
+#   * layers.yaml                    答「链路怎么跑」
+#   * routes.yaml                    答「这句话该谁接」
+#   * conclusion-destination.yaml    答「结论填到哪」（本表）
+#
+# 边界（写清楚，免得被误用）：
+#   · 本件是**去向声明件**，不被任何 gate 读取，也没有自动对账器（checker: null）。
+#   · **KB 侧只登记去向，不在 KB 内改写结论。** 结论正文仍由评审链各自产出
+#     （kb-content-review / kb-review / brand-* 专项），写进飞书表是**填写动作**，
+#     不是 KB 的写库动作。
+#   · 本件**不参与** L0–L7 数据链路，不改变任何层的 inputs / outputs，
+#     也不改变任何判据。新增或变更去向时人工维护本文件。
+#
+# 登记时间 2026-10-02（首次登记）。
+
+meta:
+  file: kb/l7/registry/conclusion-destination.yaml
+  answers: "验证结论填到哪"
+  checker: null
+  checker_note: >
+    无自动对账器。本件是去向声明，不是判据；变更靠人工维护。
+  scope: >
+    评审链（kb-review / kb-content-review / 13 个 brand-* 专项）产出的三态结论
+    （PASS / REVIEW / BLOCK，以及拒答态 NEEDS_INPUT）。
+  registered_at: "2026-10-02"
+
+destinations:
+  - id: feishu-bitable-content-review
+    name: "内容治理 · 飞书多维表格（表名：内容处理问题描述）"
+    status: active
+    url: "https://momcozy-in.feishu.cn/wiki/Lntdw8XqmifewjkdEckcXYH8nOV?table=tblCXPQVzfFWWCon&view=vewhS7Rwx0"
+    wiki_token: Lntdw8XqmifewjkdEckcXYH8nOV
+    table_id: tblCXPQVzfFWWCon
+    view_id: vewhS7Rwx0
+    # base_token 不在原登记文本里，是 2026-10-02 由 wiki URL 解析出来的（写入必需）；
+    # 若该 wiki 节点被移动/重建，须重新 `base +url-resolve` 复核。
+    base_token: RY2UbCRjXaeeWwscUPScVN5AnQc
+    base_token_source: "lark-cli base +url-resolve（2026-10-02 实解析）"
+    written_by: "守衡（飞书应用，app_id=cli_aa2243de0438dcd7；已授编辑权限）"
+    write_channel: "lark-cli --profile dsh-kb base +record-* --as bot"
+    registered_at: "2026-10-02"
+    publisher: "kb/l7/review-engine/core/feishu_publish.py —— 2026-10-03 接线；**默认预演**，--apply 才写；token 从本件现读，不硬编码"
+    write_modes:
+      - "新建云文档（默认）：正文**从第 1 行开始**（第一行 = 报告标题 H1；不传 docs +create --title）"
+      - "写已有文档：docs +update --command overwrite（整篇覆盖）；**禁用 append** —— append 就是从中间写"
+    row_idempotency: "**每次审查新增一行**（2026-10-03 用户裁定；原「按 内容 ID upsert」已作废）。
+      ⇒ 发布件每次走 `+record-batch-create`，**不再更新既有行**（`feishu_publish.py` 里 `rid` 恒为 None）。
+      依据：PRD §5.4「用于系统记录、流转、统计。**每条审查生成一份 JSON**」＋ §10「审核记录绑定内容版本」；
+      PRD 全文**没有**要求按内容 ID 去重 —— 原 upsert 是**实现选择**。
+      ⚠️ 已知代价：同一内容会有**多行且「内容 ID」相同**（实测 2026-10-03 22:10 后该 ID 有 2 行）——
+      根因是「内容 ID」仍为内容哈希，而 PRD §5.4 要的是业务编号 `AD-YYYYMMDD-NNN`；
+      该编号规则**仍未定**，登记在 `report-output-contract.yaml` 的 `GAP-RO-6`（status = 部分已裁定）。历史行一律不动。"
+    refuses: "层前置非 enforced+ok、或结论为 NEEDS_INPUT ⇒ 拒发（退出码 3）"
+    verified_at: "2026-10-03 首次实测：docx YOjkd5ItEoBybHx7BGAc25r6nXb ／ record recvwWtBLzcHiq（两端读回一致）；
+      2026-10-03 22:10 追加实测（每单一行口径）：新建 record recvwZN3lISP44（表从 11 → 12 条有数据行）"
+    row_order: "视图 `vewhS7Rwx0` 排序 = `写入时间` **倒序**。⚠️ 2026-10-03 更正：原写「**新报告自动出现在表格第一行**」
+      —— 那句在**旧的 upsert 口径下不成立**（复审只改旧行、`写入时间` 是 created_at 不更新 ⇒ 永不冒头，
+      用户正是因此反馈「数据并没有更新」）。**改为「每单一行」后它才成立**：新建行 = 新的 created_at ⇒ 出现在第一行。
+      若用户要「新报告在**下面**」：把该视图排序改成**升序**即可（一句话的改动）。"
+    row_order_how: "`写入时间` 是表内 **type=created_at 的自动字段**（建记录即填、并已回填历史行）⇒ 发布件**不需要**写它；顺序由视图排序负责。"
+    field_extra: "PRD 15 字段之外新增的第 16 个字段：`写入时间`（created_at，自动）。回到 15 列的撤销命令见 report-output-contract.yaml 的 applied_20261003.bitable_row_order。"
+    kb_side_rule: "KB 侧只登记去向，不在 KB 内改写结论。"
+
+# ── 原件（一字不改；上面是结构化展开，以本块为准） ─────────────────────
+statement_verbatim: |
+  【验证结论去向 · 登记】内容治理的验证结论统一填写到飞书多维表格：
+  https://momcozy-in.feishu.cn/wiki/Lntdw8XqmifewjkdEckcXYH8nOV?table=tblCXPQVzfFWWCon&view=vewhS7Rwx0
+  （wiki_token=Lntdw8XqmifewjkdEckcXYH8nOV ｜ table_id=tblCXPQVzfFWWCon）
+  写入身份＝守衡（已授编辑权限）。KB 侧只登记去向，不在 KB 内改写结论。
+  登记时间 2026-10-02。

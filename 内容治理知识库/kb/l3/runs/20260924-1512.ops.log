@@ -1,0 +1,26 @@
+# L3 层操作日志 · run 20260924-1512
+# 生成 2026-09-24 15:17:08｜写入范围：kb/l3（候选去重 + registry）、kb/l4（仅计数）、kb/l7（仅数字）
+# 外部调用：0；kb/l3/candidates/rules.jsonl 与 scoped_clauses.jsonl 全程只读（一字未改）
+
+[01] §8.2.1 改发射器（两处同型缺陷）
+     + kb/.work/batch7_l3_run.py  case_identity() / emit_once()；发射循环跳过重复身份
+     + kb/.work/batch7_l3_fix.py  同型缺陷同批修
+
+[02] §8.2.2 干跑（只写 .work）
+     562 行 -> 358 行  sha256=0b8e2c7ce14e97b42db7cd5d45f01a65dc91255a6f2269288caba13f12999b49
+     干跑输出 == 去重后 358 行（逐字节）True；被删 204 行与保留行逐字节相同 204/204
+
+[03] §8.2.3 原地去重 kb/l3/candidates/sample_cases.jsonl
+     562 -> 358 行（80e816d17f7daaae -> 0b8e2c7ce14e97b4）
+
+[04] §8.2.4 registry/l3.json +dedup 块（根因/行号/562->358/keep_rule/干跑哈希/case_id 原式理由）
+
+[05] §8.3 判据：358 行 / case_id 唯一 358 / 204 逐字节 / candidates<->canonical diff 全 0
+     rules.jsonl a17552e1a0fabde5 未变；scoped_clauses.jsonl 81f74b85b410d6de 未变
+
+[06] §9 L4 计数同步：output_rows 1446->1242、duplicate_rows 204->0、+note；assignments 1242 逐条未变
+[07] §9 L7 同步：candidate_rows 1446->1242、total_outputs_note、read_at 15:20:00
+[08] §9 判据：candidate_rows == total_outputs == assigned_total == 1242 -> True
+     磁盘实际候选行数 1242（509+358+375）；canonical 四文件 article_no 1242
+[09] 条款号零漂移：assignments 1242 漂移 0；canonical 1242 article_no 漂移 0
+[10] 终检 python3 kb/.work/batch12/step6_verify.py  -> 全过

@@ -1,0 +1,87 @@
+---
+id: cg-sc-52a46874dcedefbe
+title: "[S-1.61] 内部正负样本库：反例·unknown·图片"
+collection: 2_内部正负样本库
+kb_class: [内部正负样本库]
+tier: L1
+topic: S-1.61
+kind: fact
+summary: "[S-1.61] 反例案例（图片/亚马逊）：原因归类「unknown」；案例作参照、不构成规则。状态 stable。"
+owner: 刘华丽
+evidence_level: L1
+data_level: L2
+sensitivity_level: L2
+half_life_days: 180
+created_at: 2026-09-28
+valid_until: 2027-03-27
+asks:
+  - S-1.61 是正例还是反例
+  - S-1.61 的问题要点与原因归类是什么
+  - S-1.61 应该怎么做（合规做法 / 修改建议）
+not_proves: 案例是参照，不构成规则 —— 不能证明「和它像」就违规、也不能证明「和它像」就合规；不能证明该条已过正式验收；不能证明该条可替代合规/法务意见
+forbidden: 不许把案例当规则用（案例只作参照）；不许据本条直接判 BLOCK；不许把派生视图的字段改动当成新库改动（视图不写回）
+related:
+  - cg-sc-f16d4baca2dd3958
+  - cg-sc-5cab578b0729c4eb
+  - cg-sc-dd9d8f33b1e78a81
+source:
+  kind: feishu-base
+  ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
+  fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
+  captured_at: 2026-09-28
+provenance:
+  anchor: "kb/l4/canonical/sample_case.jsonl#sc-52a46874dcedefbe"
+  confidence: 确定
+pii:
+  detected: true
+  masked: true
+  strategy: "案例正文与原因分析里的 @人名 不可逆脱敏（mask-at-name）；已检出并脱敏"
+article_no: S-1.61
+form: sample_case
+kb_type: internal_sample
+kb_version: v0
+case_id: sc-52a46874dcedefbe
+status: stable
+polarity: 反例
+material_type: 图片
+channel: 亚马逊
+reason_category: unknown
+evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
+promoted_from: provisional
+anchor: "#正面和负面样本/recvw2vgYXhdOI/原文反馈"
+source_sha256: c5eaefecbd279792b9717a605b116a161fb9f19981b54c48a7bb87bcd29b3b13
+resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXhdOI
+sample_body: "【审核 · 2026-09-20 23:02 · 郅笑颜】【终审-@[已脱敏] 】姐姐麻烦看看呀:YouAreTheBest: **项目名：T31亚马逊套图修改1张，A+新增2张** **设计要求**：展示全家都可使用 套图上想加手绘线条连接家人头像 ![Image](img_v3_0215n_bce2bdf4-83ec-4e48-9712-075216456f5g) ![Image](img_v3_0215n_0ca9c870-7197-49ef-b3c4-11c12544a5cg) ![Image](img_v3_0215n_8cdc5a0e-d560-4973-b1c6-38e669b0f39g)"
+reason_analysis: "【审核问题】图片 【终审-@[已脱敏] 】姐姐麻烦看看呀。 【问题要点】 1. 【终审-@[已脱敏] 】姐姐麻烦看看呀 2. 设计要求展示全家都可使用 3. 套图上想加手绘线条连接家人头像"
+advice: ""
+---
+
+# [S-1.61] 内部正负样本库：反例·unknown·图片
+
+**条款号**：S-1.61　|　**形态**：`sample_case`　|　**正/反例**：反例　|　**状态**：stable
+
+## 样本本体（照抄新库，未改写）
+
+【审核 · 2026-09-20 23:02 · 郅笑颜】【终审-@[已脱敏] 】姐姐麻烦看看呀:YouAreTheBest:
+**项目名：T31亚马逊套图修改1张，A+新增2张**
+**设计要求**：展示全家都可使用
+套图上想加手绘线条连接家人头像
+![Image](img_v3_0215n_bce2bdf4-83ec-4e48-9712-075216456f5g)
+![Image](img_v3_0215n_0ca9c870-7197-49ef-b3c4-11c12544a5cg)
+![Image](img_v3_0215n_8cdc5a0e-d560-4973-b1c6-38e669b0f39g)
+
+## 原因分析
+
+【审核问题】图片 【终审-@[已脱敏] 】姐姐麻烦看看呀。
+【问题要点】
+1. 【终审-@[已脱敏] 】姐姐麻烦看看呀
+2. 设计要求展示全家都可使用
+3. 套图上想加手绘线条连接家人头像
+
+## 引用依据
+
+- 锚点：`#正面和负面样本/recvw2vgYXhdOI/原文反馈`
+- 指纹：`c5eaefecbd279792b9717a605b116a161fb9f19981b54c48a7bb87bcd29b3b13`
+- 原因归类：unknown　|　素材类型：图片
+
+> 案例只作参照，不构成规则。

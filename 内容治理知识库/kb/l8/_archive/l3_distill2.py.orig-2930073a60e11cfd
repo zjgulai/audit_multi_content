@@ -1,0 +1,457 @@
+#!/usr/bin/env python3
+"""L3 蒸馏（v0.2）：按「规则码」聚合词条型，按「修订原因」成簇案例型，并做到取数对账为 0。
+方法论来自已安装的 knowledge-distillation skill；冲突时以任务规格为准。
+kb/l0、kb/l1、kb/l2 只读；产物只写 kb/l3。
+"""
+import json, os, re, hashlib, collections, sys
+
+RUN = sys.argv[1]
+L0, L2, L3 = "kb/l0", "kb/l2", "kb/l3"
+DV, KBV = "l3-0.2", "v0"
+for d in ("candidates", "canonical", "index", "registry", "runs"):
+    os.makedirs(f"{L3}/{d}", exist_ok=True)
+
+U = [json.loads(l) for l in open(f"{L2}/units.jsonl", encoding="utf-8") if l.strip()]
+l0reg = json.load(open(f"{L0}/registry/kb.json", encoding="utf-8"))
+L0_FR = l0reg["field_roles"]
+
+CONTENT_FIELDS = {
+    "Primary Text", "Headline", "广告名称", "命中片段", "命中原因", "命中规则", "修改建议",
+    "边界内容", "检测关键词", "豁免词", "触发原因", "正则表达式", "判定理由",
+    "建议表达（合规话术）", "避免条件/限定要求", "风险原句示例", "建议文案EN", "中文释义",
+    "风险表达模式", "规则依据与边界", "卖点依据（产品功能）", "小语种参考 FR/DE/ES/IT",
+    "字符数自检", "修订位置（原文引用）", "修订内容", "修订原因", "备注（如处理结果/建议）",
+    "具体原因/分析", "原文逐字", "对判定的意义", "中文摘要", "关联现网规则", "条款位置",
+    "要包含什么", "需向对接人收集的问题", "建议字段/材料", "资料名称",
+}
+METADATA_FIELDS = {
+    "启用状态", "风险等级", "规则编号", "映射规则编号", "卖点ID", "外部广告ID", "建议编号",
+    "处理状态", "抓取状态", "投放状态", "使用状态", "灯色状态", "状态", "分类", "素材类型",
+    "边界类型", "判断方式", "表达类型", "文案位置", "文案语种", "渠道", "渠道/市场", "平台",
+    "适用型号", "适用产品", "适用品类", "适用渠道", "投放地区", "地区", "主题场景", "阶段",
+    "语言", "品线", "广告类型", "广告账号", "广告组", "广告系列Campaign", "数据日期",
+    "近7天展示", "近7天点击", "近7天费用USD", "上传人员", "是否需要授权（法务负责）",
+    "是否完成医学审查（医疗确认）", "是否完成合规审查（法务确认）", "权威层级（医疗确认）",
+    "资料类型(医疗确认)", "适用对象", "发布日期", "父记录", "来源", "文件/链接", "知识库",
+    "知识库分类", "材料审核状态", "From", "细分", "agent使用范围", "负责人",
+    *[k for k, v in L0_FR.items() if v in ("status", "other", "link", "attachment")],
+}
+def frole(n):
+    return "content" if n in CONTENT_FIELDS else ("metadata" if n in METADATA_FIELDS else "unknown")
+
+# ---------------- 过滤 + 逐单元对账 ----------------
+FILTER = collections.Counter()
+kept = []
+for u in U:
+    kb = u["kb_type"]
+    if kb not in ("wording", "external_standard", "internal_sample"):
+        FILTER[(kb, "out_of_scope_kb")] += 1; u["_excl"] = "out_of_scope_kb"; continue
+    if kb == "internal_sample" and (u.get("meta") or {}).get("table") != "专家修订汇总表":
+        FILTER[(kb, "out_of_scope_table")] += 1; u["_excl"] = "out_of_scope_table"; continue
+    if u["unit_type"] == "entry" and frole(u.get("heading_path")) != "content":
+        r = "metadata" if frole(u.get("heading_path")) == "metadata" else "metadata_unknown_field"
+        FILTER[(kb, r)] += 1; u["_excl"] = r; continue
+    if (u.get("meta") or {}).get("content_quality_flag"):
+        FILTER[(kb, "quality_flag")] += 1; u["_excl"] = "quality_flag"; continue
+    kept.append(u)
+
+print(f"L2 单元 {len(U)} → 可用 {len(kept)}")
+for k, v in sorted(FILTER.items(), key=lambda x: -x[1]):
+    print(f"   {k[0]:18s} {k[1]:24s} {v}")
+
+# ---------------- 工具 ----------------
+def j(us):
+    return hashlib.sha1("|".join(sorted(u["unit_id"] for u in us)).encode()).hexdigest()
+def ev_ref(u):
+    return {"unit_id": u["unit_id"], "anchor": u["anchor"], "source_sha256": u.get("source_sha256")}
+def rid_of(kb, us):
+    return "r-" + hashlib.sha1(f"{kb}|{j(us)}".encode()).hexdigest()[:16]
+def fv(units, name):
+    for u in units:
+        if u.get("heading_path") == name:
+            return u
+    return None
+
+by_rec = collections.defaultdict(lambda: collections.defaultdict(list))
+for u in kept:
+    by_rec[(u["kb_type"], u["resource_id"])][u["unit_type"]].append(u)
+
+rules, rejected, CONS = [], [], collections.Counter()
+
+# ============================================================ 形态①：词条型 —— 按「规则码」聚合
+HITCODE = re.compile(r'\b([A-Z]{1,2}\d{2})\s*[:：]\s*([^/]+)')
+code_bucket = collections.defaultdict(list)     # code -> [(record, hit_unit, code_text)]
+for (kb, rid), grp in sorted(by_rec.items()):
+    ents = grp.get("entry", [])
+    if not ents:
+        continue
+    hit = fv(ents, "命中片段")
+    fix = fv(ents, "修改建议")
+    if not (hit or fix):
+        continue
+    if not (hit and fix):
+        CONS["entry_sample_only"] += 1
+        rejected.append({"kind": "entry_sample_only", "resource_id": rid, "kb_type": kb,
+                         "reason": "只有命中片段或只有修改建议，无法构成「禁用→替换」对",
+                         "unit_id": (hit or fix)["unit_id"], "anchor": (hit or fix)["anchor"]})
+        continue
+    codes = HITCODE.findall(hit["text"])
+    if not codes:
+        codes = [("UNCODED", hit["text"][:60])]
+    for code, frag in codes:
+        # 关键：修改建议必须与它所属的记录绑定，不能跨记录取第一条
+        code_bucket[code].append((rid, hit, frag.strip(), fix, fv(ents, "命中原因"),
+                                  fv(ents, "风险等级"), ents))
+
+for code, items in sorted(code_bucket.items()):
+    ev = []
+    for rid, hit, frag, fix, why, risk, ents in items:
+        for u in (hit, fix, why, risk):
+            if u and u["unit_id"] not in {x["unit_id"] for x in ev}:
+                ev.append(u)
+    if not ev:
+        continue
+    # 同一记录内：片段 ↔ 该记录的修改建议（成对）
+    pair_pairs = [(frag, fix["text"].strip()) for _, _, frag, fix, _, _, _ in items]
+    seen_p, frags, fixes = set(), [], []
+    for fr, fx in pair_pairs:
+        if (fr, fx) in seen_p:
+            continue
+        seen_p.add((fr, fx)); frags.append(fr); fixes.append(fx)
+    whys = [w["text"] for _, _, _, _, w, _, _ in items if w]
+    risks = [r["text"] for _, _, _, _, _, r, _ in items if r]
+    if len(fixes) == 1:
+        repl_txt = fixes[0]
+    else:
+        repl_txt = "；".join(f"「{fr}」→ 删除/替换为：{fx}" for fr, fx in pair_pairs[:8])
+        if len(pair_pairs) > 8:
+            repl_txt += f"（另 {len(pair_pairs)-8} 组同码修订建议见证据单元）"
+    text = f"规则码 {code}：命中「{'；'.join(sorted(set(frags))[:8])}」判定为违规；处理：{repl_txt[:300]}"
+    if whys:
+        text += f"；依据：{whys[0][:120]}"
+    rules.append(dict(
+        rule_id=rid_of("wording_entry", ev), kb_type="wording", kb_version=KBV, article_no="",
+        form="entry", rule_code=code, resource_id=(rid if len(code_bucket[code]) == 1 else None),
+        resource_ids=sorted({x[0] for x in items}),
+        rule_text=text,
+        forbidden_expression="；".join(sorted(set(frags))),
+        suggested_replacement=repl_txt,
+        expression_fix_pairs=[{"fragment": fr, "fix": fx, "record_id": rid}
+                              for (fr, fx), (rid, *_ ) in zip(pair_pairs, items)],
+        reason=(whys[0] if whys else ""),
+        p_level=("P0" if any("高危" in r for r in risks) else ("P1" if risks else "P2")),
+        risk_level=("；".join(sorted(set(risks))) if risks else "unknown"),
+        scope={"rule_code": code, "records": len({r for r, *_ in items})},
+        anchor=items[0][1]["anchor"], evidence_units=[ev_ref(u) for u in ev],
+        evidence_digest=j(ev), support_count=len(ev), evidence_level="synthesis",
+        effective_from="", effective_to="", owner="", status="provisional",
+        verification=("待验证" if len(ev) == 1 else "已归纳"),
+        supersedes=[], superseded_by=[], superseded_at="",
+    ))
+
+# 边界型（品线内容边界规则库）
+for (kb, rid), grp in sorted(by_rec.items()):
+    ents = grp.get("entry", [])
+    if not ents or fv(ents, "命中片段"):
+        continue
+    bnd = fv(ents, "边界内容")
+    if not bnd:
+        continue
+    kw, ex, reg, sug, rls = (fv(ents, "检测关键词"), fv(ents, "豁免词"), fv(ents, "正则表达式"),
+                             fv(ents, "建议表达（合规话术）"), fv(ents, "规则依据与边界"))
+    ev = [x for x in (bnd, kw, ex, reg, sug, rls) if x]
+    text = f"边界：{bnd['text']}"
+    if kw:
+        text += f"；触发词：{kw['text']}"
+    if ex:
+        text += f"；豁免：{ex['text']}"
+    if sug:
+        text += f"；建议表达：{sug['text']}"
+    rules.append(dict(
+        rule_id=rid_of("wording_boundary", ev), kb_type="wording", kb_version=KBV, article_no="",
+        form="entry", rule_code=(fv(ents, "规则编号") or {}).get("text", ""), resource_id=rid,
+        resource_ids=[rid],
+        rule_text=text,
+        forbidden_expression=(kw["text"] if kw else bnd["text"][:80]),
+        suggested_replacement=(sug["text"] if sug else ""),
+        reason=(rls["text"] if rls else ""), p_level="P1", risk_level="unknown",
+        scope={"product_line": (fv(ents, "适用产品") or {}).get("text")},
+        anchor=bnd["anchor"], evidence_units=[ev_ref(x) for x in ev], evidence_digest=j(ev),
+        support_count=len(ev), evidence_level="synthesis",
+        effective_from="", effective_to="", owner="", status="provisional",
+        verification=("待验证" if len(ev) == 1 else "已归纳"),
+        supersedes=[], superseded_by=[], superseded_at="",
+    ))
+
+# 建议表达型（W1 卖点表达边界）
+for (kb, rid), grp in sorted(by_rec.items()):
+    ents = grp.get("entry", [])
+    if not ents or fv(ents, "命中片段") or fv(ents, "边界内容"):
+        continue
+    sug = fv(ents, "建议表达（合规话术）")
+    if not sug:
+        continue
+    jr, av = fv(ents, "判定理由"), fv(ents, "避免条件/限定要求")
+    ev = [x for x in (sug, jr, av) if x]
+    text = f"建议表达：{sug['text']}"
+    if av:
+        text += f"；限定要求：{av['text']}"
+    if jr:
+        text += f"；判定理由：{jr['text']}"
+    rules.append(dict(
+        rule_id=rid_of("wording_saythis", ev), kb_type="wording", kb_version=KBV, article_no="",
+        form="entry", rule_code=(fv(ents, "卖点ID") or {}).get("text", ""), resource_id=rid,
+        resource_ids=[rid],
+        rule_text=text, forbidden_expression="", suggested_replacement=sug["text"],
+        reason=(jr["text"] if jr else ""), p_level="P1", risk_level="unknown",
+        scope={"sellpoint": (fv(ents, "卖点ID") or {}).get("text")},
+        anchor=sug["anchor"], evidence_units=[ev_ref(x) for x in ev], evidence_digest=j(ev),
+        support_count=len(ev), evidence_level="synthesis",
+        effective_from="", effective_to="", owner="", status="provisional",
+        verification=("待验证" if len(ev) == 1 else "已归纳"),
+        supersedes=[], superseded_by=[], superseded_at="",
+    ))
+
+# ============================================================ 形态②：案例型 —— 单对 + 按原因成簇
+rp_units = []
+for (kb, rid), grp in sorted(by_rec.items()):
+    for u in grp.get("revision_pair", []):
+        m = u.get("meta") or {}
+        if not (m.get("before") and m.get("after")):
+            CONS["revision_pair_incomplete"] += 1
+            rejected.append({"kind": "revision_pair_incomplete", "resource_id": rid, "kb_type": kb,
+                             "unit_id": u["unit_id"], "anchor": u["anchor"],
+                             "reason": "修订对缺「前」或「后」，不构成可判定规则"})
+            continue
+        rp_units.append(u)
+
+# 单对规则（一对 = 一条；support_count=1 → 待验证）
+for u in rp_units:
+    m = u["meta"]
+    rules.append(dict(
+        rule_id=rid_of("wording_revision_pair", [u]), kb_type="wording", kb_version=KBV,
+        article_no="", form="revision_pair", rule_code="",
+        rule_text=f"原表述：{m['before']}；修订为：{m['after']}" +
+                  (f"；修订原因：{m['reason']}" if m.get("reason") else ""),
+        forbidden_expression=m["before"], suggested_replacement=m["after"],
+        reason=(m.get("reason") or ""), p_level="P1", risk_level="unknown",
+        scope={"source_table": m.get("table")},
+        anchor=u["anchor"], evidence_units=[ev_ref(u)], evidence_digest=j([u]),
+        support_count=1, evidence_level="observation",
+        effective_from="", effective_to="", owner="", status="provisional",
+        verification="待验证", pair_ref=u.get("pair_ref") or "",
+        supersedes=[], superseded_by=[], superseded_at="",
+    ))
+
+# 按「修订原因」成簇 → 归纳型规则（样本 ≠ 规则：由多条单元归纳）
+# 归纳成簇：按修订原因里的「原因型」关键词归类（自由文本不重复，故按语义模式归类）
+REASON_PAT = [
+    ("笼统/不够具体", re.compile(r'笼统|不具体|不够完整|不够明确|未说明|缺少|不够详细|不清晰')),
+    ("科学性错误", re.compile(r'科学性错误|错误|不准确|有误|不成立|无法完全|并不')),
+    ("警告/力度不足", re.compile(r'警告力度不足|风险提示不足|力度不足|低估')),
+    ("来源/依据缺失", re.compile(r'未注明|无来源|缺依据|缺乏依据|出处')),
+    ("口径/标准不一致", re.compile(r'口径|标准不|不一致|定义')),
+    ("表述/措辞问题", re.compile(r'表述|措辞|用语|读起来|语序')),
+]
+def reason_pattern(txt):
+    for name, pat in REASON_PAT:
+        if pat.search(txt or ""):
+            return name
+    return "(未归类原因)" if (txt or "").strip() else "(无修订原因)"
+buckets = collections.defaultdict(list)
+for u in rp_units:
+    buckets[reason_pattern(u["meta"].get("reason"))].append(u)
+for key, us in sorted(buckets.items()):
+    if len(us) < 2:
+        CONS["revision_pair_unpaired_single"] += 0
+        continue
+    # 保序配对：不得对「前」「后」分别排序（会错位）
+    pairs = []
+    seen = set()
+    for u in us:
+        b, a = u["meta"]["before"], u["meta"]["after"]
+        if (b, a) in seen:
+            continue
+        seen.add((b, a)); pairs.append((b, a))
+    ev = us
+    rules.append(dict(
+        rule_id=rid_of("wording_revision_cluster", ev), kb_type="wording", kb_version=KBV,
+        article_no="", form="revision_pair", rule_code="",
+        rule_text=(f"修订模式「{key}」（{len(us)} 条，{len(pairs)} 组改写）：出现下列表述时应按给出的改法修订 —— "
+                   + "；".join(f"「{b[:40]}」→「{a[:40]}」" for b, a in pairs[:4])
+                   + f"{' 等' if len(pairs) > 4 else ''}"),
+        forbidden_expression="；".join(b for b, _ in pairs[:10]),
+        suggested_replacement="；".join(f"「{b[:50]}」→「{a[:50]}」" for b, a in pairs[:6]),
+        expression_fix_pairs=[{"before": b, "after": a} for b, a in pairs],
+        reason=(us[0]["meta"].get("reason") or ""),
+        p_level="P1", risk_level="unknown",
+        scope={"source_table": us[0]["meta"].get("table"), "pattern_key": key,
+               "reason_total": len(us)},
+        anchor=us[0]["anchor"], evidence_units=[ev_ref(u) for u in ev], evidence_digest=j(ev),
+        support_count=len(ev), evidence_level="synthesis",
+        effective_from="", effective_to="", owner="", status="provisional",
+        verification="已归纳",
+        supersedes=[], superseded_by=[], superseded_at="",
+    ))
+
+# ============================================================ 外部标准库
+ext_rec = collections.defaultdict(lambda: collections.defaultdict(list))
+for u in kept:
+    if u["kb_type"] == "external_standard":
+        ext_rec[u["resource_id"]][u["unit_type"]].append(u)
+for rid, grp in sorted(ext_rec.items()):
+    cl = grp.get("clause", [])
+    if not cl:
+        CONS["no_clause_text"] += 1
+        rejected.append({"kind": "no_clause_text", "resource_id": rid, "kb_type": "external_standard",
+                         "reason": "未产出可用条款文本（正文为页面脚本或编码载荷），"
+                                   "无法产出「判定条件 + 阈值/词表」形态的可判定规则"})
+        continue
+    for u in cl:
+        CONS["clause_not_actionable"] += 1
+        rejected.append({"kind": "clause_not_actionable", "resource_id": rid,
+                         "kb_type": "external_standard", "unit_id": u["unit_id"],
+                         "anchor": u["anchor"],
+                         "reason": "条款文本不可判定：非自然语言条款（页面脚本 / base64 编码载荷），"
+                                   "无法给出判定条件与阈值"})
+
+# ============================================================ 取数对账（按 unit 逐一归属）
+used = set()
+for r in rules:
+    for e in r["evidence_units"]:
+        used.add(e["unit_id"])
+rejected_units = {r["unit_id"] for r in rejected if r.get("unit_id")}
+kept_ids = {u["unit_id"] for u in kept}
+# 未进入规则的可用单元：逐条留痕（硬约束 4「任何跳过都要留痕」）
+unaccounted = kept_ids - used - rejected_units
+un_by_reason = collections.Counter()
+for uid in sorted(unaccounted):
+    u = next(x for x in kept if x["unit_id"] == uid)
+    hp = u.get("heading_path") or u["unit_type"]
+    if u["unit_type"] == "entry" and hp in ("Primary Text", "Headline", "广告名称"):
+        reason = "sample_only_no_verdict"
+        detail = "纯文案样本：源表未给出命中判定或修订建议，无法产出可判定规则"
+    elif u["unit_type"] == "entry" and hp in ("命中原因", "命中规则"):
+        reason = "absorbed_as_reason"
+        detail = "已作为对应规则的理由引用（同一记录内），此处不重复成规则"
+    elif u["unit_type"] == "entry" and hp in ("中文释义", "风险表达模式", "小语种参考 FR/DE/ES/IT",
+                                            "字符数自检", "卖点依据（产品功能）", "备注（如处理结果/建议）"):
+        reason = "supporting_field_only"
+        detail = "辅助字段：单独不构成可判定规则，已在成对规则中作为依据引用"
+    elif u["unit_type"] == "revision_pair":
+        reason = "cluster_member_counted_once"
+        detail = "已计入其所属归纳簇的 evidence_units"
+    else:
+        reason = "no_rule_derivable"
+        detail = "不构成可判定的「命中→替换」或「修订前→后」对"
+    un_by_reason[reason] += 1
+    rejected.append({"kind": reason, "unit_id": uid, "anchor": u["anchor"],
+                     "kb_type": u["kb_type"], "resource_id": u["resource_id"],
+                     "unit_type": u["unit_type"], "field": hp, "reason": detail})
+rejected_units = {r["unit_id"] for r in rejected if r.get("unit_id")}
+unaccounted = kept_ids - used - rejected_units
+ACCT = {
+    "l2_total": len(U),
+    "filtered_out": len(U) - len(kept),
+    "kept": len(kept),
+    "used_in_rules": len(used & kept_ids),
+    "explicitly_rejected": len(rejected_units & kept_ids),
+    "unaccounted": len(unaccounted),
+}
+print("\n取数对账:", ACCT)
+
+# ============================================================ 幂等 + 落盘
+MAN = f"{L3}/manifest_l3.jsonl"
+prev = {}
+if os.path.exists(MAN):
+    for l in open(MAN, encoding="utf-8"):
+        if l.strip():
+            r = json.loads(l); prev[r["rule_id"]] = r
+new = unchanged = 0
+for r in rules:
+    o = prev.get(r["rule_id"])
+    if o and o.get("evidence_digest") == r["evidence_digest"]:
+        unchanged += 1
+    else:
+        new += 1
+
+with open(f"{L3}/candidates/rules.jsonl", "w", encoding="utf-8") as fh:
+    for r in rules:
+        fh.write(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n")
+with open(f"{L3}/rejected.jsonl", "w", encoding="utf-8") as fh:
+    for r in rejected:
+        fh.write(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n")
+open(f"{L3}/canonical/rules.jsonl", "w", encoding="utf-8").close()
+with open(f"{L3}/index/l3.jsonl", "w", encoding="utf-8") as fh:
+    for r in rules:
+        fh.write(json.dumps({"rule_id": r["rule_id"], "kb_type": r["kb_type"],
+                             "p_level": r["p_level"], "support_count": r["support_count"],
+                             "anchor": r["anchor"]}, ensure_ascii=False, sort_keys=True) + "\n")
+with open(MAN, "a", encoding="utf-8") as fh:
+    for r in rules:
+        fh.write(json.dumps({"rule_id": r["rule_id"], "evidence_digest": r["evidence_digest"],
+                             "support_count": r["support_count"], "form": r["form"],
+                             "status": "provisional", "distiller_version": DV,
+                             "observed_at": RUN}, ensure_ascii=False, sort_keys=True) + "\n")
+
+reg = json.load(open(f"{L3}/registry/l3.json", encoding="utf-8")) if os.path.exists(f"{L3}/registry/l3.json") else {}
+reg.update({
+    "distiller_version": DV, "kb_version": KBV,
+    "skill_source": {
+        "name": "knowledge-distillation", "origin": "https://github.com/volcengine/OpenViking",
+        "installed_at": "~/.dsh/skills/knowledge-distillation/SKILL.md", "read": True,
+        "adopted": ["源事实→归一化证据→模式→发现→含义，全程可追溯（evidence_level 落地）",
+                    "产出不得是目录或来源摘要堆叠 —— 每条规则是一句可判定的结论",
+                    "证据分级 Observation/Synthesis/Inference/Hypothesis，不把推断写成观测事实",
+                    "先勘查来源、记录来源谱系、不把同一上游的重复说法当独立佐证",
+                    "摘录逐字，不转述不概括（用 unit_id 指向 L2 原文单元保证）"],
+        "skipped_ov_steps": "该 skill 依赖 OpenViking CLI（ov add-resource / ov add-skill / ov compile）；"
+                            "本机未安装，按任务要求不安装、不调用；相关步骤一律跳过，不计为未完成项",
+        "effective": "skill 方法论 + 本文件规格；冲突时以本文件规格为准",
+    },
+    "classification_note": {
+        "table": "专家修订汇总表", "l0_kb_type": "internal_sample", "used_as": "wording",
+        "why": "形态是「修订前→后」成对语料，属措辞类素材；按措辞素材蒸馏，但不改 L0 分类"
+               "（规则的 kb_type 仍记 wording 以体现用途，L0 的 kb_type 未变）",
+        "status": "待确认",
+    },
+    "filter_rules": {
+        "step1_metadata": {
+            "how": "按 kb/l0/registry/kb.json 的 field_roles 过滤，只保留「文案/表述类字段」产生的单元",
+            "gap": "L0 的 field_roles 只覆盖 44 个字段，L2 实际出现 70+ 个；故补全了一份覆盖 L2 全部字段的"
+                   "角色表（CONTENT/METADATA），依据是字段是否承载「可引用的表述/理由/条件」",
+            "content_fields": len(CONTENT_FIELDS), "metadata_fields": len(METADATA_FIELDS)},
+        "step2_quality": {"how": "排除 meta.content_quality_flag 非空的单元"},
+    },
+    "rule_forms": {
+        "wording_entry": "入口：命中片段按「规则码」拆分后聚合 → 禁用表达 + 建议替换 + 依据",
+        "wording_boundary": "品线内容边界规则库 → 边界内容 + 触发词 + 豁免 + 建议表达",
+        "wording_saythis": "W1 卖点表达边界 → 建议表达 + 限定要求 + 判定理由",
+        "wording_revision_pair": "一对修订 = 一条规则（原表述 + 修订后 + 修订原因），support_count=1 → 待验证",
+        "wording_revision_cluster": "按「修订原因」成簇归纳 → support_count≥2 的归纳型规则",
+        "external_standard": "{判定条件, 阈值/词表, 条款锚点, 生效期} —— 本批无可用条款正文，见报告",
+    },
+    "accounting": ACCT,
+    "canonical_policy": "canonical/rules.jsonl 本步只创建空文件；候选→定稿是独立动作（走抽查），"
+                        "晋升产生新的定稿记录，不是改名。",
+    "supersedes_policy": "rule_id 由 (form + 依据 unit_id 集合 hash) 生成，源不变则 rule_id 不变；"
+                         "变更时新规则在 supersedes 列旧 id，旧规则追加 superseded_by/superseded_at；"
+                         "检索默认只用未被 superseded_by 的规则。",
+    "idempotency": {"key": "rule_id", "unchanged_cond": "evidence_digest 未变 → unchanged"},
+    "citation_discipline": "依据 = unit_id + anchor + source_sha256；不引用裸 URL；摘录逐字。",
+})
+with open(f"{L3}/registry/l3.json", "w", encoding="utf-8") as fh:
+    json.dump(reg, fh, ensure_ascii=False, indent=2); fh.write("\n")
+
+json.dump({"kept": len(kept), "filtered": {f"{k[0]}|{k[1]}": v for k, v in FILTER.items()},
+           "rules": len(rules), "new": new, "unchanged": unchanged, "rejected": len(rejected),
+           "forms": dict(collections.Counter(r["form"] for r in rules)),
+           "support": dict(collections.Counter(r["support_count"] for r in rules)),
+           "rejected_kinds": dict(collections.Counter(r["kind"] for r in rejected)),
+           "accounting": ACCT, "cons": dict(CONS),
+           "unaccounted_ids": sorted(unaccounted)[:20], "un_by_reason": dict(un_by_reason)},
+          open("kb/.work/l3_core.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+print(f"规则 {len(rules)}（新 {new} / unchanged {unchanged}）| 拒绝 {len(rejected)}")
+print("  形态:", dict(collections.Counter(r["form"] for r in rules)))
+print("  support_count:", dict(collections.Counter(r["support_count"] for r in rules)))
+print("  拒绝:", dict(collections.Counter(r["kind"] for r in rejected)))

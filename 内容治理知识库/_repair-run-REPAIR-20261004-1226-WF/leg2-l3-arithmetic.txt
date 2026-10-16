@@ -1,0 +1,12 @@
+=== ② 段 L3 算术独立复算（第 8 轮）===
+lines          = 1018
+mtime          = 2026-10-02 22:45:07
+sha(whole)     = 743dc62398311b0287e1e99fbcc438397ca8c721a0556d534cc69f3ee6eff840
+sha(lines[:1018]) = 743dc62398311b0287e1e99fbcc438397ca8c721a0556d534cc69f3ee6eff840 == whole: True
+sha(lines[:1527]) = 743dc62398311b0287e1e99fbcc438397ca8c721a0556d534cc69f3ee6eff840 == whole: True
+baseline(l6_integrity.json, lines=2036) = 7d00454e80e2a1cc226a26a7ce416f99f07274da0137f4eaeeac79ad1df2a2cb
+baseline(l4/runs/20260923-1445.json)  = aa83d1f98bc86857254bfa4f908ebd6d1a869f868cb04970522d154f776b0dac
+
+=> 两条基线都是【整文件】哈希、且行数为 2036 / 1527 行时代；活库现为 1018 行，
+   故 lines[:1018] 与 lines[:1527] 都 == 整文件 ⇒ 两条子判据在不回滚 L3 的前提下【数学上不可能为真】。
+现有 sha 的出处：kb/l3/registry/l3.json 的 appended_fields.old_lines_untouched.sha256 = 743dc62398311b0287e1e99fbcc438397ca8c721a0556d534cc69f3ee6eff840

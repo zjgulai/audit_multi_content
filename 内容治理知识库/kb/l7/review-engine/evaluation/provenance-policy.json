@@ -1,0 +1,16 @@
+{
+  "provenance_version": "provenance-2026-09-24",
+  "status": "confirmed_by_user",
+  "source_classes": {
+    "official_web": {"label": "official_web", "allowed_as": ["real_sample", "source_evidence"], "must_keep": ["url", "retrieved_at", "content_hash"]},
+    "official_support": {"label": "official_support", "allowed_as": ["real_sample", "source_evidence"], "must_keep": ["url", "retrieved_at", "content_hash"]},
+    "internal_variant": {"label": "internal_variant", "allowed_as": ["adversarial_sample"], "must_keep": ["parent_gold_id", "transformation", "author"]},
+    "synthetic": {"label": "synthetic", "allowed_as": ["adversarial_sample"], "must_keep": ["generation_method", "author", "reviewer"]}
+  },
+  "rules": [
+    "Never label an internal or synthetic variant as an official Momcozy statement.",
+    "Never use a source URL as proof that a claim is legally approved.",
+    "Keep the parent source and transformation for every adversarial item.",
+    "Store retrieval time because product pages and platform policies change."
+  ]
+}

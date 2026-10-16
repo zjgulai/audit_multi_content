@@ -1,0 +1,463 @@
+
+@@@@@@@@@@ 10:37:47 开始 L4 @@@@@@@@@@
+
+### 10:37:47 GATE: sh kb/kbpy l7/scripts/l4_gate.py ###
+==========================================================================
+L4 闸门（独立复算 promotion_rule C1–C6：定稿 × 候选 × L2 单元）
+  定稿 1480 条 ｜ 证据引用 2700 条 ｜ 候选 632 条 ｜ L2 单元 14229 个 ｜ 形态 {'disclosure': 18, 'substantiation': 24, 'scope': 15, 'mandate': 14, 'prohibition': 16, 'recommendation': 36, 'sample_case': 473, 'scoped_clause': 375, 'entry': 56, 'revision_pair': 453}
+  条款号区间 E-1.1 … W-3.99 ｜ canonical/rules.jsonl 0 字节（应为 0）
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+说明项：C7/C8（晋升后抽查、撤回纪律）本闸门**不复算** —— 它们要人抽检，不是机器判据
+==========================================================================
+结论：✅ 过（C1–C6 全过）
+退出码：0
+### rc=0 ###
+
+### 10:37:48 CMD: sh kb/kbpy .work/l4_ledger_repair.py daily-20261010-1010-L4 --apply ###
+现库台账 run_id=daily-20261010-0627-L4｜issued 段 ['E-1', 'E-2', 'S-1', 'W-1', 'W-2', 'W-3']
+归档台账 scheme_version=article-no-2｜issued 段 ['E-1', 'S-1', 'W-1', 'W-2', 'W-3']｜assignments 1242
+现库 canonical：1480 行
+逐号对账：一致 1242｜不符 0｜归档查不到 238
+★逐号对账不通过 → 拒绝落盘（归档不是现库的正确台账，不得用它修复）
+    ('clause.jsonl', 'r-06b5f92f2232ec0d', 'E-2.5')
+    ('clause.jsonl', 'r-3cbe7cca4fbd7b3f', 'E-2.32')
+    ('clause.jsonl', 'r-f7cf08e7828f2aae', 'E-2.120')
+    ('clause.jsonl', 'r-a16f7c8d40677bbb', 'E-2.87')
+    ('clause.jsonl', 'r-ad80c02af1e44287', 'E-2.93')
+    ('clause.jsonl', 'r-e61c58d5be723832', 'E-2.110')
+    ('clause.jsonl', 'r-a37db2c994b08fbe', 'E-2.89')
+    ('clause.jsonl', 'r-27b4636b8be795e4', 'E-2.21')
+    ('clause.jsonl', 'r-d8ed24d58ff4d282', 'E-2.105')
+    ('clause.jsonl', 'r-6e212146ea9a1bcf', 'E-2.58')
+### rc=3 ###
+
+### 10:37:49 CMD: sh kb/kbpy .work/l4_article.py daily-20261010-1010-L4 --apply ###
+骨架：kb/l4/canonical、registry、runs 就绪｜迁移 canonical：早已迁过，跳过
+  kb/l3/candidates/rules.jsonl：1018 行 → 唯一 rule_id 509 条（kb_type=wording）
+  kb/l3/candidates/external_standard.jsonl：246 行 → 唯一 rule_id 123 条（kb_type=external_standard）
+  kb/l3/candidates/sample_cases.jsonl：946 行 → 唯一 case_id 473 条（kb_type=internal_sample）
+  kb/l3/candidates/scoped_clauses.jsonl：750 行 → 唯一 clause_id 375 条（kb_type=external_standard）
+候选规则合计 1480 条（跨 4 个源）
+台账里已发出的条款号：1480 个（本批首次分配时应为 0）
+逐段落段依据：{'E-1(台账沿用)': 375, 'E-2(台账沿用)': 123, 'S-1(台账沿用)': 316, 'W-1(台账沿用)': 56, 'W-2(台账沿用)': 453, 'W-3(台账沿用)': 157}
+首次分配 0 条｜沿用台账 1480 条｜分段：{'E-1': 375, 'E-2': 123, 'S-1': 316, 'W-1': 56, 'W-2': 453, 'W-3': 157}
+  kb/l3/candidates/rules.jsonl：追加 0 行｜1018 → 1018 行｜旧行逐字节未变：True
+  kb/l3/candidates/external_standard.jsonl：追加 0 行｜246 → 246 行｜旧行逐字节未变：True
+  kb/l3/candidates/sample_cases.jsonl：追加 0 行｜946 → 946 行｜旧行逐字节未变：True
+  kb/l3/candidates/scoped_clauses.jsonl：追加 0 行｜750 → 750 行｜旧行逐字节未变：True
+追加合计 0 行
+registry 重写
+registry → kb/l4/registry/l4.json｜耗时 0.2s
+层落章 → kb/l4/runs/daily-20261010-1010-L4-article.json
+### rc=0 ###
+
+### 10:37:49 CMD: sh kb/kbpy .work/fix_l4_repromote.py --run daily-20261010-1010-L4 --apply ###
+L2 单元表: 14229
+[继承] 治理字段继承（批次18 乙）：
+    wording_entry          继承   56 行 /   519 处字段 ｜ 无历史行（留空待 D 补）0 行
+    wording_revision_pair  继承  453 行 /  4077 处字段 ｜ 无历史行（留空待 D 补）0 行
+    sample_case            继承  473 行 /  1419 处字段 ｜ 无历史行（留空待 D 补）0 行
+    scoped_clause          继承  375 行 /  1125 处字段 ｜ 无历史行（留空待 D 补）0 行
+    clause                 继承  123 行 /   369 处字段 ｜ 无历史行（留空待 D 补）0 行
+
+★ C9_no_field_regression —— 相对现 canonical，下列字段会**回退**：
+    clause                 baseline_date（键消失）  × 123 条
+    clause                 never_resets_on_regeneration（键消失）  × 123 条
+    sample_case            baseline_date（键消失）  × 473 条
+    sample_case            never_resets_on_regeneration（键消失）  × 473 条
+    scoped_clause          baseline_date（键消失）  × 375 条
+    scoped_clause          never_resets_on_regeneration（键消失）  × 375 条
+    wording_entry          baseline_date（键消失）  × 56 条
+    wording_entry          never_resets_on_regeneration（键消失）  × 56 条
+    wording_revision_pair  baseline_date（键消失）  × 453 条
+    wording_revision_pair  never_resets_on_regeneration（键消失）  × 453 条
+  （C9 只报不在这里拦 —— 统一由下面的「判据闸门」一次拦，见 crits_passed 之后）
+  [算] wording_entry              56 行    490464 B  0acb176a3a96c97b  (源 56 行)
+  [算] wording_revision_pair     453 行   1341783 B  68ba657904203f21  (源 453 行)
+  [算] sample_case               473 行   1852364 B  6b4d547241223296  (源 946 行)
+  [算] scoped_clause             375 行    539035 B  03a8e7579bee2fe4  (源 750 行)
+  [算] clause                    123 行    326067 B  3f78040ca7a13f86  (源 246 行)
+[C8] 本次基座 = kb/l7/_backups/batch17-20261002-1120/l4-c8-base/l4.json（**本次运行开始时**的快照）
+
+判据: 7/9 通过 {'C1_article_no_unique': True, 'C2_cite_triple_complete': True, 'C3_body_nonempty': True, 'C4_verbatim_with_candidates': True, 'C5_evidence_resolvable': True, 'C6_evidence_rule_eligible': True, 'C7_kb_version_v0': True, 'C8_idempotent': False, 'C9_no_field_regression': False}
+★ 判据未全过：C8_idempotent、C9_no_field_regression
+→ **已拒绝 --apply，未落盘**。gate 原文：「判据 C1–C9 全过才写 canonical；任一条不过则不得写、不得晋升。」
+  处置：先修掉上面每一条的根因再重跑；或由人显式加 `--accept-criteria-failure` 承担后果。
+### rc=2 ###
+
+### 10:37:51 CMD: sh kb/kbpy .work/l4_integrity.py ###
+[FAIL] frozen_layers
+        kb/l0: 4408 文件/2,877,777,731 字节/最后修改 2026-10-10 10:12:49  tree_sha256=37fd4e17d4db8472 与 L5 基线一致=True
+        kb/l1: 4464 文件/1,433,112,090 字节/最后修改 2026-10-10 10:37:19  tree_sha256=e83b8300d57d3294 与 L5 基线一致=False
+        kb/l2: 943 文件/239,860,911 字节/最后修改 2026-10-10 10:37:28  tree_sha256=cf823d03ee5e46c6 与 L5 基线一致=False
+[FAIL] l3_append_only
+        行数 1018 → 1018｜追加 0 行｜前 1018 行逐字节未变=True（哈希 97eaa6eea1048eb6，与 L6 存档一致=False）
+        追加块新增字段 无｜变化的既有字段 []｜状态全为 provisional=True
+[FAIL] article_numbers
+        509/509 条有条款号｜每库 {'wording': 509}｜分段 {"W-1": [56, "1~56"], "W-2": [453, "1~453"]}
+        重复 无｜跳号 无｜前缀/段号不匹配 0/0｜旧号复用 0
+[PASS] reproducible
+        重跑追加 0 行｜映射一致=True｜变更文件 无
+[PASS] canonical_state
+        kb/l4/canonical/rules.jsonl 0 字节｜kb/l3/canonical 还在=False｜迁移说明存在=True 且指向 L4=True
+[PASS] version_discipline
+        versions 行 0｜kb_version ['v0']
+[FAIL] ledger_coverage
+        台账 1480 个号码｜各段 next_seq 正确=True
+[PASS] article_no_is_not_version
+        发布/冻结字段命中 {'release_id': 0, 'frozen_at': 0, 'stable_at': 0, 'published_at': 0, 'version': 0}｜status {'provisional': 509}
+
+自检总计：FAIL
+### rc=1 ###
+
+### 10:38:06 CMD: sh kb/kbpy .work/l4_report.py daily-20261010-1010-L4 --skill kb-canonical-lookup --apply ###
+[apply] 落盘台账 → kb/l4/runs/daily-20261010-1010-L4.json + .report.md + .ops.log（顶层 skill=kb-canonical-lookup）
+run verdict = FAIL
+### rc=0 ###
+
+### 10:38:06 CMD: sh kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L4 --run daily-20261010-1010-L4 --invoked kb-canonical-lookup --skill-session L4=session-e6e81bae-5167-478c-8311-8ab3b22cf2d1 ###
+[层表核对] STAMP_SPEC 7 条全部能在 layers.yaml 本层 engine: 里找到 ✅
+====================================================================================
+知识库 L0–L7 执行编排器 · --sync ｜ 预演（不带 --apply） ｜ run_id=daily-20261010-1010-L4
+====================================================================================
+锁：已有锁 kb/.work/.kb.lock ｜ 持有者进程还活着（pid=47743） ｜ 记录：{"run_id": "daily-20261010-1010-L0", "pid": 47743, "at": "2026-10-10T10:37:59", "by": "kb_pipeline.py --sync"} —— 本编排器不自动撬锁（写档互斥靠它）
+  ┌ 处置 lock.held_alive
+  │ 症状    ：kb/.work/.kb.lock 存在，且记录里的 pid **还活着**
+  │ 谁      ：发起那次写入的人
+  │ 做什么  ：等它跑完（或直接找那个人确认）；**不要**删锁
+  │ 命令    ：cat kb/.work/.kb.lock
+  │ **不许**：不许 --break-lock（会把并发写变成数据竞争）
+  └ 复开条件：kb/.work/.kb.lock 消失
+### rc=2 ###
+
+### 10:38:07 L4 批次结束 ###
+@@@@@@@@@@ 10:38:07 L4 结束 rc=0 @@@@@@@@@@
+
+@@@@@@@@@@ 10:38:07 开始 L5 @@@@@@@@@@
+
+### 10:38:07 GATE: sh kb/kbpy l7/scripts/l5_gate.py ###
+==========================================================================
+L5 闸门（跑 kb/.work/l5_integrity.py 的 6 项，按「实质 / 基线」分类）
+  pattern_traceability   PASS
+  no_fabricated_words    PASS
+  version_discipline     PASS
+  offline                PASS
+  frozen_layers          FAIL
+  l3_append_only         FAIL
+--------------------------------------------------------------------------
+  ⚠️ frozen_layers = FAIL（已登记为**判据过期**，不判红）｜ 
+  ⚠️ l3_append_only = FAIL（已登记为**判据过期**，不判红）｜ 
+  ✓ C_p0_count_recomputable：P0 导出 11 条 == 按「乙」口径可复算 11 条
+--------------------------------------------------------------------------
+说明：本闸门会触发自检器写它自己的证据文件 kb/.work/l5_integrity.json（不是层产物）
+      自检器退出码 1 ｜ 末行：[PASS] offline /  / 自检总计：FAIL
+==========================================================================
+结论：✅ 过（实质 4 项全 PASS，基线项异常已登记）
+退出码：0
+### rc=0 ###
+
+### 10:38:22 本层红线 归档旧 p0_patterns.jsonl ###
+### ✅ 已归档 → ��sha d8fd61ff57d1） ###
+
+### 10:38:22 CMD: sh kb/kbpy .work/l5_prep.py daily-20261010-1010-L5 --apply ###
+基线：候选规则 1018 行 sha256=97eaa6eea1048eb6
+[归一] 读入 1018 行 → 按 rule_id 取最新后 509 条（同一 rule_id 有多行：上游重建后遗留的旧行）
+[幂等守卫·历史] manifest_l3 里已有 509 个 rule_id 的富化行且 evidence_digest 相同（**不受 rules.jsonl 被覆盖影响**）→ 本次追加 509 → 0 行
+[富化去向] 本轮富化 0 条**只落 `manifest_l3`**（唯一真源）；`rules.jsonl` 保持派生件形态（生行，由上游重建）——不追加。读者走 `kb_ledger.rules_enriched_view`。
+[去重] @l5_prep.py/manifest_l3 候选 0 行 → 追加 0 行（新增 0 / 变更 0 / **跳过同内容重复 0**）
+追加 0 行 | 最新 509 条
+  rule_kind: {'atomic': 483, 'inductive': 26}
+  authority: {'expert': 416, 'inferred': 93}
+  p_level: {'P0': 22, 'P1': 476, 'P3': 4, 'P2': 7}
+### rc=0 ###
+
+### 10:38:23 CMD: sh kb/kbpy .work/l5_export.py daily-20261010-1010-L5 --apply ###
+[富化] 生行 1018 行 / 509 个 rule_id ｜ 从 manifest_l3 补齐 509 条 ｜ 无富化 0 ｜ 陈旧 0
+P0 22 条 → 入选 11（其中准入白名单 4） | 排除 {'non_P0': 487, 'P0_but_authority_insufficient': 5, 'P0_admitted_by_allowlist': 4, 'P0_but_inductive': 6}
+  [处置留痕] P0 共 22 条 = 入选 11 + 排除 11（**每条都有 reason/why，无原因丢弃 = 0**）
+入选集合 rule_code 唯一性检查：PASS
+模式 11 条 | keyword 式 175 | regex 式 27 | 有白名单 11 | 无法生成 0
+词级溯源 {'verbatim_source': 126, 'equivalent_of': 31, 'verbatim_rule_text': 18} | 剔除凭空词 0
+### rc=0 ###
+
+### 10:38:24 SKIP: kb/.work/l5_bench.py（layers.yaml：驱动循环默认跳过） ###
+
+### 10:38:24 CMD: sh kb/kbpy .work/l5_report.py daily-20261010-1010-L5 --skill kb-p0-check --apply ###
+[富化] 生行 1018 行 / 509 个 rule_id ｜ 从 manifest_l3 补齐 509 条 ｜ 无富化 0 ｜ 陈旧 0
+[apply] 台账 → kb/l5/runs/daily-20261010-1010-L5.json（顶层 skill=kb-p0-check）
+已生成 kb/l5/runs/daily-20261010-1010-L5.json / .report.md / .ops.log
+run verdict = FAIL
+### rc=0 ###
+
+### 10:38:24 CMD: sh kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L5 --run daily-20261010-1010-L5 --invoked kb-p0-check --skill-session L5=session-e6e81bae-5167-478c-8311-8ab3b22cf2d1 ###
+[层表核对] STAMP_SPEC 7 条全部能在 layers.yaml 本层 engine: 里找到 ✅
+====================================================================================
+知识库 L0–L7 执行编排器 · --sync ｜ 预演（不带 --apply） ｜ run_id=daily-20261010-1010-L5
+====================================================================================
+锁：已持锁 pid=48105 run_id=daily-20261010-1010-L5
+[写档闸门] **未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml
+[L5] ⚠️ 写档闸门：**未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml
+[L5] 闸门：过 ｜ exit=0 ｜ 退出码：0
+[L5] via-skill：本层该调的 skill ＝ kb-p0-check
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/.work/l5_prep.py
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/.work/l5_export.py
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/.work/l5_bench.py
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/.work/l5_report.py
+[L5] via-skill：引擎交给 kb-p0-check（本编排器不跑；它只跑闸门 + 记账 + **--skill 透传**）
+[L5] --skill 透传：l5_report.py daily-20261010-1010-L5 --skill kb-p0-check ［预演档：未获本层写档凭据］
+[L5] 落章引擎 exit=0 ｜ 产物变化 0 个
+        [dry-run] 台账 → kb/l5/runs/daily-20261010-1010-L5-dryrun.json（顶层 skill=kb-p0-check）
+        run verdict = FAIL
+[记账] 层侧落章实测：applied 1 ｜ dry 1 ｜ unknown 0 ｜ 读错 0 → human_involved=True ｜ verdict=全走完
+------------------------------------------------------------------------------------
+结论：L5 全部走完（预演（不带 --apply））
+提示：这是预演。真正落盘要加 --apply，且当前白名单只开 ['L1', 'L2', 'L3', 'L4', 'L5', 'L6']。
+### rc=0 ###
+
+### 10:38:43 L5 批次结束 ###
+@@@@@@@@@@ 10:38:43 L5 结束 rc=0 @@@@@@@@@@
+
+@@@@@@@@@@ 10:38:43 开始 L6 @@@@@@@@@@
+
+### 10:38:43 GATE: sh kb/kbpy l7/scripts/l6_gate.py ###
+==========================================================================
+L6 闸门（只读档：计数一致 / 向量回指 / 编号同源 / 版本纪律）
+  可用单元 复算 6029 ｜ 自报 6029 ｜ 索引 6029 行 ｜ 向量 44711 行 ｜ 倒排 6029 篇 ｜ L2 单元 14229
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+说明项 N3：注册表计数器与产物不一致（不是红）—— docs.jsonl 6029 行 vs counts.bm25_indexed 6028；注册表计数器与产物不一致；产物侧 docs.jsonl == 可用单元数
+说明项 N1：bm25_failed = 1（失败项须在层证据里逐条有原因）
+说明项 N2：**本闸门没跑的 4 项**（要写索引/要人看，只在完整档跑）：③ 重跑幂等（要 --apply 重跑建索引）；⑥ 分段拼接逐字；⑦ 倒排与词频自洽；⑨ 冻结基线（活库模式下本就该变）
+==========================================================================
+结论：✅ 过（只读 4 项全过；完整档另行）
+退出码：0
+### rc=0 ###
+
+### 10:38:47 CMD: sh kb/kbpy .work/l6_scope.py --run daily-20261010-1010-L6 --apply ###
+[apply] 证据件已写 → kb/.work/l6_scope.json（reconcile_ok=False, run_id=20260923-1400）
+L2 单元 14237 → 库口径可用 6040 → SCOPE.txt 收窄后 6029（对账 FAIL）
+对账 l2_total   : got=14237 baseline=14237 ok=True
+对账 kept       : got=6040 baseline=5429 ok=False
+  ❌ **基准落伍**：l3_stats.json 的 kept=5429 不等于库口径可用数 6040；该基准出自 kb/.work/l3_distill2.py（2026-09-29/30 四处修订一条都没有）
+     ⇒ 拿它当边界就是拿旧口径自证旧口径。**本对账判 FAIL，不判 PASS。**
+过滤分布 got={'wording|metadata': 5229, 'wording|metadata_unknown_field': 127, 'external_standard|metadata': 345, 'external_standard|quality_flag': 1575, 'external_standard|oversize_gt_8000': 103, 'internal_sample|l2_invalidated': 200, 'internal_sample|oversize_gt_8000': 15, 'product_desc|out_of_scope_kb': 54, 'external_standard|l2_unit_retired': 96, 'wording|oversize_gt_8000': 80, 'wording|l2_unit_retired': 365, 'internal_sample|l2_unit_retired': 7, 'unknown|out_of_scope_kb': 1}
+过滤分布 exp={'wording|metadata': 5229, 'wording|metadata_unknown_field': 127, 'external_standard|metadata': 345, 'external_standard|quality_flag': 1927, 'product_desc|out_of_scope_kb': 54, 'internal_sample|out_of_scope_table': 386, 'unknown|out_of_scope_kb': 1, 'wording|quality_flag': 739}（同源于落伍基准 ⇒ 不等是预期的，见上）
+语言构成：{'中英混排': 1736, '英文/拉丁': 3827, '中文': 454, '无字母': 12}
+kb_type：{'wording': 1858, 'external_standard': 2892, 'internal_sample': 1279}
+范围：按 kb/l6/SCOPE.txt 取子集：6448 条指定，命中可用单元 6029 条，未命中 419
+### rc=1 ###
+
+### 10:38:52 CMD: sh kb/kbpy .work/l6_build.py daily-20261010-1010-L6 --apply ###
+/Users/lute/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/.work/l6_build.py:238: UserWarning: The model sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 now uses mean pooling instead of CLS embedding. In order to preserve the previous behaviour, consider either pinning fastembed version to 0.5.1 or using `add_custom_model` functionality.
+  model = TextEmbedding(model_name=MODEL, cache_dir=CACHE) if os.path.isdir(CACHE) else TextEmbedding(model_name=MODEL)
+可用单元 6029｜P0 证据单元（不入向量）144
+口径差额：新增 0 移除 0（上次记录 6029 → 本次 6029）
+BM25（自实现）：6029 文档｜术语 zh 193307 / en 41117｜平均长度 zh 858.712 / en 306.286｜本次切词 0 条｜索引无变化 → 不重写文件
+握手：可用（返回 384 维，期望 384，范数 3.119）
+向量：单元 5885 个 → 段 44578 条｜被分段单元 3968｜新增/变更 0｜复用 44578｜embedding 调用 0 次、重试 0 次｜失败 0｜重写
+索引投影 6029 行（重写）｜registry（重写）｜总耗时 222.2s
+分段分布：{1: 1917, 2: 441, 3: 127, 4: 70, 5: 59, 6: 47, 7: 50, 8: 297, 9: 1401, 10: 595, 11: 103, 12: 73, 13: 13, 14: 6, 15: 4, 16: 5, 17: 10, 18: 19, 19: 2, 20: 4, 21: 12, 22: 14, 23: 22, 24: 135, 25: 236, 26: 150, 27: 37, 28: 19, 29: 2, 30: 1, 32: 2, 33: 3, 34: 2, 35: 1, 36: 1, 37: 2, 38: 2, 47: 1}｜最长单元 7042 字 → 47 段
+### rc=0 ###
+
+### 10:42:37 SKIP: kb/.work/l6_bench.py（layers.yaml：驱动循环默认跳过） ###
+
+### 10:42:37 CMD: sh kb/kbpy .work/l6_integrity.py daily-20261010-1010-L6 --apply ###
+/Users/lute/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/.work/l6_integrity.py:330: UserWarning: The model sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 now uses mean pooling instead of CLS embedding. In order to preserve the previous behaviour, consider either pinning fastembed version to 0.5.1 or using `add_custom_model` functionality.
+  _model = TextEmbedding(model_name=_vm["model"], cache_dir=_vm["cache_dir"]) \
+[PASS] frozen_layers
+        kb/l0: 4409 文件/2,877,778,149 字节/最后修改 2026-10-10 10:38:17  tree_sha256=3a21b6742428c77e 与 L5 一致=True
+        kb/l1: 4464 文件/1,433,112,090 字节/最后修改 2026-10-10 10:37:19  tree_sha256=e83b8300d57d3294 与 L5 一致=True
+        kb/l2: 943 文件/239,860,911 字节/最后修改 2026-10-10 10:37:28  tree_sha256=cf823d03ee5e46c6 与 L5 一致=True
+        kb/l3/candidates: 1018 行/2,778,854 字节/最后修改 2026-10-10 10:26:20  前509行与 L5 一致=True
+[PASS] counts
+        可用 6029｜投影 6029｜BM25 6028（失败 1）｜向量单元 5885 → 段 44578（被分段单元 3968）
+        对账：6029 = BM25 6028 + 失败 1 = 向量单元 5885 + 不入向量 144｜未入向量原因：{'P0 规则的证据单元：P0 走 kb/l5/matcher.py 确定性匹配，不入向量': 144}
+[PASS] idempotent_rerun
+        退出码 0｜变更文件 无｜切词 0=True｜embedding 0=True
+        registry 差异字段 []（仅事件标签=False）｜实质变更 无
+[PASS] vector_traceability
+        44578 段 × 384 维｜范数 [1.000000, 1.000000]｜doc_id 不一致 0｜P0 混入 0｜回指异常 0
+[PASS] segmentation
+        5885 个单元 → 44578 段｜被分段 3968｜分布 {'1': 1917, '2': 441, '3': 127, '4': 70, '5': 59, '6': 47, '7': 50, '8': 297, '9': 1401, '10': 595, '11': 103, '12': 73, '13': 13, '14': 6, '15': 4, '16': 5, '17': 10, '18': 19, '19': 2, '20': 4, '21': 12, '22': 14, '23': 22, '24': 135, '25': 236, '26': 150, '27': 37, '28': 19, '29': 2, '30': 1, '32': 2, '33': 3, '34': 2, '35': 1, '36': 1, '37': 2, '38': 2, '47': 1}
+        最长单元 7042 字 → 47 段｜最大段 token 120（上限 120，模型实测 128 截断）｜拼接不一致 0｜重建对不上 0
+[PASS] postings_consistency
+[PASS] version_discipline
+        canonical 0 字节｜versions 行 0｜kb_version ['v0']
+[PASS] offline
+[PASS] capability_declaration
+        mode=vector_plus_bm25 semantic_recall=True model=sentence-transformers/paraphrase-multili dim=384 limitations=8 条｜no_hit_semantics 合规=True
+
+自检总计：PASS
+### rc=0 ###
+
+### 10:50:19 CMD: sh kb/kbpy .work/l6_selftest.py --run=daily-20261010-1010-L6 --apply ###
+/Users/lute/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+kb/l6/retriever.py:308: UserWarning: The model sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 now uses mean pooling instead of CLS embedding. In order to preserve the previous behaviour, consider either pinning fastembed version to 0.5.1 or using `add_custom_model` functionality.
+  self.model = TextEmbedding(model_name=self.meta["model"], **kw)
+自验写入 kb/l6/selftest.json｜已判断 6/14 条查询
+  A_zh   bm25_only: hit@3 1.0 p@3 0.833｜vector_only: hit@3 1.0 p@3 0.333｜hybrid: hit@3 1.0 p@3 0.833
+  A_en   bm25_only: hit@3 1.0 p@3 0.778｜vector_only: hit@3 0.667 p@3 0.333｜hybrid: hit@3 1.0 p@3 0.778
+  A_all  bm25_only: hit@3 1.0 p@3 0.8｜vector_only: hit@3 0.8 p@3 0.333｜hybrid: hit@3 1.0 p@3 0.8
+  B_zh   bm25_only: hit@3 None p@3 None｜vector_only: hit@3 None p@3 None｜hybrid: hit@3 None p@3 None
+  B_en   bm25_only: hit@3 0.0 p@3 0.0｜vector_only: hit@3 0.0 p@3 0.0｜hybrid: hit@3 0.0 p@3 0.0
+  B_all  bm25_only: hit@3 0.0 p@3 0.0｜vector_only: hit@3 0.0 p@3 0.0｜hybrid: hit@3 0.0 p@3 0.0
+  原始分对照（A 组 vs B 组，中位）：
+    A: BM25 原始分 22.9745｜余弦 0.7172
+    B: BM25 原始分 10.0756｜余弦 0.3936
+  B 组行为：
+    bm25_only: 返回结果=True｜Top1 相关 0/1｜Top1 分数中位 B=0.016393 vs A=0.02459
+    vector_only: 返回结果=True｜Top1 相关 0/1｜Top1 分数中位 B=0.016393 vs A=0.02459
+    hybrid: 返回结果=True｜Top1 相关 0/1｜Top1 分数中位 B=0.016393 vs A=0.0484
+总耗时 13.1s
+### rc=0 ###
+
+### 10:50:36 CMD: sh kb/kbpy .work/l6_report.py daily-20261010-1010-L6 --skill kb-recall --apply ###
+[apply] 台账 → kb/l6/runs/daily-20261010-1010-L6.json（顶层 skill=kb-recall）
+已生成 kb/l6/runs/daily-20261010-1010-L6.json / .report.md / .ops.log
+run verdict = FAIL
+### rc=0 ###
+
+### 10:50:37 CMD: sh kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L6 --run daily-20261010-1010-L6 --invoked kb-recall --skill-session L6=session-e6e81bae-5167-478c-8311-8ab3b22cf2d1 ###
+[层表核对] STAMP_SPEC 7 条全部能在 layers.yaml 本层 engine: 里找到 ✅
+====================================================================================
+知识库 L0–L7 执行编排器 · --sync ｜ 预演（不带 --apply） ｜ run_id=daily-20261010-1010-L6
+====================================================================================
+锁：已持锁 pid=54073 run_id=daily-20261010-1010-L6
+[写档闸门] **未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml
+[L6] ⚠️ 写档闸门：**未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml
+[L6] 闸门：过 ｜ exit=0 ｜ 退出码：0
+[L6] via-skill：本层该调的 skill ＝ kb-recall
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/.work/l6_scope.py
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/.work/l6_build.py
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/.work/l6_bench.py
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/.work/l6_integrity.py
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/.work/l6_selftest.py
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/.work/l6_report.py
+[L6] via-skill：引擎交给 kb-recall（本编排器不跑；它只跑闸门 + 记账 + **--skill 透传**）
+[L6] --skill 透传：l6_report.py daily-20261010-1010-L6 --skill kb-recall ［预演档：未获本层写档凭据］
+[L6] 落章引擎 exit=0 ｜ 产物变化 0 个
+        [dry-run] 台账 → kb/l6/runs/daily-20261010-1010-L6-dryrun.json（顶层 skill=kb-recall）
+        run verdict = FAIL
+[记账] 层侧落章实测：applied 1 ｜ dry 1 ｜ unknown 0 ｜ 读错 0 → human_involved=True ｜ verdict=全走完
+------------------------------------------------------------------------------------
+结论：L6 全部走完（预演（不带 --apply））
+提示：这是预演。真正落盘要加 --apply，且当前白名单只开 ['L1', 'L2', 'L3', 'L4', 'L5', 'L6']。
+### rc=0 ###
+
+### 10:50:41 L6 批次结束 ###
+@@@@@@@@@@ 10:50:41 L6 结束 rc=0 @@@@@@@@@@
+
+@@@@@@@@@@ 10:50:41 开始 L7 @@@@@@@@@@
+
+### 10:50:41 GATE: sh kb/kbpy l7/scripts/l7_gate.py ###
+==========================================================================
+L7 闸门（引用契约的前置条件：库名 / 现行库可复算 / 六要素 / 条款号出处）
+  规则候选 1018 条（全部候选 2960 条）｜ 定稿 1480 条 ｜ 六要素齐备 1480 条（覆盖率 100.0%）
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+说明项 N1 契约原文：格式 《<库名> <版本>》第 <条款号> 条（链接：<url>） ｜ 版本 v0（试用版，未发布）
+   hard_gate：引用不到本地锚点（anchor 解析失败 或 source_sha256 对不上 或 摘录与原文不逐字一致）的结论，一律不输出
+说明项 N3：运行时引用完整性由评审链（kb-content-review）自己的硬闸门负责；本闸门只保证**前置条件成立**
+==========================================================================
+结论：✅ 过（前置条件全成立）
+退出码：0
+### rc=0 ###
+
+### 10:50:42 CMD: sh kb/kbpy l7/scripts/skills_check.py ###
+====================================================================
+skills_check —— DSH 宿主 skill 登记表自检
+====================================================================
+库根    : /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb
+登记表  : l7/registry/skills.yaml
+解析器  : PyYAML（版本 6.0.3）
+  行数  : 71（本项目 52 / 宿主通用 19）
+装载位  : /Users/lute/.dsh/skills
+  扫到  : 59 个目录
+另一装载位: /Users/lute/.agents/skills（本项目不装这里，仅作对照）
+lark 基准: ~/.dsh/bin/lark-cli
+
+--- 1. 应装未装（scope=本项目 且 status=生产，但装载位里没有） --- 0 条
+--- 1b. 预期未装（scope=本项目 且 status=候选/规划，本阶段只登记不安装）--- 0 条【不算错误】
+
+--- 2. 装了但没登记（装载位里有目录，表里没有对应 id） --- 0 条
+
+--- 3. 副本不一致（source 非 null 的逐文件 cmp；lark-* 另比官方基准；符号链接装载位不适用，见备注） --- 0 条
+
+--- 4. 依赖缺失（depends_on_engine 路径在库内不存在） --- 0 条
+
+--- 5. 自测缺失（selftest 路径不存在） --- 0 条
+
+--- 未登记 selftest（单独归类，不算错误）--- 62 条
+    蒸馏、root-skills-check、root-skills-creator、root-skills-doctor、root-skills-eval、root-skills-manage、root-skills-opt、root-skills-batch-driver、lark-doc、lark-drive、lark-wiki、lark-base、lark-shared、agent-build-flow、code-review、context-handoff、domain-modeling、grill-me、grill-with-docs、grilling
+
+--- 备注 ---
+    · 本项对 9 件**不适用**：装机位是**指向真源的符号链接**（逐文件比对会变成「拿真源比真源」，恒等、结构上不可能不一致）⇒ 这几件不靠本项兜底，改由链接解析来保证：kb-content-review、kb-ingest-extractor、kb-media-extractor、kb-clause-extractor、kb-l0-feishu、kb-check、kb-canonical-lookup、kb-p0-check、kb-recall
+    · 3 备注：lark-base 与 CLI 输出不一致，但本地版本 1.2.23 高于 CLI 1.2.22（属超前，不告警）
+    · 3 跳过：12 个登记了 source 的条目尚未安装，未做副本比对：kb-retriever（废弃）、锚点文本分割器（参考）、语义文档分块器（参考）、MECE知识提取器（参考）、术语标准化器（参考）、语义分桶器（参考）、知识相似度分析器（参考）、vision-analysis（参考）…（共 12 个）
+
+====================================================================
+汇总
+====================================================================
+本项目要用：40 个（生产 40 + 候选 0 + 规划 0）
+  已装    ：40 个
+  还差    ：0 个（候选 0 + 规划 0）
+另：status=参考 11 个（只参考 / 只收编，一律不安装、不复制）
+    宿主通用 19 个（登记归属，不参与「应装未装」判定）
+
+五类问题：1=0 2=0 3=0 4=0 5=0 ｜合计 0
+结论：全过。
+退出码：0
+### rc=0 ###
+
+### 10:50:43 SKIP: kb/l8/workflow_check.py（layers.yaml：驱动循环默认跳过） ###
+
+### 10:50:43 CMD: sh kb/kbpy .work/l7_article_source_refresh.py daily-20261010-1010-L7 --apply ###
+台账：1480 号｜段 ['E-1', 'E-2', 'S-1', 'W-1', 'W-2', 'W-3']｜预留未用 ['P-1', 'S-2', 'W-4', 'W-5', 'W-6']
+候选件：2960 行｜唯一 id 1480｜其中在台账里 1480｜缺号 0
+canonical：1480 行 / 1480 个号，全部在台账：True
+
+差异（旧 → 新）：
+  read_at:
+     "2026-10-09 03:46:15"
+  →  "2026-10-10 10:50:44"
+  read_at_previous:
+     "2026-10-05 09:53:00"
+  →  "2026-10-09 03:46:15"
+  refreshed_by:
+     "kb/.work/l7_article_source_refresh.py daily-20261009-0330-L7"
+  →  "kb/.work/l7_article_source_refresh.py daily-20261010-1010-L7"
+
+实质字段无差异（只有 read_at/refreshed_by 这类时间戳在动）→ 零写入
+### rc=0 ###
+
+### 10:50:44 CMD: sh kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L7 --run daily-20261010-1010-L7 --invoked kb-check --skill-session L7=session-e6e81bae-5167-478c-8311-8ab3b22cf2d1 ###
+[层表核对] STAMP_SPEC 7 条全部能在 layers.yaml 本层 engine: 里找到 ✅
+====================================================================================
+知识库 L0–L7 执行编排器 · --sync ｜ 预演（不带 --apply） ｜ run_id=daily-20261010-1010-L7
+====================================================================================
+锁：已持锁 pid=54201 run_id=daily-20261010-1010-L7
+[写档闸门] **未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml
+[L7] ⚠️ 写档闸门：**未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml
+[L7] 闸门：过 ｜ exit=0 ｜ 退出码：0
+[L7] via-skill：本层该调的 skill ＝ kb-check
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/l7/scripts/skills_check.py
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/l8/workflow_check.py
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/.work/l7_article_source_refresh.py
+        ↳ ⚠️ 本层 skill_write=false —— 该 skill 不写档（写档是显式登记的缺口，不是漏填）：`kb-check` 是**跨层统一闸门**（注册表 layer 记「—」），不是 L7 的层主 —— 所以「层 ↔ skill 双向一致」判据对它**豁免**
+[L7] 无写库引擎（索引/注册表/报告层）→ 只跑了闸门
+[记账] 层侧落章实测：applied 0 ｜ dry 0 ｜ unknown 0 ｜ 读错 0 → human_involved=True ｜ verdict=全走完（预演 · 未落盘 · 非执行证据）
+------------------------------------------------------------------------------------
+结论：L7 全部走完（预演（不带 --apply））
+提示：这是预演。真正落盘要加 --apply，且当前白名单只开 ['L1', 'L2', 'L3', 'L4', 'L5', 'L6']。
+### rc=0 ###
+
+### 10:50:44 L7 批次结束 ###
+@@@@@@@@@@ 10:50:44 L7 结束 rc=0 @@@@@@@@@@
+
+@@@@@@@@@@ 10:50:44 L4–L7 链全部完成 @@@@@@@@@@

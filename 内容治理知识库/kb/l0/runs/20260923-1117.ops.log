@@ -1,0 +1,75 @@
+# L0 原始库外部调用台账  run_id=20260923-1117
+# 读写性质枚举：read=只读；read-attempt=只读尝试（被权限拒绝，未产生任何写入）
+# 本轮对源侧（含飞书侧）只有读调用：无 create/update/delete/move/permission/import 等写调用；
+# 未建「已处理/已入库」标记字段，未回写审核状态，未改权限。
+#
+时间               调用                                             读写性质          对象 / 说明
+20260923-1117    base +table-list                               read          bitable:GnRZbIuXraCzf0sGr2UcmZ62nfc —— 枚举入口 Base 全部表
+20260923-1117    base +field-list                               read          bitable:GnRZbIuXraCzf0sGr2UcmZ62nfc:table:tblMGtPfe8ZUsEdP —— 入口表字段 schema
+20260923-1117    base +field-list                               read          bitable:GnRZbIuXraCzf0sGr2UcmZ62nfc:table:tblZP8jG4tiUL98C —— 兄弟表字段 schema
+20260923-1117    base +field-list                               read          bitable:GnRZbIuXraCzf0sGr2UcmZ62nfc:table:tbld8qE92YaY38Yz —— 兄弟表字段 schema
+20260923-1117    base +field-list                               read          bitable:GnRZbIuXraCzf0sGr2UcmZ62nfc:table:tblXsrMVkDNZ3oW8 —— 兄弟表字段 schema
+20260923-1117    base +record-list                              read          bitable:GnRZbIuXraCzf0sGr2UcmZ62nfc:table:tblMGtPfe8ZUsEdP —— 入口表 31 条记录（筛选判定）
+20260923-1117    base +record-list                              read          bitable:GnRZbIuXraCzf0sGr2UcmZ62nfc:table:tblZP8jG4tiUL98C —— 分类说明表 5 条
+20260923-1117    base +record-list                              read          bitable:GnRZbIuXraCzf0sGr2UcmZ62nfc:table:tbld8qE92YaY38Yz —— 正负样本表结构统计
+20260923-1117    base +record-list                              read          bitable:GnRZbIuXraCzf0sGr2UcmZ62nfc:table:tblXsrMVkDNZ3oW8 —— 规则库 50 条记录
+20260923-1117    wiki +node-get                                 read          wiki:*（8 个节点） —— wiki 链接解包到底层对象
+20260923-1117    docs +fetch                                    read          wiki:*（7 个 docx） —— 读取 docx 正文用于 sha256(doc_text)
+20260923-1117    base +base-get / +table-list / +field-list /   read          bitable:Lk3Qb8y2QaVyZns6gprcVNE9nA0 / N2qkb2YxuatqGLsa4U4cFQxgnCe / SKkkbdZi9aRuMzs7ob0cpSYHnQg —— 3 个关联 Base 的表结构 + 记录采样（上限 200/表）
+20260923-1117    curl HTTP GET                                  read          15 个外部标准 URL + 1 个 Google Docs —— 抓取网页正文用于 sha256(url_text)
+20260923-1117    base +table-list（复核）                           read          bitable:GnRZbIuXraCzf0sGr2UcmZ62nfc —— 落库后复核源侧表与记录数未漂移
+20260923-1117    base +record-list（复核）                          read          bitable:GnRZbIuXraCzf0sGr2UcmZ62nfc:table:tblMGtPfe8ZUsEdP —— 复核 31 条 / 通过 20 条，与快照一致
+                                                                              
+# 分资源调用明细（逐条）
+20260923-1117    wiki +node-get                                 read          wiki:N0jRwpJliiGsf7k2cHFcnnAXnzc —— 解析 wiki 节点到底层对象
+20260923-1117    wiki +node-get                                 read          wiki:QX0Yw2neriOdA3k1giBciQDsn2c —— 解析 wiki 节点到底层对象
+20260923-1117    wiki +node-get                                 read          wiki:Ws8Gwp4t0inTxlktBGAcVG7qnNe —— 解析 wiki 节点到底层对象
+20260923-1117    wiki +node-get                                 read          wiki:M3tWwmh8xi4V3EkKPITcIaAknRc —— 解析 wiki 节点到底层对象
+20260923-1117    wiki +node-get                                 read          wiki:YzyvwdrsEiBSQXkaEk3ceJpsn0g —— 解析 wiki 节点到底层对象
+20260923-1117    wiki +node-get                                 read          wiki:WCpUwlELIi6sDlkyPN7cZ1vonQf —— 解析 wiki 节点到底层对象
+20260923-1117    wiki +node-get                                 read          wiki:DAd6wOcX2iWuWhkZqqlc0AZxncg —— 解析 wiki 节点到底层对象
+20260923-1117    wiki +node-get                                 read          wiki:KISzwvc8OifWk8kI5cBcTtU6n9g —— 解析 wiki 节点到底层对象
+20260923-1117    wiki +node-get                                 read          wiki:UOuMwKge6iX4HdkaOZBchV6ZnNf —— 解析 wiki 节点到底层对象
+20260923-1117    lark-cli sheets +workbook-info                 read-attempt  sheets:BX0QshqWThhY6HtDEFCcnMpsnRc —— 尝试读取内容算 sha256（被 scope 拒绝）
+20260923-1117    lark-cli slides +xml-get                       read-attempt  slides:LDIIsI5SIl4ZumdW8XgcUIn8nTg —— 尝试读取内容算 sha256（被 scope 拒绝）
+20260923-1117    lark-cli slides +xml-get                       read-attempt  slides:PtNesZDDdlMSc4dtczlcxPh6nAg —— 尝试读取内容算 sha256（被 scope 拒绝）
+20260923-1117    docs +fetch                                    read          wiki:RMTWdHAjFoCI7Ax9VTKcLg0KnSc —— 读取 docx 正文用于 sha256(doc_text)
+20260923-1117    lark-cli sheets +workbook-info                 read-attempt  sheets:KzQ1sLVCbhFCIktRkdec9Onen6e —— 尝试读取内容算 sha256（被 scope 拒绝）
+20260923-1117    lark-cli drive +preview                        read-attempt  file:T1tNbhPnmoq8gAxj4MZcHmX6nUc —— 尝试读取内容算 sha256（被 scope 拒绝）
+20260923-1117    lark-cli drive +preview                        read-attempt  file:IWbobAGHAoDcycxRFWNcBYd1nY6 —— 尝试读取内容算 sha256（被 scope 拒绝）
+20260923-1117    lark-cli drive +preview                        read-attempt  file:HUngb4wwpovNsXxapcIcH2RZnyb —— 尝试读取内容算 sha256（被 scope 拒绝）
+20260923-1117    docs +fetch                                    read          wiki:Bwd9dk2thoPouCxa7MrcG9XEnah —— 读取 docx 正文用于 sha256(doc_text)
+20260923-1117    docs +fetch                                    read          wiki:YNnwdkTULoJLccxKnypcHwsinBZ —— 读取 docx 正文用于 sha256(doc_text)
+20260923-1117    docs +fetch                                    read          wiki:NPKldCDgZomiyjxF6OMcVnDxnBQ —— 读取 docx 正文用于 sha256(doc_text)
+20260923-1117    docs +fetch                                    read          wiki:A0fxdtmKxoQbmAxmpXVce7SVnEd —— 读取 docx 正文用于 sha256(doc_text)
+20260923-1117    docs +fetch                                    read          wiki:TqJSduQE3oBM4uxtHhmcrVtGnPg —— 读取 docx 正文用于 sha256(doc_text)
+20260923-1117    docs +fetch                                    read          wiki:Vzlwd1d9doXdJJxkJnWc4ya5ngb —— 读取 docx 正文用于 sha256(doc_text)
+20260923-1117    lark-cli slides +xml-get                       read-attempt  slides:PY4UsNcdol6vJzd8v0McYRpJnZ7 —— 尝试读取内容算 sha256（被 scope 拒绝）
+20260923-1117    docs +fetch                                    read          docx:Kts8dacyIo1zq1xElWOcqW1zncc —— 读取 docx 正文用于 sha256(doc_text)
+20260923-1117    base +table-list                               read          bitable:Lk3Qb8y2QaVyZns6gprcVNE9nA0 —— 枚举关联 Base 的表
+20260923-1117    base +field-list                               read          bitable:Lk3Qb8y2QaVyZns6gprcVNE9nA0:table:tblcbk4XiW6471YN —— 广告文案明细 字段 schema
+20260923-1117    base +record-list                              read          bitable:Lk3Qb8y2QaVyZns6gprcVNE9nA0:table:tblcbk4XiW6471YN —— 广告文案明细 记录采样，上限 200
+20260923-1117    base +field-list                               read          bitable:Lk3Qb8y2QaVyZns6gprcVNE9nA0:table:tblD1MiUK1v5fdjD —— 品线内容边界规则库 字段 schema
+20260923-1117    base +record-list                              read          bitable:Lk3Qb8y2QaVyZns6gprcVNE9nA0:table:tblD1MiUK1v5fdjD —— 品线内容边界规则库 记录采样，上限 200
+20260923-1117    base +field-list                               read          bitable:Lk3Qb8y2QaVyZns6gprcVNE9nA0:table:tblqUTAKFkWheU49 —— W1卖点表达边界（品线反馈0910） 字段 schema
+20260923-1117    base +record-list                              read          bitable:Lk3Qb8y2QaVyZns6gprcVNE9nA0:table:tblqUTAKFkWheU49 —— W1卖点表达边界（品线反馈0910） 记录采样，上限 200
+20260923-1117    base +field-list                               read          bitable:Lk3Qb8y2QaVyZns6gprcVNE9nA0:table:tblLxUfPz4Wqp2na —— 风险文案改写建议库（分型号分渠道） 字段 schema
+20260923-1117    base +record-list                              read          bitable:Lk3Qb8y2QaVyZns6gprcVNE9nA0:table:tblLxUfPz4Wqp2na —— 风险文案改写建议库（分型号分渠道） 记录采样，上限 200
+20260923-1117    base +table-list                               read          bitable:N2qkb2YxuatqGLsa4U4cFQxgnCe —— 枚举关联 Base 的表
+20260923-1117    base +field-list                               read          bitable:N2qkb2YxuatqGLsa4U4cFQxgnCe:table:tblGFyycMc45RMga —— 数据表 字段 schema
+20260923-1117    base +record-list                              read          bitable:N2qkb2YxuatqGLsa4U4cFQxgnCe:table:tblGFyycMc45RMga —— 数据表 记录采样，上限 200
+20260923-1117    base +table-list                               read          bitable:SKkkbdZi9aRuMzs7ob0cpSYHnQg —— 枚举关联 Base 的表
+20260923-1117    base +field-list                               read          bitable:SKkkbdZi9aRuMzs7ob0cpSYHnQg:table:tblVdl0jdK9G4ld3 —— 内容公式（仅供参考） 字段 schema
+20260923-1117    base +record-list                              read          bitable:SKkkbdZi9aRuMzs7ob0cpSYHnQg:table:tblVdl0jdK9G4ld3 —— 内容公式（仅供参考） 记录采样，上限 200
+20260923-1117    base +field-list                               read          bitable:SKkkbdZi9aRuMzs7ob0cpSYHnQg:table:tbl8AI00JZO1iZtp —— 专家修订汇总表 字段 schema
+20260923-1117    base +record-list                              read          bitable:SKkkbdZi9aRuMzs7ob0cpSYHnQg:table:tbl8AI00JZO1iZtp —— 专家修订汇总表 记录采样，上限 200
+20260923-1117    读取尝试（被 scope 拒绝）                               read-attempt  file:HUngb4wwpovNsXxapcIcH2RZnyb —— 缺少 drive:file:download scope（已实测确认），未读取内容，不计算 sha256
+20260923-1117    读取尝试（被 scope 拒绝）                               read-attempt  file:IWbobAGHAoDcycxRFWNcBYd1nY6 —— 缺少 drive:file:download scope（已实测确认），未读取内容，不计算 sha256
+20260923-1117    读取尝试（被 scope 拒绝）                               read-attempt  file:T1tNbhPnmoq8gAxj4MZcHmX6nUc —— 缺少 drive:file:download scope（已实测确认），未读取内容，不计算 sha256
+20260923-1117    读取尝试（被 scope 拒绝）                               read-attempt  sheets:BX0QshqWThhY6HtDEFCcnMpsnRc —— 缺少 sheets:spreadsheet:read scope（已实测确认），未读取内容，不计算 sha256
+20260923-1117    读取尝试（被 scope 拒绝）                               read-attempt  sheets:KzQ1sLVCbhFCIktRkdec9Onen6e —— 缺少 sheets:spreadsheet:read scope（已实测确认），未读取内容，不计算 sha256
+20260923-1117    读取尝试（被 scope 拒绝）                               read-attempt  slides:LDIIsI5SIl4ZumdW8XgcUIn8nTg —— 缺少 slides:presentation:read scope（已实测确认），未读取内容，不计算 sha256
+20260923-1117    读取尝试（被 scope 拒绝）                               read-attempt  slides:PY4UsNcdol6vJzd8v0McYRpJnZ7 —— 缺少 slides:presentation:read scope（已实测确认），未读取内容，不计算 sha256
+20260923-1117    读取尝试（被 scope 拒绝）                               read-attempt  slides:PtNesZDDdlMSc4dtczlcxPh6nAg —— 缺少 slides:presentation:read scope（已实测确认），未读取内容，不计算 sha256
+20260923-1117    读取尝试（被 scope 拒绝）                               read-attempt  url:https://docs.google.com/document/d/1Bi-xyN1CiFPVYrkOwYwr2ArGxEAh88nnL3T4Ln1ghgE/edit —— 返回 HTML 可读但正文由 JS 渲染，未取到正文文本（不做 OCR/转写），不计算 sha256
+20260923-1117    读取尝试（被 scope 拒绝）                               read-attempt  wiki:L9DXbU4XxoZoTHxdKXzcTEwJnNe —— 缺少 drive:file:download scope，无法取字节流，不计算 sha256

@@ -1,0 +1,14 @@
+# L1 抽取层外部调用台账  run_id=20260923-1215
+# 性质：read=只读；本地计算（OCR/切段/哈希）不触及源侧
+# kb/l0/ 本次全程只读：未创建/修改/删除 kb/l0/ 下任何文件（见报告自检 1）
+#
+时间               调用                                       性质       对象 / 说明
+20260923-1215    wiki +node-get                           read     ×9 次
+20260923-1215    docs +fetch                              read     ×8 次
+20260923-1215    lark-cli slides +xml-get                 read-attempt ×3 次
+20260923-1215    lark-cli drive +preview                  read-attempt ×3 次
+20260923-1215    lark-cli sheets +workbook-info           read-attempt ×2 次
+20260923-1215    base +record-download-attachment         read     ×1 次
+20260923-1215    本地计算：切段/表格行/哈希                           local    不访问源侧
+20260923-1215    本地计算：macOS Vision OCR                    local    引擎 vision-jxa-1.0，输入为已下载图片
+20260923-1215    读取 kb/l0/manifest.jsonl，registry/kb.json read     L0 台账与规则（只读）

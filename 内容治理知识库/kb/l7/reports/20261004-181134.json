@@ -1,0 +1,96 @@
+{
+  "review_id": "20261004-181134",
+  "content_id": "text-a35559f1b023",
+  "content_type": "text",
+  "content_version": "a35559f1b0235907adf9625d6eb03a2cbe88266bf17617c7c9d7ad17ae405715",
+  "content_hash": "a35559f1b0235907adf9625d6eb03a2cbe88266bf17617c7c9d7ad17ae405715",
+  "agent_version": "kb-content-review@1.3.0",
+  "rule_version": "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02",
+  "knowledge_version": "v0",
+  "version_binding": {
+    "review_id": "20261004-181134",
+    "content_id": "text-a35559f1b023",
+    "content_hash": "a35559f1b0235907adf9625d6eb03a2cbe88266bf17617c7c9d7ad17ae405715",
+    "content_version": "a35559f1b0235907adf9625d6eb03a2cbe88266bf17617c7c9d7ad17ae405715",
+    "agent_version": "kb-content-review@1.3.0",
+    "rule_version": "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02",
+    "knowledge_version": "v0",
+    "sources": {
+      "content_hash": "送审文本 utf-8 的 sha256",
+      "agent_version": "kb/l7/skills/kb-content-review/SKILL.md → frontmatter.version",
+      "rule_version": "kb/l7/registry/l7.json → article_no_source.scheme_version ＋ kb/l3/registry/l3.json → distiller_version ＋ kb/l3/candidates/rules.jsonl 的 sha256[:16]",
+      "knowledge_version": "kb/l7/registry/l7.json → kb_version"
+    }
+  },
+  "decision": "REVIEW",
+  "decision_raw": "REVIEW",
+  "confidence": "未标定（本入口逐条给 高/中/低；全局数值置信度属裁决侧）",
+  "input_manifest": {
+    "text": "guaranteed to double your supply in a week",
+    "sha256": "a35559f1b0235907adf9625d6eb03a2cbe88266bf17617c7c9d7ad17ae405715",
+    "modality": [
+      "text"
+    ]
+  },
+  "coverage": {
+    "text": "complete",
+    "image": "not_applicable",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "本批只送审 text 一种模态；其余模态不适用（不是缺口）。本块是报告契约要求的覆盖状态，不等于 OCR/ASR/关键帧流水线已执行 —— 后者见 trace。"
+  },
+  "risk_items": [
+    {
+      "risk_id": "r-ad1ad30cf52bf707",
+      "risk_type": "人物肖像与 AI-AI 合成标识",
+      "priority_tier": "P1",
+      "priority_tier_basis": "规则层",
+      "layer": "规则层",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "guaranteed",
+      "reason": "逐字命中「guaranteed」：承认个体差异，给可调可控的舒适方案，不做无痛保证（p_level=P1 risk_level=unknown authority=None，来源表 None）",
+      "suggestion": "",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-2.294",
+        "anchor": "#风险文案改写建议库（分型号分渠道）/recvuNn4RsFeU9/风险原句示例",
+        "source_sha256": "e1498549e30900966a96926b8ea839aa16bbb667647851c2ef7f4f2dd1c97c08",
+        "excerpt": "guaranteed"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-2.294 条 @ #风险文案改写建议库（分型号分渠道）/recvuNn4RsFeU9/风险原句示例 @ e1498549e309",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-2.294"
+    }
+  ],
+  "issue_count": 1,
+  "report_url": null,
+  "next_action": "建议转复核责任人复核。",
+  "next_owners": [
+    "复核责任人"
+  ],
+  "sla": {},
+  "version_gate": {
+    "reviewed_hash": "a35559f1b0235907adf9625d6eb03a2cbe88266bf17617c7c9d7ad17ae405715",
+    "release_hash": null,
+    "note": "本入口不掌握发布版本；发布/送审版本比对属裁决侧（review_engine.py:115-119），此处不代替它下结论"
+  },
+  "decision_trace": {
+    "reasons": [
+      "findings_present_without_block"
+    ],
+    "confidence_status": "not_calibrated_by_this_entry",
+    "evaluated_at": "2026-10-04T18:11:36",
+    "decided_by": "kb-content-review/scripts/review.py（依据侧自身分支，:709-715）",
+    "note": "本报告不重算结论；三态由上表 decision_raw 原样带出"
+  },
+  "unmet_citation": []
+}

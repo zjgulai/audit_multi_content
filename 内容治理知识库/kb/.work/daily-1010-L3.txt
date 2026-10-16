@@ -1,0 +1,38 @@
+#!/bin/bash
+# 日更 L3 批次（BASE=daily-20261010-1010）—— 闸门 → 红线①归档 → 引擎 --apply → 落章 → 记账
+cd "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理" || exit 2
+R="daily-20261010-1010-L3"
+SID="${DSH_SESSION_ID:-session-e6e81bae-5167-478c-8311-8ab3b22cf2d1}"
+gate() {
+  echo; echo "### $(date '+%H:%M:%S') GATE: $* ###"
+  "$@"; local rc=$?
+  echo "### rc=$rc ###"
+  if [ $rc -ne 0 ]; then echo "### ⛔ 闸门红 ⇒ 停（不跑本层引擎） ###"; exit 9; fi
+}
+step() {
+  echo; echo "### $(date '+%H:%M:%S') CMD: $* ###"
+  "$@"; local rc=$?
+  echo "### rc=$rc ###"
+  return 0
+}
+
+gate sh kb/kbpy l7/scripts/l3_gate.py
+
+# ── 红线①：跑 l3_distill_run.py 前必须先归档 kb/l3/rejected.jsonl ─────────────
+# 口径与 kb_pipeline.py::archive_before_write 逐字一致：逐字节复制 + 大小 + sha256 校验。
+echo; echo "### $(date '+%H:%M:%S') 红线① 归档 kb/l3/rejected.jsonl ###"
+SRC="kb/l3/rejected.jsonl"; DST="kb/l3/_archive/rejected-pre-${R}.jsonl"
+mkdir -p kb/l3/_archive
+/bin/cp "$SRC" "$DST" || { echo "### ⛔ 归档失败 ⇒ 停，不许覆盖写 ###"; exit 9; }
+A=$(wc -c < "$SRC"); B=$(wc -c < "$DST")
+HA=$(shasum -a 256 < "$SRC" | cut -d' ' -f1); HB=$(shasum -a 256 < "$DST" | cut -d' ' -f1)
+echo "源 $A 字节 sha=${HA%${HA#????????????}} ｜ 归档 $B 字节 sha=${HB%${HB#????????????}}"
+if [ "$A" != "$B" ] || [ "$HA" != "$HB" ]; then echo "### ⛔ 归档校验不过 ⇒ 停 ###"; exit 9; fi
+echo "### ✅ 归档通过：$DST ###"
+
+step sh kb/kbpy l8/l3_distill_run.py "$R" --apply
+step sh kb/kbpy l8/l3_reject_ledger_rebuild.py "$R" --apply
+step sh kb/kbpy .work/l3_report.py "$R" --skill kb-clause-extractor --apply
+step sh kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L3 --run "$R" \
+  --invoked kb-clause-extractor --skill-session "L3=$SID"
+echo; echo "### $(date '+%H:%M:%S') L3 批次结束 ###"

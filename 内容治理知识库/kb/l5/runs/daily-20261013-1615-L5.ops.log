@@ -1,0 +1,29 @@
+# L5 P0 可执行导出 · 操作日志 run_id=daily-20261013-1615-L5
+# 生成时间 2026-10-13 16:27:09｜写入范围：kb/l3 追加、kb/l5 写入；kb/l0~l2 只读；未发布任何版本
+# 正文来源：**默认档 = 本轮实测**（argv 原样 + 产物现算 + 读数现读）
+#   人工叙事请用 `--ops-note <文件>`；最初构建那一轮的历史模板用 `--ops-template`。
+
+[调用] 本轮的调用方式（argv 原样，未加工）
+     $ /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/.work/l5_report.py daily-20261013-1615-L5 --apply --skill kb-p0-check
+
+[产物] 本轮写入的产物（字节与 sha256 现算）
+     → kb/l5/p0_patterns.jsonl：148816 字节 ｜ sha256 前 16 位 b0e29b6187294ff3
+     → kb/l5/index/l5.jsonl：1232 字节 ｜ sha256 前 16 位 5de866ea6de6d5c5
+     → kb/l5/registry/l5.json：17974 字节 ｜ sha256 前 16 位 980e2340bc6f03e6
+     → kb/l5/registry/l5_no_pattern.json：2 字节 ｜ sha256 前 16 位 4f53cda18c2baa0c
+     → kb/l5/matcher.py：13477 字节 ｜ sha256 前 16 位 337e291c02feae29
+     → kb/l5/benchmark.json：3656 字节 ｜ sha256 前 16 位 ee2928968b40c8aa
+     → kb/l5/runs/daily-20261013-1615-L5.p0_patterns.superseded.jsonl：148816 字节 ｜ sha256 前 16 位 b0e29b6187294ff3
+
+[读数] 本轮模式表读数
+     → 模式 11 条 ｜ keyword 式 175 ｜ regex 式 28 ｜ 有白名单 11 ｜ 无法生成 0
+
+[自证] 本轮自证与自检（读数现读，判决照抄）
+     → kb/l5/matcher.py --selftest：退出码 0，正例 18 / 负例 13 ⇒ PASS
+     → kb/.work/l5_integrity.py：总判决 FAIL；逐项 frozen_layers=FAIL、l3_append_only=FAIL、pattern_traceability=PASS、no_fabricated_words=PASS、version_discipline=PASS、offline=PASS
+     → 其中 frozen_layers、l3_append_only 两项已登记为**判据过期**（`kb/l7/registry/l5-known-drift.yaml`，不判红）
+     → 性能：1MB 合成文档 5031.328 ms，bench 判决 FAIL
+
+[判定] 本层判定
+     → 本件 run verdict = FAIL（口径见 report.md §0；层闸门另看 `kb/l7/scripts/l5_gate.py`）
+#    ★ 本文件不含任何写死的数字：要核对就重跑一次，逐字对比。

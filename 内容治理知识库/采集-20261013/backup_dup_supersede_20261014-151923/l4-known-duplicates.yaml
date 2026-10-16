@@ -1,0 +1,404 @@
+meta:
+  file: kb/l7/registry/l4-known-duplicates.yaml
+  answers: 哪些「同内容两个条款号」是已知存量（待人裁），哪些是新增
+  checker: kb/l8/check_clause_no_idempotency.py
+  checker_selftest: python3 kb/l8/check_clause_no_idempotency.py --selftest
+  registered_at: '2026-10-14'
+  registered_by: DSH agent（2026-10-14 销号 S-1.159 时一并建）
+
+# ══════════════════════════════════════════════════════════════════════
+# ★★ 这份清单**不是通过名单** —— 它登记的是**已确认存在、尚未裁决**的重复发号。
+#
+# 为什么要它：判据上线时存量就有 95 组重复，一上线就红一片。
+#   **红的判据没人看** —— 于是存量登记为已知，判据只对**新增**重复变红。
+#   这与本库既有惯例一致（l0-expected-diffs / l3-known-drift / regression-known-drift）。
+#
+# 每一条都指向一个必须人裁的问题：**同一内容两个条款号，销哪个？**
+#   本件不替人裁 —— 销号会改已发号的 canonical，且两边各有取舍
+#   （旧号 anchor 可能已死、新号正文可能被截断，见 S-1.159/S-1.296 的先例）。
+#
+# 退场条件：某组被裁决并做了 supersede 标记（两侧齐）⇒ 从本清单删掉，
+#   判据会在「已销号」那一档里把它计入。**清单应当单调缩短。**
+# ══════════════════════════════════════════════════════════════════════
+
+known_duplicate_groups:
+  - key: 1eb10cd6e145916b
+    form: sample_case
+    article_nos: ["S-1.102", "S-1.216"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 01adccbcab540f3e
+    form: sample_case
+    article_nos: ["S-1.103", "S-1.254"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 39b69c3cb81e8ebc
+    form: sample_case
+    article_nos: ["S-1.105", "S-1.247"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 5e2c76a66c97ede9
+    form: sample_case
+    article_nos: ["S-1.107", "S-1.249"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 8dfd41534997ffdd
+    form: sample_case
+    article_nos: ["S-1.11", "S-1.284"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: c6bd65a94418ea9a
+    form: sample_case
+    article_nos: ["S-1.110", "S-1.202"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: e910126d97518815
+    form: sample_case
+    article_nos: ["S-1.115", "S-1.312"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: fa0e1f7c424a5868
+    form: sample_case
+    article_nos: ["S-1.12", "S-1.250"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 5f4d1faf585dcb08
+    form: sample_case
+    article_nos: ["S-1.120", "S-1.308"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 84dcfdf90fb28246
+    form: sample_case
+    article_nos: ["S-1.121", "S-1.227"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: d3e045691c93b96c
+    form: sample_case
+    article_nos: ["S-1.124", "S-1.240"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 46914f4eb755cd4f
+    form: sample_case
+    article_nos: ["S-1.125", "S-1.307"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: e70d7725ee4c5d2d
+    form: sample_case
+    article_nos: ["S-1.127", "S-1.291"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 3d9b8fa5a51f0e90
+    form: sample_case
+    article_nos: ["S-1.13", "S-1.219"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 98469340be72e264
+    form: sample_case
+    article_nos: ["S-1.130", "S-1.236"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: d36d3dab8cd03935
+    form: sample_case
+    article_nos: ["S-1.132", "S-1.225"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 98b51f9290f58d20
+    form: sample_case
+    article_nos: ["S-1.134", "S-1.313"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 086bbd06105bff3e
+    form: sample_case
+    article_nos: ["S-1.135", "S-1.248"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: f74323a3e5007237
+    form: sample_case
+    article_nos: ["S-1.136", "S-1.295"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 4997b70bbee43085
+    form: sample_case
+    article_nos: ["S-1.137", "S-1.251"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 6a9d9b6854e60bee
+    form: sample_case
+    article_nos: ["S-1.139", "S-1.234"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: df05c2ed9322e476
+    form: sample_case
+    article_nos: ["S-1.142", "S-1.302"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 6dfd6b6194a8f3b8
+    form: sample_case
+    article_nos: ["S-1.145", "S-1.285"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 416f5bc5147944a6
+    form: sample_case
+    article_nos: ["S-1.146", "S-1.293"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: af31e1cec9ca60f8
+    form: sample_case
+    article_nos: ["S-1.147", "S-1.224"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 70cc46beba13c625
+    form: sample_case
+    article_nos: ["S-1.150", "S-1.212"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 6ef3b75d48785783
+    form: sample_case
+    article_nos: ["S-1.151", "S-1.271"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: d468312f6f99946c
+    form: sample_case
+    article_nos: ["S-1.152", "S-1.265"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 22b9cc0775790372
+    form: sample_case
+    article_nos: ["S-1.153", "S-1.259"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 86b6eedceade7b31
+    form: sample_case
+    article_nos: ["S-1.156", "S-1.310"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: fff218ee33d2eba7
+    form: sample_case
+    article_nos: ["S-1.16", "S-1.316"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 1b908c6a56aea1bc
+    form: sample_case
+    article_nos: ["S-1.160", "S-1.272"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: c13f488617553dec
+    form: sample_case
+    article_nos: ["S-1.161", "S-1.237"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 78a9a18feb581cbf
+    form: sample_case
+    article_nos: ["S-1.162", "S-1.274"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 640d94fc6c65044f
+    form: sample_case
+    article_nos: ["S-1.163", "S-1.268"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: aba26d8971af6d6b
+    form: sample_case
+    article_nos: ["S-1.166", "S-1.305"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 74bf463b4790bed1
+    form: sample_case
+    article_nos: ["S-1.170", "S-1.220"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 4d4cda72417abe0d
+    form: sample_case
+    article_nos: ["S-1.175", "S-1.253"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 9697c205945cad8a
+    form: sample_case
+    article_nos: ["S-1.178", "S-1.258"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: c1457645f3aca85d
+    form: sample_case
+    article_nos: ["S-1.18", "S-1.211"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 8f94729c6ef8b1eb
+    form: sample_case
+    article_nos: ["S-1.180", "S-1.228"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: da45a1f195bd2e4d
+    form: sample_case
+    article_nos: ["S-1.182", "S-1.278"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 49e3242326af345d
+    form: sample_case
+    article_nos: ["S-1.186", "S-1.304"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 035bfb360226f0b2
+    form: sample_case
+    article_nos: ["S-1.19", "S-1.315"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 935692e0c7b7f31d
+    form: sample_case
+    article_nos: ["S-1.193", "S-1.281"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 1ba331fbb19af0eb
+    form: sample_case
+    article_nos: ["S-1.194", "S-1.276"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 9335fe14addf095f
+    form: sample_case
+    article_nos: ["S-1.200", "S-1.205"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 5340ed1d434f2b0d
+    form: sample_case
+    article_nos: ["S-1.203", "S-1.65"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 8560218e78fb14d1
+    form: sample_case
+    article_nos: ["S-1.204", "S-1.7"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 618690a5b002b183
+    form: sample_case
+    article_nos: ["S-1.206", "S-1.50"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 6f2428848de6dcc3
+    form: sample_case
+    article_nos: ["S-1.207", "S-1.59"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 58b8d6c3518a5b05
+    form: sample_case
+    article_nos: ["S-1.210", "S-1.95"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 038ea2e9084a3a87
+    form: sample_case
+    article_nos: ["S-1.217", "S-1.88"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 34a47f1cafb01186
+    form: sample_case
+    article_nos: ["S-1.218", "S-1.99"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: cf495159ade64dd9
+    form: sample_case
+    article_nos: ["S-1.22", "S-1.223"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 2e7a420b69e352ad
+    form: sample_case
+    article_nos: ["S-1.226", "S-1.3"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 9bb6841259befdcb
+    form: sample_case
+    article_nos: ["S-1.229", "S-1.33"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 1173c42c670256f5
+    form: sample_case
+    article_nos: ["S-1.232", "S-1.35"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 829b96472cddd098
+    form: sample_case
+    article_nos: ["S-1.235", "S-1.30"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 1c292599f894d306
+    form: sample_case
+    article_nos: ["S-1.238", "S-1.52"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 1f9c74ed2f181567
+    form: sample_case
+    article_nos: ["S-1.239", "S-1.42"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 52871bcfa7521ba6
+    form: sample_case
+    article_nos: ["S-1.24", "S-1.241"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: d8be436fa2298f07
+    form: sample_case
+    article_nos: ["S-1.243", "S-1.67"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 849f3f938e7da0e9
+    form: sample_case
+    article_nos: ["S-1.245", "S-1.36"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: ee3a32317bf41c7c
+    form: sample_case
+    article_nos: ["S-1.246", "S-1.80"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 20888e9ec983e106
+    form: sample_case
+    article_nos: ["S-1.25", "S-1.277"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 7519c14d69f83538
+    form: sample_case
+    article_nos: ["S-1.252", "S-1.60"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 814d2a601a8641b9
+    form: sample_case
+    article_nos: ["S-1.255", "S-1.79"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 63f62ef7525c4d6e
+    form: sample_case
+    article_nos: ["S-1.260", "S-1.41"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 603ff8d88137670c
+    form: sample_case
+    article_nos: ["S-1.263", "S-1.77"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 2a75eea04edb0347
+    form: sample_case
+    article_nos: ["S-1.264", "S-1.64"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 9e71dab859b37285
+    form: sample_case
+    article_nos: ["S-1.27", "S-1.289"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 00a82af76c60ac25
+    form: sample_case
+    article_nos: ["S-1.270", "S-1.46"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 944893fd495acb81
+    form: sample_case
+    article_nos: ["S-1.273", "S-1.8"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 7fabcf7597b8b8b8
+    form: sample_case
+    article_nos: ["S-1.275", "S-1.72"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 17ef6e7d581125c6
+    form: sample_case
+    article_nos: ["S-1.279", "S-1.66"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: a384daf72c709297
+    form: sample_case
+    article_nos: ["S-1.283", "S-1.37"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 976cce1a2921cf48
+    form: sample_case
+    article_nos: ["S-1.286", "S-1.51"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 854459cfc0e8b3a5
+    form: sample_case
+    article_nos: ["S-1.287", "S-1.71"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 199d81c45f76aa5d
+    form: sample_case
+    article_nos: ["S-1.290", "S-1.83"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 90fc2673db590ffe
+    form: sample_case
+    article_nos: ["S-1.297", "S-1.45"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 5c2667627c2c9761
+    form: sample_case
+    article_nos: ["S-1.299", "S-1.91"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 94c56d8d1a7f6695
+    form: sample_case
+    article_nos: ["S-1.300", "S-1.32"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: a5596a4874ae46ca
+    form: sample_case
+    article_nos: ["S-1.303", "S-1.44"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 7545e0b14771e077
+    form: sample_case
+    article_nos: ["S-1.309", "S-1.69"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: ca42d437c0ed2e5f
+    form: sample_case
+    article_nos: ["S-1.311", "S-1.63"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: bf5503d547ff9517
+    form: scoped_clause
+    article_nos: ["E-1.101", "E-1.130"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: d182d7dfb0b4532a
+    form: scoped_clause
+    article_nos: ["E-1.106", "E-1.125", "E-1.140", "E-1.157", "E-1.178", "E-1.20", "E-1.223", "E-1.226", "E-1.249", "E-1.26", "E-1.262", "E-1.278", "E-1.296", "E-1.368", "E-1.43", "E-1.57"]
+    note: 同内容多号，待裁销哪个（16 个号）
+  - key: 98dc19eb0d8e43ed
+    form: scoped_clause
+    article_nos: ["E-1.107", "E-1.294", "E-1.295", "E-1.322", "E-1.345", "E-1.72"]
+    note: 同内容多号，待裁销哪个（6 个号）
+  - key: 8b3ab834a2a77405
+    form: scoped_clause
+    article_nos: ["E-1.115", "E-1.91"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 9ec5d657c764f1ee
+    form: scoped_clause
+    article_nos: ["E-1.117", "E-1.118", "E-1.13", "E-1.154", "E-1.179", "E-1.259", "E-1.280", "E-1.353", "E-1.354"]
+    note: 同内容多号，待裁销哪个（9 个号）
+  - key: 6777b14141de2040
+    form: scoped_clause
+    article_nos: ["E-1.123", "E-1.193", "E-1.204", "E-1.3", "E-1.30", "E-1.32"]
+    note: 同内容多号，待裁销哪个（6 个号）
+  - key: 93511e412a486802
+    form: scoped_clause
+    article_nos: ["E-1.124", "E-1.281"]
+    note: 同内容多号，待裁销哪个（2 个号）
+  - key: 287817af15b9892e
+    form: scoped_clause
+    article_nos: ["E-1.212", "E-1.287", "E-1.333"]
+    note: 同内容多号，待裁销哪个（3 个号）
+  - key: 49866f6d82ddabea
+    form: scoped_clause
+    article_nos: ["E-1.233", "E-1.273"]
+    note: 同内容多号，待裁销哪个（2 个号）

@@ -1,0 +1,1302 @@
+# ledger-read-contract.yaml —— 三本追加式台账的**读侧取用键与 keep_rule** 登记
+#
+# 谁读它：人（评审/新成员）与 `kb/l7/scripts/daily_health.py` 一类巡检；**不是**给闸门复算用的
+#         （本文件不含可复算数字，故无对应 checker —— 这点如实写明，不假装有闸门在管）。
+#
+# 为什么要有这份登记（批次11 · C-3，2026-10-02）：
+#   「同键取行序最靠后」这个取法**项目里早就在用**（`kb/.work/l5_prep.py:183`、
+#   `kb/.work/l5_export.py:58`、`kb/.work/l4_integrity.py:116-117`，并由
+#   `kb/l3/registry/l3.json` 的 `dedup.wording_last_wins` 登记在案），
+#   但 **L0/L1/L3 三本主台账各自的取用键与 keep_rule 从没登记过** ——
+#   只有 `sample_case` 有 `keep_rule`（且写的是「最靠前」）。
+#   后果：写入侧各自无条件追加、读侧各自默认取最后一行，**没有任何一处声明它们是同一套契约**，
+#   于是「台账每跑一遍就翻一倍」既没人拦、也说不清算不算违背契约。
+#
+# 与既有惯例的关系：**不另立一套**。字段名沿用 `l3.json:dedup.wording_last_wins`
+#   （file / key / rule / row_order_is_version_order / why / existing_consumers）。
+#
+# 纪律（与 `l3-known-drift.yaml`、`l0-expected-diffs.yaml` 同一套）：
+#   * 这里登记的是**读侧口径**，不是豁免；原始行数一律照打，不抹掉。
+#   * 登记之后，「同键取最后一行」就是**有据可依的契约**，
+#     写入侧据此才敢只在**内容真变**时追加（见 `kb/kb_ledger.py` 与 `kb/l8/l0_ledger.py`）。
+
+meta:
+  file: kb/l7/registry/ledger-read-contract.yaml
+  created_at: "2026-10-02"
+  batch: "批次11 · C-3"
+  owner: 刘华丽
+  checker: null
+  checker_note: "本文件登记的是读侧口径，不含可复算数字，故无闸门消费它（如实写明，不虚构 checker）"
+  baseline_measured_at: "2026-10-02（批次11 执行前实测；行数为当时值，随台账增长而变）"
+
+# ── 三本主台账 ────────────────────────────────────────────────────────────
+contracts:
+
+  l1_manifest:
+    file: kb/l1/manifest_l1.jsonl
+    layer: L1
+    key: resource_key
+    rule: "每个 resource_key 取【行序最靠后】的那一行（后写覆盖先写）"
+    row_order_is_version_order: true
+    why: >-
+      该文件是跨层 append-only：初抽取 → OCR 回填 → 失效标记 → 重抓刷新，
+      每次都是「同一 resource_key 再追加一行表达新状态」。
+      追加顺序即状态演进顺序，故取最后一行 = 取当前状态。
+    why_not_earliest: >-
+      取最靠前会读到初抽取时的状态，把后续的 invalidated / 刷新结果全部丢掉。
+    existing_consumers:
+      - "kb/l8/extract_l1_new_resources.py:85-88（l1_latest[...] = r）"
+      - "kb/l8/extract_pdftext_full.py:193-195（lat_l1[...] = r）"
+      - "kb/l8/l2_staleness_audit.py:89-91（l1_status[resource_id] = status）"
+      - "kb/l8/l2_align_current.py:77-78"
+      - "kb/l8/l2_gap_reconcile.py:98-99（注释明写「同 resource_id 取文件顺序最后一行」）"
+      - "kb/l8/align_l1_manifest.py"
+      - "kb/l1/index/rebuild_l1_index.py"
+      - "kb/l7/scripts/l1_status.py（只读全列，不合并状态）"
+      - "kb/l7/scripts/media_status.py"
+      - "kb/l7/scripts/l2_gate.py:192-198（C5 上游可溯：只取 resource_id 集合，与行序无关）"
+    baseline:
+      measured_at: "2026-10-02（批次11 前）"
+      rows: 6351
+      unique_keys: 2449
+      duplicate_rows: 3902
+      note: "重复组里 517 组仅时间戳不同；910 组有非时间戳差异（涉 status/status_reason/source_sha256 等，属真实状态演进）"
+
+  l3_manifest:
+    file: kb/l3/manifest_l3.jsonl
+    layer: L3
+    key: rule_id
+    rule: "每个 rule_id 取【行序最靠后】的那一行（后写覆盖先写）"
+    row_order_is_version_order: true
+    mixed_log_warning: >-
+      本文件是**混合日志**：规则行有 `rule_id`，later 批次追加的 sample_case 行只有 `id`。
+      取用时必须先判 `rule_id` 是否存在，否则会崩（`kb/l8/l3_distill_run.py:414-417` 已按此处理）。
+    why: >-
+      跨层 append-only：L3 蒸馏写 provisional 行 → L5 前置（l5_prep.py）追加带
+      rule_kind/authority/p_level 的富化副本。追加顺序即版本顺序。
+    existing_consumers:
+      - "kb/l8/l3_distill_run.py:409-417（prev[rule_id]，幂等比较用）"
+      - "kb/.work/l5_prep.py:195-196（latest[rule_id]）"
+      - "kb/l8/l3_clause_distill.py"
+      - "kb/l7/scripts/daily_health.py:69-70（只做 mtime 新鲜度，不取内容）"
+    baseline:
+      measured_at: "2026-10-02（批次11 前）"
+      rows: 11470
+      unique_keys: 633
+      duplicate_rows: 10837
+      note: >-
+        633 个键里 509 个组的 `distiller_version` 序列是
+        ('l3-0.1','l3-0.2','l3-0.2',…) —— 即版本升级那一行之后全是同内容重复，
+        仅 `observed_at` 在变。这是本批 C-2 去重收益最大的一本。
+
+  l0_manifest:
+    file: kb/l0/manifest.jsonl
+    layer: L0
+    key: resource_key
+    rule: "每个 resource_key 取【行序最靠后】的那一行（后写覆盖先写）"
+    row_order_is_version_order: true
+    why: >-
+      跨脚本 append-only：认领新记录 / 补记附件 / 核验 URL / 落附件字节，
+      各脚本各追加一行表达该资源的最新状态。
+    existing_consumers:
+      - "kb/l8/align_l0_feishu.py:113-122（man_latest[resource_key]；另计 man_rows 总行数）"
+      - "kb/l8/extract_l1_new_resources.py:75-81（l0_latest / l0_active / l0_gone 全按它取）"
+      - "kb/l8/ingest_l0_new_records.py:162-166"
+      - "kb/l8/verify_l0_urls.py:51-55"
+      - "kb/l8/store_l0_attachments.py:54-58"
+      - "kb/l8/audit_l0_duplicates.py:37-43（专门审行重复）"
+      - "kb/l7/scripts/l2_gate.py:83（L0_MANIFEST 路径常量；用于 input_set 判定）"
+      - "kb/l7/scripts/daily_health.py:75（只做 mtime 新鲜度）"
+    dedup_impl: >-
+      **本台账已有专门的去重写入器** `kb/l8/l0_ledger.py:append_changed()`（2026-09-30 补）：
+      未变的行不追加，只刷新 sidecar `kb/l0/registry/last_seen.json`（保住「这轮还看见它」，
+      使「失踪」与「没查」分得清）。批次11 把绕过它的两个写入点（
+      `emit_l0_manifest_reconcile.py`、`ingest_l0_new_records.py`）之一改回走它。
+    baseline:
+      measured_at: "2026-10-02（批次11 前）"
+      rows: 7020
+      unique_keys: 2167
+      duplicate_rows: 4853
+      note: >-
+        重复组里 `change` 字段在 2164 组中的 1978 组发生变化，但
+        `status` 序列多为 ('registered','registered') 这类**同值重复** ——
+        即大量行连业务状态都没变，只是又被登记了一遍。
+
+  # ── 第 4 本（2026-10-08 补登记）：L3 逐单元拒绝台账 ──────────────────────────
+  # ★★ 为什么它迟了 6 天 —— 这一条本身就是本文件抬头那句话的**实例**：
+  #   本文件在 2026-10-02 就写下了这个病的确切形状：
+  #     「写入侧各自无条件追加、读侧各自默认取最后一行，**没有任何一处声明它们是同一套契约**，
+  #       于是「**台账每跑一遍就翻一倍**」既没人拦、也说不清算不算违背契约。」
+  #   但那一批只登记了上面三本主台账 —— **`kb/l3/rejected.jsonl` 不在其中**。
+  #   ⇒ 它继续每跑一遍翻一倍（4 版 × 8050 行），直到 2026-10-08 被撞上才补登记。
+  #   **教训**：写下判据 ≠ 覆盖到每一本账。补登记时必须按「库里有几本 append-only 台账」逐本核，
+  #   不能按「上次登记了哪几本」顺延。
+  l3_rejected:
+    file: kb/l3/rejected.jsonl
+    layer: L3
+    key: unit_id
+    rule: >-
+      同 `unit_id` 取【行序最靠后】的那一版；
+      **无 `rebuild_note` 的行是「原始行」，不参与版本比较**（它们不属于任何版本，单独保留、不并入取值）。
+    row_order_is_version_order: true
+    why: >-
+      本文件是**快照被写进了事件流**：重建脚本每跑一遍就把「当前全量拒绝集」整份追加一次。
+      追加顺序即版本顺序，故取最后一行 = 取当前口径。
+    why_not_earliest: >-
+      最靠前那版用的是**已被证伪的理由**（`sample_only_no_verdict`，见
+      `rejected_ledger_scope_change.code_reference`）—— 取最靠前会把排查引到错方向。
+    why_not_max_string: >-
+      ★ **不许按 `rejected_at` 字符串 `max()` 取版本**：本库 RUN 有两种形态
+      （`20261008-1500-scope-fix` 与 `daily-20261007-1605-L3`），字典序里 `'d' > '2'`
+      ⇒ 字符串 max **恒选中旧的 daily 版**。2026-10-08 真踩过：幂等判断因此把刚写好的正确版
+      当成「上一版」，又追加了一遍（+8103 行）。**判据 = 该版最后一次出现的行号。**
+    mixed_kinds_warning: >-
+      本文件是**混合台账**，取用前必须先判 `rebuild_note` 在不在：
+        · 有 `rebuild_note` = 重建行（带 `unit_id`，多版）；
+        · 没有         = 20260929-1300 事故后的**资源粒度原始行**（多数无 `unit_id`）。
+      **直接 `len(全部行)` 得到的是虚高约 6 倍的数**（实测 51017 vs 最新版 8103）。
+    gate_code_semantics: >-
+      `gate_code`（2026-10-08 加）回答的是**「它进没进门」**，与 `reason`（为什么没成规则）分开：
+        · `out_of_scope_kb`    —— kb_type 不在 L3 蒸馏范围；
+        · `out_of_scope_table` —— `internal_sample` 只收「专家修订汇总表」，本单元来自别的表；
+        · `metadata` / `metadata_unknown_field` —— `unit_type=entry` 且 heading_path 不是内容字段；
+        · `quality_flag`       —— 上游标了 `content_quality_flag`；
+        · `null`               —— **进了门**，但未产出规则（这才是「蒸不出来」）。
+      它与活引擎**共用同一把尺子**（`kb/l8/l3_scope.py::build_scope().exclusion_of`，
+      两个引擎都 import 它），故不会分叉。
+    read_only_entry: "kb/l7/scripts/l3_rejected_status.py（2026-10-08 新增；默认打四个数 + 最新版 gate 分布）"
+    existing_consumers:
+      - "kb/l7/scripts/l3_rejected_status.py（本文件登记后新增的读侧入口）"
+      - "kb/.work/l3_report.py:35（L3 落章引擎）—— **它读的是 `len(RJ)` = 总行数，虚高**；见 `known_consumer_overcount`"
+      - "kb/l8/l3_reject_ledger_rebuild.py（写入者自身；幂等比较取行序最后一版）"
+    known_consumer_overcount:
+      consumer: "kb/.work/l3_report.py:35 与 kb/l7/scripts/l3_status.py"
+      symptom: "打「拒收（内部）51017 行」—— 比可办事的数字（最新版 8103）**高约 6 倍**"
+      status: "**未改**（2026-10-08 只登记，不改历史脚本与落章引擎）"
+      correct_reading: "要「有多少条被拒」请读 `l3_rejected_status.py` 的**最新一版条数**，不读总行数"
+    baseline:
+      measured_at: "2026-10-08（补登记时实测）"
+      rows: 51017
+      original_rows: 2611
+      rebuilt_rows: 48406
+      versions: 6
+      latest_version: "20261008-1510-idempotent-check"
+      latest_rows: 8103
+      latest_gate_distribution:
+        metadata: 2932
+        进了门未产出规则: 2220
+        quality_flag: 2278
+        out_of_scope_table: 535
+        metadata_unknown_field: 127
+        out_of_scope_kb: 11
+      note: >-
+        6 版 = 4 版旧日更（各 8050，**理由已被证伪**）+ 2 版 2026-10-08 修正版（各 8103，
+        内容全等；第 2 版是**字符串 max 那个坑造成的重复**，如实登记、**未删除**）。
+    write_side_fixed:
+      at: "2026-10-08"
+      what: >-
+        `kb/l8/l3_reject_ledger_rebuild.py` 加**幂等闸**：与本台账最新一版逐 (`unit_id`,
+        `reason`, `gate_code`) 比，全等 ⇒ 不追加（并落一份 `idempotent: true` 的留痕报告）。
+      verified: "重跑实测 51017 → 51017（收敛）；且幂等路径也写留痕（否则「跑过无变化」与「没跑」分不开）"
+      does_not_fix_history: "**幂等只止住往后；已有 6 版一律不动**（红线：不删台账行）。"
+    why_history_not_deleted: >-
+      **不删**。① 本项目明文红线：`kb/l3/rejected.jsonl` 是有覆盖事故前科的文件，
+      「不许删台账行让闸门变绿」；② 那 4 版旧理由**本身就是证据** ——
+      它记着「当时账上写的是什么」，正是 `sample_only_no_verdict` 这条假理由骗过人的凭据。
+      ⇒ 「作废」用**追加**表达（本节即该声明），不用删除表达 ——
+      与 `kb/l2/_archive` / `rules-superseded-*.jsonl` / `retired`/`invalidated` 行同一套既定做法。
+
+# ── 写入侧改动登记（批次12 · 第0块裁定①：哈希变化必须留痕，不许悄悄变）────────
+# 为什么单独开这一节：这三本台账的**写入侧**在批次11/12 被改过，改了实现就改了文件哈希。
+# 哈希变了却没人登记，下一个人拿到旧哈希会以为文件被篡改或版本对不上。
+# 本节只登记**写入侧实现文件的哈希演进**，不改任何读侧口径。
+writer_hash_ledger:
+  meta:
+    registered_at: "2026-10-02"
+    batch: "批次12 · 第0块"
+    ruling: >
+      用户批次12 第0块裁定①：`l5_prep.py` **不回滚**（理由：写 candidates/rules.jsonl 的
+      `:188` 未动，边界1保护区保住；manifest_l3 正是 +1527/遍 的源头，回滚等于留着膨胀；
+      「未动五脚本」是批9/10 的授权边界，批11 C-2 第3写入点已明确授权）——
+      **但必须把哈希变化登记进本文件，写明改了哪一段、为什么、边界在哪。**
+
+  kb/.work/l5_prep.py:
+    before_batch11: "7386105a8ca4c8de03f4d37f35e59e6c457ef66c4d20cc8a4aa39979c7a6d756"
+    after_batch11: "c2ccf62641df1468…（批11 报告原值，非重算）"
+    after_batch12: "f832b357356c84d2b29ebeb8269437da4a3d359b6c922957986b71396378ba84"
+    what_changed_batch11: >
+      **只改写 `kb/l3/manifest_l3.jsonl` 的那一段**（原 `:198-206` 的无条件 `"a"` 追加），
+      改走 `kb/kb_ledger.py` 的同键去重追加。该段正是 manifest_l3 每遍 +1527 行的两个源头之一。
+    what_changed_batch12: >
+      给同一处补 `last_seen_path="kb/l3/registry/last_seen.json"`（第0块裁定②：补 sidecar），
+      使未变化的行去刷新「这轮还看见它」。**未改任何业务字段、未改追加条件。**
+    boundary_untouched: >
+      **`:188` 写 `kb/l3/candidates/rules.jsonl` 的整块追加原样未动** ——
+      那是 L4 canonical 的上游，属保护区。用户批11 复核已独立确认该段未动。
+    authorized_by: "批次11 C-2 第3写入点 + 批次12 第0块裁定①"
+    not_silent: >
+      本文件是哈希变化的**唯一登记处**。若将来再改，必须在本节追加 after_batch<N>，
+      不许只改文件不登记。
+
+  other_writers_changed_batch11_12:
+    note: >
+      批次11/12 另改了 7 个写入侧文件与 2 个新增文件。本节只详列 `l5_prep.py`
+      （它同时落在「未动五脚本」清单里，属**需要裁定的擦边**）。
+    measured_hashes:
+      note: >
+        **诚实交代一处纪律缺口**：批次12 的 sidecar 改动**未能在改前 `cp -p`**
+        （改完才发现没建批次12 备份，随后补建了 post-edit 备份）。
+        因此下表 "before" 一列给的是**批次11 报的 after 值**（批11 报告原文），
+        不是逐字节的改前盘面。**结论仍然成立**：批次12 的改动只往
+        `dedup_append(...)` 调用里加了 `last_seen_path=` / `run=` 两个关键字实参，
+        未改去重判定、未改追加条件、未改任何业务字段；
+        且 sidecar 功能已由单元反测验证（变更行追加 / 未变行只刷 sidecar / last-wins 语义不变）。
+      kb/l8/apply_ocr_to_l1.py:
+        before_p11_after: "86d9d1114b1934eb"
+        now_p12: "f0fe9536a80bb520"
+        batch12_change: "dedup_append(...) 加 last_seen_path='kb/l1/registry/last_seen.json', run=L1_RUN"
+      kb/l8/extract_l1_new_resources.py:
+        before_p11_after: "a50db0956ee7f399"
+        now_p12: "5c1399a06efe1f71"
+        batch12_change: "同上（manifest_l1 那处）"
+      kb/.work/l5_prep.py:
+        before_p11_after: "c2ccf62641df1468"
+        now_p12: "f832b357356c84d2"
+        batch12_change: "manifest_l3 那处加 last_seen_path='kb/l3/registry/last_seen.json', run=RUN"
+      kb/l8/l3_distill_run.py:
+        before_p11_after: "f351b57b12025f0b"
+        now_p12: "4e97705ea7b93fcd"
+        batch12_change: "同上"
+    files:
+      - kb/l8/reconcile_l0_feishu.py      # 批次11 A 块：输入新鲜度闸门 + 读侧留痕
+      - kb/l8/align_l0_schema.py          # 批次11 C-2 写入点⑥：归档去重 + 限量
+      - kb/.work/l6_scope.py              # 批次11 B 块：改为调 l6_scope_lib（口径单一化）
+      - kb/l8/apply_ocr_to_l1.py          # 批次11 C-2 写入点①；批次12 补 sidecar
+      - kb/l8/extract_l1_new_resources.py # 批次11 C-2 写入点②；批次12 补 sidecar
+      - kb/l8/l3_distill_run.py           # 批次11 C-2 写入点④；批次12 补 sidecar
+      - kb/l8/emit_l0_manifest_reconcile.py # 批次11 C-2 写入点⑤：改走 l0_ledger.append_changed
+    new_files:
+      - kb/kb_ledger.py                   # 批次11：通用 JSONL 去重 + 批次12 的 last_seen sidecar
+      - kb/l8/materialize_l0_compare.py   # 批次11 A 块：补上 feishu-compare 的生产者
+
+# ── 批次18 · 第3块(E)：**丙** 已落地 —— registry 只存现行集 ────────────────────
+schema_snapshots_split_registry_vs_archive:
+  registered_at: "2026-10-02"
+  batch: "批次18 · 第3块(E) 丙"
+  contract: >
+    **registry 存现行 schema，历史在 `kb/l0/_archive/schema_snapshots/<at>.jsonl`。**
+    · `kb/l0/registry/kb.json → schema_snapshots` = **只存现行集**（本轮读到 field-list 的表），
+      条数 == 本轮成功表数（正常 10）。**不再并归档摘要**。
+    · 归档摘要（原 `_archived_previous: true` 行）→ `kb/l0/_archive/schema_snapshots/<at>.jsonl`，
+      **append-only、永不删除**；同 `(table_id, at)` 不重复追加。
+  why: >
+    批次18 实测推翻批11 的半个判断：**按 `(table_id, at)` 去重一条都去不掉**
+    （75 条键**全部唯一**、重复 0）—— 膨胀**不是同键重复**，而是
+    「每轮把上一版活跃集整段推成归档摘要、永不清理」。
+    而 `kb/kb_ledger.py:36-44` 的契约**早就写好但没人执行**：`_archived_previous` 被定义为
+    **运行元数据（非业务内容）**，注释原话即「同一 (table_id, at) 的新鲜行与归档行若不算同内容，
+    归档就会与活跃集并存并逐轮累积」。本批把该契约**落到写入者**。
+  writer: "kb/l8/align_l0_schema.py（已改：只写现行集 + 归档摘要外移；**不是搬一次**）"
+  migration_record:
+    when: "2026-10-02 14:20（RUN `20261002-1420`）"
+    by: "kb/l8/align_l0_schema.py（真实写入路径，非一次性脚本）"
+    moved: "65 条遗留归档摘要 → 8 个 `at` 文件"
+    lost: 0
+    verify: "原 65 条 `(table_id, at)` 键 **全部在归档里，缺失 0**（批18 实测）"
+    no_delete: true
+    independent_recheck:
+      at: "2026-10-02（第3块 E 复核）"
+      method: >
+        **不采信文本，按磁盘复算**：① 用 `kb/l0/registry/kb.json.bak-pre-batch11-20261002-071138`
+        取「迁移前还在 registry 里的归档摘要」为基准集；② 遍历归档目录逐行建
+        `(table_id, at)` 键集；③ 求差。
+      result:
+        pre_migration_archived_in_registry: 37   # 基线备份里可见的归档摘要数
+        archived_rows_on_disk: 95                # 复核时的归档总行数
+        distinct_keys: 95
+        duplicate_keys: 0
+        registry_rows: 10
+        arithmetic: "10(现行) + 95(归档去重后) = 105 行在册、0 丢失、0 重复"
+      loss_found: 0
+      note: >
+        ⚠️ 复核确认「无丢失」**仅限于迁移那一刻在册的东西**。迁移**之前**
+        曾被旧代码压扁丢弃的 `refresh_note`（10 条）**不在其中**，见
+        `known_wrong_notes_not_backfilled.item.registration_now_stale` ——
+        **别把「迁移无损」误读成「历史完整」**。
+  criteria_met:
+    registry_stays_10: >
+      实测连续三轮均 **10**：`20261002-1420` → 10 ／ `20261002-1430` → 10
+      ／ `20261002-1247` → **10**（复核轮）。`legacy_archived_moved` 后两轮均 **0** ✅
+    archive_only_grows: "归档 75 → 85（批18）→ 95（复核轮 +10）行，**只增**、键无重复 ✅"
+    d5_red_cleared: >
+      ✅ **D5「可复跑」的最后一处红已清**。原红 = 七条判据第 4 条
+      「`schema_snapshots` 归档条数两遍相等」实测 `47(57) → 55(65) → 65(75)`（+8/+10 每遍）。
+      丙落地后 **registry 恒定 10、归档只增且可查**，该红解除（口径变更见
+      `schema_snapshots_growth.success_criterion_status`）。
+    judgement_4_reenacted: >
+      判据 4 的**同一形状**在复核轮再演一次并给数：
+      `before: registry=10 / archive=85` → `after: registry=10 / archive=95` ⇒ **registry 未变**。
+      原始机读留痕：`kb/l8/runs/20261002-1247-l0-schema-align.json`
+      与 `kb/l0/registry/kb.json → l0_schema_align[-1].schema_snapshots`。
+  consumer_audit:
+    - consumer: "kb/kb_ledger.py（**注意：不是 `kb/l0/kb_ledger.py`，该路径不存在**）"
+      needs: "**只需契约**（`RUN_METADATA_FIELDS` 含 `_archived_previous`），不读数据"
+      disposition: "无需改动 ✅"
+    - consumer: "kb/l8/align_l0_schema.py（写入者本身）"
+      needs: "现行集 + archive 目录"
+      disposition: "本批已改 ✅"
+    - consumer: "kb/l7/skills/kb-l0-feishu/{SKILL.md:168, references/scripts.md:79, references/coverage-matrix.md:30}"
+      needs: "**只需现行集**（说的是「刷新 schema_snapshots」「三项都比」= 当轮读到的字段表）"
+      disposition: "口径不变，**无需改动** ✅"
+    - consumer: 'kb/.work/batch4_fix_rule_eval.py:98（`reg["schema_snapshots"][-1][...] = ...`）'
+      needs: "按 `[-1]` 写**最后一版**（原为历史日志的最后一条）"
+      disposition: >
+        **历史一次性脚本**（batch4 批次产物，非在册活件）。
+        拆分后语义**仍成立**（`[-1]` 仍是本轮现行表的最后一条），故**不必改**；
+        但已登记：**它若重跑，写的是现行集，不再是历史日志** —— 这是刻意行为。
+    - consumer: 'kb/.work/batch4_run.py:413（`reg.setdefault("schema_snapshots", []).append(...)`）'
+      needs: "**追加**语义（原为历史日志）"
+      disposition: >
+        **历史一次性脚本，不在册**。拆分后它会把条目追加进**现行集** ⇒ 语义已变。
+        **登记为「若重跑需人判断」**，未改（不改历史脚本）。
+    - consumer: "kb/.work/batch4_report.py:435/:537"
+      needs: "只在**报告文案**里提到该字段名，不读数据"
+      disposition: "无需改动 ✅"
+    - consumer: "kb/l7/scripts/daily_health.py:66（`(\"l0/registry/kb.json\", \"registry\")`）"
+      needs: >
+        **不读 `schema_snapshots`** —— 只把 `kb.json` 当**一个文件**记 mtime 与行数
+        （`kind=registry`，且**明确不参与「这层跑过没有」的判定**）。
+      disposition: "无需改动 ✅（复核实测：`grep -n schema_snapshot` 在该文件 **0 命中**）"
+      side_fact: >
+        行数会从 **2937 → 2541**（丙把归档段移出 registry 的直接结果）。
+        该行数**只作展示**、不参与任何判据 ⇒ **无判据受影响**。
+    - consumer: "kb/l7/scripts/l0_gate.py / kb/l7/scripts/freshness.py"
+      needs: "**完全不读** `schema_snapshots`（`l0_gate` 读的是 `kb.json → filter`；`freshness` 只读 daily_health 的结论）"
+      disposition: "无需改动 ✅（复核实测：两文件 `grep -n schema_snapshot` 均 **0 命中**）"
+    - consumer: "**外部人读归档**（本次复核新增的消费点）"
+      needs: "**需读归档** —— 要查「当初那轮 schema 是什么」"
+      disposition: >
+        已指明位置：`kb/l0/_archive/schema_snapshots/<at>.jsonl`（见
+        `known_wrong_notes_not_backfilled.archive_read_location`）。
+        ⚠️ 读前必看该处的 `shape_warning`：8 个历史 `at` 是**压扁摘要**（无 `fields`），
+        只有 `20261002-1420` 起是**完整行**。
+    - consumer: "kb/l0/registry/kb.json.bak-pre-batch11-20261002-071138（基线备份）"
+      needs: "**需读历史** —— 用作「迁移前 registry 里有什么」的核对基准"
+      disposition: "**保留不动**（复核已用它复算迁移无损，见 `migration_record.independent_recheck`）✅"
+  consumer_audit_verdict: >
+    **逐个核到行（非按文件名推测）**：全部 **9 个**消费点，**无一个要求从 `schema_snapshots` 读历史**。
+    需要历史的只有 2 个，且都不依赖 registry：
+      ① 外部人查历史 → 已指明归档位置；
+      ② 基线备份 → 文件本身保留。
+    ⇒ 丙的**唯一风险点（消费方读不到历史）未发生**：没有任何消费点被断掉。
+
+# ── 批次18 · 4-3：继承清单的**机械产出**（判据需分层）────────────────────────
+inheritance_list_mechanical:
+  registered_at: "2026-10-02"
+  batch: "批次18 · 4-3"
+  why: >
+    批18 我**手工**把继承字段从用户给的 8 个补到 10 个。用户指出
+    「手工加会漏第 11、12 个」⇒ 要求给一条**机械产出**的命令。
+  command: >
+    python3 -c "
+    import json,glob,os,collections;
+    CAND=\x7b'wording_entry':'kb/l3/candidates/rules.jsonl',
+    'wording_revision_pair':'kb/l3/candidates/rules.jsonl',
+    'sample_case':'kb/l3/candidates/sample_cases.jsonl',
+    'scoped_clause':'kb/l3/candidates/scoped_clauses.jsonl',
+    'clause':'kb/l3/candidates/external_standard.jsonl'\x7d;
+    ck=collections.defaultdict(set);
+    [ck[n].update(json.loads(l)) for f in glob.glob('kb/l4/canonical/*.jsonl')
+     for n in [os.path.basename(f)[:-6]] for l in open(f,encoding='utf-8') if l.strip()];
+    cd=collections.defaultdict(set);
+    [cd[k].update(json.loads(l)) for k,v in CAND.items() for l in open(v,encoding='utf-8') if l.strip()];
+    print(sorted({x for k in ck for x in ck[k]-cd[k]}))"
+  raw_result: >
+    跨件并集 = **16 个键**：
+    `authority, authority_source_table, baseline_date, cite_check, distiller_version,
+     effective_from, half_life_days, kb_version, never_resets_on_regeneration, p_level_basis,
+     promoted_at_run, promoted_from, promotion_basis, risk_evidence_records, rule_kind, valid_until`
+  ★ layering_required: >
+    **16 个不能一律继承** —— 必须分两层（否则会**冻住**重推本该刷新的字段）：
+      A) **必须继承**（治理/权威值，重推**不产生**）= 11 个：
+         `authority, authority_source_table, baseline_date, distiller_version, effective_from,
+          half_life_days, never_resets_on_regeneration, p_level_basis, risk_evidence_records,
+          rule_kind, valid_until`
+      B) **重推无条件重算**（继承会冻住它 ⇒ **不继承**）= 5 个：
+         `cite_check, kb_version, promoted_at_run, promoted_from, promotion_basis`
+         （判据 = 它们出现在 `fix_l4_repromote.py` 的 `triple()` 返回里）
+  verdict_on_hand_list: >
+    我手工的 10 个**全部落在 A 层**，未漏任何「必须继承」的字段。
+    机械清单多出的 7 个里：`baseline_date` 属 A（**机械产出确实补出了它** ——
+    A 层 11 = 我的 10 + `baseline_date`），其余 6 个里 5 个属 B、`kb_version` 亦属 B。
+    ⇒ **用户「会漏第 11、12 个」的担心方向正确**（确实补出了 `baseline_date`），
+    但「一律机械并入」会误伤 B 层 ⇒ **判据分层后机械产出才可用**。
+  recommend: >
+    下一批把 `INHERIT_FIELDS` 改为**从本命令的 A 层结果生成**（而非手工列表），
+    并加一条断言：A 层 11 个必须 ⊆ `INHERIT_FIELDS`。**本批未改代码**（预算）。
+
+# ── 批次18 · 第3块(E)：schema_snapshots 膨胀的**真相**与登记 ────────────────────
+schema_snapshots_growth:
+  registered_at: "2026-10-02"
+  batch: "批次18 · 第3块(E)"
+  file: "kb/l0/registry/kb.json → schema_snapshots"
+  measured:
+    total: 75
+    active: 10          # 带 fields 的快照 = 本轮成功读到 field-list 的表数
+    archived_summary: 65  # `_archived_previous: true` 的归档摘要
+    blocked: 0
+    rounds: 8
+    rounds_detail: >
+      `20261002-1200`(10) ／ `20261002-0810`(10) ／ `20261002-0703`(8) ／ `20261002-0630`(8)
+      ／ `20260930-1105`(10) ／ `20260930-1100`(8) ／ `20260929-1340`(10) ／ `20260924-1100`(1)
+  two_calibers:
+    "条数": "= 归档摘要数（`_archived_previous` 为真）"
+    "括号内数": "= 总条数（活跃 + 归档摘要 + blocked）"
+    prior_report_convention: "批12 报告的「47(57) → 55(65) → 65(75)」即 (归档摘要) 与 (总条数) 两口径"
+  plus8_vs_plus10:
+    answer: >
+      **+10 = 那一轮 10 张表 field-list 全部成功；+8 = 那一轮有 2 张表失败**
+      （实测 `20261002-0703`/`0630` 与 `20260930-1100` 各只归档 8 条 ——
+      正是批9 那次「10/10 失败」与其它失败轮留下的痕迹）。
+      **每轮把上一版的活跃集整段推成归档摘要**，故增量 = 上一轮成功表数。
+  dedup_result: >
+    ★ **同键去重无效，一条都去不掉。** 实测按 `(table_id, at)` 去重：
+    **75 条键全部唯一、重复组合 0**。
+    ⇒ 批11 我曾以为「按 (table_id,at) 去重 + 限量」能解决，**那半个判断是错的**：
+    膨胀**不是同键重复**，而是「**每轮新增一批键各不相同的归档摘要、永不清理**」。
+    ⇒ 因此**判据「下一遍条数 == 本遍」无法靠去重达成**，只能靠**保留策略**。
+  current_limiter:
+    where: "kb/l8/align_l0_schema.py（批11 加的 `MAX_ARCHIVE_ROWS = 200`）"
+    state: "**已存在但从未触发**（65 < 200）—— 即上限设得过宽，等同没有"
+  options_for_human:
+    - id: 甲
+      what: "把 `MAX_ARCHIVE_ROWS` 收紧到有界值（如 40 = 活跃 10 + 4 轮归档）"
+      effect: "本轮 75 条**不动**（65 > 40 时只在**下次写入**时截断）；此后每轮增长被夹住"
+      cost: "**会删掉较旧的归档摘要**（-25 条左右）"
+      conflict: "与纪律5「不许回填历史」的**精神**有张力 —— 删历史同样是改历史"
+    - id: 乙
+      what: "**保持现状 + 本条登记**（本轮实际选择）"
+      effect: "75 条原样；膨胀继续（每轮 +8~+10）"
+      cost: "判据「下一遍 == 本遍」**达不成**，如实报红"
+    - id: 丙
+      what: "把归档摘要**外移到 `kb/l0/_archive/`**（沿用既有归档形态），registry 里只留活跃集"
+      effect: "registry 恒定 10 条；历史全留、只是换地方"
+      cost: "要改 `align_l0_schema.py` 的写入路径 + 消费点（`l0_gate`/`daily_health` 等）"
+  chosen: 丙
+  chosen_reason: >
+    **人裁（2026-10-02，用户裁定走丙，并明确「要修写入者，不是只搬一次」）**：
+    甲（收紧 `MAX_ARCHIVE_ROWS` 删 ~25 条）＝**删历史**，违反「不许回填/删历史」这条
+    贯穿全工程的纪律，且删了就没法回答「当初那轮 schema 是什么」；
+    乙（不动 + 登记）＝膨胀继续，「下一遍 == 本遍」这条红**永远清不掉**，
+    等于用「登记」代替「修好」。⇒ 走丙。
+    ★ 登记时点说明：本字段原写 `乙`（批18 当时的选择），
+    **同一文件上方 `schema_snapshots_split_registry_vs_archive`（:199）记的是丙已落地** ——
+    两处**自相矛盾**；2026-10-02 复核时按事实统一为 `丙`（保守：以磁盘实测为准，非以文本为准）。
+  success_criterion_status: >
+    ✅ **已达成**（原为「未达成」，2026-10-02 复核改绿）。逐轮实测：
+      · `20261002-1420` → registry **10**（本轮外移遗留 65 条）
+      · `20261002-1430` → registry **10**（`legacy_archived_moved: 0`）
+      · `20261002-1247` → registry **10**（`legacy_archived_moved: 0`，**本次复核新跑的连续轮**）
+    ⇒ 连续轮**不再累积**，判据「下一遍条数 == 本遍」**成立**。
+    ★ 口径变更（important）：本判据**原口径**是「registry 里归档条数两遍相等」；
+    丙把归档外移后，**registry 内已无归档条数可数** ⇒
+    新口径 = **「registry 条数 == 本轮成功表数（10）」且「归档目录只增」**。
+    归档目录**按设计增长**（append-only、永不删），**不再要求两遍相等** ——
+    这不是放松判据，是判据的**对象**从「registry 内的归档段」换成了「registry 的现行集」。
+
+# ── 批次18 · 判据⑤：政策层 → 应用层 的读取关系 ────────────────────────────────
+policy_to_application_governance:
+  registered_at: "2026-10-02"
+  batch: "批次18 · 第2块 判据⑤"
+  policy_layer:
+    file: kb/l3/registry/half-life-policy.json
+    policy_id: half-life-policy-20260929-1040
+    is_the_only_source_of_truth: true
+    fields_it_owns: [half_life_days, baseline_date, valid_until_formula, never_resets_on_regeneration]
+  application_layer:
+    file: kb/l8/backfill_l4_governance.py      # 批次18 新增（本批实际执行者）
+    predecessor: kb/.work/fix_f7_backfill.py   # 原应用器（保留，未删）
+    how_it_reads: >
+      **档位天数从政策文件读**（`half_life_tiers[*].half_life_days`）；
+      TierB 的来源表**从政策 `half_life_tiers.B.condition` 文本正则解析**
+      （实测解析出 `['W1卖点表达边界（品线反馈0910）', '广告文案明细']`）。
+      **应用层不另写档位表** —— 这是「单一真源」的可核形式：
+      `grep -n "365\\|90\\|180" kb/l8/backfill_l4_governance.py` 应**只命中注释**，
+      不命中任何档位赋值（判据④ 的 grep 证据即此）。
+  reads_direction: "政策层 →（派生）→ canonical 逐行字段；**反向不成立**（canonical 不改政策）"
+  write_scope: "应用层只写 `kb/l4/canonical/*.jsonl` 的行字段；不动政策文件"
+  drift_guard: >
+    政策文件的 `count` 三档是**历史快照**（见 `count_semantics`），
+    **不得**拿来与应用层行数比 —— 要比就**现算**。批18 实测：政策三档合计 509（旧候选集规模），
+    canonical 实测 `{A:0,B:34,C:1331}`。两者本就不同口径，不是漂移。
+
+# ── 批次18 · 已知错误注记登记（不回填）────────────────────────────────────────
+known_wrong_notes_not_backfilled:
+  registered_at: "2026-10-02"
+  batch: "批次18 · 第2块"
+  item:
+    where: "kb/l0/registry/kb.json → schema_snapshots"
+    which: "**10 条**（实测：带 `refresh_note` 且注记含「旧快照为 20260924-1100」的条目）"
+    wrong: "注记称「旧快照为 20260924-1100」"
+    correct: "实际被归档的最新旧快照时点是 `at=20260930-1105`（该注记写死了一个更早的日期）"
+    root_cause: "kb/l8/align_l0_schema.py:129 的 `refresh_note` **写死**日期，逐轮累积"
+    fixed_at: "2026-10-02（批次18）—— 已改为**动态**：写本轮 RUN + 动态列出实际被归档的旧快照时点"
+    why_not_backfilled: >
+      **不回填历史**（工程纪律 5）：那 10 条是**历史写入的既成事实**，
+      回填等于篡改审计留痕。正确做法是**修源头（已修）+ 登记事实（本条）**，
+      让读的人知道「这 10 条注记不可信」，而不是把它们改成好看的。
+    verify: >
+      `python3 -c 'import json;d=json.load(open("kb/l0/registry/kb.json"));
+      print(sum(1 for s in d["schema_snapshots"] if "20260924-1100" in (s.get("refresh_note") or "")))'`
+      → **0**（2026-10-02 复核实测，**原登记预期为 10，前提已不成立** —— 见 `registration_now_stale`）。
+      ★ **本次复核改写了这一条**：登记当初写「那 10 条历史条目照旧」，实测已**一条都不存在**。
+    registration_now_stale:
+      found_at: "2026-10-02（第3块 E 复核，复核人：本会话）"
+      claim_no_longer_true: >
+        「那 10 条带错误注记的历史条目**照旧存在**、可用于验证」——**不成立**，实测 **0 条**。
+      what_actually_happened: >
+        **不是 E 删的，也不是本次复核删的。** 逐轮归档行的形态实测（
+        `kb/l0/_archive/schema_snapshots/2026*.jsonl` 每行键集）证明：
+          · `20260924-1100` ～ `20261002-1200`（**8 个历史 at**）的归档行 = **压扁摘要**
+            （键集 `(_archived_previous, at, field_count, table_id, table_name)`，**无 `refresh_note`**）
+          · `20261002-1420` / `1430` / `1247`（**丙落地后**）= **完整行**（含 `fields` 与 `refresh_note`）
+        ⇒ 那 10 条错误注记是在**旧代码把活跃集压成摘要**的那一步（≤ `20261002-1200` 轮）
+        连同 `fields` 一起被丢弃的，**早于丙落地**。
+        丙只是**把当时已经不在了的东西的存放位置**换掉，**未再损坏**任何注记。
+      consequence_for_readers: >
+        读这条登记的人**不要再去找那 10 条**。正确结论是：
+          · 错误注记**已从盘面消失**（注记文本不可回源核对）；
+          · 源头**已修**（`refresh_note` 改为动态写本轮 RUN）；
+          · 🆕 丙落地后归档行**保留完整 `refresh_note`** ⇒ 今后同类错误**可核**（不会再被压扁丢掉）。
+      discipline_note: >
+        **没有为了「让登记好看」去回填**。如实把登记本身标为「前提已失效」，
+        而不是把 `verify` 的预期数字悄悄改成 0 了事 —— 上面两行都留着（预期 10 / 实测 0）。
+      why_not_backfilled: "同 `why_not_backfilled` 的理由：不回填历史。此处更进一步 —— 已无物可回填。"
+
+  archive_read_location:
+    added_at: "2026-10-02（第3块 E③，用户要求「有任何一个需要读历史 ⇒ 说明它改读归档的什么位置」）"
+    path: "kb/l0/_archive/schema_snapshots/<at>.jsonl"
+    format: "每行一个 JSON 对象；文件名 = 该轮的 RUN（如 `20261002-1420.jsonl`）"
+    append_only: true
+    key: "(table_id, at) —— 同键不重复追加；实测 95 行 / 95 个唯一键 / 重复 0"
+    shape_warning: >
+      ⚠️ **归档里两种行形态并存，读的人必须按 `fields` 键是否存在分支**：
+        · **压扁摘要行**（8 个历史 at，共 65 行）：只有
+          `_archived_previous / at / field_count / table_id / table_name`
+          ⇒ **拿不到字段清单**，只能回答「那轮有几张表、每张几个字段」
+        · **完整行**（丙落地后的 at，20261002-1420 起）：含 `fields` + `records_count` + `refresh_note`
+          ⇒ 能回答「当初那轮 schema 是什么」
+      **「不许删历史」做到了，但「历史可回源」只有丙之后成立** —— 这条区别必须写清，
+      否则会误以为任何 `at` 都能查到字段级 schema。
+    consumers_that_must_read_history: []   # 实测：无。见 `consumer_audit`（全部只需现行集）
+
+  item2:
+    where: "kb/l7/skills/kb-content-review/scripts/review.py"
+    which: "`:662-663` 与 `:666` 直取 `h['authority']` / `h['authority_source_table']`"
+    risk: >
+      对「键存在但值为 None」**仍安全**（不 KeyError）；但 `clause` 形态**这 5 个键本身不存在**
+      （见 `clause_form_fields_have_no_source`）⇒ 一旦这些行走进该分支即 **KeyError**。
+    fixed_at: null
+    scheduled: "**第 8 块（裁决侧接 KB 依据）一并改 `.get()`** —— 按用户 2026-10-02 指示，不许漏"
+    why_not_now: "同文件同区域要在第 8 块统一接线，现在改会造成同一处两次改动、留痕割裂"
+
+# ── 批次18 · 第2块:clause 形态的五个字段「无源、留空」（用户裁定 (b)）────────────
+clause_form_fields_have_no_source:
+  registered_at: "2026-10-02"
+  batch: "批次18 · 第2块"
+  scope: "kb/l4/canonical/clause.jsonl 的 123 行"
+  fields: [authority, rule_kind, p_level_basis, authority_source_table, risk_evidence_records]
+  verification: >
+    **逐层翻过，三层都没有源**（批次18 实测，非推测）：
+      · 候选层 `kb/l3/candidates/external_standard.jsonl`：**没有**这 5 个键
+      · 台账层 `kb/l3/manifest_l3.jsonl`：涉及这 123 个 `rule_id` 的行 **123/123 命中**，
+        但 5 个字段**有值条数全为 0**（`authority:0 ／ rule_kind:0 ／ p_level_basis:0 ／
+        authority_source_table:0 ／ risk_evidence_records:0`）
+      · 上游 L2 单元层：这 123 条涉及的 8 个 `resource_id` 下有 1696 个单元，
+        但 `heading_path` **全为 `None`** ⇒ 无字段角色信息，**派生不出判定值**
+    ⇒ 用户批18 裁定：走 **(b) 显式登记为「本形态无此字段来源，留空」**。
+  ruling: >
+    **留空 ≠ 缺失。消费方必须容忍空值。**
+    不许为凑字段编造值；也不许把「空」误判成「这条没有权威依据因而降级」——
+    语义上它们是**未定义**，不是**否定**。
+  consumers_named:
+    - file: kb/l7/skills/kb-content-review/scripts/review.py
+      lines: "261-263"
+      how: "`r.get(...)` 取值 ⇒ 空值给 `None`，**容忍空值 ✅**"
+      risk: >
+        **同一文件 `:662-663` 与 `:666` 改用 `h['authority']` / `h['authority_source_table']` 直取**。
+        对「键存在但值为 None」**仍安全**（不会 KeyError）；但若 `clause` 行**键本身不存在**（本形态确实不存在），
+        一旦这些行走进该分支就会 **KeyError**。**本次未修**（属第 8 块「裁决侧接 KB 依据」的接线范围，
+        届时一并按 `.get()` 统一）。**如实登记为已知风险，不掩盖。**
+    - file: kb/.work/fix_f7_backfill.py
+      how: "读 `authority_source_table` 判 B 档 —— 空值落到 **C 档**，逻辑自洽 ✅"
+    - file: kb/.work/l4_sleep_clauses.py
+      how: "`.get()` 取值 ⇒ 容忍空值 ✅"
+    - file: kb/.work/l5_prep.py / kb/.work/fix_l4_repromote.py
+      how: "继承/重建时对缺键**不写入**（`if f not in o: continue`）⇒ 不会凭空造值 ✅"
+  side_effect_confirmed: >
+    旁证（用户给，我复算确认）：`clause` 无 `authority_source_table` ⇒ 按政策落 **Tier C（180 天）**，
+    这正是 `C:1331 = 1365 − 34` 的来源 —— **逻辑自洽**，不是副作用。
+
+# ── 批次16 · 第1块三项登记 ───────────────────────────────────────────────────
+batch16_registrations:
+  meta: {registered_at: "2026-10-02", batch: "批次16 · 第1块"}
+
+  # 1-1a：候选层只装生行；富化字段唯一真源 = manifest_l3
+  candidate_layer_raw_only:
+    file: kb/l3/candidates/rules.jsonl
+    rule: >
+      **候选层只装生行**。`rule_kind` / `authority` / `p_level` 三个富化字段的
+      **唯一真源 = `kb/l3/manifest_l3.jsonl`**（append-only，没人覆盖它）。
+      候选层里这三个键**要么没有、要么是初始值**，**不是判定值**。
+    why: >
+      批次13 定性：`kb/l8/l3_distill_run.py:426` 每遍用 `"w"` 把 `rules.jsonl` 覆盖成
+      只有生行的版本；富化行由 `kb/.work/l5_prep.py:192` 以 `"a"` 追加。
+      两个写入者的行**键集不同**（生行 7 键 / 富化行 10 键）⇒ 曾导致去重永不成立
+      （`manifest_l3` 每遍 +1018）。
+    history_2036: >
+      `rules.jsonl` 曾达 **2036 行** = 「生行 ×2 遍 + 富化行 ×2 遍」的累积产物
+      （实测按 `distiller_version`：`{None: 1018, 'l3-0.2': 1018}`）。
+      **不是丢数据** —— 批12 已定「候选层只装生行」，2036 是口径归位前的残留。
+      口径归位后该文件 = **509 行生行**，富化集 509 条在 `manifest_l3` 里一条不少。
+    consumers_must_not: >
+      **不许**从 `rules.jsonl` 直取 `rule_kind`/`authority`/`p_level`。
+      已知两处已按「从 `manifest_l3` 补缺键、**不覆盖已有值**」兜底：
+        · `kb/.work/l5_prep.py`（`:231` 附近，`latest` 回读兜底）
+        · `kb/.work/l5_export.py:88-101`（同一兜底；实测最终 `p_level` 取到富化值 `P0`）
+    measured_p_level_mismatch:
+      count: 42
+      observed_at: "2026-10-02（批次15 实测）"
+      what: >
+        **42 条**规则的生行 `p_level` 与富化行 `p_level` **不一致**（生行是初始值、
+        富化是判定值）。全部已由上述兜底纠正为富化值。
+      stability: >
+        **不保证稳定**：生行值随 L3 蒸馏重算，富化值随 L5-prep 重算；
+        只要上游分类口径变，差额就会变。**故不许把 42 当常数用** ——
+        需要时**现算**（`manifest_l3` last-wins vs `rules.jsonl` 对比）。
+      source_of_truth: kb/l3/manifest_l3.jsonl
+      # ── 批次18 · 第4块 4-2：从「未验」改为「**不做 + 理由**」────────────────────
+      disposition:
+        verdict: "**不做**（明确不改数据、不改代码）"
+        decided_at: "2026-10-02（批次18 第4块 4-2，用户裁定）"
+        status_before: "**未验** —— 登记了数字，但「这 42 条要不要处理」一直挂着没定性"
+        status_after: "**不做 + 理由**（本条）"
+        why_not_do:
+          - reason: "① 差额**不是缺陷**，是分层设计的**预期产物**"
+            detail: >
+              候选层**按契约只装生行**（见 `candidate_layer_raw_only`），生行的 `p_level`
+              本就是**初始值**；判定值只在富化层。两者不同是**设计**，不是数据损坏。
+          - reason: "② 真正的消费面**已经对了**（已实测，非推测）"
+            detail: >
+              `kb/.work/l5_export.py:88-101` 的富化兜底从 `manifest_l3` 补齐
+              `rule_kind/authority/p_level`（实测打印「从 manifest_l3 补齐 N 条」）。
+              ⇒ 下游拿到的**是判定值**，那 42 条**不会被任何人误用**。
+          - reason: "③ 处理它反而**会破坏契约**"
+            detail: >
+              要把生行 `p_level` 改成判定值，就得让候选层装富化值 ——
+              正是 `candidate_layer_raw_only` 明令**不许**做的事
+              （历史上它导致 `manifest_l3` 每遍 +1018 行、去重永不成立）。
+              ⇒ **「不做」不是省事，是唯一不违反契约的选择。**
+          - reason: "④ 42 这个数**不可当常数**，盯它没有意义"
+            detail: >
+              生行随 L3 蒸馏重算、富化随 L5-prep 重算 ⇒ 差额会漂。
+              需要时**现算**，不设阈值、不设告警。
+        recheck_2026_10_02:
+          method: "现算 `rules.jsonl`(生行) vs `manifest_l3.jsonl`(last-wins) 的 `p_level` 差"
+          raw_rule_ids: 509
+          enriched_rule_ids: 509
+          intersect: 509
+          mismatched: 42          # ← 与登记值 42 **一致**
+          distribution: "{('P1','P0'): 15, ('P2','P1'): 10, ('P1','P2'): 7, ('P2','P0'): 6, ('P1','P3'): 4}"
+          verdict: "✅ 登记值 42 **复算仍成立**（不是陈旧数字）；差额存在且**继续不做**"
+        does_not_relax_criteria: >
+          **本判定不使任何判据变绿** —— 判据里从来没有「42 必须为 0」这一条。
+          从「未验」改成「不做」只是**把挂着的问题定性**，不改变任何实测数字。
+
+  # ── 批次18 · 第4块 4-4：l4_report.py 命名避撞**确认**（非推测）────────────────
+  l4_report_naming_collision:
+    asked_at: "2026-10-02（批次18 第4块 4-4，用户要求「确认」）"
+    verdict: "✅ **无撞名**（实测到行，且**避撞是刻意写进代码注释的**，不是碰巧）"
+    evidence:
+      l4_report:
+        file: kb/.work/l4_report.py
+        line: 139
+        code: 'STAMP = f"{L4}/runs/{RUN}.json" if APPLY else f"{L4}/runs/{RUN}-dryrun.json"'
+        writes: "kb/l4/runs/<RUN>.json ｜ <RUN>-dryrun.json ｜ <RUN>.report.md ｜ <RUN>.ops.log"
+        role: "**L4 落章引擎**（它写顶层 `skill` 供 E2 消费）"
+      fix_l4_repromote:
+        file: kb/.work/fix_l4_repromote.py
+        line: 531
+        code: '_dry_path = f"{RUNS_DIR}/{RUN}-canonical-dryrun.json"'
+        writes: "kb/l4/runs/<RUN>-canonical-dryrun.json"
+        role: "重推工具（预演档）"
+      collision: "**无** —— `-dryrun.json` vs `-canonical-dryrun.json` 两个不同文件名"
+    declared_intent:
+      where: "kb/.work/fix_l4_repromote.py:32 与 :527 的注释**原文**"
+      text: >
+        「④ 干跑产物命名避撞：**不叫** `<RUN>-dryrun.json` —— 那个名字归 L4 落章引擎
+        `l4_report.py`（它写顶层 skill 供 E2 消费）。」
+      reading: >
+        ⇒ 避撞是**先声明后实现**的（注释与代码同文件、同一决定），
+        **不是事后解释**。这条正是「同名不同产物」最容易被踩的坑，
+        历史上已在别处踩过，此处已预先堵住。
+    uniqueness_check:
+      active_copies: 1
+      note: >
+        全库 `find -name l4_report.py -not -path '*/_backups/*'` 只命中 **1 个**
+        （`kb/.work/l4_report.py`）；另一处在
+        `kb/l7/_backups/interp-20260929-175116/.work/l4_report.py`，属**备份、不在册**。
+      import_check: "**无人 `import l4_report`**（grep 全库：仅注释里被引作「样板」），故无模块名冲突"
+      siblings_are_distinct: "同级 `l0…l7_report.py` 各写各自层的 `runs/`，命名按层分，无交叠"
+
+  # 1-1b：rejected.jsonl 口径变更 + 回滚点
+  rejected_ledger_scope_change:
+    file: kb/l3/rejected.jsonl
+    change: "10661 行 → 2611 行（批次13，L3 第三遍）"
+    diff: 8050
+    breakdown:
+      3871: "条款不可判定、或已被同库其它条款覆盖"
+      3637: "登记型字段值（元数据），不含可判定内容"
+      535:  "sample_only_no_verdict"
+      7:    "其它"
+    code_reference:
+      file: kb/l8/l3_reject_ledger_rebuild.py
+      note: >
+        **未逐行核到判据行** —— 批15/16 预算内没有把 8050 的每一类映射到该脚本的
+        具体过滤行。**如实标注为「未落到行」**，不假装落到了。
+        已知同族事实：`kb/l8/l3_distill_run.py` 的拒绝分桶现为
+        `{no_clause_text 30, clause_not_actionable 1551, no_rule_derivable 145,
+          sample_only_no_verdict 753, absorbed_as_reason 132}` 合计 2611。
+      # ── 2026-10-08：**这笔欠账已还**（下面如实换掉「未落到行」，不抹掉原文）────────
+      paid_at: "2026-10-08"
+      how: >
+        **核到行了。** 方法：把活引擎 `kb/l8/l3_distill_run.py` 的过滤块
+        （`kb not in (...)` / `internal_sample 且 meta.table != 专家修订汇总表` /
+        `entry 且 heading_path 非内容字段` / `content_quality_flag`）
+        与重建脚本的 `reason_of()` **对齐成同一把尺子** —— 判据抽成共用模块
+        `kb/l8/l3_scope.py::build_scope().exclusion_of()`，两个引擎都 import。
+        等价性核对：旧内联判据 vs 新共用判据，在**全部 12266 条 L2 单元**上逐条比，**0 处不一致**。
+      what_it_actually_was: >
+        ★★ **上一版 `reason` 里的 535 条 `sample_only_no_verdict` 是假理由。**
+        实情：活引擎在**第一道过滤**就把 `internal_sample` 里除「专家修订汇总表」外的单元
+        按 **`out_of_scope_table`** 剔掉了（实测 **736 条**）——**它们从未进入蒸馏**，
+        谈不上「源表未给出命中判定或修订建议」。而负面样本表其实有
+        `原因分类`(120/170 非空)、`具体原因/分析`(170/170)、`建议`(**99/170 非空**)。
+        **这条假理由在 2026-10-08 把人（本会话）带偏过一次**，故按「如实换掉」处理。
+      new_gate_distribution:
+        measured_at: "2026-10-08，最新一版 8103 条"
+        metadata: 2932
+        进了门未产出规则: 2220
+        quality_flag: 2278
+        out_of_scope_table: 535
+        metadata_unknown_field: 127
+        out_of_scope_kb: 11
+        note: >
+          与上面旧 breakdown 对不上是**两条原因**：① 旧 breakdown 是批次13 那一刻的快照
+          （L2 单元数此后变过）；② 现在每条都带结构化 `gate_code`，不再把「门」与「理由」揉进一句话。
+          736 − 535 = 201 条**不在拒绝集里**，因为它们**被 `sample_cases` 引用**（`unit_ids`，402 个 case）——
+          **引擎自己在样例侧还在用这批被门挡掉的单元**，这一条已单独记在
+          `out_of_scope_table_vs_sample_cases`（见本文件末尾）。
+      does_not_relax_criteria: >
+        **本次改动不使任何判据变绿**：它只把「为什么被拒」从假话改成实话，
+        并把判据收敛到一处。库内没有任何判据以「reason 等于某个字符串」为条件。
+    rollback_point:
+      path: kb/l3/_archive/rejected-pre-20261002-1415.jsonl
+      rows: 10661
+      bytes: 6230994
+      must_not_delete: true
+    discipline: "与 `l3-known-drift.yaml` 同一套：原始数照打不抹掉；差额逐类说明；说不清就标说不清。"
+
+  # 1-1c：manifest_l3 是混合台账
+  manifest_l3_is_mixed:
+    file: kb/l3/manifest_l3.jsonl
+    total_rows: 13506
+    rows_with_rule_id: 12440
+    unique_rule_ids: 632
+    rows_without_rule_id: 1066
+    what_are_the_others: >
+      1066 行**不带 `rule_id`**，**不是只有 sample_case**（批次16 实测修正 ——
+      用户批15 描述为「是 `form=sample_case` 的行」，我实测**不止**，故按实测登记）：
+        · `form=sample_case`  **562** 行
+        · `form=scoped_clause` **375** 行
+        · `form=field_fix`     **129** 行
+        合计 562+375+129 = **1066** ✓
+      这些行以 `id` / `unit_id` / `resource_id` 为键（样例键：
+      `anchor/anchor_present/form/id/observed_at/resource_id/run_id/sha_present/source_sha256/unit_id`）。
+    requirement: >
+      **任何「按 `rule_id` 读全表」的消费点都会踩空**（批次13 我本人踩到过一次）。
+      消费点必须**显式过滤**（先判 `rule_id` 是否存在），**不许假定每行都有 `rule_id`**。
+    existing_correct_example: "kb/l8/l3_distill_run.py:409-417（先判 `r.get(\"rule_id\")` 再入 prev）"
+
+# ── `applied` 字段语义登记（批次13 · C-2）────────────────────────────────────
+applied_semantics:
+  registered_at: "2026-10-02"
+  batch: "批次13 · C-2"
+  where_chosen: "本文件（ledger-read-contract.yaml），不选 l0-expected-diffs.yaml"
+  why_this_file: >
+    本文件是**读侧/字段语义**的登记处（批次11 起就登记三本台账的取用键与 keep_rule）；
+    `l0-expected-diffs.yaml` 是**对账差异声明**（哪些差异按声明该存在）。
+    `applied` 是「字段怎么读」的问题，不是「差异该不该存在」的问题 ⇒ 归本文件。
+  the_change: >
+    批次11 实测：L0 落章的 `applied=true` 与「台账净增 0 行」并存
+    （801 个同内容候选被去重全跳过）。**两件事都真，老字段只表达了一件** ——
+    读的人极易把 `applied=true` 误读成「台账又写了一遍」。
+  split:
+    applied:
+      status: "**保留**（不许直接删 —— 改消费方会静默）"
+      semantics: "= `reconcile_applied`：**对账动作**是否执行并落盘"
+      not_meaning: "**不等于**「台账又写了一遍」"
+    reconcile_applied:
+      writer: "kb/l8/reconcile_l0_feishu.py"
+      semantics: "对账动作是否执行并落盘"
+    manifest_rows_delta:
+      writer: "kb/l8/emit_l0_manifest_reconcile.py"
+      semantics: "**台账净增行数**（可为 0 或负数）"
+    manifest_applied:
+      writer: "kb/l8/emit_l0_manifest_reconcile.py"
+      semantics: "emit 动作是否执行；与 manifest_rows_delta 各表一义"
+  does_not_relax_criteria: >
+    **本拆分不使任何判据变绿。** 批次12 A-2 判据 5（「七层整体 applied 且行数确实增长」）
+    仍照字面报红 —— 拆字段只是让「动作执行」与「台账变化」两件事不再挤在一个布尔里。
+  measured_before_after:
+    before_batch13: "kb/l0/runs/20261002-0833-l0-feishu-reconcile.json → applied=true（无拆分字段）"
+    after_batch13: "reconcile 写 applied + reconcile_applied + manifest_rows_delta + applied_semantics；emit 写 manifest_rows_delta + manifest_applied"
+
+# ── observed_at 语义变化登记（批次12 · 第0块裁定②）──────────────────────────
+observed_at_semantics:
+  registered_at: "2026-10-02"
+  batch: "批次12 · 第0块"
+  the_change: >
+    批次11 给三本台账加了写入侧去重（同键且除运行元数据外全等 ⇒ 不追加）之后，
+    台账里某一行 `observed_at` 的含义**变了**：
+      改前 = 「**最后一次被看到**」      改后 = 「**最后一次内容变化**」
+    这不是 bug，是去重的必然推论：内容没变就不追加，那一行当然停在上次变化的那一刻。
+  why_it_matters: >
+    任何把 `observed_at` 当**新鲜度**读的地方，从此会把「一直没变」误判成「很久没查」。
+  ruling: >
+    用户批次12 第0块裁定②给了二选一（补 sidecar ／ 不补但必须逐个点名消费点），
+    并要求「不许两不做」。**本库选「补 sidecar」**。
+  chosen: sidecar
+  chosen_impl: "kb/kb_ledger.py:refresh_last_seen()（批次12 新增）"
+  isomorphism: >
+    **与 `kb/l8/l0_ledger.py:append_changed()` 同构，不另造一套**（用户同一条纪律）。
+    实测字段对照：
+      l0_ledger 条目字段 = [run, sha256, sha256_input, status]
+      kb_ledger 条目字段 = [observed_at, run, sha256, source_sha256, status]
+      共同字段 = [run, sha256, status]
+    差集是各自台账有意义的量（L0 有 sha256_input；L1/L3 行没有它，但有 observed_at /
+    source_sha256）。共同字段完全一致，故为同构而非分叉。
+  sidecars:
+    - kb/l0/registry/last_seen.json   # 既有（l0_ledger 写，2026-09-30 起）
+    - kb/l1/registry/last_seen.json   # 批次12 新增（apply_ocr_to_l1 / extract_l1_new_resources 写）
+    - kb/l3/registry/last_seen.json   # 批次12 新增（l3_distill_run / l5_prep 写）
+  audit_of_observed_at_consumers:
+    method: "grep -rn 'observed_at' --include=*.py kb/ | 排除 _backups | 再筛 days/age/stale/now/delta/新鲜/陈旧/距今"
+    finding: >
+      **全库把 `observed_at` 当新鲜度计算的消费点：0 处。**
+    evidence:
+      - kb/l7/scripts/daily_health.py:142-145 → 新鲜度用的是 `os.path.getmtime`（**文件 mtime**），不读 observed_at
+      - kb/l8/l2_staleness_audit.py:150 → `"l1_observed_at": art.get("observed_at")` 只是把值抄进报告，**不比较、不判龄**
+    honest_note: >
+      ⇒ **本 sidecar 补的是「信息保全」，不是修一个正在发作的 bug。**
+      `observed_at` 的语义变化**当前不造成任何误判**（因为没人拿它算龄）。
+      之所以照裁定补，是因为它便宜、且能把「失踪 vs 没查」这个区分保住 ——
+      将来谁想用 observed_at 算龄时才不会踩空。这一点如实写明，不夸大成"修了一个缺陷"。
+
+# ── 与既有登记的关系（不另立一套，指回原处）────────────────────────────────
+related_registrations:
+  sample_case_keep_rule:
+    where: kb/l3/registry/l3.json（dedup.keep_rule）
+    rule: "每个 case_id 保留【行序最靠前】的那一行"
+    why_different: >-
+      它的重复行**逐字节相同**，故「最靠前」与「最靠后」等价；
+      本文件这三本台账的重复行**内容不同**，两者不等价，必须取最靠后。
+  rules_jsonl_keep_rule:
+    where: kb/l3/registry/l3.json（dedup.wording_last_wins，批次6 登记）
+    rule: "每个 rule_id 取【行序最靠后】的那一行"
+    why_reference: "本文件的字段结构与它逐字对齐；它管的是 candidates/rules.jsonl，本文件管另外三本。"
+
+# ── 批次18 · 第3块(E) 复核 / 第5块 / 第6块：产物指针登记 ────────────────────────
+batch18_review_artifacts:
+  registered_at: "2026-10-02"
+  note: >
+    本节只做**指针登记**（产物在哪），不重复产物内容 —— 内容以产物文件为准。
+
+  e_block_review:
+    file: 批次18-第3块E-复核结论-20261002.md
+    covers: "E① 写入者 / E② 65 条迁移 / E③ 9 个消费点 / E④ 判据转绿"
+    top_finding: >
+      ⚠️ **同一登记文件内曾自相矛盾**：`:199`（丙已落地）vs `:344/:350`（chosen 乙、判据未达成）。
+      已在 2026-10-02 按盘面实测统一为 **丙 / 已达成**（原值留在 `status_before` 未抹除）。
+    second_finding: >
+      `known_wrong_notes_not_backfilled.item` 的**前提已失效** ——
+      那 10 条错误 `refresh_note` 实测 **0 条**（在 ≤`20261002-1200` 轮的压扁归档中被丢弃，**早于丙落地**）。
+      已加 `registration_now_stale` 说明；**未回填**。
+
+  block5_materials:
+    file: 批次18-第5块-H01-H03-H08-证据材料-20261002.md
+    covers: "H01/H03/H08 为何未进 P0（材料，未改白名单）"
+    key_finding: >
+      **H01 与已准入的 H06 在证据上逐项同形**（同 4 个 `evidence_units`、同 4 个源字段、唯一 `source_sha256`）；
+      **H03 仅 2 个证据单元（无豁免词、无正则）**、**H08 无豁免词** ⇒ 三者**不应整批处理**。
+    not_done: "**未改** `P0_CODE_ALLOWLIST` / `selection` / `p0_patterns.jsonl`（用户明令只出材料）"
+    open_gap: "H01/H03/H08 在 **L6 召回索引里查不到**（归 L6，不在本块授权内）"
+
+  block6_criteria:
+    file: 批次18-第6块-七条判据与新鲜度-20261002.md
+    covers: "七条判据逐条给数 + freshness"
+    headline: "**freshness = 2 项超期（L2 units.jsonl / manifest_l2.jsonl，1.1 天）⇒ `freshness.py` exit 3 拒答**"
+    criteria_verdict:
+      "1": "✅ 7020（**未重跑**，证据强度弱于批12）"
+      "2": "✅ 6351（**未重跑**）"
+      "3": "⏳ 未跑第三遍；13506，批13 之后未再增长"
+      "4": "✅ **已转绿**（registry 恒 10 / 归档只增；口径变更已写明）"
+      "5": "⚠️ 7 层里 6 层有 `applied=True, dry_run=False`；**L1/L7 无该键**"
+      "6": "❓ **不可判定** —— 批13 那张哈希表**标签错位**，且那 6 个文件在批13 之后（12:08/12:51）被改过"
+      "7": "⚠️ 八个层闸门 `exit=0` 红 0 ✅；**但 `skill_invocation_audit` = ❌ 红 1（E1）**"
+    side_finding_1: >
+      `kb/l4/canonical/rules.jsonl` **是 0 字节空文件**（mtime 2026-09-23 13:20）。
+      批13 称其「逐字节未变」**成立** —— 它一直空着。**别误读成「L4 规则文件内容完好」。**
+    side_finding_2: >
+      `freshness.py` 打印的 `闸门 ok=0 未判=8` 是它自己带 `--no-gates` 所致（`:92`），
+      **不是「8 个闸门没跑」**；直接跑 `daily_health.py` 实测 **过8/红0/未判0**。
+
+# ── 批次21 · 第0块②：E2 的「假绿」登记（**必读，否则会再把那次当绿**）────────────
+e2_green_is_vacuous_when_layers_underclaimed:
+  registered_at: "2026-10-02"
+  batch: "批次21 · 第0块②"
+  the_case:
+    run_id: "20261002-1525"
+    claimed_layers: ["L5"]          # ← extra.layers 实测只有 1 层
+    claimed_layer_count: 1
+    skill_evidence: registry_echo
+    stamps_found: >
+      L0「（无）」｜ L1「（无）」｜ L2「（无）」｜ L3「（无）」｜ L4「（无）」
+      ｜ **L5「有」**（`kb/l5/runs/20261002-1525.json`）｜ L6「（无）」
+    e2_red: 0
+    why_it_judged_green: >
+      `skill_invocation_audit.stamp_of()` 只对**该 RUN 声称走到的层**（`extra.layers`）逐层查落章
+      （见 `skill_invocation_audit.py:254-270` 的 `for lid in lids:`）。
+      该 RUN 声称 **只 1 层**，而 L5 **恰好有 1 份落章** ⇒ 查一层、中一层 ⇒ **E2 红 0**。
+  why_it_is_vacuous: >
+    ★ **E2 = 0 只在「声称的层数覆盖了全部应查层」时才可信。**
+    该 RUN 声称层数（1）**远少于**库内应查层数（L0–L6 共 **7** 层，L7 属跨层闸门豁免）
+    ⇒ 它「没红」是因为**根本没去查另外 6 层**，不是因为那 6 层有证据。
+    **这是「判据范围被声称值缩小」造成的空泛绿**，与「登记在撒谎」同族：
+    数字本身没错（那 1 层确实有落章），**但它被当成了「逐层都调了」的证据**。
+  counter_example_that_exposed_it:
+    run_id: "20261002-1953"
+    claimed_layers: ["L0","L1","L2","L3","L4","L5","L6","L7"]
+    claimed_layer_count: 8
+    stamps_found: "L0–L6 **全 0**；L7 有 1 份（编排器自己的记账，已豁免）"
+    e2_red: 7
+    reading: >
+      **同一套判据**，只因为新账**如实声称走了 8 层**，E2 立刻从 0 变 **7**。
+      ⇒ 证明 `1525` 的 0 是**声称范围小**造成的，不是证据充分。
+  correct_reading:
+    - "**不许**把 `20261002-1525` 的 `E2=0` 当作「逐层都调了」的证据 —— 它只证明了 L5 那一层。"
+    - "**不许**把两次的 `E2` 直接相减说成「退步」—— 两次的**判别范围不同**，不可比。"
+    - "要判「七层都调了」，必须让该 RUN 的 `extra.layers` **覆盖全部应查层**，再看 E2。"
+    - "`E1` 与 `E2` 要**一起**读：E1=0 且 E2=0 且**声称层数 == 应查层数**，才算逐层有证据。"
+  general_warning: >
+    ★ **通用警告**：「E2 = 0 只在『声称的层数覆盖了全部应查层』时才可信；
+    声称层数少于实际应查层数时，E2 的绿是空泛的。」
+    读 E2 前**先读 `extra.layers` 的条数**；两者对不上，绿不算绿。
+  no_backfill: >
+    **未回填** `20261002-1525`（纪律 4）。本条只是**登记读法**，不改任何历史产物。
+
+# ── 批次22 · 第0块④：副本隔离**静默失效**登记（事故 + 通用警告）────────────────
+replica_isolation_silently_fails:
+  registered_at: "2026-10-02"
+  batch: "批次22 · 第0块"
+  incident:
+    when: "2026-10-02 20:05（本会话）"
+    what_escaped:
+      - "kb/l2/runs/20261002-2005.json（8086 B / sha256 前16 = 1c13ff7c2bb797a9）"
+      - "kb/l7/runs/20261002-200554.json（394 B / 339b16aca7790d68，review_machine 记账）"
+      - "kb/l7/runs/index.jsonl 第 522 行（上一条的索引行）"
+    how_found: "**用户复核时报出**（不是机制报出来的）—— 这正是本条最严重之处"
+    how_cleaned: "删除 2 件 + 摘掉索引 1 行；`*20261002-2005*` 命中归 0；真库边界逐项复核未变"
+  root_cause_code_level:
+    file: kb/l7/registry/layers.yaml
+    what: >
+      **每一层**的 `cwd` 都是一个**写死的绝对路径**：`cwd: ~/.dsh/Momcozy知识库`。
+    who_uses_it:
+      - "kb/l7/scripts/kb_pipeline.py:608  cwd = home(x.get(\"cwd\") or \"\")"
+      - "kb/l7/scripts/kb_pipeline.py:711  argv = [py, os.path.join(cwd, sp[\"script\"])]"
+      - "kb/l7/scripts/kb_pipeline.py:724  subprocess.run(argv, cwd=cwd, …)"
+    why_it_escapes: >
+      子进程的工作目录**永远是那个写死的路径**，与「我在哪个副本里跑」**无关**；
+      各层引擎又都用**相对路径** `kb/...` ⇒ 全部落在**真库**。
+      而副本里那份 `kb/` **什么都没被写** ⇒ **「副本跑」看起来一切正常（静默失效）**。
+    same_entity_proof: >
+      工作区 `kb/` 与 `~/.dsh/Momcozy知识库/kb/` 的 `l0/registry/kb.json`
+      **inode 相同**（实测均为 `69082025`）⇒ **同一实体**（软链/挂载）
+      ⇒ 「工作区」与「真库」在本机**不是两个地方**。
+    reproducible: >
+      `cd <副本根> && sh kbpy l7/scripts/kb_pipeline.py --sync --only L2 --apply --run <RUN>`
+      ⇒ 落章出现在**真库** `kb/l2/runs/<RUN>.json`，副本内**没有**。
+      **本批已复现**（RUN `20261002-2098`，逃逸件 sha256 前16 = `126bde11a89cce51`，已删）。
+  consequence_scope: >
+    ★ **在本库上，「用副本跑」在编排器路径下是无效的。** 因此**此前所有**
+    「反测一律用副本」的结论（批次18/19/21 的多处），**有效性都被动摇**，
+    必须按下面的通用警告**重新附证**才可采信。
+  mitigations_registered:
+    "①运行前硬失败": "kb/l7/scripts/isolation_guard.py check --expect-replica <根> ⇒ 目标根==真库 时 exit=2（**不是警告**）"
+    "②运行中回执": "isolation_guard.py receipt --root <根> --out <回执> ⇒ 文件数 + 总字节 + 8 个关键件 sha256"
+    "③运行后对照": "isolation_guard.py diff --before <回执> --after <回执> ⇒ 有差异 exit=3"
+  verified_this_batch:
+    - "①：把真库当副本声明 ⇒ `verdict=REFUSED_IS_REAL` ✅"
+    - "①：真副本 ⇒ `verdict=ok_is_distinct` ✅"
+    - "③：删掉逃逸件后 diff ⇒ **有差异 ❌**（文件数 20154 → 20153、总字节差 8086）exit=3 ✅"
+  general_warning: >
+    ★ **通用警告**：「**副本隔离会静默失效** ⇒ 任何『副本跑』的反测结论，
+    **必须附带隔离回执与真库前后清单对照**，否则不采信。」
+  still_open: >
+    **未修 `layers.yaml` 的硬编码 `cwd`** —— 改它会让所有层引擎改到自己副本/或改到不存在
+    的路径，**属高风险改动，超出本批授权**。本批只做「**把失效变成可证**」（三措施），
+    **不假装已修好隔离**。
+
+# ── 2026-10-08：快照/台账**分家**的前置条件（Owner 要求「先证明不影响现有流程，再分家」）──
+rejected_snapshot_split_plan:
+  registered_at: "2026-10-08"
+  owner_instruction: >
+    「快照/台账分家，**不要影响现有的工作流程后再分家**」⇒ 本节就是「先证明」的那一半：
+    影响面审计 + 前置条件 + 卡住的地方。**本节不执行任何转换。**
+
+  # ── 病根：**两个写入者都想写「快照」，却写进了一个 append-only 文件** ──────────
+  root_cause:
+    writer_1:
+      file: kb/l8/l3_distill_run.py:533
+      how: "`_write_guarded(...)` —— **覆盖写**，带三道闸（①内容对等不写 ②写前强制归档+sha ③行数骤减 >20% 拒写）"
+      its_口径: "进了门 − 被规则用 = **2581**（= registry.accounting.explicitly_rejected）"
+      observed: >
+        **它每次都被自己的闸③拦住**：想用 2581 行覆盖 51017 行 = 骤减 95% ⇒ 拒写
+        （要真接受骤减须显式 `KB_L3_ALLOW_DROP=1`，人开闸）。
+    writer_2:
+      file: kb/l8/l3_reject_ledger_rebuild.py
+      how: "**追加写**，原先无任何幂等/护栏"
+      its_口径: "全部 − 规则用 − 样例用 = **8103**（台账最新一版）"
+      observed: "日更每跑一遍追加一整版 ⇒ 实测叠到 **6 版 / 51017 行**（2026-10-08 已加幂等闸止住）"
+    why_this_matters: >
+      ★ 两者**都想写「当前全集」**（快照），却写进了同一本 append-only 台账。
+      覆盖的那一半被护栏挡住、追加的那一半没有护栏 ⇒ **只剩膨胀**。
+      ⇒ 分家正是对症：**快照要覆盖写（护栏是对的），台账要只追加变化（护栏要有）**。
+
+  # ── 影响面审计：10 个消费点，逐点结论 ───────────────────────────────────────
+  consumer_audit:
+    method: "grep 活路径（排除 _backups/_archive/一次性 batch 脚本），逐个看它拿这本账干什么"
+    verdict: >
+      ★★ **「快照留在原路径、历史挪去新文件」这一种分法（记作方案甲）⇒ 10 个消费点 0 个需要改代码。**
+      因为它们要的**本来就是「当前全集」**，而快照正是当前全集。
+    points:
+      - consumer: "kb/.work/l3_report.py:35（L3 落章引擎）"
+        needs: "当前拒绝集（报「共 N 条」+ 按原因分列）⇒ **要快照**"
+        under_甲: "**不改**；且它的 N 会自动从虚高的 51017 变成正确的快照条数 ✅"
+      - consumer: "kb/l7/scripts/l3_gate.py:135（**闸门** C2）"
+        needs: "逐行核 `resource_id` 能在 L2 找到出处 ⇒ **要快照**"
+        under_甲: "**不改**；`rej_rows` 从 51017 变正确 ✅（C2 判据不受影响，每行仍带 resource_id）"
+      - consumer: "kb/l7/scripts/l3_status.py:43"
+        needs: "行数 ⇒ **要快照**"
+        under_甲: "**不改**；数字自动变正确 ✅（这就是 Owner 批准的「修虚高」，分家顺带做掉、不用单独改）"
+      - consumer: "kb/l7/scripts/layer_freshness.py:84"
+        needs: "把 `l3/rejected.jsonl` 当 L3 新鲜度输入之一 ⇒ **要它的 mtime**"
+        under_甲: "**不改**；快照每次重算都会更新 mtime ⇒ 新鲜度语义不变 ✅"
+      - consumer: "kb/l7/scripts/daily_health.py:78"
+        needs: "记 mtime + 行数（`kind=data`）⇒ **要快照**"
+        under_甲: "**不改**；行数变正确 ✅"
+      - consumer: "kb/l7/scripts/kb_pipeline.py:282"
+        needs: "把它列进 L3 产物清单（判「这层跑过没有」）⇒ **路径不变即可**"
+        under_甲: "**不改** ✅"
+      - consumer: "kb/l7/scripts/_sync_drill.py:54,64（**归档红线** GUARD 清单）"
+        needs: "它必须在「写前归档」的守护清单里 ⇒ **路径不变即可**"
+        under_甲: "**不改** ✅"
+      - consumer: "kb/l7/skills/kb-clause-extractor/scripts/l3_preflight.py:83"
+        needs: "跑前记行数 + sha256（归档红线①）⇒ **路径不变即可**"
+        under_甲: "**不改** ✅"
+      - consumer: "kb/l8/l3_distill_run.py:533（写入者之一）"
+        needs: "覆盖写当前全集 ⇒ **本来就在写快照**"
+        under_甲: "**不改**；它的三道闸原样适用（骤减护栏从此是**对的**，因为快照本来就该防骤减）✅"
+      - consumer: "kb/l7/scripts/daily_sync.py:17（编排器归档红线）"
+        needs: "写 L3 前先归档 `rejected.jsonl` ⇒ **路径不变即可**"
+        under_甲: "**不改** ✅"
+    conclusion: >
+      **「不影响现有工作流程」这一条，方案甲满足**：0 个消费点改代码，
+      且 3 个数字（`l3_report` 条数 / `l3_gate` rej_rows / `l3_status` 行数）从虚高变正确。
+      代价是**首次转换要人开闸一次**（见 `first_conversion`）。
+
+  first_conversion:
+    what: "把 51017 行的 tangle 压成一份快照"
+    how: "走**引擎自己设计好的那条路**：`KB_L3_ALLOW_DROP=1`（不是本批发明的后门 ——
+          它就写在 `_write_guarded` 的注释里：「要真的接受骤减，须显式设环境变量…（人开闸）」）"
+    history_safe: >
+      `_write_guarded` 的闸②**会先把旧文件逐字节复制到 `kb/l3/_archive/{RUN}-prewrite/rejected.jsonl`
+      并校验 sha256**，校验不过就拒写 ⇒ **6 版历史不会丢，只是从主文件移到归档**。
+      这与 `kb/l2/_archive` / `_sync-rejected-pre-*.jsonl` 是同一套既定做法。
+    blocked_by: "**未执行** —— 等 Owner 裁 `snapshot_authority_question` 与「开这一次闸」。"
+
+  # ── ★ 分家真正的卡点：**「快照」以哪一套口径为准？**（本批实测，三个口径三笔数）──
+  snapshot_authority_question:
+    why_blocking: >
+      两个写入者算的**不是同一个集合**。不先裁定，分家就是把两份不同的东西塞进一个文件 ——
+      那只是把「重复」换成「矛盾」。
+    three_calibers:
+      A_活引擎:
+        rule: "进了门 − 被规则用"
+        count: 2581
+        registered_as: "kb/l3/registry/l3.json → accounting.explicitly_rejected = 2581"
+        defect: "**含 361 条「被样例用了」的** —— 它们其实已经被用上，不该算拒绝"
+      B_重建脚本:
+        rule: "全部 − 规则用 − 样例用"
+        count: 8103
+        registered_as: "台账最新一版 8103"
+        defect: "**含 5883 条「被门剔掉的」** —— 它们压根没参与蒸馏，是**范围问题**，不是拒绝"
+      C_新提:
+        rule: "进了门 ∧ 没被规则用 ∧ 没被样例用"
+        count: 2220
+        equals: "A ∩ B（实测）"
+        meaning: "**进了门、蒸馏跑了、但这单元没成规则** = 「拒绝台账」的**原义**"
+    decomposition:
+      只在A不在B: 361      # 进了门 + 被样例用了 ⇒ 其实已用，A 多算
+      只在B不在A: 5883     # 被门剔掉 ⇒ 没进门，B 多算
+      两边都算: 2220       # = C
+      B多算5883的构成:
+        metadata: 2932
+        quality_flag: 2278
+        out_of_scope_table: 535
+        metadata_unknown_field: 127
+        out_of_scope_kb: 11
+      arithmetic_check: "2220 + 361 + 5883 = 8464；A=2581=2220+361 ✓ ｜ B=8103=2220+5883 ✓"
+    recommendation:
+      snapshot_should_be: C
+      count: 2220
+      why: >
+        拒绝台账回答的是「**蒸馏跑了，但这单元没成规则**」。
+        被门剔掉的是**范围没覆盖**（该另立指标），被样例用了的是**已被使用**（不算拒绝）。
+      cost: "要改活引擎 `rejected` 的计算（现在算的是 A，多算 361 条）；且要同时改 registry.accounting 的口径说明。"
+      alternative_if_owner_prefers_minimal:
+        take: A
+        why: "改动最小（引擎本来就算 A）"
+        cost: "**账上会永远多记 361 条其实已被使用的单元** —— 与「拒绝台账」这个名字不符。"
+    not_executed: >
+      **未改任何口径、未改引擎、未写快照、未转换 `rejected.jsonl`。** 本条只登记数字与推荐，等 Owner 裁定。
+
+  # ── ★ 裁定结果（Owner 2026-10-08：「快照口径取 C」）───────────────────────────
+  caliber_ruling:
+    decided_at: "2026-10-08"
+    decided_by: "Owner（原话：「快照口径取 C」）"
+    authoritative_caliber: C
+    count: 2220
+    definition: "**进了门** ∧ 没被规则用 ∧ 没被样例用 = 「蒸馏跑了，但这单元没成规则」"
+    where_the_rule_lives:
+      file: kb/l8/l3_scope.py
+      symbols: ["rejection_sets(all_ids, kept_ids, rule_cited, case_cited)", "AUTHORITATIVE_CALIBER", "CALIBERS", "out_of_scope_units(units, scope)"]
+      why_shared: "两个引擎 import 同一处 ⇒ 口径结构上不可能分叉（与 `exclusion_of` 同一套做法）"
+    applied_to:
+      - "kb/l8/l3_reject_ledger_rebuild.py —— 改前算 B(8103)，改后算 C(2220)；实测划分：12266 = 规则 959 ∪ 样例 3204 ∪ 拒绝(C) 2220 ∪ 范围外 5883，互斥全 0、覆盖完整 ✅"
+      - "kb/l8/l3_distill_run.py —— **待改**（现算 A=2581，含 361 条已被样例使用的）。**必须在首次转换之前改完**，否则它下次会以 A 覆盖 C 快照（+361 是增长，闸③的骤减护栏拦不住）。"
+    out_of_scope_is_not_rejected:
+      what: "被门剔掉的 **8726** 条（其中 `out_of_scope_table` **736**）"
+      where_to_look: "kb/l7/scripts/l3_rejected_status.py --out-of-scope [--gate <code>]（**现算，不存快照**）"
+      why_not_stored: >
+        它是 `exclusion_of()` 的**纯函数产物** ⇒ 存快照只会多一份会腐烂的副本。
+        这也避免了「为了看得见范围外，就把它算进拒绝」这个错误合流
+        —— 那正是改前 B 口径（8103）干的事。
+      answers_the_original_question: >
+        ★ 2026-10-08 那个问题「负面样本 170 条为什么不蒸馏」的答案就在这批里：
+        `--out-of-scope --gate out_of_scope_table` 打出的 736 条，
+        理由逐字是「internal_sample 只收「专家修订汇总表」…**从未进入蒸馏**」。
+    frozen_dependency:
+      file: kb/l3/candidates/sample_cases.jsonl
+      frozen_since: "2026-10-01 10:07"
+      evidence: >
+        只有 `.work/batch7_l3_fix.py` / `batch7_l3_run.py` / `batch8_run.py`（**mtime 2026-09-24**，
+        均为历史一次性脚本、不在 `layers.yaml` 的 engine 清单里）写过它；
+        声明的三个 L3 引擎（`l3_distill_run.py` / `l3_reject_ledger_rebuild.py` / `l3_report.py`）
+        **都不读写它**（实测 grep：`l3_distill_run.py` 里 `sample_cases` 只出现在 dry-run 提示语里）。
+      implication: >
+        C 里的「没被样例用」比的是**一份冻结集** ⇒ 口径**稳定、可复算、不漂**。
+        这是好事，但**别读成「样例还在演进」**。
+      side_defect: >
+        `kb/l8/l3_distill_run.py:48` 的 dry-run 提示语声称「本脚本会写入…`sample_cases`…」
+        —— **与事实不符**（它不写）。已登记，未改（改的是提示语，不影响行为）。
+    still_pending:
+      - "① `l3_distill_run.py` 的 A→C —— **已于 2026-10-08 完成**（ACCT 加 `used_in_cases` / `reject_caliber` / `case_cited_source` 自述；两处 `unaccounted` 都减 `case_cited`）"
+      - "② 首次转换 —— **已于 2026-10-08 完成**（见 `split_executed`）"
+      - "③ `l3_report.py` / `l3_status.py` 的虚高：**已自动归正**（`l3_status.py` 实测 51017 → 2220），无需改代码 ✅"
+
+  # ── ★ 分家已执行（2026-10-08）──────────────────────────────────────────────
+  split_executed:
+    at: "2026-10-08 15:13（RUN `20261008-1710-split`）"
+    mechanism_changed:
+      planned: "`KB_L3_ALLOW_DROP=1` + 跑 `l3_distill_run.py --apply`"
+      why_not:
+        ★ 那个环境变量读在 `_write_guarded()` 的**函数体内** ⇒ 它是「**这一次跑对任何文件**的骤减都放行」的**全局闸**。
+        而「开闸重跑」= 整层 L3 蒸馏，它同时写 `rules.jsonl`（现 1018 行）、`scoped_clauses.jsonl`、
+        `manifest_l3.jsonl`、`registry` —— 登记说 `rules.jsonl`「口径归位后应 = 509 行生行」
+        ⇒ 开全局闸会让它 **1018 → 509 直接落盘**，而 `rules.jsonl` **正是评审链读的那一份** ⇒ 会改变守衡输出的「依据」。
+        **这个作用域是本会话先看漏、后补查出来的**，改了机制才动手。
+      actually_done: >
+        `l3_reject_ledger_rebuild.py --write-snapshot`（**只写 `rejected.jsonl` 一个文件**，
+        开闸是**这一次、这一个文件**）；归档 + sha256 双校验自带；不过即中止。
+        `--apply` 亦已改为走同一条快照路径（否则下一次日更会把 2220 又追加成 tangle）；
+        原「无条件追加」的死代码已删除并留指针。
+    before_after:
+      rejected_jsonl: "51017 行 / 34695367 B / sha256 a820af3063da773e91b0… → **2220 行**（口径 C）"
+      rules_jsonl: "1018 行 / sha256 `743dc62398311b0287e1…` —— **转换前后逐字节一致，一个字没动** ✅"
+      l3_status_内部拒收: "51017 行 → **2220 行**（虚高归正，未改任何消费者）"
+      l3_gate: "**✅ 过**（退出码 0，证据全可回指 + 12 个自报键全已声明）"
+    archive:
+      path: kb/l3/_archive/20261008-1710-split-split/rejected.jsonl
+      bytes: 34695367
+      sha256: a820af3063da773e91b00b23d21a743c20c455cd4d936eb3e7d16b51d898d762
+      rollback: "cp kb/l3/_archive/20261008-1710-split-split/rejected.jsonl kb/l3/rejected.jsonl"
+    history_file:
+      path: kb/l3/rejected.history.jsonl
+      semantics: "**台账（事件流）的角色搬到这里**：只追加「变化声明」，不再追加全量快照"
+      first_row: "kind=snapshot_split_declaration（记 6 版被作废、总行数、归档路径与 sha256）"
+    known_noise:
+      what: "kb/l3/_archive/20261008-1720-noop-split/ —— 我幂等 guard 第一版的 bug 留下的**冗余归档**"
+      why: "guard 逐字节比整个 rows，而 rows 带 RUN ⇒ 永远不等 ⇒ 第二遍又转换了一次（2220 → 2220）"
+      disposed: "**未删**（不删归档）。内容 = 当前快照的一份副本，无独有数据。已改为比较**业务内容**（剔除 rejected_at/batch/supersedes_batch），重跑实测幂等 ✅"
+    idempotency_verified: "`--apply` 重跑实测：账本 2220 → 2220，且打「已是快照…无需转换（幂等：不归档、不写）」"
+    no_criteria_relaxed: "本转换**不使任何判据变绿**：`l3_gate` 从过到过（它本来就没红）；它只是把虚高的数归正，并把历史搬进归档。"
+
+  no_criteria_relaxed: >
+    **本节不使任何判据变绿**：库里没有判据以「快照条数等于某个值」为条件；
+    三个口径的数字都照实打出来，一个都没抹掉。
+
+# ── 2026-10-08：`out_of_scope_table` 这道门与 `sample_cases` **自相矛盾** ──────────
+out_of_scope_table_vs_sample_cases:
+  registered_at: "2026-10-08"
+  raised_by: "本会话（排查「负面样本 170 条为什么不蒸馏」时撞上）"
+  the_facts:
+    gate: "kb/l8/l3_distill_run.py 的第一道过滤：`internal_sample` 只收「专家修订汇总表」"
+    excluded_units: 736            # 全部 out_of_scope_table 单元数（实测，等价性核对同值）
+    in_reject_ledger: 535          # 落进拒绝台账的那部分
+    cited_by_sample_cases: 201     # ★ 不在拒绝台账里 —— 因为它们被 sample_cases 引用
+    source_tables_of_the_736:
+      负面样本: 285
+      正面和负面样本: 240
+      meta未给来源: 205
+      材料收集: 6
+    citing_cases:
+      count: 402
+      samples:
+        - "sc-4d49e1990afc456f ｜ kb_type=internal_sample ｜ polarity=反例 ｜ semantics=禁区：不能这么做 + 为什么"
+        - "sc-998f7365fd5dd926 ｜ kb_type=internal_sample ｜ polarity=正例 ｜ semantics=标杆：应该怎么做"
+  the_contradiction: >
+    ★ **同一个引擎里：规则那条路把这 736 条挡在门外，样例那条路却拿其中 201 条当证据。**
+    说明「只收专家修订汇总表」这道门**不是最初的范围决定，是后加的**
+    （引擎产物只追加 ⇒ 老 case 留着、引用仍在）。而它一加，就把这 736 条
+    （含负面样本 285）从**规则**那条路彻底挡掉了。
+  open_questions_for_owner:
+    - "那道门该不该重审？（依据：引擎自己在样例侧还在用这批单元）"
+    - "若开门：这 736 条会聚成哪些规则？与现有 402 个样例是否打架？**先出只读推演，再决定写不写。**"
+    - "负面样本的形态问题（与门无关）：L1 抽出 12 个字段段 → L2 只出 1 个 `unit_type=sample` 单元，"
+    - "字段边界被合并 ⇒ 99 条有「建议」却 `pair_ref`/`revision_pair` 全为 0 ⇒ **即使开门也蒸不出规则**。"
+  not_done: >
+    **未改任何判据、未开门、未动 p0/sample_cases。** 本条只是**登记矛盾与数字**，
+    供 Owner 裁定；裁定前不写盘。
+  no_criteria_relaxed: >
+    **本登记不使任何判据变绿** —— 库里没有判据以「门开着」或「736 归零」为条件。

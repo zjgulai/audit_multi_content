@@ -1,0 +1,65 @@
+# at=2026-10-16T09:23:21.896Z
+# base=20261016-1721 ｜ answer 长度=4077
+本次按美国市场口径审查（PRD 第一阶段范围）。
+
+## 我实际走的审核流程（4 步，命令已返回即结束）
+
+1. **用 `skill` 工具真加载四个层 skill**：`kb-canonical-lookup`（L4）· `kb-p0-check`（L5）· `kb-recall`（L6）· `kb-check`（L7）。
+2. **按素材模态取判定主体**：本单是「图片 / 图上文字」⇒ 加载 `图片安全审查`（装载目录名，中文）。
+3. **跑唯一入口命令**（`kb/l8/review_run.sh`，带 `--material-file` / `--token` 同一路径、`--content-type image`、两条 `image`/`ocr` 的 `macos-vision` 覆盖申报、`--decision-owner` 与 `--loaded-skill` 同报 `图片安全审查`）。它内部按顺序做三件事：
+   - **① 四层前置 L4→L5→L6→L7** —— 四层各一 RUN（`20261016-1721-L4…-L7`）、四道审计**红 0**、全绿；
+   - **② 自命中检查**（确定性，只报事实、不判三态）；
+   - **③ 出结论**（唯一有权产出三态的地方）＋ 默认发布飞书。
+4. **照抄 ③b 转述模板**（下面第二段），不再跑任何命令。
+
+**输入边界**：素材是「读图」得来 —— 文字层是本机 OCR 逐字读出（14 行，另摘除水印 2 行）；**涉及画面的结论只能依据守衡给的画面读数**（该读数：影棚场景、粉色蛋形设备＋圆形显示屏、白色硬壳收纳包、透明喇叭罩与硅胶配件、手机显示控制界面；**画面中无人体使用**；品牌合作信息、画面外情节、具体月龄、声音**读数没覆盖** ⇒ 这几项**未测**，不作判定）。
+
+---
+
+## 引擎结论（③b 转述，照抄）
+
+状态：REVIEW ｜ 问题数：0 ｜ 置信度：None
+摘要：【审查结论：REVIEW】共发现 0 处需人工确认。
+
+**本次没有发现内容问题**（0 处）。下面是**覆盖缺口**说明 —— 缺的是**库覆盖**，不是素材有问题：
+
+**覆盖缺口说明（不是内容问题）**：本次素材的**文字层逐字命中 0 条**，但覆盖判据不成立（没有「既被规则引用、又达门限」的单元）——**这不是素材有问题，是库对该题材没有可依据的条款**。
+   原因：依据侧检索到 5 条命中，最高 BM25 37.0084（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。
+   依据：`kb/l7/registry/l7.json` 的 `retrieval.gate.coverage_bm25_min=16.0`（覆盖判据标定值；覆盖信号不成立时**不得输出 PASS**）
+   建议：转人工复核后再定；补素材无用（缺的是库覆盖）。
+
+**库内命中（读数）** —— 检索命中了 5 条，逐条列出**原文与直链**：
+
+1. `#l.1-1`｜BM25 37.0084｜wording
+   命中原文（逐字）：Momcozy M9 Mobile Flow™ Wearable Breast Pump | Shop Momcozy CA Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbr
+   直链：https://ca.momcozy.com/products/momcozy-mobile-flow-hands-free-breast-pump?variant=47796181303483
+2. `#l.1-1`｜BM25 36.9898｜wording
+   命中原文（逐字）：M9 Mobile Hands-free Breast Pump | Personalised Pumping - EU Autumn Sale-Final Hours: Shop Now ! Switch to your local store for faster shipping, local pricing,
+   直链：https://eu.momcozy.com/products/momcozy-mobile-flow-hands-free-breast-pump
+3. `#广告文案明细/recvuJYdOb6Fgr/Primary Text`｜BM25 36.8633｜wording
+   命中原文（逐字）：Big Member Sale: 20% Off Mobile Style | Mobile Style™ Wearable Breast Pump | Momcozy Hotseller - M6 Breast Milk Pump | Code BDMS20 Saves 20% | Upgrade Mobile St
+   直链：https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJYdOb6Fgr
+4. `#广告文案明细/recvuJYdObHV0W/Primary Text`｜BM25 36.3838｜wording
+   命中原文（逐字）：Momcozy Official | Mobile Style™ Wearable Breast Pump | Momcozy Hotseller - M6 Breast Milk Pump | Optimal Rhythm, Increasing Milk Supply | Comfort/ Discreet/ Po
+   直链：https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJYdObHV0W
+5. `#l.1-1`｜BM25 35.5728｜wording
+   命中原文（逐字）：M9 Mobile Hands-free Breast Pump | Personalised Pumping ⏰️ Autumn Sale Extended: Final Hours Shop Now Switch to your local store for faster shipping, local pric
+   直链：https://uk.momcozy.com/products/momcozy-mobile-flow-hands-free-breast-pump
+
+> ⚠️ 上面是**读数**：命中的**大多是别人的素材样本 / 外部材料，不是覆盖本素材的条款**，**不得据此当 PASS 依据**，也不得当作「本素材已合规」的证明。
+
+建议转 @法务（未配置） @北美同事（未配置） 复核。
+层前置：ok=None mode=None
+判定主体：图片安全审查 ｜ mode=declared
+  ● 条款号 ? ｜ 依据侧检索到 5 条命中，最高 BM25 37.0084（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。
+
+---
+
+## ② 自命中检查 + 必须一并转述的边界
+
+- **自命中检查：未命中**（素材归一化字符 185 ｜ 扫过条款 209 条 ｜ 阈值 ratio≥0.9 且 run≥80）—— 所以本单**没有**「素材自己命中反例/禁区条款」那一档，不存在把它登记为 findings 的情形。
+- 四段溯源：本单**没有可引用的条款号**（引擎给的是 `条款号 ?`）；命中的 5 条是**检索读数**，每条带 `anchor` + BM25 + `source_sha256`（见上），L0 逐字与 `entry_url` 直链已列在上表 —— 但**它们不构成本素材的覆盖条款**。
+- **边界（逐字守住）**：`未命中 ≠ 合规`｜`status=error` = **没查成 ≠ 没命中**（本单自命中是 clean 的「未命中」）｜引擎 `NEEDS_INPUT` = **拒答 ≠ 通过**｜黄 `E5`（预演落章）= 机制证据，不等于真落盘。
+- 本单形状要说清：**引擎顶层 `state=REVIEW`（问题数 0）**，同时**依据侧 `refusal.state=NEEDS_INPUT`、原因码 `coverage_not_covered`** ⇒ 合起来是「**覆盖缺口、转人工看覆盖**」，**不是**「素材没问题」，也**不是**放行。按原因码口径：`coverage_not_covered` 缺的是**知识库**，**补素材没用**，所以我不请你补东西。
+- **飞书那一步**：本次 `published=false`，脚本原话是「⚠️ 飞书发布失败（退出码 1）—— **结论有效，但没发出去**」（飞书侧返回 `800030005 not_found`）。按手册这段**由守衡侧负责**，我不去调 `lark-cli` 补写表行，如实转述「没发出去」。
+- 机读旁挂已落：`kb/.work/last_review_result.json`（守衡侧从它读问题数量 / 置信度 / 库侧三态）。

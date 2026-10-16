@@ -1,0 +1,225 @@
+{
+ "run_id": "CHK-20261004-0813-KBCK",
+ "at": "2026-10-04 08:09:10",
+ "legs": [
+  {
+   "leg": "① 环境与版本纪律",
+   "ok": true,
+   "detail": {
+    "env": {
+     "装载位": "02:02:55",
+     "生成器": "11:26:57 408a6d079312b66f 73520B",
+     "l7/review.py": "12:44:03 ed47c8f4b9bbc93f 84943B",
+     "hostlib": "22:45:11",
+     "l7/reports": "08:08:23"
+    },
+    "version": {
+     "l4_canonical_bytes": 0,
+     "versions_rows": 0,
+     "kb_version": "v0"
+    }
+   }
+  },
+  {
+   "leg": "② 权威库 l0~l6 未被改动",
+   "ok": false,
+   "detail": {
+    "layers": {
+     "l0": {
+      "tree_sha256_16": "bd36cbb89dedb48f",
+      "match_L5_baseline": true,
+      "files": 4007
+     },
+     "l1": {
+      "tree_sha256_16": "099ad8afdc1a0be2",
+      "match_L5_baseline": true,
+      "files": 3152
+     },
+     "l2": {
+      "tree_sha256_16": "183f6265c0666688",
+      "match_L5_baseline": true,
+      "files": 887
+     }
+    },
+    "l3_lines": 1018,
+    "l3_base1018_matches_L6": false,
+    "l3_whole1527_matches_L4": false
+   }
+  },
+  {
+   "leg": "③ 前序产物哈希（45 项）",
+   "ok": false,
+   "detail": {
+    "checked": 45,
+    "mismatch": [
+     "kb/l3/candidates/rules.jsonl",
+     "kb/l4/registry/l4.json",
+     "kb/l5/registry/l5.json",
+     "kb/l5/benchmark.json",
+     "kb/l6/runs/build_runs.jsonl",
+     "kb/l6/bm25/docs.jsonl",
+     "kb/l6/bm25/meta.json",
+     "kb/l6/bm25/postings_zh.jsonl",
+     "kb/l6/bm25/postings_en.jsonl",
+     "kb/l6/vectors/vectors.jsonl",
+     "kb/l6/vectors/matrix.npy",
+     "kb/l6/vectors/meta.json",
+     "kb/l6/index/l6.jsonl",
+     "kb/l6/registry/l6.json",
+     "kb/l6/retriever.py",
+     "kb/l6/selftest.json",
+     "kb/l6/benchmark.json",
+     "kb/l7/skills/kb-content-review/SKILL.md",
+     "kb/l7/registry/l7.json",
+     "kb/l7/skills/kb-content-review/scripts/review.py"
+    ]
+   }
+  },
+  {
+   "leg": "④ 分层库 → 生成器 → 视图",
+   "ok": true,
+   "detail": {
+    "generator_stdout": [
+     "[gen] 明文落盘：509 个 md（node 读回断言全部通过）",
+     "[gen] 明文落盘：1 个 md（node 读回断言全部通过）"
+    ],
+    "md_total": 510,
+    "enveloped": 0,
+    "loader_readback": {
+     "entries": 509,
+     "entries_fm_ok": 453,
+     "entries_kb_class_ok": 453
+    },
+    "E001": null,
+    "E046": null,
+    "health": 76.5,
+    "installed_view_md": 513,
+    "installed_view_enveloped": 0
+   }
+  },
+  {
+   "leg": "⑤ 装载位 → 加载器（读工具+体检）",
+   "ok": true,
+   "detail": {
+    "files": 530,
+    "md": 513,
+    "enveloped_md": 0,
+    "entries": 509,
+    "fm_ok": 453,
+    "kb_class_ok": 453,
+    "E001": null,
+    "E046": null,
+    "health": 79.2,
+    "dims": {
+     "新鲜度": 1,
+     "三件套完整率": 1,
+     "一致性": 1,
+     "孤岛率": 0.9410609037328095,
+     "覆盖率": 0.9210526315789473,
+     "利用率": 0.23047619047619047
+    },
+    "collections": [
+     {
+      "id": "3_措辞表达库",
+      "count": 509,
+      "status": "derived"
+     }
+    ],
+    "search": [
+     [
+      "W-2.1",
+      111,
+      true
+     ],
+     [
+      "乳腺组织",
+      1,
+      true
+     ],
+     [
+      "合规替代",
+      509,
+      true
+     ],
+     [
+      "量子纠缠配色调参",
+      0,
+      true
+     ]
+    ],
+    "code_hist": {
+     "W020": 2218,
+     "W021": 10,
+     "E026": 454
+    }
+   }
+  },
+  {
+   "leg": "⑥ 文档可见性（agent 能否读到）",
+   "ok": false,
+   "detail": {
+    "md_total": 6163,
+    "enveloped": 513,
+    "buckets": {
+     "其他": 3,
+     "他人产物 hostlib": 510
+    },
+    "other": [
+     "./_eval-L0L7-gap-20261003/kb-l0-feishu-fix/SKILL.md",
+     "./_eval-L0L7-gap-20261003/kb-l0-feishu-fix/references/CHANGELOG.md",
+     "./kb/l7/reports/CHK-20261004-0326-DSH-health.md"
+    ]
+   }
+  },
+  {
+   "leg": "⑦ 消费侧 skill 可用",
+   "ok": true,
+   "detail": {
+    "files": [
+     "README.md",
+     "SKILL.md",
+     "references",
+     "categories.md",
+     "protocols.md",
+     "scripts",
+     "review.py"
+    ],
+    "enveloped_md": [],
+    "review_py_plaintext_write_patch": true,
+    "review_py_runnable": true,
+    "entry_gate_blocks_unmarked_calls": true,
+    "entry_gate_rc": 2,
+    "review_py_runnable_with_KB_ENTRY": true,
+    "real_entry": "kb/l7/review-engine/core/with_kb_evidence.py",
+    "real_entry_rc": 0,
+    "help": [
+     "usage: with_kb_evidence.py [-h] --text TEXT [--content-id CONTENT_ID]"
+    ]
+   }
+  },
+  {
+   "leg": "⑧ 工作台与服务",
+   "ok": true,
+   "detail": {
+    "workbench_4317": "200",
+    "kb_hostlib_4508_health": "200",
+    "launchd_jobs": "5"
+   }
+  },
+  {
+   "leg": "⑨ 写入侧（ingest 闸门 + 落盘通道）",
+   "ok": true,
+   "detail": {
+    "gate": "  [E026] 内容质量分 52.1 < 60（长度 0.4/20 · 密度 5/30 · 去重 20/20 · 语言 26.7/30）",
+    "landed": [],
+    "landed_enveloped": 0
+   }
+  }
+ ],
+ "verdict": "FAIL",
+ "failed_legs": [
+  "② 权威库 l0~l6 未被改动",
+  "③ 前序产物哈希（45 项）",
+  "⑥ 文档可见性（agent 能否读到）"
+ ]
+}

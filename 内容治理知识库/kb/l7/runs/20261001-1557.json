@@ -1,0 +1,127 @@
+{
+ "run_id": "20261001-1557",
+ "at": "2026-10-01T16:03:32",
+ "source": "pipeline_sync",
+ "trigger": "--sync --via-skill L0,L1,L3,L5,L6",
+ "skills": [
+  "kb-pipeline",
+  "kb-l0-feishu",
+  "kb-ingest-extractor",
+  "kb-clause-extractor",
+  "kb-p0-check",
+  "kb-recall"
+ ],
+ "commands": [
+  "kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L0,L1,L3,L5,L6 --run 20261001-1557 --invoked kb-l0-feishu --invoked kb-ingest-extractor --invoked kb-clause-extractor --invoked kb-p0-check --invoked kb-recall --skill-session L0=e293e230-1c10-4b76-916f-401399fea32d --skill-session L0_label=kb-layer-L0-kb-l0-feishu --skill-session L0_session_dir=/Users/lute/.dsh/sessions/--Users-lute-Documents-skill-test-~6267~884Cskills-~6267~884Cskills-skills-~56DE~5F52~6D4B~8BD5-~77E5~8BC6~5E93-~5185~5BB9~6CBB~7406--/e293e230-1c10-4b76-916f-401399fea32d --skill-session L1=5e70f9e9-86fe-45d7-93e6-8d37cee93ab4 --skill-session L1_label=kb-layer-L1-kb-ingest-extractor --skill-session L1_session_dir=/Users/lute/.dsh/sessions/--Users-lute-Documents-skill-test-~6267~884Cskills-~6267~884Cskills-skills-~56DE~5F52~6D4B~8BD5-~77E5~8BC6~5E93-~5185~5BB9~6CBB~7406--/5e70f9e9-86fe-45d7-93e6-8d37cee93ab4 --skill-session L3=fb4bd8d0-4880-4408-b3dc-120d653a8b4e --skill-session L3_label=kb-layer-L3-kb-clause-extractor --skill-session L3_session_dir=/Users/lute/.dsh/sessions/--Users-lute-Documents-skill-test-~6267~884Cskills-~6267~884Cskills-skills-~56DE~5F52~6D4B~8BD5-~77E5~8BC6~5E93-~5185~5BB9~6CBB~7406--/fb4bd8d0-4880-4408-b3dc-120d653a8b4e --skill-session L5=a0230999-5987-453c-a4a7-8f2c63ce0f65 --skill-session L5_label=kb-layer-L5-kb-p0-check --skill-session L5_session_dir=/Users/lute/.dsh/sessions/--Users-lute-Documents-skill-test-~6267~884Cskills-~6267~884Cskills-skills-~56DE~5F52~6D4B~8BD5-~77E5~8BC6~5E93-~5185~5BB9~6CBB~7406--/a0230999-5987-453c-a4a7-8f2c63ce0f65 --skill-session L6=a454e9cb-e1b4-4eaf-8cb4-78e5e3a3f4da --skill-session L6_label=kb-layer-L6-kb-recall --skill-session L6_session_dir=/Users/lute/.dsh/sessions/--Users-lute-Documents-skill-test-~6267~884Cskills-~6267~884Cskills-skills-~56DE~5F52~6D4B~8BD5-~77E5~8BC6~5E93-~5185~5BB9~6CBB~7406--/a454e9cb-e1b4-4eaf-8cb4-78e5e3a3f4da"
+ ],
+ "products": [
+  "kb/l0/runs/20261001-1557-dryrun.json",
+  "kb/l1/runs/20261001-1557-dryrun.json",
+  "kb/l3/runs/20261001-1557-dryrun.json",
+  "kb/l5/p0_patterns.jsonl",
+  "kb/l5/index/l5.jsonl",
+  "kb/l5/registry/l5.json",
+  "kb/l5/registry/l5_no_pattern.json",
+  "kb/l5/matcher.py",
+  "kb/l5/benchmark.json",
+  "kb/l5/runs/20261001-1557.p0_patterns.superseded.jsonl",
+  "kb/l6/runs/build_runs.jsonl",
+  "kb/l6/bm25/docs.jsonl",
+  "kb/l6/bm25/meta.json",
+  "kb/l6/bm25/postings_zh.jsonl",
+  "kb/l6/bm25/postings_en.jsonl",
+  "kb/l6/vectors/vectors.jsonl",
+  "kb/l6/vectors/matrix.npy",
+  "kb/l6/vectors/meta.json",
+  "kb/l6/index/l6.jsonl",
+  "kb/l6/registry/l6.json",
+  "kb/l6/retriever.py",
+  "kb/l6/selftest.json",
+  "kb/l6/benchmark.json",
+  "kb/l6/runs/20260923-1400.vectors.presegment.vectors.jsonl",
+  "kb/l6/runs/20260923-1400.vectors.presegment.matrix.npy"
+ ],
+ "verdict": "全走完（预演 · 未落盘 · 非执行证据）",
+ "human_involved": true,
+ "extra": {
+  "via_skill": true,
+  "skill_invoked_by": "agent",
+  "skill_evidence": "agent_reported",
+  "layers": [
+   "L0",
+   "L1",
+   "L3",
+   "L5",
+   "L6"
+  ],
+  "layer_skills": [
+   "kb-l0-feishu",
+   "kb-ingest-extractor",
+   "kb-media-extractor",
+   "kb-clause-extractor",
+   "kb-p0-check",
+   "kb-recall"
+  ],
+  "declared_layer_skills": {
+   "L0": [
+    "kb-l0-feishu"
+   ],
+   "L1": [
+    "kb-ingest-extractor",
+    "kb-media-extractor"
+   ],
+   "L3": [
+    "kb-clause-extractor"
+   ],
+   "L5": [
+    "kb-p0-check"
+   ],
+   "L6": [
+    "kb-recall"
+   ]
+  },
+  "layer_skills_uniq": [
+   "kb-l0-feishu",
+   "kb-ingest-extractor",
+   "kb-media-extractor",
+   "kb-clause-extractor",
+   "kb-p0-check",
+   "kb-recall"
+  ],
+  "invoked_reported": [
+   "kb-l0-feishu",
+   "kb-ingest-extractor",
+   "kb-clause-extractor",
+   "kb-p0-check",
+   "kb-recall"
+  ],
+  "skill_sessions": {
+   "L0": "e293e230-1c10-4b76-916f-401399fea32d",
+   "L0_label": "kb-layer-L0-kb-l0-feishu",
+   "L0_session_dir": "/Users/lute/.dsh/sessions/--Users-lute-Documents-skill-test-~6267~884Cskills-~6267~884Cskills-skills-~56DE~5F52~6D4B~8BD5-~77E5~8BC6~5E93-~5185~5BB9~6CBB~7406--/e293e230-1c10-4b76-916f-401399fea32d",
+   "L1": "5e70f9e9-86fe-45d7-93e6-8d37cee93ab4",
+   "L1_label": "kb-layer-L1-kb-ingest-extractor",
+   "L1_session_dir": "/Users/lute/.dsh/sessions/--Users-lute-Documents-skill-test-~6267~884Cskills-~6267~884Cskills-skills-~56DE~5F52~6D4B~8BD5-~77E5~8BC6~5E93-~5185~5BB9~6CBB~7406--/5e70f9e9-86fe-45d7-93e6-8d37cee93ab4",
+   "L3": "fb4bd8d0-4880-4408-b3dc-120d653a8b4e",
+   "L3_label": "kb-layer-L3-kb-clause-extractor",
+   "L3_session_dir": "/Users/lute/.dsh/sessions/--Users-lute-Documents-skill-test-~6267~884Cskills-~6267~884Cskills-skills-~56DE~5F52~6D4B~8BD5-~77E5~8BC6~5E93-~5185~5BB9~6CBB~7406--/fb4bd8d0-4880-4408-b3dc-120d653a8b4e",
+   "L5": "a0230999-5987-453c-a4a7-8f2c63ce0f65",
+   "L5_label": "kb-layer-L5-kb-p0-check",
+   "L5_session_dir": "/Users/lute/.dsh/sessions/--Users-lute-Documents-skill-test-~6267~884Cskills-~6267~884Cskills-skills-~56DE~5F52~6D4B~8BD5-~77E5~8BC6~5E93-~5185~5BB9~6CBB~7406--/a0230999-5987-453c-a4a7-8f2c63ce0f65",
+   "L6": "a454e9cb-e1b4-4eaf-8cb4-78e5e3a3f4da",
+   "L6_label": "kb-layer-L6-kb-recall",
+   "L6_session_dir": "/Users/lute/.dsh/sessions/--Users-lute-Documents-skill-test-~6267~884Cskills-~6267~884Cskills-skills-~56DE~5F52~6D4B~8BD5-~77E5~8BC6~5E93-~5185~5BB9~6CBB~7406--/a454e9cb-e1b4-4eaf-8cb4-78e5e3a3f4da"
+  },
+  "human_involved_basis": "--invoked 已上报（agent 按层 skill 走过）",
+  "verdict_basis": "层侧落章全是预演台账 → 未落盘",
+  "layer_stamps_applied": [],
+  "layer_stamps_dry": [
+   "L0:kb/l0/runs/20261001-1557-dryrun.json",
+   "L1:kb/l1/runs/20261001-1557-dryrun.json",
+   "L3:kb/l3/runs/20261001-1557-dryrun.json",
+   "L5:kb/l5/runs/20261001-1557-dryrun.json",
+   "L6:kb/l6/runs/20261001-1557-dryrun.json"
+  ],
+  "layer_stamps_unknown": []
+ }
+}

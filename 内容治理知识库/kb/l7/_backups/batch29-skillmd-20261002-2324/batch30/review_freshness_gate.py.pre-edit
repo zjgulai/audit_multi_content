@@ -1,0 +1,226 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""review_freshness_gate.py —— 评审链的 **fail-closed 前置条件**（批次19 · 第1块）。
+
+## 它解决什么
+
+`kb/l7/scripts/freshness.py` 早就判「关键 data 产物超期 ⇒ **应拒答（退出码 3）**」，
+但那只是**一个脚本的退出码** —— **评审链照样给 PASS/BLOCK**。
+⇒ 缺的不是「规则」，是 **fail-closed 的接线**：判据必须**挡住结论**，而不只是打一行字。
+
+## 为什么单独成件（而不是在每条入口各写一遍）
+
+两条入口都要接（用户点名）：
+  · **agent/skill 入口**：`kb-content-review/scripts/review.py`（`main()` 里）
+  · **API 入口**：`kb_api.py` 的 `POST /review`（`do_review`）
+同一判据写两遍必然分叉 —— 本库已因「同一判据算两遍」返工多次
+（`freshness.py` 顶部记的「3 vs 6 分叉」就是同一类病）。
+⇒ 判据只在本文件里一份，两条入口**都调它**。
+
+## 判据（读 daily_health 的**机读产物**，不自己重算）
+
+    `kb/l7/reports/daily-health-latest.json → stale_layers`
+
+非空 ⇒ **拒答**。空 ⇒ 放行。
+★ **不自己重算**：`freshness.py` 已经定过这条纪律（「陈旧结论直接读它的，不自己算」），
+  本文件沿用 —— 同一判据算两遍必然分叉。
+
+## 拒答时给什么（用户要求：明写是哪件产物、超期多久、该跑哪层）
+
+`check()` 返回的 `stale` 逐条带：层 / 产物路径 / 距今多久 / 判据原因。
+
+## 退出码（与 `freshness.py`、`review.py` 既有约定一致）
+
+    0 = 放行 ｜ 3 = 拒答（**与 review.py 的「拒答」退出码同一个**）｜ 2 = 判据读不到
+
+★ **判据读不到也拒答（fail-closed）**：日报缺失 / 读不出 ⇒ **不许当成新鲜**。
+  这是 fail-closed 的本义 —— 「不知道新不新鲜」不等于「新鲜」。
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+KB = os.path.dirname(os.path.dirname(HERE))          # …/kb
+KBPY = os.path.join(KB, "kbpy")
+DAILY = os.path.join(KB, "l7", "reports", "daily-health-latest.json")
+
+EXIT_OK, EXIT_REFUSE, EXIT_UNREADABLE = 0, 3, 2
+
+
+def _load_report(kb_root: str):
+    """读日报机读档；**优先现跑一次**（避免拿陈旧日报判新鲜）。
+
+    ★ 为什么要现跑：日报是**别的进程写的**，可能停在几小时前。
+      拿一份 6 小时前的日报判「现在新鲜吗」，就是**用陈旧数据判新鲜** —— 同一类病。
+      现跑一次 `daily_health.py --no-gates --outdir <临时目录>`（**零写权威库**，
+      与 `freshness.py:88-92` 同款做法），跑不动才退回盘上那份。
+
+    ★ **反测口**：环境变量 `KB_GATE_DAILY_JSON` 指向一份**夹具日报**时，直接用它、
+      不现跑。存在的唯一理由是：陈旧场景**没法在真实库上安全复现**（要先把真库弄陈旧），
+      而「拒答路径没测过」= 本批最不能接受的缺口。与 `skill_invocation_audit.py`
+      的 `KB_GATE_KB` 是同一类测试缝。**默认不设 ⇒ 行为不变。**
+    """
+    _fx = os.environ.get("KB_GATE_DAILY_JSON")
+    if _fx and os.path.isfile(_fx):
+        try:
+            with open(_fx, encoding="utf-8") as fh:
+                d = json.load(fh)
+            d["_source"] = {"mode": "fixture", "path": _fx,
+                            "note": "**反测夹具**（KB_GATE_DAILY_JSON），非真实日报"}
+            return d, None
+        except Exception as e:                           # noqa: BLE001
+            return None, "夹具日报读不出：%r" % (e,)
+
+    # ── ★ TTL 复用：盘上日报只要够新就**直接用它**，不每次现跑 ──────────────────
+    # 为什么需要：现跑一次 `daily_health --no-gates` 实测 **P50 ≈ 9.4 s**（它要把
+    #   kb_pipeline --check 跑两遍）。评审链每次都付这 9 秒，warm 从 1.2 s 涨到 13 s ——
+    #   仍在 60 s 内，但**没必要**：日报本身就是同一判据的产物。
+    # 为什么**不构成放松判据**：复用有**上界**（默认 10 分钟）。日报判的是「层是否新鲜
+    #   （24h 窗口）」，10 分钟前的日报与此刻的结论**在 24h 尺度上等价**；
+    #   而且判定所需的**上游水位**是现算的（`daily_health` 每次都现读盘）。
+    #   要绝对实时：`KB_GATE_MAX_AGE=0` 强制现跑。
+    try:
+        _max_age = float(os.environ.get("KB_GATE_MAX_AGE", "600"))
+    except ValueError:
+        _max_age = 600.0
+    if _max_age > 0 and os.path.isfile(DAILY):
+        try:
+            _age = time.time() - os.path.getmtime(DAILY)
+            if _age <= _max_age:
+                with open(DAILY, encoding="utf-8") as fh:
+                    d = json.load(fh)
+                d["_source"] = {"mode": "recent_on_disk", "path": DAILY,
+                                "age_sec": round(_age, 1), "max_age_sec": _max_age,
+                                "note": "日报在 TTL 内 ⇒ 直接复用，未现跑"
+                                        "（判据同一份；要强制现跑设 KB_GATE_MAX_AGE=0）"}
+                return d, None
+        except Exception:                                # noqa: BLE001
+            pass                                         # 读不动就往下走现跑
+
+    tmp = tempfile.mkdtemp(prefix="kb-gate-")
+    cmd = ["sh", KBPY, "l7/scripts/daily_health.py", "--no-gates", "--outdir", tmp]
+    try:
+        subprocess.run(cmd, cwd=os.path.dirname(kb_root), capture_output=True,
+                       text=True, timeout=600)
+        p = os.path.join(tmp, "daily-health-latest.json")
+        if os.path.isfile(p):
+            with open(p, encoding="utf-8") as fh:
+                d = json.load(fh)
+            d["_source"] = {"mode": "live", "path": p}
+            return d, None
+    except Exception as e:                               # noqa: BLE001
+        _err = str(e)
+    else:
+        _err = "现跑日报没出机读档（服务可能在忙）"
+    # 退回盘上那份（**如实标注是陈旧的**，不假装现跑）
+    if os.path.isfile(DAILY):
+        try:
+            with open(DAILY, encoding="utf-8") as fh:
+                d = json.load(fh)
+            d["_source"] = {"mode": "on_disk", "path": DAILY,
+                            "note": "现跑失败 ⇒ 退回盘上日报：%s" % _err}
+            return d, None
+        except Exception as e:                           # noqa: BLE001
+            return None, "日报读不出：%r" % (e,)
+    return None, "日报不存在（%s）；现跑也失败：%s" % (DAILY, _err)
+
+
+def check(kb_root: str | None = None):
+    """返回 `(ok: bool, info: dict)`。
+
+    `info` 里带 `stale`（逐条：层/产物/多久/原因）、`health`、`gate_red`、`source`。
+    """
+    kb_root = kb_root or KB
+    d, err = _load_report(kb_root)
+    if d is None:
+        return False, {
+            "ok": False, "reason": "**判据读不到 ⇒ 拒答（fail-closed）**：%s" % err,
+            "stale": [], "unreadable": True,
+            "source": {"mode": "missing"},
+        }
+
+    stale_layers = d.get("stale_layers") or []
+    # 逐条把「哪件产物 / 多久 / 原因」取出来（用户要求拒答时必须明写这三样）
+    by_layer = {j.get("layer"): j for j in (d.get("freshness_by_layer") or [])}
+    stale = []
+    for r in (d.get("todos_with_playbook") or []):
+        sig = str(r.get("sig") or "")
+        if sig.startswith("stale."):
+            stale.append({"layer": sig.split(".", 1)[1], "text": r.get("text"),
+                          "owner": r.get("owner"), "command": r.get("command")})
+    # 补上产物级细节（日报的 freshness 表里有 file/age）
+    files = {}
+    for row in (d.get("freshness") or []):
+        if row.get("layer") in stale_layers and row.get("kind") == "data":
+            files.setdefault(row["layer"], []).append(
+                {"file": "kb/" + row["file"], "age": row.get("age"),
+                 "mtime": row.get("mtime")})
+
+    info = {
+        "ok": not stale_layers,
+        "reason": ("" if not stale_layers else
+                   "**供给链超期 ⇒ 拒答**：超期层 %s" % "、".join(stale_layers)),
+        "stale_layers": stale_layers,
+        "stale": stale,
+        "stale_artifacts": files,
+        "layer_detail": [
+            {"layer": L, "change_state": (by_layer.get(L) or {}).get("change_state"),
+             "watermark_match": (by_layer.get(L) or {}).get("watermark_match"),
+             "reason": (by_layer.get(L) or {}).get("reason")}
+            for L in stale_layers],
+        "health": d.get("health"),
+        "gate_ok": d.get("gate_ok"), "gate_red": d.get("gate_red"),
+        "run_id": d.get("run_id"), "at": d.get("at"),
+        "source": d.get("_source"),
+    }
+    return info["ok"], info
+
+
+def refusal_payload(info: dict) -> dict:
+    """拒答结论的标准形状（两条入口共用，保证同输入同结论）。"""
+    return {
+        "state": "NEEDS_INPUT",
+        "reason": "供给链不新鲜",
+        "detail": info.get("reason"),
+        "stale_layers": info.get("stale_layers") or [],
+        "stale": info.get("stale") or [],
+        "stale_artifacts": info.get("stale_artifacts") or {},
+        "layer_detail": info.get("layer_detail") or [],
+        "health": info.get("health"),
+        "fails_closed": True,
+        "note": ("供给链有超期产物 ⇒ **不产出 PASS/BLOCK**（fail-closed）。"
+                 "按上面 `stale` 逐条处置后重跑。"
+                 "判据来源 = kb/l7/scripts/review_freshness_gate.py（两条入口共用同一份）。"),
+    }
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="评审链 fail-closed 前置：供给链新鲜度")
+    ap.add_argument("--kb-root", default=None)
+    ap.add_argument("--json", action="store_true")
+    a = ap.parse_args()
+    ok, info = check(a.kb_root)
+    if a.json:
+        print(json.dumps({"ok": ok, "info": info}, ensure_ascii=False, indent=1))
+    else:
+        print("评审链前置（fail-closed）：%s" % ("✅ 放行" if ok else "⛔ 拒答"))
+        print("  判据来源：%s" % json.dumps(info.get("source"), ensure_ascii=False))
+        print("  health=%s ｜ gate 过%s/红%s ｜ 超期层 %s"
+              % (info.get("health"), info.get("gate_ok"), info.get("gate_red"),
+                 info.get("stale_layers") or "无"))
+        for s in (info.get("stale") or []):
+            print("   · %s" % s.get("text"))
+    if not ok:
+        return EXIT_UNREADABLE if info.get("unreadable") else EXIT_REFUSE
+    return EXIT_OK
+
+
+if __name__ == "__main__":
+    sys.exit(main())

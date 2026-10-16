@@ -1,0 +1,6 @@
+Momcozy 内容治理知识库 **L1 媒体抽取入口**：把图片/附件/落地页链接转成可入库文本（OCR 正文），落进 L1 的 media 区与单元索引。
+当用户说「图片抽取/媒体抽取/这批图 OCR 一下/附件入库/链接下钻/L1 媒体/图里的文字落库/OCR 缓存能不能复用/查一下媒体状态/有多少张图还没落文本/kb-media-extractor」时使用；只想查状态走 §2.1 只读档（media_status.py）。
+**先追问、别加载（欠定）**：只打本名、只有名词、指代不明、没说抽哪批 → 不加载，先问清。
+**破坏性/越权不加载**：rm -rf、清空、删媒体区、--apply、写库（归 kb-pipeline 写档）。
+视频字幕/关键帧 OCR 未实现：先读 references/capability-matrix.md。
+判归：只对账 L0→kb-l0-feishu；切成知识单元→kb-ingest-extractor；条款蒸馏→kb-clause-extractor；整链同步→kb-pipeline；体检→kb-check；修闸门→kb-repair。

@@ -1,0 +1,24 @@
+{
+ "run_id": "20260930-130523",
+ "at": "2026-09-30T13:05:23",
+ "source": "agent_manual",
+ "trigger": "供给链：按各层 owner skill 逐层跑（只读/预演）",
+ "skills": [
+  "kb-l0-feishu",
+  "kb-media-extractor",
+  "kb-ingest-extractor",
+  "kb-clause-extractor",
+  "kb-pipeline",
+  "kb-check"
+ ],
+ "commands": [
+  "kb/kbpy l8/ocr_attachments.py <RUN>（预演）",
+  "kb/kbpy l8/l2_split_run.py <RUN>（预演）",
+  "kb/kbpy l7/scripts/kb_pipeline.py --sync --only L4,L5,L6"
+ ],
+ "products": [
+  "kb/l7/reports/2026-09-30-daily-health.md"
+ ],
+ "verdict": "逐层全过（过8/红0/未判0，产物变化 0）",
+ "human_involved": true
+}

@@ -1,0 +1,74 @@
+{
+  "schema_version": "dsh_skill_install_manifest_v0",
+  "skill_name": "root-agents",
+  "skill_dir": "/Users/lute/.dsh/skills/root-agents",
+  "installed_at": "2026-09-17T12:14:11+08:00",
+  "source_path": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/root-agents",
+  "source_kind": "live_working_tree",
+  "tree_sha256": "0f87c1b2f576e2c40e539285551af5fe58d5276cbccf2a2bdbd81a7531cd21b3",
+  "tree_sha256_source_at_install": "0f87c1b2f576e2c40e539285551af5fe58d5276cbccf2a2bdbd81a7531cd21b3",
+  "tree_matches_source": true,
+  "file_count": 67,
+  "byte_count": 8332182,
+  "excluded_patterns": [
+    "__pycache__",
+    ".DS_Store",
+    "SKILL.md",
+    "install-manifest.json"
+  ],
+  "business_sample_packages_in_family_root": [],
+  "install_shape": "single_skill_dir_family_root_preserved",
+  "why_single_dir": "成员用 Path(__file__).resolve().parent 定位兄弟资源（refs/、root-agent-eval/agent.py）。拆成多个顶层 skill 会让 HERE.parents[0] 变成 ~/.dsh/skills，refs 与 eval 全部失效，等于要改五个成员的代码。",
+  "members": [
+    {
+      "name": "root-agent-creater",
+      "stage": "create",
+      "agent_yaml_sha256_16": "793c0f16276a692b",
+      "unit_tests": 16,
+      "unit_test_status": "OK"
+    },
+    {
+      "name": "root-agent-doctor",
+      "stage": "verify",
+      "agent_yaml_sha256_16": "a6f1e8c5176ac0a6",
+      "unit_tests": 56,
+      "unit_test_status": "OK"
+    },
+    {
+      "name": "root-agent-eval",
+      "stage": "verify",
+      "agent_yaml_sha256_16": "888b10b381c76a8e",
+      "unit_tests": 210,
+      "unit_test_status": "OK"
+    },
+    {
+      "name": "root-agent-opt",
+      "stage": "optimize",
+      "agent_yaml_sha256_16": "6640690c6f137add",
+      "unit_tests": 19,
+      "unit_test_status": "OK"
+    },
+    {
+      "name": "root-agent-check",
+      "stage": "grow",
+      "agent_yaml_sha256_16": "f87d63ac05fd9c4e",
+      "unit_tests": 17,
+      "unit_test_status": "OK"
+    }
+  ],
+  "verification": {
+    "unit_tests_total": 318,
+    "unit_tests_result": "全部通过",
+    "family_health": "含 agent.yaml 的包逐个过 doctor，全部 healthy、0 阻断",
+    "discovered_by_dsh": null,
+    "discovery_rule": "DSH 只扫发现根的一级子目录，认 <dir>/SKILL.md；frontmatter 必须有非空 name/description，name 须匹配 ^[\\p{L}0-9]+(?:-[\\p{L}0-9]+)*$，invocation 键只认 kebab-case。",
+    "doctor_checks_total": 42
+  },
+  "commands": {
+    "digest": "python3 -c \"import hashlib,sys;from pathlib import Path;p=Path(sys.argv[1]);h=hashlib.sha256();[h.update(str(f.relative_to(p)).encode()+b'\\0'+hashlib.sha256(f.read_bytes()).hexdigest().encode()+b'\\n') for f in sorted(p.rglob('*')) if f.is_file() and '__pycache__' not in f.parts and f.name not in ('.DS_Store','SKILL.md','install-manifest.json')];print(h.hexdigest())\" /Users/lute/.dsh/skills/root-agents",
+    "drift_check": "[ \"$(python3 -c \"import hashlib,sys;from pathlib import Path;p=Path(sys.argv[1]);h=hashlib.sha256();[h.update(str(f.relative_to(p)).encode()+b'\\0'+hashlib.sha256(f.read_bytes()).hexdigest().encode()+b'\\n') for f in sorted(p.rglob('*')) if f.is_file() and '__pycache__' not in f.parts and f.name not in ('.DS_Store','SKILL.md','install-manifest.json')];print(h.hexdigest())\" /Users/lute/.dsh/skills/root-agents)\" = \"$(python3 -c \"import hashlib,sys;from pathlib import Path;p=Path(sys.argv[1]);h=hashlib.sha256();[h.update(str(f.relative_to(p)).encode()+b'\\0'+hashlib.sha256(f.read_bytes()).hexdigest().encode()+b'\\n') for f in sorted(p.rglob('*')) if f.is_file() and '__pycache__' not in f.parts and f.name not in ('.DS_Store','SKILL.md','install-manifest.json')];print(h.hexdigest())\" /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/root-agents)\" ] && echo 一致 || echo 已漂移",
+    "resync": "rsync -a --delete --exclude '__pycache__/' --exclude '.DS_Store' --exclude 'SKILL.md' --exclude 'install-manifest.json' '/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/root-agents/' '/Users/lute/.dsh/skills/root-agents/'",
+    "run_tests": "cd <skill> && for s in root-agent-creater root-agent-doctor root-agent-eval root-agent-opt root-agent-check; do python3 -m unittest discover -s $s/tests -p 'test_*.py'; done",
+    "family_health": "for a in <skill>/*/; do [ -f \"$a/agent.yaml\" ] && echo \"{\\\"agent_dir\\\":\\\"$a\\\"}\" | python3 <skill>/root-agent-doctor/agent.py; done"
+  }
+}

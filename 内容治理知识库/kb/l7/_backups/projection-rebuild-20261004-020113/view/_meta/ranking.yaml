@@ -1,0 +1,18 @@
+# 由 kb/.work/fix_f3_gen.py 生成（修复计划 F3a）—— 顶层键必须在加载器 WIRED_META_KEYS 白名单内，
+# 顶层键：weights —— 检索排序权重。**权重只影响先后，不影响命中**（不会去掉任何条目）。
+# F3a 口径：取 DEFAULT_RANKING 等价值。
+
+weights:
+  expired: 0.3              # 已过期条目降权
+  evidence_L1: 0.6            # 证据级 L1 降权
+  tier:                    # 层级偏好
+    L4: 1.15
+    L2: 1.1
+    L3: 1.0
+    L1: 1.0
+    L0: 0.9
+  superseded: 0.5           # 被取代
+  archived: 0.3             # 已冻结
+  vocabulary: 5           # 词表点名加分（人工策展信号，非语义相似度）
+  evidence_group_default: 1.0  # 未声明 evidence_group 的中性系数（不因缺字段而惩罚）
+  kb_class_default: 1.0      # 同上，未声明 kb_class

@@ -1,0 +1,87 @@
+skills.yaml 顶层 skills 条数: 71
+
+[1] routes.yaml routes[].to
+  OK   to(intent=全链同步 / 整条链路): 'kb-pipeline'
+  OK   to(intent=只看 L0): 'kb-l0-feishu'
+  OK   to(intent=单条内容能不能用（专项归属不明 / 跨模态）): 'kb-review'
+  OK   to(intent=一批素材的发布前审查全流程（多模态 + 统一结论）): 'brand-content-review-agent'
+  OK   to(intent=某条判定的依据): 'kb-content-review'
+  OK   to(intent=条款号 / 定稿状态查询): 'kb-canonical-lookup'
+  OK   to(intent=P0 判定查询): 'kb-p0-check'
+  OK   to(intent=召回 / 检索): 'kb-recall'
+  OK   to(intent=体检 / 闸门): 'kb-check'
+  OK   to(intent=不过就修): 'kb-repair'
+  OK   to(intent=家族管理 / 注册表 / 路由 / 生命周期): 'kb-manage'
+
+[2] routes.yaml chains[] entry/members
+  OK   chain=supply entry: 'kb-pipeline'
+  OK   chain=supply member: 'kb-pipeline'
+  OK   chain=supply member: 'kb-l0-feishu'
+  OK   chain=supply member: 'kb-canonical-lookup'
+  OK   chain=supply member: 'kb-p0-check'
+  OK   chain=supply member: 'kb-recall'
+  OK   chain=supply member: 'kb-check'
+  OK   chain=supply member: 'kb-repair'
+  OK   chain=review entry: 'kb-review'
+  OK   chain=review member: 'kb-review'
+  OK   chain=review member: 'kb-content-review'
+  OK   chain=review member: 'brand-content-review-agent'
+  OK   chain=manage entry: 'kb-manage'
+  OK   chain=manage member: 'kb-manage'
+
+[3] routes.yaml mutual_not_for pairs
+  MISS pair: '文案合规审查'  <-- 不在 skills.yaml
+  MISS pair: '视频安全审查'  <-- 不在 skills.yaml
+  OK   pair: 'kb-pipeline'
+  OK   pair: 'kb-l0-feishu'
+  OK   pair: 'kb-l0-feishu'
+  OK   pair: 'kb-review'
+  OK   pair: 'kb-pipeline'
+  OK   pair: 'kb-review'
+  OK   pair: 'kb-pipeline'
+  OK   pair: 'kb-canonical-lookup'
+  OK   pair: 'kb-pipeline'
+  OK   pair: 'kb-p0-check'
+  OK   pair: 'kb-pipeline'
+  OK   pair: 'kb-recall'
+
+[4] routes.yaml frozen_expectation.dir_name_map keys
+  OK   dir_name_map key: 'brand-content-review-agent'
+  OK   dir_name_map key: 'brand-review-intake-router'
+  OK   dir_name_map key: 'brand-policy-source-curator'
+  OK   dir_name_map key: 'brand-text-compliance-review'
+  OK   dir_name_map key: 'brand-product-claim-verifier'
+  OK   dir_name_map key: 'brand-image-safety-review'
+  OK   dir_name_map key: 'brand-video-safety-review'
+  OK   dir_name_map key: 'brand-us-locale-cultural-review'
+  OK   dir_name_map key: 'brand-ai-provenance-rights-review'
+  OK   dir_name_map key: 'brand-review-decision-engine'
+  OK   dir_name_map key: 'brand-review-report-memory'
+  OK   dir_name_map key: 'brand-review-evaluation'
+  OK   dir_name_map key: 'brand-feishu-review-adapter'
+
+[5] layers.yaml 各层 skill:
+  OK   layer=None skill: 'kb-l0-feishu'
+  OK   layer=None skill: 'kb-ingest-extractor'
+  OK   layer=None skill: 'kb-media-extractor'
+  OK   layer=None skill: 'kb-ingest-extractor'
+  OK   layer=None skill: 'kb-clause-extractor'
+  OK   layer=None skill: 'kb-canonical-lookup'
+  OK   layer=None skill: 'kb-p0-check'
+  OK   layer=None skill: 'kb-recall'
+  OK   layer=None skill: 'kb-check'
+
+[6] dir_name_map 值 vs 装载位真实目录
+  OK   brand-content-review-agent -> 内容审查总控
+  OK   brand-review-intake-router -> 送审登记
+  OK   brand-policy-source-curator -> 证据源维护
+  OK   brand-text-compliance-review -> 文案合规审查
+  OK   brand-product-claim-verifier -> 产品宣称核验
+  OK   brand-image-safety-review -> 图片安全审查
+  OK   brand-video-safety-review -> 视频安全审查
+  OK   brand-us-locale-cultural-review -> 美国本地化审查
+  OK   brand-ai-provenance-rights-review -> AI溯源与权利审查
+  OK   brand-review-decision-engine -> 审查裁决
+  OK   brand-review-report-memory -> 审查报告与记忆
+  OK   brand-review-evaluation -> 审查流程评测
+  OK   brand-feishu-review-adapter -> 飞书审查流转

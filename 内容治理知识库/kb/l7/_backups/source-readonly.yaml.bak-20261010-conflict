@@ -1,0 +1,213 @@
+# source-readonly.yaml —— **飞书侧只读源 + 取值身份口径** 登记件（唯一真源）
+#
+# 谁读它：`kb/l8/check_source_readonly.py`（判据）；人读它查「哪些源不许写、读不通时用谁的身份」。
+#
+# 谁定的：Owner 2026-10-10 原话（逐字）——
+#   「1.飞书侧这两个表只读（不允许修改）：
+#      https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tblMGtPfe8ZUsEdP&view=vewHCQJrgo
+#      https://momcozy-in.feishu.cn/wiki/NB55wAq8liEOdKkquL2cgtPEnmg
+#    2.所有飞书权限问题，使用守衡或者我的用户身份读取」
+#   落成规则要避免下次再问一遍 —— 所以规则进 `~/.dsh/AGENTS.md`（每次会话注入），
+#   判据进本件 + `kb/l8/check_source_readonly.py`（散文没有失败信号）。
+#
+# 本件回答两件事：
+#   ① **哪些飞书资源只许读** → `resources`
+#   ② **读不通时按什么身份走、错误怎么报** → `identity_policy`
+#
+# 边界（写清楚，免得被误用）：
+#   · 本件**不改变**任何层的 inputs / outputs，**不改变**任何既有判据 —— 只加约束，不加步骤。
+#   · 本件**不是**结论去向登记：结论写哪儿在 `conclusion-destination.yaml`（**另一张表**），两件别混。
+#   · 「只读」是**约束我们自己的方向**（不许写它），不是「飞书侧没有协作者权限」。
+
+meta:
+  file: kb/l7/registry/source-readonly.yaml
+  answers: 哪些飞书源只许读 + 读不通时用哪个身份
+  checker: kb/l8/check_source_readonly.py
+  checker_selftest: python3 kb/l8/check_source_readonly.py --selftest
+  set_by: Owner（2026-10-10 对话；原话逐字见文件头）
+  registered_at: '2026-10-10'
+  registered_by: DSH agent（本会话）
+
+# ── ① 只读源 ────────────────────────────────────────────────────────────────
+resources:
+  - id: l0-entry-base-material-collection
+    order: 1
+    url: https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tblMGtPfe8ZUsEdP&view=vewHCQJrgo
+    what: L0 源 · **入口 Base** 的表「材料收集」（L0 的取数口，按「材料审核状态=通过」抓）
+    resource_kind: feishu_bitable
+    base_token: GnRZbIuXraCzf0sGr2UcmZ62nfc
+    table_id: tblMGtPfe8ZUsEdP
+    view_id: vewHCQJrgo
+    read_only: true
+    scope_interpretation: >
+      Owner 给的 URL **只点了一张表**（tblMGtPfe8ZUsEdP），而**同一个 Base 里还有**：
+      负面样本（`tbld8qE92YaY38Yz`）/ 知识库分类说明（`tblZP8jG4tiUL98C`）/ 规则库（`tblXsrMVkDNZ3oW8`）。
+      现行口径取**保守超集：整个入口 Base 只读**。
+      依据（实测，不是推断）：**活代码里没有任何写这个 Base 的路径** ——
+      唯一的飞书写入口是发布件 `kb/l7/review-engine/core/feishu_publish.py`
+      （`+record-batch-create` / `+record-batch-update`），它的 base 是从
+      `kb/l7/registry/conclusion-destination.yaml` **现读**的，指向**另一张表**
+      （`RY2UbCRjXaeeWwscUPScVN5AnQc` / `tblCXPQVzfFWWCon`）。
+      ⇒ 取超集**不误伤任何活路径**；要收窄成「只这一张表」，改这一行即可（见 `open_questions`）。
+    evidence_20261010:
+      read_ok: true
+      identity: bot
+      command: 'lark-cli base +table-list --base-token GnRZbIuXraCzf0sGr2UcmZ62nfc --profile dsh-kb --as bot'
+      observed: 'ok=true；该 Base 4 张表：知识库分类说明 5 行 / 材料收集 32 行 / 负面样本 170 行 / 规则库 50 行'
+    also_referenced_by:
+      - kb/l8/align_l0_schema.py:56（TABLES 真源：`("GnRZbIuXraCzf0sGr2UcmZ62nfc", "tblMGtPfe8ZUsEdP", "材料收集")`）
+      - kb/l8/align_l0_feishu.py:77
+      - kb/l8/materialize_l0_compare.py:74
+
+  - id: prd-content-review-agent
+    order: 2
+    url: https://momcozy-in.feishu.cn/wiki/NB55wAq8liEOdKkquL2cgtPEnmg
+    what: '**内容审查 Agent PRD**（v1.2）—— 评审链 / 发布件的 PRD 依据'
+    resource_kind: feishu_wiki_docx
+    wiki_token: NB55wAq8liEOdKkquL2cgtPEnmg
+    docx_token: PXfBdjTwFokEQixtmTscqm7knNh
+    read_only: true
+    evidence_20261010:
+      read_ok: true
+      identity: bot
+      command: 'lark-cli docs +fetch --doc NB55wAq8liEOdKkquL2cgtPEnmg --profile dsh-kb --as bot'
+      observed: 'ok=true；首行 `# 内容审查 Agent PRD`、`**文档版本**：v1.2`'
+    also_referenced_by:
+      - kb/l7/registry/report-output-contract.yaml（`prd:` 段；2026-10-02 首读 revision 36）
+
+# ── 明确**不是**只读源：唯一的飞书写入口（防「只读」被误读成「飞书侧一律不写」）──
+write_targets_not_affected:
+  - id: review-conclusion-destination
+    registry: kb/l7/registry/conclusion-destination.yaml
+    base_token: RY2UbCRjXaeeWwscUPScVN5AnQc
+    table_id: tblCXPQVzfFWWCon
+    written_by: kb/l7/review-engine/core/feishu_publish.py（引擎默认调用）＋ 守衡 tools/agent/review_publish.mjs
+    note: 评审结论**照旧写这里**。「源只读」不碰它，一个字都没动。
+
+# ── ② 取值身份口径 ──────────────────────────────────────────────────────────
+identity_policy:
+  order: [bot, user]
+  bot:
+    name: 守衡
+    app_id: cli_aa2243de0438dcd7
+    profile: dsh-kb
+    flag: '--as bot'
+    status_20261010: ready
+    why_primary: 'kb/l8/align_l0_feishu.py:55 本来就是 `AS_ID = os.environ.get("L8_AS", "bot")` —— bot 主、user 只是回落'
+  user:
+    name: 刘华丽
+    flag: '--as user'
+    open_id: ou_af95e2a43871579692afbb25a529e77e
+    status_20261010: 'missing —— `User identity: missing (refresh token expired)`；expiresAt 2026-10-09T21:50:57+08:00，且 refreshExpiresAt 与它**同值** ⇒ 无 refresh token'
+    recover: lark-cli auth login
+    caveat: >
+      ★ **不许把「用户身份」当成随时可用的第二条路** —— 2026-10-10 实测它就是过期的，
+      要用得先重新登录（device flow 扫码）。
+      真正的兜底不是它，而是 **bot 已经够用**：本轮两条资源 bot 直读**都通**（见 resources[].evidence_20261010）。
+  on_failure:
+    rule: 把 bot 侧的**原始错误原样贴出来**，再判是哪一类 —— 两类修的地方不同：
+    resource_permission: '`131006` / permission denied ⇒ 去飞书侧把守衡加为该资源的协作者'
+    missing_scope: '`app_scope_not_applied` ⇒ 去开发者后台补 scope'
+    discipline: '**有权限就不许说没权限**（Owner 2026-10-06 原话）。**不许把两类合成一句「没权限」。**'
+  cli_path: '~/.dsh/bin/lark-cli —— **不在默认 PATH 里**，调用前要 `export PATH="$HOME/.dsh/bin:$PATH"`'
+
+# ── 判据要核的 AGENTS.md 断言（`agents_md_must_contain`）─────────────────────
+# 为什么要列在这儿而不是写死在脚本里：这样「AGENTS.md 该写什么」只有一份真源，
+# 脚本只负责**核**。改口径改这里，不碰脚本。
+agents_md:
+  file: ~/.dsh/AGENTS.md
+  must_contain:
+    - 'GnRZbIuXraCzf0sGr2UcmZ62nfc'
+    - 'tblMGtPfe8ZUsEdP'
+    - 'NB55wAq8liEOdKkquL2cgtPEnmg'
+    - 'kb/l8/check_source_readonly.py'
+    - 'kb/l7/registry/source-readonly.yaml'
+    - 'dsh-kb'
+    - '131006'
+    - 'app_scope_not_applied'
+    - '~/.dsh/bin'
+  must_contain_note: >
+    上面每条都对应 AGENTS.md 里一句**可被命令核**的话，不是修饰词：
+    令牌 = 资源身份；`check_source_readonly.py` / `source-readonly.yaml` = 判据与登记件在位；
+    `dsh-kb` = profile；`131006` / `app_scope_not_applied` = 两类错误的**分流**（缺资源权限 vs 缺 scope）；
+    `~/.dsh/bin` = CLI 不在 PATH 这个坑。
+    判据只核**在不在**，不判「写得对不对」—— 语义对错仍靠人读（照 check_agents_md_drift.py 的纪律）。
+
+# ── 判据的判定口径（让"什么算写"只有一份定义）──────────────────────────────
+scan_policy:
+  scope:
+    roots: [kb, tools, review-bridge]
+    suffixes: ['.py', '.mjs', '.js', '.sh']
+    exclude_segments_prefix: ['_', '.']       # `_archive` / `_backups` / `_stage` / `.pytest_cache` / `.work` …
+    exclude_segment_names: [tests, node_modules, __pycache__]
+    exclude_filename_contains: ['.bak']
+    note: >
+      只扫**活代码**（.py/.mjs/.js/.sh）。**不扫 `.md` / `.yaml`** —— 那些是散文与登记件，
+      它们**本来就会出现**写命令的原文（本文件、report-output-contract.yaml 都有）。
+      代价照实说：人手从 runbook 里抄一条 `+record-delete` 去打源表，**这条尺子管不住**。
+  fail_closed: >
+    对 `lark-cli base|docs|wiki` 的子命令走**只读白名单**：**凡不在白名单里的一律按写对待**。
+    宁可多报，不可漏报 —— 新增一个写子命令不需要改这把尺子。
+  readonly_subcommands:
+    base: [+table-list, +table-get, +field-list, +field-get, +field-search-options,
+           +record-list, +record-get, +record-search, +record-history-list,
+           +record-download-attachment, +view-list, +view-get, +view-get-card,
+           +view-get-filter, +view-get-group, +view-get-sort, +view-get-timebar,
+           +view-get-visible-fields, +base-get, +base-block-list, +dashboard-list,
+           +dashboard-get, +dashboard-block-list, +dashboard-block-get,
+           +dashboard-block-get-data, +dashboard-share-get, +table-copy-status,
+           +role-list, +app-get, +app-page-list, +app-page-get, +app-block-list,
+           +app-block-get, +app-block-get-data, +field-extension-get, +button-rule-get]
+    docs: [+fetch, +search, +history-list, +media-download, +media-preview, +resource-download]
+    wiki: [+node-get, +node-list, +space-list, +space-retrieve, +member-list]
+
+# ── 落地当天的实测（2026-10-10；数字都是命令输出，不是估计）────────────────
+verification_20261010:
+  judge: 'python3 kb/l8/check_source_readonly.py ⇒ **5 / 5 绿，退出码 0**'
+  judge_selftest: 'python3 kb/l8/check_source_readonly.py --selftest ⇒ **反向对照 7 / 7 绿，退出码 0**'
+  drift_checker: 'python3 kb/l8/check_agents_md_drift.py ⇒ **无漂移（11/11）** —— 新增的 `source_readonly` 断言吃的是**本判据的 --json 结论**（委托，不抄第二份真值）'
+  workflow_smoke: 'python3 kb/l8/workflow_smoke.py ⇒ **S1–S5 全绿**（改动没弄坏工作流）；--selftest **4/4**'
+  live_code_scan: '扫活代码 **168 个文件**（含 `+` 的 157 个）；写动词命中 **8 处**，其中**指向只读源的 0 处**'
+  write_verbs_found:
+    - 'kb/l7/review-engine/core/feishu_publish.py:552 docs +update ／ :561 docs +create —— 写真报告文档（新建 or 调用方 --doc 指定），不是只读源'
+    - 'kb/l7/review-engine/core/feishu_publish.py:615 base +record-batch-update ／ :620 base +record-batch-create —— 目标 `dest["base_token"]`（结论去向表）'
+    - 'feishu_publish.py:19/23、review_engine.py:430、with_kb_evidence.py:611 —— **注释/文档串**里的命令原文，非执行点'
+  envelope: '`~/.dsh/AGENTS.md` 写后核对：python getsize **60593** == `wc -c` **60593**（无 4096 信封）'
+  auto_detection: >
+    `kb/l8/watch_review_readiness.py::check_agents_drift()` 每天都跑漂移检查器并把结论进告警
+    （**非阻断**，与「AGENTS.md 漂移」同类 —— 就绪谓词的语义是「现在能不能跑」，
+    只读约束破了不必然让评审链跑不起来，所以**报警交人判**，不改 ready / 退出码）。
+    ⇒ 「有人写了源表」这件事**会在飞书侧被推到**，不靠谁想起来跑一次。
+
+# ── 待裁（摆出来，不自己挑一个执行）────────────────────────────────────────
+open_questions:
+  - id: scope-table-vs-base
+    question: ①的「只读」是**只这一张表**（材料收集），还是**整个入口 Base**（含负面样本 / 知识库分类说明 / 规则库）？
+    current_default: 整个入口 Base（保守超集）
+    needs: Owner 一句话
+    my_recommendation: >
+      推荐**维持「整个入口 Base 只读」**。理由：代价为零（实测没有写它的活路径，不误伤任何东西），
+      却能挡住最常见的一类越界 ——「顺手把结果回写到源表」。
+      代价/前提：若将来真需要往该 Base 的某张表写（例如规则库），得先改本件并说明，会留痕。
+  - id: user-identity-expired
+    question: 用户身份（刘华丽）令牌已过期且无 refresh token；要不要恢复它当回落？
+    current_default: 不恢复 —— bot 已够用，两条资源直读都通。
+    needs: Owner 一句话（要恢复就得扫码 `lark-cli auth login`）
+    my_recommendation: >
+      推荐**不恢复**。理由：AGENTS.md 已记「根治已完成 —— user 令牌整条回落链路不再需要」，
+      且 2.0 小时寿命 + 无 refresh token ⇒ 把它当兜底会制造「日更成功但 L0 没更新」那类静默事故。
+      代价/前提：万一某天 bot 被撤权限，就得重新扫码 —— 那一刻会先在飞书侧收到告警（就绪巡检）。
+  - id: publish-doc-overwrite-footgun
+    question: >
+      发布件 `feishu_publish.py` 的 `docs +update --doc <target>` 里，target 是**调用方传的**
+      （`a.doc`）。有人 `--doc PXfBdjTwFokEQixtmTscqm7knNh` 就会**把 PRD 整篇覆盖**。
+      要不要加一道「`--doc` 命中只读资源 ⇒ 拒写」的运行时闸门？
+    current_default: 未加。**判据抓不到运行时取值**（C3 只扫字面/argv 写动词的目标，不解析运行期实参）。
+    needs: Owner 一句话
+    my_recommendation: >
+      推荐**加**（在 `feishu_publish.py` 里查 `source-readonly.yaml` 的两个 docx/wiki 令牌，命中即拒并打印原因）。
+      理由：这是把「规则」从**禁令**变成**闸门**的唯一一步，代价很小（一个 if + 读一次登记件）。
+      代价/前提：**要动活代码** —— 而 `kb/l7/review-engine/` 当下正被**另一会话**改
+      （`report-output-contract.yaml` 16:12 仍在变），此时改会撞车 ⇒ 我**没动**，摆在这儿等一句话。
+      反例（说明为何不急）：这条要人工显式传 PRD 令牌才会触发，属**低概率高后果**，
+      且 MR 评审看得见 —— 不是「每天都会踩」的那种坑。

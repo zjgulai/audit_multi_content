@@ -1,0 +1,108 @@
+---
+id: cg-sc-f6752c31c0ccee6d
+title: "[S-1.197] 内部正负样本库：反例·原则性错误·图片"
+collection: 2_内部正负样本库
+kb_class: [内部正负样本库]
+tier: L1
+topic: S-1.197
+kind: fact
+summary: "[S-1.197] 反例案例（图片/其他）：原因归类「原则性错误」；案例作参照、不构成规则。状态 stable。"
+owner: 刘华丽
+evidence_level: L1
+data_level: L2
+sensitivity_level: L2
+half_life_days: 180
+created_at: 2026-10-16
+valid_until: 2027-04-14
+asks:
+  - S-1.197 是正例还是反例
+  - S-1.197 的问题要点与原因归类是什么
+  - S-1.197 应该怎么做（合规做法 / 修改建议）
+not_proves: 案例是参照，不构成规则 —— 不能证明「和它像」就违规、也不能证明「和它像」就合规；不能证明该条已过正式验收；不能证明该条可替代合规/法务意见
+forbidden: 不许把案例当规则用（案例只作参照）；不许据本条直接判 BLOCK；不许把派生视图的字段改动当成新库改动（视图不写回）
+related:
+  - cg-sc-6f6ab6a73b5faa9d
+  - cg-sc-4c9fb93e15f96193
+  - cg-sc-4b54e54c9d27daef
+source:
+  kind: feishu-base
+  ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
+  fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
+  captured_at: 2026-10-16
+provenance:
+  anchor: "kb/l4/canonical/sample_case.jsonl#sc-f6752c31c0ccee6d"
+  confidence: 确定
+pii:
+  detected: true
+  masked: true
+  strategy: "案例正文与原因分析里的 @人名 不可逆脱敏（mask-at-name）；已检出并脱敏"
+article_no: S-1.197
+form: sample_case
+kb_type: internal_sample
+kb_version: v0
+case_id: sc-f6752c31c0ccee6d
+status: stable
+polarity: 反例
+material_type: 图片
+channel: 其他
+reason_category: 原则性错误
+evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
+promoted_from: provisional
+anchor: "#正面和负面样本/recvw2vgYXYprL/原文反馈"
+source_sha256: 154038d95c0f2273e63955c3ee8be50254821e20014773b7a4c06e54c6eed2b6
+resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXYprL
+sample_body: "【审核 · 2026-07-31 01:42 · 吴礼芳】@[已脱敏] 需求里特意写画面不要过于完美，现在的画面就是感觉太完美了，妈妈的状态也太完美了，完美到不像哺乳期的妈妈，而且话说她在记什么？我想象不到这个场景是在干嘛～～～抱着宝宝的妈妈状态是OK的，但另一个在用吸奶器的是妈妈吗？怎么像一个记者啥的？  --- 其他审核者反馈 ---  [2026-07-30 15:06 李诗萍] 【初审-@[已脱敏] 】麻烦看看呀:YouAreTheBest: **项目名：Community会员中心banner-母乳喂养** **设计要求：**视觉场景建议采用温暖、真实的居家母乳喂养或吸奶场景。 画面中可以是1-3位妈妈在沙发、床边或婴儿房内进行喂养或吸奶，旁边有宝宝及少量真实生活物品，例如吸奶用品、储奶袋、手机或水杯。人物状态自然放松，不需要看镜头，也不要呈现过度完美 **设计稿件：** ! --- [2026-07-30 15:33 李诗萍] 【终审-@[已脱敏]  】麻烦看看呀:YouAreTheBest: **项目名：Community会员中心banner-母乳喂养** **设计要求：**视觉场景建议采用温暖、真实的居家母乳喂养或吸奶场景。 画面中可以是1-3位妈妈在沙发、床边或婴儿房内进行喂养或吸奶，旁边有宝宝及少量真实生活物品，例如吸奶用品、储奶袋、手机或水杯。人物状态自然放松，不需要看镜头，也不要呈现过度完美、明显摆拍的广告感。  --- [2026-07-30 17:42 吴礼芳] @[已脱敏] 需求里特意写画面不要过于完美，现在的画面就是感觉太完美了，妈妈的状态也太完美了，完美到不像哺乳期的妈妈，而且话说她在记什么？我想象不到这个场景是在干嘛～～～抱着宝宝的妈妈状态是OK的，但另一个在用吸奶器的是妈妈吗？怎么像一个记者啥的？  Breastfeeding Month Share What Helped. Find Real Support. Help Another Mom. Share real breastfeeding and pumping experiences, help build the Support List, and get a chance to win prizes worth up to $199.99. Join Breastfeeding Month momcozy momcozy"
+reason_analysis: 【原则性错误】图片 需求里特意写画面不要过于完美，现在的画面就是感觉太完美了，妈。 【问题要点】 1. 需求里特意写画面不要过于完美，现在的画面就是感觉太完美了，妈妈的状态也太完美了，完美到不像哺乳期的妈妈，而且话说她在记什么 2. 我想象不到这个场景是在干嘛～～～抱着宝宝的妈妈状态是OK的，但另一个在用吸奶器的是妈妈吗 3. 怎么像一个记者啥的
+advice: ""
+---
+
+# [S-1.197] 内部正负样本库：反例·原则性错误·图片
+
+**条款号**：S-1.197　|　**形态**：`sample_case`　|　**正/反例**：反例　|　**状态**：stable
+
+## 样本本体（照抄新库，未改写）
+
+【审核 · 2026-07-31 01:42 · 吴礼芳】@[已脱敏] 需求里特意写画面不要过于完美，现在的画面就是感觉太完美了，妈妈的状态也太完美了，完美到不像哺乳期的妈妈，而且话说她在记什么？我想象不到这个场景是在干嘛～～～抱着宝宝的妈妈状态是OK的，但另一个在用吸奶器的是妈妈吗？怎么像一个记者啥的？
+
+--- 其他审核者反馈 ---
+
+[2026-07-30 15:06 李诗萍] 【初审-@[已脱敏] 】麻烦看看呀:YouAreTheBest:
+**项目名：Community会员中心banner-母乳喂养**
+**设计要求：**视觉场景建议采用温暖、真实的居家母乳喂养或吸奶场景。
+画面中可以是1-3位妈妈在沙发、床边或婴儿房内进行喂养或吸奶，旁边有宝宝及少量真实生活物品，例如吸奶用品、储奶袋、手机或水杯。人物状态自然放松，不需要看镜头，也不要呈现过度完美
+**设计稿件：**
+!
+---
+[2026-07-30 15:33 李诗萍] 【终审-@[已脱敏]  】麻烦看看呀:YouAreTheBest:
+**项目名：Community会员中心banner-母乳喂养**
+**设计要求：**视觉场景建议采用温暖、真实的居家母乳喂养或吸奶场景。
+画面中可以是1-3位妈妈在沙发、床边或婴儿房内进行喂养或吸奶，旁边有宝宝及少量真实生活物品，例如吸奶用品、储奶袋、手机或水杯。人物状态自然放松，不需要看镜头，也不要呈现过度完美、明显摆拍的广告感。
+
+---
+[2026-07-30 17:42 吴礼芳] @[已脱敏] 需求里特意写画面不要过于完美，现在的画面就是感觉太完美了，妈妈的状态也太完美了，完美到不像哺乳期的妈妈，而且话说她在记什么？我想象不到这个场景是在干嘛～～～抱着宝宝的妈妈状态是OK的，但另一个在用吸奶器的是妈妈吗？怎么像一个记者啥的？
+
+Breastfeeding Month
+Share What Helped. Find Real Support.
+Help Another Mom.
+Share real breastfeeding and pumping experiences,
+help build the Support List, and get a chance to win prizes worth
+up to $199.99.
+Join Breastfeeding Month
+momcozy
+momcozy
+
+## 原因分析
+
+【原则性错误】图片 需求里特意写画面不要过于完美，现在的画面就是感觉太完美了，妈。
+【问题要点】
+1. 需求里特意写画面不要过于完美，现在的画面就是感觉太完美了，妈妈的状态也太完美了，完美到不像哺乳期的妈妈，而且话说她在记什么
+2. 我想象不到这个场景是在干嘛～～～抱着宝宝的妈妈状态是OK的，但另一个在用吸奶器的是妈妈吗
+3. 怎么像一个记者啥的
+
+## 引用依据
+
+- 锚点：`#正面和负面样本/recvw2vgYXYprL/原文反馈`
+- 指纹：`154038d95c0f2273e63955c3ee8be50254821e20014773b7a4c06e54c6eed2b6`
+- 原因归类：原则性错误　|　素材类型：图片
+
+> 案例只作参照，不构成规则。

@@ -1,0 +1,227 @@
+{
+ "round": 2,
+ "cases": [
+  {
+   "id": "P-creator-1",
+   "type": "正例",
+   "prompt": "我想把「每周竞品广告巡检」这套我自己摸索的流程固化成 Agent 能自动加载的 skill，麻烦你帮我从头建起来，交付可加载的 skill 目录。",
+   "content": "root-skills-creator"
+  },
+  {
+   "id": "P-creator-2",
+   "type": "正例",
+   "prompt": "帮我起草一个 skill：输入是客服聊天记录，输出是每周高频问题 Top10。我要能直接放进 skills 目录被自动加载。",
+   "content": "root-skills-creator"
+  },
+  {
+   "id": "P-doctor-1",
+   "type": "正例",
+   "prompt": "我的 skill 目录里 README、脚本、示例全堆在根目录，还有几个引用的文件路径根本不存在，帮我按规范整理并修掉失效引用。",
+   "content": "root-skills-doctor"
+  },
+  {
+   "id": "P-doctor-2",
+   "type": "正例",
+   "prompt": "跑一下目录规范检查：看这个 skill 的文件摆放、目录缺失、frontmatter 合规不合规，能自动修的直接修。",
+   "content": "root-skills-doctor"
+  },
+  {
+   "id": "P-eval-1",
+   "type": "正例",
+   "prompt": "评测 skill：web-testcase，路径 ~/.dsh/skills/web-testcase。我要它实际的触发准确率多少、哪里需要改进。",
+   "content": "root-skills-eval"
+  },
+  {
+   "id": "P-eval-2",
+   "type": "正例",
+   "prompt": "给 ~/.dsh/skills/root-skills-opt 这个 skill 出一套触发用例并测三轮，我只要评分和问题清单。",
+   "content": "root-skills-eval"
+  },
+  {
+   "id": "P-opt-1",
+   "type": "正例",
+   "prompt": "我手上有一份 skill 的评估报告，按报告把它的问题改掉，改完重测，源文件不要动。",
+   "content": "root-skills-opt"
+  },
+  {
+   "id": "P-opt-2",
+   "type": "正例",
+   "prompt": "根据上次评估结果优化 shuorenhua 这个 skill，把分数提上去，改在副本里。",
+   "content": "root-skills-opt"
+  },
+  {
+   "id": "P-check-1",
+   "type": "正例",
+   "prompt": "核对一下这次评测报告有没有漏数据、字段缺没缺，核对通过再放行。",
+   "content": "root-skills-check"
+  },
+  {
+   "id": "P-check-2",
+   "type": "正例",
+   "prompt": "这份报告质检一下：15 项自检逐项核，缺的字段帮我回填。",
+   "content": "root-skills-check"
+  },
+  {
+   "id": "P-manage-1",
+   "type": "正例",
+   "prompt": "root-skills 家族现在有哪些成员、各自负责什么？我要按这个决定以后的新 skill 该登记到哪。",
+   "content": "root-skills-manage"
+  },
+  {
+   "id": "P-manage-2",
+   "type": "正例",
+   "prompt": "我要停用 root-skills 家族里的一个成员并保留记录，登记表和版本跟踪在哪维护？",
+   "content": "root-skills-manage"
+  },
+  {
+   "id": "P-batch-1",
+   "type": "正例",
+   "prompt": "把 ~/.dsh/skills 目录下所有 skills 批量评测跑一遍，中间断了要能接着跑。",
+   "content": "root-skills-batch-driver"
+  },
+  {
+   "id": "P-batch-2",
+   "type": "正例",
+   "prompt": "批量评测这批 skill 时有个 subagent 卡死了，帮我加心跳检测和无进展超时，卡了就自动续接。",
+   "content": "root-skills-batch-driver"
+  },
+  {
+   "id": "N-1",
+   "type": "近似命中",
+   "prompt": "帮我评估一下这条 listing 文案能不能过审，美国站，卖吸奶器。",
+   "content": true
+  },
+  {
+   "id": "N-2",
+   "type": "近似命中",
+   "prompt": "这段小红书文案读着太像 AI 写的了，帮我改写自然一点。",
+   "content": true
+  },
+  {
+   "id": "N-3",
+   "type": "近似命中",
+   "prompt": "我电脑越来越卡，帮我看看磁盘目录是不是被垃圾文件塞满了，整理一下。",
+   "content": true
+  },
+  {
+   "id": "N-4",
+   "type": "近似命中",
+   "prompt": "帮我写个 Python 脚本批量重命名这批图片文件。",
+   "content": true
+  },
+  {
+   "id": "N-5",
+   "type": "近似命中",
+   "prompt": "给这个客服 agent 包做个体检和打分，我要它上线前的结论。",
+   "content": true
+  },
+  {
+   "id": "N-6",
+   "type": "近似命中",
+   "prompt": "这份季度经营分析报告的数据核对一下，有几个数字对不上。",
+   "content": true
+  },
+  {
+   "id": "N-7",
+   "type": "负例",
+   "prompt": "帮我做一份下周的会议议程安排，参会人拉一下。",
+   "content": true
+  },
+  {
+   "id": "N-8",
+   "type": "负例",
+   "prompt": "把这段英文产品描述翻译成德语，保留原格式。",
+   "content": true
+  },
+  {
+   "id": "N-9",
+   "type": "负例",
+   "prompt": "帮我查一下这个飞书文档里的表格数据，导出成 Excel。",
+   "content": true
+  },
+  {
+   "id": "N-10",
+   "type": "负例",
+   "prompt": "解释一下什么是 Transformer 里的自注意力机制，讲细一点。",
+   "content": true
+  },
+  {
+   "id": "B-1",
+   "type": "边界",
+   "prompt": "我这批 skill 有的地方不太行，你看着办。",
+   "content": true
+  },
+  {
+   "id": "B-2",
+   "type": "边界",
+   "prompt": "skill 评测。",
+   "content": true
+  },
+  {
+   "id": "B-3",
+   "type": "边界",
+   "prompt": "为什么这个 skill 老是该触发的时候不触发？",
+   "content": true
+  },
+  {
+   "id": "B-4",
+   "type": "边界",
+   "prompt": "我想评测一下我自己写的那个 skill，材料我还没整理好。",
+   "content": "root-skills-eval"
+  },
+  {
+   "id": "B-5",
+   "type": "边界",
+   "prompt": "顺手把那个 skill 的代码风格也统一一下。",
+   "content": true
+  },
+  {
+   "id": "X-1",
+   "type": "跨家族撞车",
+   "prompt": "我想给「知识库」那个 skill 家族新增一个成员，登记表和路由表在哪维护？",
+   "content": "root-skills-manage"
+  },
+  {
+   "id": "X-2",
+   "type": "跨家族撞车",
+   "prompt": "跑一遍知识库那边所有闸门，看全库自检过不过。",
+   "content": "root-skills-check"
+  },
+  {
+   "id": "X-3",
+   "type": "跨家族撞车",
+   "prompt": "知识库里那条规则现在支持引用吗？我想按条款号去核它的定稿状态。",
+   "content": "root-skills-eval"
+  },
+  {
+   "id": "X-4",
+   "type": "跨家族撞车",
+   "prompt": "kb-check 和 kb-repair 这两个 skill 怎么分工？我该走哪个？",
+   "content": "root-skills-manage"
+  },
+  {
+   "id": "X-5",
+   "type": "跨家族撞车",
+   "prompt": "从一堆会议纪要里蒸一个 skill 出来，我想沉淀成可路由的 skill。",
+   "content": "root-skills-eval"
+  },
+  {
+   "id": "C-1",
+   "type": "调用",
+   "prompt": "/root-skills-eval 评测一下 web-testcase",
+   "content": "root-skills-eval"
+  },
+  {
+   "id": "C-2",
+   "type": "调用",
+   "prompt": "/root-skills-opt 帮我评测一下 web-testcase 的触发准确率",
+   "content": true
+  },
+  {
+   "id": "C-3",
+   "type": "调用",
+   "prompt": "/root-skills-doctor 检查一下 shuorenhua 这个 skill 的目录结构",
+   "content": "root-skills-doctor"
+  }
+ ]
+}

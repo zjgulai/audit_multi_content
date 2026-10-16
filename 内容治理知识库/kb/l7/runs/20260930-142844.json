@@ -1,0 +1,20 @@
+{
+ "run_id": "20260930-142844",
+ "at": "2026-09-30T14:28:44",
+ "source": "review_agent",
+ "trigger": "全网最低价，宝宝用了绝对不哭闹",
+ "skills": [
+  "文案合规审查",
+  "kb-content-review",
+  "审查裁决"
+ ],
+ "commands": [
+  "kb/kbpy l7/review-engine/core/with_kb_evidence.py --text \"全网最低价，宝宝用了绝对不哭闹\" --json --dry-run",
+  "kb/kbpy l7/review-engine/core/rule_engine.py \"全网最低价，宝宝用了绝对不哭闹\""
+ ],
+ "products": [
+  "kb/l7/reports/20260930-1427-文案合规审查.review.md"
+ ],
+ "verdict": "REVIEW ｜ D1 无依据价格排名 + D2 行为结果绝对承诺 ｜ G1/G2 覆盖缺口 ｜ 机器 PASS 判为假放行（覆盖信号张冠李戴）",
+ "human_involved": true
+}

@@ -1,0 +1,302 @@
+#!/usr/bin/env python3
+"""L0 ↔ 飞书：表结构（字段 id/名/类型）对齐核验 + 刷新 registry 快照。
+
+为什么要单独做：记录值对齐（align_l0_feishu.py）只比「值的相等」，不比「字段集合与字段类型」。
+字段改名/改类型/增删字段都可能在值层面看不出来（值相同、键不同），而下游 L1/L2 是按字段名取角色的。
+
+做法：每个表取飞书最新 field-list（用户身份），与 L0 记录文件里逐条携带的 schema 比对：
+  · 同 field_id 名字不同      → 改名（drift，要留痕）
+  · field_id 只在飞书有       → L0 缺字段（新加字段，L0 记录需补）
+  · field_id 只在 L0 有       → 飞书删字段（L0 需标 retired）
+  · 同 field_id 类型不同      → 类型漂移
+并刷新 kb/l0/registry/kb.json 的 schema_snapshots（旧的仍是 9/24 版本）。
+用法：python3 kb/l8/align_l0_schema.py 20260929-1340 [--apply]
+"""
+# ── 解释器守卫（2026-09-29）：不合格就用 kb/.kb-python 指定的解释器重跑自己 ──
+import os as _os, sys as _sys
+if not _os.environ.get("KB_INTERP_OK"):
+    _d = _os.path.dirname(_os.path.abspath(__file__)); _cfg = None
+    while True:
+        _p = _os.path.join(_d, ".kb-python")
+        if _os.path.isfile(_p):
+            _cfg = _p
+            break
+        _q = _os.path.dirname(_d)
+        if _q == _d:
+            break
+        _d = _q
+    if _cfg:
+        _want = next((l.split("#", 1)[0].strip() for l in open(_cfg, encoding="utf-8")
+                      if l.split("#", 1)[0].strip()), "")
+        _want = _os.path.expanduser(_want)
+        if (_want and _os.access(_want, _os.X_OK)
+                and _os.path.realpath(_want) != _os.path.realpath(_sys.executable)):
+            _os.environ["KB_INTERP_OK"] = "1"
+            _os.execve(_want, [_want, _os.path.abspath(__file__)] + _sys.argv[1:], dict(_os.environ))
+# ──────────────────────────────────────────────────────────────────────────
+
+import collections
+import json
+import os
+import subprocess
+import sys
+
+# ── 批次11 · C-2：归档去重实现只有一份（kb/kb_ledger.py），这里只取用 ──────────
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+import kb_ledger as _ledger_mod
+
+RUN = sys.argv[1] if len(sys.argv) > 1 else "20260929-1340"
+APPLY = "--apply" in sys.argv
+AS_ID = os.environ.get("L8_AS", "bot")     # ★ 2026-10-10 默认 user→bot（见文件尾注）
+PROFILE = os.environ.get("L8_PROFILE", "dsh-kb")
+ENV = dict(os.environ, PATH=os.path.expanduser("~/.dsh/bin") + ":" + os.environ.get("PATH", ""))
+
+TABLES = [
+    ("GnRZbIuXraCzf0sGr2UcmZ62nfc", "tbld8qE92YaY38Yz", "负面样本"),
+    ("GnRZbIuXraCzf0sGr2UcmZ62nfc", "tblMGtPfe8ZUsEdP", "材料收集"),
+    ("GnRZbIuXraCzf0sGr2UcmZ62nfc", "tblZP8jG4tiUL98C", "知识库分类说明"),
+    ("Lk3Qb8y2QaVyZns6gprcVNE9nA0", "tblcbk4XiW6471YN", "广告文案明细"),
+    ("Lk3Qb8y2QaVyZns6gprcVNE9nA0", "tblD1MiUK1v5fdjD", "品线内容边界规则库"),
+    ("Lk3Qb8y2QaVyZns6gprcVNE9nA0", "tblqUTAKFkWheU49", "W1卖点表达边界（品线反馈0910）"),
+    ("Lk3Qb8y2QaVyZns6gprcVNE9nA0", "tblLxUfPz4Wqp2na", "风险文案改写建议库（分型号分渠道）"),
+    ("N2qkb2YxuatqGLsa4U4cFQxgnCe", "tblGFyycMc45RMga", "数据表"),
+    ("SKkkbdZi9aRuMzs7ob0cpSYHnQg", "tbl8AI00JZO1iZtp", "专家修订汇总表"),
+    ("SKkkbdZi9aRuMzs7ob0cpSYHnQg", "tblVdl0jdK9G4ld3", "内容公式（仅供参考）"),
+]
+
+# L0 记录文件侧：table_id -> {(fid, name): type}
+l0_fields = collections.defaultdict(dict)
+l0_records = collections.Counter()
+for root, _d, files in os.walk("kb/l0/records"):
+    for fn in files:
+        if not fn.endswith(".json"):
+            continue
+        r = json.load(open(os.path.join(root, fn), encoding="utf-8"))
+        tid = r.get("table_id")
+        if not tid:
+            continue
+        l0_records[tid] += 1
+        for name, fd in (r.get("fields") or {}).items():
+            fid = fd.get("field_id")
+            if fid:
+                l0_fields[tid][(fid, name)] = fd.get("field_type")
+
+# 只读载入 registry：`refresh_note` 要**动态列出被归档的旧快照时点**（批18 去掉写死日期），
+# 故此处必须提前拿到旧 registry（原先只在 `if APPLY:` 段里载入 ⇒ 非 APPLY 段引用它会 NameError，
+# 批次18 实测踩到：`--apply` 直接 NameError 退出、未写任何文件）。
+_REG_PATH = "kb/l0/registry/kb.json"
+_reg_old = []
+try:
+    if os.path.exists(_REG_PATH):
+        _reg_old = (json.load(open(_REG_PATH, encoding="utf-8")).get("schema_snapshots") or [])
+except Exception:
+    _reg_old = []
+
+report = {"run": RUN, "identity": f"{AS_ID}/{PROFILE}", "tables": {}, "summary": {}}
+snapshots = []
+tot = collections.Counter()
+for base, tid, name in TABLES:
+    p = subprocess.run(["lark-cli", "base", "+field-list", "--base-token", base, "--table-id", tid,
+                        "--as", AS_ID, "--profile", PROFILE, "--format", "json"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace",
+                       env=ENV, timeout=300)
+    try:
+        d = json.loads(p.stdout)
+    except Exception:
+        d = {"ok": False, "error": {"message": (p.stdout or p.stderr)[:150]}}
+    ent = {"table": name, "base_token": base, "table_id": tid, "l0_records": l0_records[tid]}
+    if not d.get("ok"):
+        ent["status"] = "field_list_failed"
+        ent["error"] = json.dumps(d.get("error"), ensure_ascii=False)[:200]
+        report["tables"][tid] = ent
+        tot["field_list_failed"] += 1
+        print(f"[{name}] field-list 失败：{ent['error'][:100]}")
+        continue
+    fs = d["data"]["fields"]
+    live = {f["id"]: (f["name"], f.get("type")) for f in fs}
+    l0 = l0_fields.get(tid, {})
+    l0_by_fid = {fid: nm for (fid, nm) in l0}
+    renamed, missing_in_l0, retired, type_drift = [], [], [], []
+    for fid, (nm, ty) in live.items():
+        if fid in l0_by_fid:
+            if l0_by_fid[fid] != nm:
+                renamed.append({"field_id": fid, "l0": l0_by_fid[fid], "feishu": nm})
+            elif l0.get((fid, nm)) and ty and l0[(fid, nm)] != ty:
+                type_drift.append({"field_id": fid, "name": nm, "l0": l0[(fid, nm)], "feishu": ty})
+        else:
+            missing_in_l0.append({"field_id": fid, "name": nm, "type": ty})
+    for (fid, nm) in l0:
+        if fid not in live:
+            retired.append({"field_id": fid, "name": nm})
+    ent.update({"status": "ok", "feishu_fields": len(live), "l0_fields": len(l0),
+                "renamed": renamed, "missing_in_l0": missing_in_l0,
+                "retired_in_feishu": retired, "type_drift": type_drift})
+    report["tables"][tid] = ent
+    for k in ("renamed", "missing_in_l0", "retired_in_feishu", "type_drift"):
+        tot[k] += len(ent[k])
+    snapshots.append({"table_name": name, "table_id": tid, "at": RUN, "rev": None,
+                      "field_count": len(live), "records_count": None,
+                      "fields": [{"field_id": f["id"], "field_name": f["name"], "type": f.get("type")} for f in fs],
+                      # ★ 批次18 · 判据④：**去掉写死的旧快照时点** ──────────────────
+                      # 病灶（批次18 实测，与批11 在 `refresh_note` 上报的同类）：
+                      #   原句写死「旧快照为 20260924-1100」，而实际被归档的最新旧快照是
+                      #   `at=20260930-1105` ⇒ **注记与实际不符**。更糟的是它会**逐轮累积**：
+                      #   实测 `kb/l0/registry/kb.json` 里 x10 条快照都带着这句错的注记。
+                      # 修法：注记里写**本轮的 RUN**，并**动态列出实际被归档的旧快照时点**，
+                      #   不再写死任何一个日期。
+                      "refresh_note": ("由 kb/l8/align_l0_schema.py 按飞书最新 field-list 刷新"
+                                       "（本轮 RUN=%s；被归档的旧快照时点：%s）"
+                                       % (RUN, "、".join(
+                                           sorted({str(s.get("at")) for s in _reg_old
+                                                   if s.get("at") and s.get("at") != RUN})
+                                           or ["（无）"])))})
+    flag = "" if not (renamed or missing_in_l0 or retired or type_drift) else "  ← 有漂移"
+    print(f"[{name}] 飞书字段 {len(live)} / L0 字段 {len(l0)} 改名 {len(renamed)} "
+          f"L0缺 {len(missing_in_l0)} 飞书已删 {len(retired)} 类型变 {len(type_drift)}{flag}")
+    for x in renamed:
+        print(f"     改名: {x['field_id']} {x['l0']} → {x['feishu']}")
+    for x in missing_in_l0:
+        print(f"     L0 缺字段: {x['field_id']} {x['name']} ({x['type']})")
+    for x in retired:
+        print(f"     飞书已删: {x['field_id']} {x['name']}")
+
+report["summary"] = dict(tot)
+json.dump(report, open(f"kb/l8/runs/{RUN}-l0-schema-align.json", "w", encoding="utf-8"),
+          ensure_ascii=False, indent=1)
+print(f"\n=== 结构层汇总 === 改名 {tot['renamed']} | L0缺字段 {tot['missing_in_l0']} | "
+      f"飞书已删 {tot['retired_in_feishu']} | 类型漂移 {tot['type_drift']} | 取字段失败 {tot['field_list_failed']}")
+
+# ── 写入门禁（批次10 补，2026-10-02）──────────────────────────────────────────
+# 依据 = `~/.dsh/skills/kb-l0-feishu/SKILL.md:112` **原文**：
+#   「**字段读失败时脚本必须拒写快照**（宁可红，也不写退化的 0 字段快照）。」
+# 该要求**写了两次、代码从未实现**（`field_list_failed` 原本只出现在 `:94` 置状态 /
+# `:97` 计数 / `:140` 打印三处，`if APPLY:` 段无条件重写 schema_snapshots）；
+# 且**已发生两次事故**：`SKILL.md:111` 记的上一次（2 张表被刷成 0 字段）、
+# 批次9 RUN=20261002-0630 这一次（10/10 全失败仍写盘，活跃快照 10 → 8）。
+# 本条把那条要求落成代码：失败 → **默认拒写**，退出码非 0，失败表逐条列出。
+_failed = [e for e in report["tables"].values() if e.get("status") == "field_list_failed"]
+_accept = "--accept-field-list-failure" in sys.argv
+if _failed and APPLY and not _accept:
+    print("\n❌ 写入门禁：%d 张表 field-list 读取失败 → **拒绝写 schema_snapshots**" % len(_failed))
+    for e in _failed:
+        print("   · %s (%s)  %s" % (e.get("table"), e.get("table_id"), (e.get("error") or "")[:100]))
+    print("   依据：kb-l0-feishu/SKILL.md:112「字段读失败时脚本必须拒写快照」。")
+    print("   承认通道：**由人**显式加 `--accept-field-list-failure`"
+          "（失败事实会连同 run_id 写进 registry 留痕）。")
+    sys.exit(3)
+
+if APPLY:
+    p = "kb/l0/registry/kb.json"
+    reg = json.load(open(p, encoding="utf-8"))
+    old = reg.get("schema_snapshots") or []
+    # 失败表**不许从活跃集里消失**：把它的既有最新快照原样带过来，并显式标 `state: blocked`。
+    # 历史条目照旧归档（不删、不改既有语义），只是活跃集里必须看得到「这张表这次没读到」。
+    _prev_latest = {}
+    for s in old:
+        if s.get("at") == RUN:
+            continue
+        # ★ 修正（批次10 实测踩到）：**不能跳过 `_archived_previous`** —— 上一轮写盘会把
+        #   所有历史条目压成只有 `at/table_id/table_name/field_count` 的摘要行，
+        #   于是「找失败表的既有最新快照」实际只能在这些摘要行里找；跳过它们会得到
+        #   `at=None / field_count=None / fields=[]` 的空 blocked 条目（首测即如此）。
+        #   优先级：**带 `fields` 的完整条目 > 摘要行**；同类取最新（old 新在前 ⇒ 首个命中）。
+        cur = _prev_latest.get(s.get("table_id"))
+        if cur is None or (not cur.get("fields") and s.get("fields")):
+            _prev_latest[s.get("table_id")] = s
+    _blocked = []
+    for e in _failed:
+        s = _prev_latest.get(e["table_id"]) or {}
+        _blocked.append({"table_name": e.get("table") or s.get("table_name"),
+                         "table_id": e["table_id"], "at": s.get("at"), "rev": s.get("rev"),
+                         "field_count": s.get("field_count"), "records_count": s.get("records_count"),
+                         "fields": s.get("fields"), "state": "blocked",
+                         "blocked_reason": "field-list 读取失败：" + (e.get("error") or "")[:120],
+                         "blocked_at": RUN,
+                         "field_count_note": "**旧值·未复读**（本次未能读到飞书 field-list）"})
+    # ══════════════════════════════════════════════════════════════════════════
+    # 批次18 · 第3块(E)：**丙** —— registry 只存现行集，归档摘要外移到 kb/l0/_archive/
+    # ══════════════════════════════════════════════════════════════════════════
+    # 为什么改（批次18 实测，推翻批11 的半个判断）：
+    #   · 批11 以为「按 (table_id, at) 去重 + 限量」能治膨胀 —— **实测去重一条都去不掉**：
+    #     75 条键**全部唯一**、重复组合 0。膨胀**不是同键重复**。
+    #   · 真相：**每轮把上一版的活跃集整段推成归档摘要、永不清理**。
+    #     实测结构：现行行 10 条（`_archived_previous` 非真）+ 归档摘要 65 条（8 个历史 at）。
+    #   · `kb/l0/kb_ledger.py:36-44` 的契约**早就写好但没人执行** ——
+    #     `_archived_previous` 被定义为**运行元数据（非业务内容）**，注释原话：
+    #     「同一 (table_id, at) 的新鲜行与归档行若不算同内容，归档就会与活跃集并存并逐轮累积。」
+    # 修法（**不是搬一次，是修写入者**）：
+    #   · `registry.schema_snapshots` = **只写现行行**（`snapshots + _blocked`），恒为本轮 10 条
+    #   · 归档摘要写 **`kb/l0/_archive/schema_snapshots/<at>.jsonl`**（append-only、永不删）
+    #   · 旧格式（registry 内 `_archived_previous` 行）在**迁移**时一次性外移
+    ARCHIVE_DIR = "kb/l0/_archive/schema_snapshots"
+    os.makedirs(ARCHIVE_DIR, exist_ok=True)
+
+    # ① 把 registry 里**遗留的**归档摘要行外移（历史不清空，只换位置）
+    _legacy = [s for s in old if s.get("_archived_previous")]
+    _legacy_moved = 0
+    if _legacy:
+        _byat = collections.defaultdict(list)
+        for x in _legacy:
+            _byat[str(x.get("at"))].append(x)
+        for _at, _rows in sorted(_byat.items()):
+            _ap = os.path.join(ARCHIVE_DIR, "%s.jsonl" % _at)
+            _seen = set()
+            if os.path.exists(_ap):
+                for _l in open(_ap, encoding="utf-8"):
+                    if _l.strip():
+                        _o = json.loads(_l); _seen.add((_o.get("table_id"), _o.get("at")))
+            with open(_ap, "a", encoding="utf-8") as _fh:
+                for _x in _rows:
+                    _k2 = (_x.get("table_id"), _x.get("at"))
+                    if _k2 in _seen:
+                        continue                      # append-only 契约：同键不重复追加
+                    _fh.write(json.dumps(_x, ensure_ascii=False, sort_keys=True) + "\n")
+                    _seen.add(_k2); _legacy_moved += 1
+        print("✓ 遗留归档摘要外移 %d 条 → %s（按 at 分 %d 个文件）"
+              % (_legacy_moved, ARCHIVE_DIR, len(_byat)))
+
+    # ② 本轮现役集写进 archive（同样 append-only，同键不重复）
+    _cur_ap = os.path.join(ARCHIVE_DIR, "%s.jsonl" % RUN)
+    _cur_seen = set()
+    if os.path.exists(_cur_ap):
+        for _l in open(_cur_ap, encoding="utf-8"):
+            if _l.strip():
+                _o = json.loads(_l); _cur_seen.add((_o.get("table_id"), _o.get("at")))
+    _cur_added = 0
+    with open(_cur_ap, "a", encoding="utf-8") as _fh:
+        for _x in snapshots + _blocked:
+            _k2 = (_x.get("table_id"), _x.get("at"))
+            if _k2 in _cur_seen:
+                continue
+            _fh.write(json.dumps(_x, ensure_ascii=False, sort_keys=True) + "\n")
+            _cur_seen.add(_k2); _cur_added += 1
+
+    # ③ registry 只留现行行（不再并归档摘要）
+    reg["schema_snapshots"] = snapshots + _blocked
+    _snap_stats = {"active": len(snapshots), "blocked": len(_blocked),
+                   "registry_total": len(reg["schema_snapshots"]),
+                   "legacy_archived_moved": _legacy_moved,
+                   "current_archived_added": _cur_added,
+                   "archive_dir": ARCHIVE_DIR,
+                   "note": ("**丙（批18）**：registry 只存现行集；历史归档摘要在 "
+                            "`kb/l0/_archive/schema_snapshots/<at>.jsonl`（append-only、永不删）")}
+    reg.setdefault("l0_schema_align", []).append(
+        {"run": RUN, "identity": report["identity"], "result": report["summary"],
+         "field_list_failed_tables": [{"table": e.get("table"), "table_id": e.get("table_id"),
+                                       "error": (e.get("error") or "")[:120]} for e in _failed],
+         "write_gate": ("accepted_by_flag" if (_failed and _accept)
+                        else ("no_failure" if not _failed else "refused")),
+         "schema_snapshots": _snap_stats,
+         "report": f"kb/l8/runs/{RUN}-l0-schema-align.json"})
+    json.dump(reg, open(p, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+    json.load(open(p, encoding="utf-8"))
+    print("✓ registry.schema_snapshots 已刷新（**只存现行集**，批18 丙）")
+    print("  registry 现行 %d 条（快照 %d + blocked %d）"
+          % (_snap_stats["registry_total"], _snap_stats["active"], _snap_stats["blocked"]))
+    print("  归档 → %s ：本轮新增 %d 条 ｜ 遗留外移 %d 条"
+          % (_snap_stats["archive_dir"], _snap_stats["current_archived_added"],
+             _snap_stats["legacy_archived_moved"]))
+    if _failed:
+        print("  ⚠️ 本次带 %d 张失败表写盘（人已显式承认）" % len(_failed))
+else:
+    print("未写入（加 --apply 刷新 registry）")

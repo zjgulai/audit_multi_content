@@ -1,0 +1,157 @@
+{
+  "exporter_version": "l5-0.1",
+  "kb_version": "v0",
+  "selection": {
+    "p_level": "P0",
+    "rule_kind": "atomic",
+    "authority": [
+      "expert",
+      "legal"
+    ]
+  },
+  "rule_code_uniqueness": "rule_code 在全套规则里不唯一（品线内容边界规则库复用 H01-H09/M01-M07/U01-U04 码，authority=inferred 已按门槛排除）；入选集合内部已校验无重码，变体表按 rule_code 查表安全",
+  "excluded": {
+    "non_P0": 488,
+    "P0_but_authority_insufficient": 9,
+    "P0_but_inductive": 6
+  },
+  "variant_policy": {
+    "literal_from_source": "全部取自源侧规则 evidence 的「命中片段/检测关键词」，按「；」(L3 跨记录连接符) 与「,，」(源侧单元格内并列) 切开后逐条成 pattern",
+    "synonym_family": "同一语义族的等价说法，且必须出现在该规则的 suggested_replacement / rule_text 的表述范围内",
+    "regex": "处理词形变化（复数/时态/连字符/中英变体）与「场景+消除暗示」组合式命中",
+    "no_new_knowledge": "每条 pattern 都回指已存在的 rule_id；未引入源里没有的事实",
+    "word_level_grounding": "逐词给出 basis：verbatim_source（逐字来自该规则的命中片段）/verbatim_rule_text（逐字来自该规则的 rule_text 或建议替换）/ equivalent_of:<锚点词>（同一词的另一种语言或连字符写法，锚点词必须是该规则自己写过的词）。三种都对不上 → 判为凭空，不进匹配表，记进 variant_sources.dropped_ungrounded"
+  },
+  "term_grounding": {
+    "augmente la production de lait": "verbatim_source",
+    "boost supply": "verbatim_source",
+    "easier let-down": "verbatim_source",
+    "easier letdown": "verbatim_source",
+    "improve pumping efficiency": "verbatim_source",
+    "increase milk supply": "verbatim_source",
+    "increases milk production": "verbatim_source",
+    "increasing milk supply": "verbatim_source",
+    "mehr milch": "verbatim_source",
+    "more milk": "verbatim_source",
+    "más leche": "verbatim_source",
+    "plus de lait": "verbatim_source",
+    "producción de leche": "verbatim_source",
+    "support faster let-down": "verbatim_source",
+    "triggers letdown": "verbatim_source",
+    "boost milk": "equivalent_of:boost supply",
+    "maximize milk": "equivalent_of:more milk",
+    "milk supply boost": "equivalent_of:boost supply",
+    "下奶": "equivalent_of:增产催奶",
+    "催乳": "verbatim_rule_text",
+    "催奶": "verbatim_rule_text",
+    "增产": "verbatim_rule_text",
+    "增加奶量": "equivalent_of:increase milk supply",
+    "奶量提升": "equivalent_of:increase milk supply",
+    "ibclc-recommended": "verbatim_source",
+    "ob-gyn recommended": "verbatim_source",
+    "recommended by 100+ experts": "verbatim_source",
+    "doctor recommended": "equivalent_of:ob-gyn recommended",
+    "doctor-recommended": "equivalent_of:ob-gyn recommended",
+    "expert recommended": "equivalent_of:recommended by 100+ experts",
+    "expert-recommended": "equivalent_of:recommended by 100+ experts",
+    "expert-tuned": "verbatim_rule_text",
+    "pediatrician recommended": "equivalent_of:ob-gyn recommended",
+    "专家推荐": "verbatim_rule_text",
+    "专家认证推荐": "equivalent_of:recommended by 100+ experts",
+    "专家调校": "verbatim_rule_text",
+    "医生推荐": "equivalent_of:ob-gyn recommended",
+    "perfect pump": "verbatim_source",
+    "100% safe": "verbatim_rule_text",
+    "100%safe": "equivalent_of:100% safe",
+    "fits all breast shapes": "verbatim_rule_text",
+    "one size fits all": "verbatim_rule_text",
+    "risk-free": "equivalent_of:zero risk",
+    "safest": "verbatim_rule_text",
+    "zero risk": "verbatim_rule_text",
+    "一定不损伤": "verbatim_rule_text",
+    "完全安全": "equivalent_of:100% safe",
+    "绝对安全": "equivalent_of:safest",
+    "适合所有胸型": "verbatim_rule_text",
+    "零风险": "equivalent_of:zero risk",
+    "indolore": "verbatim_source",
+    "no pain": "verbatim_source",
+    "pain-free": "verbatim_source",
+    "painlessly": "verbatim_source",
+    "sans douleur": "verbatim_source",
+    "say goodbye to cold, painful": "verbatim_source",
+    "schmerzfrei": "verbatim_source",
+    "sin dolor": "verbatim_source",
+    "zero pain": "verbatim_source",
+    "free of pain": "equivalent_of:pain-free",
+    "pain relief": "verbatim_rule_text",
+    "relieve pain": "equivalent_of:pain relief",
+    "without pain": "verbatim_rule_text",
+    "不痛": "equivalent_of:无痛",
+    "告别疼痛": "equivalent_of:缓解疼痛",
+    "无痛": "verbatim_rule_text",
+    "缓解疼痛": "verbatim_rule_text",
+    "mimics baby’s natural nursing": "verbatim_source",
+    "baby-like suckling": "equivalent_of:mimics baby",
+    "imitates baby": "equivalent_of:mimics baby",
+    "mimic baby": "equivalent_of:mimics baby",
+    "mimics a baby": "equivalent_of:mimics baby",
+    "模仿婴儿": "equivalent_of:模拟复制宝宝",
+    "模拟婴儿吸吮": "equivalent_of:模拟复制宝宝",
+    "还原婴儿吮吸": "equivalent_of:模拟复制宝宝",
+    "painful pumping": "verbatim_source",
+    "clogged ducts": "verbatim_rule_text",
+    "sore breasts": "equivalent_of:sore",
+    "sore nipples": "equivalent_of:sore"
+  },
+  "whitelist_policy": {
+    "negation": [
+      "\\b(does\\s*n[o']?t|do\\s+not|does\\s+not|not\\s+intended\\s+to|never|no\\s+claim)\\b[^.]{0,40}\\b(treat|cure|heal|pain|milk)\\b",
+      "(不能|不可以|无法|并非|不是|不做|严禁|禁止)[^。]{0,20}(治疗|治愈|预防|无痛|增产|催奶|催乳)",
+      "^\\s*(DO\\s+NOT\\s+SAY|Do\\s+not\\s+say|禁用表达|禁用词|禁止表达|禁止使用|禁用|禁止|不允许|不得使用|违规表述|违规词|高危词)\\s*[:：][^。！？!?]{0,200}"
+    ],
+    "quotation": [
+      "[「『\\\"“][^」』\\\"”]{0,80}[」』\\\"”]",
+      "\\b(per|according\\s+to|as\\s+stated\\s+in|cited\\s+from)\\b[^.]{0,30}",
+      "^(依据|来源|原文|条款)[:：]"
+    ],
+    "rule_specific_allowed": {
+      "H05": [
+        "best",
+        "#1",
+        "no.1",
+        "no. 1",
+        "排名第一",
+        "第一"
+      ],
+      "H07": [
+        "comfort",
+        "gentle",
+        "discomfort",
+        "缓解胀满不适",
+        "舒适",
+        "温和"
+      ],
+      "H02": [
+        "relaxation",
+        "relax",
+        "natural let-down",
+        "放松",
+        "自然奶阵"
+      ],
+      "H04": [
+        "free ibclc service",
+        "免费 ibclc 服务"
+      ]
+    },
+    "why": "没有例外清单，误报会把 BLOCK 精确率（PRD 要求 ≥95%）拉下来"
+  },
+  "normalization": {
+    "unicode": "NFKC",
+    "whitespace": "collapse",
+    "casefold": true,
+    "note": "匹配前统一做 NFKC + 空白折叠 + casefold，抵消全角/大小写/多空格差异"
+  },
+  "match_note_enum": [
+    "BLOCK"
+  ]
+}

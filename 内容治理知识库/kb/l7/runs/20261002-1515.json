@@ -1,0 +1,58 @@
+{
+ "run_id": "20261002-1515",
+ "at": "2026-10-02T12:51:29",
+ "source": "pipeline_sync",
+ "trigger": "--sync --via-skill L3",
+ "skills": [
+  "kb-pipeline",
+  "kb-clause-extractor"
+ ],
+ "commands": [
+  "kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L3 --run 20261002-1515"
+ ],
+ "products": [],
+ "verdict": "全走完（预演 · 未落盘 · 非执行证据）",
+ "human_involved": false,
+ "extra": {
+  "via_skill": true,
+  "skill_invoked_by": "agent",
+  "skill_evidence": "registry_echo",
+  "layers": [
+   "L3"
+  ],
+  "layer_skills": [
+   "kb-clause-extractor"
+  ],
+  "declared_layer_skills": {
+   "L3": [
+    "kb-clause-extractor"
+   ]
+  },
+  "layer_skills_uniq": [
+   "kb-clause-extractor"
+  ],
+  "invoked_reported": [],
+  "skill_sessions": {},
+  "human_involved_basis": "无 --invoked 上报",
+  "verdict_basis": "层侧无落章或中途停下 → 退回现状文案",
+  "layer_stamps_applied": [],
+  "layer_stamps_dry": [],
+  "layer_stamps_unknown": [],
+  "write_gate": {
+   "id": "batch9-20261002",
+   "resolved": true,
+   "layers_authorized": [
+    "L0",
+    "L1",
+    "L2",
+    "L3",
+    "L4",
+    "L5",
+    "L6"
+   ],
+   "unauthorized_layers": [],
+   "readonly_declared": [],
+   "msg": "凭据命中 id=batch9-20261002（authorized_by=用户（批次9 任务书 §0 原文）, at=2026-10-02），覆盖层=['L0', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6']"
+  }
+ }
+}

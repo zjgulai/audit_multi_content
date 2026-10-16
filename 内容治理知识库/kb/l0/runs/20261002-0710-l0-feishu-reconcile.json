@@ -1,0 +1,49 @@
+{
+ "run": "20261002-0710",
+ "at": "2026-10-02 06:46:44",
+ "base_token": "GnRZbIuXraCzf0sGr2UcmZ62nfc",
+ "instructions": [
+  "规则库本期不做",
+  "负面样本核实重建并处置",
+  "材料收集只抓 通过",
+  "L0 = 飞书副本"
+ ],
+ "actions": [
+  {
+   "table": "负面样本",
+   "table_id": "tbld8qE92YaY38Yz",
+   "action": "claim_new",
+   "files": 115,
+   "dir": "kb/l0/records/负面样本",
+   "ids_sha16": "c9307c29d7a394a0"
+  },
+  {
+   "table": "材料收集",
+   "action": "archive_prerefresh",
+   "files": 22,
+   "to": "kb/l0/_archive/材料收集-pre-refresh-20261002-0710"
+  },
+  {
+   "table": "材料收集",
+   "action": "drop_unapproved_to_archive",
+   "files": 10,
+   "to": "kb/l0/_archive/材料收集-未通过-20261002-0710",
+   "rule": "材料审核状态 == 通过"
+  },
+  {
+   "table": "材料收集",
+   "table_id": "tblMGtPfe8ZUsEdP",
+   "action": "refresh_capture",
+   "files": 22,
+   "filter": "材料审核状态 == 通过"
+  }
+ ],
+ "run_id": "20261002-0710",
+ "layer": "L0",
+ "action": "feishu_reconcile",
+ "dry_run": false,
+ "applied": true,
+ "skill": "kb-l0-feishu",
+ "skill_source": "--skill 参数（调用者读 layers.yaml 本层 skill: 后传入；本脚本不硬编码）",
+ "verdict": "PASS"
+}

@@ -1,0 +1,97 @@
+{
+ "run": "20261002-0713",
+ "at": "2026-10-02 07:13:50",
+ "base_token": "GnRZbIuXraCzf0sGr2UcmZ62nfc",
+ "instructions": [
+  "规则库本期不做",
+  "负面样本核实重建并处置",
+  "材料收集只抓 通过",
+  "L0 = 飞书副本"
+ ],
+ "observed_at": "20261002-0713",
+ "stage": {
+  "stage_dir": "/tmp/kb11-fresh",
+  "run": "20261002-0713",
+  "exists": true,
+  "files": {
+   "PROVENANCE.json": {
+    "mtime": "2026-10-02 07:13:47",
+    "epoch": 1790896427.8751109,
+    "bytes": 1340
+   },
+   "feishu-材料收集.ndjson": {
+    "mtime": "2026-10-02 07:13:47",
+    "epoch": 1790896427.8721879,
+    "bytes": 15495
+   },
+   "feishu-负面样本.manifest.json": {
+    "mtime": "2026-10-02 07:13:47",
+    "epoch": 1790896427.874962,
+    "bytes": 5732
+   },
+   "feishu-负面样本.ndjson": {
+    "mtime": "2026-10-02 07:13:47",
+    "epoch": 1790896427.8737411,
+    "bytes": 360000
+   },
+   "fields-材料收集.json": {
+    "mtime": "2026-10-02 07:13:47",
+    "epoch": 1790896427.8725836,
+    "bytes": 1030
+   },
+   "fields-负面样本.json": {
+    "mtime": "2026-10-02 07:13:47",
+    "epoch": 1790896427.874059,
+    "bytes": 1593
+   }
+  },
+  "mtime_min": 1790896427.8721879,
+  "mtime_max": 1790896427.8751109,
+  "stale": false,
+  "reason": null,
+  "mtime_min_str": "2026-10-02 07:13:47",
+  "mtime_max_str": "2026-10-02 07:13:47",
+  "run_start_str": "2026-10-02 07:13:00"
+ },
+ "actions": [
+  {
+   "table": "负面样本",
+   "table_id": "tbld8qE92YaY38Yz",
+   "action": "claim_new",
+   "files": 170,
+   "dir": "kb/l0/records/负面样本",
+   "ids_sha16": "8516fa5513901a7e"
+  },
+  {
+   "table": "材料收集",
+   "action": "archive_prerefresh",
+   "files": 22,
+   "to": "kb/l0/_archive/材料收集-pre-refresh-20261002-0713"
+  },
+  {
+   "table": "材料收集",
+   "action": "drop_unapproved_to_archive",
+   "files": 10,
+   "to": "kb/l0/_archive/材料收集-未通过-20261002-0713",
+   "rule": "材料审核状态 == 通过"
+  },
+  {
+   "table": "材料收集",
+   "table_id": "tblMGtPfe8ZUsEdP",
+   "action": "refresh_capture",
+   "files": 22,
+   "filter": "材料审核状态 == 通过"
+  }
+ ],
+ "run_id": "20261002-0713",
+ "layer": "L0",
+ "action": "feishu_reconcile",
+ "dry_run": false,
+ "applied": true,
+ "verdict": "PASS",
+ "stage_read": "/tmp/kb11-fresh",
+ "stage_fresh": true,
+ "stage_mtime_min": "2026-10-02 07:13:47",
+ "stage_mtime_max": "2026-10-02 07:13:47",
+ "write_gate": "fresh"
+}

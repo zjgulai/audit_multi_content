@@ -1,0 +1,22 @@
+{
+  "routing_version": "role-routing-2026-09-24",
+  "status": "confirmed_by_user",
+  "roles": {
+    "product": "产品负责人",
+    "legal": "法务",
+    "medical": "医学顾问",
+    "north_america": "北美同事",
+    "channel": "渠道负责人",
+    "signoff": "Sign-off 负责人",
+    "submitter": "内容提交方"
+  },
+  "rules": [
+    {"match": ["医疗", "health", "功效", "safety", "消费者安全", "睡眠", "喂养"], "owners": ["医学顾问", "法务"]},
+    {"match": ["产品", "型号", "功能", "规格", "容量", "认证", "product"], "owners": ["产品负责人", "法务"]},
+    {"match": ["背书", "endorsement", "testimonial", "达人", "influencer", "排名", "绝对化", "平台"], "owners": ["法务", "渠道负责人"]},
+    {"match": ["本地", "语境", "文化", "locale", "cultural"], "owners": ["北美同事"]}
+  ],
+  "fallback_review_owners": ["法务", "北美同事"],
+  "pass_owner": "Sign-off 负责人",
+  "block_owner": "内容提交方"
+}

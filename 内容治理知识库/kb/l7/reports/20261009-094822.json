@@ -1,0 +1,125 @@
+{
+  "review_id": "20261009-094822",
+  "content_id": "text-a598dd69aa20",
+  "content_type": "text",
+  "content_version": "a598dd69aa203b530629eb312f5b01d193025f8b6b8fc923eb99bf1259f241b6",
+  "content_hash": "a598dd69aa203b530629eb312f5b01d193025f8b6b8fc923eb99bf1259f241b6",
+  "agent_version": "kb-content-review@1.3.0",
+  "rule_version": "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02",
+  "knowledge_version": "v0",
+  "version_binding": {
+    "review_id": "20261009-094822",
+    "content_id": "text-a598dd69aa20",
+    "content_hash": "a598dd69aa203b530629eb312f5b01d193025f8b6b8fc923eb99bf1259f241b6",
+    "content_version": "a598dd69aa203b530629eb312f5b01d193025f8b6b8fc923eb99bf1259f241b6",
+    "agent_version": "kb-content-review@1.3.0",
+    "rule_version": "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02",
+    "knowledge_version": "v0",
+    "sources": {
+      "content_hash": "送审文本 utf-8 的 sha256",
+      "agent_version": "kb/l7/skills/kb-content-review/SKILL.md → frontmatter.version",
+      "rule_version": "kb/l7/registry/l7.json → article_no_source.scheme_version ＋ kb/l3/registry/l3.json → distiller_version ＋ kb/l3/candidates/rules.jsonl 的 sha256[:16]",
+      "knowledge_version": "kb/l7/registry/l7.json → kb_version"
+    }
+  },
+  "decision": "REVIEW",
+  "decision_raw": "REVIEW",
+  "confidence": "未标定（本入口逐条给 高/中/低；全局数值置信度属裁决侧）",
+  "input_manifest": {
+    "text": "Contact-Free\nSmart Baby\nMonitor\nBM08\n2K\n2K HD Video\nClear video, day and night.\n28615 ROOT\nAES-256 Encryption\nYour data stays protected.\nWhite Noise Features\nAuto soothing sounds for\nbetter baby sleep.\n5615\n◎\nFamily Sharing &\nFlexible Access\nShare access with your family.",
+    "sha256": "a598dd69aa203b530629eb312f5b01d193025f8b6b8fc923eb99bf1259f241b6",
+    "modality": [
+      "text"
+    ]
+  },
+  "coverage": {
+    "text": "complete",
+    "image": "not_applicable",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "本批只送审 text 一种模态；其余模态不适用（不是缺口）。本块是报告契约要求的覆盖状态，不等于 OCR/ASR/关键帧流水线已执行 —— 后者见 trace。"
+  },
+  "risk_items": [
+    {
+      "risk_id": "sc-afb8ed37984618d2",
+      "risk_type": "审核问题-禁区（库内反例条款）",
+      "priority_tier": "P1",
+      "priority_tier_basis": "案例层（L4 定稿「反例/禁区」）",
+      "layer": "案例层（L4 定稿「反例/禁区」）",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "【审核问题】文案 需求方提出修改：妈妈和宝宝都尽量选择偏拉美裔的人种，排版调整。\n【问题要点】\n1. 需求方提出修改：妈妈和宝宝都尽量选择偏拉美裔的人种，排版调整一下\n2. 【终审-@吴礼芳   】麻烦看看呀",
+      "reason": "库内反例条款 S-1.273（审核问题）与本素材**同源/同题材**：【审核问题】文案 需求方提出修改：妈妈和宝宝都尽量选择偏拉美裔的人种，排版调整。\n【问题要点】\n1. 需求方提出修改：妈妈和宝宝都尽量选择偏拉美裔的人种，排版调",
+      "suggestion": "",
+      "verbatim_verified": false,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "内部正负样本库",
+        "article_no": "S-1.273",
+        "anchor": "#负面样本/recvw7XJiStrmN/具体原因/分析",
+        "source_sha256": "181709c8799d715254d80011fcc183ffba4e07d53d2d9ef5411a1c4b6a71f162",
+        "excerpt": "【审核问题】文案 需求方提出修改：妈妈和宝宝都尽量选择偏拉美裔的人种，排版调整。\n【问题要点】\n1. 需求方提出修改：妈妈和宝宝都尽量选择偏拉美裔的人种，排版调整一下\n2. 【终审-@吴礼芳   】麻烦看看呀"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《内部正负样本库 v0》第 S-1.273 条 @ #负面样本/recvw7XJiStrmN/具体原因/分析 @ 181709c8799d（**非逐字**：P0 模式自身声明，未经逐字回验）",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#S-1.273",
+      "evidence_gap": "本条依据是**库内已定稿的反例条款**（`polarity=反例`、`semantics=禁区：不能这么做 + 为什么`），命中判据是「检索命中单元与被引锚点**同源**」；该锚点的 L0 件本地无字段值 ⇒ 摘录取自案例记录本身，**需人工点开核对**"
+    },
+    {
+      "risk_id": "sc-f1acc44c1d6129af",
+      "risk_type": "审核问题-禁区（库内反例条款）",
+      "priority_tier": "P1",
+      "priority_tier_basis": "案例层（L4 定稿「反例/禁区」）",
+      "layer": "案例层（L4 定稿「反例/禁区」）",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "【审核问题】文案 【终审−@吴礼芳 】再看看呀,后面3张修改了。\n【问题要点】\n1. 【终审−@吴礼芳 】再看看呀,后面3张修改了\n2. 项目名: V3001-社群How to Choose a Breast Pump科普海报x4",
+      "reason": "库内反例条款 S-1.308（审核问题）与本素材**同源/同题材**：【审核问题】文案 【终审−@吴礼芳 】再看看呀,后面3张修改了。\n【问题要点】\n1. 【终审−@吴礼芳 】再看看呀,后面3张修改了\n2. 项目名: V3001-",
+      "suggestion": "",
+      "verbatim_verified": false,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "内部正负样本库",
+        "article_no": "S-1.308",
+        "anchor": "#负面样本/recvw7XJiS2JaZ/具体原因/分析",
+        "source_sha256": "533f486042a64f9d1b97ed97f9ade1e951349e0690e866ecb653849259e7172d",
+        "excerpt": "【审核问题】文案 【终审−@吴礼芳 】再看看呀,后面3张修改了。\n【问题要点】\n1. 【终审−@吴礼芳 】再看看呀,后面3张修改了\n2. 项目名: V3001-社群How to Choose a Breast Pump科普海报x4"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《内部正负样本库 v0》第 S-1.308 条 @ #负面样本/recvw7XJiS2JaZ/具体原因/分析 @ 533f486042a6（**非逐字**：P0 模式自身声明，未经逐字回验）",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#S-1.308",
+      "evidence_gap": "本条依据是**库内已定稿的反例条款**（`polarity=反例`、`semantics=禁区：不能这么做 + 为什么`），命中判据是「检索命中单元与被引锚点**同源**」；该锚点的 L0 件本地无字段值 ⇒ 摘录取自案例记录本身，**需人工点开核对**"
+    }
+  ],
+  "issue_count": 2,
+  "report_url": null,
+  "next_action": "建议转复核责任人复核。",
+  "next_owners": [
+    "复核责任人"
+  ],
+  "sla": {},
+  "version_gate": {
+    "reviewed_hash": "a598dd69aa203b530629eb312f5b01d193025f8b6b8fc923eb99bf1259f241b6",
+    "release_hash": null,
+    "note": "本入口不掌握发布版本；发布/送审版本比对属裁决侧（review_engine.py:115-119），此处不代替它下结论"
+  },
+  "decision_trace": {
+    "reasons": [
+      "findings_present_without_block"
+    ],
+    "confidence_status": "not_calibrated_by_this_entry",
+    "evaluated_at": "2026-10-09T09:48:30",
+    "decided_by": "kb-content-review/scripts/review.py（依据侧自身分支，:709-715）",
+    "note": "本报告不重算结论；三态由上表 decision_raw 原样带出"
+  },
+  "unmet_citation": []
+}

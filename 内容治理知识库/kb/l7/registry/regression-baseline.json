@@ -1,0 +1,330 @@
+{
+ "schema": "kb-regression-baseline/1",
+ "captured_at": "2026-10-12T14:16:32+0800",
+ "captured_from": "kb/.work/regression-20261012-issuesem.jsonl",
+ "why": "2026-10-12 重采：Owner 裁定 `issue_count` **只算库内依据**（候选不计入）。三态逐条未变（100/100），但基线里存的每 case `issue_count` 是旧口径 ⇒ 重采使存量数字与现行口径一致；不变式「旧数 − 新数 == candidate_n」100/100 成立。 ｜ 首采缘起：2026-10-12 首采：旧 `expected` 是从**历史 `*.review.md` 里刮出来的当时的结论**（`kb/l8/build_regression_set.py`，按同一素材留最早一份去重），**不是改动前引擎的结论** ⇒ 拿它当断言，等于把「引擎这一年的演进」全报成回归。实测 13/80 条漂移里 12 条属此类。",
+ "reading": "同源读法：三态 = `decision.decision`；条目 = `decision.risk_items`（见 `kb/l8/regression_run.py` 文件头）。",
+ "n_solid": 80,
+ "cases": {
+  "RC-78ce50b3732c": {
+   "state": "BLOCK",
+   "issue_count": 1
+  },
+  "RC-04a9c7c296e0": {
+   "state": "BLOCK",
+   "issue_count": 5
+  },
+  "RC-77d759537fc0": {
+   "state": "BLOCK",
+   "issue_count": 1
+  },
+  "RC-993f00f8c4c0": {
+   "state": "PASS",
+   "issue_count": 0
+  },
+  "RC-0735daa0b79c": {
+   "state": "PASS",
+   "issue_count": 1
+  },
+  "RC-aa7fa8055662": {
+   "state": "BLOCK",
+   "issue_count": 1
+  },
+  "RC-4d2c823edcca": {
+   "state": "REVIEW",
+   "issue_count": 1
+  },
+  "RC-21e27c950bfd": {
+   "state": "BLOCK",
+   "issue_count": 3
+  },
+  "RC-fafa14b0bc92": {
+   "state": "BLOCK",
+   "issue_count": 3
+  },
+  "RC-af74715f30c4": {
+   "state": "BLOCK",
+   "issue_count": 3
+  },
+  "RC-cb0eedb6fe8d": {
+   "state": "BLOCK",
+   "issue_count": 2
+  },
+  "RC-66fa695ce683": {
+   "state": "REVIEW",
+   "issue_count": 2
+  },
+  "RC-c9e6f6c66572": {
+   "state": "PASS",
+   "issue_count": 0
+  },
+  "RC-82402cd27593": {
+   "state": "BLOCK",
+   "issue_count": 1
+  },
+  "RC-9e2adb147470": {
+   "state": "PASS",
+   "issue_count": 0
+  },
+  "RC-954a4e974866": {
+   "state": "BLOCK",
+   "issue_count": 1
+  },
+  "RC-534bd0274ed7": {
+   "state": "PASS",
+   "issue_count": 0
+  },
+  "RC-ac9bf40d9ec4": {
+   "state": "BLOCK",
+   "issue_count": 1
+  },
+  "RC-f5026f066c84": {
+   "state": "BLOCK",
+   "issue_count": 1
+  },
+  "RC-2c23bf2c9c76": {
+   "state": "BLOCK",
+   "issue_count": 2
+  },
+  "RC-38909e1f8b7b": {
+   "state": "REVIEW",
+   "issue_count": 5
+  },
+  "RC-fe8e15d0450b": {
+   "state": "BLOCK",
+   "issue_count": 2
+  },
+  "RC-3c5604a24185": {
+   "state": "BLOCK",
+   "issue_count": 1
+  },
+  "RC-2f45027fdc1e": {
+   "state": "BLOCK",
+   "issue_count": 1
+  },
+  "RC-11b8f1e6a2c7": {
+   "state": "BLOCK",
+   "issue_count": 2
+  },
+  "RC-434b405b8a4f": {
+   "state": "BLOCK",
+   "issue_count": 4
+  },
+  "RC-2e282c905d53": {
+   "state": "REVIEW",
+   "issue_count": 5
+  },
+  "RC-fb7a590bc017": {
+   "state": "BLOCK",
+   "issue_count": 2
+  },
+  "RC-41922ea267c3": {
+   "state": "BLOCK",
+   "issue_count": 1
+  },
+  "RC-ac1bbb7ada85": {
+   "state": "BLOCK",
+   "issue_count": 1
+  },
+  "RC-da48ef996259": {
+   "state": "REVIEW",
+   "issue_count": 0
+  },
+  "RC-b7d60660149e": {
+   "state": "BLOCK",
+   "issue_count": 2
+  },
+  "RC-481af1943664": {
+   "state": "BLOCK",
+   "issue_count": 1
+  },
+  "RC-35d038c2612d": {
+   "state": "BLOCK",
+   "issue_count": 2
+  },
+  "RC-aa0e997a0151": {
+   "state": "BLOCK",
+   "issue_count": 2
+  },
+  "RC-acaa743e5ece": {
+   "state": "BLOCK",
+   "issue_count": 1
+  },
+  "RC-d34d216b396a": {
+   "state": "BLOCK",
+   "issue_count": 1
+  },
+  "RC-1a179ab506ae": {
+   "state": "BLOCK",
+   "issue_count": 1
+  },
+  "RC-9b7a0b369e67": {
+   "state": "BLOCK",
+   "issue_count": 4
+  },
+  "RC-e375a3f76f0e": {
+   "state": "REVIEW",
+   "issue_count": 5
+  },
+  "RC-4d0581cd9ea4": {
+   "state": "REVIEW",
+   "issue_count": 6
+  },
+  "RC-b2390ccfe4f8": {
+   "state": "BLOCK",
+   "issue_count": 1
+  },
+  "RC-bcd743caaf30": {
+   "state": "BLOCK",
+   "issue_count": 1
+  },
+  "RC-d3cae0769539": {
+   "state": "REVIEW",
+   "issue_count": 0
+  },
+  "RC-be24162b163e": {
+   "state": "BLOCK",
+   "issue_count": 2
+  },
+  "RC-9c650330d0b0": {
+   "state": "BLOCK",
+   "issue_count": 8
+  },
+  "RC-88703b45e041": {
+   "state": "BLOCK",
+   "issue_count": 1
+  },
+  "RC-eb6edcb0fcd1": {
+   "state": "BLOCK",
+   "issue_count": 3
+  },
+  "RC-df3c56a4a971": {
+   "state": "BLOCK",
+   "issue_count": 1
+  },
+  "RC-66b638cf11b6": {
+   "state": "BLOCK",
+   "issue_count": 3
+  },
+  "RC-6274d1a84f00": {
+   "state": "BLOCK",
+   "issue_count": 2
+  },
+  "RC-58a7000c156d": {
+   "state": "BLOCK",
+   "issue_count": 2
+  },
+  "RC-160a343ee259": {
+   "state": "BLOCK",
+   "issue_count": 12
+  },
+  "RC-f464dd705a40": {
+   "state": "BLOCK",
+   "issue_count": 10
+  },
+  "RC-2ba880a99ed7": {
+   "state": "BLOCK",
+   "issue_count": 3
+  },
+  "RC-37873ea2714f": {
+   "state": "BLOCK",
+   "issue_count": 5
+  },
+  "RC-01156849ff68": {
+   "state": "BLOCK",
+   "issue_count": 3
+  },
+  "RC-8a55c138738b": {
+   "state": "REVIEW",
+   "issue_count": 3
+  },
+  "RC-de8ad438d9fb": {
+   "state": "REVIEW",
+   "issue_count": 3
+  },
+  "RC-3580274a6626": {
+   "state": "REVIEW",
+   "issue_count": 3
+  },
+  "RC-bab2edd68023": {
+   "state": "BLOCK",
+   "issue_count": 3
+  },
+  "RC-6214550d4bce": {
+   "state": "REVIEW",
+   "issue_count": 0
+  },
+  "RC-7fd345760ffe": {
+   "state": "REVIEW",
+   "issue_count": 5
+  },
+  "RC-3f95f2e55f5a": {
+   "state": "REVIEW",
+   "issue_count": 5
+  },
+  "RC-53a4e85faf9b": {
+   "state": "REVIEW",
+   "issue_count": 5
+  },
+  "RC-aeee8c26dfe1": {
+   "state": "REVIEW",
+   "issue_count": 5
+  },
+  "RC-ecf67146fd0c": {
+   "state": "REVIEW",
+   "issue_count": 5
+  },
+  "RC-2694cc2ea7e0": {
+   "state": "REVIEW",
+   "issue_count": 4
+  },
+  "RC-91c69b0a8286": {
+   "state": "REVIEW",
+   "issue_count": 5
+  },
+  "RC-deaba19ba907": {
+   "state": "BLOCK",
+   "issue_count": 4
+  },
+  "RC-db3a96f77756": {
+   "state": "BLOCK",
+   "issue_count": 4
+  },
+  "RC-82dc86434f04": {
+   "state": "BLOCK",
+   "issue_count": 6
+  },
+  "RC-343e1164bb64": {
+   "state": "BLOCK",
+   "issue_count": 4
+  },
+  "RC-0f1b167eb191": {
+   "state": "REVIEW",
+   "issue_count": 5
+  },
+  "RC-353dce943720": {
+   "state": "REVIEW",
+   "issue_count": 5
+  },
+  "RC-7c58dd16d9e6": {
+   "state": "REVIEW",
+   "issue_count": 5
+  },
+  "RC-438f21d94cd9": {
+   "state": "REVIEW",
+   "issue_count": 5
+  },
+  "RC-ecacc677b638": {
+   "state": "REVIEW",
+   "issue_count": 4
+  },
+  "RC-bfb2359bac62": {
+   "state": "REVIEW",
+   "issue_count": 4
+  },
+  "RC-0467e7eee62c": {
+   "state": "BLOCK",
+   "issue_count": 3
+  }
+ }
+}

@@ -1,0 +1,204 @@
+{
+  "review_id": "20261002-202724",
+  "content_id": "text-2104fbfa0095",
+  "content_type": "text",
+  "content_version": "2104fbfa00953e21ea70d22d67084110e69bab8cfb7840d51fa91ac3a3324f08",
+  "content_hash": "2104fbfa00953e21ea70d22d67084110e69bab8cfb7840d51fa91ac3a3324f08",
+  "agent_version": "kb-content-review@1.2.0",
+  "rule_version": "article-no-2+l3-0.2+rules.jsonl@acf77a6a0b05937d",
+  "knowledge_version": "v0",
+  "version_binding": {
+    "review_id": "20261002-202724",
+    "content_id": "text-2104fbfa0095",
+    "content_hash": "2104fbfa00953e21ea70d22d67084110e69bab8cfb7840d51fa91ac3a3324f08",
+    "content_version": "2104fbfa00953e21ea70d22d67084110e69bab8cfb7840d51fa91ac3a3324f08",
+    "agent_version": "kb-content-review@1.2.0",
+    "rule_version": "article-no-2+l3-0.2+rules.jsonl@acf77a6a0b05937d",
+    "knowledge_version": "v0",
+    "sources": {
+      "content_hash": "送审文本 utf-8 的 sha256",
+      "agent_version": "kb/l7/skills/kb-content-review/SKILL.md → frontmatter.version",
+      "rule_version": "kb/l7/registry/l7.json → article_no_source.scheme_version ＋ kb/l3/registry/l3.json → distiller_version ＋ kb/l3/candidates/rules.jsonl 的 sha256[:16]",
+      "knowledge_version": "kb/l7/registry/l7.json → kb_version"
+    }
+  },
+  "decision": "BLOCK",
+  "decision_raw": "BLOCK",
+  "confidence": "未标定（本入口逐条给 高/中/低；全局数值置信度属裁决侧）",
+  "input_manifest": {
+    "text": "FDA approved 医疗级吸奶器，临床验证可治疗堵奶，比其他品牌好 10 倍。",
+    "sha256": "2104fbfa00953e21ea70d22d67084110e69bab8cfb7840d51fa91ac3a3324f08",
+    "modality": [
+      "text"
+    ]
+  },
+  "coverage": {
+    "text": "complete",
+    "image": "not_applicable",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "本批只送审 text 一种模态；其余模态不适用（不是缺口）。本块是报告契约要求的覆盖状态，不等于 OCR/ASR/关键帧流水线已执行 —— 后者见 trace。"
+  },
+  "risk_items": [
+    {
+      "risk_id": "r-15a607c4457c8b55",
+      "risk_type": "背书与资质-监管认证宣称",
+      "priority_tier": "P0",
+      "priority_tier_basis": "P0 确定性匹配",
+      "layer": "P0 确定性匹配",
+      "severity": "BLOCK",
+      "status": "confirmed",
+      "action": "block",
+      "location": "全文",
+      "original_text": "FDA approved, FDA certified, FDA 认证, FDA 批",
+      "reason": "P0 规则命中（BLOCK）：（来源未给判定理由）",
+      "suggestion": "可改为（本规则豁免表达）：FDA cleared, FDA-cleared, FDA registered, FDA 注册",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "高",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.8",
+        "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/检测关键词",
+        "source_sha256": "2e8bb36d6edf7c4971132b69ff6d39819a5a0e0e8043e9001e096be1bc2a02d6",
+        "excerpt": "FDA approved, FDA certified, FDA 认证, FDA 批"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.8 条 @ #品线内容边界规则库/recvuJP1LVW6E0/检测关键词 @ 2e8bb36d6edf",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.8"
+    },
+    {
+      "risk_id": "r-16cac1c85580f8f7",
+      "risk_type": "功效宣称-临床与实验证据宣称",
+      "priority_tier": "P1",
+      "priority_tier_basis": "规则层",
+      "layer": "规则层",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "临床验证, 临床试验证实, 医学证明",
+      "reason": "逐字命中「临床验证」：（来源未给判定理由）（p_level=P1 risk_level=unknown authority=None，来源表 None）",
+      "suggestion": "",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.9",
+        "anchor": "#品线内容边界规则库/recvuJP1dD4jGX/检测关键词",
+        "source_sha256": "baa7cddb96e5152a488d302a526c193afd4351d363a53d666c45ff4ee747f7ac",
+        "excerpt": "临床验证, 临床试验证实, 医学证明"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.9 条 @ #品线内容边界规则库/recvuJP1dD4jGX/检测关键词 @ baa7cddb96e5",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.9"
+    },
+    {
+      "risk_id": "r-b8aea07e90a86b59",
+      "risk_type": "功效宣称-催乳与通乳宣称",
+      "priority_tier": "P1",
+      "priority_tier_basis": "规则层",
+      "layer": "规则层",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "堵奶, 通乳, 催乳, 下奶, 追奶, 回奶, 增奶, 增产,",
+      "reason": "逐字命中「堵奶」：（来源未给判定理由）（p_level=P1 risk_level=unknown authority=None，来源表 None）",
+      "suggestion": "",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.47",
+        "anchor": "#品线内容边界规则库/recvuJP1dD7yNW/检测关键词",
+        "source_sha256": "a4c587f8a609019660d8488c4663dde8e621fbad0cf2d610d4790355730579fa",
+        "excerpt": "堵奶, 通乳, 催乳, 下奶, 追奶, 回奶, 增奶, 增产,"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.47 条 @ #品线内容边界规则库/recvuJP1dD7yNW/检测关键词 @ a4c587f8a609",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.47"
+    },
+    {
+      "risk_id": "r-b10ee2b8361c8a3d",
+      "risk_type": "功效宣称-疾病治疗宣称",
+      "priority_tier": "P1",
+      "priority_tier_basis": "规则层",
+      "layer": "规则层",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "医疗功效声明（治疗/治愈/诊断/疏通堵奶/治疗或预防乳腺炎；",
+      "reason": "逐字命中「治疗」：（来源未给判定理由）（p_level=P1 risk_level=unknown authority=None，来源表 None）",
+      "suggestion": "",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.43",
+        "anchor": "#品线内容边界规则库/recvuJP1dDHb7E/边界内容",
+        "source_sha256": "f452aeddd6adf8ab4601996f1482912a0ebef2f8d7bd7f211e216087a1d16c81",
+        "excerpt": "医疗功效声明（治疗/治愈/诊断/疏通堵奶/治疗或预防乳腺炎；"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.43 条 @ #品线内容边界规则库/recvuJP1dDHb7E/边界内容 @ f452aeddd6ad",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.43"
+    },
+    {
+      "risk_id": "r-38148746d4e6516d",
+      "risk_type": "背书与资质-等级与资质背书",
+      "priority_tier": "P1",
+      "priority_tier_basis": "规则层",
+      "layer": "规则层",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "医疗级, 医用级, 军用级",
+      "reason": "逐字命中「医疗级」：（来源未给判定理由）（p_level=P1 risk_level=unknown authority=None，来源表 None）",
+      "suggestion": "",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.19",
+        "anchor": "#品线内容边界规则库/recvuJP2jyPiol/检测关键词",
+        "source_sha256": "da6b33667bbd74317bc3f204a4a19914a27e9785ff62ea83740809c580375bb5",
+        "excerpt": "医疗级, 医用级, 军用级"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.19 条 @ #品线内容边界规则库/recvuJP2jyPiol/检测关键词 @ da6b33667bbd",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.19"
+    }
+  ],
+  "issue_count": 5,
+  "report_url": null,
+  "next_action": "请修改后重新提交。",
+  "next_owners": [
+    "内容方修改责任人"
+  ],
+  "sla": {},
+  "version_gate": {
+    "reviewed_hash": "2104fbfa00953e21ea70d22d67084110e69bab8cfb7840d51fa91ac3a3324f08",
+    "release_hash": null,
+    "note": "本入口不掌握发布版本；发布/送审版本比对属裁决侧（review_engine.py:115-119），此处不代替它下结论"
+  },
+  "decision_trace": {
+    "reasons": [
+      "any_finding_severity_block"
+    ],
+    "confidence_status": "not_calibrated_by_this_entry",
+    "evaluated_at": "2026-10-02T20:27:29",
+    "decided_by": "kb-content-review/scripts/review.py（依据侧自身分支，:709-715）",
+    "note": "本报告不重算结论；三态由上表 decision_raw 原样带出"
+  },
+  "unmet_citation": []
+}

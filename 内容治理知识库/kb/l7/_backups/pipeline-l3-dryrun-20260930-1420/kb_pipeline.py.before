@@ -1,0 +1,704 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""kb_pipeline.py —— 知识库 L0–L7 的**执行编排器**（P0-1）
+
+读 kb/l7/registry/layers.yaml（静态真源）→ 拓扑排序 → 逐层校验 → 逐层跑闸门 → 汇总。
+本版**只有 `--check`（零写档）**：不执行任何会写盘的层引擎，只做静态校验 + 跑已确认只读的闸门。
+
+为什么需要它：`layers.yaml` 已把每层的 engine / inputs / outputs / gate / cwd / python /
+envelope / write_mode / dry_run 全部声明齐全，但**没有任何脚本按它去执行** —— 于是"自动化"
+实际是"agent 照文档做"。本脚本是那个缺失的执行者。
+
+零写保证（三层）：
+  1. 本版代码路径里**没有任何写操作**（无 open(...,"w")、无 shutil 落地）；
+  2. 只跑**只读白名单**里的闸门，其余闸门逐条说明为何未执行（不静默跳过）；
+  3. 跑前跑后对"各层已存在的产出文件"取 mtime 快照，**变化即报错**（自证零写）。
+
+用法（库内相对路径，cwd 必须是 kb/ 的上一级；推荐走 kb/kbpy）：
+    kb/kbpy l7/scripts/kb_pipeline.py --check                 # 全链零写体检
+    kb/kbpy l7/scripts/kb_pipeline.py --check --no-gates      # 只做静态校验，不跑闸门
+    kb/kbpy l7/scripts/kb_pipeline.py --check --only L3       # 只看/只跑某层
+    kb/kbpy l7/scripts/kb_pipeline.py --check --from L2       # 从某层起
+    kb/kbpy l7/scripts/kb_pipeline.py --check --json
+退出码：0 全过；1 有硬问题；2 用法/环境错。
+"""
+# ── 解释器守卫（2026-09-29）：不合格就用 kb/.kb-python 指定的解释器重跑自己 ──
+import os as _os, sys as _sys
+if not _os.environ.get("KB_INTERP_OK"):
+    _d = _os.path.dirname(_os.path.abspath(__file__)); _cfg = None
+    while True:
+        _p = _os.path.join(_d, ".kb-python")
+        if _os.path.isfile(_p):
+            _cfg = _p
+            break
+        _q = _os.path.dirname(_d)
+        if _q == _d:
+            break
+        _d = _q
+    if _cfg:
+        _want = next((l.split("#", 1)[0].strip() for l in open(_cfg, encoding="utf-8")
+                      if l.split("#", 1)[0].strip()), "")
+        _want = _os.path.expanduser(_want)
+        if (_want and _os.access(_want, _os.X_OK)
+                and _os.path.realpath(_want) != _os.path.realpath(_sys.executable)):
+            _os.environ["KB_INTERP_OK"] = "1"
+            _os.execve(_want, [_want, _os.path.abspath(__file__)] + _sys.argv[1:], dict(_os.environ))
+# ──────────────────────────────────────────────────────────────────────────
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+KB = os.path.dirname(os.path.dirname(HERE))          # …/kb
+CONFIG_NAME = ".kb-python"
+
+# 只读闸门白名单：**只在逐条确认"0 写盘点"或自带 --check 档后**才可加入
+GATE_WHITELIST = {
+    "kb/l7/scripts/layers_check.py": [],
+    "kb/l7/scripts/skills_check.py": [],
+    "kb/l1/index/rebuild_l1_index.py": ["--check"],
+    # L0 的闸门：纯对账器（不改 kb/l0）。--check 只读档 = 快照落 /tmp、不写报告 + 差异判退出码
+    "kb/l8/align_l0_feishu.py": ["--check"],
+    # L0 的**判定档**（2026-09-30 加）：跑 align --check + 读 l7/registry/l0-expected-diffs.yaml，
+    # 把「按声明就该存在的差异」分类出来，只有真差异才判红 —— 否则材料收集那 10 条
+    # 按声明排除的记录会让 L0 闸门**永远红**。零写：只读 yaml、不写 kb/l0。
+    "kb/l7/scripts/l0_gate.py": [],
+    # ── P1-3（2026-09-30）：L1–L7 七道层闸门落地，目标「过 8 / 未判 0」 ─────────────
+    # 全部只读（不写 kb/l0…l6 的任何数据与台账）；每道都做过反测（把判据弄坏必须变红）。
+    # L1：把 .work/kb_ocr_gate.py::ocr_cache_reusable 落到 169 条真实 OCR 缓存上逐条判。
+    "kb/l7/scripts/l1_gate.py": [],
+    # L2：独立复算 manifest_l2 × units × manifest_l1，不读 l2.json 的自报计数。
+    "kb/l7/scripts/l2_gate.py": [],
+    # L3：1729 条 evidence_units 逐条回指 + rejected 台账回指 + 自报键逐键声明。
+    "kb/l7/scripts/l3_gate.py": [],
+    # L4：从定稿 × 候选 × L2 单元重算 C1–C6（2462 条证据引用逐条回指）。
+    "kb/l7/scripts/l4_gate.py": [],
+    # L5：包装 .work/l5_integrity.py 的 6 项，实质项判红、基线项须登记（它会写自己的证据 json）。
+    "kb/l7/scripts/l5_gate.py": [],
+    # L6：只读档 4 项；③重跑幂等会带 --apply 重跑建索引 → 不进日报，闸门里明写「没跑哪几项」。
+    "kb/l7/scripts/l6_gate.py": [],
+    # L7：引用契约的前置条件（库名不得自造 / 六要素 100% 可物化 / 条款号出处可解析）。
+    "kb/l7/scripts/l7_gate.py": [],
+}
+# 已知需参数/未验证只读 → 不执行，但必须出现在报告里
+GATE_NOT_RUN_REASON = {
+    "kb/.work/l5_integrity.py": "未纳入只读白名单（其写行为未逐条验证）",
+    "kb/.work/l6_integrity.py": "需要位置参数（run_id）",
+    "kb/.work/kb_ocr_gate.py": "函数引用（path::func），非独立可执行",
+}
+PLACEHOLDER = re.compile(r"<[^>]+>|\*\*")
+GLOBCH = re.compile(r"[*?{\[]")        # glob 模式（非字面路径）：按「至少匹配到一个」判
+import glob as _glob
+
+
+def home(p: str) -> str:
+    return os.path.expanduser(str(p))
+
+
+def read_config() -> str:
+    for base in (os.path.dirname(KB), KB):
+        p = os.path.join(base, CONFIG_NAME)
+        if os.path.isfile(p):
+            for ln in open(p, encoding="utf-8"):
+                ln = ln.split("#", 1)[0].strip()
+                if ln:
+                    return home(ln)
+    return os.environ.get("KB_PYTHON") or ""
+
+
+def looks_like_path(s: str) -> bool:
+    s = s.strip()
+    return bool(re.match(r"^(kb/|~/|/)", s))
+
+
+def is_glob(s: str) -> bool:
+    return bool(GLOBCH.search(s))
+
+
+def brace_expand(s: str) -> list[str]:
+    """bash 花括号展开：{1..4,9} → 1 2 3 4 9；{a,b} → a b。glob 本身不支持花括号。"""
+    m = re.search(r"\{([^{}]*)\}", s)
+    if not m:
+        return [s]
+    alts = []
+    for part in m.group(1).split(","):
+        if ".." in part:
+            a, b = part.split("..", 1)
+            try:
+                lo, hi = int(a), int(b)
+                alts += [str(i) for i in range(min(lo, hi), max(lo, hi) + 1)]
+            except ValueError:
+                alts.append(part)
+        else:
+            alts.append(part)
+    out = []
+    for a in alts:
+        out += brace_expand(s[:m.start()] + a + s[m.end():])
+    return out
+
+
+def has_match(pat: str, cwd: str) -> bool:
+    for exp in brace_expand(pat):
+        p = exp if os.path.isabs(home(exp)) else os.path.join(cwd, exp)
+        if _glob.glob(home(p), recursive=True):
+            return True
+    return False
+
+
+def strip_placeholder(p: str) -> str:
+    s = PLACEHOLDER.split(p)[0]
+    m = GLOBCH.search(s)                       # 截到第一个 glob 字符，取其目录做父目录判定
+    if m:
+        s = s[:m.start()]
+    return s.rstrip("/") or p
+
+
+def topo_sort(layers: list[dict]) -> list[dict]:
+    ids = [x.get("layer") for x in layers]
+    indeg = {}
+    for x in layers:
+        d = [y for y in (x.get("depends_on") or []) if y in ids and y != x.get("layer")]
+        indeg[x["layer"]] = len(d)
+    out, seen = [], set()
+    while len(out) < len(layers):
+        ready = [x for x in layers if x["layer"] not in seen and indeg[x["layer"]] == 0]
+        if not ready:                      # 有环 → 按声明顺序兜底，并如实标注
+            ready = [x for x in layers if x["layer"] not in seen][:1]
+            ready[0]["_cycle"] = True
+        for x in ready:
+            out.append(x); seen.add(x["layer"])
+            for y in layers:
+                if x["layer"] in (y.get("depends_on") or []):
+                    indeg[y["layer"]] -= 1
+    return out
+
+
+def snapshot_mtimes(layers: list[dict]) -> dict:
+    """对每层已存在的产出文件取 mtime 快照（零写自证用）。"""
+    snap = {}
+    for x in layers:
+        for o in (x.get("outputs") or []):
+            if not looks_like_path(o):
+                continue
+            base = strip_placeholder(o)
+            p = base if os.path.isabs(home(base)) else os.path.join(os.path.dirname(KB), base)
+            p = home(p)
+            if os.path.isfile(p):
+                try: snap[p] = os.path.getmtime(p)
+                except OSError: pass
+            elif os.path.isdir(p):
+                for r, d, f in os.walk(p):
+                    d[:] = [z for z in d if z != "__pycache__"]
+                    for z in f:
+                        q = os.path.join(r, z)
+                        try: snap[q] = os.path.getmtime(q)
+                        except OSError: pass
+                        if len(snap) > 4000: return snap
+    return snap
+
+
+def run_gate(script: str, extra: list[str], cwd: str, py: str):
+    """跑一个白名单闸门，返回 (ok, 摘要)。"""
+    target = os.path.join(cwd, script)
+    if not os.path.isfile(target):
+        return False, "闸门脚本不存在: %s" % script
+    env = dict(os.environ, KB_INTERP_OK="1", PYTHONDONTWRITEBYTECODE="1")
+    try:
+        r = subprocess.run([py, target] + extra, cwd=cwd, env=env,
+                           capture_output=True, text=True, timeout=600)
+    except subprocess.TimeoutExpired:
+        return False, "超时"
+    tail = [l for l in (r.stdout or "").strip().split("\n") if l.strip()]
+    summ = tail[-1][:110] if tail else "(无输出)"
+    return r.returncode == 0, "exit=%d ｜ %s" % (r.returncode, summ)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# --sync：写档编排（2026-09-30 加）。三条红线逐条落在代码里，不靠人记。
+# ══════════════════════════════════════════════════════════════════════════
+
+LOCK = os.path.join(KB, ".work", ".kb.lock")
+
+# 各层的写档引擎（**只在这里登记**；每条都要能在该层 layers.yaml 的 engine 列表里找到）。
+#   args      ：位置参数（RUN 会被替换成本次 run_id）
+#   apply     ：该脚本的落盘开关（None = 天然落盘，**没有干跑档**）
+#   dry_ok    ：不带 apply 时是否天然只预演
+SYNC_SPEC = {
+    "L1": [{"script": "kb/l8/ocr_attachments.py", "args": ["RUN"], "apply": "--apply", "dry_ok": True}],
+    "L2": [{"script": "kb/l8/l2_split_run.py", "args": ["RUN"], "apply": "--apply", "dry_ok": True}],
+    # L3 蒸馏器**没有干跑档**：RUN 是必填位置参数，运行即落盘 → 干跑模式下直接拒绝。
+    "L3": [{"script": "kb/l8/l3_distill_run.py", "args": ["RUN"], "apply": None, "dry_ok": False}],
+    "L4": [{"script": "kb/.work/l4_article.py", "args": ["RUN"], "apply": "--apply", "dry_ok": True}],
+    "L5": [{"script": "kb/.work/l5_prep.py", "args": ["RUN"], "apply": "--apply", "dry_ok": True},
+           {"script": "kb/.work/l5_export.py", "args": ["RUN"], "apply": "--apply", "dry_ok": True}],
+    "L6": [{"script": "kb/.work/l6_build.py", "args": ["RUN"], "apply": "--apply", "dry_ok": True}],
+    # L7 没有写库数据的引擎（它就是索引/注册表/报告层）→ 只跑闸门。
+    "L7": [],
+}
+
+# 红线①：写这些层之前，必须先把**会被改写/重建**的台账归档一份（实测依据：
+# kb/l3/rejected.jsonl 2026-09-29 被重建过，历史只能从 kb/l3/_archive/ 捞回来）。
+ARCHIVE_BEFORE_WRITE = {
+    "L3": ["kb/l3/rejected.jsonl"],
+}
+
+# 操作口径（人已拍板 2026-09-30）：两周只读观察期内**只开 L2** 的写档。
+# 代码里写死这张白名单，是想越界必须显式说一声，而不是顺手就能跑。
+SYNC_ALLOWED = ["L2"]
+
+
+def _run_id_now() -> str:
+    import time as _t
+    return _t.strftime("%Y%m%d-%H%M")
+
+
+def _pid_alive(pid) -> bool:
+    try:
+        os.kill(int(pid), 0)
+        return True
+    except Exception:                                # noqa: BLE001
+        return False
+
+
+def lock_state():
+    """返回 (状态, 记录)。状态 ∈ absent / held-alive / stale-declared / held-dead。
+
+    为什么要分这么细（实测 2026-09-30）：库上躺着一个 **2026-09-24 的旧锁**
+    `kb/.work/.kb.lock`，它的 JSON 里 `status=finished_partial`、`released_at=2026-09-24T17:45:00`
+    —— 也就是**上一个持有者自己宣布结束了**，只是没删文件。这种锁要是当成「有人在跑」，
+    写档编排就**永远起不来**（`.work/batch*.py` 撞到同一个文件也是直接退出）。
+    反过来，把「pid 死了」一律当陈旧自动删，又会在真崩在中途时偷偷放行第二次写。
+    所以：**宣布释放过 + pid 不在** = 陈旧（dry-run 可绕过并告警，写档仍要人拍板）；
+    其余一律当真锁拒绝。
+    """
+    if not os.path.exists(LOCK):
+        return "absent", None
+    try:
+        rec = json.load(open(LOCK, encoding="utf-8"))
+    except Exception:                                # noqa: BLE001
+        return "held-dead", {"raw": "(无法解析为 JSON)"}
+    alive = _pid_alive(rec.get("pid"))
+    if alive:
+        return "held-alive", rec
+    if rec.get("released_at") or str(rec.get("status") or "").startswith("finished"):
+        return "stale-declared", rec
+    return "held-dead", rec
+
+
+def acquire_lock(run_id: str, break_lock: bool = False, dry: bool = False):
+    """红线②：编排器自己持 kb/.work/.kb.lock。返回 (ok, 说明)。"""
+    os.makedirs(os.path.dirname(LOCK), exist_ok=True)
+    st, rec = lock_state()
+    if st != "absent":
+        rel = os.path.relpath(LOCK, os.path.dirname(KB))
+        if st == "stale-declared" and dry:
+            return True, ("⚠️ 陈旧锁（上一个持有者已宣布释放）：%s —— 本次是**预演**，不写盘，"
+                          "故不抢锁继续跑；写档模式会被拒绝，除非人删掉它或 --break-lock" % rel)
+        if break_lock:
+            try:
+                os.remove(LOCK)
+            except OSError as e:
+                return False, "撬锁失败：%s" % e
+        else:
+            why = {"held-alive": "持有者进程还活着（pid=%s）" % rec.get("pid"),
+                   "stale-declared": "上一个持有者已宣布释放（released_at=%s）但文件还在 → "
+                                     "写档前要人拍板：删掉它，或 --break-lock" % rec.get("released_at"),
+                   "held-dead": "pid=%s 已不在，但**没有宣布释放** → 可能是崩在中途，"
+                                "要人先判断有没有写坏" % rec.get("pid")}.get(st, "状态未知")
+            return False, ("已有锁 %s ｜ %s ｜ 记录：%s —— 本编排器不自动撬锁（写档互斥靠它）"
+                           % (rel, why, json.dumps(rec, ensure_ascii=False)[:220]))
+    try:
+        fd = os.open(LOCK, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        return False, "抢锁失败：另一个写入者刚刚抢先（并发）"
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        json.dump({"run_id": run_id, "pid": os.getpid(),
+                   "at": __import__("time").strftime("%Y-%m-%dT%H:%M:%S"),
+                   "by": "kb_pipeline.py --sync"}, fh, ensure_ascii=False)
+    return True, "已持锁 pid=%d run_id=%s" % (os.getpid(), run_id)
+
+
+def release_lock():
+    try:
+        if os.path.exists(LOCK):
+            os.remove(LOCK)
+    except OSError:
+        pass
+
+
+def archive_before_write(layer: str, run_id: str):
+    """红线①：归档台账。返回 (ok, 说明列表)。归档是**逐字节复制 + 校验**，不是改文件。"""
+    msgs, ok = [], True
+    for rel in ARCHIVE_BEFORE_WRITE.get(layer, []):
+        src = os.path.join(os.path.dirname(KB), rel)
+        if not os.path.isfile(src):
+            msgs.append("⚠️ %s 不存在，跳过归档" % rel)
+            continue
+        d = os.path.dirname(src)
+        arch = os.path.join(d, "_archive")
+        base = os.path.basename(src)
+        dst = os.path.join(arch, base.replace(".jsonl", "-pre-%s.jsonl" % run_id))
+        try:
+            os.makedirs(arch, exist_ok=True)
+            import shutil as _sh
+            _sh.copyfile(src, dst)                 # .jsonl 不受信封影响（见 l8.json 的 extension_matrix）
+            a = os.path.getsize(src); b = os.path.getsize(dst)
+            import hashlib as _h
+            ha = _h.sha256(open(src, "rb").read()).hexdigest()
+            hb = _h.sha256(open(dst, "rb").read()).hexdigest()
+            if a != b or ha != hb:
+                ok = False
+                msgs.append("❌ 归档校验不过：%s（%d/%d 字节，sha %s/%s）" % (dst, a, b, ha[:12], hb[:12]))
+            else:
+                msgs.append("✅ 已归档 %s → %s（%d 字节，sha %s）"
+                            % (rel, os.path.relpath(dst, os.path.dirname(KB)), b, hb[:12]))
+        except OSError as e:
+            ok = False
+            msgs.append("❌ 归档失败：%s（%s）—— **红线①要求先归档再写，故停在这里，不写**" % (dst, e))
+    return ok, msgs
+
+
+PLAYBOOK = os.path.join(KB, "l7", "registry", "failure-playbook.yaml")
+
+
+def playbook_get(sig: str):
+    """按 id 取处置条目；取不到退到同前缀的 `*`；再取不到返回 None（**绝不现编**）。"""
+    try:
+        import yaml
+        doc = yaml.safe_load(open(PLAYBOOK, encoding="utf-8")) or {}
+        entries = {e.get("id"): e for e in (doc.get("entries") or [])}
+    except Exception:                                # noqa: BLE001
+        return None
+    if sig in entries:
+        return entries[sig]
+    return entries.get(sig.split(".")[0] + ".*")
+
+
+def print_playbook(sig: str, indent: str = "  "):
+    """P3：失败清单 —— 把「谁、做什么、跑哪条命令、不许做什么」直接打出来。"""
+    e = playbook_get(sig)
+    if not e:
+        print("%s⚠️ 没有登记的处置办法（%s）—— 补进 kb/l7/registry/failure-playbook.yaml，**不许现编**" % (indent, sig))
+        return
+    print("%s┌ 处置 %s" % (indent, e.get("id")))
+    print("%s│ 症状    ：%s" % (indent, e.get("symptom")))
+    print("%s│ 谁      ：%s" % (indent, e.get("owner")))
+    print("%s│ 做什么  ：%s" % (indent, e.get("do")))
+    print("%s│ 命令    ：%s" % (indent, e.get("command")))
+    print("%s│ **不许**：%s" % (indent, e.get("forbidden")))
+    print("%s└ 复开条件：%s" % (indent, e.get("reopen_when")))
+
+
+def run_sync(a) -> int:
+    """--sync 主流程：先闸门后写档，遇红即停。"""
+    reg = os.path.join(KB, "l7", "registry", "layers.yaml")
+    import yaml
+    doc = yaml.safe_load(open(reg, encoding="utf-8"))
+    layers = doc.get("layers") if isinstance(doc, dict) else doc
+    ordered = topo_sort(layers)
+    if not a.only and not a.all_layers:
+        print("--sync 必须点名层：`--sync --only L2`（或 --all 明确表示整链，风险自负）", file=sys.stderr)
+        return 2
+    if a.only:
+        ids = [z.strip() for z in a.only.split(",") if z.strip()]
+        bad = [i for i in ids if i not in [x["layer"] for x in ordered]]
+        if bad:
+            print("未知层：%s" % bad, file=sys.stderr); return 2
+        ordered = [x for x in ordered if x["layer"] in ids]
+    py = read_config() or sys.executable
+    run_id = a.run or _run_id_now()
+    mode = "写档（--apply）" if a.apply else "预演（不带 --apply）"
+
+    print("=" * 84)
+    print("知识库 L0–L7 执行编排器 · --sync ｜ %s ｜ run_id=%s" % (mode, run_id))
+    print("=" * 84)
+
+    beyond = [x["layer"] for x in ordered if x["layer"] not in SYNC_ALLOWED
+              and x["layer"] not in ("L7",)]
+    if a.apply and beyond and not a.allow_beyond_policy:
+        print("本编排器的写档白名单目前只有 %s（两周只读观察期的口径）。" % SYNC_ALLOWED)
+        print("要点名跑 %s 的写档，必须显式加 --allow-beyond-policy。" % beyond)
+        print_playbook("policy.beyond_whitelist")
+        return 2
+
+    if a.check_archive:                       # 只验红线①，不跑任何引擎
+        ok_all = True
+        for x in ordered:
+            ok, msgs = archive_before_write(x["layer"], run_id)
+            ok_all = ok_all and ok
+            for m in msgs:
+                print("[%s] %s" % (x["layer"], m))
+        print("结论：%s" % ("✅ 归档红线可执行" if ok_all else "❌ 归档红线不通过 → 不许进入写档"))
+        return 0 if ok_all else 1
+
+    ok, msg = acquire_lock(run_id, break_lock=a.break_lock, dry=not a.apply)
+    print("锁：%s" % msg)
+    if not ok:
+        print_playbook("lock.%s" % lock_state()[0].replace("-", "_"))
+        return 2
+
+    stopped = None
+    try:
+        for x in ordered:
+            lid = x["layer"]
+            cwd = home(x.get("cwd") or "")
+            # 红线③：写之前先跑本层闸门；红 → 立即停（不写这一层，更不往下走）
+            gate = str(x.get("gate") or "")
+            gm = re.match(r"\s*(kb/[A-Za-z0-9_./\-]+\.py)", gate)
+            gscript = gm.group(1) if gm else None
+            if gscript in GATE_WHITELIST:
+                gok, gsumm = run_gate(gscript, GATE_WHITELIST[gscript], cwd, py)
+                print("[%s] 闸门：%s ｜ %s" % (lid, "过" if gok else "**红**", gsumm))
+                if not gok:
+                    stopped = "%s 闸门红：%s" % (lid, gsumm)
+                    print_playbook("gate_red.%s" % lid)
+                    break
+            else:
+                print("[%s] 闸门：未纳入只读白名单 → 写档前无法自证，**停**" % lid)
+                print_playbook("gate_missing.%s" % lid)
+                stopped = "%s 没有可跑的白名单闸门" % lid
+                break
+
+            specs = SYNC_SPEC.get(lid)
+            if specs is None:
+                print("[%s] 无写档引擎登记（该层写档一律人工，如 L0 的飞书 token 只有 ~2h 有效期）→ 只跑了闸门" % lid)
+                continue
+            if not specs:
+                print("[%s] 无写库引擎（索引/注册表/报告层）→ 只跑了闸门" % lid)
+                continue
+
+            # 红线①：写之前归档
+            aok, msgs = archive_before_write(lid, run_id)
+            for m in msgs:
+                print("[%s] %s" % (lid, m))
+            if not aok:
+                print_playbook("archive_failed.%s" % lid)
+                stopped = "%s 归档红线不通过" % lid
+                break
+
+            for sp in specs:
+                if not a.apply and not sp["dry_ok"]:
+                    print("[%s] %s **没有干跑档**（运行即落盘）→ 预演模式下拒绝执行" % (lid, sp["script"]))
+                    print_playbook("engine_failed.%s" % lid)
+                    stopped = "%s 的 %s 没有干跑档，预演跑不了" % (lid, sp["script"])
+                    break
+                argv = [py, os.path.join(cwd, sp["script"])]
+                argv += [run_id if q == "RUN" else q for q in sp["args"]]
+                if sp["apply"] and a.apply:
+                    argv.append(sp["apply"])
+                before = snapshot_mtimes(layers)
+                r = subprocess.run(argv, cwd=cwd, capture_output=True, text=True,
+                                   env=dict(os.environ, KB_INTERP_OK="1", PYTHONDONTWRITEBYTECODE="1"),
+                                   timeout=a.timeout)
+                tail = [l for l in (r.stdout or "").strip().split("\n") if l.strip()][-2:]
+                after = snapshot_mtimes(layers)
+                changed = sorted(p for p in after if before.get(p) != after[p])
+                print("[%s] %s exit=%d ｜ 产物变化 %d 个" % (lid, os.path.basename(sp["script"]),
+                                                            r.returncode, len(changed)))
+                for t in tail:
+                    print("        %s" % t[:160])
+                if r.returncode != 0:
+                    for ln in (r.stderr or "").strip().split("\n")[-3:]:
+                        if ln.strip():
+                            print("        stderr: %s" % ln.strip()[:160])
+                    print_playbook("engine_failed.%s" % lid)
+                    stopped = "%s 的 %s 退出码 %d" % (lid, sp["script"], r.returncode)
+                    break
+                if a.apply and not changed:
+                    print("        ↳ **幂等**：本次没有改动任何产物文件")
+            if stopped:
+                break
+    finally:
+        release_lock()
+
+    # run 记录（P3）：写档档 = 人在环（--apply 必须人开闸）
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from run_record import record as _rr
+        _rr(source="pipeline_sync", trigger="--sync " + (a.only or ("all" if a.all_layers else "")),
+            skills=["kb-pipeline"],
+            commands=["kb/kbpy l7/scripts/kb_pipeline.py --sync %s%s"
+                      % (("--only " + a.only) if a.only else "--all", " --apply" if a.apply else "")],
+            products=[], verdict=("停在 " + stopped) if stopped else "全走完",
+            human_involved=bool(a.apply))
+    except Exception as exc:              # noqa: BLE001
+        print("[warn] run_record 没写成：%r" % (exc,))
+
+    print("-" * 84)
+    if stopped:
+        print("**已在 %s 停下**（红线：遇红即停，后面的层不跑）" % stopped)
+        print("要人做什么：看上面那一层的闸门/引擎输出；修好之后重跑同一条命令。")
+        return 1
+    print("结论：%s 全部走完（%s）" % ("、".join(x["layer"] for x in ordered), mode))
+    if not a.apply:
+        print("提示：这是预演。真正落盘要加 --apply，且当前白名单只开 %s。" % SYNC_ALLOWED)
+    return 0
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="知识库 L0–L7 执行编排器（本版仅 --check 零写档）")
+    ap.add_argument("--check", action="store_true", help="零写体检（本版唯一模式）")
+    ap.add_argument("--no-gates", action="store_true", help="只做静态校验，不跑闸门")
+    ap.add_argument("--only", default=None, help="只看/只跑某一层，如 L3")
+    ap.add_argument("--from", dest="from_layer", default=None, help="从某层起（拓扑序）")
+    ap.add_argument("--json", action="store_true")
+    ap.add_argument("--sync", action="store_true", help="写档编排（默认预演；加 --apply 才落盘）")
+    ap.add_argument("--apply", action="store_true", help="--sync 时真正落盘")
+    ap.add_argument("--all", dest="all_layers", action="store_true", help="--sync 时点名整链（风险自负）")
+    ap.add_argument("--run", default=None, help="run_id（默认取墙钟 YYYYMMDD-HHMM）")
+    ap.add_argument("--timeout", type=int, default=3600, help="单个引擎超时秒数")
+    ap.add_argument("--break-lock", action="store_true", help="撬掉 .kb.lock（只准人用）")
+    ap.add_argument("--allow-beyond-policy", action="store_true",
+                    help="越过写档白名单 %s（只准人用）" % SYNC_ALLOWED)
+    ap.add_argument("--check-archive", action="store_true",
+                    help="只验红线①的归档动作，不跑任何引擎（给反测用）")
+    a = ap.parse_args()
+    if a.sync:
+        import yaml  # noqa: F401  （run_sync 里要用）
+        return run_sync(a)
+    if not a.check:
+        print("要写档请用 --sync（默认预演）；只做零写体检请用 --check。", file=sys.stderr)
+        return 2
+
+    reg = os.path.join(KB, "l7", "registry", "layers.yaml")
+    if not os.path.isfile(reg):
+        print("找不到 %s" % reg, file=sys.stderr); return 2
+    try:
+        import yaml
+    except ImportError:
+        print("需要 PyYAML（请用 kb/kbpy 或 /usr/bin/python3 运行）", file=sys.stderr); return 2
+    doc = yaml.safe_load(open(reg, encoding="utf-8"))
+    layers = doc.get("layers") if isinstance(doc, dict) else doc
+    ordered = topo_sort(layers)
+
+    if a.only:
+        ordered = [x for x in ordered if x["layer"] == a.only]
+    elif a.from_layer:
+        ids = [x["layer"] for x in ordered]
+        if a.from_layer in ids:
+            ordered = ordered[ids.index(a.from_layer):]
+
+    py = read_config()
+    py_ok = bool(py) and os.access(py, os.X_OK)
+    before = snapshot_mtimes(layers)          # 零写自证：跑前快照
+
+    rows, hard = [], []
+    for x in ordered:
+        lid = x["layer"]
+        cwd = home(x.get("cwd") or "")
+        eng = x.get("engine") or []
+        if isinstance(eng, str): eng = [eng]
+        # 1) cwd
+        cwd_ok = bool(cwd) and os.path.isdir(cwd) and \
+            os.path.realpath(os.path.join(cwd, "kb")) == os.path.realpath(KB)
+        # 2) engine 在位
+        miss_eng = [e for e in eng if not os.path.exists(home(e) if os.path.isabs(home(e))
+                    else os.path.join(cwd, str(e)))]
+        # 3) inputs 里像路径的
+        miss_in = []
+        for i in (x.get("inputs") or []):
+            if not looks_like_path(i):
+                continue
+            if is_glob(i):
+                if not has_match(i, cwd):
+                    miss_in.append(i + "（glob 无匹配）")
+            else:
+                q = home(strip_placeholder(i))
+                q = q if os.path.isabs(q) else os.path.join(cwd, strip_placeholder(i))
+                if not os.path.exists(q):
+                    miss_in.append(i)
+        # 4) outputs 父目录
+        miss_out = []
+        for o in (x.get("outputs") or []):
+            if not looks_like_path(o):
+                continue
+            base = strip_placeholder(o)
+            par = os.path.dirname(base)
+            p = par if os.path.isabs(home(par)) else os.path.join(cwd, par)
+            if not os.path.isdir(home(p)):
+                miss_out.append(par)
+        # 5) gate 分类与执行
+        gate = str(x.get("gate") or "")
+        gm = re.match(r"\s*(kb/[A-Za-z0-9_./\-]+\.py)", gate)
+        gscript = gm.group(1) if gm else None
+        gstate, gsumm = "声明式（表达式/契约，无独立脚本）", ""
+        if gscript and gscript in GATE_WHITELIST:
+            if a.no_gates:
+                gstate, gsumm = "只读闸门（--no-gates 已跳过）", ""
+            else:
+                ok, gsumm = run_gate(gscript, GATE_WHITELIST[gscript], cwd, py or sys.executable)
+                gstate = "只读闸门 通过" if ok else "只读闸门 **未过**"
+                if not ok:
+                    hard.append("%s 闸门未过：%s" % (lid, gsumm))
+        elif gscript and gscript in GATE_NOT_RUN_REASON:
+            gstate, gsumm = "未执行", GATE_NOT_RUN_REASON[gscript]
+        elif gscript:
+            gstate, gsumm = "未执行", "有序脚本但未纳入只读白名单（需参数或写行为未验证）"
+
+        rows.append(dict(layer=lid, cwd_ok=cwd_ok, n_eng=len(eng), miss_eng=miss_eng,
+                         miss_in=miss_in, miss_out=miss_out, gate_state=gstate,
+                         gate_summary=gsumm, envelope=x.get("envelope"),
+                         dry_run=x.get("dry_run"), write_mode=x.get("write_mode")))
+        if not cwd_ok: hard.append("%s cwd 不合格：%s" % (lid, x.get("cwd")))
+        if miss_eng:   hard.append("%s 引擎悬空 %d 个：%s" % (lid, len(miss_eng), miss_eng[:2]))
+        if miss_in:    hard.append("%s 输入缺失 %d 个：%s" % (lid, len(miss_in), miss_in[:2]))
+        if miss_out:   hard.append("%s 产出父目录不存在 %d 个：%s" % (lid, len(miss_out), miss_out[:2]))
+        if x.get("envelope") == "required" and x.get("dry_run") is False:
+            rows[-1]["note"] = "该层声明 dry_run=false（写档不可预演）"
+
+    after = snapshot_mtimes(layers)            # 零写自证：跑后快照
+    changed = [p for p in before if after.get(p) != before[p]]
+
+    if a.json:
+        print(json.dumps(dict(zero_write=not changed, changed=changed, layers=rows,
+                              hard=hard, py=py, py_ok=py_ok), ensure_ascii=False, indent=1))
+        return 0 if not hard and not changed else 1
+
+    print("=" * 84)
+    print("知识库 L0–L7 执行编排器 · --check（零写档）")
+    print("=" * 84)
+    print("库根      : %s" % KB)
+    print("解释器    : %s %s" % (py or "(未配置)", "✅" if py_ok else "**不合格**"))
+    print("层数      : %d（拓扑序：%s）" % (len(rows), " → ".join(r["layer"] for r in rows)))
+    print("闸门执行  : %s" % ("已跳过（--no-gates）" if a.no_gates else ("只读白名单 %d 个" % len(GATE_WHITELIST))))
+    print()
+    hdr = "%-4s %-5s %-6s %-9s %-8s %-8s %s" % ("层", "cwd", "engine", "inputs", "outputs", "干跑档", "闸门")
+    print(hdr); print("-" * 84)
+    for r in rows:
+        print("%-4s %-5s %-6s %-9s %-8s %-8s %s" % (
+            r["layer"], "✅" if r["cwd_ok"] else "❌",
+            "✅%d" % r["n_eng"] if not r["miss_eng"] else "❌%d/%d" % (len(r["miss_eng"]), r["n_eng"]),
+            "✅" if not r["miss_in"] else "❌%d" % len(r["miss_in"]),
+            "✅" if not r["miss_out"] else "❌%d" % len(r["miss_out"]),
+            "有" if r["dry_run"] else "**无**",
+            r["gate_state"] + (" ｜ " + r["gate_summary"] if r["gate_summary"] else "")))
+    print("-" * 84)
+    print("零写自证  : %s（产出文件 mtime 快照 %d 个，变化 %d 个）"
+          % ("✅ 未写任何文件" if not changed else "❌ 有文件被改动", len(before), len(changed)))
+    for c in changed[:5]:
+        print("    X %s" % c)
+    print()
+    if hard:
+        print("硬问题 %d 条：" % len(hard))
+        for h in hard:
+            print("   - %s" % h)
+    else:
+        print("硬问题：无 ✅")
+    skipped = [r["layer"] for r in rows if r["gate_state"].startswith("未执行")]
+    if skipped:
+        print("闸门未执行的层：%s（各自原因见上表；**不是静默跳过**）" % "、".join(skipped))
+    print("结论：%s" % ("全过" if not hard and not changed else "有问题"))
+    print("说明：本版只做零写体检。写档（--sync）仍需人工开闸：它按层序逐层调 `--apply`，"
+          "而**干跑档已于 P0-3/P0-3d（2026-09-29）补齐** —— 8 个会改库数据的脚本"
+          "（reconcile_l0_feishu / ocr_attachments / l3_distill_run / drill_links_2levels / "
+          "l4_article / l5_prep / "
+          "l5_export / l6_build）均支持 --apply，闸门位次在各自第一个副作用之前。")
+    return 0 if not hard and not changed else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

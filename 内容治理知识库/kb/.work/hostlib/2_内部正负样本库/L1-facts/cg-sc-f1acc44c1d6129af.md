@@ -1,0 +1,88 @@
+---
+id: cg-sc-f1acc44c1d6129af
+title: "[S-1.308] 内部正负样本库：反例·审核问题·图片"
+collection: 2_内部正负样本库
+kb_class: [内部正负样本库]
+tier: L1
+topic: S-1.308
+kind: fact
+summary: "[S-1.308] 反例案例（图片/展会）：原因归类「审核问题」；案例作参照、不构成规则。状态 stable。"
+owner: 韦化
+evidence_level: L1
+data_level: L2
+sensitivity_level: L2
+half_life_days: 180
+created_at: 2026-10-16
+valid_until: 2027-04-14
+asks:
+  - S-1.308 是正例还是反例
+  - S-1.308 的问题要点与原因归类是什么
+  - S-1.308 应该怎么做（合规做法 / 修改建议）
+not_proves: 案例是参照，不构成规则 —— 不能证明「和它像」就违规、也不能证明「和它像」就合规；不能证明该条已过正式验收；不能证明该条可替代合规/法务意见
+forbidden: 不许把案例当规则用（案例只作参照）；不许据本条直接判 BLOCK；不许把派生视图的字段改动当成新库改动（视图不写回）
+related:
+  - cg-sc-32a6bcf5a387c68e
+  - cg-sc-d1649310e1262b02
+  - cg-sc-5e12298d5514381c
+source:
+  kind: feishu-base
+  ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
+  fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
+  captured_at: 2026-10-16
+provenance:
+  anchor: "kb/l4/canonical/sample_case.jsonl#sc-f1acc44c1d6129af"
+  confidence: 确定
+pii:
+  detected: true
+  masked: true
+  strategy: "案例正文与原因分析里的 @人名 不可逆脱敏（mask-at-name）；已检出并脱敏"
+article_no: S-1.308
+form: sample_case
+kb_type: internal_sample
+kb_version: v0
+case_id: sc-f1acc44c1d6129af
+status: stable
+polarity: 反例
+material_type: 图片
+channel: 展会
+reason_category: 审核问题
+evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
+promoted_from: provisional
+anchor: "#负面样本/recvw7XJiS2JaZ/具体原因/分析"
+source_sha256: 533f486042a64f9d1b97ed97f9ade1e951349e0690e866ecb653849259e7172d
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XJiS2JaZ
+sample_body: "【审核 · 2026-07-28 03:19 · 韦化】【终审−@[已脱敏] 】再看看呀,后面3张修改了 项目名: V3001-社群How to Choose a Breast Pump科普海报x4 设计要求: ![Image](img_v3_02140_8e87f8bb-0c04-4749-b814-1b3f503b0d0g) 设计稿件： ![Image](img_v3_02140_07a970ae-6b32-4536-8edd-98ae6819a8ag) ![Image](img_v3_02140_c8c71f1c-c329-46f2-a7b8-0f21a35a436g) ![Image](img_v3_02140_d702a70e-8837-4d37-9375-55eb5a0abbag) ![Image](img_v3_02140_fc21ca63-3af7-4d27-b030-a993667308eg)"
+reason_analysis: "【审核问题】文案 【终审−@[已脱敏] 】再看看呀,后面3张修改了。 【问题要点】 1. 【终审−@[已脱敏] 】再看看呀,后面3张修改了 2. 项目名: V3001-社群How to Choose a Breast Pump科普海报x4"
+advice: ""
+---
+
+# [S-1.308] 内部正负样本库：反例·审核问题·图片
+
+**条款号**：S-1.308　|　**形态**：`sample_case`　|　**正/反例**：反例　|　**状态**：stable
+
+## 样本本体（照抄新库，未改写）
+
+【审核 · 2026-07-28 03:19 · 韦化】【终审−@[已脱敏] 】再看看呀,后面3张修改了
+项目名: V3001-社群How to Choose a Breast Pump科普海报x4
+设计要求:
+![Image](img_v3_02140_8e87f8bb-0c04-4749-b814-1b3f503b0d0g)
+设计稿件：
+![Image](img_v3_02140_07a970ae-6b32-4536-8edd-98ae6819a8ag)
+![Image](img_v3_02140_c8c71f1c-c329-46f2-a7b8-0f21a35a436g)
+![Image](img_v3_02140_d702a70e-8837-4d37-9375-55eb5a0abbag)
+![Image](img_v3_02140_fc21ca63-3af7-4d27-b030-a993667308eg)
+
+## 原因分析
+
+【审核问题】文案 【终审−@[已脱敏] 】再看看呀,后面3张修改了。
+【问题要点】
+1. 【终审−@[已脱敏] 】再看看呀,后面3张修改了
+2. 项目名: V3001-社群How to Choose a Breast Pump科普海报x4
+
+## 引用依据
+
+- 锚点：`#负面样本/recvw7XJiS2JaZ/具体原因/分析`
+- 指纹：`533f486042a64f9d1b97ed97f9ade1e951349e0690e866ecb653849259e7172d`
+- 原因归类：审核问题　|　素材类型：图片
+
+> 案例只作参照，不构成规则。

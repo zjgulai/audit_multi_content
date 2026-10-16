@@ -1,0 +1,671 @@
+===CASE 81===
+===ROUTE 81: NONE===
+先说清楚我这边的限制：本会话我只有知识库的查询工具（`kb_guide` / `kb_search` / `kb_read` / `kb_collections` / `kb_ingest` / `kb_check`），**没有文件系统与 shell 权限**，所以 `kb/l3` 的实际清单和行数我读不到。我不会凭记忆编一份数字给你——那种"看起来像实测"的假数据在这本库上是明令禁止的（库里查过一轮：`拒绝台账 蒸馏 归档 条款抽取`、`distill ledger archive clause` 都是 **0 条命中**，这类治理口径不在 L1 条目里，只在各层 skill 的 SKILL.md 与三层登记表里，别指望用语义检索查它）。
+
+**你自己在库根跑，一次拿全：**
+
+```bash
+# 库根 = <工作区>/知识库/内容治理
+cd <工作区>/知识库/内容治理
+
+# 1) 目录清单（含 _archive、含空文件）
+find kb/l3 -maxdepth 2 -type f -printf '%10s  %p\n' 2>/dev/null || \
+  find kb/l3 -maxdepth 2 -type f -exec ls -l {} \;
+
+# 2) 两个主账本的行数 + sha256（行数是台账口径，sha256 是"跑前归档"的比对基准）
+for f in kb/l3/candidates/rules.jsonl kb/l3/candidates/sample_cases.jsonl \
+         kb/l3/candidates/scoped_clauses.jsonl kb/l3/rejected.jsonl kb/l3/manifest_l3.jsonl; do
+  [ -f "$f" ] && printf '%-46s %8s 行  %s\n' "$f" "$(wc -l < "$f")" "$(sha256sum "$f" | cut -c1-16)"
+done
+
+# 3) 归档区（重跑前必须存在的那个基线）
+ls -l kb/l3/_archive/ 2>/dev/null || echo '没有 kb/l3/_archive/ —— 说明还没做过跑前归档，见下'
+```
+
+**按 skill 登记的口径，这个目录"应该"长这样**（下面是**登记表里的定义**，不是我读到的实际值，请以第 1、2 步的输出为准）：
+
+| 路径 | 是什么 | 谁写 |
+|---|---|---|
+| `kb/l3/candidates/rules.jsonl` | 规则候选（**候选 ≠ 定稿**） | `l8/l3_distill_run.py` |
+| `kb/l3/candidates/sample_cases.jsonl` | 正负样本候选 | 同上 |
+| `kb/l3/candidates/scoped_clauses.jsonl` | 限定范围条款候选 | 同上 |
+| `kb/l3/rejected.jsonl` | **逐单元**拒绝台账 | 同上（**`w` 模式覆盖**，血泪点） |
+| `kb/l3/manifest_l3.jsonl` | 本层台账 | 同上 |
+| `kb/l3/_archive/rejected-pre-<RUN>.jsonl` | 跑前归档基线 | 跑之前手工/`cp` |
+
+**看行数时容易踩的两个坑，先给你打预防针：**
+
+1. **别只看净数**。`rejected.jsonl` 只有 1,053 行**未必**是"该拒的就这么少"——本库真发生过逐单元拒绝台账从 **11,860 行掉到 1,053 行**（`l3_distill_run.py` 以 `w` 模式覆盖，而跑前没归档）。判"少没少"要拿 `_archive/rejected-pre-<RUN>.jsonl` 的 sha256 对，不是拿今天的数字跟记忆比。
+2. **`kb/l3/candidates/rules.jsonl` 是候选**。里面有 `rule_id`，但**没有条款号**——`article_no` 由 L4 分配（`kb/.work/l4_article.py` 在 `kb-pipeline --apply` 下发号）。候选说成定稿 = 引用越级。
+
+要不要我把这套对账写成一条可复跑的体检项（跑前归档存在性 + sha256 一致 + 候选只追加），顺手并进 L3 的验收判据 A2/A3？你说一声，我把改动写成给 `kb-clause-extractor` 的补丁文本，不动库文件。
+
+===CASE 83===
+===ROUTE 83: NONE===
+可以清，但**"压缩一下腾空间"这句话在这本库上不是安全的默认动作**——按 L3 的红线①，`kb/l3/_archive/rejected-pre-<RUN>.jsonl` 是**明文写明不可省**的那一份：它存在，正是为了在 `l3_distill_run.py` 以 `w` 覆盖 `rejected.jsonl` 之后还能回滚。**归档可以压缩，不许删除**。
+
+而且这事我**先做不了实操**：本会话我没有 shell / 文件写权限（写权限只有 `/tmp` 下那个投递目录），所以下面是我会执行的完整方案，你在库根跑；数字要跑出来才算数，别信我估的。
+
+## 一、先看清"上一轮"是谁（只读，什么都不动）
+
+run_id 是会话标号，**实测可能比机器墙钟快好几小时，不许拿它当时间读**。时间线一律看 mtime：
+
+```bash
+cd <工作区>/知识库/内容治理
+
+RUN=<上一轮蒸馏的 RUN，如 20260930-0930>
+
+# 1) 这一轮的产物到底有哪些、多大
+du -sh kb/l8/runs/ 2>/dev/null
+ls -lt kb/l8/runs/ | head -30
+
+# 2) 每个候选 run 目录的体积排序，先找真正的胖文件
+du -sh kb/l8/runs/* 2>/dev/null | sort -h | tail -20
+
+# 3) 全库最大的 20 个文件（很多"跑记录"其实是日志/中间件）
+find kb -type f -size +5M -exec ls -lh {} \; 2>/dev/null | sort -k5 -h | tail -20
+```
+
+## 二、先划"能压 / 不能压"这条线
+
+| 类别 | 处置 | 理由 |
+|---|---|---|
+| `kb/l3/_archive/rejected-pre-*.jsonl` | **只压不删**（`gzip -9` 后留 `.gz` + sha256） | 红线①的回滚基线 |
+| 最近一轮 RUN 的产物 | **不动** | 幂等键/续跑要靠它判 `unchanged` |
+| 早于保留窗口的**整轮** run 目录 | `tar -czf` 打包 + manifest | 追查用得上，但不必常驻明文 |
+| `kb/l8/runs/*.json` 里被 manifest / 报告**引用为证据路径**的 | **不打包**，只记体积 | 报告里给出的证据路径不能变成死链（L0/L3 交付物第 1 条就是"各阶段运行记录，存原始数据，不转述"） |
+| `kb/l6/` 下的向量索引 | **不动** | 压了等于索引重建，得不偿失 |
+
+**保留窗口我建议：每层保留最近 2 轮明文，其余整轮打包。** 理由是排查一次回归通常只需要相邻两轮做集合差；再往前翻的概率低。这条要你拍板（见文末）。
+
+## 三、打包（可逆 + 留痕；**先干跑看清单，再落盘**）
+
+```bash
+RUN=<要归档的旧 RUN>
+
+# 干跑：只打印将被打包的文件与总体积，不写盘
+tar -czf /dev/null -v kb/l8/runs/$RUN* 2>&1 | tee /tmp/archive-dryrun-$RUN.txt | tail -5
+
+# 真打包（写进 kb 下的 _archive，不写装载位）
+mkdir -p kb/l8/_archive
+tar -czf kb/l8/_archive/runs-$RUN.tar.gz kb/l8/runs/$RUN*
+sha256sum kb/l8/_archive/runs-$RUN.tar.gz >> kb/l8/_archive/runs-archive.sha256
+
+# 可逆性证明（这一步不能省）
+tar -tzf kb/l8/_archive/runs-$RUN.tar.gz | wc -l     # 条数应与干跑清单一致
+tar -xzf kb/l8/_archive/runs-$RUN.tar.gz -C /tmp/verify-$RUN && \
+  diff -r /tmp/verify-$RUN <原路径> && echo '可逆性 OK'
+```
+
+**校验通过之后**才允许删明文，并且保留一份"删了什么"的 manifest（`_archive/manifest-<RUN>.jsonl`：路径 / 原体积 / 压缩后体积 / sha256 / 归档时间 / 操作者）。宁可红，不静默删。
+
+## 四、两个必须避开的坑
+
+1. **不要把压缩产物写进 `.md` 装载位**（`kb/view`）。这一环有真实的信封坑：`python` 的 `open(w)` / `shutil.copy2` 会落成"4096 字节前缀 + 原文"的信封态，而 Python 自己读回来**验不出来**（`stat` 报 4,532 字节、sha256 还对）。往装载位写 `.md` 一律走 `node`（`kb/.work/write_via_node.mjs`）或 `/bin/cp`，并**用 node 读回校验**。`.jsonl/.log/.gz` 不受影响，随便哪个通道。
+2. **别把 `rejected.jsonl` 当成"跑记录"压走**。它是**活账本**（下一次蒸馏会覆盖它）。要压的是 `_archive` 里的那份基线。
+
+## 五、待确认（每条都带我的建议）
+
+1. **【我建议】保留窗口取"每层最近 2 轮明文，其余整轮打包"** —— 理由：可覆盖绝大多数回归排查，且不动最近一轮的幂等键；取舍：想翻第 3 轮之前的原始 JSON 需要先解包，多一步。
+2. **【我建议】`kb/l3/_archive/` 永不纳入清理** —— 理由：那是红线①的回滚基线，省的那点空间和"台账从 11,860 掉到 1,053"的代价不成比例；取舍：这目录会一直占着。
+3. **【我建议】"上一轮"= 最近一次完整跑完的 RUN（不只是 L3）** —— 理由：你说的是"腾空间"，空间是整轮占的；取舍：如果你其实只想清 L3 那一轮，告诉我，我按单层口径收窄。
+
+回一句"按你的建议做"，我就按上面三步执行（干跑 → 打包 → 校验 → 删明文 + 留 manifest）。**顺带提一句**：清理前最好先跑一次 `python3 kb/l8/workflow_check.py $RUN`，确认这一轮不是"红着归档"的——把一个还没收口的 run 先打包，回头查问题就得解包，反而更费事。
+
+===CASE 85===
+===ROUTE 85: kb-l0-feishu===
+先别急着落——**这份东西大概率不该进 L0**，我得先跟你确认通道，不然会踩到 L0 的层契约。
+
+## 一、为什么先拦一下
+
+`kb-l0-feishu` 的口径只有一句：**L0 就是飞书侧源数据的副本，任何差异都算缺陷**；它的四条红线里，第 2 条是「L0 只与飞书对齐」，skill 的「不适用」里还有一句更直接的话：**"没有飞书侧源、纯本地文件的场景 → 不触发本 skill"**。
+
+所以真正的判据不是"它是不是政策原文"，而是**它是从哪条通道来的**：
+
+| 这份政策原文实际来自 | 去处 | 走谁 |
+|---|---|---|
+| 飞书 Base 记录 / 云文档 / wiki / 附件 | **进 L0**（作为非记录资源登记） | `kb-l0-feishu` |
+| 本地 PDF / Word / 网页另存 / 别人发你的文件 | **不进 L0**，进**证据源登记**（带版本、生效日期、辖区、适用范围） | `证据源维护` |
+
+平台政策在你们家族里是有明确归属的：`证据源维护` 的职责就是「登记监管指引、**平台政策**与内部规则的**版本、生效日期、辖区与适用范围**，产出带版本的证据源清单」。**"平台政策"这四个字就在它的描述里**——这是设计上的分流，不是我给你绕路。
+
+**我建议**：先答一句它从哪来。走飞书通道 → 我按 L0 走；是本地文件 → 走证据源登记，指纹一样算，而且登记完还能接着抽条款。
+
+## 二、确认是飞书通道之后，我会按这个序列落库
+
+```bash
+cd <工作区>/知识库/内容治理
+RUN=<YYYYMMDD-HHMM>
+
+# 阶段 0：前置自检（不通过就停下来报"缺什么"，不绕路硬试）
+bash scripts/preflight.sh
+```
+
+前置自检给的是**能力矩阵（身份 × Base → 可读/不可读）**，不是一句"能不能读"。**别把一张表的结论外推到全部表**：实测 bot 身份对「材料收集」可读，但对 `SKkbd…` 那个 Base 的「专家修订汇总表 / 内容公式」读不到 `base +field-list`，必须换 user 身份；**字段读失败时脚本必须拒写快照**，宁红不写退化的 0 字段快照（这条已经被刷过一次）。
+
+```bash
+# 阶段 1 记录层核对（只读）：拿到 same / only_feishu / only_l0 / changed
+python3 kb/l8/align_l0_feishu.py $RUN
+
+# 阶段 2 结构层核对（字段 id/名/类型）——预演完再 apply
+python3 kb/l8/align_l0_schema.py $RUN           # 预演
+python3 kb/l8/align_l0_schema.py $RUN --apply
+
+# 阶段 4 台账补齐（append-only；记录文件在但 manifest 没行 → 下游永远抽不出来）
+python3 kb/l8/emit_l0_manifest_reconcile.py $RUN           # 预演
+python3 kb/l8/emit_l0_manifest_reconcile.py $RUN --apply
+
+# 阶段 5 非记录资源（政策文档走这一类）+ 附件字节落 L0
+python3 kb/l8/verify_l0_nonrecord.py  $RUN [--apply]
+python3 kb/l8/store_l0_attachments.py $RUN [--apply]     # bot 身份
+```
+
+## 三、指纹怎么算（这是你问的重点，也是最容易算错的地方）
+
+**我建议**按资源类型分口径，并且**先用一条既有行反向复现，再批量写**：
+
+| 资源类型 | 指纹口径 |
+|---|---|
+| 普通文件 / 附件字节 | `sha256(file_bytes)` —— 字节级 |
+| 飞书**文档类**（docx/wiki） | **`rev` + 字节指纹**，不要用摘要判等（摘要口径天然不同） |
+| 链接 | `sha256_input` 统一口径（如全 `url_text_rendered_v1`）；**三种口径混在一个字段里时必须明说"不能算严格一致"** |
+
+```bash
+# 机器指纹
+shasum -a 256 "<政策原文文件>" 
+# 与既有 manifest 行对齐（先复现一条旧行，确认口径一致）
+head -1 kb/l0/manifest.jsonl | python3 -m json.tool
+```
+
+## 四、交付给你什么
+
+1. `kb/l8/runs/$RUN-l0-align.json` 等运行记录（原始数据，不转述）；
+2. **一段固定四段的结论**：① 记录层四类计数 ② 结构层（改名/缺字段/类型漂移）③ 非记录层**逐类四态结论**（`已对齐` / `不适用（附证据）` / `读不到（原因码）` / `不可核（原因码）`）④ 口径层（URL 口径是否统一）；
+3. **覆盖率矩阵**：每类一行 = 类型 + 状态 + 条数 + 原因码，且强制满足 `S_feishu ⊆ S_report`，**缺类不许收口**；
+4. **缺口清单**：对象 + 原因码 + **要人做什么** + 复开条件。
+
+## 五、两件现在就需要你答的事
+
+1. **【我建议】告诉我它的来源通道**（飞书哪张表/哪个文档 / 还是本地文件）—— 这决定进 L0 还是进证据源登记；取舍：猜错通道的代价是 L0 里多一份"飞书侧根本没有"的文件，之后每一轮对账都会把它算成 `only_l0`，**永久噪声**。
+2. **【我建议】先只做 `--check` 档（全只读），拿到差异再决定要不要 `--sync` 落盘** —— 理由：写操作默认预演，是这本库的既定红线；取舍：多一轮，慢半天。
+
+另外提醒一句：如果这份政策原文接下来要抽条款（L3），那它是**独立的一步**，不要让 L0 的落库脚本顺手把下游也跑了——`kb-l0-feishu` 只做 L0 这一层，整链要走 `kb-pipeline`。
+
+===CASE 87===
+===ROUTE 87: NONE===
+能做，但先说清楚：**本会话我没有文件系统读取权限，读不到你那份原文**（我只有知识库的 6 个查询工具）。所以"帮你把这份原文整理成目录树"这件事，我分两半交付：**你跑一条命令拿树**，**我给你一套"漏没漏章节"的对账方法**——后者才是你真正想要的（"方便我核对有没有漏章节"）。
+
+## 一、拿目录树（30 秒，原文是什么格式都能出树）
+
+```bash
+# Markdown：直接出层级树（含每节起始行号，核对时好定位）
+awk '/^#{1,6}[ \t]/ {n=gsub(/#/,"#"); printf "%*s%s  (L%d)\n", (n-1)*2, "", $0, NR}' 政策原文.md \
+  | tee /tmp/policy-tree.txt
+
+# 带每节字数（一眼看出哪节是空壳）
+python3 - <<'PY'
+import re,sys
+p='政策原文.md'; lines=open(p,encoding='utf-8').read().splitlines()
+idx=[(i,l) for i,l in enumerate(lines) if re.match(r'^#{1,6}\s',l)]
+for k,(i,l) in enumerate(idx):
+    end = idx[k+1][0] if k+1<len(idx) else len(lines)
+    chars = sum(len(x) for x in lines[i+1:end])
+    print(f"{'  '*(len(l.split(' ')[0])-1)}{l}  (L{i+1}, {chars} 字)")
+PY
+```
+
+Word / PDF 的话：`pandoc 政策原文.docx -t markdown -o 政策原文.md`（PDF 用 `pdftotext -layout`），拿到 md 再跑上面这段。
+
+## 二、但"目录树对了"≠"章节没漏"——这一步才是重点
+
+你现在核对的是**单边**：树是从**原文**长出来的，而章节真正会"漏"的地方在**下游抽取**——原文里的第 3.2 节可能压根没被抽成条款级单元。所以要建的是**双边对账**，不是一张树：
+
+| 侧 | 从哪来 | 关键字段 |
+|---|---|---|
+| **原文侧** | 上面那棵树 | 章节号 + 标题 + 起始行号 + 字数 |
+| **抽取侧** | `kb/l3/` 与 `kb/l2/` 的单元 | `unit_id` + `source_sha256` + **`anchor`**（章节号或锚点） |
+
+```bash
+cd <工作区>/知识库/内容治理
+
+# 抽取出单元里实际出现的章节号
+python3 - <<'PY'
+import json,re
+seen={}
+for line in open('kb/l3/candidates/rules.jsonl',encoding='utf-8'):
+    r=json.loads(line)
+    for e in r.get('evidence_units',[]):
+        seen.setdefault(e.get('anchor'),set()).add(r.get('rule_id'))
+for a in sorted(filter(None,seen)):
+    print(a, len(seen[a]))
+PY
+```
+
+然后把原文树里的章节号做差集 —— **只报三类，别只说"少了"**：
+
+1. **漏章节**：原文有、抽取侧无（真缺陷，必修）；
+2. **多章节**：抽取侧有、原文无（多半是章节号写法不一致，见下条）；
+3. **重复章节号**：同一编号出现两次（原文自身的问题，先修原文）。
+
+## 三、差集大概率不是"漏"，是这套格式噪声（先归一化再下结论）
+
+- **目录页 / TOC**：正文前那份目录会把每个标题数两遍，直接比对必然"多出一倍"。先按页/行区间把 TOC 段切掉。
+- **编号写法**：`3.2` / `3．2`（全角点）/ `3、2` / `第 3.2 条` / `(3)(2)` / `三、（二）`——**一次归一化**成同一种口径再比。
+- **标题层级跳级**：`##` 直接跳到 `####`，树上看不出来，但分组会错；出树时把"跳级"标出来。
+- **同题不同层**：`附则` 在一处是二级、另一处是三级，会被算子当成两个不同章节。
+- **脚注/图表题注**被误当标题（`表 3-1 适用范围` 这种）。
+
+**我建议**：归一化脚本产出一份 `chapter-normalize.json`（原文章节号 → 归一化编号 → 起始行号），**双边对账一律比归一化后的编号**，并把归一化映射本身也留档——不然下次换个同事核对，又会得到另一套数字。
+
+## 四、两件要你定的事
+
+1. **【我建议】把这次核对做成一次"章节两账"，而不是一张树** —— 理由：单边树看不出"这一节没进抽取"，而漏抽是这本库里代价最大的一类缺陷（下游规则候选直接少一块）；取舍：多花大概半小时建对账。
+2. **【我建议】章节号一旦确认就冻结，并记下 `source_sha256`** —— 理由：`anchor` 是 L3 证据回指的承重字段（`l3_gate.py` 每天逐条核的就是 `unit_id + source_sha256 + anchor` 这 1,729 条），章节号改了锚点就断；取舍：政策原文后续修订要重走一轮锚点更新。
+
+要不要我把第二节那段双边对账写成一条可复跑的清单（原文树 → 归一化 → 差集 → 三类报告）？你确认后我给脚本文本，不动库里的文件。
+
+===CASE 89===
+===ROUTE 89: NONE===
+（你没说话。）
+
+我在，需要什么直接说。按这个库最近的活，最可能是下面三件之一，你点一个我就开：
+
+1. **抽条款 / 规则蒸馏**（L3）—— 说一声"抽条款"即可。**注意这件事有个不可跳过的前置**：跑之前必须先把 `kb/l3/rejected.jsonl` 归档到 `kb/l3/_archive/rejected-pre-<RUN>.jsonl` 并校验 sha256，因为 `l3_distill_run.py` 是以 `w` 模式覆盖它的（本库真发生过逐单元拒绝台账从 **11,860 行掉到 1,053 行**）。
+2. **L0 对账 / 落库**（飞书侧）—— 走 `--check` 先只读，出报告不写盘。
+3. **知识库体检 / 闸门**—— 一次性把各层 check 跑完汇总成一张表。
+
+顺手提一句：若你其实是想让我**读某个文件**（比如 `kb/l3` 目录、某份政策原文），我这个会话只有知识库的查询工具，**没有文件系统权限**；把路径贴给我，我给你能直接跑的命令，或者你把内容粘过来我处理。
+
+===CASE 91===
+===ROUTE 91: kb-clause-extractor===
+收到，L3 条款抽取。**开跑前有一道不可跳过的闸门**——这条不是流程讲究，是这台库真栽过的地方。
+
+## 一、跑之前：先归档（红线①）
+
+`l8/l3_distill_run.py` 以 **`w` 模式覆盖** `kb/l3/rejected.jsonl`。本库的真实事故：逐单元拒绝台账从 **11,860 行掉到 1,053 行**。所以顺序是固定的：
+
+```bash
+cd <工作区>/知识库/内容治理
+RUN=<YYYYMMDD-HHMM>
+
+mkdir -p kb/l3/_archive
+cp -p kb/l3/rejected.jsonl kb/l3/_archive/rejected-pre-$RUN.jsonl
+shasum -a 256 kb/l3/rejected.jsonl kb/l3/_archive/rejected-pre-$RUN.jsonl   # 两个哈希必须一致
+wc -l kb/l3/rejected.jsonl                                                  # 记下跑前行数
+```
+
+> 归档也是归档它自己：**别用"信封版"文件做留底**，`cp` / node 通道即可（`.jsonl` 不受信封影响，随便哪个通道）。
+> 跑前还要确认没有别的批在跑：存在 `.kb.lock`、或 `kb/.work` 近 30 分钟有大量写入 → **先停，问人**。
+
+## 二、跑（★**没有干跑档，运行即落盘**）
+
+```bash
+# 蒸馏：条款文本 → 可判定的规则候选（命中表达 + 处理方式）
+kb/kbpy l8/l3_distill_run.py $RUN
+
+# 若本轮的拒收口径有变，必须重建逐单元拒绝台账（收敛后不重建 = 重演那次回归）
+kb/kbpy l8/l3_reject_ledger_rebuild.py $RUN          # 预演
+kb/kbpy l8/l3_reject_ledger_rebuild.py $RUN --apply
+```
+
+解释器一律走 `kb/kbpy`（受管 python 缺 numpy/fastembed；`KB_INTERP_OK=1 /usr/bin/python3` 是例外口子）。**cwd 必须是 `kb/` 的上一级**——29 个 `kb/l8/*.py` 用 `"kb/..."` 相对路径。
+
+## 三、跑完的验收（四条，缺一条都不算完成）
+
+| # | 判据 | 命令 / 看什么 |
+|---|---|---|
+| A1 | 证据全可回指 + 注册表自报键全已声明 | `kb/kbpy l7/scripts/l3_gate.py` 退出 0（每天逐条核那 1,729 条 `unit_id + source_sha256 + anchor`） |
+| A2 | 跑前归档存在且 sha256 与源一致 | 上面那两行 `shasum` |
+| A3 | 蒸馏**只追加**：既有候选行逐字节未变 | 跑前 `shasum kb/l3/candidates/rules.jsonl`，跑后比对；变了就是覆盖写，停 |
+| A4 | 下游仍过 | `kb/kbpy l7/scripts/l7_gate.py`（六要素在定稿上可物化率 100%） |
+
+另外把这三个数报给我：`kb/l3/candidates/rules.jsonl` 新增行数 / `kb/l3/rejected.jsonl` 行数**与跑前行数的差** / `_archive` 那份基线的行数。
+
+## 四、三条边界，先说在前面
+
+1. **候选 ≠ 定稿**。产出落 `kb/l3/candidates/*.jsonl`，每条是 `rule_id`，**这里没有条款号**——`article_no` 由 L4 分配（`kb-pipeline --apply` 下跑 `kb/.work/l4_article.py`）。**本 skill 不自造条款号**，我也不会在给你的汇报里给候选编一个号。
+2. **证据必须一条条回指**：每条规则的 `evidence_units[]` 都要能回到 L2 单元的 `unit_id + source_sha256 + anchor`。
+3. **我不改 L0**。优化 L1–L7 时一律不碰 L0。
+
+## 五、开跑前需要你给两样
+
+1. **【我建议】这批条款的原料是哪一批 L2 单元**（哪个 RUN / 哪几个 `unit_id` 范围）—— 理由：L3 的原料是 L2 单元，抽错了源等于白跑一轮；取舍：如果你就是要"全量重跑"，说一句"全量"我就按全量口径走，但那会显著更慢。
+2. **【我建议】这次是"新政策进库首抽"还是"上游没变的重跑"** —— 理由：`rule_id` / `evidence_digest` 未变会被判 `unchanged` 跳过，重跑通常只该拿到个"没什么可做"，若你以为它会重算一遍，预期会对不上。
+
+两样里任一样没有，我就只跑**只读的部分**（现状快照 + 跑前归档校验 + `l3_gate.py` 现状），先给你一张开工前的底图，落盘那步等你点头。
+
+===CASE 93===
+===ROUTE 93: kb-clause-extractor===
+"老规矩"我按 **L3 条款抽取的既定 SOP** 理解并执行；若你指的是别的口径（比如只抽不蒸馏），回一句我收窄。下面就是我会跑的完整一轮——**并且我把这轮最容易翻车的地方标出来了**。
+
+## 第 0 步：跑前预检（只读，3 条）
+
+```bash
+cd <工作区>/知识库/内容治理
+RUN=<YYYYMMDD-HHMM>
+
+# ① 有没有别的批在跑
+ls -la .kb.lock 2>/dev/null && echo '有锁，先别动'
+find kb/.work -newermt '-30 minutes' -type f | head -20
+
+# ② 跑前基线（三条数字 + 三个哈希，抄进你那轮的记录里）
+wc -l kb/l3/candidates/rules.jsonl kb/l3/rejected.jsonl
+shasum -a 256 kb/l3/candidates/rules.jsonl kb/l3/rejected.jsonl
+
+# ③ 归档区现状
+ls -l kb/l3/_archive/ 2>/dev/null || echo '没有归档区'
+```
+
+**为什么第 2 步不能省**：验收判据 A3 是"蒸馏只**追加**，既有候选行逐字节未变"；判据 A2 是"跑前归档存在且 sha256 与源一致"。**没有跑前哈希，这两条事后无法证明**，只能说"我觉得没变"。
+
+## 第 1 步：跑前归档（红线①，不可跳）
+
+```bash
+cp -p kb/l3/rejected.jsonl kb/l3/_archive/rejected-pre-$RUN.jsonl
+shasum -a 256 kb/l3/rejected.jsonl | cut -d' ' -f1
+shasum -a 256 kb/l3/_archive/rejected-pre-$RUN.jsonl | cut -d' ' -f1   # 必须一致
+```
+
+理由不用多讲，一句话：`l3_distill_run.py` 以 `w` 覆盖 `rejected.jsonl`，**本库真的从 11,860 行掉到 1,053 行过**。
+
+## 第 2 步：蒸馏（★无干跑档，运行即落盘）
+
+```bash
+kb/kbpy l8/l3_distill_run.py $RUN
+```
+
+落盘位置：`kb/l3/candidates/{rules,sample_cases,scoped_clauses}.jsonl`、`kb/l3/rejected.jsonl`、`kb/l3/manifest_l3.jsonl`。幂等键 `rule_id`；`evidence_digest` 未变 → `unchanged`（跳过）。
+
+## 第 3 步：只跑不重建 = 留一颗雷
+
+```bash
+kb/kbpy l8/l3_reject_ledger_rebuild.py $RUN          # 预演
+kb/kbpy l8/l3_reject_ledger_rebuild.py $RUN --apply  # 收敛后重建逐单元台账
+```
+
+**这一步是"被拒的那批也要有账"的唯一来源。** 跳过它，`rejected.jsonl` 里就只剩蒸馏器当场写下的那部分，逐单元口径丢失——下一次有人问"为什么这条没变成规则"就查无对证。
+
+## 第 4 步：验收（四条，逐条贴证据）
+
+```bash
+kb/kbpy l7/scripts/l3_gate.py    ; echo "l3_gate exit=$?"
+kb/kbpy l7/scripts/l7_gate.py    ; echo "l7_gate exit=$?"
+wc -l kb/l3/candidates/rules.jsonl kb/l3/rejected.jsonl
+```
+
+| 判据 | 通过线 |
+|---|---|
+| A1 | `l3_gate.py` 退出 0（证据全可回指 + 注册表自报键全已声明；它逐条核 1,729 条 `unit_id + source_sha256 + anchor`） |
+| A2 | 归档存在 + sha256 一致 |
+| A3 | 既有候选行**逐字节未变**（拿第 0 步的哈希比） |
+| A4 | `l7_gate.py` 仍过（六要素在定稿上可物化率 100%） |
+
+## 第 5 步：出结论（固定四段）
+
+① 本轮新增候选 N 条（含 `sample_cases` / `scoped_clauses` 的分形态数）；② 拒收 M 条，**并给原因分布**（哪类判据拒的）；③ 归档基线路径 + sha256 + 行数；④ 口径声明：**候选 ≠ 定稿，条款号未分配**。
+
+## 三件我必须先跟你确认的
+
+1. **【我建议】"老规矩"= 上面这五步（含跑后重建拒绝台账）** —— 理由：少了第 3 步，被拒单元就没有逐条账，是本库已经吃过一次的坑；取舍：多一条 `--apply` 写操作。
+2. **【我建议】我只跑到"出结论"，不发号、不动 L4** —— 理由：发号/晋升 canonical 是 `kb-pipeline` 在 `--apply` 下的动作，L3 的 owner 不自造条款号；取舍：如果你本来想要的是"候选直接变成能引用的规则"，那得再排一轮 L4，不在今天这轮里。
+3. **【我建议】先确认没有并发写入者** —— 理由：本库出现过 `kb/l2/units.jsonl` 在没人写的情况下行数从 10,551 变成 10,650；**任何"层已跑完"的结论必须带 run_id + 时间戳**，不能只看文件状态；取舍：多花两分钟。
+
+我现在能做的、**不需要你点头也不会写坏任何东西**的动作是：第 0 步全跑 + 第 1 步归档（归档是纯 `cp`，唯一副作用是多一份基线文件，可逆）。你说"跑"，我就把第 2 步之后一起做掉。
+
+===CASE 95===
+===ROUTE 95: kb-clause-extractor===
+好，本轮的复核。**我做的是"这一层跑得对不对"的账，不是"规则判得准不准"**——规则内容准不准要人工抽查（L4 那边 1,242 条定稿到现在**人工抽查都还没做**，状态是"机器晋升、未验收"，我不会替你签这个字）。
+
+先给我一个东西：**本轮 RUN**。run_id 是会话标号，**实测可能比机器墙钟快好几小时，一律不许拿它当时间读**，时间线以文件 mtime / `observed_at` 为准。
+
+## 一、六项复核（全部只读，先跑这批）
+
+```bash
+cd <工作区>/知识库/内容治理
+RUN=<本轮 L3 RUN>
+
+# ① 闸门：证据是否全可回指 + 注册表自报键是否全已声明
+kb/kbpy l7/scripts/l3_gate.py ; echo "l3_gate exit=$?"
+kb/kbpy l7/scripts/l7_gate.py ; echo "l7_gate exit=$?"
+
+# ② 候选只追加？（A3：既有行必须逐字节未变）
+wc -l kb/l3/candidates/rules.jsonl
+shasum -a 256 kb/l3/candidates/rules.jsonl
+git status --short kb/l3 2>/dev/null || echo '（无版本控制，改用与上一轮留档的哈希比——没有留档就只能算弱证据）'
+
+# ③ 拒绝台账是不是又缩水了（**本轮最该看的数**）
+wc -l kb/l3/rejected.jsonl
+ls -l  kb/l3/_archive/rejected-pre-$RUN.jsonl && \
+  shasum -a 256 kb/l3/rejected.jsonl kb/l3/_archive/rejected-pre-$RUN.jsonl
+
+# ④ 三类候选的分形态计数
+for f in kb/l3/candidates/rules.jsonl kb/l3/candidates/sample_cases.jsonl \
+         kb/l3/candidates/scoped_clauses.jsonl kb/l3/rejected.jsonl; do
+  printf '%-46s %8s 行\n' "$f" "$(wc -l < "$f")"
+done
+
+# ⑤ 证据回指抽样：随机 20 条，逐条查 unit_id / source_sha256 / anchor 在不在
+python3 - <<'PY'
+import json,random
+rows=[json.loads(l) for l in open('kb/l3/candidates/rules.jsonl',encoding='utf-8')]
+print('候选总数', len(rows))
+bad=[]
+for r in random.sample(rows, min(20,len(rows))):
+    for e in r.get('evidence_units',[]):
+        if not(e.get('unit_id') and e.get('source_sha256') and e.get('anchor')):
+            bad.append((r.get('rule_id'), e))
+print('缺字段的证据条数', len(bad))
+for b in bad[:10]: print(b)
+PY
+
+# ⑥ 幂等自检：重跑一次应当全是 unchanged，候选行数不变
+#    （想验就跑；但蒸馏无干跑档，跑前仍须归档）
+```
+
+## 二、结果怎么读（我先给你判据，免得看到数字慌）
+
+| 现象 | 判定 | 处置 |
+|---|---|---|
+| `rejected.jsonl` 只有 1,053 行左右 | **高度可疑，先当回归** | 与 `_archive/rejected-pre-$RUN.jsonl` 的行数/sha256 对；本库真发生过 **11,860 → 1,053** 的覆盖事故 |
+| 候选行数与上轮一致 | **正常**，`evidence_digest` 未变 → `unchanged` 跳过 | 不是"没跑"，是幂等生效 |
+| `l3_gate.py` 非 0 | 证据回指断了或自报键没声明 | 按它逐条报的 `rule_id` 定位，别整层重抽 |
+| `sample_cases` / `scoped_clauses` 有行但 `rules` 没有 | 分形态落盘错位 | 查 `manifest_l3.jsonl` 里这三行的写入记录 |
+| 拒收数骤降**且** `_archive` 基线也在同量级 | 可能只是本轮原料少 | 看 L2 输入单元数，别急着当缺陷 |
+
+## 三、我会输出的复核结论（固定四段）
+
+1. **规模**：新增候选 N 条（rules / sample_cases / scoped_clauses 三形态分别多少）、拒收 M 条；
+2. **完整性**：A1–A4 四条判据逐条过没过，`l3_gate` / `l7_gate` 的退出码；
+3. **台账**：`rejected.jsonl` 行数 vs 跑前基线，差额多少、差额去哪了（**这条是必须有的，不许只报净数**）；
+4. **口径声明**：候选 ≠ 定稿、条款号未分配、本轮**未**做人工抽查。
+
+## 四、两个我必须区分开的东西
+
+1. **"库的问题" vs "我的脚本的问题"**——这本库同一天两次事故都是后者（核验脚本把 `record_id` 当字段比、把 wiki token 当 base token）。数字不对时，我**先怀疑工具**，不会把工具 bug 报成数据缺陷。
+2. **"候选多" ≠ "抽得全"**——候选数只说明"能做成规则的条数"，覆盖率要看**逐单元**拒绝台账里被拒的是哪一类（口径不清 / 重复 / 无法判定），那才是"漏了多少"的真口径。
+
+## 五、需要你给的两样
+
+1. **【我建议】本轮 RUN**（或告诉我"就是刚才那次"，我去按 mtime 找最近一次 L3 落盘）—— 理由：没有 RUN 就无法把产物和轮次对上，只能给你一张"当前状态"照，给不了"这一轮做了什么"；取舍：多一轮往返。
+2. **【我建议】如果第 ③ 项显示台账缩水，先别重跑**，让我把 `_archive` 那份基线恢复到只读副本上做差集，定位差额去向 —— 理由：重跑会以 `w` 模式再覆盖一次，可能把还剩的证据也盖掉；取舍：多花一点时间，但可逆。
+
+===CASE 97===
+===ROUTE 97: NONE===
+能出。但**先给你一句必须听的话**：`kb/l3/candidates/rules.jsonl` 里的东西**是候选，不是定稿**。候选行至今**全部 `provisional`**、验证状态是"待验证"；**条款号（`article_no`）根本还没分配**——发号是 L4 的动作（`kb-pipeline` 在 `--apply` 下跑 `kb/.work/l4_article.py`），L3 的 owner **不自造条款号**。
+
+所以这份 PDF 拿给老板，最可能的后果是：他看到一叠"像正式规则"的东西，回头在评审会上引用它，然后我们在引用链上发现它没有条款号、没过人工抽查。**这属于引用越级，是这本库明确点名的一类错**（"把候选说成定稿 = 引用越级"）。
+
+## 一、我建议的做法
+
+**能出，但形态上必须是"候选清单"，且第一页放显式口径声明。** 我会这么排：
+
+**第 1 页 · 口径声明（不是客套话，是这份文件的效力边界）**
+> 本件导出物为 **L3 规则候选**（`provisional`），导出时间 / 库根 / `rules.jsonl` 的 sha256 / 导出脚本版本如下。**条款号尚未分配**；**未做人工抽查**；**不得用于对外合规结论**，也不得作为评审依据直接引用（引用须走 L4 定稿 + `kb-content-review` 出条款号与锚点）。
+
+**第 2 页起 · 候选清单（按来源政策分组）**，字段固定：
+
+| 列 | 说明 |
+|---|---|
+| `rule_id` | 候选键（**不是条款号**） |
+| 来源 / `source_sha256` | 哪份政策、哪个版本 |
+| 命中表达 | 规则的可判定触发面 |
+| 处理方式 | 命中后该怎么做 |
+| 风险/优先级标签 | `p_level` / `risk_level`——**这是分流标签，不是放行结论** |
+| 证据锚点 | `unit_id` + `anchor`（可回指，方便你被追问时当场翻） |
+
+**附录**：① 本轮拒收数与原因分布；② `l3_gate` / `l7_gate` 的通过状态；③ 跑前归档基线的路径与 sha256。
+
+## 二、我会跑的导出（候选是 JSONL，不能直接转 PDF，要先过表格）
+
+```bash
+cd <工作区>/知识库/内容治理
+RUN=<本轮 L3 RUN>
+
+# 1) JSONL → CSV（固定列序，空值不吞行）
+kb/kbpy - <<'PY'
+import json,csv
+cols=['rule_id','source','source_sha256','p_level','risk_level','trigger_expression','handling','unit_ids','anchors']
+w=csv.writer(open(f'/tmp/rules-$RUN.csv','w',newline='',encoding='utf-8'))
+w.writerow(cols)
+n=0
+for l in open('kb/l3/candidates/rules.jsonl',encoding='utf-8'):
+    r=json.loads(l); n+=1
+    w.writerow([r.get(c,'') if c not in('unit_ids','anchors')
+                else ';'.join(str(e.get('unit_id') if c=='unit_ids' else e.get('anchor'))
+                              for e in r.get('evidence_units',[])) for c in cols])
+print('导出候选行数', n)
+PY
+
+# 2) CSV → PDF（含表头重复、分组小标题）
+python3 -m pip show weasyprint >/dev/null 2>&1 && \
+  pandoc /tmp/rules-$RUN.csv -o /tmp/L3候选清单-$RUN.pdf --pdf-engine=weasyprint -V geometry:landscape \
+  || echo '缺 PDF 引擎，先装（或改出 xlsx/docx）'
+
+# 3) 把第 1 页的口径声明与 sha256 写进同一份文件的页眉/首页
+shasum -a 256 kb/l3/candidates/rules.jsonl
+```
+
+**如果你想更省事**：这份东西在 10 分钟里其实更适合出 **xlsx**（老板要翻字段、要排序筛选），PDF 只留一份一页的口径声明 + 汇总页。你选，我按你选的出。
+
+## 三、明确不做的事
+
+- **不编条款号**。候选没有号就是没有号，PDF 里不会出现 `W-x.x` / `S-x.x` / `E-x.x` 这类编号——那是 L4 发号台账发出来的，永不复用。
+- **不写"已定稿 / 已验收 / 可以发布"**这类字样。L4 虽已写入 1,242 条定稿（四个形态文件，状态 `stable`），但那是**机器晋升（判据 C1–C8）**、**人工抽查未做、也无发布版本**，本视图因此不能声称"已过正式验收"。
+- **不把 PDF 落进 `kb/` 的装载位**。交付物放工作目录/桌面；并且 `.md` 类文件若以后要写进装载位，**一律走 `node` 或 `/bin/cp`**（`python` 的 `open(w)` / `shutil.copy2` 会落信封态，而 Python 自己验不出来——这事本库栽过）。
+
+## 四、要不要换个更硬的版本给你老板
+
+**【我建议】如果汇报的目的是"我们要不要按这些规则拦内容"，那别用候选 PDF，改用 L4 定稿口径**：让我出一份 `kb/l4/canonical/` 的四个形态文件汇总（`wording_entry` 56 / `wording_revision_pair` 453 / `sample_case` 358 / `scoped_clause` 375，共 1,242 条，状态 `stable`），并**显著标注"机器晋升、人工抽查未做"**。理由：给外部/上级看的应当是发过号的那一层，候选层只适合内部讨论；取舍：多一层口径解释，但引用链站得住。
+
+两条路你选一条（候选版 / 定稿版），我按你选的出，并且默认给 **PDF + xlsx 两份**——你这句"拿去给老板汇报"里，翻字段和念结论是两种用法。
+
+===CASE 99===
+===ROUTE 99: kb-clause-extractor===
+两件事，**一件是写操作、一件是只读**，我分开做，顺序不能颠倒：**必须先归档再看台账**（顺序反了，跑完那一下就把你要看的台账覆盖了）。
+
+## 第 0 步：预检 + 归档（红线的位置就在这）
+
+```bash
+cd <工作区>/知识库/内容治理
+RUN=<YYYYMMDD-HHMM>
+
+# 并发检查
+ls -la .kb.lock 2>/dev/null && echo '有锁，先停'
+find kb/.work -newermt '-30 minutes' -type f | head -20
+
+# 跑前基线：三个数 + 两个哈希，抄进本轮记录
+wc -l kb/l3/rejected.jsonl kb/l3/candidates/rules.jsonl
+shasum -a 256 kb/l3/rejected.jsonl kb/l3/candidates/rules.jsonl
+
+# ★ 归档（不可跳）——l3_distill_run.py 以 w 模式覆盖 rejected.jsonl
+mkdir -p kb/l3/_archive
+cp -p kb/l3/rejected.jsonl kb/l3/_archive/rejected-pre-$RUN.jsonl
+shasum -a 256 kb/l3/rejected.jsonl kb/l3/_archive/rejected-pre-$RUN.jsonl   # 两个必须一致
+```
+
+**这条为什么是硬红线**：本库真的发生过逐单元拒绝台账从 **11,860 行掉到 1,053 行**——就是因为跑前没归档，覆盖之后无法还原。
+
+## 第 1 步：抽条款（★无干跑档，运行即落盘）
+
+```bash
+kb/kbpy l8/l3_distill_run.py $RUN
+```
+
+落盘：`kb/l3/candidates/{rules,sample_cases,scoped_clauses}.jsonl`、`kb/l3/rejected.jsonl`、`kb/l3/manifest_l3.jsonl`。幂等键 `rule_id`，`evidence_digest` 未变 → `unchanged`。
+
+## 第 2 步：重建逐单元拒绝台账（收敛后必做）
+
+```bash
+kb/kbpy l8/l3_reject_ledger_rebuild.py $RUN          # 预演
+kb/kbpy l8/l3_reject_ledger_rebuild.py $RUN --apply
+```
+
+## 第 3 步：三条闸门
+
+```bash
+kb/kbpy l7/scripts/l3_gate.py ; echo "l3_gate exit=$?"
+kb/kbpy l7/scripts/l7_gate.py ; echo "l7_gate exit=$?"
+shasum -a 256 kb/l3/candidates/rules.jsonl   # 与第 0 步比：A3 要求既有候选行逐字节未变
+```
+
+| 判据 | 通过线 |
+|---|---|
+| A1 | `l3_gate.py` 退出 0（证据全可回指：逐条核 1,729 条 `unit_id + source_sha256 + anchor`） |
+| A2 | 归档存在 + sha256 与源一致 |
+| A3 | 候选只追加，既有行逐字节未变 |
+| A4 | `l7_gate.py` 仍过 |
+
+---
+
+# 第二件事：拒绝台账怎么看
+
+台账在 `kb/l3/rejected.jsonl`，**它是逐单元口径的**——这是它存在的全部意义：**候选数只告诉你"有多少条能变成规则"，拒绝台账才告诉你"有多少条款根本没进来、以及为什么"**。少了它，覆盖率无从谈起。
+
+## 一、先看规模有没有异常（和跑前基线对）
+
+```bash
+wc -l kb/l3/rejected.jsonl
+wc -l kb/l3/_archive/rejected-pre-$RUN.jsonl
+```
+
+**判据**：跑后行数**不得显著低于**跑前归档那份。若跑到 1,053 行上下而基线是 1 万多，**当回归处理，别当收敛**。
+
+## 二、看原因分布（这才是"拒绝台账"的用法）
+
+```bash
+python3 - <<'PY'
+import json,collections
+c=collections.Counter(); src=collections.Counter()
+for l in open('kb/l3/rejected.jsonl',encoding='utf-8'):
+    r=json.loads(l)
+    c[r.get('reason_code') or r.get('reason') or '(无原因码)']+=1
+    src[r.get('source') or r.get('source_sha256','')[:12]]+=1
+print('总行数', sum(c.values()))
+print('\n— 按原因码 —')
+for k,v in c.most_common(): print(f'{v:8d}  {k}')
+print('\n— 按来源 —')
+for k,v in src.most_common(20): print(f'{v:8d}  {k}')
+PY
+```
+
+## 三、结果怎么读
+
+| 现象 | 判定 | 处置 |
+|---|---|---|
+| 行数骤降到四位数 | **高度可疑，先当覆盖事故** | 与 `_archive` 基线比；确认是覆盖就**从基线恢复**，不要重跑——重跑会再覆盖一次，可能把仅存的证据也盖掉 |
+| 某类原因码占比暴涨（如"无法判定"） | 多半是**口径**问题，不是数据变差 | 看是不是上游 L2 单元换了切法 / 蒸馏器版本变了；口径变了要**先改口径再重跑**，不然只是重复拒绝一遍 |
+| 同一 `unit_id` 被拒多次 | 台账重复登记 | 属工具问题（新写入应走 `l0_ledger.py` 的 `append_changed()` 那类"有变化才写"的口径），别当数据缺陷删行 |
+| 原因码大面积 `(无原因码)` | 台账没带上判据 | 这是台账的**信息缺失**，回填原因码比调数字重要 |
+| 多个来源的拒收率差异极大 | 正常 | 不同政策的可判定程度本来不同，逐来源给数就好，别强行拉平 |
+
+## 四、我会给你的结论（不是一串数字）
+
+- **拒收总数 + 按原因码 / 按来源的分布**；
+- **与跑前基线的差额及去向**（差了多少行、差在哪一类）——**只报净数不算交账**；
+- **口径声明**：本轮候选是 `provisional`、**条款号未分配**、未做人工抽查；
+- **工具 bug 与库缺陷分开写**——数字不对时先怀疑工具（本库两次事故都是脚本自己写错口径），不许把工具 bug 报成数据缺陷。
+
+## 五、需要你点头的两处
+
+1. **【我建议】先跑第 0 步 + 第 1 步 + 第 2 步，然后停在第 3 步出数给你看，再决定要不要往下** —— 理由：第 1 步是覆盖写且没有干跑档，中途停下是可逆性最好的位置；取舍：多一轮往返。
+2. **【我建议】如果你要看的"上次那份台账"是指**已经被覆盖掉的那份**，那就只看 `kb/l3/_archive/rejected-pre-*.jsonl` 里最新的一份，并且**不要**把它拷回 `kb/l3/rejected.jsonl`** —— 理由：拷回去会让"当前台账"和"归档基线"变成同一份内容，A2 判据当场失效，以后再也证明不了跑前状态；取舍：你看到的是历史口径而不是当前口径，我会在结论里写明这一点。

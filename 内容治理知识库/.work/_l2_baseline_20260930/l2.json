@@ -1,0 +1,467 @@
+{
+  "splitter_version": "l2-0.3",
+  "dir_map": {
+    "1_外部标准库": "external_standard",
+    "2_内部正负样本库": "internal_sample",
+    "3_措辞表达库": "wording",
+    "4_产品描述库": "product_desc",
+    "9_未归类": "unknown"
+  },
+  "scope_this_run": {
+    "in_scope": [
+      "wording",
+      "external_standard"
+    ],
+    "out_of_scope": [
+      "internal_sample",
+      "product_desc",
+      "unknown"
+    ],
+    "extra_run": {
+      "kb_type": "internal_sample",
+      "table": "专家修订汇总表",
+      "why": "任务点名要求验证形态②「前→后」配对完整性，而 395 条专家修订在 L0 归 internal_sample（规则 R19），不在本轮两库内，故额外切这一类并标注 out_of_scope_but_run"
+    }
+  },
+  "fetch_rule": {
+    "rule": "按「有没有文本内容」取数，不按 status 字段筛",
+    "impl": "resources with non-empty segments/tables OR media_refs[].ocr_char_count>0 OR visual_description",
+    "why": "status 有历史错误（77 条图片 OCR 已完成却标 pending_ocr），用 status 白名单会把已完成产物当待处理跳过"
+  },
+  "splitters": {
+    "entry": {
+      "kb_type": "wording",
+      "minimal_unit": "一个词条",
+      "status": "ready_and_run",
+      "how": "每个 field_value / paragraph / list_item / table_row 各成一个 entry；heading_path 记来源字段名"
+    },
+    "revision_pair": {
+      "kb_type": "wording（+ internal_sample 专家修订表）",
+      "minimal_unit": "一对修订",
+      "status": "ready_and_run",
+      "how": "【前】修订位置（原文引用）/ 风险原句示例 ＋【后】修订内容 / 建议文案EN ＋【原因】修订原因 / 中文释义 / 判定理由／规则依据与边界／备注 —— 三者合成一个单元，不可拆散；pair_id 取自 L0 记录，pair_ref 互指同组下一侧"
+    },
+    "clause": {
+      "kb_type": "external_standard",
+      "minimal_unit": "一个法条",
+      "status": "ready_and_run",
+      "how": "章/节/条；正则识别 第X条(之Y) / §X.X / Art. N / Article N / Section N / N.N.N；段内多项可拆；同 clause_label 相邻段按物理续接合并（joined_parts 标记）"
+    },
+    "sample": {
+      "kb_type": "internal_sample",
+      "minimal_unit": "一条正负样本",
+      "status": "ready_and_run",
+      "ran_at": "20260924-1210",
+      "resource_count": 201,
+      "unit_count": 201,
+      "how": "一条记录 = 一个样本单元；polarity 取源侧「分类」（正例/反例，枚举外或缺失 → unknown）；sample_body = 原文反馈 + 文字素材 + 该记录全部图片附件的 OCR 文本（用 \\n\\n 连接）；附件不平铺，父子关系用 media_refs[].resource_id + parent unit 表达",
+      "fields": [
+        "polarity",
+        "sample_body",
+        "reason_category",
+        "reason_analysis",
+        "advice",
+        "material_type",
+        "channel",
+        "media_refs"
+      ],
+      "excluded": {
+        "备注（如处理结果/建议）": "L0 已改判 other（行政元数据），不取任何内容"
+      }
+    },
+    "attribute": {
+      "kb_type": "product_desc",
+      "minimal_unit": "一条属性",
+      "status": "ready_and_run",
+      "ran_at": "20260924-1210",
+      "resource_count": 3,
+      "unit_count": 7,
+      "how": "按 (sku, attribute_name) 一条单元；sku 从 型号/产品名/品线/产品/SKU 字段取，取不到 unknown；同一属性的多个值不拆成多条"
+    }
+  },
+  "unit_fields": [
+    "unit_id",
+    "kb_type",
+    "resource_id",
+    "source_sha256",
+    "anchor",
+    "unit_type",
+    "text",
+    "char_count",
+    "heading_path",
+    "pair_ref",
+    "parent_unit_id",
+    "order_in_parent"
+  ],
+  "not_generated": {
+    "clause_number": "本轮不生成条款号（第 4 步规则层的事）",
+    "only": "heading_path"
+  },
+  "idempotency": {
+    "key": [
+      "resource_id",
+      "source_sha256",
+      "splitter_version"
+    ],
+    "unchanged": "三者都没变 → unchanged，跳过",
+    "splitter_version_current": "l2-0.3"
+  },
+  "accounting_rule": "每类库：L1 中有内容的资源数 == 被切分资源数 + 明确跳过资源数（差额必须为 0）",
+  "splitter_version_before": "l2-0.1",
+  "skip_reasons": {
+    "merged_into_parent_sample": "附件 OCR 文本已并入父记录样本单元，不平铺成独立样本",
+    "l1_no_content": "L1 状态非 ok/extracted，无正文可切",
+    "no_segments_in_l1_artifact": "L1 产物没有 segments",
+    "unclassified_verdict_no_content": "未归类资源经逐条定性为「确认无内容」",
+    "unclassified_verdict_kept_unknown": "未归类资源经逐条定性为「保持 unknown」"
+  },
+  "splitter_version_backfill": {
+    "at": "20260924-1210",
+    "backfilled": 9261,
+    "filled_with": "l2-0.2",
+    "why": "这 9261 个单元由 l2-0.2 产出，补成它们的实际产出者而不是当前版本，避免伪版本声明",
+    "text_touched": false,
+    "text_sha_before": "69eb9a53478ddecc6cba2e406531283831676ba28d415ab59d02df6fd4ba2373",
+    "text_sha_after_prefix": "69eb9a53478ddecc6cba2e406531283831676ba28d415ab59d02df6fd4ba2373"
+  },
+  "unknown_verdicts": [
+    {
+      "resource_key": "base:GnRZbIuXraCzf0sGr2UcmZ62nfc",
+      "source_kind": "feishu_bitable_base",
+      "l1_status": "no_content_expected",
+      "verdict": "确认无内容",
+      "why": "入口 Base 容器：表清单/字段 schema 属 L0 结构指纹职责，L1 不抽为正文"
+    },
+    {
+      "resource_key": "bitable:GnRZbIuXraCzf0sGr2UcmZ62nfc:table:tblMGtPfe8ZUsEdP",
+      "source_kind": "feishu_bitable_table",
+      "l1_status": "no_content_expected",
+      "verdict": "确认无内容",
+      "why": "容器表：同上；其记录的内容在各自记录资源上抽取"
+    },
+    {
+      "resource_key": "bitable:GnRZbIuXraCzf0sGr2UcmZ62nfc:table:tblZP8jG4tiUL98C",
+      "source_kind": "feishu_bitable_table",
+      "l1_status": "no_content_expected",
+      "verdict": "确认无内容",
+      "why": "容器表：同上；其记录的内容在各自记录资源上抽取"
+    },
+    {
+      "resource_key": "bitable:GnRZbIuXraCzf0sGr2UcmZ62nfc:table:tbld8qE92YaY38Yz",
+      "source_kind": "feishu_bitable_table",
+      "l1_status": "no_content_expected",
+      "verdict": "确认无内容",
+      "why": "容器表：同上；其记录的内容在各自记录资源上抽取"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvg2wL2fF9g",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvg2wL2qE3K",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvhv0SU8aGH",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvlGB756yJJ",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvlGQZy0W1Q",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvlGW0SSAeA",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvmSyYIBmcV",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvmSzK5G6Au",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvrLzQEEZ2J",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvrLzQETJyc",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvrLzQEUJa6",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvrLzQEWwbF",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvrLzQEYpJM",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvrLzQEjS4P",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvrLzQEmKOM",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvrLzQErVcR",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvrLzQEtQNG",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvrLzQEwaIf",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvyOA0wU7nl",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvyOAjunpLj",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvyoRHu30ch",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvw0o2T6HJwv",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvw2dyVUVWxg",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblZP8jG4tiUL98C:recvvfWFhMBjOr",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "empty",
+      "verdict": "确认无内容",
+      "why": "该记录在源侧全部字段为空/null，无正文可切"
+    },
+    {
+      "resource_key": "bitable:tblZP8jG4tiUL98C:recvvfWFhMJc4l",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "bitable:tblZP8jG4tiUL98C:recvvfWFhMpe9l",
+      "source_kind": "feishu_bitable_record",
+      "l1_status": "ok",
+      "verdict": "保持 unknown",
+      "why": "入口容器表的记录本身是「一份待收材料」（R5），其内容归属落在其 link 子资源上；本表本身不作为知识本体切分"
+    },
+    {
+      "resource_key": "file:CHbTbloQOoQBiNxaQfRcHQwhntE",
+      "source_kind": "feishu_file",
+      "l1_status": "no_scope",
+      "verdict": "保持 unknown",
+      "why": "缺 drive:file:download，读不到字节流；不猜其归属"
+    },
+    {
+      "resource_key": "file:CKqqbgVx8oCNerx730JctMRondD",
+      "source_kind": "feishu_file",
+      "l1_status": "no_scope",
+      "verdict": "保持 unknown",
+      "why": "缺 drive:file:download，读不到字节流；不猜其归属"
+    },
+    {
+      "resource_key": "file:E9oibDCXZoMU9fxMzYKcH5Wwnyh",
+      "source_kind": "feishu_file",
+      "l1_status": "no_scope",
+      "verdict": "保持 unknown",
+      "why": "缺 drive:file:download，读不到字节流；不猜其归属"
+    },
+    {
+      "resource_key": "file:EZEWbMiNWoLLI4x7e0Ic5qUXnOe",
+      "source_kind": "feishu_file",
+      "l1_status": "no_scope",
+      "verdict": "保持 unknown",
+      "why": "缺 drive:file:download，读不到字节流；不猜其归属"
+    },
+    {
+      "resource_key": "file:HAEHbJVRioEzNcxDPlqcsncwnHh",
+      "source_kind": "feishu_file",
+      "l1_status": "no_scope",
+      "verdict": "保持 unknown",
+      "why": "缺 drive:file:download，读不到字节流；不猜其归属"
+    },
+    {
+      "resource_key": "file:HYy1bXSlVorwzYxq2atc73f2nsd",
+      "source_kind": "feishu_file",
+      "l1_status": "no_scope",
+      "verdict": "保持 unknown",
+      "why": "缺 drive:file:download，读不到字节流；不猜其归属"
+    },
+    {
+      "resource_key": "file:LUnubW6N6oJceCxFE9dcPiUTnPe",
+      "source_kind": "feishu_file",
+      "l1_status": "no_scope",
+      "verdict": "保持 unknown",
+      "why": "缺 drive:file:download，读不到字节流；不猜其归属"
+    },
+    {
+      "resource_key": "file:XH2wbcgJUomw8DxxBB8cx5C3ntd",
+      "source_kind": "feishu_file",
+      "l1_status": "no_scope",
+      "verdict": "保持 unknown",
+      "why": "缺 drive:file:download，读不到字节流；不猜其归属"
+    }
+  ],
+  "changes": [
+    {
+      "run_id": "20260924-1210",
+      "change": "update",
+      "keys": [
+        "splitter_version",
+        "splitters.sample",
+        "splitters.attribute",
+        "skip_reasons",
+        "splitter_version_backfill",
+        "unknown_verdicts",
+        "idempotency.splitter_version_current"
+      ],
+      "note": "件2/件3/件5/件4；既有 9261 单元只补 splitter_version，text 未改"
+    },
+    {
+      "run_id": "20260929-1754-l2-unscheduled",
+      "change": "append_units",
+      "keys": [
+        "units.jsonl",
+        "index/l2.jsonl",
+        "manifest_l2.jsonl"
+      ],
+      "note": "【非计划运行·如实登记】2026-09-29 17:54 一次未计划的 l2_split_run 落盘（当时为验证 l8 脚本的 cwd 约定做对照运行，而该脚本当时没有干跑档）。units.jsonl 由 10042 行 → 10551 行（两次均为实测；本 run 的 unit_count 在 manifest 中为 172，但 units.jsonl 是跨 run 追加、且该脚本默认 run_id 硬编码，故 509 行的增量**无法完整归因到本 run**）。本 run 自述：gap 73 / meta_closed 41 / refilled 32 / new_units 64；覆盖率 1377/1450 → 1409/1450。数据完整性已实测：10551 行 0 解析失败、0 重复 unit_id。输入合法（读 l1/manifest_l1.jsonl + 逐资源产物，**不经过** l1/index 那个 DRIFT 投影）。registry 当时未同步，本条目即为事后补登记。"
+    }
+  ],
+  "index_projection": {
+    "file": "l2/index/l2.jsonl",
+    "nature": "部分投影，不是 units.jsonl 的全量投影",
+    "how_written": "l8/l2_split_run.py 每轮只对本次 NEW 批追加（open(...,'a')），历史批次若早于该写入逻辑则不在其中",
+    "checked_at": "20260929-1754",
+    "units_rows": 10551,
+    "index_rows": 10100,
+    "gap": 451,
+    "gap_breakdown": {
+      "by_unit_type": {
+        "clause": 451
+      },
+      "by_splitter_version": {
+        "l2-0.2": 62,
+        "l2-0.3": 389
+      }
+    },
+    "verdict": "口径差异已查明：451 个缺失全部是 clause 单元，属该投影的历史覆盖缺口，**不是本次事故造成**",
+    "downstream_consumers": [],
+    "note": "全库 grep（*.py/*.json/*.md）无任何引用 → 孤投影，不参与 L3–L6。按本库「孤投影不参与判定」的既有口径（对照 l1/index 的 downstream_consumers=[]），**不做重建**（重建会改动一个消费者未知的投影，风险大于收益），仅登记口径事实。",
+    "action": "登记，不重建"
+  },
+  "runner_defects": [
+    {
+      "script": "l8/l2_split_run.py",
+      "defect": "run_id 硬编码默认值",
+      "evidence": "RUN=sys.argv[1] if len(sys.argv)>1 else \"20260929-1300\"",
+      "impact": "无参数运行会**冒充**一个 13:00 的运行标签，与既有同名 run 记录冲突 → provenance 无法归因（本轮事故即因此无法完整追责增量）",
+      "fix": "改为无参数时取当前时间戳（与本库 l7/reports 的 --run-id 默认口径一致）"
+    },
+    {
+      "script": "l8/l2_split_run.py",
+      "defect": "无干跑档",
+      "impact": "任何一次意外的对照/试跑都会真实写盘（本轮事故的直接原因）",
+      "fix": "补 --apply 档；不带时只打印将追加的单元数与目标文件"
+    }
+  ],
+  "rule_eligible_inheritance": {
+    "defined_at": "20260924-1240",
+    "field": "rule_eligible",
+    "from": "源 L0 资源的 rule_eligible",
+    "why": "避免 L3 跨层 join；L2 单元直接带下来",
+    "coverage": 9469,
+    "none": 0,
+    "text_unchanged": true
+  }
+}

@@ -1,0 +1,20 @@
+# 由 kb/.work/fix_f3_gen.py 生成（修复计划 F3a）—— 顶层键必须在加载器 WIRED_META_KEYS 白名单内，
+# 顶层键：gates / triple_verification（均在 WIRED_META_KEYS 白名单内）
+# F3a 口径：与代码兜底值等价 —— 接线但行为不变。收紧留 F3b。
+
+gates:
+  half_life_floor_days: 2          # 半衰期下限，低于此值硬拒（E029）
+  half_life_cache_ceiling_days: 7  # 2–7 天这一档应落缓存层，不该走常规入库
+  fingerprint_enforcement: warn       # warn / error / off
+
+# 三重验证阈值：只对 kind=judgment 生效（原文 L0 与 fact 免验）
+triple_verification:
+  verdict:
+    keep: '> 0.8'
+    review: '0.4 ~ 0.8'
+    discard: '< 0.4'
+  score_formula: 得分 ÷ 6      # 三项子分各 0/1/2，满分 6；加载器做算术一致性校验
+  rejection_rate:
+    normal: 0.5
+    below_30: 0.7
+    above_90: 0.3

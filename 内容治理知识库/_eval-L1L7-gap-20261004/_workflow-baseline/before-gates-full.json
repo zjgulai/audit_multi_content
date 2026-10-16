@@ -1,0 +1,1834 @@
+{
+ "runner": "kb-ci-run-gates",
+ "kb_root": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理",
+ "scope": "full",
+ "generated_at": "2026-10-04T19:44:02",
+ "exit_code": 1,
+ "summary": {
+  "passed": [
+   "l1",
+   "l2",
+   "l3",
+   "l4",
+   "l5",
+   "l6",
+   "l7",
+   "skills",
+   "layers",
+   "conformance",
+   "freshness"
+  ],
+  "red": [
+   "l0",
+   "projection",
+   "envelope"
+  ],
+  "blocked": [],
+  "errored": [],
+  "infra": [],
+  "warn": [],
+  "total": 14
+ },
+ "gates": [
+  {
+   "gate": "l0",
+   "script": "l7/scripts/l0_gate.py",
+   "base": "kb",
+   "blocking": true,
+   "desc": "L0 判定档：原始差异 − 预期 = 真差异",
+   "exit": 1,
+   "state": "RED",
+   "red_total": 2,
+   "ok_field": false,
+   "seconds": 26.7,
+   "stderr": "",
+   "json": {
+    "gate": "L0",
+    "ok": false,
+    "exit_code": 1,
+    "raw": {
+     "same": 612,
+     "of": 10,
+     "ol": 0,
+     "ch": 0,
+     "pf": 2
+    },
+    "expected_rows": [
+     {
+      "id": "EX-1",
+      "table": "材料收集",
+      "kind": "only_feishu",
+      "actual": 10,
+      "expected": 10,
+      "residual": 0,
+      "verdict": "预期内",
+      "owner_action": "无需动作（按声明预期）。**仅当条数从 10 变化时**重新评估：多了 = 飞书侧新增了未通过的记录；少了 = 有人清了或改了状态。",
+      "reason": "`kb/l0/registry/kb.json → filter` 声明：只收「材料审核状态 == 通过」的记录； 未命中者按 `excluded_policy` **只在 runs/<run_id>.json 留痕，不登记资源、不进库目录、不进索引**。 所以它们在飞书侧存在、在 L0 不存在 —— 这是**声明的结果**，不是漏抓。"
+     }
+    ],
+    "real_diff_total": 2,
+    "uncovered": [
+     "专家修订汇总表（tbl8AI00JZO1iZtp）：拉取失败（**没有声明**）",
+     "内容公式（仅供参考）（tblVdl0jdK9G4ld3）：拉取失败（**没有声明**）"
+    ],
+    "fewer_than_expected": []
+   },
+   "tail": " ],\n \"real_diff_total\": 2,\n \"uncovered\": [\n  \"专家修订汇总表（tbl8AI00JZO1iZtp）：拉取失败（**没有声明**）\",\n  \"内容公式（仅供参考）（tblVdl0jdK9G4ld3）：拉取失败（**没有声明**）\"\n ],\n \"fewer_than_expected\": []\n}"
+  },
+  {
+   "gate": "l1",
+   "script": "l7/scripts/l1_gate.py",
+   "base": "kb",
+   "blocking": true,
+   "desc": "L1 独立复算：OCR 缓存复用门槛逐条核",
+   "exit": 0,
+   "state": "PASS",
+   "red_total": 0,
+   "ok_field": true,
+   "seconds": 6.1,
+   "stderr": "",
+   "json": {
+    "gate": "l1_gate",
+    "ok": true,
+    "counts": {
+     "cache_files": 169,
+     "batch_files": 0
+    },
+    "C1_not_reusable": [],
+    "C1_n": 0,
+    "C2_missing_key": [],
+    "C2_n": 0,
+    "C3_empty": false,
+    "bad_json": [],
+    "bad_json_n": 0,
+    "N2_versions": {
+     "vision-jxa-2.0": 169
+    },
+    "red_total": 0
+   },
+   "tail": " \"C3_empty\": false,\n \"bad_json\": [],\n \"bad_json_n\": 0,\n \"N2_versions\": {\n  \"vision-jxa-2.0\": 169\n },\n \"red_total\": 0\n}"
+  },
+  {
+   "gate": "l2",
+   "script": "l7/scripts/l2_gate.py",
+   "base": "kb",
+   "blocking": true,
+   "desc": "L2 独立复算：unit_count 口径逐条点名",
+   "exit": 0,
+   "state": "PASS",
+   "red_total": 0,
+   "ok_field": true,
+   "seconds": 6.7,
+   "stderr": "",
+   "json": {
+    "gate": "l2_gate",
+    "ok": true,
+    "counts": {
+     "l2_rows": 2542,
+     "units": 12213,
+     "resources_in_units": 1681,
+     "input_set": 1460
+    },
+    "C1_bad_json": [],
+    "C1_bad_json_n": 0,
+    "C1_non_resource_rows": [
+     [
+      1456,
+      {
+       "change": "add_field_rule_eligible",
+       "layer": "l2",
+       "run_id": "20260924-1240",
+       "result": null
+      }
+     ]
+    ],
+    "C1_non_resource_n": 1,
+    "C2_bad_sequence": [],
+    "C2_n": 0,
+    "C2_ok_resplit_pairs": 114,
+    "C3_bound_violation": [],
+    "C3_n": 0,
+    "C4_units_without_split": [],
+    "C4_n": 0,
+    "C5_split_without_l1": [],
+    "C5_n": 0,
+    "N1_invalidated_after_split_n": 306,
+    "N2_lag_n": 311,
+    "N2_lag_by_type": {
+     "internal_sample": 304,
+     "wording": 7
+    },
+    "N3_ambiguity": {
+     "latest_split_only": 106,
+     "sum_split_rows": 2,
+     "sum_all_rows": 306
+    },
+    "N3_convention": {
+     "declared": true,
+     "declared_at": "20260930-1440",
+     "criterion": "对每个资源：units.jsonl 中该资源行数 == Σ(该资源**全部 split 行**的 unit_count)。全域记法：units 行数 == Σ(全库 split 行 unit_count) − 已被 l8/l2_dedup_units.py 压掉的重复行数。",
+     "registry_error": null,
+     "adopted": "sum_split_rows",
+     "mismatch": 2,
+     "mismatch_resources": [
+      [
+       "url__https____hapa8fkuicz.feishu.cn_wiki_AD26wCxzsiyJzUkqREgcg0X8nDd",
+       12,
+       24
+      ],
+      [
+       "url__https____hapa8fkuicz.feishu.cn_wiki_Cliyw2MGtipp2MkDamrctDKNnsI",
+       9,
+       18
+      ]
+     ],
+     "mismatch_registered_n": 2,
+     "mismatch_unregistered": [],
+     "mismatch_unregistered_n": 0,
+     "other_conventions": {
+      "latest_split_only": 106,
+      "sum_all_rows": 306
+     }
+    },
+    "N4_change_rows": {
+     "declared": true,
+     "declared_at": "20260930-1440",
+     "rows": [
+      {
+       "line": 1456,
+       "row": {
+        "change": "add_field_rule_eligible",
+        "layer": "l2",
+        "run_id": "20260924-1240",
+        "result": null
+       },
+       "verdict": "已登记为层变更记录（add_field_rule_eligible）"
+      }
+     ],
+     "rows_n": 1,
+     "unregistered_n": 0
+    },
+    "red_total": 0
+   },
+   "tail": "    \"verdict\": \"已登记为层变更记录（add_field_rule_eligible）\"\n   }\n  ],\n  \"rows_n\": 1,\n  \"unregistered_n\": 0\n },\n \"red_total\": 0\n}"
+  },
+  {
+   "gate": "l3",
+   "script": "l7/scripts/l3_gate.py",
+   "base": "kb",
+   "blocking": true,
+   "desc": "L3 独立复算：证据可回指 L2 单元",
+   "exit": 0,
+   "state": "PASS",
+   "red_total": 0,
+   "ok_field": true,
+   "seconds": 6.8,
+   "stderr": "",
+   "json": {
+    "gate": "l3_gate",
+    "ok": true,
+    "counts": {
+     "evidence_refs": 3704,
+     "candidates_records": 2730,
+     "produced_resources": 568,
+     "rejected_rows": 10661,
+     "rejected_resources": 1033,
+     "both": 367,
+     "l2_resources": 1681,
+     "l2_units": 12213
+    },
+    "C1_bad_refs": [],
+    "C1_n": 0,
+    "C2_bad_rejected": [],
+    "C2_n": 0,
+    "C3_undeclared_keys": [],
+    "C3_n": 0,
+    "C3_declared_keys": [
+     "accounting.explicitly_rejected",
+     "accounting.filtered_out",
+     "accounting.kept",
+     "accounting.l2_total",
+     "accounting.unaccounted",
+     "accounting.used_in_rules",
+     "reconcile_partition.both",
+     "reconcile_partition.check",
+     "reconcile_partition.input",
+     "reconcile_partition.neither",
+     "reconcile_partition.only_produced",
+     "reconcile_partition.only_rejected"
+    ],
+    "C3_present_keys": [
+     "reconcile_partition.input",
+     "reconcile_partition.only_produced",
+     "reconcile_partition.only_rejected",
+     "reconcile_partition.both",
+     "reconcile_partition.neither",
+     "reconcile_partition.check",
+     "accounting.l2_total",
+     "accounting.filtered_out",
+     "accounting.kept",
+     "accounting.used_in_rules",
+     "accounting.explicitly_rejected",
+     "accounting.unaccounted"
+    ],
+    "N1_reject_kinds": {
+     "no_clause_text": 30,
+     "clause_not_actionable": 1551,
+     "no_rule_derivable": 145,
+     "sample_only_no_verdict": 753,
+     "absorbed_as_reason": 132,
+     "unit_level": 8050
+    },
+    "N2_archive": {
+     "rows": 6803,
+     "resources": 822
+    },
+    "drift_yaml": "kb/l7/registry/l3-known-drift.yaml",
+    "red_total": 0
+   },
+   "tail": " },\n \"N2_archive\": {\n  \"rows\": 6803,\n  \"resources\": 822\n },\n \"drift_yaml\": \"kb/l7/registry/l3-known-drift.yaml\",\n \"red_total\": 0\n}"
+  },
+  {
+   "gate": "l4",
+   "script": "l7/scripts/l4_gate.py",
+   "base": "kb",
+   "blocking": true,
+   "desc": "L4 独立复算：promotion_rule C1–C6",
+   "exit": 0,
+   "state": "PASS",
+   "red_total": 0,
+   "ok_field": true,
+   "seconds": 7.5,
+   "stderr": "",
+   "json": {
+    "gate": "l4_gate",
+    "ok": true,
+    "counts": {
+     "canonical": 1365,
+     "evidence_refs": 2585,
+     "candidates": 632,
+     "l2_units": 12213
+    },
+    "C1_dup": [],
+    "C1_n": 0,
+    "C2_empty_body": [],
+    "C2_n": 0,
+    "C3_incomplete": [],
+    "C3_n": 0,
+    "C4_unresolvable": [],
+    "C4_n": 0,
+    "C5_rewritten": [],
+    "C5_n": 0,
+    "C6_agg_bytes": 0,
+    "C6_n": 0,
+    "N1_forms": {
+     "disclosure": 18,
+     "substantiation": 24,
+     "scope": 15,
+     "mandate": 14,
+     "prohibition": 16,
+     "recommendation": 36,
+     "sample_case": 358,
+     "scoped_clause": 375,
+     "entry": 56,
+     "revision_pair": 453
+    },
+    "N1_article_range": [
+     "E-1.1",
+     "W-3.99"
+    ],
+    "red_total": 0
+   },
+   "tail": "  \"revision_pair\": 453\n },\n \"N1_article_range\": [\n  \"E-1.1\",\n  \"W-3.99\"\n ],\n \"red_total\": 0\n}"
+  },
+  {
+   "gate": "l5",
+   "script": "l7/scripts/l5_gate.py",
+   "base": "kb",
+   "blocking": true,
+   "desc": "L5 包装分类：实质 4 项 + 基线项登记",
+   "exit": 0,
+   "state": "PASS",
+   "red_total": 0,
+   "ok_field": true,
+   "seconds": 18.2,
+   "stderr": "",
+   "json": {
+    "gate": "l5_gate",
+    "ok": true,
+    "p0_recompute": {
+     "expected": 7,
+     "actual": 7,
+     "ok": true,
+     "why": "",
+     "allowlist": [
+      "H06"
+     ]
+    },
+    "items": {
+     "frozen_layers": "FAIL",
+     "l3_append_only": "FAIL",
+     "pattern_traceability": "PASS",
+     "no_fabricated_words": "PASS",
+     "version_discipline": "PASS",
+     "offline": "PASS"
+    },
+    "checker_exit": 1,
+    "substantive_red": [],
+    "classified_baseline": [
+     [
+      "frozen_layers",
+      "FAIL",
+      ""
+     ],
+     [
+      "l3_append_only",
+      "FAIL",
+      ""
+     ]
+    ],
+    "declared_items": [
+     "frozen_layers",
+     "l3_append_only"
+    ],
+    "red": [],
+    "red_total": 0,
+    "raw_tail": [
+     "[PASS] offline",
+     "",
+     "自检总计：FAIL"
+    ],
+    "evidence_file": "kb/.work/l5_integrity.json"
+   },
+   "tail": " \"red_total\": 0,\n \"raw_tail\": [\n  \"[PASS] offline\",\n  \"\",\n  \"自检总计：FAIL\"\n ],\n \"evidence_file\": \"kb/.work/l5_integrity.json\"\n}"
+  },
+  {
+   "gate": "l6",
+   "script": "l7/scripts/l6_gate.py",
+   "base": "kb",
+   "blocking": true,
+   "desc": "L6 只读档：可用单元/向量/倒排/版本纪律",
+   "exit": 0,
+   "state": "PASS",
+   "red_total": 0,
+   "ok_field": true,
+   "seconds": 85.0,
+   "stderr": "",
+   "json": {
+    "gate": "l6_gate",
+    "ok": true,
+    "counts": {
+     "usable_recomputed": 4261,
+     "usable_self_report": 4261,
+     "index_rows": 4261,
+     "vector_rows": 25874,
+     "bm25_docs": 4261,
+     "l2_units": 12213,
+     "bm25_failed": 1
+    },
+    "C1_mismatch": [],
+    "C1_n": 0,
+    "C2_bad_vectors": [],
+    "C2_n": 0,
+    "C3_mismatch": [],
+    "C3_n": 0,
+    "C4_violation": [],
+    "C4_n": 0,
+    "N3_counter_mismatch": {
+     "docs_rows": 4261,
+     "counts.bm25_indexed": 4260,
+     "why": "注册表计数器与产物不一致；产物侧 docs.jsonl == 可用单元数"
+    },
+    "not_run": [
+     "③ 重跑幂等（要 --apply 重跑建索引）",
+     "⑥ 分段拼接逐字",
+     "⑦ 倒排与词频自洽",
+     "⑨ 冻结基线（活库模式下本就该变）"
+    ],
+    "red_total": 0
+   },
+   "tail": " \"not_run\": [\n  \"③ 重跑幂等（要 --apply 重跑建索引）\",\n  \"⑥ 分段拼接逐字\",\n  \"⑦ 倒排与词频自洽\",\n  \"⑨ 冻结基线（活库模式下本就该变）\"\n ],\n \"red_total\": 0\n}"
+  },
+  {
+   "gate": "l7",
+   "script": "l7/scripts/l7_gate.py",
+   "base": "kb",
+   "blocking": true,
+   "desc": "L7 引用契约前置条件",
+   "exit": 0,
+   "state": "PASS",
+   "red_total": 0,
+   "ok_field": true,
+   "seconds": 3.9,
+   "stderr": "",
+   "json": {
+    "gate": "l7_gate",
+    "ok": true,
+    "counts": {
+     "rule_candidates": 1018,
+     "all_candidates": 2730,
+     "canonical": 1365,
+     "six_elements_full": 1365
+    },
+    "C1_bad_libraries": [],
+    "C1_n": 0,
+    "C2_bad_library_of_rules": [],
+    "C2_n": 0,
+    "C3_missing_elements": [],
+    "C3_n": 0,
+    "C4_bad_source_path": [],
+    "C4_n": 0,
+    "N1_contract_text": {
+     "format": "《<库名> <版本>》第 <条款号> 条（链接：<url>）",
+     "version_in_citation": "v0（试用版，未发布）",
+     "hard_gate": "引用不到本地锚点（anchor 解析失败 或 source_sha256 对不上 或 摘录与原文不逐字一致）的结论，一律不输出"
+    },
+    "red_total": 0
+   },
+   "tail": " \"C4_n\": 0,\n \"N1_contract_text\": {\n  \"format\": \"《<库名> <版本>》第 <条款号> 条（链接：<url>）\",\n  \"version_in_citation\": \"v0（试用版，未发布）\",\n  \"hard_gate\": \"引用不到本地锚点（anchor 解析失败 或 source_sha256 对不上 或 摘录与原文不逐字一致）的结论，一律不输出\"\n },\n \"red_total\": 0\n}"
+  },
+  {
+   "gate": "skills",
+   "script": "l7/scripts/skills_check.py",
+   "base": "kb",
+   "blocking": true,
+   "desc": "登记表自检：应装未装 / 副本不一致",
+   "exit": 0,
+   "state": "PASS",
+   "red_total": null,
+   "ok_field": null,
+   "seconds": 4.8,
+   "stderr": "====================================================================\n汇总\n====================================================================\n本项目要用：40 个（生产 40 + 候选 0 + 规划 0）\n  已装    ：40 个\n  还差    ：0 个（候选 0 + 规划 0）\n另：status=参考 11 个（只参考 / 只收编，一律不安装、不复制）\n    宿主通用 19 个（登记归属，不参与「应装未装」判定）\n\n五类问题：1=0 2=0 3=0 4=0 5=0 ｜合计 0\n结论：全过。\n退出码：0",
+   "json": {
+    "kb_root": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb",
+    "table": "l7/registry/skills.yaml",
+    "parser": "PyYAML",
+    "parser_detail": "版本 6.0.3",
+    "rows": 71,
+    "scan_count": 59,
+    "problems": {
+     "1": [],
+     "2": [],
+     "3": [],
+     "4": [],
+     "5": []
+    },
+    "problem_counts": {
+     "1": 0,
+     "2": 0,
+     "3": 0,
+     "4": 0,
+     "5": 0
+    },
+    "expected_missing_1b": [],
+    "selftest_unregistered": [
+     "蒸馏",
+     "root-skills-check",
+     "root-skills-creator",
+     "root-skills-doctor",
+     "root-skills-eval",
+     "root-skills-manage",
+     "root-skills-opt",
+     "root-skills-batch-driver",
+     "lark-doc",
+     "lark-drive",
+     "lark-wiki",
+     "lark-base",
+     "lark-shared",
+     "agent-build-flow",
+     "code-review",
+     "context-handoff",
+     "domain-modeling",
+     "grill-me",
+     "grill-with-docs",
+     "grilling",
+     "handoff",
+     "implement",
+     "knowledge-distillation",
+     "prototype",
+     "root-agents",
+     "setup-matt-pocock-skills",
+     "shuorenhua",
+     "tdd",
+     "to-spec",
+     "to-tickets",
+     "web-testcase",
+     "web-执行测试用例",
+     "kb-retriever",
+     "brand-content-review-agent",
+     "brand-review-intake-router",
+     "brand-policy-source-curator",
+     "brand-text-compliance-review",
+     "brand-product-claim-verifier",
+     "brand-image-safety-review",
+     "brand-video-safety-review",
+     "brand-us-locale-cultural-review",
+     "brand-ai-provenance-rights-review",
+     "brand-review-decision-engine",
+     "brand-review-report-memory",
+     "brand-review-evaluation",
+     "brand-feishu-review-adapter",
+     "kb-ingest-extractor",
+     "kb-media-extractor",
+     "kb-clause-extractor",
+     "brand-product-fact-curator",
+     "锚点文本分割器",
+     "语义文档分块器",
+     "MECE知识提取器",
+     "术语标准化器",
+     "语义分桶器",
+     "知识相似度分析器",
+     "vision-analysis",
+     "minimax-multimodal-toolkit",
+     "compliance-review-planner",
+     "sop-writer",
+     "dataset-health-audit",
+     "kb-l0-feishu"
+    ],
+    "notes": [
+     "3 备注：lark-base 与 CLI 输出不一致，但本地版本 1.2.23 高于 CLI 1.2.22（属超前，不告警）",
+     "3 跳过：12 个登记了 source 的条目尚未安装，未做副本比对：kb-retriever（废弃）、锚点文本分割器（参考）、语义文档分块器（参考）、MECE知识提取器（参考）、术语标准化器（参考）、语义分桶器（参考）、知识相似度分析器（参考）、vision-analysis（参考）…（共 12 个）"
+    ],
+    "use_total": 40,
+    "installed": 40,
+    "missing_total": 0,
+    "missing_by_layer": {},
+    "exit_code": 0
+   },
+   "tail": "  \"3 跳过：12 个登记了 source 的条目尚未安装，未做副本比对：kb-retriever（废弃）、锚点文本分割器（参考）、语义文档分块器（参考）、MECE知识提取器（参考）、术语标准化器（参考）、语义分桶器（参考）、知识相似度分析器（参考）、vision-analysis（参考）…（共 12 个）\"\n ],\n \"use_total\": 40,\n \"installed\": 40,\n \"missing_total\": 0,\n \"missing_by_layer\": {},\n \"exit_code\": 0\n}"
+  },
+  {
+   "gate": "layers",
+   "script": "l7/scripts/layers_check.py",
+   "base": "kb",
+   "blocking": true,
+   "desc": "layers.yaml 层契约表自检",
+   "exit": 0,
+   "state": "PASS",
+   "red_total": null,
+   "ok_field": null,
+   "seconds": 4.0,
+   "stderr": "",
+   "json": {
+    "kb_root": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb",
+    "table": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/registry/layers.yaml",
+    "parser": "PyYAML",
+    "layers": [
+     "L0",
+     "L1",
+     "L2",
+     "L3",
+     "L4",
+     "L5",
+     "L6",
+     "L7"
+    ],
+    "depends_on": {
+     "L0": [],
+     "L1": [
+      "L0"
+     ],
+     "L2": [
+      "L1",
+      "L0"
+     ],
+     "L3": [
+      "L0",
+      "L2"
+     ],
+     "L4": [
+      "L2",
+      "L3"
+     ],
+     "L5": [
+      "L0",
+      "L2",
+      "L3"
+     ],
+     "L6": [
+      "L0",
+      "L2",
+      "L3"
+     ],
+     "L7": [
+      "L0",
+      "L3",
+      "L4",
+      "L5",
+      "L6"
+     ]
+    },
+    "problems": {
+     "1": [],
+     "2": [],
+     "3": [],
+     "4": [],
+     "5": [],
+     "6": []
+    },
+    "counts": {
+     "1": 0,
+     "2": 0,
+     "3": 0,
+     "4": 0,
+     "5": 0,
+     "6": 0
+    },
+    "total_problems": 0,
+    "no_dry_run": [],
+    "exit_code": 0
+   },
+   "tail": "    \"4\": 0,\n    \"5\": 0,\n    \"6\": 0\n  },\n  \"total_problems\": 0,\n  \"no_dry_run\": [],\n  \"exit_code\": 0\n}"
+  },
+  {
+   "gate": "conformance",
+   "script": "l7/scripts/skill_conformance.py",
+   "base": "kb",
+   "blocking": true,
+   "desc": "四方对账：文本↔注册表↔层契约↔磁盘",
+   "exit": 0,
+   "state": "PASS",
+   "red_total": 0,
+   "ok_field": true,
+   "seconds": 4.5,
+   "stderr": "",
+   "json": {
+    "gate": "skill_conformance",
+    "ok": true,
+    "counts": {
+     "registered": 71,
+     "installed_checked": 59,
+     "layers_checked": 8
+    },
+    "C1_missing_engine": [],
+    "C1_n": 0,
+    "C2_engine_not_in_layers": [
+     [
+      "kb-l0-feishu",
+      "l0/registry/kb.json",
+      "不在 layers.yaml 的 engine 里，且正文没有它的文件名"
+     ],
+     [
+      "kb-l0-feishu",
+      "l8/verify_l0_nonrecord.py",
+      "不在 layers.yaml 的 engine 里，且正文没有它的文件名"
+     ],
+     [
+      "kb-l0-feishu",
+      "l8/verify_l0_nonrecord2.py",
+      "不在 layers.yaml 的 engine 里，且正文没有它的文件名"
+     ],
+     [
+      "kb-l0-feishu",
+      "l8/refresh_l0_drifted.py",
+      "不在 layers.yaml 的 engine 里，且正文没有它的文件名"
+     ],
+     [
+      "kb-l0-feishu",
+      "l8/store_l0_attachments.py",
+      "不在 layers.yaml 的 engine 里，且正文没有它的文件名"
+     ],
+     [
+      "kb-l0-feishu",
+      "l8/drill_links_2levels.py",
+      "不在 layers.yaml 的 engine 里，且正文没有它的文件名"
+     ],
+     [
+      "kb-l0-feishu",
+      "l8/fill_drill_failures.py",
+      "不在 layers.yaml 的 engine 里，且正文没有它的文件名"
+     ],
+     [
+      "kb-l0-feishu",
+      "l8/verify_l0_urls.py",
+      "不在 layers.yaml 的 engine 里，且正文没有它的文件名"
+     ],
+     [
+      "kb-l0-feishu",
+      "l8/verify_urls_headless.py",
+      "不在 layers.yaml 的 engine 里，且正文没有它的文件名"
+     ],
+     [
+      "kb-l0-feishu",
+      "l8/verify_urls_shingles.py",
+      "不在 layers.yaml 的 engine 里，且正文没有它的文件名"
+     ],
+     [
+      "kb-l0-feishu",
+      "l8/recrawl_all_urls.py",
+      "不在 layers.yaml 的 engine 里，且正文没有它的文件名"
+     ],
+     [
+      "kb-l0-feishu",
+      "l8/recrawl_jsnoise_urls.py",
+      "不在 layers.yaml 的 engine 里，且正文没有它的文件名"
+     ],
+     [
+      "kb-repair",
+      "l7/scripts/layers_check.py",
+      "不在 layers.yaml 的 engine 里，且正文没有它的文件名"
+     ]
+    ],
+    "C2_n": 13,
+    "C3_hard": [],
+    "C3_hard_n": 0,
+    "C3_soft": [
+     [
+      "kb-content-review",
+      "l6/registry/l6.json",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-content-review",
+      "l7/review-engine/core/with_kb_evidence.py",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-content-review",
+      "KB-ROOT.json",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-content-review",
+      "l0/registry/kb.json",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-content-review",
+      "l4/registry/l4.json",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "brand-content-review-agent",
+      "l7/review-engine/core/feishu_publish.py",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "brand-content-review-agent",
+      "l7/review-engine/core/with_kb_evidence.py",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "brand-content-review-agent",
+      "l7/review-engine/PLAN.md",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "brand-product-claim-verifier",
+      "l7/review-engine/knowledge-base/product-fact-library.json",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "brand-product-claim-verifier",
+      "l7/review-engine/knowledge-base/product-fact-approval-queue.json",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "brand-product-claim-verifier",
+      "l7/review-engine/knowledge-base/product-fact-approval-policy.json",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "brand-image-safety-review",
+      "l7/review-engine/knowledge-base/multimodal-provider-contract.json",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "brand-feishu-review-adapter",
+      "l7/review-engine/core/feishu_publish.py",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-ingest-extractor",
+      "l2/registry/l2.json",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-ingest-extractor",
+      "l8/l2_staleness_audit.py",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-ingest-extractor",
+      "l1/manifest_l1.jsonl",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-ingest-extractor",
+      "l2/index/l2.jsonl",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-ingest-extractor",
+      "l2/units.jsonl",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-ingest-extractor",
+      "l2/manifest_l2.jsonl",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-media-extractor",
+      ".work/kb_ocr_gate.py",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-media-extractor",
+      "l1/manifest_l1.jsonl",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-clause-extractor",
+      "l3/rejected.jsonl",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-clause-extractor",
+      "l3/index/l3.jsonl",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-clause-extractor",
+      "l3/candidates/rules.jsonl",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-clause-extractor",
+      "l3/registry/l3.json",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-clause-extractor",
+      "l3/manifest_l3.jsonl",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-clause-extractor",
+      "l2/units.jsonl",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-l0-feishu",
+      "l8/close_stale_scope_gaps.py",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-l0-feishu",
+      "l0/manifest.jsonl",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-manage",
+      ".work/l4_article.py",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-manage",
+      ".work/l5_export.py",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-manage",
+      ".work/l6_build.py",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-manage",
+      "l2/units.jsonl",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-manage",
+      ".work/l5_prep.py",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-pipeline",
+      "l2/runs/20260929-1754-l2-unscheduled-run.json",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-pipeline",
+      "l8/projection_reconcile.py",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-pipeline",
+      "l2/units.jsonl",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-review",
+      "l7/review-engine/core/feishu_publish.py",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-review",
+      "l7/review-engine/core/with_kb_evidence.py",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-review",
+      ".work/l5_bench.py",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-review",
+      "l5/runs/20260923-1430-dryrun.json",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-review",
+      ".work/l4_integrity.json",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-review",
+      "l5/benchmark.json",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-check",
+      "l2/units.jsonl",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-canonical-lookup",
+      "l4/canonical/rules.jsonl",
+      "正文提到但注册表没登记"
+     ],
+     [
+      "kb-canonical-lookup",
+      "l3/candidates/rules.jsonl",
+      "正文提到但注册表没登记"
+     ]
+    ],
+    "C3_soft_n": 46,
+    "C4_keyword_not_in_description": [
+     [
+      "蒸馏",
+      "1 条触发词没写进 description",
+      [
+       "把这份文档变成 skill"
+      ]
+     ],
+     [
+      "root-skills-creator",
+      "1 条触发词没写进 description",
+      [
+       "创建生产级 skill"
+      ]
+     ],
+     [
+      "root-skills-eval",
+      "3 条触发词没写进 description",
+      [
+       "批量评测",
+       "skills 回归",
+       "执行 skills"
+      ]
+     ],
+     [
+      "root-skills-batch-driver",
+      "1 条触发词没写进 description",
+      [
+       "batch evaluate"
+      ]
+     ],
+     [
+      "lark-doc",
+      "6 条触发词没写进 description",
+      [
+       "飞书文档",
+       "wiki 文档",
+       "读文档",
+       "创建文档",
+       "插入图片",
+       "下载附件"
+      ]
+     ],
+     [
+      "lark-drive",
+      "4 条触发词没写进 description",
+      [
+       "飞书云盘",
+       "上传文件",
+       "下载文件",
+       "导入文件"
+      ]
+     ],
+     [
+      "lark-wiki",
+      "2 条触发词没写进 description",
+      [
+       "wiki 节点",
+       "移动节点"
+      ]
+     ],
+     [
+      "lark-shared",
+      "10 条触发词没写进 description",
+      [
+       "lark-cli 配置",
+       "lark-cli 认证",
+       "飞书登录",
+       "auth status",
+       "用户身份",
+       "机器人身份"
+      ]
+     ],
+     [
+      "code-review",
+      "7 条触发词没写进 description",
+      [
+       "review this branch",
+       "审这个分支",
+       "审这个 PR",
+       "评审改动",
+       "review my changes",
+       "standards review"
+      ]
+     ],
+     [
+      "context-handoff",
+      "5 条触发词没写进 description",
+      [
+       "交接",
+       "换个线程继续",
+       "上下文快满了",
+       "context compaction",
+       "checkpoint 交接"
+      ]
+     ],
+     [
+      "domain-modeling",
+      "5 条触发词没写进 description",
+      [
+       "领域模型",
+       "术语表",
+       "代码库术语",
+       "统一语言",
+       "ubiquitous language"
+      ]
+     ],
+     [
+      "grill-with-docs",
+      "4 条触发词没写进 description",
+      [
+       "grill with docs",
+       "访谈同时产出文档",
+       "边访谈边写 ADR",
+       "访谈并生成术语表"
+      ]
+     ],
+     [
+      "grilling",
+      "5 条触发词没写进 description",
+      [
+       "压力测试我的想法",
+       "stress-test my thinking",
+       "无情追问",
+       "拷问方案",
+       "方案哪里站不住"
+      ]
+     ],
+     [
+      "handoff",
+      "3 条触发词没写进 description",
+      [
+       "交接文档",
+       "压缩当前对话给下一个 agent",
+       "compact the conversation into a handoff document"
+      ]
+     ],
+     [
+      "implement",
+      "4 条触发词没写进 description",
+      [
+       "按规格实现",
+       "实现这个工单",
+       "implement this ticket",
+       "开始写这块功能"
+      ]
+     ],
+     [
+      "knowledge-distillation",
+      "4 条触发词没写进 description",
+      [
+       "distill a knowledge base",
+       "知识蒸馏",
+       "综合多个知识库",
+       "跨源发现"
+      ]
+     ],
+     [
+      "prototype",
+      "5 条触发词没写进 description",
+      [
+       "做个原型",
+       "一次性原型",
+       "试一下这个状态模型",
+       "探索 UI 长什么样",
+       "sanity-check a design"
+      ]
+     ],
+     [
+      "setup-matt-pocock-skills",
+      "5 条触发词没写进 description",
+      [
+       "setup matt pocock skills",
+       "配置工程 skill",
+       "配置 issue tracker",
+       "设置 triage 标签",
+       "初始化仓库工程配置"
+      ]
+     ],
+     [
+      "tdd",
+      "1 条触发词没写进 description",
+      [
+       "先写测试再写实现"
+      ]
+     ],
+     [
+      "to-spec",
+      "1 条触发词没写进 description",
+      [
+       "写份规格"
+      ]
+     ],
+     [
+      "to-tickets",
+      "4 条触发词没写进 description",
+      [
+       "拆工单",
+       "拆成 tracer bullet",
+       "把规格拆成任务",
+       "工单依赖"
+      ]
+     ],
+     [
+      "brand-content-review-agent",
+      "3 条触发词没写进 description",
+      [
+       "品牌内容审查",
+       "brand content review",
+       "PASS REVIEW BLOCK"
+      ]
+     ],
+     [
+      "brand-review-intake-router",
+      "3 条触发词没写进 description",
+      [
+       "提交审核",
+       "提交内容审查",
+       "submission validation"
+      ]
+     ],
+     [
+      "brand-policy-source-curator",
+      "2 条触发词没写进 description",
+      [
+       "政策源",
+       "规则来源版本"
+      ]
+     ],
+     [
+      "brand-text-compliance-review",
+      "5 条触发词没写进 description",
+      [
+       "text compliance review",
+       "listing 文案审查",
+       "PDP 文案",
+       "字幕审查",
+       "口播转写审查"
+      ]
+     ],
+     [
+      "brand-product-claim-verifier",
+      "4 条触发词没写进 description",
+      [
+       "claim verification",
+       "SKU 产品事实",
+       "测试与认证",
+       "型号版本范围"
+      ]
+     ],
+     [
+      "brand-image-safety-review",
+      "3 条触发词没写进 description",
+      [
+       "image safety review",
+       "OCR 文本",
+       "AI 溯源"
+      ]
+     ],
+     [
+      "brand-video-safety-review",
+      "1 条触发词没写进 description",
+      [
+       "镜头证据"
+      ]
+     ],
+     [
+      "brand-us-locale-cultural-review",
+      "3 条触发词没写进 description",
+      [
+       "US locale review",
+       "文化审查",
+       "达人语言"
+      ]
+     ],
+     [
+      "brand-ai-provenance-rights-review",
+      "2 条触发词没写进 description",
+      [
+       "depthfake 深度伪造",
+       "肖像权"
+      ]
+     ],
+     [
+      "brand-review-decision-engine",
+      "4 条触发词没写进 description",
+      [
+       "三态结论汇总",
+       "PASS REVIEW BLOCK",
+       "优先级处理",
+       "责任人流转"
+      ]
+     ],
+     [
+      "brand-review-report-memory",
+      "3 条触发词没写进 description",
+      [
+       "飞书摘要",
+       "版本可追溯",
+       "人工反馈候选"
+      ]
+     ],
+     [
+      "brand-review-evaluation",
+      "4 条触发词没写进 description",
+      [
+       "品牌审查评测",
+       "BLOCK 精确率",
+       "PASS 漏放",
+       "P0 漏检"
+      ]
+     ],
+     [
+      "brand-feishu-review-adapter",
+      "6 条触发词没写进 description",
+      [
+       "飞书流转",
+       "群内 @",
+       "多维表格写回",
+       "云文档同步",
+       "状态更新",
+       "责任人流转"
+      ]
+     ],
+     [
+      "kb-l0-feishu",
+      "12 条触发词没写进 description",
+      [
+       "L0同步",
+       "L0 对齐",
+       "L0 对齐一下",
+       "L0 落库",
+       "L0 对账",
+       "飞书侧数据变了吗"
+      ]
+     ]
+    ],
+    "C4_n": 35,
+    "C5_install_mismatch": [],
+    "C5_n": 0,
+    "C7_layer_skill": [],
+    "C7_n": 0,
+    "C7_bidir_warn": [],
+    "C7_warn_n": 0,
+    "red_total": 0,
+    "warn_total": 94
+   },
+   "tail": " \"C5_n\": 0,\n \"C7_layer_skill\": [],\n \"C7_n\": 0,\n \"C7_bidir_warn\": [],\n \"C7_warn_n\": 0,\n \"red_total\": 0,\n \"warn_total\": 94\n}"
+  },
+  {
+   "gate": "freshness",
+   "script": "l7/scripts/freshness.py",
+   "base": "kb",
+   "blocking": false,
+   "desc": "供给链新鲜度（超期=去跑链路的理由，不是红灯）",
+   "exit": 0,
+   "state": "PASS",
+   "red_total": null,
+   "ok_field": null,
+   "seconds": 34.0,
+   "stderr": "",
+   "json": {
+    "stale_threshold_note": "由 daily_health.py 定（24 小时）；本脚本不自己算",
+    "health": "YELLOW",
+    "gate_ok": 0,
+    "gate_red": 0,
+    "gate_undecided": 8,
+    "freshness": [
+     {
+      "layer": "L0",
+      "file": "l0/manifest.jsonl",
+      "kind": "data",
+      "mtime": 1790894809.109462,
+      "age": "2.5 天前",
+      "lines": 7020
+     },
+     {
+      "layer": "L1",
+      "file": "l1/manifest_l1.jsonl",
+      "kind": "data",
+      "mtime": 1790870463.146574,
+      "age": "2.8 天前",
+      "lines": 6351
+     },
+     {
+      "layer": "L1",
+      "file": "l1/index/l1.jsonl",
+      "kind": "data",
+      "mtime": 1790916662.7755785,
+      "age": "2.3 天前",
+      "lines": 14707
+     },
+     {
+      "layer": "L2",
+      "file": "l2/units.jsonl",
+      "kind": "data",
+      "mtime": 1790822741.9127164,
+      "age": "3.4 天前",
+      "lines": 12213
+     },
+     {
+      "layer": "L2",
+      "file": "l2/manifest_l2.jsonl",
+      "kind": "data",
+      "mtime": 1790822741.9141145,
+      "age": "3.4 天前",
+      "lines": 2543
+     },
+     {
+      "layer": "L3",
+      "file": "l3/candidates/rules.jsonl",
+      "kind": "data",
+      "mtime": 1790952307.096158,
+      "age": "1.9 天前",
+      "lines": 1018
+     },
+     {
+      "layer": "L3",
+      "file": "l3/rejected.jsonl",
+      "kind": "data",
+      "mtime": 1790950919.691593,
+      "age": "1.9 天前",
+      "lines": 10661
+     },
+     {
+      "layer": "L3",
+      "file": "l3/manifest_l3.jsonl",
+      "kind": "data",
+      "mtime": 1790897952.1964185,
+      "age": "2.5 天前",
+      "lines": 13506
+     },
+     {
+      "layer": "L4",
+      "file": "l4/canonical/wording_entry.jsonl",
+      "kind": "data",
+      "mtime": 1790951008.0,
+      "age": "1.9 天前",
+      "lines": 56
+     },
+     {
+      "layer": "L5",
+      "file": "l5/p0_patterns.jsonl",
+      "kind": "data",
+      "mtime": 1791033493.5805042,
+      "age": "22.4 小时前",
+      "lines": 7
+     },
+     {
+      "layer": "L6",
+      "file": "l6/selftest.json",
+      "kind": "data",
+      "mtime": 1790898141.388277,
+      "age": "2.5 天前",
+      "lines": 2735
+     }
+    ],
+    "stale_layers": [],
+    "stale_items": [],
+    "layer_status": {
+     "L1": {
+      "ok": true,
+      "json": "{"
+     },
+     "L2": {
+      "ok": true,
+      "json": "{"
+     },
+     "L3": {
+      "ok": true,
+      "json": "{"
+     }
+    },
+    "index_vs_rules": {
+     "l6_index_mtime": 1790952460.7095025,
+     "l3_rules_mtime": 1790952307.096158,
+     "index_older_than_rules": false,
+     "delta_hours": -0.04
+    },
+    "verdict": "fresh"
+   },
+   "tail": " \"index_vs_rules\": {\n  \"l6_index_mtime\": 1790952460.7095025,\n  \"l3_rules_mtime\": 1790952307.096158,\n  \"index_older_than_rules\": false,\n  \"delta_hours\": -0.04\n },\n \"verdict\": \"fresh\"\n}"
+  },
+  {
+   "gate": "projection",
+   "script": "l8/projection_reconcile.py",
+   "base": "kb",
+   "blocking": true,
+   "desc": "投影对账：派生视图 kb/view ↔ 权威库漂移（R1–R6）—— 实测真坏 3/6",
+   "exit": 1,
+   "state": "RED",
+   "red_total": null,
+   "ok_field": false,
+   "seconds": 4.6,
+   "stderr": "",
+   "json": {
+    "checked_at": null,
+    "view_root": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/view",
+    "checks": {
+     "R1_source_sha256": {
+      "ok": false,
+      "items": [
+       {
+        "source": "rules",
+        "path": "l3/candidates/rules.jsonl",
+        "recorded": "f27a14091b2bd782",
+        "current": "743dc62398311b02",
+        "same": false
+       },
+       {
+        "source": "p0",
+        "path": "l5/p0_patterns.jsonl",
+        "recorded": "470e3fbad21489b9",
+        "current": "470e3fbad21489b9",
+        "same": true
+       }
+      ]
+     },
+     "R2_entry_fingerprint": {
+      "ok": false,
+      "entries": 509,
+      "stale": 509,
+      "samples": [
+       {
+        "id": "cg-r-006445396c95aa10",
+        "rule_id": "r-006445396c95aa10",
+        "recorded": "25e97a156c126e39261c818686b1adb9",
+        "current": "8e7fcfed442ea49002d87b5410ff4fb4"
+       },
+       {
+        "id": "cg-r-1cf94543649842a0",
+        "rule_id": "r-1cf94543649842a0",
+        "recorded": "851c8e21959aed04aa54d21b7ff8ca19",
+        "current": "e0406db1cd32ed7f135dd5df582eb357"
+       },
+       {
+        "id": "cg-r-21786ac5aff9be34",
+        "rule_id": "r-21786ac5aff9be34",
+        "recorded": "1dee65bad60f518dc5adf28de8b94568",
+        "current": "e2994287353ef87af4c2b9ac8d230538"
+       },
+       {
+        "id": "cg-r-252ba6cf5ee92b00",
+        "rule_id": "r-252ba6cf5ee92b00",
+        "recorded": "6466b15e97c0ff9590e04ea5ec6329b4",
+        "current": "f2813513c012bbc0c1350921a1e29da7"
+       },
+       {
+        "id": "cg-r-3055901e5877f981",
+        "rule_id": "r-3055901e5877f981",
+        "recorded": "714c338dc3127529fa9685960340407a",
+        "current": "3052427eda974b631a8c789fb83bea62"
+       },
+       {
+        "id": "cg-r-30d3b9b54135fa04",
+        "rule_id": "r-30d3b9b54135fa04",
+        "recorded": "ca03ecda704832b03799df7e6e6dbfe4",
+        "current": "ec62456584fcc354958977414170047d"
+       },
+       {
+        "id": "cg-r-335f00d14cefe7f9",
+        "rule_id": "r-335f00d14cefe7f9",
+        "recorded": "62a7a1fac0d46aa0af66dc3cb0acd8a7",
+        "current": "dea54103ead243c91682ad0a08002df6"
+       },
+       {
+        "id": "cg-r-33ce99a813e0865a",
+        "rule_id": "r-33ce99a813e0865a",
+        "recorded": "9e76419398018c639d3854555cb03a49",
+        "current": "f112e828df6fd33090c4ab0f234671a0"
+       },
+       {
+        "id": "cg-r-379572868aa01151",
+        "rule_id": "r-379572868aa01151",
+        "recorded": "8bd354ebe612ad94d4c0754e79e73543",
+        "current": "c335fde66c7bc97215f64fcb9d022ced"
+       },
+       {
+        "id": "cg-r-37b49eadb72d7dc2",
+        "rule_id": "r-37b49eadb72d7dc2",
+        "recorded": "2beeae06d748fc26902a0c36bc12110f",
+        "current": "8a83f9760d8acdfdade60bd0ae1513dc"
+       }
+      ]
+     },
+     "R3_id_set": {
+      "ok": true,
+      "view": 509,
+      "authority": 509,
+      "only_in_view": 0,
+      "only_in_authority": 0
+     },
+     "R4_governance_passthrough": {
+      "ok": false,
+      "mismatches": 2036,
+      "by_field": {
+       "owner": 509,
+       "half_life_days": 509,
+       "valid_until": 509,
+       "effective_from": 509
+      },
+      "samples": [
+       {
+        "id": "cg-r-006445396c95aa10",
+        "field": "owner",
+        "view": "法务 + 产品负责人",
+        "authority": ""
+       },
+       {
+        "id": "cg-r-006445396c95aa10",
+        "field": "half_life_days",
+        "view": "365",
+        "authority": ""
+       },
+       {
+        "id": "cg-r-006445396c95aa10",
+        "field": "valid_until",
+        "view": "2027-09-29",
+        "authority": ""
+       },
+       {
+        "id": "cg-r-006445396c95aa10",
+        "field": "effective_from",
+        "view": "2026-09-29",
+        "authority": ""
+       },
+       {
+        "id": "cg-r-1cf94543649842a0",
+        "field": "owner",
+        "view": "法务",
+        "authority": ""
+       }
+      ]
+     },
+     "R5_manifest_bytes": {
+      "ok": true,
+      "bad": 0,
+      "samples": []
+     },
+     "R6_tier_dir": {
+      "ok": true,
+      "bad": 0,
+      "samples": []
+     }
+    },
+    "drift": [
+     {
+      "check": "R1",
+      "what": "源文件 rules 在视图生成后变过",
+      "detail": "f27a14091b2bd782… → 743dc62398311b02…",
+      "fix": "重跑 kb/.work/gen-host-library.py 到 staging 后回填（见 projection_reconcile 文档）"
+     },
+     {
+      "check": "R2",
+      "what": "509 条条目的权威规则已变（任一字段）",
+      "detail": [
+       "cg-r-006445396c95aa10",
+       "cg-r-1cf94543649842a0",
+       "cg-r-21786ac5aff9be34",
+       "cg-r-252ba6cf5ee92b00",
+       "cg-r-3055901e5877f981",
+       "cg-r-30d3b9b54135fa04",
+       "cg-r-335f00d14cefe7f9",
+       "cg-r-33ce99a813e0865a",
+       "cg-r-379572868aa01151",
+       "cg-r-37b49eadb72d7dc2"
+      ],
+      "fix": "同 R1：重新生成并回填"
+     },
+     {
+      "check": "R4",
+      "what": "2036 处治理字段未从权威库传导",
+      "detail": {
+       "owner": 509,
+       "half_life_days": 509,
+       "valid_until": 509,
+       "effective_from": 509
+      },
+      "samples": [
+       {
+        "id": "cg-r-006445396c95aa10",
+        "field": "owner",
+        "view": "法务 + 产品负责人",
+        "authority": ""
+       },
+       {
+        "id": "cg-r-006445396c95aa10",
+        "field": "half_life_days",
+        "view": "365",
+        "authority": ""
+       },
+       {
+        "id": "cg-r-006445396c95aa10",
+        "field": "valid_until",
+        "view": "2027-09-29",
+        "authority": ""
+       },
+       {
+        "id": "cg-r-006445396c95aa10",
+        "field": "effective_from",
+        "view": "2026-09-29",
+        "authority": ""
+       },
+       {
+        "id": "cg-r-1cf94543649842a0",
+        "field": "owner",
+        "view": "法务",
+        "authority": ""
+       }
+      ],
+      "fix": "确认投影生成器是否从规则行读这 4 个字段（F8）"
+     }
+    ],
+    "ok": false,
+    "summary": {
+     "checks": 6,
+     "passed": 3,
+     "drift_items": 3
+    }
+   },
+   "tail": " ],\n \"ok\": false,\n \"summary\": {\n  \"checks\": 6,\n  \"passed\": 3,\n  \"drift_items\": 3\n }\n}"
+  },
+  {
+   "gate": "envelope",
+   "script": "tools/envelope_gate.py",
+   "base": "root",
+   "blocking": true,
+   "desc": "信封闸门：python getsize vs 读端 statSync().size（活路径）",
+   "exit": 1,
+   "state": "RED",
+   "red_total": null,
+   "ok_field": 2062,
+   "seconds": 6.1,
+   "stderr": "",
+   "json": {
+    "base": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理",
+    "scanned": 2072,
+    "ok": 2062,
+    "reader": "DSH Desktop 内置 Electron（ELECTRON_RUN_AS_NODE=1）",
+    "reader_mode": "consumer",
+    "cross_check": {
+     "reader": "PATH 里的 node",
+     "envelope": 0,
+     "agree": false,
+     "only_consumer": [
+      "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-l0-feishu/README.md",
+      "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-l0-feishu/SKILL.md",
+      "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-l0-feishu/references/CHANGELOG.md",
+      "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-l0-feishu/references/ask-and-ledger.md",
+      "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-l0-feishu/references/auth-and-permissions.md",
+      "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-l0-feishu/references/coverage-matrix.md",
+      "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-l0-feishu/references/gotchas.md",
+      "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-l0-feishu/references/gotchas.proposals.md",
+      "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-l0-feishu/references/scripts.md",
+      "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-l0-feishu/tests/red-case.md"
+     ],
+     "only_path": []
+    },
+    "envelope": [
+     {
+      "path": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-l0-feishu/README.md",
+      "python_size": 4305,
+      "node_size": 8401,
+      "delta": -4096
+     },
+     {
+      "path": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-l0-feishu/SKILL.md",
+      "python_size": 16320,
+      "node_size": 20416,
+      "delta": -4096
+     },
+     {
+      "path": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-l0-feishu/references/CHANGELOG.md",
+      "python_size": 22700,
+      "node_size": 26796,
+      "delta": -4096
+     },
+     {
+      "path": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-l0-feishu/references/ask-and-ledger.md",
+      "python_size": 4654,
+      "node_size": 8750,
+      "delta": -4096
+     },
+     {
+      "path": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-l0-feishu/references/auth-and-permissions.md",
+      "python_size": 3546,
+      "node_size": 7642,
+      "delta": -4096
+     },
+     {
+      "path": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-l0-feishu/references/coverage-matrix.md",
+      "python_size": 5529,
+      "node_size": 9625,
+      "delta": -4096
+     },
+     {
+      "path": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-l0-feishu/references/gotchas.md",
+      "python_size": 8593,
+      "node_size": 12689,
+      "delta": -4096
+     },
+     {
+      "path": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-l0-feishu/references/gotchas.proposals.md",
+      "python_size": 16747,
+      "node_size": 20843,
+      "delta": -4096
+     },
+     {
+      "path": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-l0-feishu/references/scripts.md",
+      "python_size": 12969,
+      "node_size": 17065,
+      "delta": -4096
+     },
+     {
+      "path": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/skills/kb-l0-feishu/tests/red-case.md",
+      "python_size": 3661,
+      "node_size": 7757,
+      "delta": -4096
+     }
+    ],
+    "missing": [],
+    "exit_code": 1
+   },
+   "tail": "      \"python_size\": 3661,\n      \"node_size\": 7757,\n      \"delta\": -4096\n    }\n  ],\n  \"missing\": [],\n  \"exit_code\": 1\n}"
+  }
+ ]
+}

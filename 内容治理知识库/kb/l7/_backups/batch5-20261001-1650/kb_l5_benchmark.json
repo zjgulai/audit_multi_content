@@ -1,0 +1,105 @@
+{
+  "requirement": "《内容审查 Agent PRD》§12：P0 匹配耗时 < 1 秒",
+  "exporter_version": "l5-0.1",
+  "pattern_count": 7,
+  "corpus": {
+    "source": "kb/l2/units.jsonl（anchor 前缀 #广告文案明细/，字段 Headline/Primary Text/Description/Long Headline/标题/正文）",
+    "lines_available": 464
+  },
+  "network": "无（matcher 只读本地 p0_patterns.jsonl，无任何网络调用）",
+  "env": {
+    "python": "3.9.6",
+    "platform": "macOS-26.6.2-arm64-arm-64bit"
+  },
+  "cases": [
+    {
+      "case": "single_primary_text",
+      "label": "单条广告文案（源侧第一条 Primary Text）",
+      "chars": 39,
+      "chars_human": "39 字符",
+      "lines": 1,
+      "rounds": 5,
+      "elapsed_ms": {
+        "min": 0.046,
+        "median": 0.084,
+        "max": 0.102
+      },
+      "hit_rules": [],
+      "hit_count": 0,
+      "under_1s": true
+    },
+    {
+      "case": "single_with_hit",
+      "label": "单条广告文案（语料里命中最多的一条）",
+      "chars": 751,
+      "chars_human": "751 字符",
+      "lines": 1,
+      "rounds": 5,
+      "elapsed_ms": {
+        "min": 1.179,
+        "median": 1.294,
+        "max": 1.463
+      },
+      "hit_rules": [
+        "H02"
+      ],
+      "hit_count": 8,
+      "under_1s": true
+    },
+    {
+      "case": "batch_ad_copy",
+      "label": "一批广告文案（全部 Headline/Primary Text 共 464 条）",
+      "chars": 132585,
+      "chars_human": "129.5 KB",
+      "lines": 464,
+      "rounds": 3,
+      "elapsed_ms": {
+        "min": 1470.811,
+        "median": 1528.824,
+        "max": 1939.445
+      },
+      "hit_rules": [
+        "H02",
+        "H04",
+        "H05",
+        "H07",
+        "H09",
+        "U04"
+      ],
+      "hit_count": 209,
+      "under_1s": false
+    },
+    {
+      "case": "large_doc_1mb",
+      "label": "大文档（上述文案重复至 ≈1MB）",
+      "chars": 1060687,
+      "chars_human": "1035.8 KB",
+      "lines": 3712,
+      "rounds": 3,
+      "elapsed_ms": {
+        "min": 10946.796,
+        "median": 14430.563,
+        "max": 15138.571
+      },
+      "hit_rules": [
+        "H02",
+        "H04",
+        "H05",
+        "H07",
+        "H09",
+        "U04"
+      ],
+      "hit_count": 1672,
+      "under_1s": false
+    }
+  ],
+  "compile_ms": 2.245,
+  "compile_note": "冷启动：读 kb/l5/p0_patterns.jsonl 并编译全部正则一次；常驻服务只付一次",
+  "per_copy_avg_ms": 3.2949,
+  "artifact_sha256": {
+    "kb/l5/p0_patterns.jsonl": "470e3fbad21489b9ad3cae7bd5fd5d4273b19262acb297c5b91808b51c570ea8",
+    "kb/l5/matcher.py": "4197b4741f783452b5021931796474ee9f3e47e1314c43fbe35eb5e3571980e7"
+  },
+  "verdict": "FAIL",
+  "verdict_note": "存在超过 1 秒的规模"
+}

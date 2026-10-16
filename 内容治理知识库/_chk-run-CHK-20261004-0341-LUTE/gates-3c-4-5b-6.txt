@@ -1,0 +1,88 @@
+RUN=CHK-20261004-0341-LUTE  phase2  at=2026-10-04 03:23:21
+########## ③c routes_reconcile --alias（与赢家表口径一致）##########
+    「被谁抢走」计数（本次不合格判定的接走者）：
+      NONE                                   6 次
+      brand-video-safety-review              3 次
+      brand-image-safety-review              3 次
+      CLARIFY                                1 次
+
+--- ③ 按成员命中率（逐条全轮命中 / 总条数；逐轮命中 / 总轮数）---
+    brand-ai-provenance-rights-review      0/5 条 ｜ 2/15 轮
+    brand-content-review-agent             5/5 条 ｜ 15/15 轮
+    brand-feishu-review-adapter            5/5 条 ｜ 15/15 轮
+    brand-image-safety-review              5/5 条 ｜ 15/15 轮
+    brand-policy-source-curator            5/5 条 ｜ 15/15 轮
+    brand-product-claim-verifier           5/5 条 ｜ 15/15 轮
+    brand-review-decision-engine           5/5 条 ｜ 15/15 轮
+    brand-review-evaluation                5/5 条 ｜ 15/15 轮
+    brand-review-intake-router             5/5 条 ｜ 15/15 轮
+    brand-review-report-memory             5/5 条 ｜ 15/15 轮
+    brand-text-compliance-review           5/5 条 ｜ 15/15 轮
+    brand-us-locale-cultural-review        5/5 条 ｜ 15/15 轮
+    brand-video-safety-review              5/5 条 ｜ 15/15 轮
+
+--- ④ 路由表自检 --- 0 条
+
+--- 备注 ---
+    · F1 由同批用例、同一打分器另跑（见 _eval-kb-manage/kb_routes_score.py）；本对账器只负责「期望 vs 实际」，不重算分
+
+==========================================================================
+逐条全轮命中：60/65（门槛：F1 >= 0.90，见打分器）
+四节问题：①=5 ②（同上）④=0 ｜合计 5
+退出码：1
+[exit=1]
+########## ④ workflow_check ��无干跑档，会写 kb/l8/workflow_check_CHK-20261004-0341-LUTE.json）##########
+知识库工作流体检 · CHK-20261004-0341-LUTE · 2026-10-04 03:23:29
+  PASS  ① 环境与版本纪律
+  FAIL  ② 权威库 l0~l6 未被改动
+  FAIL  ③ 前序产物哈希（45 项）
+  PASS  ④ 分层库 → 生成器 → 视图
+  PASS  ⑤ 装载位 → 加载器（读工具+体检）
+  PASS  ⑥ 文档可见性（agent 能否读到）
+  PASS  ⑦ 消费侧 skill 可用
+  PASS  ⑧ 工作台与服务
+  PASS  ⑨ 写入侧（ingest 闸门 + 落盘通道）
+  装载位：509 条 / 信封 0 / E001 None / E046 None / 健康分 79.2 / 检索 [111, 1, 509, 0]
+  派生链：生成器 11:26:57 408a6d079312b66f 73520B；沙箱产出 510 md / 信封 0；加载器直读 E001 None E046 None
+  可见性：工作区 6122 md，不可读 510 {'他人产物 hostlib': 510}
+  写入侧：  [E026] 内容质量分 52.1 < 60（长度 0.4/20 · 密度 5/30 · 去重 20/20 · 语言 26.7/30） | 落盘 0 个（信封 0）
+  裁决：FAIL（未过：['② 权威库 l0~l6 未被改动', '③ 前序产物哈希（45 项）']）
+  → kb/l8/workflow_check_CHK-20261004-0341-LUTE.json
+[exit=1]
+########## ⑤b envelope_census（只扫 .md）##########
+信封普查：扫了 10319 个 .md，其中 1079 个 node 侧读不到（差值 [4096] 字节）
+  ✅ 已分类  刻意归档               569 个   信封机制的证据本体，改了就毁证
+                    例：l8/_archive/enveloped-20260923-1520/3_措辞表达库/L1-facts/cg-r-00277648c524fe69.md
+                    例：l8/_archive/enveloped-20260923-1520/3_措辞表达库/L1-facts/cg-r-01870b675a3e2dad.md
+                    例：l8/_archive/enveloped-20260923-1520/3_措辞表达库/L1-facts/cg-r-031e17f2fd4ee59c.md
+  ✅ 已分类  可再生的过期备份           510 个   hostlib 可 1.8 秒重新生成（publish.sh 实测）；留着不影响任何读取方
+                    例：.work/hostlib.bak-20260928-152220/3_措辞表达库/L1-facts/cg-r-00277648c524fe69.md
+                    例：.work/hostlib.bak-20260928-152220/3_措辞表达库/L1-facts/cg-r-01870b675a3e2dad.md
+                    例：.work/hostlib.bak-20260928-152220/3_措辞表达库/L1-facts/cg-r-031e17f2fd4ee59c.md
+
+结论：OK
+[exit=0]
+########## ⑥ projection_reconcile ##########
+投影对账：kb/view ⇄ 权威分层库
+  视图根：/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/view
+  ❌ R1_source_sha256
+  ❌ R2_entry_fingerprint
+  ✅ R3_id_set
+  ❌ R4_governance_passthrough
+  ✅ R5_manifest_bytes
+  ✅ R6_tier_dir
+
+  3/6 项通过，漂移项 3
+
+  ── 漂移明细
+    [R1] 源文件 rules 在视图生成后变过
+          detail: "f27a14091b2bd782… → 743dc62398311b02…"
+          修法  : 重跑 kb/.work/gen-host-library.py 到 staging 后回填（见 projection_reconcile 文档）
+    [R2] 509 条条目的权威规则已变（任一字段）
+          detail: ["cg-r-006445396c95aa10", "cg-r-1cf94543649842a0", "cg-r-21786ac5aff9be34", "cg-r-252ba6cf5ee92b00", "cg-r-3055901e5877f981", "cg-r-30d3b9b54135fa04", "cg-r-335f00d14cefe7f9", "cg-r-33ce99a813e0865a",
+          修法  : 同 R1：重新生成并回填
+    [R4] 2036 处治理字段未从权威库传导
+          detail: {"owner": 509, "half_life_days": 509, "valid_until": 509, "effective_from": 509}
+          修法  : 确认投影生成器是否从规则行读这 4 个字段（F8）
+[exit=1]
+### phase2 done=2026-10-04 03:24:29

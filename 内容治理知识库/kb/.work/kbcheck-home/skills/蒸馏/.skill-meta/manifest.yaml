@@ -1,0 +1,86 @@
+name: 蒸馏
+description: |
+  把会议纪要、白板、逐字稿、文档、教程、聊天记录、代码仓库等素材蒸馏成能被路由调用的 Skill：
+  六阶段流水线 + 三重验证闸门（淘汰 50%~75% 属正常）+ 四条入库验收谓词。
+  当用户说"把这场会议蒸成 skill"、"会议蒸馏"、"资料变 skill"、"把这份笔记蒸成 skill"、
+  "万物皆可 skill"、"对话蒸馏"、"萃取 skill"、"蒸馏某人的方法论"、"论文做成 skill"时使用。
+version: "1.4.0"
+author:
+  name: "self"
+  email: ""
+license: "MIT"
+keywords:
+  - knowledge-distillation
+  - skill-extraction
+  - triple-verification
+  - ria-plus-plus
+  - anti-hallucination
+  - meeting-to-skill
+categories:
+  - knowledge-asset
+  - distillation
+  - quality-gate
+complexity: complex
+compatibility:
+  claude:
+    status: native
+    features:
+      - file_system
+      - subprocess
+  kimi:
+    status: native
+    features:
+      - file_system
+      - subprocess
+  cursor:
+    status: native
+    features:
+      - file_system
+      - subprocess
+  dsh:
+    status: native
+  gpt:
+    status: bridge
+    limitations:
+      - "File system operations need manual execution"
+triggers:
+  keywords:
+    - "会议蒸馏"
+    - "把会议变成 skill"
+    - "资料变 skill"
+    - "万物皆可 skill"
+    - "对话蒸馏"
+    - "萃取 skill"
+    - "把这份文档做成 skill"
+    - "白板整理成 skill"
+    - "会议内容转 skill"
+    - "知识蒸馏入库"
+    - "distill meeting into skill"
+    - "resource to skill"
+    - "extract skill from notes"
+  phrases:
+    - "把这场会议蒸成 skill"
+    - "这批资料能不能做成 skill"
+    - "重复三次的工作萃取成 skill"
+    - "帮我把这份文档蒸成技能"
+  contexts:
+    - "素材蒸馏"
+    - "知识资产沉淀"
+    - "skill 产出"
+entry_points:
+  - SKILL.md
+  - scripts/scaffold.py
+  - scripts/check-skill.py
+framework:
+  family: root-skills
+  manager: root-skills-manage
+related_skills:
+  - agent-build-flow
+  - self-distill
+  - root-skills-creator
+  - root-skills-eval
+  - root-skills-doctor
+  - root-skills-opt
+created_by:
+  skill: root-skills-creator
+  version: 4.1.3

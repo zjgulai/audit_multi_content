@@ -1,0 +1,790 @@
+===CASE 21===
+===ROUTE 21: kb-clause-extractor===
+走 L3 条款抽取与规则蒸馏（kb-clause-extractor）。先说三件必须先讲清的事，再给交付物清单和验收判据 —— 因为这件事最容易出的错不是"蒸不出来"，而是**把候选说成定稿**、以及**跑之前没归档把拒绝台账冲掉**。
+
+## 一、先讲三条红线（其中第一条是本库真发生过的血泪）
+
+1. **跑之前先归档拒绝台账**。`l3_distill_run.py` 会以 `w` 模式**覆盖** `kb/l3/rejected.jsonl`。跑前必须把它复制到 `kb/l3/_archive/rejected-pre-<RUN>.jsonl` 并校验 sha256 —— 本库真的发生过逐单元拒绝台账从 **11,860 行掉到 1,053 行**。编排器 `kb-pipeline.py --sync` 已把这条做成红线①（`ARCHIVE_BEFORE_WRITE`）。
+2. **候选 ≠ 定稿**。`kb/l3/candidates/rules.jsonl` 是**候选**；`kb/l4/canonical/*.jsonl` 才是定稿。条款号由 **L4** 分配，L3 **不自造条款号**。把候选说成定稿 = 引用越级。
+3. **证据必须一条条回指**。每条规则的 `evidence_units[]` 都要能回指 L2 单元的 `unit_id + source_sha256 + anchor` —— 这正是 `l3_gate.py` 每天逐条核的那 1,729 条。
+
+## 二、我会怎么跑（命令按库内约定，`cwd` = `kb/` 的上一级）
+
+```bash
+cd ~/.dsh/Momcozy知识库
+# ① 归档（先做，别跳）
+cp kb/l3/rejected.jsonl kb/l3/_archive/rejected-pre-<RUN>.jsonl && shasum -a 256 kb/l3/rejected.jsonl
+# ② 蒸馏（★没有干跑档：运行即落盘）
+kb/kbpy l8/l3_distill_run.py <RUN>
+# ③ 拒绝台账重建（收敛后**必须**重建）
+kb/kbpy l8/l3_reject_ledger_rebuild.py <RUN> --apply
+# ④ 过闸
+kb/kbpy l7/scripts/l3_gate.py
+```
+
+## 三、交付物一：能蒸出来的 → 规则候选（写进 `kb/l3/candidates/rules.jsonl`，形态是规则不是台账）
+
+每条候选按这个形状落：
+
+| 字段 | 取值来源 | 说明 |
+|---|---|---|
+| `rule_id` | 幂等键 | 同一 `evidence_digest` 未变 → `unchanged`（跳过，不重复追加） |
+| `evidence_units[]` | L2 单元 | 每条带 `unit_id + source_sha256 + anchor`，逐条可回指 |
+| `hit_expression`（命中表达） | 规则文本 | **可判定的字面/正则**，如 `\bthe\s+(only|safest)\b` |
+| `handling_action`（处理方式） | 规则语义 | 判决 + 处置动作 |
+| `scope` | 规则适用范围 | 辖区 / 渠道 / 品线 |
+| `rule_status` | 固定 | `provisional`（候选一律 provisional） |
+
+已落过的同类候选长这样（实测样例，供你对形状）：
+- 规则码 `H05` / `rule_id=r-3b6c3c82dc667295` → 命中表达 33 条（`safest`、`most safe`、`100% safe`、`perfect pump`、`最安全`、`唯一`、`one size fits all` …），定位 **P0 · 红**，证据单元 3 条，形态 `entry`，库=措辞表达库。
+- 该条的证据单元明细可直接回查 `kb/l2/units.jsonl`：`4beaf8c51715498baa3f` → `#品线内容边界规则库/recvuJP1dDumuM/边界内容`；`6bd4e7315823e42ef28d` → `.../检测关键词`；`6093df478382e5e884fa` → `.../正则表达式`（`\bthe\s+(only|safest)\b`）。
+
+**SKU 类内部 rule 的附加注意点**：这类规则常常混着"事实约束"和"话术约束"两种东西 —— 前者是产品事实（型号、认证范围、测试数据），后者才是可判定规则。前者蒸不成规则候选、应该去 L2 单元 / 产品事实侧，别硬塞进 L3。
+
+## 四、交付物二：蒸不出来的 → 拒绝台账（`kb/l3/rejected.jsonl`，逐条带原因码）
+
+拒绝行必须带 `unit_id + 原因码 + 判定说明 + 处置去向`。原因码按下面这套归（若你那边另有既定码表，以你的为准，我按这套落地并注明版本）：
+
+| 原因码 | 含义 | 典型样子 | 去向 |
+|---|---|---|---|
+| `NO_HIT_EXPR` | 无命中表达 | 只有态度/原则，找不出可匹配的字面 | 退回 L2，或攒批等口径 |
+| `NO_THRESHOLD` | 无量纲阈值 | "明显夸大""严重不符"没说分界 | 转人定阈值后再蒸 |
+| `NOT_CONTENT_DIM` | 非内容维度 | "48 小时内回复"是流程时限，不是内容判定 | 交运营/流程侧，不进 L3 |
+| `EXTERNAL_DEP` | 依赖外部事实 | "须有测试报告支撑"要外部报告才能判 | 转证据源侧 |
+| `NO_NORMATIVE` | 无规范性 | 纯描述/背景说明 | 只留 L1/L2，不蒸馏 |
+| `DUPLICATE` | 与既有候选重复 | 同一 `rule_id` 已存在 | 合并，不新增 |
+| `RANGE_UNKNOWN` | 适用范围不明 | 不知道辖区/渠道 | 补范围后重蒸 |
+
+台账行样例（字段名照落盘键）：
+
+```json
+{"unit_id":"<L2 unit_id>","source_sha256":"<...>","reason_code":"NO_THRESHOLD","why":"原文用『明显夸大』，无可判定分界","action":"back_to_human","run_id":"<RUN>"}
+```
+
+## 五、验收（四条，跑完逐条对，别只报"跑完了"）
+
+| # | 判据 | 现状 |
+|---|---|---|
+| A1 | `kb/kbpy l7/scripts/l3_gate.py` 退出 0（证据全可回指 + 注册表自报键全已声明） | 待跑 |
+| A2 | 跑前归档存在且 sha256 与源一致 | 待跑 |
+| A3 | 蒸馏只**追加**：既有候选行逐字节未变（L4 定稿只加不改，L3 同理） | 待跑 |
+| A4 | `kb/kbpy l7/scripts/l7_gate.py` 仍过（六要素在定稿上可物化率 100%） | 待跑 |
+
+## 六、需要你给我的两样
+
+1. **这批 SKU 内部 rule 的入口**：文件/表名 + `resource_id`（或飞书侧表@rev）。我要的是具体素材，不是"SKU 相关的那些"。
+2. **原因码码表**：如果你那边已经定了一套拒绝原因码，发我，我按你的码表落；没有就按上面第七节这套执行并在台账里写清版本。
+
+另外提醒一句口径：我这边的 SKU 类规则里，条款号是 **L4 发号**的事，L3 只出候选。别在这层给号。
+
+===CASE 23===
+===ROUTE 23: kb-clause-extractor===
+走 L3 条款抽取与规则蒸馏。FDA guidance 是**外部标准类**素材，抽法上和内部 rule 有两个不同点，先说清楚再动手。
+
+## 一、外部标准（FDA guidance）抽取的两条特别注意
+
+1. **FDA guidance 本身不是法**。它写的是"we recommend / FDA does not intend to…"，这是**建议口径**，不是强制条款。抽成规则候选时必须把 `authority` / `scope` 落清楚（建议 vs 要求），否则下游会拿它当强制红线用。条文里的 "should / recommend" 与 "must / required" 要分开标。
+2. **先看版本与生效日期**。guidance 有 draft / final 之分，还有 superseded 的旧版。抽之前先确认抽的是哪一版：文件名 + 版本 + 日期 + 辖区，落进 `scope`。抽错版本，整批候选都得重蒸。
+
+## 二、怎么跑（`cwd` = `kb/` 的上一级）
+
+```bash
+cd ~/.dsh/Momcozy知识库
+# ① 归档（红线①：蒸馏引擎会覆盖 rejected.jsonl）
+cp kb/l3/rejected.jsonl kb/l3/_archive/rejected-pre-<RUN>.jsonl && shasum -a 256 kb/l3/rejected.jsonl
+# ② 蒸馏
+kb/kbpy l8/l3_distill_run.py <RUN>
+# ③ 拒绝台账重建
+kb/kbpy l8/l3_reject_ledger_rebuild.py <RUN> --apply
+# ④ 过闸
+kb/kbpy l7/scripts/l3_gate.py
+```
+
+## 三、交付物一：条款级单元 → 规则候选
+
+每个条款级单元抽一条，字段固定：
+
+| 字段 | 说明 |
+|---|---|
+| `unit_id` / `source_sha256` / `anchor` | 回指到原文位置（页/段/条号），逐字可核 |
+| `clause_ref` | FDA guidance 里的条款定位（如 §IV.B / 页码） |
+| `norm_strength` | `must` / `should` / `recommend` —— **必填，别合并** |
+| `hit_expression` | 可判定的字面或正则 |
+| `handling_action` | 判定 + 处置 |
+| `scope` | 辖区（US）、渠道、品线、版本与日期 |
+| `rule_status` | `provisional` |
+
+**候选不是定稿**：L3 出候选，条款号由 L4 发，L3 不自造号。
+
+## 四、交付物二：能蒸成候选的判定标准（"能蒸"= 同时满足）
+
+1. 有**可判定的命中表达**（字面 / 正则 / 结构化条件），不是"要注意安全"这种话；
+2. 有**明确的处理方式**（命中后做什么：拦、改、提示复核）；
+3. 有**适用范围**（辖区 / 渠道 / 品线 / 对象），能说清"对谁有效"；
+4. **依赖拿得到**：判它所需的事实在本库或指定证据源里取得到。
+
+四缺一 → 不蒸，进拒绝台账。
+
+## 五、交付物三：拒绝台账（逐条原因码）
+
+| 原因码 | 用在哪 | 典型 FDA 素材 |
+|---|---|---|
+| `NO_HIT_EXPR` | 无命中表达 | "应确保充分验证"这类原则句 |
+| `NO_THRESHOLD` | 无量纲阈值 | "adequate / appropriate" 无分界 |
+| `NOT_CONTENT_DIM` | 非内容维度 | 生产、注册、上市后报告等流程义务 |
+| `EXTERNAL_DEP` | 依赖外部事实 | 需临床数据/测试报告才能判 |
+| `NO_NORMATIVE` | 无规范性 | 背景、定义、范围说明段 |
+| `DUPLICATE` | 与既有候选重复 | 同一 `rule_id` 已存在 |
+| `RANGE_UNKNOWN` | 适用范围不明 | 未标 draft/final、未标适用产品类 |
+
+行格式：
+
+```json
+{"unit_id":"<L2 unit_id>","source_sha256":"<...>","reason_code":"NOT_CONTENT_DIM","why":"注册与上市后报告义务，非内容判定维度","action":"route_out","run_id":"<RUN>"}
+```
+
+## 六、验收
+
+| # | 判据 | 现状 |
+|---|---|---|
+| A1 | `kb/kbpy l7/scripts/l3_gate.py` 退出 0 | 待跑 |
+| A2 | 跑前归档存在、sha256 与源一致 | 待跑 |
+| A3 | 只追加：既有候选行逐字节未变 | 待跑 |
+| A4 | `kb/kbpy l7/scripts/l7_gate.py` 仍过 | 待跑 |
+
+## 七、需要你给我的两样
+
+1. **这份 guidance 的具体入口**：文件名 + 版本（draft/final）+ 发布日期 + 辖区，或者 `resource_id`。我不猜版本 —— 抽错版本等于白蒸一轮。
+2. **原因码码表**（若你那边已定），没有我就按第五节那套落并注明版本。
+
+===CASE 25===
+===ROUTE 25: kb-clause-extractor===
+走 L3 条款抽取与规则蒸馏。你这句里有一个**硬要求**要先确认口径：**"每条的 rule 都要能指回 unit"** —— 这条正是 L3 的命门，`l3_gate.py` 每天就在逐条核这件事（实测 1,729 条）。所以做法上不是"抽完再补锚点"，而是**抽的时候就把锚点带上，指不回去的不许进候选**。
+
+## 一、"能指回 unit"具体指什么（三条都要，缺一条就是断链）
+
+每条规则候选的 `evidence_units[]` 里，每一项都必须齐：
+
+| 要素 | 例子 | 作用 |
+|---|---|---|
+| `unit_id` | `4beaf8c51715498baa3f` | 指回 `kb/l2/units.jsonl` 的那一行 |
+| `source_sha256` | `<sha>` | 锁住抽取时的正文版本，正文变了立刻能发现 |
+| `anchor` | `#品线内容边界规则库/recvuJP1dDumuM/检测关键词` | 指回原文位置（表@记录@字段） |
+
+实测样例（可直接对照形状）：规则码 `H05` / `rule_id=r-3b6c3c82dc667295` 的 3 条证据单元 ——
+- `4beaf8c51715498baa3f` → `#品线内容边界规则库/recvuJP1dDumuM/边界内容`（边界：虚假安全承诺）
+- `6bd4e7315823e42ef28d` → `#品线内容边界规则库/recvuJP1dDumuM/检测关键词`（safest, most safe, 100% safe, …）
+- `6093df478382e5e884fa` → `#品线内容边界规则库/recvuJP1dDumuM/正则表达式`（`\bthe\s+(only|safest)\b`）
+
+**只有"表@rev"级别的锚点不够**：回源时只能判断"这个表变过没有"，判断不了"哪条记录变了"。所以要锚到**行级**（记录主键 + 字段）。
+
+## 二、执行顺序（`cwd` = `kb/` 的上一级）
+
+```bash
+cd ~/.dsh/Momcozy知识库
+# ① 归档（红线①：引擎会覆盖 kb/l3/rejected.jsonl）
+cp kb/l3/rejected.jsonl kb/l3/_archive/rejected-pre-<RUN>.jsonl && shasum -a 256 kb/l3/rejected.jsonl
+# ② 蒸馏（没有干跑档：运行即落盘）
+kb/kbpy l8/l3_distill_run.py <RUN>
+# ③ 拒绝台账重建
+kb/kbpy l8/l3_reject_ledger_rebuild.py <RUN> --apply
+# ④ 闸门（A1：证据全可回指）
+kb/kbpy l7/scripts/l3_gate.py
+```
+
+## 三、交付物：条款级拆分表（每条 rule → 回指 unit）
+
+每条给一行，形状如下（这是**表结构**，不是结果 —— 结果要跑完 ①–④ 才有真值，我不预填）：
+
+| 序号 | 条款原文（逐字） | 条款定位 `clause_ref` | `hit_expression` | `handling_action` | 回指 `unit_id` | `source_sha256` | `anchor` | 状态 |
+|---|---|---|---|---|---|---|---|---|
+| 1 | … | §… | 字面/正则 | 拦/改/复核 | … | … | #表/记录/字段 | candidate 或 rejected |
+
+拆不出来 / 指不回去的，**进拒绝台账**，不进这张表：
+
+```json
+{"unit_id":"<L2 unit_id>","source_sha256":"<...>","reason_code":"NO_HIT_EXPR|NO_THRESHOLD|NOT_CONTENT_DIM|EXTERNAL_DEP|NO_NORMATIVE|DUPLICATE|RANGE_UNKNOWN","why":"...","action":"...","run_id":"<RUN>"}
+```
+
+**最容易出错的一类**：平台政策文本里"平台有权自行决定/保留最终解释权""在本政策更新后继续使用即视为接受"这类条款 —— 它们**有规范性但不构成对内容的判定规则**，归 `NO_NORMATIVE` 或 `NOT_CONTENT_DIM`，别硬抽成"命中表达"。
+
+## 四、验收
+
+| # | 判据 | 现状 |
+|---|---|---|
+| A1 | `l3_gate.py` 退出 0：证据全可回指 + 注册表自报键全已声明 | 待跑 |
+| A2 | 跑前归档存在、sha256 与源一致 | 待跑 |
+| A3 | 只追加：既有候选行逐字节未变 | 待跑 |
+| A4 | `l7_gate.py` 仍过 | 待跑 |
+
+## 五、需要你给我的两样
+
+1. **这份平台文本在哪**：文件 / 表名 + `resource_id`，或者贴正文。要锚到行级的话，我需要知道记录主键与字段名。
+2. **它属于哪个平台、哪个辖区**：Amazon / TikTok Shop / 独立站…… 平台政策按平台 + 版本走，`scope` 必须落准，否则下游会拿错版本判。
+
+===CASE 27===
+===ROUTE 27: kb-clause-extractor===
+走 L3 条款抽取与规则蒸馏。你要的是"蒸 + 把涉及 claim 的挑出来单独标"，那就把 `claim` 当成一个**正交标签**加在候选行上，而不是另起一套台账 —— 这样下游（审核侧）能一次筛出全部 claim 类规则。
+
+## 一、先做三件事（顺序别换）
+
+1. **归档**。`l3_distill_run.py` 以 `w` 模式覆盖 `kb/l3/rejected.jsonl`，跑前必须归档并校验 sha256（本库真发生过台账从 11,860 行掉到 1,053 行）。
+2. **看清这段 rule 文本的形态**：是"规则原文"还是"规则 + 判例"混写？两者抽法不同 —— 判例部分应该去 L2 单元/sample_case，不该混进 `hit_expression`。
+3. **claim 的边界先定死**，否则标签会漂。下面的口径建议直接用。
+
+## 二、claim 类的判定口径（建议口径，落进 `scope` 一起走）
+
+算作 claim 的：功效/性能宣称、比较级与最高级（含 `best`、`#1`、`No.1`、`10x better`）、安全性承诺（`safest`、`100% safe`、`zero risk`、`guaranteed`）、医学/健康宣称（治疗、预防、缓解、医疗级）、资质与背书（认证、临床、专家推荐、`insurance eligible`）、量化数据（`28% faster`、`trusted by 6 million`）。
+
+**不算 claim 的**：纯事实属性描述（尺寸、颜色、材质、容量）、包装规格、使用步骤说明、售后与物流时限。
+
+**一条重要的现行口径**（照抄本库已有规则原文，别改）：
+> 虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按 2026-09-09 口径放开，海外广告允许，不再判险）
+
+这条影响很大：**排名最高级（`best` / `#1` / `No.1` / `最佳` / `最好`）按 2026-09-09 口径已放开**，不再判风险。所以 claim 标签要分两档标：
+- `claim:EFFECT` 功效/性能/量化
+- `claim:SAFETY` 安全承诺类（`safest`、`100% safe`、`zero risk`、`perfect pump`、`one size fits all` …）
+- `claim:RANK` 排名最高级 → **标出来但不判险**（按 2026-09-09 口径）
+
+这一条正好是本库已落库的实例：规则码 `H05`（`rule_id=r-3b6c3c82dc667295`）命中表达 33 条，判定 **P0 · 红**，证据单元 3 条：
+- `4beaf8c51715498baa3f` → `#品线内容边界规则库/recvuJP1dDumuM/边界内容`
+- `6bd4e7315823e42ef28d` → `.../检测关键词`
+- `6093df478382e5e884fa` → `.../正则表达式`（`\bthe\s+(only|safest)\b`）
+
+## 三、命令（`cwd` = `kb/` 的上一级）
+
+```bash
+cd ~/.dsh/Momcozy知识库
+cp kb/l3/rejected.jsonl kb/l3/_archive/rejected-pre-<RUN>.jsonl && shasum -a 256 kb/l3/rejected.jsonl
+kb/kbpy l8/l3_distill_run.py <RUN>
+kb/kbpy l8/l3_reject_ledger_rebuild.py <RUN> --apply
+kb/kbpy l7/scripts/l3_gate.py
+```
+
+## 四、交付物
+
+**A. 候选（`kb/l3/candidates/rules.jsonl`）** —— 每条带 claim 标签：
+
+| 字段 | 说明 |
+|---|---|
+| `rule_id` | 幂等键（`evidence_digest` 未变 → `unchanged`） |
+| `evidence_units[]` | 每条带 `unit_id + source_sha256 + anchor` |
+| `hit_expression` | 可判定字面/正则 |
+| `handling_action` | 判决 + 处置 |
+| `claim_class` | `claim:EFFECT` / `claim:SAFETY` / `claim:RANK` / `non-claim` |
+| `rule_status` | `provisional` |
+
+**B. 拒绝台账（`kb/l3/rejected.jsonl`）** —— 逐条原因码：
+
+| 原因码 | 用在哪 |
+|---|---|
+| `NO_HIT_EXPR` | 无命中表达 |
+| `NO_THRESHOLD` | 无量纲阈值（"显著提升"没说幅度） |
+| `NOT_CONTENT_DIM` | 非内容维度（流程时限、售后义务） |
+| `EXTERNAL_DEP` | 依赖外部事实（要有测试报告才能判） |
+| `NO_NORMATIVE` | 无规范性（背景说明） |
+| `DUPLICATE` | 与既有候选重复 |
+| `RANGE_UNKNOWN` | 适用范围不明 |
+
+## 五、验收
+
+| # | 判据 | 现状 |
+|---|---|---|
+| A1 | `l3_gate.py` 退出 0 | 待跑 |
+| A2 | 跑前归档存在、sha256 与源一致 | 待跑 |
+| A3 | 只追加：既有候选行逐字节未变 | 待跑 |
+| A4 | `l7_gate.py` 仍过 | 待跑 |
+
+**候选 ≠ 定稿**：条款号由 L4 发，L3 不自造号；引用时别说成"已定稿"。
+
+## 六、需要你给我的两样
+
+1. **这段 rule 文本本身**（或它的文件/表名 + `resource_id`）。你说"这段"，但没贴内容 —— 我不能凭空蒸。
+2. **claim 标签口径确认**：上面 `claim:EFFECT / SAFETY / RANK` 三档 + 2026-09-09 排名最高级放开口径，你认不认。不认的话告诉我你们的分档，我按你的落。
+
+===CASE 29===
+===ROUTE 29: kb-clause-extractor===
+Running L3 clause extraction + rule distillation. Your sentence is a single, clean normative clause — here is the extraction, then what it can and cannot become.
+
+## 1. Clause-level unit
+
+| Field | Value |
+|---|---|
+| Source text (verbatim) | `Merchants must not use superlative claims such as 'best' or 'number one' in product titles.` |
+| Norm strength | `must not` → **prohibitive / mandatory** (not a recommendation) |
+| Actor | Merchants (seller side) |
+| Object | Product titles |
+| Regulated act | Use of superlative claims |
+| Enumerated examples | `best`, `number one` |
+
+## 2. Distilled rule candidate (form: candidate, **not** a finalized rule)
+
+| Field | Value |
+|---|---|
+| `rule_id` | *(assigned on distill run — idempotency key; unchanged `evidence_digest` → `unchanged`)* |
+| `evidence_units[]` | `unit_id` + `source_sha256` + `anchor` — one per source row. **All three required, down to row level** |
+| `hit_expression` | `\b(best|number one)\b` — see the two gaps below before you ship this |
+| `handling_action` | On hit → **BLOCK the product title** (prohibitive clause: block, do not merely flag), and route to the merchant for rewrite |
+| `scope` | platform policy; object = product titles; actor = merchants; **jurisdiction/platform + version must be filled in — not inferable from your text** |
+| `rule_status` | `provisional` |
+
+## 3. Two gaps you must close before this is usable
+
+**Gap 1 — "superlative" vs. the two examples.** The clause bans a *category* (superlatives) but enumerates only two instances (`best`, `number one`). A literal `\b(best|number one)\b` **under-matches**: `#1`, `No.1`, `top`, `greatest`, `the only`, `world's best`, `number 1`, `no. 1` all fall outside it. Either widen the hit expression to the superlative class, or declare the two examples as the closed set. Pick one and record it — silently using the two examples as a closed set is the failure mode here.
+
+**Gap 2 — this clause collides with a live ruling in our knowledge base.** Our library's current wording rule (rule code `H05`, `rule_id=r-3b6c3c82dc667295`, quoted verbatim) reads:
+
+> 虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按2026-09-09口径放开，海外广告允许，不再判险）
+
+That is: **ranking superlatives (`best` / `#1` / `No.1` / 最佳 / 最好) were relaxed under the 2026-09-09 ruling and are no longer flagged for overseas advertising.** So `best` appears in *both* — banned by your platform policy, relaxed by our internal wording rule.
+
+**Do not resolve this yourself.** This is a genuine source-vs-source conflict. Per our rules, a conflict gets reported, not adjudicated by the extractor. Record it as a conflict flag on the candidate (`conflict_with: r-3b6c3c82dc667295`) and send it to `kb-check` / human review. Note the scopes differ — the platform clause governs *product titles on that platform*; our ruling governs *overseas advertising wording* — so a scope-qualified resolution is likely possible, but **that call is a human's, not mine**.
+
+## 4. Rejection ledger
+
+Even a clean clause like this can fail to distill. If the platform is unknown or the version is unstated, it goes to `kb/l3/rejected.jsonl` with:
+
+| `reason_code` | When it applies here |
+|---|---|
+| `NO_HIT_EXPR` | Only if a literal/structural expression cannot be built |
+| `NO_THRESHOLD` | Not applicable here (prohibition is categorical) |
+| `NOT_CONTENT_DIM` | Not applicable here |
+| `EXTERNAL_DEP` | Not applicable here |
+| `NO_NORMATIVE` | Not applicable here |
+| `DUPLICATE` | Already exists as a candidate with the same `rule_id` |
+| `RANGE_UNKNOWN` | **Most likely one here** — platform / jurisdiction / version unidentified |
+
+Row shape:
+
+```json
+{"unit_id":"<L2 unit_id>","source_sha256":"<...>","reason_code":"RANGE_UNKNOWN","why":"platform and policy version unidentified; scope cannot be fixed","action":"back_to_human","run_id":"<RUN>"}
+```
+
+## 5. How it runs (`cwd` = one level above `kb/`)
+
+```bash
+cd ~/.dsh/Momcozy知识库
+# ① archive first (the engine OVERWRITES kb/l3/rejected.jsonl)
+cp kb/l3/rejected.jsonl kb/l3/_archive/rejected-pre-<RUN>.jsonl && shasum -a 256 kb/l3/rejected.jsonl
+# ② distill (no dry-run mode — running it writes)
+kb/kbpy l8/l3_distill_run.py <RUN>
+# ③ rebuild the reject ledger
+kb/kbpy l8/l3_reject_ledger_rebuild.py <RUN> --apply
+# ④ gate
+kb/kbpy l7/scripts/l3_gate.py
+```
+
+## 6. Acceptance
+
+| # | Check | Status |
+|---|---|---|
+| A1 | `l3_gate.py` exits 0 (all evidence resolvable + registry self-reported keys declared) | pending run |
+| A2 | Pre-run archive exists, sha256 matches source | pending run |
+| A3 | Append-only: existing candidate lines byte-identical | pending run |
+| A4 | `l7_gate.py` still exits 0 | pending run |
+
+## 7. What I need from you
+
+1. **Which platform, and which policy version** — without it this lands as `RANGE_UNKNOWN`.
+2. **Gap 1 decision**: widen to the superlative class, or declare `best` / `number one` a closed set.
+3. **Confirmation that the `best` conflict goes to a human** (I will not pick a side).
+
+Two boundaries to carry forward: this is a **candidate, not a finalized rule** — article numbers are issued by L4, not here; and a candidate is not a legal opinion.
+
+===CASE 31===
+===ROUTE 31: kb-clause-extractor===
+Running L3 clause extraction on your three rules. They are **not** the same kind of thing — two are content rules, one is an operational SLA — and that difference decides their fate.
+
+## 1. Clause-by-clause
+
+| # | Rule (verbatim) | Norm strength | Dimension | Distillable into a determinable rule candidate? |
+|---|---|---|---|---|
+| 1 | no medical claims | prohibitive | **content** | **Yes** |
+| 2 | no fake reviews | prohibitive | **content** | **Partly — needs an operational definition** |
+| 3 | refund requests must be answered within 48 hours | mandatory, time-bound | **process / SLA** | **No — out of L3 scope** |
+
+## 2. Rule 1 — "no medical claims" → candidate
+
+| Field | Value |
+|---|---|
+| `hit_expression` | claim-class matcher over medical/therapeutic vocabulary: `treat`, `cure`, `prevent`, `heal`, `diagnose`, `clinically proven`, `medical grade`, `hospital grade`, `FDA approved` (as a claim), `relieve`, `therapy` — plus the Chinese equivalents |
+| `handling_action` | hit → **BLOCK**, route to human for rewrite |
+| `scope` | must be fixed: product line, channel, jurisdiction, language |
+| `rule_status` | `provisional` |
+
+Note: this is a **class** ban, not a closed list. A two-word matcher will under-match (misses `FDA cleared`, `doctor recommended`, `clinically tested`) and over-match (flags legitimate regulated-device language that the SKU is actually cleared to use). Both directions cost you — widen deliberately, and record the decision.
+
+## 3. Rule 2 — "no fake reviews" → candidate **with a gap**
+
+| Field | Value |
+|---|---|
+| `hit_expression` | **cannot be built from the rule text alone.** "Fake" is not a surface property of a review; it is a judgement about intent and provenance |
+| `handling_action` | hit → BLOCK + escalate to trust & safety review |
+| `scope` | reviews / ratings surfaces |
+
+This one is a real gap, not a formality. A determinable rule needs either (a) a **structural/provenance proxy** (e.g. review not tied to a verified purchase, bulk submission from one account/IP, incentivized-review markers such as free-product-for-review wording, no disclosure of a paid partnership), or (b) to be **downgraded to a judgement-class rule** handled by human review rather than an automatic matcher. Pick (a) or (b) and record which — silently shipping `\bfake\b` as the hit expression would be a false-negative machine.
+
+## 4. Rule 3 — "refund requests must be answered within 48 hours" → **rejected**
+
+This is a **process/operational SLA**, not a content-judgement rule. L3 governs "given this text, does it violate?" — an SLA governs "did the team respond in time?", which has no hit expression over content and no content handling action.
+
+| Field | Value |
+|---|---|
+| `reason_code` | `NOT_CONTENT_DIM` |
+| `why` | Time-bound service obligation on the merchant's operations, with no content-level hit expression or handling action |
+| `action` | route out of L3 → operations / customer-service process owner (it may still be a valid L1/L2 unit and a valid internal policy — just not an L3 rule candidate) |
+
+Ledger row shape:
+
+```json
+{"unit_id":"<L2 unit_id>","source_sha256":"<...>","reason_code":"NOT_CONTENT_DIM","why":"time-bound service obligation; no content hit expression","action":"route_out","run_id":"<RUN>"}
+```
+
+## 5. Rejection ledger — full reason-code set used here
+
+| `reason_code` | Applies to |
+|---|---|
+| `NO_HIT_EXPR` | no literal/structural expression can be built |
+| `NO_THRESHOLD` | the rule uses an unquantified threshold ("excessive", "significant") |
+| `NOT_CONTENT_DIM` | **rule 3 here** — process/SLA, not content |
+| `EXTERNAL_DEP` | judgement requires facts held outside the library |
+| `NO_NORMATIVE` | descriptive/background text, no norm |
+| `DUPLICATE` | same `rule_id` already a candidate |
+| `RANGE_UNKNOWN` | scope/platform/version unidentified |
+
+## 6. How it runs (`cwd` = one level above `kb/`)
+
+```bash
+cd ~/.dsh/Momcozy知识库
+# ① archive first — the engine OVERWRITES kb/l3/rejected.jsonl
+cp kb/l3/rejected.jsonl kb/l3/_archive/rejected-pre-<RUN>.jsonl && shasum -a 256 kb/l3/rejected.jsonl
+# ② distill (no dry-run: running it writes)
+kb/kbpy l8/l3_distill_run.py <RUN>
+# ③ rebuild reject ledger
+kb/kbpy l8/l3_reject_ledger_rebuild.py <RUN> --apply
+# ④ gate
+kb/kbpy l7/scripts/l3_gate.py
+```
+
+## 7. Acceptance
+
+| # | Check | Status |
+|---|---|---|
+| A1 | `l3_gate.py` exits 0 | pending run |
+| A2 | pre-run archive exists, sha256 matches | pending run |
+| A3 | append-only: existing candidate lines byte-identical | pending run |
+| A4 | `l7_gate.py` still exits 0 | pending run |
+
+## 8. What I need from you
+
+1. **Scope for each rule**: product line, channel, jurisdiction, language — otherwise all three land as `RANGE_UNKNOWN`.
+2. **Rule 2 decision**: structural/provenance proxy, or downgrade to judgement-class?
+3. **Confirm rule 3 routes out** to the operations owner (it is not a defect — it is the wrong layer).
+
+Boundary, stated plainly: these are **candidates, not finalized rules** — article numbers come from L4, not from here; and none of this is a legal opinion.
+
+===CASE 33===
+===ROUTE 33: kb-ingest-extractor===
+走 L1 抽取 / L2 切分（kb-ingest-extractor）。你这句话里已经点对了顺序：**L1 先抽成知识单元 → L2 再按切分器切成可召回单元**。这两层的引擎、闸门、红线都不一样，分开说。
+
+## 一、两层各管什么
+
+| 项 | L1（抽取） | L2（切分） |
+|---|---|---|
+| 幂等键 | `(resource_id, extractor_version, source_sha256)` | `(resource_id, source_sha256, splitter_version)` |
+| 落盘 | `kb/l1/manifest_l1.jsonl`、`kb/l1/<子库>/<rid>.json` | `kb/l2/units.jsonl`、`kb/l2/index/l2.jsonl`、`kb/l2/manifest_l2.jsonl` |
+| 闸门 | `kb/kbpy l7/scripts/l1_gate.py` | `kb/kbpy l7/scripts/l2_gate.py` |
+| 一句话 | 素材 → 知识单元（**只拆不合**） | 知识单元 → 可召回单元 |
+
+**"只拆不合"**：合并（把多条单元收成一条规则）是 L3 规则层的事。你要是想在这层就把同义表达合并掉，那是走错层了。
+
+## 二、怎么跑（`cwd` = `kb/` 的上一级）
+
+```bash
+cd ~/.dsh/Momcozy知识库
+# L1：把新资源抽成单元（写 kb/l1/**）
+kb/kbpy l8/extract_l1_new_resources.py <RUN> [--apply]
+# L2：切分 —— ★ 本仓库唯一「不带 --apply 即预演」的层主引擎
+kb/kbpy l8/l2_split_run.py <RUN>            # 预演：只打印「将追加多少行」
+kb/kbpy l8/l2_split_run.py <RUN> --apply    # 落盘：追加 units / index / manifest
+```
+
+**顺序上的硬规矩**：L2 **不许不预演就落盘**。先看不带 `--apply` 的那次报"将追加 N 行"，确认这个数对得上你对这批素材的预期，再加 `--apply`。落盘后 `units.jsonl` 应该正好 +N 行，不多不少。
+
+## 三、L2 "缺口"的准确口径（不懂这个会以为漏切了）
+
+**缺口 = 该资源没有「当前正文」的单元**。`units.jsonl` 是 **append-only、旧单元行不删**，所以判据是「**当前正文的 sha 不在已有单元里**」，不是「这个资源有没有任何单元行」。正文改过一版 → 旧行还在 → 但按新 sha 仍算缺口，会补切。这是设计如此，不是重复。
+
+## 四、三条红线
+
+1. **不许不预演就落盘**（L2 先跑预演，看清 N 再决定）。L1 的 `extract_l1_new_resources.py` 没有这个保护，写之前自己确认 `--apply`。
+2. **台账 append-only**：不许删 `units.jsonl` / `manifest_l2.jsonl` 的行来让闸门变绿 —— 那会毁掉出处，下游 L3 的 `evidence_units[]` 就全断了。
+3. **`unit_count` 口径还没写死**：实测三种口径（最新 split 行 / split 行求和 / 全行求和）分别是 **1520 / 1624 / 1320** 相符。L2 闸门因此在说明项里报「口径歧义」而**不猜公式**。要改口径得落到 `kb/l2/registry/l2.json`，别在会话里口头约定。
+
+## 五、验收
+
+| # | 判据 | 现状 |
+|---|---|---|
+| A1 | `kb/kbpy l7/scripts/l2_gate.py` 退出 0（5 条判据：行可解析 / run 内序列合法 / 账实上下界 / 产物归属 / 上游可溯） | 待跑 |
+| A2 | 预演说「将追加 N 行」→ 落盘后 `units.jsonl` 确实 +N 行（不多不少） | 待跑 |
+| A3 | 再跑一次预演 → 报 **+0 行**（幂等收敛） | 待跑 |
+| A4 | `kb/kbpy l7/scripts/l1_gate.py` 仍过；产物**无信封态** | 待跑 |
+
+## 六、需要你给我的两样
+
+1. **这批素材的清单**：`resource_id` + 类型（文本/图片/链接/附件）。图片、附件、落地页链接的文本抽取走 L1 媒体（`kb-media-extractor`），不在这条路径上 —— 你先告诉我这批里有没有媒体件，有的话我分两条道走：媒体先出文本，再进 L1 抽取。
+2. **这批的 L0 状态**：素材是否已经在 L0 落库、和飞书侧对过账？没对账就抽，等于拿一份来源不明的正文切单元，后面 `source_sha256` 锁不住任何东西。
+
+## 七、一句提醒
+
+切完之后**不要去动索引重建**。L6 的 BM25 + 向量索引是写操作，由 `kb-pipeline` 在 `--apply` 下做；本 skill 只负责 L1/L2 的产物与闸门。
+
+===CASE 35===
+===ROUTE 35: kb-canonical-lookup===
+这条走 L4 定稿与发布层（kb-canonical-lookup，**只读，不写库**）。但我要先把最重要的一句放在最前面：
+
+## 一、我不能凭空回答"这条" —— 而且这条查询方式有个必踩的坑
+
+你问的是具体某一条规则的条款号与定稿状态，但**没有给我规则标识**。我必须拿到下面任意一个才能查：
+
+- `rule_id`（形如 `r-3b6c3c82dc667295`）
+- `article_no`（形如 `W-1.22`，用于反向查）
+- 或者规则的**逐字原文**（我拿原文去四个形态文件里逐字命中）
+
+**必踩的坑，先提醒你**：查条款号时**不要查 `kb/l4/canonical/rules.jsonl`** —— 那个文件**恒 0 字节 / 0 行**，是历史迁移留痕（保留不删）。查它一定返回空，但那**不等于"这条没定稿"**。
+
+## 二、要查什么（`cwd` 必须是 `kb/` 的上一级）
+
+定稿记录在**四个形态文件**，共 **1242 条**：
+
+| 文件 | 条数 | 形态 |
+|---|---|---|
+| `kb/l4/canonical/wording_entry.jsonl` | 56 | 措辞条目 |
+| `kb/l4/canonical/wording_revision_pair.jsonl` | 453 | 措辞修订对 |
+| `kb/l4/canonical/sample_case.jsonl` | 358 | 样例 |
+| `kb/l4/canonical/scoped_clause.jsonl` | 375 | 限定范围条款 |
+
+```bash
+cd ~/.dsh/Momcozy知识库
+# ① 先在四个形态文件里逐字命中（grep 够用，不用起 python）
+grep -n "<rule_id 或关键词>" kb/l4/canonical/{wording_entry,wording_revision_pair,sample_case,scoped_clause}.jsonl | head
+# ② 取条款号字段（⚠️ `kb/kbpy -` 不行：kbpy 只接受文件路径，不读 stdin）
+KB_INTERP_OK=1 /usr/bin/python3 - <<'PY'
+import json, glob
+for f in glob.glob('kb/l4/canonical/*.jsonl'):
+    if f.endswith('rules.jsonl'):
+        continue                      # ← 0 字节的历史留痕，跳过
+    for line in open(f, encoding='utf-8'):
+        r = json.loads(line)
+        if '<关键词>' in json.dumps(r, ensure_ascii=False):
+            print(f.split('/')[-1], '|', r.get('article_no'), '|', r.get('anchor'))
+PY
+```
+
+实测样例（可直接复现）：`kb/l4/canonical/wording_entry.jsonl` 第 1 行 → `article_no="W-1.1"`、`anchor="#广告文案明细/recvuJYdOb61lT/命中片段"`、`authority="expert"`、`cite_check.evidence_units=9`。
+
+**"进 canonical 了吗"怎么判**：看 `kb/l4/registry/*.json` 的 `canonical.state` 与逐文件 `status`；再按 `rule_id` 在四个形态文件里是否命中 —— **命中 = 已定稿（已发号）**，未命中 = 仍是 `kb/l3/candidates/rules.jsonl` 里的候选。条款号由 `kb/l4/registry/l4.json` 的 `numbering.issued` 台账发放，**永不复用**。
+
+## 三、我现在能从库视图里给你的（**只是线索，别当答案**）
+
+库里已落的一条实例，可以帮你判断你说的"这条"是不是它 —— 派生的措辞表达库里有一条：
+
+- 条款号（视图带出）：**W-1.22**　规则码：**H05**　`rule_id`：`r-3b6c3c82dc667295`
+- 判定：**P0 · 红**　｜ 形态 `entry` ｜ 规则状态：**provisional**
+- 规则原文（照抄）：`虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按2026-09-09口径放开，海外广告允许，不再判险）；触发词：safest, most safe, 100% safe, …`
+
+⚠️ **但这条视图数据我现在不能拿它当"已定稿"的证据**，理由两条，都硬：
+
+1. 该条自己的边界写着：**"不能证明该条已过新库的正式验收（新库 l3 全部为 provisional，l4 canonical 尚未写入）"**（这就是那条条目的 `not_proves`）。
+2. 视图的生成说明里同时写着 `l4/canonical/` **已写入 1242 条定稿**、状态 `stable`，条款号 W-1.* / W-2.* / W-3.* / S-1.* / E-1.* 是**机器晋升**（判据 C1–C8 实测全过），**人工抽查未做**。
+
+这两句互相打架 —— 一条说 canonical 还没写入，一条说已写入 1242 条。**这类冲突我不自己挑一个**，只能如实报给你，以 `kb/l4/canonical/` 与 `kb/l4/registry/*.json` 的**实测值为准**（也就是上面第二节那两条命令的返回）。
+
+## 四、按契约格式，现在这条我只能这样填
+
+```
+条款号：知识库查不到（未给出可检索的规则标识；且本会话无法执行 kb/ 下的查询命令）
+规则：<待你给出 rule_id / 逐字原文>
+定稿状态：无法判定 —— 需跑第二节两条命令后按「四形态文件是否命中」判
+来源：kb/l4/canonical/{wording_entry,wording_revision_pair,sample_case,scoped_clause}.jsonl（待命中行号）
+source_sha256：<待取>
+证据级：L? ｜ 有效期：valid_until（待取）
+```
+
+## 五、两条红线（我这边不会越）
+
+- **不写**：不调 `l4_article.py`、不改 canonical、不补号。你要"给它发个号"——那是写操作，走 `kb-pipeline`（`--apply`）。
+- **不混淆 L3 与 L4**：`kb/l3/candidates/rules.jsonl` 是**候选**，`kb/l4/canonical/` 才是**定稿**。把候选说成定稿 = 引用越级。
+
+## 六、两个情况我会停下来问你，不自己决定
+
+1. 同一 `rule_id` 上出现**两个不同条款号** → 报冲突，**不挑一个**。
+2. canonical 注册表的 `sha256` 与实际文件不符 → 只报告，交 `kb-check` / `kb-repair`。
+
+给我 `rule_id`（或逐字原文），我按第二节的命令查完，用第三节的契约格式把条款号、来源行号、`source_sha256`、证据级、有效期一次填全给你。
+
+===CASE 37===
+===ROUTE 37: kb-recall===
+走 L6 召回层（kb-recall，**只读检索**）。先说清这条的两个前提，再给候选和出处。
+
+## 一、两个必须说在前面的前提
+
+1. **本会话不能执行 `kb/` 下的命令**，所以我没有跑 `l6/retriever.py` 的双索引召回 —— 下面给你的是**派生视图（措辞表达库）里的召回结果**，证据级是 **L1「只能当线索、不能进决策」**。你要 top10 + 出处的正式版，跑第一节末尾那条命令。
+2. **L6 是候选，不是"命中"**：系统**没有相关性阈值**，一律返回 Top-N；融合分（RRF）只是名次的倒数，**不能当阈值用**（Top1 恒为 `1/(k+1)=0.016393`）。而且 L6 **覆盖不是全量**（范围见 `kb/l6/SCOPE.txt`），报召回率必须用对分母。**召回不是依据级别** —— L6 候选的证据级低于 L3 规则 / L5 P0，引用时要说清是哪一层。
+
+## 二、正式召回怎么跑（`cwd` = `kb/` 的上一级）
+
+```bash
+cd ~/.dsh/Momcozy知识库          # ★ cwd = kb/ 的上一级
+kb/kbpy l6/retriever.py --help    # 一律走 kbpy
+```
+
+必须走 `kb/kbpy`：受管 external-tools python **缺 numpy / fastembed**，而 L6 两者都要（`kb/l6/retriever.py:245` `np.load(matrix.npy)`、`:249` `from fastembed import TextEmbedding`）。配置在 `kb/.kb-python`（内容 `/usr/bin/python3`）。**不合格就报错退出，不静默降级**。模式是 `vector_plus_bm25`，模型 `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`（384 维，fp16 ONNX，本地 CPU）。
+
+## 三、候选（派生视图召回，L1，只能当线索）
+
+按"绝对化用语"这个语义面，视图里命中的是这几组（**这些是候选，不是判定**）：
+
+| # | 规则码 / 条款号 | 命中的表达（摘） | 判定 | 证据级 | 有效期至 | 出处 id |
+|---|---|---|---|---|---|---|
+| 1 | **H05** / W-1.22 | `safest`、`most safe`、`100% safe`、`100% painless`、`zero risk`、`guaranteed safe`、`perfect pump`、`最安全`、`唯一`、`百分百安全`、`零风险`、`完美`、`one size fits all`、`fits all moms`、`绝不损伤`、`万能适配` …（共 33 条） | **P0 · 红** | L1 | 2027-09-29 | `cg-r-3b6c3c82dc667295` |
+| 2 | **H05**（同规则码另一条） | `perfect pump`、`100% safe`、`100%safe` …（13 条） | P0 · 红 | L1 | 2027-09-29 | `cg-r-7baf7ceb47b2e5bc`（**与 #1 互补，需一起读**） |
+| 3 | **H08** | `10x better`、`10x more`、`better than medela` …（11 条） | — | L1 | 2027-09-29 | `cg-r-0823b2d08a7e4ec2` |
+| 4 | **M02** | `super strong`、`ultra powerful`、`max suction` …（8 条） | — | L1 | 2027-03-28 | `cg-r-252ba6cf5ee92b00` |
+| 5 | **M03** | `28% faster`、`trusted by 6 million` …（14 条） | — | L1 | 2026-12-28 | `cg-r-4f309d6ebde80283` |
+| 6 | **M04** | `don't miss`、`limited time` …（2 条） | — | L1 | 2026-12-28 | `cg-r-cbfa62aa397fc6ba` |
+| 7 | **M04**（另一条） | `last chance`、`limited time`、`final hours` …（11 条） | — | L1 | 2027-03-28 | `cg-r-33ce99a813e0865a` |
+| 8 | **M06** | `22% slimmer than` …（1 条） | — | L1 | 2026-12-28 | `cg-r-3b18c7d1af8f8d4d` |
+| 9 | **M01** | `cicha`、`quiet`、`silencieux` …（10 条） | — | L1 | 2026-12-28 | `cg-r-0ffc53715dfa4e43` |
+| 10 | **U02** | `insurance eligible`、`HSA`、`FSA` …（6 条） | — | L1 | 2027-03-28 | `cg-r-335f00d14cefe7f9` |
+
+互补对要一起读：#1 ↔ #2（都是 H05，视图里标了 `互补（需一起读）`）。
+
+**#1 的逐字原文与出处**（这条是"绝对化用语"最正的一条，补全给你）：
+
+> 虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按2026-09-09口径放开，海外广告允许，不再判险）
+
+**证据单元明细（可回查 `kb/l2/units.jsonl`）**：
+- `4beaf8c51715498baa3f` → `#品线内容边界规则库/recvuJP1dDumuM/边界内容`
+- `6bd4e7315823e42ef28d` → `#品线内容边界规则库/recvuJP1dDumuM/检测关键词`
+- `6093df478382e5e884fa` → `#品线内容边界规则库/recvuJP1dDumuM/正则表达式`　→　`\bthe\s+(only|safest)\b`
+
+## 四、按 L6 输出契约，正式版必须带的三样
+
+```
+命中 N 条（模式：vector_plus_bm25）
+1) unit_id=4beaf8c51715498baa3f ｜ 锚点=#品线内容边界规则库/recvuJP1dDumuM/边界内容 ｜ source_sha256=<...> ｜ 片段：<逐字摘录>
+   …
+覆盖范围：kb/l6/SCOPE.txt 声明的可用单元数（**不是全量**）
+```
+
+**`unit_id` / 锚点 / `source_sha256` 三样缺一样，下游（`kb-review`）就没法把它当依据用。** 上面第三节表格里的出处是**派生视图 id**，不等于 `unit_id` —— 正式引用要跑第二节的命令拿 `unit_id`。
+
+## 五、已知限制（别拿这次结果夸大能力）
+
+- **跨语言只有弱对齐**：中文查询拿到英文素材的较高相似度，**不等价于翻译级召回**。
+- **同义改写受限**：2019 年的多语 MiniLM（384 维），对行业黑话 / 新造词区分有限。
+- **规避型表述召回受限**：拼音、拆字、谐音、符号分隔、小语种本来就绕开字面，向量未必抓到。
+- **无重排**：Top-N 只做 RRF 融合，长尾排序质量未校验。
+- **无命中阈值**：一律返回 Top-N，是否采纳由下游判定。
+
+## 六、两条边界，别越
+
+- **只读**：不调 `l6_build.py`，不改索引，不写库。你要"把索引重建一下" → 交 `kb-pipeline`（写操作 + `--apply`）。
+- **召回里出现两条互相矛盾的单元 → 报冲突，交 `kb-check`，不自己裁决。** 这次就有一条值得你注意的：**H05 的现行口径把 `best` / `#1` / `No.1` / `最佳` / `最好` 按 2026-09-09 放开、不再判险**；如果你的素材是按平台政策（禁止 product titles 用 superlative）来判的，两者口径不一样 —— 那属于源与源冲突，要报给人，不是我自己选一个。
+
+===CASE 39===
+===ROUTE 39: kb-check===
+走全库统一闸门（kb-check）。**本 skill 只报不改**。另外先说一句实话：本会话**不能执行 `kb/` 下的命令**，所以下面是**体检表骨架 + 每条闸门我已经知道的口径与坑**，退出码那一列要真的跑完才有值 —— 我不会预填一个数字骗你。
+
+## 一、六道闸门（一次跑完，逐条给退出码）
+
+```bash
+cd ~/.dsh/Momcozy知识库            # ★ cwd = kb/ 的上一级
+
+# ① 登记表：五类问题全 0、退出码 0
+kb/kbpy l7/scripts/skills_check.py
+
+# ② 层契约：8 层齐全 + cwd/python/envelope 齐 + 引擎路径存在 + DAG 非线形
+kb/kbpy l7/scripts/layers_check.py
+
+# ③ 路由表对账：实际被谁接走 vs 路由表写谁
+kb/kbpy l7/scripts/routes_reconcile.py kb/l7/reports/<RUN>-routes-winners.json
+
+# ④ 链路收口核验（活库模式下会合法变红，见第三节）
+kb/kbpy l8/workflow_check.py <RUN>
+
+# ⑤ 信封闸门：同一路径 Python getsize 与 node statSync().size 差值恒 4096 即信封态
+python3 tools/envelope_gate.py          # 覆盖 .py/.txt/.md
+kb/kbpy l8/envelope_census.py           # 库自带，**只扫 .md**
+
+# ⑥ 投影一致性
+kb/kbpy l8/projection_reconcile.py      # ⚠️ 无干跑档，只读复核用，不要加写参数
+```
+
+你要的"登记表、层契约、信封闸门、路由对账"正好是 ①②③⑤；我把 ④⑥ 一并列上，因为不跑 ④ 就分不清"链路断了"和"活库正常漂移"。
+
+## 二、体检表（骨架 —— 退出码与证据待跑后回填）
+
+| # | 闸门 | 退出码 | 结论（过 / 真坏 / 合法变红 / 判据缺陷） | 证据 |
+|---|---|---|---|---|
+| ① | 登记表自检 `skills_check.py` | 待跑 | 待跑 | 五类问题计数 + 文件:行号 |
+| ② | 层契约 `layers_check.py` | 待跑 | 待跑 | 缺哪层 / 哪个字段空 |
+| ③ | 路由对账 `routes_reconcile.py` | 待跑 | 待跑 | 路由表写谁 vs 实际被谁接走，差异清单 |
+| ④ | 链路收口 `workflow_check.py` | 待跑 | 待跑（第②段变现红先按"合法变红"看待） | 漂移内容 |
+| ⑤ | 信封闸门 `envelope_gate.py` + `envelope_census.py` | 待跑 | 待跑 | 差值 ≠ 4096 的路径清单 |
+| ⑥ | 投影一致性 `projection_reconcile.py` | 待跑 | 待跑 | 不一致字段 |
+
+## 三、结论口径：必须区分三种"红"（这条最容易报错）
+
+1. **真坏** —— 路径不存在、副本不一致、退出码非 0 → 交 `kb-repair`。
+2. **合法变红** —— 活库模式下冻结基线比对（`workflow_check` 第 ② 段）。结论写 **"基线漂移，非缺陷"**，并附漂移内容。
+3. **已知判据缺陷** —— `~` 路径误报等 → 结论写 **"判据缺陷，非数据缺陷"**，**不许把工具 bug 报成数据缺陷**。
+
+**已知判据缺陷清单（先知道，别被误导）**：
+
+| 脚本 | 缺陷 | 规避 |
+|---|---|---|
+| `l7/scripts/skills_check.py` | 第 4/5 类判 `depends_on_engine` / `selftest` 路径**不做 `expanduser`**（第 1001–1002、1018–1019 行）→ 凡 `~` 开头的路径都会误报"不存在" | 这两个字段一律写**库根相对路径** |
+| `l8/workflow_check.py` | 第 ② 段用「权威库未被改动」的**冻结基线** | 活库模式下变红是**合法**的，要区分"变了"与"坏了" |
+| `l8/envelope_census.py` | **只扫 `.md`** | `.py` / `.txt` 要另用 `tools/envelope_gate.py` |
+| `l8/projection_reconcile.py` | **无干跑档** | 只做只读复核 |
+
+## 四、这台机器上两条与本库体检直接相关的坑（必看）
+
+**坑一：旧根体检的数字是假阴性，别拿它下结论。**
+装载位现在是本目录（`kb/view`）；旧根 `~/.dsh/Momcozy知识库/` 现在只是**入口**（`README.md` + 软链 `kb → 工作区`），加载器已改指本目录。**在旧根上体检得到的 W018/W019 = 0 是假阴性** —— 那个根没有 `_meta/`，接线审计 `readdirSync` 抛错被 `catch { files = [] }` 吞掉，一个文件都没扫。
+
+**坑二：信封态（write-envelope）—— 用自己的语言自检看不见它。**
+这台机器装了注入型监控/加密代理（`/usr/local/.trld`），某些写通道会把 `.md` 落成"4096 字节前缀 + 原文"：
+- ❌ 落信封：`python`（`open(path,"w")`、**`shutil.copy2`**、`shutil.copy`）、`perl`、`sed >` —— **别按命令名判断，`sed >` 和 `shutil.copy2` 也是重定向/拷贝，照样落信封**。
+- ✅ 明文：`node`（`fs.writeFileSync`）、`/bin/cp`。
+- 实测：同一份 4,532 字节的 md，`shutil.copy2` 落盘后 node 读到 **8,628 字节**（=4,532+4,096）。
+- ⚠⚠ **最要命的一点**：Python 的 `stat`/`sha256`/`head` 读同一份信封文件，报的仍是 4,532 字节、sha256 与源一致 —— 所以"用 Python 读首 3 字节验证明文"**结构上不可能发现这个缺陷**，它会给你假绿灯，然后由加载器报 `E001 × 509`，并把 `_meta/manifest.json` 条目基线刷成 0 条（`loadAll` 拿不到条目 → removed 509）。2026-09-29 就这么栽过一次，回滚与重做各一轮。
+- 所以：往装载位写 `.md` **一律走 node 或 `/bin/cp`**，并且**必须用 node 读回校验**（`kb/.work/write_via_node.mjs`：内容走 stdin → node 写 → 读回逐字节比对，不一致 exit 1）；留底也必须走 `cp`/node，否则回滚会把信封原样带回来。校验工具：`kb/.work/which_enveloped.mjs`（看指定文件首字节）、`kb/l8/scan_envelope.mjs`（全库扫描）。
+- **只有 `.md` 受影响**：`.yaml/.json/.txt/.py/.log` 在两个通道下都一致，随便哪个写通道都行。
+
+## 五、我已经知道会看到的几个真值（免得你把"已知"当"新发现"）
+
+- **孤岛率 = 0.94（超标，是真值）**。此前 0.00 是生成器为压这个指标造的合成边（按排序挂邻居）；2026-09-29 按人确认的 W025 处置 B 只保留「同 rule_code」的真关系并落成 `complements`，孤岛率随之**从假绿变真红**。**472/509 条规则与其他条目没有任何真实引用关系** —— 要降下来需来源表提供真实关联列，属**业务动作**，不是体检能修的。
+- **W040（缺 `kb_class`）应 0 条**（本次已 509/509 回填）。
+- **E001（缺 frontmatter）必须为 0** —— 装载位读不到文件时就是这个码。
+- 全库 `kb_version = v0`；`kb/versions/versions.jsonl` 只有注释、没有版本行。
+- `kb/l4/canonical/` 已写入 1242 条定稿（四形态，状态 `stable`），晋升是**机器晋升**（判据 C1–C8 全过），**人工抽查未做、无发布版本** —— 所以整库**仍不能声称已过正式验收**。
+
+## 六、交付物（跑完我给这四样）
+
+1. 上面那张**体检表**：闸门 → 退出码 → 结论（过 / 真坏 / 合法变红 / 判据缺陷）→ 证据。
+2. **失败项清单**：对象 + 原因码 + 要人做什么 + 复开条件。
+3. `kb/l7/reports/<RUN>-health.md`。
+4. **"层已跑完"类结论必须带 `run_id` + 时间戳** —— 本库实测存在并发写入者（`kb/l2/units.jsonl` 在未被本 agent 写入的情况下从 10551 行涨到 10650 行），只看文件状态会误判。
+
+## 七、三种情况我会停下来问你，不自己动手
+
+- 闸门报出 `kb/l0…l6` 的数据/台账异常 → **只读取证，不要先写**。
+- 发现 `.kb.lock` 或 `kb/.work` 近 30 分钟大量写入 → 可能有另一批在跑，先确认。
+- 体检表里出现"未知原因"的红 → 宁可标**"未判定"**，不猜。
+
+**要修不在这里**：闸门红了要走 `kb-repair`（按原因码定位 → 修 → 重跑同一条闸门证明修好了）。你现在给的是一份 `skills_check` 的活，那还没到修的程度。
+
+给我一个 `<RUN>` 编号（或允许我用当次 run），我就按上面六条跑完，把退出码与失败项清单一次填全给你。

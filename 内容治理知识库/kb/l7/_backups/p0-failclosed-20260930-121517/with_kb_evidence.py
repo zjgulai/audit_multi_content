@@ -1,0 +1,186 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""with_kb_evidence.py —— 把「知识库依据」接进「决策引擎」的**最小适配器**。
+
+## 它补的是哪个断点（2026-09-30 实测）
+
+评审链本来该是这样：
+
+    入口 kb-review → 专项(文案合规审查) → 依据 kb-content-review → 裁决(审查裁决) → 结论
+
+实测发现**中间是断的**，两条管道互不相通：
+
+  * `kb-content-review/scripts/review.py`（依据侧）：P0 匹配 + **509 条**措辞表达库规则 + BM25，
+    产出带「条款号 + anchor + source_sha256 + 逐字摘录」的 findings；
+  * `review-engine/core/review_text.py`（裁决侧）：把 `scan_text()` —— 一个**只有 5 条**
+    US 种子规则（treat/cure/prevent/safe for baby/sponsored…）的扫描器 —— 的结果塞进 `risk_items`，
+    再交给 `review_engine.decide()`。
+
+同一段文案（`FDA approved … hospital grade … 100% safe … pain-free … mimics baby …`）：
+  * 只跑裁决侧：`scan_text` 给 **0 候选** → `decide()` 倾向 **PASS**（**漏放**）；
+  * 只跑依据侧：**10 处 BLOCK**，条款号 W-1.6 … W-1.53。
+两条路的输入一模一样、结论相反，而错的那条看起来更"正式"（它走的是决策引擎）。
+
+本脚本就是把断点接上：**依据侧的 findings → 契约 risk_items → 决策引擎 decide()**。
+不改任何一方的引擎，只做转换。
+
+## 用法
+
+    kb/kbpy l7/review-engine/core/with_kb_evidence.py --text "<待审文案>" [--json] [--dry-run]
+    # 可选：--content-id / --channel / --product-line / --product-line-seed（给 seed 扫描器用的词表原样值）
+
+退出码：0 = 出了结论（含 BLOCK/REVIEW/PASS）｜ 3 = 依据不足（NEEDS_INPUT）｜ 2 = 跑不起来
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent          # …/kb/l7/review-engine/core
+KB = HERE.parents[2]                            # …/kb        （parents[0]=review-engine, [1]=l7）
+ROOT = HERE.parents[3]                          # kb/ 的上一级 —— review.py 的 --kb-root 要这个
+REVIEW_PY = Path(os.environ.get(
+    "KB_CONTENT_REVIEW_PY", str(Path.home() / ".dsh/skills/kb-content-review/scripts/review.py")))
+
+sys.path.insert(0, str(HERE))
+from review_engine import decide                          # noqa: E402
+from rule_engine import scan_text                         # noqa: E402
+
+
+def _evidence_findings(text: str, write_report: bool = False):
+    """跑依据侧（kb-content-review 的 review.py），拿带条款号的 findings。
+
+    取 stdout 里最后一个 JSON 对象 —— 它前面会打印 `[review] 落盘通道…` / `[fix] 条款号…` 这类日志行。
+    """
+    if not REVIEW_PY.exists():
+        return None, "依据组件不在位：%s" % REVIEW_PY
+    cmd = [sys.executable, str(REVIEW_PY), "--kb-root", str(ROOT), "--text", text, "--json"]
+    if not write_report:
+        cmd.append("--dry-run")          # 默认不落盘（冒烟/预演）；要留痕就 write_report=True
+    r = subprocess.run(cmd, capture_output=True, text=True,
+                       env=dict(os.environ, KB_INTERP_OK="1"), timeout=600)
+    out = r.stdout or ""
+    i = out.find("{")
+    while i != -1:
+        try:
+            return json.loads(out[i:]), None
+        except json.JSONDecodeError:
+            i = out.find("{", i + 1)
+    return None, "依据组件没吐出 JSON（rc=%d）：%s" % (r.returncode, (r.stderr or out)[-200:])
+
+
+def _to_risk_item(f):
+    """依据 → 契约 risk_items 的一条（字段名按 review-contract.json + review_engine 的实际判据对齐）。
+
+    两个实测坑（2026-09-30，第一次跑判成 NEEDS_INPUT 就是它们）：
+      * `coverage` 的取值必须是 `"complete"` / `"not_applicable"`（不是布尔）—— `_coverage_ready()` 只认这两个字面量；
+      * `evidence_complete` 的判据是 `bool(location and (evidence_url or evidence_id))`，
+        **比引用契约弱得多**（它不核对 anchor/sha256 是否解析得到）。
+        所以这里**只在引用契约六要素齐了才写 evidence_id** —— 让引擎那个弱判据背后站着强判据；
+        要素不齐的条目故意不给 evidence_id，引擎就会把它归进 REVIEW（而不是放它进 BLOCK）。
+    """
+    lib, art = f.get("library"), f.get("article_no")
+    anc, sha, exc = f.get("anchor"), f.get("source_sha256"), f.get("excerpt")
+    complete = all([lib, art, anc, sha, exc])
+    cat, sub = f.get("category") or "未分类", f.get("sub") or ""
+    item = {
+        "risk_id": f.get("rule_id"),
+        "risk_type": ("%s-%s" % (cat, sub)) if sub else cat,
+        "priority_tier": "P0" if "P0" in str(f.get("layer") or "") else "P1",
+        "status": "confirmed",
+        "action": "block" if str(f.get("severity")).upper() == "BLOCK" else "review",
+        "location": f.get("position") or "全文",
+        "original_text": exc or "",
+        "reason": f.get("reason") or "",
+        "suggestion": f.get("advice") if f.get("advice") not in (None, "None") else (f.get("advice_note") or ""),
+        "rule_code": f.get("rule_code"),
+        "fact_or_inference": f.get("fact_or_inference"),
+        "confidence": f.get("confidence"),
+        "evidence": {"library": lib, "article_no": art, "anchor": anc,
+                     "source_sha256": sha, "excerpt": exc},
+        "source": "kb-content-review",
+    }
+    if complete:
+        item["evidence_id"] = "《%s v0》第 %s 条 @ %s @ %s" % (lib, art, anc, str(sha)[:12])
+        item["evidence_url"] = "kb/l3/candidates/rules.jsonl#%s" % art
+    else:
+        item["evidence_gap"] = "引用契约六要素不全（缺 %s）" % ",".join(
+            k for k, v in (("库名", lib), ("条款号", art), ("anchor", anc),
+                           ("source_sha256", sha), ("逐字摘录", exc)) if not v)
+    return item
+
+
+def run(text: str, *, content_id=None, channel="", product_line="", product_line_seed="",
+        write_report: bool = False):
+    ev, err = _evidence_findings(text, write_report=write_report)
+    if ev is None:
+        return None, err
+
+    findings = ev.get("findings") or []
+    sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    run_id = time.strftime("%Y%m%d-%H%M%S")
+    payload = {
+        "review_id": "rv-" + run_id,
+        "content_id": content_id or ("text-" + sha[:12]),
+        "content_type": "text",
+        "content_version": sha,
+        "input_manifest": {"text": text, "sha256": sha, "modality": ["text"]},
+        # 取值必须是 complete / not_applicable（实测：布尔值会被判 incomplete_coverage:text）
+        "coverage": {"text": "complete", "image": "not_applicable", "audio": "not_applicable",
+                     "video": "not_applicable", "ocr": "not_applicable",
+                     "asr": "not_applicable", "keyframes": "not_applicable",
+                     "note": "本批只送审文字；其余模态不适用（不是缺口）"},
+        "risk_items": [_to_risk_item(f) for f in findings],
+        "product_line": product_line,
+        "channel": channel,
+    }
+    # 5 条种子规则的候选也并进来（专项第 1 源），保持与专项 skill 的两源要求一致
+    if product_line_seed or channel:
+        payload["risk_items"] += scan_text(text, product_line=product_line_seed, channel=channel)
+
+    decision = decide(payload, report_url=None)
+    return {"decision": decision, "evidence_meta": {
+        "run_id": ev.get("run_id"), "findings": len(findings),
+        "state": ev.get("state"),
+        "report_path": ev.get("report_path"),     # 落盘报告（write_report=True 时才有）
+        "trace": ev.get("trace") or ev.get("retrieval_trace"),
+        "source": str(REVIEW_PY),
+    }}, None
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--text", required=True)
+    ap.add_argument("--content-id", default=None)
+    ap.add_argument("--channel", default="")
+    ap.add_argument("--product-line", default="")
+    ap.add_argument("--product-line-seed", default="", help="给 5 条种子规则扫描器的词表原样值（如 吸奶器）")
+    ap.add_argument("--json", action="store_true")
+    ap.add_argument("--dry-run", action="store_true")
+    a = ap.parse_args()
+
+    res, err = run(a.text, content_id=a.content_id, channel=a.channel,
+                   product_line=a.product_line, product_line_seed=a.product_line_seed)
+    if res is None:
+        print("❌ 跑不起来：%s" % err, file=sys.stderr)
+        return 2
+    if a.json:
+        print(json.dumps(res, ensure_ascii=False, indent=1))
+    else:
+        d = res["decision"]
+        print("结论：%s" % d.get("state") or d.get("decision"))
+        print("依据条数：%s（来自 kb-content-review 的 509 条规则 + P0 匹配）"
+              % res["evidence_meta"]["findings"])
+        print(json.dumps(d, ensure_ascii=False, indent=1)[:1200])
+    state = (res["decision"].get("state") or res["decision"].get("decision") or "").upper()
+    return 3 if state == "NEEDS_INPUT" else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,21 @@
+$ sh kb/kbpy l7/scripts/l2_gate.py
+==========================================================================
+L2 闸门（独立复算：manifest_l2.jsonl × units.jsonl × manifest_l1.jsonl）
+  台账资源行 2542 ｜ 单元 12213 条 / 1681 个资源 ｜ 当前输入集 1460 个资源
+  口径：unit_count 见 l2.json.unit_count_semantics（20260930-1440）；账实只判可证上下界（C3）
+--------------------------------------------------------------------------
+C2 run 内序列：非法 0 处 ｜ 合规的重切对（invalidated→split/skipped）114 处
+--------------------------------------------------------------------------
+说明项（不是红）：被作废后仍留产物 306 个资源 ｜ 滞后 311 个资源未切分 {'internal_sample': 304, 'wording': 7}
+  N3 口径符合性（按 l2.json.unit_count_semantics，定义于 20260930-1440）：
+     准则：对每个资源：units.jsonl 中该资源行数 == Σ(该资源**全部 split 行**的 unit_count)。全域记法：units 行数 == Σ(全库 split 行 unit_count) − 已被 l8/l2_dedup_units.py 压掉的重复行数。
+     Σ(split 行 unit_count) 不符 2 个资源 ｜ 其中**已在 registry 登记的偏差 2 条**
+       url__https____hapa8fkuicz.feishu.cn_wiki_AD26w ｜ 实际 12 行 ≠ Σsplit 24
+       url__https____hapa8fkuicz.feishu.cn_wiki_Cliyw ｜ 实际 9 行 ≠ Σsplit 18
+     其余两个口径（**不采用**，仅留档）：最新 split 行 106 不符 ｜ 全行求和 306 不符
+  N4 非资源行 1 行（**不是红**）：已按 l2.json.manifest_change_rows 约定认领（定义于 20260930-1440）
+     行 1456：{"change": "add_field_rule_eligible", "layer": "l2", "run_id": "20260924-1240", "result": null}
+       → 已登记为层变更记录（add_field_rule_eligible）
+==========================================================================
+结论：✅ 过（五项判据 0 违规）
+退出码：0

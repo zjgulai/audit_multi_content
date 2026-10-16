@@ -1,0 +1,9 @@
+/Users/lute/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+kb/l6/retriever.py:308: UserWarning: The model sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 now uses mean pooling instead of CLS embedding. In order to preserve the previous behaviour, consider either pinning fastembed version to 0.5.1 or using `add_custom_model` functionality.
+  self.model = TextEmbedding(model_name=self.meta["model"], **kw)
+单元数 4261｜BM25 词表 zh 102547 / en 31430｜索引加载 784.0 ms
+BM25 查询（20 条 × 5 次）：p50 0.179 ms｜p95 1.666 ms｜max 2.014 ms｜吞吐 5578.1 q/s
+  单词条 p50 0.061 ms｜3+ 词条 p50 0.172 ms｜平均扫描倒排项 779.2
+向量 p50 6.367 ms（冷启动加载模型 332.0 ms）｜hybrid p50 6.595 ms
+对照 L5：BM25 单查询中位 0.179 ms；L5 扫 1MB 是 631.605 ms（约 3529 倍）。自实现倒排不是瓶颈，本批不需要换实现或换库（jieba / rank_bm25 未安装，也未因此缺能力）。

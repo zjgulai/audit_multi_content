@@ -1,0 +1,609 @@
+{
+  "distiller_version": "l3-0.2",
+  "kb_version": "v0",
+  "skill_source": {
+    "name": "knowledge-distillation",
+    "origin": "https://github.com/volcengine/OpenViking",
+    "installed_at": "~/.dsh/skills/knowledge-distillation/SKILL.md",
+    "read": true,
+    "adopted": [
+      "源事实→归一化证据→模式→发现→含义，全程可追溯（evidence_level 落地）",
+      "产出不得是目录或来源摘要堆叠 —— 每条规则是一句可判定的结论",
+      "证据分级 Observation/Synthesis/Inference/Hypothesis，不把推断写成观测事实",
+      "先勘查来源、记录来源谱系、不把同一上游的重复说法当独立佐证",
+      "摘录逐字，不转述不概括（用 unit_id 指向 L2 原文单元保证）"
+    ],
+    "skipped_ov_steps": "该 skill 依赖 OpenViking CLI（ov add-resource / ov add-skill / ov compile）；本机未安装，按任务要求不安装、不调用；相关步骤一律跳过，不计为未完成项",
+    "effective": "skill 方法论 + 本文件规格；冲突时以本文件规格为准"
+  },
+  "classification_note": {
+    "table": "专家修订汇总表",
+    "l0_kb_type": "internal_sample",
+    "used_as": "wording",
+    "why": "形态是「修订前→后」成对语料，属措辞类素材；按措辞素材蒸馏，但不改 L0 分类（规则的 kb_type 仍记 wording 以体现用途，L0 的 kb_type 未变）",
+    "status": "待确认"
+  },
+  "filter_rules": {
+    "step1_metadata": {
+      "how": "按 kb/l0/registry/kb.json 的 field_roles 过滤，只保留「文案/表述类字段」产生的单元",
+      "gap": "L0 的 field_roles 只覆盖 44 个字段，L2 实际出现 70+ 个；故补全了一份覆盖 L2 全部字段的角色表（CONTENT/METADATA），依据是字段是否承载「可引用的表述/理由/条件」",
+      "content_fields": 37,
+      "metadata_fields": 78
+    },
+    "step2_quality": {
+      "how": "排除 meta.content_quality_flag 非空的单元"
+    }
+  },
+  "rule_forms": {
+    "wording_entry": "入口：命中片段按「规则码」拆分后聚合 → 禁用表达 + 建议替换 + 依据",
+    "wording_boundary": "品线内容边界规则库 → 边界内容 + 触发词 + 豁免 + 建议表达",
+    "wording_saythis": "W1 卖点表达边界 → 建议表达 + 限定要求 + 判定理由",
+    "wording_revision_pair": "一对修订 = 一条规则（原表述 + 修订后 + 修订原因），support_count=1 → 待验证",
+    "wording_revision_cluster": "按「修订原因」成簇归纳 → support_count≥2 的归纳型规则",
+    "external_standard": "{判定条件, 阈值/词表, 条款锚点, 生效期} —— 本批无可用条款正文，见报告"
+  },
+  "canonical_policy": "canonical/rules.jsonl 本步只创建空文件；候选→定稿是独立动作（走抽查），晋升产生新的定稿记录，不是改名。",
+  "supersedes_policy": "rule_id 由 (form + 依据 unit_id 集合 hash) 生成，源不变则 rule_id 不变；变更时新规则在 supersedes 列旧 id，旧规则追加 superseded_by/superseded_at；检索默认只用未被 superseded_by 的规则。",
+  "idempotency": {
+    "key": "rule_id",
+    "unchanged_cond": "evidence_digest 未变 → unchanged"
+  },
+  "citation_discipline": "依据 = unit_id + anchor + source_sha256；不引用裸 URL；摘录逐字。",
+  "accounting": {
+    "l2_total": 4,
+    "filtered_out": 0,
+    "kept": 4,
+    "used_in_rules": 0,
+    "used_in_cases": 0,
+    "explicitly_rejected": 4,
+    "unaccounted": 0,
+    "reject_caliber": "C",
+    "case_cited_source": "read"
+  },
+  "appended_fields": {
+    "at": "daily-20261008-0330-L5",
+    "mode": "append",
+    "fields": {
+      "rule_kind": {
+        "atomic": "原子映射型：一对修订 / 一个词条本身就是一条规则",
+        "inductive": "归纳型：由多条证据归纳出的模式"
+      },
+      "authority": {
+        "expert": "来源是专家修订 / 人工合规审计",
+        "legal": "来源是法务词表 / 法规（本数据集无此类来源，故 0 条）",
+        "inferred": "由模型归纳，无外部权威背书"
+      }
+    },
+    "why": "support_count=1 对 atomic 是正常的（一对修订天然只有一条支撑），只对 inductive 才是证据不足；两类判据不同，故必须分开。",
+    "authority_mapping": {
+      "专家修订汇总表": "expert",
+      "广告文案明细": "expert",
+      "品线内容边界规则库": "inferred",
+      "W1卖点表达边界（品线反馈0910）": "inferred"
+    },
+    "p_level_refined": {
+      "why": "上一批把入口规则统一记为 P2、仅当「任一记录高危」才 P0，判据过粗；本批按源侧风险信号精确化",
+      "rule": "入口规则：全部支撑记录风险等级均为「高危·红」→ P0；混合 → P1；品线边界规则：取该记录风险等级（高危→P0 / 审慎→P1 / 合规→P2 / 待复核→P3）；W1：取灯色状态（红色-禁用→P0 / 黄色-需限定→P1 / 绿色-可用→P2）；revision_pair：专家修订表无风险等级字段 → P1",
+      "note": "风险信号取自 L2 里已存在的源事实单元；它们是元数据字段、不参与规则生成，但可作为 p_level 的判定依据"
+    },
+    "old_lines_untouched": {
+      "lines": 1018,
+      "sha256": "743dc62398311b0287e1e99fbcc438397ca8c721a0556d534cc69f3ee6eff840"
+    }
+  },
+  "rule_forms_defined_before_output": true,
+  "forms_this_run": {
+    "sample_case": {
+      "fields": [
+        "polarity",
+        "sample_body",
+        "reason_category",
+        "reason_analysis",
+        "advice",
+        "material_type",
+        "channel",
+        "anchor",
+        "source_sha256",
+        "evidence_strength"
+      ],
+      "criteria": "unit_type=sample 且 unit_id/anchor/source_sha256 齐全",
+      "output": 201,
+      "rejected": 0
+    },
+    "scoped_clause": {
+      "fields": [
+        "clause_text",
+        "quality_flag",
+        "threshold",
+        "term_list",
+        "effective_period",
+        "anchor",
+        "source_sha256",
+        "evidence_strength"
+      ],
+      "criteria": "external_standard 且依据三件套齐全；自然语言条款方可承载",
+      "output": 375,
+      "rejected": 0
+    }
+  },
+  "verification_policy": {
+    "rules": "support_count == 1 → verification=待验证；>= 2 → verification=已支持",
+    "non_rules": "sample_case / scoped_clause 不是规则，不套 support_count；依据充分性用 evidence_strength",
+    "counts": {
+      "已支持": 62,
+      "待验证": 447
+    }
+  },
+  "e021_concepts": {
+    "concepts": 56,
+    "mapped_rule_ids": 56,
+    "not_in_rules": [],
+    "verdicts": {
+      "已排除": 56,
+      "已补三重验证": 0
+    },
+    "detail": [
+      {
+        "rule_id": "r-006445396c95aa10",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-039822ed5c8e3448",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-03fb6f7a5fe1655a",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-0823b2d08a7e4ec2",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-0ffc53715dfa4e43",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-106e4c5b6475d0e3",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-13fd137cd293d657",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-15a607c4457c8b55",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-16cac1c85580f8f7",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-1cf94543649842a0",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-21786ac5aff9be34",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-252ba6cf5ee92b00",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-3055901e5877f981",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-30d3b9b54135fa04",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-335f00d14cefe7f9",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-33ce99a813e0865a",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-379572868aa01151",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-37b49eadb72d7dc2",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-38148746d4e6516d",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-3b18c7d1af8f8d4d",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-3b3460eab4528002",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-3b6c3c82dc667295",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-4142a3c2dbf3cbe5",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-478f43899bcb5b8a",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-4f309d6ebde80283",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-5c056bc02cdd770c",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-65198e7c3e5b833e",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-6773cda1135632c8",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-69f4049b9cd733ea",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-724b26ecb1dee9c4",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-7489e156a5d2c7b2",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-755d3407cf8ce75b",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-7baf7ceb47b2e5bc",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-7bed60d9dd01793a",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-85348bba00a2b5a7",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-870bf797d240b725",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-8dfbcdca24e18a60",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-8e049d8b38a8ac31",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-97044c3283e41aea",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-9878294c87d29582",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-9b672eff05199974",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-9e252d15425a4179",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-b10ee2b8361c8a3d",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-b301be45b8cd64a9",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-b3d0d5f656f0df34",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-b8669712e27146e3",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-b8aea07e90a86b59",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-c40ed52e71a07743",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-c767bb12e6a8698d",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-cbfa62aa397fc6ba",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-d00103c52a98512e",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-d451847b1d6b75f4",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-d7290a0ee59c58ef",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-ddf0f8360c7b53a7",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-e879231d61c9bd08",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      },
+      {
+        "rule_id": "r-e919fda20cd2f95e",
+        "verdict": "已排除",
+        "why": "三重验证是人工判断闸门；派生视图无权替人打分，编一个等于把闸门变成自我申报。故明确标注「未验证、不得进判断层」并从本批产出中排除"
+      }
+    ]
+  },
+  "convergence": {
+    "before": 1527,
+    "unique_rule_ids": 509,
+    "keep": 509,
+    "move": 1018,
+    "keep_ids": 509,
+    "move_ids": 509,
+    "same_id_set": true,
+    "l4_assignments": 509,
+    "keep_equals_l4": true,
+    "l4_minus_keep": [],
+    "keep_minus_l4": []
+  },
+  "changes": [
+    {
+      "run_id": "20260924-1230",
+      "change": "append+converge",
+      "keys": [
+        "rule_forms.sample_case",
+        "rule_forms.scoped_clause",
+        "rule_forms.external_standard",
+        "forms_this_run",
+        "verification_policy",
+        "e021_concepts",
+        "convergence"
+      ],
+      "note": "先定义形态后产出；候选文件按 rule_id 收敛（幂等闸）"
+    },
+    {
+      "run_id": "20260924-1240",
+      "change": "append",
+      "keys": [
+        "rule_eligible_gate",
+        "source_completeness_criteria",
+        "reconcile_partition",
+        "downgrade_scan"
+      ],
+      "note": "件4/5/6/7：门槛先定义后执行；对账改口径；unit_ids 修正；判据 A/B 写死长期生效"
+    },
+    {
+      "run_id": "20260929-1040",
+      "change": "backfill",
+      "keys": [
+        "half_life_days",
+        "valid_until",
+        "effective_from",
+        "owner"
+      ],
+      "rows": 509,
+      "policy_file": "l3/registry/half-life-policy.json",
+      "note": "F7 拆假绿：把 half_life_days / valid_until / owner 从派生视图生成器的常量搬进权威库。仅**填空白字段与新增字段**，未覆盖任何既有非空值；未改动 rule_text / anchor / article_no 等任何被 C4 比对的内容字段 —— C4 不受影响。写前 sha256 a17552e1a0fabde5…"
+    }
+  ],
+  "rule_eligible_gate": {
+    "defined_at": "20260924-1240",
+    "defined_before_run": true,
+    "rule": "任何单元的源资源 rule_eligible=false 时，不得产出「规则」类形态（wording_* 等）；只能产出 sample_case / scoped_clause 等非规则形态，或判 rejected 并写明「源侧材料审核状态非通过，不可作规则」",
+    "applies_to": [
+      "wording_entry",
+      "wording_boundary",
+      "wording_saythis",
+      "wording_revision_pair",
+      "wording_revision_cluster",
+      "external_standard",
+      "sample_case",
+      "scoped_clause"
+    ],
+    "non_rule_forms": [
+      "sample_case",
+      "scoped_clause"
+    ]
+  },
+  "source_completeness_criteria": {
+    "defined_at": "20260924-1240",
+    "long_lived": true,
+    "recomputed_at": "20260924-1320",
+    "A_field_level_full_coverage": {
+      "statement": "每条**已登记**记录的字段数 == 源侧 field-list 的字段数，差额 0。「材料收集」应为 8；「正面和负面样本」应为 16。分母只取口径内已登记记录：材料收集源侧 32 条里 9 条空状态按口径不采集，只在已采集的 23 条上校验；正面和负面样本源侧 326 条里 125 条台账状态为 gone（从未登记），只在已登记的 201 条上校验 —— 口径内排除一律记为 excluded_not_registered，不计入 gap。",
+      "measured": [
+        {
+          "table": "材料收集",
+          "expected_fields": 8,
+          "checked_records": 23,
+          "records_at_full_width": 23,
+          "gap": 0
+        },
+        {
+          "table": "正面和负面样本",
+          "expected_fields": 16,
+          "checked_records": 201,
+          "records_at_full_width": 201,
+          "gap": 0,
+          "excluded_not_registered": 125,
+          "excluded_reason": "该 125 条记录在 L0 台账最新行状态为 gone（status_reason=source_record_removed），从未进入登记口径，磁盘上的 11 字段旧快照只是 gone 留痕，不是完备性缺口；只有 status ∈ {registered, updated} 的 201 条参与判据。与「材料收集」9 条空状态同一口径。"
+        }
+      ]
+    },
+    "B_image_ocr_full_coverage": {
+      "statement": "「正面和负面样本」所有记录中任何字段里的 file_token（不只图片素材）100% 有 OCR 产物（ocr_status ∈ {ok, empty_text}），缺口 0。已退役字段里的 token 若属已 gone 资源，显式登记为「已排除」而不是留空。",
+      "measured": {
+        "all_tokens": 240,
+        "with_ocr": 240,
+        "gap": 0,
+        "empty_text": 1,
+        "video_tokens": 0,
+        "retired_field_tokens_excluded": 77
+      }
+    }
+  },
+  "reconcile_partition": {
+    "option": "改口径（保留现状，显式拆出重叠）",
+    "input": 9469,
+    "only_produced": 546,
+    "only_rejected": 8736,
+    "both": 187,
+    "neither": 0,
+    "formula": "只产出 + 只拒绝 + 既产出又拒绝 == 输入集",
+    "check": true,
+    "old_formula": "上一轮报的「产出 733 + rejected 8736 = 9469」证明的是并集覆盖完整，重叠 187 被数了两次",
+    "evidence_units_note": "rules.evidence_units 共 1729 个引用，其中 959 个同时在 rejected 里（原因族「已作为对应规则的理由引用」）。两者口径一致：它们既是规则依据，又被登记为「本处不再重复成规则」，不是自相矛盾。"
+  },
+  "downgrade_scan": {
+    "scanned": 1446,
+    "rules": 509,
+    "sample_cases": 562,
+    "scoped_clauses": 375,
+    "downgraded": 0,
+    "detail": [],
+    "note": "509 条规则的源资源全部 rule_eligible=true（唯一 false 的 recvvg2wL2qE3K 及其子资源未被任何规则引用）"
+  },
+  "dedup": {
+    "defined_at": "20260924-1512",
+    "form": "sample_case",
+    "file": "kb/l3/candidates/sample_cases.jsonl",
+    "root_cause": "case_id 由「组内代表 unit」生成（kb/.work/batch7_l3_run.py:110 的 sha1(unit_id|sample_case)[:16]；wording 侧为 kb/.work/batch7_l3_fix.py:79 的 sha1(unit_id|wording_sample)[:16]），同一组在上游被遍历 3 次 → 同一 (id, 内容) 被写 3 行。",
+    "root_cause_location": [
+      "kb/.work/batch7_l3_run.py:110",
+      "kb/.work/batch7_l3_fix.py:79"
+    ],
+    "rows_before": 562,
+    "rows_after": 358,
+    "dropped": 204,
+    "dropped_all_byte_identical_to_kept": true,
+    "keep_rule": "每个 case_id 保留**行序最靠前**的那一行；被删 204 行与其保留行逐字节相同",
+    "case_id_kept_as_is_reason": "case_id 已进入 kb/l4 的条款号台账（W-3.* / S-1.* 与 assignments 1242 条都按它索引），改它会令 1242 条 article_no 全部错位 —— 违反本批硬约束 2。故 case_id 原式不动，去重改按新增的内容身份 case_identity(u)。",
+    "emitter_fix": [
+      "kb/.work/batch7_l3_run.py（新增 case_identity/emit_once；发射循环跳过重复身份）",
+      "kb/.work/batch7_l3_fix.py（同一缺陷，同批修）"
+    ],
+    "dryrun": {
+      "path": "kb/.work/batch12/sample_cases.dryrun.jsonl",
+      "rows": 358,
+      "sha256": "0b8e2c7ce14e97b42db7cd5d45f01a65dc91255a6f2269288caba13f12999b49",
+      "byte_identical_to_deduped": "True"
+    },
+    "article_no_untouched": true
+  },
+  "incidents": [
+    {
+      "at": "2026-09-29 13:10",
+      "layer": "l3",
+      "severity": "data_loss_partial",
+      "what": "kb/l3/rejected.jsonl 被 L3 重建（w 模式）覆盖：11,860 行 → 1,053 行",
+      "cause": "我按 L2 新增单元触发 L3 重建，未预判该文件已被多批次以追加方式扩写",
+      "recoverable": false,
+      "searched": [
+        "git（workspace 非仓库）",
+        "APFS 本地快照（无）",
+        "kb/.work 中间产物（无完整数组）",
+        "L8 沙箱归档（无副本）",
+        "~/.dsh/Momcozy知识库（符号链接，同一份）"
+      ],
+      "fix": "按同一判据从 kb/l2/units.jsonl 重算逐单元拒绝并追加；三类互斥校验 9,913 = 规则 959 + 样例 3,204 + 拒绝 5,750",
+      "artifacts": [
+        "kb/l3/_archive/rejected-after-distill-20260929-1300/",
+        "kb/l3/runs/20260929-1300.pre-snapshot.json",
+        "kb/l3/runs/20260929-1310-reject-rebuild.json"
+      ],
+      "unaffected": "规则 509 条与其 evidence_digest 全部未变（新 0 / unchanged 509）；canonical/rules.jsonl 仍 0 字节"
+    }
+  ]
+}

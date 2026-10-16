@@ -1,0 +1,149 @@
+{
+  "review_id": "20261014-171651",
+  "content_id": "text-5044e8a1be34",
+  "content_id_basis": "指纹（依据侧不发业务号，发号真源 = kb/l7/review-engine/core/content_id.py）",
+  "content_type": "text",
+  "content_version": "5044e8a1be34c61e77e1f7bf8a5d8831cc96cf0cef963a275d378058924e436a",
+  "content_hash": "5044e8a1be34c61e77e1f7bf8a5d8831cc96cf0cef963a275d378058924e436a",
+  "agent_version": "kb-content-review@1.3.0",
+  "rule_version": "article-no-2+l3-0.2+rules.jsonl@d4a9607befd7ad7b",
+  "knowledge_version": "v0",
+  "version_binding": {
+    "review_id": "20261014-171651",
+    "content_id": null,
+    "content_id_form": "AD-YYYYMMDD-NNN（PRD §5.4）",
+    "content_id_note": "本入口（依据侧）**不发业务号** —— 发号要读飞书表，而依据侧不该为此访问飞书。业务号由发号方在发飞书那一刻发：`kb/l7/review-engine/core/content_id.py`（唯一实现）。",
+    "content_fingerprint": "text-5044e8a1be34",
+    "content_hash": "5044e8a1be34c61e77e1f7bf8a5d8831cc96cf0cef963a275d378058924e436a",
+    "content_version": "5044e8a1be34c61e77e1f7bf8a5d8831cc96cf0cef963a275d378058924e436a",
+    "agent_version": "kb-content-review@1.3.0",
+    "rule_version": "article-no-2+l3-0.2+rules.jsonl@d4a9607befd7ad7b",
+    "knowledge_version": "v0",
+    "sources": {
+      "content_hash": "送审文本 utf-8 的 sha256",
+      "agent_version": "kb/l7/skills/kb-content-review/SKILL.md → frontmatter.version",
+      "rule_version": "kb/l7/registry/l7.json → article_no_source.scheme_version ＋ kb/l3/registry/l3.json → distiller_version ＋ kb/l3/candidates/rules.jsonl 的 sha256[:16]",
+      "knowledge_version": "kb/l7/registry/l7.json → kb_version"
+    }
+  },
+  "decision": "REVIEW",
+  "decision_raw": "REVIEW",
+  "confidence": "未标定（本入口逐条给 高/中/低；全局数值置信度属裁决侧）",
+  "input_manifest": {
+    "text": "Momcozy V2 Pro Wearable Breast Pump,Electric Breast Pump for Pumping Moms | Ultra-Lightweight,Hands-Free & Portable Pump,Upgraded Flange, Quiet & Leak-Proof\n\nPump As If No One Knows - The teardrop-shaped milk collector (each 120g/0.26lb) easily conceals within the bra and is controlled through the handheld motor. Operating at a whisper-quiet 45dB, rest assured that your baby's peaceful nap remains undisturbed while you pump.\n\n—— 来源（美国站）：https://www.amazon.com/dp/B0CZNTCFXX\n\n【待读的链接】\nhttps://www.amazon.com/dp/B0CZNTCFXX",
+    "sha256": "5044e8a1be34c61e77e1f7bf8a5d8831cc96cf0cef963a275d378058924e436a",
+    "modality": [
+      "text"
+    ]
+  },
+  "coverage": {
+    "text": "complete",
+    "image": "not_applicable",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "本批只送审 text 一种模态；其余模态不适用（不是缺口）。本块是报告契约要求的覆盖状态，不等于 OCR/ASR/关键帧流水线已执行 —— 后者见 trace。"
+  },
+  "risk_items": [
+    {
+      "risk_id": "r-379572868aa01151",
+      "risk_type": "功效宣称-效率与漏奶宣称",
+      "risk_category": "合规",
+      "risk_category_basis": "类别「功效宣称」⇒ 合规（硬引 PRD：PRD §7.3-2「医疗功效宣称（治疗、预防疾病等）」；§5.3 示例逐字『【合规-医疗宣称】』）",
+      "priority_tier": "P2",
+      "priority_tier_basis": "规则行 p_level=P2",
+      "layer": "规则层",
+      "p_level": "P2",
+      "risk_level": "Critical",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "M07:leak / U01:ibclc / U03:hospital",
+      "reason": "逐字命中「leak」：H02 催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫；M07 效率/漏奶/奶流/移除量/短时排乳类claim需W1自身对照数据（当前仅内部测试或外部研究，28.2%/10%/70%待补样本与统计），或限定为放松叙事；未补证据前需限定或删除（p_level=P2 risk_level=Critical authority=None，来源表 None）",
+      "suggestion": "",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.17",
+        "anchor": "#广告文案明细/recvuJYdObBgjg/命中片段",
+        "source_sha256": "1ca01a6690922a697e9d428439674863df67709688a6b32fe846705603f5e011",
+        "excerpt": "M07:leak / U01:ibclc / U03:hospital"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.17 条 @ #广告文案明细/recvuJYdObBgjg/命中片段 @ 1ca01a669092",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.17"
+    },
+    {
+      "risk_id": "r-0ffc53715dfa4e43",
+      "risk_type": "平台与促销-静音绝对化表述",
+      "risk_category": "合规",
+      "risk_category_basis": "类别「平台与促销」⇒ 合规（软判（按 §6.2/§5.2 语义归类）：PRD §7.1 外部标准库含「平台政策」）",
+      "priority_tier": "P2",
+      "priority_tier_basis": "规则行 p_level=P2",
+      "layer": "规则层",
+      "p_level": "P2",
+      "risk_level": "Critical",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "M01:whisper,whisper-quiet",
+      "reason": "逐字命中「quiet」：H02 催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫；M01 静音程度夸大（建议改为 low noise / quiet mode）（p_level=P2 risk_level=Critical authority=None，来源表 None）",
+      "suggestion": "",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.5",
+        "anchor": "#广告文案明细/recvuJYdOb1Rm1/命中片段",
+        "source_sha256": "c77f576dcc392cb3e763e6462d0259e50fb039f924a4af8e100321197e5be577",
+        "excerpt": "M01:whisper,whisper-quiet"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.5 条 @ #广告文案明细/recvuJYdOb1Rm1/命中片段 @ c77f576dcc39",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.5"
+    }
+  ],
+  "issue_count": 2,
+  "report_url": null,
+  "next_action": "建议转复核责任人复核。",
+  "next_owners": [
+    "复核责任人"
+  ],
+  "sla": {},
+  "version_gate": {
+    "reviewed_hash": "5044e8a1be34c61e77e1f7bf8a5d8831cc96cf0cef963a275d378058924e436a",
+    "release_hash": null,
+    "note": "本入口不掌握发布版本；发布/送审版本比对属裁决侧（review_engine.py:115-119），此处不代替它下结论"
+  },
+  "decision_trace": {
+    "reasons": [
+      "findings_present_without_block"
+    ],
+    "confidence_status": "not_calibrated_by_this_entry",
+    "evaluated_at": "2026-10-14T17:16:55",
+    "decided_by": "kb-content-review/scripts/review.py（依据侧自身分支，:709-715）",
+    "note": "本报告不重算结论；三态由上表 decision_raw 原样带出",
+    "tier_trace": {
+      "P0": 0,
+      "P1": 0,
+      "P2": 2,
+      "P3": 0,
+      "未标层": 0
+    },
+    "confidence_route": {
+      "applies": false,
+      "band": null,
+      "calibrated": false,
+      "why": "依据侧**不合成全局数值置信度**（逐条给 高/中/低）⇒ 没有可切三档的数。PRD §6.6 的数值分档与标注在**裁决侧**生效：见 `review_engine.decide()` → `decision_trace.confidence_route`；策略真源 `kb/l7/registry/confidence-policy.json`。",
+      "handled_by": "kb/l7/review-engine/core/review_engine.py::decide()"
+    }
+  },
+  "unmet_citation": []
+}

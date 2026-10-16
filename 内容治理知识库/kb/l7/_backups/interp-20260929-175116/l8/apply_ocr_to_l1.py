@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+"""把 OCR 结果回写 L1 台账（append-only）。
+
+前置：kb/l8/ocr_attachments.py <OCR_RUN> --purge-images 已跑完，产出
+  · kb/l1/2_内部正负样本库/media_<table>_<rid>.json     （每条记录一份，含 image_ocr segments）
+  · kb/l1/media/media_<table>_<rid>/ocr.json            （每图一份 OCR 明细）
+  · kb/l1/media/<OCR_RUN>.manifest.json                 （运行统计）
+
+本脚本追加两类 L1 行（覆盖此前的 pending_ocr / forbidden）：
+  ① 附件级：bitable:<tid>:<rid>/<fid>/<token> → status ok，char_count=该图 OCR 字数
+  ② 媒体容器级：media:<tid>:<rid> → status ok，segment_count/char_count/media_count
+并写 kb/l1/runs/<RUN>.json 运行记录 + 与 OCR manifest 对账（数字必须自洽）。
+用法：python3 kb/l8/apply_ocr_to_l1.py <OCR_RUN> <L1_RUN> [--apply]
+"""
+import collections
+import json
+import os
+import sys
+
+OCR_RUN = sys.argv[1] if len(sys.argv) > 1 else "20260929-1620"
+L1_RUN = sys.argv[2] if len(sys.argv) > 2 else "20260929-1630"
+APPLY = "--apply" in sys.argv
+L1 = "kb/l1"
+TABLE = "tbld8qE92YaY38Yz"
+
+ocr_man = json.load(open(f"{L1}/media/{OCR_RUN}.manifest.json", encoding="utf-8"))
+stats = ocr_man.get("stats") or {}
+print("OCR 运行统计:", json.dumps(stats, ensure_ascii=False))
+print("OCR 出文本段落:", ocr_man.get("segments_total"), "| 字符:", ocr_man.get("chars_total"))
+
+rows = [json.loads(l) for l in open(f"{L1}/manifest_l1.jsonl", encoding="utf-8") if l.strip()]
+MAN_KEYS = set(rows[0].keys())
+latest = {}
+for r in rows:
+    latest[r["resource_key"]] = r
+
+# 收 OCR 结果：按 (rid, file_token) → 文本
+per_file, per_rec = {}, {}
+media_files = []
+for fn in os.listdir(f"{L1}/2_内部正负样本库"):
+    if not (fn.startswith(f"media_{TABLE}_") and fn.endswith(".json")):
+        continue
+    d = json.load(open(f"{L1}/2_内部正负样本库/{fn}", encoding="utf-8"))
+    # OCR 产物按 L1 artifact schema 写，record_id 编码在 resource_key = media:<tid>:<rid> 里
+    rid = d.get("record_id") or d["resource_key"].split(":")[-1]
+    per_rec[rid] = d
+    media_files.append(fn)
+    for img in d.get("media_refs") or []:
+        per_file[(rid, img.get("file_token"))] = img
+print(f"读到媒体产物 {len(media_files)} 条（记录级），附件明细 {len(per_file)} 条")
+
+new_rows = []
+# ① 附件级
+for (rid, tok), img in sorted(per_file.items(), key=lambda x: (x[0][0], x[0][1])):
+    key = f"bitable:{TABLE}:{rid}/fldnvxjaSr/{tok}"
+    old = latest.get(key)
+    if old is None:
+        continue
+    row = dict(old)
+    row.update({"status": "ok" if (img.get("status") == "ok") else "empty",
+                "status_reason": "" if img.get("status") == "ok" else "已下载并 OCR，但未识别出文本",
+                "char_count": img.get("chars") or 0, "segment_count": 1 if img.get("chars") else 0,
+                "source_sha256": img.get("sha256"), "observed_at": L1_RUN})
+    new_rows.append(row)
+# ② 媒体容器级
+for rid, d in sorted(per_rec.items()):
+    key = f"media:{TABLE}:{rid}"
+    old = latest.get(key) or {"resource_id": f"media_{TABLE}_{rid}", "resource_key": key,
+                              "kb_type": "internal_sample", "source_kind": "feishu_attachment",
+                              "source_sha256": None, "extractor_version": "l1-0.1",
+                              "status": "pending_ocr", "status_reason": "", "segment_count": 0,
+                              "char_count": 0, "media_count": 0, "table_count": 0, "observed_at": L1_RUN}
+    row = dict(old)
+    row.update({"status": d.get("status") or "ok", "status_reason": d.get("status_reason") or "",
+                "segment_count": d.get("segment_count") or 0, "char_count": d.get("char_count") or 0,
+                "media_count": d.get("media_count") or 0, "observed_at": L1_RUN,
+                "source_sha256": None})
+    assert not (set(row) - MAN_KEYS), set(row) - MAN_KEYS
+    new_rows.append(row)
+
+seg = sum(1 for r in new_rows if r["resource_key"].startswith("media:") for _ in range(r["segment_count"] or 0))
+chars = sum(r["char_count"] or 0 for r in new_rows if r["resource_key"].startswith("media:"))
+print(f"将追加 {len(new_rows)} 行（附件级 {sum(1 for r in new_rows if '/' in r['resource_key'])}，"
+      f"媒体容器 {sum(1 for r in new_rows if '/' not in r['resource_key'])}）")
+print(f"对账：容器级 segments={seg} chars={chars} | OCR manifest segments={ocr_man.get('segments_total')} chars={ocr_man.get('chars_total')}")
+ok_self = (seg == (ocr_man.get("segments_total") or 0))
+print("自洽:", "✓" if ok_self else "✗（数字不一致，需看）")
+
+if APPLY:
+    with open(f"{L1}/manifest_l1.jsonl", "a", encoding="utf-8") as fh:
+        for r in new_rows:
+            fh.write(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n")
+    rep = {"run": L1_RUN, "layer": "l1", "kind": "ocr_backfill", "ocr_run": OCR_RUN,
+           "attachments_ok": sum(1 for r in new_rows if "/" in r["resource_key"] and r["status"] == "ok"),
+           "attachments_empty": sum(1 for r in new_rows if "/" in r["resource_key"] and r["status"] == "empty"),
+           "media_containers": sum(1 for r in new_rows if "/" not in r["resource_key"]),
+           "segments": seg, "chars": chars, "self_consistent": ok_self,
+           "ocr_stats": stats, "purge": ocr_man.get("purge"),
+           "note": "此前 283 条为 forbidden（库级禁止下载）；守衡取得下载权后重跑 OCR 并回写"}
+    json.dump(rep, open(f"{L1}/runs/{L1_RUN}.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    print(f"已写入 L1 manifest +{len(new_rows)} 行；运行记录 kb/l1/runs/{L1_RUN}.json")
+else:
+    print("未写入（加 --apply）")

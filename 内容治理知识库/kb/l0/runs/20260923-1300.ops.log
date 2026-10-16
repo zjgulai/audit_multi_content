@@ -1,0 +1,14 @@
+# 批次 2 外部调用台账  run_id=20260923-1300
+# 性质：read=只读；local=本地计算（哈希/索引重建/格式转换）
+# 本轮未对源侧做任何写操作；未修改任何视图或筛选条件。
+#
+时间               调用                                           性质     对象 / 说明
+20260923-1300    base +record-list                            read   ×4 次
+20260923-1300    base +view-list / +view-get-filter / +view-  read   2 个视图，读取筛选/排序/分组原值（未修改）
+20260923-1300    base +record-list（--limit 200 分页）            read   广告文案明细 291 条全量 + 专家修订汇总表 395 条全量
+20260923-1300    wiki +node-get                               read   新增 36 个飞书 wiki 节点解包（得 obj_type/obj_token/title）
+20260923-1300    base +record-download-attachment（缓存命中）       read   77 张图字节流（复用既有缓存，未重复下载）
+20260923-1300    sheets/slides/drive 探测                       read   3 个 scope 可用性检查：均 missing_scope
+20260923-1300    本地计算：sha256(record_fields)                   local  486 条新增记录指纹
+20260923-1300    本地计算：OCR 复用 + read_image 视觉描述                local  77 张图；视觉描述用 DSH read_image 多模态直读
+20260923-1300    本地计算：图片格式规范化                                 local  36 张 JPEG 字节转真 PNG（仅 kb/l1/media 副本）

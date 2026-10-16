@@ -1,0 +1,38 @@
+{
+ "run_id": "20261001-1100",
+ "at": "2026-10-01T10:14:40",
+ "source": "pipeline_sync",
+ "trigger": "--sync --via-skill L4",
+ "skills": [
+  "kb-pipeline",
+  "kb-canonical-lookup"
+ ],
+ "commands": [
+  "kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L4"
+ ],
+ "products": [],
+ "verdict": "全走完（预演 · 未落盘 · 非执行证据）",
+ "human_involved": false,
+ "extra": {
+  "via_skill": true,
+  "skill_invoked_by": "agent",
+  "skill_evidence": "agent_reported",
+  "layers": [
+   "L4"
+  ],
+  "layer_skills": [
+   "kb-canonical-lookup"
+  ],
+  "declared_layer_skills": {
+   "L4": [
+    "kb-canonical-lookup"
+   ]
+  },
+  "layer_skills_uniq": [
+   "kb-canonical-lookup"
+  ],
+  "invoked_reported": [
+   "kb-canonical-lookup"
+  ]
+ }
+}

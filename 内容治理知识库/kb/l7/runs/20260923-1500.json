@@ -1,0 +1,584 @@
+{
+ "run_id": "20260923-1500",
+ "stage": "L7 消费侧：使用知识库的 skill + 验收",
+ "finished_at": "2026-09-23 14:44:50",
+ "kb_version": "v0",
+ "article_no_read": {
+  "rules": 509,
+  "missing": [],
+  "ranges": {
+   "W-1": [
+    1,
+    56,
+    56
+   ],
+   "W-2": [
+    1,
+    453,
+    453
+   ]
+  },
+  "source": "kb/l3/candidates/rules.jsonl（L4 分配，只读）",
+  "registry": "kb/l4/registry/l4.json"
+ },
+ "skill": {
+  "path": "kb/l7/skills/kb-content-review/SKILL.md",
+  "name": "kb-content-review",
+  "complexity": "complex",
+  "bytes": 7188,
+  "validator": "root-skills-creator/scripts/validate-skill.py",
+  "validator_result": {
+   "passed": true,
+   "quality_score": 98,
+   "warnings": [
+    ".skill-meta/ is recommended for future MCP integration"
+   ]
+  },
+  "references": [
+   "references/protocols.md",
+   "references/categories.md"
+  ],
+  "script": "scripts/review.py"
+ },
+ "thresholds": {
+  "bm25_raw_min": 8.0,
+  "vector_cosine_min": 0.6,
+  "use_raw_scores_only": true,
+  "why_not_rrf": "RRF 分恒为 1/(60+k)，实测 Top1 恒在 0.016393，A 组与 B 组看起来一样高，没有区分度，不能当门限",
+  "why_single_threshold_not_enough": "实测 BM25 原始分在 A/B 两组有重叠（A 组最低 5.32 < B 组最高 10.02），所以门限只用于「够不够格当参考」，要成为「依据」还必须同时命中规则层",
+  "measured": {
+   "bm25_raw": {
+    "A_group_min": 5.32,
+    "A_group_median": 12.76,
+    "B_group_median": 6.44,
+    "B_group_max": 10.02,
+    "source": "kb/l6/selftest.json → raw_score_comparison"
+   },
+   "cosine": {
+    "A_group_min": 0.512,
+    "A_group_median": 0.669,
+    "B_group_median": 0.384,
+    "B_group_max": 0.569,
+    "source": "kb/l6/selftest.json → raw_score_comparison"
+   }
+  },
+  "threshold_reasoning": "BM25 门限取 8.0：落在 A 组最低(5.32)与 B 组最高(10.02)之间、贴近两组中位之间，偏保守；余弦门限取 0.60：实测它是唯一能把 B 组全部挡在外面的取值（B 组最高 0.569），代价是 A 组丢 2 条；即便如此门限仍单独不可靠，必须叠加「同时命中规则层」才算依据",
+  "below_threshold_label": "参考",
+  "above_threshold_without_rule_hit": "仍只能标参考，不得作为依据",
+  "coverage_bm25_min": 16.0,
+  "coverage_reasoning": "PASS 必须建立在「知识库认识这个主题」之上，覆盖信号二选一：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ coverage_bm25_min(=16.0)。16.0 = 依据门限的 2 倍：实测 A 组中位 12.76 / 最高 23.16，B 组最高 10.02，取 16 能把实测 B 组全部挡在外面。覆盖信号不成立 → 拒答，不得输出 PASS。"
+ },
+ "no_hit_semantics": {
+  "bm25_only": "字面未匹配，不代表合规",
+  "vector_only": "语义未匹配，不代表合规",
+  "hybrid": "字面与语义均未匹配，但仍不代表合规"
+ },
+ "discarded_examples": [],
+ "adopted_examples": [
+  {
+   "source": "bm25_en",
+   "unit_id": "768508479fe848a7e0a4",
+   "anchor": "#风险文案改写建议库（分型号分渠道）/recvuNn4RswMDt/风险原句示例",
+   "table": "风险文案改写建议库（分型号分渠道）",
+   "kb_type": "wording",
+   "source_sha256": "74f3d865a5e61c60bebac19c2cdfbcf2b0c006dbe33435992b8b32b3eb3959be",
+   "raw_bm25": 17.9593,
+   "excerpt": "【前】S12 Pro means more milk, less time 【后】Comfort Pumping, On Your Time 【原因】用时间自由+舒适替代“省时多奶”",
+   "verdict": "≥ 门限",
+   "reason": "原始分过门限 → 可作参考/待规则层确认"
+  },
+  {
+   "source": "bm25_en",
+   "unit_id": "7ba22b891b2e477d944c",
+   "anchor": "#风险文案改写建议库（分型号分渠道）/recvuNn4Rsa7G9/风险原句示例",
+   "table": "风险文案改写建议库（分型号分渠道）",
+   "kb_type": "wording",
+   "source_sha256": "aa81fc0a09eb8be6d5abcc052528912243db657df8964b889cfb17de9dcb4268",
+   "raw_bm25": 17.1675,
+   "excerpt": "【前】Pump more milk discreetly with Air 1 【后】Discreet Pumping, In Control 【原因】用隐蔽+掌控感替代奶量承诺",
+   "verdict": "≥ 门限",
+   "reason": "原始分过门限 → 可作参考/待规则层确认"
+  },
+  {
+   "source": "bm25_en",
+   "unit_id": "e7b64fb3a85179631e00",
+   "anchor": "#广告文案明细/recvuJYdObx5aF/Primary Text",
+   "table": "广告文案明细",
+   "kb_type": "wording",
+   "source_sha256": "4b4bbdee7757e40f192ef85217a4374994f0a7adf62b69da3ecb7ff239109e10",
+   "raw_bm25": 17.1258,
+   "excerpt": "Big Member Sale: 20% Off | Code BDMS20 Save 20% | Compact & Portable & Hospital Grade | Momcozy Hospital Grade Breast Pump - V1 | V1 Wearable Breast Pump | Big ",
+   "verdict": "≥ 门限",
+   "reason": "原始分过门限 → 可作参考/待规则层确认"
+  }
+ ],
+ "vocabulary": {
+  "version": "l7-vocab-0.1",
+  "categories": {
+   "功效宣称": [
+    "疾病治疗宣称",
+    "催乳与通乳宣称",
+    "临床与实验证据宣称",
+    "疼痛功效承诺",
+    "效率与漏奶宣称",
+    "智能与仿生宣称"
+   ],
+   "绝对化与安全承诺": [
+    "虚假安全承诺",
+    "绝对化性能表述",
+    "无依据数据与销量排名",
+    "竞品对比"
+   ],
+   "背书与资质": [
+    "医生专家推荐",
+    "监管认证宣称",
+    "等级与资质背书",
+    "专业头衔与合作",
+    "医疗场景宣称"
+   ],
+   "平台与促销": [
+    "静音绝对化表述",
+    "促销紧迫感表述",
+    "保险与支付资格宣称"
+   ],
+   "婴幼儿安全与场景": [
+    "乘车安全",
+    "睡眠安全",
+    "喂养与营养",
+    "洗护与沐浴",
+    "出行与户外",
+    "居家与用电",
+    "玩具与玩乐",
+    "危险行为示范"
+   ],
+   "人物肖像与 AI": [
+    "未成年人出镜与隐私",
+    "AI 合成标识",
+    "肖像与授权"
+   ],
+   "表述与术语准确性": [
+    "术语与口径",
+    "事实与数据依据",
+    "语气与立场",
+    "允许表述（安全词）"
+   ],
+   "未分类": [
+    "未分类"
+   ]
+  },
+  "code_map": {
+   "H01": [
+    "功效宣称",
+    "疾病治疗宣称"
+   ],
+   "H02": [
+    "功效宣称",
+    "催乳与通乳宣称"
+   ],
+   "H03": [
+    "功效宣称",
+    "临床与实验证据宣称"
+   ],
+   "H04": [
+    "背书与资质",
+    "医生专家推荐"
+   ],
+   "H05": [
+    "绝对化与安全承诺",
+    "虚假安全承诺"
+   ],
+   "H06": [
+    "背书与资质",
+    "监管认证宣称"
+   ],
+   "H07": [
+    "功效宣称",
+    "疼痛功效承诺"
+   ],
+   "H08": [
+    "绝对化与安全承诺",
+    "绝对化性能表述"
+   ],
+   "H09": [
+    "功效宣称",
+    "智能与仿生宣称"
+   ],
+   "M01": [
+    "平台与促销",
+    "静音绝对化表述"
+   ],
+   "M02": [
+    "绝对化与安全承诺",
+    "绝对化性能表述"
+   ],
+   "M03": [
+    "绝对化与安全承诺",
+    "无依据数据与销量排名"
+   ],
+   "M04": [
+    "平台与促销",
+    "促销紧迫感表述"
+   ],
+   "M05": [
+    "背书与资质",
+    "等级与资质背书"
+   ],
+   "M06": [
+    "绝对化与安全承诺",
+    "竞品对比"
+   ],
+   "M07": [
+    "功效宣称",
+    "效率与漏奶宣称"
+   ],
+   "U01": [
+    "背书与资质",
+    "专业头衔与合作"
+   ],
+   "U02": [
+    "平台与促销",
+    "保险与支付资格宣称"
+   ],
+   "U03": [
+    "背书与资质",
+    "医疗场景宣称"
+   ],
+   "U04": [
+    "功效宣称",
+    "疼痛功效承诺"
+   ],
+   "安全词": [
+    "表述与术语准确性",
+    "允许表述（安全词）"
+   ],
+   "UNCODED": [
+    "未分类",
+    "未分类"
+   ]
+  },
+  "keyword_map_size": 19,
+  "prd_7_2": [
+   "车内场景",
+   "功效宣称与广告用语",
+   "喂养场景",
+   "人物、肖像与 AI",
+   "睡眠场景",
+   "洗护与沐浴",
+   "出行与户外",
+   "居家与用电",
+   "玩具与玩乐"
+  ],
+  "prd_7_3": [
+   "1 车内出现未使用安全座椅 / 反向安装错误 / 成人未系安全带 / 安全座椅装副驾 / 儿童独留车内",
+   "2 医疗功效宣称（治疗、预防疾病等）",
+   "3 绝对化用语（最、第一、最佳、100%、纯天然等）",
+   "4 无依据的销量/排名宣称",
+   "5 危险行为示范（如无人看护下水、趴睡、怀抱乘车等）",
+   "6 未成年人未经授权出镜 / 隐私暴露",
+   "7 AI 深度合成内容未标识"
+  ]
+ },
+ "selftest": {
+  "A_block": {
+   "criteria": "见 selftest_a_block.md 判据表",
+   "output": "【审查结论：BLOCK】共发现 1 处必须修改。\n\n1.【功效宣称-催乳与通乳宣称】全文，H02:más leche\n  原因：P0 规则命中：BLOCK；命中片段逐字来自来源记录字段 命中片段\n  依据：《措辞表达库 v0（试用版，未发布）》第 W-1.18 条（链接：kb/l3/candidates/rules.jsonl#W-1.18）\n  锚点：#广告文案明细/recvuJYdObxeKs/命中片段｜source_sha256：8f752d56731a13da07d5cb64853a52d4eb16b8828b5ee0c71576c13eefe910b5\n  判定：事实｜置信度：高\n  建议：「easier letdown」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 静音表述改客观参数（as low as 48 dB），避免 whisper/silent/ultra-quiet 绝对化；「increase milk suppl\n\n请修改后重新提交。\n\n---\n检索轨迹摘要：P0 1 命中（19.657 ms）｜规则层 1 命中｜单元层 BM25 最高 97.9367（门限 8.0）｜向量补召 未启用｜无法满足引用契约 0 条\n完整清单：kb/l7/reports/20260923-1500-a.review.md"
+  },
+  "B_refusal": {
+   "output": "【审查结论：无法给出结论（拒答）】未检索到可作依据的知识库条目。\n\n- 查了什么：\"关于汽车保养周期多久一次的建议，以及基金定投和股票的区别\"\n- 用了几种模式：BM25（最高原始分 11.0651）；向量补召未启用（BM25 最高分已过依据门限 8.0，没触发补召，本轮无余弦分）\n- 逐层为什么没有依据：\n  1) P0 确定性匹配：0 命中\n  2) 规则层：0 命中 —— 没有规则可以当依据\n  3) 单元层：BM25 最高 11.0651（依据门限 8.0，覆盖门限 16.0）；被规则引用且过覆盖门限的材料 0 条；命中允许表述（安全词）0 条\n  → 结论：没有规则层命中，单元层也没有「知识库确实管这块」的覆盖信号（覆盖门限 16.0 或安全词），所以既不能给三态结论，也不能说合规\n- 语义召回标注：语义召回可用（L6 = vector_plus_bm25）\n- 字面未匹配，不代表合规\n\n---\n检索轨迹摘要：P0 0 命中（14.216 ms）｜规则层 0 命中｜单元层 BM25 最高 11.0651（门限 8.0）｜向量补召 未启用｜无法满足引用契约 0 条\n完整清单：kb/l7/reports/20260923-1500-b.review.md",
+   "state": "拒答"
+  },
+  "C_acceptance": {
+   "ran": false,
+   "why": "kb/l7/acceptance_cases.md 不存在（任务条件：若存在才跑）"
+  },
+  "D_paraphrase": {
+   "source": "kb/.work/l7_probe_d.json",
+   "modes": [
+    "bm25_only",
+    "vector_only",
+    "fuse_0.7_0.3",
+    "fuse_0.5_0.5"
+   ],
+   "conclusion": "维持 BM25 为主；向量无净增益，不给融合权重"
+  },
+  "E_trigger": {
+   "cases": 8,
+   "consistent": 8,
+   "method": "逐条对照 description 人工判定（无独立分类器）"
+  }
+ },
+ "integrity": {
+  "frozen_layers": {
+   "artifact_hash_check": {
+    "checked": 26,
+    "mismatch": [],
+    "layers_covered": [
+     "l3",
+     "l4",
+     "l5",
+     "l6"
+    ]
+   },
+   "l0_l2_tree_sha256_same_as_L5": {
+    "l0": true,
+    "l1": true,
+    "l2": true
+   },
+   "l3_candidates": {
+    "lines": 1527,
+    "base1018_matches_L6": true,
+    "whole1527_matches_L4": true,
+    "bytes": 4371238
+   },
+   "verdict": "PASS"
+  },
+  "citation_contract": {
+   "citations": 15,
+   "anchors": 15,
+   "source_sha256": 15,
+   "bare_urls": [],
+   "library_names_used": [
+    "措辞表达库"
+   ],
+   "library_names_not_in_kb": [],
+   "verdict": "PASS",
+   "note": "结论里的条款号/锚点/source_sha256 三类都在；输出里没有裸 URL；库名只有知识库真实存在的四类库"
+  },
+  "refusal": {
+   "refuses": true,
+   "no_hit_semantics_verbatim": true,
+   "semantics_source": {
+    "bm25_only": "字面未匹配，不代表合规",
+    "vector_only": "语义未匹配，不代表合规",
+    "hybrid": "字面与语义均未匹配，但仍不代表合规"
+   },
+   "verdict": "PASS"
+  },
+  "retrieval_trace": {
+   "elements": {
+    "P0": true,
+    "规则层": true,
+    "单元层分数与门限": true,
+    "采用舍弃": true,
+    "向量启用与否": true
+   },
+   "verdict": "PASS"
+  },
+  "template_conformance": {
+   "markers": {
+    "BLOCK": true,
+    "REVIEW": true,
+    "PASS": true,
+    "汇总分流(≥3)": true,
+    "逐条分流(1-2)": true,
+    "逐条块含引用三要素": true
+   },
+   "verdict": "PASS"
+  },
+  "version_discipline": {
+   "l4_canonical_bytes": 0,
+   "versions_jsonl_rows": 0,
+   "kb_version_by_registry": {
+    "l0/registry/kb.json": "v0",
+    "l1/registry/l1.json": "v0",
+    "l2/registry/l2.json": null,
+    "l3/registry/l3.json": "v0",
+    "l4/registry/l4.json": "v0",
+    "l5/registry/l5.json": "v0",
+    "l6/registry/l6.json": "v0",
+    "l7/registry/l7.json": "v0"
+   },
+   "verdict": "PASS"
+  },
+  "article_no_read": {
+   "rules": 509,
+   "missing": [],
+   "ranges": {
+    "W-1": [
+     1,
+     56,
+     56
+    ],
+    "W-2": [
+     1,
+     453,
+     453
+    ]
+   },
+   "verdict": "PASS",
+   "note": "本步只读 L4 分配的条款号，不重新分配、不改 kb/l3"
+  }
+ },
+ "integrity_verdict": "PASS",
+ "citation_contract": {
+  "unmet_conclusions": [],
+  "unmet_source": "三次自验运行的 trace.unmet_citation 均为空"
+ },
+ "artifacts": [
+  {
+   "path": "kb/l7/skills/kb-content-review/SKILL.md",
+   "bytes": 7188,
+   "sha256": "1b82260fa340683a1b9b34cd063b39141490b53bf1d65f7ea97c1de606566703",
+   "sha256_was": "bd056a30b9c9e344156a41884432d5b29c8adef5e2f7fb7cae316c36e7ce2dde",
+   "changed_by": "l8 批次（2026-09-23 17:0x）补记：该文件被并发工作流改写（内容变更，非仅形态），落盘形态当时是信封态，已由 kb/l8/repair_enveloped_docs.py 重写为明文；工作区副本与全局安装副本 ~/.dsh/skills/kb-content-review/SKILL.md 逻辑内容已一致"
+  },
+  {
+   "path": "kb/l7/output_template.md",
+   "bytes": 4671,
+   "sha256": "4308a110395a7f42ec8286281ca7deed40cc53395b4caeb73780787098bd98d6"
+  },
+  {
+   "path": "kb/l7/registry/l7.json",
+   "bytes": 21068,
+   "sha256": "36c5c78d8d01cbce80bf5d355d0b19ea4daafcdf0b3bde2ed021829b2c4f9310"
+  },
+  {
+   "path": "kb/l7/selftest_a_block.md",
+   "bytes": 5413,
+   "sha256": "abd0e32584fca42c2a76c7178d61b91703b4345b927b6945861c8b8c6ee4eac1"
+  },
+  {
+   "path": "kb/l7/selftest_b_refusal.md",
+   "bytes": 2442,
+   "sha256": "a02d90ed36e695ec53520769dd9815f56e29b8c303bc4a637a0d31f80a55b4a9"
+  },
+  {
+   "path": "kb/l7/selftest_d_paraphrase.md",
+   "bytes": 18845,
+   "sha256": "3e20fd982dde99ff471e422be8d54dc2a85a5524c44799ffb5d32161ce8a7850"
+  },
+  {
+   "path": "kb/l7/selftest_e_trigger.md",
+   "bytes": 2826,
+   "sha256": "9d8b47c3daff3b5792484888bf23eae4e30b7ed52a26d8c0b294722d67775080"
+  },
+  {
+   "path": "kb/l7/skills/kb-content-review/scripts/review.py",
+   "bytes": 27086,
+   "sha256": "fd23e0e694fcdf12bc98f4f640bcfe7d8c22eb420840fe44b7780f9792f97333",
+   "sha256_was": "d09886860d0c4a3e4821fe5453fe53ed35ec39afeff5ef57282aa49d6ee4d123",
+   "changed_by": "l8 批次（2026-09-23 17:0x）补记：该文件被并发工作流改写（内容变更，非仅形态），落盘形态当时是信封态，已由 kb/l8/repair_enveloped_docs.py 重写为明文；工作区副本与全局安装副本 ~/.dsh/skills/kb-content-review/SKILL.md 逻辑内容已一致"
+  },
+  {
+   "path": "kb/l7/skills/kb-content-review/references/protocols.md",
+   "bytes": 3310,
+   "sha256": "45fb336c02b55c374683d8e7ab08b1dbbad57997709346292a9d1714e7399a2c"
+  },
+  {
+   "path": "kb/l7/skills/kb-content-review/references/categories.md",
+   "bytes": 6935,
+   "sha256": "2fd7f031bbb3fa82ccdb42913679c2d1fd9f426af1029777bcc64fba61a91db1"
+  },
+  {
+   "path": "kb/l7/skills/kb-content-review/README.md",
+   "bytes": 518,
+   "sha256": "1a7d634aa8c7c4eb02941d51060de047e6ade0c5493c47cacbcde02d41d8f936"
+  },
+  {
+   "path": "kb/l7/reports/20260923-1500-a.review.md",
+   "bytes": 11191,
+   "sha256": "8cabd631ff4b712c067e39e12fafb9b0ba726d7371621dd17d0f5aae67d17def"
+  },
+  {
+   "path": "kb/l7/reports/20260923-1500-b.review.md",
+   "bytes": 9060,
+   "sha256": "f68d7c2da7da4ffa94f7535467cfbe353b8ff79f478112402d58004d0c84ff5f"
+  },
+  {
+   "path": "kb/l7/reports/20260923-1500-block3.review.md",
+   "bytes": 14309,
+   "sha256": "d5e28d9dcf1c968113b8ab82492c11ae05b93fb1bd4b46010415f4997ba9d126"
+  },
+  {
+   "path": "kb/l7/reports/20260923-1500-final.review.md",
+   "bytes": 10719,
+   "sha256": "b75325f45a8c18a5e444a0da20d774942b72c61fcd7449c30335f8c6b83f3cc8"
+  },
+  {
+   "path": "kb/l7/reports/20260923-1500-pass.review.md",
+   "bytes": 8392,
+   "sha256": "6eac4e6f3294f4c1f60d2807846a70c665ecd6ab65fd8dfd63af6a75a455296a"
+  },
+  {
+   "path": "kb/l7/reports/20260923-1500-report.review.md",
+   "bytes": 14309,
+   "sha256": "26bbdb40a3873daa9c77b6df4b50ee96cae3f33ef72489351513e15d96abc813"
+  },
+  {
+   "path": "kb/l7/reports/20260923-1500-review.review.md",
+   "bytes": 7950,
+   "sha256": "2ce85d90e68e28724dfd8256d5f6a15b87624886308900cd97d9c3c7417a0125"
+  },
+  {
+   "path": "kb/l7/reports/20260923-1500.review.md",
+   "bytes": 11189,
+   "sha256": "d1377e194aa4e8ac0791e70ed68ad5a0ab24aa4e0babc3c1c25ed1dc72ba884c",
+   "sha256_was": "219c0b87b506a56043bcbbb2594be347678d3e70ba641f680078d37422382bd9",
+   "changed_by": "l8 批次（2026-09-23 17:0x）补记：该文件被并发工作流改写（内容变更，非仅形态），落盘形态当时是信封态，已由 kb/l8/repair_enveloped_docs.py 重写为明文；工作区副本与全局安装副本 ~/.dsh/skills/kb-content-review/SKILL.md 逻辑内容已一致"
+  }
+ ],
+ "decisions": [
+  {
+   "id": "D1",
+   "decision": "检索与引用合成一个 skill（kb-content-review），两段协议在文件内分开写",
+   "why": "两段是同一能力的两个阶段，中间没有独立使用者；拆开的不对称风险（没按格式引 / 没检索就答）都是幻觉。也不按四类库拆四个：那会把同一套协议复制四份，用 kb_type 区分即可"
+  },
+  {
+   "id": "D2",
+   "decision": "默认 BM25 为主，仅在 BM25 原始分低于门限时启用向量补召；不用等权 RRF 当默认",
+   "why": "L6 实测 bm25_only 的 A 组 hit@3 1.0 / p@3 0.958，hybrid(等权 RRF) 0.875 / 0.542；本批 D 组（规避型）三种模式 hit@3 都是 0.8、向量 p@3 更低 → 两批合起来维持 BM25 为主"
+  },
+  {
+   "id": "D3",
+   "decision": "门限用原始分（BM25 ≥ 8.0 / 余弦 ≥ 0.60），并额外引入覆盖门限（16.0）",
+   "why": "RRF 分恒为 0.016393、无区分度；单一门限也不够（A/B 有重叠）。覆盖门限是本批现场发现的缺口：首版没有它时，离题的汽车保养/基金文本因一条偶然过门限的 BM25 命中被判 PASS——现在覆盖信号不成立就拒答"
+  },
+  {
+   "id": "D4",
+   "decision": "引用锚点必须在规则的**全部证据单元**里找真正含摘录的那一个，不能用规则的首个证据单元",
+   "why": "规则会把上百条来源记录的片段汇总（如 H02 有 102 个证据单元），首个证据单元常常不含被引片段；首版因此有 4 条结论引用不到锚点，按硬闸门被丢弃，改为逐个证据单元确认后归零"
+  },
+  {
+   "id": "D5",
+   "decision": "同一处文案命中多条同义规则时合并为一条，并记下被合并的条款号",
+   "why": "风险文案改写建议库里有大量近义条目（同一条 More Milk 有 4+ 条），不合并会把问题数虚高、把 ≥3 的分流规则触发得过早"
+  },
+  {
+   "id": "D6",
+   "decision": "输出模板在四要素之外补上 锚点 / source_sha256 / 判定 三行",
+   "why": "引用契约要求这三项，且「引用不到本地锚点的结论不许输出」；模板与实现对齐后才能既满足模板又满足契约"
+  },
+  {
+   "id": "D7",
+   "decision": "拒答按**实际走过的路**选 no_hit_semantics（只跑 BM25 → bm25_only 文案；试过向量 → hybrid 文案），并逐层说明为什么没依据",
+   "why": "首版拒答文案里写了「最高原始分 11.07 < 门限 8.0」这种算术上不成立的解释（真实原因是覆盖信号不成立），属假陈述，已改成分层说明"
+  },
+  {
+   "id": "D8",
+   "decision": "责任人做成 registry 角色位（pass_signoff / review_reviewers / block_owner），未填时输出「（未配置）」",
+   "why": "硬编码人名会在组织变动后失效；当前 handle 为 null，输出如实标注未配置，不猜人名"
+  },
+  {
+   "id": "D9",
+   "decision": "自验 C 跳过并留痕",
+   "why": "kb/l7/acceptance_cases.md 不存在（任务写明「若文件存在」才跑），不伪造验收数据"
+  },
+  {
+   "id": "D10",
+   "decision": "自验 E 的「实际触发」按 description 人工判定，并写明方法局限",
+   "why": "本批没有独立触发分类器可跑；真正的触发回归要走 root-skills-eval 的 A/B 卷，不在本批范围。判定结论只对 description 文本负责"
+  },
+  {
+   "id": "D11",
+   "decision": "视频位置表达标注为「无素材、未验证」",
+   "why": "本批没有视频素材，不能假装验过；文本/图片两类可验（图片复用 L1 的 #img.N 锚点）"
+  }
+ ],
+ "not_done": [
+  "不写版本号、不冻结版本（kb_version 仍 v0，versions.jsonl 版本行仍 0）",
+  "不写 kb/l4/canonical/rules.jsonl（仍 0 字节）；不改任何规则；不改 kb/l0~kb/l6 任何文件",
+  "不做抽查、不做发布；不建第二个 skill；不重复分配条款号",
+  "不做 rerank；不改 L6 的融合方式（加权融合只在 kb/.work 的探针里算，不写进 kb/l6）"
+ ],
+ "verdict": "PASS"
+}

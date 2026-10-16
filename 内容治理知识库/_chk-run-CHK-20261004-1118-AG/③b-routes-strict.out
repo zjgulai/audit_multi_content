@@ -1,0 +1,140 @@
+==========================================================================
+routes_reconcile —— 实际被谁接走 vs 路由表写谁
+==========================================================================
+库根    : /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb
+路由表  : kb/l7/registry/routes.yaml（解析器 PyYAML）
+登记表  : kb/l7/registry/skills.yaml（解析器 PyYAML，71 个成员）
+用例    : /Users/lute/Desktop/skill/内容治理中文skill/_基线用例.json（65 条）
+赢家表  : /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/_eval-kb-manage/results_alias/routes-winners_20261004-0327-SUB.txt（115 条）
+口径    : strict（只认逐字相等的成员 id）
+
+--- ① 逐条对照 --- 65 条
+    用例     期望成员                                   实际接走（第1/2/3轮）                                  三轮一致     一致
+    A1     brand-content-review-agent             内容审查总控 / 内容审查总控 / 内容审查总控                       是        ❌
+    A2     brand-content-review-agent             内容审查总控 / 内容审查总控 / 内容审查总控                       是        ❌
+    A3     brand-content-review-agent             内容审查总控 / 内容审查总控 / 内容审查总控                       是        ❌
+    A4     brand-content-review-agent             内容审查总控 / 内容审查总控 / 内容审查总控                       是        ❌
+    A5     brand-content-review-agent             内容审查总控 / 内容审查总控 / 内容审查总控                       是        ❌
+    B1     brand-review-intake-router             送审登记 / 送审登记 / 送审登记                             是        ❌
+    B2     brand-review-intake-router             送审登记 / 送审登记 / 送审登记                             是        ❌
+    B3     brand-review-intake-router             送审登记 / 送审登记 / 送审登记                             是        ❌
+    B4     brand-review-intake-router             送审登记 / 送审登记 / 送审登记                             是        ❌
+    B5     brand-review-intake-router             送审登记 / 送审登记 / 送审登记                             是        ❌
+    C1     brand-policy-source-curator            证据源维护 / 证据源维护 / 证据源维护                          是        ❌
+    C2     brand-policy-source-curator            证据源维护 / 证据源维护 / 证据源维护                          是        ❌
+    C3     brand-policy-source-curator            证据源维护 / 证据源维护 / 证据源维护                          是        ❌
+    C4     brand-policy-source-curator            证据源维护 / 证据源维护 / 证据源维护                          是        ❌
+    C5     brand-policy-source-curator            证据源维护 / 证据源维护 / 证据源维护                          是        ❌
+    D1     brand-text-compliance-review           文案合规审查 / 文案合规审查 / 文案合规审查                       是        ❌
+    D2     brand-text-compliance-review           文案合规审查 / 文案合规审查 / 文案合规审查                       是        ❌
+    D3     brand-text-compliance-review           文案合规审查 / 文案合规审查 / 文案合规审查                       是        ❌
+    D4     brand-text-compliance-review           文案合规审查 / 文案合规审查 / 文案合规审查                       是        ❌
+    D5     brand-text-compliance-review           文案合规审查 / 文案合规审查 / 文案合规审查                       是        ❌
+    E1     brand-product-claim-verifier           产品宣称核验 / 产品宣称核验 / 产品宣称核验                       是        ❌
+    E2     brand-product-claim-verifier           产品宣称核验 / 产品宣称核验 / 产品宣称核验                       是        ❌
+    E3     brand-product-claim-verifier           产品宣称核验 / 产品宣称核验 / 产品宣称核验                       是        ❌
+    E4     brand-product-claim-verifier           产品宣称核验 / 产品宣称核验 / 产品宣称核验                       是        ❌
+    E5     brand-product-claim-verifier           产品宣称核验 / 产品宣称核验 / 产品宣称核验                       是        ❌
+    F1     brand-image-safety-review              图片安全审查 / 图片安全审查 / 图片安全审查                       是        ❌
+    F2     brand-image-safety-review              图片安全审查 / 图片安全审查 / 图片安全审查                       是        ❌
+    F3     brand-image-safety-review              图片安全审查 / 图片安全审查 / 图片安全审查                       是        ❌
+    F4     brand-image-safety-review              图片安全审查 / 图片安全审查 / 图片安全审查                       是        ❌
+    F5     brand-image-safety-review              图片安全审查 / 图片安全审查 / 图片安全审查                       是        ❌
+    G1     brand-video-safety-review              视频安全审查 / 视频安全审查 / 视频安全审查                       是        ❌
+    G2     brand-video-safety-review              视频安全审查 / 视频安全审查 / 视频安全审查                       是        ❌
+    G3     brand-video-safety-review              视频安全审查 / 视频安全审查 / 视频安全审查                       是        ❌
+    G4     brand-video-safety-review              视频安全审查 / 视频安全审查 / 视频安全审查                       是        ❌
+    G5     brand-video-safety-review              视频安全审查 / 视频安全审查 / 视频安全审查                       是        ❌
+    H1     brand-us-locale-cultural-review        美国本地化审查 / 美国本地化审查 / 美国本地化审查                    是        ❌
+    H2     brand-us-locale-cultural-review        美国本地化审查 / 美国本地化审查 / 美国本地化审查                    是        ❌
+    H3     brand-us-locale-cultural-review        美国本地化审查 / 美国本地化审查 / 美国本地化审查                    是        ❌
+    H4     brand-us-locale-cultural-review        美国本地化审查 / 美国本地化审查 / 美国本地化审查                    是        ❌
+    H5     brand-us-locale-cultural-review        美国本地化审查 / 美国本地化审查 / 美国本地化审查                    是        ❌
+    … 另有 25 条未列
+
+--- ② 不一致清单 --- 65 条
+    · A1：期望 brand-content-review-agent，实际 内容审查总控 / 内容审查总控 / 内容审查总控
+    · A2：期望 brand-content-review-agent，实际 内容审查总控 / 内容审查总控 / 内容审查总控
+    · A3：期望 brand-content-review-agent，实际 内容审查总控 / 内容审查总控 / 内容审查总控
+    · A4：期望 brand-content-review-agent，实际 内容审查总控 / 内容审查总控 / 内容审查总控
+    · A5：期望 brand-content-review-agent，实际 内容审查总控 / 内容审查总控 / 内容审查总控
+    · B1：期望 brand-review-intake-router，实际 送审登记 / 送审登记 / 送审登记
+    · B2：期望 brand-review-intake-router，实际 送审登记 / 送审登记 / 送审登记
+    · B3：期望 brand-review-intake-router，实际 送审登记 / 送审登记 / 送审登记
+    · B4：期望 brand-review-intake-router，实际 送审登记 / 送审登记 / 送审登记
+    · B5：期望 brand-review-intake-router，实际 送审登记 / 送审登记 / 送审登记
+    · C1：期望 brand-policy-source-curator，实际 证据源维护 / 证据源维护 / 证据源维护
+    · C2：期望 brand-policy-source-curator，实际 证据源维护 / 证据源维护 / 证据源维护
+    · C3：期望 brand-policy-source-curator，实际 证据源维护 / 证据源维护 / 证据源维护
+    · C4：期望 brand-policy-source-curator，实际 证据源维护 / 证据源维护 / 证据源维护
+    · C5：期望 brand-policy-source-curator，实际 证据源维护 / 证据源维护 / 证据源维护
+    · D1：期望 brand-text-compliance-review，实际 文案合规审查 / 文案合规审查 / 文案合规审查
+    · D2：期望 brand-text-compliance-review，实际 文案合规审查 / 文案合规审查 / 文案合规审查
+    · D3：期望 brand-text-compliance-review，实际 文案合规审查 / 文案合规审查 / 文案合规审查
+    · D4：期望 brand-text-compliance-review，实际 文案合规审查 / 文案合规审查 / 文案合规审查
+    · D5：期望 brand-text-compliance-review，实际 文案合规审查 / 文案合规审查 / 文案合规审查
+    · E1：期望 brand-product-claim-verifier，实际 产品宣称核验 / 产品宣称核验 / 产品宣称核验
+    · E2：期望 brand-product-claim-verifier，实际 产品宣称核验 / 产品宣称核验 / 产品宣称核验
+    · E3：期望 brand-product-claim-verifier，实际 产品宣称核验 / 产品宣称核验 / 产品宣称核验
+    · E4：期望 brand-product-claim-verifier，实际 产品宣称核验 / 产品宣称核验 / 产品宣称核验
+    · E5：期望 brand-product-claim-verifier，实际 产品宣称核验 / 产品宣称核验 / 产品宣称核验
+    · F1：期望 brand-image-safety-review，实际 图片安全审查 / 图片安全审查 / 图片安全审查
+    · F2：期望 brand-image-safety-review，实际 图片安全审查 / 图片安全审查 / 图片安全审查
+    · F3：期望 brand-image-safety-review，实际 图片安全审查 / 图片安全审查 / 图片安全审查
+    · F4：期望 brand-image-safety-review，实际 图片安全审查 / 图片安全审查 / 图片安全审查
+    · F5：期望 brand-image-safety-review，实际 图片安全审查 / 图片安全审查 / 图片安全审查
+    · G1：期望 brand-video-safety-review，实际 视频安全审查 / 视频安全审查 / 视频安全审查
+    · G2：期望 brand-video-safety-review，实际 视频安全审查 / 视频安全审查 / 视频安全审查
+    · G3：期望 brand-video-safety-review，实际 视频安全审查 / 视频安全审查 / 视频安全审查
+    · G4：期望 brand-video-safety-review，实际 视频安全审查 / 视频安全审查 / 视频安全审查
+    · G5：期望 brand-video-safety-review，实际 视频安全审查 / 视频安全审查 / 视频安全审查
+    · H1：期望 brand-us-locale-cultural-review，实际 美国本地化审查 / 美国本地化审查 / 美国本地化审查
+    · H2：期望 brand-us-locale-cultural-review，实际 美国本地化审查 / 美国本地化审查 / 美国本地化审查
+    · H3：期望 brand-us-locale-cultural-review，实际 美国本地化审查 / 美国本地化审查 / 美国本地化审查
+    · H4：期望 brand-us-locale-cultural-review，实际 美国本地化审查 / 美国本地化审查 / 美国本地化审查
+    · H5：期望 brand-us-locale-cultural-review，实际 美国本地化审查 / 美国本地化审查 / 美国本地化审查
+    … 另有 25 条未列
+
+    「被谁抢走」计数（本次不合格判定的接走者）：
+      图片安全审查                                 18 次
+      视频安全审查                                 18 次
+      内容审查总控                                 15 次
+      送审登记                                   15 次
+      证据源维护                                  15 次
+      文案合规审查                                 15 次
+      产品宣称核验                                 15 次
+      美国本地化审查                                15 次
+      审查裁决                                   15 次
+      审查报告与记忆                                15 次
+      审查流程评测                                 15 次
+      飞书审查流转                                 15 次
+      NONE                                   6 次
+      AI 溯源与权利审查                             2 次
+      CLARIFY                                1 次
+
+--- ③ 按成员命中率（逐条全轮命中 / 总条数；逐轮命中 / 总轮数）---
+    brand-ai-provenance-rights-review      0/5 条 ｜ 0/15 轮
+    brand-content-review-agent             0/5 条 ｜ 0/15 轮
+    brand-feishu-review-adapter            0/5 条 ｜ 0/15 轮
+    brand-image-safety-review              0/5 条 ｜ 0/15 轮
+    brand-policy-source-curator            0/5 条 ｜ 0/15 轮
+    brand-product-claim-verifier           0/5 条 ｜ 0/15 轮
+    brand-review-decision-engine           0/5 条 ｜ 0/15 轮
+    brand-review-evaluation                0/5 条 ｜ 0/15 轮
+    brand-review-intake-router             0/5 条 ｜ 0/15 轮
+    brand-review-report-memory             0/5 条 ｜ 0/15 轮
+    brand-text-compliance-review           0/5 条 ｜ 0/15 轮
+    brand-us-locale-cultural-review        0/5 条 ｜ 0/15 轮
+    brand-video-safety-review              0/5 条 ｜ 0/15 轮
+
+--- ④ 路由表自检 --- 0 条
+
+--- 备注 ---
+    · F1 交叉核对默认跳过：本表口径含 alias 折回；要核对请用 --alias 一致的 results 目录
+    · F1 由同批用例、同一打分器另跑（见 _eval-kb-manage/kb_routes_score.py）；本对账器只负责「期望 vs 实际」，不重算分
+
+==========================================================================
+逐条全轮命中：0/65（门槛：F1 >= 0.90，见打分器）
+四节问题：①=65 ②（同上）④=0 ｜合计 65
+退出码：1
+__EXIT=1

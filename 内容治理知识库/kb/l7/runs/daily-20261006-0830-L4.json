@@ -1,0 +1,79 @@
+{
+ "run_id": "daily-20261006-0830-L4",
+ "at": "2026-10-06T08:35:21",
+ "source": "pipeline_sync",
+ "trigger": "--sync --via-skill L4",
+ "skills": [
+  "kb-pipeline",
+  "kb-canonical-lookup"
+ ],
+ "commands": [
+  "kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L4 --run daily-20261006-0830-L4 --invoked kb-canonical-lookup --skill-session L4=session-0ab1026c-014d-42ab-8c0c-1dd8e364fe7e"
+ ],
+ "products": [
+  "kb/l3/candidates/rules.jsonl",
+  "kb/l4/registry/l4.json",
+  "kb/l4/canonical/rules.jsonl",
+  "kb/l3/CANONICAL_MOVED.md",
+  "kb/l4/runs/daily-20261006-0830-L4-canonical-dryrun.json",
+  "kb/l3/candidates/external_standard.jsonl",
+  "kb/l3/candidates/sample_cases.jsonl",
+  "kb/l3/candidates/scoped_clauses.jsonl"
+ ],
+ "verdict": "全走完",
+ "human_involved": true,
+ "extra": {
+  "via_skill": true,
+  "skill_invoked_by": "agent",
+  "skill_evidence": "layer_stamps_observed",
+  "skill_evidence_note": "观测来源＝层落章（非预演）：L4:kb/l4/runs/daily-20261006-0830-L4.json",
+  "observed_skills": [
+   "kb-canonical-lookup"
+  ],
+  "observed_skills_sources": [
+   "L4:kb/l4/runs/daily-20261006-0830-L4.json"
+  ],
+  "layers": [
+   "L4"
+  ],
+  "layer_skills": [
+   "kb-canonical-lookup"
+  ],
+  "declared_layer_skills": {
+   "L4": [
+    "kb-canonical-lookup"
+   ]
+  },
+  "layer_skills_uniq": [
+   "kb-canonical-lookup"
+  ],
+  "invoked_reported": [
+   "kb-canonical-lookup"
+  ],
+  "skill_sessions": {
+   "L4": "session-0ab1026c-014d-42ab-8c0c-1dd8e364fe7e"
+  },
+  "human_involved_basis": "--invoked 已上报（agent 按层 skill 走过）",
+  "verdict_basis": "层侧落章 applied=true → 真落盘",
+  "layer_stamps_applied": [
+   "L4:kb/l4/runs/daily-20261006-0830-L4.json"
+  ],
+  "layer_stamps_dry": [
+   "L4:kb/l4/runs/daily-20261006-0830-L4-canonical-dryrun.json",
+   "L4:kb/l4/runs/daily-20261006-0830-L4-dryrun.json"
+  ],
+  "layer_stamps_unknown": [
+   "L4:kb/l4/runs/daily-20261006-0830-L4-article.json"
+  ],
+  "write_gate": {
+   "id": null,
+   "resolved": false,
+   "layers_authorized": null,
+   "unauthorized_layers": [
+    "L4"
+   ],
+   "readonly_declared": [],
+   "msg": "**未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml"
+  }
+ }
+}

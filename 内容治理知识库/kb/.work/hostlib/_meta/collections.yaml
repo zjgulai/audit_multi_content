@@ -1,0 +1,57 @@
+# 子库登记表（派生视图，由 kb/.work/gen-host-library.py + gen-host-library-l4.py 生成，勿手工维护）
+# 字段口径与宿主库一致；status: derived 表示本库不是人工灌入，而是从分层新库派生。
+version: 1
+updated_at: '2026-10-16'
+library:
+  name: Momcozy知识库 · 内容治理（派生视图）
+  display_name: Momcozy知识库 · 内容治理（派生视图）
+  description: 内容治理知识库的分层新库（l0-l6）派生出的宿主库视图，供工作台只读镜像检索
+  owner: 刘华丽
+collections:
+- id: 3_措辞表达库
+  name: 内容治理知识库 · 措辞表达库
+  display_name: 措辞表达库
+  called_by:
+  - 待定（内容审查 Agent 尚未立项编号）
+  owner: 刘华丽
+  status: derived
+  source: kb/l3/candidates/rules.jsonl + kb/l5/p0_patterns.jsonl（派生）
+  entry_count: 509
+  note: '派生视图统一挂入库接受人；逐条领域 owner 待新库补 owner 字段后回填。本子库是派生视图，原库为分层 json 结构，见 _meta/DERIVED.md。
+
+    '
+- id: 1_外部标准库
+  name: 内容治理知识库 · 外部标准库
+  display_name: 外部标准库
+  called_by:
+  - 待定（内容审查 Agent 尚未立项编号）
+  owner: 刘华丽
+  status: derived
+  source: kb/l4/canonical/scoped_clause.jsonl（逐字条款 + 登记元数据）
+  entry_count: 375
+  note: 美国法规、平台政策、行业标准、医学共识、本地常识的逐字条款（PRD §7.1，覆盖 P0+P1）。派生视图：条款原文逐字保留，未改写；逐条领域 owner
+    待新库补 owner 字段后回填。
+- id: 2_内部正负样本库
+  name: 内容治理知识库 · 内部正负样本库
+  display_name: 内部正负样本库
+  called_by:
+  - 待定（内容审查 Agent 尚未立项编号）
+  owner: 刘华丽
+  status: derived
+  source: kb/l4/canonical/sample_case.jsonl（正负样本案例）
+  entry_count: 473
+  note: 正面：合规优秀内容；负面：投诉、下架、警告、返工、达人争议、审核争议（PRD §7.1，覆盖 P0+P1+P2）。派生视图：案例作参照、不构成规则；逐条领域
+    owner 待新库补 owner 字段后回填。
+- id: 4_产品描述库
+  name: 内容治理知识库 · 产品描述库
+  display_name: 产品描述库
+  called_by:
+  - 待定（内容审查 Agent 尚未立项编号）
+  owner: 刘华丽
+  status: derived
+  source: ① kb/l2/units.jsonl（kb_type=product_desc 的单元；源自飞书产品信息汇总与官网） ② 飞书表格《W1卖点匹配证据库》（wiki
+    EsCdw2A7tiz67Rk8LgMce2TAnEh，7 个工作表 / 100 条）
+  entry_count: 120
+  note: 产品线构成、型号、类目、卖点与边界口径的原文素材（PRD §7.1，覆盖 P1+P2）。两个来源：产品基本事实（来源①）与 W1 卖点匹配证据库（来源②，含
+    01_卖点护照、02_表达边界三态、03_文献研究证据库 56 条、04_内容转译卡、05_验证缺口、06_术语与口径）。**这是产品事实与口径素材，不是合规规则**
+    —— 「绿色-可用」不等于任何渠道都能发，不能据它判 BLOCK；参数与认证的最终口径以产品/法务正式发布为准。

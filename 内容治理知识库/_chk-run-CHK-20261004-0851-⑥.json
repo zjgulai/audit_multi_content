@@ -1,0 +1,225 @@
+{
+ "checked_at": null,
+ "view_root": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/view",
+ "checks": {
+  "R1_source_sha256": {
+   "ok": false,
+   "items": [
+    {
+     "source": "rules",
+     "path": "l3/candidates/rules.jsonl",
+     "recorded": "f27a14091b2bd782",
+     "current": "743dc62398311b02",
+     "same": false
+    },
+    {
+     "source": "p0",
+     "path": "l5/p0_patterns.jsonl",
+     "recorded": "470e3fbad21489b9",
+     "current": "470e3fbad21489b9",
+     "same": true
+    }
+   ]
+  },
+  "R2_entry_fingerprint": {
+   "ok": false,
+   "entries": 509,
+   "stale": 509,
+   "samples": [
+    {
+     "id": "cg-r-006445396c95aa10",
+     "rule_id": "r-006445396c95aa10",
+     "recorded": "25e97a156c126e39261c818686b1adb9",
+     "current": "8e7fcfed442ea49002d87b5410ff4fb4"
+    },
+    {
+     "id": "cg-r-1cf94543649842a0",
+     "rule_id": "r-1cf94543649842a0",
+     "recorded": "851c8e21959aed04aa54d21b7ff8ca19",
+     "current": "e0406db1cd32ed7f135dd5df582eb357"
+    },
+    {
+     "id": "cg-r-21786ac5aff9be34",
+     "rule_id": "r-21786ac5aff9be34",
+     "recorded": "1dee65bad60f518dc5adf28de8b94568",
+     "current": "e2994287353ef87af4c2b9ac8d230538"
+    },
+    {
+     "id": "cg-r-252ba6cf5ee92b00",
+     "rule_id": "r-252ba6cf5ee92b00",
+     "recorded": "6466b15e97c0ff9590e04ea5ec6329b4",
+     "current": "f2813513c012bbc0c1350921a1e29da7"
+    },
+    {
+     "id": "cg-r-3055901e5877f981",
+     "rule_id": "r-3055901e5877f981",
+     "recorded": "714c338dc3127529fa9685960340407a",
+     "current": "3052427eda974b631a8c789fb83bea62"
+    },
+    {
+     "id": "cg-r-30d3b9b54135fa04",
+     "rule_id": "r-30d3b9b54135fa04",
+     "recorded": "ca03ecda704832b03799df7e6e6dbfe4",
+     "current": "ec62456584fcc354958977414170047d"
+    },
+    {
+     "id": "cg-r-335f00d14cefe7f9",
+     "rule_id": "r-335f00d14cefe7f9",
+     "recorded": "62a7a1fac0d46aa0af66dc3cb0acd8a7",
+     "current": "dea54103ead243c91682ad0a08002df6"
+    },
+    {
+     "id": "cg-r-33ce99a813e0865a",
+     "rule_id": "r-33ce99a813e0865a",
+     "recorded": "9e76419398018c639d3854555cb03a49",
+     "current": "f112e828df6fd33090c4ab0f234671a0"
+    },
+    {
+     "id": "cg-r-379572868aa01151",
+     "rule_id": "r-379572868aa01151",
+     "recorded": "8bd354ebe612ad94d4c0754e79e73543",
+     "current": "c335fde66c7bc97215f64fcb9d022ced"
+    },
+    {
+     "id": "cg-r-37b49eadb72d7dc2",
+     "rule_id": "r-37b49eadb72d7dc2",
+     "recorded": "2beeae06d748fc26902a0c36bc12110f",
+     "current": "8a83f9760d8acdfdade60bd0ae1513dc"
+    }
+   ]
+  },
+  "R3_id_set": {
+   "ok": true,
+   "view": 509,
+   "authority": 509,
+   "only_in_view": 0,
+   "only_in_authority": 0
+  },
+  "R4_governance_passthrough": {
+   "ok": false,
+   "mismatches": 2036,
+   "by_field": {
+    "owner": 509,
+    "half_life_days": 509,
+    "valid_until": 509,
+    "effective_from": 509
+   },
+   "samples": [
+    {
+     "id": "cg-r-006445396c95aa10",
+     "field": "owner",
+     "view": "法务 + 产品负责人",
+     "authority": ""
+    },
+    {
+     "id": "cg-r-006445396c95aa10",
+     "field": "half_life_days",
+     "view": "365",
+     "authority": ""
+    },
+    {
+     "id": "cg-r-006445396c95aa10",
+     "field": "valid_until",
+     "view": "2027-09-29",
+     "authority": ""
+    },
+    {
+     "id": "cg-r-006445396c95aa10",
+     "field": "effective_from",
+     "view": "2026-09-29",
+     "authority": ""
+    },
+    {
+     "id": "cg-r-1cf94543649842a0",
+     "field": "owner",
+     "view": "法务",
+     "authority": ""
+    }
+   ]
+  },
+  "R5_manifest_bytes": {
+   "ok": true,
+   "bad": 0,
+   "samples": []
+  },
+  "R6_tier_dir": {
+   "ok": true,
+   "bad": 0,
+   "samples": []
+  }
+ },
+ "drift": [
+  {
+   "check": "R1",
+   "what": "源文件 rules 在视图生成后变过",
+   "detail": "f27a14091b2bd782… → 743dc62398311b02…",
+   "fix": "重跑 kb/.work/gen-host-library.py 到 staging 后回填（见 projection_reconcile 文档）"
+  },
+  {
+   "check": "R2",
+   "what": "509 条条目的权威规则已变（任一字段）",
+   "detail": [
+    "cg-r-006445396c95aa10",
+    "cg-r-1cf94543649842a0",
+    "cg-r-21786ac5aff9be34",
+    "cg-r-252ba6cf5ee92b00",
+    "cg-r-3055901e5877f981",
+    "cg-r-30d3b9b54135fa04",
+    "cg-r-335f00d14cefe7f9",
+    "cg-r-33ce99a813e0865a",
+    "cg-r-379572868aa01151",
+    "cg-r-37b49eadb72d7dc2"
+   ],
+   "fix": "同 R1：重新生成并回填"
+  },
+  {
+   "check": "R4",
+   "what": "2036 处治理字段未从权威库传导",
+   "detail": {
+    "owner": 509,
+    "half_life_days": 509,
+    "valid_until": 509,
+    "effective_from": 509
+   },
+   "samples": [
+    {
+     "id": "cg-r-006445396c95aa10",
+     "field": "owner",
+     "view": "法务 + 产品负责人",
+     "authority": ""
+    },
+    {
+     "id": "cg-r-006445396c95aa10",
+     "field": "half_life_days",
+     "view": "365",
+     "authority": ""
+    },
+    {
+     "id": "cg-r-006445396c95aa10",
+     "field": "valid_until",
+     "view": "2027-09-29",
+     "authority": ""
+    },
+    {
+     "id": "cg-r-006445396c95aa10",
+     "field": "effective_from",
+     "view": "2026-09-29",
+     "authority": ""
+    },
+    {
+     "id": "cg-r-1cf94543649842a0",
+     "field": "owner",
+     "view": "法务",
+     "authority": ""
+    }
+   ],
+   "fix": "确认投影生成器是否从规则行读这 4 个字段（F8）"
+  }
+ ],
+ "ok": false,
+ "summary": {
+  "checks": 6,
+  "passed": 3,
+  "drift_items": 3
+ }
+}

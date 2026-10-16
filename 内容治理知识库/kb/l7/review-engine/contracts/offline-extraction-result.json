@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Offline multimodal extraction result",
+  "type": "object",
+  "required": ["provider", "provider_version", "content_hash", "status"],
+  "properties": {
+    "provider": {"type": "string", "description": "offline importer, manual annotation tool, or model adapter name"},
+    "provider_version": {"type": "string"},
+    "content_hash": {"type": "string"},
+    "status": {"enum": ["complete", "partial", "failed"]},
+    "ocr_status": {"enum": ["complete", "not_applicable", "incomplete", "failed"]},
+    "asr_status": {"enum": ["complete", "not_applicable", "incomplete", "failed"]},
+    "keyframes_status": {"enum": ["complete", "not_applicable", "incomplete", "failed"]},
+    "ocr": {"type": "array", "items": {"type": ["object", "string"]}},
+    "transcript": {"type": "array", "items": {"type": ["object", "string"]}},
+    "keyframes": {"type": "array"},
+    "observations": {"type": "array"},
+    "errors": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": true
+}

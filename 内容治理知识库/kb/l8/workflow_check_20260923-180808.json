@@ -1,0 +1,207 @@
+{
+ "run_id": "20260923-180808",
+ "at": "2026-09-23 18:08:09",
+ "legs": [
+  {
+   "leg": "① 环境与版本纪律",
+   "ok": true,
+   "detail": {
+    "env": {
+     "装载位": "18:07:08",
+     "生成器": "18:06:44 6d72dae60d725982 57573B",
+     "l7/review.py": "16:00:50 fd23e0e694fcdf12 42735B",
+     "hostlib": "15:01:29",
+     "l7/reports": "17:52:23"
+    },
+    "version": {
+     "l4_canonical_bytes": 0,
+     "versions_rows": 0,
+     "kb_version": "v0"
+    }
+   }
+  },
+  {
+   "leg": "② 权威库 l0~l6 未被改动",
+   "ok": true,
+   "detail": {
+    "layers": {
+     "l0": {
+      "tree_sha256_16": "da1ad72a2d2155fa",
+      "match_L5_baseline": true,
+      "files": 2411
+     },
+     "l1": {
+      "tree_sha256_16": "ede7a63100acf4a6",
+      "match_L5_baseline": true,
+      "files": 1492
+     },
+     "l2": {
+      "tree_sha256_16": "13b05eba1b428666",
+      "match_L5_baseline": true,
+      "files": 829
+     }
+    },
+    "l3_lines": 1527,
+    "l3_base1018_matches_L6": true,
+    "l3_whole1527_matches_L4": true
+   }
+  },
+  {
+   "leg": "③ 前序产物哈希（45 项）",
+   "ok": true,
+   "detail": {
+    "checked": 45,
+    "mismatch": []
+   }
+  },
+  {
+   "leg": "④ 分层库 → 生成器 → 视图",
+   "ok": true,
+   "detail": {
+    "generator_stdout": [
+     "[gen][warn] node 落盘第 1 次失败（-9），重试",
+     "[gen][warn] node 落盘第 2 次失败（-9），重试",
+     "[gen][warn] node 落盘第 3 次失败（-9），重试",
+     "[gen][warn] node 落盘失败（-9）：",
+     "[gen][warn] 退回 python 写盘：宿主侧加载器可能读不出这批条目（会被封成信封）",
+     "[gen][warn] node 落盘第 1 次失败（-9），重试",
+     "[gen][warn] node 落盘第 2 次失败（-9），重试",
+     "[gen][warn] node 落盘第 3 次失败（-9），重试",
+     "[gen][warn] node 落盘失败（-9）：",
+     "[gen][warn] 退回 python 写盘：宿主侧加载器可能读不出这批条目（会被封成信封）"
+    ],
+    "md_total": 510,
+    "enveloped": 509,
+    "loader_readback": {
+     "entries": 509,
+     "entries_fm_ok": 0,
+     "entries_kb_class_ok": 0
+    },
+    "E001": 509,
+    "E046": null,
+    "health": 50,
+    "installed_view_md": 511,
+    "installed_view_enveloped": 0
+   }
+  },
+  {
+   "leg": "⑤ 装载位 → 加载器（读工具+体检）",
+   "ok": true,
+   "detail": {
+    "files": 516,
+    "md": 511,
+    "enveloped_md": 0,
+    "entries": 509,
+    "fm_ok": 509,
+    "kb_class_ok": 509,
+    "E001": null,
+    "E046": null,
+    "health": 100,
+    "dims": {
+     "新鲜度": 1,
+     "三件套完整率": 1,
+     "一致性": 1,
+     "孤岛率": 0,
+     "覆盖率": null,
+     "利用率": null
+    },
+    "collections": [
+     {
+      "id": "3_措辞表达库",
+      "count": 509,
+      "status": "derived"
+     }
+    ],
+    "search": [
+     [
+      "W-2.1",
+      111,
+      true
+     ],
+     [
+      "乳腺组织",
+      1,
+      true
+     ],
+     [
+      "合规替代",
+      509,
+      true
+     ],
+     [
+      "量子纠缠配色调参",
+      0,
+      true
+     ]
+    ],
+    "code_hist": {
+     "W036": 509,
+     "W019": 1,
+     "W020": 2267,
+     "W021": 10,
+     "W023": 1,
+     "W025": 1,
+     "W035": 1,
+     "W037": 1,
+     "E026": 452,
+     "E021": 56
+    }
+   }
+  },
+  {
+   "leg": "⑥ 文档可见性（agent 能否读到）",
+   "ok": true,
+   "detail": {
+    "md_total": 1435,
+    "enveloped": 551,
+    "buckets": {
+     "冻结层 l0~l6": 22,
+     "他人/临时 .work": 19,
+     "他人产物 hostlib": 510
+    },
+    "other": []
+   }
+  },
+  {
+   "leg": "⑦ 消费侧 skill 可用",
+   "ok": true,
+   "detail": {
+    "files": [
+     "README.md",
+     "SKILL.md",
+     "references",
+     "categories.md",
+     "protocols.md",
+     "scripts",
+     "review.py"
+    ],
+    "enveloped_md": [],
+    "review_py_plaintext_write_patch": true,
+    "review_py_runnable": true,
+    "help": [
+     "usage: review.py [-h] [--kb-root KB_ROOT] [--text TEXT] [--file FILE]"
+    ]
+   }
+  },
+  {
+   "leg": "⑧ 工作台与服务",
+   "ok": true,
+   "detail": {
+    "workbench_4317": "200",
+    "kb_hostlib_4508_health": "200",
+    "launchd_jobs": "5"
+   }
+  },
+  {
+   "leg": "⑨ 写入侧（ingest 闸门 + 落盘通道）",
+   "ok": true,
+   "detail": {
+    "gate": "  [E026] 内容质量分 52.1 < 60（长度 0.4/20 · 密度 5/30 · 去重 20/20 · 语言 26.7/30）",
+    "landed": [],
+    "landed_enveloped": 0
+   }
+  }
+ ],
+ "verdict": "PASS",
+ "failed_legs": []
+}

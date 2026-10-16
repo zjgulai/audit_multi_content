@@ -1,0 +1,98 @@
+{
+  "run_id": "20260923-1140",
+  "extractor_version": "l1-0.1",
+  "ocr_version": "vision-jxa-1.0",
+  "resources": 440,
+  "ok": 402,
+  "coverage_pct": 91.36,
+  "by_kb": {
+    "wording": {
+      "empty": 5,
+      "ok": 294,
+      "no_scope": 2
+    },
+    "external_standard": {
+      "empty": 5,
+      "ok": 42,
+      "forbidden": 1,
+      "no_scope": 4,
+      "unreachable": 3
+    },
+    "internal_sample": {
+      "ok": 42,
+      "unreachable": 1
+    },
+    "product_desc": {
+      "ok": 1,
+      "no_scope": 3
+    },
+    "unknown": {
+      "empty": 6,
+      "ok": 23,
+      "no_scope": 8
+    }
+  },
+  "segments_total": 6441,
+  "chars_total": 2904494,
+  "index_rows": 6441,
+  "manifest_rows": 440,
+  "images": 77,
+  "video": "missing",
+  "l0_blocked_rows": {
+    "feishu_bitable_base|structure_only": 3,
+    "feishu_sheet|no_scope": 2,
+    "feishu_slides|no_scope": 3,
+    "feishu_file|no_scope": 12,
+    "url|unreachable": 4,
+    "feishu_doc|forbidden": 1
+  },
+  "checks": [
+    [
+      "kb/l0/ 未被修改",
+      "通过：本次写入 560 个文件全在 kb/l1/ 内（越界 0）；kb/l0/ 下 970 个文件，L1 启动（11:26:00）之后被写入的 0 个；L0 内最新 mtime = 2026-09-23 11:25:10，早于 L1 启动；外部调用全为 read，见 runs/20260923-1140.ops.log"
+    ],
+    [
+      "每个 segment 与表格行都有锚点",
+      "通过：无锚点 segment 0 个、无锚点表格行 0 行"
+    ],
+    [
+      "抽取台账按主键取最新一行的条数 == 产物文件数",
+      "通过：440 == 440"
+    ],
+    [
+      "报告覆盖率与产物实际相符",
+      "通过：覆盖率由产物 json 现算（ok/总），非手写估值"
+    ],
+    [
+      "每个资源文件 kb_type 与 L0 一致",
+      "通过：440 个资源，0 处不符"
+    ]
+  ],
+  "kinds": {
+    "field_value": 6102,
+    "paragraph": 143,
+    "list_item": 60,
+    "heading": 53,
+    "image_ocr": 77,
+    "table_row": 6
+  },
+  "source_revision_start": {
+    "材料收集": 181,
+    "知识库分类说明": 7,
+    "正面和负面样本": 369,
+    "规则库": 6
+  },
+  "source_revision_end": {
+    "材料收集": 181,
+    "知识库分类说明": 7,
+    "正面和负面样本": 369,
+    "规则库": 6
+  },
+  "source_revision_used": {
+    "材料收集": 181,
+    "知识库分类说明": 7,
+    "正面和负面样本": 369,
+    "规则库": 6
+  },
+  "source_revision_note": "L1 首次抽取"
+}

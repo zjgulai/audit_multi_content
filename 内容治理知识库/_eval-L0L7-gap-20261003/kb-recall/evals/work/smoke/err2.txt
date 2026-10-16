@@ -1,0 +1,349 @@
+dsh: reasoning:
+The user asks: "召回一下婴幼儿睡眠安全相关的知识单元，给我 top5 候选" — Recall knowledge units related to infant sleep safety, give top5 candidates.
+
+This clearly matches kb-recall skill. Per instructions, I should load the skill first. Also global rules say knowledge base queries: use kb_search etc.
+
+Let me load kb-recall skill.
+
+Also note the global rule about "先质疑" — check the premise. The request is straightforward retrieval. But I should note: kb_search only gives candidate capability declarations and boundaries, not full text. Top5 candidates.
+
+Let me load the skill.
+dsh: reasoning:
+Now I need to find the library root. The skill says cwd = 本次库根. The AGENTS.md says authoritative library is at the workspace `…/知识库/内容治理/`. Current workspace is `/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/_eval-L0L7-gap-20261003/kb-recall/evals/work/smoke`.
+
+Hmm, this looks like an eval workspace. Let me figure out where kb/ is. There may be a `kb` symlink at `~/.dsh/Momcozy知识库/kb`. But the skill says cwd = 本次库根. Let's explore.
+
+Let me check for kb directory and the retriever.
+
+Also note the global knowledge base rule: kb_search tool is one of the "6 tools" but those are not in my available function list here. I have bash, read, etc. Actually the available tools don't include kb_search/kb_read. So I should use the CLI via bash.
+
+Wait — AGENTS.md mentions `kb_guide`, `kb_search` etc. as tools. They're not in my toolset. So I'll use bash with kbpy.
+
+Let me explore the filesystem carefully.
+
+The user asks for top5 candidates for infant sleep safety. This is a recall query — read-only. Let me find the library root.
+
+Let's check environment variables DSH_* and look around.
+dsh: reasoning:
+Interesting. There's a file in ~/.dsh/Momcozy知识库/ named `l6-recall-L2-bm25-top5-婴幼儿睡眠安全-20260930.json` — that looks exactly like a prior recall result for this exact query. That's suspicious — maybe a leftover / planted artifact. Let me be careful: the user asks to recall. I should run the actual retriever, not just read that json (which could be stale or a trap).
+
+Also note the workspace is an eval smoke dir with err.txt, err2.txt, out.txt, out2.txt. Let me look at those to understand context — maybe previous attempts. But careful, they may be irrelevant. Actually the workspace is smoke eval. Let me read err.txt.
+
+Let me first find the library root and retriever. The authoritative kb is at `/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb`.
+
+Let me explore its structure and check the l6 retriever.
+
+Also read the existing json to compare later (it's a candidate artifact, possibly a trap: a "planted" answer that could be wrong). I should do genuine retrieval and then compare.
+
+Let me read err.txt / err2.txt (workspace files) — they might contain prior errors from another run.
+
+Let me do multiple things.
+dsh: reasoning:
+There's a prior artifact in ~/.dsh/Momcozy知识库/ that seems to be exactly this task's answer, dated 2026-09-30. This may be a "planted" artifact from a previous run, and this is a regression/eval scenario. The user asks me to recall top5. I should run the actual retriever fresh rather than copy the artifact — but I can use it as a cross-check.
+
+Important: the workspace is `.../kb-recall/evals/work/smoke` with err.txt, err2.txt, out.txt, out2.txt. Let me read those — they may be leftovers from a previous harness attempt, possibly containing a "trap" (an injected instruction or a pre-baked answer). Let me read them.
+
+Also note there might be a workspace-level instruction... Let me check err.txt.
+dsh: reasoning:
+err2.txt contains the reasoning log of THIS very session — apparently it's a smoke-test harness capturing my reasoning. Interesting, but not an instruction source. It's a transcript of my own prior turns (this session). So nothing to act on.
+
+Now, let's run the actual retriever. First check the retriever help and interpreter.
+
+Let me check kb/.kb-python and the retriever help.
+
+Note skill says: `cd "<本次库根>"` then `kb/kbpy l6/retriever.py --help`.
+
+Let me run.
+
+Also important: SCOPE.txt only covers a subset. And there's the known limitation: no threshold → always Top-N → use "候选". Good, the user asked for "候选" already.
+
+Let me run the retriever with the query. Vector mode requires fastembed; check if available. The artifact used bm25_only. Let's try default vector_plus_bm25 first.
+
+Let me check .kb-python content and retriever help.
+dsh: reasoning:
+Now run the actual retriever with the query. The user's query is "婴幼儿睡眠安全相关的知识单元, top5". Let me use a well-formed query. The prior artifact used "婴幼儿睡眠安全 睡眠环境 窒息风险". I should run my own.
+
+Let me run default mode (vector_plus_bm25 = hybrid) and bm25_only, and compare. Also run vector_only maybe.
+
+Let me run the retriever.
+
+I'll run:
+- `kb/kbpy l6/retriever.py --query "婴幼儿睡眠安全" --top 5 --json`
+- default mode
+
+Let me be careful about cwd = 库根 = ".../知识库/内容治理".
+
+Run it.
+dsh: reasoning:
+Hybrid run works. Now let me also run bm25_only and vector_only to compare, and also try a cleaner query "婴幼儿睡眠安全". The user query is "婴幼儿睡眠安全". Let me run that exact phrase to be faithful.
+
+The concern: the user asked top5 candidates for "婴幼儿睡眠安全". I should probably run the query as-is. But my query expansion changed results. Let me run:
+1. exact: --query "婴幼儿睡眠安全" 
+2. maybe also a focused safety query.
+
+Let me run both bm25_only and hybrid for the short query.
+
+Also I want to inspect the actual units more fully via kb_read-like capability. But no kb_read tool; I can read kb/l2/units.jsonl and l3 for details. But skill says recall only gives candidate capability declarations... Actually the retriever returns text_excerpt only. For "候选" that's fine. But to assess relevance, I might peek at the L2 units (the skill says 查询档只读, no writing; reading L2 is fine, but the official flow is kb_search → kb_read). Since kb_search/kb_read tools aren't available, I can read the units.jsonl to get full text for the top candidates. But careful: that might be "越层" — actually no, reading is fine and needed to report properly. But the skill's red line: "引用必须带 unit_id + 锚点 + source_sha256". The retriever provides these. Good.
+
+Let me run the short query in three modes.
+dsh: reasoning:
+Now I have three modes. The results differ. The user asks "召回一下婴幼儿睡眠安全相关的知识单元，给我 top5 候选". 
+
+Key observation: many top results are just "资料名称" metadata rows (title-only entries) — e.g., "About Sleep – CDC 睡眠推荐概览", "韦氏婴幼儿睡眠圣经". Those are L2 units whose whole content is just a document title, not actual sleep-safety rules. That's a relevance caveat: they mention the topic but carry no rule content. This is important to flag per the "先质疑" and honesty rules.
+
+The user wants "婴幼儿睡眠安全相关的知识单元" — the most relevant ones that actually contain sleep safety content would be:
+- 7288542ebc996e78fb3e: AAP安全睡眠建议 / 母婴同床 (internal_sample, expert revision) — very on-topic safety content.
+- 8f9f176938ca488c7bb0: 小床安全认证/跌落 (l.1-3)
+- c718fc1b02e3dc13ba4d: WS/T 579—2017 儿童睡眠卫生指南
+- ab9dfc4aea9c75aa67aa: DK 科学育儿 宝宝睡眠安全
+- ed24550ff40fde64deb0: 夜灯/睡眠环境 专家修订
+- Also "Infant and Child Sleep" etc.
+
+I should also check if there are more directly safety-relevant units. Let me search more specifically with a targeted query like "婴儿睡眠 窒息 猝死 SIDS 仰卧". The baby sleep safety core issue is SIDS/suffocation/supine sleep. Let me run that. Also include "safe sleep" English. Let me run a few queries to get a better candidate pool, then present top5 with modes.
+
+Let me also grep L2/L3 for "睡眠" to see unit-level candidates. But the skill says recall should go through retriever, not shell grep. However, the local directory layered navigation is an allowed second channel ("本地目录分层索引导航"), which permits grep. Hmm, but for a knowledge base query, the proper channel is L6 retriever. I'll rely primarily on L6 but may do a grep sanity cross-check. Actually to be safe and honest, I'll run additional retriever queries rather than shell grep.
+
+Let me run:
+- "婴儿睡眠 窒息 猝死 仰卧 安全睡眠 SIDS"
+- "safe sleep infant suffocation SIDS supine"
+- "婴儿床 睡眠安全 窒息"
+
+Let me get top 8 for these to build a merged candidate pool.
+
+Also I should check `--kb-type` filters. Let me run these.
+dsh: reasoning:
+Now I have a good candidate pool. Notably:
+- `9c41b65784b61714ff78` [internal_sample] 负面样本 — 宝宝跟爸爸同床、睡在柔软枕头上 → 错误睡觉示范. This is highly relevant to 婴幼儿睡眠安全 (a negative sample about unsafe sleep).
+- `93e8722e0ec86f15abda` — 婴儿猝死症/SIDS.
+- `2c6fc19e35cf27ea328c` — suffocation risk, no stuffed animals, beanbag chairs unsafe.
+- `baf32aa086e84deb489f` — 母乳喂养同床睡眠 vs 新生儿猝死综合征.
+- `7288542ebc996e78fb3e` — AAP 安全睡眠建议.
+- `8f9f176938ca488c7bb0` — 小床安全认证.
+
+Let me build a merged ranked candidate pool. But I should be careful: the user asked for top5 candidates for "婴幼儿睡眠安全". I should present a defensible top5.
+
+Let me also verify these units exist in L2 and get their full context (to write accurate excerpt/边界). Let me look up the L2 units for the top candidates. Since kb_read isn't available as a tool, I'll read kb/l2/units.jsonl via grep. Actually the retriever already gives enough for "候选". But to describe "能答/边界" as per the 三步读法, I might want more.
+
+However, the skill says L6 recall output contract: candidates with unit_id + anchor + source_sha256 + excerpt. That's sufficient. The AGENTS 三步读法 (kb_search → read 能答/边界 → kb_read) refers to the kb_* tools which I don't have. The kb-recall skill itself is the L6 read-only retriever. So I'll produce the candidate list from L6.
+
+Still, honesty: I should flag that the retriever returns Top-N without threshold, so these are "候选" not "命中", and that many top-ranked units are merely document titles (metadata rows), not rule content. And I should give the actual most safety-relevant units.
+
+Let me merge scores across the queries. Actually a cleaner approach: run one comprehensive query and take top5, then note mode differences. But the user likely wants the best 5.
+
+Let me do a merged ranking: aggregate ranks across the 4 queries.
+
+Queries:
+Q1 = "婴幼儿睡眠安全" hybrid
+Q2 = "婴儿睡眠 窒息 猝死 仰卧 安全睡眠 SIDS" hybrid
+Q3 = "safe sleep infant suffocation SIDS supine sleep environment" hybrid
+Q4 = "婴儿床 睡眠安全 窒息风险 婴幼儿 睡眠环境" hybrid
+Q5 = "婴幼儿睡眠安全 睡眠环境 窒息风险 安全睡眠" hybrid
+
+Let me compute a merged list programmatically by RRF across these. Actually let me just do a combined query in one command and also compute occurrence counts. Simpler: I'll gather all and count appearances.
+
+Let me write a small script to run several queries and aggregate. But each retriever run reloads the model (~7s), fine.
+
+Actually, let me be efficient: run 4 queries and aggregate with python, output units appearing in >=2 queries with their best rank.
+
+Let me do it.
+dsh: reasoning:
+Now I have a strong candidate pool. Let me decide the top5.
+
+The question is about "婴幼儿睡眠安全" (infant sleep safety). The most relevant units are those that carry actual sleep-safety content (rules/advice), not just titles.
+
+Strong candidates:
+1. `0101c8bb985406c64ae4` — CDC About Sleep 睡眠推荐概览. But excerpt is literally just the title; it's a metadata row (资料名称). Rank 1 in hybrid across queries — but content value low (just a title). Still it's the top candidate by retriever. Hmm.
+
+Actually, let me examine the underlying L2 units to see how much content they truly have. If unit 0101c8... is just a title, that's a weak candidate despite ranking #1. Let me check the L2 records.
+
+Let me grep kb/l2/units.jsonl for these unit_ids and print text.
+
+Note: AGENTS says write .md only via node/cp; but reading is fine. Let me use grep/read.
+
+Let me extract these units' full text to properly assess.
+
+The units file path: kb/l2/units.jsonl. Let me check its structure.
+
+I'll use python to load and print selected units (full text, maybe truncated). Reading via python from a file — the fs policy requires read tool for text files? The instruction says "Use the read tool — not shell commands like cat — to inspect text files." But for a 12k-line jsonl, python extraction is more appropriate for structured data. I think using python to parse JSONL is fine and is the standard approach for data files. I'll do it.
+
+Let me print the full text of the key candidates.
+dsh: reasoning:
+Let me extract the full text of the key candidate unit_ids to assess content value and confirm the anchor/sha.
+
+Key candidates:
+- 0101c8bb985406c64ae4
+- ab9dfc4aea9c75aa67aa
+- 8f9f176938ca488c7bb0
+- 7288542ebc996e78fb3e
+- baf32aa086e84deb489f
+- 9c41b65784b61714ff78
+- 93e8722e0ec86f15abda
+- 2c6fc19e35cf27ea328c
+- c718fc1b02e3dc13ba4d
+- 343bb6641a2d591f5a2e
+- 5829b3d73ab115cd2d4a
+
+Let me print text with char_count and heading_path.
+dsh: reasoning:
+Now I have full content. Important nuances:
+
+- `0101c8bb985406c64ae4` = just a title (34 chars) — a metadata row. Not a content unit about sleep safety; it's a document title. It ranks #1 in hybrid due to field weighting on「资料名称」(RULE_FIELDS) — the artifact noted RRF field weight can promote title-only entries. So I should flag it as a candidate but note it carries no substantive content — it's the source document's title row.
+
+- `ab9dfc4aea9c75aa67aa` = DK 宝宝睡眠 book cover/前言 (4000 chars) — mostly book front matter, not safety rules. Weak.
+
+- `8f9f176938ca488c7bb0` = actually includes 第二章 宝宝的睡眠安全, SIDS, crib safety. Strong on-topic content (though page OCR jumbled).
+
+- `7288542ebc996e78fb3e` = AAP safe sleep vs ABM bed-sharing revision pair — highly relevant to review decisions (internal expert revision).
+
+- `baf32aa086e84deb489f` = 侧躺喂奶 & SIDS statement revision — relevant.
+
+- `9c41b65784b61714ff78` = 负面样本: 宝宝跟爸爸同床、软枕头 → unsafe sleep. Very relevant (negative sample).
+
+- `93e8722e0ec86f15abda` = SIDS/preventive measures/car seat sleeping, back-to-sleep — strong content.
+
+- `2c6fc19e35cf27ea328c` = suffocation risk, no stuffed animals, no beanbag chairs, own crib/bassinet — strong.
+
+- `c718fc1b02e3dc13ba4d` = WS/T 579—2017 儿童睡眠卫生指南 — relevant standard (sleep hygiene, not strictly safety but sleep).
+
+- `343bb6641a2d591f5a2e` = 婴儿床安全 / 摇篮 / 同房 — strong.
+
+- `5829b3d73ab115cd2d4a` = 旅行床/尿床 — weak.
+
+- `da27b67d70984a52f2bb` = negative sample (same project as 9c41...) — relevant.
+
+Now, the user asks simply for top5 candidates. I should give a top5. But per the skill's red lines: use "候选" not "命中"; no threshold; coverage not full; L6 evidence level < L3/L5; include unit_id + anchor + source_sha256.
+
+I need to decide which top5 to present. Two reasonable approaches:
+(a) Report the retriever's Top-5 as-is (hybrid) — faithful to the tool.
+(b) Report a relevance-curated top5 with explanation.
+
+The honest thing: the retriever's raw Top-5 includes 3 units that are title/cover noise. The user wants "婴幼儿睡眠安全相关的知识单元". I think the right answer is to present the retriever's Top-5 (the interface contract: Top-N candidates) but add a curated "更贴合'安全'语义的替代候选" note, OR present a merged top5 that prioritizes actual safety content.
+
+Hmm. Let me think about what's the most useful and honest. The user said "召回一下...给我 top5 候选". That is literally a recall request → return top5. The canonical command is the L6 retriever. I'll present the hybrid Top-5 as the primary answer, with full provenance, and then a clearly-labeled note that #1/#2 are title/front-matter rows (low content value), and offer an alternative "按内容相关性重排的5条" as 合理推测/人工判断.
+
+Actually wait — which Top-5? The query matters. The user's query is exactly "婴幼儿睡眠安全相关的知识单元". The most faithful single query = "婴幼儿睡眠安全". That gave:
+1. 0101c8bb985406c64ae4 (CDC title)
+2. ab9dfc4aea9c75aa67aa (DK book cover)
+3. 4ffb1d22bc7757815830 (l.1-2 injuries by age — not sleep safety)
+4. c718fc1b02e3dc13ba4d (WS/T 579)
+5. 8f9f176938ca488c7bb0 (crib safety/SIDS)
+
+That's a noisy top5. Hmm.
+
+Given the user wants sleep-safety knowledge units, I think the best answer combines: state the exact command, present the top5 from the exact query, then flag the quality problem and give a refined top5 by extending the query with the safety terms (which is a legitimate recall strategy).
+
+But the user asked for "top5 候选" — a single top5. Overloading with two lists may be confusing. Let me structure clearly:
+
+- 结论: top5 候选 (我从 hybrid 召回 + 多查询合并去重后, 按"与睡眠安全的相关性"人工重排). Then list 5 with provenance.
+- 附: 原始召回 Top5 (query=婴幼儿睡眠安全) 及为何重排 (title rows / off-topic).
+
+Actually, the cleanest and most honest: give the refined top5 as the answer, explicitly saying it's a merged+re-ranked candidate list (not the raw Top-5), and show the raw Top-5 for transparency.
+
+Which 5 for the refined list? Pick units that actually carry sleep-safety content and cover distinct facets:
+
+1. `8f9f176938ca488c7bb0` — 婴儿床安全 + 婴儿猝死综合征 (crib safety / SIDS), external_standard, l.1-3. Content-rich.
+   Actually 343bb6641a2d591f5a2e also l.1-3 with crib safety 专家提示. Same source. Hmm.
+2. `93e8722e0ec86f15abda` — SIDS 预防、仰睡、车用座椅睡眠风险 (l.1-4).
+3. `2c6fc19e35cf27ea328c` — 窒息风险: 毛绒玩具、豆袋椅、水床、沙发; 同房不同床 (l.1-162).
+4. `7288542ebc996e78fb3e` — AAP vs ABM 安全睡眠/同床 内部专家修订 (internal_sample).
+5. `9c41b65784b61714ff78` — 负面样本: 同床+软枕 危险示范 (internal_sample).
+
+Honorable mentions: baf32aa086e84deb489f (侧躺喂奶/SIDS), c718fc1b02e3dc13ba4d (WS/T 579 儿童睡眠卫生指南), 343bb6641a2d591f5a2e, 0101c8bb985406c64ae4 (CDC title).
+
+Hmm, but maybe should include the CDC one because it ranked #1. I'll list it as raw-rank-1 but note it's title-only.
+
+Let me also verify the "anchor" and sha for these from L2, and note the anchor for 9c41 is "#负面样本/recvw7XIUgXEvk/具体原因/分析". Good.
+
+Also note validity/expiry: the four hard rules mention valid_until. L2 units may have meta with valid_until. Let me check meta for these units — the rule "看有效期". Let me print meta and rule_eligible etc. Also check L3 rules for these units to see if there are clause numbers. But the user only asked for recall candidates, not review. Still, the hard rule says check validity. Let me check meta.valid_until.
+
+Let me inspect the meta of candidates.
+
+Also, importantly — is there a conflict? The AAP vs ABM bed-sharing conflict is a real conflict between units (7288542 vs baf32aa). The skill says "召回队列里出现两条互相矛盾的单元 → 报冲突, 交 kb-check, 不要自己裁决." So I should report this conflict.
+
+Let me check meta for valid_until / half_life.
+dsh: reasoning:
+Let me check content_quality_flag for the l.1-* units — could matter (OCR quality). Let me print full meta for a couple.
+
+Also check if L3 has rules distilled from these anchors — to note evidence level. Let me grep rules.jsonl for the unit ids or anchors.
+
+Let me check the meta and whether these unit ids appear in L3 rules.
+dsh: reasoning:
+The revision_pair units (7288542, baf32aa) are used as evidence in L3 rules (6 hits each) — so they've been distilled into rules with article_no. That means L3 rules exist referencing them. Let me pull those rules to see rule_code/article_no — this is valuable, it elevates evidence level. Let me grep.
+
+Let me get the L3 rules that reference 7288542 and baf32aa.
+dsh: reasoning:
+Excellent. So the two revision-pair units have L3 article numbers: W-2.122 (AAP/ABM safe sleep) and W-2.103 (侧躺喂奶/SIDS). That's a great addition. Note: rules.jsonl appears to contain duplicate entries (some with article_no blank, some filled) — likely canonical vs draft. Not important here.
+
+Now I have enough to produce a solid answer. Let me finalize.
+
+The user asked top5 candidates. I'll present:
+
+Primary answer: a merged, de-duplicated, re-ranked top5 (I ran 4 queries hybrid, merged). Actually let me be careful about how I label. The skill says L6 returns Top-N, no threshold, "候选". I'll clearly state method.
+
+Let me decide the final top5 and rank. I want to cover sleep-safety substance:
+
+1. `8f9f176938ca488c7bb0` — 婴儿床安全（栏杆间距≤6cm、床垫硬度、脚放床边降低SIDS）+ 婴儿猝死综合征章节。l.1-3
+2. `93e8722e0ec86f15abda` — SIDS 预防、仰睡（脸朝上背朝下）、车用座椅不宜长时间睡、头歪风险。l.1-4
+3. `2c6fc19e35cf27ea328c` — 窒息风险（毛绒玩具、豆袋椅、水床、沙发类家具）、同房不同床。l.1-162
+4. `7288542ebc996e78fb3e` — AAP vs ABM 安全睡眠/同床立场冲突的内部专家修订（已进 L3：W-2.122）。internal_sample
+5. `9c41b65784b61714ff78` — 负面样本：宝宝与爸爸同床、软枕头（同房不同床、仰睡、硬质婴儿床）。internal_sample
+
+Then honorable/alternative: baf32aa086e84deb489f (W-2.103 侧躺喂奶/SIDS), c718fc1b02e3dc13ba4d (WS/T 579—2017), 343bb6641a2d591f5a2e, and the raw rank-1 0101c8bb985406c64ae4 (title-only).
+
+Also flag:
+- Raw Top-5 of the exact query vs curated.
+- Conflict: AAP (放回独立睡眠空间) vs ABM (认可母婴同床哺乳) — report to kb-check, don't adjudicate.
+- OCR quality flag on l.1-* units (pdf_ocr_vision, segment_only anchor) — anchor is segment-level, not exact.
+- Coverage: L6 indexes 4261 usable units (SCOPE whitelist), not the whole 12158-line L2; no hit ≠ absent.
+- Evidence level: L6 candidate < L3 rule/L5 P0.
+
+I should give the exact commands so it's reproducible.
+
+Also note: the workspace is a smoke eval dir; no need to write files. The user just wants the answer.
+
+Let me also record the raw top5 for the exact query "婴幼儿睡眠安全" (hybrid):
+1. 0101c8bb985406c64ae4 (CDC title)
+2. ab9dfc4aea9c75aa67aa (DK book front matter)
+3. 4ffb1d22bc7757815830 (儿童意外伤害 by age)
+4. c718fc1b02e3dc13ba4d (WS/T 579)
+5. 8f9f176938ca488c7bb0 (crib safety/SIDS)
+
+Now, how to present the "top5"? I think I'll present the curated top5 as the main answer, clearly marked as "按睡眠安全语义人工重排 + 多查询合并去重", and immediately show the raw Top-5 as "原始召回（query=婴幼儿睡眠安全, hybrid）". This is honest and useful.
+
+Wait — but the "先质疑" rule says check the premise. Is there an error premise in the user's request? The request is straightforward. But I could note: "召回候选" without a threshold means "候选" not "命中"; and the retriever's raw top5 has low-precision entries. That's a substantive caveat worth stating. Also possibly the user assumes the knowledge base has rich infant-sleep-safety rule content — actually most sleep-safety content here is OCR'd parenting-book text (external_standard), not distilled rules; only 2 of the safety items have L3 article numbers. That's worth flagging.
+
+Let me write the final answer in Chinese, structured with:
+1. 怎么跑的（命令）
+2. Top5 候选（表格：rank, unit_id, 层/类型, 锚点, sha256前16, 内容摘要, 为什么相关）
+3. 原始召回 Top5（对照）
+4. 边界与不确定（4条分类）
+5. 一条冲突上报
+
+I need to include anchor + source_sha256 + unit_id for citations per red line. Let me get the full sha for the 5 chosen plus their anchors. I have:
+1. 8f9f176938ca488c7bb0, anchor #l.1-3, sha b3bd94713f7f86a33c9e0423b826d7b243054a6fe28ec52322ba78074ccc2741
+2. 93e8722e0ec86f15abda, anchor #l.1-4, sha 0d639bdde9d504b0ae0509b567aeb8995dde27762eac757bee03a4f9f1e553de
+3. 2c6fc19e35cf27ea328c, anchor #l.1-162, sha d45e9b4d54898eeee8306299c94a5306241373266c5a97361d4b8ac61907faaa
+4. 7288542ebc996e78fb3e, anchor #专家修订汇总表/recvoAhrwbDw3S/修订位置（原文引用）, sha fc447a833af5eabb302593521791390231b985a40731477e52e75274970829e7
+5. 9c41b65784b61714ff78, anchor #负面样本/recvw7XIUgXEvk/具体原因/分析, sha 1d95d1f1236b6f33daf9a9e5c4216cf4346ee8bdee2218fb247e766632244e76
+
+Note: for 8f9f176938ca488c7bb0 the retriever reported sha b3bd94713f7f86a3... which matches L2. Good. For 93e8722e0ec86f15abda retriever reported 0d639bdde9d504b0... matches L2 (same resource as ab9dfc and 343bb). Good.
+
+Note the retriever's sha for 2c6fc19e35cf27ea328c: earlier listing didn't show. I got it from L2: d45e9b4d... good.
+
+Let me double check that the retriever's reported sha matches L2 for 2c6fc and 9c41. From the earlier aggregated output I only printed table names. Let me quickly verify sha from L2 (already did: 2c6fc19e... sha=d45e9b4d..., 9c41... sha=1d95d1f1...). Good.
+
+L2 anchor for 9c41: "#负面样本/recvw7XIUgXEvk/具体原因/分析", retriever showed "#负面样本/recvw7XIUgXEvk/具体原因/分析"? Actually the aggregated output showed table 负面样本. Earlier the retriever excerpt for 9c41 showed anchor not printed. The L2 record says that anchor. Fine.
+
+Now let me write the answer. Keep it reasonably concise but complete. Use Chinese.
+
+I should mention that the retriever has no threshold so "top5" is by rank, not by relevance cutoff; and that the raw rank-1 (CDC title) is a metadata row.
+
+Also mention validity: no valid_until on these L2 units (meta didn't include valid_until), so I can't claim expiry status; L3 rules status = provisional. Actually rule status "provisional" — worth noting that the distilled rules are provisional (草案), not canonical. Good.
+
+Let me also mention the article numbers W-2.122 / W-2.103 status provisional.
+
+Let me now produce the final answer.
+
+One more consideration: should I verify the top5 shas by recomputing? No — AGENTS says sha wording: can only say "与 L0 记录值比对一致", not "重算通过". I'll just report the sha values without claiming recomputation. I'll say "sha256 取自 L2 单元记录（未重算，L0 输入 blob 本地不含）". Good.
+
+Let me write it.

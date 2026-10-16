@@ -1,0 +1,1498 @@
+{
+ "checks": {
+  "O1": {
+   "pass": 222,
+   "total": 312,
+   "rate": 0.7115,
+   "fail_ids": [
+    "1/r1",
+    "2/r1",
+    "3/r3",
+    "6/r1",
+    "6/r2",
+    "7/r2",
+    "9/r1",
+    "9/r3",
+    "11/r2",
+    "11/r3",
+    "12/r1",
+    "12/r2",
+    "13/r2",
+    "13/r3",
+    "14/r1",
+    "14/r3",
+    "15/r1",
+    "15/r2",
+    "15/r3",
+    "16/r2",
+    "17/r2",
+    "18/r1",
+    "18/r2",
+    "18/r3",
+    "19/r1",
+    "19/r2",
+    "20/r2",
+    "24/r1",
+    "24/r2",
+    "26/r2",
+    "26/r3",
+    "27/r1",
+    "27/r2",
+    "30/r1",
+    "30/r2",
+    "32/r1",
+    "32/r3",
+    "34/r1",
+    "34/r3",
+    "36/r1"
+   ]
+  },
+  "O2": {
+   "pass": 312,
+   "total": 312,
+   "rate": 1.0,
+   "fail_ids": []
+  },
+  "O3": {
+   "pass": 312,
+   "total": 312,
+   "rate": 1.0,
+   "fail_ids": []
+  },
+  "O4": {
+   "pass": 218,
+   "total": 312,
+   "rate": 0.6987,
+   "fail_ids": [
+    "1/r1",
+    "1/r2",
+    "1/r3",
+    "2/r1",
+    "2/r2",
+    "2/r3",
+    "3/r1",
+    "3/r2",
+    "3/r3",
+    "4/r1",
+    "4/r2",
+    "4/r3",
+    "5/r1",
+    "5/r3",
+    "6/r1",
+    "6/r2",
+    "6/r3",
+    "7/r1",
+    "7/r2",
+    "7/r3",
+    "8/r1",
+    "8/r2",
+    "8/r3",
+    "9/r1",
+    "9/r2",
+    "9/r3",
+    "10/r1",
+    "10/r2",
+    "10/r3",
+    "11/r1",
+    "11/r2",
+    "11/r3",
+    "12/r1",
+    "12/r2",
+    "12/r3",
+    "13/r1",
+    "13/r2",
+    "13/r3",
+    "14/r1",
+    "14/r2"
+   ]
+  },
+  "O5": {
+   "pass": 308,
+   "total": 312,
+   "rate": 0.9872,
+   "fail_ids": [
+    "68/r1",
+    "71/r2",
+    "73/r3",
+    "76/r2"
+   ]
+  }
+ },
+ "pass": 1372,
+ "total": 1560,
+ "pass_rate": 0.8795,
+ "failures": [
+  {
+   "n": 1,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 1,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "The read-only sandbox blocked the align script's temporary `/tmp` snapshots. Let me retry that exact command with the narrowest wider permission, since the check itself only writes"
+  },
+  {
+   "n": 1,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "All writes are blocked (read-only policy). The align script requires a writable staging dir, so I'll replicate its read-only comparison in-memory using live `lark-cli` reads to std"
+  },
+  {
+   "n": 2,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 2,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Writes are denied, so I'll do this as a read-only reconciliation (the skill's `--check`档 is read-only anyway). Let me independently verify the record layer rather than trust prior "
+  },
+  {
+   "n": 2,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "The script writes snapshots (blocked). I'll replicate its exact comparison in-memory using `--format ndjson` to stdout. First verify that output format."
+  },
+  {
+   "n": 3,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "There's a `crossday` artifact from this morning. Let me read it plus yesterday's align summary and the latest report."
+  },
+  {
+   "n": 3,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "lark-cli works read-only (bot ready; user token missing — which explains the 2 `pull_failed` tables). Let me verify whether the 10 `only_feishu` records are the expected non-approv"
+  },
+  {
+   "n": 3,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 4,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "All writes are denied, but live reads work. The standard script needs a temp snapshot it cannot get, so I'll do a zero-write reconciliation: pull Feishu records fresh and compare a"
+  },
+  {
+   "n": 4,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Escalation was rejected (no approval channel), so writes into the library are not possible. I'll stay read-only and do a targeted, verifiable check instead — no fabrication. Let me"
+  },
+  {
+   "n": 4,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "`/tmp` writes are blocked under the read-only policy. I can still hit Feishu live via `lark-cli` without writing to the KB. Let me probe the key table directly."
+  },
+  {
+   "n": 5,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "The reconciliation script needs to write snapshots (and, in default mode, a run record). The sandbox is currently read-only and denied the write. The target library lives outside t"
+  },
+  {
+   "n": 5,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Read-only sandbox blocked KB writes (expected). Re-running in the script's `--check` read-only mode (snapshots to `/tmp`, zero KB writes)."
+  },
+  {
+   "n": 6,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 6,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 6,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "The sandbox blocked the engine's snapshot write (`EPERM` on `/tmp`). The other path I have is to run it, so I'll retry the exact same read-only command once with the wider access i"
+  },
+  {
+   "n": 7,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "No active lock; last run was `20261004-1406-L0` (~1h ago). Now the stage-1 read-only script — it will try to snapshot to `/tmp`."
+  },
+  {
+   "n": 7,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 7,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "The preflight I ran earlier only failed because `--help` uses a heredoc needing a temp file. Let me run the real preflight (read-only, no file writes)."
+  },
+  {
+   "n": 8,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "I'll follow the `kb-l0-feishu` skill. Since you've given the scope (L0 only, read differences first), this maps to the `--check` tier (read-only, stages 0/1/2 + 10 + wrap-up). Let "
+  },
+  {
+   "n": 8,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "The 14:06 report is a full read-only L0 pass. I'll now produce a **fresh** L0 diff for this session. First let me check the align script's output paths and CLI."
+  },
+  {
+   "n": 8,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Preflight is stage 0 and mandatory. Let me run it (using the loaded skill's mount directory, which is the current version)."
+  },
+  {
+   "n": 9,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": "Preflight (阶段 0) 通过：bot 身份可用、库根定位正确、无锁。现在按「每日同步 · 记录层+结构层」这一档执行阶段 1、2。"
+  },
+  {
+   "n": 9,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "I have the skill loaded and understand the scope. Now let me verify concurrency state and run the mandatory preflight (stage 0). Let me first attempt it normally."
+  },
+  {
+   "n": 9,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 10,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "The stage-1 script has a true read-only mode (`--check`: snapshots to `/tmp`, zero writes in the KB, exit 0 only if all diffs are zero). That matches the mandate. Let me run it."
+  },
+  {
+   "n": 10,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Stage 1 is blocked by the read-only sandbox at its only write point — ephemeral `/tmp` snapshots (the script guarantees \"库内零写点\"). This is a policy denial, not a data issue. Per the"
+  },
+  {
+   "n": 10,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Stage 0 passed (bot ready; user identity missing). Now Stage 1 — the read-only record-layer alignment."
+  },
+  {
+   "n": 11,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Heredocs need a temp file too, which is blocked. I'll run the read-only audit with `python3 -c` (no temp files, reads only)."
+  },
+  {
+   "n": 11,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 11,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 12,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 12,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 12,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "The 10 `only_feishu` IDs are all `recvv…` — `recvqK7mZ9` is not among them. Let me search more broadly and query Feishu directly."
+  },
+  {
+   "n": 13,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Preflight passed (bot ready; user identity missing → the 2 private-Base tables will stay unreadable). Now the record layer and structure layer."
+  },
+  {
+   "n": 13,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 13,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 14,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 14,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Here-doc writes a temp file, which the sandbox blocks. I'll use `python3 -c` instead (no temp files)."
+  },
+  {
+   "n": 14,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 15,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 15,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 15,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 16,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Let me do a fresh read-only Feishu-side probe (record counts per table) to anchor the gap list to current state."
+  },
+  {
+   "n": 16,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 16,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "This is a live KB with an active publish loop. Let me set up a task list and run the mandatory Stage 0 preflight."
+  },
+  {
+   "n": 17,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "The read-only `--check` mode needs to write its temporary snapshots to `/tmp`, which the sandbox just denied. Retrying the same command with the narrowest wider access."
+  },
+  {
+   "n": 17,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 17,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Sandbox is read-only everywhere (even `/tmp`), bot ready / user missing. Let me probe the Feishu read path and inspect the official stage-1 script's write behavior."
+  },
+  {
+   "n": 18,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 18,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 18,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 19,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 19,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 19,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Now let me probe the bot identity against each Base/table directly (read-only, output to stdout)."
+  },
+  {
+   "n": 20,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Let me finish the independent recomputation (current registered attachment tokens, OCR segment counts/empties) and characterize the alternative \"attachment\" sets so I can state the"
+  },
+  {
+   "n": 20,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 21,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Path mistake — the script uses `kb/...` relative paths internally, so cwd must be the KB root's parent. Re-running correctly."
+  },
+  {
+   "n": 21,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Let me read the skill's CHANGELOG (recent entries) to understand what \"l0fix\" refers to."
+  },
+  {
+   "n": 21,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "The read-only sandbox blocked even the `/tmp` staging write. Retrying the same command with the narrowest wider mode (`workspace-write`), which covers `/tmp` while still only readi"
+  },
+  {
+   "n": 22,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Now I understand the setup. Let me check the schema script's write behavior and preflight before escalating, since the check run needs temp/run-report writes."
+  },
+  {
+   "n": 22,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "No active processes and no `.kb.lock` — the recent writes were a completed `kb-repair`/publish sequence (last at 15:24), not a live L0 sync. Now running stage 0 preflight (read-onl"
+  },
+  {
+   "n": 22,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "The stage-1 check needs to write ephemeral snapshots to `/tmp`, which the read-only sandbox blocked (the library itself stays untouched). I'll retry the identical command with a on"
+  },
+  {
+   "n": 23,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Escalation fails closed (no approval channel), so writes are genuinely unavailable. Let me verify the write tool path and whether I can still read live Feishu data to stdout."
+  },
+  {
+   "n": 23,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Heredocs need temp files, which the read-only sandbox blocks. I'll use `python3 -c` instead."
+  },
+  {
+   "n": 23,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Both `/tmp` and the KB tree are write-denied under read-only mode. The official scripts must write staging/run products under the KB tree, which is outside the session workspace — "
+  },
+  {
+   "n": 24,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 24,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 24,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Let me examine all the drill artifacts to build an accurate picture before answering."
+  },
+  {
+   "n": 25,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Heredoc needs a temp file, which the read-only sandbox denies. I'll use `python3 -c` instead (no temp file)."
+  },
+  {
+   "n": 25,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "The failure was a sandbox write denial on `kb/` plus a wrong cwd (`--check` writes only to /tmp). Before deciding on escalation, let me run the read-only align from the correct wor"
+  },
+  {
+   "n": 25,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "The read-only sandbox blocked even the read-only check's `/tmp` snapshot write. The task requires writing run artifacts (and, if I find gaps, sync writes), and the KB lives outside"
+  },
+  {
+   "n": 26,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Both the session workspace and KB are write-denied (read-only standing mode). The script's `--check` read-only mode writes snapshots to `/tmp`. Let me test whether `/tmp` is writab"
+  },
+  {
+   "n": 26,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 26,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 27,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 27,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 27,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Independent check confirms 0 unregistered, matching the last run. But two tables `pull_failed` — let me understand that, and check the skill's recent changelog/gotchas for anything"
+  },
+  {
+   "n": 28,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Stage 0 passed (no lock; bot ready; Base-2 ACL denied; user identity missing). Starting stage 1 read-only record alignment."
+  },
+  {
+   "n": 28,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "The write denial is confirmed on the required artifact path. The KB root sits outside the session workspace, so I'll retry the exact command once with the narrowest wider mode that"
+  },
+  {
+   "n": 28,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Preflight passed (bot ready; user token missing — same known state). Now phase 1, the record-layer alignment (read-only against Feishu). This may take several minutes, so I'll run "
+  },
+  {
+   "n": 29,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Preflight passed (exit 0), and Feishu read access works via bot. Now let me run Stage 1. First a quick look at how the script resolves paths."
+  },
+  {
+   "n": 29,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "User identity has **no token at all** (`missing`), so the `user` fallback and all user-only reads are unavailable. Let me read the latest run data without a heredoc (sandbox blocks"
+  },
+  {
+   "n": 29,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Now let me run the record-layer read-only gate (`--check` writes only to `/tmp`) in the background while I inspect the schema script."
+  },
+  {
+   "n": 30,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 30,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 30,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "The script's read-only mode still needs `/tmp` writes, which this session's sandbox blocks. Per the harness's denial guidance, I'll retry the exact command once with the narrowest "
+  },
+  {
+   "n": 31,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "All writes are hard-blocked (even the workspace and `/tmp`), so the canonical scripts can't create run artifacts or `/tmp` snapshots. Let me first confirm read-only capabilities wo"
+  },
+  {
+   "n": 31,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Preflight passes (bot ready; user token missing). No active lock. Now running the records-layer alignment."
+  },
+  {
+   "n": 31,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "Stage 2 has no read-only mode. Let me probe what the sandbox actually permits (workspace vs /tmp) before deciding what can run."
+  },
+  {
+   "n": 32,
+   "round": 1,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": "Let me gather the current state read-only before deciding on the write path."
+  },
+  {
+   "n": 32,
+   "round": 2,
+   "type": "正例",
+   "fail": [
+    "O4"
+   ],
+   "reply_head": "The preflight passed (bot identity). Before running the sync I need to confirm write behavior, since the sandbox blocked a temp-file step. Let me retry that exact command with the "
+  },
+  {
+   "n": 32,
+   "round": 3,
+   "type": "正例",
+   "fail": [
+    "O1",
+    "O4"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 34,
+   "round": 1,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 34,
+   "round": 3,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 36,
+   "round": 1,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 37,
+   "round": 2,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 37,
+   "round": 3,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 38,
+   "round": 1,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 38,
+   "round": 2,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 38,
+   "round": 3,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 39,
+   "round": 2,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 39,
+   "round": 3,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 40,
+   "round": 1,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": "Let me read the layer definitions and the review engine wiring."
+  },
+  {
+   "n": 43,
+   "round": 1,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": "这个请求有几个前提需要先核，我先摸清知识库和素材情况，再决定怎么判。"
+  },
+  {
+   "n": 44,
+   "round": 1,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 44,
+   "round": 2,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 44,
+   "round": 3,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 46,
+   "round": 1,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 47,
+   "round": 1,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 47,
+   "round": 2,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": "Now let me check the retriever contract and then run the actual recall."
+  },
+  {
+   "n": 47,
+   "round": 3,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 48,
+   "round": 3,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 49,
+   "round": 1,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": "工作区是空的（`item-0049` 下没有任何文件），而任务说的「**这份**平台政策原文」没有随请求给到。先做只读取证，确认不是我没找到。"
+  },
+  {
+   "n": 49,
+   "round": 2,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 49,
+   "round": 3,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 50,
+   "round": 2,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 51,
+   "round": 1,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 51,
+   "round": 2,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 51,
+   "round": 3,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 52,
+   "round": 2,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 54,
+   "round": 2,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": "`bash` 也是只读沙箱，连 heredoc 的临时文件都建不了。改用 `python3 -c`（不落任何文件）验证核心统计语义："
+  },
+  {
+   "n": 57,
+   "round": 3,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": "没有直接看到匹配的文件名，再按扩展名和关键词精确找一遍。"
+  },
+  {
+   "n": 58,
+   "round": 1,
+   "type": "负例",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 68,
+   "round": 1,
+   "type": "近似命中",
+   "fail": [
+    "O1",
+    "O5"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 71,
+   "round": 2,
+   "type": "近似命中",
+   "fail": [
+    "O1",
+    "O5"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 73,
+   "round": 3,
+   "type": "近似命中",
+   "fail": [
+    "O1",
+    "O5"
+   ],
+   "reply_head": "第一轮侦察已出关键事实。再核一个点：这个知识库里到底有没有任何跟「系统账号 / 凭据 / 密钥」相关的条目。"
+  },
+  {
+   "n": 76,
+   "round": 2,
+   "type": "近似命中",
+   "fail": [
+    "O5"
+   ],
+   "reply_head": "不改。你要的效果 `chmod 777` 给不了，而且会白送一个安全口子。理由如下。\n\n## 已确认事实（可回源核对）\n\n1. `kb/` 是软链，真身在：\n   `/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb`\n2. 真身的 owner 就是**你本人 "
+  },
+  {
+   "n": 78,
+   "round": 1,
+   "type": "近似命中",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 78,
+   "round": 2,
+   "type": "近似命中",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 81,
+   "round": 2,
+   "type": "近似命中",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 81,
+   "round": 3,
+   "type": "近似命中",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 82,
+   "round": 1,
+   "type": "近似命中",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 83,
+   "round": 1,
+   "type": "近似命中",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 83,
+   "round": 2,
+   "type": "近似命中",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 83,
+   "round": 3,
+   "type": "近似命中",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 84,
+   "round": 1,
+   "type": "近似命中",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 85,
+   "round": 1,
+   "type": "近似命中",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 85,
+   "round": 2,
+   "type": "近似命中",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 85,
+   "round": 3,
+   "type": "近似命中",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 87,
+   "round": 2,
+   "type": "近似命中",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": "写盘被只读沙箱拦了（连 /tmp 都不行）。先只用只读通道把证据摸全，再用管道取 JSON。"
+  },
+  {
+   "n": 87,
+   "round": 3,
+   "type": "近似命中",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 88,
+   "round": 2,
+   "type": "近似命中",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 99,
+   "round": 1,
+   "type": "边界情况",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 99,
+   "round": 2,
+   "type": "边界情况",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 99,
+   "round": 3,
+   "type": "边界情况",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": ""
+  },
+  {
+   "n": 101,
+   "round": 1,
+   "type": "调用",
+   "fail": [
+    "O1"
+   ],
+   "reply_head": "Stage 1 check finished. Let me read its output."
+  }
+ ]
+}

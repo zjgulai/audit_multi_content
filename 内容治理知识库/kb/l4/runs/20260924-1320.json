@@ -1,0 +1,205 @@
+{
+ "run_id": "20260924-1320",
+ "layer": "L4 定稿与发布",
+ "at": "2026-09-24T13:23:13",
+ "item0_criteria_fix": {
+  "before": {
+   "checked_records": 326,
+   "gap": 125
+  },
+  "after": {
+   "checked_records": 201,
+   "records_at_full_width": 201,
+   "gap": 0,
+   "excluded_not_registered": 125
+  },
+  "file": "kb/l3/registry/l3.json",
+  "sha256": "476032365f6364fcaeedc028788f5b724df600227bcf6350d12a247f17dfd8e2"
+ },
+ "item0_5_r1_fix": {
+  "verdict": "STOP 未执行",
+  "reason": "影子评估预期新增 101 个 L2 单元 > 闸门线 0",
+  "shadow": {
+   "expected_new_units": 101,
+   "new_kb_type_dist": {
+    "wording": 4,
+    "product_desc": 5,
+    "external_standard": 7,
+    "internal_sample": 7
+   },
+   "segments_total": 136,
+   "segments_role_content": 0
+  },
+  "unchanged": {
+   "l0_9_unclassified": 38,
+   "l3_counts": {
+    "rules": 509,
+    "sample_cases": 562,
+    "scoped_clauses": 375
+   }
+  },
+  "artifacts": [
+   "kb/.work/batch9_shadow_r1.py",
+   "kb/.work/batch9/shadow_r1.json"
+  ]
+ },
+ "item1_scheme": {
+  "scheme_version": "article-no-2",
+  "segments_total": 12,
+  "issued_before": 2,
+  "issued_this_run": 3,
+  "reserved_unused": 6,
+  "blocked_policy": 1,
+  "file": "kb/l4/registry/l4.json"
+ },
+ "item2_assign": {
+  "newly_assigned_first_run": 733,
+  "w3": 157,
+  "s1": 201,
+  "e1": 375,
+  "output_rows": 1446,
+  "unique_outputs": 1242,
+  "duplicate_rows": 204,
+  "existing_509_unchanged": true,
+  "defect_found": {
+   "file": "kb/l3/candidates/sample_cases.jsonl",
+   "rows": 562,
+   "byte_unique": 358,
+   "duplicate_rows": 204,
+   "root_cause": "kb/.work/batch7_l3_run.py:110 case_id 用组内代表 unit，同组被发射 3 次",
+   "handling": "定稿按一个 case 一条收口，不重复发号；候选文件未改，源头去重留给 L3"
+  }
+ },
+ "item3_canonical": {
+  "files": {
+   "wording_entry": {
+    "lines": 56,
+    "bytes": 441188,
+    "sha256": "cb8cfe3783e7d6ca2127489bc26385db7d0cdea9e9cad60cd67a8976ef5e3cb1"
+   },
+   "wording_revision_pair": {
+    "lines": 453,
+    "bytes": 1264773,
+    "sha256": "3960435e89e149f9739636f081b958bd87a2601394ea753ecfd2dc8e27480825"
+   },
+   "sample_case": {
+    "lines": 358,
+    "bytes": 1448132,
+    "sha256": "eb38a659bf9250b28112fd0ac7cc754a7a76bf676c4faed1445f7801aa4ef0ab"
+   },
+   "scoped_clause": {
+    "lines": 375,
+    "bytes": 469285,
+    "sha256": "6683d5d063428e2ad56de672ae0b8dce1e297fc9ad39d1dd9bd6ea5d9e1612af"
+   }
+  },
+  "records": 1242,
+  "promotion_rule_status": "机器晋升（machine-promoted）· 人工抽查未做",
+  "criteria_passed": "8/8",
+  "human_spotcheck_done": false,
+  "legacy_rules_jsonl_bytes": 0
+ },
+ "item4_statements": [
+  {
+   "file": "kb/view/_meta/GUIDE.md",
+   "line": 17,
+   "sha256": "8d33954b2ec954d8fc906611efde10ab9f608da1802fde8ea9f5e67b66347af7"
+  },
+  {
+   "file": "kb/view/_meta/GUIDE.md",
+   "line": 97,
+   "note": "+新增 1 行说明 rules.jsonl 迁移留痕"
+  },
+  {
+   "file": "kb/view/_meta/acceptance.yaml",
+   "line": 14,
+   "sha256": "11d5c09f2514c0f45010086bc9ba9d877d52172cc86f3d86708a5bfbe5fe3e5f"
+  }
+ ],
+ "item5_l7": {
+  "file": "kb/l7/registry/l7.json",
+  "sha256": "7b2dd43adba213c7689ae413e9cb78efdd9fff2060bd87126354468de9c52c5b",
+  "total_rules": 509,
+  "total_outputs": 1242,
+  "candidate_rows": 1446,
+  "ranges": {
+   "W-1": [
+    1,
+    56
+   ],
+   "W-2": [
+    1,
+    453
+   ],
+   "W-3": [
+    1,
+    157
+   ],
+   "S-1": [
+    1,
+    201
+   ],
+   "E-1": [
+    1,
+    375
+   ]
+  },
+  "prefixes": [
+   "E",
+   "S",
+   "W",
+   "P",
+   "X"
+  ],
+  "reserved_unused_segments": [
+   "W-4",
+   "W-5",
+   "W-6",
+   "S-2",
+   "E-2",
+   "P-1"
+  ]
+ },
+ "item6_reconcile": {
+  "baseline_drift": 0,
+  "missing": 0,
+  "duplicate": 0,
+  "true_conflict": 0,
+  "idempotent": true,
+  "reruns_checked": 2,
+  "untouched_baseline_files": 11
+ },
+ "layer_isolation": {
+  "files_written_in_kb": 9,
+  "list": [
+   "kb/l3/registry/l3.json",
+   "kb/l4/registry/l4.json",
+   "kb/l4/canonical/wording_entry.jsonl",
+   "kb/l4/canonical/wording_revision_pair.jsonl",
+   "kb/l4/canonical/sample_case.jsonl",
+   "kb/l4/canonical/scoped_clause.jsonl",
+   "kb/l7/registry/l7.json",
+   "kb/view/_meta/GUIDE.md",
+   "kb/view/_meta/acceptance.yaml"
+  ],
+  "l0_l1_l2_files_written": 0
+ },
+ "version_discipline": {
+  "kb_version": "v0",
+  "versions_jsonl_rows": 0,
+  "release_id": null
+ },
+ "incident": {
+  "what": "kb/l4/registry/l4.json 被非原子写截断（80394 B）",
+  "root_cause": "json.dump 直写目标文件，序列化中途抛 TypeError（tuple 当键）",
+  "fixed": true,
+  "how": "保留完整前缀 + 用 kb/.work/l4_article.json 的 509 条 mapping 重建 + temp/os.replace 原子替换",
+  "artifacts": [
+   "kb/.work/batch9/l4.json.corrupt",
+   "kb/.work/batch9/l4.json.before-assign",
+   "kb/.work/batch9_repair_l4.py"
+  ],
+  "blast_radius": "仅 kb/l4/registry/l4.json；l0~l3/视图/l7 未受影响"
+ },
+ "report": "kb/l4/runs/20260924-1320.report.md"
+}

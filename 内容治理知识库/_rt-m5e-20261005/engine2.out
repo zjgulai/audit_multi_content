@@ -1,0 +1,37 @@
+结论：REVIEW
+依据命中 1 处（检索时库内规则 1018 条 + P0 匹配；库规模按运行时实读，不硬编码）
+依据来源：复用缓存 _rt-m5e-20261005/findings-registered.json @ 2026-10-05T15:41:12（未重跑 review.py）
+层前置：L4=✅ / L5=✅ / L6=✅ / L7=✅ ｜ 红合计 0 ｜ 会话 {'L4': 'session-683805fa-2db5-4965-9ccd-81976901b6f1', 'L5': 'session-683805fa-2db5-4965-9ccd-81976901b6f1', 'L6': 'session-683805fa-2db5-4965-9ccd-81976901b6f1', 'L7': 'session-683805fa-2db5-4965-9ccd-81976901b6f1'}
+判定主体：文案合规审查（declared）
+{
+ "review_id": "rv-20261005-153948",
+ "content_id": "AUTO-81961315ad14",
+ "content_version": "81961315ad1497d11a7c34e45cb641c67dcdb2b33c86cca98cc293c217e08007",
+ "agent_version": "local-core-0.1.0",
+ "rule_version": "unfrozen",
+ "knowledge_version": "unfrozen",
+ "decision": "REVIEW",
+ "confidence": 0.78,
+ "summary": "【审查结论：REVIEW】共发现 1 处需处理问题。\n1.【绝对化与安全承诺-无依据的销量排名声称】listing 文案 第 1 句：「销量最高」：「销量最高」属『销量排名声称』（M03 检测关键词逐字含 bestseller / best-selling / hotseller / top rated，均为销量或评分类声称）。L4 条款 W-1.25（《措辞表达库》，M03，p_level=P2，status=stable，valid_until=2026-12-28）处置口径逐字为「效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列）」。同码品线边界条款 W-1.51（P1，L0 记录 recvuJP2jyATC9『适用产品』逐字含 M5、『边界内容』逐字为「未标注来源的效果数据声明」）处置相同。本单未附任何测试来源与口径。引擎 live 路径 0 命中的原因：M03 检测关键词只有英文，无中文等价词 ⇒ 中文『销量最高』结构性漏匹配，已登记缺口 GAP-LEX-ZH-M03。\n建议转对应专业团队复核。",
+ "issue_count": 1,
+ "issue_summary_by_category": {
+  "绝对化与安全承诺-无依据的销量排名声称": 1
+ },
+ "risk_items": [
+  {
+   "risk_id": "r-4f309d6ebde80283",
+   "risk_type": "绝对化与安全承诺-无依据的销量排名声称",
+   "priority_tier": "P1",
+   "status": "confirmed",
+   "action": "review",
+   "location": "listing 文案 第 1 句：「销量最高」",
+   "original_text": "M03:bestseller",
+   "reason": "「销量最高」属『销量排名声称』（M03 检测关键词逐字含 bestseller / best-selling /
+飞书发布：自动调用 feishu_publish.py --apply …
+  ① 渲染完成：3496 字节 ｜ 本地留底 /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/reports/rv-20261005-153948.feishu.md ｜ 第一行 = '# 内容审查报告 · rv-20261005-153948'
+  ② 去向（读登记件）：table=tblCXPQVzfFWWCon ｜ base=RY2UbCRjXaeeWwscUPScVN5AnQc
+  ③ 既有同「内容 ID」行 0 条（本单**新增一行**，不更新它们）
+  ④ 云文档：跳过（问题数 1 < 3 ⇒ 按 PRD 不生成报告；报告正文见本地 /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/reports/rv-20261005-153948.feishu.md）
+  ⑤ 表行：新建 recvx9TTjP3qZX
+  ⑥ 读回：表行 recvx9TTjP3qZX ｜ 内容 ID 与结论一致 ✅
+  完成：docx=（未生成·问题数<3） ｜ record=recvx9TTjP3qZX

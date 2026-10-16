@@ -1,0 +1,24 @@
+### RUN=CHK-20261004-0950  start=2026-10-04 09:50:37
+
+### ① 登记表自检  skills_check.py
+exit=0
+
+### ② 层契约  layers_check.py
+exit=0
+
+### ③ 路由对账  routes_reconcile.py (预期缺输入 exit 2)
+exit=2
+
+### ⑤a 信封闸门 tools/envelope_gate.py
+exit=0
+
+### ⑤b 信封普查 kb/l8/envelope_census.py
+exit=0
+
+### ⑥ 投影一致性 projection_reconcile.py
+exit=1
+
+### ④ 链路收口 workflow_check.py CHK-20261004-0950 （写盘：kb/l8/workflow_check_CHK-20261004-0950.json）
+exit=1
+
+### done=2026-10-04 09:55:54

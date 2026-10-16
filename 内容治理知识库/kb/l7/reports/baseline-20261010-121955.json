@@ -1,0 +1,293 @@
+{
+ "baseline_id": "BASELINE-20261010-121955",
+ "sampled_at": "2026-10-10T04:19:55Z",
+ "sampled_at_local": "2026-10-10T12:19:55",
+ "sampled_at_note": "数字是**采样时点的快照**，不是稳定量：派生视图 `kb/view` 由日更/日更触发的重建持续推进（本产物立项当天实测 mtime 12:11，采样 12:15）⇒ 换一分钟重跑可能不同。",
+ "kb_root": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理",
+ "command": "node kb/l8/baseline_table.mjs",
+ "read_only": "只读 kb/l0…l7；只写 kb/l7/reports/",
+ "headline": {
+  "健康分": {
+   "value": 79.3,
+   "threshold": "熔断线 60（低于即判失败）",
+   "ok": true,
+   "source": "kb/view + dsh-kb/lib/kb.js::check()",
+   "note": "错误项非空（451 条）—— 判失败的直接原因是错误项，不是分数低"
+  },
+  "规则孤岛率": {
+   "value": 0.9411764705882353,
+   "threshold": "<= 0.2",
+   "ok": false,
+   "source": "同上",
+   "note": "没被任何条目引用的条目占比 —— 本视图派生自同一批规则，孤岛率天然偏高（口径待裁）"
+  },
+  "检索命中": {
+   "value": 0.77737881508079,
+   "numerator": 433,
+   "denominator": 557,
+   "unit": "查询次数（非条目数）",
+   "threshold": "零结果占比 <= 0.3（即命中率 >= 0.7）",
+   "ok": true,
+   "source": "同上（利用率维度明细）",
+   "note": "累计 557 次查询｜零结果 124 次（22.3%）⇒ 命中率 77.7%"
+  },
+  "从未被命中的条目": {
+   "value": 413,
+   "denominator": 510,
+   "unit": "条目数",
+   "threshold": "无（诊断量，不是闸门）",
+   "ok": null,
+   "source": "同上",
+   "note": "靠扩充词表或补 asks 关键词解决，不要靠删"
+  }
+ },
+ "engine_block": {
+  "engine": "/Users/lute/.dsh/plugins/dsh-kb/lib/kb.js",
+  "engine_sha256": "55ac89574fcbce6b706ac219d48f115b425a2641480834f9e4ff695053c67442",
+  "kb_root_checked": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/view",
+  "api": "check(root, {})",
+  "view_entries": null,
+  "health_score": 79.3,
+  "circuit_breaker_below": 60,
+  "verdict": "不通过",
+  "verdict_basis": "错误项非空（451 条）—— 判失败的直接原因是错误项，不是分数低",
+  "dimensions": {
+   "新鲜度": {
+    "value": 1,
+    "threshold": ">= 0.9",
+    "ok": true,
+    "scored": true,
+    "detail": null
+   },
+   "三件套完整率": {
+    "value": 1,
+    "threshold": "== 1.0",
+    "ok": true,
+    "scored": true,
+    "detail": null
+   },
+   "一致性": {
+    "value": 1,
+    "threshold": ">= 0.95",
+    "ok": true,
+    "scored": true,
+    "detail": "未裁决冲突 0 条（已裁决/撤回的不扣分） —— 口径是「还没裁的」，不是「有没有冲突」。旧口径数的是「谁申报了冲突」，方向反了"
+   },
+   "孤岛率": {
+    "value": 0.9411764705882353,
+    "threshold": "<= 0.2",
+    "ok": false,
+    "scored": true,
+    "detail": null
+   },
+   "幻觉率": {
+    "value": 0.1875,
+    "threshold": "<= 0.1",
+    "ok": false,
+    "scored": false,
+    "detail": "样本不足，未计入健康分：回验覆盖 1/510 条（0.2% < 门槛 30%）｜32 个字面量，6 个未在源中找到 —— **可疑项不等于造假**（衍生值/产品名/有意改写都会命中），需人判断"
+   },
+   "覆盖率": {
+    "value": 0.9210526315789473,
+    "threshold": ">= 0.8",
+    "ok": true,
+    "scored": true,
+    "detail": "35/38 题的期望条目出现在前 10 条候选里 —— 这是**召回**，不是「能答」。问题集要求的后半段（正文确实覆盖该问题）仍需人判断｜未命中：Q21、Q22、Q38"
+   },
+   "利用率": {
+    "value": 0.22262118491921004,
+    "threshold": "<= 0.3",
+    "ok": true,
+    "scored": true,
+    "detail": "累计 557 次查询｜零结果 124 次（22.3%）｜从未被检索命中的条目 413/510：cg-r-01870b675a3e2dad、cg-r-031e17f2fd4ee59c、cg-r-0384cb5e3fac494a、cg-r-03fb6f7a5fe1655a、cg-r-06ae8f80558f9637、cg-r-06d26975e0cb5e36 … —— 冷条目靠**扩充词表**或补 asks 关键词解决，不要靠删"
+   }
+  },
+  "no_data_dimensions": [
+   "幻觉率"
+  ],
+  "counts": {
+   "errors": 451,
+   "warnings": 2851,
+   "hints": 2
+  },
+  "error_codes": {
+   "E026": 451
+  },
+  "warning_codes": {
+   "W014": 509,
+   "W020": 2297,
+   "W021": 10,
+   "W028": 1,
+   "W034": 34
+  },
+  "acceptance": {
+   "acceptance_id": "content-governance-hostlib-20260923",
+   "owner": "刘华丽",
+   "status": "derived-view",
+   "maturity": "draft",
+   "productionReady": false,
+   "canonicalWrite": false,
+   "predicates": [
+    {
+     "name": "structural_completeness",
+     "claimed": false,
+     "actual": true
+    },
+    {
+     "name": "source_traceability",
+     "claimed": true,
+     "actual": true
+    },
+    {
+     "name": "no_duplication",
+     "claimed": false,
+     "actual": false
+    },
+    {
+     "name": "boundary_declared",
+     "claimed": true,
+     "actual": true
+    }
+   ],
+   "conditions": [
+    {
+     "name": "owner_acceptance",
+     "value": "未建",
+     "met": false
+    },
+    {
+     "name": "final_receipt",
+     "value": "未建",
+     "met": false
+    },
+    {
+     "name": "fixed_eval_set",
+     "value": "missing",
+     "met": false
+    }
+   ],
+   "blocked_codes": [
+    "OWNER_ACCEPTANCE_INCOMPLETE",
+    "FINAL_RECEIPT_MISSING",
+    "DATASET_NOT_BUSINESS_AUTHORIZED"
+   ],
+   "machineWrites": {
+    "total": 1,
+    "machine": 0,
+    "human": 1
+   }
+  },
+  "manifest_baseline": {
+   "has_baseline": true,
+   "removed": 0,
+   "governance_changed": 34
+  }
+ },
+ "review_block": {
+  "judge": "一次评审运行 = 一单",
+  "judge_note": "数的是运行次数，**不是素材数** —— 同一段文案送审三次 = 三单。换成「一素材 = 一单」需要先给 index.jsonl 补素材 ID 字段，否则复现不出来。",
+  "value": 562,
+  "source": "kb/l7/runs/index.jsonl::source == review_machine",
+  "reproduce": "python3 -c \"import json;print(sum(1 for l in open('kb/l7/runs/index.jsonl') if l.strip() and json.loads(l).get('source')=='review_machine'))\"",
+  "by_day": {
+   "2026-09-30": 29,
+   "2026-10-01": 16,
+   "2026-10-02": 97,
+   "2026-10-03": 63,
+   "2026-10-04": 35,
+   "2026-10-05": 44,
+   "2026-10-06": 73,
+   "2026-10-07": 2,
+   "2026-10-08": 61,
+   "2026-10-09": 139,
+   "2026-10-10": 3
+  },
+  "supersedes": [
+   {
+    "value": 112,
+    "seen_in": "任务详情 xlsx G6（10/8 写入，历史版本 _bak-20261009-1720 为原文）",
+    "reproducible": false,
+    "note": "按任何日期切法都不等于 112：≤10/1=45｜≤10/2=142｜10/3 起=205"
+   },
+   {
+    "value": 472,
+    "seen_in": "任务详情 xlsx G6（10/9 写入，_bak-20261010-1029/1040/1112）",
+    "reproducible": false,
+    "note": "10/9 当时或可复现，但当时未记采样时点 ⇒ 今天无法回放"
+   },
+   {
+    "value": 183,
+    "seen_in": "任务详情 xlsx G6「素材去重」",
+    "reproducible": false,
+    "note": "index.jsonl 无素材 ID；distinct trigger 文本 = 199 ≠ 183；全库找不到生成代码"
+   },
+   {
+    "value": 155,
+    "seen_in": "任务详情 xlsx G6「截至 10/8 16:30 首现的素材」",
+    "reproducible": false,
+    "note": "同上，无判据落点"
+   }
+  ]
+ },
+ "pipeline_block": {
+  "judge": "L1–L7 流水线通不通（与「口径 A 健康分」**不是一回事**，别混着引）",
+  "source": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/reports/daily-health-latest.json",
+  "source_sha256": "4c486f1503e291f735ada7a2d07b73ca61544064aa138d3d3bb85a86dd294b94",
+  "at": "2026-10-10T11:17:25",
+  "run_id": "20261010-1117",
+  "health": "GREEN",
+  "gate_ok": 8,
+  "gate_red": 0,
+  "gate_undecided": 0,
+  "zero_write": true
+ },
+ "sources": [
+  {
+   "rel": "kb/l7/runs/index.jsonl",
+   "path": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/runs/index.jsonl",
+   "exists": true,
+   "bytes": 3376705,
+   "sha256": "026e331c1a4f953f5bac36fd495ce70031b5c92fb1d39f37dd07aab304fa6bd7"
+  },
+  {
+   "rel": "kb/l7/reports/daily-health-latest.json",
+   "path": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/reports/daily-health-latest.json",
+   "exists": true,
+   "bytes": 8085,
+   "sha256": "4c486f1503e291f735ada7a2d07b73ca61544064aa138d3d3bb85a86dd294b94"
+  },
+  {
+   "rel": "/Users/lute/.dsh/plugins/dsh-kb/lib/kb.js",
+   "path": "/Users/lute/.dsh/plugins/dsh-kb/lib/kb.js",
+   "exists": true,
+   "bytes": 187286,
+   "sha256": "55ac89574fcbce6b706ac219d48f115b425a2641480834f9e4ff695053c67442"
+  },
+  {
+   "rel": "kb/view/_meta/manifest.json",
+   "path": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/view/_meta/manifest.json",
+   "exists": true,
+   "bytes": 91536,
+   "sha256": "47ba51050be4175faa9e066c6e1ebd97d11d667bf13ca23eb8550fcd733d6799"
+  },
+  {
+   "rel": "kb/view/_meta/acceptance.yaml",
+   "path": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/view/_meta/acceptance.yaml",
+   "exists": true,
+   "bytes": 2546,
+   "sha256": "367faf631d7a98a53a9020bff785049d31bc3de468eaa02069e028a1cef1330f"
+  },
+  {
+   "rel": "kb/view/_meta/health.yaml",
+   "path": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/view/_meta/health.yaml",
+   "exists": true,
+   "bytes": 1399,
+   "sha256": "35a15dd3f92a700f8be4710dc01fead8984288af3c253e878b73fc02c5e474cb"
+  }
+ ],
+ "limits": [
+  "本表只覆盖**派生视图** kb/view（加载器读的那一份）。权威库别的面（l0–l6 行数、l6 索引覆盖、飞书侧新鲜度）不在口径 A 里。",
+  "健康分与 daily-health 的 GREEN **不是同一把尺子**，两个都引、分开写，不许合并成一个「体检通过」。",
+  "幻觉率在有回验样本时进分（本轮覆盖 0.2% < 门槛 30% ⇒ **未计入分母**，表里只作诊断列出）；覆盖率有黄金问题集时是**真分母**（本轮 0.92 = 35/38）。别把它俩当同一类。"
+ ]
+}

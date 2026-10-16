@@ -1,0 +1,97 @@
+{
+ "total": 15,
+ "passed": 15,
+ "checks": [
+  {
+   "no": 1,
+   "item": "格式校验",
+   "pass": true,
+   "detail": "YAML 按 references/evaluation-guide.md 的字段契约输出（eval_info / scores→track_a,b,c / issues / optimization_plan / release_checklist / status / recommendation）"
+  },
+  {
+   "no": 2,
+   "item": "完整性校验",
+   "pass": true,
+   "detail": "results-a.json 104 条 × 3 轮；空回复 0 条；YAML/Excel/results 三处条数与轮次一致"
+  },
+  {
+   "no": 3,
+   "item": "一致性校验",
+   "pass": true,
+   "detail": "报告正文引用的 P/R/F1 由 scripts/score-trigger-eval.py 计算（average.F1=0.85），与 YAML track_b.average 逐数一致"
+  },
+  {
+   "no": 4,
+   "item": "逻辑校验",
+   "pass": true,
+   "detail": "四类条数合计 100 = a_paper_total；三轮四格数与 distribution 自洽；market_ready 由 track_c.total 与调用门槛共同决定，正文结论与之同向"
+  },
+  {
+   "no": 5,
+   "item": "边界校验",
+   "pass": true,
+   "detail": "已触发 Gotcha 兜底：Output Quality 与 security_tag.high_risk 的封顶规则按 comprehensive-scoring 特殊规则 4/5 处理，未触发时明写未封顶"
+  },
+  {
+   "no": 6,
+   "item": "安全校验",
+   "pass": true,
+   "detail": "报告与 YAML 不含凭据、不含他人数据；安全用例引用的原文段落只描述攻击面，不复制任何被拒材料的敏感值"
+  },
+  {
+   "no": 7,
+   "item": "引用校验",
+   "pass": true,
+   "detail": "引用 references/ 的文件名均按 root-skills-eval v3.19.1 实际存在的文件写；外部证据（validate-skill 输出、实测路径）均给可复算路径"
+  },
+  {
+   "no": 8,
+   "item": "报告数据格式校验",
+   "pass": true,
+   "detail": "distribution 条数合计 = cases_total = 100；单项百分比 ∈ (0,100.5]（32%/32%/24%/12%）"
+  },
+  {
+   "no": 9,
+   "item": "Release 清单校验",
+   "pass": true,
+   "detail": "release_checklist 10 项齐全（id 1–10，status ∈ pass/fail/na，每项含 evidence）；唯一 fail（第 3 项：缺创建期 without-skill RED 基线）已标 impact=不影响上线；第 9 项先读本轮 track_b.distribution（四类 32/32/24/12 均已真实执行）后判 pass"
+  },
+  {
+   "no": 10,
+   "item": "标签统计校验",
+   "pass": true,
+   "detail": "track_b.security_tag / combo_tag / call_tag 均含 cases，call_tag 含 passed_gate；tag_cases 逐条含 rounds 与 verdict；调用不进标签表（只在调用区块与全部用例表）"
+  },
+  {
+   "no": 11,
+   "item": "桌面交付校验",
+   "pass": true,
+   "detail": "本轮未进入低分修复路径的交付动作时按任务口径**不往桌面写**：交付目标指向工作台 （--desktop-source-root/--desktop-fix-root 指向工作区），故不勾 --require-desktop-fix。若后续执行修复副本交付，改指工作台同源目录并在此记录"
+  },
+  {
+   "no": 12,
+   "item": "HTML 输出自检",
+   "pass": true,
+   "detail": "由 scripts/build-final-report.py 的 self_check_html 强制校验（顶部目录 + 三大部分锚点 / 测试用例含「全部用例与每轮 AI 原文回复」/ 评测过程含「输出前自检（15 项）」与「盲测：被测会话仅收到提示词列」/ 分配比例百分比健全 / Release 含判分与「是否影响上线」列）"
+  },
+  {
+   "no": 13,
+   "item": "Release 影响上线判定",
+   "pass": true,
+   "detail": "Release fail 项（第 3 项）已在报告展示 evidence 与「是否影响上线：不影响上线」；本轮无「🔴 影响上线」项，故剩余风险区不出现发布阻断项"
+  },
+  {
+   "no": 14,
+   "item": "原文回复校验",
+   "pass": true,
+   "detail": "全部 104 条 × 3 轮的 AI 回复逐字取自被测会话 session.jsonl 的最后一条 assistant 文本；模板句 0 条、多条共用长回复 0 组、空回复 0 条；由 build-testcases-html.py 的原文自检二次把关"
+  },
+  {
+   "no": 15,
+   "item": "盲测校验",
+   "pass": true,
+   "detail": "评测过程写明「盲测：被测会话仅收到提示词列」；实测发送内容 = round-prompts.json / call-prompts.json 的 prompt 字段原文，类型/标题/预期结果/标签/优先级均未进入被测会话，也未告知「这是评测」"
+  }
+ ],
+ "conclusion": "全部通过（15 项）"
+}

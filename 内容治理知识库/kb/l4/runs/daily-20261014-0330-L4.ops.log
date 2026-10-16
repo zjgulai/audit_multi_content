@@ -1,0 +1,30 @@
+# L4 定稿与发布层（本批只做条款号分配）· 操作日志 run_id=daily-20261014-0330-L4
+# 生成时间 2026-10-14 03:36:34｜写入范围：kb/l3 追加字段 + kb/l4；kb/l0~l2 只读；未发布任何版本
+
+[01] 建 L4 骨架
+     $ mkdir -p kb/l4/{canonical,registry,runs}
+     → 三目录就绪
+
+[02] 迁移 canonical 空文件
+     $ cp2 kb/l3/canonical/rules.jsonl → kb/l4/canonical/rules.jsonl，删原文件并 rmdir 旧目录
+     → 0 字节原样搬；kb/l3/canonical 目录已不存在；留 kb/l3/CANONICAL_MOVED.md 指路
+
+[03] 首跑分配条款号
+     $ python3 kb/.work/l4_article.py 20260923-1445
+     → 509 条全部赋号；追加 509 行（1018 → 1527）；旧 1018 行逐字节未变
+
+[04] 发现首跑多带了两个审计字段（l4_run_id / l4_assigned_at），与「除 article_no 外无其他字段变化」不符
+     $ 精确截断回 1018 行原状态（哈希核对 d9a28e25…）后重放
+     → 只保留 article_no；字段变化集 = {article_no}
+
+[05] 发现重跑会重写 registry 与迁移说明（mtime 变），复现检查 FAIL
+     $ python3 kb/.work/l4_integrity.py
+     → 改为内容不变就不写；迁移记录取名持久事实
+
+[06] 自检 6 项 + 2 项附加
+     $ python3 kb/.work/l4_integrity.py 20260923-1445
+     → 全部 PASS（冻结层逐字节一致；追加性；无重复/无跳号/无复用；可复现零写入；canonical 仍空；版本纪律）
+
+[07] 生成留痕
+     $ python3 kb/.work/l4_report.py
+     → runs/daily-20261014-0330-L4.json / .report.md / .ops.log

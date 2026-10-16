@@ -1,0 +1,235 @@
+#!/usr/bin/env python3
+"""非记录类资源核验（第二轮）：修 wiki 解析 bug + 补 slides/file 两条通道。
+
+修的是什么：第一轮把 wiki 节点 token 直接当 base/sheet/slides token 用 ——
+  wiki:LLpMwb 因此报 unreachable，其实它是个 bitable（解析后能读 11 张表）。
+本轮：wiki: 前缀先 +node-get 解析出 obj_token 再调对应 API。
+新增通道：
+  · slides → slides +xml-get（第一轮记「CLI 无读命令」是错的）
+  · file   → drive +inspect 定性 + drive +download 取字节（现在有下载能力了）
+用法：python3 kb/l8/verify_l0_nonrecord2.py 20260929-1430 [--apply]
+"""
+# ── 解释器守卫（2026-09-29）：不合格就用 kb/.kb-python 指定的解释器重跑自己 ──
+import os as _os, sys as _sys
+if not _os.environ.get("KB_INTERP_OK"):
+    _d = _os.path.dirname(_os.path.abspath(__file__)); _cfg = None
+    while True:
+        _p = _os.path.join(_d, ".kb-python")
+        if _os.path.isfile(_p):
+            _cfg = _p
+            break
+        _q = _os.path.dirname(_d)
+        if _q == _d:
+            break
+        _d = _q
+    if _cfg:
+        _want = next((l.split("#", 1)[0].strip() for l in open(_cfg, encoding="utf-8")
+                      if l.split("#", 1)[0].strip()), "")
+        _want = _os.path.expanduser(_want)
+        if (_want and _os.access(_want, _os.X_OK)
+                and _os.path.realpath(_want) != _os.path.realpath(_sys.executable)):
+            _os.environ["KB_INTERP_OK"] = "1"
+            _os.execve(_want, [_want, _os.path.abspath(__file__)] + _sys.argv[1:], dict(_os.environ))
+# ──────────────────────────────────────────────────────────────────────────
+
+import collections
+import hashlib
+import json
+import os
+import subprocess
+import sys
+
+RUN = sys.argv[1] if len(sys.argv) > 1 else "20260929-1430"
+APPLY = "--apply" in sys.argv
+AS_ID, PROFILE = os.environ.get("L8_AS", "user"), os.environ.get("L8_PROFILE", "dsh-kb")
+ENV = dict(os.environ, PATH=os.path.expanduser("~/.dsh/bin") + ":" + os.environ.get("PATH", ""))
+
+
+
+def _written(prefix):
+    """按前缀找**实际落盘**的文件。
+
+    ★ 为什么需要它（2026-10-09 实测踩的坑）：`drive +preview` / `docs +media-download`
+      **都会自动加扩展名**（`…/_f2_ab12cd34` → `…/_f2_ab12cd34.pptx`）。
+      原先查的是**无扩展名**的那个路径 ⇒ 明明下成功了却判成 `unreachable`，
+      看起来和「没权限」一模一样 —— 结果是 4 个对象被误挂成读不到。
+      （当时盘上其实躺着 4 个文件，sha256 与台账登记值**逐一相同**。）
+    """
+    import glob as _g
+    hits = [x for x in _g.glob(prefix + "*") if os.path.isfile(x)]
+    return max(hits, key=os.path.getsize) if hits else None
+
+def sh(*a):
+    p = subprocess.run(list(a), capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", env=ENV, timeout=600)
+    try:
+        return json.loads(p.stdout)
+    except Exception:
+        return {"ok": False, "error": {"message": (p.stdout or p.stderr)[:160]}}
+
+
+lat = {}
+for line in open("kb/l0/manifest.jsonl", encoding="utf-8"):
+    if line.strip():
+        r = json.loads(line)
+        lat[r["resource_key"]] = r
+targets = [k for k, v in lat.items()
+           if v["status"] not in ("gone", "retracted")
+           and (v["source_kind"] in ("feishu_slides", "feishu_file")
+                or k in ("wiki:LLpMwbYEmiX5uSkntPucf893ncf", "docx:Kts8dacyIo1zq1xElWOcqW1zncc",
+                         "sheets:BX0QshqWThhY6HtDEFCcnMpsnRc"))]
+# ── ★ 2026-10-09：缺 user 令牌就**跳过**，绝不许把「缺身份」写成「读不到」 ──────────
+# 为什么必须有这道守卫（Owner 追问「文档类怎么不跑」查出来的）：
+#   这批云空间对象（docx / slides / file）里**有一部分 bot 读不到** ——
+#   实测 2026-10-09：`L8_AS=bot` ⇒ ok 5 / **forbidden 2** / **981004 3**，
+#   且 API 对其中那个 docx 直接回 `3380004 No permission ... lacks view or edit access`
+#   （换通道重测过 ⇒ **是权限，不是通道**）⇒ 必须走 **user 身份**。
+#   而 user 令牌**只活 2 小时**（`expiresAt` 与 `refreshExpiresAt` 同值 ⇒ 无 refresh token），
+#   日更在 **03:30** ⇒ **那时必然没有令牌**。
+#   若不管：`--apply` 会把这些判成 `forbidden` / `981004` **写进台账** ——
+#   那是**把身份问题记成数据问题**。本库已踩过三次同形的坑
+#   （`981003` 视频 ／ `authorization` 文档 ／ `no_scope` 台账），每次都是"看着像数据问题"。
+# ⇒ 缺令牌时：**不核验、不写一行台账**，只打原因码 `user_token_missing` 并**退出 0**（不阻断日更）。
+if AS_ID == "user" and "--no-token-check" not in sys.argv:
+    _st = subprocess.run(["lark-cli", "auth", "status", "--profile", PROFILE],
+                         capture_output=True, text=True, encoding="utf-8",
+                         errors="replace", env=ENV, timeout=60)
+    _out = (getattr(_st, "stdout", "") or "") + (getattr(_st, "stderr", "") or "")
+    if "User identity: ready" not in _out:
+        print(f"[{RUN}] ⛔ **跳过第二轮核验** —— 原因码 `user_token_missing`")
+        print("     为什么必须跳过：这批对象里有一部分 **bot 读不到**（需 user 身份），")
+        print("     而 user 令牌只活 2 小时、日更在 03:30 ⇒ 那时必然没有。")
+        print("     若强行核验，`--apply` 会把「缺令牌」写成 `forbidden`/`981004` 进台账 ——")
+        print("     那是**把身份问题记成数据问题**（本库已踩过三次同形的坑）。")
+        print("     ▶ 要让它跑：**白天**重授权一次（`lark-cli auth login`，令牌 2 小时有效），")
+        print("       或请这些对象的 **owner** 把「守衡」bot 加成可阅读协作者（一劳永逸）。")
+        json.dump({"run": RUN, "kind": "nonrecord_verify2", "skipped": "user_token_missing",
+                   "targets": len(targets), "results": [], "by_status": {},
+                   "why": "缺 user 令牌；核验会把这些对象误判成 forbidden/981004，"
+                          "故跳过而不是污染台账"},
+                  open(f"kb/l8/runs/{RUN}-l0-nonrecord-verify2.json", "w", encoding="utf-8"),
+                  ensure_ascii=False, indent=1)
+        sys.exit(0)
+
+print(f"第二轮核验目标：{len(targets)} 条")
+
+results, rows = [], []
+for key in sorted(targets):
+    row = lat[key]
+    sk, tok = row["source_kind"], key.split(":", 1)[1]
+    ent = {"resource_key": key, "kind": sk}
+    obj = tok
+    if key.startswith("wiki:"):
+        n = sh("lark-cli", "wiki", "+node-get", "--node-token", tok, "--as", AS_ID, "--profile", PROFILE)
+        if n.get("ok"):
+            obj = n["data"]["obj_token"]
+            ent["resolved"] = {"title": n["data"].get("title"), "obj_type": n["data"].get("obj_type"),
+                               "obj_token": obj}
+        else:
+            ent.update(status="unreachable", why=json.dumps(n.get("error"), ensure_ascii=False)[:130])
+            results.append(ent)
+            continue
+    try:
+        if sk == "feishu_bitable_base":
+            t = sh("lark-cli", "base", "+table-list", "--base-token", obj, "--as", AS_ID, "--profile", PROFILE,
+                   "--format", "json")
+            if t.get("ok"):
+                tabs = t["data"]["tables"]
+                ent.update(status="ok", tables=len(tabs),
+                           table_names=[x["name"] for x in tabs][:12],
+                           total_records=sum(x.get("records_count") or 0 for x in tabs))
+            else:
+                ent.update(status="unreachable", why=json.dumps(t.get("error"), ensure_ascii=False)[:130])
+        elif sk == "feishu_slides":
+            x = sh("lark-cli", "slides", "+xml-get", "--presentation-id", obj, "--as", AS_ID, "--profile", PROFILE)
+            if x.get("ok"):
+                xml = json.dumps(x.get("data"), ensure_ascii=False)
+                ent.update(status="ok", chars=len(xml),
+                           sha256=hashlib.sha256(xml.encode()).hexdigest(),
+                           note="slides +xml-get 可读（第一轮误记『无读命令』）")
+            else:
+                ent.update(status="forbidden", why=json.dumps(x.get("error"), ensure_ascii=False)[:130])
+        elif sk == "feishu_file":
+            insp = sh("lark-cli", "drive", "+inspect", "--url",
+                      (row.get("entry_url") or f"https://feishu.cn/file/{tok}"),
+                      "--as", AS_ID, "--profile", PROFILE)
+            ent["inspect"] = {"ok": insp.get("ok"), "title": (insp.get("data") or {}).get("title"),
+                              "type": (insp.get("data") or {}).get("type")}
+            out = f"/tmp/_f2_{hashlib.sha1(key.encode()).hexdigest()[:8]}"
+            d = sh("lark-cli", "drive", "+download", "--file-token", obj, "--output", out,
+                   "--overwrite", "--as", AS_ID, "--profile", PROFILE)
+            _via = "download"
+            got = _written(out)
+            # ── ★ 2026-10-09 两处修正（Owner 批「改成走已通的那条」）──────────────────
+            # ① **降级通道**：这 3 个 pptx + 1 个 xlsx 的字节早在 L0（台账 `full`），可**复验**
+            #    却报 `authorization` —— 因为取数走的是 `drive +preview --type source_file`
+            #    （台账原话「export 被拒」），而复验走 `drive +download`，被库级「禁止下载/导出」挡
+            #    （skill 决定性实验：这类限制**加 scope、加协作者都没用**）。
+            #    ⇒ 复验必须走**与取数同一条已通的通道**。
+            # ② **`+preview` 不接受 `--overwrite`**（实测 unknown flag），且它**会自动加扩展名**
+            #    （`…/_f2_ab12cd34` → `…/_f2_ab12cd34.pptx`）⇒ 判存在必须按前缀找，
+            #    否则「明明下成功了」被读成失败。这两条都是我第一版踩的坑，写在这里。
+            if not (d.get("ok") and got):
+                try:
+                    if got:
+                        os.remove(got)
+                except Exception:
+                    pass
+                d2 = sh("lark-cli", "drive", "+preview", "--file-token", obj,
+                        "--type", "source_file", "--output", out,
+                        "--as", AS_ID, "--profile", PROFILE)
+                if d2.get("ok"):
+                    d, _via = d2, "preview(source_file)"
+                    got = _written(out)
+            if d.get("ok") and got:
+                h = hashlib.sha256(open(got, "rb").read()).hexdigest()
+                # 真复验：与台账登记值比对（只报读数，不改判据）
+                _rec = row.get("sha256")
+                _vd = ("same" if (_rec and h == _rec) else
+                       ("recomputed_differ" if _rec else "first_hash"))
+                ent.update(status="ok", bytes=os.path.getsize(got), sha256=h,
+                           recorded_sha256=_rec, verdict=_vd, via=_via,
+                           note=(f"本轮取到字节（通道 {_via}）；"
+                                 + {"same": "摘要与台账登记值**一致**",
+                                    "recomputed_differ": "摘要与台账登记值**不一致** → 原件可能已换版，需人工看",
+                                    "first_hash": "台账原先无摘要，本轮首次落指纹"}[_vd]))
+                try:
+                    os.remove(got)
+                except Exception:
+                    pass
+            else:
+                ent.update(status="unreachable",
+                           why=(json.dumps(d.get("error"), ensure_ascii=False)[:130]
+                                + " ｜ download 与 preview(source_file) **两条通道都失败**"))
+        elif sk == "feishu_doc":
+            f = sh("lark-cli", "docs", "+fetch", "--doc", obj, "--as", AS_ID, "--profile", PROFILE)
+            ent.update(status="ok" if f.get("ok") else "forbidden",
+                       why=None if f.get("ok") else json.dumps(f.get("error"), ensure_ascii=False)[:130])
+        elif sk == "feishu_sheet":
+            m = sh("lark-cli", "sheets", "+workbook-info", "--spreadsheet-token", obj, "--as", AS_ID, "--profile", PROFILE)
+            ent.update(status="ok" if m.get("ok") else "forbidden",
+                       why=None if m.get("ok") else json.dumps(m.get("error"), ensure_ascii=False)[:130])
+        else:
+            ent.update(status="not_verified", why="无核验器")
+    except Exception as e:
+        ent.update(status="error", why=f"{type(e).__name__}: {str(e)[:110]}")
+    results.append(ent)
+    print(f"  {ent['status']:<12} {key[:46]} {json.dumps({k: v for k, v in ent.items() if k in ('tables','chars','bytes','resolved','why')}, ensure_ascii=False)[:150]}")
+    if APPLY and ent["status"] == "ok":
+        n = dict(row)
+        n.update({"observed_at": RUN, "change": "l0_nonrecord_verify2", "status": "updated",
+                  "status_reason": "第二轮核验通过：" + (ent.get("note") or "可读")})
+        if ent.get("sha256"):
+            n.update({"sha256": ent["sha256"], "sha256_input": "file_bytes" if sk == "feishu_file" else "slides_xml",
+                      "sha256_state": "full", "sha256_prev": row.get("sha256")})
+        rows.append(n)
+
+rep = {"run": RUN, "kind": "nonrecord_verify2", "checked": len(results),
+       "by_status": dict(collections.Counter(r["status"] for r in results)), "results": results}
+json.dump(rep, open(f"kb/l8/runs/{RUN}-l0-nonrecord-verify2.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+print("汇总：", rep["by_status"])
+if APPLY:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from l0_ledger import append_changed
+    _n = append_changed("kb/l0/manifest.jsonl", rows, run=RUN)
+    print(f"已追加 {_n['appended']} 行；{_n['skipped_unchanged']} 行与上次相同（只刷新 last_seen）")

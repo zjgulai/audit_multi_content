@@ -1,0 +1,66 @@
+# GitLab CI —— KB 闸门（每日只读体检）
+#
+# ⚠️ 放哪：`.gitlab-ci.yml`（**代码仓库根**）
+#
+# ⚠️ 前提（详见 ci/README.md）：
+#   · 必须是 git 仓库 —— 当前目录实测**不是**；
+#   · runner 必须打在**这台 Mac** 上（`tags: [kb-host]` 换成你的标签）。
+#     实测（2026-10-04）本机**没装任何 runner**；shared runner（Linux 容器）上跑不了 ——
+#     库里是本机绝对路径 + `kb/.kb-python` 解释器 + **活库数据**。
+#
+# ★★ 关键设计：闸门读的是 runner 上的**活库**，不是 clone 出来的副本 ★★
+#   所以本流水线设 `GIT_STRATEGY: none`（不 clone —— 反正读的是活库，clone 出来的是快照副本，
+#   而且是 08:30 写档任务没在改的那一份），每一步 `cd "$KB_LIVE_ROOT"`。
+#   ⚠️ `KB_LIVE_ROOT` **必须改成 runner 这台机器上的库根绝对路径**。
+#
+# 只读口径：不调 kb_pipeline.py --apply / kb_loop_claim.py / daily_sync.py，
+# 因此不抢 `kb/.work/.kb.lock`，可与本机 08:30 写档循环并存（时间也已错开）。
+#
+# 退出码语义（ci/run_gates.py；已用假闸门逐档注入独立验证）：
+#   0 全过 ｜ 1 有红 ｜ 2 有「无法计算」｜ 3 runner 故障
+
+stages: [gates]
+
+variables:
+  # ★ 改成 runner 这台机器上的库根绝对路径
+  KB_LIVE_ROOT: "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理"
+  # 不 clone：闸门读活库，clone 出来的副本不是被评的对象
+  GIT_STRATEGY: none
+
+kb-gates:
+  stage: gates
+  # 换成你给这台 Mac 上的 runner 打的标签
+  tags: [kb-host]
+  timeout: 30m
+  # 与写档循环互斥
+  resource_group: kb-gates
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "push"
+      changes: ["kb/l7/scripts/**/*", "kb/l7/registry/*", "ci/**/*"]
+  script:
+    - echo "runner 主机：$(hostname)"
+    - test -d "$KB_LIVE_ROOT" || { echo "KB_LIVE_ROOT 不存在：$KB_LIVE_ROOT（改成这台 runner 上的库根绝对路径）"; exit 1; }
+    - cd "$KB_LIVE_ROOT"
+    - test -f kb/KB-ROOT.json || { echo "$KB_LIVE_ROOT 不是权威库根（缺 kb/KB-ROOT.json）"; exit 1; }
+    - test -x kb/kbpy || { echo "缺 kb/kbpy 解释器入口"; exit 1; }
+    - echo "库根：$(pwd)"
+    # 只提示不判成败：user 身份缺失 ⇒ l0 的「拉取失败」根因就在这（不是数据错）
+    - '"$HOME/.dsh/bin/lark-cli" auth status --profile dsh-kb 2>&1 || true'
+    # `--scope full`（2026-10-04 加）= 12 把 + 补挂的 projection / envelope。
+    #   ⚠️ 补挂后**预期每天红**，且两条真红都要人做、CI 改不动：
+    #     · l0         —— 取数身份（bot「守衡」未加成该 Base 可阅读协作者／user 令牌失效）
+    #     · projection —— 投影漂移（实测 6 项过 3）
+    #   要一条绿基线就先退回 `--scope core`（或删掉这个 flag）。
+    - python3 ci/run_gates.py --scope full --outdir "$KB_LIVE_ROOT/ci/out"
+  artifacts:
+    when: always
+    # path 相对 $CI_PROJECT_DIR 解析（GIT_STRATEGY:none 时是个空目录），所以先拷进去
+    paths: [kb-gates-out/]
+    expire_in: 30 days
+  after_script:
+    - mkdir -p kb-gates-out
+    - cp -f "$KB_LIVE_ROOT/ci/out/gates-latest.json" kb-gates-out/ 2>/dev/null || true
+    - cp -f "$KB_LIVE_ROOT/ci/out/gates-latest.md" kb-gates-out/ 2>/dev/null || true
+    - '[ -f kb-gates-out/gates-latest.md ] && cat kb-gates-out/gates-latest.md || true'

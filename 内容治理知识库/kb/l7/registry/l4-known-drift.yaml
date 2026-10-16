@@ -1,0 +1,214 @@
+# l4-known-drift.yaml —— L4 自检器里**判据本身有问题**的 5 项（只做分类，不给豁免）
+#
+# ★★ 先读这一句：**今天没有任何闸门读本文件。**
+#   · `kb/l7/scripts/l4_gate.py` 是**独立复算档**：它从「定稿 × 候选 × L2 单元」重算 C1–C6，
+#     **既不读** `kb/.work/l4_integrity.json`、**也不读本文件**。
+#   · 姊妹文件里，`l3-known-drift.yaml` 由 `l3_gate.py` 的 C3 消费、`l5-known-drift.yaml` 由
+#     `l5_gate.py` 消费 —— 那两份会**改变闸门判定**；**本文件不会**。
+#   · 所以建本文件**不是为了让谁转绿**。它只是把「这 5 条为什么不是数据坏了」写下来，
+#     免得后人（或日报）把自检器的 FAIL 当真缺陷去"修数据"。**改判据要单独走一轮。**
+#
+# 规则（与 l3-known-drift.yaml / l5-known-drift.yaml 同一套纪律）：
+#   * 登记的是「为什么这是**判据**的问题而不是**数据**坏了」+ 证据 + 谁去做什么；
+#     **不是**「这一项不算了」。原始数一律照打，不抹掉。
+#   * `kb/l7/scripts/l4_gate.py` 的 C1–C6 是**独立复算的实质判据**，本文件管不着 ——
+#     它红了才是真红（RUN=20261001-1650 实测：C1–C6 **全过，exit 0**）。
+
+meta:
+  file: kb/l7/registry/l4-known-drift.yaml
+  created_at: "2026-10-01"
+  created_by_run: "20261001-1650（批次5：L3→L4→L5→L6 首次真写 --apply）"
+  owner: 刘华丽
+  upstream_checker: kb/.work/l4_integrity.py
+  measured_at: "2026-10-01 16:53:04（自检器自报 checked_at）"
+  read_by_gate: none        # ← 与 l3-/l5-known-drift.yaml 的关键差别，见文件头
+  gate_that_actually_judges_l4: kb/l7/scripts/l4_gate.py（独立复算 C1–C6，不读本文件）
+  selfcheck_verdict_at_creation: FAIL（8 项中 5 红：frozen_layers / l3_append_only /
+    article_numbers / reproducible / ledger_coverage；PASS 4 项见 checks_still_pass）
+  note: >
+    批次5 任务书预期「4 个子红」，**实测 5 个** —— 多出来的第 5 项 `reproducible` 是
+    **批次5 第一次真跑 `--apply` 之后才转红的**（批次4 于 2026-10-01 15:56 实测该项为 PASS）。
+    多出来的那一条按实测登记，不做减法。
+
+checks_still_pass:
+  # 同一份自检器里 PASS 的 4 项 —— 它们说明**数据本身没问题**，是判定「上面 5 项是判据问题」的对照面。
+  - canonical_state        # kb/l4/canonical/rules.jsonl 恒 0 字节；迁移说明存在且指向 L4
+  - version_discipline     # versions.jsonl 版本行 0；kb_version 全 v0；无 release_id
+  - article_no_is_not_version  # 发布/冻结字段命中全 0；status 全 provisional
+  - reproducible_at_15:56  # 批次4 时点的取值（见 stale_criteria[4].prior_reading）
+
+stale_criteria:
+
+  - item: frozen_layers
+    defect_class: 判据过期（时点冻结 / 跨层误置）
+    recorded_verdict: FAIL
+    what_it_checks: >
+      kb/l0、kb/l1、kb/l2 三层的**当前内容指纹**（tree_sha256 = 逐文件 相对路径\\0字节数\\0sha256 排序后取哈希）
+      必须等于 `kb/.work/l5_integrity.json` 里记着的 `checks.frozen_layers.layers[*].tree_sha256`。
+      基线来自 **L5 的自检器**，不是 L4 自己的产物。
+    why_stale: >
+      ① 这是「下游层把上游快照冻住」的判据：**活库上必然 FAIL** —— 只要 kb/l0|l1|l2 任何一层
+         在自己层内正常写过一次（L0 日更 / L1 抽取 / L2 切分），kb/l4 的自检就红，
+         而红的这几层**根本不归 L4 管**。
+      ② 基线还是**易失**的：`kb/.work/l5_integrity.json` 每次跑 `l5_integrity.py` 都会被
+         用**当时的**指纹重写。于是同一份 kb/l4 自检在两次 L5 闸门之间读到的基线可能不同 ——
+         批次5 实测就撞上了：16:53:04 读到的 l1 基线是 `1477d5279a2362ed`（16:02:50 那版），
+         16:53:06 本批一次只读的 L5 闸门探针把该文件重写成 `9de020728d1b2e6b`。
+    evidence: >
+      checked_at=2026-10-01 16:53:04 实测：l0 same=true（3665 文件 / 1,654,072,861 字节 /
+      tree 3bac7c43aad687a9 / 最后修改 2026-10-01 15:59:33）；l2 same=true（861 文件 / 73,042,520 字节 /
+      8cb8a96bdd463478 / 11:59:16）；**l1 same=false**（3122 文件 / 1,144,909,878 字节 /
+      tree now 9de020728d1b2e6b vs base 1477d5279a2362ed / **最后修改 2026-10-01 16:36:25**）。
+      决定性证据：**kb/l1 没有任何文件晚于 16:36:25**，而本批 L4 起跑是 16:52:48 —— 
+      本层**一个字节都没碰过 kb/l1**。kb/l1 在 16:36 多出的文件是
+      `kb/l1/runs/20261001-1638-dryrun.json`（批次4 时点留下的 L1 落章，早于本批开工的 16:44）。
+    owner_action: >
+      把 l4_integrity.py 的 frozen_layers 换成「上游变更必须可追溯到该层自己的 run_id 台账」
+      （kb/l0|l1|l2 的 registry/runs 都有），或直接**删掉这一项**（它在 L4 是跨层误置），
+      改完把本项从本文件删掉。**批次5 不改**（改检查器要单独走一轮）。
+
+  - item: l3_append_only
+    defect_class: 判据过期（结构性不可满足）
+    recorded_verdict: FAIL
+    what_it_checks: >
+      `kb/l3/candidates/rules.jsonl` 的第 `BASE_LINES` 行之后必须是「追加块」：
+      追加块行数 == 509、追加块相对基线块**只改 article_no 一个字段**、
+      且基线块每个 rule_id 都能在追加块里找到。
+    why_stale: >
+      判据把「批次开始时点」写死成常量（`kb/.work/l4_integrity.py:43-44`：
+      `BASE_LINES = 1018`、`BASE_SHA16 = "d9a28e25f6fee706"`）。
+      当现文件**正好 1018 行**时，`new_rows = lines[1018:]` **恒为空** →
+      `len(new_rows) == 509`、`changed_fields == {"article_no"}`、`not missing_ids`
+      **三条结构性不可能满足**，与数据好坏无关。实测：`appended_lines=0`、
+      `fields_changed_vs_old_block=[]`、`rules_missing_in_appended_block` = **全部 509 个 rule_id**。
+    evidence: >
+      checked_at=2026-10-01 16:53:04：lines=1018 / base_lines=1018 / base_bytes=2778734 /
+      base_sha256=aa83d1f98bc86857254bfa4f908ebd6d1a869f868cb04970522d154f776b0dac /
+      **base_matches_L6=false** / **prefix_bytes_identical=true** / appended_lines=0。
+      关于 `base_matches_L6=false`（**如实说清，别被它带偏**）：常量 `d9a28e25f6fee706` 出自
+      `kb/l6/runs/20260923-1400.json` 的 `l3_candidates` 块（同一块里还有
+      `lines: 1018` 与 `prefix509_sha256: 54691908da8e8b59…`）。现文件**前 509 行**的 sha256
+      正是 `54691908da8e8b59`，与那份 09-23 存档**逐字节吻合**；差只差在**后 509 行**，
+      而那 509 行正是 L4 每次从 `numbering.issued` 重新生成的 article_no 副本 —— 是
+      「快照 vs 活库」的可预期差异，不是数据损坏。
+      **实质不变式另行复算并通过**：批次5 实测 `kb/l3/candidates/rules.jsonl` 走完 L3→L4 往返后
+      与跑前**逐字节完全相同**（1018 行 / 2778734 字节 / sha16 `aa83d1f98bc86857`，
+      `cmp` 无差异）。
+    owner_action: >
+      把判据改成**台账驱动**：从现文件现算「基线块 = 每个 rule_id 的首行」「追加块 = 每个 rule_id 的末行」，
+      不再写死行数与哈希；或加 `--accept-baseline <run_id>` 档（与 l6_integrity.py 同款）。
+      **批次5 不改。**
+
+  - item: article_numbers
+    defect_class: 判据过期（一次性断言被当常驻判据）
+    recorded_verdict: FAIL
+    what_it_checks: >
+      509 条规则全部有条款号、同库内不重复、前缀与库对得上、段号与形态对得上、无跳号、
+      **且「基线块里原本一个非空条款号都没有」**（`not old_given`）、
+      条数 == 509、且所有号都在台账里。
+    why_stale: >
+      FAIL 的**唯一**来源是 `not old_given`：`old_given = [r for r in old_rows if article_no.strip()]`
+      —— 而 `old_rows = lines[:1018]` 是**整个文件**，`old_latest = {rule_id: r}` 又只保留
+      每个 rule_id 的**最后一行**（即带 article_no 的那一行）→ `preexisting_non_empty_numbers=509`。
+      「基线块里没有条款号」这句话**只在 L4 第一次跑之前成立**：L4 一旦跑过并回填，
+      它就永远为假。这不是数据退化，是把一次性断言当成了常驻判据。
+      自检器自己的 `note` 写着「字段在本批之前就存在但全是空串（509/509 为 ''）」，
+      而同一份输出里的 `preexisting_non_empty_numbers` 是 **509** —— **note 与实测互相矛盾**，
+      以实测为准。
+    evidence: >
+      checked_at=2026-10-01 16:53:04：rules=509 / with_article_no=509 / empty=[] / prefix_bad=[] /
+      block_bad=[] / duplicates_within_segment={} / sequence_gaps={} / per_library={"wording":509} /
+      per_segment={"W-1":{"count":56,"range":[1,56]},"W-2":{"count":453,"range":[1,453]}} /
+      reused_old_numbers=[] / assigned_not_in_ledger=[] / **preexisting_non_empty_numbers=509**。
+      即：**5 条实质不变量全过，唯一的红来自一条时点假设。**
+      ★ 另记一处**潜伏**缺陷（本批不是红因，`block_bad=[]` 实测通过）：`:119` 用
+      `FORM_BLOCK = reg["numbering"]["form_block"]` 校验段号，而该表自 `20260924-1320` 起**已废止**
+      （`form_block_retired_at_run=20260924-1320`，且 `boundary=3` 与 W-3 冲突 —— 见 layers.yaml L4 notes）。
+      改用 `block_by_library` 才能覆盖 E-2 这类新段。
+    owner_action: >
+      删掉 `not old_given` 这条时点断言（号是否**复用**由 `reused_old_numbers` 独立判，本批为 []），
+      并把段号校验从已废止的 `form_block` 换成 `numbering.block_by_library`。**批次5 不改。**
+
+  - item: ledger_coverage
+    defect_class: 判据过期（写死批次总量）
+    recorded_verdict: FAIL
+    what_it_checks: >
+      台账 `numbering.issued` 每段的 `next_seq == 已发最大号 + 1`、`count == len(assigned)`，
+      **且台账号码总数 == 509**。
+    why_stale: >
+      FAIL 的**唯一**来源是 `len(ledger_all) == 509`（`kb/.work/l4_integrity.py:215`）。
+      台账早已是 **6 段 1365 号**（W-1 56 / W-2 453 / W-3 157 / S-1 201 / E-1 375 / E-2 123），
+      而 509 只是**其中 W-1+W-2 两段**的量。逐段的两条不变量**六段全部为真**。
+    evidence: >
+      checked_at=2026-10-01 16:53:04：ledger_numbers=1365；
+      segments 逐段 `next_seq_ok=true`、`count_ok=true`：
+      W-1 56→57 ｜ W-2 453→454 ｜ W-3 157→158 ｜ S-1 201→202 ｜ E-1 375→376 ｜ E-2 123→124。
+      口径差不掩盖：同一份自检里的 `article_numbers` 只看 509 条 wording，本项看全台账 1365 ——
+      两个 check 的分母不同，不能互相当判据。
+    owner_action: >
+      去掉 `== 509`，改成「逐段 next_seq/count 自洽 **且** 号码总数 == Σ各段 assigned」（台账自洽式），
+      或按 `numbering.totals.assigned` 现算。**批次5 不改。**
+
+  - item: reproducible
+    defect_class: 判据读错源（读的是「上一次真跑」的字段，不是本次干跑的观测值）
+    recorded_verdict: FAIL
+    what_it_checks: >
+      同一份规则重跑：干跑退出码 0、候选件与 registry **逐字节不变（含 mtime）**、
+      号码映射一致、**且 `appended_this_run == 0`**。
+    why_stale: >
+      `kb/.work/l4_integrity.py:162` 先以**干跑档**跑 `l4_article.py`（不带 `--apply`），
+      然后 `:164` `reg2 = json.load(open(REG))`、`:166` `appended_this_rerun = reg2["inputs"]["appended_this_run"]`。
+      但**干跑档不写 registry**（`l4_article.py` 在干跑闸门处就 `sys.exit(0)`，registry 写入在更后面）
+      ⇒ `reg2` 读到的仍是**上一次真跑 `--apply` 留下的** `appended_this_run`，
+      本批那次真跑写的是 **509** ⇒ 断言 `== 0` 必然红。
+      这不是「不幂等」：同一次判据里 `mapping_identical=true`、`files_changed=[]`，
+      且干跑自己的 stdout 明写 `将追加回候选件 0 行（原行逐字节不动）`。
+      ★ 批次5 已独立复现：单独跑 `kb/kbpy .work/l4_article.py 20261001-1650`（干跑）
+      输出 `首次分配 0 条｜沿用台账 1365 条 / 将追加回候选件 0 行 / [dry-run] 加 --apply 才落盘。`
+      ⇒ **幂等成立，红的是读数来源。**
+      ★ 为什么批次4（15:56）它是 PASS：那时 registry 里的 `appended_this_run` 还是更早一次
+      空操作留下的 **0** —— 也就是说这一项的绿/红取决于「上一次真跑追加了几行」，
+      **与本次幂等性无关**。它是批次5 第一次真写之后**必然转红**的一项。
+    evidence: >
+      checked_at=2026-10-01 16:53:04：exit_code=0 ｜ **appended_this_rerun=509**（期望 0）｜
+      mapping_identical=true ｜ files_changed=[] ｜
+      stdout_tail=["  首次分配 0 条｜沿用台账 1365 条", "  将追加回候选件 0 行（原行逐字节不动）",
+      "[dry-run] 加 --apply 才落盘。"]。
+      prior_reading: 批次4（RUN=20261001-1557，checked_at 2026-10-01 15:56:23）该项 verdict=PASS，
+      `appended_this_rerun=0`。
+    owner_action: >
+      把 `appended_this_rerun` 的来源改成**解析干跑 stdout**（`将追加回候选件 N 行`），
+      或在断言里排除「本次真跑刚写下的 inputs.appended_this_run」——
+      即：判据要读**本次干跑**的观测值，不能读 registry 里的历史遗留字段。**批次5 不改。**
+
+# ── 同名项辨析：L4 的这两项与 L5 的同名项是同一回事吗？────────────────────────
+# 批次5 任务书点名要回答这个。逐项：
+#
+# 1) frozen_layers —— **是同一回事（同一族，同一病）**。
+#    · L5 的（kb/.work/l5_integrity.py:83-88）：判「l0/l1/l2 的 max_mtime 全部早于 l5 首次写入」+ 记录指纹；
+#    · L4 的（kb/.work/l4_integrity.py:67-74）：判「l0/l1/l2 的 tree_sha256 等于 l5_integrity.json 里记的基线」。
+#    两者都是**下游层把上游快照冻在一个过去的时点**，在日更库上**必然 FAIL**；
+#    两者的基线都**不是本层产物**。差别只在写法（比 mtime 上界 vs 比内容指纹），**同一回事**。
+#    已在 l5-known-drift.yaml 登记的 L5 版与本节 L4 版应同批处理（同一个 owner_action 方向）。
+#
+# 2) l3_append_only —— **不是同一回事，只是同名同族**。
+#    · L5 的（l5_integrity.py:91-110）：基线 = 前 `L3_V01_LINES`(=509) 行，要求
+#      「追加段的 rule_id 集合 == 基线段的 rule_id 集合」；它的病是**收敛步把追加段收敛掉了**
+#      （文件正好 509 行 ⇒ new_ids=∅）—— 已登记在 l5-known-drift.yaml。
+#    · L4 的（l4_integrity.py:76-112）：基线 = 前 **1018** 行，要求
+#      「追加段 509 行 + 只改 article_no + 基线 id 全在追加段里」，还额外钉了一个
+#      **写死的整文件哈希** `BASE_SHA16="d9a28e25f6fee706"`（出自 L6 的 09-23 存档）。
+#    常量不同（509 vs 1018）、哈希不同、看的文件状态不同、病也不同
+#    （L5 是「追加段被收敛掉」，L4 是「基线行数写死 + 哈希钉死在 09-23」）。
+#    ⇒ 同名、同族（都是「批次时点冻结」）、**但不是同一回事**，不能共用一条登记。
+#
+# 3) article_numbers / ledger_coverage / reproducible —— L5 **没有**这三项，不存在同名问题。
+#    L5 的实质 4 项是 pattern_traceability / no_fabricated_words / version_discipline / offline；
+#    L4 的实质判据在**闸门** kb/l7/scripts/l4_gate.py 的 C1–C6（独立复算，本批全过）。
+#    ⇒ 两层的「实质判据」完全不重叠，不要互相引用。
+
+boundary:
+  - 本文件**不改变任何闸门的判定**（`l4_gate.py` 不读它；`daily_health.py` 目前也不读它）。
+  - 本文件**不是豁免**：上面 5 项在 `kb/.work/l4_integrity.json` 里**仍然是 FAIL**，照打不抹。
+  - 本文件**不许**被当成「L4 已经没问题了」的证据 —— L4 有没有问题看 `l4_gate.py`（C1–C6 复算）与
+    `kb/l4/canonical/*.jsonl` 的实文件，不看自检器的绿黄红。

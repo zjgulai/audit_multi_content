@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""外部 URL 资源对齐核验（L0 里 150 条 url: 资源）。
+
+判据：L0 行记了 sha256（sha256_input 多为 url_text）+ revision。重抓正文，按同一「去标签取文本」口径算 sha256 比对。
+口径诚实性：若复现不出原摘要，就只报「可达/不可达 + 正文长度」，并把新旧摘要都记下来，不硬说一致。
+用法：python3 kb/l8/verify_l0_urls.py 20260929-1420
+"""
+# ── 解释器守卫（2026-09-29）：不合格就用 kb/.kb-python 指定的解释器重跑自己 ──
+import os as _os, sys as _sys
+if not _os.environ.get("KB_INTERP_OK"):
+    _d = _os.path.dirname(_os.path.abspath(__file__)); _cfg = None
+    while True:
+        _p = _os.path.join(_d, ".kb-python")
+        if _os.path.isfile(_p):
+            _cfg = _p
+            break
+        _q = _os.path.dirname(_d)
+        if _q == _d:
+            break
+        _d = _q
+    if _cfg:
+        _want = next((l.split("#", 1)[0].strip() for l in open(_cfg, encoding="utf-8")
+                      if l.split("#", 1)[0].strip()), "")
+        _want = _os.path.expanduser(_want)
+        if (_want and _os.access(_want, _os.X_OK)
+                and _os.path.realpath(_want) != _os.path.realpath(_sys.executable)):
+            _os.environ["KB_INTERP_OK"] = "1"
+            _os.execve(_want, [_want, _os.path.abspath(__file__)] + _sys.argv[1:], dict(_os.environ))
+# ──────────────────────────────────────────────────────────────────────────
+
+import collections
+import hashlib
+import html as H
+import json
+import re
+import sys
+import urllib.request
+
+RUN = sys.argv[1] if len(sys.argv) > 1 else "20260929-1420"
+APPLY = "--apply" in sys.argv
+UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36"
+
+
+def strip_html(h):
+    h = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", h, flags=re.S | re.I)
+    h = re.sub(r"<(title|h1|h2|h3|h4|p|li|br|tr|/p|/li|/h1|/h2|/h3|/h4|/tr)[^>]*>", "\n", h)
+    h = re.sub(r"<[^>]+>", "", h)
+    return re.sub(r"\n{2,}", "\n", H.unescape(h)).strip()
+
+
+lat = {}
+for line in open("kb/l0/manifest.jsonl", encoding="utf-8"):
+    if line.strip():
+        r = json.loads(line)
+        lat[r["resource_key"]] = r
+urls = [(k, v) for k, v in lat.items()
+        if v["source_kind"] == "url" and v["status"] not in ("gone", "retracted")]
+print(f"待重抓 URL：{len(urls)} 条")
+
+results, rows = [], []
+for key, row in sorted(urls):
+    url = key.split(":", 1)[1]
+    ent = {"resource_key": key, "l0_sha256": row.get("sha256"), "l0_sha256_input": row.get("sha256_input"),
+           "l0_revision": row.get("revision")}
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept-Language": "en,zh;q=0.8"})
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            raw = resp.read()
+            status = resp.status
+        txt = strip_html(raw.decode("utf-8", "ignore"))
+        h = hashlib.sha256(txt.encode()).hexdigest()
+        ent.update({"http_status": status, "bytes": len(raw), "chars": len(txt),
+                    "feishu_sha256": h,
+                    "verdict": ("same" if row.get("sha256") and h == row["sha256"]
+                                else ("recomputed_differ" if row.get("sha256") else "first_hash")),
+                    "text_head": txt[:80]})
+    except Exception as e:
+        ent.update({"verdict": "unreachable", "why": f"{type(e).__name__}: {str(e)[:110]}"})
+    results.append(ent)
+    if APPLY and ent["verdict"] in ("same", "recomputed_differ", "first_hash"):
+        n = dict(row)
+        n.update({"observed_at": RUN, "change": "l0_url_reverify",
+                  "status": "updated" if ent["verdict"] != "recomputed_differ" else "registered",
+                  "status_reason": f"URL 重抓核验：{ent['verdict']}（HTTP {ent.get('http_status')}）"
+                                   + ("；正文摘要与原行不同 → 网页内容可能已变，需人工看" if ent["verdict"] == "recomputed_differ" else ""),
+                  "sha256_prev": row.get("sha256"), "sha256": ent["feishu_sha256"],
+                  "sha256_input": "url_text_refresh_v1", "sha256_state": "full"})
+        rows.append(n)
+
+rep = {"run": RUN, "kind": "url_reverify", "checked": len(results),
+       "by_verdict": dict(collections.Counter(r["verdict"] for r in results)),
+       "same_count": sum(1 for r in results if r["verdict"] == "same"),
+       "differ_count": sum(1 for r in results if r["verdict"] == "recomputed_differ"),
+       "results": results}
+json.dump(rep, open(f"kb/l8/runs/{RUN}-l0-url-verify.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+print("结果：", rep["by_verdict"])
+if APPLY:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from l0_ledger import append_changed
+    _n = append_changed("kb/l0/manifest.jsonl", rows, run=RUN)
+    print(f"已追加 {_n['appended']} 行核验记录；{_n['skipped_unchanged']} 行与上次相同（只刷新 last_seen，不再重复登记）")

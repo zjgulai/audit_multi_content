@@ -1,0 +1,139 @@
+{
+ "run_id": "P0MILK-20261004-1219-L4",
+ "dry_run": true,
+ "applied": false,
+ "engine": "kb/.work/fix_l4_repromote.py",
+ "note": "预演档：kb/l4/canonical/*.jsonl 与 kb/l4/registry/l4.json 都**未写入**；本件不是落章（不含 skill/skills 键）。",
+ "canonical_before": {
+  "wording_entry": {
+   "path": "kb/l4/canonical/wording_entry.jsonl",
+   "lines": 56,
+   "bytes": 493833,
+   "sha256": "39dcf0e6126ee82f7b4c62bd7154fea044d4a3777fcb7c2faae98f5bc2bf3adb"
+  },
+  "wording_revision_pair": {
+   "path": "kb/l4/canonical/wording_revision_pair.jsonl",
+   "lines": 453,
+   "bytes": 1368963,
+   "sha256": "de4a8b5f88b8721148a7437a05c0ac9ebcb5623c7137e0bef7f217edd947b2f0"
+  },
+  "sample_case": {
+   "path": "kb/l4/canonical/sample_case.jsonl",
+   "lines": 358,
+   "bytes": 1536200,
+   "sha256": "a358d6c40fb70afcc088719ad0b2da695dc97a78a7449763c391410d31826975"
+  },
+  "scoped_clause": {
+   "path": "kb/l4/canonical/scoped_clause.jsonl",
+   "lines": 375,
+   "bytes": 561535,
+   "sha256": "4b678f31cb0af0de2d98e268f805efd4ce8a767bb42ba703f43390fd854a2e2c"
+  },
+  "clause": {
+   "path": "kb/l4/canonical/clause.jsonl",
+   "lines": 123,
+   "bytes": 333447,
+   "sha256": "c6d53402f39c5603f96f91433a9f83ff27f96fb2195477c0372c9f1a6b9f049a"
+  }
+ },
+ "canonical_planned": {
+  "wording_entry": {
+   "lines": 56,
+   "bytes": 490529,
+   "sha256": "9427f864cb755201f5fbb5e0bce0ffd4510de62f28c524f55f01402bb279c61d",
+   "source_rows": 56,
+   "source_rows_actual": 1018
+  },
+  "wording_revision_pair": {
+   "lines": 453,
+   "bytes": 1342236,
+   "sha256": "99af613d0daea59fdffb17628b0473090d2403e778f8e7817ac6600a9429a27a",
+   "source_rows": 453,
+   "source_rows_actual": 1018
+  },
+  "sample_case": {
+   "lines": 358,
+   "bytes": 1515078,
+   "sha256": "a6ccf0912c11bccb2a23810dc44fe6d8e6e09d845f74f470911c3be21d6ecc17",
+   "source_rows": 716,
+   "source_rows_actual": null
+  },
+  "scoped_clause": {
+   "lines": 375,
+   "bytes": 539410,
+   "sha256": "1be056269f4bf28847e2dfd8523bd51a948afb963c29c691998ac19539cbf319",
+   "source_rows": 750,
+   "source_rows_actual": null
+  },
+  "clause": {
+   "lines": 123,
+   "bytes": 326190,
+   "sha256": "d456fec43fcc729d173116eeb1eb4974504a97a51d4139a2504ff850476d9bcb",
+   "source_rows": 246,
+   "source_rows_actual": null
+  }
+ },
+ "C9_field_regression": {
+  "wording_entry": [
+   [
+    "baseline_date（键消失）",
+    56
+   ],
+   [
+    "never_resets_on_regeneration（键消失）",
+    56
+   ]
+  ],
+  "wording_revision_pair": [
+   [
+    "baseline_date（键消失）",
+    453
+   ],
+   [
+    "never_resets_on_regeneration（键消失）",
+    453
+   ]
+  ],
+  "sample_case": [
+   [
+    "baseline_date（键消失）",
+    358
+   ],
+   [
+    "never_resets_on_regeneration（键消失）",
+    358
+   ]
+  ],
+  "scoped_clause": [
+   [
+    "baseline_date（键消失）",
+    375
+   ],
+   [
+    "never_resets_on_regeneration（键消失）",
+    375
+   ]
+  ],
+  "clause": [
+   [
+    "baseline_date（键消失）",
+    123
+   ],
+   [
+    "never_resets_on_regeneration（键消失）",
+    123
+   ]
+  ]
+ },
+ "criteria": {
+  "C1_article_no_unique": true,
+  "C2_cite_triple_complete": true,
+  "C3_body_nonempty": true,
+  "C4_verbatim_with_candidates": true,
+  "C5_evidence_resolvable": true,
+  "C6_evidence_rule_eligible": true,
+  "C7_kb_version_v0": true,
+  "C8_idempotent": true,
+  "C9_no_field_regression": false
+ }
+}

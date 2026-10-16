@@ -1,0 +1,9 @@
+动作	kb-repair 信封态重写（3 个 .md，面外：_eval-L0L7-gap-20261003）
+触发闸门	python3 tools/envelope_gate.py _eval-L0L7-gap-20261003  （修前 exit 1 → 修后 exit 0）
+读者	DSH 消费方读者（宿主 Electron readFileSync ＝ agent 的 read 工具）；PATH node 只作对照
+写通道	node 读 → 无扩展名临时件 → /bin/cp 落到目标（**禁 python 写 .md**）
+目标	_eval-L0L7-gap-20261003/kb-l0-feishu-fix/SKILL.md
+	_eval-L0L7-gap-20261003/kb-l0-feishu-fix/references/CHANGELOG.md
+	_eval-L0L7-gap-20261003/kb-check-fix/SKILL.md
+回滚	/bin/cp <本目录>/<名>.before <目标>   —— 注意 .before 存的是**逻辑明文内容**；
+	信封封装本身（raw 比逻辑多 4096）是缺陷态，不可也不必重建

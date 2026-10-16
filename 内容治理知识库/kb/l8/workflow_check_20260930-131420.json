@@ -1,0 +1,219 @@
+{
+ "run_id": "20260930-131420",
+ "at": "2026-09-30 13:14:25",
+ "legs": [
+  {
+   "leg": "① 环境与版本纪律",
+   "ok": true,
+   "detail": {
+    "env": {
+     "装载位": "18:07:08",
+     "生成器": "11:26:57 408a6d079312b66f 73520B",
+     "l7/review.py": "12:15:44 2ccf63c96d752641 53166B",
+     "hostlib": "09:43:20",
+     "l7/reports": "13:08:45"
+    },
+    "version": {
+     "l4_canonical_bytes": 0,
+     "versions_rows": 0,
+     "kb_version": "v0"
+    }
+   }
+  },
+  {
+   "leg": "② 权威库 l0~l6 未被改动",
+   "ok": false,
+   "detail": {
+    "layers": {
+     "l0": {
+      "tree_sha256_16": "12dd4db23af4d53a",
+      "match_L5_baseline": true,
+      "files": 3607
+     },
+     "l1": {
+      "tree_sha256_16": "70b043372e6620ff",
+      "match_L5_baseline": true,
+      "files": 3064
+     },
+     "l2": {
+      "tree_sha256_16": "dee44596d3238695",
+      "match_L5_baseline": true,
+      "files": 851
+     }
+    },
+    "l3_lines": 509,
+    "l3_base1018_matches_L6": true,
+    "l3_whole1527_matches_L4": false
+   }
+  },
+  {
+   "leg": "③ 前序产物哈希（45 项）",
+   "ok": false,
+   "detail": {
+    "checked": 45,
+    "mismatch": [
+     "kb/l3/candidates/rules.jsonl",
+     "kb/l4/registry/l4.json",
+     "kb/l6/runs/build_runs.jsonl",
+     "kb/l6/bm25/docs.jsonl",
+     "kb/l6/bm25/meta.json",
+     "kb/l6/bm25/postings_zh.jsonl",
+     "kb/l6/bm25/postings_en.jsonl",
+     "kb/l6/vectors/vectors.jsonl",
+     "kb/l6/vectors/matrix.npy",
+     "kb/l6/vectors/meta.json",
+     "kb/l6/index/l6.jsonl",
+     "kb/l6/registry/l6.json",
+     "kb/l6/retriever.py",
+     "kb/l6/selftest.json",
+     "kb/l7/skills/kb-content-review/SKILL.md",
+     "kb/l7/registry/l7.json",
+     "kb/l7/skills/kb-content-review/scripts/review.py"
+    ]
+   }
+  },
+  {
+   "leg": "④ 分层库 → 生成器 → 视图",
+   "ok": true,
+   "detail": {
+    "generator_stdout": [
+     "[gen][warn] node 落盘第 1 次失败（-9），重试",
+     "[gen][warn] node 落盘第 2 次失败（-9），重试",
+     "[gen][warn] node 落盘第 3 次失败（-9），重试",
+     "[gen][warn] node 落盘失败（-9）：",
+     "[gen][warn] 退回 python 写盘：宿主侧加载器可能读不出这批条目（会被封成信封）",
+     "[gen][warn] node 落盘第 1 次失败（-9），重试",
+     "[gen][warn] node 落盘第 2 次失败（-9），重试",
+     "[gen][warn] node 落盘第 3 次失败（-9），重试",
+     "[gen][warn] node 落盘失败（-9）：",
+     "[gen][warn] 退回 python 写盘：宿主侧加载器可能读不出这批条目（会被封成信封）"
+    ],
+    "md_total": 510,
+    "enveloped": 190,
+    "loader_readback": {
+     "entries": 509,
+     "entries_fm_ok": 235,
+     "entries_kb_class_ok": 235
+    },
+    "E001": 193,
+    "E046": null,
+    "health": 65.5,
+    "installed_view_md": 513,
+    "installed_view_enveloped": 0
+   }
+  },
+  {
+   "leg": "⑤ 装载位 → 加载器（读工具+体检）",
+   "ok": true,
+   "detail": {
+    "files": 529,
+    "md": 513,
+    "enveloped_md": 0,
+    "entries": 509,
+    "fm_ok": 453,
+    "kb_class_ok": 453,
+    "E001": null,
+    "E046": null,
+    "health": 77.2,
+    "dims": {
+     "新鲜度": 1,
+     "三件套完整率": 1,
+     "一致性": 1,
+     "孤岛率": 0.9410609037328095,
+     "覆盖率": 0.9210526315789473,
+     "利用率": 0.3467741935483871
+    },
+    "collections": [
+     {
+      "id": "3_措辞表达库",
+      "count": 509,
+      "status": "derived"
+     }
+    ],
+    "search": [
+     [
+      "W-2.1",
+      111,
+      true
+     ],
+     [
+      "乳腺组织",
+      1,
+      true
+     ],
+     [
+      "合规替代",
+      509,
+      true
+     ],
+     [
+      "量子纠缠配色调参",
+      0,
+      true
+     ]
+    ],
+    "code_hist": {
+     "W020": 2218,
+     "W021": 10,
+     "E026": 454
+    }
+   }
+  },
+  {
+   "leg": "⑥ 文档可见性（agent 能否读到）",
+   "ok": true,
+   "detail": {
+    "md_total": 4438,
+    "enveloped": 510,
+    "buckets": {
+     "他人产物 hostlib": 510
+    },
+    "other": []
+   }
+  },
+  {
+   "leg": "⑦ 消费侧 skill 可用",
+   "ok": true,
+   "detail": {
+    "files": [
+     "README.md",
+     "SKILL.md",
+     "references",
+     "categories.md",
+     "protocols.md",
+     "scripts",
+     "review.py"
+    ],
+    "enveloped_md": [],
+    "review_py_plaintext_write_patch": true,
+    "review_py_runnable": true,
+    "help": [
+     "usage: review.py [-h] [--kb-root KB_ROOT] [--text TEXT] [--file FILE]"
+    ]
+   }
+  },
+  {
+   "leg": "⑧ 工作台与服务",
+   "ok": true,
+   "detail": {
+    "workbench_4317": "200",
+    "kb_hostlib_4508_health": "200",
+    "launchd_jobs": "6"
+   }
+  },
+  {
+   "leg": "⑨ 写入侧（ingest 闸门 + 落盘通道）",
+   "ok": true,
+   "detail": {
+    "gate": "  [E026] 内容质量分 52.1 < 60（长度 0.4/20 · 密度 5/30 · 去重 20/20 · 语言 26.7/30）",
+    "landed": [],
+    "landed_enveloped": 0
+   }
+  }
+ ],
+ "verdict": "FAIL",
+ "failed_legs": [
+  "② 权威库 l0~l6 未被改动",
+  "③ 前序产物哈希（45 项）"
+ ]
+}

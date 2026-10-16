@@ -1,0 +1,428 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""kb_loop_claim.py —— **会话级**的驱动循环认领（2026-10-03）。
+
+## 它补的是哪个洞
+
+`kb/.work/.kb.lock` 是**命令级**锁：`kb_pipeline.py` 每次运行持锁/释放，几秒到几分钟。
+但「层前置 → 评审 → 发布」这条循环是**会话级**的，要跑好几支 subagent、几分钟到十几分钟 ——
+**中间没有任何东西阻止第二个会话也在同一个 BASE 上跑**。
+
+实测代价（2026-10-03）：
+  · 两个会话同时跑 ⇒ 陈旧锁互撞，L6 记账与 L7 各被 `exit 2` 挡回一次；
+  · 同一个 RUN 被两侧先后记账 ⇒ `kb/l7/runs/index.jsonl` 该 RUN 落了 **2 行**（双计）；
+  · L7 的记账行被后跑的会话**覆盖**。
+
+本脚本只做一件事：**同一时间只准一个会话在跑这条循环**。它**不是闸门**（不判内容、不判闸门红绿），
+只是一张「现在谁在跑」的告示 —— 所以不违反「不造第 7 把尺子」。
+
+★ **认领是「全局单槽」，不是「一个 BASE 一个槽」**（认领文件是**一个** `kb/.work/.kb-loop-claim.json`）：
+   哪怕两个会话跑的是**不同** BASE，第二个也会被挡（exit 3）。这是**故意的** ——
+   要保护的共享资源（`kb/.work/.kb.lock`、`kb/l7/runs/index.jsonl`、各层 `runs/`）是**全库唯一**的，
+   按 BASE 分槽等于「不同 BASE 就能同时写同一份 index」＝把 2026-10-03 的双计/覆盖事故放回来。
+   `--base` 只用来**记录/展示**「我在跑哪个 BASE」，**不参与分槽**。**别"顺手修成"按 BASE 分槽。**
+
+## 用法
+
+    kb/kbpy l7/scripts/kb_loop_claim.py status
+    kb/kbpy l7/scripts/kb_loop_claim.py claim  --base 20261003-0654 [--session <会话id>] [--ttl 45]
+    kb/kbpy l7/scripts/kb_loop_claim.py claim  --base 20261003-0654 --take-over   # 只对**陈旧**认领放行
+    kb/kbpy l7/scripts/kb_loop_claim.py release --base 20261003-0654 [--force]    # --force = 拆别人的
+
+退出码：0 = 拿到/释放成功 ｜ 3 = **被别人占着**（别抢，停下来）｜ 2 = 用法错
+`claim` 遇到「持有者 pid 已死」或「已超 TTL」时**默认仍然拒**，但会告诉你它是陈旧的；
+确认要接手就加 `--take-over`（会打印明确的接管告警）。
+★ `--take-over` **在跨会话场景才有效**（上一会话崩了 → 新会话 session/pid 都不同）：
+  认领**新鲜**时加它**照样拒**（exit 3）；只有「陈旧 + --take-over」才放行。
+  另一条等效路径是 `release --force` 再 `claim`。
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import socket
+import sys
+import time
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+KB = HERE.parents[1]                      # …/kb
+CLAIM = KB / ".work/.kb-loop-claim.json"
+
+
+def _alive(pid) -> bool:
+    try:
+        os.kill(int(pid), 0)
+        return True
+    except Exception:                     # noqa: BLE001
+        return False
+
+
+def _read() -> dict | None:
+    if not CLAIM.exists():
+        return None
+    try:
+        return json.loads(CLAIM.read_text(encoding="utf-8"))
+    except Exception:                     # noqa: BLE001
+        return {"_unreadable": True}
+
+
+def _age_min(c: dict) -> float:
+    try:
+        return (time.time() - float(c.get("at_ts") or 0)) / 60.0
+    except Exception:                     # noqa: BLE001
+        return 1e9
+
+
+def _stale(c: dict) -> tuple[bool, str]:
+    """陈旧判定。
+
+    ── 2026-10-06 改：`pid` 只有在「记的确实是**持有者**」时才许当信号
+
+    **事故（这条改动的全部理由）**：那把「全局单槽」在每次长跑超过 5 分钟之后就是**名义上的**。
+    实测两次，机制完全相同：
+
+      · 2026-10-05 10:12:12 就绪巡检「自愈：释放陈旧认领」pid=41445 BASE=daily-20261005-0957 13 分钟前
+      · 2026-10-06 08:35:46 同上                              pid=84706 BASE=daily-20261006-0830  6 分钟前
+
+    两次的 worker（headless agent）**都还活着**（10-06 那次 PID 84718，父进程 84697 也活着）。
+    真因：`claim` 原先记的是 **`os.getpid()`——认领进程自己**，而它写完就退出 ⇒
+    `_alive(pid)` 必然为 False ⇒ 只要年龄过了宽限期，**任何正在跑的长任务都被判成崩溃**。
+
+    所以规矩改成：**记的 pid 必须是持有者的 pid**（`claim --holder-pid`），
+    否则这一格**不是证据**，只能靠 TTL。
+    旧认领没有 `pid_kind` 字段 ⇒ 按 `claimer` 处理 ⇒ **pid 不参与判定**（向后兼容，且不再误报）。
+
+    三件事分开，缺一件这条判据就还在赌：
+      ① TTL 超时 ⇒ 陈旧（主判据，一直没变）；
+      ② `pid_kind=holder` 且持有者已死且过了宽限期 ⇒ 陈旧（**真崩溃**才走这条）；
+      ③ `pid_kind=claimer`（含所有旧认领）⇒ **pid 不参与**，只看 TTL。
+    """
+    raw = c.get("ttl_min")
+    # ★ 别写 `raw or 45`：`ttl_min=0` 是**合法值**（立刻可接管），`or` 会把它吃成 45 分钟默认值，
+    #   导致「明明写了 0、却要等 45 分钟」的静默升格。只有 None / 缺失才回落到默认。
+    ttl = 45.0 if raw is None else float(raw)
+    age = _age_min(c)
+    if age > ttl:
+        return True, "超过 TTL %s 分钟（已 %.0f 分钟）" % (ttl, age)
+    # ★ 判据收在 `pid_kind` 上，**不是**「有没有 pid 字段」——
+    #   旧认领也有 pid 字段，而那个 pid 是认领进程自己的，拿它判存活必然误报。
+    if c.get("pid_kind") == "holder" and (not _alive(c.get("pid"))) and age > 5:
+        return True, "持有者 pid 已不在且已过宽限期（%.0f 分钟）" % age
+    return False, ""
+
+
+def _describe(c: dict) -> str:
+    kind = c.get("pid_kind") or "claimer(旧)"
+    return ("会话=%s ｜ pid=%s[%s] ｜ BASE=%s ｜ %.0f 分钟前 ｜ host=%s"
+            % (c.get("session") or "—", c.get("pid"), kind, c.get("base") or "—",
+               _age_min(c), c.get("host") or "—"))
+
+
+def cmd_status() -> int:
+    c = _read()
+    if not c:
+        print("无认领：现在没有会话在跑这条循环（可以 claim）")
+        return 0
+    if c.get("_unreadable"):
+        print("⚠️ 认领文件读不出（%s）—— 保守起见先别跑，人工看一眼再决定" % CLAIM)
+        return 3
+    stale, why = _stale(c)
+    print(("陈旧（可 --take-over）：%s" % why if stale else "**进行中**") + " ｜ " + _describe(c))
+    return 3 if not stale else 0
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 认领留痕（2026-10-08 加，Owner 同意 ①）
+# ══════════════════════════════════════════════════════════════════════════
+# 为什么必须有：**在此之前，这条循环被占了多少、被谁占、占多久 —— 一个数都查不到。**
+#   认领文件是**单文件、每次覆盖**，没有历史；于是「守衡被库忙挡住了多少次」只能靠
+#   在守衡日志里 grep `claim_busy` 反推，而那只看到**被挡的那一侧**，
+#   看不到「谁占着、占了多久、释放没有」。
+#   实测代价（2026-10-08）：Owner 问「怎么彻底解决库忙」，我查完只能说
+#   「今天 2 次、样本太小」—— 因为**没有第二份数据**。**不量就改**是这次会话反复踩的坑。
+#
+# ★ **只记状态变更，不记 `status` 轮询**：守衡每次送审都会先 `status` 一次
+#   （`claimStatus()`），记它会把这本账淹掉，真正要看的行反而找不到。
+# ★ 留痕失败**不许**影响认领本身（它是可观测性，不是安全闸）。
+#
+# ── 同批次一起查清的三件事（2026-10-08，Owner 同意 ③④）────────────────────────
+#
+# ③ **「排程避让」的对象不是排程作业 —— 是人会话。** 实测 launchd：
+#     · `com.kb.pipeline-daily` / `-daily-skill` = **每天 03:30**（已是低峰）；
+#     · `com.kb.publish` 每 5 分钟、`com.kb.review-readiness` 每 30 分钟 —— **都不占这条槽**。
+#     占槽的是**人会话里跑的库维护**（当天持有者是 `session-11298093…`，BASE `20261008-1500`）。
+#   ⇒ 所以本脚本在**被拒时给下一步**（等多久／怎么查历史／别撬），而不是只报「别抢」。
+#
+# ④ **分离锁（评审链 vs 供给链）的可行性：真交集只有一个文件。**
+#     写集对比（实测到行）：
+#       · 评审链   → `kb/.work/last_review_result.json`、`kb/l7/reports/*.review.md`、
+#                    `kb/l7/runs/<RUN>.json` 与 `index.jsonl`、各层 `runs/<RUN>-L{4,5,6,7}.json`
+#                    （`kb/l8/review_preflight.sh:174` 明写「记账完成 → kb/l7/runs/$RUN.json」）
+#       · 供给链   → `SYNC_ALLOWED = L1..L6`（`kb_pipeline.py:294`），层引擎写
+#                    `kb/<layer>/runs/<RUN>*.json`（`:573` 明写）
+#     ⇒ **同文件冲突只有 `kb/l7/runs/index.jsonl`**（append-only，两边都写）；
+#       其余是**同目录、不同文件名**（`<RUN>-L4.json` vs `<RUN>.json`）⇒ 不冲突。
+#     ⇒ 三个选项：④-1 维持单槽（现状，零风险但用户会撞库忙）／
+#                ④-2 分锁 + 用文件锁串行化写 index.jsonl／
+#                ④-3 **分锁 + 索引分区**（评审链写 `index.review.jsonl`）← **推荐**
+#       选 ④-3 的理由：它把「唯一真交集」变成「两个文件」，**不需要引入锁原语**；
+#       代价＝读索引的消费点要合并两个文件（**先普查有几个**，未做）。
+#     ⚠️ **不建议现在做**：当天只有 **2 次** `claim_busy`，样本太小。
+#       先用本文件这本留痕账把量做出来（跑 `history` 看 `held_sec` 与 `refused_busy` 分布），
+#       观察一两周再定。**不量就改**是这条循环上反复踩过的坑。
+LEDGER = KB / ".work" / "claim-ledger.ndjson"
+
+
+def _ledger(op, result, **extra) -> None:
+    try:
+        LEDGER.parent.mkdir(parents=True, exist_ok=True)
+        rec = {"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "at_ts": time.time(),
+               "op": op, "result": result,
+               "session": os.environ.get("DSH_SESSION_ID") or "unknown",
+               "host": socket.gethostname()}
+        rec.update(extra)
+        with LEDGER.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(rec, ensure_ascii=False, sort_keys=True) + "\n")
+    except Exception as e:                                  # noqa: BLE001
+        print("⚠️ 认领留痕写失败（**不影响认领本身**）：%s" % e)
+
+
+def _holder_of(c: dict) -> dict:
+    """把「占着的那个人」抽成留痕字段 —— 这正是「谁占的」要回答的。"""
+    return {"holder_session": c.get("session"), "holder_base": c.get("base"),
+            "holder_pid_kind": c.get("pid_kind"),
+            "holder_age_min": round(_age_min(c), 2),
+            "holder_since": c.get("at")}
+
+
+
+def cmd_claim(a) -> int:
+    c = _read()
+    if c and not c.get("_unreadable"):
+        stale, why = _stale(c)
+        same = (c.get("base") == a.base) and (str(c.get("pid")) == str(os.getpid()) or
+                                              (a.session and c.get("session") == a.session))
+        if not same:
+            # ★ `--take-over` 必须**在这里**生效：跨会话接手才是它的唯一用途
+            #   （上一个会话崩了 → 新会话的 session/pid 必然都不同 → 永远走不进下面那个 same 分支）。
+            #   默认仍然拒（别抢）；只有「陈旧」+ 显式 --take-over 才放行，并打印接管告警。
+            if not (stale and a.take_over):
+                print("🚫 已被占用 —— **别抢**：" + _describe(c))
+                if stale:
+                    print("   它是**陈旧**的（%s）。确认没有别人的活还在跑，再加 --take-over 接手。" % why)
+                else:
+                    # ★ 2026-10-08（Owner 同意 ③）：**被拒时要给下一步，不能只报「别抢」。** ──
+                    #   实测：**占槽的不是排程作业** —— 排程的日更在 **03:30**（低峰），
+                    #   `com.kb.publish` 每 5 分钟、`com.kb.review-readiness` 每 30 分钟都**不占这条槽**。
+                    #   占槽的是**人会话里跑的库维护**（2026-10-08 那次持有者是 session-11298093…）。
+                    #   所以「排程避让」的落点是**人**：跑维护前先看这里，被拒就等，别撬。
+                    left = max(0.0, float(a.ttl) - _age_min(c))
+                    print("   → **建议**：这是**维护动作**，不是急件。")
+                    print("     · 要么等它跑完（它自己会 release）；")
+                    print("     · 要么等到陈旧阈值（还有约 %.0f 分钟；届时 `--take-over` 或由就绪巡检自愈）" % left)
+                    print("     · 想看「今天被占了几次、谁占的、占了多久」：`kb_loop_claim.py history`")
+                    print("     · **不要**为此撬槽 —— 两会话同跑会双计（项目有实测事故记录）")
+                _ledger("claim", "refused_busy", base=a.base, stale=bool(stale),
+                        stale_why=why, **_holder_of(c))
+                return 3
+            print("⚠️ **接管**别人的陈旧认领：" + _describe(c))
+            print("   陈旧原因：%s —— 确认过没有别人的活还在跑才走到这里。" % why)
+            _ledger("claim", "take_over", base=a.base, stale_why=why, **_holder_of(c))
+        if stale and not a.take_over:
+            print("⚠️ 你自己的认领已陈旧；继续请加 --take-over（或先 release）")
+            _ledger("claim", "refused_own_stale", base=a.base, stale_why=why, **_holder_of(c))
+            return 3
+    CLAIM.parent.mkdir(parents=True, exist_ok=True)
+    # ★ `pid` 记的必须是**持有者**的 pid（2026-10-06）。
+    #   默认仍是 `os.getpid()`（认领进程自己），但那样记下来的 pid **写完就死**，
+    #   拿它判存活必然把「正在跑」读成「崩了」—— 见 `_stale()` 的头注。
+    #   所以同时记 `pid_kind`：`holder` 才参与存活判定，`claimer` 只当追溯线索。
+    holder = getattr(a, "holder_pid", None)
+    rec = {"session": a.session or os.environ.get("DSH_SESSION_ID") or "unknown",
+           "pid": int(holder) if holder else os.getpid(),
+           "pid_kind": "holder" if holder else "claimer",
+           "base": a.base, "ttl_min": a.ttl,
+           "at": time.strftime("%Y-%m-%dT%H:%M:%S"), "at_ts": time.time(),
+           "host": socket.gethostname()}
+    CLAIM.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
+    _ledger("claim", "ok", base=a.base, pid_kind=rec["pid_kind"], ttl_min=a.ttl,
+            holder_pid=(int(holder) if holder else None))
+    print("✅ 已认领：" + _describe(rec))
+    if not holder:
+        print("   ⚠️ 没给 `--holder-pid` ⇒ 记的是**认领进程自己的 pid**（写完即退）⇒ "
+              "陈旧判定**不会**用 pid，只看 TTL。长任务请让持有者传 `--holder-pid $$`。")
+    print("   跑完请 `release --base %s`；中途被别人看到会读到这条记录。" % a.base)
+    return 0
+
+
+def cmd_release(a) -> int:
+    c = _read()
+    if not c or c.get("_unreadable"):
+        print("无认领可释放")
+        return 0
+    mine = (str(c.get("pid")) == str(os.getpid())
+            or (a.session and c.get("session") == a.session)
+            or (os.environ.get("DSH_SESSION_ID") and c.get("session") == os.environ["DSH_SESSION_ID"]))
+    if not mine and not a.force:
+        print("🚫 这条认领不是你的（%s）—— 要强拆加 --force（并把原因写进 run 记录）" % _describe(c))
+        _ledger("release", "refused_not_mine", base=c.get("base"), **_holder_of(c))
+        return 3
+    # ★ `held_sec` = **这次认领实际被占了多久** —— 整本留痕账里最要紧的一个数：
+    #   「守衡被库忙挡住」的根因是「槽被占」，而这个数就是「占了多久」。
+    held = round(time.time() - float(c.get("at_ts") or time.time()), 1)
+    CLAIM.unlink(missing_ok=True)
+    _ledger("release", "force" if (a.force and not mine) else "ok",
+            base=c.get("base"), held_sec=held, **_holder_of(c))
+    print("✅ 已释放（%s）｜这次持有了 %.1f 秒" % (c.get("base") or "—", held))
+    return 0
+
+
+def cmd_history(a) -> int:
+    """把留痕账读成**能回答「这条循环被占了多少」**的几个数。
+
+    为什么单开一个子命令：留痕是 ndjson（给机器），而问「今天库忙几次、谁占的、
+    占了多久」的是**人**。让人去 grep ndjson 等于没做 ①。
+    """
+    import collections
+    if not LEDGER.exists():
+        print("留痕账还不存在：%s" % LEDGER)
+        print("  （认领留痕 2026-10-08 才加；此前的认领没有历史，查不到不代表没发生）")
+        return 0
+    since = time.time() - float(a.days) * 86400
+    rows = []
+    for line in LEDGER.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            d = json.loads(line)
+        except Exception:                                    # noqa: BLE001
+            continue
+        if float(d.get("at_ts") or 0) >= since:
+            rows.append(d)
+    print("认领留痕（最近 %s 天）｜%s" % (a.days, LEDGER))
+    if not rows:
+        print("  这段时间**没有**认领状态变更。")
+        print("  ⚠️ 注意：『没有记录』≠『没被占过』 —— 留痕从 2026-10-08 才开始。")
+        return 0
+    c = collections.Counter((r.get("op"), r.get("result")) for r in rows)
+    for (op, res), n in sorted(c.items()):
+        print(f"  {op:<10} {res:<20} {n}")
+    held = [float(r["held_sec"]) for r in rows if r.get("held_sec") is not None]
+    if held:
+        held_sorted = sorted(held)
+        print(f"  ── 持有时长：{len(held)} 次 ｜ 合计 {sum(held):.0f}s ｜ "
+              f"最长 {max(held):.0f}s ｜ 中位 {held_sorted[len(held_sorted)//2]:.0f}s")
+    busy = [r for r in rows if r.get("result") == "refused_busy"]
+    if busy:
+        print(f"  ── 被挡（refused_busy）{len(busy)} 次，占用者分布：")
+        for k, n in collections.Counter(
+                (r.get("holder_session"), r.get("holder_base")) for r in busy).most_common(5):
+            print(f"       {n:>3} 次  {k[0]} ｜ BASE {k[1]}")
+    tail = rows[-int(a.tail):]
+    print(f"  ── 最近 {len(tail)} 条：")
+    for r in tail:
+        print(f"     {r.get('at')}  {r.get('op')}/{r.get('result')}"
+              + (f"  持有 {r['held_sec']}s" if r.get("held_sec") is not None else "")
+              + (f"  BASE={r.get('base')}" if r.get("base") else ""))
+    return 0
+
+
+def selftest() -> int:
+    """陈旧判据自证：**「正在跑」与「崩了」必须分得开**。全部离线。
+
+    ★ 样本不是编的：前两条**逐字取自两次真实事故**（就绪巡检日志里那两行原文）。
+      后两条是一对**相反**的构造样本 —— 缺了它们，把判据改成「永远不陈旧」也会全绿。
+    """
+    P, F = [], []
+
+    def chk(name, cond, extra=""):
+        (P if cond else F).append(name)
+        print(f"  {'✅' if cond else '❌'} {name}{('  ' + extra) if extra else ''}")
+
+    def mk(pid, age_min, kind=None, ttl=45):
+        c = {"session": "unknown", "pid": pid, "base": "daily-x",
+             "ttl_min": ttl, "at_ts": time.time() - age_min * 60}
+        if kind:
+            c["pid_kind"] = kind
+        return c
+
+    DEAD = 999999           # 一个几乎不可能存在的 pid
+    LIVE = os.getpid()      # 本进程，必然活着
+
+    # ① 真实事故 1：2026-10-05 10:12:12 —— 巡检把 daily-20261005-0957 的认领判成陈旧
+    #    原文：陈旧（可 --take-over）：pid 已不在且已过宽限期（13 分钟）｜pid=41445
+    st, why = _stale(mk(41445, 13))
+    chk("① 真事故 2026-10-05（pid 已死 13 分钟，旧认领）⇒ **不陈旧**", st is False, f"why={why!r}")
+
+    # ② 真实事故 2：2026-10-06 08:35:46 —— 同一天同一形状（pid=84706，6 分钟）
+    st, why = _stale(mk(84706, 5.7))
+    chk("② 真事故 2026-10-06（pid 已死 5.7 分钟，旧认领）⇒ **不陈旧**", st is False, f"why={why!r}")
+
+    # ③ 新式认领 + 持有者**活着** ⇒ 不陈旧（即使跑了半小时）
+    st, why = _stale(mk(LIVE, 30, kind="holder"))
+    chk("③ pid_kind=holder 且持有者活着（30 分钟）⇒ **不陈旧**", st is False, f"why={why!r}")
+
+    # ④ ★ 反向对照：新式认领 + 持有者**真的死了** ⇒ 必须陈旧。
+    #    没有这一条，把 pid 判定整个删掉也能让 ①②③ 全绿 —— 那就是把判据放宽，不是修好。
+    st, why = _stale(mk(DEAD, 6, kind="holder"))
+    chk("④ 反向对照：pid_kind=holder 且持有者真死（6 分钟）⇒ **必须陈旧**", st is True, f"why={why!r}")
+
+    # ⑤ TTL 仍是主判据：持有者活着但超了 TTL ⇒ 陈旧
+    st, why = _stale(mk(LIVE, 46, kind="holder"))
+    chk("⑤ 持有者活着但超 TTL（46 > 45）⇒ **必须陈旧**", st is True, f"why={why!r}")
+
+    # ⑥ ③ 与 ④ 必须给出**相反**的结论 —— 否则「分得开」是假的
+    chk("⑥ 「持有者活着」与「持有者真死」结论必须相反",
+        _stale(mk(LIVE, 30, kind="holder"))[0] != _stale(mk(DEAD, 30, kind="holder"))[0])
+
+    # ⑦ `ttl_min=0` 是合法值（立刻可接管），不许被 `or 45` 吃掉
+    st, why = _stale(mk(LIVE, 0.5, kind="holder", ttl=0))
+    chk("⑦ ttl_min=0 ⇒ 立刻陈旧（不许被默认值 45 吃掉）", st is True, f"why={why!r}")
+
+    print(f"\n自证：通过 {len(P)} / 失败 {len(F)}")
+    for x in F:
+        print(f"  · 失败：{x}")
+    return 1 if F else 0
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    # ★ `required=False`：`--selftest` 是**不带子命令**跑的。
+    #   写成 required=True 时，`--selftest` 会被「缺少 cmd」挡在 argparse 层（exit 2）——
+    #   而那种红**看起来像自证失败**，其实自证一次都没跑（§2.4.4 的形状）。
+    sub = ap.add_subparsers(dest="cmd", required=False)
+    sub.add_parser("status")
+    c = sub.add_parser("claim")
+    c.add_argument("--base", required=True)
+    c.add_argument("--session", default=None)
+    c.add_argument("--ttl", type=float, default=45, help="认领有效期（分钟），默认 45")
+    c.add_argument("--take-over", action="store_true")
+    # ★ 2026-10-06 加：**持有者**的 pid（长任务请传 `$$`）。
+    #   不传 ⇒ 记认领进程自己的 pid ⇒ 那一格不参与陈旧判定（见 `_stale()` 头注）。
+    c.add_argument("--holder-pid", type=int, default=None,
+                   help="真正持有这次运行的进程 pid（shell 里写 $$）；不传则记认领进程自己的 pid")
+    r = sub.add_parser("release")
+    r.add_argument("--base", required=False)
+    r.add_argument("--session", default=None)
+    r.add_argument("--force", action="store_true")
+    h = sub.add_parser("history", help="读认领留痕：被占多少次、谁占的、占了多久")
+    h.add_argument("--days", type=float, default=2, help="回看天数（默认 2）")
+    h.add_argument("--tail", type=int, default=10, help="明细打印条数（默认 10）")
+    ap.add_argument("--selftest", action="store_true",
+                    help="只跑陈旧判据自证（离线；喂真实认领样本，一次网络都不发）")
+    a = ap.parse_args()
+    if a.selftest:
+        print("kb_loop_claim · 陈旧判据自证（离线）")
+        return selftest()
+    if not a.cmd:
+        ap.print_help()
+        return 2
+    return {"status": lambda: cmd_status(), "claim": lambda: cmd_claim(a),
+            "release": lambda: cmd_release(a), "history": lambda: cmd_history(a)}[a.cmd]()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

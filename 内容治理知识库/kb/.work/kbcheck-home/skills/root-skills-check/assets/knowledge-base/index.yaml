@@ -1,0 +1,79 @@
+knowledge_base:
+  version: 1.0.0
+  updated_at: '2026-09-16T01:50:02Z'
+  stats:
+    defects: 6
+    goldens: 2
+    restorations: 0
+    links: 2
+  entries:
+  - type: defect
+    title: 触发评测只用加载信号会把能力下限当准确值（需语义指纹交叉验证）
+    source_skill: agent-build-flow
+    source_report: a63c7b155c4ed3b1
+    fingerprint: 278de93a954ac424
+    ingested_at: '2026-09-16T01:50:02Z'
+    file: defects/defect-278de93a.md
+  - type: defect
+    title: 报告自检把 nan/内容摘要 当子串匹配导致误报阻断交付
+    source_skill: resource-to-skill
+    source_report: 22313c72f504e35c
+    fingerprint: 0ddacfdf48bfddc5
+    ingested_at: '2026-09-15T13:07:54Z'
+    file: defects/defect-0ddacfdf.md
+  - type: defect
+    title: 回填结论必须用规范词表否则 validate-only 四格归零
+    source_skill: agent-build-flow
+    source_report: ac4266e2802803f1
+    fingerprint: 5c3f670da86c5e59
+    ingested_at: '2026-09-15T13:07:54Z'
+    file: defects/defect-5c3f670d.md
+  - type: defect
+    title: skill 新建/就地修改后不被运行时发现（watcher 只认新建目录）
+    source_skill: agent-build-flow
+    source_report: ac4266e2802803f1
+    fingerprint: 562e3ef2d558cdf5
+    ingested_at: '2026-09-15T13:07:54Z'
+    file: defects/defect-562e3ef2.md
+  - type: link
+    title: 报告入口必须是相对路径HTML禁止file绝对路径
+    source_skill: ABI-Skills-评测
+    source_report: 4d1ec1dbe890bffd
+    fingerprint: 0d90e6f1814157cd
+    ingested_at: '2026-09-02T03:01:26Z'
+    file: links/link-0d90e6f1.md
+  - type: defect
+    title: 修复副本评测后增补不得冒充已打分正文
+    source_skill: 品牌Logo设计师
+    source_report: 1c8384bf6b2bc4de
+    fingerprint: d8d93aa2afa0a48e
+    ingested_at: '2026-09-02T02:53:09Z'
+    file: defects/defect-d8d93aa2.md
+  - type: link
+    title: 报告统一桌面目录+Excel短链
+    source_skill: ABI-Skills-评测
+    source_report: 9098103a99be0b45
+    fingerprint: e872a9d57c49d8f6
+    ingested_at: '2026-09-02T02:42:44Z'
+    file: links/link-e872a9d5.md
+  - type: golden
+    title: HTML一补必须含scoring-formulas
+    source_skill: 亚马逊Listing专家
+    source_report: 0cce427b546245c0
+    fingerprint: 07d5b4993bbe18fd
+    ingested_at: '2026-09-02T02:42:43Z'
+    file: goldens/golden-07d5b499.md
+  - type: golden
+    title: Release第9项evidence对号入座
+    source_skill: 电商价格监控
+    source_report: cde8032da1cc1351
+    fingerprint: c6c19220b3ef5532
+    ingested_at: '2026-09-02T02:42:43Z'
+    file: goldens/golden-c6c19220.md
+  - type: defect
+    title: Release第9项不得用tests声明判fail
+    source_skill: 理想客户画像
+    source_report: 47ce3ac51145b2ac
+    fingerprint: 8078412fdf11b46f
+    ingested_at: '2026-09-02T02:42:43Z'
+    file: defects/defect-8078412f.md

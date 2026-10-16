@@ -1,0 +1,162 @@
+skill:
+  name: root-skills-eval
+  version: "3.19.1"
+  structure_version: "1.0"
+  created_at: "2026-04-02"
+  updated_at: "2026-09-03"
+  description: "一键全自主双轨评估：自动出题（A 卷按复杂度 25/50/100 条 + B 卷固定 10 条留出门禁；正例/负例/近似/边界 4 类主类型 + 安全/组合叠加标签）、自检、3轮执行、低分修复与副本交付（不写回被测 skill 原文，副本复制到桌面与源并排）；最终交付为**单一 HTML**（v3.13.0 起）：顶部目录「📊 测试报告 / 🧭 评测过程 / 🧪 测试用例」三大部分，测试用例与评测过程内容内联进同一文档（含标签用例逐条执行情况 + 每轮 AI 原文回复逐字不提炼 + 出题自检/低分修复/B 卷门禁/输出前自检），不再生成独立 HTML/内嵌 iframe/底部跳转链接；含 Release 10 项审查清单逐项判分 + 是否影响上线）；低分修复才强制桌面校验（--require-desktop-fix），一次达标不加；出 HTML 前 check 用 --validate-only，全程不需用户确认"
+
+directories:
+  scripts:
+    exists: true
+    count: 6
+    files:
+      - validate-skill.py
+      - score-trigger-eval.py
+      - build-html-report.py
+      - build-testcases-html.py
+      - build-final-report.py
+      - serve-lan.py
+    description: "可执行脚本（结构验证 / 触发评测评分含安全与组合叠加标签与 --json 标签统计输出 / 单版本HTML报告 / 测试用例HTML（每轮 AI 原文回复逐字不提炼 + 原文回复自检 + 标签用例逐条执行情况，v3.13.0 起为中间产物）/ 多版本合并唯一最终报告（v3.13.0 单一 HTML + 顶部目录，--cases/--process 内联测试用例/评测过程内容）/ 局域网交付）"
+  references:
+    exists: true
+    count: 10
+    files:
+      - universal-skill-schema.md
+      - evaluation-guide.md
+      - scoring-criteria.md
+      - batch-evaluation.md
+      - loading-routing-evaluation.md
+      - trigger-eval-cases.md
+      - comprehensive-scoring.md
+      - low-score-repair-flow.md
+      - release-checklist.md
+      - CHANGELOG.md
+    description: "参考文档（含触发评测流程、低分修复流程、综合评分模型与 Release 10 项审查清单，均含安全/组合叠加标签维度）"
+  examples:
+    exists: true
+    count: 1
+    files:
+      - .gitkeep
+    description: "示例占位（示例报告将随评测输出实时生成）"
+  tests:
+    exists: true
+    count: 5
+    files:
+      - loading-routing-cases.md
+      - test_build_html_report.py
+      - test_build_final_report.py
+      - test_build_testcases_html.py
+      - test_score_trigger_eval.py
+    description: "路由、HTML 报告与触发评分回归测试"
+
+dependencies:
+  tools:
+    - name: validate-skill.py
+      path: scripts/validate-skill.py
+      required: true
+    - name: score-trigger-eval.py
+      path: scripts/score-trigger-eval.py
+      required: false
+    - name: build-html-report.py
+      path: scripts/build-html-report.py
+      required: false
+    - name: build-testcases-html.py
+      path: scripts/build-testcases-html.py
+      required: true
+    - name: build-final-report.py
+      path: scripts/build-final-report.py
+      required: true
+    - name: serve-lan.py
+      path: scripts/serve-lan.py
+      required: false
+  skills:
+    - name: root-skills-check
+      relation: "出 HTML 前只读闸门（--validate-only / --check-only）"
+      required: true
+    - name: root-skills-opt
+      relation: "基于评估报告优化（家族版，副本修复）"
+      required: false
+
+schema:
+  version: "1.1.0"
+  source: "universal-skill-schema"
+  path: "references/universal-skill-schema.md"
+  output:
+    format: "yaml"
+    interface_version: "2.0.0"
+    required_keys:
+      - skill_info
+      - eval_info
+      - scores
+      - issues
+      - optimization_plan
+      - status
+    optional_keys:
+      - release_checklist   # v3.8.1：最终版本必填（10 项 pass/fail/na；v3.10.0 fail 项必含 impact）；build-final-report.py 硬校验
+      - release_checklist.impact  # v3.10.0：fail 项必填（影响上线 / 不影响上线 + 原因），缺失拒绝生成——报告展示「是否影响上线」
+      - track_b.security_tag  # v3.9.0：最终版本必填（cases/fp_total/high_risk）——交付物必须包含安全用例数量与执行情况
+      - track_b.combo_tag     # v3.9.0：最终版本必填（cases/fp_total）——交付物必须包含组合用例数量与执行情况
+      - track_b.tag_cases     # v3.9.0：标签用例逐条执行情况（可选但推荐：tag/id/title/rounds/verdict）
+    breakdown_dimensions:
+      - schema_compliance
+      - frontmatter_quality
+      - body_quality
+      - methodology_audit
+      - quality_gate
+      - directory_structure
+    routing_checks:
+      - positive_loading
+      - negative_loading
+      - boundary_cases
+      - accessory_file_read
+
+comprehensive_scoring:
+  source: "企业AI_Agent_Skill_创建评测研究报告_v1.1"
+  dimensions:
+    - trigger_accuracy: 25
+    - output_quality: 25
+    - progressive_disclosure: 15
+    - safety_boundary: 15
+    - script_quality: 10
+    - specification_compliance: 10
+  excludes:
+    - "A/B benchmark"
+    - "time/tokens measurement"
+
+compatibility:
+  claude:
+    status: "native"
+    tested: true
+  cursor:
+    status: "native"
+    tested: true
+  kimi:
+    status: "native"
+    tested: true
+  dsh:
+    status: "native"
+    tested: true
+  codex:
+    status: "native"
+    tested: true
+    notes: "发现实测通过（gpt-5.4-mini 5/5 可见）"
+
+workflow:
+  input: skill-folder-path
+  output:
+    - "{skill-name}-final-report.html（唯一最终报告主交付物，v3.13.0 单一 HTML：顶部目录「📊 测试报告 / 🧭 评测过程 / 🧪 测试用例」三大部分——多次数据对比 + 三轮执行与评分统计总览 + 用例分配比例与安全/组合标签用例汇总（并入「二」）+ Release 10 项判分与是否影响上线 + 内联评测过程（出题自检/低分修复/B 卷门禁/输出前自检）+ 内联测试用例（标签用例逐条执行情况 + 每轮 AI 原文回复））"
+    - "{skill-name}-test-cases.html / {skill-name}-evaluation-process.html（v3.13.0 起为中间产物/存档，内容内联进唯一最终报告，不再独立交付）"
+    - "{skill-name}-evaluation-report.yaml / -summary.md / .xlsx（中间产物，不单独交付）"
+  next_step: root-skills-opt
+  confirmation_required: false
+  writeback: "不写回被测 skill 原文（含桌面源，只读）；副本达标 + B 卷门禁通过后复制到桌面与源并排交付；交付前强制桌面校验（--require-desktop-fix：源为只读参照，修复副本必须已放桌面）"
+
+framework:
+  family: root-skills
+  manager: root-skills-manage
+
+created_by:
+  skill: root-skills-creator
+  version: 4.0.0
+  record: ../../creation-records/root-skills-eval.md

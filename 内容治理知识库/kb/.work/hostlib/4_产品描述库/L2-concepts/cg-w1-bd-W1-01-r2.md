@@ -1,0 +1,57 @@
+---
+id: cg-w1-bd-W1-01-r2
+title: 产品描述库：W1 表达边界 · W1-01 绿色-可用 · 体验/设计
+collection: 4_产品描述库
+kb_class: [产品描述库]
+tier: L2
+topic: W1-01
+kind: judgment
+summary: W1 表达边界第 2 行。三态：绿色-可用。W1-01。
+owner: 刘华丽
+evidence_level: L1
+data_level: L2
+sensitivity_level: L2
+half_life_days: 90
+created_at: 2026-10-16
+valid_until: 2027-01-14
+asks:
+  - W1 表达边界里 W1-01 绿色-可用 · 体验/设计 的内容是什么
+  - W1-01 绿色-可用 · 体验/设计 这个卖点/术语的口径与边界是什么
+  - 这条素材来自哪张表、哪一行
+not_proves: "**不能替代合规判定**：这条是 W1 产品侧的口径素材，不是已过验收的合规规则。表格里的「绿色-可用」**不等于任何渠道都能发** —— 仍需遵守品牌、法务与当地合规要求。不能证明该条已过正式验收（直接取自飞书表格，未走分层晋升链）。不能外推到其他型号/品线（本表专指 W1）。"
+forbidden: 不许把「绿色-可用」当全渠道通行证；不许把「不能说」清单当成全部禁用项（通用禁用规则以措辞表达库的条目为准）。不许把本条当判据层的最终结论，判定的依据仍须落到措辞表达库的规则条目上。引用时必须给出本条 id 与所在工作表。
+related:
+  - cg-w1-bd-W1-01-r3
+  - cg-w1-bd-W1-01-r4
+  - cg-w1-bd-W1-02-r5
+source:
+  kind: feishu-sheet
+  ref: "https://momcozy-in.feishu.cn/wiki/EsCdw2A7tiz67Rk8LgMce2TAnEh?sheet=2preBH"
+  fingerprint: "1e52110270c041c2#02_表达边界#row=2"
+  captured_at: 2026-10-16
+provenance:
+  anchor: "kb/.work/sources/w1-evidence.json#02_表达边界/row=2"
+  confidence: 确定
+pii:
+  detected: false
+  masked: false
+  strategy: "按条目内出现的 @人名 做不可逆脱敏"
+sheet: 02_表达边界
+sheet_row: 2
+spreadsheet_revision: 51
+status_tristate: 绿色-可用
+---
+
+# W1 表达边界：W1-01 绿色-可用 · 体验/设计
+
+**卖点ID**：W1-01
+
+**状态**：绿色-可用
+
+**表达类型**：体验/设计
+
+**建议表达**：接近体温的整面温热包裹，帮助减少冷接触不适。
+
+**使用条件**：避免写成医疗治疗或确定增奶效果。
+
+**理由**：有温暖乳盾/热敷方向证据，且表达停留在体验层。

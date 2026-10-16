@@ -1,0 +1,23 @@
+===== 01-skills_check :: sh kb/kbpy l7/scripts/skills_check.py =====
+exit=0
+===== 02-layers_check :: sh kb/kbpy l7/scripts/layers_check.py =====
+exit=0
+===== 03a-routes-noinput :: sh kb/kbpy l7/scripts/routes_reconcile.py =====
+exit=2
+===== 03b-routes-strict :: sh kb/kbpy l7/scripts/routes_reconcile.py _eval-kb-manage/blind_after_r4.winners.txt =====
+exit=1
+===== 03c-routes-alias :: sh kb/kbpy l7/scripts/routes_reconcile.py _eval-kb-manage/blind_after_r4.winners.txt --alias =====
+exit=1
+===== 04-workflow_check :: sh kb/kbpy l8/workflow_check.py CHK-20261004-0251 =====
+exit=1
+===== 05a-envelope_gate :: python3 tools/envelope_gate.py =====
+exit=0
+===== 05b-envelope_census :: sh kb/kbpy l8/envelope_census.py =====
+exit=0
+===== 06-projection_reconcile :: sh kb/kbpy l8/projection_reconcile.py =====
+exit=1
+===== 07-l0-align-check :: sh kb/kbpy l8/align_l0_feishu.py --check =====
+exit=1
+===== 08-lark-auth-status :: /Users/lute/.dsh/bin/lark-cli auth status --profile dsh-kb =====
+exit=0
+===== DONE 02:51:03 =====

@@ -1,0 +1,340 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""台账台账去重：JSONL **只追加**去重的唯一实现（批次11 · C-2，2026-10-02）。
+
+为什么要有这个文件
+------------------
+`kb/l1/manifest_l1.jsonl` / `kb/l3/manifest_l3.jsonl` / `kb/l0/manifest.jsonl` 都是
+**append-only 台账**，读侧约定是「**同键取行序最靠后**」（`l5_prep.py:183`、
+`l5_export.py:58`、`l4_integrity.py`）。而写入侧有 6 处各自无条件追加，
+于是每跑一遍就把上一版整段再抄一遍：
+
+  实测（批次11，本批执行前）：manifest_l1 6351 行 / 唯一键 2449 / 重复 3902
+                              manifest_l3 11470 行 / 唯一键 633  / 重复 10837
+                              l0/manifest 7020 行 / 唯一键 2167 / 重复 4853
+
+关键事实（字段级解剖，见 C-1 表）：这些重复行**绝大多数与上一行逐字节同内容**，
+唯一差异是 `observed_at` / `run_id` / `distiller_version` 这类**运行元数据**。
+既然读侧只取最后一行，而最后一行的内容与新增行相同 ⇒ **追加不改变任何读侧结果**。
+这就是可以安全去重的根据，而不是"为了行数好看"。
+
+判定规则（**唯一一份**，6 处写入点都调这里，不许各写各的）
+---------------------------------------------------------
+对每个新行 r，键 = r[KEY_FIELD]：
+
+  · 无同键旧行                        → 追加（真新增）
+  · 有同键旧行，且**除忽略字段外全等** → **不追加**（读侧结果不变）
+  · 有同键旧行，但业务字段有差异       → 追加（真状态变化）
+
+忽略字段（只比"运行元数据"，不比业务内容）：
+  observed_at / at / run / run_id / emitted_by / generated_at / timestamp / ts
+
+**不做的事**（边界，写清楚免得被误用）：
+  · 不重写既有行（`manifest_l1.jsonl` 的重写正是批次9 退损的原因，不重蹈）
+  · 不删行、不压缩历史（历史压缩属 C-4，只出方案交人裁）
+  · 不改任何既有行的字段语义
+"""
+
+RUN_METADATA_FIELDS = ("observed_at", "at", "run", "run_id", "emitted_by",
+                       "generated_at", "timestamp", "ts",
+                       # schema_snapshots 专用：`_archived_previous` 是"这一行是归档摘要"
+                       # 的形态标记，不是业务内容 —— 同一 (table_id, at) 的新鲜行与归档行
+                       # 若不算同内容，归档就会与活跃集并存并逐轮累积。
+                       "_archived_previous", "refresh_note", "blocked_at")
+
+
+def _body(row, meta_fields=RUN_METADATA_FIELDS):
+    """去掉运行元数据后的行内容，用于"业务上等不等"的比较。"""
+    return {k: v for k, v in row.items() if k not in meta_fields}
+
+
+def _key_of(item, key_field):
+    """键字段可以是 str，也可以是 str 元组（复合键，如 schema_snapshots 的 table_id+at）。"""
+    if isinstance(key_field, (tuple, list)):
+        return tuple(item.get(k) for k in key_field)
+    return item.get(key_field)
+
+
+# 富化字段标记：同一 rule_id 的行会由**两个写入者**产出两种形态 ——
+# `l3_distill_run.py` 写**生行**（无这三个键），`l5_prep.py` 写**富化行**（有这三个键）。
+ENRICH_KEYS = ("authority", "p_level", "rule_kind")
+
+
+def _shape_of(item, meta_fields=RUN_METADATA_FIELDS):
+    """行的**形态签名**：只由「是否带富化键」决定（与具体值无关）。
+
+    ★ 批次13 · A-2（2026-10-02）—— 这是本函数存在的唯一理由：
+      批次11 的 `dedup_rows` 只按 `key_field` 取「最后一行」再比 body。但同一 `rule_id` 下
+      生行(7 键) 与富化行(10 键) **键集不同** ⇒ `read_last_per_key` 取到的永远是富化行，
+      而 `l3_distill_run` 拿生行去比 ⇒ **body 永不相等** ⇒ 每遍必追加 509 行
+      （实测 `manifest_l3` 11470→12488→13506，稳定 +1018/遍）。
+      **「缺键 == None」归一化修不了**（实测 `None` vs `'expert'` 仍不等）——
+      因为两者是**不同阶段的不同事实**，不是同一个事实的两种写法。
+      正解：**按形态分桶比较** —— 生行只跟生行比，富化行只跟富化行比。
+      这与读侧契约不冲突：读侧仍是「同键取最后一行」（最后一行是富化行，语义不变）。
+    """
+    body = _body(item, meta_fields)
+    return tuple(k in body for k in ENRICH_KEYS)
+
+
+def _key_shape_of(item, key_field, meta_fields=RUN_METADATA_FIELDS):
+    """比较用的**分桶键** = (业务键, 形态签名)。"""
+    return (_key_of(item, key_field), _shape_of(item, meta_fields))
+
+
+def read_last_per_key(path, key_field, meta_fields=RUN_METADATA_FIELDS, by_shape=True):
+    """读一遍 JSONL，返回 {分桶键: 最后一行}。文件不存在返回 {}。
+
+    `by_shape=True`（默认，批次13 起）：分桶键 = (业务键, 形态签名)，
+      使生行与富化行各取各自最后一行（A-2 的修法，理由见 `_shape_of`）。
+    `by_shape=False`：退回旧口径「同业务键取最后一行」（保留给需要整键视图的调用方）。
+    """
+    import json
+    import os
+    latest = {}
+    if not os.path.exists(path):
+        return latest
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            r = json.loads(line)
+            k = _key_of(r, key_field)
+            if k is None or not any(x is not None for x in (k if isinstance(k, tuple) else (k,))):
+                continue
+            latest[_key_shape_of(r, key_field, meta_fields) if by_shape else k] = r
+    return latest
+
+
+def dedup_rows(path, rows, key_field, meta_fields=RUN_METADATA_FIELDS):
+    """算出该追加哪些行。**不写盘**（纯函数，便于干跑与反测）。
+
+    返回 (to_append, stats)。stats = {read, dup_skipped, new, changed}
+      dup_skipped = 同键且业务内容全等 ⇒ 不追加
+      new         = 无同键旧行
+      changed     = 同键但业务内容有差异
+    """
+    # ★ 批次13 · A-2：按 (业务键, 形态) 分桶取「最后一行」，
+    #   使生行只与生行比、富化行只与富化行比（旧口径下两者 body 永不相等 ⇒ 永不跳过）。
+    latest = read_last_per_key(path, key_field, meta_fields, by_shape=True)
+    to_append = []
+    new = changed = dup = 0
+    for r in rows:
+        k = _key_shape_of(r, key_field, meta_fields)
+        old = latest.get(k)
+        if old is None:
+            new += 1
+            to_append.append(r)
+            # 同一批里重复的键：后一条要跟刚接受的那条比（批内去重）
+            latest[k] = r
+            continue
+        if _body(old, meta_fields) == _body(r, meta_fields):
+            dup += 1
+            continue
+        changed += 1
+        to_append.append(r)
+        latest[k] = r
+    return to_append, {"read": len(rows), "dup_skipped": dup, "new": new, "changed": changed}
+
+
+def refresh_last_seen(last_seen_path, rows, run=None, note=None):
+    """把「本轮还看见它」记进 sidecar —— 与 `kb/l8/l0_ledger.py` **同构**。
+
+    为什么必须有这个（批次11 发现，批次12 补）：
+      去重之后，未变的行**不再被追加**，于是台账里那一行的 `observed_at`
+      语义从「**最后一次被看到**」变成「**最后一次内容变化**」。
+      丢掉「它还活着」这个信息，会让「**失踪**」与「**没查**」分不清。
+      `kb/l8/l0_ledger.py`（2026-09-30 补）早就把这件事做对了 —— L0 台账走它时
+      未变的行会去刷新 `kb/l0/registry/last_seen.json`。
+      本函数把**同一个契约**补给 `manifest_l1` / `manifest_l3`，
+      **不另造一套**（与"避免同一本台账两套契约"同一条纪律）。
+
+    实测依据（批次12）：全库 grep `observed_at` 做新鲜度计算的消费点 **0 处**
+      （`kb/l7/scripts/daily_health.py` 用的是**文件 mtime**；
+        `kb/l8/l2_staleness_audit.py:150` 只是把值抄进报告，不比较）。
+      ⇒ 本函数补的是**信息保全**，不是修一个正在发作的 bug。这点如实写明。
+
+    返回 {"seen_refreshed": n}。
+    """
+    import json
+    import os
+    import tempfile
+    import subprocess
+    last_seen_path = last_seen_path or None
+    if not last_seen_path:
+        return {"seen_refreshed": 0}
+    seen = {}
+    if os.path.exists(last_seen_path):
+        try:
+            seen = json.load(open(last_seen_path, encoding="utf-8"))
+        except Exception:
+            seen = {}
+    n = 0
+    for r in rows:
+        k = r.get("resource_key") or r.get("rule_id")
+        if k is None:
+            continue
+        seen[k] = {"run": run, "status": r.get("status"),
+                   "observed_at": r.get("observed_at"),
+                   "sha256": r.get("sha256"), "source_sha256": r.get("source_sha256")}
+        n += 1
+    seen["_note"] = (note or
+                     "未变化的行只在这里刷新『这轮还看见它』，不再往台账追加整行；"
+                     "台账的 observed_at 因此是『最后一次内容变化』，不是『最后一次被看到』。"
+                     "（与 kb/l8/l0_ledger.py 同一契约，批次12 补）")
+    payload = json.dumps(seen, ensure_ascii=False, indent=1, sort_keys=True).encode("utf-8")
+    # tempfile + /bin/cp：避免 python 直接建文件留下信封态（与 l0_ledger 同因）
+    fd, tmp = tempfile.mkstemp(dir="/tmp", prefix="kbseen-")
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(payload)
+    os.makedirs(os.path.dirname(last_seen_path) or ".", exist_ok=True)
+    if os.path.exists(last_seen_path):
+        subprocess.run(["/bin/cp", tmp, last_seen_path], check=True)
+        os.unlink(tmp)
+    else:
+        os.replace(tmp, last_seen_path)
+    return {"seen_refreshed": n}
+
+
+def dedup_append(path, rows, key_field, meta_fields=RUN_METADATA_FIELDS,
+                 label=None, quiet=False, last_seen_path=None, run=None):
+    """按上面的规则追加。返回 stats（含 appended）。
+
+    写入方式 = 以 `"a"` 打开一次、连续写（与既有写法一致），**不重写文件**。
+    `last_seen_path` 给定时，**未被追加的行**（同内容重复）会去刷新 sidecar，
+    保住「这轮还看见它」—— 与 `kb/l8/l0_ledger.py` 同构。
+    """
+    import json
+    to_append, stats = dedup_rows(path, rows, key_field, meta_fields)
+    stats["appended"] = len(to_append)
+    if to_append:
+        with open(path, "a", encoding="utf-8") as fh:
+            for r in to_append:
+                fh.write(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n")
+    # 未追加的那些 = 同内容重复 ⇒ 记 last_seen（有 sidecar 时才做）
+    appended_ids = {_key_of(r, key_field) for r in to_append}
+    skipped = [r for r in rows if _key_of(r, key_field) not in appended_ids]
+    if last_seen_path and skipped:
+        stats.update(refresh_last_seen(last_seen_path, skipped, run=run))
+    if not quiet:
+        tag = f"[去重] {label} " if label else "[去重] "
+        extra = (f"；last_seen 刷新 {stats.get('seen_refreshed', 0)}"
+                 if last_seen_path and skipped else "")
+        print(f"{tag}候选 {stats['read']} 行 → 追加 {stats['appended']} 行"
+              f"（新增 {stats['new']} / 变更 {stats['changed']} / "
+              f"**跳过同内容重复 {stats['dup_skipped']}**）{extra}")
+    return stats
+
+
+def dedup_json_list(items, key_field, meta_fields=RUN_METADATA_FIELDS, limit=None):
+    """给**非 JSONL** 的追加式列表（如 registry 里的 `schema_snapshots`）用。
+
+    与 `dedup_rows` 同一套判定规则：同键且业务内容全等 → 丢掉后出现的那条。
+    `limit` 给定时只保留**最新的 limit 条**（最新的定义 = 列表里靠后的）。
+    返回 (去重后的列表, stats)。
+    """
+    out = []
+    index = {}
+    dup = 0
+    for it in items:
+        k = _key_of(it, key_field)
+        if k in index and _body(index[k], meta_fields) == _body(it, meta_fields):
+            dup += 1
+            continue
+        index[k] = it
+        out.append(it)
+    stats = {"read": len(items), "kept": len(out), "dup_skipped": dup}
+    if limit is not None and len(out) > limit:
+        stats["truncated"] = len(out) - limit
+        out = out[-limit:]
+    return out, stats
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 规则的「生行 + 富化」合一视图 —— **唯一一份实现**（2026-10-10，方案 A）
+# ══════════════════════════════════════════════════════════════════════════════
+# 为什么收成一个口（当天全库普查的结论）：
+#   `kb/l3/candidates/rules.jsonl` 是**上游每天重建的派生件** ——
+#   `kb/l8/l3_distill_run.py:162` 起 `rules = []` 后按硬编码字段 `rules.append(dict(...))`
+#   重新生成，`_serialize()` 也不剥键 ⇒ **往它追加的富化行，下一次日更必然消失**。
+#   所以富化字段（`rule_kind`/`authority`/`p_level`）的**唯一真源是 `manifest_l3.jsonl`**（append-only）。
+#   而「读文件生行 + 从 manifest 取富化」这件事，此前被**四份实现各自重算**：
+#     `l5_prep.py`（写）/ `l5_export.py`（兜底）/ `l5_report.py`（兜底，2026-10-10 补）/ `l5_gate.py`（内联）。
+#   各自修各自的 ⇒ 同一条坑在同一个月里栽了三次（2026-10-02 ×2、2026-10-10 一次把整条评审链卡死）。
+#   ⇒ 本函数是这件事的**唯一实现**；新读者一律调它，**不许再写第五份**。
+#
+# ★ 与旧三份实现的**唯一实质差别**：**比对 `evidence_digest`**。
+#   旧兜底只按 `rule_id` 取 manifest 行、不看 digest ⇒ 上游改了某条规则正文后，
+#   **旧富化会被照旧套上去**（分类静默错，不报错）。实测 2026-10-10：manifest 富化对当前
+#   509 条候选的 digest **509/509 一致**（0 条不一致），所以加这道闸**不改变任何读数**，
+#   它只是把"以后会错"的那条路堵上。
+#
+# 返回 `(rows, stats)`：
+#   rows  = `{rule_id: 行}`，每行 = 生行 + 只补缺失的富化键（**已有值不覆盖**）；
+#           digest 不一致的那些**不采用**富化（留在 rows 里但仍是生行）。
+#   stats = {read, uniq, backfilled, stale, no_enrich, mismatched}
+#     · `stale`      = manifest 里有富化行、但 digest 对不上 ⇒ **不采用**（调用方应**判红**，不许静默）
+#     · `no_enrich`  = manifest 里根本没有富化行（首次跑的正常状态，**不是**错误）
+#     · `mismatched` = manifest 富化行**自己没带** digest ⇒ 无法核对，按不采用处理并计数
+def rules_enriched_view(rules_path, manifest_path, enrich_keys=ENRICH_KEYS):
+    """规则的「生行 + manifest 富化」合一视图。**唯一实现**（见上方抬头）。"""
+    import json
+    import os
+
+    rows, latest = {}, {}
+    read = 0
+    if os.path.exists(rules_path):
+        with open(rules_path, encoding="utf-8") as fh:
+            for line in fh:
+                if not line.strip():
+                    continue
+                read += 1
+                r = json.loads(line)
+                rid = r.get("rule_id")
+                if rid is not None:
+                    latest[rid] = r            # 后写者胜 = 与其它读者的取数口径一致
+    for rid, r in latest.items():
+        rows[rid] = dict(r)
+
+    hist = {}
+    if os.path.exists(manifest_path):
+        for _k, _row in read_last_per_key(manifest_path, "rule_id").items():
+            if all(kk in _row for kk in enrich_keys) and _row.get("rule_id"):
+                hist[_row["rule_id"]] = _row   # 形态分桶 ⇒ 只被"富化形态"的行覆盖
+
+    stats = {"read": read, "uniq": len(rows), "backfilled": 0, "stale": 0,
+             "no_enrich": 0, "mismatched": 0}
+    for rid, r in rows.items():
+        if all(kk in r for kk in enrich_keys):
+            continue                            # 生行自带富化 ⇒ 以它为准，不覆盖
+        h = hist.get(rid)
+        if not h:
+            stats["no_enrich"] += 1
+            continue
+        hd, rd = h.get("evidence_digest"), r.get("evidence_digest")
+        if hd is None:
+            stats["mismatched"] += 1
+            continue
+        if rd is not None and hd != rd:
+            stats["stale"] += 1                 # ★ 不采用：材料变了，旧分类不成立
+            continue
+        for k in enrich_keys:
+            if k in h:
+                r[k] = h[k]
+        stats["backfilled"] += 1
+    return rows, stats
+
+
+def assert_no_stale_enrichment(stats, where):
+    """`stale`/`mismatched` 非 0 ⇒ 抛错。**不许静默**（判据同 `l5_export.py:74`）。
+
+    调用方在拿富化做**判定口径**（P0 排除/准入）时必须调它：
+    读不到正确的富化却继续算，等于把"不知道"折成"没有" —— 比抛错更坏。
+    """
+    bad = stats.get("stale", 0) + stats.get("mismatched", 0)
+    if bad:
+        raise SystemExit(
+            f"⛔ {where}：manifest_l3 的富化与候选生行**对不上** "
+            f"(digest 不一致 {stats.get('stale', 0)} 条 / 富化行自身缺 digest {stats.get('mismatched', 0)} 条)。\n"
+            f"   这两类都**不许**照旧套用（材料变了，旧分类不成立）；也不许改用 .get() 折成 0。\n"
+            f"   该做的是先跑 `kb/.work/l5_prep.py <RUN> --apply` 让富化与当前候选对齐，再重跑本层。")

@@ -1,0 +1,238 @@
+[review_run] --loaded-skill 申报：kb-canonical-lookup kb-p0-check kb-recall kb-check 视频安全审查 
+[review_run] ① 四层前置 L4→L5→L6→L7 …
+[preflight 10:39:08] 认领成功：20261009-1039
+[preflight 10:39:08] ② L4 闸门(自带)+引擎(预演)+记账 … invoked=kb-canonical-lookup session=session-d602fe1f-178f-4b3a-b997-feec184ededb
+[preflight 10:39:10] ② L4 记账完成 → kb/l7/runs/20261009-1039-L4.json
+[preflight 10:39:10] ③ L4 审计 …
+[preflight 10:39:12] ③ L4 审计 exit=0（红 0）
+[preflight 10:39:12] ② L5 闸门(自带)+引擎(预演)+记账 … invoked=kb-p0-check session=session-d602fe1f-178f-4b3a-b997-feec184ededb
+[preflight 10:39:28] ② L5 记账完成 → kb/l7/runs/20261009-1039-L5.json
+[preflight 10:39:28] ③ L5 审计 …
+[preflight 10:39:30] ③ L5 审计 exit=0（红 0）
+[preflight 10:39:30] ② L6 闸门(自带)+引擎(预演)+记账 … invoked=kb-recall session=session-d602fe1f-178f-4b3a-b997-feec184ededb
+[preflight 10:39:34] ② L6 记账完成 → kb/l7/runs/20261009-1039-L6.json
+[preflight 10:39:34] ③ L6 审计 …
+[preflight 10:39:36] ③ L6 审计 exit=0（红 0）
+[preflight 10:39:36] ② L7 闸门(自带)+引擎(预演)+记账 … invoked=kb-check session=session-d602fe1f-178f-4b3a-b997-feec184ededb
+[preflight 10:39:36] ② L7 记账完成 → kb/l7/runs/20261009-1039-L7.json
+[preflight 10:39:36] ③ L7 审计 …
+[preflight 10:39:37] ③ L7 审计 exit=0（红 0）
+[preflight 10:39:37] ✅ 四层前置全绿（L4–L7 各一 RUN，四道审计红 0）｜BASE=20261009-1039
+[preflight 10:39:37]    下一步：出结论 —— with_kb_evidence.py --require-layer-preflight 20261009-1039 --decision-owner <判定主体>
+[preflight 10:39:37] 已释放认领 20261009-1039
+[review_run] ② 自命中检查（素材 vs 库内 181 条反例/禁区）…
+===== ② 自命中检查（确定性；它只报事实，不判三态）=====
+自命中检查：未命中
+  素材归一化字符 901 ｜ 扫过条款 296 条 ｜ 阈值 ratio≥0.9 且 run≥80
+[review_run] 若上面是 status=error，那是「没查成」，**不是**「没命中」。
+[review_run] ③ 出结论（含默认发布到飞书）…
+===== ③ 引擎结论（唯一有权产出三态的地方）=====
+飞书发布：素材属性 → 渠道='' ｜ 产品线=''（由 l0_facets 推出：{}）
+飞书发布：自动调用 feishu_publish.py --apply …
+  ① 渲染完成：1950 字节 ｜ 本地留底 /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/reports/rv-20261009-103955.feishu.md ｜ 第一行 = '# 内容审查报告 · rv-20261009-103955'
+  ② 去向（读登记件）：table=tblCXPQVzfFWWCon ｜ base=RY2UbCRjXaeeWwscUPScVN5AnQc
+  ③ 既有同「内容 ID」行 0 条（本单**新增一行**，不更新它们）
+  ④ 云文档：跳过（问题数 0 < 3 ⇒ 按 PRD 不生成报告；报告正文见本地 /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/reports/rv-20261009-103955.feishu.md）
+  ⑤ 表行：新建 recvxw4uzmCepz
+  ⑥ 读回：表行 recvxw4uzmCepz ｜ 内容 ID 与结论一致 ✅
+  完成：docx=（未生成·问题数<3） ｜ record=recvxw4uzmCepz
+{
+ "decision": {
+  "state": "REVIEW",
+  "decision": "REVIEW",
+  "confidence": null,
+  "review_id": "rv-20261009-103955",
+  "content_id": "AUTO-86b3667f528e",
+  "content_version": "86b3667f528e2a1ba069bc8e3295cd5f6dee563ab76e85de392f577170c95fd2",
+  "issue_count": 0,
+  "summary": "【审查结论：REVIEW】共发现 0 处需人工确认。\n\n**本次没有发现内容问题**（0 处）。下面是**覆盖缺口**说明 —— 缺的是**库覆盖**，不是素材有问题：\n\n**覆盖缺口说明（不是内容问题）**：本次素材的**文字层逐字命中 0 条**，但覆盖判据不成立（没有「既被规则引用、又达门限」的单元）——**这不是素材有问题，是库对该题材没有可依据的条款**。\n   原因：依据侧检索到 5 条命中，最高 BM25 246.2002（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。\n   依据：`kb/l7/registry/l7.json` 的 `retrieval.gate.coverage_bm25_min=16.0`（覆盖判据标定值；覆盖信号不成立时**不得输出 PASS**）\n   判定：REVIEW（**不是 PASS**）—— 文字层未发现已知违规表述，不等于合规；画面 / 场景须人看。\n   建议：转人工复核后再定；补素材无用（缺的是库覆盖）。\n\n**库内命中（读数）** —— 检索命中了 5 条，逐条列出**原文与直链**：\n\n1. `#l.1-2`｜BM25 246.2002｜internal_sample\n   命中原文（逐字）：<li seq=\"1\" seq-marker=\"1. \">cover</li></ol><img name=\"image.png\" alt=\"图片展示了一位女性在厨房操作Momcozy Wellness 1按摩器的场景。她穿着黑白条纹上衣，左手持粉色按摩器，右手正在拆卸白色部件。画面下方有文字说明“and it&#39\n   直链：https://momcozy-in.feishu.cn/wiki/TqJSduQE3oBM4uxtHhmcrVtGnPg\n2. `#l.1-3`｜BM25 208.4565｜internal_sample\n   命中原文（逐字）：>修改字幕</li></ol><img name=\"image.png\" alt=\"图片展示了一位女性手持两个不同颜色的物品，画面下方字幕显示“Mom Cozy has the one press release”。该图片位于文档中关于Momcozy横测视频修改建议的上下文里，是对视频中需修改内容的示例说明，对应文档中\n   直链：https://momcozy-in.feishu.cn/wiki/TqJSduQE3oBM4uxtHhmcrVtGnPg\n3. `#h.Draft V2`｜BM25 196.931｜internal_sample\n   命中原文（逐字）：<table><colgroup><col/><col/><col/><col/></colgroup><tbody><tr><td><b>Draft</b></td><td><b>Script</b></td><td><b>钛动反馈</b></td><td><b>客户反馈</b></td></tr><tr><td><\n   直链：https://momcozy-in.feishu.cn/wiki/YNnwdkTULoJLccxKnypcHwsinBZ\n4. `#l.1-5`｜BM25 189.3633｜internal_sample\n   命中原文（逐字）：mping multiple times a day, I really notice how the Momcozy brings the heat, massage, and suction together. It feels more comfortable and natural for me through\n   直链：https://momcozy-in.feishu.cn/wiki/TqJSduQE3oBM4uxtHhmcrVtGnPg\n5. `#t.00:00:36-00:00:39`｜BM25 186.6938｜internal_sample\n   命中原文（逐字）：Momcozy Made for Moms Open 953 RATINGS AGE RATING CHART DEVELOPER 4.3 13+ #164 ***** Years Utilities HONG KONG LU What's New > Version 3.5.1 4d ago 1. Smoother\n   直链：https://momcozy-in.feishu.cn/wiki/TqJSduQE3oBM4uxtHhmcrVtGnPg\n\n> ⚠️ 上面是**读数**：命中的**大多是别人的素材样本 / 外部材料，不是覆盖本素材的条款**，**不得据此当 PASS 依据**，也不得当作「本素材已合规」的证明。\n\n建议转 @内容治理负责人 复核。",
+  "risk_items": [
+   {
+    "risk_type": "覆盖缺口",
+    "priority_tier": "转人工",
+    "action": "库对该题材没有可依据的条款 ⇒ 转人工看**覆盖**（不是发现了内容问题）",
+    "category": "覆盖",
+    "sub": "知识库覆盖缺口",
+    "reason": "依据侧检索到 5 条命中，最高 BM25 246.2002（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。",
+    "severity": "REVIEW",
+    "reason_code": "coverage_not_covered",
+    "coverage": {
+     "covered": false,
+     "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+     "rule_cited_unit_hits": 0,
+     "safe_vocabulary_hits": 0,
+     "coverage_bm25_min": 16.0,
+     "bm25_max": 246.2002,
+     "top_hit_anchor": "#l.1-2",
+     "top_hit_excerpt": "<li seq=\"1\" seq-marker=\"1. \">cover</li></ol><img name=\"image.png\" alt=\"图片展示了一位女性在厨房操作Momcozy Wellness 1按摩器的场景。她穿着黑白条纹上衣，左手持粉色按摩器，右手正在拆卸白色部件。画面下方有文字说明“and it&#39"
+    },
+    "coverage_gap": true
+   }
+  ],
+  "next_owners": [
+   "内容治理负责人"
+  ],
+  "fails_closed": true,
+  "refusal": {
+   "state": "NEEDS_INPUT",
+   "detail": "依据侧拒答（fail-closed）",
+   "fails_closed": true,
+   "reason_code": "coverage_not_covered",
+   "coverage": {
+    "covered": false,
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "rule_cited_unit_hits": 0,
+    "safe_vocabulary_hits": 0,
+    "coverage_bm25_min": 16.0,
+    "bm25_max": 246.2002,
+    "top_hit_anchor": "#l.1-2",
+    "top_hit_excerpt": "<li seq=\"1\" seq-marker=\"1. \">cover</li></ol><img name=\"image.png\" alt=\"图片展示了一位女性在厨房操作Momcozy Wellness 1按摩器的场景。她穿着黑白条纹上衣，左手持粉色按摩器，右手正在拆卸白色部件。画面下方有文字说明“and it&#39"
+   },
+   "human": "依据侧检索到 5 条命中，最高 BM25 246.2002（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。"
+  },
+  "gate": null,
+  "submit_question": "这个视频审核一下"
+ },
+ "evidence_meta": {
+  "run_id": "20261009-103946",
+  "findings": 0,
+  "state": "REVIEW",
+  "fails_closed": true,
+  "refusal": {
+   "state": "NEEDS_INPUT",
+   "detail": "依据侧拒答（fail-closed）",
+   "fails_closed": true,
+   "reason_code": "coverage_not_covered",
+   "coverage": {
+    "covered": false,
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "rule_cited_unit_hits": 0,
+    "safe_vocabulary_hits": 0,
+    "coverage_bm25_min": 16.0,
+    "bm25_max": 246.2002,
+    "top_hit_anchor": "#l.1-2",
+    "top_hit_excerpt": "<li seq=\"1\" seq-marker=\"1. \">cover</li></ol><img name=\"image.png\" alt=\"图片展示了一位女性在厨房操作Momcozy Wellness 1按摩器的场景。她穿着黑白条纹上衣，左手持粉色按摩器，右手正在拆卸白色部件。画面下方有文字说明“and it&#39"
+   },
+   "human": "依据侧检索到 5 条命中，最高 BM25 246.2002（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。"
+  },
+  "report_path": null,
+  "source": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py",
+  "findings_source": {
+   "mode": "live",
+   "path": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py"
+  },
+  "layer_preflight": {
+   "base": "20261009-1039",
+   "ok": true,
+   "red_total": 0,
+   "mode": "enforced",
+   "details": {
+    "L4": {
+     "run": "20261009-1039-L4",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L4": "session-d602fe1f-178f-4b3a-b997-feec184ededb"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L5": {
+     "run": "20261009-1039-L5",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L5": "session-d602fe1f-178f-4b3a-b997-feec184ededb"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L6": {
+     "run": "20261009-1039-L6",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L6": "session-d602fe1f-178f-4b3a-b997-feec184ededb"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L7": {
+     "run": "20261009-1039-L7",
+     "exit": 0,
+     "red": 0,
+     "yellow": 0,
+     "skill_sessions": {
+      "L7": "session-d602fe1f-178f-4b3a-b997-feec184ededb"
+     },
+     "pass": true,
+     "note": ""
+    }
+   }
+  },
+  "decision_owner": {
+   "skill": "视频安全审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check",
+    "视频安全审查"
+   ]
+  },
+  "publish": {
+   "mode": "enabled",
+   "published": true,
+   "docx": "（未生成·问题数<3）",
+   "record_id": "recvxw4uzmCepz"
+  },
+  "report_url": "（未生成·问题数<3）",
+  "report_url_kind": "feishu_docx"
+ }
+}
+
+===== ③b 转述模板（照抄这一段即可，不必再跑任何命令）=====
+状态：REVIEW ｜ 问题数：0 ｜ 置信度：None
+摘要：【审查结论：REVIEW】共发现 0 处需人工确认。
+
+**本次没有发现内容问题**（0 处）。下面是**覆盖缺口**说明 —— 缺的是**库覆盖**，不是素材有问题：
+
+**覆盖缺口说明（不是内容问题）**：本次素材的**文字层逐字命中 0 条**，但覆盖判据不成立（没有「既被规则引用、又达门限」的单元）——**这不是素材有问题，是库对该题材没有可依据的条款**。
+   原因：依据侧检索到 5 条命中，最高 BM25 246.2002（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。
+   依据：`kb/l7/registry/l7.json` 的 `retrieval.gate.coverage_bm25_min=16.0`（覆盖判据标定值；覆盖信号不成立时**不得输出 PASS**）
+   判定：REVIEW（**不是 PASS**）—— 文字层未发现已知违规表述，不等于合规；画面 / 场景须人看。
+   建议：转人工复核后再定；补素材无用（缺的是库覆盖）。
+
+**库内命中（读数）** —— 检索命中了 5 条，逐条列出**原文与直链**：
+
+1. `#l.1-2`｜BM25 246.2002｜internal_sample
+   命中原文（逐字）：<li seq="1" seq-marker="1. ">cover</li></ol><img name="image.png" alt="图片展示了一位女性在厨房操作Momcozy Wellness 1按摩器的场景。她穿着黑白条纹上衣，左手持粉色按摩器，右手正在拆卸白色部件。画面下方有文字说明“and it&#39
+   直链：https://momcozy-in.feishu.cn/wiki/TqJSduQE3oBM4uxtHhmcrVtGnPg
+2. `#l.1-3`｜BM25 208.4565｜internal_sample
+   命中原文（逐字）：>修改字幕</li></ol><img name="image.png" alt="图片展示了一位女性手持两个不同颜色的物品，画面下方字幕显示“Mom Cozy has the one press release”。该图片位于文档中关于Momcozy横测视频修改建议的上下文里，是对视频中需修改内容的示例说明，对应文档中
+   直链：https://momcozy-in.feishu.cn/wiki/TqJSduQE3oBM4uxtHhmcrVtGnPg
+3. `#h.Draft V2`｜BM25 196.931｜internal_sample
+   命中原文（逐字）：<table><colgroup><col/><col/><col/><col/></colgroup><tbody><tr><td><b>Draft</b></td><td><b>Script</b></td><td><b>钛动反馈</b></td><td><b>客户反馈</b></td></tr><tr><td><
+   直链：https://momcozy-in.feishu.cn/wiki/YNnwdkTULoJLccxKnypcHwsinBZ
+4. `#l.1-5`｜BM25 189.3633｜internal_sample
+   命中原文（逐字）：mping multiple times a day, I really notice how the Momcozy brings the heat, massage, and suction together. It feels more comfortable and natural for me through
+   直链：https://momcozy-in.feishu.cn/wiki/TqJSduQE3oBM4uxtHhmcrVtGnPg
+5. `#t.00:00:36-00:00:39`｜BM25 186.6938｜internal_sample
+   命中原文（逐字）：Momcozy Made for Moms Open 953 RATINGS AGE RATING CHART DEVELOPER 4.3 13+ #164 ***** Years Utilities HONG KONG LU What's New > Version 3.5.1 4d ago 1. Smoother
+   直链：https://momcozy-in.feishu.cn/wiki/TqJSduQE3oBM4uxtHhmcrVtGnPg
+
+> ⚠️ 上面是**读数**：命中的**大多是别人的素材样本 / 外部材料，不是覆盖本素材的条款**，**不得据此当 PASS 依据**，也不得当作「本素材已合规」的证明。
+
+建议转 @内容治理负责人 复核。
+层前置：ok=None mode=None
+判定主体：视频安全审查 ｜ mode=declared
+  ● 条款号 ? ｜ 依据侧检索到 5 条命中，最高 BM25 246.2002（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。
+
+【飞书那一步已经做完了】published=true ｜ 记录 recvxw4uzmCepz
+⇒ **你不要再写一次飞书表**（实测：有单子自己又跑 28~29 次 bash 去补写，把时间从 50 秒拖到 160 秒，还可能造出重复行）。照抄本段即可收工。
+[review_run] 机读旁挂已写：/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/.work/last_review_result.json

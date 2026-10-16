@@ -1,0 +1,148 @@
+
+### 10:11:56 CMD: sh kb/kbpy l8/align_l0_feishu.py daily-20261010-1010-L0 ###
+[负面样本] 飞书=170 L0=170 一致=170 飞书多=0 L0多=0 值变=0
+[材料收集] 飞书=32 L0=22 一致=22 飞书多=10 L0多=0 值变=0
+[知识库分类说明] 飞书=5 L0=5 一致=5 飞书多=0 L0多=0 值变=0
+[广告文案明细] 飞书=291 L0=291 一致=291 飞书多=0 L0多=0 值变=0
+[品线内容边界规则库] 飞书=21 L0=21 一致=21 飞书多=0 L0多=0 值变=0
+[W1卖点表达边界（品线反馈0910）] 飞书=19 L0=19 一致=19 飞书多=0 L0多=0 值变=0
+[风险文案改写建议库（分型号分渠道）] 飞书=52 L0=52 一致=52 飞书多=0 L0多=0 值变=0
+[数据表] 飞书=32 L0=32 一致=32 飞书多=0 L0多=0 值变=0
+[专家修订汇总表] 飞书=395 L0=395 一致=395 飞书多=0 L0多=0 值变=0
+[内容公式（仅供参考）] 飞书=7 L0=7 一致=7 飞书多=0 L0多=0 值变=0
+
+=== 汇总 ===
+  一致 1014 | 飞书多 10 | L0多 0 | 值变 0 | 拉取失败 0 | 身份回落 0
+  manifest 未登记的 L0 记录文件: 0 {}
+  报告: kb/l8/runs/daily-20261010-1010-L0-l0-align.json
+### rc=0 ###
+
+### 10:12:12 CMD: sh kb/kbpy l7/scripts/l0_daily_sync.py --run daily-20261010-1010-L0 --apply ###
+[l0-daily 10:12:12] L0 每日对齐 ｜ run=daily-20261010-1010-L0 ｜ 落盘（命令行 --apply）
+[l0-daily 10:12:12] 库根 /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理
+[l0-daily 10:12:29] align_l0_feishu → exit=0（17.3s）
+[l0-daily 10:12:29]     [内容公式（仅供参考）] 飞书=7 L0=7 一致=7 飞书多=0 L0多=0 值变=0
+[l0-daily 10:12:29]     
+[l0-daily 10:12:29]     === 汇总 ===
+[l0-daily 10:12:29]       一致 1014 | 飞书多 10 | L0多 0 | 值变 0 | 拉取失败 0 | 身份回落 0
+[l0-daily 10:12:29]       manifest 未登记的 L0 记录文件: 0 {}
+[l0-daily 10:12:29]       报告: kb/l8/runs/daily-20261010-1010-L0-l0-align.json
+[l0-daily 10:12:32] ingest_l0_new_records → exit=0（2.5s）
+[l0-daily 10:12:32]        跳过 材料收集/recvvlGAKpUVF9：准入未过：材料审核状态=[] != ["通过"]
+[l0-daily 10:12:32]        跳过 材料收集/recvvlGUajvYY0：准入未过：材料审核状态=[] != ["通过"]
+[l0-daily 10:12:32]        跳过 材料收集/recvvlO5gFdyzx：准入未过：材料审核状态=[] != ["通过"]
+[l0-daily 10:12:32]        跳过 材料收集/recvvlspM5RDoj：准入未过：材料审核状态=[] != ["通过"]
+[l0-daily 10:12:32]        跳过 材料收集/recvvltvfBsoDP：准入未过：材料审核状态=[] != ["通过"]
+[l0-daily 10:12:32]     [报告] kb/l8/runs/daily-20261010-1010-L0-l0-ingest.json
+
+========================================================================
+L0 每日对齐 ｜ GREEN ｜ 落盘 ｜ run=daily-20261010-1010-L0
+  对账：一致 1014 ｜ 飞书多 10 ｜ L0多 0 ｜ 值变 0 ｜ 拉取失败 None
+  入库：入库 0 ｜ 跳过 10 ｜ 归档 0
+  删除候选：0 条（飞书侧与 L0 无删除差异）
+  回执：kb/l7/reports/l0-daily-sync-latest.json
+========================================================================
+### rc=0 ###
+
+### 10:12:32 CMD: env L8_AS=bot sh kb/kbpy l8/align_l0_schema.py daily-20261010-1010-L0 --apply ###
+[负面样本] 飞书字段 16 / L0 字段 16 改名 0 L0缺 0 飞书已删 0 类型变 0
+[材料收集] 飞书字段 9 / L0 字段 9 改名 0 L0缺 0 飞书已删 0 类型变 0
+[知识库分类说明] 飞书字段 5 / L0 字段 5 改名 0 L0缺 0 飞书已删 0 类型变 0
+[广告文案明细] 飞书字段 27 / L0 字段 27 改名 0 L0缺 0 飞书已删 0 类型变 0
+[品线内容边界规则库] 飞书字段 12 / L0 字段 12 改名 0 L0缺 0 飞书已删 0 类型变 0
+[W1卖点表达边界（品线反馈0910）] 飞书字段 8 / L0 字段 8 改名 0 L0缺 0 飞书已删 0 类型变 0
+[风险文案改写建议库（分型号分渠道）] 飞书字段 16 / L0 字段 16 改名 0 L0缺 0 飞书已删 0 类型变 0
+[数据表] 飞书字段 17 / L0 字段 17 改名 0 L0缺 0 飞书已删 0 类型变 0
+[专家修订汇总表] 飞书字段 5 / L0 字段 5 改名 0 L0缺 0 飞书已删 0 类型变 0
+[内容公式（仅供参考）] 飞书字段 2 / L0 字段 2 改名 0 L0缺 0 飞书已删 0 类型变 0
+
+=== 结构层汇总 === 改名 0 | L0缺字段 0 | 飞书已删 0 | 类型漂移 0 | 取字段失败 0
+✓ registry.schema_snapshots 已刷新（**只存现行集**，批18 丙）
+  registry 现行 10 条（快照 10 + blocked 0）
+  归档 → kb/l0/_archive/schema_snapshots ：本轮新增 10 条 ｜ 遗留外移 0 条
+### rc=0 ###
+
+### 10:12:48 CMD: sh kb/kbpy l8/reconcile_l0_feishu.py daily-20261010-1010-L0 --skill kb-l0-feishu --apply ###
+⚠️ 暂存新鲜度**无法判定**（RUN 不能解析成 YYYYMMDD-HHMM，无法判定新鲜度）→ 不拦，但已记进账本 stage.reason。
+[apply] 落章 → kb/l0/runs/daily-20261010-1010-L0-l0-feishu-reconcile.json（applied=True, run_id=daily-20261010-1010-L0, skill=kb-l0-feishu）
+对账完成 daily-20261010-1010-L0
+   {"table": "负面样本", "table_id": "tbld8qE92YaY38Yz", "action": "claim_new", "files": 170, "dir": "kb/l0/records/负面样本", "ids_sha16": "8516fa5513901a7e"}
+   {"table": "材料收集", "action": "archive_prerefresh", "files": 22, "to": "kb/l0/_archive/材料收集-pre-refresh-daily-20261010-1010-L0"}
+   {"table": "材料收集", "action": "drop_unapproved_to_archive", "files": 10, "to": "kb/l0/_archive/材料收集-未通过-daily-20261010-1010-L0", "rule": "材料审核状态 == 通过"}
+   {"table": "材料收集", "table_id": "tblMGtPfe8ZUsEdP", "action": "refresh_capture", "files": 22, "filter": "材料审核状态 == 通过"}
+  账本 → kb/l0/runs/daily-20261010-1010-L0-l0-feishu-reconcile.json
+  现役 L0：负面样本 170 条 / 材料收集 22 条
+### rc=0 ###
+
+### 10:12:48 CMD: sh kb/kbpy l8/emit_l0_manifest_reconcile.py daily-20261010-1010-L0 --apply ###
+[降级护栏] 跳过 304 条附件元数据行（其最新行已是 file_bytes/full —— 不许用占位盖真值）
+[预演] 将追加 497 行（append-only）
+   status: {'registered': 170, 'gone': 326, 'updated': 1}
+   source_kind: {'feishu_bitable_record': 497}
+   sha256_input: {'record_fields': 497}
+   · {"change": "l0_feishu_reconcile_register", "depth": 1, "downstream_invalidated": true, "dup_of": null, "entry_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8
+   · {"change": "l0_feishu_reconcile_register", "depth": 1, "downstream_invalidated": true, "dup_of": null, "entry_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8
+   · {"change": "l0_feishu_reconcile_register", "depth": 1, "downstream_invalidated": true, "dup_of": null, "entry_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8
+   · {"change": "l0_feishu_reconcile_register", "depth": 1, "downstream_invalidated": true, "dup_of": null, "entry_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8
+   · {"change": "l0_feishu_reconcile_register", "depth": 1, "downstream_invalidated": true, "dup_of": null, "entry_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8
+   · {"change": "l0_feishu_reconcile_register", "depth": 1, "downstream_invalidated": true, "dup_of": null, "entry_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8
+  [l0_ledger] 追加 0 行（有变化）；跳过 497 行（未变，已记 last_seen）
+
+[写入] manifest 行数 8499 → 8499（+0）；候选 497 行，去重跳过同内容重复 497 行（已刷新 last_seen）
+[写入] 运行记录 kb/l8/runs/daily-20261010-1010-L0-l0-manifest-emit.json
+### rc=0 ###
+
+### 10:12:49 CMD: env L8_VIDEO_AS=bot sh kb/kbpy l8/fetch_video_bytes.py daily-20261010-1010-L0 --apply ###
+[daily-20261010-1010-L0] 视频字节落库【落盘】｜身份=bot｜目标 14 个｜登记合计 647.0 MB
+  = AfOdbissZocC91xaIw0c 已在本地（174173971 字节，跳过）
+  = I4H1bS4Mso6M0oxO0mNc 已在本地（174154720 字节，跳过）
+  = VrvHb94rpopFnPxmLZRc 已在本地（180288671 字节，跳过）
+  = K2MXb8H9aoK4EFxpCaSc 已在本地（29634281 字节，跳过）
+  = MCchbyFUPoeq4qxCUAsc 已在本地（29702915 字节，跳过）
+  = Zb75bF411osEinx22PGc 已在本地（22793992 字节，跳过）
+  = H36pbQupBop2mcxDmbzc 已在本地（3916845 字节，跳过）
+  = UP43bicopoHm9Ux4fH1c 已在本地（3391998 字节，跳过）
+  = PzfkbLr7tob7FkxrbDyc 已在本地（3723071 字节，跳过）
+  = WJpVbuaSronZ7mxWmb9c 已在本地（11813294 字节，跳过）
+  = HjT4bCw5moSqTSxnnwEc 已在本地（11808169 字节，跳过）
+  = Yk85b5TFropm2MxpvUsc 已在本地（10794124 字节，跳过）
+  = Oe5GbcvBwoLQCKxRVNec 已在本地（12631566 字节，跳过）
+  = OTHmbtOKVo8nRSxDmG0c 已在本地（9643766 字节，跳过）
+  [写入] 回写 media_refs：5 个产物
+  小结：成功 14 ｜ 失败 0 ｜ 合计 647.0 MB
+  [报告] kb/l8/runs/daily-20261010-1010-L0-video-fetch.json
+### rc=0 ###
+
+### 10:12:51 CMD: sh kb/kbpy l8/extract_video_keyframes.py daily-20261010-1010-L0 --apply ###
+[daily-20261010-1010-L0] 视频关键帧【落盘】｜场景阈值 0.3｜每片帧上限 40｜目标 14 个视频（只处理字节已在本地、且 sha 已登记的）
+  ✓ AfOdbissZocC91xa__E3FBBF3D-ABD5-4AA3-BDD3-   148.43s → 帧 13（缓存命中 6）｜段 6 / 76 字｜26.4s
+  ✓ I4H1bS4Mso6M0oxO__FD162D27-BD92-479B-B306-   148.43s → 帧 13（缓存命中 5）｜段 5 / 68 字｜25.2s
+  ✓ VrvHb94rpopFnPxm__404237E1-A1A8-4EC8-A809-   153.13s → 帧 13（缓存命中 12）｜段 10 / 231 字｜27.4s
+  ✓ K2MXb8H9aoK4EFxp__Nikki-横屏draft_V3.mp4       181.43s → 帧 31（缓存命中 24）｜段 22 / 2216 字｜3.9s
+  ✓ MCchbyFUPoeq4qxC__Nikki-横屏draft_2.mp4        181.43s → 帧 31（缓存命中 24）｜段 21 / 2191 字｜3.2s
+  ✓ Zb75bF411osEinx2__Nikki-横屏Draft_V1.mp4       133.8s → 帧 25（缓存命中 19）｜段 15 / 928 字｜6.1s
+  ✓ H36pbQupBop2mcxD__Video.mov                  38.13s → 帧 16（缓存命中 16）｜段 10 / 142 字｜0.3s
+  ✓ UP43bicopoHm9Ux4__Julie_video.mov            32.83s → 帧 17（缓存命中 17）｜段 14 / 458 字｜0.3s
+  ✓ PzfkbLr7tob7Fkxr__Julie-draft_V2.mov         36.36s → 帧 12（缓存命中 12）｜段 7 / 87 字｜0.4s
+  ✓ WJpVbuaSronZ7mxW__WhatsApp_Video_2026-10-0   68.87s → 帧 24（缓存命中 24）｜段 22 / 1600 字｜1.0s
+  ✓ HjT4bCw5moSqTSxn__WhatsApp_Video_2026-10-0   68.87s → 帧 23（缓存命中 23）｜段 20 / 1421 字｜1.0s
+  ✓ Yk85b5TFropm2Mxp__WhatsApp_Video_2026-09-2   62.7s → 帧 23（缓存命中 23）｜段 22 / 1454 字｜1.3s
+  ✓ Oe5GbcvBwoLQCKxR__WhatsApp_Video_2026-09-1   99.84s → 帧 30（缓存命中 10）｜段 10 / 231 字｜3.3s
+  ✓ OTHmbtOKVo8nRSxD__WhatsApp_Video_2026-09-1   81.78s → 帧 21（缓存命中 9）｜段 7 / 188 字｜3.9s
+  小结：视频 14 个｜帧 292｜可检索文本 11291 字
+  [报告] kb/l8/runs/daily-20261010-1010-L0-video-keyframes.json
+
+[接线] 抽帧后自动补口播转写（kb/l8/extract_video_asr.mjs）…
+   [asr] 目标视频 14 个 ｜ 模式=落盘
+     · E3FBBF3D-ABD5-4AA3-BDD3-BBB8710F448F.mp4     error              等 90000ms 没等到结果文件 —— 最常见的成因是授权框没被点（见 base/asr_speech.m ②）
+   ⚠️ 口播转写失败（退出码 -15）—— 条目会缺口播那半，请手动跑：node kb/l8/extract_video_asr.mjs daily-20261010-1010-L0 --apply
+[接线] 已使 .publish.stamp 失效 ⇒ 下次 publish 会重出派生视图（守衡才看得到）
+### rc=0 ###
+
+### 10:20:24 CMD: sh kb/kbpy l8/drill_links_2levels.py daily-20261010-1010-L0 --apply ###
+[下钻] 待处理记录 22 条（材料收集）
+[下钻] 完成：记录 22 | level1 ok/fail 18/4 | level2 ok/fail 48/3 | 边 73
+       产物 → kb/l1/sources/daily-20261010-1010-L0.jsonl 与 kb/l1/sources/daily-20261010-1010-L0.report.json（L0 未改动）
+### rc=0 ###
+
+### 10:21:51 CMD: sh kb/kbpy l8/verify_l0_urls.py daily-20261010-1010-L0 --apply ###

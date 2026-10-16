@@ -1,0 +1,74 @@
+{
+ "run": "20260929-1155",
+ "layer": "l8",
+ "topic": "规则④（视频：字幕+关键帧）结案；「106 个视频」传闻核否；图片 OCR 是否必须下载取证",
+ "at": "2026-09-29 11:40-11:55",
+ "scope": "只读取证 + 记录。kb/l0~kb/l6 未改；未下载任何素材；未跑任何抽取",
+ "instructions": [
+  "用户：所有跟知识库相关的，只有你看到的飞书侧和 dsh 知识库，没有视频就是没有",
+  "用户：A（推荐）登录用户身份读取 wiki",
+  "用户：图片走 OCR，必须下载吗？"
+ ],
+ "findings": {
+  "video_rule_4_closed": {
+   "verdict": "知识库范围内不存在视频素材（0 个）。规则④「视频提取字幕+关键帧」无数据可落地，结案不做。",
+   "evidence": [
+    "L0 全量扫附件（1159 个 record 文件）：唯一有内容的附件字段 = 负面样本/图片素材 283 张 png；视频 0",
+    "L0 上一代归档 326 条：附件 = 图片素材 240 + 具体内容（截图/文案/OCR）77，全部图片；视频 0",
+    "飞书侧字段 fld87JUpEn（视频素材）描述原文：『需要审核的视频文件（预留，当前设计审核群暂无视频样本）』；108 条该字段全空（API filter count=0）",
+    "可读 3 base / 7 表：除负面样本外无任何附件类字段，无第二个含「视频」字样的字段",
+    "kb/l1/runs/20260924-1200.json：new_extraction.video_attachments = 0",
+    "bot 所在群仅 1 个（oc_49a7cfb2861cffa4365ca8491f398d32），群消息 0 条"
+   ],
+   "blind_spots_reported": [
+    "base SKkkbdZi9aRuMzs7ob0cpSYHnQg（专家修订汇总表那个 base）：table-list → 91403 you don't have permission（L0 里 609 条为早先抓取）",
+    "飞书 Drive 文件夹 XkSkfY4vkl0ARpdvRxNcyhYlnpd：drive +status/+pull → 1061004 bot lacks permission",
+    "Google Drive 文件夹 1vZTtB4rydhqBcZWWreqa0Y2z7JF81Lmw：非飞书域，登记不可达",
+    "两个 wiki 节点：131006 bot lacks permission（KISzwvc8OifWk8kI5cBcTtU6n9g / UOuMwKge6iX4HdkaOZBchV6ZnNf）"
+   ],
+   "user_ruling": "以上盲区均不属于知识库范围（用户明确：只有飞书侧 + dsh 知识库）。故结论成立：无视频。"
+  },
+  "figure_106_trace": {
+   "verdict": "「106 个视频」在知识库内无任何出处；该数字来自知识库之外，已按用户裁定作废。",
+   "evidence": [
+    "全库检索 \\b106\\b：与视频相关的命中仅 1 处，且是本层自己写的待办 —— kb/l8/runs/20260929-1100-l1-two-rules.json:63『106 个视频在哪个表/base/链接』",
+    "其余 106 命中均为无关字段值（char_count / char_len / 条款号 W-2.106 等）"
+   ]
+  },
+  "ocr_needs_bytes": {
+   "verdict": "走 OCR 就必须先拿到图片字节：本期 OCR 引擎是本地 macOS Vision（osascript -l JavaScript + VNRecognizeTextRequest），输入是磁盘上的图片文件。",
+   "prior_mechanism": {
+    "engine": "macOS Vision VNRecognizeTextRequest(fast, auto-detect)，ocr_version=vision-jxa-2.0",
+    "run": "kb/l1/runs/20260924-1200.json：attachments=240、ocr_new=148、ocr_reused=91、ocr_failed=0",
+    "artifacts": "kb/l1/media/<record_id>/img_NN.png（317 张 / 768MB 仍在盘）+ kb/l1/media/<record_id>/ocr.json",
+    "cache": "kb/.work/ocr_cache.json：345 条 / 206 个唯一 file_bytes sha256（复用键）"
+   },
+   "blocker": {
+   "symptom": "同一命令 base +record-download-attachment 今天对 108 条新记录的 283 张图全部 HTTP 403",
+   "three_routes_tried": [
+     "base +record-download-attachment（单个 --file-token / 整记录 --output 目录）→ data.code 403，type=network subtype=transport",
+     "drive +download --file-token → authorization/permission_denied『current identity does not have export permission for this Drive file』",
+     "drive +preview --list-only → ok 但 candidates 为空（Base 附件不是 Drive file token）"
+   ],
+   "identity": "全部以 bot 身份（app cli_aa2243de0438dcd7 / profile dsh-kb）尝试；用户身份此前为 no_token（app cli_aa2e11d952f85be9 / 刘华丽）",
+   "no_cache_reuse": "新 283 张图的 file_token 与旧 317 个附件交集 = 0 → 不能按 token 复用；按 sha256 复用需要先有字节，同样被 403 挡住"
+  },
+  "text_fields_note": {
+   "verdict": "若改口径为『文案取文本字段』则完全不需要图片；用户已裁定走 OCR，故本结论仅备案不采用。",
+   "evidence": "108/108 条非空：原文反馈 62,259 字、具体原因/分析 17,780 字；另 文字素材 4/108 条 308 字"
+  }
+ }
+},
+ "user_decision": {
+  "path": "A —— 登录用户身份（刘华丽）读 wiki 与下载附件",
+  "device_flow": "lark-cli auth login --no-wait --json --domain wiki,base,drive,docs,sheets；设备码已发给用户，10 分钟有效",
+  "after_login_todo": [
+   "验证 wiki 两节点可读（KISzwvc8OifWk8kI5cBcTtU6n9g / UOuMwKge6iX4HdkaOZBchV6ZnNf）",
+   "重试 1 张图片下载（recvw7XIUgdDyv / T60nb1hwzo6xg8xSq9yc4tbznrf），确认 403 是否随身份切换消失",
+   "修 kb/l8/ocr_attachments.py 的两处缺陷：① 下载计数/路径不匹配导致 OCR 批次未跑 ② 结尾 stats['segments_total'] KeyError",
+   "撤掉本批写出的 108 份 0 段 0 字图片资源文档，重跑 OCR 后按真实文本重写"
+  ]
+ },
+ "changed_files": [],
+ "note": "本文件只记录取证与裁定，不改任何数据层。规则④在 kb/l0/registry/kb.json 的 l8_rules_20260929 / R-L0-6 中已登记；其结案口径以本文件为准。"
+}

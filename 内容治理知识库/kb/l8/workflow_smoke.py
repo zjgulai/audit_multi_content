@@ -1,0 +1,861 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""workflow_smoke.py —— 链级冒烟：把「所有开发改动，都不能影响工作流」变成**可执行的尺子**。
+
+## 本脚本守的那条工作流
+
+    飞书侧 @守衡 → 提问 / 图片 / 视频 / 链接
+      → skills 自动化工作流：L4 → L5 → L6 → L7 每层 skills
+      → 评审层 skills（按让位表）
+      → 出报告 + 溯源（L0）
+      → 写入飞书
+
+## 为什么需要它（为什么"写进 AGENTS.md"不够）
+
+库里已有 **8 个层闸门**（`kb/l7/scripts/l{0..7}_gate.py`）盯**各层产物**，
+有**四道审计**（`skill_invocation_audit.py --run <BASE>-L{4,5,6,7}`）盯**每层 skill 有没有落章**——
+但**没有一条链级判据**：没有任何一条会在
+「L5 取号键从唯一键换成非唯一键」「旁挂少了一个字段」「报告不再带直链」时**变红**。
+
+散文没有失败信号；判据才有。`~/.dsh/AGENTS.md` 自己的漂移检查器
+（`kb/l8/check_agents_md_drift.py`）也只核**可机械验证的断言**，不核散文 ——
+所以"写进 AGENTS.md"是必要的第一步，**不是**能守住工作流的那一步。
+
+## 边界（★ 别把它当成端到端验收）
+
+本脚本是**契约级**冒烟：**只读** —— 不认领、不跑链、不发布、不写库，< 15 秒。
+它保证的是「**改动没把链上各段之间的契约改坏**」。
+真正的端到端（真跑一遍 L4→L7 + 评审 + 发飞书 + 非 dryrun 落章）是**另一件事**
+（工单 10/12 行 · 周一 #0），**本脚本不替代它**。
+
+## 用法
+
+    python3 kb/l8/workflow_smoke.py            # 人读；全绿退 0，任一红退 3
+    python3 kb/l8/workflow_smoke.py --json     # 机读
+    python3 kb/l8/workflow_smoke.py --selftest # 只跑反向对照（证明判据不是恒真）
+"""
+from __future__ import annotations
+
+import argparse
+import glob
+import json
+import os
+import re
+import subprocess
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(HERE))          # 库根
+KB = os.path.join(ROOT, "kb")
+SKILLS_HOME = os.path.expanduser("~/.dsh/skills")
+
+# 守衡读的那份旁挂 —— **它读不到 = 工作流在白干**
+SIDECAR = os.path.join(KB, ".work/last_review_result.json")
+
+# ★ 2026-10-16（S8 要用）：**执行手册**、**链接口**，以及**守衡侧那份命令模板**。
+#   为什么把守衡那个文件也纳进来：命令模板是「同一事实写两处」（手册 ／ 守衡注入的 task），
+#   而库内契约 #4 说得很直白 —— 同一事实写两处，第二处必然过期。
+#   处置办法不是"保证不写两处"（做不到），而是**用判据把两处钉在一起**（S7 已经开了这个先例）。
+#   跨仓件不在 ⇒ 报「未测」，**不判红**（换机器 / 没装守衡 ≠ 链坏了）。
+TOOLS_MJS = os.environ.get("KB_TOOLS_MJS") or os.path.expanduser(
+    "~/Project/audit_multi_content/tools/agent/tools.mjs")
+PLAYBOOK_MD = os.path.join(KB, "l8/review_playbook.md")
+REVIEW_RUN_SH = os.path.join(KB, "l8/review_run.sh")
+# ★ 2026-10-12：**守衡那把 PRD §5.3 合规尺子**的位置（S7 要用）。
+#   跨仓件 ⇒ 允许 env 覆盖；找不到就报「未测」而不是判红（换机器/没装 不等于 链坏了）。
+PRD53 = os.environ.get("KB_PRD53") or os.path.expanduser(
+    "~/Project/audit_multi_content/tools/agent/prd53.mjs")
+# kb 侧这把尺子（与守衡 `conforms()` 是**两条实现**，由 S7 的「口径一致」那一半钉住它们不许漂）。
+# ★★ 锚定口径必须**逐字照抄守衡**，包括那条**故意的松**：
+#   · PASS      —— `comforms()` **不锚尾**（守衡注释原文：写成 `@\S+ 进行 sign-off` 会把
+#                  「角色名（未配置）」这种**正确**输出当场误报 ⇒ 会误报的判据比没有更糟）；
+#   · REVIEW/BLOCK —— **锚尾**（`$`）：这一行尾巴上挂任何东西，卡面标题就不再是 PRD 那句。
+#   ⇒ 两边**同宽**才谈得上「一致」；一边收紧或放松，S7 的一致性那一半就会红。
+_PRd_PASS_RE = re.compile(r"^【审查结论：PASS】未发现已知底线风险，可转交 @\S[^\n]*进行 sign-off")
+_PRd_REVIEW_RE = re.compile(r"^【审查结论：REVIEW】共发现 \d+ 处需人工确认。$")
+_PRd_BLOCK_RE = re.compile(r"^【审查结论：BLOCK】共发现 \d+ 处必须修改。$")
+
+
+def kb_prd_conforms(line):
+    """kb 侧对 PRD §5.3 三句的合规判定（返回 bool）。三态各有各的判据，别混成一条。"""
+    t = str(line or "").strip()
+    if t.startswith("【审查结论：PASS】"):
+        return bool(_PRd_PASS_RE.match(t))
+    if t.startswith("【审查结论：REVIEW】"):
+        return bool(_PRd_REVIEW_RE.match(t))
+    if t.startswith("【审查结论：BLOCK】"):
+        return bool(_PRd_BLOCK_RE.match(t))
+    return False
+
+
+# 兼容旧名（S7 早期版本用过 PRD_LINE_RE；留一个别名免得别处引用断掉）
+PRD_LINE_RE = _PRd_REVIEW_RE
+# 守衡**必须**能读到的字段（缺一个它就当没读数）
+SIDECAR_REQUIRED = ("at", "text_sha8", "state", "source")
+SIDECAR_REQUIRED_NORMAL = ("issue_count", "kb_hits", "facets", "decision_owner", "publish")
+# ★ 2026-10-12（与引擎 `issue_count` 拆分同批）：拆解字段 `candidate_count` /
+#   `candidate_count` 也进旁挂契约 —— 但**带生效时刻**，理由两条：
+#     ① 判据价值：`issue_count` 是「问题数」的唯一出口，它混着「库内依据」与**非权威候选**；
+#        这两个数一旦从旁挂里消失，守衡侧又只剩一个偏大的总数，**不会有任何东西红**；
+#     ② 为什么不能无条件要求（**第一版就是这么写的，当场 S1 红**）：盘上那份旁挂是**改动前**
+#        写的 ⇒ 追溯判红；而本件被 `batch_scan.py` / `bitable_stats.py` 调用，红了**挡日更写库**
+#        —— 那就是「改动影响了工作流」，正是本件要防的事。
+#   ⇒ 只对**写于本改动之后**的旁挂要求（比 `at` 前缀，够用）；下一次真评审写新旁挂时自动生效，
+#     窗口自己关闭，不需要谁记得回来删这段。拒答支路照旧不要求（它本来就没有结论，不该逼它编）。
+# ★ 2026-10-12 稍后（Owner 裁定 `issue_count` 只算库内依据）：再加**旧口径出口**
+#   `issue_count_including_candidates` —— 语义变更必须留一个能读回旧数的口，
+#   否则守衡那张卡（`kbGap = kbN − txtN`）会**静默地少算**。
+# ★ 2026-10-12 稍后：`authoritative_issue_count`（恒等别名）**已撤**，不在契约里 ——
+#   撤的是重复的名字；**旧口径出口 `issue_count_including_candidates` 必须在**。
+_SPLIT_FIELDS = ("candidate_count", "issue_count_including_candidates")
+_SPLIT_SINCE = "2026-10-12T13:1"
+CHAIN_SKILLS = ("L4", "L5", "L6", "L7")
+CLAUSE_RE = re.compile(r"[EWSU]-\d+\.\d+")
+
+
+def _run(cmd, timeout=180):
+    """跑一条命令，返回 (rc, out)。**失败不抛** —— 冒烟要报红，不是崩掉。"""
+    try:
+        p = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=timeout)
+        return p.returncode, (p.stdout or "") + (p.stderr or "")
+    except Exception as e:                              # noqa: BLE001
+        return 99, "执行失败：%r" % e
+
+
+def _selftest_verdict(cmd):
+    """跑一个自测，读它的结论行。
+
+    ★ 为什么要读结论行而不只看退出码：退出码只告诉你"有没有红"，
+      结论行还告诉你"一共判了几条" —— 判据**被删空**时退出码照样是 0。
+    ★ 库里有**两种**自测口径，两种都要认（第一版只认了一种 ⇒ 把好好的 matcher 判成红）：
+        · `自证：通过 N / 失败 M`（p0_fastpath.py）
+        · `自测结论：✅ …`          （matcher.py）
+    """
+    rc, out = _run(cmd)
+    m = re.search(r"自证：通过 (\d+) / 失败 (\d+)", out)
+    if m:
+        p, f = int(m.group(1)), int(m.group(2))
+        return (rc == 0 and f == 0 and p > 0), {"rc": rc, "passed": p, "failed": f}
+    m2 = re.search(r"自测结论：\s*(✅|❌)", out)
+    if m2:
+        tail = [x for x in out.strip().splitlines() if x.strip()]
+        return (rc == 0 and m2.group(1) == "✅"), {"rc": rc, "verdict": tail[-1][:60] if tail else ""}
+    return False, {"rc": rc, "why": "既没有「自证：通过 N / 失败 M」也没有「自测结论：」——两种口径都不认"}
+
+
+def _layers():
+    """读 `layers.yaml` 的 L4–L7 各层 `skill:`（**唯一真源**，不在这里抄第二份）。"""
+    import yaml
+    with open(os.path.join(KB, "l7/registry/layers.yaml"), encoding="utf-8") as fh:
+        doc = yaml.safe_load(fh)
+    out = {}
+    for lay in doc.get("layers") or []:
+        name = str(lay.get("layer") or "")
+        if name in CHAIN_SKILLS:
+            out[name] = list(lay.get("skill") or [])
+    return out
+
+
+def _newest_full_base():
+    """找**最近的、四层齐**的 BASE（链跑过的证据）。找不到返回 (None, {}, 缺什么)。"""
+    last_missing = ["kb/l7/runs/ 下没有任何 *-L7.json"]
+    for p in sorted(glob.glob(os.path.join(KB, "l7/runs/*-L7.json")),
+                    key=os.path.getmtime, reverse=True):
+        base = os.path.basename(p)[:-len("-L7.json")]
+        files = {L: os.path.join(KB, "%s/runs/%s-%s.json" % (L.lower(), base, L))
+                 for L in ("L4", "L5", "L6")}
+        files["L7"] = p
+        missing = [L for L, f in files.items() if not os.path.exists(f)]
+        if not missing:
+            return base, files, []
+        last_missing = ["最近一个 BASE %s 缺 %s" % (base, missing)]
+    return None, {}, last_missing
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 五段契约 —— 每一段都是链上**两段之间**的约定，不是某一层的产物
+# ══════════════════════════════════════════════════════════════════════
+
+def s1_entry(sidecar=None):
+    """① 入口段：飞书侧那一端读得到、且字段齐（守衡读不到 = 这一单白干）。
+
+    `sidecar` 只在**反向对照**里传（R6 喂样本用）；默认就是盘上那份，行为一个字不变。
+    """
+    sp = sidecar or SIDECAR
+    d = {}
+    d["review_run.sh 在"] = os.path.exists(os.path.join(KB, "l8/review_run.sh"))
+    ok = os.path.exists(sp)
+    d["旁挂在"] = ok
+    if not ok:
+        return False, d, "旁挂不存在：%s" % os.path.relpath(sp, ROOT)
+    try:
+        j = json.load(open(sp, encoding="utf-8"))
+    except Exception as e:                              # noqa: BLE001
+        return False, d, "旁挂读不动：%r" % e
+    miss = [k for k in SIDECAR_REQUIRED if k not in j]
+    d["必需字段"] = "齐" if not miss else "缺 %s" % miss
+    # 拒答支路的形状与正常支路不同（它本来就没有 kb_hits）—— 分开判，不许混成一句
+    if str(j.get("state")) != "NEEDS_INPUT":
+        _req = list(SIDECAR_REQUIRED_NORMAL)
+        _at = str(j.get("at") or "")
+        if _at >= _SPLIT_SINCE:
+            _req += list(_SPLIT_FIELDS)
+            d["拆分字段"] = "适用（旁挂写于 %s ⇒ 必须齐）" % _at
+        else:
+            d["拆分字段"] = ("不追溯（旁挂写于 %s，早于本改动；下次评审写新旁挂即自动生效）"
+                             % _at)
+        miss2 = [k for k in _req if k not in j]
+        d["正常支路字段"] = "齐" if not miss2 else "缺 %s" % miss2
+        miss = miss + miss2
+    d["at"] = j.get("at")
+    d["state"] = j.get("state")
+    return (not miss), d, ("" if not miss else "旁挂缺字段：%s（守衡读不到这一单）" % miss)
+
+
+def s2_chain():
+    """② 层链段：`layers.yaml` 声明的层 skill **真的装得到**（声明了但没装 = 链断在这）。"""
+    d = {}
+    try:
+        lay = _layers()
+    except Exception as e:                              # noqa: BLE001
+        return False, d, "layers.yaml 读不动：%r" % e
+    bad = []
+    for L in CHAIN_SKILLS:
+        names = lay.get(L) or []
+        d[L] = names
+        if not names:
+            bad.append("%s 没声明 skill" % L)
+            continue
+        for n in names:
+            if not os.path.exists(os.path.join(SKILLS_HOME, n, "SKILL.md")):
+                bad.append("%s 声明的 %s 未安装" % (L, n))
+    for extra in ("kb/l8/review_preflight.sh", "kb/l7/scripts/skill_invocation_audit.py",
+                  "kb/l7/review-engine/core/with_kb_evidence.py"):
+        if not os.path.exists(os.path.join(ROOT, extra)):
+            bad.append("缺 %s" % extra)
+    d["缺项"] = bad
+    return (not bad), d, ("；".join(bad) if bad else "")
+
+
+def s3_fastpath():
+    """③ 红线快路段：P0 命中即拦那条路（守衡的 ≤1s 分支）。"""
+    d = {}
+    ok1, i1 = _selftest_verdict([sys.executable, "kb/l5/p0_fastpath.py", "--selftest"])
+    d["p0_fastpath 自证"] = i1
+    ok2, i2 = _selftest_verdict([sys.executable, "kb/l5/matcher.py", "--selftest"])
+    d["matcher 自证"] = i2
+    # 模式表顶层条款号（目标 18 法务逐条签要用它）
+    pats = []
+    try:
+        with open(os.path.join(KB, "l5/p0_patterns.jsonl"), encoding="utf-8") as fh:
+            pats = [json.loads(x) for x in fh if x.strip()]
+    except Exception as e:                              # noqa: BLE001
+        return False, d, "模式表读不动：%r" % e
+    withno = sum(1 for p in pats if str(p.get("article_no") or "").strip())
+    d["模式表"] = "%d 条 / 带条款号 %d" % (len(pats), withno)
+    ok3 = len(pats) > 0 and withno == len(pats)
+    bad = []
+    if not ok1:
+        bad.append("p0_fastpath 自证红")
+    if not ok2:
+        bad.append("matcher 自证红")
+    if not ok3:
+        bad.append("模式表条款号 %d/%d" % (withno, len(pats)))
+    return (not bad), d, "；".join(bad)
+
+
+def s4_report():
+    """④ 报告溯源段：结论出来以后，报告里**条款号 / 指纹 / 直链**三样都在。"""
+    d = {}
+    reps = sorted(glob.glob(os.path.join(KB, "l7/reports/*.review.md")),
+                  key=os.path.getmtime, reverse=True)[:10]
+    d["取样"] = len(reps)
+    if not reps:
+        return False, d, "kb/l7/reports/ 下没有 *.review.md（报告段整个不在？）"
+    no_clause, no_sha, no_link = [], [], []
+    for p in reps:
+        t = open(p, encoding="utf-8", errors="replace").read()
+        n = os.path.basename(p)
+        if not CLAUSE_RE.search(t):
+            no_clause.append(n)
+        if "source_sha256" not in t:
+            no_sha.append(n)
+        if "http" not in t:
+            no_link.append(n)
+    d["缺条款号"] = len(no_clause)
+    d["缺 source_sha256"] = len(no_sha)
+    d["缺直链"] = len(no_link)
+    bad = []
+    if no_clause:
+        bad.append("缺条款号 %d 份" % len(no_clause))
+    if no_sha:
+        bad.append("缺 source_sha256 %d 份" % len(no_sha))
+    if no_link:
+        bad.append("缺飞书直链 %d 份" % len(no_link))
+    return (not bad), d, "；".join(bad)
+
+
+def s5_stamp():
+    """⑤ 落章段：最近一个四层齐的 BASE，**每层都带 skill 记录**。
+
+    判红 / 报黄分开（照 `l5_gate.py` 的惯例）：
+      · **红**：某层落章文件缺失，或该层**一条 skill 记录都没有**（= 那层没被 skill 执行过）
+      · **黄**：四层齐、skill 都在，但某层是**预演**（`dry_run=True`）或
+              `skill_evidence=agent_reported`（自述档）—— 不判红，但必须看得见。
+    """
+    d = {}
+    base, files, missing = _newest_full_base()
+    d["最近四层齐的 BASE"] = base
+    if not base:
+        # ★ 不假绿：没有样本就说没有样本
+        return False, d, "找不到四层齐的 BASE（%s）" % missing
+    bad, warn = [], []
+    for L, f in files.items():
+        try:
+            j = json.load(open(f, encoding="utf-8"))
+        except Exception as e:                          # noqa: BLE001
+            bad.append("%s 读不动：%r" % (L, e))
+            continue
+        # ★ 键不止一种：L4–L6 用 `skill`（单数），L7 用 `skills`（复数）
+        sk = j.get("skill") or j.get("skills") or (j.get("extra") or {}).get("skill")
+        ev = (j.get("extra") or {}).get("skill_evidence")
+        d[L] = {"skill": sk, "dry_run": j.get("dry_run"), "evidence": ev}
+        if not sk:
+            bad.append("%s 落章里没有任何 skill 记录" % L)
+            continue
+        if j.get("dry_run") is True:
+            warn.append("%s 是预演（dry_run=true）" % L)
+        if ev == "agent_reported":
+            warn.append("%s 的 skill 证据是自述档（agent_reported）" % L)
+    d["黄（只报不判红）"] = warn
+    return (not bad), d, "；".join(bad)
+
+
+def _kb_summary_with_candidates():
+    """拿**引擎真输出**（不是夹具）：一单里既有库内依据、也有非权威候选。"""
+    core = os.path.join(KB, "l7/review-engine/core")
+    if core not in sys.path:
+        sys.path.insert(0, core)
+    import review_engine as RE                                  # noqa: PLC0415
+    items = [{"action": "modify", "risk_type": "功效宣称", "priority_tier": "P1", "evidence": {}},
+             {"action": "modify", "risk_type": "功效宣称", "priority_tier": "P1", "evidence": {}},
+             {"action": "modify", "risk_type": "Health or safety outcome claim",
+              "priority_tier": "P0", "authoritative": False,
+              "superseded_by": "kb/l3/candidates/rules.jsonl", "evidence": {}}]
+    return RE._result({"review_id": "SMOKE-S7", "content_id": "SMOKE-S7"},
+                      "REVIEW", items, 0.8, ["smoke"])["summary"]
+
+
+def _kb_pass_summary():
+    """拿**引擎真输出**的 PASS 摘要（PRD §5.3.1 那句；负责人未配置时是「角色名（未配置）」）。"""
+    core = os.path.join(KB, "l7/review-engine/core")
+    if core not in sys.path:
+        sys.path.insert(0, core)
+    import review_engine as RE                                  # noqa: PLC0415
+    return RE._result({"review_id": "SMOKE-S7-PASS", "content_id": "SMOKE-S7-PASS"},
+                      "PASS", [], 0.9, ["smoke"])["summary"]
+
+
+def _shouheng_conforms(lines):
+    """把若干行交给**守衡自己的** `conforms()` 判，返回等长的布尔表。
+
+    跨仓调用走 `node --input-type=module -e`（只读、不碰守衡运行态）。
+    跨仓件不在 / node 不可用 ⇒ 抛异常，由 S7 转成「未测」。
+    """
+    import json as _json
+    script = ("import { conforms } from %s;"
+              "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{"
+              "const ls=JSON.parse(s);"
+              "console.log(JSON.stringify(ls.map(l=>conforms(l).ok)));});"
+              % _json.dumps(PRD53))
+    pr = subprocess.run(["node", "--input-type=module", "-e", script],
+                        input=_json.dumps(lines), capture_output=True, text=True, timeout=60)
+    if pr.returncode != 0:
+        raise RuntimeError("node 调 conforms 失败：%s" % (pr.stderr or "")[-160:])
+    return _json.loads(pr.stdout.strip())
+
+
+def s7_prd_line():
+    """⑦ 跨仓契约：PRD §5.3 结论行 —— **拿真输出过对方那把尺子**，且两把尺子判定一致。
+
+    为什么单列一段（而不是并进 S4）：S4 管的是「报告有没有溯源四段」，
+    这一段管的是**两个仓之间对同一句话的口径** —— 上一批的缺陷正好落在缝里：
+    kb 只断言子串、守衡只喂夹具，**真输出的结论行从没被对方那把尺子量过**。
+    """
+    d = {}
+    d["守衡尺子"] = PRD53
+    if not os.path.exists(PRD53):
+        # ★ 缺件 ⇒ 未测（不计红）：换机器、没装守衡都不该把链判坏
+        return True, d, "未测：跨仓件不在（%s）—— 不计红，但**记在读数里**" % PRD53
+    try:
+        summary = _kb_summary_with_candidates()
+    except Exception as e:                                      # noqa: BLE001
+        return False, d, "拿不到引擎真输出：%r" % e
+    first = str(summary).split("\n")[0]
+    try:
+        pass_line = str(_kb_pass_summary()).split("\n")[0]       # PRD §5.3.1 的**真输出**
+    except Exception as e:                                      # noqa: BLE001
+        return False, d, "拿不到引擎 PASS 真输出：%r" % e
+    d["真输出的结论行（REVIEW）"] = first
+    d["真输出的结论行（PASS）"] = pass_line
+    # ── 样本：三态全覆盖（真输出 × 2 ＋ 手写合规 × 2 ＋ **违规** × 3）──────────
+    #   违规样本必须**两把尺子都判不合规**；真输出必须**两把尺子都判合规**。
+    samples = [first,                                            # 0 真输出 REVIEW（带候选）
+               pass_line,                                        # 1 真输出 PASS
+               "【审查结论：REVIEW】共发现 1 处需人工确认。",        # 2 合规 REVIEW
+               "【审查结论：BLOCK】共发现 6 处必须修改。",           # 3 合规 BLOCK
+               # ↓ 上一批那个写法（候选粘在结论行尾巴上）—— 必须判**不合规**
+               "【审查结论：REVIEW】共发现 2 处需人工确认。（另有 1 处非权威候选线索，见完整清单）",
+               # ↓ PASS 缺了 PRD 要求的措辞 —— 必须判**不合规**
+               "【审查结论：PASS】未发现问题。",
+               # ↓ BLOCK 少了句号 / 换了措辞 —— 必须判**不合规**
+               "【审查结论：BLOCK】共发现 2 处需修改"]
+    must_be_ok = [0, 1, 2, 3]
+    must_be_bad = [4, 5, 6]
+    try:
+        ok_sh = _shouheng_conforms(samples)
+    except Exception as e:                                      # noqa: BLE001
+        return True, d, "未测：拿不到守衡那把尺子（%r）—— 不计红" % e
+    ok_kb = [bool(kb_prd_conforms(x)) for x in samples]
+    d["两把尺子判定"] = {"守衡 conforms": ok_sh, "kb 正则": ok_kb}
+    d["真输出合规"] = {"REVIEW": ok_sh[0], "PASS": ok_sh[1]}
+    bad = []
+    for i in must_be_ok:                                        # ① 真输出/合规样本必须过
+        if not ok_sh[i]:
+            bad.append("样本 %d 过不了守衡 conforms：%r" % (i, samples[i][:70]))
+    if ok_sh != ok_kb:                                          # ② 口径必须一致（三态都算）
+        bad.append("两把尺子判定不一致（守衡 %s ／ kb %s）——口径漂了" % (ok_sh, ok_kb))
+    for i in must_be_bad:                                       # ③ 违规样本不许被判合规
+        if ok_sh[i] or ok_kb[i]:
+            bad.append("反向对照失效：样本 %d 竟被判合规：%r" % (i, samples[i][:70]))
+    return (not bad), d, "；".join(bad)
+
+
+# ══════════════════════════════════════════════════════════════════════
+# S8 · 执行手册契约 —— **命令模板真的能照抄**
+# ══════════════════════════════════════════════════════════════════════
+# 为什么单列一段（2026-10-16 实测的浪费）：
+#   手册里**本来就有**一条命令模板和「不要全库 grep」，可 headless agent 当天仍然
+#   去全仓翻了 **107.6 秒** —— 而真正的链只占 101.9 秒（**找路比走路还贵**）。
+#   根因不是"没写"，是模板留了三处**要自己去查**的空：
+#     ① `--base "$BASE"` 的 `$BASE` **从没定义过**（它得自己发明 `date +%Y%m%d-%H%M`）；
+#     ② `--coverage …:macos-vision:<版本>:<sha256>:ok` 没说从哪来（⇒ 去 grep `macos-vision`，**47.6 s**）；
+#     ③ 手册给 `--text`、守衡给 `--material-file` —— **两份文档互相矛盾**（⇒ 去 grep `review_run.sh`，**40.6 s**）。
+#   ⇒ 判据钉的就是这三件事：**旗标真的存在**、**取值不用查**、**两处不许漂**。
+#   它**不判**"模板写得好不好"（那是散文），只判上面三条可机械验证的。
+_FLAG_RE = re.compile(r"(?<![\w-])--[a-z][a-z0-9-]*")
+_FENCE_RE = re.compile(r"```bash\n(.*?)```", re.S)
+
+
+def _fenced_bash(text):
+    """取 markdown 里所有 ```bash 围栏块 —— 旗标只在块里算，散文里提到的不算。"""
+    return "\n".join(_FENCE_RE.findall(text or ""))
+
+
+def _parser_flags(src):
+    """从 `review_run.sh` 的 `case` 解析器里取它**真的认得**的旗标集合（不看注释、不看 usage）。"""
+    m = re.search(r"while \[ \$# -gt 0 \]; do(.*?)\n\s*esac", src or "", re.S)
+    body = m.group(1) if m else (src or "")
+    out = set()
+    for lab in re.findall(r"^\s+([-a-zA-Z|]+)\)", body, re.M):
+        out.update(t for t in lab.split("|") if t.startswith("--"))
+    return out
+
+
+def _shouheng_cmd_template():
+    """跑守衡那把 `reviewCmdTemplate()`（只读、不碰守衡运行态），拿**真渲染**出来的模板。
+
+    为什么不静态解析 `tools.mjs` 源码：**渲染结果才是 agent 真看到的东西** ——
+    素材路径是内联进去的，静态解析看不出内联到底有没有生效。
+    """
+    script = ("import { reviewCmdTemplate } from %s;"
+              "process.stdout.write(reviewCmdTemplate('/tmp/S8-PROBE-MATERIAL.txt'));"
+              % json.dumps(TOOLS_MJS))
+    pr = subprocess.run(["node", "--input-type=module", "-e", script],
+                        capture_output=True, text=True, timeout=60)
+    if pr.returncode != 0:
+        raise RuntimeError("node 调 reviewCmdTemplate 失败：%s" % (pr.stderr or "")[-160:])
+    return pr.stdout
+
+
+def _bash_syntax_ok(cmd_text):
+    """把 `<…>` 占位符替成一个普通词、去掉注释行，再 `bash -n`。
+
+    ★ 它抓的是**照抄时会炸**的东西：悬空续行（最后一行带 `\\`）、引号不平衡、缺 `\\`。
+      「模板看着像命令」与「模板真能跑」是两件事 —— 这一条量后者。
+    """
+    body = re.sub(r"<[^<>\n]*>", "X", cmd_text or "")
+    body = "\n".join(l for l in body.splitlines() if not l.strip().startswith("#"))
+    p = subprocess.run(["bash", "-n"], input=body, capture_output=True, text=True, timeout=30)
+    return p.returncode == 0, (p.stderr or "").strip()[:140]
+
+
+def _s8_judge(pb_text, tpl_text, parser_src, tpl_present=True):
+    """纯函数：三段文本进、结论出（**反向对照直接喂变异样本，不碰盘**）。"""
+    d, bad = {}, []
+    parser = _parser_flags(parser_src)
+    d["review_run.sh 认得的旗标"] = " ".join(sorted(parser)) or "（一个都没解析出来）"
+    if not parser:
+        bad.append("从 review_run.sh 的 case 里一个旗标都没解析出来 —— 判据的前提不成立")
+    # ① 手册模板：旗标要真存在，主路要是 `--material-file`
+    pb_flags = set(_FLAG_RE.findall(_fenced_bash(pb_text)))
+    d["手册模板旗标"] = " ".join(sorted(pb_flags)) or "（没找到 ```bash 块）"
+    if not pb_flags:
+        bad.append("手册里没有 ```bash 模板块 —— agent 又得自己发明命令")
+    unk = sorted(pb_flags - parser)
+    if unk:
+        bad.append("手册模板用了 review_run.sh **不认**的旗标 %s（照抄 ⇒ exit 2）" % unk)
+    if pb_flags and "--material-file" not in pb_flags:
+        bad.append("手册模板没给 `--material-file` —— 与守衡侧的身份凭据对不上（2026-10-09 串单的病根）")
+    # ② 守衡侧真模板
+    if not tpl_present:
+        d["守衡侧模板"] = "未测：跨仓件不在（**不计红**，但记在读数里）"
+        return (not bad), d, ("；".join(bad) if bad else "未测：跨仓件不在 —— 手册那几条已判，其余不判")
+    tpl = tpl_text or ""
+    tpl_flags = set(_FLAG_RE.findall(_fenced_bash(tpl)))
+    d["守衡侧模板长度"] = "%d 字" % len(tpl)
+    d["守衡模板旗标"] = " ".join(sorted(tpl_flags)) or "（没找到 ```bash 块）"
+    unk2 = sorted(tpl_flags - parser)
+    if unk2:
+        bad.append("守衡模板用了 review_run.sh **不认**的旗标 %s" % unk2)
+    if "禁止探索" not in tpl:
+        bad.append("守衡模板里没有「禁止探索」那一段 —— 这条修复被删掉不会有人知道")
+    if "S8-PROBE-MATERIAL.txt" not in tpl:
+        bad.append("守衡模板**没有内联素材路径**（渲染时传进去的路径没出现在命令里）")
+    if pb_flags and tpl_flags and pb_flags != tpl_flags:
+        bad.append("两处模板旗标集合不一致（手册独有 %s ／ 守衡独有 %s）—— 同一事实漂了"
+                   % (sorted(pb_flags - tpl_flags), sorted(tpl_flags - pb_flags)))
+    # ③ 照抄能跑：取消注释 + 替占位符之后必须过 `bash -n`
+    ok_syn, err = _bash_syntax_ok(_fenced_bash(tpl) or _fenced_bash(pb_text))
+    d["照抄后 bash -n"] = "过" if ok_syn else ("不过：%s" % err)
+    if not ok_syn:
+        bad.append("模板照抄跑不起来（bash -n 不过）：%s" % err)
+    return (not bad), d, "；".join(bad)
+
+
+def s8_playbook():
+    """⑧ 执行手册契约：模板**真的能照抄**、旗标真的存在、两处不许漂。"""
+    try:
+        pb = open(PLAYBOOK_MD, encoding="utf-8").read()
+    except Exception as e:                                      # noqa: BLE001
+        return False, {}, "读不到执行手册 %s：%r" % (PLAYBOOK_MD, e)
+    try:
+        pr = open(REVIEW_RUN_SH, encoding="utf-8").read()
+    except Exception as e:                                      # noqa: BLE001
+        return False, {}, "读不到链接口 %s：%r" % (REVIEW_RUN_SH, e)
+    if not os.path.exists(TOOLS_MJS):
+        return _s8_judge(pb, "", pr, tpl_present=False)
+    try:
+        tpl = _shouheng_cmd_template()
+    except Exception as e:                                      # noqa: BLE001
+        return _s8_judge(pb, "", pr, tpl_present=False) if "node" in repr(e) else (False, {}, repr(e))
+    return _s8_judge(pb, tpl, pr, tpl_present=True)
+
+
+CHECKS = [
+    ("S1 入口契约（飞书侧读得到）", s1_entry),
+    ("S2 层链契约（声明的 skill 装得到）", s2_chain),
+    ("S3 红线快路契约（P0 ≤1s 那条）", s3_fastpath),
+    ("S4 报告溯源契约（条款号/指纹/直链）", s4_report),
+    ("S5 落章契约（四层齐 + 带 skill）", s5_stamp),
+    ("S7 PRD §5.3 结论行跨仓契约（真输出过对方的尺子）", s7_prd_line),
+    ("S8 执行手册契约（模板能照抄 / flag 真存在 / 两处不漂）", s8_playbook),
+]
+
+
+# ══════════════════════════════════════════════════════════════════════
+# S6 · 回归基线**读数**（★ 不是契约：它**永不**计入 fails）
+# ══════════════════════════════════════════════════════════════════════
+# 为什么单列一档而不是塞进 CHECKS：
+#   · CHECKS 红了会拦住写库（`batch_scan.py` / `bitable_stats.py` 都调本件），
+#     而回归产物是**周期性跑批**的结果，可能几天没跑 —— 那叫「未测」，不叫「链坏了」；
+#   · 于是 **红**留给独立闸门 `kb/l8/regression_gate.py`（单独跑、退出码 3），
+#     本件只把读数**打出来**，让每次冒烟都看得见（否则新判据就只是注释）。
+# 它答的问题：**同一批素材、改了上游、三态变没变**（`kb/l7/registry/regression-baseline.json`）。
+
+def s6_regression_readout():
+    """返回 (True, detail, "") —— **恒 True**：读数不参与红绿判定（有意为之）。"""
+    try:
+        if os.path.dirname(os.path.abspath(__file__)) not in sys.path:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import regression_gate as rg
+        bp = str(rg.BASELINE)
+        baseline = json.loads(open(bp, encoding="utf-8").read()) if os.path.exists(bp) else None
+        apath = rg.newest_artifact()
+        rows = []
+        if apath and os.path.exists(str(apath)):
+            rows = [json.loads(x) for x in open(str(apath), encoding="utf-8") if x.strip()]
+        j = rg.judge(baseline, rows, rg._known_drift())
+        return True, {
+            "判定": j["verdict"],
+            "基线": "%s（solid %s 条）" % (os.path.basename(bp) if baseline else "未建立",
+                                          j["n_baseline"]),
+            "产物": "%s（%d 行，读法=%s）" % (os.path.basename(str(apath)) if apath else "无",
+                                             j["n_rows"], j["reading"]),
+            "说明": "；".join(j["reasons"]),
+            "硬判据在": "kb/l8/regression_gate.py（红 → 退出码 3）",
+        }, ""
+    except Exception as e:                              # noqa: BLE001
+        return True, {"判定": "unavailable", "说明": "读数拿不到：%r" % e}, ""
+
+
+READOUTS = [
+    ("S6 回归基线读数（非契约·只报不判红）", s6_regression_readout),
+]
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 反向对照：证明上面五条**不是恒真**
+# ══════════════════════════════════════════════════════════════════════
+
+def reverse_controls():
+    """把每条判据喂一个"坏样本"，它**必须**红。红了才说明这条判据在判。
+
+    ★ 为什么非做不可：本库栽过「判据成了注释」——判据恒绿、看着像守着，
+      实际什么都没守。反向对照是唯一能证伪它的东西。
+    """
+    P, F = [], []
+
+    def chk(name, cond, extra=""):
+        (P if cond else F).append(name)
+        print("  %s %s%s" % ("✅" if cond else "❌", name, ("  " + extra) if extra else ""))
+
+    # ① 源文件里**真的**没有「一律不写 ❌ 字样」这种恒真写法：判据返回 False 的路径存在
+    src = open(os.path.abspath(__file__), encoding="utf-8").read()
+    chk("R1 五条判据都有 return False 的路径（不是恒绿）", src.count("return (not bad)") >= 3)
+
+    # ② S4：把条款号从一份真报告里抠掉 ⇒ 该份**必须**被判缺
+    reps = sorted(glob.glob(os.path.join(KB, "l7/reports/*.review.md")),
+                  key=os.path.getmtime, reverse=True)[:10]
+    if reps:
+        t = open(reps[0], encoding="utf-8", errors="replace").read()
+        stripped = CLAUSE_RE.sub("（已剔除）", t)
+        chk("R2 S4 反向对照：抠掉条款号后判据必须红",
+            bool(CLAUSE_RE.search(t)) and not CLAUSE_RE.search(stripped),
+            "原份命中 %d 处" % len(CLAUSE_RE.findall(t)))
+    else:
+        chk("R2 S4 反向对照：抠掉条款号后判据必须红", False, "没有报告样本")
+
+    # ③ S3：把 article_no 从模式表读进来再删掉 ⇒ 覆盖数必须掉到 0
+    try:
+        with open(os.path.join(KB, "l5/p0_patterns.jsonl"), encoding="utf-8") as fh:
+            pats = [json.loads(x) for x in fh if x.strip()]
+        real = sum(1 for p in pats if str(p.get("article_no") or "").strip())
+        fake = sum(1 for p in ({k: v for k, v in p.items() if k != "article_no"} for p in pats)
+                   if str(p.get("article_no") or "").strip())
+        chk("R3 S3 反向对照：抹掉 article_no 后覆盖数归零",
+            len(pats) > 0 and real == len(pats) and fake == 0, "真 %d / 抹后 %d" % (real, fake))
+    except Exception as e:                              # noqa: BLE001
+        chk("R3 S3 反向对照：抹掉 article_no 后覆盖数归零", False, repr(e))
+
+    # ④ S2：篡改一个层 skill 名 ⇒ 必须被判「未安装」
+    try:
+        lay = _layers()
+        name = (lay.get("L5") or ["__none__"])[0]
+        chk("R4 S2 反向对照：篡改 skill 名后必须判未安装",
+            os.path.exists(os.path.join(SKILLS_HOME, name, "SKILL.md"))
+            and not os.path.exists(os.path.join(SKILLS_HOME, name + "__nope", "SKILL.md")),
+            "真名 %s" % name)
+    except Exception as e:                              # noqa: BLE001
+        chk("R4 S2 反向对照：篡改 skill 名后必须判未安装", False, repr(e))
+
+    # ⑤ S6（读数档）：喂一份**篡改过的**产物给回归闸门 ⇒ 它内部必须判红。
+    #    ★ 这一条钉的是「S6 背后的判据不是恒绿」；而 S6 本身**不计入 fails**
+    #      （读数档的设计如此：红的权力在独立闸门 `regression_gate.py`）。
+    try:
+        if HERE not in sys.path:
+            sys.path.insert(0, HERE)
+        import regression_gate as rg
+        base = {"cases": {"x": {"state": "BLOCK"}, "y": {"state": "PASS"}}}
+        good = [{"case_id": "x", "layer": "solid", "got": "BLOCK", "got_source": "decision.decision"},
+                {"case_id": "y", "layer": "solid", "got": "PASS", "got_source": "decision.decision"}]
+        bad = [dict(good[0]), dict(good[1], got="BLOCK")]
+        chk("R5 S6 反向对照：篡改一条三态 ⇒ 闸门内部必须判红（且 S6 仍不计入红绿）",
+            rg.judge(base, good)["verdict"] == "green" and rg.judge(base, bad)["verdict"] == "red",
+            "%s / %s" % (rg.judge(base, good)["verdict"], rg.judge(base, bad)["verdict"]))
+    except Exception as e:                              # noqa: BLE001
+        chk("R5 S6 反向对照：篡改一条三态 ⇒ 闸门内部必须判红（且 S6 仍不计入红绿）", False, repr(e))
+
+    # R6 反向对照（2026-10-12 加，与引擎 issue_count 拆分同批）：S1 的**拆解字段**判据
+    #    带生效时刻（`_SPLIT_SINCE`）⇒ 必须两个方向都喂：
+    #      · 生效时刻**之后**写的旁挂、缺字段 ⇒ **必须红**（否则契约没牙）；
+    #      · 生效时刻**之前**写的旁挂、缺字段 ⇒ **不许红**（否则追溯判红会挡日更写库）。
+    #    只喂一个方向 = 这条判据只证了一半。
+    try:
+        import json as _json
+        import tempfile as _tf
+        _common = {"text_sha8": "x", "state": "REVIEW", "source": "selftest",
+                   "issue_count": 3, "kb_hits": [], "facets": {},
+                   "decision_owner": {}, "publish": {},
+                   "candidate_count": 1, "issue_count_including_candidates": 3}
+        _no_split = {k: v for k, v in _common.items()
+                     if k not in ("candidate_count",
+                                  "issue_count_including_candidates")}
+
+        def _write(obj):
+            fh = _tf.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
+            _json.dump(obj, fh, ensure_ascii=False)
+            fh.close()
+            return fh.name
+
+        _p_new = _write(dict(_common, at="2026-10-12T14:00:00"))
+        _p_new_miss = _write(dict(_no_split, at="2026-10-12T14:00:00"))
+        _p_old_miss = _write(dict(_no_split, at="2026-10-12T09:00:00"))
+        chk("R6a 生效时刻之后的旁挂字段齐 ⇒ S1 放行", s1_entry(_p_new)[0])
+        chk("R6b 生效时刻之后**缺拆解字段** ⇒ S1 必须红（契约有牙）",
+            s1_entry(_p_new_miss)[0] is False)
+        chk("R6c 生效时刻**之前**缺字段 ⇒ **不许红**（不追溯，免得挡住写库）",
+            s1_entry(_p_old_miss)[0] is True)
+        for _f in (_p_new, _p_new_miss, _p_old_miss):
+            os.unlink(_f)
+    except Exception as e:                              # noqa: BLE001
+        chk("R6 S1 反向对照：拆解字段契约两方向都要判对", False, repr(e))
+
+    # R7 反向对照（2026-10-12 加，S7 的三半各喂一次）—— 全部**真变异**：
+    #   · R7a 把上个缺陷**真造一遍**（候选粘在结论行尾巴上）⇒ S7 必须红；
+    #   · R7b 把 kb 那把尺子**放松**成子串式 ⇒ 「两把尺子一致」必须红；
+    #   · R7c 跨仓件指到不存在的路径 ⇒ 必须报「未测」且**不计红**。
+    try:
+        _saved_fn = globals().get("_kb_summary_with_candidates")
+        _saved_re = globals().get("_PRd_REVIEW_RE")
+        _saved_p53 = globals().get("PRD53")
+        glued = ("【审查结论：REVIEW】共发现 2 处需人工确认。"
+                 "（另有 **1 处非权威候选线索**，见完整清单）\n· 功效宣称类问题：2 个")
+        globals()["_kb_summary_with_candidates"] = lambda: glued
+        _r7a = s7_prd_line()
+        chk("R7a ★ 把上个缺陷真造一遍（候选粘在结论行尾巴）⇒ S7 必须红",
+            _r7a[0] is False, str(_r7a[2])[:90])
+
+        globals()["_kb_summary_with_candidates"] = _saved_fn
+        globals()["_PRd_REVIEW_RE"] = re.compile(r"【审查结论：REVIEW】")        # 松成子串式
+        _r7b = s7_prd_line()
+        chk("R7b 把 kb 那把尺子放松 ⇒ 「两把尺子判定一致」必须红",
+            _r7b[0] is False and "不一致" in str(_r7b[2]), str(_r7b[2])[:90])
+
+        globals()["_PRd_REVIEW_RE"] = _saved_re     # ★ 先还原 R7b 的变异，再做 R7d（两条控制不许互相污染）
+        # R7d：把 PASS 真输出的尾部措辞抠掉 ⇒ 「真输出必须合规」那一半必须红
+        _saved_pass = globals().get("_kb_pass_summary")
+        globals()["_kb_pass_summary"] = lambda: "【审查结论：PASS】未发现问题。"
+        _r7d = s7_prd_line()
+        chk("R7d PASS 真输出缺 PRD 措辞 ⇒ S7 必须红（三态里那一态也有牙）",
+            _r7d[0] is False, str(_r7d[2])[:90])
+        if _saved_pass is not None:
+            globals()["_kb_pass_summary"] = _saved_pass
+        globals()["PRD53"] = "/nonexistent/prd53.mjs"
+        _r7c = s7_prd_line()
+        chk("R7c 跨仓件不在 ⇒ 报「未测」且**不计红**（缺件 ≠ 坏件）",
+            _r7c[0] is True and "未测" in str(_r7c[2]), str(_r7c[2])[:70])
+    except Exception as e:                                      # noqa: BLE001
+        chk("R7 S7 反向对照（真输出 / 尺子一致 / 缺件未测 / PASS 有牙）", False, repr(e))
+    finally:
+        if _saved_fn is not None:
+            globals()["_kb_summary_with_candidates"] = _saved_fn
+        if _saved_re is not None:
+            globals()["_PRd_REVIEW_RE"] = _saved_re
+        if _saved_p53 is not None:
+            globals()["PRD53"] = _saved_p53
+
+    # ── R8 反向对照（2026-10-16 加，S8 的每一半各喂一次**真变异**）──────────
+    #   全部走**纯函数** `_s8_judge`：喂变异字符串，**不碰盘上任何一个文件**。
+    #   为什么这么写：S8 的三条判据（旗标真存在 ／ 两处不漂 ／ 照抄能跑）
+    #   单独看都像"恒真"—— 只有把坏样本真造一遍，才知道它到底在不在判。
+    try:
+        _pb = open(PLAYBOOK_MD, encoding="utf-8").read()
+        _pr = open(REVIEW_RUN_SH, encoding="utf-8").read()
+        _tpl = _shouheng_cmd_template() if os.path.exists(TOOLS_MJS) else None
+        if _tpl is None:
+            chk("R8 S8 反向对照（跨仓件不在 ⇒ 未测不计红）",
+                _s8_judge(_pb, "", _pr, tpl_present=False)[0] is True)
+        else:
+            _e = _s8_judge(_pb, "", _pr, tpl_present=False)
+            chk("R8e 跨仓件不在 ⇒ 报「未测」且**不计红**（缺件 ≠ 坏件）",
+                _e[0] is True and "未测" in str(_e[2]), str(_e[2])[:70])
+            _ok0 = _s8_judge(_pb, _tpl, _pr)
+            chk("R8f 正向：盘上真件必须**绿**（判据不是恒红 —— 恒红和恒绿一样废）",
+                _ok0[0] is True, str(_ok0[2])[:80])
+            _a = _s8_judge(_pb, _tpl.replace("--material-file", "--text"), _pr)
+            chk("R8a 守衡模板退回 `--text`（丢掉身份凭据）⇒ S8 必须红",
+                _a[0] is False, str(_a[2])[:90])
+            # ⚠️ 变异必须打在**围栏块里**：`--content-type` 在正文（第 38 行）也出现过一次，
+            #   用不带前导空格的串去 replace(…,1) 会打偏到散文上 ⇒ 判据当然不红。
+            #   第一版就是这么写错的，R8b 当场把它抓出来了（反向对照的价值就在这）。
+            _b = _s8_judge(_pb.replace("  --content-type <text|image|video>",
+                                       "  --no-such-flag <text|image|video>", 1), _tpl, _pr)
+            chk("R8b 手册模板用了 review_run.sh 不认的旗标 ⇒ S8 必须红",
+                _b[0] is False, str(_b[2])[:90])
+            _c = _s8_judge(_pb, _tpl.replace("--content-type <text|image|video>",
+                                             '--content-type <text|image|video> "', 1), _pr)
+            chk("R8c 命令块引号不闭合 ⇒ 「照抄能跑」那一半必须红",
+                _c[0] is False, str(_c[2])[:90])
+            _d = _s8_judge(_pb, _tpl.replace("禁止探索", "（已删）"), _pr)
+            chk("R8d 删掉「禁止探索」⇒ S8 必须红（修复被删要有人知道）",
+                _d[0] is False, str(_d[2])[:90])
+            _f = _s8_judge(_pb.replace("  --content-type <text|image|video>",
+                                       "  --content-type <text|image|video> \\\n  --two-phase", 1),
+                           _tpl, _pr)
+            chk("R8g 两处模板旗标集合漂了 ⇒ S8 必须红",
+                _f[0] is False, str(_f[2])[:90])
+    except Exception as e:                                      # noqa: BLE001
+        chk("R8 S8 反向对照（真件绿 / 五种真变异必红 / 缺件未测）", False, repr(e))
+
+    print("\n反向对照：通过 %d / 失败 %d" % (len(P), len(F)))
+    for x in F:
+        print("  · 失败：%s" % x)
+    return 1 if F else 0
+
+
+def main():
+    ap = argparse.ArgumentParser(description="链级冒烟：工作流契约不退化")
+    ap.add_argument("--json", action="store_true")
+    ap.add_argument("--selftest", action="store_true", help="只跑反向对照")
+    a = ap.parse_args()
+
+    if a.selftest:
+        print("workflow_smoke · 反向对照（证明判据不是恒真）")
+        return reverse_controls()
+
+    results, fails = [], []
+    for name, fn in CHECKS:
+        try:
+            ok, detail, why = fn()
+        except Exception as e:                          # noqa: BLE001
+            ok, detail, why = False, {}, "判据自己崩了：%r" % e
+        results.append({"check": name, "ok": ok, "detail": detail, "why": why})
+        if not ok:
+            fails.append("%s → %s" % (name, why))
+
+    readings = []
+    for name, fn in READOUTS:
+        try:
+            _, detail, _why = fn()
+        except Exception as e:                          # noqa: BLE001
+            detail = {"判定": "unavailable", "说明": "%r" % e}
+        readings.append({"check": name, "detail": detail})
+
+    if a.json:
+        print(json.dumps({"ok": not fails, "results": results, "readouts": readings},
+                         ensure_ascii=False, indent=1))
+    else:
+        print("工作流链级冒烟（只读；不认领 / 不跑链 / 不发布）")
+        print("链：飞书 @守衡 → L4→L5→L6→L7 层 skills → 评审层 skills → 报告+溯源(L0) → 写飞书")
+        print("-" * 74)
+        for r in results:
+            print("  %s %s" % ("✅" if r["ok"] else "❌", r["check"]))
+            for k, v in (r["detail"] or {}).items():
+                print("       %s：%s" % (k, v))
+            if not r["ok"]:
+                print("       ⚠️ %s" % r["why"])
+        for r in readings:
+            print("  📎 %s" % r["check"])
+            for k, v in (r["detail"] or {}).items():
+                print("       %s：%s" % (k, v))
+        print("-" * 74)
+        print("结论：%s" % ("✅ 契约齐（改动没把链上约定改坏）" if not fails
+                          else "❌ %d 段红 —— 这个改动影响了工作流" % len(fails)))
+        print("★ 边界：本件是**契约级**冒烟，不替代端到端验收（真跑链 + 发飞书 + 非 dryrun 落章）；"
+              "📎 那一档是**读数**，不参与红绿。")
+    return 3 if fails else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

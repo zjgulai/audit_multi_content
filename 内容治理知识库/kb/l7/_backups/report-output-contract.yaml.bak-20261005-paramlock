@@ -1,0 +1,914 @@
+# report-output-contract.yaml —— 内容治理 · **报告输出契约**（PRD 侧要求 + 实测缺口）
+#
+# 这条登记回答一件事：**一次审查要「输出什么」，才算满足 PRD**。
+# 它与 kb/l7/registry/ 下的姊妹表互补：
+#   * skills.yaml                     答「有哪些成员」
+#   * layers.yaml                     答「链路怎么跑」
+#   * routes.yaml                     答「这句话该谁接」
+#   * conclusion-destination.yaml     答「结论填到哪」
+#   * report-output-contract.yaml     答「报告要输出什么」（本表）
+#
+# 边界（写清楚，免得被误用）：
+#   · 本件是**契约与缺口登记件**，不被任何 gate 读取，也没有自动对账器（checker: null）。
+#   · ★ 本件**只登记，不改代码、不改判据**。下面 `gaps_unresolved` 里的每一条都是
+#     **「待人工判」**，**不是已定论的缺陷** —— 不得据此改 review.py / decide() / 任何引擎。
+#   · 本件不参与 L0–L7 数据链路，不改变任何层的 inputs / outputs。
+#
+# 登记时间 2026-10-02。
+
+meta:
+  file: kb/l7/registry/report-output-contract.yaml
+  answers: "报告要输出什么（PRD 契约 + 实测缺口）"
+  checker: null
+  checker_note: "无自动对账器。本件是契约/缺口声明，不是判据；变更靠人工维护。"
+  registered_at: "2026-10-02"
+  prd:
+    title: "内容审查 Agent PRD"
+    wiki_token: NB55wAq8liEOdKkquL2cgtPEnmg
+    docx_token: PXfBdjTwFokEQixtmTscqm7knNh
+    url: "https://momcozy-in.feishu.cn/wiki/NB55wAq8liEOdKkquL2cgtPEnmg"
+    read_at: "2026-10-02"
+    revision_at_read: 36
+    read_by: "守衡（app_id=cli_aa2243de0438dcd7）"
+  related:
+    - kb/l7/registry/conclusion-destination.yaml   # 结论填到哪
+    - kb/l7/registry/layers.yaml                   # L7 outputs 声明
+
+# ─────────────────────────────────────────────────────────────────────
+# 一、PRD 契约（逐条摘录，来源见 meta.prd）
+# ─────────────────────────────────────────────────────────────────────
+
+prd_contract:
+
+  # §8.2 批量扫描与多维表 —— 15 个字段，与线上表逐字一致
+  bitable_fields:
+    - 内容 ID
+    - 产品线
+    - 渠道
+    - 内容类型
+    - 送审版本
+    - Agent 结论
+    - 置信度
+    - 问题数量
+    - 问题分类汇总
+    - 报告链接
+    - 人工复核人
+    - 复核结论
+    - sign-off 人
+    - 发布时间
+    - 状态
+  bitable_status_options: [待审, PASS, REVIEW, BLOCK, 已修改, 已发布]
+  bitable_note: >
+    线上表 tblCXPQVzfFWWCon 的 15 个字段与 6 个状态选项**与本清单逐字一致**
+    （2026-10-02 只读核对）。⇒ 表是照 PRD 建的；差错应在**值**，不在字段。
+  bitable_target:
+    base_token: RY2UbCRjXaeeWwscUPScVN5AnQc
+    table_id: tblCXPQVzfFWWCon
+    view_id: vewhS7Rwx0
+    wiki_token: Lntdw8XqmifewjkdEckcXYH8nOV
+
+  # §5.3.4 + §8.3 报告链接
+  report_link:
+    trigger: "**问题数量 ≥ 3** 时才生成完整报告并返回链接"
+    below_threshold: "问题数量 1–2 个：**逐条输出**（不生成报告链接）"
+    content_requirements:
+      - "完整问题清单，每条包含：维度、位置、问题描述、原因、依据文档链接、修改建议"
+      - "按维度分组展示，便于按类别处理"
+      - "支持导出为飞书文档或 PDF"
+      - "报告链接有效期 ≥ 30 天，**存于飞书云文档**"
+    latency: "问题 ≥ 3 时，报告链接生成 ≤ 30 秒（验收标准表）"
+    retention: "所有审查记录保存 ≥ 1 年（验收标准表）"
+    threshold_rationale: >
+      阈值 3 的依据：单次审查中 3 个及以上问题已超出用户可快速浏览和记忆的范围。
+      采用「摘要 + 钻取报告」模式。阈值支持配置，建议保留 3 作为默认值。
+
+  # §6.6 置信度与分流策略 —— 要求的是**数值**
+  confidence_routing:
+    kind: numeric          # 0–1 的数值，不是高/中/低
+    bands:
+      - range: ">= 0.90"
+        action: "直接输出结论（PASS / BLOCK）"
+      - range: "0.70 - 0.89"
+        action: "输出 REVIEW，标注「建议人工确认」"
+      - range: "< 0.70"
+        action: "输出 REVIEW，标注「不确定，建议人工重点看」"
+    exception: "P0 层级规则不适用置信度分流，命中即 BLOCK。"
+
+  # §5.3 三态结论输出规范
+  three_state_output:
+    PASS: "一句话总结，说明未发现已知底线风险；动作：转交对应 sign-off 负责人。"
+    REVIEW:
+      n_le_2: "逐条输出（维度 / 问题描述 / 原因 / 依据链接）"
+      n_ge_3: "只输出分类汇总（各维度问题数量）+ 报告链接 + 转对应团队"
+    BLOCK:
+      n_le_2: "逐条输出（维度 / 问题描述 / 原因 / 依据链接 / 建议）"
+      n_ge_3: "只输出分类汇总（各维度问题数量）+ 报告链接 + 修改后重新提交"
+  issue_summary_semantics: >
+    「问题分类汇总」按 PRD = **各维度问题数量**（验收标准表：「分类汇总（各维度问题数量）」），
+    形如「合规类问题：3 个」。
+
+  version_field:
+    field: 送审版本
+    prd_defines_format: false
+    note: >
+      PRD 全文只在两处出现「送审版本」：§8.2 当字段名、§9 当 sign-off 判据
+      （「发布版本与送审版本一致」）。**PRD 未定义其取值格式。**
+    adopted_rule: "PRD 未定义 ⇒ 从 v1.0 起（用户 2026-10-02 裁定）"
+
+  # §5.4 结构化 JSON 规范 —— 「内容 ID」的口径（2026-10-03 补登记；用户提问触发）
+  content_id:
+    prd_quote: |
+      "review_id": "CR-20260922-0001",
+      "content_id": "AD-20260922-001",
+      "content_version": "v1",
+    prd_defines_format: false
+    note: >
+      PRD 全文只在两处出现「内容 ID」：§5.4 这个示例 ＋ §8.2 的字段表。**PRD 没有写它怎么生成**；
+      但从示例读得出语义分工：`AD-<日期>-<序号>` 是**业务编号（恒定）**，`content_version: v1`
+      是**随内容递增的版本号** —— 只有这样 §10「审核记录绑定内容版本」才成立。
+    kb_side_before_20261003: >
+      实现走的是另一套，且**同一次审查存在两个不同的「内容 ID」**：引擎 JSON =
+      `text-<sha256 前 12 位>`（with_kb_evidence.py:210），飞书表行 =
+      `AUTO-<content_version 前 12 位>`（feishu_publish.py:334）。两者只共享后 12 位
+      ⇒ 按 ID 直接对不上，只能人工比 12 位。
+    kb_side_after_20261003: >
+      **前缀已统一为 `AUTO-`**：唯一生成规则落成 `with_kb_evidence.py:_auto_content_id()`
+      （两处调用点共用，不再各写一份），`kb_api.py` 的字段说明同步。
+      ⇒ 引擎 JSON / 报告正文 / 飞书表行三面同值。
+    still_open: "ID 的**语义**仍未按 PRD 走 —— 见 gaps_unresolved 的 GAP-RO-6。"
+
+# ─────────────────────────────────────────────────────────────────────
+# 二、实测结果：知识库 / 引擎**有没有**这些输出（2026-10-02 实测）
+# ─────────────────────────────────────────────────────────────────────
+
+measured_outputs:
+
+  # ── 置信度 ──────────────────────────────────────────────────────
+  confidence:
+    prd_requires: "数值 0–1（§6.6）"
+    kb_side:
+      per_issue_field_exists: true
+      per_issue_values: [高, 中, 低]
+      per_issue_source: "kb/l7/skills/kb-content-review/scripts/review.py:680（`高 if authority=='expert' else 中`）"
+      authority_populated: "**0 / 1018 条规则有 authority**（实测全库扫描，0.0%）"
+      consequence: "逐条置信度**恒为「中」**——不是「低」，是**降级**，因为判据字段全空。"
+    engine_side:
+      numeric_exists: true
+      where: "kb/l7/review-engine/core/review_engine.py decide()（:147 / :151 / :153 / :155 / :159 / :162）"
+      confidence_status: "heuristic_not_calibrated（review_engine.py:196）"
+      values_observed_20261002: {A: 0.97, B: 0.78, C: 0.99, D: 0.99, E: 0.78, F: 0.99, G: 0.99}
+    why_missing_in_report: >
+      **不是没有，是没走到。** `review.py`（依据侧）按设计**不调** decide()
+      （review.py:968 注释明写「不调用 review_engine.decide()」），只给逐条 高/中/低。
+      数值置信度只由裁决侧 decide() 产出。本轮探针直接跑 review.py ⇒ 数值从未被计算。
+      接桥脚本 `with_kb_evidence.py:195` 两条都跑，**经它能拿到数值**（上表即由它实测）。
+
+  # ── 修改建议 ────────────────────────────────────────────────────
+  suggestion:
+    prd_requires: "报告每条含「修改建议」（§5.3.4 / §8.3）"
+    kb_side:
+      mechanism: >
+        `same_source_advice()` 两个来源：① `rule_allowance()` 从 `rule_text` 正则取
+        「豁免：…」/「边界允许：…」；② 规则 `expression_fix_pairs` 的记录级改法。
+      availability_1_of_1018:
+        rule_text_contains_豁免: 14
+        rule_text_contains_边界允许: 2
+        expression_fix_pairs_non_empty: 44
+        total_rules: 1018
+      verdict: "**知识库有，但覆盖率低**：豁免/边界允许合计 16 条（1.6%），改法配对 44 条（4.3%）。"
+    engine_side:
+      gate: "kb/l7/skills/kb-content-review/scripts/review.py:654"
+      gate_code: 'advice, advice_note = same_source_advice(r, excerpt) if sev == "BLOCK" else ("", "")'
+      consequence: "**只有 BLOCK 才生成修改建议；REVIEW 一律置空** —— 与库里有没有数据无关。"
+    case_20261002:
+      - article_no: W-1.8
+        severity: BLOCK
+        kb_has: true
+        emitted: true
+        text: "可改为（本规则豁免表达）：FDA cleared, FDA-cleared, FDA registered, FDA 注册"
+      - article_no: W-1.47
+        severity: REVIEW
+        kb_has: true
+        emitted: false
+        discarded_by: "review.py:654 的 BLOCK 闸门"
+        text_that_was_discarded: "可改为（本规则豁免表达）：不能治疗乳腺炎, 不可以治疗乳腺炎, 无法治疗乳腺炎, 不能预防乳腺炎, 不可以预防乳腺炎, 不能治愈乳腺炎, 不是乳腺炎治疗设备, 乳腺炎治疗设备, natural let-down, natural letdown, your natural let-down, your natural letdown, relaxation supports, may help your flow, 自然奶阵, 放松"
+      - article_no: W-1.43
+        severity: REVIEW
+        kb_has: true
+        emitted: false
+        discarded_by: "review.py:654 的 BLOCK 闸门"
+        text_that_was_discarded: "可改为（本规则豁免表达）：treat yourself, doesn't treat, does not treat, do not treat, not intended to treat, not to treat, not a treatment, not a medical device, not intended to cure, doesn't cure, cannot cure, can't cure, 不用于治疗, 不是治疗, 不能治疗, 不可治疗, 不可以治疗, 不能治愈, 无法治疗, 并非治疗, relieve engorgement, relieves engorgement, relieving engorgement, engorgement relief, ease engorgement, eases engorgement, easing engorgement, soothe engorgement, soothes engorgement, soulage les engorgements, soulager les engorgements, reduce the risk of clogged, reduces the risk of clogged, reducing the risk of clogged, reduce the risk of plugged, risk of clogged ducts, risk of plugged ducts, or cure, or treat, cannot treat, can't treat, does not cure, do not cure, won't cure"
+      - article_no: W-1.9
+        severity: REVIEW
+        kb_has: false
+        emitted: false
+        note: "rule_text 无豁免/边界允许，且 expression_fix_pairs 为空 —— 库里确实没有。"
+      - article_no: W-1.4
+        severity: REVIEW
+        kb_has: false
+        emitted: false
+        note: "同上，库里确实没有。"
+    verdict: >
+      **两层原因，缺一不可**：① 代码闸门（BLOCK-only）把库里**已有**的建议丢掉；
+      ② 数据缺口（1.6% / 4.3%）让剩下的大多数规则**本来就没有**可给的建议。
+      这正是 PRD §5.3.2 要求 REVIEW 报告也含「修改建议」而现状给不出的原因。
+
+# ─────────────────────────────────────────────────────────────────────
+# 三、待人工判（**不是已定论缺陷** —— 不许据此改代码）
+# ─────────────────────────────────────────────────────────────────────
+
+gaps_standing_rule: >
+  ★ 下列各条**只登记、不修**。任何一条要动代码前，必须先有人判定「这是缺陷」，
+  并另行开单。本条依据原交接单的边界：「不许把疑似缺口/假 PASS 当成已定论的缺陷去改代码」。
+
+gaps_unresolved:
+  - id: GAP-RO-1
+    title: "REVIEW 无修改建议（BLOCK-only 闸门）"
+    status: 待人工判
+    evidence: "review.py:654；W-1.47 / W-1.43 实测（见 measured_outputs.suggestion.case_20261002）"
+    impact: "PRD §5.3.2 / §5.3.4 要求 REVIEW 报告含修改建议 ⇒ 现状不满足"
+    open_question: "「只有 BLOCK 才给改法」是**有意设计**（REVIEW 交人工判断）还是**实现缺口**？"
+    do_not: "在未判定前删/改 :654 的闸门"
+
+  - id: GAP-RO-2
+    title: "数值置信度不在 review.py 路径上"
+    status: 待人工判
+    evidence: "review.py:968 明写不调 decide()；数值只在 review_engine.decide()"
+    impact: "PRD §6.6 要求数值置信度；只跑依据侧时该字段无值 ⇒ 线上表「置信度」列空"
+    open_question: "该由哪一侧产出并写入表：依据侧合成、裁决侧回填、还是入口串联？"
+    do_not: "在未判定前让 review.py 去调 decide()（那是用户红线）"
+
+  - id: GAP-RO-3
+    title: "逐条置信度恒为「中」（authority 全库为空）"
+    status: 待人工判
+    evidence: "1018/1018 条规则 authority 为空；review.py:680 依赖 authority=='expert'"
+    impact: "逐条 高/中/低 实际退化为常量「中」，无区分度"
+    open_question: "authority 是**未回填**还是**本形态无源**（参见 ledger-read-contract.yaml 的 clause 形态裁定）？"
+    do_not: "在未判定前批量回填 authority"
+
+  - id: GAP-RO-4
+    title: "★ 接桥把「拒答」吃成 PASS（fail-open）"
+    status: 待人工判
+    severity_note: "本条风险最高 —— 方向是**漏放**（该拒答却给 PASS）"
+    evidence: >
+      2026-10-02 实测：同一段文案 D「Momcozy 吸奶器采用轻音设计，夜间不吵醒宝宝」
+      经 `with_kb_evidence.py`：
+        · evidence_meta.state = **"拒答"**（依据侧确实拒答了）
+        · evidence_meta.findings = 0
+        · decide() → decision = **"PASS"**，confidence = **0.99**
+        · decision_trace.reasons = ["no_known_blocking_or_review_risk"]
+      对照：C（真 PASS，state="PASS"）输出 **完全相同**（PASS / 0.99）。
+      ⇒ **「库不认识这个主题」与「确实没问题」在输出上不可区分。**
+    inversion: >
+      更刺眼的是标定方向反了：全 7 题里 **0.99 是最高置信度**，
+      而 D 恰恰是**依据最空**的那一题（findings=0 且依据侧拒答）。
+      工具在自己知道得最少的地方最自信。
+    contradicts: >
+      与库内既有判据方向相反：review.py 覆盖信号分支明写「两者都没有 → 拒答
+      （无命中不等于合规）」；with_kb_evidence.py 自己的 docstring 也警告过
+      「只跑裁决侧 → decide() 倾向 PASS（**漏放**）」。
+    open_question: >
+      decide() 是否需要接收「依据侧 state=拒答」并**继承拒答**？这属裁决侧输入契约，
+      不是一处小改 —— 必须人判。
+    do_not: "在未判定前改 decide() 或让它继承 state"
+
+  - id: GAP-RO-5
+    title: "★ 层前置只有文字约束，没有代码级阻断（强度低于新鲜度前置）"
+    status: 主体已落地（2026-10-03：CLI 默认要求 ＋ API 等效留痕已部署）；**遗留一问**：API 侧是否也改成「不带 BASE 即 409」（现在默认放行但留痕 `waived_by_api`）—— 那需要飞书/守衡侧先传 BASE
+    evidence: >
+      2026-10-02/03 全库会话扫描（5938 个会话，只读）：
+        · 本工作区 26 个人工会话里，L4–L7 层 skill 只被 skill 工具加载过 **1 次**；
+        · 跑过评审引擎 with_kb_evidence.py 的 36 个会话里，**12 个没加载任何评审层 skill**；
+        · 全库只有 **7 个**会话真带 --invoked 跑过 kb_pipeline，其中 **4 个**是
+          "传了 --invoked 却没加载任何层 skill"（申报代替实调）；
+        · 账本 656 行里 via-skill 的 85 行：registry_echo 20 / agent_reported 62 /
+          layer_stamps_observed 仅 3。
+      对照先例：新鲜度前置原先也只是文字，后落成 review_freshness_gate.py 的代码级阻断
+      （review.py 与 kb_api.py 都调，超期 ⇒ 退出码 3 / HTTP 409）。
+    impact: "「每次都调 L4–L7」在没有代码阻断时会被绕过 —— 历史实测已绕过数月"
+    open_question: >
+      阻断点放哪？候选：(a) with_kb_evidence.py 加 --require-layer-preflight，先 opt-in 后默认；
+      (b) review.py 侧；(c) kb_api.py 侧；(d) 把 skill_invocation_audit 接进放行自检。
+    do_not: >
+      在未判定前把 with_kb_evidence.py 改成**默认** fail-closed —— 机器入口（kb_api.py / 守衡）
+      加载不了 skill，会全线断（那属"拿错误的尺子量对的流程"）。
+
+  - id: GAP-RO-6
+    title: "「内容 ID」的**语义**与 PRD §5.4 相反（ID 随内容变、版本反而是常量）"
+    status: "**已裁定并落地（2026-10-03）**：① **行口径** = 每次审查新增一行（见 `applied_20261003.row_per_review`）；
+      ② **ID 形态**（发布侧）= **PRD §5.4 业务编号 `AD-YYYYMMDD-NNN`**（见 `applied_20261003.content_id_business_number`）。
+      残留：引擎 JSON 的**内部** `content_id` 仍为 `AUTO-<sha12>`（同一审查存在两个 ID）—— 见下 `residual_after_fix`。"
+    registered_at: "2026-10-03（用户提问「飞书中的内容ID，你是如何输出id号的？先检查需求prd」触发）"
+    evidence: >
+      PRD §5.4：`content_id = "AD-20260922-001"`（业务编号）、`content_version = "v1"`（人工版本号）。
+      实现：`content_id` = 待审文本 sha256 前 12 位（**内容一变，ID 就变**）；
+      `content_version` = 全文 sha256；而飞书表「送审版本」列 = `--version` 默认 **常量 v1.0**（与内容无关）。
+    impact: >
+      ① 同一条素材改一个标点 ⇒ 新 ID ⇒ 表里**多一行**，第 1 版与第 2 版不再被同一 ID 串起来，
+      与 §10「审核记录绑定内容版本」相悖；② 完全相同文本重发 ⇒ 命中同一 ID ⇒ upsert 同一行
+      —— 那是「同文去重」，不等于「同一条内容多轮」；③ ID 不可读（`AUTO-b390adfd37ff`
+      看不出是哪条素材、哪次送审、谁提交的）。
+    what_is_actually_good: >
+      「同文去重」这个幂等本身对批量扫描有用 —— 但那是 **content_version** 的职责，
+      不该占 **内容 ID** 的位。
+    open_question: >
+      「同一条内容」的判定键是什么（SKU ＋ 渠道 ＋ 素材类型 ＋ 提交人 ＋ 日期？还是由提交方直接发号）？
+      PRD 未定义、库内也没有 —— **这条不定，PRD 口径的内容 ID 就落不了地**。
+    already_done_20261003: >
+      **只统一了前缀**（见 prd_contract.content_id.kb_side_after_20261003），**没有动编号规则**。
+    known_leftover: >
+      `kb-content-review/scripts/review.py:1051` 仍生成 `text-<sha12>`。那是依据侧**内部**字段
+      （不进本件 payload、不进飞书表），且该 skill 在库内与 `~/.dsh/skills/` 有两份**字节相同**的镜像
+      （运行时用后者）—— 要一并统一须同时改两份，否则 skills_check 第 3 类「副本不一致」会红。
+      故本次**未动**，只登记。
+    do_not: >
+      ⚠️ **本条已过期，勿据以行事（2026-10-03 用户已裁定）**：原文「在判定前不要改 `content_id` 的生成算法、
+      也不要批量改写历史行的「内容 ID」」。现状：**算法已按用户裁定改掉**（发布侧改为 PRD §5.4 业务编号
+      `AD-YYYYMMDD-NNN`，见 `applied_20261003.content_id_business_number`）；
+      **但「不要批量改写历史行」这半条仍然有效** —— 历史行一律不动，不迁移、不重编号。
+    residual_after_fix: >
+      `with_kb_evidence.py:166 _auto_content_id()` 仍生成 `AUTO-<content_version 前 12 位>`，
+      故**同一次审查存在两个 ID**：引擎 JSON / 本地 `<run>.review.md` 用 `AUTO-…`，
+      飞书表行与云文档用 `AD-…`。未修的原因：引擎没有飞书表访问权（表访问在发布件侧），
+      且发布件在 `--apply` 前就会先渲染正文。**待办**：让 `with_kb_evidence.py` 从发布件 stdout
+      读回已发号并回填/落痕，或把发号上提为一个共享助手（届时**不要**在两处各算一次 ——
+      两次算号会撞号）。未做前：以**飞书表行/云文档上的 `AD-…` 为准**（那是人可见的一面）。
+    history_rows_untouched: "历史行（`AUTO-…` 与 `text-…`）**一律不改**；新单才发 `AD-…`。表内因此会并存两种形态的 ID。"
+
+# ─────────────────────────────────────────────────────────────────────
+# 四、本轮已按 PRD 落实的部分（供对照，非待办）
+# ─────────────────────────────────────────────────────────────────────
+
+applied_20261002:
+  - "报告链接：仅 问题数量 ≥ 3 的行填链接（甲组 7 行中只有 B 行 n=3）；其余 6 行清空。"
+  - "报告链接指向**飞书云文档**（非本地路径）：https://momcozy-in.feishu.cn/docx/M9qBddNSyoRudXxSvHTc5aPrn3g"
+  - "报告正文按 §5.3.4 结构：完整问题清单、按维度分组、含位置/问题描述/原因/依据/修改建议栏位。"
+  - "送审版本：7 行统一 v1.0（PRD 未定义格式，用户 2026-10-02 裁定从 v1.0 起）。"
+  - "问题分类汇总：按 §8.2/验收标准改为「各维度问题数量」。"
+  - "`置信度` 列**仍然留空** —— 按 GAP-RO-2，在未判定取值来源前**不编数**。"
+  - "报告中的「修改建议」栏位对 B 的三条**如实写「（本入口本轮未给出修改建议）」** —— 不代编。"
+
+# ─────────────────────────────────────────────────────────────────────
+# 五、2026-10-03 接线登记：层前置 + 报告输出口径（用户裁定）
+# ─────────────────────────────────────────────────────────────────────
+
+applied_20261003:
+  trigger_goal: >
+    用户目标（2026-10-03 原话口径）：用户问一句「这个审核能过吗 / 这个审核一下」→ 自动触发
+    L4–L7 层 skill + 评审链 skill → 输出报告。
+  layer_prestage:
+    decision: "评审任务在**出依据之前**恒定跑 L4 → L5 → L6 层 skill（每层切 subagent、用 skill 工具加载、
+      落章由执行本层的进程写）＋ L7 跨层闸门单独跑；与让位表无关、不因专项归属而豁免"
+    run_id_convention: "逐层一个 RUN：<BASE>-L4 / <BASE>-L5 / <BASE>-L6 / <BASE>-L7
+      （kb/l7/runs/<RUN>.json 是单文件，多层共用会被最后一层覆盖，审计就核不到前几层）"
+    evidence_gate: "出结论/出报告之前，skill_invocation_audit.py --run <BASE>-L{4,5,6,7} 必须红 0 / 退出码 0；
+      **2026-10-03 起 L7 也在闸门内**（原为 L{4,5,6}）；黄 E5（落章来自预演）可出结论，
+      但报告必须标注「本单未落盘、是机制证据」"
+    l7_in_gate_20261003:
+      what: "LAYER_PREFLIGHT_LAYERS 从 (\"L4\",\"L5\",\"L6\") 扩为 (\"L4\",\"L5\",\"L6\",\"L7\")"
+      why: "L7 是跨层闸门、单独跑，原先不在元组里 ⇒ 它的审计红不红**结构上不可见**：「L4–L6 绿掩盖 L7 红」。用户口径「四层留痕齐平」由此才真正有闸门。"
+      evidence_before: >-
+        实测（2026-10-03 10:46，改前）BASE `RV-20261003-0855` 的 L7 审计为 `红 1`（`skill_evidence=registry_echo`、
+        `invoked_reported=[]`、`skill_sessions={}`，红 1 文案「本 run 声称的『逐层调了』，证据不成立」），
+        而 `with_kb_evidence.py` 照样打出 `层前置：L4=✅ / L5=✅ / L6=✅ ｜ 红合计 0` 并给出完整 **BLOCK 结论（exit 0）**。
+      evidence_after: >-
+        同一 BASE 同一条命令 ⇒ `NEEDS_INPUT` / 退出码 3，拒答行逐层列出 `L7 run=RV-20261003-0855-L7 exit=1 红=1 黄=0 sessions={}`；
+        L4–L7 全红 0 的 BASE（20261003-0654）⇒ 照常出 BLOCK / exit 0，且行内显示 `L7=✅ ｜ 会话 {… 'L7': 'a99dc773-…'}`。
+      cost_accepted: "L7 必须像 L4–L6 一样带 `--invoked <layers.yaml 的 L7 skill>` ＋ `--skill-session L7=<id>` 记账，否则拒答。已知且有意（这正是「四层齐平」的含义）。"
+      unchanged: "黄 E5 仍不算失败（判据仍是审计那一把尺子，**没有新造第 7 把**）；机器入口不传 BASE 时仍记 `waived_by_api`。"
+      rollback: "把 with_kb_evidence.py 的 LAYER_PREFLIGHT_LAYERS 改回 (\"L4\",\"L5\",\"L6\")，并还原 AGENTS.md ②b/②d 与 kb-review §1.5 的凭据行。"
+    where_written:
+      - "kb/l7/skills/kb-review/SKILL.md §1.5（＋ §2 第 3 步引用、§6 A0 判据）"
+      - "内容审查总控/SKILL.md §Layer pre-stage（源在 /Users/lute/Desktop/skill/内容治理中文skill/内容审查总控/）"
+      - "kb/l7/skills/kb-content-review/SKILL.md §层前置（覆盖被 13 个专项直接接走的路径）"
+      - "kb/l7/registry/routes.yaml 评审链 note"
+      - "~/.dsh/AGENTS.md 执行纪律 ②/②d"
+    enforcement_now: "**代码级阻断，且 CLI 侧默认要求**（2026-10-03 落地并实测）：`with_kb_evidence.py` 不给 `--require-layer-preflight <BASE>` ⇒ 拒答（NEEDS_INPUT / 退出码 3）；豁免必须显式 `--allow-no-layer-preflight`（结论记 `mode=waived_by_caller`）。机器入口 `kb_api.py` 用 `layer_preflight_base` 传同一份 BASE、照核（红 ⇒ HTTP 409），不传则记 `mode=waived_by_api` —— 已部署并线上实测"
+    user_approved: "2026-10-03（用户：「同意，按照你的建议开始修复」）"
+  report_output:
+    decision: "**每次**审查都产出本地报告 kb/l7/reports/<run>.review.md：问题 1–2 条时出精简版；
+      原「1–2 条不落盘」口径作废"
+    unchanged: "飞书多维表「报告链接」列仍按 PRD §8.2 只在问题数 ≥ 3 时填（applied_20261002 第一条不撤销）
+      —— 本地 always / 飞书按 PRD，两者不冲突"
+    note_20261003: >
+      本条**现行有效**（按 PRD §8.2 ≥3 填）。2026-10-03 晚曾一度被改判为「每次都填（门槛 0）」而取代它，
+      **同日已回退** —— 用户裁定「不用改 PRD 规则，后续都按照 PRD 来做」⇒ `REPORT_LINK_MIN_ISSUES` 回到 3。
+      全过程与回退动作见本块 `report_output_link_threshold_20261003_late`（其 status = 已回退）。
+    enforced_20261003: >
+      ★ 同日实测发现：上面这条 `unchanged` **在发布件里没落地，且已被回退** ——
+      `feishu_publish.py` 原先**无条件**写「报告链接」（旧 :330 `"报告链接": url`，全文无
+      `issue_count >= 3` 判断），RUN=rv-20261003-085818（问题数 0）仍填了链接，
+      把 applied_20261002 第 1 条已落实的裁定盖掉了。**已修（用户 2026-10-03 裁定：「修发布件 + 清掉本行链接」）**：
+      ① 新增常量 `REPORT_LINK_MIN_ISSUES = 3`；
+      ② 问题数 < 3 ⇒ 「报告链接」列**显式写空串**（不是省略键 —— 更新既有行时省略键 = 保留旧值，
+         那就把上次写的链接留下了；applied_20261002 要的正是「清空」语义）；
+      ③ 云文档与链接列**同生同灭**：< 3 不建文档 —— 只挡列不挡文档，会让每条 < 3 的单都留下
+         一份**没人能点到的孤儿文档**（下次同内容重发时 prev_doc 查不到、再建一份）。
+      边界：调用方**显式**点名 `--doc` 时仍按人令覆盖该文档（人的显式动作，不是自动行为），
+      但「报告链接」列**仍按 PRD 留空**，且会打警告，不静默。
+    enforced_verified_20261003: >
+      同一份 review JSON 重跑发布件：`④ 云文档：跳过（问题数 0 < 3 ⇒ 按 PRD 不生成报告）` ／
+      `⑤ 表行：更新既有行 recvwWzL57nvYL（未新增重复行）` ／ `⑥ 读回：内容 ID 与结论一致 ✅`；
+      读回该行「报告链接」已空，其余字段未动（内容 ID / Agent 结论 PASS / 问题数量 0 / 置信度 0.99）。
+  submit_question_and_cleanup_20261003:
+    user_decision: >
+      用户 2026-10-03 三项裁定：① 新行落在**下面**（视图排序改升序）；② 孤儿云文档**删除**（采纳我方建议）；
+      ③ 用户原提问 **(a)+(b) 一起做**（既进表字段、也进报告正文）。
+    view_sort: >
+      视图 `vewhS7Rwx0` 排序由 `写入时间 desc` 改为 **`写入时间 asc`**（实测读回 `{'desc': False}`）
+      ⇒ 新报告出现在**列表末尾**。⚠️ 与 `conclusion-destination.yaml` 的 `row_order` 同源，两处口径一起读。
+    orphan_doc_removed: >
+      删除 `docx/XQUEdWLdPo01rzx406gcXHZHnmh` —— 它是**门槛临时 = 0** 期间由本件建、链接列按 PRD 清空后成孤儿的文档。
+      依据：registry 既定口径「云文档与链接列**同生同灭**」（`enforced_20261003` ③）；实测**全表 0 行**指向它；
+      正文另有本地留底 `kb/l7/reports/rv-20261003-212705.review.md` / `.feishu.md`（故删除不丢审查内容）。
+      执行：`drive +delete --file-token … --type docx --yes` ⇒ 返回 `deleted: true / status: success`；
+      复核：`docs +fetch` 该 token 已失败。
+    submit_question:
+      field: "飞书表新增第 **17** 个字段「送审问题」（text，field_id `fldqhvDTs0`；16 → 17 字段）"
+      code_site: >
+        `feishu_publish.py` → `--question`（argparse ＋ `meta['question']` ＋ `fields['送审问题']`）；
+        `with_kb_evidence.py` → `--question`（argparse ＋ 注入 `res.decision.submit_question` ＋ 透传给发布件）
+      render: "报告正文在 `content_version` 行后加一行 `- 用户原提问：…`"
+      write_rule: "**只在调用方真给了原提问时才写该列**；没给就保持空（不写「未指定」这类占位值，理由同 B 修复）"
+      not_in_id: >
+        ⚠️ 提问原文**不进「内容 ID」**：ID 是表主键与统计维度、按 PRD §5.4 是**纯编号**，
+        且本次的按天发号**靠 ID 前缀推导序号**（塞自由文本会把发号弄坏）。
+    verified_20261003: >
+      端到端实测（`--question "这句广告语能不能发？"`，BASE `20261003-2102`，四层审计红 0）：
+      新行 `recvwZQEdMU0wa` ／ 内容 ID **`AD-20261003-001`** ／ **送审问题 =「这句广告语能不能发？」** ／
+      Agent 结论 PASS ／ 问题数量 0 ／ 报告链接空（PRD 正确，0 < 3）；表 **12 → 13 条有数据行**（总行 23）。
+      正文留底 `kb/l7/reports/rv-20261003-222412.feishu.md` 含 `- 用户原提问：这句广告语能不能发？`。
+    boundary: >
+      引擎只在 stdout 里转述发布件的**末 7 行** ⇒ **发号那一行（首行）不会出现在引擎输出里**；
+      要核对发号请看表行，或单独跑发布件（不加 `--apply` 即零写入预演）。
+    blank_rows_removed_20261003: >
+      删除 10 个空行（record ids `recvwQ5C7x90Jf` … `recvwQ5C7xKXhY`）。
+      **事实**（`+record-history-list` 实测，非推测）：它们**不是**天生的空行 —— 10-02 06:21:08 由**刘华丽**
+      批量建出 10 行，10-02 19:37 被**人工清空** demo 内容（`内容 ID`「章节编号与内容不对应」→ 空、
+      `报告链接`「https://docs.xxx.com/design/flow-v1.2」→ 空）；删除前**仅剩 `写入时间`**（故无数据损失）。
+      **用户裁定（2026-10-03）**：**当残留删掉** —— 不采用「当预置槽位、由后续报告按顺序填入」那条路。
+      **复核**：表 **23 → 13 行 ｜ 空行 0**；升序视图从第 1 行起即报告。
+      ⚠️ 因此**发布件不实现「优先填空行」**，仍按 `row_per_review`（每单一行、新建）。
+    column_order: >
+      「送审问题」列序：`+view-set-visible-fields` 已把它放到最前，但 **API 把 `内容 ID` 钉死在第一列**
+      （读回 `["内容 ID","送审问题","写入时间",…]`）⇒ 实际落在**第 2 列**。其余列序按请求原样生效。
+      报告**正文**里的顺序则是「用户原提问 → 内容 ID → …」（用户 2026-10-03：「放在内容 id 前面，方便查看」）。
+
+  content_id_business_number:
+    decision: >
+      「内容 ID」的**发布侧**形态改为 **PRD §5.4 的业务编号**：`AD-YYYYMMDD-NNN`。
+      用户 2026-10-03 口径：「内容 ID 按照你的建议」。
+    basis_prd: >
+      PRD §5.4 示例 `"content_id": "AD-20260922-001"`（业务编号）；同节另有「每条审查生成一份 JSON」；
+      §8.2 字段表也列了「内容 ID」。原实现 `AUTO-<content_version 前 12 位>`（内容哈希）
+      **与 PRD 相反** —— 见本文件 `GAP-RO-6`。
+    numbering: "按天自增 `AD-<YYYYMMDD>-<NNN>`；序号 = **表内已有行**中同日前缀的最大序号 + 1 ⇒ **无需额外台账文件**；永不复用。"
+    code_site: "kb/l7/review-engine/core/feishu_publish.py → `if not a.content_id:` 分支（原 `AUTO-%s` 被替换）；新增 `import time`"
+    verified_20261003: >
+      预演（不加 `--apply` = 零写入）实测输出：`元数据：内容 ID 自动发号 = AD-20261003-001`
+      ⇒ 发号生效且无副作用（随后即 `③ 预演结束（未写飞书）`）。
+    known_boundary: "`+record-list` 有分页上限：行数极大时序号推导可能偏小（届时改为台账发号）。"
+    residual: "引擎侧 `_auto_content_id()` 未动 ⇒ 同一次审查存在两个 ID（`AUTO-…` 引擎/本地报告 ／ `AD-…` 表行/云文档）。详见 `GAP-RO-6.residual_after_fix`。"
+    history_untouched: "历史行**不改、不重编号**（`AUTO-…` / `text-…` 原样保留）；只有新单才发 `AD-…`。"
+    not_inside_id: >
+      ⚠️ **用户原提问词不进「内容 ID」**：ID 是表主键与统计维度，按 PRD §5.4 是**纯编号**；
+      塞自由文本会同时破坏「按天发号」（序号靠 ID 前缀推导）与按品线/渠道/风险的筛选统计。
+      要留提问原文请用**独立字段**或**报告正文**（方案待用户裁定）。
+
+  row_per_review:
+    decision: >
+      **每次审查新增一行**（不再按「内容 ID」upsert 更新既有行）。用户 2026-10-03 口径：
+      「每次增加报告可以在飞书文档列表中下面增加」。
+    basis_prd: >
+      PRD §5.4「用于系统记录、流转、统计。**每条审查生成一份 JSON**」＋ §10「审核记录绑定内容版本」；
+      PRD 全文**没有**要求按「内容 ID」去重 —— 原 upsert 是**实现选择**（登记于本文件 `GAP-RO-6`）。
+      ⇒ 本裁定让实现**回到 PRD 口径**：一次审查 = 一行记录。
+    code_site: "kb/l7/review-engine/core/feishu_publish.py → `rid = None`（恒新建）＋ 云文档不再复用上一单的文档"
+    behavior_now: >
+      ③ 只报「既有同 内容 ID 行 N 条」；⑤ 每次 `+record-batch-create` **新建一行**；
+      ④ 问题数 ≥ 3 时**新建**云文档（不再整篇覆盖上一单的报告，避免毁掉留痕）。
+    verified_20261003: >
+      实测：发布一次 ⇒ 表从 **11 条有数据行 → 12 条**（总行 21 → 22），新行 `recvwZN3lISP44`
+      （内容 ID `AUTO-b390adfd37ff` ／ 写入时间 2026-10-03T22:10:01 ／ PASS ／ 问题数 0 ／ 链接空）。
+    known_cost: >
+      ⚠️ 同一内容会有**多行且「内容 ID」相同**（实测该 ID 已 2 行）。根因未解：「内容 ID」仍为内容哈希 sha12，
+      而 PRD §5.4 要的是业务编号 `AD-YYYYMMDD-NNN` —— 见 `GAP-RO-6`（② 仍未定）。用户已知悉此代价并选择本口径；
+      历史行一律不动。
+    rollback: "把 `rid = None` 改回 `rid = rids[0] if rids else None`，并恢复 `target = a.doc or prev_doc`，即为原 upsert 口径。"
+
+  report_output_link_threshold_20261003_late:
+    status: "**已回退（reverted）** —— 现行门槛 = **3**，按 PRD §5.3.4/§8.3/§17 执行。本块只作全过程留痕，**勿据 `decision_was` 行事**。"
+    reverted: >
+      同日用户裁定「**不用改 PRD 规则，后续都按照 PRD 来做**」⇒ `REPORT_LINK_MIN_ISSUES` 已由 0 **改回 3**；
+      `applied_20261003.report_output.unchanged`（按 PRD ≥3 填）**重新生效**。
+      回退动作三处：① 代码（常量 0 → 3，注释块改写为「按 PRD ＋ 一次改判留痕」）；
+      ② 本 registry 两处（本块 status/reverted；`report_output.note_20261003`）；
+      ③ 飞书侧把本次写进去的「报告链接」恢复为空（见下 `feishu_side_facts`）。
+    feishu_side_facts: >
+      ★ 回退时读 `+record-history-list`（行 recvwWzL57nvYL）发现：那次 `--apply` 除写链接外，
+      还**把行内两个真实值覆盖成了默认值** —— `内容类型`「广告语」→「未指定」、
+      `产品线`「吸奶器」→「未指定」。成因：发布件把 `--content-type/--product-line/--channel`
+      的**缺省值「未指定」无条件写回**，而这三个值本可由**上一次真实送审**留在行里。
+      ⇒ 两个字段**已恢复原值**、「报告链接」已恢复为空；本缺陷**未修，此处仅登记**（缺省值不得覆盖既有真实值）。
+    decision_was: >
+      （**已回退，仅留痕**）原改判：「报告链接」列每次都填 —— 门槛由 3 改为 0。
+      当时用户口径：「工作流不能压步骤，skills 必须调用，用 skills 就是为了提高速度，飞书必须写入」，
+      并在选项中选择「改成每次都填（REPORT_LINK_MIN_ISSUES 3→0）」。
+    supersedes_was:
+      - "applied_20261002 第 1 条（仅 问题数量 ≥3 的行填链接；其余 6 行清空）"
+      - "applied_20261003.report_output.unchanged（仍按 PRD ≥3 填、『不撤销』）"
+      - "applied_20261003.report_output.enforced_20261003（落成常量 = 3；<3 连云文档也不建）"
+    why_previous_existed: >
+      原口径取自 PRD §5.3.4 / §8.3 / §17「问题数量 ≥ 3 时才生成完整报告并返回链接」；
+      并刻意让「云文档与链接列同生同灭」，以免 <3 的单留下**孤儿文档**（当时只挡列不挡文档，
+      会让每条 <3 的单都留一份没人能点到的文档，且下次同内容重发时 prev_doc 查不到、再建一份）。
+    why_changed: >
+      门槛置 0 后 `link_ok` 恒真 ⇒ **链接列与云文档恒同现**，孤儿文档的成因（「只挡列不挡文档」）
+      结构上不再存在，故那条理由随门槛一起失效。这是**人对 PRD 默认值的显式改判**，
+      不是把 PRD 原文改掉 —— `report_link.trigger`（PRD 引文）保持原样不动。
+    code_site: "kb/l7/review-engine/core/feishu_publish.py → REPORT_LINK_MIN_ISSUES（**现 = 3**；曾短暂为 0，已回退）"
+    behavior_now: >
+      **按 PRD**：`n_issues >= 3` ⇒ ④ 云文档复用既有链接或新建；⑤ 表行「报告链接」写 url。
+      `n_issues < 3` ⇒ ④ **不建文档**、⑤「报告链接」**显式写空串**。
+      幂等性不变：文档维度靠既有行链接复用、行维度按「内容 ID」upsert。
+    cost_accepted: "按 PRD 口径：仅 ≥3 的单多出 1 次云文档创建/覆盖 ＋ 两端读回校验（实测约 10–20 秒）。"
+    not_changed: >
+      「本地报告 always 产出」（`<run>.review.md`）口径不变；`feishu_publish.py` 默认仍是**预演**，
+      `--apply` 才写。行写入（表行 upsert）不因门槛变化而减少 —— 门槛只管「报告链接」这一列。
+    rollback: >
+      **已执行**（2026-10-03 同日）：原 `rollback` 计划即「把常量改回 3」，现常量 = 3、本块 status = 已回退。
+      若将来再改判：改回 0 即可（门槛是唯一开关）。
+    verification_reverted_threshold: >
+      ⚠️ 门槛 = 0 期间的实测（**属已回退口径，不作现行证据**）：真实发布件 `--apply` ⇒
+      ④ 云文档：**新建** → https://momcozy-in.feishu.cn/docx/XQUEdWLdPo01rzx406gcXHZHnmh ；
+      ⑤ 更新既有行 recvwWzL57nvYL；独立读回云文档：正文第 1 行 = `# 内容审查报告 · rv-20261003-212705`（H1）。
+      现行口径的证据见 `enforced_verified_20261003`。
+      遗留物：该云文档现为**孤儿文档**（链接列已按 PRD 清空）—— 是否删除**待人裁，未动**。
+
+  feishu_publish:
+    wired_at: "2026-10-03"
+    publisher: "kb/l7/review-engine/core/feishu_publish.py"
+    behavior: "默认预演（不写飞书）；--apply 才写。读 conclusion-destination.yaml 取 token；写云文档（正文从第 1 行开始）＋ 表行 upsert（按 内容 ID 幂等）；写完两端读回校验。"
+    refuses: "层前置非 enforced+ok、或结论为 NEEDS_INPUT ⇒ 拒发（退出码 3）"
+    line1_rule: "正文第一行 = 报告标题 H1；**不传** docs +create --title（会重复标题）；写已有文档用 docs +update --command overwrite；**禁用 append**"
+    verified: "docx YOjkd5ItEoBybHx7BGAc25r6nXb ／ record recvwWtBLzcHiq（2026-10-03 端到端实测，读回一致）"
+    manual_fallback_note: "手写 lark-cli 时：+record-batch-create 的 payload 是 {\"create_records\":[{\"字段名\":值}]}（字段**平铺**、select 传**数组**）—— 2026-10-03 实测踩过；lark-cli 在 ~/.dsh/bin，且必须 --profile dsh-kb --as bot"
+  l0_locator:
+    decision: "每条依据必须给**可点的 L0 源数据链接**（用户 2026-10-03：「要取 L0 层的源数据，就是飞书侧对齐的数据，才方便定位」）"
+    how: "发布件从 anchor（`#表名/record_id/字段名`）反查 `kb/l0/**/feishu_bitable_record__*__<rec>.json`，带出 `entry_url`（飞书记录直链）/ 对齐时间 / 库内路径；再按 L4 canonical 的 `evidence_units` 反查 **L2 单元 id**"
+    sha_semantics: "报告里的 sha 核对是**与 L0 记录值比对**，**不是重算** —— L0 的 sha 输入是 `record_fields` blob，本地 L0 件不含该 blob（`sha256_input` 只记了字面量），重算在本地**结构上不可能**；要真核对只能点飞书直链"
+    layer_map: "`库`=子库标签 ｜ `anchor`+`source_sha256`=**L0 坐标与指纹**（L1 抽取时生成、逐层带到 L4）｜ 规则文本/命中片段=**L3** ｜ 条款号=**L4** ｜ 逐字原文=**L0 字段值**；引擎实际是在 L3+L5+L6 上检索命中"
+    verified: "2026-10-03 实测：docx AJ8ZdB3M3oU5jNxeuaucrIPBnLf 每条依据带 L0 直链 + sha 比对结论 + L2 单元 id"
+  bitable_row_order:
+    decision: "新报告必须出现在**表格第一行**（用户 2026-10-03 明确要求：从第一行开始写，不要写在中间）"
+    how: "① 表内新增自动字段 `写入时间`（type=created_at：建记录即填、已回填历史行，发布件无需写）；② 视图 vewhS7Rwx0 设排序 `写入时间 desc`"
+    reproducible: "lark-cli base +field-create --json '[{\"field_name\":\"写入时间\",\"type\":\"created_at\"}]' ／ lark-cli base +view-set-sort --json '{\"sort_config\":[{\"field\":\"写入时间\",\"desc\":true}]}'"
+    prd_deviation: "表由 PRD 的 15 字段变为 **16 字段**（多的那个是自动字段，原 15 列语义未动）。要回到 15 列：+field-delete 删 `写入时间`，并把视图排序清空（+view-set-sort --json {'sort_config':[]}）"
+    verified: "2026-10-03 实测：新发布的一条落在视图第 1 行（AUTO-d3f0a215e427 / 08:55），历史行按各自创建时间排其后"
+  layer_evidence_model:
+    decision: >-
+      「L4–L7 四层齐平」按**层分型**定义，不追求 L7 也落章（代码级豁免，造落章 = 伪造证据）
+    L4_L5_L6: >-
+      记账 agent_reported（--invoked + --skill-session）＋ **层侧落章**（kb/lx/runs/<RUN>*.json 的顶层 skill 字段）
+    L7: >-
+      **只有** 记账（agent_reported + skill_sessions.L7=<subagent 会话>）＋ 会话留痕；**无落章**。三条代码依据：
+      layers.yaml 记 skill_write: false；kb_pipeline.py 的 STAMP_SPEC 不含 L7（kb/l7/runs/<RUN>.json 就是编排器
+      自己的记账文件，结构上不能自证）；skill_invocation_audit.py 的 EXEMPT_LAYERS 对 L7 显式豁免
+      （实测输出「⚪ 豁免 L7」）。
+    verified_20261003: >-
+      L7 子会话 a99dc773-c499-4c2d-9a6a-fca7be7e8e32 用 skill 工具加载 kb-check；记账后
+      skill_evidence=agent_reported ／ invoked=[kb-check] ／ human_involved=true；审计 ✅ 过 红0 黄0。
+    cost: >-
+      对**已记账**的 RUN 再记一次 ⇒ kb/l7/runs/index.jsonl 该 RUN 落 **2 行**（07:04 registry_echo ＋ 09:25
+      agent_reported）。驱动循环必须靠第 1 步 --gate-only 避免这个双计。
+  l7_declaration_conflicts_20261003:
+    - id: L7-C1
+      title: >-
+        L7 标 dry_run: true，但引擎清单里有无干跑档、会写盘的脚本
+      evidence: >-
+        layers.yaml:578 记 L7 dry_run: true；同段 engine 的 kb/l8/workflow_check.py 无 APPLY 闸，:254-255 写
+        kb/l8/workflow_check_<RUN>.json（另 :215 mkdir ／ :217 cp ／ :219-240 建 ingest 探针 ／ :195 跑
+        review.py --help）⇒「L7 引擎清单可全量只读执行」在代码层不成立。
+      consequence: >-
+        驱动循环按「每层跑 engine 清单」执行 L7 时会写进 kb/ —— 本轮已跳过该脚本并登记（layers.yaml 该行已就地标注）。
+      do_not: >-
+        未判定前不要给它加 --apply，也不要直接补干跑闸门（那是改层引擎，要单独一批）。
+    - id: L7-C2
+      title: >-
+        kb-check skill §1 列 6 道闸门，layers.yaml 的 L7 engine 只声明 3 个
+      evidence: >-
+        skill 正文列 layers_check ／ routes_reconcile ／ envelope_gate ／ envelope_census ／ projection_reconcile
+        等；engine 只有 skills_check.py ／ workflow_check.py ／ l7_article_source_refresh.py ⇒ 其余 5 道链路不跑
+        （其中 projection_reconcile.py 库内明标「无干跑档」）。
+      open_question: >-
+        是 engine 清单漏登记，还是 skill 正文该收敛到 engine？二者必须择一 —— 本库纪律：引擎清单的唯一真源是 layers.yaml。
+    - id: L7-C3
+      title: >-
+        kb-check §4 要的 <RUN>-health.md 与「不许写库」冲突
+      evidence: >-
+        skill §4 要求产出 kb/l7/reports/<RUN>-health.md；而 L7 skill_write: false、本轮口径「不许写库」
+        ⇒ 体检表只能以会话正文交付。
+  session_claim:
+    wired_at: "2026-10-03"
+    script: "kb/l7/scripts/kb_loop_claim.py（claim / release / status；记录 kb/.work/.kb-loop-claim.json）"
+    why: "命令级锁（kb/.work/.kb.lock）只管秒级；循环是会话级（几分钟~十几分钟），中间没有东西阻止第二个会话同跑。实测代价：同一 RUN 在 index.jsonl 落 2 行（双计）、L7 记账行被覆盖、L6/L7 各被 exit 2 挡回一次。"
+    semantics: >-
+      commit=claim --base <BASE>；exit 3 = 已被占用 ⇒ 停；跑完 release。
+      **认领是「全局单槽」、不是「一个 BASE 一个槽」**：认领文件只有一个（kb/.work/.kb-loop-claim.json），
+      跑**不同** BASE 的第二个会话**照样** exit 3 —— 要保护的共享资源（kb/.work/.kb.lock、
+      kb/l7/runs/index.jsonl、各层 runs/）是全库唯一的，按 BASE 分槽＝把双计/覆盖事故放回来；
+      `--base` 只作记录与展示，**不参与分槽**，别"顺手修成"分槽。
+      陈旧 = 超 TTL(45min) 或 (pid 不在 且 过 5min 宽限) 才可 --take-over；
+      **--take-over 只在跨会话场景有意义**（上一会话崩了 ⇒ session/pid 必然都不同），
+      认领**新鲜**时加它照样拒；等效路径是 release --force 再 claim。
+      **它不是闸门**（不判内容、不判红绿），只是「现在谁在跑」的告示。
+    defects_fixed_20261003:
+      - id: "CLAIM-C1"
+        defect: "--ttl 0 被静默升格成 45 分钟"
+        cause: "`float(c.get('ttl_min') or 45)` —— ttl_min=0 是 falsy，`or` 把它吃成默认值"
+        impact: "实测：ttl=0 的认领已 60 分钟仍被判「进行中」，永不陈旧 ⇒ 认领永久卡死、只能靠 release --force 拆"
+        fix: "改成 `45.0 if raw is None else float(raw)`（只有 None/缺失才回落默认）"
+      - id: "CLAIM-C2"
+        defect: "--take-over 在跨会话分支被无条件 return 3 吃掉（参数被接受但从不生效）"
+        cause: "take_over 只在 `same`（同 BASE 且 同 pid 或 同 session）分支被消费；跨会话分支直接拒"
+        impact: "「上一会话崩了 → 新会话接手」正是它唯一有意义的场景，却永远走不进 same 分支 ⇒ 文档承诺的恢复路径不存在（此前只能 release --force）"
+        fix: "跨会话分支改为「陈旧 且 --take-over」才放行，并打印接管告警；新鲜时照样拒"
+    verified: >-
+      2026-10-03 实测（修复后 8/8）：① claim exit0 ② 异会话 claim exit3「别抢」
+      ③ 新鲜认领 + --take-over 仍 exit3 ④ 认领推到 60 分钟前 ⇒ status 报「陈旧（可 --take-over）」exit0
+      ⑤ 陈旧 + --take-over exit0（打印接管告警）⑥ release exit0
+      ⑦ --ttl 0 ⇒ 立刻判陈旧、可被 --take-over 接手（缺陷 CLAIM-C1 已闭）
+      ⑧ status exit0 空、无残留 kb/.work/.kb-loop-claim.json。
+      修复前对照：B claim exit3「别抢」；B release exit3；A release exit0 → status exit0。
+  stray_artifacts_20261003:
+    decision: "**两个误写件都不删**（登记留痕，不销毁库内证据）"
+    items:
+      - path: "kb/l5/runs/20260923-1430-dryrun.json"
+        why: "2026-10-03 06:56:56 由一次误用 --help 的调用写出（l5_report.py 不解析 argv），run_id 属 2026-09-23、无 skill 键 ⇒ 不是任何当前 RUN 的落章。不删理由：无法证明同名文件此前不存在（可能覆盖了 09-23 的历史件），删除会销毁可能的留痕。"
+      - path: "kb/l5/benchmark.json"
+        why: "l5_bench.py 的无条件产物，**是 l5_report.py 的输入之一**（:74/:119）⇒ 删除会打断 L5 落章引擎的输入链。本轮内容已刷新为 2026-10-03 的基准跑。"
+    prevention: "已在 layers.yaml 给 l4_integrity.py / l5_bench.py / l6_bench.py 三条引擎加「驱动循环默认跳过」注记（2026-10-03），从源头避免再触发。"
+
+  three_defenses_20261003:
+    why: >-
+      层前置（`LAYER_PREFLIGHT_LAYERS`）只保护「**证据管道**」——实测同日一单图片轮播：
+      L4/L5/L6/L7 **四条审计红 0**，但 `kb-review` 让位表指定的判定主体（`图片安全审查`）
+      **一次都没加载**，报告照样出了、表行照样写了。根因两条：
+      ① 闸门只装在 `with_kb_evidence.py` 一扇门上，而 `kb-content-review/scripts/review.py`
+         也能出结论（1475 行、**0 处** `layer_preflight`），且该 skill 正文把它写成「可执行参考实现」；
+      ② 「判定主体是谁」在代码里**不存在**（`with_kb_evidence.py` 里 `decision_owner` 出现 0 次），
+         报告那行是 agent 手写散文，没人核也核不了。
+    defense_1_entry_only:
+      what: "`review.py` 加**入口闸门**：只认 `KB_ENTRY ∈ {with_kb_evidence, kb_api, selftest}` 或显式 `--i-am-the-entry`；否则打印拒跑说明并 `exit 2`。"
+      wiring: "`with_kb_evidence.py` 起 subprocess 时在 env 里带 `KB_ENTRY=with_kb_evidence`（与既有 `KB_INTERP_OK` 同一处）。"
+      why_this_works: "**只有一扇门，就不存在「从哪扇进来忘了加载 skill」** —— 比在门上贴提醒强。"
+      blast_radius: "`kb_api.py` **不** subprocess 跑 `review.py`（它调同一份判据），故机器入口不受影响；测试也不直跑它。"
+      skil_md_fix: "kb-content-review/SKILL.md 原第 264 行「本 skill 的可执行参考实现：scripts/review.py」已改为「内部引擎、不是对外入口」。"
+    defense_2_decision_owner:
+      what: "引擎加 `--decision-owner <skill-id>`（CLI 侧**默认要求**），写进 `evidence_meta.decision_owner` 与 run 记录 `extra.decision_owner`；缺 ⇒ `NEEDS_INPUT` / exit 3，显式豁免写 `--allow-no-decision-owner`（记 `waived_by_caller`）。"
+      terminus: "发布件 `feishu_publish.py` 同样**拒发**（exit 3）—— 「发不出去」是用户当天就能看见的信号，不必等人翻 evidence_meta。"
+      shape_guard: "顺带加**形状守卫**：`decision` 不是对象（= 后门裸报告的形态）⇒ 干净拒发 exit 2。原行为是抛 AttributeError **带栈崩**（exit 1），看起来像脚本坏了，其实是用错入口。"
+    defense_3_declaration:
+      what: "`--loaded-skill <skill-id>`（可重复）随 run 记录落盘；`--decision-owner` 不在申报里 ⇒ 结论带 `warning`。"
+      honest_limit: "**这是 agent 自述档（agent_reported），不是强证据** —— 证明不了「真加载过」，只能证明「申报了」。与 `--invoked` 同一性质，不许当强证据用。"
+    exemptions:
+      decision: "**不是所有脚本都该要求加载 skill** —— 一刀切只会让链路更重更慢，换不来判定质量。按「它执行的是**知识**还是**机制**」分三类登记。"
+      must_load: "产出判定/依据的：13 个判定主体、`kb-content-review` ⇒ 走 defense_2 的 `--decision-owner`。"
+      should_load: "编排入口：`kb-pipeline`、`kb-review` ⇒ 不带 `--via-skill` 直接跑整链要显著告警并记 `via_skill=false`。"
+      exempt: "尺子/发布件/纯工具：`skill_invocation_audit.py`（尺子）、`feishu_publish.py`（发布件）、`kb_loop_claim.py`（认领）、`lark-cli`（`lark-base` 的 CLI）—— **明确豁免**：要求「尺子也得先加载 skill」会造成**无限套娃**。"
+    verified: >-
+      2026-10-03 实测：① 直调 `review.py` ⇒ exit 2 + 拒跑说明；带 `KB_ENTRY=selftest` 或 `--i-am-the-entry` ⇒ 正常出结论。
+      ② 引擎不给 `--decision-owner` ⇒ `NEEDS_INPUT` / exit 3；给了 ⇒ 正常出 BLOCK / exit 0，
+      且行内打印 `判定主体：产品宣称核验（declared）`。
+      ③ run 记录 `kb/l7/runs/20261003-124616.json` 的 `extra.decision_owner` 四字段齐。
+      ④ 发布件对「后门形状」报告 ⇒ 干净拒发 exit 2；对「有层前置但摘掉判定主体」⇒ 拒发 exit 3。
+    rollback: >-
+      `review.py` 删 `_entry_gate()` 调用；`with_kb_evidence.py` 去掉 `--decision-owner` 的 fail-closed 分支
+      （保留字段与留痕）；`feishu_publish.py` 去掉两处拒发（保留形状守卫，它修的是崩栈）。
+
+  freshness_ledger_fix_20261003:
+    trigger: >-
+      用户问「为什么拒答」。实测：2026-10-03 08:30 日更**真的跑了全链 `--apply`、体检 GREEN**
+      （`daily_sync.py` 日志：「L0对齐 exit=0 ｜ 写档完成 L1,L2,L3,L4,L5,L6 ｜ 失败 无」），
+      而 `review_freshness_gate.py` 仍判陈旧、评审链**拒答** ⇒ 再跑日更也没用。
+    root_cause: >-
+      `layer_freshness.judge()` 需 `change_state` + `input_watermark` 做水位交叉验证，而层引擎落章里
+      大多没有这两字段 ⇒ 它转读 sidecar `kb/l7/registry/layer_run_freshness.json`。而 `measure()`
+      ——sidecar 的**唯一写入者**——**全库没有任何生产调用点**（只有 `layer_freshness.py` 自己的 CLI
+      与 `seed_freshness_sidecar.py` 的注释）。实测：L4/L5/L6 的 sidecar 停在 **10-02 13:22**
+      （`provenance=measured`），judge 拿它算年龄 ⇒ **31.2 小时 > 24 小时 ⇒ 永久拒答**。
+      `seed_freshness_sidecar.py` 早就承诺「之后每一跑都走 `measure()`，seeded 会被真观测覆盖」
+      —— **该承诺从未兑现**。
+    defect_4_run_at_run_age:
+      what: "`layer_freshness.py` judge(): sidecar 分支**只更新 `run_age`、不更新 `run_at`** ⇒ 同一份输出里 `run_at=当天08:31` 与 `run_age=31.2h` 自相矛盾（排查时把作者本人带偏）。"
+      fix: "`run_at` / `run_age` **同源更新**；另加 `run_at_source`（`落章` / `落章文件 mtime` / `sidecar 观测（provenance=measured）`）让时间来源可见。"
+    defect_2_time_source:
+      what: "judge 无条件采信 sidecar 的 `executed_at`，而 sidecar 的 measured 条目**永不被刷新** ⇒ 旧时间压住新落章。"
+      fix_v1_rejected: "第一版改成「落章无条件优先」——**实测不够**：L1/L3/L5/L6 的落章本身停在 10-02 21:02（23.6h），24 分钟后照样翻红（**幂等层跑完不留新落章**）。"
+      fix: "改为**取较新者**：落章时间 vs sidecar 时间，谁新用谁；且**只认 `provenance=measured`** 的 sidecar 时间（`seeded_from_disk` 是补记、非观测，见 seed 脚本自述，**不认**）。"
+    defect_1_no_measure_caller:
+      what: "`daily_sync.py` 逐层写档后**不落新鲜度观测** ⇒ 幂等层跑完不留任何『跑过』的证据 ⇒ 判据拿旧时间判陈旧。"
+      fix: "`daily_sync.py` 加 `_freshness()` + `observe()`：每层**测前**取 `output_fingerprint` / `watermark_digest(current_watermark)`，`kb_pipeline --apply` 跑完**立刻调 `measure()`** 落真实观测（`provenance=measured`）。参数取法照 `layer_freshness.py` 自己的 `measure` 子命令（`:521-526`）。失败只告警、不拖垮日更。"
+    new_attack_surface:
+      what: >-
+        **修复2 引入的新信任面**：「取较新者」会**采信 `provenance=measured` 的 sidecar 时间** ⇒
+        **任何能写 sidecar 的东西，都能让 8 层瞬间「变新鲜」、绕过整道新鲜度闸门**。
+        实证：2026-10-03 20:38:17 有**库外**代码把 L1/L4/L5/L6 的 sidecar 写成 `provenance=measured`，
+        note「评审链层前置补观测（本单 REV-202610031826-momcozy-pump）」（**该字符串在库内任何代码里
+        grep 不到**），并留备份 `layer_run_freshness.json.bak2-20261003-2038`。
+        ⇒ **补记被标成强档**（`measured` 的定义是「包住一次真运行测出来的」）。
+      tightening_pending: >-
+        **已做（2026-10-03 当日）**：`layer_freshness.py` 新增 `_trace_exists()` —— 采信
+        `provenance=measured` 的 sidecar 时间**之前**，先拿它的 `run_id` 去核对一次真运行；
+        核对不上 ⇒ **不采信该时间**（退回落章时间），并把 `sidecar_time_rejected` 如实写进 judge 输出。
+      tightening_criterion: >-
+        认三种**精确**形态：`kb/l7/runs/<rid>.json` ／ `kb/<layer>/runs/<rid>.json` ／
+        `kb/l8/runs/<rid>-l0-align.json`。
+        ★ **不许用通配**（第一版加过 `<rid>-*.json` 兜底，实测**把洞又打开了**：那条伪造的 `<rid>`
+        正好有 `kb/l7/runs/<rid>-L4.json` 这类层记账件 ⇒ 通配一匹配就放行；且它的层侧产物是
+        `-dryrun.json` 干跑件，而库规明写「干跑档不算跑过」）。
+      tightening_verified: >-
+        实测 `_trace_exists`：伪造 rid `REV-202610031826-momcozy-pump` → **False（抓得住）**；
+        日更 rid `20261003-2055` → True；旧 `20261002-1330-L4` → False。
+        judge 八层仍全 fresh、新鲜度闸门 exit 0；L7 的旧观测被拒后**优雅退回落章**（仍新鲜）——
+        `daily_sync.py` 已配套改为用 `_newest_l7_run()` 取**真产物名**当 rid，避免它白落。
+    verified: >-
+      修复后实测：`judge()` 8 层全 `fresh=True`；`review_freshness_gate.py` **exit 0（放行）**。
+      修复1 的效果须**跑一次日更**才可见（本批已触发并在跑后核 `provenance=measured` 是否逐层落地）。
+    rollback: >-
+      `layer_freshness.py`：把 sidecar 分支还原为「无条件用 `_sc['executed_at']` 覆盖」并去掉
+      `run_at_source`；`daily_sync.py`：删 `_freshness()` / `observe()` 及循环内两处调用。
+
+  three_more_fixes_20261003:
+    why: "承接 `freshness_ledger_fix_20261003`，按用户裁定把剩下的 2/3/4 三条待办做完（第 1 条的 L0 未对齐已查清并更正 —— 见 `l0_not_aligned_finding`）。"
+    fix2_expose_stale_copy_age:
+      what: "`daily_health.py` 新增 `l0_copy_age()`；日报第 5 节「已知阻断项」**加一列「L0 副本」**，对 ≥3 天的标 ⚠️ ＋ 追加一段说明。"
+      why: "登记 `pull_failed` ⇒ 健康色 GREEN 是对的（不冤枉管线）；**但登记 ≠ 无害** —— 实测 `专家修订汇总表` 的 L0 副本停在 09-23（395 条，**10.4 天前**）、`内容公式` 停在 09-24（7 条，**9.5 天前**），而它们**仍是评审链的溯源终点**。原来只报「拉不到」、不报「因此已经多旧」⇒ 静默陈旧。"
+      verified: "重生成日报实测：新列输出 `⚠️ 395 条 ｜ 最新 10.4 天前` 与 `⚠️ 7 条 ｜ 最新 9.5 天前`，并带「二选一：解锁 ／ 在报告里标明是旧快照」的说明。"
+    fix3_api_decision_owner:
+      what: "`kb_api.py`：`ReviewReq` 加 `decision_owner`（中文装载目录名）与 `allow_no_decision_owner`；`do_review()` 三层口径 —— ① 申报 ⇒ `mode=declared_by_api`（带 `cannot_verify` 诚实标注）② 显式豁免 ⇒ `waived_by_api` ③ **带了 BASE 却没申报也没豁免 ⇒ HTTP 409**；响应体加 `decision_owner` 留痕。"
+      why: "CLI 侧已把「判定主体缺席」挡成 NEEDS_INPUT，而机器入口原先**只有层前置**（实测 `grep -c decision_owner kb_api.py` = 0）⇒ bot 那条路**绕过防线2**。现在两侧**同一强度**。"
+      verified: "重启服务后实测三分支：① → **409**（detail 说明自相矛盾）② → **200** ＋ `declared_by_api`（含「本接口核不了该 skill 有没有被真的加载」）③ → **200** ＋ `absent_by_api` ＋「不得当通过依据」。"
+    fix4_autorun_lock_leak:
+      what: "两侧一起改：`kb_pipeline.py` 装 `SIGTERM → SystemExit` 处理器（让 `finally: release_lock()`（:958）能跑到）；`review_freshness_gate.py` 的 autorun 由 `subprocess.run(timeout=)` 改成 `Popen` ＋ **超时先 SIGTERM**（`AUTORUN_TERM_GRACE=20s`）**再 SIGKILL**，并在 `finally` 里核一次锁、把「本次 autorun 留下锁」写进台账（**不自动撬锁** —— 库规要求先 `--check` 再删）。"
+      why: "`subprocess.run(timeout=)` 超时直接 **SIGKILL** ⇒ `finally` 跑不到 ⇒ 锁留在 `kb/.work/.kb.lock`。实测代价：2026-10-03 18:53:13 漏下 `run_id=20261003-185311-autorun` 那把锁，**挡停了随后的一次日更**（`L1 写档 → exit=2`，「遇红即停」）。"
+      verified: "语义对照实测（独立复现）：装处理器 ⇒ `kill -TERM` 后 **finally 跑、锁释放** ✅；不装 ⇒ **锁残留** ❌。★ 集成侧（`kb_pipeline` 自己的 `finally`）由**代码审读**确认（:958），**没有**拿真 `--apply` 去 SIGTERM —— 那正是库里警告的「崩在中途」场景，不做。"
+  l0_not_aligned_finding:
+    summary: "用户复查「L0 今天日更后跟飞书对齐了吗」⇒ **未完全对齐，但两个原因都不是管线故障**。"
+    only_feishu_10: "**准入规则正常工作**：逐条原因全同 `准入未过：材料审核状态=[] != [\"通过\"]`（飞书侧尚未审核通过）。★ **更正**：作者上一轮说过「自动拉取实际没生效」——**那句是错的**，`auto_apply: true` 生效了，是准入挡的。"
+    pull_failed_2: "**2 张表权限不足**，且 `kb/l7/registry/l0-expected-diffs.yaml` 的 **EX-2/EX-3（2026-09-30 登记）**早有：`code 91403`、reason 原文「资源级 ACL：bot 身份（守衡）不在该表的协作者里……**重试 ／ 换身份都没用**」。**要人在飞书侧把「守衡」加成该表的可阅读协作者。**"
+    independent_probe: "bot（`cli_aa2243de0438dcd7`＝守衡，profile `dsh-kb`）对该 base **连 `base +table-list`（元数据级）都是 91403**，而对照 base（`GnRZ…`）正常 ⇒ **不是表级限制，是该 base 整体没授权给这个应用**。（用户称「飞书侧本来就加了守衡是编辑权限」⇒ 与实测不符，需在飞书侧核对加的是**应用**还是**人名**、以及是不是**这个 base**。）"
+    consequence: "见 `fix2_expose_stale_copy_age` —— 已让「旧到 10.4 天」可见。"
+
+  l0_aligned_resolved_20261003:
+    summary: "承接 `l0_not_aligned_finding` 的 `pull_failed_2`：**两张表已拉通，L0 闸门实测转绿（真差异 0）**。用户裁定「先用我的身份拉通，同时我去飞书侧授权」。"
+    what: "`kb/l8/align_l0_feishu.py` 加**按表身份回落**：首拉用 `L8_AS`（默认 `bot`）失败后，先删掉可能写了一半的快照，再**只对这张表**改用户身份（`L8_AS_FALLBACK`，默认 `user`）重拉一次；设 `L8_AS_FALLBACK=`（空）即关闭回落。"
+    why: >
+      为什么不按 EX-2/EX-3 当初写的 `owner_action`（把守衡加成协作者）：那条**至今没做**，
+      且 bot 对该 base 是**整库级** `131006`（连 `base +table-list` 都进不去，不是表级）——
+      根治要人在飞书侧操作。为什么不干脆全局 `L8_AS=user`：实测 device-flow 输出
+      `[WARN] no refresh_token in response` ⇒ 用户令牌**到期不续**，把 10 张表一起吊在一个
+      会过期的令牌上，换来的正是本库反复栽的那类「日更成功但 L0 没更新」。所以只在**必须**的表上回落。
+    visibility: >
+      回落**不许静默**：每张表记 `identity`；回落另记 `identity_fallback{from,to,first_error}`；
+      汇总行加「身份回落 N」。★ 已核 `l0_gate.py` 两个正则不受影响：`ROW` 锚定 `\\s*$` 而**表行格式未变**、
+      `TOTALS` 用 `.search()` **非锚定**仍能取到 `pf`，且新增的 `[身份回落]` 行不匹配 `ROW`（无 `飞书=`）也不匹配 `FAIL`（非 `[拉取失败]`）。
+    fail_loud: "★ 令牌失效**是响的不是哑的**：user 拉不到 ⇒ 该表回到 `pull_failed` ⇒ `l0_gate` 判红。不会退化成静默假绿。"
+    declarations: "`kb/l7/registry/l0-expected-diffs.yaml`：EX-2/EX-3 按各自 `reopen_when`（「该表不再报拉取失败」）**移除**；新增顶层 `resolved` 区块，照实记「怎么解决的」（**换身份，不是 ACL 授权**）＋ 残余风险 ＋ 新 `reopen_when`；`meta.latest_run` 更新为本次实测。"
+    verified: >
+      `align_l0_feishu.py --check`：`专家修订汇总表` 395/395 一致、`内容公式（仅供参考）` 7/7 一致、
+      两表 `值变 0`；汇总 `一致 1014 ｜ 飞书多 10 ｜ L0多 0 ｜ 值变 0 ｜ 拉取失败 0（原 2）｜ 身份回落 2`。
+      `l0_gate.py` → **结论 ✅ 过（真差异 0）・退出码 0・未声明的差异 0 条**，`expected` 仅剩 EX-1（材料收集 10 → 预期内）。
+    residual: "① bot 对该 base 仍无权限 —— 飞书侧授权后回落自然不再触发（**不用改代码**）；② 用户令牌到期需重跑 `lark-cli auth login --profile dsh-kb --domain base --domain wiki`。"
+    scope_note: "改的是**对账器**（谁去读源），**没有**放宽任何闸门判据 —— `not_exemptable` 四条一字未动，`only_feishu 10` 仍在原始事实里、由 EX-1 分类，不是被抹掉。"
+
+  verification_20261003:
+    method: "端到端跑一遍：L4/L5/L6 各起一个 subagent 用 skill 工具加载层 skill → L7 单独跑（留会话痕）→
+      四条审计 → 评审链出结论 → 落报告"
+    acceptance:
+      - "四条 skill_invocation_audit 红 0（E1/E2 不出现；2026-10-03 起含 <BASE>-L7）"
+      - "kb/l7/runs/<BASE>-L{4,5,6,7}.json 的 extra.skill_sessions 有对应层会话标识（L7 也要有）"
+      - "kb/l{4,5,6}/runs/<BASE>-L*.json 顶层 skill == layers.yaml 本层 skill:（L7 无层侧落章 ⇒ 不适用，见 l7_declaration_conflicts_20261003）"
+      - "报告落 kb/l7/reports/<run>.review.md，且 python getsize == node statSync().size（差 0）"
+
+applied_20261005:
+  review_layer_prestage_merged_execution:
+    what: >
+      「层前置」从**每层切 subagent** 改为**一次执行跑完**（L4→L5→L6→L7）。
+      这是**流程**改动，不是判据改动。
+    why_measured: >
+      实测一单（RT-20261005-IMG-02，2026-10-05）：四个层前置子代理 span 合计 832.6 s，
+      其中**模型生成 493.7 s**；而它们跑的命令清一色只读探针（L4 子代理 18 条命令合计 4.6 s）。
+      四层前置本身是机械步骤 —— 真正跑引擎的是 kb_pipeline.py 自己的落章引擎
+      （SYNC_SPEC/STAMP_SPEC，运行时回表核对 layers.yaml 各层 engine:）。
+    how:
+      - 新增库内驱动 kb/l8/review_preflight.sh：一次调用按 L4→L5→L6→L7 顺序做
+        ① 本层闸门 ② 本层引擎(预演)+记账 ③ 本层审计 ④ 释放认领；任一红即停。
+      - 层→skill 映射由它**现读 layers.yaml** 的 skill: 字段（唯一真源），不手抄。
+      - 认领被占 / kb/.work/.kb.lock 被活进程持有 ⇒ 退出码 3（**库忙 ≠ 闸门红**，分开报；不撬锁不删锁）。
+    unchanged_judgements:
+      - 每层仍是自己的 RUN（<BASE>-L4 / -L5 / -L6 / -L7）
+      - 层侧落章仍带 skill 字段；记账仍带 --invoked / --skill-session
+      - 四道审计（L4/L5/L6/L7）仍必须红 0，仍是引擎 --require-layer-preflight 的判据
+      - 四段溯源、判定主体 --decision-owner、发布闸门：一条未动
+    measured_after:
+      layer_preflight_s: 114
+      engine_s: 5
+      skill_load_s: 7
+      end_to_end_s: 126
+      note: "不含飞书发布；素材与基线同一文本（rt-img-02-text.txt）"
+      conclusion_identical: true
+    files_changed:
+      - kb/kbpy
+      - kb/l8/review_preflight.sh
+      - kb/l7/skills/kb-review/SKILL.md
+      - kb/l7/skills/kb-pipeline/SKILL.md
+      - kb/l7/skills/kb-content-review/SKILL.md
+      - kb/l7/skills/视频安全审查/SKILL.md
+      - kb/l7/registry/routes.yaml
+      - ~/.dsh/AGENTS.md
+      - ~/.dsh/skills/图片安全审查/SKILL.md
+      - ~/.dsh/skills/文案合规审查/SKILL.md
+      - ~/.dsh/skills/产品宣称核验/SKILL.md
+      - ~/.dsh/skills/AI溯源与权利审查/SKILL.md
+      - ~/.dsh/skills/美国本地化审查/SKILL.md
+      - ~/.dsh/skills/视频安全审查/SKILL.md
+      - ~/.dsh/skills/内容审查总控/SKILL.md
+    known_residual:
+      - "kb/l7/skills/kb-check/SKILL.md 第 41 行仍写「L7 子会话」——该文件是只读（-r--------，库内
+        「已设只读」标记），未 chmod 硬改；要改走 kb-repair 的解禁流程。影响：措辞，不影响判据。"
+    rollback:
+      - kb/l7/_backups/kbpy-perf-S1-20261005-103923/kbpy.bak
+      - kb/l7/_backups/review-via-skill-S2b-20261005-110217/
+
+applied_20261005_p0_fastpath:
+  what: >
+    **P0 红线快路**：新增 `kb/l5/p0_fastpath.py`，在**入口**（守衡收到素材之后、spawn agent 之前）
+    跑一次确定性 P0 匹配；命中即出 BLOCK（含四段溯源），**不进四层前置与评审链**。
+  prd_basis:
+    doc: "内容审查 Agent PRD v1.2（wiki NB55wAq8liEOdKkquL2cgtPEnmg / docx PXfBdjTwFokEQixtmTscqm7knNh）"
+    revision_at_read: 36
+    read_at: "2026-10-05"
+    quotes:
+      - "§6.3 执行规则 1：P0 命中即**停止后续审查**，直接输出 BLOCK，确保法务红线零延迟拦截。"
+      - "§6.2 P0 行：**无需大模型推理**，正则/关键词命中即输出 BLOCK。"
+      - "§12：P0 层响应 ≤ 1 秒；飞书群 @Agent 响应时间 ≤ 5 秒。"
+    为什么必须放入口: >
+      链内跑一次要 4~10 分钟（2026-10-05 四单实测均值 6.25 min，其中约八成是通用 agent 自己在探索），
+      而 PRD 要 ≤1 秒。**命中就不 spawn agent** 是唯一满足它的做法。
+  semantics:
+    only_blocks: "只对**命中**短路，只出 BLOCK —— **永不**产出 PASS / REVIEW"
+    falls_back: "未命中一律回落原链（L4→L5→L6→L7 + 评审链），判据一条不放宽"
+    visible: "结论自带 `mode=p0_fastpath` + `enforced=false` + `is_pass_basis=false`；守衡侧抬头另写明「没有跑层前置/评审链」"
+    read_only: "只读模式表 + L4 canonical + L0 记录；不碰 kb/.work/.kb.lock，不写库 ⇒ 放在认领之前"
+    four_segments: "条款号(L4 直查 rule_code→article_no) + 命中片段(L5 模式/匹配器) + anchor/source_sha256(模式自带) + L0 逐字与 entry_url 直链"
+  measured:
+    fastpath_ms: "8~13 ms（kbpy 墙钟 0.12 s）"
+    production_chain_ms: 116
+    production_total_ms: 4376
+    note: "总时长里 4.2 s 是飞书落表（list+create+readback），不是快路"
+    false_positive_guard: "判定对象只取**素材**（text）；没有素材才退回提问 —— 避免把「这条有没有 safest 这种词？」这类提问本身判成红线"
+  files:
+    - kb/l5/p0_fastpath.py
+    - tools/agent/tools.mjs
+    - tools/agent/review_gate.mjs
+  rollback:
+    - "守衡侧：tools/agent/.backups/tools.mjs.*.bak（去掉 P0 段即恢复）"
+
+applied_20261005_review_playbook:
+  what: >
+    **评审链执行手册**：新增 `kb/l8/review_playbook.md`（一页，6 步 + 五条禁止），
+    由守衡把它**原文**随任务一起下发给 headless agent（`tools/agent/tools.mjs` 的
+    `REVIEW_PLAYBOOK` 读库内那一页，**不复制第二份**）。
+  why_measured: >
+    实测 headless agent 一单做 63 次工具调用，其中一次是 **42 秒的全库递归 grep**，
+    还有反复重跑闸门/重读同一文件那种"确认"；而**四层前置只占 7.7 秒**。
+    ⇒ 端到端 4~10 分钟里约八成是 agent 自己"想"的时间，花在"自己发明流程"上。
+  conflict_declared: >
+    ★ 这一版**没有**按「换入口（去掉 agent）」做 —— 那会去掉**唯一能加载 skill 的执行体**，
+    同时破坏「每层调 skill」这条工作流与库内三道防线（会退化成 registry_echo / declared_by_api，
+    而库规明写那种结论不得当 PASS 依据）。**冲突已摆出，选择的是不破工作流的那一半**：
+    skill 照旧逐层真加载，只把 agent 从"探索者"压成"执行者"。
+  unchanged:
+    - "skill 仍必须逐层用 skill 工具真加载（工作流本体不变）"
+    - "闸门红即停、四道审计仍须红 0、结论只能由引擎产出"
+    - "四段溯源与判定主体要求一字未改"
+  measured:
+    rounds:
+      R1_脚本侧三项: {total_s: 1478.0, mean_s: 369.5, spread: "234–612（2.61×）"}
+      R2_试S5降档:   {total_s: 1526.7, mean_s: 381.7, spread: "371–391（1.05×）", note: "S5 已回退"}
+      R3_全部优化:   {total_s: 1428.9, mean_s: 357.2, spread: "236–522（2.21×）"}
+      R4_加执行手册: {total_s: 1364.9, mean_s: 341.2, spread: "298–359（1.21×）"}
+    honesty: >
+      **不宣称手册带来 7.7% 提升** —— n=4，且同配置方差本身就大（同素材同设置实测出现过 142 s 与 391 s，2.75×）。
+      能说的是：R4 均值最低，且**没有出现前两轮那种 500~600 s 的离群单**。
+    conclusions_R3_vs_R4: "4/4 一致（text=REVIEW / img=BLOCK / video=NEEDS_INPUT / link=BLOCK）"
+  files:
+    - kb/l8/review_playbook.md
+    - tools/agent/tools.mjs
+  gotcha: >
+    ★ 踩过一次并已修：把 `REVIEW_PLAYBOOK` 的 IIFE 插到文件**头部**时，它在 `import fs` 与
+    `const KB_ROOT` 之前执行 ⇒ 被 undefined 吞掉、**静默返回空串**（手册悄悄不生效）。
+    现位置在 `KB_ROOT` 就绪之后（`register('kb_review_chain'` 之前），且读不到时**出声告警**。
+  rollback:
+    - "kb/l7/_backups/review-playbook-*/；tools/agent/.backups/tools.mjs.*.bak"

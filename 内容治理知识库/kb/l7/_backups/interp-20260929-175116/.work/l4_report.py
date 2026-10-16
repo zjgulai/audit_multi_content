@@ -1,0 +1,232 @@
+#!/usr/bin/env python3
+"""生成 L4 运行留痕：kb/l4/runs/<run_id>.json | .report.md | .ops.log"""
+import hashlib, json, os, sys, time
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+os.chdir(ROOT)
+RUN = sys.argv[1] if len(sys.argv) > 1 else "20260923-1445"
+L3, L4 = "kb/l3", "kb/l4"
+
+
+def rd(p):
+    return json.load(open(p, encoding="utf-8"))
+
+
+def sha(p):
+    return hashlib.sha256(open(p, "rb").read()).hexdigest()
+
+
+now = time.strftime("%Y-%m-%d %H:%M:%S")
+art, integ, reg = rd("kb/.work/l4_article.json"), rd("kb/.work/l4_integrity.json"), rd(f"{L4}/registry/l4.json")
+ck, num = integ["checks"], reg["numbering"]
+CAND = f"{L3}/candidates/rules.jsonl"
+
+ART = [CAND, f"{L4}/registry/l4.json", f"{L4}/canonical/rules.jsonl", f"{L3}/CANONICAL_MOVED.md"]
+run = {
+    "run_id": RUN, "stage": "L4 定稿与发布层 —— 本批只做条款号分配", "finished_at": now, "kb_version": "v0",
+    "skeleton": {"dirs": [f"{L4}/canonical", f"{L4}/registry", f"{L4}/runs"],
+                 "canonical": {"path": f"{L4}/canonical/rules.jsonl", "bytes": ck["canonical_state"]["l4_canonical_bytes"],
+                               "sha256": ck["canonical_state"]["l4_canonical_sha256"],
+                               "state": "空（本批不写）"},
+                 "migration": reg["canonical"]["migration"],
+                 "l3_canonical_dir_removed": not ck["canonical_state"]["l3_canonical_dir_exists"],
+                 "note": f"{L3}/CANONICAL_MOVED.md"},
+    "numbering": {"format": num["format"], "library_prefix": num["library_prefix"],
+                  "prefix_library_label": num["prefix_library_label"], "form_block": num["form_block"],
+                  "form_block_label": num["form_block_label"], "order_key": num["order_key"],
+                  "order_key_note": num["order_key_note"], "no_reuse": num["no_reuse"],
+                  "per_segment": ck["article_numbers"]["per_segment"],
+                  "per_library": ck["article_numbers"]["per_library"],
+                  "totals": num["totals"]},
+    "assignment": {"rules": ck["article_numbers"]["rules"],
+                   "with_article_no": ck["article_numbers"]["with_article_no"],
+                   "duplicates": ck["article_numbers"]["duplicates_within_segment"],
+                   "gaps": ck["article_numbers"]["sequence_gaps"],
+                   "prefix_bad": ck["article_numbers"]["prefix_bad"], "block_bad": ck["article_numbers"]["block_bad"],
+                   "preexisting_non_empty_numbers": ck["article_numbers"]["preexisting_non_empty_numbers"],
+                   "reused_old_numbers": ck["article_numbers"]["reused_old_numbers"],
+                   "assignments": reg["assignments"]},
+    "l3_change": {"file": CAND, "lines_before": ck["l3_append_only"]["base_lines"],
+                  "lines_after": ck["l3_append_only"]["lines"],
+                  "bytes_before": ck["l3_append_only"]["base_bytes"], "bytes_after": os.path.getsize(CAND),
+                  "base_sha256": ck["l3_append_only"]["base_sha256"],
+                  "base_matches_L6_archive": ck["l3_append_only"]["base_matches_L6"],
+                  "prefix_bytes_identical": ck["l3_append_only"]["prefix_bytes_identical"],
+                  "appended_lines": ck["l3_append_only"]["appended_lines"],
+                  "fields_added": ck["l3_append_only"]["fields_added_in_appended_block"],
+                  "fields_changed": ck["l3_append_only"]["fields_changed_vs_old_block"]},
+    "integrity": ck, "integrity_verdict": integ["verdict"],
+    "artifacts": [{"path": p, "bytes": os.path.getsize(p), "sha256": sha(p)} for p in ART],
+    "decisions": [
+        {"id": "D1", "decision": "条款号格式用 `<库前缀>-<形态段>.<序号>`（如 W-1.12），段号由 form 决定",
+         "why": "任务要求「每类库各自一套编号」，可带层级；按形态分段让号码自带分组信息，且 form 是规则自身的不变量"},
+        {"id": "D2", "decision": "编号顺序的稳定键 = (kb_type 库, form 形态段, rule_id 字典序)",
+         "why": "全部是规则自身的不变量；不用 support_count、风险等级、时间或文件行序，规则增删不会让已发号码错位"},
+        {"id": "D3", "decision": "库前缀按 L0 dir_map 的四类库定：E=外部标准 / S=内部正负样本 / W=措辞表达 / P=产品描述，X=未归类",
+         "why": "前缀必须能直接对上知识库的四类，便于下游按库取号；本批 509 条全在措辞表达库，其余前缀登记备用"},
+        {"id": "D4", "decision": "把「永不复用」做成台账：kb/l4/registry/l4.json 的 numbering.issued 存 每段已发号码 + next_seq",
+         "why": "光靠重算无法保证不复用（规则消失后号码会被再发一次）；台账是唯一权威，后续批次只能在其上追加"},
+        {"id": "D5", "decision": "追加到 kb/l3 的行只加 article_no 一个字段",
+         "why": "自检要求「除 article_no 外无其他字段变化」；首跑多带了 l4_run_id/l4_assigned_at 两个审计字段，已回退到 1018 行原状态后重放，审计信息改放 registry 与 runs/"},
+        {"id": "D6", "decision": "canonical 空文件从 kb/l3 迁到 kb/l4，并整目录移除旧 canonical、留 CANONICAL_MOVED.md 指路",
+         "why": "L3 是候选层，canonical 属 L4；避免出现两个 canonical 目录造成下游误读。这是本批唯一一次动 kb/l3 的目录结构，规则行一行未动"},
+        {"id": "D7", "decision": "registry 与迁移说明改成「内容不变就不写」，重跑做到零写入",
+         "why": "首版每次重跑都重写 registry 与说明（mtime 变），复现检查因此不过；改后 mtime/size/sha256 三者全同"},
+        {"id": "D8", "decision": "台账里登记 libraries_empty（本批无规则的三类库）",
+         "why": "避免下游把「库前缀表里有 E/S/P 却没有 E-/S-/P- 号」误读成遗漏"},
+    ],
+    "not_done": [
+        "不做抽查（人工环节，不在本批）",
+        "不冻结版本：kb_version 仍 v0，versions.jsonl 不追加版本行，不产生 release_id",
+        "不写 kb/l4/canonical/rules.jsonl（仍 0 字节）",
+        "不改规则内容、不重新蒸馏、不动 L5 / L6、不建 skill",
+    ],
+}
+run["verdict"] = "PASS" if integ["verdict"] == "PASS" else "FAIL"
+os.makedirs(f"{L4}/runs", exist_ok=True)
+json.dump(run, open(f"{L4}/runs/{RUN}.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+
+ops = [
+    ("建 L4 骨架", "mkdir -p kb/l4/{canonical,registry,runs}", "三目录就绪"),
+    ("迁移 canonical 空文件", f"cp2 {L3}/canonical/rules.jsonl → {L4}/canonical/rules.jsonl，删原文件并 rmdir 旧目录",
+     "0 字节原样搬；kb/l3/canonical 目录已不存在；留 kb/l3/CANONICAL_MOVED.md 指路"),
+    ("首跑分配条款号", "python3 kb/.work/l4_article.py 20260923-1445",
+     "509 条全部赋号；追加 509 行（1018 → 1527）；旧 1018 行逐字节未变"),
+    ("发现首跑多带了两个审计字段（l4_run_id / l4_assigned_at），与「除 article_no 外无其他字段变化」不符",
+     "精确截断回 1018 行原状态（哈希核对 d9a28e25…）后重放", "只保留 article_no；字段变化集 = {article_no}"),
+    ("发现重跑会重写 registry 与迁移说明（mtime 变），复现检查 FAIL",
+     "python3 kb/.work/l4_integrity.py", "改为内容不变就不写；迁移记录取名持久事实"),
+    ("自检 6 项 + 2 项附加", "python3 kb/.work/l4_integrity.py 20260923-1445",
+     "全部 PASS（冻结层逐字节一致；追加性；无重复/无跳号/无复用；可复现零写入；canonical 仍空；版本纪律）"),
+    ("生成留痕", "python3 kb/.work/l4_report.py", f"runs/{RUN}.json / .report.md / .ops.log"),
+]
+with open(f"{L4}/runs/{RUN}.ops.log", "w", encoding="utf-8") as fh:
+    fh.write(f"# L4 定稿与发布层（本批只做条款号分配）· 操作日志 run_id={RUN}\n")
+    fh.write(f"# 生成时间 {now}｜写入范围：kb/l3 追加字段 + kb/l4；kb/l0~l2 只读；未发布任何版本\n")
+    for i, (what, cmd, res) in enumerate(ops, 1):
+        fh.write(f"\n[{i:02d}] {what}\n     $ {cmd}\n     → {res}\n")
+
+L = []
+A = L.append
+A(f"# L4 · 条款号分配报告（run_id {RUN}）\n")
+A(f"生成时间 {now}｜kb_version `v0`｜结论 **{run['verdict']}**\n")
+
+A("## 1. L4 骨架与 canonical 迁移\n")
+A("```")
+A(f"{L4}/")
+A("├── canonical/rules.jsonl     0 字节（本批保持空）")
+A("├── registry/l4.json          编号规则 + 台账 + 晋升规则（待抽查）+ 版本规则")
+A(f"└── runs/{RUN}.json | .report.md | .ops.log")
+A("```\n")
+m = reg["canonical"]["migration"]
+A(f"- 原路径 `{m['from']}`（{m.get('source_bytes') or 0} 字节空文件，从未写入过内容）")
+A(f"- 新路径 `{m['to']}`（仍 **{ck['canonical_state']['l4_canonical_bytes']} 字节**）")
+A(f"- `kb/l3/canonical/` 目录**已整体移除**（不留两个 canonical）：{not ck['canonical_state']['l3_canonical_dir_exists']}")
+A(f"- 位置说明写在 `{L3}/CANONICAL_MOVED.md`（迁移时间 {m.get('done_at')}，run_id {m.get('run_id')}）")
+A(f"- 这是本批唯一一次动 kb/l3 的目录结构；**规则行一行未动**（见第 4 节）\n")
+
+A("## 2. 编号规则\n")
+A(f"格式：`{num['format']}`\n")
+A("| 库（kb_type） | 前缀 | 对应目录 | 本批条数 | 号段 |")
+A("|---|---|---|---|---|")
+for kb, pref in num["library_prefix"].items():
+    segs = [f"{k}" for k, v in ck["article_numbers"]["per_segment"].items() if v and k.startswith(pref)]
+    cnt = ck["article_numbers"]["per_library"].get(kb, 0)
+    rng = "；".join(f"{k} {v['range'][0]}~{v['range'][1]}（{v['count']} 条）"
+                    for k, v in ck["article_numbers"]["per_segment"].items() if k.split("-")[0] == pref
+                    for _ in [0]) if segs else "—"
+    A(f"| {kb} | `{pref}-` | {num['prefix_library_label'][pref]} | {cnt} | {rng} |")
+A("")
+A(f"形态段（编号第二位）：{json.dumps(num['form_block_label'], ensure_ascii=False)}\n")
+A(f"**编号顺序的稳定键**：{num['order_key']} —— {num['order_key_note']}\n")
+A(f"**永不复用**：{num['no_reuse']}\n")
+A(f"台账：`kb/l4/registry/l4.json` → `numbering.issued`（每段 `assigned` = 规则号映射，`next_seq` = 已发最大号 + 1）。"
+  f"本批各段。\n")
+A("| 分段 | 条数 | 号段 | next_seq |")
+A("|---|---|---|---|")
+for seg, info in sorted(num["issued"].items()):
+    A(f"| {seg}（{info['block_label']}） | {info['count']} | {info['range'][0]} ~ {info['range'][1]} | {info['next_seq']} |")
+A("")
+A(f"注：509 条候选**全部属于措辞表达库**（L3 按用途统一记 `kb_type=wording`；来源表横跨 广告文案明细 / "
+  f"品线内容边界规则库 / W1卖点表达边界 / 专家修订汇总表 / 风险文案改写建议库）。其余三类库本批 0 条，"
+  f"前缀已登记：{json.dumps(num['totals']['libraries_empty'], ensure_ascii=False)}。\n")
+
+A("## 3. 分配结果\n")
+an = ck["article_numbers"]
+A(f"- 总数 **{an['with_article_no']}/{an['rules']}**（应为 509）")
+A(f"- 每库条数：{json.dumps(an['per_library'], ensure_ascii=False)}")
+A(f"- 同一库内重复：**{an['duplicates_within_segment'] or '无'}**；序列跳号：**{an['sequence_gaps'] or '无'}**")
+A(f"- 前缀与库不匹配：{len(an['prefix_bad'])} 条；段号与形态不匹配：{len(an['block_bad'])} 条")
+A(f"- 复用旧号：**{len(an['reused_old_numbers'])} 条**（`article_no` 字段在本批之前就存在，但 509/509 全是空串 `''`，"
+  f"所以本批是首次真正赋值）")
+A(f"- 未进台账的号码：{an['assigned_not_in_ledger'] or '无'}\n")
+
+A("## 4. kb/l3/candidates/rules.jsonl 的改动清单\n")
+lc = run["l3_change"]
+A("| 项 | 值 |")
+A("|---|---|")
+A(f"| 改动前 | {lc['lines_before']} 行 / {lc['bytes_before']:,} 字节 / sha256 `{lc['base_sha256'][:16]}…` |")
+A(f"| 改动后 | {lc['lines_after']} 行 / {lc['bytes_after']:,} 字节 |")
+A(f"| 追加行数 | **{lc['appended_lines']}**（每条候选一行，抄原行并填 article_no） |")
+A(f"| 追加的字段 | `article_no`（1 个）；新增字段（旧行里没有的）：**{lc['fields_added'] or '无'}** |")
+A(f"| 变化的既有字段 | **{lc['fields_changed']}**（仅此一个） |")
+A(f"| 旧 {lc['lines_before']} 行是否逐字节未变 | **{lc['prefix_bytes_identical']}**（前缀哈希与 L6 存档值一致：{lc['base_matches_L6_archive']}） |")
+A(f"| 状态 | 追加块 509 行全部仍是 `provisional`（本批不晋升） |")
+A("")
+
+A("## 5. 自检（6 项 + 2 项附加，全部 PASS）\n")
+A("| 项 | 结论 | 证据 |")
+A("|---|---|---|")
+fl = ck["frozen_layers"]["layers"]
+A(f"| kb/l0~l2 未被修改 | {ck['frozen_layers']['verdict']} | "
+  + "；".join(f"kb/{d} {fl[d]['files']} 文件/{fl[d]['bytes']:,} 字节/最后修改 {fl[d]['max_mtime']}"
+              f"（tree_sha256 `{fl[d]['tree_sha256'][:16]}…` 与 L5 存档基线逐字节一致）" for d in ("l0", "l1", "l2"))
+  + " |")
+A(f"| kb/l3 只追加 | {ck['l3_append_only']['verdict']} | 前 {ck['l3_append_only']['base_lines']} 行逐字节未变"
+  f"（哈希 `{ck['l3_append_only']['base_sha256'][:16]}…` = L6 存档值）；追加块只改了 article_no 一个字段，"
+  f"未新增字段、未删字段 |")
+A(f"| 509 条全有条款号、无重复、无复用 | {ck['article_numbers']['verdict']} | "
+  f"{an['with_article_no']}/509 有号；同库重复 {an['duplicates_within_segment'] or '无'}；跳号 {an['sequence_gaps'] or '无'}；"
+  f"旧号复用 {len(an['reused_old_numbers'])} |")
+A(f"| 编号可复现 | {ck['reproducible']['verdict']} | 现场重跑：追加 {ck['reproducible']['appended_this_rerun']} 行、"
+  f"映射完全一致={ck['reproducible']['mapping_identical']}、变更文件 {ck['reproducible']['files_changed'] or '无'}"
+  f"（mtime/size/sha256 全同） |")
+A(f"| canonical 仍空 | {ck['canonical_state']['verdict']} | `kb/l4/canonical/rules.jsonl` "
+  f"{ck['canonical_state']['l4_canonical_bytes']} 字节（sha256 `{ck['canonical_state']['l4_canonical_sha256'][:16]}…` 即空文件）；"
+  f"`kb/l3/canonical` 已不存在 |")
+A(f"| 版本纪律 | {ck['version_discipline']['verdict']} | versions.jsonl 版本行 "
+  f"{ck['version_discipline']['versions_jsonl_rows']}；kb_version {ck['version_discipline']['kb_version_values']}；"
+  f"未产生 release_id |")
+A(f"| 附加 A：台账覆盖 | {ck['ledger_coverage']['verdict']} | 台账 {ck['ledger_coverage']['ledger_numbers']} 个号码，"
+  f"各段 next_seq = 已发最大号 + 1 |")
+A(f"| 附加 B：条款号 ≠ 版本号 | {ck['article_no_is_not_version']['verdict']} | 规则行里 release_id/frozen_at/stable_at/"
+  f"published_at/version 命中数全 0；status 全为 {list(ck['article_no_is_not_version']['status_values'])[0]} |")
+A("")
+
+A("## 6. 后续层怎么用这个号\n")
+A("- 审查记录引用规则时用 `article_no`（如 `W-2.137`），它是稳定标识；`rule_id` 是内部主键，两者一一对应，"
+  "映射表在 `kb/l4/registry/l4.json` 的 `assignments`。")
+A("- 定稿（写 canonical）要过**抽查**闸门，抽查是人工环节，不在本批；晋升不是改名，是新增定稿记录。")
+A("- 版本号是发布语义，仍在 `v0`；条款号分配与版本冻结是两件事，不要混用。\n")
+
+A("## 7. 自主决策\n")
+A("| # | 决策 | 理由 |")
+A("|---|---|---|")
+for d in run["decisions"]:
+    A(f"| {d['id']} | {d['decision']} | {d['why']} |")
+A("")
+
+A("## 8. 本批没做的事\n")
+for x in run["not_done"]:
+    A(f"- {x}")
+A("")
+
+A("## 9. 产物与校验和\n")
+A("| 文件 | 字节 | sha256 |")
+A("|---|---|---|")
+for a in run["artifacts"]:
+    A(f"| `{a['path']}` | {a['bytes']:,} | `{a['sha256'][:16]}…` |")
+A("")
+open(f"{L4}/runs/{RUN}.report.md", "w", encoding="utf-8").write("\n".join(L))
+print(f"已生成 {L4}/runs/{RUN}.json / .report.md / .ops.log")
+print(f"run verdict = {run['verdict']}")

@@ -1,0 +1,28 @@
+[preflight 10:50:29] 认领成功：PERF-E2E-01
+[preflight 10:50:29] ① L4 闸门 …
+[preflight 10:50:30] ① L4 闸门绿
+[preflight 10:50:30] ② L4 引擎(预演)+记账 … invoked=kb-canonical-lookup session=dsh-e2e-20261005
+[preflight 10:50:31] ② L4 记账完成 → kb/l7/runs/PERF-E2E-01-L4.json
+[preflight 10:50:31] ③ L4 审计 …
+[preflight 10:50:31] ③ L4 审计 exit=0（红 0）
+[preflight 10:50:31] ① L5 闸门 …
+[preflight 10:50:38] ① L5 闸门绿
+[preflight 10:50:38] ② L5 引擎(预演)+记账 … invoked=kb-p0-check session=dsh-e2e-20261005
+[preflight 10:50:44] ② L5 记账完成 → kb/l7/runs/PERF-E2E-01-L5.json
+[preflight 10:50:44] ③ L5 审计 …
+[preflight 10:50:44] ③ L5 审计 exit=0（红 0）
+[preflight 10:50:44] ① L6 闸门 …
+[preflight 10:51:35] ① L6 闸门绿
+[preflight 10:51:35] ② L6 引擎(预演)+记账 … invoked=kb-recall session=dsh-e2e-20261005
+[preflight 10:52:22] ② L6 记账完成 → kb/l7/runs/PERF-E2E-01-L6.json
+[preflight 10:52:22] ③ L6 审计 …
+[preflight 10:52:23] ③ L6 审计 exit=0（红 0）
+[preflight 10:52:23] ① L7 闸门 …
+[preflight 10:52:23] ① L7 闸门绿
+[preflight 10:52:23] ② L7 引擎(预演)+记账 … invoked=kb-check session=dsh-e2e-20261005
+[preflight 10:52:23] ② L7 记账完成 → kb/l7/runs/PERF-E2E-01-L7.json
+[preflight 10:52:23] ③ L7 审计 …
+[preflight 10:52:23] ③ L7 审计 exit=0（红 0）
+[preflight 10:52:23] ✅ 四层前置全绿（L4–L7 各一 RUN，四道审计红 0）｜BASE=PERF-E2E-01
+[preflight 10:52:23]    下一步：出结论 —— with_kb_evidence.py --require-layer-preflight PERF-E2E-01 --decision-owner <判定主体>
+[preflight 10:52:23] 已释放认领 PERF-E2E-01

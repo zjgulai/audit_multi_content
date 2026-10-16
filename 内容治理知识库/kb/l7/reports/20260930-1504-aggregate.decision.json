@@ -1,0 +1,141 @@
+{
+  "review_id": "rv-20260930-1504-aggregate",
+  "content_id": "text-05942e496da1",
+  "content_version": "05942e496da1e822aab61d8a7e119862ea753d0e683ee71fea68f31f928e5ded",
+  "agent_version": "local-core-0.1.0",
+  "rule_version": "unfrozen",
+  "knowledge_version": "unfrozen",
+  "decision": "REVIEW",
+  "confidence": 0.68,
+  "summary": "【审查结论：REVIEW】共发现 4 处需处理问题。\n· 绝对化与安全承诺-无依据数据与销量排名：1 个\n· 功效宣称-未分类（婴儿行为结果绝对承诺）：1 个\n· 覆盖缺口-价格类绝对化/排名宣称无条款：1 个\n· 覆盖缺口-婴儿行为结果承诺无条款：1 个\n建议转对应专业团队复核。",
+  "issue_count": 4,
+  "issue_summary_by_category": {
+    "绝对化与安全承诺-无依据数据与销量排名": 1,
+    "功效宣称-未分类（婴儿行为结果绝对承诺）": 1,
+    "覆盖缺口-价格类绝对化/排名宣称无条款": 1,
+    "覆盖缺口-婴儿行为结果承诺无条款": 1
+  },
+  "risk_items": [
+    {
+      "risk_id": "D1",
+      "risk_type": "绝对化与安全承诺-无依据数据与销量排名",
+      "priority_tier": "P0",
+      "severity": "high",
+      "status": "uncertain",
+      "action": "review",
+      "location": "全句第 1 分句「全网最低价」（字符 0–4）",
+      "original_text": "全网最低价",
+      "reason": "排名级最高级价格宣称。条例层字面 0 命中（1881 条口径）；最接近的 W-1.22 其「排名最高级放开」例外未界定是否含价格类，且与 kb/.work/prd.md §7.3 第 3 项（绝对化用语含「最」）、第 4 项（无依据的销量/排名宣称，声明命中即 BLOCK）表面冲突；投放法域未声明（W-1.22 的放开明写「海外广告允许」）。故标 uncertain，不升格 BLOCK。",
+      "rule_code": "M03",
+      "evidence": {
+        "library": "措辞表达库 v0",
+        "article_no": "W-1.22",
+        "anchor": "#品线内容边界规则库/recvuJP1dDumuM/边界内容",
+        "source_sha256": "1c61c44b09ff77d121546f5ec15f74eba03afda2b77c1c77eb70b1e7525337fb",
+        "excerpt": "虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按2026-09-09口径放开，海外广告允许，不再判险）"
+      },
+      "fact_or_inference": "推断",
+      "confidence": "中",
+      "suggestion": "删除「全网最低价」；确需比价则改为可核验的具体表述（标价/折扣幅度 + 生效期 + 适用渠道），并留比价口径与留档",
+      "evidence_complete": false
+    },
+    {
+      "risk_id": "D2",
+      "risk_type": "功效宣称-未分类（婴儿行为结果绝对承诺）",
+      "priority_tier": "P0",
+      "severity": "high",
+      "status": "uncertain",
+      "action": "review",
+      "location": "全句第 2 分句「宝宝用了绝对不哭闹」（字符 6–14）",
+      "original_text": "宝宝用了绝对不哭闹",
+      "reason": "对婴儿行为结果的绝对承诺，不可验证。「不哭闹」不在 W-1.6 触发词表内；P0 模式 r-7baf7ceb47b2e5bc 的 regex_patterns 仅 绝对\\s*安全，不覆盖「绝对不哭闹」——「绝对 + 任意谓词」在库内不是一条通用规则。属同型类比引用，非字面命中 → uncertain。",
+      "rule_code": "M02/H08",
+      "evidence": {
+        "library": "措辞表达库 v0",
+        "article_no": "W-1.6",
+        "anchor": "#品线内容边界规则库/recvuJP1LV8KLr/边界内容",
+        "source_sha256": "49c1781fadff4539d4b79ac217916465065ff76085807af92b12786c36237eca",
+        "excerpt": "边界：疼痛功效承诺（pain-free/no pain/without pain/pain relief/less pain/缓解疼痛等；吸奶疼痛因人而异，只可讲 comfort/gentle 舒适与缓解胀满不适 discomfort）"
+      },
+      "fact_or_inference": "推断",
+      "confidence": "中",
+      "suggestion": "删除整句结果承诺；如需保留改为不承诺结果的产品特性/体验表述，且需产品与医学确认",
+      "evidence_complete": false
+    },
+    {
+      "risk_id": "G1",
+      "risk_type": "覆盖缺口-价格类绝对化/排名宣称无条款",
+      "priority_tier": "P1",
+      "severity": "high",
+      "status": "confirmed",
+      "action": "review",
+      "location": "知识库覆盖（非文案位置）",
+      "reason": "实测 1881 条口径（l4/canonical 1242 + l3/candidates 632 + l5/p0_patterns 7）中，最低价/全网最低/最便宜/价格最低/低价/lowest price/cheapest/best price 在 7 个可匹配字段命中 0；外部标准层（123 条，US）superlative/lowest price/cheapest/best price/absolute/绝对/排名 命中 0。PRD §7.3 第 3、4 项声明命中即 BLOCK，但 L3/L4 从未把它转成条款 → 规则层拦不住。",
+      "fact_or_inference": "事实",
+      "confidence": "高",
+      "evidence_gap": "知识库无对应条款（覆盖缺口），故不附条款号；需补条款后回填 L3/L4",
+      "suggestion": "按 W-1.22 / PRD §7.3 第 3、4 项补一条价格类条款，并把该触发词加入回归集",
+      "evidence_complete": false
+    },
+    {
+      "risk_id": "G2",
+      "risk_type": "覆盖缺口-婴儿行为结果承诺无条款",
+      "priority_tier": "P1",
+      "severity": "high",
+      "status": "confirmed",
+      "action": "review",
+      "location": "知识库覆盖（非文案位置）",
+      "reason": "不哭闹/绝对不哭/不哭 同口径命中 0；库内「哭闹」命中的 18 条全为育儿内容准确性修订，无一条是产品效果承诺禁令，不得当依据。",
+      "fact_or_inference": "事实",
+      "confidence": "高",
+      "evidence_gap": "知识库无对应条款（覆盖缺口），故不附条款号；需人工+法务定口径后回填 L3",
+      "suggestion": "补一条婴儿行为结果承诺条款（是否按绝对化/功效承诺处理由法务定）",
+      "evidence_complete": false
+    }
+  ],
+  "report_url": null,
+  "next_action": "转法务、医学、专家或北美本地同事人工复核",
+  "next_owners": [
+    "医学顾问",
+    "法务",
+    "渠道负责人",
+    "产品负责人"
+  ],
+  "sla": {
+    "priority": "P0",
+    "target": "4 business hours",
+    "escalate_to": [
+      "项目统筹",
+      "法务负责人"
+    ],
+    "timezone": "America/Los_Angeles",
+    "clock_rules": [
+      "Start the clock when the required input manifest is complete.",
+      "Pause the clock while waiting for missing submitter material.",
+      "Record timezone and business-calendar version with each SLA event.",
+      "SLA breach never changes the decision automatically."
+    ]
+  },
+  "version_gate": {
+    "reviewed_hash": "05942e496da1e822aab61d8a7e119862ea753d0e683ee71fea68f31f928e5ded",
+    "release_hash": "05942e496da1e822aab61d8a7e119862ea753d0e683ee71fea68f31f928e5ded",
+    "note": "依据侧（reports/20260930-1427）与裁决侧本轮哈希一致；20260930-145152 与 20260930-150306/150309 三次机器复跑亦为同一哈希。正式外发前须重核。"
+  },
+  "coverage": {
+    "text": "complete",
+    "image": "not_applicable",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "只送审文字；其余模态不适用"
+  },
+  "decision_trace": {
+    "reasons": [
+      "uncertain_or_review_item"
+    ],
+    "confidence_status": "heuristic_not_calibrated",
+    "evaluated_at": "2026-09-30T07:05:07.575432+00:00"
+  }
+}

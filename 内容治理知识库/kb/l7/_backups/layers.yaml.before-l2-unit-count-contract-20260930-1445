@@ -1,0 +1,387 @@
+# layers.yaml —— Momcozy 内容治理知识库 · L0–L7 层契约表
+#
+# 这份表回答一件事：**这条链路怎么跑**。它与两张表互补：
+#   * kb/l7/registry/skills.yaml  答「有哪些成员」
+#   * kb/l7/registry/routes.yaml  答「这句话该谁接」
+#   * kb/l7/registry/layers.yaml  答「链路怎么跑」（本表）
+#
+# 口径（三条，别省）：
+#   1. 本表是**静态真源**：依赖 / 引擎 / 输入输出 / 幂等键 / 闸门只在这里定义。
+#      改链路先改表，再改代码。层「跑完没跑完」一律运行时算出来（看幂等键 + run_id），
+#      **不写回本表**。
+#   2. 路径一律**相对 `kb/` 的上一级**（即 `~/.dsh/Momcozy知识库`），写作 `kb/...`；
+#      绝对路径用 `~` 或 `/` 开头。
+#   3. `dry_run` 是布尔：**本层的写脚本是否具备干跑档**（`--apply` 或缺省即预演）。
+#      只读层记 true（天然可预演）。**逐脚本的干跑档事实只写在各层 `notes`**（唯一真源；
+#      别再复制到姊妹表 skills.yaml 或 kb-pipeline/SKILL.md —— 复制出去的第二份必然过期，
+#      2026-09-30 已因同一事实写三处而不一致返工过一次）。原注释指向的某章节「逐脚本干跑档清单」并不存在，已删。
+#
+# ⚠️ 真实 DAG **不是线性链**（2026-09-29 实测，逐条带代码位置）：
+#   L0 ─┬─▶ L1 ─▶ L2 ─┬─▶ L3 ─┬─▶ L4
+#       │              │       ├─▶ L5
+#       │              │       └─▶ L6
+#       ├──────────────┴─▶ L4   （batch9_canonical.py:21 直读 kb/l2/units.jsonl）
+#       ├──────────────┴─▶ L5   （l5_prep.py:40 / l5_bench.py:34,44）
+#       ├──────────────┴─▶ L6   （l6_scope_lib.py:70-71）
+#       └───────────────▶ L7   （review.py:305 回 kb/l0/records 取逐字原文）
+#   另有三条**反向边 / 环**（库内此前未登记，本表如实记录，见 L3/L4/L5 的 notes）：
+#     · L3 读 L4（kb/.work/batch7_l3_run.py:25 读 kb/l4/registry/l4.json）→ L3↔L4 成环
+#     · L4 写 L3（kb/.work/l4_article.py:168 向 kb/l3/candidates/rules.jsonl 追加 article_no）
+#     · L5 写 L3（kb/.work/l5_prep.py 追加 509 行 l3-0.2）
+#   所以「L2 扇出到 L3/L5/L6」只是**其真实 4 个下游中的 3 个**（第 4 个是 L4）。
+
+meta:
+  file: kb/l7/registry/layers.yaml
+  sync_note: >
+    写档编排（P2，2026-09-30）：`kb/kbpy l7/scripts/kb_pipeline.py --sync --only L2`
+    （**默认预演**；加 `--apply` 才落盘）。三条红线写在代码里，不靠人记：
+    ① **先归档再写** —— 写 L3 前把 kb/l3/rejected.jsonl 复制到 kb/l3/_archive/rejected-pre-<run>.jsonl
+       并校验 sha（实测该台账 2026-09-29 被重建过，历史只能从 _archive 捞）；归档失败即拒绝写；
+    ② **编排器自己持 kb/.work/.kb.lock** —— 且把锁分成四态（不存在 / 持有者活着 / 已宣布释放的陈旧锁 /
+       pid 没了但没宣布释放），陈旧锁只在预演档放行并告警；**不自动撬锁**；
+    ③ **遇红闸门即停** —— 每层写之前先跑该层闸门，红就不写这一层、也不往下走。
+    写档白名单目前只有 L2（两周只读观察期的口径）；越界要点名 `--allow-beyond-policy`。
+    演练台：`kb/l7/scripts/_sync_drill.py`（在夹具库上真跑 --apply，真库 sha256 前后复核）。
+  checker: kb/l7/scripts/layers_check.py
+  cwd_note: >
+    29 个 kb/l8/*.py 用 "kb/..." 相对路径 → **cwd 必须是 kb/ 的上一级**（~/.dsh/Momcozy知识库）。
+    每层都写 cwd，就是为它而设。cwd 写错 = 工程错，不是数据错。
+  python_note: >
+    受管 external-tools python **缺 numpy / fastembed**，而 L6 召回两者都要
+    （kb/l6/retriever.py:245 np.load(matrix.npy)、:249 from fastembed import TextEmbedding）。
+    唯一合格解释器写在 kb/.kb-python（/usr/bin/python3）。一律用 `kb/kbpy <kb 内相对路径> [args]`，
+    或显式 `KB_INTERP_OK=1 /usr/bin/python3 <脚本>`。**不合格就报错退出，不静默降级。**
+  envelope_note: >
+    信封闸门判据 = 同一路径 **Python os.path.getsize** 与 **node fs.statSync().size**
+    差值恒 4096 即为信封态。成因：python 写 .py/.txt/.md 在这台机器上落成 4096 字节信封
+    （宿主 Electron 侧 readFileSync 会读成乱码）。规定通道：
+    「python 生成内容 → 写到**无扩展名**临时件 → cp 落到目标」。
+    每层产物都必须过闸门；kb/l8/envelope_census.py **只扫 .md**，.py/.txt 另用 tools/envelope_gate.py。
+  dry_run_note: >
+    外层 `dry_run` 是本层**整体**是否可预演。逐脚本口径（2026-09-29 读 argparse / sys.argv 实测，
+    同日 P0-3 补齐后更新）：
+    **干跑档 = `--apply` 开关**：不带 `--apply` 即预演，一个字节都不落盘。
+    **闸门位次判据（P0-3 定稿）**：闸门必须早于本脚本的**第一个副作用** ——
+    ① 建目录 ② 下网络/调模型 ③ 写缓存 ④ 写库内文件；干跑的第一承诺是零副作用，预览是第二位的。
+    **已有干跑档的库数据写脚本（8 个）**：kb/l8/reconcile_l0_feishu.py、kb/l8/ocr_attachments.py、
+    kb/l8/l3_distill_run.py、kb/.work/l4_article.py、kb/.work/l5_prep.py、kb/.work/l5_export.py、
+    kb/.work/l6_build.py、**kb/l8/drill_links_2levels.py**（写 kb/l1/sources，P0-3d 补）；另有 kb/l8/l2_split_run.py 等 18 个脚本本就带 --apply（多为对账/补台账类）。
+    **只读+只报告、不需要干跑档**：kb/l8/align_l0_feishu.py（写 kb/l8/_stage 快照 + kb/l8/runs 报告，
+    docstring 明写「不改 kb/l0 任何文件」）、kb/l8/workflow_check.py（写 /tmp 沙箱 + kb/l8 报告）、
+    kb/l8/projection_reconcile.py（只读对账器，仅 --json-out 时写报告）、kb/l8/l2_staleness_audit.py。
+    ⚠ **本字段自己出过一次错，留痕**：早前版本把 align_l0_feishu.py 写成「带 --apply」（实测无此开关），
+    P0-1 的 P0-3 清单照那条错注释排范围，于是漏掉了真正会写库数据的
+    kb/l8/drill_links_2levels.py（写 kb/l1/sources）—— 已于 P0-3d 补齐（现共 8 个）。
+    **A3 口径（2026-09-29 收窄）**：`tools/skills_ready_check.py` 的 A3「写操作有干跑档」只对
+    **真改库数据**的引擎要求闸门；只写报告/台阶段/沙箱的引擎豁免（豁免理由写进判据 why），
+    且「写点无法分类」一律仍按旧口径要闸门（收窄不能顺手放宽）。
+    实测：A3 通过 11/24 → 12/24（kb-pipeline 转正），其余 23 个 skill 判定一字未变。
+    **零写自证**：tools/dryrun_audit.py（AST 级：闸门须在顶层、闸门体内不得有写调用、
+    闸门之前不得有写点）+ tools/applypath_probe.py（把写调用换成内存叠加层，真跑 --apply 分支
+    但不落盘，核对写目标与改动前基线一致）。2026-09-29 实测：8 个干跑可达且全库 17,561 文件零变化；
+    --apply 分支写目标与改动前基线逐条一致。
+  known_checker_defects:
+    - "kb/l7/scripts/skills_check.py 第 4/5 类判 depends_on_engine / selftest 路径**不做 expanduser**（第 1001–1002、1018–1019 行）→ 凡 `~` 开头的路径都会被误报「不存在」。这两个字段一律写库根相对路径。"
+    - "kb/l8/workflow_check.py 第 ② 段用「权威库未被改动」的**冻结基线** → 活库模式下变红是**合法**的，不等于坏了。"
+    - "kb/l8/envelope_census.py **只扫 .md**；.py/.txt 要另用 tools/envelope_gate.py。"
+
+# ──────────────────────────────────────────────────────────────── 层契约
+#
+# 写法与姊妹表 kb/l7/registry/skills.yaml 一致：`meta:` 头 + `layers:` 列表，每层一条。
+
+layers:
+
+- layer: L0
+  depends_on: []                       # 无上游层：上游是**飞书源侧**（外部系统），不是层
+  engine:
+    - kb/l8/align_l0_feishu.py         # 只读对账：四类差异 same/only_feishu/only_l0/changed
+    - kb/l8/align_l0_schema.py         # 结构层对齐（field_id / 名 / 类型）
+    - kb/l8/reconcile_l0_feishu.py     # 认领 + 归档（有 --apply 干跑档，P0-3 补）
+    - kb/l8/emit_l0_manifest_reconcile.py
+  inputs:
+    - "飞书侧（lark-cli，全程只读）：entry Base GnRZbIuXraCzf0sGr2UcmZ62nfc"
+    - kb/l8/_stage/feishu-compare/feishu-材料收集.ndjson
+    - kb/l8/_stage/feishu-compare/fields-材料收集.json
+  outputs:
+    - kb/l0/manifest.jsonl
+    - kb/l0/index/l0.jsonl
+    - kb/l0/registry/kb.json
+    - kb/l0/records/<表名>/<record_id>.json
+    - kb/l0/snapshots/<resource_key>@<sha256>.md
+    - kb/l0/links/graph.jsonl
+    - kb/l0/runs/<run_id>.json
+    - kb/l0/_archive/**
+  idempotency_key: "(resource_key, observed_at)"     # kb/l0/README.md:32
+  gate: "kb/l7/scripts/l0_gate.py（**判定档**：读 kb/l7/registry/l0-expected-diffs.yaml，把原始差异分成 预期内 / 真差异，只有真差异才判红；底下的原始事实仍由 kb/l8/align_l0_feishu.py --check 报，不抹掉）"
+  cwd: "~/.dsh/Momcozy知识库"
+  python: "${KB_PYTHON}"
+  envelope: required
+  write_mode: append_then_archive    # 台账 append-only；records/*.json 就地覆盖；退役资源整目录移入 kb/l0/_archive/（移动不删除）
+  dry_run: true                      # align_l0_schema / emit_l0_manifest_reconcile / verify_l0_* 带 --apply；reconcile_l0_feishu.py 已于 P0-3 补干跑档；align_l0_feishu.py **只读+只报告、没有 --apply**（实测 0 处；不改 kb/l0）
+  notes: >
+    L0 只做两件事：登记源侧对象 + 算确定性指纹；不解析正文、不切分、不判业务域（kb/l0/README.md:3-5）。
+    指纹统一 sha256 但必须写明 sha256_input ∈ {doc_text, record_files, record_fields, file_bytes,
+    url_text, structure}；读不到内容时 sha256=null 且写 sha256_state（kb/l0/README.md:49-52）。
+    ★ 飞书侧零改动：只有读调用，无 create/update/delete/move/permission 写调用（kb/l0/README.md:43-45）。
+    ★ 未核实：L0 没有**单一权威扫描器入口**——实际是 kb/.work/build2.py（建模型）+ kb/.work/emit2.py（写盘）
+    两段，另被 batch3_run.py / batch4_run.py / l0_supplement.py 多批覆盖式补跑；哪一支是在产入口，库里没写。
+    ★ 干跑档（P0-3，2026-09-29 补）：kb/l8/reconcile_l0_feishu.py ——
+    APPLY = "--apply" in sys.argv（:58），不带 --apply 时于 :64–68 打印预演说明并 sys.exit(0)；
+    **实测闸门早于第一个副作用**（首个副作用在 :96 json.dump 写缓存）。唯一入参仍是位置参数 run_id。
+
+- layer: L1
+  depends_on: [L0]                   # 唯一上游；kb/l0 全程只读（kb/l1/README.md:3）
+  engine:
+    - kb/l8/extract_l1_new_resources.py    # RUN [--apply]
+    - kb/l8/ocr_attachments.py             # 有 --apply 干跑档（P0-3 补）；--purge-images 是更激进的删除开关，不是预演
+    - kb/l8/apply_ocr_to_l1.py             # [--apply]
+  inputs:
+    - kb/l0/manifest.jsonl
+    - kb/l0/registry/kb.json           # field_roles / dir_map / anchor_spec
+    - kb/l0/records/**
+    - kb/l0/snapshots/<resource_key>@<sha256>.md
+    - kb/l1/media/_cache/<sha256>.json # OCR 缓存（复用前须过闸门）
+  outputs:
+    - kb/l1/{1_外部标准库,2_内部正负样本库,3_措辞表达库,4_产品描述库,9_未归类}/<resource_id>.json
+    - kb/l1/media/<resource_id>/img_NN.ext + ocr.json
+    - kb/l1/media/<run>.manifest.json
+    - kb/l1/index/l1.jsonl
+    - kb/l1/sources/<run>.md
+    - kb/l1/manifest_l1.jsonl
+    - kb/l1/runs/<run_id>.json
+  idempotency_key: "(resource_id, extractor_version, source_sha256)"    # kb/l1/README.md:26,56
+  gate: "kb/l7/scripts/l1_gate.py（**判定档**：把上面的函数门槛落到真实数据上——遍历 kb/l1/media/_cache/*.json 逐条调用 kb/.work/kb_ocr_gate.py::ocr_cache_reusable；缓存里只要有一条不达标，命中它的图就会把坏 OCR 灌进 L1）"
+  cwd: "~/.dsh/Momcozy知识库"
+  python: "${KB_PYTHON}"
+  envelope: required
+  write_mode: append_then_archive    # manifest_l1.jsonl append-only；资源 json 就地覆盖；index/l1.jsonl 全量重建；退役进 kb/l1/_archive/
+  dry_run: true                      # extract_l1_new_resources / apply_ocr_to_l1 / fill_drill_failures 带 --apply；ocr_attachments.py 已于 P0-3 补 --apply 干跑档（原先运行即写盘：会下载图片并写 OCR 缓存）
+  notes: >
+    ★ 写通道坑（本层高发）：kb/l1/** 的 .md 一律不许 python 落盘（会变 4096 字节信封）；
+    既有正确写法见 kb/l8/fill_drill_failures.py：「python 写 .md.tmp → /bin/cp → 首字节断言」。
+    锚点铁律：锚点必须来自原文物理位置，不得编造；定位不到就进报告清单（kb/l1/README.md:52）。
+    anchor 规范版本 anchor-1.0；引用锚点必须同给 source_sha256（kb/l1/registry/l1.json → anchor_sha256_binding）。
+    ★ 干跑档（P0-3 / P0-3d，2026-09-29 补），两者实测闸门均早于第一个副作用：
+    kb/l8/ocr_attachments.py（:54 APPLY → :75–79 退出 → 首个副作用 :81 os.makedirs）、
+    kb/l8/drill_links_2levels.py（:59 APPLY → :70–75 退出 → 首个副作用 :77 os.makedirs；写 kb/l1/sources）。
+    --purge-images 仍是更激进的删除开关，不是预演。
+
+- layer: L2
+  depends_on: [L1, L0]               # 主输入 L1 产物与台账；L0 只读 field_roles
+  engine:
+    - kb/l8/l2_split_run.py          # RUN [--apply] ← **本仓库唯一「不带 --apply 即预演」的层主引擎**
+  inputs:
+    - kb/l1/manifest_l1.jsonl        # kb/l8/l2_split_run.py:38
+    - kb/l1/{1..4,9}_*/*.json        # :44-50
+    - kb/l0/registry/kb.json         # field_roles / field_role_table_overrides（:37）
+    - kb/l2/units.jsonl              # 既有单元，只读比对（:41）
+  outputs:
+    - kb/l2/units.jsonl              # append（'a'，:110）
+    - kb/l2/index/l2.jsonl           # append（'a'，:112）
+    - kb/l2/manifest_l2.jsonl        # append（'a'，:118）
+    - kb/l2/runs/<RUN>.json          # 就地覆盖（'w'，:129）
+    - kb/l2/registry/l2.json
+  idempotency_key: "(resource_id, source_sha256, splitter_version)"      # kb/l2/registry/l2.json → idempotency.key
+  gate: "kb/l7/scripts/l2_gate.py（**独立复算档**：不读 l2.json 自报计数。实测上面那条等式按快照**不可计算**——两个数不同时点；故改判 5 条可证的：台账行可解析 / run 内序列合法 / 账实上下界 / 产物归属 / 上游可溯；unit_count 口径歧义与滞后单列说明项）"
+  cwd: "~/.dsh/Momcozy知识库"
+  python: "${KB_PYTHON}"
+  envelope: required
+  write_mode: append_only            # units.jsonl / index/l2.jsonl / manifest_l2.jsonl 全为 open(...,'a')
+  dry_run: true                      # 层主引擎 l2_split_run.py 带 --apply；P0-3 后 L0/L1/L3/L4/L5/L6 的库数据写脚本也都有了
+  notes: >
+    干跑写法：`kb/kbpy l8/l2_split_run.py`（**不带 --apply**）→ 只预演不落盘（:102-108）。
+    ⚠️ 脚本打印的「去掉 --dry-run 或加 --apply 即落盘」是**措辞误导**：`--dry-run` 这个字符串
+    从未被 argparse 解析，干跑是由「缺 --apply」触发的（它走 sys.argv 判断，没有 import argparse）。
+    ★ 并发写入者：实测 kb/l2/units.jsonl 在本 agent 未写的情况下从 10551 行涨到 10650 行 →
+    **任何「L2 已跑完」的结论必须带 run_id + 时间戳**，不能只看文件状态。
+    ★ 事故留痕：kb/l2/runs/20260929-1754-l2-unscheduled-run.json（一次「意外对照运行」真实改写了 units.jsonl，
+    正是本轮补 --apply 的起因）。
+    ★ index/l2.jsonl 是**部分投影**（units 10551 行 / index 10100 行 / gap 451，全为 clause 单元，属历史覆盖缺口）。
+
+- layer: L3
+  depends_on: [L0, L2]               # 主输入 kb/l2/units.jsonl；L0 取 field_roles
+  engine:
+    - kb/l8/l3_distill_run.py             # RUN（必填位置参数）+ 有 --apply 干跑档（P0-3 补）
+    - kb/l8/l3_reject_ledger_rebuild.py   # RUN [--apply]
+  inputs:
+    - kb/l2/units.jsonl                   # kb/l8/l3_distill_run.py:37
+    - kb/l0/registry/kb.json              # field_roles（:38-39）
+    - kb/l3/candidates/rules.jsonl        # 既有候选，幂等比对（:389-396）
+    - kb/l3/manifest_l3.jsonl
+  outputs:
+    - kb/l3/candidates/rules.jsonl        # 'w' 覆盖（:405）
+    - kb/l3/candidates/sample_cases.jsonl
+    - kb/l3/candidates/scoped_clauses.jsonl
+    - kb/l3/rejected.jsonl                # 'w' 覆盖（:408）★事故点
+    - kb/l3/index/l3.jsonl                # 'w' 覆盖（:412）
+    - kb/l3/manifest_l3.jsonl             # append（'a'，:417）
+    - kb/l3/registry/l3.json              # 'w' 覆盖（:470）
+    - kb/l3/runs/<run_id>.json
+  idempotency_key: "rule_id（不变条件：evidence_digest 未变 → unchanged）"    # kb/l3/registry/l3.json → idempotency
+  gate: "kb/l7/scripts/l3_gate.py（**独立复算档**：① 1729 条 evidence_units 逐条回指 L2 单元（unit_id+source_sha256+anchor 三件套）② rejected 台账逐行回指 ③ 注册表自报键必须逐键登记在 kb/l7/registry/l3-known-drift.yaml。上面那条等式实测**不可复算**（台账 2026-09-29 重建后粒度变了），故降为声明项而不是每天报假红）"
+  cwd: "~/.dsh/Momcozy知识库"
+  python: "${KB_PYTHON}"
+  envelope: required
+  write_mode: overwrite_in_place_no_archive    # ★ 目标态是 overwrite_with_archive；实测**没有 _archive**
+  dry_run: true                      # l3_distill_run.py 已于 P0-3 补 --apply 干跑档（闸门早于 RUN 解析与任何写盘）
+  notes: >
+    ★★ 唯一必须覆盖式写入的层，也是唯一**没有归档兜底**的层 —— 这正是事故成因：
+    2026-09-29 13:10，kb/l3/rejected.jsonl 被本层以 'w' 覆盖，**11,860 行 → 1,053 行，recoverable=false**
+    （kb/l3/registry/l3.json → incidents[0]）。修复脚本 = kb/l8/l3_reject_ledger_rebuild.py。
+    → **跑 l3_distill_run.py 前必须先归档 rejected.jsonl，跑后按既有口径逐单元重建拒绝台账。**
+    ★ 干跑档（P0-3，2026-09-29 补）：kb/l8/l3_distill_run.py ——
+    APPLY 解析（:32）**早于 RUN 解析（:48）**，不带 --apply 时于 :42–46 打印预演说明并 sys.exit(0)；
+    **实测闸门早于第一个副作用**（首个副作用在 :52 os.makedirs）。
+    ※ 该脚本仍按 sys.argv 判断、未用 argparse，故 --apply 必须先被剔除再取 RUN。
+    ★ 未登记的反向边：kb/.work/batch7_l3_run.py:25 读 kb/l4/registry/l4.json → **L3 ↔ L4 成环**，
+    而该文件 :2 的 docstring 写的是「只读 kb/l0,l1,l2」，这条反向读没被登记进去。
+    ★ 两个下游反向写本层：kb/.work/l4_article.py:168（追加 article_no）、kb/.work/l5_prep.py（追加 509 行 l3-0.2）。
+    → 所以本层不是纯上游，判「L3 未变」必须看旧行前缀是否逐字节不变，不能只看行数。
+    ★ rule_eligible_gate（定义先于产出）：源资源 rule_eligible=false 时不得产出规则类形态。
+
+- layer: L4
+  depends_on: [L2, L3]               # 主输入 l3/candidates/*.jsonl；另读 l2/units.jsonl 校验三重证据
+  engine:
+    - kb/.work/l4_article.py         # RUN —— 条款号分配（article-no-2）
+    - kb/.work/l4_integrity.py       # 自检 6 项 + 2 项附加
+    - kb/.work/l4_report.py
+  inputs:
+    - kb/l3/candidates/rules.jsonl
+    - kb/l3/candidates/sample_cases.jsonl
+    - kb/l3/candidates/scoped_clauses.jsonl
+    - kb/l2/units.jsonl              # 三重证据回指校验（batch9_canonical.py:21）
+    - kb/l4/registry/l4.json         # 既有台账（幂等基线）
+  outputs:
+    - kb/l4/canonical/wording_entry.jsonl
+    - kb/l4/canonical/wording_revision_pair.jsonl
+    - kb/l4/canonical/sample_case.jsonl
+    - kb/l4/canonical/scoped_clause.jsonl
+    - kb/l4/registry/l4.json         # numbering.issued = 唯一台账
+    - kb/l3/candidates/rules.jsonl   # ★追加（'a'）：带 article_no 的新行，旧行逐字节不动（l4_article.py:168）
+    - kb/l4/runs/<run_id>.json
+  idempotency_key: "article_no（号码一经发出永久占用、不复用；重跑沿用原号）"   # kb/l4/registry/l4.json → numbering.no_reuse
+  gate: "kb/l7/scripts/l4_gate.py（**独立复算档**：从定稿×候选×L2 单元重算 C1 条款号唯一 / C2 正文非空 / C3 证据坐标齐备 / C4 证据可回指 / C5 定稿不改写 / C6 canonical/rules.jsonl 保持 0 字节。C7/C8 要人抽检，闸门明说**不复算**）"
+  cwd: "~/.dsh/Momcozy知识库"
+  python: "${KB_PYTHON}"
+  envelope: required
+  write_mode: overwrite_in_place_atomic    # 先写 .tmp → 逐行 json.load 验通过 → os.replace（batch9_canonical.py:8-19）
+  dry_run: true                      # l4_article.py 已于 P0-3 补 --apply 干跑档（闸门早于 canonical 迁移与建目录）；原子写与幂等结论不变
+  notes: >
+    ★ 幂等即干跑证据：reproduce.expect =「同一份 kb/l3 候选重跑：映射完全一致、追加 0 行、
+    kb/l3/candidates/rules.jsonl 逐字节不变」，实测 newly_assigned_this_invocation=0。
+    ★ 事故留痕：l4.json 曾被非原子写截断，修复为 tmp + json.load 验 + os.replace；
+    残留 kb/.work/batch9/l4.json.corrupt。本层是全库**唯一**做了原子写的层。
+    ★ 晋升状态必须显式声明：status ∈ machine-promoted / human-spotchecked / frozen。
+    本批为 machine-promoted —— **只允许当「已编号的定稿快照」用，不允许当「已发布版本」用**。
+    ★ 版本纪律：kb_version 仍 v0、不产生 release_id、versions.jsonl 不追加版本行。
+    ★ CLI：python3 kb/.work/l4_article.py 20260923-1445（kb/l4/registry/l4.json → reproduce.how）。
+
+- layer: L5
+  depends_on: [L0, L2, L3]           # L3 候选规则为主；l5_prep.py 读 l2/units.jsonl 取源侧风险信号
+  engine:
+    - kb/.work/l5_prep.py            # RUN —— 前置 A：追加 rule_kind / authority，精确化 risk_level / p_level
+    - kb/.work/l5_export.py          # RUN —— P0 可执行导出
+    - kb/.work/l5_bench.py           # 性能验收（PRD §12 要求 < 1 秒）
+  inputs:
+    - kb/l3/candidates/rules.jsonl   # l5_export.py:39（取每 rule_id 最新一行）
+    - kb/l2/units.jsonl              # l5_prep.py:40；l5_bench.py:34,44
+    - kb/l5/p0_patterns.jsonl        # matcher.py:21,33 运行时读自己产出的模式表
+  outputs:
+    - kb/l5/p0_patterns.jsonl        # overwrite（'w'，l5_export.py:321）
+    - kb/l5/index/l5.jsonl
+    - kb/l5/registry/l5.json
+    - kb/l5/benchmark.json
+    - kb/l5/runs/<run_id>.p0_patterns.superseded.jsonl   # 旧模式表留档
+    - kb/l3/candidates/rules.jsonl   # ★追加（前置 A 只追加 509 行 l3-0.2，旧行原样保留）
+  idempotency_key: "pattern_id = 'p-' + sha1(f'{EXPORTER_VERSION}|{rule_id}')[:16]（kb/.work/l5_export.py:301；源不变则 id 不变）"
+  gate: "kb/l7/scripts/l5_gate.py（**包装+分类档**：原样跑 kb/.work/l5_integrity.py 的 6 项并全打出来，再把「实质 4 项」与「基线 2 项」分开——实质项 FAIL 判红；基线项（frozen_layers / l3_append_only）实测在活库上必然 FAIL，须逐项登记在 kb/l7/registry/l5-known-drift.yaml，漏登记判红）"
+  cwd: "~/.dsh/Momcozy知识库"
+  python: "${KB_PYTHON}"
+  envelope: required
+  write_mode: overwrite_with_archive    # p0_patterns / index / registry 均 'w'；旧模式表归档为 runs/<run>.p0_patterns.superseded.jsonl（**归档动作是人工步骤，不在脚本里**）
+  dry_run: true                      # l5_export.py / l5_prep.py 已于 P0-3 补 --apply 干跑档（闸门早于 RUN 解析）
+  notes: >
+    ★ 本层 registry **未声明 idempotency_key**（kb/l5/registry/l5.json 只有 10 个键）；
+    上表填的是从代码读出的确定性主键（l5_export.py:301），已标明来源。
+    ★ 归档不在脚本里：旧模式表要**人工**归档成 superseded.jsonl —— 这是覆盖式写入的兜底缺口。
+    ★ L2→L5 的边**只经由 l5_prep.py / l5_bench.py**：l5_export.py:31 声明了 L2 常量但全文只 open L3，
+    那个 L2 是**死常量**。
+    ★ 选取口径：p_level=P0 ∧ rule_kind=atomic ∧ authority∈{expert,legal}（+ code_allowlist=[H06]），
+    21 条 P0 → 入选 6 条（kb/l5/registry/l5.json → selection / excluded）。
+    ★ 运行时只读器是 kb/l5/matcher.py（--text / --file / --json / --selftest），**不写盘** —— 这是 L5 的「读」通道。
+
+- layer: L6
+  depends_on: [L0, L2, L3]           # 单元来自 L2；P0 证据单元 id 来自 L3；字段角色来自 L0
+  engine:
+    - kb/.work/l6_build.py           # RUN —— 建索引（向量 + BM25）
+    - kb/.work/l6_bench.py
+  inputs:
+    - kb/l2/units.jsonl              # l6_scope_lib.py:70-71
+    - kb/l2/manifest_l2.jsonl        # 最新 result=invalidated 的资源其单元不进索引
+    - kb/l3/candidates/rules.jsonl   # p0_evidence_unit_ids（l6_scope_lib.py:137,140）
+    - kb/l0/registry/kb.json         # field_roles
+    - kb/l6/SCOPE.txt                # 人工核定白名单
+  outputs:
+    - kb/l6/bm25/{docs,postings_zh,postings_en,meta}.jsonl
+    - kb/l6/vectors/{vectors.jsonl,matrix.npy,meta.json}
+    - kb/l6/index/l6.jsonl
+    - kb/l6/registry/l6.json
+    - kb/l6/benchmark.json
+    - kb/l6/runs/build_runs.jsonl    # append（'a'）
+  idempotency_key: "双键。向量：(unit_id, segment_index, content_hash, model, dim, quantization)；BM25：(unit_id, content_hash, tokenizer_version)"
+  gate: "kb/l7/scripts/l6_gate.py（**只读档**：复算可用单元数==索引行数==l6.json 自报、25600 条向量逐条回指 L2 单元、倒排编号同源、版本纪律（versions.jsonl 只数版本行，注释不算））。**没跑的 4 项明写出来**：③重跑幂等（.work/l6_integrity.py:185 会带 --apply 重跑建索引 → 写档，不进日报）、⑥分段拼接、⑦倒排词频、⑨冻结基线"
+  cwd: "~/.dsh/Momcozy知识库"
+  python: "${KB_PYTHON}"
+  envelope: required
+  write_mode: overwrite_in_place_with_guard    # write_if_changed 守卫：内容未变则不重写（l6_build.py:58-65,196-205）
+  dry_run: true                      # l6_build.py 已于 P0-3 补 --apply 干跑档（闸门早于 BM25 写、模型加载与向量写）
+  notes: >
+    ★★ 本层是**解释器约定存在的原因**：kb/l6/retriever.py:245 np.load(matrix.npy)、
+    :249 from fastembed import TextEmbedding —— numpy 与 fastembed 都要，受管 python 全缺。
+    一律 `kb/kbpy l6/retriever.py ...`。
+    ★ 幂等即干跑证据：registry 记「同一口径重跑得到幂等空操作 —— BM25 本次切词 0 条、索引无变化不重写；
+    向量新增/变更 0、复用 2088 段、embedding 调用 0 次」。
+    ★ L5→L6 **不是数据边**：l6_build.py:243/390/432 只把 kb/l5/matcher.py 写进说明文本与 registry 字段，
+    全文不 open 任何 kb/l5/*；P0 集合实际取自 L3 的 p_level=='P0'。
+    ★ 口径与文件分离：registry 写的「kb/l2/units.jsonl 经 L3 口径过滤」指的是**判据**不是读文件；
+    L3→L6 靠的是独立的 p0_evidence_unit_ids()。
+    ★ self-report 失真已修：SCOPE.txt 原先只有报告器读，真正建索引的脚本不读它 → 2026-09-29 F11
+    把读取接进 l6_scope_lib.py:106-120。
+    ★ 非常规 run_id：kb/.work/l6_build.py 20260929-F11（**不是** YYYYMMDD-HHMM 形态）。
+    ★ 运行时只读器是 kb/l6/retriever.py（--query/--top/--mode/--kb-type/--json/--selftest），不写盘 —— L6 的「读」通道。
+
+- layer: L7
+  depends_on: [L0, L3, L4, L5, L6]   # 检索四跳：l5/matcher.py → l3/candidates/rules.jsonl → l6/retriever.py → l0/records；另读 l4 取 article_no
+  engine:
+    - kb/l7/scripts/skills_check.py  # 登记表自检（本家族闸门）
+    - kb/l8/workflow_check.py        # RUN —— 链路收口核验
+  inputs:
+    - kb/l5/matcher.py               # 作为子进程调用（review.py:199）
+    - kb/l3/candidates/rules.jsonl   # review.py:230
+    - kb/l6/retriever.py             # review.py:295
+    - kb/l0/records/<表名>/<record_id>.json   # 按 anchor 回原文逐字核对 + 校验 source_sha256（review.py:305）
+    - kb/l4/canonical/*.jsonl        # article_no 来源
+    - kb/l6/registry/l6.json         # retrieval_capability（no_silent_degradation 判定）
+  outputs:
+    - kb/l7/reports/<run_id>.review.md
+    - kb/l7/registry/l7.json
+    - kb/l7/registry/skills.yaml
+    - kb/l7/registry/layers.yaml
+    - kb/l7/registry/routes.yaml
+    - kb/l7/runs/<run_id>.json
+  idempotency_key: "未声明（本层是消费层，以 run_id 记账）；无写回权威库的路径"
+  gate: "kb/l7/scripts/l7_gate.py（**独立复算档**：把上面那句话的前置条件跑出来——① 契约库名与 kb/l0/registry/kb.json→kb_types 逐字一致（不得自造库名）② 规则候选 509 条 kb_type 全为 wording 可复算 ③ 六要素（库名/版本/条款号/anchor/source_sha256/逐字摘录）在 1242 条定稿上可物化率 100% ④ 条款号出处存在。运行时引用完整性仍由评审链自己的硬闸门负责）"
+  cwd: "~/.dsh/Momcozy知识库"
+  python: "${KB_PYTHON}"
+  envelope: required
+  write_mode: append_new_files_by_run    # 每 run 一个新报告文件，不覆盖；registry 就地覆盖
+  dry_run: true                      # 只读层：review.py 只读 kb/l0~kb/l6，只写 kb/l7/reports 与 stdout
+  notes: >
+    ★ 门限与判据从 registry 读，不写死：bm25_raw_min=8.0 / vector_cosine_min=0.6 / coverage_bm25_min=16.0；
+    coverage 未过则拒答，不得输出 PASS。forbid_equal_rrf_default = true。
+    ★ 拒答只能在 skill 层实现：L6 实测 B 组三种模式 hit@3 全为 0 却都返回 Top3，索引层没有拒答能力。
+    ★ 默认检索模式声明为 bm25_only（实测 bm25_only hit@3=1.0 / p@3=0.958；hybrid 0.875 / 0.542；
+    vector_only 0.625 / 0.25）。
+    ★ 自验 C（真实内容验收）**未跑**：kb/l7/acceptance_cases.md 不存在，报告明写「不伪造验收数据」。
+    ★ approvers 是角色位，configured=false → 输出须保留角色名并标注「未配置」，不写死人名。
+    ★ workflow_check.py 第 ② 段用冻结基线 → 活库模式下变红是**合法**的。

@@ -1,0 +1,42 @@
+{
+ "schema": "kb-evidence-findings-cache/1",
+ "cached_at": "2026-10-05T15:41:12",
+ "text_sha256": "81961315ad1497d11a7c34e45cb641c67dcdb2b33c86cca98cc293c217e08007",
+ "source": "文案合规审查 · 判定主体登记（会话 session-683805fa-2db5-4965-9ccd-81976901b6f1）",
+ "payload": {
+  "state": "REVIEW",
+  "run_id": "20261005-153627",
+  "unmet_citation": [],
+  "findings": [
+   {
+    "rule_id": "r-4f309d6ebde80283",
+    "rule_code": "M03",
+    "library": "措辞表达库",
+    "article_no": "W-1.25",
+    "layer": "规则层（L4 定稿 W-1.25 / M03）",
+    "anchor": "#广告文案明细/recvuJYdOb02Rt/命中片段",
+    "source_sha256": "b82926594fb8a661ef525b7393a899ee552bf03533da3c91bb88355aef4a3888",
+    "unit_id": "6cbeadad066cdbe53a89",
+    "excerpt": "M03:bestseller",
+    "entry_url": "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJYdOb02Rt",
+    "severity": "REVIEW",
+    "category": "绝对化与安全承诺",
+    "sub": "无依据的销量排名声称",
+    "matched_term": "销量最高",
+    "position": "listing 文案 第 1 句：「销量最高」",
+    "reason": "「销量最高」属『销量排名声称』（M03 检测关键词逐字含 bestseller / best-selling / hotseller / top rated，均为销量或评分类声称）。L4 条款 W-1.25（《措辞表达库》，M03，p_level=P2，status=stable，valid_until=2026-12-28）处置口径逐字为「效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列）」。同码品线边界条款 W-1.51（P1，L0 记录 recvuJP2jyATC9『适用产品』逐字含 M5、『边界内容』逐字为「未标注来源的效果数据声明」）处置相同。本单未附任何测试来源与口径。引擎 live 路径 0 命中的原因：M03 检测关键词只有英文，无中文等价词 ⇒ 中文『销量最高』结构性漏匹配，已登记缺口 GAP-LEX-ZH-M03。",
+    "advice": "补测试来源与口径（如 *Based on …，并注明样本、时间窗与统计口径）；补不上就删除「销量最高」这半句。",
+    "fact_or_inference": "事实",
+    "confidence": "高",
+    "verbatim_verified": true
+   }
+  ],
+  "trace": {
+   "coverage": {
+    "covered": true,
+    "coverage_bm25_min": 16.0,
+    "why": "PASS 必须建立在「知识库认识这个主题」之上（live 路径原值，本单原样继承）"
+   }
+  }
+ }
+}

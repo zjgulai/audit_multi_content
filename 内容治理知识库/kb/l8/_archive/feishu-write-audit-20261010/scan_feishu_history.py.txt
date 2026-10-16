@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""只读：扫飞书 4 张表的**逐记录变更历史**，找 DSH 侧（身份=守衡）写过的痕迹。
+
+只用读接口：base +record-list / base +record-history-list。不写任何东西。
+"""
+import json, os, subprocess, sys, time
+
+BASE = "GnRZbIuXraCzf0sGr2UcmZ62nfc"
+TABLES = [
+    ("tblZP8jG4tiUL98C", "知识库分类说明"),
+    ("tblMGtPfe8ZUsEdP", "材料收集"),
+    ("tbld8qE92YaY38Yz", "负面样本"),
+    ("tblXsrMVkDNZ3oW8", "规则库"),
+]
+ENV = dict(os.environ, PATH=os.path.expanduser("~/.dsh/bin") + ":" + os.environ.get("PATH", ""))
+LC = os.path.join(os.path.expanduser("~/.dsh/bin"), "lark-cli")
+
+
+def run(args, timeout=60):
+    p = subprocess.run([LC] + args + ["--profile", "dsh-kb", "--as", "bot"],
+                       capture_output=True, text=True, env=ENV, timeout=timeout)
+    return p.returncode, p.stdout, p.stderr
+
+
+def jrun(args, timeout=60):
+    rc, out, err = run(args, timeout)
+    try:
+        return json.loads(out), None
+    except Exception:
+        return None, "rc=%s err=%s out=%s" % (rc, (err or "")[:200], (out or "")[:200])
+
+
+def record_ids(tid):
+    path = "/tmp/hist-%s.ndjson" % tid
+    rc, out, err = run(["base", "+record-list", "--base-token", BASE, "--table-id", tid,
+                        "--format", "ndjson", "--output", path, "--overwrite"], timeout=120)
+    ids = []
+    if os.path.exists(path):
+        for line in open(path, encoding="utf-8"):
+            if line.strip():
+                ids.append(json.loads(line).get("record_id"))
+    return ids, (rc, (err or "")[:120])
+
+
+def ts(t):
+    try:
+        return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(int(t)))
+    except Exception:
+        return str(t)
+
+
+def main():
+    grand = []
+    for tid, name in TABLES:
+        ids, meta = record_ids(tid)
+        print("\n" + "=" * 78)
+        print("表 %s（%s）\t记录 %d 条" % (name, tid, len(ids)))
+        print("=" * 78, flush=True)
+        hits, errs = [], []
+        for i, rid in enumerate(ids, 1):
+            j, e = jrun(["base", "+record-history-list", "--base-token", BASE,
+                         "--table-id", tid, "--record-id", rid, "--page-size", "50"])
+            if e:
+                errs.append((rid, e))
+                continue
+            items = ((j.get("data") or {}).get("items")) or []
+            if items:
+                hits.append((rid, items))
+            if i % 25 == 0:
+                print("   ...已扫 %d/%d（命中 %d）" % (i, len(ids), len(hits)), flush=True)
+        print("  检出有变更历史的记录：%d 条" % len(hits))
+        if errs:
+            print("  ⚠️ 查询失败 %d 条：%s" % (len(errs), errs[:2]))
+        for rid, items in hits:
+            for it in items:
+                grand.append({
+                    "table": name, "table_id": tid, "record_id": rid,
+                    "time": ts(it.get("create_time")), "epoch": it.get("create_time"),
+                    "operator": it.get("operator"), "activity": it.get("activity_type"),
+                    "rev": it.get("rev"),
+                    "changes": [{"field": c.get("field_name"), "before": c.get("before"),
+                                 "after": c.get("after")} for c in (it.get("field_changes") or [])],
+                })
+        time.sleep(1)
+    with open("/tmp/hist-report.json", "w", encoding="utf-8") as fh:
+        json.dump(grand, fh, ensure_ascii=False, indent=1)
+    print("\n" + "#" * 78)
+    print("全部变更事件：%d 条（明细落 /tmp/hist-report.json）" % len(grand))
+    print("#" * 78)
+    for e in sorted(grand, key=lambda x: x["epoch"] or 0):
+        print("\n[%s] %s ｜ 记录 %s ｜ 操作人=%s ｜ rev=%s" %
+              (e["time"], e["table"], e["record_id"], e["operator"], e["rev"]))
+        for c in e["changes"]:
+            b, a = str(c["before"])[:70], str(c["after"])[:70]
+            print("    %s: %r → %r" % (c["field"], b, a))
+
+
+if __name__ == "__main__":
+    main()

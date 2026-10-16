@@ -1,0 +1,129 @@
+---
+name: brand-product-fact-curator
+description: |
+  维护 SKU 级产品事实基线（L3）：把产品事实提案建 / 更新进审批队列，记录 product / legal /
+  medical 各角色的审批事件，并只用「已批准」条目重建活动事实库。它是 `产品宣称核验`
+  （brand-product-claim-verifier）所消费事实基线的**唯一写入者**。
+  当用户说「维护产品事实基线 / 更新 SKU 事实库 / 产品事实审批 / 把这条产品事实入档 /
+  记一下这条宣称的已批准表述 / 产品事实队列里有什么 / 活动事实库为什么是空的 /
+  审批矩阵是什么 / product fact curator」时使用。
+  触发词：产品事实基线、SKU 事实库、产品事实审批、产品事实队列、已批准表述、审批矩阵、
+  活动事实库、事实入库、产品事实维护、product fact curator。
+  不适用（各自点名）：核验内容里的产品宣称 → **产品宣称核验**（brand-product-claim-verifier）；
+  素材抽成知识库单元 → **kb-ingest-extractor**；抽条款级规则 → **kb-clause-extractor**；
+  文案广告法 / 绝对化用语合规 → **文案合规审查**。
+version: "1.0.0"
+last_updated: 2026-09-30
+license: "Proprietary — Momcozy internal use only"
+complexity: "complex"
+compatibility:
+  claude: { status: "native" }
+  kimi: { status: "native" }
+  cursor: { status: "native" }
+  codex: { status: "native" }
+  gpt: { status: "bridge", limitations: ["长任务需分步"] }
+  minimax: { status: "bridge", limitations: ["输出需压缩"] }
+  dsh: { status: "native", notes: "kbpy + kb/.kb-python 同机可用" }
+---
+
+# brand-product-fact-curator —— SKU 产品事实基线（L3）
+
+**一句话**：本 skill 是产品事实基线的**唯一写入者**，只干一件事 —— 把
+「事实提案 → 角色审批 → 活动事实库」这条链走对。**核验宣称不是它的活**（走 `产品宣称核验`）。
+
+## 0. 三条红线（动库前先读 `references/redlines.md`）
+
+1. **审批前活动事实库必须为空。** `product-fact-library.json` 的 `approved_facts`
+   只能由 `product_fact_approval.py` 从队列的**已批准**条目重建（`rebuild_library`）。
+   禁止把发现页、通用产品页、提案条目直接写进活动库。判据（方案 §9 L3）：
+   **owner 审批前活动事实库保持为空**。
+2. **角色矩阵不齐 = 没批准。** `verified_fact → [product]`；
+   `objective_or_comparative_claim → [product, legal]`；
+   `health_safety_efficacy_claim → [product, legal, medical]`。
+   策略同时声明 `claim_wording_required: true` —— **没记录 allowed wording 的宣称不算已批准**。
+3. **证据必须是抓取到的快照。** `fetch_status != "fetched"` 或缺 `snapshot_sha256` 的引用
+   不得支撑自动 PASS；**不得拿通用产品页当另一型号的证明**。
+
+## 1. 现状（2026-09-30 实测，别把它当故障）
+
+| 项 | 实测值 |
+|---|---|
+| 审批队列 `product-fact-approval-queue.json` | **33 条**，`status=pending_owner_approval`；条目态只有 `pending_product_owner` / `pending_product_legal_review` |
+| 活动事实库 `product-fact-library.json` | `status=approval_required`，`approved_facts=0` |
+| 源清单 `source-manifest.json` | 9 个 source |
+| 队列版本源 `seed-products.json` | dict（5 键） |
+
+→ **空活动库是设计行为，不是缺数据**：`rebuild_library` 在无已批准条目时把 `status` 写成
+`approval_required`（源码 `:89`）。看到 0 条不要去「修」。
+
+## 2. 引擎与产物（唯一映射，别另建路径）
+
+| 角色 | 路径 |
+|---|---|
+| 建 / 更新队列 | `l7/review-engine/core/product_fact_queue.py` |
+| 落审批事件 + 重建活动库 | `l7/review-engine/core/product_fact_approval.py` |
+| 消费侧取数 | `l7/review-engine/core/product_fact_integration.py`（`QUEUE_PATH` + `apply_product_fact_gates`） |
+| 审批矩阵 | `l7/review-engine/knowledge-base/product-fact-approval-policy.json` |
+| 事实模板 | `l7/review-engine/knowledge-base/product-fact-template.json` |
+
+活动库每条事实的字段：`fact_id / sku / model / product_line / region / kind / fact /
+value(←proposed_value) / allowed_wording(←proposed_allowed_wording) / evidence_refs / approvals`。
+
+## 3. 怎么跑
+
+```bash
+cd ~/.dsh/Momcozy知识库        # ★ cwd 必须是 kb/ 的上一级
+KBASE=kb/l7/review-engine/knowledge-base
+
+# 1) 建 / 更新审批队列（同目录的 routing-policy.json 与 product-fact-approval-policy.json 自动带入）
+/usr/bin/python3 kb/l7/review-engine/core/product_fact_queue.py \
+  $KBASE/seed-products.json $KBASE/source-manifest.json --output $KBASE/product-fact-approval-queue.json
+
+# 2) 记一条角色审批事件（幂等：同一 event_id 重复提交是 no-op）
+/usr/bin/python3 kb/l7/review-engine/core/product_fact_approval.py \
+  --queue $KBASE/product-fact-approval-queue.json \
+  --library $KBASE/product-fact-library.json \
+  --events $KBASE/product-fact-approval-events.json \
+  --fact-id <FACT-ID> --decision approved --actor <姓名> --role legal --approved-wording "<允许表述>"
+
+# 3) 只重建活动库、不记新事件（不带 --fact-id 即纯重建）
+/usr/bin/python3 kb/l7/review-engine/core/product_fact_approval.py \
+  --queue $KBASE/product-fact-approval-queue.json \
+  --library $KBASE/product-fact-library.json \
+  --events $KBASE/product-fact-approval-events.json
+```
+
+- `--fact-id` 必须与 `--decision / --actor / --role` 同时出现，缺一个引擎直接 `parser.error` 退出。
+- `--decision` ∈ `approved | rejected | needs_input`；`--role` ∈ `product | legal | medical`。
+- 以上命令是从两个引擎的 `main()` 实读的参数签名，不是转述。
+
+## 4. 幂等与写通道
+
+- 事件主键 `event_id = "EVT-" + sha256(fact_id|decision|actor|role|approved_wording)[:20]`；
+  `apply_event` 对已处理的 `event_id` 直接返回 —— **重复提交不会二次生效**。
+- 活动库是**原子写**：`_write_json` 先写 `.tmp` 再 `replace`。
+- 本 skill 的幂等键 = `fact_id + decision + actor + role + approved_wording`（同键重复 → 无新事件）。
+
+## 5. 收口判据
+
+- 只重建（第 3 条命令）输出 `{"status":"synced","approved_facts":N}`，且 N 与
+  `product-fact-library.json` 实际条目数一致。
+- 无任何审批事件时 `approved_facts` 必须为 0、`status` 必须为 `approval_required`（= 红线 1）。
+- 进活动库的每条事实都带非空 `evidence_refs[].snapshot_sha256`，且 `approvals` 覆盖该宣称
+  类型要求的全部角色。
+
+## 6. 已知边界与未验证项（如实）
+
+- **尚未过 `root-skills-eval` 触发盲测**（与同批 `kb-clause-extractor` 同一状态）。
+  触发词刻意收窄：本库已有触发碰撞前科（3 个 `brand-*` F1 未过门槛，
+  `brand-video-safety-review` 曾 F1=0.000）。
+- 层归属 L3，但**它不写 `kb/l3/**`**：产物落在 `l7/review-engine/knowledge-base/`。
+  登记里的 `idempotency_key` 按本 skill 的事件键口径定义，不沿用 L3 的 `rule_id`。
+- 两个引擎都**没有 `--apply` 干跑档**，且第 1 条命令**直写** `--output` 指向的队列文件 →
+  跑之前先备份队列，别把在审的 33 条覆盖掉。
+
+## 资源
+
+- `references/redlines.md` —— 三条红线的原文依据与反例
+- `references/approval-matrix.md` —— 角色矩阵、token 表、判定口径
+- `references/engine-map.md` —— 引擎函数级映射与产物字段

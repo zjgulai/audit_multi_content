@@ -1,0 +1,19 @@
+---
+name: AI 溯源与权利审查
+description: |
+  审查 AI 生成披露与第三方权利：AI 生成标识、AI 换脸、肖像授权范围、商标与第三方素材、儿童出镜授权与隐私。触发词：AI 溯源与权利审查、AI 生成、AI 生成的但没有标识、AI 生成标识、AI 换脸、需要标注吗、肖像授权、授权范围、第三方素材、商标侵权、儿童出镜授权、授权证据齐全吗、隐私问题、溯源、provenance、rights review。何时不用：视频画面本身的安全（走 视频安全审查）、图片安全（走 图片安全审查）、文字措辞（走 文案合规审查）。
+
+  Review AI-generation disclosure, deepfakes, child and person privacy, likeness, trademarks, third-party assets, and creator authorization evidence for brand content.
+version: "1.0.0"
+complexity: "complex"
+enabled: "true"
+user-invocable: true
+---
+
+# Brand Ai Provenance Rights Review
+
+Check declared AI generation or deep-synthesis status, required labels, realistic people or children, recognizable likenesses, logos and trademarks, stock or creator assets, music, and influencer/endorsement permissions.
+
+`missing_authorization` or `missing_disclosure` defaults to REVIEW because the evidence may exist outside the asset. Explicitly unauthorized use, a confirmed prohibited synthetic representation, or a confirmed privacy violation can be BLOCK when the applicable rule and evidence are present.
+
+Do not infer a person’s identity or age from appearance alone. Record only observable facts and supplied authorization metadata.

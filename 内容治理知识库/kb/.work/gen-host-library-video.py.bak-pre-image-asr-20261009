@@ -1,0 +1,265 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""把**视频关键帧 OCR 文本**渲染成宿主条目，落 `2_内部正负样本库/`（追加生成器）。
+
+## 为什么要有这一步（2026-10-08，Owner 批准）
+
+链路实测：视频关键帧文本已经走到 **L6 索引**（可用单元 +340，含 `#t.` 锚点 170 行），
+但 **守衡读不到** —— 因为守衡读的不是 L6，而是 `kb/.work/hostlib` 这套**生成的宿主视图**：
+
+    hostlib（生成的 md） → 工作台镜像 → workbench.db → kb-serve :4401 → 守衡
+
+实测证据：`find kb/.work/hostlib -name '*Nikki*'` = 空；直接查镜像库
+`asking me` / `which breast pump I use` / `#t.00:` / `Nikki` / `00:00:13` **五项全 0**。
+
+而主生成器 `gen-host-library.py` **只渲 L3 规则**（主循环 `for rule_id, rows in grouped`，
+产物 509 条 / 1 个子库）；视频文本在 **L2 单元的 `internal_sample`** 里，没有任何生成器管它。
+⇒ 本脚本按库内既有惯例（**一种形态一个追加生成器**，如 `gen-host-library-l4.py` /
+`gen-host-library-product.py`）补上这一路。
+
+## 归属判据（不是随手放）
+
+视频所在的 4 份产物 `kb_type=internal_sample` → `dir_by_type` 映射到 **`2_内部正负样本库`**
+（主生成器 `gen-host-library.py:659` 那张表就是这么映的）。
+★ 这与本轮修的另一个缺陷同源：`internal_sample` 过去被 L6 的表级白名单误挡，所以从来没进过任何视图。
+
+## 条目粒度：**一个视频一条**（不是一段一条）
+
+实测 11 个视频、每片 87–2,216 字（共 340 段 / 10,916 字）。
+按段成条目会往守衡那里灌 340 条碎片、稀释检索；按视频成 11 条，每条自带时间窗列表。
+**`#t.MM:SS-MM:SS` 锚点逐条保留在正文里** —— 这样守衡答出来的东西能定位到秒。
+
+## 写法（照 `-product.py` 的架构，不自创）
+
+复用主生成器的 `frontmatter / insert_kb_class / render_for_chunking / flush_md`
+（`flush_md` 走 node 明文落盘 —— 宿主侧 md 有加密代理问题，python 直写会落成读不到的文件）
+与 l4 的 `patch_collections / patch_manifest`。
+
+用法（**必须排在主生成器之后**，它往同一份 manifest 里追加）：
+    python3 kb/.work/gen-host-library-video.py --out kb/.work/hostlib
+"""
+from __future__ import annotations
+
+import argparse
+import collections
+import glob
+import hashlib
+import importlib.util
+import json
+import os
+import sys
+from datetime import date, timedelta
+
+KB = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # …/内容治理/kb
+GEN_PATH = os.path.join(KB, ".work", "gen-host-library.py")
+L4_PATH = os.path.join(KB, ".work", "gen-host-library-l4.py")
+L1_DIRS = [os.path.join(KB, "l1", d) for d in
+           ("1_外部标准库", "2_内部正负样本库", "3_措辞表达库", "4_产品描述库")]
+
+SUBDIR = "2_内部正负样本库"
+COLLECTION = {
+    "dir": SUBDIR,
+    "name": "内容治理知识库 · 内部正负样本库",
+    "display_name": "内部正负样本库",
+    "source": "① kb/l1 里 4 份达人内容稿的 `video_ocr_segments`（视频关键帧 OCR，"
+              "ffmpeg 场景抽帧 + macOS Vision；锚点 `#t.MM:SS-MM:SS`）",
+    "note": "达人口播视频的画面文字（烧录字幕/贴片文案）。**只含画面文字，不含口播转写** —— "
+            "本机无 ASR，字幕未实现（见 kb-media-extractor 能力矩阵）。"
+            "案例只作参照，不构成规则。",
+}
+
+
+def _load(mod_name: str, path: str):
+    spec = importlib.util.spec_from_file_location(mod_name, path)
+    assert spec and spec.loader, f"加载失败：{path}"
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[mod_name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+gen = _load("gen_hostlib", GEN_PATH)
+l4 = _load("gen_hostlib_l4", L4_PATH)
+
+
+def _clickable(ref: str) -> str:
+    """把内部 resource_key 变成**能点开的直链**。
+
+    为什么必须做：`wiki:NPKldCDgZomiyjxF6OMcVnDxnBQ` 这种 key 在守衡的答案里**点不开**，
+    依据就无法定位（用户 2026-10-03 明确要求「报告里每条依据必须带可点直链」）。
+    key 形态 → 地址的映射取自库内既有的 resource_key 构造口径。
+    """
+    if ref.startswith(("http://", "https://")):
+        return ref
+    tok = ref.split(":", 1)[1] if ":" in ref else ""
+    if ref.startswith("wiki:") and tok:
+        return f"https://momcozy-in.feishu.cn/wiki/{tok}"
+    if ref.startswith("docx:") and tok:
+        return f"https://momcozy-in.feishu.cn/docx/{tok}"
+    if ref.startswith("sheets:") and tok:
+        return f"https://momcozy-in.feishu.cn/sheets/{tok}"
+    if ref.startswith("url:"):
+        return ref[4:]
+    return ref
+
+
+def l1_titles() -> dict:
+    """resource_id → (标题, 可点地址)。条目的 source.ref 要能点回去。"""
+    out: dict[str, tuple[str, str]] = {}
+    for d in L1_DIRS:
+        if not os.path.isdir(d):
+            continue
+        for name in os.listdir(d):
+            if not name.endswith(".json"):
+                continue
+            try:
+                rec = json.load(open(os.path.join(d, name), encoding="utf-8"))
+            except Exception:
+                continue
+            if not isinstance(rec, dict):
+                continue
+            rid = rec.get("resource_id")
+            if not rid:
+                continue
+            title = rec.get("title") or rec.get("resource_key") or rid
+            ref = rec.get("source", {}).get("url") if isinstance(rec.get("source"), dict) else None
+            ref = ref or rec.get("entry_url") or rec.get("resource_key") or rid
+            out[rid] = (str(title), _clickable(str(ref)))
+    return out
+
+
+def collect_videos() -> list[dict]:
+    """扫 L1 产物，取出所有带 video_ocr_segments 的视频。"""
+    vids = []
+    for d in L1_DIRS:
+        if not os.path.isdir(d):
+            continue
+        for name in sorted(os.listdir(d)):
+            if not name.endswith(".json"):
+                continue
+            p = os.path.join(d, name)
+            try:
+                rec = json.load(open(p, encoding="utf-8"))
+            except Exception:
+                continue
+            if not isinstance(rec, dict):
+                continue
+            for v in (rec.get("video_ocr_segments") or []):
+                segs = [s for s in (v.get("segments") or []) if (s.get("text") or "").strip()]
+                if not segs:
+                    continue
+                vids.append({"artifact": rec, "video": v, "segments": segs})
+    return vids
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out", required=True, help="宿主库根目录（主生成器的 --out）")
+    ap.add_argument("--today", default=date.today().isoformat())
+    ap.add_argument("--half-life-days", type=int, default=180)
+    args = ap.parse_args()
+    out_root = os.path.abspath(args.out)
+    if not os.path.isdir(out_root):
+        print(f"[video] 输出根不存在：{out_root}（必须先跑主生成器）")
+        return 2
+
+    titles = l1_titles()
+    vids = collect_videos()
+    print(f"[video] 源：L1 产物里带 video_ocr_segments 的视频 {len(vids)} 个")
+
+    payload: list[dict] = []
+    manifest_docs: list[dict] = []
+    counts: dict[str, int] = collections.Counter()
+    per_collection: dict[str, int] = collections.Counter()
+
+    for item in vids:
+        rec, v, segs = item["artifact"], item["video"], item["segments"]
+        rid = rec.get("resource_key") or rec.get("resource_id") or ""
+        doc_title, doc_ref = titles.get(rec.get("resource_id") or "", (rid, rid))
+        vname = v.get("video_name") or v.get("video_token") or "video"
+        tok = v.get("video_token") or ""
+        chars = sum(len(s["text"]) for s in segs)
+
+        # id 确定性：同一 (资源, 视频) 永远同一个 id
+        vid_id = "cg-vid-" + hashlib.sha256(f"{rid}|{tok}".encode()).hexdigest()[:16]
+
+        # 正文：逐段列时间窗 + 文本（**锚点逐条保留**，守衡答出来能定位到秒）
+        lines = [f"# 视频画面文字：{vname}", "",
+                 f"- 所属材料：{doc_title}",
+                 f"- 材料地址：{doc_ref}",
+                 f"- 视频文件：{v.get('video_path') or '（未登记本地路径）'}",
+                 f"- 时长 {v.get('duration')}s ｜ {v.get('width')}×{v.get('height')} ｜ {v.get('codec')}",
+                 f"- 抽取方式：`{v.get('engine')}`（{v.get('frames_extracted')} 帧 → {len(segs)} 段画面文字）",
+                 "",
+                 "## 画面文字（按时间窗，锚点可回源）", ""]
+        for s in segs:
+            t = " ".join((s.get("text") or "").split())
+            lines.append(f"- `{s.get('anchor')}`　{t}")
+        lines += ["", "> 以上是**画面文字**（烧录字幕 / 贴片文案），**不是口播转写** ——",
+                  "> 本机无 ASR，视频字幕未实现。案例只作参照，不构成规则。"]
+        body = "\n".join(lines)
+
+        n_seg = len(segs)
+        # 标题用可读名，摘要里的「所属材料」用**可点直链**（内部 key 点不开，依据就定位不了）
+        shown = doc_title if not doc_title.startswith(("wiki:", "docx:", "sheets:", "url:")) else doc_ref
+        meta = {
+            "id": vid_id,
+            "title": f"[VID-{tok[:8] or vid_id[-8:]}] 视频画面文字：{vname}",
+            "collection": SUBDIR,
+            "tier": "L1",
+            "topic": tok[:12] or rid[-12:],
+            "kind": "fact",
+            "summary": (f"{shown} 内嵌视频「{vname}」的画面文字 {n_seg} 段 / {chars} 字"
+                        f"（时长 {v.get('duration')}s）。用于按时间码定位口播画面的贴片文案与烧录字幕。"),
+            "owner": "刘华丽",
+            "evidence_level": "L1",
+            "data_level": "L2",
+            "sensitivity_level": "L2",
+            "half_life_days": args.half_life_days,
+            "created_at": args.today,
+            "valid_until": (date.fromisoformat(args.today) + timedelta(days=args.half_life_days)).isoformat(),
+            "asks": [
+                f"这条视频（{vname}）画面里出现了哪些文字",
+                "某个时间点画面上写的是什么",
+                "画面文字与口播是否一致（**注意：本库只有画面文字，没有口播转写**）",
+            ],
+            "not_proves": ("只有**画面文字**，**没有口播转写** —— 不能证明视频里说了什么、"
+                           "也不能据此判断口播合规性；不能证明画面文字的时效（视频可能已改版）；"
+                           "不能证明该条已过正式验收；不能替代合规/法务意见"),
+            "forbidden": ("不许把画面文字当口播转写用；不许据本条直接判 BLOCK；"
+                          "不许把派生视图的字段改动当成新库改动（视图不写回）"),
+        }
+        meta = gen.insert_kb_class(meta, SUBDIR)
+        rel = os.path.join(SUBDIR, "L1-facts", f"{meta['id']}.md")
+        text = gen.frontmatter(meta) + "\n" + body
+        payload.append({"rel": rel, "text": text})
+        counts[SUBDIR] += 1
+        per_collection[f"{SUBDIR}/L1-facts"] += 1
+        raw = text.encode("utf-8")
+        manifest_docs.append({
+            "id": meta["id"], "collectionId": SUBDIR, "relPath": rel,
+            "absPath": os.path.join(out_root, rel), "record": False,
+            "title": meta["title"], "sha256": hashlib.sha256(raw).hexdigest(),
+            "text": text, "content": gen.render_for_chunking(meta, "\n" + body + "\n"),
+            "bytes": len(raw), "entryId": meta["id"], "tier": meta["tier"],
+            "kind": meta["kind"], "validUntil": meta["valid_until"],
+            "evidenceLevel": meta["evidence_level"], "owner": meta["owner"],
+            "metaJson": json.dumps(meta, ensure_ascii=False),
+        })
+
+    if not payload:
+        print("[video] 没有可渲染的视频（L1 里没有 video_ocr_segments）⇒ 不写")
+        return 0
+
+    gen.flush_md(payload, out_root)
+    l4.patch_collections(out_root, [COLLECTION], counts)
+    l4.patch_manifest(out_root, [COLLECTION], counts, manifest_docs, per_collection, args.today)
+    print(f"[video] 产出：{sum(counts.values())} 条 → {SUBDIR}/L1-facts"
+          f"（视频 {len(vids)} 个 / 画面文字段 {sum(len(i['segments']) for i in vids)} / "
+          f"{sum(sum(len(s['text']) for s in i['segments']) for i in vids)} 字）")
+    print(f"[video] 输出根：{out_root}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,150 @@
+{
+ "run": "20261009-1300",
+ "at": "2026-10-09 13:02:51",
+ "base_token": "GnRZbIuXraCzf0sGr2UcmZ62nfc",
+ "instructions": [
+  "规则库本期不做",
+  "负面样本核实重建并处置",
+  "材料收集只抓 通过",
+  "L0 = 飞书副本"
+ ],
+ "observed_at": "20261009-1300",
+ "stage": {
+  "stage_dir": "kb/l8/_stage/feishu-compare",
+  "run": "20261009-1300",
+  "exists": true,
+  "files": {
+   "PROVENANCE.json": {
+    "mtime": "2026-10-09 13:02:51",
+    "epoch": 1791522171.826312,
+    "bytes": 1352,
+    "judged": false
+   },
+   "diff-材料收集.json": {
+    "mtime": "2026-09-29 10:33:57",
+    "epoch": 1790649237.8847957,
+    "bytes": 7767,
+    "judged": false
+   },
+   "feishu-材料收集.manifest.json": {
+    "mtime": "2026-09-29 10:33:16",
+    "epoch": 1790649196.8453097,
+    "bytes": 3309,
+    "judged": false
+   },
+   "feishu-材料收集.ndjson": {
+    "mtime": "2026-10-09 13:02:51",
+    "epoch": 1791522171.822754,
+    "bytes": 15495,
+    "judged": true
+   },
+   "feishu-规则库.manifest.json": {
+    "mtime": "2026-09-29 10:34:24",
+    "epoch": 1790649264.4702804,
+    "bytes": 5371,
+    "judged": false
+   },
+   "feishu-规则库.ndjson": {
+    "mtime": "2026-09-29 10:34:24",
+    "epoch": 1790649264.4637167,
+    "bytes": 60635,
+    "judged": false
+   },
+   "feishu-负面样本.manifest.json": {
+    "mtime": "2026-10-09 13:02:51",
+    "epoch": 1791522171.8260372,
+    "bytes": 5732,
+    "judged": false
+   },
+   "feishu-负面样本.ndjson": {
+    "mtime": "2026-10-09 13:02:51",
+    "epoch": 1791522171.824777,
+    "bytes": 360000,
+    "judged": true
+   },
+   "fields-材料收集.json": {
+    "mtime": "2026-10-09 13:02:51",
+    "epoch": 1791522171.8231745,
+    "bytes": 1030,
+    "judged": true
+   },
+   "fields-负面样本.json": {
+    "mtime": "2026-10-09 13:02:51",
+    "epoch": 1791522171.8253222,
+    "bytes": 1593,
+    "judged": true
+   },
+   "login-qr.png": {
+    "mtime": "2026-09-29 10:12:30",
+    "epoch": 1790647950.6446502,
+    "bytes": 878,
+    "judged": false
+   },
+   "summary.json": {
+    "mtime": "2026-09-29 10:34:59",
+    "epoch": 1790649299.1508687,
+    "bytes": 2080,
+    "judged": false
+   }
+  },
+  "judged_files": [
+   "feishu-材料收集.ndjson",
+   "feishu-负面样本.ndjson",
+   "fields-材料收集.json",
+   "fields-负面样本.json"
+  ],
+  "mtime_min": 1791522171.822754,
+  "mtime_max": 1791522171.8253222,
+  "stale": false,
+  "reason": null,
+  "judged_missing": [],
+  "mtime_min_str": "2026-10-09 13:02:51",
+  "mtime_max_str": "2026-10-09 13:02:51",
+  "run_start_str": "2026-10-09 13:00:00"
+ },
+ "actions": [
+  {
+   "table": "负面样本",
+   "table_id": "tbld8qE92YaY38Yz",
+   "action": "claim_new",
+   "files": 170,
+   "dir": "kb/l0/records/负面样本",
+   "ids_sha16": "8516fa5513901a7e"
+  },
+  {
+   "table": "材料收集",
+   "action": "archive_prerefresh",
+   "files": 22,
+   "to": "kb/l0/_archive/材料收集-pre-refresh-20261009-1300"
+  },
+  {
+   "table": "材料收集",
+   "action": "drop_unapproved_to_archive",
+   "files": 10,
+   "to": "kb/l0/_archive/材料收集-未通过-20261009-1300",
+   "rule": "材料审核状态 == 通过"
+  },
+  {
+   "table": "材料收集",
+   "table_id": "tblMGtPfe8ZUsEdP",
+   "action": "refresh_capture",
+   "files": 22,
+   "filter": "材料审核状态 == 通过"
+  }
+ ],
+ "run_id": "20261009-1300",
+ "layer": "L0",
+ "action": "feishu_reconcile",
+ "dry_run": false,
+ "applied": true,
+ "reconcile_applied": true,
+ "manifest_rows_delta": null,
+ "applied_semantics": "applied = reconcile_applied（对账动作是否执行）。**不等于「台账又写了一遍」** —— 台账净增看 manifest_rows_delta，由 emit 路径（kb/l8/emit_l0_manifest_reconcile.py）记录。登记见 kb/l7/registry/ledger-read-contract.yaml。",
+ "verdict": "PASS",
+ "stage_read": "kb/l8/_stage/feishu-compare",
+ "stage_fresh": true,
+ "stage_mtime_min": "2026-10-09 13:02:51",
+ "stage_mtime_max": "2026-10-09 13:02:51",
+ "write_gate": "fresh",
+ "pipeline_run_id": null
+}

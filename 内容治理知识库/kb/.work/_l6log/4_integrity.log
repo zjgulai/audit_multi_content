@@ -1,0 +1,28 @@
+/Users/lute/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/.work/l6_integrity.py:322: UserWarning: The model sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 now uses mean pooling instead of CLS embedding. In order to preserve the previous behaviour, consider either pinning fastembed version to 0.5.1 or using `add_custom_model` functionality.
+  _model = TextEmbedding(model_name=_vm["model"], cache_dir=_vm["cache_dir"]) \
+[PASS] frozen_layers
+        kb/l0: 3667 文件/1,654,073,679 字节/最后修改 2026-10-01 23:59:17  tree_sha256=01331f1414d4f4e1 与 L5 一致=True
+        kb/l1: 3128 文件/1,145,348,108 字节/最后修改 2026-10-02 00:01:12  tree_sha256=377a43fcb8f514ad 与 L5 一致=True
+        kb/l2: 865 文件/73,075,300 字节/最后修改 2026-10-02 00:02:20  tree_sha256=653c96dc87dd9f5b 与 L5 一致=True
+        kb/l3/candidates: 2036 行/5,762,300 字节/最后修改 2026-10-02 00:07:19  前509行与 L5 一致=True
+[PASS] counts
+        可用 4261｜投影 4261｜BM25 4260（失败 1）｜向量单元 4261 → 段 25874（被分段单元 2593）
+        对账：4261 = BM25 4260 + 失败 1 = 向量单元 4261 + 不入向量 321｜未入向量原因：{'P0 规则的证据单元：P0 走 kb/l5/matcher.py 确定性匹配，不入向量': 321}
+[PASS] idempotent_rerun
+        退出码 0｜变更文件 无｜切词 0=True｜embedding 0=True
+        registry 差异字段 []（仅事件标签=False）｜实质变更 无
+[FAIL] vector_traceability
+        25874 段 × 384 维｜范数 [1.000000, 1.000000]｜doc_id 不一致 0｜P0 混入 321｜回指异常 392
+[PASS] segmentation
+        4261 个单元 → 25874 段｜被分段 2650｜分布 {'1': 1611, '2': 361, '3': 92, '4': 54, '5': 40, '6': 36, '7': 26, '8': 43, '9': 1118, '10': 553, '11': 67, '12': 51, '13': 5, '14': 2, '15': 3, '20': 1, '21': 6, '22': 5, '23': 8, '24': 33, '25': 62, '26': 43, '27': 22, '28': 17, '29': 2}
+        最长单元 6282 字 → 13 段｜最大段 token 120（上限 120，模型实测 128 截断）｜拼接不一致 0｜重建对不上 0
+[PASS] postings_consistency
+[PASS] version_discipline
+        canonical 0 字节｜versions 行 0｜kb_version ['v0']
+[PASS] offline
+[PASS] capability_declaration
+        mode=vector_plus_bm25 semantic_recall=True model=sentence-transformers/paraphrase-multili dim=384 limitations=8 条｜no_hit_semantics 合规=True
+
+自检总计：FAIL

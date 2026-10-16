@@ -1,0 +1,125 @@
+{
+  "record_id": "recvvrLzQEEZ2J",
+  "source_table": "材料收集",
+  "table_id": "tblMGtPfe8ZUsEdP",
+  "base_token": "GnRZbIuXraCzf0sGr2UcmZ62nfc",
+  "entry_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tblMGtPfe8ZUsEdP&record=recvvrLzQEEZ2J",
+  "timezone": "Asia/Shanghai",
+  "observed_at": "20260923-1117",
+  "filter": {
+    "field": "材料审核状态",
+    "expected": "通过",
+    "result": "matched"
+  },
+  "fields": {
+    "From": {
+      "field_id": "fldYJzmyOw",
+      "field_type": "text",
+      "value": "银舒涵",
+      "raw_verbatim": "银舒涵"
+    },
+    "知识库分类": {
+      "field_id": "fldsFUp6XB",
+      "field_type": "select",
+      "value": [
+        "正面与负面样本"
+      ],
+      "raw_verbatim": [
+        "正面与负面样本"
+      ]
+    },
+    "编号-自动生成": {
+      "field_id": "fldHYXvg0B",
+      "field_type": "auto_number",
+      "value": "25",
+      "raw_verbatim": "25"
+    },
+    "知识库分类说明-自动映射": {
+      "field_id": "fldhkuqIDu",
+      "field_type": "lookup",
+      "value": null,
+      "stored_as": "formula_snapshot",
+      "raw_verbatim": null
+    },
+    "材料链接": {
+      "field_id": "fldr4c8nnT",
+      "field_type": "text",
+      "value": "[https://biu6ihvvco.feishu.cn/wiki/WCpUwlELIi6sDlkyPN7cZ1vonQf](https://biu6ihvvco.feishu.cn/wiki/WCpUwlELIi6sDlkyPN7cZ1vonQf)",
+      "raw_verbatim": "[https://biu6ihvvco.feishu.cn/wiki/WCpUwlELIi6sDlkyPN7cZ1vonQf](https://biu6ihvvco.feishu.cn/wiki/WCpUwlELIi6sDlkyPN7cZ1vonQf)"
+    },
+    "细分": {
+      "field_id": "fldn2leARA",
+      "field_type": "text",
+      "value": "红人审核",
+      "raw_verbatim": "红人审核"
+    },
+    "agent使用范围": {
+      "field_id": "fld5WJe8Nk",
+      "field_type": "text",
+      "value": null,
+      "raw_verbatim": null
+    },
+    "材料审核状态": {
+      "field_id": "fldzdgZxi6",
+      "field_type": "select",
+      "value": [
+        "通过"
+      ],
+      "raw_verbatim": [
+        "通过"
+      ]
+    }
+  },
+  "formula_and_lookup_fields": {
+    "知识库分类说明-自动映射": {
+      "field_id": "fldhkuqIDu",
+      "field_type": "lookup",
+      "expression": {
+        "lookup_from_table": "知识库分类说明",
+        "lookup_field": "要包含什么",
+        "where": {
+          "conditions": [
+            [
+              "知识库",
+              "==",
+              {
+                "field": "知识库分类",
+                "type": "field_ref"
+              }
+            ]
+          ],
+          "logic": "and"
+        },
+        "aggregate": "raw_value"
+      },
+      "depends_on_fields": [
+        {
+          "field_name": "知识库分类",
+          "field_id": "fldsFUp6XB"
+        },
+        {
+          "field_name": "要包含什么",
+          "field_id": null
+        }
+      ],
+      "value_snapshot": null,
+      "snapshot_note": "公式/查找引用字段不存值，只存表达式 + 依赖字段 + 本次求值快照"
+    }
+  },
+  "raw_record": {
+    "From": "银舒涵",
+    "agent使用范围": null,
+    "record_id": "recvvrLzQEEZ2J",
+    "材料审核状态": [
+      "通过"
+    ],
+    "材料链接": "[https://biu6ihvvco.feishu.cn/wiki/WCpUwlELIi6sDlkyPN7cZ1vonQf](https://biu6ihvvco.feishu.cn/wiki/WCpUwlELIi6sDlkyPN7cZ1vonQf)",
+    "知识库分类": [
+      "正面与负面样本"
+    ],
+    "知识库分类说明-自动映射": null,
+    "细分": "红人审核",
+    "编号-自动生成": "25"
+  },
+  "note": "字段原值 verbatim；日期保留原始时间戳与时区；单选/多选保留读接口返回的原值（选项 id 源接口不返回，不补造）。"
+}

@@ -1,0 +1,80 @@
+# regression-known-drift.yaml —— 回归基线里**已登记、且属预期**的漂移（只做降级，不给豁免）
+#
+# 谁读它：kb/l8/regression_gate.py（`_known_drift()`）。
+#
+# 规则（与 l0-expected-diffs.yaml / l3-known-drift.yaml / l5-known-drift.yaml 同一套纪律）：
+#   * 只有**写清"为什么这是预期改变"**的条目才降级为「黄」；**漏登记 = 判红**。
+#   * 登记不等于"以后都可以变" —— 它是**一次性**的：下一次重采基线后本文件应清空。
+#   * 原始读数一律照打（闸门会把漂移逐条带出来），不抹掉。
+#
+# ★★ 这一类与「已知漂移」在本库其他登记件里的用法**有一处不同，说清楚**：
+#   别的登记件登的是「**判据本身过期**」（永远红、去修判据）；
+#   这里登的是「**判据没错，是这次改动本来就要改这一条**」——
+#   即「改动单说好了的预期行为变更」。所以条目里必须能指到那张改动单。
+
+meta:
+  file: kb/l7/registry/regression-known-drift.yaml
+  checker: kb/l8/regression_gate.py
+  baseline: kb/l7/registry/regression-baseline.json
+  set: kb/l7/registry/regression-set.yaml
+  created_at: "2026-10-12"
+  owner: 刘华丽
+  note: >
+    基线是 solid 80 条（2026-10-12 11:18 由现引擎真跑重采）。
+    本文件登记的是**改动带来的预期三态变化**，不是"库坏了"。
+
+cases:
+  # ── H02 物主代词缺口修复（2026-10-12，改动单见《交付-H02物主代词缺口-20261012.md》）──────
+  RC-ac1bbb7ada85:
+    recorded: "PASS → BLOCK"
+    why_expected: >
+      H02（催乳/奶量承诺）的正则原先**只认 `your`**，`her/his/my/their` 一律断掉。
+      本条素材用的是**第三人称叙事**（达人脚本/UGC 的常见写法）⇒ 改前零命中 ⇒ PASS；
+      改后逐字命中 H02 ⇒ BLOCK。**这是修漏放，不是回归。**
+    evidence: >
+      预筛（按新正则逐条扫 100 条）明确预测「改前不中、改后中」的只有 **4 条**，
+      实测受影响的**正是这 4 条**（精确 4/4）。本条 `evidence_n: 0 → 1`。
+    blast_radius: 见同批的 RC-b2390ccfe4f8 / RC-be24162b163e / RC-c4b50f4ef57d。
+  RC-b2390ccfe4f8:
+    recorded: "REVIEW → BLOCK"
+    why_expected: >
+      ★ **预言成真的那一条**：改前它命中 0 条、`issue_count=0`、`coverage_gap=True`
+      —— 它的 REVIEW **不是因为识别到了内容问题**，而是"库对该题材没有可依据的条款"才转人工。
+      逐字含 `it actually increased her milk supply`，而 H02 只认 `your` ⇒ 真漏放被覆盖缺口**兜住**。
+      改后 H02 命中 ⇒ `coverage_gap` 转 False、`refusal_reason` 清空、`unbacked 1 → 0`
+      ⇒ **从"没依据的转人工"变成"有库内依据的 BLOCK"**。
+    evidence: "`kb/.work/regression-20261012-cand.jsonl`（改前）vs `…-h02fix.jsonl`（改后）逐字段对照。"
+    blast_radius: "同上；本条正是这次改动的**起因**。"
+
+  RC-11b8f1e6a2c7:
+    recorded: "PASS → BLOCK"
+    why_expected: >
+      **这是红线漏放的修复**，不是回归。素材逐字含
+      `designed to follow a baby-like natural sucking rhythm`，
+      而 H09（拟真吸吮 / 模仿婴儿，`W-1.1`，PRD §7.3 七类红线之一）的词表
+      **只覆盖 `mimics baby's natural nursing` 与 `baby-like suckling`**，
+      对这一种英文变形**三条路全不中** ⇒ 整段 P0 快路 hit=False ⇒ 顶层只出一条 P3 ⇒ **PASS**
+      （历史报告判 BLOCK ⇒ 该拦没拦）。
+    evidence: >
+      改前实测：`p0_fastpath.py --text <素材>` ⇒ `hit=False matched_patterns=0`；
+      反向对照 `mimics your baby's natural nursing rhythm` ⇒ `hit=True H09/BLOCK`
+      ⇒ 不是快路失灵，是这一种变形没进表。
+      改后实测：同一素材 ⇒ `hit=True matched=1 state=BLOCK`。
+    what_changed: >
+      `kb/.work/l5_export.py` 的 `VARIANTS["H09"].regex` 加一条
+      `\bbaby[\s-]*like\b[^.]{0,24}\bsuck(?:ing|ling)\b`（**走 regex 不走 synonym** ——
+      `sucking` 这个写法源里没有逐字，塞 synonym 会造出「P0 命中却拿不出逐字原文 ⇒ 被契约丢弃」，
+      与 H06 `FDA-approved` 同一个教训）。
+      重建：`python3 kb/.work/l5_export.py h09fix-20261012-1130 --apply`
+      （旧表留档 `kb/l5/runs/h09fix-20261012-1130.p0_patterns.superseded.jsonl`）；
+      台账同步：`kb/l8/build_p0_legal_signoff_ledger.py --apply`。
+    blast_radius: >
+      **全 100 条回归素材里只有这 1 条受影响**（按新正则逐条预筛：命中 1 条，实测漂移也是 1 条）
+      ⇒ 不是"整批变严"，是**这一种说法**从漏变成拦。
+    owner_action: >
+      **本轮已重采基线**（`regression_run.py --rebaseline --from kb/.work/regression-20261012-h09fix.jsonl`）
+      ⇒ 本条此后是**历史记录**，不再影响裁决。
+      重采前它确实起过作用，实测形状是：**判定 GREEN ＋ 理由行里逐字打出
+      「已知漂移（登记件里有）：RC-11b8f1e6a2c7 PASS→BLOCK」**——
+      即**不判红、但仍然看得见**（与 `l5_gate.py` 对基线类判据的处置同一套：
+      `✅ 过（基线项异常已登记）`）。**只有未登记的漂移才会红。**

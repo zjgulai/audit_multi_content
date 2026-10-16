@@ -1,0 +1,8 @@
+CHK-20261004-0107-HLT —— 六道闸门退出码（cwd = 库根）
+① skills_check.py          EXIT=0   （01:06:59）
+② layers_check.py          EXIT=0   （01:07:16）
+③ routes_reconcile.py      EXIT=2   （01:09:22，无参：缺 winners 输入）
+④ workflow_check.py $RUN   EXIT=1   （01:11:09，②③ FAIL）
+⑤a envelope_gate.py        EXIT=0   （01:08:20）
+⑤b envelope_census.py      EXIT=0   （01:08:50）
+⑥ projection_reconcile.py  EXIT=1   （01:09:01，3/6，R1/R2/R4 漂移）

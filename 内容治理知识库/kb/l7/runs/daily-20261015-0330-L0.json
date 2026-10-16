@@ -1,0 +1,70 @@
+{
+ "run_id": "daily-20261015-0330-L0",
+ "at": "2026-10-15T04:11:53",
+ "source": "pipeline_sync",
+ "trigger": "--sync --via-skill L0",
+ "skills": [
+  "kb-pipeline",
+  "kb-l0-feishu"
+ ],
+ "commands": [
+  "kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L0 --run daily-20261015-0330-L0 --invoked kb-l0-feishu --skill-session L0=session-f89f17e9-7634-4654-b90d-15fd7a68aea3"
+ ],
+ "products": [
+  "kb/l0/runs/daily-20261015-0330-L0-l0-feishu-reconcile.json",
+  "kb/l0/runs/daily-20261015-0330-L0-dryrun.json"
+ ],
+ "verdict": "全走完",
+ "human_involved": true,
+ "extra": {
+  "via_skill": true,
+  "skill_invoked_by": "agent",
+  "skill_evidence": "layer_stamps_observed",
+  "skill_evidence_note": "观测来源＝层落章（非预演）：L0:kb/l0/runs/daily-20261015-0330-L0-l0-feishu-reconcile.json",
+  "observed_skills": [
+   "kb-l0-feishu"
+  ],
+  "observed_skills_sources": [
+   "L0:kb/l0/runs/daily-20261015-0330-L0-l0-feishu-reconcile.json"
+  ],
+  "layers": [
+   "L0"
+  ],
+  "layer_skills": [
+   "kb-l0-feishu"
+  ],
+  "declared_layer_skills": {
+   "L0": [
+    "kb-l0-feishu"
+   ]
+  },
+  "layer_skills_uniq": [
+   "kb-l0-feishu"
+  ],
+  "invoked_reported": [
+   "kb-l0-feishu"
+  ],
+  "skill_sessions": {
+   "L0": "session-f89f17e9-7634-4654-b90d-15fd7a68aea3"
+  },
+  "human_involved_basis": "--invoked 已上报（agent 按层 skill 走过）",
+  "verdict_basis": "层侧落章 applied=true → 真落盘",
+  "layer_stamps_applied": [
+   "L0:kb/l0/runs/daily-20261015-0330-L0-l0-feishu-reconcile.json"
+  ],
+  "layer_stamps_dry": [
+   "L0:kb/l0/runs/daily-20261015-0330-L0-dryrun.json"
+  ],
+  "layer_stamps_unknown": [],
+  "write_gate": {
+   "id": null,
+   "resolved": false,
+   "layers_authorized": null,
+   "unauthorized_layers": [
+    "L0"
+   ],
+   "readonly_declared": [],
+   "msg": "**未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml"
+  }
+ }
+}

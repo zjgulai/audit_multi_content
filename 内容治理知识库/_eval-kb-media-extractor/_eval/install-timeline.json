@@ -1,0 +1,73 @@
+{
+ "skill": "kb-media-extractor",
+ "recorded_at": "2026-09-30T14:5x+08:00",
+ "fingerprints": {
+  "V0": {
+   "label": "源 v1.0.0（原版）",
+   "sha256": "d5e63a5a6e7699d4dd5ea666f4f39d95ec8d2ff0e4d97c6fee9988b2e75ce7ff",
+   "desc_chars": 509
+  },
+  "V1": {
+   "label": "修复版 v1（description 792 字符，含负面排除清单）",
+   "sha256": "027a6b4b90d100fa81ce7c9b264512a8133af051ba6f7e028e67ee42c81bba12",
+   "desc_chars": 792
+  },
+  "V2": {
+   "label": "修复版 v2（冻结版，description 474 字符，让位逻辑在正文）",
+   "sha256": "0a3a60a4cd1e1dd38c662cf8e5930230d8796d30652fd8f3cda20f100c4cb079",
+   "desc_chars": 474
+  }
+ },
+ "install_windows": [
+  {
+   "from": "~12:55",
+   "to": "13:42:21",
+   "version": "V0",
+   "note": "评测启动到首次改装；A 卷第 1/2/3 轮在此窗口内跑完",
+   "comparable_to_frozen": false,
+   "action": "与冻结态不同版本，落在本窗口的**他人**会话需按各自口径判断；本次评测第 1/2/3 轮是本版本自身的评测，有效"
+  },
+  {
+   "from": "13:42:22",
+   "to": "13:52:59",
+   "version": "V1",
+   "note": "修复版 v1 装机（description 792 字符，把不接清单/安全边界写进 description）",
+   "comparable_to_frozen": false,
+   "action": "落在本窗口的会话建议作废重跑（显著度被抬高）"
+  },
+  {
+   "from": "13:53:00",
+   "to": "14:49:50",
+   "version": "V2",
+   "note": "修复版 v2 装机；本次评测最终计分的全部窗口（A 卷 4/5/6 轮 13:55:32–14:48:39；B 卷 4/5/6 轮 14:23:51–14:28:36）",
+   "comparable_to_frozen": true,
+   "action": "可比，无需重跑"
+  },
+  {
+   "from": "14:49:51",
+   "to": "14:51:05",
+   "version": "V0",
+   "note": "收尾误还原为原版（1–2 分钟）",
+   "comparable_to_frozen": false,
+   "action": "落在这个 1–2 分钟窗口的会话需重跑"
+  },
+  {
+   "from": "14:51:06",
+   "to": null,
+   "version": "V2",
+   "note": "装载位对齐到源，冻结；源/装载位/-fix 三处 sha256 均为 0a3a60a4…",
+   "comparable_to_frozen": true,
+   "action": "冻结态"
+  }
+ ],
+ "frozen_at": "2026-09-30T14:51:06+08:00",
+ "frozen_sha256": "0a3a60a4cd1e1dd38c662cf8e5930230d8796d30652fd8f3cda20f100c4cb079",
+ "source_path": "kb/l7/skills/kb-media-extractor/",
+ "fix_copy_path": "kb/l7/skills/kb-media-extractor-fix/",
+ "self_validity": {
+  "source_rounds_1_3": "有效：13:0x–13:34 全程装载位=V0=源；未跨变更",
+  "fix_rounds_4_6": "有效：13:55:32–14:48:39 全程装载位=V2；未跨变更",
+  "aborted_rounds_4_6_v1": "已整轮作废：13:44–13:52 的 V1 半轮（15–27 条/轮）jsonl 删除、work 目录重建，从未进入 P/R/F1"
+ },
+ "probe_hint": "按每条会话的 _eval/work/<paper><round>/item-XXXX 目录 mtime（= 会话开跑墙钟）落到 install_windows 判断可比性"
+}

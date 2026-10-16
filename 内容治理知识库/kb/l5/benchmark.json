@@ -1,0 +1,137 @@
+{
+  "requirement": "《内容审查 Agent PRD》§12：P0 匹配耗时 < 1 秒",
+  "exporter_version": "l5-0.1",
+  "pattern_count": 17,
+  "corpus": {
+    "source": "kb/l2/units.jsonl（anchor 前缀 #广告文案明细/，字段 Headline/Primary Text/Description/Long Headline/标题/正文）",
+    "lines_available": 464
+  },
+  "network": "无（matcher 只读本地 p0_patterns.jsonl，无任何网络调用）",
+  "env": {
+    "python": "3.9.6",
+    "platform": "macOS-26.6.2-arm64-arm-64bit"
+  },
+  "cases": [
+    {
+      "case": "single_primary_text",
+      "label": "单条广告文案（源侧第一条 Primary Text）",
+      "chars": 39,
+      "chars_human": "39 字符",
+      "lines": 1,
+      "rounds": 5,
+      "elapsed_ms": {
+        "min": 0.085,
+        "median": 0.085,
+        "max": 0.094
+      },
+      "hit_rules": [],
+      "hit_count": 0,
+      "under_1s": true,
+      "per_pattern_ms": 0.005,
+      "criterion": "hard_under_1s",
+      "limit_ms": 1000.0,
+      "pass": true
+    },
+    {
+      "case": "single_with_hit",
+      "label": "单条广告文案（语料里命中最多的一条）",
+      "chars": 751,
+      "chars_human": "751 字符",
+      "lines": 1,
+      "rounds": 5,
+      "elapsed_ms": {
+        "min": 2.829,
+        "median": 3.862,
+        "max": 6.119
+      },
+      "hit_rules": [
+        "H02",
+        "H05"
+      ],
+      "hit_count": 11,
+      "under_1s": true,
+      "per_pattern_ms": 0.227,
+      "criterion": "hard_under_1s",
+      "limit_ms": 1000.0,
+      "pass": true
+    },
+    {
+      "case": "batch_ad_copy",
+      "label": "一批广告文案（全部 Headline/Primary Text 共 464 条）",
+      "chars": 132585,
+      "chars_human": "129.5 KB",
+      "lines": 464,
+      "rounds": 3,
+      "elapsed_ms": {
+        "min": 816.125,
+        "median": 847.152,
+        "max": 949.33
+      },
+      "hit_rules": [
+        "H02",
+        "H04",
+        "H05",
+        "H07",
+        "H09",
+        "M03",
+        "U04"
+      ],
+      "hit_count": 345,
+      "under_1s": true,
+      "per_pattern_ms": 49.832,
+      "criterion": "hard_under_1s",
+      "limit_ms": 1000.0,
+      "pass": true
+    },
+    {
+      "case": "large_doc_1mb",
+      "label": "大文档（上述文案重复至 ≈1MB）",
+      "chars": 1060687,
+      "chars_human": "1035.8 KB",
+      "lines": 3712,
+      "rounds": 3,
+      "elapsed_ms": {
+        "min": 6121.394,
+        "median": 6594.097,
+        "max": 6724.126
+      },
+      "hit_rules": [
+        "H02",
+        "H04",
+        "H05",
+        "H07",
+        "H09",
+        "M03",
+        "U04"
+      ],
+      "hit_count": 2760,
+      "under_1s": false,
+      "per_pattern_ms": 387.888,
+      "criterion": "per_pattern_le_120ms",
+      "limit_ms": 120.0,
+      "pass": false
+    }
+  ],
+  "compile_ms": 4.782,
+  "compile_note": "冷启动：读 kb/l5/p0_patterns.jsonl 并编译全部正则一次；常驻服务只付一次",
+  "per_copy_avg_ms": 1.8258,
+  "artifact_sha256": {
+    "kb/l5/p0_patterns.jsonl": "1ea8af86b181493fdeb43340c12e32093a925a8cf002fe6d571f8e236b744330",
+    "kb/l5/matcher.py": "337e291c02feae29f96ff034e44a2d8177e02d028ddcba441dfdeeb3fc9179f5"
+  },
+  "verdict": "FAIL",
+  "verdict_note": "余量用例每模式耗时超 120 ms ⇒ **matcher 确实变慢了**（['large_doc_1mb']）",
+  "criterion": {
+    "hard_limit_ms": 1000.0,
+    "per_pattern_limit_ms": 120.0,
+    "real_cases": [
+      "single_primary_text",
+      "single_with_hit",
+      "batch_ad_copy"
+    ],
+    "margin_cases": [
+      "large_doc_1mb"
+    ],
+    "ruling": "Owner 2026-10-12：真实送审形态保持 <1s 硬门槛；1MB 余量用例改判每模式 ≤120 ms"
+  }
+}

@@ -1,0 +1,209 @@
+# 内容审查报告 ·【瑜伽球】广告洞察（rv-20261005-161409）
+
+> **结论：`BLOCK`** —— 由评审链引擎 `with_kb_evidence.py` 产出（退出码 **0**｜置信度 **0.97**｜问题数 **9**）。
+> **判定主体：`文案合规审查`**（本会话已用 skill 工具真加载，并以 `--loaded-skill` 申报 —— **agent 自述档，不得当强证据**）。
+> 本件是**引擎结论的留痕与逐条归属裁定**，不是新结论；**不得**当作放行依据。
+
+## 〇、先说清五件事，不藏
+
+### 1）本单是同一送审物的第 7 次独立复跑，七次结论逐项一致
+
+| 项 | 本单 | 前六次（其他会话，今日） |
+|---|---|---|
+| `review_id` | `rv-20261005-161409` | `…-155440` ／ `…-132049` ／ `…-122829` ／ `…-115806` ／ `…-114430` ／ `…-113729` |
+| 层前置 BASE | `RT-20261005-YOGA-03` | `RT-20261005-YOGA-02` ／ `…-YOGA-01` ／ `…-YOGA-INSIGHT-R4/R3/R2` ／ `…-YOGA-INSIGHT` |
+| 会话 | `session-97d711d6-abce-43f9-b621-5b11bcfaf189` | 另六个会话 |
+| 结论 / 置信度 / 问题数 | `BLOCK` / 0.97 / 9 | 七单同值 |
+| 命中条款 | W-1.33 · W-1.26 · W-1.12 · W-1.22 · W-1.35 ＋ 4 条种子候选 | 同 |
+| 表行 | `recvxa2y2Vixwb`（`AD-20261005-022`） | `recvx9XE3WOhgV` ／ `recvx9kU0PtWuf` ／ `recvx97JtetXJO` ／ `recvx905f4THZm` ／ `recvx8WEHBgeA2` ／ `recvx8VOBkqXju` |
+
+**飞书侧 `revision_id` 七次全是 787**（本单用 bot 身份重拉，原始响应与前次**逐字节相同**：
+`sha256 = 6ee5054ce916277183b79d97a8ccad9d8461ee0f991ffef973c5ea2376ed39c2`）。
+本单为独立复算，**未复用任何前会话的结论件**：素材文本由本会话**重新抓取 + 重新冻结**得出。
+
+### 2）冻结件与来源
+
+| 项 | 值 |
+|---|---|
+| 送审链接 | <https://my.feishu.cn/wiki/O0unwH2Cfi29ipk50u2cVdACnMc> |
+| wiki → docx | `EdVPd3Y6PoIzULx08MJcPiVYnuh`，revision **787** |
+| 素材冻结件 | `_rt-yoga-03-text.txt`（**17185** 字节 / 254 行） |
+| 素材 sha256（`content_version`） | `def4fd5232fdd79d97bac79c27c8235e4f119ee91c5a817d2586ed3fa5728ca8` |
+| 抽取脚本（可复算） | `_rt-yoga-03/freeze.py`（输入 = `lark-cli docs +fetch --doc-format xml` 原始响应 `_rt-yoga-03-fetch.json`） |
+| 内容类型 | 广告洞察文档（竞品素材 + AI 拟定文案） |
+| 渠道 / 产品线 / 送审版本 | 未指定 / 未指定 / v1.0（按缺省自动补，未追问） |
+| 内嵌素材标记 | `[视频]` **29** ／ `[图片]` **25** ／ `[表格]` **4**（均**未**做 OCR / 抽帧 / 转写） |
+| 内容 ID | `AUTO-def4fd5232fd`（引擎自动补；表侧业务编号 = `AD-20261005-022`） |
+
+### 3）层前置（L4→L5→L6→L7）：四道审计红 0；黄 `E5` ×3 —— 是机制证据，不是真落盘
+
+`bash kb/l8/review_preflight.sh --base RT-20261005-YOGA-03 --session session-97d711d6-…` 退出码 **0**。
+
+| 层 | RUN | 退出 | 红 | 黄 | 层 skill（本会话已用 skill 工具真加载） |
+|---|---|---|---|---|---|
+| L4 | `RT-20261005-YOGA-03-L4` | 0 | 0 | 1 | `kb-canonical-lookup` |
+| L5 | `RT-20261005-YOGA-03-L5` | 0 | 0 | 1 | `kb-p0-check` |
+| L6 | `RT-20261005-YOGA-03-L6` | 0 | 0 | 1 | `kb-recall` |
+| L7 | `RT-20261005-YOGA-03-L7` | 0 | 0 | **0** | `kb-check` |
+
+⇒ **黄 `E5` = 落章来自预演台账（`*-dryrun.json`，`dry_run=true` / `applied=false`）**。
+**本单未落盘，出的是「逐层调用机制通了」的机制证据**，不是「这些层真落盘过」的证据（要落盘须 `--apply`，属写库、需单独报批）。
+⚠️ 引擎自动发出去的云文档报告**没有**带这条 E5 说明 —— `feishu_publish.py` 只渲染「红合计」、不渲染黄/E5（已知渲染缺口，非本单特有）。
+
+### 4）Owner 硬规矩① · 自命中独立复算：**不成立**（无实质自命中）—— 本单**未拒答、未降级**
+
+口径与结果写死可复算（脚本 `_rt-yoga-03/selfhit.py`，结果 `_rt-yoga-03/selfhit.json`）：
+
+1. 扫 `kb/l4/canonical` **五个形态文件**，逐条按 `polarity == '反例'` 或 `semantics` 以「禁区」开头筛选
+   → 共 **181 条**（全部落在 `sample_case.jsonl`；其余四形态 0 条）。
+2. 把这 181 条的字符串值与素材做**归一化后最长公共子串**（LCS；归一化 = 小写 + 只留字母/数字/汉字）。
+
+| 阈值 | 命中条数 | 最长片段（样例） |
+|---|---|---|
+| ≥ 8 字/词 | 86 | `ingfrompregnancy`（S-1.25）／`nursingpillows`（S-1.52）／`yourmotherhood`（S-1.107、S-1.3） |
+| ≥ 12 | 11 | 同上（`twithyourbaby` S-1.138／S-1.151、`environmentm` S-1.172／S-1.35、`inmotherhood` S-1.111／S-1.135、`awardwinning` S-1.162） |
+| ≥ 16 | 1 | `ingfrompregnancy`（S-1.25） |
+| ≥ 20 | **0** | —— |
+| ≥ 30 | **0** | —— |
+
+最长片段全部是**跨词边界的通用英文营销 n-gram**，且分属**别的项目**（S-1.x 均为 Momcozy 自有图文素材的审图反馈样本，material_type=图片）。
+
+**Owner 点名的 S-1.2** 做单条复核（`polarity=反例`、`semantics=禁区：不能这么做 + 为什么`、
+`anchor #正面和负面样本/recvw2vgYXHKgM/原文反馈`、
+`source_sha256 9f39a37061cf6d1e33af111127156a9a38e69d2cfd6de70e6c71f3e8685c5136`，本案为「奶瓶不建议倒着放」）：
+与本素材 LCS = `strength`（**8 字，通用英文词**）⇒ **不构成自命中**。
+
+另：**本素材不在库内** —— wiki token `O0unwH2Cfi29ipk50u2cVdACnMc`、doc token `EdVPd3Y6PoIzULx08MJcPiVYnuh`、
+`FIT4MOM` / `BABYGO` / `Fridamom` / `PregActive` / `Tridder` / `广告洞察` / `免提解放` / `孕产赛道` / `All-in-One Kits`
+在 `kb/l0…l6` 命中均为 **0 文件**。
+
+⇒ **无 反例/禁区 findings 可登记**（规则①的条件未触发）；本单**没有**以「自命中 / 同源留痕 / 循环论证」为由降级或拒答，
+三态结论由引擎产出。
+
+### 5）Owner 硬规矩② · 每一单必须落表 —— 已落并独立回读
+
+见第五节（表行 `recvxa2y2Vixwb`，独立回读 `all_checks_pass=true`）。
+
+## 一、问题分类汇总（引擎原值）
+
+| 分类 | 条数 |
+|---|---|
+| 绝对化与安全承诺-虚假安全承诺 | 2 |
+| 功效宣称-疼痛功效承诺 | 1 |
+| 绝对化与安全承诺-绝对化性能表述 | 1 |
+| 背书与资质-医疗场景宣称 | 1 |
+| Absolute or ranking claim requires context and proof | 4 |
+
+## 二、完整清单（9 条，带四段溯源）
+
+**sha 的措辞红线**：下表 sha 只能读作「**与 L0 记录值比对一致**」，**不是「重算通过」** ——
+L0 的 sha 输入是 `record_fields` 这个字段 blob，本地 L0 件不含该 blob；要真核对只能点 L0 直链。
+（本单已独立回对 `kb/l0/manifest.jsonl`：7 个被引记录的 `sha256` 与引擎 `source_sha256` **逐位相同**。）
+
+| # | 级别 | ① 条款号(L4) | ② 规则码 + 命中片段(L3) | ③ `anchor` ＋ `source_sha256`(L2/L1) | ④ L0 逐字值 ＋ 直链 |
+|---|---|---|---|---|---|
+| 1 | **P0** block | **W-1.33** | H05 ｜ 正则 `\b(safest\|perfect\|zero[\s-]?risk\|risk[\s-]?free)\b` | `#广告文案明细/recvuJYdOb1B8v/命中片段` ｜ `e7aabf747875…f4c5` | 字段值形态 = `H05:perfect pump` ｜ [recvuJYdOb1B8v](https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJYdOb1B8v) |
+| 2 | P1 review | **W-1.26** | U04 ｜ `乳房胀痛` | `#品线内容边界规则库/recvuMNZc45BSy/检测关键词` ｜ `8d94242a1fdb…f367` | 检测关键词含 `sore nipples, …, 乳头疼痛, 乳房胀痛, 乳房疼痛` ｜ [recvuMNZc45BSy](https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblD1MiUK1v5fdjD&record=recvuMNZc45BSy) |
+| 3 | P1 review | **W-1.12** | M02 ｜ `超级` | `#品线内容边界规则库/recvuJP1LVe2xP/检测关键词` ｜ `a240aa6a49af…dc05` | 检测关键词 = `super strong, ultra powerful, max suction, strongest suction, 超强, 极致, 无敌, 超级` ｜ [recvuJP1LVe2xP](https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblD1MiUK1v5fdjD&record=recvuJP1LVe2xP) |
+| 4 | P1 review | **W-1.22** | H05 ｜ `完美` | `#品线内容边界规则库/recvuJP1dDumuM/检测关键词` ｜ `1c61c44b09ff…37fb` | 检测关键词含 `完美, fits all breast shapes, …, 一定不损伤, 绝不损伤, 零损伤` ｜ [recvuJP1dDumuM](https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblD1MiUK1v5fdjD&record=recvuJP1dDumuM) |
+| 5 | P1 review | **W-1.35** | U03 ｜ `hospital` ×2 | `#广告文案明细/recvuJYdObBgjg/命中片段` ｜ `1ca01a669092…e011` | 字段值形态 = `M03:trusted by 6 million / M05:hospital grade,hospital-grade / M07:leak / U01:ibclc / U03:hospital` ｜ [recvuJYdObBgjg](https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJYdObBgjg) |
+| 6–9 | P1 review (uncertain) | **无 KB 条款号** | 种子规则 `US-PLATFORM-ABSOLUTE-001`（`authoritative=false`，自述 `superseded_by: kb/l3/candidates/rules.jsonl`） | —— | 命中 `Best`@334 / `best`@1571 / `best`@5111 / `best`@7093，**全部落在第三方引文** |
+
+**1–5 号四段齐全**；**6–9 号给不出第一、三段** —— 它们出自 `rule_engine.py` 的 **5 条 US 种子规则候选**
+（`status=uncertain` / `action=review`），不是 KB 结论。按口径，它们**只是候选**。
+
+**第 1 号的两处缺口（引擎自陈，照抄不改）**：
+引擎 `reason` 原文写「**依据不可逐字回源**：该说法为等价说法／正则命中，源侧无逐字原文；
+按 L5「P0 命中即 BLOCK」输出，**出处为 P0 模式自身，需人工确认**」。
+⇒ 摘录的 `\b(safest|perfect|…)\b` 是**正则**，**不是** L0 字段值的逐字片段；L0 侧的字段值形态是 `H05:perfect pump`。
+
+**补充（照抄引擎 trace，不修饰）**：`trace.rules.hits` 共 **6** 条（509 条规则全扫），
+其中 `W-1.30`（安全词 `hands-free`，正面提示、不参与降级，用于覆盖率判定）与
+`W-1.40`（`hospital` → 医院/NICU 场景需核实临床适用性）**未单列成 risk_item**；
+`W-1.40` 的判据文字被并入第 5 号的 `reason`（原文含「U03 涉及医院/NICU 场景，需核实临床适用性声明」）。
+
+**覆盖率（引擎 `trace.coverage`）**：`covered=true` —— 命中允许表述规则 `W-1.30`（安全词）。
+该判据的原文：**PASS 必须建立在「知识库认识这个主题」之上；两者都没有 → 拒答（无命中不等于合规）**。
+本单**不是**靠覆盖率出 PASS，结论由 P0 命中驱动。
+
+## 三、归属裁定（判定主体判断，**不是引擎产出**）
+
+判定主体 `文案合规审查` 正文有一条明确豁免：
+**「Do not block a phrase merely because a token appears in a negation, warning, quote, or comparison.」**
+
+逐条落点（素材内逐字上下文已核）：
+
+| # | 命中词 | 位置（字符偏移） | 落在谁的话里 |
+|---|---|---|---|
+| 1 | `perfect` | 5030 | **第三方逐字引文**（FIT4MOM Instagram 帖文：「it's also a perfect way to meet other moms」） |
+| 2 | 乳房胀痛 | 6100 | **分析文本**（中文描述 Fridamom 竞品素材画面：「素材中直接展示了乳汁漏出弄湿衣服、乳头破裂、乳房胀痛…」） |
+| 3 | 超级 | 9080 | **Momcozy 自撰·拟发布文案**（文案版本 A「需要超级柔软的支撑？」）；但 W-1.12 边界是**吸力**夸大用语，此处指**柔软度** ⇒ **超条款范围** |
+| 4 | 完美 ×6 | 1809 / 2208 / 2610 / 6023 / 6626 / 9000 | 5 处在中文分析文本（「完美地平衡」「不是完美的训练状态」「达到完美」「虚假完美」「不完美」）；1 处在自有文案 A，且为**否定式**（「我们**没有**完美无缺的模特」）⇒ 落在豁免里 |
+| 5 | `hospital` ×2 | 6865 / 6933 | **第三方逐字引文**（Fridamom Amazon 落地帖文「Get everything mom actually needs at the hospital…」） |
+| 6–9 | `Best`/`best` ×4 | 334 / 1571 / 5111 / 7093 | **全部第三方引文**（BABYGO / NCT「best practice」/ FIT4MOM「our best」/ Fridamom「bestsellers」）；且 W-1.22 / W-1.33 明写 best/#1/No.1 按 **2026-09-09 口径已放开**、不再判险 |
+
+⇒ **9 条里 7 条只出现在第三方引文或分析文本里**；真正落在 Momcozy 拟发布文案上的只有 #3（超条款范围）与 #4（否定式）。
+**另有 3 处自有文案未获 KB 依据、需人工判**（本节为判断，非引擎结论）：
+①「半夜漏奶和疼痛，让你心力交瘁？**搞定！**」—— W-1.26 自述「需人工判定是痛点场景描述还是功效承诺」，
+与消除性表述（搞定！）连用应升级 H01/H07；②「别让产后焦虑消耗你！」—— 知识库**查不到**（不得由常识补）；
+③「让你在清晨多睡一小时的**免提神器**」—— 效果类具体数值，无对应条款，需测试来源与口径。
+
+## 四、把冲突摆出来说（不默默挑一个执行）
+
+| 面 | 本单取值 | 理由 |
+|---|---|---|
+| **记录状态**（表行 / 报告抬头） | **`BLOCK`**（引擎原值） | **不做静默降级** —— 本库把「降级 / 漏放」列为最高风险方向 |
+| **判定主体口径** | 引擎的 P0 `confirmed_p0` 分支**不区分**「自有文案」与「文档引用的第三方文案」 | 已登记为 `GAP-QUOTE-1`（**只登记，不修**；见 `_rt-yoga-02` 的登记件与 `report-output-contract.yaml` 的既有纪律） |
+
+引擎 `review_engine.decide()` 的 `BLOCK` 在本单**只由一条 P0 命中支撑**
+（`decision_trace.reasons = ["confirmed_p0"]`），而那条命中的实际语义（引用帖文里的 `perfect`）与产品安全承诺无关。
+⇒ 两者**真的冲突**，按库内纪律**摆出来**：记录状态照引擎原值，冲突本身交人裁。
+
+另有一处**文件与登记件不一致**（只报告，不改）：`审查报告与记忆` skill 正文仍写
+「表行按 `内容 ID` **upsert**（重复发布不新增行）」，而 `kb/l7/registry/conclusion-destination.yaml`
+已把 upsert **作废**、改为「**每次审查新增一行**」（2026-10-03 用户裁定）。
+本单按登记件执行（实测新增一行，未更新既有行）；**skill 正文那一句是过期文本**，建议由 owner 修。
+
+## 五、Owner 硬规矩② · 飞书两件与独立回读
+
+| 项 | 值 |
+|---|---|
+| 云文档 | <https://momcozy-in.feishu.cn/docx/JaXcdysTJoGUEuxmJLkcLgYKn8b> |
+| 本地留底 | `kb/l7/reports/rv-20261005-161409.feishu.md`（12215 字节） |
+| 表 | base `RY2UbCRjXaeeWwscUPScVN5AnQc` / table `tblCXPQVzfFWWCon` |
+| 表行 | `recvxa2y2Vixwb` ｜ 内容 ID **`AD-20261005-022`** ｜ 表 rev **175** ｜ 写入时间 `2026-10-05T16:14:17+08:00` |
+| 写身份 | `--profile dsh-kb --as bot` |
+| 回读 | ✅ **独立回读逐字段核过**（`_rt-yoga-03/readback_check.py` → `readback-verified.json`，`all_checks_pass=true`） |
+
+**PRD 15 个字段逐项核对（缺列 0）**：
+
+| PRD 字段 | 表内列存在 | 本行值 |
+|---|---|---|
+| 内容 ID | ✅ | `AD-20261005-022` |
+| 产品线 | ✅ | `未指定`（缺省自动补） |
+| 渠道 | ✅ | `未指定`（缺省自动补） |
+| 内容类型 | ✅ | `广告洞察文档（竞品素材+AI拟定文案）` |
+| 送审版本 | ✅ | `v1.0` |
+| Agent 结论 | ✅ | `BLOCK` ✅ 与引擎 `decision` 一致 |
+| 置信度 | ✅ | `0.97` ✅ 与引擎一致 |
+| 问题数量 | ✅ | `9` ✅ 与引擎 `issue_count` 一致 |
+| 问题分类汇总 | ✅ | 5 类，「…虚假安全承诺 2；…疼痛功效承诺 1；…绝对化性能表述 1；…医疗场景宣称 1；Absolute or ranking claim… 4」 |
+| 报告链接 | ✅ | 云文档直链 ✅ 含 `JaXcdysTJoGUEuxmJLkcLgYKn8b` |
+| 人工复核人 | ✅ | `null`（**待人工填**） |
+| 复核结论 | ✅ | `null`（**待人工填**） |
+| sign-off 人 | ✅ | `null`（**待人工填**） |
+| 发布时间 | ✅ | `null`（**待人工填**） |
+| 状态 | ✅ | `["BLOCK"]` ✅ 与结论一致（本单**不是拒答**，故不填「待审」） |
+
+## 六、not_proves（不能由本件证明什么）
+
+- 本件**不能**证明「该文档可以发布」—— 结论是 `BLOCK`；且自有文案侧**也拿不到 PASS**（渠道/SKU 未指定，三项待人工判）。
+- 本件**不能**证明内嵌的 **29 个视频 / 25 张图片 / 4 张表格**合规 —— 它们**本体未到达本机**，
+  已按规则折叠成 `[视频]`/`[图片]`/`[表格]` 标记，**未做 OCR / 抽帧 / 转写**，一个专项都没跑。
+- 第三节的归属裁定是**判定主体（人）的判断**，不是引擎产出，**不得**当作引擎结论引用。
+- 本件 sha 值为「与 L0 记录值比对一致」，**不是重算**。
+- 本件黄 `E5` ×3 = **机制证据**（预演落章），**不能**证明 L4–L6 真落盘过。
+- 本件**不能**证明前六次复跑错 —— 七次同结论；本件只是第 7 次独立复算。
+
+---
+*生成：2026-10-05 ｜ 会话 `session-97d711d6-abce-43f9-b621-5b11bcfaf189` ｜ 引擎 `with_kb_evidence.py` ｜ 判定主体 `文案合规审查`*

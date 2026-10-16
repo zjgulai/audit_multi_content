@@ -1,0 +1,81 @@
+skill:
+  name: root-skills-manage
+  version: "1.0.2"
+  structure_version: "1.0"
+  created_at: "2026-07-15"
+  updated_at: "2026-08-31"
+  description: "root-skills 家族管理器：注册表 + 路由 + 生命周期 + 版本跟踪"
+
+directories:
+  scripts:
+    exists: true
+    count: 1
+    files:
+      - manage.py
+    description: "家族管理 CLI（status/check/register/set-status/route）"
+  references:
+    exists: true
+    count: 3
+    files:
+      - registry-schema.md
+      - routing-guide.md
+      - lifecycle.md
+    description: "注册表规范、路由决策、生命周期状态机"
+  registry:
+    exists: true
+    count: 1
+    files:
+      - skills.json
+    description: "家族注册表（单一事实来源）"
+  examples:
+    exists: true
+    count: 0
+    description: "使用示例"
+  tests:
+    exists: true
+    count: 1
+    files:
+      - test_manage.py
+    description: "测试用例"
+
+dependencies:
+  tools:
+    - name: manage.py
+      path: scripts/manage.py
+      required: true
+  skills:
+    - name: root-skills-creator
+      relation: "家族成员（create）"
+      required: true
+    - name: root-skills-doctor
+      relation: "家族成员（diagnose，active）"
+      required: false
+    - name: root-skills-eval
+      relation: "家族成员（evaluate，active）"
+      required: false
+    - name: root-skills-opt
+      relation: "家族成员（optimize，active）"
+      required: false
+
+compatibility:
+  claude: { status: "native", tested: true }
+  cursor: { status: "native", tested: true }
+  kimi: { status: "native", tested: true }
+  gpt: { status: "bridge", tested: false }
+  minimax: { status: "bridge", tested: false }
+  dsh: { status: "native", tested: true }
+  codex: { status: "native", tested: true, notes: "发现实测通过（gpt-5.4-mini 5/5 可见）" }
+
+workflow:
+  input: user-request-about-root-skills-family
+  output: registry-update-or-routing-decision
+  steps:
+    - "解析用户意图"
+    - "查注册表确认成员状态"
+    - "路由到对应成员（只路由不执行）"
+    - "或执行家族管理操作（status/check/register/set-status）"
+
+created_by:
+  skill: root-skills-creator
+  version: 4.0.0
+  record: ../../creation-records/root-skills-manage.md

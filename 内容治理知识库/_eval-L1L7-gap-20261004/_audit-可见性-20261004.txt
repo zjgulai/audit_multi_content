@@ -1,0 +1,92 @@
+====================================================================================================
+L1–L7 description 可见性审计（生效面 = 折叠空白后前 500 字）
+====================================================================================================
+skill                       折叠后    可见区    超窗     规则单元     不可见   不可见里含
+----------------------------------------------------------------------------------------------------
+kb-ingest-extractor         573    497    73       50       2   —
+kb-media-extractor          660    497   160       41       6   判归×6
+kb-clause-extractor         636    497   136       39       4   判归×4
+kb-canonical-lookup         846    497   346       44      12   判归×7 欠定×1
+kb-p0-check                 744    497   244       38      11   判归×6 欠定×1
+kb-recall                   932    497   432       53      15   判归×7 安全×1 欠定×1
+kb-check                    648    497   148       46       6   判归×3
+
+### kb-ingest-extractor — ⚠️ 超窗 73 字，2/50 条规则单元对路由器不可见
+    ✂ pos= 536               ingest extractor
+    ✂ pos= 553               kb-ingest-extractor
+
+### kb-media-extractor — ⚠️ 超窗 160 字，6/41 条规则单元对路由器不可见
+    ✂ pos= 528  [判归]         不适用：只对账 L0 → kb-l0-feishu
+    ✂ pos= 554  [判归]         切成知识单元 → kb-ingest-extractor
+    ✂ pos= 584  [判归]         条款蒸馏 → kb-clause-extractor
+    ✂ pos= 611  [判归]         整链同步 → kb-pipeline
+    ✂ pos= 630  [判归]         体检 → kb-check
+    ✂ pos= 644  [判归]         修闸门 → kb-repair
+
+### kb-clause-extractor — ⚠️ 超窗 136 字，4/39 条规则单元对路由器不可见
+    ✂ pos= 507  [判归]         查条款号 → kb-canonical-lookup
+    ✂ pos= 538  [判归]         判是不是 P0 → kb-p0-check
+    ✂ pos= 564  [判归]         召回单元 → kb-recall
+    ✂ pos= 586  [判归]         素材切成单元 → kb-ingest-extractor（L1/L2，不是本 skill
+
+### kb-canonical-lookup — ⚠️ 超窗 346 字，12/44 条规则单元对路由器不可见
+    ✂ pos= 543               不适用（各自点名）： · 发号
+    ✂ pos= 583  [判归]         重建 L4（写档诉求）→ 走 kb-pipeline（由它调本 skill 的写档档位
+    ✂ pos= 631               · 已经给出三态结论
+    ✂ pos= 642  [判归/欠定]      要追问结论的依据 → 走 kb-content-review
+    ✂ pos= 682  [判归]         · 判断一段内容能不能发 → 走 kb-review
+    ✂ pos= 714  [判归]         · 这个是不是 P0 → 走 kb-p0-check
+    ✂ pos= 745               召回单元
+    ✂ pos= 752  [判归]         查资料 → 走 kb-recall
+    ✂ pos= 775               · 跑 L0 到 L7
+    ✂ pos= 789  [判归]         同步知识库 → 走 kb-pipeline
+    ✂ pos= 816               · 知识库体检
+    ✂ pos= 826  [判归]         闸门 → 走 kb-check
+
+### kb-p0-check — ⚠️ 超窗 244 字，11/38 条规则单元对路由器不可见
+    ✂ pos= 510               不适用（各自点名）： · 查条款号
+    ✂ pos= 530  [判归]         定稿了没有 → 走 kb-canonical-lookup
+    ✂ pos= 565               · 召回相关单元
+    ✂ pos= 576  [判归]         查资料 → 走 kb-recall
+    ✂ pos= 599  [判归]         · 判断一段内容能不能发（要三态结论）→ 走 kb-review
+    ✂ pos= 637               · 已经给出结论
+    ✂ pos= 646  [判归/欠定]      要追问依据 → 走 kb-content-review
+    ✂ pos= 679               · 跑 L0 到 L7
+    ✂ pos= 693  [判归]         同步知识库 → 走 kb-pipeline
+    ✂ pos= 719               体检
+    ✂ pos= 724  [判归]         闸门 → 走 kb-check
+
+### kb-recall — ⚠️ 超窗 432 字，15/53 条规则单元对路由器不可见
+    ✂ pos= 556  [安全]         它只在被 kb-pipeline 以层身份调用时走正文 §4 的「写档档位」 （三条件缺一不可：① 层身份调用 ② --apply ③ 人开
+    ✂ pos= 636               不适用（各自点名）： · 查条款号
+    ✂ pos= 656  [判归]         定稿了没有 → 走 kb-canonical-lookup
+    ✂ pos= 691               · 这个是 P0 吗
+    ✂ pos= 704  [判归]         命中哪些 P0 模式 → 走 kb-p0-check
+    ✂ pos= 736  [判归]         · 判断一段内容能不能发（要三态结论）→ 走 kb-review
+    ✂ pos= 774               · 已经给出结论
+    ✂ pos= 783  [欠定]         要追问依据
+    ✂ pos= 791  [判归]         逐字摘录 → 走 kb-content-review
+    ✂ pos= 823               · 跑 L0 到 L7
+    ✂ pos= 837               同步知识库
+    ✂ pos= 845  [判归]         重建索引 → 走 kb-pipeline
+    ✂ pos= 871               · 知识库体检
+    ✂ pos= 881  [判归]         闸门 → 走 kb-check
+    ✂ pos= 901  [判归]         问 skill 怎么分工 → 走 kb-manage
+
+### kb-check — ⚠️ 超窗 148 字，6/46 条规则单元对路由器不可见
+    ✂ pos= 507               · 只对账 L0
+    ✂ pos= 518  [判归]         飞书侧 → 走 kb-l0-feishu
+    ✂ pos= 544  [判归]         · 判断一段内容能不能发 → 走 kb-review
+    ✂ pos= 576               · 评测
+    ✂ pos= 583  [判归]         优化某个 skill 的质量 → 走 root-skills-eval
+    ✂ pos= 621               root-skills-opt（质量评测不属本家族
+
+====================================================================================================
+可见区末尾 60 字（路由器看到的就是到这里为止）：
+  kb-ingest-extractor      …任何写档引擎。 触发词：抽取单元、素材转条目、L1 抽取、L2 切分、补切、重切、切分规则、单元对账、 预演、干跑...
+  kb-media-extractor       …、kb-media-extractor。 视频字幕 / 关键帧 OCR 尚未实现，遇到这一类先读 referenc...
+  kb-clause-extractor      …use-extractor。 不适用（各自点名）：发号 / 定稿 / canonical → **kb-pipel...
+  kb-canonical-lookup      …链）—— 本 skill **不给自己开写入口**，只在**被 kb-pipeline 以层身份调用**时走正文 ...
+  kb-p0-check              …pipeline 以层身份调用**时走正文 §4 的「写档档位」 （三条件缺一不可：① 层身份调用 ② `--ap...
+  kb-recall                …ever 已并入本 skill）。 本 skill 的**查询档只读**：不改索引、不写库。 重建 BM25 + ...
+  kb-check                 …epair**（本 skill 只报不改，默认全只读）； · 要跑 L0→L7 供给链本身 → 走 **kb-pi...

@@ -1,0 +1,19 @@
+---
+name: 文案合规审查
+description: |
+  审查文字类素材（listing、详情页、社媒文案、字幕、口播转写）的广告法与平台合规：广告用语、绝对化用语、违规宣称、背书表述与措辞风险。触发词：文案合规审查、文字合规、文案审查、listing 文案、详情页文案、社媒文案、广告用语、广告法风险、违规宣称、绝对化用语、踩线的说法、背书表述、措辞合不合规、字幕有没有问题、口播转写里有没有问题、这段文字审一下、把文案筛一遍、text compliance、caption review。何时不用：图片素材（走 图片安全审查）、视频画面（走 视频安全审查）、产品宣称真伪与 SKU 事实、认证范围（走 产品宣称核验）、要依据是什么、条款号多少（走 kb-content-review）。
+
+  Review US-market captions, listings, PDP copy, social copy, OCR text, subtitles, and voice transcripts for advertising, safety, product-claim, endorsement, and wording risks.
+version: "1.0.0"
+complexity: "complex"
+enabled: "true"
+user-invocable: true
+---
+
+# Brand Text Compliance Review
+
+Extract claims before editing language. Use `~/.dsh/Momcozy知识库/kb/l7/review-engine/core/rule_engine.py` for deterministic candidate scanning, then check medical or health implications, safety promises, absolute or ranking language, unsupported numbers, testimonials and endorsements, required disclosures, product/model accuracy, and channel-specific restrictions.
+
+Every finding must include the original text, exact location, risk type, priority tier, reason, evidence reference, and suggested action. Use `copy-editor` only for P3 clarity and wording suggestions; it must not override legal, medical, safety, or product-fact findings.
+
+When context changes the meaning of a flagged phrase, mark it `uncertain` and route REVIEW. Do not block a phrase merely because a token appears in a negation, warning, quote, or comparison.

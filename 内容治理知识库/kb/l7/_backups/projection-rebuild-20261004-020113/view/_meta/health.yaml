@@ -1,0 +1,27 @@
+# 由 kb/.work/fix_f3_gen.py 生成（修复计划 F3a）—— 顶层键必须在加载器 WIRED_META_KEYS 白名单内，
+# 顶层键：circuit_breaker / alerts / per_type_half_life_days
+# F3a 口径：与 ALERT + CIRCUIT_BREAKER 常量等价 —— 接线但行为不变。
+# ⚠ freshness 的写法是「最多多少比例过期」，加载器换算成 freshnessMin = 1 - max_expired_ratio。
+
+circuit_breaker:
+  health_score_below: 60     # 综合健康分低于此值直接判失败（熔断线，不是建议线）
+
+alerts:
+  freshness:
+    max_expired_ratio: 0.1    # → freshnessMin = 0.9
+  conflict:
+    max_ratio: 0.05          # 未裁决冲突占比上限
+  island:
+    max_ratio: 0.2            # 孤岛率上限
+  coverage:
+    min_ratio: 0.8          # 覆盖率下限（需黄金问题集才有分母）
+  hallucination:
+    max_ratio: 0.1    # 幻觉率上限
+    min_coverage_to_score: 0.3  # 证据回验覆盖到该比例才进健康分分母
+  utilization:
+    max_zero_query_ratio: 0.3  # 零结果查询占比上限（需查询日志）
+
+# 分型半衰期：按 topic 取值，优先于全局值。
+# ⚠ F3a 故意留空：一旦声明品类而本库 topic 一个都对不上，会报 W031（配了但用不上）。
+#   本库 topic 实际只有「规则 / 知识 / 未登记规则码」，分型口径留待 F3b 与权威库对齐后再定。
+per_type_half_life_days: {}

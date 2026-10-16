@@ -1,0 +1,86 @@
+---
+id: cg-sc-014f995d1d01abee
+title: "[S-1.202] 内部正负样本库：反例·审核问题·图片"
+collection: 2_内部正负样本库
+kb_class: [内部正负样本库]
+tier: L1
+topic: S-1.202
+kind: fact
+summary: "[S-1.202] 反例案例（图片/社媒）：原因归类「审核问题」；案例作参照、不构成规则。状态 stable。"
+owner: 闫琪雯
+evidence_level: L1
+data_level: L2
+sensitivity_level: L2
+half_life_days: 180
+created_at: 2026-10-16
+valid_until: 2027-04-14
+asks:
+  - S-1.202 是正例还是反例
+  - S-1.202 的问题要点与原因归类是什么
+  - S-1.202 应该怎么做（合规做法 / 修改建议）
+not_proves: 案例是参照，不构成规则 —— 不能证明「和它像」就违规、也不能证明「和它像」就合规；不能证明该条已过正式验收；不能证明该条可替代合规/法务意见
+forbidden: 不许把案例当规则用（案例只作参照）；不许据本条直接判 BLOCK；不许把派生视图的字段改动当成新库改动（视图不写回）
+related:
+  - cg-sc-d8efc9a4072c6ae4
+  - cg-sc-fec887164fc86276
+  - cg-sc-d3013b856a31f4d3
+source:
+  kind: feishu-base
+  ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
+  fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
+  captured_at: 2026-10-16
+provenance:
+  anchor: "kb/l4/canonical/sample_case.jsonl#sc-014f995d1d01abee"
+  confidence: 确定
+pii:
+  detected: true
+  masked: true
+  strategy: "案例正文与原因分析里的 @人名 不可逆脱敏（mask-at-name）；已检出并脱敏"
+article_no: S-1.202
+form: sample_case
+kb_type: internal_sample
+kb_version: v0
+case_id: sc-014f995d1d01abee
+status: stable
+polarity: 反例
+material_type: 图片
+channel: 社媒
+reason_category: 审核问题
+evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
+promoted_from: provisional
+anchor: "#负面样本/recvw7XJiS5ORS/具体原因/分析"
+source_sha256: a32064f58d96ef28eddaa4d16a3c98141a71f08957bbab11f6bf71c3819482da
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XJiS5ORS
+sample_body: "【审核 · 2026-09-17 02:49 · 闫琪雯】【终审-@[已脱敏] 】姐姐看看这个呀:YouAreTheBest: **项目名：法国社媒设计微调** **设计需求：**不修改插画设计，需求方那边想要把插画缩小～，大面积留白，最后一张改底色。 ![Image](img_v3_0215j_1b94ea28-0ee8-46ae-b769-f83b83123e9g) ![Image](img_v3_0215j_7c156c7b-887b-4906-8041-9d27847bab7g) ![Image](img_v3_0215j_22e7aa28-cb72-4713-ba06-0f3713e3b68g) ![Image](img_v3_0215j_55d2173b-9eaf-40af-b9af-1c3aba38f19g)"
+reason_analysis: "【审核问题】文案 【终审-@[已脱敏] 】姐姐看看这个呀。 【问题要点】 1. 【终审-@[已脱敏] 】姐姐看看这个呀 2. 设计需求：不修改插画设计，需求方那边想要把插画缩小～，大面积留白，最后一张改底色"
+advice: ""
+---
+
+# [S-1.202] 内部正负样本库：反例·审核问题·图片
+
+**条款号**：S-1.202　|　**形态**：`sample_case`　|　**正/反例**：反例　|　**状态**：stable
+
+## 样本本体（照抄新库，未改写）
+
+【审核 · 2026-09-17 02:49 · 闫琪雯】【终审-@[已脱敏] 】姐姐看看这个呀:YouAreTheBest:
+**项目名：法国社媒设计微调**
+**设计需求：**不修改插画设计，需求方那边想要把插画缩小～，大面积留白，最后一张改底色。
+![Image](img_v3_0215j_1b94ea28-0ee8-46ae-b769-f83b83123e9g)
+![Image](img_v3_0215j_7c156c7b-887b-4906-8041-9d27847bab7g)
+![Image](img_v3_0215j_22e7aa28-cb72-4713-ba06-0f3713e3b68g)
+![Image](img_v3_0215j_55d2173b-9eaf-40af-b9af-1c3aba38f19g)
+
+## 原因分析
+
+【审核问题】文案 【终审-@[已脱敏] 】姐姐看看这个呀。
+【问题要点】
+1. 【终审-@[已脱敏] 】姐姐看看这个呀
+2. 设计需求：不修改插画设计，需求方那边想要把插画缩小～，大面积留白，最后一张改底色
+
+## 引用依据
+
+- 锚点：`#负面样本/recvw7XJiS5ORS/具体原因/分析`
+- 指纹：`a32064f58d96ef28eddaa4d16a3c98141a71f08957bbab11f6bf71c3819482da`
+- 原因归类：审核问题　|　素材类型：图片
+
+> 案例只作参照，不构成规则。

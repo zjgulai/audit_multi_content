@@ -1,0 +1,240 @@
+[
+ {
+  "name": "内容审查总控",
+  "id": "brand-content-review-agent",
+  "purpose": "编排美国市场品牌内容（吸奶器、婴儿监护器、奶瓶清洗机、喂养类产品）的本地发布前审查：文本 / 图片 / 视频，产出带版本的 PASS / REVIEW / BLOCK / NEEDS_INPUT 决策、证据与人工流转（总控）",
+  "triggers": [
+   "品牌内容审查",
+   "发布前审查",
+   "送审",
+   "brand content review",
+   "pre-publication review",
+   "NEEDS_INPUT",
+   "PASS REVIEW BLOCK"
+  ],
+  "not_for": [
+   "单侧专项审查（走对应的 brand-*-review）",
+   "只做知识库自身的内容合规审查（走 kb-content-review）",
+   "飞书侧消息与表格的流转实现（走 brand-feishu-review-adapter）"
+  ]
+ },
+ {
+  "name": "送审登记",
+  "id": "brand-review-intake-router",
+  "purpose": "送审入口：把发布前品牌内容提交（文本 / 图片 / 视频 / URL / 批量行）规范化并校验，同时采集哈希、版本、SKU、渠道、语言与权限状态",
+  "triggers": [
+   "送审入口",
+   "提交审核",
+   "intake",
+   "提交内容审查",
+   "批量送审",
+   "submission validation"
+  ],
+  "not_for": [
+   "各侧专项审查（走 brand-text / image / video 等 review）",
+   "决定三态结论（走 brand-review-decision-engine）"
+  ]
+ },
+ {
+  "name": "证据源维护",
+  "id": "brand-policy-source-curator",
+  "purpose": "维护美国市场品牌内容审查所需的、带版本与辖区属性的证据源：监管指引、平台政策、内部规则、产品文档、生效日期、责任人与适用范围",
+  "triggers": [
+   "证据源维护",
+   "政策源",
+   "policy source",
+   "监管指引",
+   "平台政策",
+   "规则来源版本",
+   "生效日期"
+  ],
+  "not_for": [
+   "对具体内容下三态结论（走品牌审查各侧 + 决策引擎）",
+   "知识库自身的规则候选与定稿（属 L3/L4，不在 skill 层）"
+  ]
+ },
+ {
+  "name": "文案合规审查",
+  "id": "brand-text-compliance-review",
+  "purpose": "审查美国市场品牌文本（文案、Listing、PDP 文案、社媒文案、OCR 文本、字幕、口播转写）的广告、安全、产品宣称、背书与措辞风险",
+  "triggers": [
+   "文案审查",
+   "text compliance review",
+   "listing 文案审查",
+   "PDP 文案",
+   "字幕审查",
+   "口播转写审查",
+   "措辞风险"
+  ],
+  "not_for": [
+   "图片中的视觉风险（走 brand-image-safety-review）",
+   "视频的镜头 / 时间码证据（走 brand-video-safety-review）",
+   "美国本地化与文化歧义（走 brand-us-locale-cultural-review）"
+  ]
+ },
+ {
+  "name": "产品宣称核验",
+  "id": "brand-product-claim-verifier",
+  "purpose": "抽取并核验美国市场品牌内容里的产品宣称，对照 SKU 级产品事实、已批准表述、测试与认证、型号 / 版本适用范围",
+  "triggers": [
+   "产品宣称核验",
+   "claim verification",
+   "SKU 产品事实",
+   "已批准表述",
+   "测试与认证",
+   "型号版本范围"
+  ],
+  "not_for": [
+   "审查广告法与绝对化用语（走 brand-text-compliance-review）",
+   "维护 SKU 级产品事实基线（走 N4 brand-product-fact-curator）"
+  ]
+ },
+ {
+  "name": "图片安全审查",
+  "id": "brand-image-safety-review",
+  "purpose": "审查美国市场品牌图片：OCR 文本、产品与场景准确性、婴幼儿安全、隐私、AI 溯源、背书及其它可定位的内容风险",
+  "triggers": [
+   "图片审查",
+   "image safety review",
+   "OCR 文本",
+   "产品与场景准确性",
+   "婴幼儿安全",
+   "图片隐私",
+   "AI 溯源"
+  ],
+  "not_for": [
+   "视频的镜头与音画对齐证据（走 brand-video-safety-review）",
+   "纯文本审查（走 brand-text-compliance-review）"
+  ]
+ },
+ {
+  "name": "视频安全审查",
+  "id": "brand-video-safety-review",
+  "purpose": "审查美国市场品牌视频：以转写、OCR、镜头、关键帧、音画对齐与时间码为证据，判安全、产品、背书、AI 与平台风险",
+  "triggers": [
+   "视频审查",
+   "video safety review",
+   "时间码",
+   "关键帧",
+   "音画对齐",
+   "转写审查",
+   "镜头证据"
+  ],
+  "not_for": [
+   "静帧图片审查（走 brand-image-safety-review）",
+   "纯文本审查（走 brand-text-compliance-review）"
+  ]
+ },
+ {
+  "name": "美国本地化审查",
+  "id": "brand-us-locale-cultural-review",
+  "purpose": "审查美式英语、计量单位、育儿语境、达人语言、歧义，以及可能改变消费者理解或造成品牌风险的本地市场与文化问题",
+  "triggers": [
+   "美国本地化",
+   "US locale review",
+   "文化审查",
+   "计量单位",
+   "美式英语",
+   "达人语言",
+   "歧义"
+  ],
+  "not_for": [
+   "广告法与绝对化用语审查（走 brand-text-compliance-review）",
+   "产品宣称的事实核验（走 brand-product-claim-verifier）"
+  ]
+ },
+ {
+  "name": "AI溯源与权利审查",
+  "id": "brand-ai-provenance-rights-review",
+  "purpose": "审查 AI 生成披露、深度伪造、儿童与人物隐私、肖像权、商标、第三方素材与达人授权证据",
+  "triggers": [
+   "AI 溯源",
+   "AI 生成披露",
+   "depthfake 深度伪造",
+   "肖像权",
+   "商标",
+   "第三方素材",
+   "授权证据",
+   "provenance"
+  ],
+  "not_for": [
+   "婴幼儿产品使用场景安全（走 brand-image-safety-review / brand-video-safety-review）",
+   "措辞与广告用语（走 brand-text-compliance-review）"
+  ]
+ },
+ {
+  "name": "审查裁决",
+  "id": "brand-review-decision-engine",
+  "purpose": "汇总多模态品牌审查发现，产出经校准的 PASS / REVIEW / BLOCK / NEEDS_INPUT 决策，含优先级处理、版本门、证据要求与责任人流转",
+  "triggers": [
+   "裁决",
+   "decision engine",
+   "三态结论汇总",
+   "PASS REVIEW BLOCK",
+   "优先级处理",
+   "版本门",
+   "责任人流转"
+  ],
+  "not_for": [
+   "单侧发现本身（走各侧 review）",
+   "生成报告与飞书摘要（走 brand-review-report-memory）",
+   "知识库自身的 PASS/REVIEW/BLOCK 裁决（走 kb-content-review）"
+  ]
+ },
+ {
+  "name": "审查报告与记忆",
+  "id": "brand-review-report-memory",
+  "purpose": "生成品牌审查 JSON、可直接发飞书的简明摘要、详细证据报告、版本可追溯记录，以及经批准的人工反馈候选（供知识库更新）",
+  "triggers": [
+   "审查报告",
+   "report memory",
+   "飞书摘要",
+   "证据报告",
+   "版本可追溯",
+   "人工反馈候选"
+  ],
+  "not_for": [
+   "三态裁决本身（走 brand-review-decision-engine）",
+   "飞书侧的发送与状态变更（走 brand-feishu-review-adapter）",
+   "未经批准直接写回知识库"
+  ]
+ },
+ {
+  "name": "审查流程评测",
+  "id": "brand-review-evaluation",
+  "purpose": "用金标集与回归集评估本地品牌内容审查流程：测三态准确率、BLOCK 精确率、PASS 漏放、REVIEW 召回、P0 漏检、覆盖率与人工工作量",
+  "triggers": [
+   "品牌审查评测",
+   "review evaluation",
+   "金标集",
+   "回归集",
+   "三态准确率",
+   "BLOCK 精确率",
+   "PASS 漏放",
+   "P0 漏检"
+  ],
+  "not_for": [
+   "评测 Skill 质量本身（走 root-skills-eval）",
+   "评测 Agent 包（走 root-agents）",
+   "单次内容审查（走品牌审查各侧）"
+  ]
+ },
+ {
+  "name": "飞书审查流转",
+  "id": "brand-feishu-review-adapter",
+  "purpose": "把本地品牌审查契约适配到飞书：群内 @ 与文件、多维表格、云文档、状态更新与责任人流转，且不把飞书耦合进审查内核",
+  "triggers": [
+   "飞书流转",
+   "feishu adapter",
+   "群内 @",
+   "多维表格写回",
+   "云文档同步",
+   "状态更新",
+   "责任人流转"
+  ],
+  "not_for": [
+   "审查逻辑本身（走品牌审查各侧与决策引擎）",
+   "知识库自身内容的合规审查（走 kb-content-review）"
+  ]
+ }
+]

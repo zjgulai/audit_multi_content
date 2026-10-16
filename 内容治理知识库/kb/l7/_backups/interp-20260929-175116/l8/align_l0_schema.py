@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+"""L0 ↔ 飞书：表结构（字段 id/名/类型）对齐核验 + 刷新 registry 快照。
+
+为什么要单独做：记录值对齐（align_l0_feishu.py）只比「值的相等」，不比「字段集合与字段类型」。
+字段改名/改类型/增删字段都可能在值层面看不出来（值相同、键不同），而下游 L1/L2 是按字段名取角色的。
+
+做法：每个表取飞书最新 field-list（用户身份），与 L0 记录文件里逐条携带的 schema 比对：
+  · 同 field_id 名字不同      → 改名（drift，要留痕）
+  · field_id 只在飞书有       → L0 缺字段（新加字段，L0 记录需补）
+  · field_id 只在 L0 有       → 飞书删字段（L0 需标 retired）
+  · 同 field_id 类型不同      → 类型漂移
+并刷新 kb/l0/registry/kb.json 的 schema_snapshots（旧的仍是 9/24 版本）。
+用法：python3 kb/l8/align_l0_schema.py 20260929-1340 [--apply]
+"""
+import collections
+import json
+import os
+import subprocess
+import sys
+
+RUN = sys.argv[1] if len(sys.argv) > 1 else "20260929-1340"
+APPLY = "--apply" in sys.argv
+AS_ID = os.environ.get("L8_AS", "user")
+PROFILE = os.environ.get("L8_PROFILE", "dsh-kb")
+ENV = dict(os.environ, PATH=os.path.expanduser("~/.dsh/bin") + ":" + os.environ.get("PATH", ""))
+
+TABLES = [
+    ("GnRZbIuXraCzf0sGr2UcmZ62nfc", "tbld8qE92YaY38Yz", "负面样本"),
+    ("GnRZbIuXraCzf0sGr2UcmZ62nfc", "tblMGtPfe8ZUsEdP", "材料收集"),
+    ("GnRZbIuXraCzf0sGr2UcmZ62nfc", "tblZP8jG4tiUL98C", "知识库分类说明"),
+    ("Lk3Qb8y2QaVyZns6gprcVNE9nA0", "tblcbk4XiW6471YN", "广告文案明细"),
+    ("Lk3Qb8y2QaVyZns6gprcVNE9nA0", "tblD1MiUK1v5fdjD", "品线内容边界规则库"),
+    ("Lk3Qb8y2QaVyZns6gprcVNE9nA0", "tblqUTAKFkWheU49", "W1卖点表达边界（品线反馈0910）"),
+    ("Lk3Qb8y2QaVyZns6gprcVNE9nA0", "tblLxUfPz4Wqp2na", "风险文案改写建议库（分型号分渠道）"),
+    ("N2qkb2YxuatqGLsa4U4cFQxgnCe", "tblGFyycMc45RMga", "数据表"),
+    ("SKkkbdZi9aRuMzs7ob0cpSYHnQg", "tbl8AI00JZO1iZtp", "专家修订汇总表"),
+    ("SKkkbdZi9aRuMzs7ob0cpSYHnQg", "tblVdl0jdK9G4ld3", "内容公式（仅供参考）"),
+]
+
+# L0 记录文件侧：table_id -> {(fid, name): type}
+l0_fields = collections.defaultdict(dict)
+l0_records = collections.Counter()
+for root, _d, files in os.walk("kb/l0/records"):
+    for fn in files:
+        if not fn.endswith(".json"):
+            continue
+        r = json.load(open(os.path.join(root, fn), encoding="utf-8"))
+        tid = r.get("table_id")
+        if not tid:
+            continue
+        l0_records[tid] += 1
+        for name, fd in (r.get("fields") or {}).items():
+            fid = fd.get("field_id")
+            if fid:
+                l0_fields[tid][(fid, name)] = fd.get("field_type")
+
+report = {"run": RUN, "identity": f"{AS_ID}/{PROFILE}", "tables": {}, "summary": {}}
+snapshots = []
+tot = collections.Counter()
+for base, tid, name in TABLES:
+    p = subprocess.run(["lark-cli", "base", "+field-list", "--base-token", base, "--table-id", tid,
+                        "--as", AS_ID, "--profile", PROFILE, "--format", "json"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace",
+                       env=ENV, timeout=300)
+    try:
+        d = json.loads(p.stdout)
+    except Exception:
+        d = {"ok": False, "error": {"message": (p.stdout or p.stderr)[:150]}}
+    ent = {"table": name, "base_token": base, "table_id": tid, "l0_records": l0_records[tid]}
+    if not d.get("ok"):
+        ent["status"] = "field_list_failed"
+        ent["error"] = json.dumps(d.get("error"), ensure_ascii=False)[:200]
+        report["tables"][tid] = ent
+        tot["field_list_failed"] += 1
+        print(f"[{name}] field-list 失败：{ent['error'][:100]}")
+        continue
+    fs = d["data"]["fields"]
+    live = {f["id"]: (f["name"], f.get("type")) for f in fs}
+    l0 = l0_fields.get(tid, {})
+    l0_by_fid = {fid: nm for (fid, nm) in l0}
+    renamed, missing_in_l0, retired, type_drift = [], [], [], []
+    for fid, (nm, ty) in live.items():
+        if fid in l0_by_fid:
+            if l0_by_fid[fid] != nm:
+                renamed.append({"field_id": fid, "l0": l0_by_fid[fid], "feishu": nm})
+            elif l0.get((fid, nm)) and ty and l0[(fid, nm)] != ty:
+                type_drift.append({"field_id": fid, "name": nm, "l0": l0[(fid, nm)], "feishu": ty})
+        else:
+            missing_in_l0.append({"field_id": fid, "name": nm, "type": ty})
+    for (fid, nm) in l0:
+        if fid not in live:
+            retired.append({"field_id": fid, "name": nm})
+    ent.update({"status": "ok", "feishu_fields": len(live), "l0_fields": len(l0),
+                "renamed": renamed, "missing_in_l0": missing_in_l0,
+                "retired_in_feishu": retired, "type_drift": type_drift})
+    report["tables"][tid] = ent
+    for k in ("renamed", "missing_in_l0", "retired_in_feishu", "type_drift"):
+        tot[k] += len(ent[k])
+    snapshots.append({"table_name": name, "table_id": tid, "at": RUN, "rev": None,
+                      "field_count": len(live), "records_count": None,
+                      "fields": [{"field_id": f["id"], "field_name": f["name"], "type": f.get("type")} for f in fs],
+                      "refresh_note": "由 kb/l8/align_l0_schema.py 按飞书最新 field-list 刷新（旧快照为 20260924-1100）"})
+    flag = "" if not (renamed or missing_in_l0 or retired or type_drift) else "  ← 有漂移"
+    print(f"[{name}] 飞书字段 {len(live)} / L0 字段 {len(l0)} 改名 {len(renamed)} "
+          f"L0缺 {len(missing_in_l0)} 飞书已删 {len(retired)} 类型变 {len(type_drift)}{flag}")
+    for x in renamed:
+        print(f"     改名: {x['field_id']} {x['l0']} → {x['feishu']}")
+    for x in missing_in_l0:
+        print(f"     L0 缺字段: {x['field_id']} {x['name']} ({x['type']})")
+    for x in retired:
+        print(f"     飞书已删: {x['field_id']} {x['name']}")
+
+report["summary"] = dict(tot)
+json.dump(report, open(f"kb/l8/runs/{RUN}-l0-schema-align.json", "w", encoding="utf-8"),
+          ensure_ascii=False, indent=1)
+print(f"\n=== 结构层汇总 === 改名 {tot['renamed']} | L0缺字段 {tot['missing_in_l0']} | "
+      f"飞书已删 {tot['retired_in_feishu']} | 类型漂移 {tot['type_drift']} | 取字段失败 {tot['field_list_failed']}")
+
+if APPLY:
+    p = "kb/l0/registry/kb.json"
+    reg = json.load(open(p, encoding="utf-8"))
+    old = reg.get("schema_snapshots") or []
+    reg["schema_snapshots"] = snapshots + [{"_archived_previous": True, "at": s.get("at"),
+                                            "table_id": s.get("table_id"), "table_name": s.get("table_name"),
+                                            "field_count": s.get("field_count")} for s in old
+                                           if s.get("at") != RUN]
+    reg.setdefault("l0_schema_align", []).append(
+        {"run": RUN, "identity": report["identity"], "result": report["summary"],
+         "report": f"kb/l8/runs/{RUN}-l0-schema-align.json"})
+    json.dump(reg, open(p, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+    json.load(open(p, encoding="utf-8"))
+    print("✓ registry.schema_snapshots 已刷新（旧快照保留摘要行）")
+else:
+    print("未写入（加 --apply 刷新 registry）")

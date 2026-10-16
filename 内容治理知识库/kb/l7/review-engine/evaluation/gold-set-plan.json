@@ -1,0 +1,27 @@
+{
+  "gold_set_version": "gold-100-v0.1",
+  "status": "scope_confirmed_by_user",
+  "target_count": 100,
+  "quotas": {"text": 40, "image": 30, "video": 30},
+  "sample_mix": {
+    "normal": 0.35,
+    "clear_violation": 0.25,
+    "borderline": 0.25,
+    "adversarial": 0.15
+  },
+  "product_mix": {"M5": 0.34, "BM03 Black": 0.33, "DeepClean D8": 0.33},
+  "channel_mix": {"tiktok_ads": 0.34, "amazon_listing": 0.33, "owned_site_pdp": 0.33},
+  "adjudication": {
+    "primary_roles": ["产品负责人", "法务", "医学顾问", "北美同事"],
+    "minimum_reviewers": 2,
+    "tie_breaker": "法务或项目负责人",
+    "required_fields": ["expected_decision", "rationale", "risk_categories", "evidence_refs", "reviewer_ids", "adjudicated_at"]
+  },
+  "rules": [
+    "Do not use model output as the gold label.",
+    "Keep source asset hash and the exact content version.",
+    "Store disagreements instead of silently averaging them.",
+    "Separate source facts from internal adversarial variants.",
+    "Re-adjudicate when a source rule or product fact version changes."
+  ]
+}

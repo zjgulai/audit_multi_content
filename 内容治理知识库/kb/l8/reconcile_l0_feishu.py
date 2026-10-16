@@ -1,0 +1,429 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""L0（源层）与飞书侧对账：认领新记录 + 归档被替换/不符合抓取规则的记录（不删除）。
+
+依据用户 2026-09-29 的四条指令：
+  ① 规则库：本期不做；
+  ② 负面样本：先核实是否重建 → 决定旧的处置并认领新的；
+  ③ 材料收集：**只抓「材料审核状态 = 通过」的**；
+  ④ L0 是源层，就是飞书侧知识库的副本（→ L0 应与飞书一致，差异即缺陷）。
+
+本次核实结论（证据见 kb/l8/_stage/feishu-compare/）：
+  · 负面样本（tbld8qE92YaY38Yz）：16 个 field_id 与本地旧快照**完全一致**（表没重建）；
+    但 108 条现记录的 record_id 与本地 326 条**交集为 0**，且抽查 3 个旧 id 在飞书返回
+    `Record not found` → **记录被整批替换（旧记录已删除）**。
+  · 材料收集（tblMGtPfe8ZUsEdP）：飞书侧 32 条中 **通过 22 / 空 10** → 按指令③ L0 只留 22 条。
+
+动作（全部可回滚、不删除任何文件）：
+  1. 旧 326 条 → kb/l0/_archive/正面和负面样本-superseded-<run>/（附 manifest）
+  2. 材料收集被保留的 22 条：重抓前副本 → kb/l0/_archive/材料收集-重抓前-<run>/，随后按飞书现值刷新
+  3. 材料收集非「通过」的 10 条 → kb/l0/_archive/材料收集-未通过-<run>/
+  4. 认领新 108 条 → kb/l0/records/负面样本/
+  5. 登记：kb/l0/runs/<run>-l0-feishu-reconcile.json（账本）+ kb/l0/registry/kb.json 追加式补记
+
+用法：python3 kb/l8/reconcile_l0_feishu.py <run_id>
+"""
+# ── 解释器守卫（2026-09-29）：不合格就用 kb/.kb-python 指定的解释器重跑自己 ──
+import os as _os, sys as _sys
+if not _os.environ.get("KB_INTERP_OK"):
+    _d = _os.path.dirname(_os.path.abspath(__file__)); _cfg = None
+    while True:
+        _p = _os.path.join(_d, ".kb-python")
+        if _os.path.isfile(_p):
+            _cfg = _p
+            break
+        _q = _os.path.dirname(_d)
+        if _q == _d:
+            break
+        _d = _q
+    if _cfg:
+        _want = next((l.split("#", 1)[0].strip() for l in open(_cfg, encoding="utf-8")
+                      if l.split("#", 1)[0].strip()), "")
+        _want = _os.path.expanduser(_want)
+        if (_want and _os.access(_want, _os.X_OK)
+                and _os.path.realpath(_want) != _os.path.realpath(_sys.executable)):
+            _os.environ["KB_INTERP_OK"] = "1"
+            _os.execve(_want, [_want, _os.path.abspath(__file__)] + _sys.argv[1:], dict(_os.environ))
+# ──────────────────────────────────────────────────────────────────────────
+
+import datetime
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+# ── 干跑档 · 开关解析（P0-3 · 2026-09-29 补）───────────────────────────────
+# 必须早于 RUN 解析：把 --apply 从 argv 里剔除，避免它被当成位置参数 run_id。
+APPLY = "--apply" in sys.argv
+if APPLY:
+    sys.argv.remove("--apply")
+# ── 落章档（2026-10-01 加，批次4）：`--skill <id>` = 本层**真正执行**的 skill id ──
+#   真源 = `kb/l7/registry/layers.yaml` 本层 `skill:`，**由调用者读表后传入**；本脚本不硬编码。
+#   落章由**执行本层的进程**（本脚本）写，编排器不得代写（代写即 registry_echo、不能当证据）。
+#   像 --apply 一样**先摘掉**，免得被 RUN 解析当成位置参数。
+_SKILL = None
+for _i, _a in enumerate(list(sys.argv)):
+    if _a == "--skill" and _i + 1 < len(sys.argv):
+        _SKILL = sys.argv[_i + 1]; del sys.argv[_i:_i + 2]; break
+    if _a.startswith("--skill="):
+        _SKILL = _a.split("=", 1)[1]; del sys.argv[_i]; break
+# ──────────────────────────────────────────────────────────────────────────
+# ── 干跑档 · 落盘闸门（P0-3 · 2026-09-29 补）───────────────────────────────
+# 不带 --apply 时：**只预演、不落盘**，权威库一个字节都不写。
+#
+# ★ 2026-10-01（批次4）补：预演档现在写**一条自己承认是预演的落章**
+#   `kb/l0/runs/<RUN>-dryrun.json`（dry_run=true / applied=false）。
+#   为什么必须补：本闸门**早于任何采集与写入** ⇒ 预演在磁盘上零痕迹，
+#   `kb/l7/scripts/skill_invocation_audit.py` 的 E2（逐层落章）对 L0 预演恒红。
+#   边界如实写进记录：本预演**不执行采集/对账阶段**（要 token、要联网），
+#   故这条只证明「本层引擎被跑过（预演档）」，**既不是落盘证据，也不是「L0 已对账」**。
+if not APPLY:
+    print("[dry-run] %s 未落盘。" % _os.path.basename(_os.path.abspath(__file__)))
+    print("[dry-run] 本脚本会写入：L0 认领与归档：写 kb/l0/records/**、移动目录到 kb/l0/_archive/**、写台账")
+    _RUN = next((a for a in sys.argv[1:] if not a.startswith("--")), time.strftime("%Y%m%d-%H%M"))
+    _rec = {"run_id": _RUN, "at": time.strftime("%Y-%m-%dT%H:%M:%S"), "layer": "L0",
+            "action": "feishu_reconcile_preview", "dry_run": True, "applied": False,
+            "note": ("预演档：干跑闸门早于任何采集/写入 ⇒ 未执行对账阶段，本记录不是落盘证据")}
+    if _SKILL:
+        _rec["skill"] = _SKILL
+        _rec["skill_source"] = ("--skill 参数（调用者读 layers.yaml 本层 skill: 后传入；"
+                                "本脚本不硬编码）")
+    os.makedirs("kb/l0/runs", exist_ok=True)
+    _p = f"kb/l0/runs/{_RUN}-dryrun.json"
+    json.dump(_rec, open(_p, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    print(f"[dry-run] 预演台账 → {_p}"
+          + (f"（顶层 skill={_SKILL}）" if _SKILL else "（**未传 --skill，无落章**）"))
+    print("[dry-run] 加 --apply 才落盘（补档原因：原先运行即写盘，已发生过一次未授权写入）")
+    _sys.exit(0)
+# ──────────────────────────────────────────────────────────────────────────
+
+WS = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+os.chdir(WS)
+LARK = os.path.expanduser("~/.dsh/bin/lark-cli")
+BASE = "GnRZbIuXraCzf0sGr2UcmZ62nfc"
+D = os.environ.get("L0_RECONCILE_STAGE") or "kb/l8/_stage/feishu-compare"
+RUN = sys.argv[1] if len(sys.argv) > 1 else time.strftime("%Y%m%d-%H%M")
+OBS = RUN
+TZ = "Asia/Shanghai"
+sha = lambda p: hashlib.sha256(open(p, "rb").read()).hexdigest()
+
+# ── 暂存新鲜度闸门（批次11 · A 块，2026-10-02）────────────────────────────
+# 缺陷（批次11 复核实测，非推测）：本脚本 `:105` 的输入 D 是 `kb/l8/_stage/feishu-compare`，
+#   而**全库没有任何生产者写这个目录**（grep 全仓：只有本脚本与 ocr_attachments.py 读它，
+#   零处写它）。今天真拉的那份在 `kb/l8/_stage/feishu-align/<RUN>/`（align_l0_feishu.py 写）。
+#   ⇒ 后果：`observed_at` 被赋成今天的 RUN（`:107` OBS=RUN、`:145` 写进每条记录），
+#   内容却是 09-29/10-33~09-30 09-33 的旧件 —— **读旧件、打新时间**。
+#   实测差距：负面样本 compare 115 条 / align 170 条，**55 条只存在于今天那份**。
+# 为什么选「加门禁」而不是「接线到 align」（判定依据，逐条可核）：
+#   ① 形态**不兼容**：`fields_of()`（`:120-128`）读 `raw["data"]["fields"]`；
+#      align 的 `<tid>.manifest.json` 里没有 `data` 键，字段表在 `columns`（name → {field_id,
+#      field_type, ...}）。这是硬失败，不是"接上就行"。
+#   ② 更根本：`align_l0_feishu.py` 在**同一次 RUN 里已经完成**「归档旧件 + 认领新件」。
+#      再接一次到 align，等于对**已经被本次对齐改过的** `kb/l0/records/**` 再归档一次 ——
+#      产物抖动，且 archive() 对同名目标目录先 `rmtree`（`:162-163`），有真损坏风险。
+#   ③ 本批边界明写「不重跑 L0 真档」⇒ 接线无法在真档上验证，只能干跑；门禁可以真反测。
+# 门禁语义：暂存件的 mtime 必须 **不早于** 本 RUN 的起始时刻，否则**拒写**（退出码 4），
+#   连 `kb/l0/records/**` 都不碰 —— 与批次10 B 块同一套纪律：宁可红，也不写退化的快照。
+#   承认通道（由人显式加）：`--accept-stale-stage`，事实连同原始 mtime 写进账本留痕。
+# 新鲜暂存从哪来：`kb/l8/materialize_l0_compare.py <RUN> --apply`（自 align 快照物化，见该脚本头注）。
+_ACCEPT_STALE = "--accept-stale-stage" in sys.argv
+if _ACCEPT_STALE:
+    sys.argv.remove("--accept-stale-stage")
+
+# 本脚本真正要读的暂存件（新鲜度**只由这四个**决定；批次13 修正，理由见 _stage_freshness 文档）
+_JUDGED_STAGE_FILES = {
+    "feishu-负面样本.ndjson", "fields-负面样本.json",
+    "feishu-材料收集.ndjson", "fields-材料收集.json",
+}
+
+
+def _run_start_epoch(run_id):
+    """RUN 形如 20260930-1105 → 该分钟的 epoch；解析不了返回 None（→ 只报警不拦）。"""
+    try:
+        return time.mktime(time.strptime(run_id, "%Y%m%d-%H%M"))
+    except Exception:
+        return None
+
+
+def _stage_freshness(stage_dir, run_id):
+    """读侧留痕 + 新鲜度判定。返回 (fresh: bool|None, info: dict)。None = 无法判定。
+
+    ★ 批次13 修正（2026-10-02）：**只看本脚本真正要读的那四个文件**。
+      批次11 的初版扫**整个目录**的最早 mtime，结果被目录里的无关陈旧件带偏 ——
+      实测：`kb/l8/_stage/feishu-compare/` 里躺着一个 `login-qr.png`（Sep 29 10:12），
+      而 materialize 刚把两个 ndjson + 两个 fields 刷成今天 08:32，
+      整目录口径仍判「最早 mtime = 09-29 10:12 ⇒ 陈旧」→ **门禁变成永远过不去的死路**。
+      这与批次11 自测踩到的 `copy2` 保留 mtime 是**同一类错**：拿无关量当判据。
+      修法：新鲜度只由 `<表>.ndjson`（真正被读的记录源）与 `fields-<表>.json` 决定，
+      其余文件（QR 图、规则库旧件、PROVENANCE 等）**照常留痕但不参与判定**。
+    """
+    info = {"stage_dir": stage_dir, "run": run_id, "exists": os.path.isdir(stage_dir),
+            "files": {}, "judged_files": [], "mtime_min": None, "mtime_max": None,
+            "stale": None, "reason": None}
+    if not info["exists"]:
+        info["reason"] = "暂存目录不存在"
+        return None, info
+    for fn in sorted(os.listdir(stage_dir)):
+        p = os.path.join(stage_dir, fn)
+        if os.path.isfile(p):
+            mt = os.path.getmtime(p)
+            info["files"][fn] = {"mtime": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(mt)),
+                                 "epoch": mt, "bytes": os.path.getsize(p),
+                                 "judged": fn in _JUDGED_STAGE_FILES}
+    # 只有被读的记录源/字段表参与新鲜度判定 —— 且**四个都要在**（子集不算通过）
+    present = {k for k in info["files"] if k in _JUDGED_STAGE_FILES}
+    missing = sorted(_JUDGED_STAGE_FILES - present)
+    info["judged_files"] = sorted(present)
+    info["judged_missing"] = missing
+    if missing:
+        info["reason"] = ("暂存目录缺本脚本要读的文件：%s（新鲜度按最保守处理 = 陈旧）"
+                          % "、".join(missing))
+        info["stale"] = True
+        return False, info
+    judged = [info["files"][k] for k in info["judged_files"]]
+    info["mtime_min"] = min(v["epoch"] for v in judged)
+    info["mtime_max"] = max(v["epoch"] for v in judged)
+    info["mtime_min_str"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(info["mtime_min"]))
+    info["mtime_max_str"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(info["mtime_max"]))
+    info["run_start_str"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(_run_start_epoch(run_id))) \
+        if _run_start_epoch(run_id) else None
+    rs = _run_start_epoch(run_id)
+    if rs is None:
+        info["reason"] = "RUN 不能解析成 YYYYMMDD-HHMM，无法判定新鲜度"
+        return None, info
+    # 放宽 60s：暂存与 RUN 由同一分钟内的两次调用生成，秒级先后不构成陈旧。
+    if info["mtime_min"] < rs - 60:
+        info["stale"] = True
+        info["reason"] = ("暂存件最早 mtime %s 早于本 RUN 起始 %s"
+                          % (info["mtime_min_str"], info["run_start_str"]))
+        return False, info
+    info["stale"] = False
+    return True, info
+
+
+_FRESH, _FRESH_INFO = _stage_freshness(D, RUN)
+
+ledger = {"run": RUN, "at": time.strftime("%Y-%m-%d %H:%M:%S"), "base_token": BASE,
+          "instructions": ["规则库本期不做", "负面样本核实重建并处置", "材料收集只抓 通过", "L0 = 飞书副本"],
+          "observed_at": OBS,
+          "stage": _FRESH_INFO,
+          "actions": []}
+
+if _FRESH is False and not _ACCEPT_STALE:
+    print("❌ 输入新鲜度闸门：暂存目录 **陈旧** → 拒绝写盘（连 kb/l0/records/** 都不碰）")
+    print("   暂存目录 : %s" % D)
+    print("   最早 mtime: %s   （本 RUN 起始 %s）"
+          % (_FRESH_INFO.get("mtime_min_str"), _FRESH_INFO.get("run_start_str")))
+    print("   判定理由 : %s" % _FRESH_INFO.get("reason"))
+    print("   为什么必须拦：本脚本把 `observed_at` 赋成本 RUN（:107/:145）。读旧件、打新时间")
+    print("                 会让 L0 的「本次实测」变成一句假话。")
+    print("   怎么修（任选其一）：")
+    print("     ① 物化本次暂存： kb/kbpy l8/materialize_l0_compare.py %s --apply" % RUN)
+    print("     ② 承认陈旧（由人显式决定，事实写进账本）：加 --accept-stale-stage")
+    print("   依据：批次10 B 块同一套纪律 —— 宁可红，也不写退化的快照。")
+    sys.exit(4)
+elif _FRESH is False and _ACCEPT_STALE:
+    print("⚠️ 暂存 **陈旧** 但已由人显式承认（--accept-stale-stage）：%s" % _FRESH_INFO.get("reason"))
+elif _FRESH is None:
+    print("⚠️ 暂存新鲜度**无法判定**（%s）→ 不拦，但已记进账本 stage.reason。" % _FRESH_INFO.get("reason"))
+else:
+    print("✓ 暂存新鲜度：最新（最早 mtime %s ≥ 本 RUN 起始 %s）"
+          % (_FRESH_INFO.get("mtime_min_str"), _FRESH_INFO.get("run_start_str")))
+
+
+
+def cli(*args):
+    p = subprocess.run([LARK, *args, "--as", "bot", "--profile", "dsh-kb"], capture_output=True, text=True)
+    return p.stdout
+
+
+def fields_of(table_id, cache):
+    """取字段 schema：name → {id, type}（落盘缓存，避免重复调用）。"""
+    if os.path.exists(cache):
+        raw = json.load(open(cache, encoding="utf-8"))
+    else:
+        raw = json.loads(cli("base", "+field-list", "--base-token", BASE, "--table-id", table_id))
+        json.dump(raw, open(cache, "w", encoding="utf-8"), ensure_ascii=False)
+    fs = raw["data"].get("fields") or raw["data"].get("items") or []
+    return {f["name"]: {"field_id": f["id"], "field_type": f["type"]} for f in fs}
+
+
+def ndjson(path):
+    return [json.loads(l) for l in open(path, encoding="utf-8") if l.strip()]
+
+
+def write_record(dirname, row, fmap, filter_obj, note):
+    rid = row["record_id"]
+    fields = {}
+    for name, meta in fmap.items():
+        val = row.get(name)
+        fields[name] = {"field_id": meta["field_id"], "field_type": meta["field_type"],
+                        "value": val, "raw_verbatim": val}
+    doc = {"record_id": rid, "source_table": dirname, "table_id": row["_table_id"],
+           "base_token": BASE,
+           "entry_url": f"https://momcozy-in.feishu.cn/base/{BASE}?table={row['_table_id']}&record={rid}",
+           "timezone": TZ, "observed_at": OBS,
+           # 批次11 · A 块：**读侧留痕** —— 本次这条到底是从哪个暂存目录读出来的、那份件的 mtime 是多少。
+           # 没有这三个字段，「observed_at」只是一句无从核对的自述（正是批次9/10 的病根）。
+           "stage_provenance": {"stage_dir": D, "stage_mtime_min": _FRESH_INFO.get("mtime_min_str"),
+                                "stage_mtime_max": _FRESH_INFO.get("mtime_max_str"),
+                                "stage_fresh": _FRESH, "declared_observed_at": OBS},
+           "filter": filter_obj,
+           "schema": {name: meta for name, meta in fmap.items()},
+           "fields": fields,
+           "raw_record": {k: v for k, v in row.items() if not k.startswith("_")},
+           "note": note}
+    os.makedirs(os.path.join("kb/l0/records", dirname), exist_ok=True)
+    dst = os.path.join("kb/l0/records", dirname, rid + ".json")
+    json.dump(doc, open(dst, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    return dst
+
+
+def archive(src_dir, tag, reason):
+    """把整个目录移到 kb/l0/_archive/<name>-<tag>/（移动=不删除），并写 manifest。"""
+    if not os.path.isdir(src_dir):
+        return None
+    dst = os.path.join("kb/l0/_archive", f"{os.path.basename(src_dir)}-{tag}")
+    if os.path.exists(dst):
+        shutil.rmtree(dst)
+    files = [os.path.join(r, f) for r, _d, fs in os.walk(src_dir) for f in fs]
+    man = {"from": src_dir, "to": dst, "moved_at": time.strftime("%Y-%m-%d %H:%M:%S"), "reason": reason,
+           "files": len(files), "bytes": sum(os.path.getsize(p) for p in files),
+           "sha256": {os.path.basename(p): sha(p) for p in files}}
+    shutil.move(src_dir, dst)
+    json.dump(man, open(os.path.join(dst, "_MANIFEST.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    return man
+
+
+# ── ② 负面样本：归档旧 326 + 认领新 108 ─────────────────────────────
+neg_fmap = fields_of("tbld8qE92YaY38Yz", f"{D}/fields-负面样本.json")
+neg_rows = ndjson(f"{D}/feishu-负面样本.ndjson")
+for r in neg_rows:
+    r["_table_id"] = "tbld8qE92YaY38Yz"
+man_neg = archive("kb/l0/records/正面和负面样本", f"superseded-{RUN}",
+                  "飞书侧记录整批替换：本地 326 条的 record_id 在飞书返回 Record not found（抽查 3 个）；表未重建（16 个 field_id 不变）")
+if man_neg:
+    ledger["actions"].append({"table": "负面样本", "table_id": "tbld8qE92YaY38Yz", "action": "archive_old",
+                              "files": man_neg["files"], "to": man_neg["to"], "reason": man_neg["reason"]})
+wrote = [write_record("负面样本", r, neg_fmap,
+                      {"result": "not_filtered", "note": "独立入口表（R26）：不按材料审核状态筛选；本批全字段 verbatim"},
+                      "字段原值 verbatim；由 l8 对账脚本按飞书现值补抓（源侧记录整批替换后的新一代）；scanner_version=0.7")
+         for r in neg_rows]
+ledger["actions"].append({"table": "负面样本", "table_id": "tbld8qE92YaY38Yz", "action": "claim_new",
+                          "files": len(wrote), "dir": "kb/l0/records/负面样本",
+                          "ids_sha16": hashlib.sha256("|".join(sorted(r["record_id"] for r in neg_rows)).encode()).hexdigest()[:16]})
+
+# ── ③ 材料收集：只留「通过」的 22 条，并刷新为飞书现值 ────────────────
+mat_fmap = fields_of("tblMGtPfe8ZUsEdP", f"{D}/fields-材料收集.json")
+mat_rows = ndjson(f"{D}/feishu-材料收集.ndjson")
+approved, rejected = [], []
+for r in mat_rows:
+    st = r.get("材料审核状态")
+    st = st[0] if isinstance(st, list) and st else (st or "")
+    (approved if str(st).strip() == "通过" else rejected).append(r)
+# 顺序要紧：① 先把非「通过」的移出 ② 再把剩下的（已通过的、刷新前的）整目录归档 ③ 最后写刷新后的记录
+rej_dir = f"kb/l0/_archive/材料收集-未通过-{RUN}"
+os.makedirs(rej_dir, exist_ok=True)
+for r in rejected:
+    src = os.path.join("kb/l0/records/材料收集", r["record_id"] + ".json")
+    if os.path.exists(src):
+        shutil.move(src, os.path.join(rej_dir, os.path.basename(src)))
+man_pre = archive("kb/l0/records/材料收集", f"pre-refresh-{RUN}", "重抓前副本（刷新为飞书现值前的留档，仅含通过件）")
+if man_pre:
+    ledger["actions"].append({"table": "材料收集", "action": "archive_prerefresh", "files": man_pre["files"], "to": man_pre["to"]})
+json.dump({"moved_at": time.strftime("%Y-%m-%d %H:%M:%S"), "reason": "按用户指令③：材料收集只抓「材料审核状态=通过」的，其余不入 L0（移动不删除）",
+           "count": len(rejected), "ids": [r["record_id"] for r in rejected]},
+          open(os.path.join(rej_dir, "_MANIFEST.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+ledger["actions"].append({"table": "材料收集", "action": "drop_unapproved_to_archive", "files": len(rejected), "to": rej_dir,
+                          "rule": "材料审核状态 == 通过"})
+for r in approved:
+    r["_table_id"] = "tblMGtPfe8ZUsEdP"
+    write_record("材料收集", r, mat_fmap,
+                 {"result": "filtered", "field": "材料审核状态", "op": "==", "value": "通过",
+                  "note": "按用户 2026-09-29 指令：只抓通过的材料"},
+                 "字段原值 verbatim；由 l8 对账脚本按飞书现值刷新（含字段名/枚举/lookup 对齐）")
+ledger["actions"].append({"table": "材料收集", "table_id": "tblMGtPfe8ZUsEdP", "action": "refresh_capture",
+                          "files": len(approved), "filter": "材料审核状态 == 通过"})
+
+# ── 账本 + 登记补记 ───────────────────────────────────────────────
+# ★ 落章字段（批次10 补，2026-10-02）—— 缺口：**预演档**（`<RUN>-dryrun.json`，见上面的 `_rec`）
+#   写了 `run_id/layer/dry_run/applied/skill`，**真写档一个都没写**（`ledger` 顶层原本只有
+#   `run/at/base_token/instructions/actions`）⇒ `kb/l7/scripts/skill_invocation_audit.py` 的
+#   **E2（逐层落章）对 L0 真写恒红**：「kb/l0/runs/ 里没有本 RUN 的落章」。
+#   这是全库第三处「只写预演档字段、真写档缺字段」的同型缺口（前两处：批次5 的 `l6_selftest.py`、
+#   批次4/5 的 `l3_report.py`）。修法 = 让两条路径**字段同构**，`applied`/`dry_run` 互为反值。
+#   `run` 保留（既有机器消费者按它读），另加 `run_id` 与审计口径对齐。
+ledger["run_id"] = RUN
+ledger["layer"] = "L0"
+ledger["action"] = "feishu_reconcile"
+ledger["dry_run"] = False
+# ── 批次13 · C-2：`applied` **语义拆分**（老字段保留，语义写死进 registry）──────────
+# 为什么拆（批次11 实测，批次12 判据 5 踩到）：
+#   本脚本把 `applied` 赋 `True` 表示「**对账动作执行并落盘了**」，
+#   而台账 `kb/l0/manifest.jsonl` 的**净增行数可能是 0**（去重把 801 个同内容候选全跳过）。
+#   于是 `applied=true` 与「台账零变化」并存 —— 读的人极容易把前者误读成「台账又写了一遍」。
+#   **两件事都真，老字段只表达了一件。**
+# 拆法：新字段各表达一义；`applied` 保留（改消费方会静默，不许直接删）。
+ledger["applied"] = True                      # 保留：= reconcile_applied（历史字段，语义已写死进 registry）
+ledger["reconcile_applied"] = True            # 对账动作是否执行并落盘
+ledger["manifest_rows_delta"] = None          # 台账净增行数；本脚本**不写** manifest，故为 None
+ledger["applied_semantics"] = ("applied = reconcile_applied（对账动作是否执行）。"
+                               "**不等于「台账又写了一遍」** —— 台账净增看 manifest_rows_delta，"
+                               "由 emit 路径（kb/l8/emit_l0_manifest_reconcile.py）记录。"
+                               "登记见 kb/l7/registry/ledger-read-contract.yaml。")
+if _SKILL:
+    ledger["skill"] = _SKILL
+    ledger["skill_source"] = ("--skill 参数（调用者读 layers.yaml 本层 skill: 后传入；"
+                              "本脚本不硬编码）")
+ledger["verdict"] = ("WARN" if any(a.get("pull_failed") for a in ledger["actions"]) else "PASS")
+# 批次11 · A 块：把「本次读的是哪个暂存、它新鲜不新鲜、是不是被人承认过的陈旧件」写死进账本。
+# 这是本块要消灭的口径（读旧件、打新时间）在**读侧**留下的唯一可核对痕迹。
+ledger["stage_read"] = D
+ledger["stage_fresh"] = _FRESH
+ledger["stage_mtime_min"] = _FRESH_INFO.get("mtime_min_str")
+ledger["stage_mtime_max"] = _FRESH_INFO.get("mtime_max_str")
+ledger["write_gate"] = ("accepted_stale_by_flag" if _FRESH is False
+                        else ("fresh" if _FRESH is True else "undetermined"))
+
+os.makedirs("kb/l0/runs", exist_ok=True)
+lp = f"kb/l0/runs/{RUN}-l0-feishu-reconcile.json"
+# ── 批次21 · 第1块：落章写 `pipeline_run_id`（编排归属）──────────────────────
+# 落章契约（skill_invocation_audit.py:56-61）**早就支持** `pipeline_run_id == <编排RUN>`
+# 这一支，`stamp_of()` 也早就实现读它（`:186`），只是**从来没人写** ⇒ E2 恒查不到。
+# ★ 注入位置教训（副本实测抓到）：**必须整段落在函数之外**。
+#   上一版注在 `archive_before_write()` 的 `json.dump(man,...)` 与 `return man` 之间，
+#   把函数体劈成两半 ⇒ 模块层 `'return' outside function`。且变量名也认错了（`man`≠`_rec`）。
+try:
+    import sys as _sm_sys, os as _sm_os
+    _sm_sys.path.insert(0, _sm_os.path.join(_sm_os.path.dirname(_sm_os.path.dirname(
+        _sm_os.path.dirname(_sm_os.path.abspath(__file__)))), "kb", "l7", "scripts"))
+    from stamp_meta import stamp_fields as _stamp_fields
+    ledger.update(_stamp_fields())
+except Exception as _sm_e:
+    print("[warn] pipeline_run_id 未写入：%r" % (_sm_e,))
+
+json.dump(ledger, open(lp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+print(f"[apply] 落章 → {lp}（applied=True, run_id={RUN}"
+      + (f", skill={_SKILL}）" if _SKILL else "，**未传 --skill，无落章**）"))
+
+reg_p = "kb/l0/registry/kb.json"
+reg = json.load(open(reg_p, encoding="utf-8"))
+reg.setdefault("l0_feishu_reconcile", []).append({
+    "run": RUN, "at": time.strftime("%Y-%m-%d %H:%M:%S"),
+    "rule_change": "材料收集（tblMGtPfe8ZUsEdP）抓取规则由「不按审核状态筛选」改为「只抓 材料审核状态=通过」；R26 的旧说明随之失效",
+    "negative_sample_rebuild": {"table_id": "tbld8qE92YaY38Yz", "old_local": 326, "new_feishu": 108,
+        "evidence": "16 个 field_id 与旧快照一致（表未重建）；旧 record_id 在飞书 Record not found（记录被整批替换）",
+        "old_disposition": f"历史留档 → kb/l0/_archive/正面和负面样本-superseded-{RUN}（不删除）",
+        "new_disposition": "认领 → kb/l0/records/负面样本/"},
+    "rule_library": "飞书侧「规则库」(tblXsrMVkDNZ3oW8, 50 条) 本期不做（用户指令①）",
+    "ledger": lp})
+json.dump(reg, open(reg_p, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+
+print(f"对账完成 {RUN}")
+for a in ledger["actions"]:
+    print("  ", json.dumps(a, ensure_ascii=False)[:150])
+print(f"  账本 → {lp}")
+print(f"  现役 L0：负面样本 {len(os.listdir('kb/l0/records/负面样本'))} 条 / 材料收集 "
+      f"{len([f for f in os.listdir('kb/l0/records/材料收集') if f.endswith('.json')])} 条")

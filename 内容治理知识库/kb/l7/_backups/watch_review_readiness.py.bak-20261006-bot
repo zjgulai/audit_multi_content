@@ -1,0 +1,581 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""watch_review_readiness.py —— 「@守衡 能不能出结论」的**前置就绪看门狗**。
+
+## 为什么需要它（2026-10-05 事故驱动）
+
+用户实测：10-04 09:05 @守衡 拿到结论，10-04 22:18 超时 30 分钟，10-05 仍然不行。
+查下来是**两个互相独立的拦路虎**，但都只在「用户 @ 了一次、等 30 分钟」之后才暴露：
+
+  ① **陈旧认领**：`kb/.work/.kb-loop-claim.json` 持有者 pid 已死，但 TTL 未到
+     ⇒ `claim` 一律 exit 3 ⇒ 链子卡在门口 ⇒ 30 分钟超时。
+     ★ 而 TTL 过期**不会自动放行**（`claim` 对陈旧认领默认仍拒），
+       只提示"它是陈旧的" ⇒ **一次崩溃 = 此后每条 @ 都失败，直到有人 --take-over**。
+  ② **数据层陈旧**：user 身份令牌丢失 ⇒ 两张表 `pull_failed` ⇒ `daily_sync` 按库规
+     「L0 未对齐就跳过 L1–L6 写档」⇒ L1–L6 产物冻结 ⇒ `freshness.py` 判超期
+     ⇒ 评审链 ②c 复判仍超期 ⇒ 拒答。
+
+这两件事**都不该由用户 @ 一次才发现**。本脚本把「就绪」变成可定时巡检的谓词：
+  · 能自愈的**当场自愈**（陈旧认领 → `release --force`）；
+  · 不能自愈的（缺 user 令牌 / 数据陈旧）→ **主动推飞书**，并给出**可直接复制的那条命令**。
+
+**2026-10-05 追加（③）——修掉看门狗自己的盲区：令牌寿命**：
+
+  ③ **令牌撑不到下次日更**：user 令牌只有 **2 小时**寿命、**没有 refresh token**
+     （`auth status` 的 `refreshExpiresAt` 与 `expiresAt` 同值）。
+     原先只查「现在在不在」，于是 07:54 对着一枚 09:36 即死的令牌报了 ✅ ——
+     而**次日 08:30 的日更必然回落失败**。即：这条故障**不是随机的，是每 2 小时必然发生一次**，
+     只看「现在」的巡检查不出来。现在改成**与下次日更时刻比较**（排期从 launchd plist 读，
+     不抄第二份），余量不足一个巡检周期就提前告警。
+
+     ★ 它**非阻断**（与 AGENTS.md 漂移同类）：就绪谓词的语义是「**现在**能不能跑」，
+       令牌还没死 ⇒ 现在确实能跑 ⇒ 混进 `ready` 会把这个问题答错。
+       它的价值是**前瞻**：让「明天会坏」在**今天**就说出来，而不是等 @ 了一次。
+
+## 它不做什么（刻意）
+
+  · **不改任何闸门判据**：新鲜度结论直接读 `freshness.py`，不自己算、不放宽。
+    「陈旧」是去跑供给链的理由，不是可以被豁免的状态 —— 库规写死「不许把这两张表的
+    pull_failed 写进 expected 去声明掉，它是回落失效的报警」。本脚本只**报**，不改判据。
+  · **不自动跑供给链**：那要持锁、要按层前置口径走，属人工/编排器决策，不在看门狗职责内。
+
+## 用法
+
+    python3 kb/l8/watch_review_readiness.py            # 巡检一次，就绪退出 0，被挡退出 3
+    python3 kb/l8/watch_review_readiness.py --no-send  # 不推飞书（调试）
+    python3 kb/l8/watch_review_readiness.py --json     # 机读
+
+环境变量：
+    KB_ALERT_CHAT   告警落到哪个会话（默认取 2026-10-05 实测的那个 p2p 会话）
+    KB_ALERT_COOLDOWN_H  同一原因的告警冷却小时数（默认 6；签名变化则立刻再报）
+"""
+from __future__ import annotations
+
+import argparse
+import datetime
+import json
+import os
+import plistlib
+import re
+import subprocess
+import sys
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(HERE))          # …/知识库/内容治理
+KBPY = os.path.join(ROOT, "kb", "kbpy")
+LARK = os.path.expanduser("~/.dsh/bin/lark-cli")
+STATE = os.path.join(ROOT, "kb", ".work", ".review-readiness-alert.json")
+DEFAULT_CHAT = "oc_7775e2dacb6f2ebc9789cd6e681de5f7"
+
+# 日更排期的**唯一真源**是 launchd 的 plist —— 不在这里抄第二份（AGENTS.md 的纪律：
+# 抄出去的第二份必然过期）。读不到就返回 None，由调用方按「判断不了」处理。
+DAILY_PLIST = os.path.expanduser("~/Library/LaunchAgents/com.kb.pipeline-daily.plist")
+HORIZON_MARGIN_MIN = 30          # 巡检周期；留一个周期当缓冲
+
+COOLDOWN_H = float(os.environ.get("KB_ALERT_COOLDOWN_H") or 6)
+
+
+def run(argv, timeout=180):
+    """跑一条命令，返回 (exit, stdout, stderr)。**不抛** —— 巡检不许因为一条命令挂掉而中断。"""
+    try:
+        p = subprocess.run(argv, cwd=ROOT, capture_output=True, text=True,
+                           timeout=timeout, errors="replace")
+        return p.returncode, p.stdout, p.stderr
+    except subprocess.TimeoutExpired:
+        return 124, "", f"timeout after {timeout}s"
+    except Exception as exc:                                    # noqa: BLE001
+        return 125, "", repr(exc)
+
+
+# ────────────────────────────────────────────── 三项阻断检查（认领 / 凭据 / 新鲜度）
+
+def check_claim():
+    """陈旧认领 → **当场自愈**（release --force）。返回 (ok, detail)。"""
+    rc, out, err = run(["sh", KBPY, "l7/scripts/kb_loop_claim.py", "status"], timeout=60)
+    text = (out or "") + (err or "")
+    if "无认领" in text:
+        return True, "空闲（无认领）"
+    if "陈旧" in text:
+        rc2, out2, err2 = run(["sh", KBPY, "l7/scripts/kb_loop_claim.py",
+                               "release", "--force"], timeout=60)
+        ok = (rc2 == 0)
+        return ok, {
+            "action": "自愈：释放陈旧认领",
+            "before": text.strip()[:300],
+            "release_exit": rc2,
+            "release_out": (out2 or err2).strip()[:200],
+        }
+    # 新鲜认领：别人正在跑，这是**正常状态**，不算故障
+    return True, {"note": "有新鲜认领（别的会话在跑），非故障", "status": text.strip()[:300]}
+
+
+def _lark_env():
+    return dict(os.environ, PATH=os.path.expanduser("~/.dsh/bin") + ":" + os.environ.get("PATH", ""))
+
+
+# 两张「曾经只有 user 身份才读得到」的表 —— 日更的 L0 pull 必须能拿到它们。
+PROBLEM_TABLES = (
+    ("SKkkbdZi9aRuMzs7ob0cpSYHnQg", "tbl8AI00JZO1iZtp", "专家修订汇总表"),
+    ("SKkkbdZi9aRuMzs7ob0cpSYHnQg", "tblVdl0jdK9G4ld3", "内容公式（仅供参考）"),
+)
+
+
+def _bot_can_read(base, table):
+    """用 **bot 身份**直读一张表（只取 1 条，不写库）。返回 `(ok, detail)`。"""
+    try:
+        p = subprocess.run(
+            [LARK, "base", "+record-list", "--base-token", base, "--table-id", table,
+             "--page-size", "1", "--as", "bot", "--profile", "dsh-kb", "--json"],
+            capture_output=True, text=True, timeout=60, env=_lark_env(), errors="replace")
+        raw = (p.stdout or "").strip()
+        i = raw.find("{")
+        d = json.loads(raw[i:]) if i >= 0 else {}
+    except Exception as exc:                                    # noqa: BLE001
+        return False, f"bot 探针跑不起来：{exc!r}"
+    if d.get("ok"):
+        return True, None
+    e = d.get("error") or {}
+    return False, f"{e.get('type')}/{e.get('subtype')}｜{str(e.get('message'))[:160]}"
+
+
+def check_credential():
+    """日更的凭据够不够 —— **按 pull 的真实主身份（bot）判，不按 user 判**。
+
+    ★ 2026-10-06 改（旧判据会天天误报）。旧版问的是「user 身份可用吗」，并断言
+      「缺了 ⇒ 两张表必然 pull_failed」。**该断言已失效**：Owner 在飞书侧把守衡 bot
+      加成可阅读协作者后，**bot 直读两张表都成功**（实测 395 + 7 行）；而
+      `kb/l8/align_l0_feishu.py` 的 `AS_ID = os.environ.get("L8_AS", "bot")` 说明
+      **pull 的主身份本来就是 bot**，user 只是回落（`L8_AS_FALLBACK`）。
+      ⇒ 旧判据会在 bot 完全够用的情况下报红、并推飞书告警（冷却 6h）。
+      新判据：**先按 bot 探两张表**；两张都通 ⇒ 绿；否则再看 user 能不能回落。
+    """
+    if not os.path.exists(LARK):
+        return False, {"reason": f"找不到 lark-cli：{LARK}"}
+
+    # ① 主身份：bot 直读两张表（这正是日更 pull 走的那条路）
+    bot_fail = {}
+    for base, table, name in PROBLEM_TABLES:
+        ok, detail = _bot_can_read(base, table)
+        if not ok:
+            bot_fail[name] = detail
+    if not bot_fail:
+        return True, {
+            "identity": "bot",
+            "bot_direct_read": "两张表都通（专家修订汇总表 / 内容公式）",
+            "note": "日更 pull 的主身份就是 bot（`L8_AS` 默认 bot）⇒ **user 令牌不再是它的前置条件**。",
+        }
+
+    # ② 回落身份：user 令牌还能不能用
+    try:
+        p = subprocess.run([LARK, "auth", "status", "--profile", "dsh-kb", "--json"],
+                           capture_output=True, text=True, timeout=60, env=_lark_env(), errors="replace")
+        d = json.loads(p.stdout or "{}")
+    except Exception as exc:                                    # noqa: BLE001
+        return False, {"reason": f"auth status 跑不起来：{exc!r}", "bot_fail": bot_fail}
+    user = ((d.get("identities") or {}).get("user") or {})
+    if user.get("available"):
+        return True, {"identity": "user(回落)", "bot_fail": bot_fail,
+                      "user": user.get("userName"),
+                      "note": "bot 读不到，靠 user 令牌回落 —— 能跑，但令牌只活 2 小时。"}
+    return False, {
+        "reason": "**bot 直读失败、user 令牌也不可用** ⇒ 这两张表必然 pull_failed，"
+                  "→ 日更会跳过 L1–L6 写档 → 数据停更 → 评审链拒答",
+        "bot_fail": bot_fail,
+        "detail": user.get("message"),
+        "fix": "【根治·推荐】在飞书侧把「守衡」bot 加成 Base SKkkbdZi9aRuMzs7ob0cpSYHnQg 的"
+               "**可阅读协作者** ⇒ bot 直读成功，回落与用户令牌整条链路不再需要。"
+               "（判据见上方 `bot_fail` 里那一句——是缺**资源权限**还是缺 **scope** 会写在里面，"
+               "两者修的地方不同，别混。）"
+               "  【应急】~/.dsh/bin/lark-cli auth login --profile dsh-kb（需本人扫码；令牌只活 2 小时）",
+    }
+
+
+def _read_plist_tolerant(path):
+    """读 launchd plist，**先严格、后宽松**。
+
+    为什么要两档（2026-10-05 实测）：本机 `com.kb.pipeline-daily.plist` **不是 well-formed XML** ——
+    它的注释里写了 `kb_pipeline.py --check`，而 **XML 注释内禁止出现 `--`**。
+    `plutil -lint` 与 launchd 都宽容（照跑不误），python 的 expat 不宽容（直接抛 ExpatError）。
+    ⇒ 巡检**不能把「能不能读到排期」押在解析器的宽容度上**，否则它会静默降级成「判断不了」。
+    严格档读不到时退回正则只取 Hour/Minute（够本用途；排期不是这份文件的安全边界）。
+    """
+    try:
+        with open(path, "rb") as fh:
+            raw = fh.read()
+    except Exception as exc:                                    # noqa: BLE001
+        return None, f"读不到文件（{exc!r}）"
+    try:
+        d = plistlib.loads(raw)
+        return (d if isinstance(d, dict) else {}), "plistlib"
+    except Exception:                                           # noqa: BLE001
+        pass
+    try:
+        txt = raw.decode("utf-8", "replace")
+        blk = re.search(r"<key>StartCalendarInterval</key>\s*<dict>(.*?)</dict>",
+                        txt, re.S)
+        if not blk:
+            return None, "宽松档：找不到 StartCalendarInterval 段"
+        seg = blk.group(1)
+        out = {}
+        for fld in ("Hour", "Minute"):
+            m = re.search(r"<key>%s</key>\s*<integer>(\d+)</integer>" % fld, seg)
+            if m:
+                out[fld] = int(m.group(1))
+        if not out:
+            return None, "宽松档：段里没有 Hour/Minute"
+        return {"StartCalendarInterval": out}, "regex（原文非 well-formed XML）"
+    except Exception as exc:                                    # noqa: BLE001
+        return None, f"宽松档也失败（{exc!r}）"
+
+
+def next_daily_run(now=None):
+    """下次日更的时刻。**从 launchd 的 plist 读**，读不到返回 None。
+
+    返回 None 表示「判断不了」—— 调用方**不许**把它当「没问题」。
+    """
+    now = now or datetime.datetime.now().astimezone()
+    d, how = _read_plist_tolerant(DAILY_PLIST)
+    if d is None:
+        return None, how
+    cal = d.get("StartCalendarInterval") or {}
+    if isinstance(cal, list):                       # 多档排期：取最早的一档
+        cal = cal[0] if cal else {}
+    try:
+        hh, mm = int(cal.get("Hour", 8)), int(cal.get("Minute", 30))
+    except Exception as exc:                                    # noqa: BLE001
+        return None, f"排期字段读不出（{exc!r}）"
+    cand = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    if cand <= now:
+        cand += datetime.timedelta(days=1)
+    return cand, how
+
+
+def check_credential_horizon():
+    """user 令牌**撑得到下次日更吗** —— 撑不到就提前报，别等 08:30 那天才发现。
+
+    为什么必须单列这一条（2026-10-05 实测出来的**看门狗自身盲区**）：
+      守衡的 L0 回落靠 user 令牌，而这枚令牌**只有 2 小时寿命、且没有 refresh token**
+      （`auth status` 的 `refreshExpiresAt` 与 `expiresAt` **同值**；登录时输出
+      `[WARN] no refresh_token in response`）。
+      ⇒ 「现在可用」**根本不等于**「08:30 那天可用」。
+      只看「现在在不在」的就绪巡检，会对着一枚 2 小时后即死的令牌报 ✅（实测 07:54 就报了），
+      然后在**次日 08:30** 让日更的 L0 回落失败 → 跳过 L1–L6 → 数据停更 → 评审链拒答。
+      那正是用户抱怨的「每次 @ 一次就要重新解决」的**复发路径**：
+      故障不是随机发生的，是**每 2 小时必然发生一次**，只是以前要等 @ 了一次才知道。
+
+    ★ **非阻断**：此刻评审链确实能用（令牌还没死），把它混进 `ready` 会让就绪谓词失真 ——
+      就绪谓词的语义是「现在能不能跑」，不是「明天能不能跑」。所以它与 AGENTS.md 漂移同类：
+      **要告警，但不改 ready、不改退出码**。
+    """
+    if not os.path.exists(LARK):
+        return True, {"note": "lark-cli 不在，凭据项已单独报"}
+    env = dict(os.environ, PATH=os.path.expanduser("~/.dsh/bin") + ":" + os.environ.get("PATH", ""))
+    try:
+        p = subprocess.run([LARK, "auth", "status", "--profile", "dsh-kb", "--json"],
+                           capture_output=True, text=True, timeout=60, env=env, errors="replace")
+        d = json.loads(p.stdout or "{}")
+    except Exception as exc:                                    # noqa: BLE001
+        return False, {"reason": f"取令牌寿命失败：auth status 跑不起来（{exc!r}）"}
+    user = ((d.get("identities") or {}).get("user") or {})
+    if not user.get("available"):
+        return True, {"note": "user 身份当前不可用 —— 由「凭据」项报，本项不重复报"}
+
+    exp_raw = user.get("expiresAt") or user.get("refreshExpiresAt")
+    try:
+        exp = datetime.datetime.fromisoformat(exp_raw)
+        if exp.tzinfo is None:
+            exp = exp.astimezone()
+    except Exception:                                           # noqa: BLE001
+        return False, {"reason": f"拿不到可解析的令牌到期时间（expiresAt={exp_raw!r}）"
+                                 " ⇒ **判断不了**它能不能撑到下次日更，按不通过报（读不到 ≠ 没问题）"}
+
+    nxt, how = next_daily_run()
+    if nxt is None:
+        return False, {"reason": "读不到日更排期（" + DAILY_PLIST + f"，原因：{how}）"
+                                 " ⇒ **判断不了**令牌能不能撑到下次日更（读不到 ≠ 没问题）",
+                       "expires_at": exp.isoformat()}
+
+    # ★ 结构性事实（2026-10-05 实测，三个数都能重算）：
+    #   令牌寿命 2.0h ＜ 日更间隔 24h ⇒ **一次扫码最多只能覆盖一次日更**，
+    #   想让它天天有效，就得**每天 06:30–08:30 之间重扫一次** —— 那不是一个可接受的运维动作。
+    #   ⇒ 「扫码」治不了这个病，根治只有两条：拿到 refresh token，或给守衡 bot 授该 Base 阅读权。
+    #   这条事实**每次都报**（进输出与 JSON），但**不单独告警** —— 它是常驻状态，
+    #   每 30 分钟推一次会把告警淹掉（库规：无人值守的日报如果每天报同一个假红，第三天就没人看）。
+    structural = None
+    life_h = None
+    try:
+        g = datetime.datetime.fromisoformat(user.get("grantedAt") or "")
+        if g.tzinfo is None:
+            g = g.astimezone()
+        life_h = (exp - g).total_seconds() / 3600.0
+        interval_h = (nxt - (nxt - datetime.timedelta(days=1))).total_seconds() / 3600.0
+        if life_h < interval_h:
+            structural = (f"令牌寿命仅 {life_h:.1f}h ＜ 日更间隔 {interval_h:.0f}h ⇒ "
+                          "**一次扫码最多只覆盖一次日更**；想天天有效就得**每天 06:30–08:30 之间重扫**，"
+                          "那不是可接受的运维动作。⇒ 扫码治不了这个病，根治只有两条："
+                          "① 在飞书侧把「守衡」bot 加成 Base SKkkbdZi9aRuMzs7ob0cpSYHnQg 的可阅读协作者"
+                          "（bot 直读成功，回落与令牌整条链路不再需要）；"
+                          "② 拿到带 refresh token 的授权方式。")
+    except Exception:                                           # noqa: BLE001
+        pass
+
+    margin = datetime.timedelta(minutes=HORIZON_MARGIN_MIN)
+    covers = exp > nxt + margin
+    base = {"expires_at": exp.isoformat(), "next_daily_run": nxt.isoformat(),
+            "lifetime_h": round(life_h, 2) if life_h is not None else None,
+            "covers_next_run": covers, "structural_recurs": bool(structural),
+            "structural_note": structural}
+    if covers:
+        return True, {**base, "note": "令牌撑得过下次日更"}
+
+    remain_h = (exp - datetime.datetime.now().astimezone()).total_seconds() / 3600.0
+    return False, {
+        **base,
+        "reason": "user 令牌**撑不到下次日更**：它到期时，下一次 08:30 的日更还没开始。"
+                  "届时 L0 的两张表会回落失败 ⇒ 日更跳过 L1–L6 ⇒ 数据停更 ⇒ 评审链拒答。"
+                  "**这不是随机故障，是每 2 小时必然发生一次**，现在提前报，别等它发作。",
+        "remaining_h": round(remain_h, 2),
+        "now_usable": "此刻评审链**仍可用**（令牌还没死）—— 本条是前瞻预警，不是当前阻断",
+        "fix": "在下次日更前重扫一次： ~/.dsh/bin/lark-cli auth login --profile dsh-kb"
+               "   （device flow，需本人手机确认，链接 10 分钟内有效）"
+               "   ▶ **一次性根治**：在飞书侧把「守衡」bot 加成 Base "
+               "SKkkbdZi9aRuMzs7ob0cpSYHnQg 的可阅读协作者 ⇒ bot 直读成功，"
+               "回落链路整条不再触发，从此不再依赖这枚 2 小时令牌。",
+    }
+
+
+def check_skill_links():
+    """装机位的**符号链接**是否都还解析得开（2026-10-05 加，symlink 试点配套护栏）。
+
+    为什么必须有一条（试点工具自己写明的代价）：
+      `dsh-skill-filesystem` 的 `nodeEntryKind()` 在 `isSymbolicLink()` 之后用 `stat()` 跟随链接；
+      **链接断裂时它只打一条 warning 就 `return void 0`** ⇒ 该 skill 会**从技能目录里静默消失**。
+      实测过的形态：`kb-l0-feishu` 曾因文件表示层损坏而不进目录，症状同样是"skill 不见了"，
+      但**没有任何闸门报红** —— 直到有人 @ 一次、链路断在第 1 层才发现。
+    ⇒ 既然我们把装机位从"实体镜像"改成"指向真源的符号链接"（kb-p0-check / kb-l0-feishu 已改），
+      就必须有人替那条链接**定期解析一次**，否则是我们自己引入了一个静默失效点。
+
+    ★ **阻断项**：某层 skill 消失 ⇒ 评审链那一层的"逐层调 skill"必然做不到 ⇒ 确实不该说"就绪"。
+    """
+    root = os.path.expanduser("~/.dsh/skills")
+    if not os.path.isdir(root):
+        return False, {"reason": f"找不到技能根 {root}"}
+    try:
+        names = sorted(os.listdir(root))
+    except Exception as exc:                                    # noqa: BLE001
+        return False, {"reason": f"列不出技能根（{exc!r}）"}
+    links, broken, dirs = [], [], []
+    for n in names:
+        p = os.path.join(root, n)
+        if os.path.islink(p):
+            links.append(n)
+            if not os.path.exists(p):            # exists() 跟随链接 ⇒ False 即断链
+                broken.append({"skill": n, "target": os.readlink(p)})
+        elif os.path.isdir(p):
+            dirs.append(n)
+    if broken:
+        return False, {
+            "reason": "装机位有**断链的符号链接** ⇒ 这些 skill 会**从技能目录里静默消失**，"
+                      "评审链那一层的『逐层调 skill』会直接做不到（且不会有别的闸门报红）",
+            "broken": broken,
+            "fix": "重建链接或在真源在位时直接指回真源："
+                   " ln -sfn \"<库内真源路径>\" ~/.dsh/skills/<skill>"
+                   "   ▶ 复核：git -C ... 无需；直接 `python3 _eval-*/tools/extract_catalog.py "
+                   "--skill <skill> <新会话文件>` 看它是否回到目录里",
+        }
+    return True, {"symlink_装载位": len(links), "实体目录": len(dirs), "断链": 0,
+                  "已链接": links[:12]}
+
+
+def check_freshness():
+    """直接读 freshness.py 的结论（**不自己算、不放宽**）。"""
+    rc, out, err = run(["sh", KBPY, "l7/scripts/freshness.py"], timeout=300)
+    text = (out or "") + (err or "")
+    stale = (rc == 3) or ("拒答" in text) or ("超期" in text and "❌" in text)
+    if not stale:
+        return True, {"exit": rc, "tail": text.strip()[-300:]}
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip().startswith("·")]
+    return False, {
+        "reason": "数据层超期 ⇒ 评审链 ②c 复判仍会超期 ⇒ 拒答",
+        "exit": rc,
+        "stale_items": lines[:6],
+        "fix": "先补齐 user 身份，再跑一次供给链刷新 L1–L6："
+               " cd \"" + ROOT + "\" && ./kb/kbpy l7/scripts/daily_sync.py"
+               "  （或等 08:30 的 com.kb.pipeline-daily 自动跑）",
+    }
+
+
+def check_agents_drift():
+    """AGENTS.md 是否已过期（读 `check_agents_md_drift.py` 的结论）。
+
+    ★ 这是**非阻断**项：AGENTS.md 漂移不必然让评审链跑不起来，
+      但会让 agent **按错的口径干活** —— 2026-10-05 就因「守衡在外机」那句错话误判过一轮。
+      ⇒ 它**要告警**（否则又是「等踩到才发现」），但不改 `ready`，也不改退出码。
+    """
+    script = os.path.join(ROOT, "kb", "l8", "check_agents_md_drift.py")
+    if not os.path.exists(script):
+        return False, {"reason": f"找不到 {script}"}
+    rc, out, err = run(["python3", script, "--json"], timeout=120)
+    try:
+        d = json.loads(out or "{}")
+    except Exception:                                           # noqa: BLE001
+        return False, {"reason": f"漂移自检跑不起来：{(err or out)[:200]}"}
+    if d.get("drift", 1) == 0:
+        return True, {"claims": d.get("claims"), "drift": 0}
+    bad = [r for r in (d.get("rows") or []) if not r.get("ok")]
+    return False, {
+        "reason": f"AGENTS.md 有 {len(bad)} 条断言与真值不符（agent 会按错的口径干活）",
+        "rows": [{"id": r.get("id"), "claim": r.get("claim"),
+                  "truth": str(r.get("truth"))[:160], "fix": r.get("fix")} for r in bad],
+        "fix": " cd \"" + ROOT + "\" && python3 kb/l8/check_agents_md_drift.py"
+               "   # 看逐条真值与修法；改完 AGENTS.md 后重跑确认无漂移",
+    }
+
+
+# ────────────────────────────────────────────── 告警（带冷却去重）
+
+def signature(problems):
+    """同一原因只报一次；原因变了立刻再报。"""
+    return "|".join(sorted(problems))
+
+
+def should_alert(sig):
+    try:
+        d = json.load(open(STATE, encoding="utf-8"))
+    except Exception:                                           # noqa: BLE001
+        return True, "首次"
+    if d.get("sig") != sig:
+        return True, "原因变化"
+    age_h = (time.time() - float(d.get("at_ts") or 0)) / 3600.0
+    if age_h >= COOLDOWN_H:
+        return True, f"冷却已过 {age_h:.1f}h"
+    return False, f"冷却中（{age_h:.1f}h < {COOLDOWN_H}h）"
+
+
+def remember(sig):
+    os.makedirs(os.path.dirname(STATE), exist_ok=True)
+    tmp = STATE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump({"sig": sig, "at_ts": time.time(),
+                   "at": time.strftime("%Y-%m-%dT%H:%M:%S")}, fh, ensure_ascii=False, indent=1)
+    os.replace(tmp, STATE)
+
+
+def alert(text, chat):
+    """用**守衡自己的 bot 身份**推飞书。bot 令牌与 user 令牌是两套 ⇒ user 丢了也能报。"""
+    if not os.path.exists(LARK):
+        return False, "找不到 lark-cli"
+    env = dict(os.environ, PATH=os.path.expanduser("~/.dsh/bin") + ":" + os.environ.get("PATH", ""))
+    try:
+        p = subprocess.run([LARK, "im", "+messages-send", "--as", "bot", "--profile", "dsh-kb",
+                            "--chat-id", chat, "--text", text],
+                           capture_output=True, text=True, timeout=90, env=env, errors="replace")
+        ok = (p.returncode == 0)
+        return ok, (p.stdout or p.stderr or "").strip()[:300]
+    except Exception as exc:                                    # noqa: BLE001
+        return False, repr(exc)
+
+
+def compose(problems):
+    L = ["⚠️ 守衡 · 审查链**当前不可用**（就绪巡检自动告警）", ""]
+    for i, p in enumerate(problems, 1):
+        L.append(f"{i}. {p['title']}")
+        for k in ("reason", "before", "detail"):
+            if p.get(k):
+                L.append(f"   {k}：{str(p[k])[:400]}")
+        if p.get("fix"):
+            L.append(f"   ▶ 修法：{p['fix']}")
+        L.append("")
+    L.append("（本告警由 kb/l8/watch_review_readiness.py 自动发出；同一原因 "
+             f"{COOLDOWN_H:g} 小时内不重复。）")
+    return "\n".join(L)
+
+
+# ────────────────────────────────────────────── main
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--json", action="store_true")
+    ap.add_argument("--no-send", action="store_true")
+    ap.add_argument("--chat", default=os.environ.get("KB_ALERT_CHAT") or DEFAULT_CHAT)
+    a = ap.parse_args()
+
+    checks = [("认领", check_claim()), ("凭据", check_credential()),
+              ("新鲜度", check_freshness()), ("技能链接", check_skill_links())]
+    problems = []
+    for name, (ok, detail) in checks:
+        if not ok:
+            d = detail if isinstance(detail, dict) else {"reason": str(detail)}
+            problems.append({"title": f"{name}：不满足", **d})
+
+    # ★ AGENTS.md 漂移：**非阻断** —— 单独收集，只进告警，不改 ready / 退出码。
+    #   理由见 check_agents_drift 的 docstring：它会让 agent 按错的口径干活，值得报，
+    #   但「文档过期」不等于「评审链跑不起来」，混进 ready 会让就绪谓词失真。
+    drift_ok, drift_detail = check_agents_drift()
+    drift = []
+    if not drift_ok:
+        d = drift_detail if isinstance(drift_detail, dict) else {"reason": str(drift_detail)}
+        drift.append({"title": "AGENTS.md：已过期", **d})
+
+    # ★ 令牌寿命：同样**非阻断** —— 此刻能跑，但撑不到下次日更就会复发。
+    #   理由见 check_credential_horizon 的 docstring：这是「每 2 小时必然发生一次」的
+    #   复发路径，提前报才有意义；混进 ready 则会把「现在能不能跑」答错。
+    hz_ok, hz_detail = check_credential_horizon()
+    horizon = []
+    if not hz_ok:
+        d = hz_detail if isinstance(hz_detail, dict) else {"reason": str(hz_detail)}
+        horizon.append({"title": "凭据寿命：撑不到下次日更", **d})
+
+    result = {
+        "ready": not problems,
+        "agents_md_drift": bool(drift),
+        "credential_horizon": bool(horizon),
+        "checked_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "checks": {n: (ok, d if not isinstance(d, str) else d) for n, (ok, d) in checks},
+        "problems": problems,
+        "drift": drift,
+        "horizon": horizon,
+        # ★ 结构性事实**始终**进结果（含"通过"时）—— 它是常驻状态，不是事件：
+        #   就算令牌此刻撑得过下次日更，2h 寿命也撑不过再下一次。放在这里才不会被"✅ 就绪"盖掉。
+        "credential_horizon_note": (hz_detail or {}).get("structural_note")
+        if isinstance(hz_detail, dict) else None,
+    }
+
+    sent = None
+    to_alert = problems + horizon + drift
+    if to_alert and not a.no_send:
+        sig = signature(p["title"] for p in to_alert)
+        go, why = should_alert(sig)
+        if go:
+            ok, info = alert(compose(to_alert), a.chat)
+            sent = {"sent": ok, "why": why, "info": info}
+            if ok:
+                remember(sig)
+        else:
+            sent = {"sent": False, "why": why}
+    result["alert"] = sent
+
+    if a.json:
+        print(json.dumps(result, ensure_ascii=False, indent=1))
+    else:
+        print(f"就绪巡检 @ {result['checked_at']}  ⇒  {'✅ 就绪' if result['ready'] else '❌ 被挡'}"
+              + ("（★ 令牌撑不到下次日更，见下）" if horizon else "")
+              + ("（另有 AGENTS.md 漂移，见下）" if drift else ""))
+        for n, (ok, d) in checks:
+            print(f"  {'✅' if ok else '❌'} {n}: "
+                  f"{json.dumps(d, ensure_ascii=False)[:220] if isinstance(d, (dict, list)) else d}")
+        for w in horizon:
+            print(f"  ⚠️ {w['title']}: 到期 {w.get('expires_at')} ｜ 下次日更 {w.get('next_daily_run')}"
+                  f" ｜ 余 {w.get('remaining_h')}h")
+            print(f"     {str(w.get('reason'))[:200]}")
+        if result.get("credential_horizon_note"):
+            print(f"  ⏳ 凭据寿命: {result['credential_horizon_note']}")
+        if sent:
+            print(f"  告警: {json.dumps(sent, ensure_ascii=False)[:200]}")
+
+    return 0 if result["ready"] else 3
+
+
+if __name__ == "__main__":
+    sys.exit(main())

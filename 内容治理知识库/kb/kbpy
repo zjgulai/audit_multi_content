@@ -1,0 +1,70 @@
+#!/bin/sh
+# kb/kbpy —— 用库内约定的解释器运行任意 KB 脚本（解释器约定的统一调用入口）
+#
+#   用法：  kb/kbpy l8/l2_split_run.py 20260929-1700
+#           kb/kbpy .work/l6_build.py 20260929-1700
+#           kb/kbpy l7/skills/kb-content-review/scripts/review.py --text "..."
+#           kb/kbpy --verify-interp        # 全量探测一遍解释器（给闸门 / CI / 人工排查用）
+#
+# 为什么要它：受管 external-tools python 缺 numpy/fastembed（L6 召回必需），
+# 而 PATH 里的 python3 会随会话变化。解释器写死在 kb/.kb-python，本脚本负责解析并代跑。
+# 顺带导出 PYTHONDONTWRITEBYTECODE=1：不在权威库里落 __pycache__（避免副本比对误报）。
+#
+# ── 2026-10-05 提速（S1 · kbpy 解释器探测税归零）────────────────────────────
+# 病灶（实测，改前）：本脚本**每次调用**都跑 `l8/_interp.py` 做全量探测
+#   （逐个候选 `import numpy, fastembed`，单次探测 0.8 s、整轮 2.60–3.60 s）
+#   ⇒ 连空转脚本也要 2.60 s，而同一脚本裸 python 只要 0.04 s（65 倍）。
+#   一次内容审查会调 kbpy 几十次，且脚本之间还会嵌套调 kbpy
+#   （kb_pipeline.py 11 处、daily_health.py 10 处）⇒ 这笔税是**叠乘**的。
+# 改法：`kb/.kb-python` 本来就是解释器的**唯一真源**。配置里的解释器可执行
+#   → 直接用它，**零子进程**；只有「配置缺失 / 不可执行 / KB_INTERP_FORCE_VERIFY=1」
+#   才回落到原来那条全量探测路径。
+# 语义未放松（不静默降级）：任何情况下都只用配置里那一个解释器，绝不悄悄换成别的；
+#   配置不可用时走老探测路径、找不到合格解释器时**照样报错退出**（exit 2）。
+#   要重新验证解释器能力齐全：`kb/kbpy --verify-interp`，
+#   或 `KB_INTERP_FORCE_VERIFY=1 kb/kbpy <脚本>` 强制走全量探测。
+set -e
+ROOT=$(cd "$(dirname "$0")" && pwd)
+BOOT="${KB_BOOTSTRAP:-python3}"
+
+# 读配置里的第一个有效值（去注释、去首尾空白）。纯 sh，不产生子进程。
+read_cfg() {
+  [ -f "$1" ] || return 1
+  while IFS= read -r _l || [ -n "$_l" ]; do
+    _l=${_l%%#*}
+    set -- $_l                      # 借词分割去掉首尾空白
+    if [ -n "${1:-}" ]; then printf '%s\n' "$1"; return 0; fi
+  done < "$1"
+  return 1
+}
+
+# 全量探测入口（不改 _interp.py 的任何行为，只是给它一个显式调用口）
+if [ "${1:-}" = "--verify-interp" ]; then
+  exec "$BOOT" "$ROOT/l8/_interp.py"
+fi
+
+CFG="${KB_PYTHON:-$(read_cfg "$ROOT/.kb-python" || true)}"
+case "$CFG" in "~/"*) CFG="$HOME/${CFG#\~/}" ;; esac
+
+PY=""
+if [ "${KB_INTERP_FORCE_VERIFY:-}" != "1" ] && [ -n "$CFG" ] && [ -x "$CFG" ]; then
+  PY="$CFG"                         # 快路径：配置可用 ⇒ 不探测（原来这里要 2.6 s）
+fi
+if [ -z "$PY" ]; then               # 慢路径：与改前完全一致的全量探测
+  PY=$("$BOOT" "$ROOT/l8/_interp.py" 2>/dev/null | sed -n 's/^解析结果[[:space:]]*:[[:space:]]*//p' | head -1)
+fi
+if [ -z "$PY" ]; then
+  echo "kbpy: 找不到合格解释器。" >&2
+  echo "kbpy: 执行 '$BOOT $ROOT/l8/_interp.py' 看明细；把合格解释器写进 $ROOT/.kb-python" >&2
+  exit 2
+fi
+[ "$#" -ge 1 ] || { echo "kbpy: 用法: kbpy <kb 内相对路径> [args...]（或 --verify-interp）" >&2; exit 2; }
+cmd=$1; shift
+case "$cmd" in
+  /*) target="$cmd" ;;
+  *)  target="$ROOT/$cmd" ;;
+esac
+[ -f "$target" ] || { echo "kbpy: 找不到脚本 $target" >&2; exit 2; }
+export PYTHONDONTWRITEBYTECODE=1
+export KB_INTERP_OK=1
+exec "$PY" "$target" "$@"

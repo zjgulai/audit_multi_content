@@ -1,0 +1,22 @@
+{
+  "ok": false,
+  "identity": "user",
+  "error": {
+    "type": "authorization",
+    "subtype": "missing_scope",
+    "message": "missing required scope(s): drive:drive.metadata:readonly",
+    "hint": "run `lark-cli auth login --scope \"drive:drive.metadata:readonly\" --no-wait --json` to get device_code and verification_url; present verification_url to the user exactly and end this turn; after the user confirms authorization, run `lark-cli auth login --device-code <device_code>` in a later turn to finish login",
+    "missing_scopes": [
+      "drive:drive.metadata:readonly"
+    ],
+    "identity": "user"
+  },
+  "_notice": {
+    "update": {
+      "command": "lark-cli update",
+      "current": "1.0.95",
+      "latest": "1.0.96",
+      "message": "lark-cli 1.0.96 available, current 1.0.95, run: lark-cli update"
+    }
+  }
+}

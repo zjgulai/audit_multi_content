@@ -1,0 +1,157 @@
+{
+ "checks": [
+  [
+   "源未被改动",
+   "通过：本轮对外部只有 read / read-attempt，写调用 0 次；未建字段、未回写状态、未改权限。全部调用见 runs/20260923-1117.ops.log"
+  ],
+  [
+   "台账最新条数 == 实际登记资源数",
+   "通过：404 == 404"
+  ],
+  [
+   "每个资源有 sha256 或明确未哈希原因；每个文件带 kb_type 且与台账/目录一致",
+   "通过：有 sha256 379 条；无 sha256 但已标原因 25 条；缺 kb_type 0；目录不符 0；台账不符 0"
+  ],
+  [
+   "index 条数 == 台账条数，且不含被排除记录",
+   "通过：404 == 404；被排除 10 条均未出现在 index/台账：True"
+  ],
+  [
+   "写入路径都在 kb/ 内；kb_version 仍为 v0；台账无版本行",
+   "通过：越界文件 0；registry.kb_version=v0；kb_types 全 v0={'v0'}；versions.jsonl 版本行 0 条"
+  ]
+ ],
+ "by_kb": {
+  "unknown": 37,
+  "wording": 301,
+  "external_standard": 55,
+  "product_desc": 4,
+  "internal_sample": 7
+ },
+ "by_sk": {
+  "feishu_bitable_base": 4,
+  "feishu_bitable_table": 9,
+  "feishu_bitable_record": 350,
+  "feishu_sheet": 2,
+  "feishu_slides": 3,
+  "feishu_file": 12,
+  "feishu_doc": 8,
+  "url": 16
+ },
+ "by_status": {
+  "registered": 404
+ },
+ "cross": {
+  "(无表名)": {
+   "unknown": 1
+  },
+  "材料收集": {
+   "unknown": 30,
+   "wording": 4,
+   "external_standard": 7,
+   "product_desc": 3,
+   "internal_sample": 7
+  },
+  "知识库分类说明": {
+   "unknown": 4,
+   "wording": 1,
+   "product_desc": 1
+  },
+  "正面和负面样本": {
+   "unknown": 1
+  },
+  "规则库": {
+   "unknown": 1,
+   "external_standard": 15
+  },
+  "广告文案明细": {
+   "wording": 201
+  },
+  "品线内容边界规则库": {
+   "wording": 22
+  },
+  "W1卖点表达边界（品线反馈0910）": {
+   "wording": 20
+  },
+  "风险文案改写建议库（分型号分渠道）": {
+   "wording": 53
+  },
+  "数据表": {
+   "external_standard": 33
+  }
+ },
+ "status_dist": {
+  "(空)": 9,
+  "暂不采用": 1,
+  "通过": 21
+ },
+ "rule_hits": {
+  "NO_RULE": 14,
+  "R5": 22,
+  "R10": 1,
+  "R2": 4,
+  "R3": 7,
+  "R1": 3,
+  "R4": 7,
+  "R20": 201,
+  "R22": 22,
+  "R23": 20,
+  "R21": 53,
+  "R24": 33,
+  "R13": 1,
+  "R14": 1,
+  "R15": 15
+ },
+ "zero_rules": [
+  "R6",
+  "R7",
+  "R8",
+  "R9",
+  "R11",
+  "R12",
+  "R16",
+  "R17",
+  "R18",
+  "R19"
+ ],
+ "unk_reasons": {
+  "入口 Base 容器本身，不是知识本体": 1,
+  "入口表本身（R5）": 1,
+  "分类说明表资源：说明性表，非知识本体": 1,
+  "未命中任何规则：正面和负面样本": 1,
+  "规则库表资源：双态表（外部法规＋内部品线规则混装），表级无单一 kb_type（R10）": 1,
+  "入口表「材料收集」的记录：收料容器，归属落在其子资源上（R5）": 21,
+  "分类说明记录：是收料要求说明而非知识本体": 3,
+  "第三层链接：超出规则提取层数（只用前两层），按规则记 unknown": 8
+ },
+ "sha_by_input": {
+  "structure": 10,
+  "record_fields": 350,
+  "doc_text": 7,
+  "url_text": 12
+ },
+ "nohash_reason": {
+  "structure_only": 3,
+  "no_scope": 17,
+  "unreachable": 4,
+  "forbidden": 1
+ },
+ "fail_rate": 20.704845814977972,
+ "n_edges": 454,
+ "n_fails": 94,
+ "dups": {
+  "bitable:N2qkb2YxuatqGLsa4U4cFQxgnCe:recvuBKsauxCqN": [
+   "bitable:N2qkb2YxuatqGLsa4U4cFQxgnCe:recvvruCWFve7g"
+  ]
+ },
+ "suspicious": [
+  "命名风格异常：广告文案风控库/W1卖点表达边界（品线反馈0910）（含括号/口语化/临时性措辞）",
+  "命名风格异常：广告文案风控库/风险文案改写建议库（分型号分渠道）（含括号/口语化/临时性措辞）",
+  "记录偏少：内容公式与专家修订库/内容公式（仅供参考）（7 条）",
+  "命名风格异常：内容公式与专家修订库/内容公式（仅供参考）（含括号/口语化/临时性措辞）",
+  "入口表「知识库分类说明」仅 5 条，属说明性表",
+  "入口表「材料收集」31 条中 11 条无「通过」状态（10 条空 + 1 条暂不采用）",
+  "采样截断：广告文案风控库/广告文案明细 200/291（截断 91 条）",
+  "采样截断：内容公式与专家修订库/专家修订汇总表 200/395（截断 195 条）"
+ ]
+}

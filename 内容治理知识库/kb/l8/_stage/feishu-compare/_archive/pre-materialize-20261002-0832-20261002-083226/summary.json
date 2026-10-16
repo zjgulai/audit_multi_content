@@ -1,0 +1,75 @@
+{
+ "checked_at": "2026-09-29 10:34:59",
+ "scope": "base GnRZbIuXraCzf0sGr2UcmZ62nfc（用户给的 URL）vs 本地 kb/l0/records",
+ "access_path": "用户 token 过期 + 设备码授权审核中 → 改用本机第二个 app dsh-kb(cli_aa2243de0438dcd7) 的**应用身份**读取（Base 已授权该 app）",
+ "table_level": [
+  {
+   "table_id": "tblZP8jG4tiUL98C",
+   "feishu_name": "知识库分类说明",
+   "feishu": 5,
+   "local": 5,
+   "verdict": "一致"
+  },
+  {
+   "table_id": "tblMGtPfe8ZUsEdP",
+   "feishu_name": "材料收集",
+   "feishu": 32,
+   "local": 32,
+   "verdict": "记录集合一致；字段层 14/32 有差异 + 2 处 schema 偏差"
+  },
+  {
+   "table_id": "tbld8qE92YaY38Yz",
+   "feishu_name": "负面样本",
+   "feishu": 108,
+   "local": 326,
+   "verdict": "record_id 交集为 0：表已改名（本地记作「正面和负面样本」）且记录整批更换（本地快照 0923-1215 125 条 + 0924-1100 201 条）"
+  },
+  {
+   "table_id": "tblXsrMVkDNZ3oW8",
+   "feishu_name": "规则库",
+   "feishu": 50,
+   "local": 0,
+   "verdict": "本地完全未抓"
+  }
+ ],
+ "材料收集_field_diffs": {
+  "identical": 18,
+  "differing": 14,
+  "by_field": {
+   "知识库分类说明-自动映射": 6,
+   "知识库分类": 5,
+   "材料审核状态": 1,
+   "更新频率": 1,
+   "备注": 1
+  },
+  "schema_level": {
+   "本地字段名漂移": "细分 ← 飞书 备注（同一 field_id fldn2leARA，32/32 条）",
+   "本地缺字段": "更新频率（fldFiUm2yr）",
+   "类型不符": "材料审核状态 本地记 text / 飞书为 select"
+  },
+  "by_snapshot_batch": {
+   "20260923-1117": {
+    "identical": 14,
+    "differing": 7
+   },
+   "20260924-1000": {
+    "identical": 0,
+    "differing": 2
+   },
+   "20260924-1610": {
+    "identical": 4,
+    "differing": 5
+   }
+  }
+ },
+ "artifacts": [
+  "diff-材料收集.json",
+  "feishu-材料收集.manifest.json",
+  "feishu-材料收集.ndjson",
+  "feishu-规则库.manifest.json",
+  "feishu-规则库.ndjson",
+  "feishu-负面样本.manifest.json",
+  "feishu-负面样本.ndjson",
+  "login-qr.png"
+ ]
+}

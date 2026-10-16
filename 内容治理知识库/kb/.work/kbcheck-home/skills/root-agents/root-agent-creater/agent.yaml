@@ -1,0 +1,55 @@
+# root-agent-creater 自己的契约。它按 root-agents/refs/agent-contract.yaml 生成别人，自己也守同一份契约。
+#
+# 注意：本文件声明的是「创建器对外暴露的工具能力」。内置的 refs 读取与契约校验
+# 属它自己的实现，不是 tool-calling 工具，故不在 tools 里虚报。
+name: root-agent-creater
+version: "0.1.0"
+stage: create
+interface: cli
+run: python3 agent.py
+input: stdin-json
+profile: meta
+task_types:
+  - generate_agent
+deliverables:
+  - id: agent_package
+    name: 可运行的 agent 包
+    format: state
+    fields:
+      - agent.yaml
+      - agent.py
+      - prompts/system.md
+      - tests/smoke.json
+      - README.md
+    acceptance: 目标目录下生成完整包，能 cd 进去用 python3 agent.py 跑起来，且通过契约自校验
+tools: []
+env:
+  API_KEY: ${managed}
+  ROOT_AGENT_LLM_BASE_URL: ${managed}
+  ROOT_AGENT_LLM_API_KEY: ${managed}
+  ROOT_AGENT_LLM_MODEL: ${managed}
+scope:                    # 选填节（第 3 项）：管什么 / 不管什么
+  does:
+    - 按契约把一个需求生成成可跑的 agent 包，含 agent.yaml、agent.py、提示词、冒烟用例、README
+    - 生成前做契约自校验，生成后在目标目录落到磁盘
+  not_for:
+    - 评生成出来的包好不好，那是 root-agent-eval 的活
+    - 替业务方回答业务问题，creater 只生成不代跑
+limits:                   # 选填节（第 8 项）：终止预算
+  timeout_s: 120          # 模型写提示词的 HTTP 超时
+  max_iterations: 1       # 一轮只生成一次
+# 健康探针：工具型 agent 收结构化命令，question 探针会被正确拒绝。
+# 等价于 Dockerfile 的 HEALTHCHECK —— 由 agent 自己声明如何被体检。
+# 注意 target_dir 指向临时目录：体检必须只读，不得在 root-agents/ 留产物。
+health:
+  input:
+    name: health-probe-agent
+    purpose: 体检用最小请求
+    target_users: 体检
+    task_types:
+      - fact_qa
+    tools:
+      - name: search_kb
+        description: 检索知识库
+    target_dir: /tmp/root-agent-health-probe
+    force: true

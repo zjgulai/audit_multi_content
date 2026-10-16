@@ -1,0 +1,50 @@
+# write-gate.yaml —— **驱动层（`--via-skill`）的人开闸凭据**登记表
+#
+# 为什么需要这份文件（批次8 A 块实测）：
+#   契约 #7 的写档三条件第三条是「**人开闸**」。但在 `--via-skill` 路径上，那条约定
+#   **没有代码凭据** —— 因为 `kb_pipeline.py` 在这条路上**永远不带 `--apply`**
+#   （`kb_pipeline.py:440` 原文：「`--via-skill` 模式下编排器**永远不带 `--apply`**」），
+#   于是 `:540-546` 那段白名单检查 `if a.apply and beyond and not a.allow_beyond_policy`
+#   **从不触发**。写动作实际发生在**层引擎**（由 subagent 带 `--apply` 执行），编排器看不见。
+#   ⇒ 契约 #7 第三条在驱动路径上**只有口头约定**。
+#
+# 本表 + `kb_pipeline.py` 的 `--write-gate`（批次8 加）把那条约定变成可查凭据：
+#   · 走 `--via-skill` 时，`--write-gate <id>` 必须命中本表某条 `id`；
+#   · **未带**凭据 → 各层一律按「只许只读档」对待（编排器会显著打印，且拒绝为该层记账为写档）；
+#   · 带了凭据、但被走到的层 **不在** 该条 `layers` 里 → **编排器直接拒（return 2）**。
+#
+# 规则（与 l3/l4/l5-known-drift.yaml 同一套纪律）：
+#   · 本表是**授权留痕**，不是判据 —— 它不判断层跑得对不对，只回答「谁在什么时候开了哪几层的闸」。
+#   · **L7 永不进写档**（layers.yaml：报告/注册表层，无写库引擎）；本表任何条目都不许含 L7。
+#   · 失败/被拒的尝试也留痕（`rejected` 段），别只记成功的。
+
+meta:
+  file: kb/l7/registry/write-gate.yaml
+  created_at: "2026-10-01"
+  checker: kb/l7/scripts/kb_pipeline.py（`--write-gate <id>`）
+  note: >
+    本表只管**驱动层**（--via-skill）的写档开闸。编排器**自己**带 --apply 跑引擎那条老路
+    仍走 `SYNC_ALLOWED` + `--allow-beyond-policy`（未改动，见 kb_pipeline.py:270 / :540-546）。
+
+gates:
+  - id: batch8-20261001
+    authorized_by: 用户（批次8 任务书 A-3 原文）
+    authorized_at: "2026-10-01"
+    layers: [L1, L2, L3, L4, L5, L6]
+    source: >
+      批次8 任务书 A-3：「本批授权：`L1 / L2 / L3 / L4 / L5 / L6` 六层可以真写。
+      `L0` 单列（见 E 块）。`L7` 永不进写档。」
+    not_included:
+      L0: >
+        **未包含**。A-3 的授权列表只到 L1–L6；任务书 B-4 自己给了这种情况的处置：
+        「若 A-3 落地时未包含 L0，则 L0 本批只跑 `--check` 档（只读）」。
+        批次8 实测：L0 的真写条件**已具备**（`kb/l8/reconcile_l0_feishu.py:116` 用
+        `--profile dsh-kb`，appId `cli_aa2243de0438dcd7`，bot 身份 ready，能读
+        base `GnRZbIuXraCzf0sGr2UcmZ62nfc`），**但本批按只读跑**，要写只需把 L0 加进
+        某条 gate 的 `layers` 并明说。
+      L7: 永不进写档（无写库引擎 + kb-check 是跨层闸门非层主）。
+    scope_note: >
+      本凭据**只覆盖批次8 这一轮**。凭据不自动续期；下一批要写档，要么复用本条并说明，
+      要么新增一条。
+
+rejected: []

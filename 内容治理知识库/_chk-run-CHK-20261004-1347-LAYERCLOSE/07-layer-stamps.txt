@@ -1,0 +1,64 @@
+逐层落章读数（只读；逐份读字段）
+==============================================================================
+
+--- l0  (27 份落章) ---
+  10-03 23:56:55  applied=False  dry_run=True   run='PIPE-20261003-2354-L0'  PIPE-20261003-2354-L0-dryrun.json
+  10-03 23:10:09  applied=False  dry_run=True   run='PIPE-20261003-2305-L0'  PIPE-20261003-2305-L0-dryrun.json
+  10-02 21:02:02  applied=True   dry_run=False  run='20261002-2101'          20261002-2101-l0-feishu-reconcile.json
+  ★最近一次真落盘: 10-02 21:02:02  applied=True dry_run=False run='20261002-2101'  kb/l0/runs/20261002-2101-l0-feishu-reconcile.json
+
+--- l1  (31 份落章) ---
+  10-03 23:59:32  applied=False  dry_run=True   run='PIPE-20261003-2354-L1'  PIPE-20261003-2354-L1-dryrun.json
+  10-03 20:38:17  applied=False  dry_run=True   run='REV-202610031826-momcozy-pump-L1' REV-202610031826-momcozy-pump-L1-dryrun.json
+  10-02 21:02:03  applied=True   dry_run=False  run='20261002-2101'          20261002-2101-manifest-reconcile.json
+  ★最近一次真落盘: 10-02 21:02:03  applied=True dry_run=False run='20261002-2101'  kb/l1/runs/20261002-2101-manifest-reconcile.json
+
+--- l2  (49 份落章) ---
+  10-04 00:00:45  applied=False  dry_run=True   run='PIPE-20261003-2354-L2'  PIPE-20261003-2354-L2-dryrun.json
+  10-03 21:17:56  applied=True   dry_run=False  run='20261003-2117'          20261003-2117.json
+  10-03 20:55:09  applied=True   dry_run=False  run='20261003-2055'          20261003-2055.json
+  ★最近一次真落盘: 10-03 21:17:56  applied=True dry_run=False run='20261003-2117'  kb/l2/runs/20261003-2117.json
+
+--- l3  (36 份落章) ---
+  10-04 00:03:02  applied=False  dry_run=True   run='PIPE-20261003-2354-L3'  PIPE-20261003-2354-L3-dryrun.json
+  10-02 21:02:07  applied=True   dry_run=False  run='20261002-2101'          20261002-2101.json
+  10-02 21:00:01  applied=True   dry_run=False  run='20261002-2059'          20261002-2059.json
+  ★最近一次真落盘: 10-02 21:02:07  applied=True dry_run=False run='20261002-2101'  kb/l3/runs/20261002-2101.json
+
+--- l4  (97 份落章) ---
+  10-04 12:28:59  applied=False  dry_run=True   run='P0MILK-20261004-1219-L4' P0MILK-20261004-1219-L4-dryrun.json
+  10-04 12:23:03  applied=False  dry_run=True   run='P0MILK-20261004-1219-L4' P0MILK-20261004-1219-L4-canonical-dryrun.json
+  10-04 11:37:36  applied=False  dry_run=True   run='RT-20261004-1133-LISTING-L4' RT-20261004-1133-LISTING-L4-dryrun.json
+  ★最近一次真落盘: 10-02 21:02:08  applied=True dry_run=False run='20261002-2101'  kb/l4/runs/20261002-2101.json
+
+--- l5  (58 份落章) ---
+  10-04 12:29:40  applied=False  dry_run=True   run='P0MILK-20261004-1219-L5' P0MILK-20261004-1219-L5-dryrun.json
+  10-04 11:41:16  applied=False  dry_run=True   run='RT-20261004-1133-LISTING-L5' RT-20261004-1133-LISTING-L5-dryrun.json
+  10-04 10:21:53  applied=False  dry_run=True   run='RT-20261004-LISTING-L5' RT-20261004-LISTING-L5-dryrun.json
+  ★最近一次真落盘: 10-02 23:28:45  applied=True dry_run=False run='20261002-2101'  kb/l5/runs/20261002-2101.json
+
+--- l6  (71 份落章) ---
+  10-04 12:34:05  applied=False  dry_run=True   run='P0MILK-20261004-1219-L6' P0MILK-20261004-1219-L6-dryrun.json
+  10-04 12:28:02  applied=False  dry_run=True   run='P0MILK-20261004-1219-L6' P0MILK-20261004-1219-L6-selftest-dryrun.json
+  10-04 11:50:07  applied=False  dry_run=True   run='RT-20261004-1133-LISTING-L6' RT-20261004-1133-LISTING-L6-dryrun.json
+  ★最近一次真落盘: 10-02 21:03:02  applied=True dry_run=False run='20261002-2101'  kb/l6/runs/20261002-2101.json
+
+==============================================================================
+汇总（最近一次真落盘 = applied=True 且 dry_run 非 True）
+  l0: 2026-10-02 21:02:02  run='20261002-2101'  20261002-2101-l0-feishu-reconcile.json
+  l1: 2026-10-02 21:02:03  run='20261002-2101'  20261002-2101-manifest-reconcile.json
+  l2: 2026-10-03 21:17:56  run='20261003-2117'  20261003-2117.json
+  l3: 2026-10-02 21:02:07  run='20261002-2101'  20261002-2101.json
+  l4: 2026-10-02 21:02:08  run='20261002-2101'  20261002-2101.json
+  l5: 2026-10-02 23:28:45  run='20261002-2101'  20261002-2101.json
+  l6: 2026-10-02 21:03:02  run='20261002-2101'  20261002-2101.json
+
+各层 runs/ 最新一份落章（不论真落盘与否）
+  l0: 2026-10-03 23:56:55  PIPE-20261003-2354-L0-dryrun.json
+  l1: 2026-10-03 23:59:32  PIPE-20261003-2354-L1-dryrun.json
+  l2: 2026-10-04 00:00:45  PIPE-20261003-2354-L2-dryrun.json
+  l3: 2026-10-04 00:03:02  PIPE-20261003-2354-L3-dryrun.json
+  l4: 2026-10-04 12:28:59  P0MILK-20261004-1219-L4-dryrun.json
+  l5: 2026-10-04 12:29:40  P0MILK-20261004-1219-L5-dryrun.json
+  l6: 2026-10-04 12:34:05  P0MILK-20261004-1219-L6-dryrun.json
+exit=0

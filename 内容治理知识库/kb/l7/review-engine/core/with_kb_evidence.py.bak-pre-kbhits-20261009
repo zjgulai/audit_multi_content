@@ -1,0 +1,975 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""with_kb_evidence.py —— 把「知识库依据」接进「决策引擎」的**最小适配器**。
+
+## 它补的是哪个断点（2026-09-30 实测）
+
+评审链本来该是这样：
+
+    入口 kb-review → 专项(文案合规审查) → 依据 kb-content-review → 裁决(审查裁决) → 结论
+
+实测发现**中间是断的**，两条管道互不相通：
+
+  * `kb-content-review/scripts/review.py`（依据侧）：P0 匹配 + **509 条**措辞表达库规则 + BM25，
+    产出带「条款号 + anchor + source_sha256 + 逐字摘录」的 findings；
+  * `review-engine/core/review_text.py`（裁决侧）：把 `scan_text()` —— 一个**只有 5 条**
+    US 种子规则（treat/cure/prevent/safe for baby/sponsored…）的扫描器 —— 的结果塞进 `risk_items`，
+    再交给 `review_engine.decide()`。
+
+同一段文案（`FDA approved … hospital grade … 100% safe … pain-free … mimics baby …`）：
+  * 只跑裁决侧：`scan_text` 给 **0 候选** → `decide()` 倾向 **PASS**（**漏放**）；
+  * 只跑依据侧：**10 处 BLOCK**，条款号 W-1.6 … W-1.53。
+两条路的输入一模一样、结论相反，而错的那条看起来更"正式"（它走的是决策引擎）。
+
+本脚本就是把断点接上：**依据侧的 findings → 契约 risk_items → 决策引擎 decide()**。
+不改任何一方的引擎，只做转换。
+
+## 用法
+
+    # ★ 2026-10-03 起：**默认要求层前置**（不给 BASE 又不豁免 ⇒ 拒答，退出码 3）
+    kb/kbpy l7/review-engine/core/with_kb_evidence.py --text "<待审文案>" \
+        --require-layer-preflight <BASE> [--json]
+    # 确实不做层前置的场合（回归用例 / 机器入口）要**显式**豁免 —— 缺前置这件事会留在结论里：
+    kb/kbpy l7/review-engine/core/with_kb_evidence.py --text "<待审文案>" --allow-no-layer-preflight
+    # 可选：--content-id / --channel / --product-line / --product-line-seed（给 seed 扫描器用的词表原样值）
+
+`<BASE>` 的来历：`kb-review §1.5` 的驱动循环为 L4/L5/L6 各起一个 subagent（用 skill 工具加载层 skill），
+各自产出 `<BASE>-L4` / `-L5` / `-L6`；L7 是跨层闸门、**单独跑**，产出 `<BASE>-L7`。
+本适配器**逐层（L4→L5→L6→L7）**调 `skill_invocation_audit.py` 核它们 —— 2026-10-03 起 **L7 也在闸门内**。
+
+退出码：0 = 出了结论（含 BLOCK/REVIEW/PASS）｜ 3 = 依据不足或层前置未过/缺失（NEEDS_INPUT）｜ 2 = 跑不起来
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent          # …/kb/l7/review-engine/core
+KB = HERE.parents[2]                            # …/kb        （parents[0]=review-engine, [1]=l7）
+ROOT = HERE.parents[3]                          # kb/ 的上一级 —— review.py 的 --kb-root 要这个
+REVIEW_PY = Path(os.environ.get(
+    "KB_CONTENT_REVIEW_PY", str(Path.home() / ".dsh/skills/kb-content-review/scripts/review.py")))
+
+sys.path.insert(0, str(HERE))
+from review_engine import decide                          # noqa: E402
+from rule_engine import scan_text                         # noqa: E402
+from evidence_cache import CACHE_SCHEMA, read_cache as _cache_read, write_cache as _cache_write  # noqa: E402
+
+
+# 依据缓存的格式与校验**统一在 core/evidence_cache.py 定义**（写方有两个：本文件与
+# review.py；格式各写一份迟早漂移，漂移的后果是把 A 文案的依据算到 B 文案上）。
+# 下面两个下划线函数保留旧名做薄封装，仅为不打断既有调用点与测试。
+
+
+def _read_findings_cache(path, text: str):
+    """读依据缓存。三道校验（schema / 文本指纹 / payload 类型）见 evidence_cache.read_cache。"""
+    return _cache_read(path, text)
+
+
+def _write_findings_cache(path, text: str, ev: dict) -> None:
+    """把依据落成 run 内中间产物 —— 供同一 RUN 的裁决侧复用（不再 subprocess 跑第二遍）。"""
+    _cache_write(path, text, ev, source=str(REVIEW_PY))
+
+
+# ── ★★ 素材属性（产品线 / 渠道）：调用方没给就**自己推**（2026-10-06）────────────────────
+#  病灶（Owner 2026-10-06 报「文案类送审，飞书文档里 产品线/渠道 都是空的，今天修过」）：
+#    这两格**只从命令行参数取**（`a.channel` / `a.product_line`，缺省 `""`）⇒ 调用方不传就恒空：
+#    云文档渲染成 `渠道：— ｜ 产品线：—`，表行按 PRD 兜成「未指定」。
+#    而**修过的那一半**（P0 快路的报告 + 落表行）已经会填 —— 于是「同一件事两条路、各覆盖一半」。
+#  修法：用**库内唯一的抽取口** `kb/l5/l0_facets.py` 在这里推一遍（按路径加载，**不抄第二份实现**）：
+#    · 锚点来自 findings 的 `anchor`（`anchors_in` 递归挖，两种 JSON 形状都吃）；
+#    · 抽取口自己带「这条记录是不是本素材」的准入闸（拿样本的属性充数 = 编数据）；
+#    · **命令行给了值就以命令行为准**（人给的优先），推出来的值连同 `from` 出处一起落进
+#      `evidence_meta.material_facets`，发布件与报告都能核。
+#  边界：推不出来就**空着**（表行的「未指定」由发布件按 PRD 兜底）—— 不猜、不编。
+_FACETS_MOD = None
+
+
+def _facets_module():
+    """按路径加载 `kb/l5/l0_facets.py`；加载不了返回 None（**不阻断评审**，只留空并告警）。"""
+    global _FACETS_MOD
+    if _FACETS_MOD is None:
+        try:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "kb_l0_facets", str(KB / "l5/l0_facets.py"))
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            _FACETS_MOD = mod
+        except Exception as e:                       # noqa: BLE001
+            print("[warn] 加载 l0_facets 失败（%r）⇒ 产品线/渠道留空，不编" % (e,), file=sys.stderr)
+            _FACETS_MOD = False
+    return _FACETS_MOD or None
+
+
+def _derive_material_facets(text, findings):
+    """命中依据 + 素材原文 → `{product_line, channel, from, …}`（取不到就是空串）。"""
+    mod = _facets_module()
+    if not mod:
+        return {"product_line": "", "channel": "", "from": {},
+                "reason": "l0_facets 加载失败（见 stderr 告警）"}
+    try:
+        return mod.facets_for_anchors(mod.anchors_in({"findings": findings}), text=text or "")
+    except Exception as e:                           # noqa: BLE001
+        print("[warn] 推素材属性失败（%r）⇒ 留空，不编" % (e,), file=sys.stderr)
+        return {"product_line": "", "channel": "", "from": {}, "reason": repr(e)}
+
+
+def _evidence_findings(text: str, write_report: bool = False,
+                       findings_from=None, findings_out=None):
+    """拿依据侧（kb-content-review 的 review.py）带条款号的 findings。
+
+    三条路：
+      * `--findings-from`：读缓存 —— **不** subprocess 跑 review.py（同一 RUN 的第二处消费者走这条）；
+      * `--findings-out`：跑完之后把依据落成中间产物，供第二处消费者复用；
+      * 都不给：原行为（每次现跑）。
+
+    现跑时取 stdout 里最后一个 JSON 对象 —— 它前面会打印 `[review] 落盘通道…` / `[fix] 条款号…` 这类日志行。
+    """
+    if findings_from:
+        return _read_findings_cache(findings_from, text)
+    if not REVIEW_PY.exists():
+        return None, "依据组件不在位：%s" % REVIEW_PY
+    cmd = [sys.executable, str(REVIEW_PY), "--kb-root", str(ROOT), "--text", text, "--json"]
+    if not write_report:
+        cmd.append("--dry-run")          # 默认不落盘（冒烟/预演）；要留痕就 write_report=True
+    # ★ 防线1（2026-10-03）：把「从哪扇门进来的」告诉 review.py —— 它自本批起**拒直接调用**。
+    #   背景：能出结论的入口原有两扇（本文件 vs review.py 直调），而闸门只装在本文件上；
+    #   实测 10:04 那条外来会话直调 review.py ⇒ `evidence_meta` 空、无层前置、无发布、无 <run>.review.md。
+    r = subprocess.run(cmd, capture_output=True, text=True,
+                       env=dict(os.environ, KB_INTERP_OK="1", KB_ENTRY="with_kb_evidence"),
+                       timeout=600)
+    out = r.stdout or ""
+    ev = None
+    i = out.find("{")
+    while i != -1:
+        try:
+            ev = json.loads(out[i:])
+            break
+        except json.JSONDecodeError:
+            i = out.find("{", i + 1)
+    if ev is None:
+        return None, "依据组件没吐出 JSON（rc=%d）：%s" % (r.returncode, (r.stderr or out)[-200:])
+    ev["_findings_source"] = {"mode": "live", "path": str(REVIEW_PY)}
+    if findings_out:
+        try:
+            _write_findings_cache(findings_out, text, ev)
+        except OSError as e:              # 缓存写不了不该让评审失败
+            print("[warn] findings 缓存没写成：%r" % (e,), file=sys.stderr)
+    return ev, None
+
+
+def _to_risk_item(f):
+    """依据 → 契约 risk_items 的一条（字段名按 review-contract.json + review_engine 的实际判据对齐）。
+
+    两个实测坑（2026-09-30，第一次跑判成 NEEDS_INPUT 就是它们）：
+      * `coverage` 的取值必须是 `"complete"` / `"not_applicable"`（不是布尔）—— `_coverage_ready()` 只认这两个字面量；
+      * `evidence_complete` 的判据是 `bool(location and (evidence_url or evidence_id))`，
+        **比引用契约弱得多**（它不核对 anchor/sha256 是否解析得到）。
+        所以这里**只在引用契约六要素齐了才写 evidence_id** —— 让引擎那个弱判据背后站着强判据；
+        要素不齐的条目故意不给 evidence_id，引擎就会把它归进 REVIEW（而不是放它进 BLOCK）。
+    """
+    lib, art = f.get("library"), f.get("article_no")
+    anc, sha, exc = f.get("anchor"), f.get("source_sha256"), f.get("excerpt")
+    complete = all([lib, art, anc, sha, exc])
+    # ★★ 2026-10-09（第九批）：**两种链接来源都认** —— 这一行才是「图片有链接、文案没有」
+    #   的真正根因层（依据层只是表现形式之一）。
+    #   病灶：本函数原先只读 `f["l0_entry_url"]`。而依据侧（`review.py`）产链接有**两条合法路**：
+    #     ① 直接给 `l0_entry_url`（案例层 / 规则层「不可逐字回源」/ P0「不可逐字回源」都走这条）；
+    #     ② 给 `verbatim_source = {path, field, entry_url}`（**规则层主路**与 P0 确定性匹配走这条）。
+    #   第 ② 条本函数**完全不看** ⇒ `evidence.l0_entry_url` 恒为 None ⇒
+    #   `evidence_url` 退回本地路径 `kb/l3/candidates/rules.jsonl#W-x.y` ⇒ **卡片上没有飞书链接**。
+    #   而**同一份 finding 的报告**（`review.py:1285`）自己回落读了 `verbatim_source.entry_url`
+    #   ⇒ 于是出现「**报告里有直链、卡片里没有**」这种最难看懂的分裂。
+    #   实测（2026-10-09，Owner 报「图片输出的依据带飞书链接了，怎么文案输出依据没带飞书链接呢？」）：
+    #   图片走**案例层**（路 ①，一直好），文案走**规则层主路**（路 ②，一直丢）——
+    #   两条路**只差这一处读没读**，跟图片/文案本身无关。
+    #   ⇒ 口径：**谁是合法来源，谁就得被认**（库规「不给直链等于没法定回去」）。
+    #     取不到仍留 None（**不编**），`evidence_source` 照实写明是哪一种 —— 不静默换源。
+    _l0u = (f.get("l0_entry_url")
+            or (f.get("verbatim_source") or {}).get("entry_url") or None)
+    cat, sub = f.get("category") or "未分类", f.get("sub") or ""
+    item = {
+        "risk_id": f.get("rule_id"),
+        "risk_type": ("%s-%s" % (cat, sub)) if sub else cat,
+        "priority_tier": "P0" if "P0" in str(f.get("layer") or "") else "P1",
+        "status": "confirmed",
+        "action": "block" if str(f.get("severity")).upper() == "BLOCK" else "review",
+        "location": f.get("position") or "全文",
+        "original_text": exc or "",
+        "reason": f.get("reason") or "",
+        "suggestion": f.get("advice") if f.get("advice") not in (None, "None") else (f.get("advice_note") or ""),
+        "rule_code": f.get("rule_code"),
+        "fact_or_inference": f.get("fact_or_inference"),
+        "confidence": f.get("confidence"),
+        # ★★ 2026-10-08（第三批）：**L0 飞书直链要跟着搬出去**。
+        #   依据侧（`review.py`）早就产了它（`l0_entry_url = _l0_entry_url(anchor)`，
+        #   库规原话：「要真核对只能点飞书直链」「不给直链等于没法定回去」），
+        #   但本函数原先只搬 library/article_no/anchor/source_sha256/excerpt 五格
+        #   ⇒ **直链在被搬进 risk_items 的那一步被丢掉了**，下游（报告 / 飞书 / 守衡卡片）
+        #   谁都拿不到。实测（2026-10-08，床照那张图）：命中文字、条款号 S-1.267、锚点、sha 都有，
+        #   **唯独没有可点开的源链接** —— 而委托方要的依据正是「命中文字 + 飞书源链接」。
+        "evidence": {"library": lib, "article_no": art, "anchor": anc,
+                     "source_sha256": sha, "excerpt": exc,
+                     "l0_entry_url": _l0u},
+        "source": "kb-content-review",
+    }
+    if complete:
+        item["evidence_id"] = "《%s v0》第 %s 条 @ %s @ %s" % (lib, art, anc, str(sha)[:12])
+        # ★ 2026-10-08：**来源链接优先给飞书直链**。
+        #   原先是写死的 `kb/l3/candidates/rules.jsonl#<条款号>` —— 一个**本地路径**：
+        #     ① 人点不开；② 案例类依据（L4 定稿反例条款）根本不来自 rules.jsonl ⇒ **指向错文件**。
+        #   现在：有直链（`l0_entry_url` 或 `verbatim_source.entry_url`，见函数顶部的 `_l0u`）
+        #   就用它；没有才退回原来的本地路径
+        #   （**不静默换源**：`evidence_source` 如实写明这一格是哪一种）。
+        item["evidence_url"] = _l0u or ("kb/l3/candidates/rules.jsonl#%s" % art)
+        item["evidence_source"] = "L0 源记录直链（飞书）" if _l0u else "本地候选件（无 L0 直链）"
+    else:
+        item["evidence_gap"] = "引用契约六要素不全（缺 %s）" % ",".join(
+            k for k, v in (("库名", lib), ("条款号", art), ("anchor", anc),
+                           ("source_sha256", sha), ("逐字摘录", exc)) if not v)
+    return item
+
+
+def _coverage_for(content_type: str, provided=None) -> dict:
+    """按**声明的模态**推覆盖率。★ 2026-10-05 加，取代原先写死的那一份。
+
+    规则（只有三条，别扩张）：
+      1. 送审的文本总是 complete —— 它是本次审查的实际输入；
+      2. `content_type` 声明的模态，只有**拿到了 provider 佐证**（`provided` 里显式给了
+         `provider/provider_version/content_hash/status`）才算 complete；
+         否则一律 `incomplete` —— 那是**缺口**，不是"不适用"（KB 自己 confirmed_by_user 的口径：
+         *Do not emit PASS until a URL or file is actually readable and required modality
+         coverage is complete.*）；
+      3. 其余模态才写 `not_applicable`。
+    """
+    provided = provided or {}
+    cov = {"text": "complete", "image": "not_applicable", "audio": "not_applicable",
+           "video": "not_applicable", "ocr": "not_applicable",
+           "asr": "not_applicable", "keyframes": "not_applicable"}
+    need = {"image": ("image", "ocr"), "video": ("video", "audio", "ocr", "asr", "keyframes")}.get(
+        (content_type or "text").strip().lower(), ())
+    for m in need:
+        got = provided.get(m) or {}
+        ok = all(got.get(k) for k in ("provider", "provider_version", "content_hash", "status"))
+        cov[m] = "complete" if ok else "incomplete"
+    cov["note"] = ("声明模态：%s；未拿到 provider 佐证的模态记 incomplete（缺口，不是不适用）"
+                   % (content_type or "text"))
+    # ★ 2026-10-05 加（用户裁定）：调用方可以**申报** provider 佐证（CLI `--coverage`）。
+    #   那与 `--loaded-skill` **同级** —— 是**申报**，不是引擎自测。**不许静默**：
+    #   申报过的模态在这里逐个点名，结论里永远看得见「这份 complete 是谁说的」。
+    if provided:
+        cov["declared_by"] = "caller"
+        cov["declared_modalities"] = sorted(provided)
+        cov["note"] += ("；其中 %s 的「complete」来自**调用方申报**（不是引擎自测），按申报档看待"
+                        % "、".join(sorted(provided)))
+    return cov
+
+
+def _parse_coverage_specs(specs):
+    """把 CLI 的 `--coverage 模态:provider:版本:内容hash:状态` 解析成 `_coverage_for` 认的 dict。
+
+    只做**形状**校验，**不判断真假** —— 真假由调用方负责（这是申报档）。
+    形状不对就抛错、由调用方**报错退出**：静默忽略会让人误以为申报生效了。
+    """
+    out = {}
+    for s in specs or []:
+        parts = str(s).split(":")
+        if len(parts) != 5:
+            raise ValueError("需要 5 段（模态:provider:provider_version:content_hash:status），收到 %r" % s)
+        m, provider, ver, chash, status = (p.strip() for p in parts)
+        if not (m and provider and ver and chash and status):
+            raise ValueError("有一段是空的：%r" % s)
+        out[m] = {"provider": provider, "provider_version": ver,
+                  "content_hash": chash, "status": status}
+    return out or None
+
+
+def _auto_content_id(content_version: str) -> str:
+    """自动「内容 ID」的**唯一生成规则**（两处调用点共用，不许再抄第二份）。
+
+    2026-10-03 统一（用户裁定）：原先本件生成 `text-<sha12>`、发布件
+    `feishu_publish.py` 生成 `AUTO-<sha12>` ⇒ **同一次审查在引擎 JSON 与飞书表行上
+    有两个不同的「内容 ID」**，按 ID 直接对不上、只能人工比后 12 位。
+    统一到 `AUTO-`：① 那是人工可见的那一面（表行 + 报告正文）；② 发布件既有形状；
+    ③ 工作区自动化默认（AGENTS.md）写的也是 `AUTO-<content_version 前 12 位>`。
+
+    ⚠️ 已知遗留（**未改，登记在案**）：`kb-content-review/scripts/review.py:1051` 仍生成
+    `text-<sha12>`。那是依据侧**内部**字段，不进本件 payload、不进飞书表；
+    要一并统一，须同时改仓库内与 `~/.dsh/skills/` 两份镜像（否则 skills_check 第 3 类
+    「副本不一致」会红）—— 见 `kb/l7/registry/report-output-contract.yaml` → `GAP-RO-6`。
+    """
+    return "AUTO-" + str(content_version or "unknown")[:12]
+
+
+def run(text: str, *, content_id=None, channel="", product_line="", product_line_seed="",
+        write_report: bool = False, findings_from=None, findings_out=None,
+        decision_owner=None, loaded_skills=None,
+        content_type: str = "text", coverage_provided=None):
+    ev, err = _evidence_findings(text, write_report=write_report,
+                                 findings_from=findings_from, findings_out=findings_out)
+    if ev is None:
+        return None, err
+
+    # ── ★★ 批30 附修：依据侧**拒答**必须原样传下去（fail-closed 不许被打穿）───────
+    # 病灶（实测，2026-10-02）：
+    #   `review.py` 拒答时 `exit=3` / `state=NEEDS_INPUT` / `findings=[]` / `refusal={…}`；
+    #   而本函数**只取 `findings`**（下面 `:160` 那行），空 findings ⇒ `risk_items=[]`
+    #   ⇒ `decide()` ⇒ **PASS**。⇒ **拒答被下游静默转成了放行**。
+    #   两条路都走本函数：API 入口（`kb_api.py do_review`）与 AGENTS.md 步骤 ③
+    #   —— 所以这条洞把批30 的强制点在 API 侧整个绕开（实测：HTTP **200 + state=PASS**，
+    #   而同一段文案在依据侧是 `NEEDS_INPUT`）。
+    # 修法（**最小接线**，与批次19 第2块同款：只改短路条件，**不动 `decide()`**）：
+    #   依据侧说拒答 ⇒ 直接回 `NEEDS_INPUT`，**不喂给 `decide()`**。
+    # ★ 2026-10-05 修：原先只认 "NEEDS_INPUT"，而 review.py 在「覆盖率不足」这条路上给的是
+    #   中文 **"拒答"**（review.py:629 `state = "PASS" if covered else "拒答"`）——
+    #   于是这条 if 对那条路**永远为假** ⇒ 空 findings 直落 decide() ⇒ **拒答被静默读成 PASS**
+    #   并默认发布到飞书表（2026-10-05 实测已发生一次，见
+    #   PMO/守衡-全链验收与两处缺陷-20261005.md §二）。
+    #   实测对照（两次数出件）：
+    #     第 1 次 ev["state"]="NEEDS_INPUT" → 命中，正确拒答；
+    #     第 2 次 ev["state"]="拒答"        → **不命中** ⇒ disposition=PASS。
+    #   判据不再靠单个字符串：同时认「哨兵值」与「覆盖信号」两条独立输入。
+    _ev_state = str(ev.get("state") or "").strip().upper()
+    _ev_cov = ((ev.get("trace") or {}).get("coverage") or {}) if isinstance(ev.get("trace"), dict) else {}
+    _ev_findings = ev.get("findings") or []
+    # ★ 2026-10-05 二次修正（**上一版越界了，这一版按库自己的语义收回来**）：
+    #   `review.py:722-729` 的原话是——
+    #       findings 里有 BLOCK → BLOCK；有 findings → REVIEW；
+    #       **都没有**时才用 `covered` 在 PASS 与「拒答」之间选。
+    #   也就是说：**覆盖信号（covered）只决定「空 findings 时 PASS 还是拒答」**。
+    #   上一版把它写成了无条件短路（`or _ev_cov.get("covered") is False`），
+    #   于是**有命中的单子也被改成 NEEDS_INPUT —— 真实命中被静默吞掉**。
+    #   实测（2026-10-05 第三次全链验收，listing「吸奶器静音设计…」）：
+    #   依据侧本来算出 REVIEW + 1 条逐字命中（静音 → W-1.54 / P1），被这一行吞掉，
+    #   只回一句「依据侧拒答」。**这是链自己诊断出来的，不是我想出来的。**
+    #   所以判据改成：**只在「确实拒答」且「没有任何命中可丢」时短路**。
+    _ev_refused = (_ev_state in {"NEEDS_INPUT", "拒答", "REFUSED"}
+                   or ev.get("refusal") is not None)
+    #   两个方向都要堵住（各自都有反向对照，见 /tmp/kb_guard_controls.py）：
+    #     · 有命中时**不许短路**（短了就把真命中吞了 —— B3/B4）；
+    #     · 没有命中、而覆盖信号说「没覆盖」时**也不许放成 PASS**（C1；
+    #       依据侧自己不会产出这种组合，但别的产出方可能，矛盾时按 fail-closed 读）。
+    if (not _ev_findings) and (_ev_refused or _ev_cov.get("covered") is False):
+        _sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        _refusal = ev.get("refusal") or {"state": "NEEDS_INPUT",
+                                         "detail": "依据侧拒答（fail-closed）",
+                                         "fails_closed": True}
+        # ★ 2026-10-05 加（Owner 裁定「建议1：把 NEEDS_INPUT 的原因码带出来，别再只给一个词」）：
+        #   原先这里原样只有一句「依据侧拒答（fail-closed）」—— 读起来像"系统坏了"，
+        #   而**最常见的一类**其实很具体：**检索命中了、但那条单元没被任何规则引用 ⇒ 覆盖判据不成立**。
+        #   实测（图片单，OCR 文本与库内单元逐字相同）：BM25 194.06（门限 16.0，12 倍）、
+        #   Top3 全是该图自己的单元，却因为 `rule_cited_unit_hits = []` 而 covered=false ⇒ 拒答。
+        #   这些字段**依据侧早就算好了**（`trace.coverage` / `trace.units`），只是没往外传 ——
+        #   本段**只做搬运与陈述，不参与判定**：结论仍是 NEEDS_INPUT，一个字不改。
+        _ev_trace = ev.get("trace") if isinstance(ev.get("trace"), dict) else {}
+        _ev_units = (_ev_trace.get("units") or {}) if isinstance(_ev_trace.get("units"), dict) else {}
+        _top = ((_ev_units.get("top_bm25") or [{}])[0] or {})
+        if _ev_cov or _ev_units:
+            _refusal = dict(_refusal)
+            _refusal["reason_code"] = (
+                "coverage_not_covered" if _ev_cov.get("covered") is False
+                else ("evidence_side_refused" if _ev_refused else "unknown"))
+            _refusal["coverage"] = {
+                "covered": _ev_cov.get("covered"),
+                "why": _ev_cov.get("why"),
+                "rule_cited_unit_hits": len(_ev_cov.get("rule_cited_unit_hits") or []),
+                "safe_vocabulary_hits": len(_ev_cov.get("safe_vocabulary_hits") or []),
+                "coverage_bm25_min": _ev_cov.get("coverage_bm25_min"),
+                "bm25_max": _ev_units.get("bm25_max"),
+                "top_hit_anchor": _top.get("anchor"),
+                "top_hit_excerpt": str(_top.get("excerpt") or "")[:200] or None,
+            }
+            # ★ 2026-10-06 修一处**读数比输入大**（AGENTS.md §2.4.1）。
+            #
+            #   原句：「依据侧检索到 5 条命中，最高 BM25 234.8035（覆盖门限 16.0）」。
+            #   那个 234.8 **不是**库对这条素材的「高度相关」——它是**素材自己的单元**
+            #   （锚点形如 `#素材/<record>/图片素材/#img.1`，BM25 是「自己匹配自己」）。
+            #   实测（2026-10-06 用户发的图片单）：含自命中的最高分 234.8，
+            #   而「**被规则引用**」的单元最高只有 7.33、排名第 700 —— 两者差 32 倍。
+            #   读的人看到 234.8 会以为「库里明明找到了高度相关的东西却拒答」，
+            #   而真实原因是「库对这条素材的题材**没有被规则引用过的条款**」。
+            #
+            #   修的是**读数**，不是判定：state / reason_code / covered 一个字节没动。
+            #   素材单元前缀（`#素材` / `#负面样本`）是 L1 的目录名，取自
+            #   `kb/l1/2_内部正负样本库/` 与 `kb/l1/*/素材/` —— 这里只用来**标注**，
+            #   不参与任何过滤（不许把自命中从检索里删掉：它本身是「这是库样本」的证据）。
+            _top_anchor = str(_top.get("anchor") or "")
+            _top_is_material = _top_anchor.startswith("#素材") or _top_anchor.startswith("#负面样本")
+            _refusal["human"] = (
+                "依据侧检索到 %s 条命中，最高 BM25 %s%s（覆盖门限 %s）；"
+                "但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。"
+                # ★ 2026-10-06：尾句原写「故**拒答**而不是放行」。覆盖不成立那一支
+                #   现在改判 REVIEW（见下），句尾再写「拒答」会让**同一张卡里
+                #   结论与原因自相矛盾** —— 读的人会以为系统自己都没想清楚。
+                #   改成 `不放行`（对 PASS 的否定，与 REVIEW/拒答两种出口都相容）。
+                "库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。"
+                % (len(_ev_units.get("top_bm25") or []), _ev_units.get("bm25_max"),
+                   ("（**这一条是素材自己的单元**，锚点 %s —— 自己匹配自己，"
+                    "不是库对这条素材的相关性；判据要的是被规则引用的条款）" % _top_anchor)
+                   if _top_is_material else "",
+                   _ev_cov.get("coverage_bm25_min")))
+        # ★ 2026-10-06（Owner 现场裁定「**不能拒答**」）───────────────────────────
+        #   媒材（图片/视频）恒落在这一支：链跑**成**了、文字层逐字命中 **0** 条、
+        #   但覆盖判据不成立 ⇒ 原先输出 `NEEDS_INPUT`。而 **PRD §5.3 只有三态**
+        #   （PASS / REVIEW / BLOCK），验收项写的是「可提交文字、图片、视频，
+        #   **输出三态结论**」—— `NEEDS_INPUT` 不是三态之一，业务侧读到的就是
+        #   「守衡答不了」。Owner 原话：「昨天还可以读取图片/视频，今天又不行了……
+        #   **不能拒答**」。（回归点查清了：10-05 之前守衡读了媒材直接回话，
+        #   10-05 晚加的硬规矩改成「必须由链下结论」，于是撞上这道恒不成立的闸门。）
+        #
+        #   修法：**依据侧跑成了、且给出确定的覆盖结论**（`covered is False`）的那一支，
+        #   改判 **REVIEW（需人工确认）**，按 §5.3.2 出逐条。
+        #   ★ 安全属性一个字节没松：`covered=False` 时**永远不产出 PASS** ——
+        #     REVIEW 与拒答同样不让内容过关，区别只在「说不说得出口」。
+        #   ★ 依据侧**没跑成**（`_ev_refused` 但没有覆盖结论）的仍留 `NEEDS_INPUT`：
+        #     那是「结论未知」，与「有结论但要人看」是两件事，不许混（§2.4.1）。
+        if _ev_cov.get("covered") is False:
+            _min = _ev_cov.get("coverage_bm25_min")
+            # ★★ 2026-10-08（Owner 报「REVIEW N 处需人工确认，却一条依据都没有」）──
+            #   **结论仍是 REVIEW**（保 2026-10-06 Owner 裁定的「不能拒答」，不动）；
+            #   错的是**数字**：原先写死 `共发现 1 处` / `issue_count: 1`，
+            #   而那「1 处」**就是这条覆盖缺口说明本身** —— 它被算成了一条**内容问题**。
+            #   实测危害（Owner 截图）：卡片抬头「REVIEW 3 处需人工确认，全部无库内依据」、
+            #   表里「问题数量」=1，而**一条内容问题都没有**；人看到的是一个假计数。
+            #   ⇒ 覆盖缺口**不占「问题数量」那一格**：它是「库该不该认识这个题材」的说明，
+            #     不是「素材哪里不对」。§5.3.2 的格式是 `共发现 \d+ 处需人工确认。`，
+            #     数字填**真实条数 0**（格式仍逐字合规，`conforms()` 认）。
+            _item = (
+                "**覆盖缺口说明（不是内容问题）**：本次素材的**文字层逐字命中 0 条**，"
+                "但覆盖判据不成立（没有「既被规则引用、又达门限」的单元）——"
+                "**这不是素材有问题，是库对该题材没有可依据的条款**。\n"
+                "   原因：" + str(_refusal.get("human") or "覆盖判据不成立") + "\n"
+                "   依据：`kb/l7/registry/l7.json` 的 `retrieval.gate.coverage_bm25_min="
+                + str(_min) + "`（覆盖判据标定值；覆盖信号不成立时**不得输出 PASS**）\n"
+                "   判定：REVIEW（**不是 PASS**）—— 文字层未发现已知违规表述，"
+                "不等于合规；画面 / 场景须人看。\n"
+                "   建议：转人工复核后再定；补素材无用（缺的是库覆盖）。"
+            )
+            _sum = ("【审查结论：REVIEW】共发现 0 处需人工确认。\n\n"
+                    "**本次没有发现内容问题**（0 处）。下面是**覆盖缺口**说明 —— "
+                    "缺的是**库覆盖**，不是素材有问题：\n\n"
+                    + _item + "\n\n建议转 @内容治理负责人 复核。")
+            return {"decision": {
+                "state": "REVIEW",
+                "decision": "REVIEW",
+                "confidence": None,
+                "review_id": "rv-" + time.strftime("%Y%m%d-%H%M%S"),
+                "content_id": content_id or _auto_content_id(_sha),
+                "content_version": _sha,
+                # ★ 真实内容问题条数 = 0（覆盖缺口不算问题；见上）。
+                "issue_count": 0,
+                "summary": _sum,
+                # ★ 仍留在 `risk_items` 里 —— 飞书报告**不渲染 `summary`**，
+                #   把它删掉报告里就一个字都不剩。但三个字段名必须给对：
+                #   `feishu_publish.py:257` 取的是 `risk_type / priority_tier / action`，
+                #   原先只给了 `category/sub/severity` ⇒ 三个都 None
+                #   ⇒ 报告里渲染成 `### 1. 【None】None · None`（**空壳**，Owner 截图里那条）。
+                "risk_items": [{
+                    "risk_type": "覆盖缺口", "priority_tier": "转人工",
+                    "action": "库对该题材没有可依据的条款 ⇒ 转人工看**覆盖**（不是发现了内容问题）",
+                    "category": "覆盖", "sub": "知识库覆盖缺口",
+                    "reason": _refusal.get("human"),
+                    "severity": "REVIEW",
+                    "reason_code": _refusal.get("reason_code"),
+                    "coverage": _refusal.get("coverage"),
+                    # 结构性标记：让下游分得清「这是覆盖说明」与「这是内容问题」
+                    "coverage_gap": True,
+                }],
+                "next_owners": ["内容治理负责人"],
+                "fails_closed": True,
+                "refusal": _refusal,
+                "gate": ev.get("gate"),
+            }, "evidence_meta": {
+                "run_id": ev.get("run_id"), "findings": 0,
+                # ★ 这里如实写 REVIEW：下游（飞书落表 / 守衡转述）读的是这个字段。
+                "state": "REVIEW", "fails_closed": True,
+                "refusal": _refusal, "report_path": None,
+                "source": str(REVIEW_PY),
+                "findings_source": ev.get("_findings_source") or {"mode": "live"},
+            }}, None
+        return {"decision": {
+            "state": "NEEDS_INPUT",
+            "decision": "NEEDS_INPUT",
+            "confidence": None,
+            "review_id": "rv-" + time.strftime("%Y%m%d-%H%M%S"),
+            "content_id": content_id or _auto_content_id(_sha),
+            "content_version": _sha,
+            "issue_count": 0,
+            "summary": ("【审查结论：NEEDS_INPUT】依据侧拒答（fail-closed）"
+                        "⇒ **不产出 PASS/BLOCK**。"
+                        + ("原因码 `%s`：%s" % (_refusal.get("reason_code"), _refusal.get("human"))
+                           if _refusal.get("human") else "")),
+            "risk_items": [], "next_owners": ["内容治理负责人"],
+            "fails_closed": True,
+            "refusal": _refusal,
+            "gate": ev.get("gate"),
+        }, "evidence_meta": {
+            "run_id": ev.get("run_id"), "findings": 0,
+            "state": "NEEDS_INPUT", "fails_closed": True,
+            "refusal": _refusal, "report_path": None,
+            "source": str(REVIEW_PY),
+            "findings_source": ev.get("_findings_source") or {"mode": "live"},
+        }}, None
+
+    findings = ev.get("findings") or []
+    sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    run_id = time.strftime("%Y%m%d-%H%M%S")
+    payload = {
+        "review_id": "rv-" + run_id,
+        "content_id": content_id or _auto_content_id(sha),
+        # ★ 2026-10-05 修：原先写死 "text" —— 于是**图片**送审时 payload 也声称自己是文字，
+        #   `_coverage_ready()`（review_engine.py:40）里那条 `content_type == "image"`
+        #   ⇒ 要求 {image, ocr} 的判据**永远收不到 image**，图片模态因此永远"不适用"。
+        "content_type": content_type or "text",
+        "content_version": sha,
+        "input_manifest": {"text": text, "sha256": sha, "modality": ["text"]},
+        # 取值必须是 complete / not_applicable（实测：布尔值会被判 incomplete_coverage:text）
+        # ★ 2026-10-05 修：原先七个模态**全部写死** not_applicable，还附一句
+        #   「其余模态不适用（**不是缺口**）」—— 对图片送审而言这句话是错的：
+        #   图片既不可读、provider 状态也拿不到，那是**缺口**（incomplete），不是"不适用"。
+        #   现在由**声明的 content_type** 推：声明的模态若没有 provider 佐证 ⇒ incomplete，
+        #   于是 `_coverage_ready()` 会自动把它挡在 PASS 之外（判据早就在，只是收不到信号）。
+        "coverage": _coverage_for(content_type or "text", coverage_provided),
+        "risk_items": [_to_risk_item(f) for f in findings],
+        "product_line": product_line,
+        "channel": channel,
+    }
+    # ── ★★ 批次19 · 第2块：**断点就在这里（定位到行）** ──────────────────────────
+    # 病灶（改前逐字，`:178-180`）：
+    #     `# 5 条种子规则的候选也并进来（专项第 1 源）…`
+    #     `if product_line_seed or channel:`          ← **门**
+    #     `    payload["risk_items"] += scan_text(...)`
+    #   ⇒ **不传 `product_line_seed` 且不传 `channel` 时，5 条种子规则扫描器根本不跑。**
+    #   而 `review_text.py:24-28` 那条路是**无条件**调 `scan_text` 的
+    #   ⇒ 两条路的**裁决侧输入不同** ⇒ 同一段文案可以一边 BLOCK、一边 PASS。
+    #   API 的 `ReviewReq.product_line_seed` 默认 `""`、`channel` 默认 `""`
+    #   ⇒ **默认路径正好落在「不跑」那一支** —— 这不是边角情况，是**默认行为**。
+    # 修法（**最小接线**）：**去掉门，无条件并进来**。
+    #   `scan_text` 对空 `product_line`/`channel` **本身是安全的**
+    #   （`rule_engine.py:79-82` 只在**给了值**时才按 product_lines/channels 过滤）
+    #   ⇒ 无条件调用不会误伤，只是把「本该跑的那 5 条」补回来。
+    # 边界：**未动 `decide()`**（用户红线）—— 本条只改**喂给 decide() 的输入**。
+    payload["risk_items"] += scan_text(text, product_line=product_line_seed, channel=channel)
+
+    # ★ 2026-10-06 修（Owner 2026-10-06 报：「问题数量 ≥3，为什么不出报告？没有报告我不知道
+    #   问题在哪里、如何解决」）：
+    #   原先是 `decide(payload, report_url=None)` —— **写死 None**。
+    #   而 `render_summary()` 对 ≥3 的单子按 PRD §5.3.4 只渲染「分类汇总 + 报告链接」，
+    #   拿不到链接就渲染成「（本次未写报告，见 --report-dir）」—— **那个开关在 CLI 上根本不存在**
+    #   （`grep add_argument("--report-dir` = 0），等于把人指向一个不存在的东西。
+    #   现实后果：**≥3 的单子只给分类汇总，用户拿不到逐条清单与修改建议**。
+    #   现在把依据侧**真的写出来的**报告路径填进去（`ev["report_path"]`，仅 `--write-report` 时非空）；
+    #   没写就仍然是那句诚实话 —— **不许编一个链接出来**。
+    decision = decide(payload, report_url=ev.get("report_path"))
+    # ★ 有命中、但覆盖信号不足时：**不改结论**，只挂一条可核对的注记 ——
+    #   库的口径是「未命中 ≠ 合规」，所以「本次命中了 N 条、但主题未被知识库覆盖」
+    #   这件事必须显式带出去，否则读者会把「只报了 1 条」读成「只有 1 个问题」。
+    if isinstance(decision, dict) and _ev_cov.get("covered") is False and _ev_findings:
+        decision["coverage_caveat"] = (
+            "依据侧覆盖信号不足（trace.coverage.covered=false）：本次结论建立在已命中的 "
+            "%d 条依据上；**未被规则覆盖的部分不足以证明合规**（库口径：未命中 ≠ 合规）。"
+            % len(_ev_findings))
+    # run 记录（P3）：机器路径真正用到的是「依据组件 + 裁决引擎」两个 skill 的能力
+    try:
+        sys.path.insert(0, str(KB / "l7/scripts"))   # KB = …/kb（parents[2]），不是它的上一级
+        from run_record import record as _rr
+        _rr(source="review_machine", trigger=(text[:60] + ("…" if len(text) > 60 else "")),
+            skills=["kb-content-review", "审查裁决"],
+            commands=["kb-content-review/scripts/review.py --text …",
+                      "l7/review-engine/core/review_engine.py decide()"],
+            products=[ev.get("report_path")] if ev.get("report_path") else [],
+            verdict="%s ｜ issue_count=%s" % (decision.get("decision"), decision.get("issue_count")),
+            human_involved=False, run_id=run_id,
+            # ★ 防线3（2026-10-03）：把「谁判的、加载过哪些 skill」落成 run 记录里的**可核字段**。
+            #   上面那行 `skills=[...]` 是**硬编码**的（说的是引擎组件，不是说判定主体）——
+            #   实测这正是「判定主体缺席也看不出来」的原因；故另开 extra 记真值，不动那行免得改判据。
+            extra={"decision_owner": decision_owner, "loaded_skills": list(loaded_skills or [])})
+    except Exception:                     # noqa: BLE001
+        print("[warn] run_record 没写成：%r" % (__import__("sys").exc_info()[1],), file=__import__("sys").stderr)
+    return {"decision": decision, "evidence_meta": {
+        "run_id": ev.get("run_id"), "findings": len(findings),
+        "state": ev.get("state"),
+        "report_path": ev.get("report_path"),     # 落盘报告（write_report=True 时才有）
+        # ★ 素材属性（2026-10-06）：产品线/渠道 —— 发布件与报告都从这里取，**一处推、两处用**。
+        "material_facets": _derive_material_facets(text, findings),
+        "trace": ev.get("trace") or ev.get("retrieval_trace"),
+        "source": str(REVIEW_PY),
+        # 依据是现跑的还是复用缓存的 —— 报告可核性要求这一项必须可见
+        "findings_source": ev.get("_findings_source") or {"mode": "live"},
+    }}, None
+
+
+# ── 层前置闸门（2026-10-03 加，**opt-in**）────────────────────────────────────
+# 缺的不是规则，是**接线**（与 `kb/l7/scripts/review_freshness_gate.py` 同一类病）：
+#   `skill_invocation_audit.py` 早就能判「逐层调了没有」，但那只是**一个脚本的退出码** ——
+#   评审链照样出三态结论。本函数把它接进结论路径，**判据只有一份（还是那把尺子）**：
+#   这里只做「调用 + 解析」，**不新造第 7 把尺子**。
+# 为什么默认关：机器入口（`kb_api.py` / 守衡 bot）**加载不了 skill**，
+#   默认 fail-closed 会把那条路全线打断。要收紧得单独报批（见 report-output-contract GAP-RO-5）。
+# ★ 2026-10-03 收紧：**L7 也进闸门**（原为 ("L4","L5","L6")）。
+#   为什么必须加：L7 是跨层闸门、单独跑，原先**不在**本元组里 ⇒ 它的审计红不红**结构上不可见**：
+#   实测（2026-10-03 10:46）BASE `RV-20261003-0855` 的 L7 审计是 `红 1`（`skill_evidence=registry_echo`、
+#   `invoked_reported=[]`、`skill_sessions={}`），而本适配器照样打出
+#   `层前置：L4=✅ / L5=✅ / L6=✅ ｜ 红合计 0` 并给出完整 BLOCK 结论（exit 0）——
+#   「L4–L6 绿掩盖 L7 红」。用户口径「四层留痕齐平」由此才真正有闸门。
+#   代价（已知且有意）：L7 必须像 L4–L6 一样带 `--invoked kb-check --skill-session L7=<id>` 记账，
+#   否则审计红 → 本命令拒答。**黄（E5 预演落章）仍不算失败**（见 layer_preflight 文档串）。
+LAYER_PREFLIGHT_LAYERS = ("L4", "L5", "L6", "L7")
+AUDIT_PY = KB / "l7/scripts/skill_invocation_audit.py"
+
+
+def layer_preflight(base: str, layers=LAYER_PREFLIGHT_LAYERS) -> dict:
+    """按 `<base>-<Lx>` 逐层调审计脚本，只读它的结论。
+
+    返回 `{"base","ok","red_total","details":{Lx:{run,exit,red,yellow,skill_sessions,pass,note}}}`。
+    判据 = **审计自身的退出码 + 红计数**（不新增判据）。
+    **黄（E5 落章来自预演）不算失败** —— 库规：E5 是「需人裁」，
+    把它当红等于拿错误的尺子量对的流程。
+    """
+    import re as _re
+    import subprocess as _sp
+    out = {"base": base, "ok": True, "red_total": 0, "mode": "enforced", "details": {}}
+    for L in layers:
+        run = "%s-%s" % (base, L)
+        rec = {"run": run, "exit": None, "red": None, "yellow": None,
+               "skill_sessions": None, "pass": False, "note": ""}
+        if not AUDIT_PY.exists():
+            rec["note"] = "审计脚本不存在：%s（fail-closed）" % AUDIT_PY
+        else:
+            p = _sp.run([sys.executable, str(AUDIT_PY), "--run", run],
+                        capture_output=True, text=True)
+            rec["exit"] = p.returncode
+            m = _re.search(r"红\s*(\d+)\s*[｜|]\s*黄\s*(\d+)", p.stdout or "")
+            if m:
+                rec["red"], rec["yellow"] = int(m.group(1)), int(m.group(2))
+            rec["pass"] = (p.returncode == 0 and rec["red"] == 0)
+            if not rec["pass"]:
+                tail = [x for x in (p.stdout or "").strip().splitlines() if x.strip()]
+                rec["note"] = (tail[-1][:200] if tail else (p.stderr or "")[:200])
+        rp = KB / "l7" / "runs" / ("%s.json" % run)
+        if rp.exists():
+            try:
+                rec["skill_sessions"] = ((json.loads(rp.read_text(encoding="utf-8")).get("extra") or {})
+                                         .get("skill_sessions"))
+            except Exception:                     # noqa: BLE001
+                rec["skill_sessions"] = "读不出"
+        if not rec["pass"]:
+            out["ok"] = False
+        out["red_total"] += (rec["red"] or 0)
+        out["details"][L] = rec
+    return out
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--text", required=True)
+    ap.add_argument("--content-id", default=None)
+    ap.add_argument("--channel", default="")
+    ap.add_argument("--product-line", default="")
+    ap.add_argument("--product-line-seed", default="", help="给 5 条种子规则扫描器的词表原样值（如 吸奶器）")
+    ap.add_argument("--findings-from", default=None,
+                    help="复用一份已算好的依据缓存（跳过 subprocess 再跑 review.py）。"
+                         "缓存文本指纹与本次不一致即拒用")
+    ap.add_argument("--findings-out", default=None,
+                    help="把本次现跑的依据落成缓存，供同一 RUN 的第二处消费者复用")
+    ap.add_argument("--json", action="store_true")
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--require-layer-preflight", default=None, metavar="BASE",
+                    help="层前置闸门（2026-10-03 加）：逐层核 "
+                         "`skill_invocation_audit.py --run <BASE>-L{4,5,6,7}`（L7 含在内），"
+                         "任一层红 ⇒ **不出三态结论**（NEEDS_INPUT / 退出码 3）")
+    ap.add_argument("--allow-no-layer-preflight", action="store_true",
+                    help="**显式**声明「本跑不做层前置」（2026-10-03 起默认要求做）。"
+                         "用了它，结论里会留 `evidence_meta.layer_preflight.mode=waived_by_caller` —— "
+                         "**缺层前置这件事必须可见，不许静默**")
+    ap.add_argument("--content-type", default="", help="写飞书表用的内容类型（如 listing 文案 / 主图）")
+    ap.add_argument("--write-report", action="store_true",
+                    help="**真的把报告落盘**（默认不落盘：不给它时依据侧走 `--dry-run`）。"
+                         "问题数 ≥3 的单子按 PRD §5.3.4 **只出分类汇总 + 报告链接** ——"
+                         "不开这个开关，那句渲染就是「本次未写报告」，**用户拿不到逐条清单与修改建议**。"
+                         "落盘位置见结论里的 `evidence_meta.report_path`（`kb/l7/reports/`）。")
+    ap.add_argument("--coverage", action="append", default=None,
+                    metavar="模态:provider:provider_version:content_hash:status",
+                    help="**申报**某个模态的 provider 佐证（可重复），把它从 incomplete 变成 complete。"
+                         "例：`--coverage image:shouheng-ocr:1.0:<sha>:ok --coverage ocr:shouheng-ocr:1.0:<sha>:ok`。"
+                         "★ 这是**申报档**（与 --loaded-skill 同级，不是引擎自测）：结论里会记"
+                         " `coverage.declared_by=caller` 并逐个点名申报过的模态。"
+                         "**没有真跑过 provider 就不许填** —— 填了等于伪造模态覆盖。")
+    ap.add_argument("--question", default="", help="送审时**用户的原提问**（落进报告正文与飞书「送审问题」列；"
+                                                   "2026-10-03 用户裁定 (a)+(b) 一起做）")
+    # ── 判定主体（2026-10-03 加，防线2）────────────────────────────────────────
+    ap.add_argument("--decision-owner", default=None, metavar="SKILL_ID",
+                    help="**判定主体**：本单由哪个专项 skill 下判（按 kb-review 让位表，如 图片安全审查）。"
+                         "**默认要求**：不给又不显式豁免 ⇒ 拒答（NEEDS_INPUT / 退出码 3）")
+    ap.add_argument("--allow-no-decision-owner", action="store_true",
+                    help="**显式**声明「本跑不记判定主体」。用了它，结论里会留 "
+                         "`evidence_meta.decision_owner.mode=waived_by_caller` —— 缺判定主体必须可见，不许静默")
+    ap.add_argument("--loaded-skill", action="append", default=None, metavar="SKILL_ID",
+                    help="本会话**实际加载过**的 skill（可重复）。与 --decision-owner 一起落进 run 记录，"
+                         "供审计核「判定主体确实被加载过」—— **这是自述（agent_reported）档，不是强证据**")
+    ap.add_argument("--no-publish-to-feishu", action="store_true",
+                    help="**显式**关掉自动发布（2026-10-03 起**默认发布**）。"
+                         "关掉时结论里会留 `evidence_meta.publish.published=false` —— "
+                         "「这次没发出去」必须可见，不许静默")
+    a = ap.parse_args()
+
+    # ── 层前置（fail-closed）：先挡结论，再算依据 ─────────────────────────────
+    # 2026-10-03 收紧：**默认要求**做层前置。不传 BASE 又不显式豁免 ⇒ 拒答。
+    # 为什么敢默认开：`kb_api.py` 与 13 条回归用例都走**模块级** `run()`，不经 CLI
+    # （`grep -rn with_kb_evidence` 实测只有文档/skill 正文在教 CLI 用法），
+    # 所以这次收紧的爆炸半径只在 CLI 侧，且 CLI 侧已同步改成必带 BASE。
+    pf = None
+    if a.require_layer_preflight:
+        pf = layer_preflight(a.require_layer_preflight)
+        if not pf["ok"]:
+            need = [L for L, r in pf["details"].items() if not r["pass"]]
+            refusal = {
+                "state": "NEEDS_INPUT", "decision": "NEEDS_INPUT",
+                "summary": ("【审查结论：NEEDS_INPUT】层前置未过（fail-closed）："
+                            "L4→L5→L6→L7 逐层审计必须红 0 才出结论；未过层：%s" % "、".join(need)),
+                "issue_count": 0,
+                "layer_preflight": pf,
+                "next_action": "回 kb-review §1.5 驱动循环，把未过层的 subagent 起起来再重跑本命令",
+            }
+            if a.json:
+                print(json.dumps(refusal, ensure_ascii=False, indent=1))
+            else:
+                print("结论：NEEDS_INPUT（层前置未过 —— **不出三态结论**）")
+                for L, r in pf["details"].items():
+                    print("  %-3s run=%s exit=%s 红=%s 黄=%s sessions=%s %s"
+                          % (L, r["run"], r["exit"], r["red"], r["yellow"],
+                             r["skill_sessions"], r["note"]))
+                print("  该做的不是补一句「我调过了」，而是回去把未过层的 subagent 起起来"
+                      "（kb-review §1.5 驱动循环）")
+            return 3
+    elif not a.allow_no_layer_preflight:
+        pf = {"base": None, "ok": False, "red_total": 0, "mode": "absent", "details": {},
+              "reason": "未提供 --require-layer-preflight <BASE>，也未声明 --allow-no-layer-preflight"}
+        refusal = {
+            "state": "NEEDS_INPUT", "decision": "NEEDS_INPUT",
+            "summary": ("【审查结论：NEEDS_INPUT】层前置缺失（fail-closed）：本跑既没给层前置 BASE，"
+                        "也没显式豁免 —— 按 AGENTS「审查类任务 = 先跑层 → 再出结论」，"
+                        "L4→L5→L6→L7 必须先逐个跑过并留下会话留痕（L7 也不例外：它是跨层闸门，"
+                        "但**要单独跑并留会话痕**）"),
+            "issue_count": 0, "layer_preflight": pf,
+            "next_action": ("先跑 kb-review §1.5 的驱动循环得到 <BASE>，再带上 "
+                            "--require-layer-preflight <BASE>；"
+                            "确实不该做层前置的场合（如回归用例、机器入口）请显式写 "
+                            "--allow-no-layer-preflight，让「缺前置」这件事留在结论里"),
+        }
+        if a.json:
+            print(json.dumps(refusal, ensure_ascii=False, indent=1))
+        else:
+            print("结论：NEEDS_INPUT（**层前置缺失** —— 不出三态结论）")
+            print("  没给 --require-layer-preflight <BASE>，也没给 --allow-no-layer-preflight")
+            print("  要做层前置：kb-review §1.5 驱动循环；确实不做：显式加 --allow-no-layer-preflight"
+                  "（结论里会记 mode=waived_by_caller，不许静默）")
+        return 3
+    else:
+        pf = {"base": None, "ok": True, "red_total": 0, "mode": "waived_by_caller", "details": {},
+              "reason": "调用方显式声明不做层前置（--allow-no-layer-preflight）"}
+
+    # ── 判定主体（fail-closed，防线2，2026-10-03 加）──────────────────────────
+    # 为什么加：层前置只保护「**证据管道**」，不保护「**判定主体**」。实测同一日图片轮播那一单：
+    #   四层审计红 0，但让位表指定的判定主体（`图片安全审查`）**一次都没加载**，报告照样出了 ——
+    #   而引擎产的是「依据 + 三态」，**「这段该怎么判」归专项**。专项缺席必须挡在结论之前。
+    # 与层前置同构（同一强度、同样可豁免、同样留痕），**不是第 7 把尺子**。
+    if a.decision_owner:
+        do = {"skill": a.decision_owner, "mode": "declared", "declared_by": "agent",
+              "loaded_skills": list(a.loaded_skill or [])}
+        if do["loaded_skills"] and a.decision_owner not in do["loaded_skills"]:
+            do["warning"] = ("判定主体 %s **不在 --loaded-skill 申报里** ⇒ 声明与申报不一致；"
+                             "本条是 agent 自述档，**不得当强证据**" % a.decision_owner)
+    elif a.allow_no_decision_owner:
+        do = {"skill": None, "mode": "waived_by_caller",
+              "reason": "调用方显式声明不记判定主体（--allow-no-decision-owner）"}
+    else:
+        refusal = {
+            "state": "NEEDS_INPUT", "decision": "NEEDS_INPUT",
+            "summary": ("【审查结论：NEEDS_INPUT】判定主体缺失（fail-closed）：本跑没给 "
+                        "--decision-owner <skill-id>，也没显式豁免。层前置只证明「证据管道通了」，"
+                        "**不证明「有人按专项规程判过」**（实测：四层全绿而判定主体缺席，报告照样出）。"),
+            "issue_count": 0,
+            "decision_owner": {"skill": None, "mode": "absent"},
+            "next_action": ("按 kb-review 让位表补上判定主体，例如：--decision-owner 图片安全审查 "
+                            "（并用 skill 工具**真的加载它**）；确实不需要专项的场合请显式写 "
+                            "--allow-no-decision-owner，让「缺判定主体」留在结论里"),
+        }
+        if a.json:
+            print(json.dumps(refusal, ensure_ascii=False, indent=1))
+        else:
+            print("结论：NEEDS_INPUT（**判定主体缺失** —— 不出三态结论）")
+            print("  没给 --decision-owner <skill-id>，也没给 --allow-no-decision-owner")
+            print("  让位表怎么查：kb-review/SKILL.md 的让位表（图片/主图/图上文字 → 图片安全审查）")
+            print("  确实不需要专项：显式加 --allow-no-decision-owner（结论里会记 mode=waived_by_caller）")
+        return 3
+
+    try:
+        _cov_provided = _parse_coverage_specs(a.coverage)
+    except ValueError as e:
+        print("❌ --coverage 解析失败：%s" % e, file=sys.stderr)
+        return 2
+
+    res, err = run(a.text, content_id=a.content_id, channel=a.channel,
+                   product_line=a.product_line, product_line_seed=a.product_line_seed,
+                   # ★ 2026-10-06：把 `--write-report` 接进去。不给 ⇒ 与改动前逐字一致（不落盘）。
+                   write_report=bool(a.write_report),
+                   findings_from=a.findings_from, findings_out=a.findings_out,
+                   decision_owner=do, loaded_skills=list(a.loaded_skill or []),
+                   # ★ 2026-10-05 接上：CLI 的 --content-type 原先**只传给发布件**
+                   #   （见下方 cmd 构造），从不进 run() ⇒ payload 永远写死 "text"，
+                   #   于是 review_engine._coverage_ready() 里 `content_type == "image"`
+                   #   那条判据永远收不到信号（图片送审被判"模态不适用"）。
+                   content_type=(a.content_type or "text"),
+                   # ★ 2026-10-05 加（用户裁定）：调用方申报的模态佐证。
+                   #   不给 ⇒ 行为与改动前**逐字一致**（声明的模态一律 incomplete）。
+                   coverage_provided=_cov_provided)
+    if res is None:
+        print("❌ 跑不起来：%s" % err, file=sys.stderr)
+        return 2
+    res["evidence_meta"]["layer_preflight"] = pf      # 过了/豁免了都要留痕（可核性）
+    res["evidence_meta"]["decision_owner"] = do       # 同上：判了/豁免了都要留痕
+    if a.json:
+        pass          # ★ JSON 统一挪到最后打印 —— 要带上发布结果（publish），且 stdout 必须保持**纯 JSON**
+    else:
+        d = res["decision"]
+        print("结论：%s" % (d.get("state") or d.get("decision")))
+        # 库规模**运行时算**，不硬编码：原写死「509 条规则」，2026-09-30 已长到 1018 行
+        # （见 kb/l7/registry/l7.json → article_no_source.total_rules_note：509 → 632）。
+        # 不得用 evidence_meta.findings（那是本次**命中**条数，不是库规模），两者不是一个量。
+        try:
+            with open(KB / "l3/candidates/rules.jsonl", encoding="utf-8") as _f:
+                _rules_n = sum(1 for _l in _f if _l.strip())
+        except OSError:
+            _rules_n = None
+        print("依据命中 %s 处（检索时库内规则 %s 条 + P0 匹配；库规模按运行时实读，不硬编码）"
+              % (res["evidence_meta"]["findings"],
+                 _rules_n if _rules_n is not None else "读取失败"))
+        _fs = res["evidence_meta"].get("findings_source") or {}
+        if _fs.get("mode") == "cache":
+            print("依据来源：复用缓存 %s @ %s（未重跑 review.py）"
+                  % (_fs.get("path"), _fs.get("cached_at")))
+        else:
+            print("依据来源：本次现跑 review.py")
+        if pf is not None:
+            if not pf.get("details"):
+                print("层前置：**未做**（mode=%s）—— 本结论**不构成**「走过 L4–L7」的证据"
+                      % pf.get("mode"))
+            else:
+                print("层前置：%s ｜ 红合计 %s ｜ 会话 %s"
+                      % (" / ".join("%s=%s" % (L, "✅" if r["pass"] else "❌")
+                                    for L, r in pf["details"].items()),
+                         pf["red_total"],
+                         {L: ((r["skill_sessions"] or {}).get(L)
+                              if isinstance(r["skill_sessions"], dict) else r["skill_sessions"])
+                          for L, r in pf["details"].items()}))
+        # 判定主体（防线2）：判了/豁免了都打出来 —— 跟层前置并列，缺了要一眼看见
+        if do.get("skill"):
+            print("判定主体：%s（%s）%s"
+                  % (do["skill"], do["mode"],
+                     " ｜ ⚠️ " + do["warning"] if do.get("warning") else ""))
+        else:
+            print("判定主体：**未记**（mode=%s）—— 本结论**不构成**「专项判过」的证据" % do.get("mode"))
+        print(json.dumps(d, ensure_ascii=False, indent=1)[:1200])
+    state = (res["decision"].get("state") or res["decision"].get("decision") or "").upper()
+
+    # ── 自动发布到飞书（2026-10-03 加）──────────────────────────────────────
+    # 为什么放在引擎里：用户只丢一句「审一下」＋素材时，**不该再被要求补"发到飞书"这句话**。
+    # 链路自动化的最后一跳就是这里：引擎出完结论，自己调发布件。
+    # 边界：NEEDS_INPUT 不发（没有三态结论）；层前置未过在更早处已经拒答、根本走不到这里；
+    #       发布失败**不改结论**，只如实报"没发出去"。
+    # ── 自动发布到飞书（2026-10-03 加；**默认开**）────────────────────────────
+    # 为什么默认开：用户只丢一句「审一下」＋素材时，**不该再被要求补"发到飞书"这句话**，
+    # 也不该因为模型漏了一个 flag 就只剩本地报告。默认发布 + `--no-publish-to-feishu` 显式关，
+    # 与「层前置默认要求」同一套设计（默认严、要松必须写出来）。
+    # 边界：NEEDS_INPUT 不发；层前置未过在更早处已拒答；发布失败**不改结论**，只如实报"没发出去"。
+    state = (res["decision"].get("state") or res["decision"].get("decision") or "").upper()
+    # ⚠️ `--json` 时发布过程的日志一律走 **stderr** —— stdout 必须保持纯 JSON，
+    #    否则下游（`json.load`、别的消费者）会撞 "Extra data"（2026-10-03 实测踩过）。
+    _emit = (lambda s: print(s, file=sys.stderr)) if a.json else print
+    publish_rec = {"mode": "enabled" if not a.no_publish_to_feishu else "disabled_by_caller"}
+    if a.no_publish_to_feishu:
+        _emit("飞书发布：**已按 --no-publish-to-feishu 关闭** —— 本结论没有发出去")
+        publish_rec.update({"published": False, "reason": "disabled_by_caller"})
+    elif state not in ("PASS", "REVIEW", "BLOCK"):
+        _emit("飞书发布：跳过（结论是 %s，没有三态结论可发）" % state)
+        publish_rec.update({"published": False, "reason": "no_conclusion"})
+    else:
+        # ★ 用户原提问（2026-10-03 用户裁定 (a)+(b)）：先注入 review JSON ⇒ 报告正文能读到；
+        #   再透传给发布件 ⇒ 写飞书「送审问题」列。
+        if (a.question or "").strip():
+            res["decision"]["submit_question"] = a.question.strip()
+        tmpj = Path("/tmp/kb-review-%s.json" % (res["decision"].get("review_id") or "run"))
+        tmpj.write_text(json.dumps(res, ensure_ascii=False), encoding="utf-8")
+        # ★ 缺省**不许**填占位值「未指定」—— 发布件会把它**无条件写回表行**，
+        #   从而把上一次真实送审留下的「内容类型 / 渠道 / 产品线」冲成占位值。
+        #   实测两次（2026-10-03）：11:05 rev71 产品线「吸奶器」→「未指定」（非本单）；
+        #   21:26 rev77 内容类型「广告语」→「未指定」（本单）。两次都已人工恢复原值。
+        #   改为：缺省传空串 ⇒ 发布件**省略该键** ⇒ 行内旧值保留（省略键 = 不动）。
+        # ★★ 2026-10-06 补：**空串不再等于"不填"** —— 命令行没给时改用 `material_facets`
+        #   （见 `_derive_material_facets`）。原先不传就恒空 ⇒ 云文档恒是 `渠道：— ｜ 产品线：—`。
+        _mf = (res.get("evidence_meta") or {}).get("material_facets") or {}
+        _ch = (a.channel or "").strip() or str(_mf.get("channel") or "").strip()
+        _pl = (a.product_line or "").strip() or str(_mf.get("product_line") or "").strip()
+        _emit("飞书发布：素材属性 → 渠道=%r ｜ 产品线=%r（%s）"
+              % (_ch, _pl,
+                 "命令行给定" if ((a.channel or "").strip() or (a.product_line or "").strip())
+                 else "由 l0_facets 推出：%s" % json.dumps(_mf.get("from") or {}, ensure_ascii=False)))
+        cmd = [sys.executable, str(HERE / "feishu_publish.py"), "--review-json", str(tmpj),
+               "--channel", _ch,
+               "--product-line", _pl,
+               "--content-type", a.content_type or "",
+               "--question", a.question or "", "--apply"]
+        if a.content_id:
+            cmd += ["--content-id", a.content_id]
+        _emit("飞书发布：自动调用 feishu_publish.py --apply …")
+        p = subprocess.run(cmd, capture_output=True, text=True)
+        out = ((p.stdout or "") + (p.stderr or "")).strip()
+        for line in out.splitlines()[-7:]:
+            if line.strip():
+                _emit("  " + line)
+        m = re.search(r"docx=(\S+)\s*｜\s*record=(\S+)", out)
+        publish_rec.update({"published": p.returncode == 0,
+                            "docx": (m.group(1) if m else None),
+                            "record_id": (m.group(2) if m else None)})
+        if p.returncode != 0:
+            _emit("  ⚠️ 飞书发布失败（退出码 %s）—— **结论有效，但没发出去**" % p.returncode)
+    res["evidence_meta"]["publish"] = publish_rec
+    # ══════════════════════════════════════════════════════════════════════════
+    # ★★ 2026-10-08（第四批）：**`report_url` 这一格原先没人填** —— 卡片因此给不出链接
+    # ══════════════════════════════════════════════════════════════════════════
+    # 实测链条（Owner 报「私聊有依据、群里没有」，逐环可核）：
+    #   · 库侧判到 **≥3 条** ⇒ 按 PRD §5.3.3 只出分类汇总、**不出逐条**
+    #     ⇒ 守衡侧的正则抽不出逐条 ⇒ 卡片里「库侧 0 条」（日志：`逐条抽出 0 条`）；
+    #   · 兜底本该是**报告链接**（`dual_track.mjs::renderMerged` 早就写了
+    #     `逐条明细在库里：${kb.reportUrl}`）—— 而它拿到的是 **null**；
+    #   · 为什么 null：**`evidence_meta` 里根本没有 `report_url` 这个键**
+    #     （只有 `report_path` 本地路径），旁挂 `pick("report_url")` ⇒ None ⇒
+    #     卡片只能渲染成「（本次库侧未回报告链接）」。
+    #   · 而**链接其实一直都在**：同一轮的 `evidence_meta.publish.docx`
+    #     = `https://momcozy-in.feishu.cn/docx/OQZXdtSTFojTG4xLFVDcU8iYn5g`（真人点得开）。
+    #   ⇒ 结论：**不是没链接，是这个格子没人填。**
+    # 取值口径（**可点优先，本地路径只作兜底并如实标注**）：
+    #   `publish.docx`（飞书云文档，可点） > `report_path`（本地 .md，**人点不开**）。
+    #   两者都没有 ⇒ 留 None（**不编**）—— 卡片那边会照实写「未回报告链接」。
+    _docx = publish_rec.get("docx") or None
+    _rpath = res.get("evidence_meta", {}).get("report_path") or None
+    res["evidence_meta"]["report_url"] = _docx or _rpath
+    res["evidence_meta"]["report_url_kind"] = (
+        "feishu_docx" if _docx else ("local_path" if _rpath else None))
+
+    if a.json:                      # ★ 最后打印，且含 layer_preflight 与 publish 两项留痕
+        print(json.dumps(res, ensure_ascii=False, indent=1))
+    return 3 if state == "NEEDS_INPUT" else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

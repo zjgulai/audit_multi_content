@@ -1,0 +1,121 @@
+# l0-expected-diffs.yaml —— L0 对账的「**预期差异**」声明（治理判断，不是原始事实）
+#
+# ## 为什么要有这份文件
+#
+# 库自带的 `kb/l8/align_l0_feishu.py` 只报**原始差异**（这是对的：对账器不该带政策判断）。
+# 但闸门必须回答「**这些差异是不是预期的**」—— 否则 `材料收集` 那 10 条按声明就该排除的记录
+# 会**永远**被算成差异，L0 闸门永远红。无人值守的日报如果每天报同一个假红，
+# 第三天就没人看了 —— 这是自动化最大的隐形杀手。
+#
+# → 原始事实留在对账器里；**「哪些差异按声明就该存在」放这里**，由 `kb/l7/scripts/l0_gate.py` 读。
+#
+# ## 纪律（三条，破坏任一条这份文件就变成"把闸门调绿"的工具）
+#
+#   1. **每条必须带 `evidence`**：指向库内可复核的文件或 run，不许写"众所周知"。
+#   2. **条数变了要重新评估，不是自动放宽**：`l0_gate.py` 把「实际 > 预期」的部分算成**真差异**并判红。
+#      预期项**减少**时判黄并提示复核声明（可能是别人修好了，也可能是对账口径变了）。
+#   3. **预期项必须有 `owner_action`**：写清"要人做什么"，哪怕是"无需动作"。
+
+meta:
+  file: kb/l7/registry/l0-expected-diffs.yaml
+  checker: kb/l7/scripts/l0_gate.py
+  upstream_reporter: kb/l8/align_l0_feishu.py
+  declared_at: "2026-09-30"
+  baseline_run: "2026-09-30 09:3x（实测：一致 557 ｜ 飞书多 10 ｜ L0多 0 ｜ 值变 0 ｜ 拉取失败 2）"
+  latest_run: "2026-10-03 22:2x（实测：一致 1014 ｜ 飞书多 10 ｜ L0多 0 ｜ 值变 0 ｜ 拉取失败 0 ｜ 身份回落 2）"
+  raw_facts_stay_in_reporter: >
+    本文件**不改任何原始计数**。`l0_gate.py` 的输出里始终同时给出「原始」「预期内」「真差异」
+    三个数 —— 预期项只是从"差异"里**分类出来**，不是抹掉。
+
+expected:
+
+  # ── EX-1：材料收集的 10 条「飞书多」= 按声明不入库 ─────────────────────────────
+  - id: EX-1
+    table: 材料收集
+    kind: only_feishu
+    expected: 10
+    reason: >
+      `kb/l0/registry/kb.json → filter` 声明：只收「材料审核状态 == 通过」的记录；
+      未命中者按 `excluded_policy` **只在 runs/<run_id>.json 留痕，不登记资源、不进库目录、不进索引**。
+      所以它们在飞书侧存在、在 L0 不存在 —— 这是**声明的结果**，不是漏抓。
+    evidence:
+      - "kb/l0/registry/kb.json → filter（operator == / value 通过 / changed_at 20260930-0410）"
+      - "kb/l0/registry/kb.json → excluded_policy（原因枚枚举与去向）"
+      - "kb/l8/runs/20260930-0150-batch-notes.json → live_verification.the_10（逐条说明这 10 条为何不是缺口）"
+    declared_at: "2026-09-30"
+    owner_action: "无需动作（按声明预期）。**仅当条数从 10 变化时**重新评估：多了 = 飞书侧新增了未通过的记录；少了 = 有人清了或改了状态。"
+
+  # ── EX-2 / EX-3 已于 2026-10-03 移除，去向见文末 `resolved` ─────────────────
+  # 移除理由：两条各自的 `reopen_when` 都写的是「该表不再报拉取失败」—— 实测已满足
+  # （`align_l0_feishu.py --check` 两张表 `拉取失败 0`、`一致 395/395 与 7/7`、`值变 0`）。
+  # ★ 但**解决方式与当初声明的不一样**：不是给「守衡」加了协作者，而是加了按表身份回落。
+  #   照实记在 `resolved` 里 —— 不写清这一条，下一个人会以为 bot 拿到了 ACL，
+  #   将来回落失效时会往「协作者被人删了」的方向排查，白跑一趟。
+
+
+# ── 对账器已知缺陷登记（**不豁免，只登记事实 + 修法**）─────────────────────────
+# 为什么登记在这里而不是别处：它是「这两条预期差异从哪来」的直接原因，
+# 与 EX-4/EX-5 必须放在一起看，否则下一个人会以为 170 是真的值变了。
+known_comparator_defect:
+  - id: CD-1
+    file: kb/l8/align_l0_feishu.py
+    line: >
+      187-196（CD-1 注释块；修在 :197 的 lvals）。★ 行号会漂：2026-10-03 加身份回落时整体下移 14 行，
+      本条已随之更新 —— 但下次再有改动仍会漂，**按符号（lvals / 批次13 修正）找，别只信行号**。
+    symptom: "对账器把飞书快照行的 record_id 剥掉后，又拿它与 L0 fields 里的 record_id 相比 ⇒ 每条记录恒判「值变」。"
+    effect: "把 192 条**不存在的**变更报成 changed；L0 闸门因此长期红（真差异 2）。"
+    measured_at: "2026-10-02（批次13）"
+    fixed_at: "2026-10-02（批次13，本批修了）"
+    fix: >
+      在 `lvals` 的构造里同样排除 `record_id`/`recordId`（两侧同一套键归一）。
+      影响面：只影响**共有记录**的值比较；`only_feishu` / `only_l0` / `pull_failed` 一律不变。
+    verified: >
+      修后实测 `l0_gate.py`：`结论：✅ 过（真差异 0）`・`退出码 0`・
+      「未声明的差异」**0 条** ⇒ 闸门绿是**靠修缺陷**绿的，不是靠豁免绿的。
+    declaration_dropped: >
+      EX-4 / EX-5（值变 170 / 22）**已按各自的 reopen_when 移除** ——
+      它们本来就是「缺陷造成的假差异」，缺陷修好后预期值回落到 0，声明自然作废。
+
+# ── 已解决的预期差异（**不是豁免，是结案**）─────────────────────────────────────
+# 与 `expected` 的区别：`expected` = 「现在还该存在的差异」；这里是「曾声明过、现已不存在的差异」。
+# 留着是为了回答「它们当初为什么在、后来怎么没的」—— 删干净就只剩 git 历史，没人会去翻。
+resolved:
+  - id: EX-2 / EX-3
+    tables:
+      - "专家修订汇总表（tbl8AI00JZO1iZtp）"
+      - "内容公式（仅供参考）（tblVdl0jdK9G4ld3）"
+    kind: pull_failed
+    was_expected_each: 1
+    resolved_at: "2026-10-03"
+    resolved_by: "kb/l8/align_l0_feishu.py 加「按表身份回落」（`L8_AS_FALLBACK`，默认 `user`）"
+    how: >
+      ★ **不是**按当初 `owner_action` 写的那样「在飞书侧把守衡加成协作者」——
+      bot（守衡，`ou_8a19f4dc43e9e93b93220e646a9cb7dd`）至今**仍然读不到**这个 Base：
+      实测是**整库级** `131006 permission_denied`（连 `base +table-list` 都进不去，不是表级）。
+      实际做法：首拉用 bot 失败后，**只对这张表**回落用户身份（刘华丽）重拉一次；
+      回落事件照实写进报告（每表记 `identity`，回落另记 `identity_fallback` 含首次失败原因），
+      **不静默**。
+    evidence:
+      - "kb/l8/align_l0_feishu.py → AS_FALLBACK / pull() / ent['identity_fallback']"
+      - "实测 `--check`：两张表 `拉取失败 0`・`一致 395/395`・`一致 7/7`・`值变 0`・`身份回落 2`"
+      - "wiki +node-get（user 身份）：node_token UOuMwKge6iX4HdkaOZBchV6ZnNf ｜ obj_token SKkkbdZi9aRuMzs7ob0cpSYHnQg ｜ obj_type bitable ｜ title「OGC内容生产与审核」"
+    residual_risk: >
+      ★ 用户身份的令牌**没有 refresh token**（实测 device-flow 输出 `[WARN] no refresh_token in response`），
+      到期不续、要人重走一次 `lark-cli auth login`。
+      **但失效是「响的」不是「哑的」**：user 拉不到 ⇒ 该表回到 `pull_failed` ⇒ `l0_gate` 判红。
+      即「回落失效」以闸门红的形式暴露，不会变成一天静默的假绿。
+    owner_action: >
+      ① 根治仍是当初那条：在飞书侧把「守衡」加成这个 Base 的**可阅读协作者** ——
+         加完 bot 直读成功，回落在该表自然不再触发（**不用改代码**）；
+      ② 令牌到期时重跑：`lark-cli auth login --profile dsh-kb --domain base --domain wiki`。
+    reopen_when: >
+      再次出现 `拉取失败 ≥ 1` 时，**先看报告里该表的 `identity` 与 `identity_fallback`** 再排查 ——
+      回落字段在 = 是用户令牌失效或权限被收回；字段不在 = bot 那条路出了新问题。
+
+
+# ── 反面清单：**明确不豁免**的差异类型（防止有人往上面加宽泛豁免）─────────────
+not_exemptable:
+  - "only_l0（L0 有、飞书无）：可能是飞书侧删除或整批替换 —— 必须逐条查，**不许豁免**"
+  - "changed（字段值变了）：值变了就是值变了 —— 必须逐条查，**不许豁免**"
+  - "manifest 未登记的 L0 记录文件（record_files_not_registered_total > 0）：会让下游永远抽不出来 —— **不许豁免**"
+  - "任何新出现的表 / 新出现的差异类目：**先查再声明**，不许预豁免"

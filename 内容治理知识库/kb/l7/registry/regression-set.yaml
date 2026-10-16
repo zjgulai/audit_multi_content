@@ -1,0 +1,941 @@
+# regression-set.yaml —— **固定回归集**（上游改动的三态对照尺子）
+#
+# 谁写它：`kb/l8/build_regression_set.py --apply`（**脚本生成，人手别改**）
+# 谁读它：**人**（改上游前后各跑一遍、逐条比对三态）。**没有自动消费者**。
+#
+# ★ 它回答的那个问题：**改了 L1/L2/L6 之后，同一批素材的三态变没变。**
+#   这是 `改动单-外部标准抽取口径-20261010.md` 的**第一件前提** ——
+#   那一单动 L1 重分块 ⇒ L2 ⇒ **L6 索引** ⇒ 评审链单元层召回，
+#   而前几单能靠「输入文件 sha 未变」证明无影响，**那一单做不到**。
+#
+# ★★ **分层读法（别把两层混着比）**：
+#   · `solid`（**三态断言**）—— BLOCK / REVIEW / PASS。**改了就不该变**，变了就是回归。
+#   · `fragile`（**会合法变**）—— 「拒答」（NEEDS_INPUT，多为 coverage_not_covered：
+#     「库对该题材没有可依据的条款」）。它们的答案**依赖库的覆盖度** ⇒
+#     外部标准库一接上，这批**理应变成能判** —— **改了是进步，不是回归**。
+#     混着比就会把「变好了」误报成「回归了」。
+
+meta:
+  generated_by: kb/l8/build_regression_set.py
+  generated_at: "2026-10-10T18:47:42+08:00"
+  source: kb/l7/reports/*.review.md（**只读采集**）
+  excluded_patterns: ["PERF-*（2026-10-10 性能测量自造单，已登记为污染事件）", "TEST*/selftest"]
+  n_cases: 100
+  n_solid: 80
+  n_fragile: 20
+  n_needs_human_label: 8   # 短素材（<12 字）—— 里面既有「极短红线短语」（治疗堵奶 / 预防乳腺炎 / less pain，**该留**）也有「非业务探针」（test / hello world / 量子纠缠配色调参 / 我们公司去年营收多少？，**未必要留**）；**机器分不开，标出来交人**。
+  decision_distribution: {"BLOCK": 44, "拒答": 20, "PASS": 13, "REVIEW": 23}
+  dedup_rule: 同一素材（text sha256 前 12 位相同）只留**最早**那份（首判；复判带前一次上下文）
+  how_to_use: |
+    改上游前后，各跑一遍这批素材（走 `with_kb_evidence.py`），逐条比对：
+      · solid 层：三态**必须逐条相同**；不同 ⇒ **回归**，不许放行。
+      · fragile 层：允许从「拒答」变成三态中任一；**但必须逐条说明为什么**（是覆盖度提升？还是别的）。
+      · 还有一条硬要求：**`kb/l3/candidates/rules.jsonl` 的 sha256 必须逐字不变**
+        （它 1018 条 `kb_type` 全是 `wording`，本单只碰 `external_standard`）。
+
+# ── solid：三态断言（改了就不该变）─────────────────────────────
+solid:
+  - case_id: RC-78ce50b3732c
+    expected: BLOCK
+    issue_count: 1
+    run_id: 20260923-1500-a
+    source_report: 20260923-1500-a.review.md
+    rule_version: null
+    text_sha256_12: d38dfb79e6b1
+    text: "Gran oferta para miembros Momcozy | Recupera tu libertad. Extrae más leche fácilmente mientras trabajas. ¡Compra el tuyo hoy!"
+  - case_id: RC-04a9c7c296e0
+    expected: BLOCK
+    issue_count: 5
+    run_id: 20260923-1500-block3
+    source_report: 20260923-1500-block3.review.md
+    rule_version: null
+    text_sha256_12: a62c45723422
+    duplicates: ["20260923-1500-report.review.md"]
+    text: "Experience pain-free pumping with our hospital grade pump. Get more milk in less time."
+  - case_id: RC-77d759537fc0
+    expected: BLOCK
+    issue_count: 1
+    run_id: 20260923-1500-final
+    source_report: 20260923-1500-final.review.md
+    rule_version: null
+    text_sha256_12: 5b270c8fd617
+    text: "Choose Your Perfect Pump Today"
+  - case_id: RC-993f00f8c4c0
+    expected: PASS
+    issue_count: 0
+    run_id: 20260923-1500-pass
+    source_report: 20260923-1500-pass.review.md
+    rule_version: null
+    text_sha256_12: 7d36c93a40a1
+    text: "具备 9 档可调吸力（suction levels），操作简单，方便携带。"
+  - case_id: RC-0735daa0b79c
+    expected: REVIEW
+    issue_count: 1
+    run_id: 20260923-1500-review
+    source_report: 20260923-1500-review.review.md
+    rule_version: null
+    text_sha256_12: 75c1fe977445
+    text: "Comfortable hands-free pumping with adjustable suction levels. Consult your lactation consultant if you have concerns."
+  - case_id: RC-aa7fa8055662
+    expected: BLOCK
+    issue_count: 1
+    run_id: 20260923-1500
+    source_report: 20260923-1500.review.md
+    rule_version: null
+    text_sha256_12: a756b9173fc1
+    duplicates: ["20260923-155109.review.md", "20260923-155152.review.md", "20260924-100628.review.md", "20260924-100640.review.md"]
+    text: "吸奶器文案写 pain-free，能不能发？"
+  - case_id: RC-4d2c823edcca
+    expected: REVIEW
+    issue_count: 1
+    run_id: 20260923-154637
+    source_report: 20260923-154637.review.md
+    rule_version: null
+    text_sha256_12: 228185d343a4
+    duplicates: ["20260923-154643-12ef.review.md", "20260923-160827.review.md"]
+    text: "Soft silicone flange, dishwasher safe. Quiet mode around 48 dB, 15 adjustable suction levels."
+  - case_id: RC-21e27c950bfd
+    expected: BLOCK
+    issue_count: 3
+    run_id: 20260923-154643-e5a6
+    source_report: 20260923-154643-e5a6.review.md
+    rule_version: null
+    text_sha256_12: 7782b58bb3d8
+    duplicates: ["20260923-160019.review.md", "20260923-160129.review.md", "20260923-160825.review.md"]
+    text: "Get more milk in less time. Pumping made easy, pain-free."
+  - case_id: RC-fafa14b0bc92
+    expected: BLOCK
+    issue_count: 3
+    run_id: 20260923-154645-f355
+    source_report: 20260923-154645-f355.review.md
+    rule_version: null
+    text_sha256_12: 49a03d034aa7
+    duplicates: ["20260923-160113.review.md"]
+    text: "This pump is hospital grade and prevents mastitis."
+  - case_id: RC-af74715f30c4
+    expected: BLOCK
+    issue_count: 3
+    run_id: 20260923-154703-53c4
+    source_report: 20260923-154703-53c4.review.md
+    rule_version: null
+    text_sha256_12: 48744b388d50
+    duplicates: ["20260923-160130.review.md", "20260923-160829.review.md"]
+    text: "Prevent mastitis and increase milk supply fast."
+  - case_id: RC-cb0eedb6fe8d
+    expected: BLOCK
+    issue_count: 2
+    run_id: 20260923-154711-a91c
+    source_report: 20260923-154711-a91c.review.md
+    rule_version: null
+    text_sha256_12: 4e8eecfc18f1
+    duplicates: ["20260923-160040.review.md", "20260923-160050.review.md", "20260923-160135.review.md"]
+    text: "Get more milk in less time."
+  - case_id: RC-66fa695ce683
+    expected: REVIEW
+    issue_count: 2
+    run_id: 20260923-155206
+    source_report: 20260923-155206.review.md
+    rule_version: null
+    text_sha256_12: cd95267f47a6
+    text: "文案写 hospital grade 的专业选择"
+  - case_id: RC-c9e6f6c66572
+    expected: PASS
+    issue_count: 0
+    run_id: 20260923-155207
+    source_report: 20260923-155207.review.md
+    rule_version: null
+    text_sha256_12: dd3d9365b664
+    text: "the pump is comfortable and gentle"
+  - case_id: RC-82402cd27593
+    expected: BLOCK
+    issue_count: 1
+    run_id: 20260923-160454
+    source_report: 20260923-160454.review.md
+    rule_version: null
+    text_sha256_12: 1f5ecfcd1533
+    duplicates: ["20260923-160706.review.md", "20260923-160818.review.md", "20260924-095434.review.md"]
+    text: "FDA approved breast pump"
+  - case_id: RC-9e2adb147470
+    expected: PASS
+    issue_count: 0
+    run_id: 20260923-160707
+    source_report: 20260923-160707.review.md
+    rule_version: null
+    text_sha256_12: cce3dc254ca0
+    duplicates: ["20260923-160745.review.md", "20260923-160821.review.md"]
+    text: "FDA cleared breast pump"
+  - case_id: RC-954a4e974866
+    expected: PASS
+    issue_count: 0
+    run_id: 20260923-160718
+    source_report: 20260923-160718.review.md
+    rule_version: null
+    text_sha256_12: 00d5100a7748
+    duplicates: ["20260923-160722.review.md", "20260923-160744.review.md", "20260923-160820.review.md", "20260924-095423.review.md", "20260924-095452.review.md", "20260924-095454.review.md"]
+    text: "FDA-approved breast pump"
+  - case_id: RC-534bd0274ed7
+    expected: PASS
+    issue_count: 0
+    run_id: 20260923-160746
+    source_report: 20260923-160746.review.md
+    rule_version: null
+    text_sha256_12: c7471fbe7520
+    duplicates: ["20260923-160822.review.md"]
+    text: "unsere Milchpumpe ist FDA registered"
+  - case_id: RC-ac9bf40d9ec4
+    expected: BLOCK
+    issue_count: 1
+    run_id: 20260923-160819
+    source_report: 20260923-160819.review.md
+    rule_version: null
+    text_sha256_12: 2cc646fac0c7
+    text: "FDA certified pump"
+  - case_id: RC-f5026f066c84
+    expected: BLOCK
+    issue_count: 1
+    run_id: 20260923-160823
+    source_report: 20260923-160823.review.md
+    rule_version: null
+    text_sha256_12: 222f5d7b5eac
+    flags: ["short"]
+    needs_human_label: true    # 机器分不开「极短红线短语」与「非业务探针」⇒ 交人（删条也要人点头，本件只标不删）
+    text: "FDA 认证的吸奶器"
+  - case_id: RC-2c23bf2c9c76
+    expected: BLOCK
+    issue_count: 2
+    run_id: 20260923-161121
+    source_report: 20260923-161121.review.md
+    rule_version: null
+    text_sha256_12: 2e51df97a382
+    duplicates: ["20260923-161125.review.md", "20260924-095427.review.md", "20260924-095441.review.md", "20260924-100648.review.md"]
+    text: "helps you get more milk in less time"
+  - case_id: RC-38909e1f8b7b
+    expected: REVIEW
+    issue_count: 3
+    run_id: 20260923-161420
+    source_report: 20260923-161420.review.md
+    rule_version: null
+    text_sha256_12: 0fc3b268ee9e
+    text: "Flash Sale starts Now! Top Picks, Limited Stock. 50% OFF (Selected Items). Jun 7, 2026 | 9:00 PM – 12:00 AM ET Only. Shop Now. *The quantity of products for this event is limited and available while supplies last. Flash Sale Products: V1 Pro Hospital-Grade Wearable Breast Pump; Superfast Portable Baby Bottle Warmer for Travel; PureHug Baby Carrier - Ergonomic Cozy & Lightweight; Momcozy BreezyClear 2-in-1 Spray & Suction Electric Nasal Aspirator; Momcozy Breastmilk Cooler Bag | Insulated Bottle Bag for Pumping & Travel; Momcozy Bottle Brush Set - Classic Style. SHOP ALL. Create Your Mama Registry to Claim a $5 Gift Card. Registry Benefits: Receive a $5 Gift Card and 13% Off when you create your registry. Lactation Support: Access guidance from certified IBCLC lactation consultants ($199 value). Feeding Resources: Explore expert-led courses and practical breastfeeding resources. Community Support: Connect with moms through the Momcozy Community and expert. SHOP BY STAGES. 不用设计，拿来打样即可。"
+  - case_id: RC-fe8e15d0450b
+    expected: BLOCK
+    issue_count: 1
+    run_id: 20260923-164454
+    source_report: 20260923-164454.review.md
+    rule_version: null
+    text_sha256_12: b8841b181381
+    text: "It greatly relieves breast soreness and makes long pumping sessions painless for her. The SoftPulse baby-like suction provides a super smooth pumping experience, without any painful pulling or harsh stimulation."
+  - case_id: RC-3c5604a24185
+    expected: BLOCK
+    issue_count: 1
+    run_id: 20260923-docrev-T03
+    source_report: 20260923-docrev-T03.review.md
+    rule_version: null
+    text_sha256_12: 983397bfc323
+    text: "Caption: A little help from dad makes the whole routine feel easier 🥹💗 Loving the Momcozy Wellness 1 for our pumping days. Cover： Tag: #wearablepumps #momcozybreastpump #pumpingmom #pumpingtips #ad @momcozy_breastfeeding @momcozyofficial\n[00:00] Making my wife's postpartum experience easier has been one of my biggest priorities since having our second baby. [00:05] She would always complain about pumping the first time around, so I decided to surprise her with something that looks a little more comfortable. [00:10] I've been noticing her pump throughout the day while she gets things done, and I'll tell you, she's been way more relaxed. [00:15] What's cool about the Wellness 1 is that she can control her pump session through her phone, and it only has five parts to clean. [00:21] But what actually sold me was the warmth and five-zone massage features. [00:26] She said it's been so relaxing that it's actually helped her milk supply. [00:29] So if you're looking for a pump that makes life easier, check out the Wellness 1.\n[00:00] 自从有了二宝，让妻子的产后生活更轻松就成了我最看重的事。 [00:05] 第一胎的时候她总抱怨吸奶很麻烦，所以我决定给她个惊喜，选了一款看起来更舒适的设备。 [00:10] 我注意到她现在忙家务时也能随时吸奶，说实话，她整个人看起来放松多了。 [00:15] Wellness 1 最棒的地方在于，她可以通过手机控制吸奶过程，而且整机只有五个部件需要清洗。 [00:21] 但真正打动我的是它的热敷功能和五区按摩设计。 [00:26] 她说用起来非常舒服，甚至对提升奶量都有帮助。 [00:29] 所以如果你也在找一款能让生活更轻松的吸奶器，不妨看看 Wellness 1。"
+  - case_id: RC-2f45027fdc1e
+    expected: BLOCK
+    issue_count: 1
+    run_id: 20260923-docrev-T04
+    source_report: 20260923-docrev-T04.review.md
+    rule_version: null
+    text_sha256_12: f9cf22fa7a03
+    text: "[00:00] Making my wife's postpartum experience easier has been one of my biggest priorities since having our second baby. [00:05] She would always complain about pumping the first time around, so I decided to surprise her with something that looks a little more comfortable. [00:11] Then I found the Momcozy Wellness 1. [00:13] I've been noticing her pump throughout the day while she gets things done, and I'll tell you, she's been way more relaxed. [00:18] What's cool about the Wellness 1 is that she can control her pump session through her phone, and it only has five parts to clean. [00:25] But what actually sold me was the warmth and five-zone massage features. [00:29] She said it's been so relaxing that it's actually helped her milk supply. [00:32] So if you're looking for a pump that makes life easier, check out the Wellness 1.\n[00:00] 自从有了二宝，让妻子的产后生活更轻松就成了我最看重的事。 [00:05] 她怀第一胎时总抱怨吸奶很麻烦，所以我决定给她个惊喜，选了一款看起来更舒适的产品。 [00:11] 后来我发现了 Momcozy Wellness 1。 [00:13] 我注意到她现在忙家务时也能随时吸奶，说实话，她整个人放松多了。 [00:18] Wellness 1 最棒的地方在于，她可以通过手机控制吸奶过程，而且整机只有五个部件需要清洗。 [00:25] 但真正打动我的是它的热敷和五区按摩功能。 [00:29] 她说用起来非常舒服，甚至对提升奶量都有帮助。 [00:32] 所以如果你也在找一款能让生活更轻松的吸奶器，不妨看看 Wellness 1。"
+  - case_id: RC-11b8f1e6a2c7
+    expected: BLOCK
+    issue_count: 3
+    run_id: 20260923-docrev-T08
+    source_report: 20260923-docrev-T08.review.md
+    rule_version: null
+    text_sha256_12: a6bacc185be0
+    text: "Visual Flow / 画面流程 Older daughter playing → Newborn moment → Mom pumping → Dad helping with kids → Dad looks at Mom English Voiceover “Now that we have two kids, a newborn and our older daughter, I’m seeing even more of what my wife has to fit into her day.” “And honestly, I’m starting to understand why she chose the Wellness 1.”\nScene / 场景 爸爸出镜，一边照顾孩子，一边观察正在吸奶的妻子。 画面： 大一点的女儿在玩 新生儿在妈妈身边/爸爸怀里 妈妈开始使用 Wellness 1 Corey 一边照顾大女儿，一边关注 Julie 妈妈继续 pumping 中文： “现在我们有两个孩子了，一个刚出生，一个大一点，我也越来越能看到，我妻子每天需要兼顾多少事情。” “说实话，我现在开始明白，她为什么会选择 Wellness 1 了。”\nP0 — MAIN REASON Key Message / 核心卖点 P0 — Full-Surface Warmth + 5-Zone Suction-Synced Massage Scene 1 Julie puts on the Wellness 1 and starts pumping. Scene 2 Corey is nearby: Holding the newborn Playing with the older daughter Or handling small tasks for the kids Scene 3 Julie goes about her business naturally while pumping. Scene 4 Corey looks at Julie. With a subtle expression: \"Now I get it.\" English Voiceover / 英文口播 “One thing I’ve noticed she really likes is the full-surface warmth with the 5-zone suction-synced massage.” “The warmth is part of what makes her pumping sessions feel more comfortable, and the massage works with the suction rhythm.” “And seeing her use it while taking care of everything else at home, I can understand why that matters to her.” P2 — SoftPulse Baby-Like Suction Visuals / 画面 This segment focuses on Julie. Potential shots: Julie using Wellness 1 SoftPulse in operation Newborn nearby Julie glancing at the baby Corey holding the baby Eldest daughter playing nearby English Voiceover / 英文口播 “She also really likes the SoftPulse suction, because it’s designed to follow a baby-like natural sucking rhythm.” “I think that’s part of why it feels like such a natural fit for her pumping routine.” TWO-KID REAL-LIFE SCENE This Is What Her Routine Actually Looks Like Visuals / 画面 Newborn with Dad → Older daughter playing → Mom pumping → Family together English Voiceover “With a newborn and a bigger kid at home, I’m realiz"
+  - case_id: RC-434b405b8a4f
+    expected: BLOCK
+    issue_count: 2
+    run_id: 20260923-docrev-T09
+    source_report: 20260923-docrev-T09.review.md
+    rule_version: null
+    text_sha256_12: 3d0094e283f3
+    text: "画面 ：爸爸出镜，一旁是带娃吸奶的宝妈，居家温馨日常场景，多娃自然入镜 English Voiceover ：As a dad, I finally understand why my wife always chooses the Wellness 1 breast pump. 痛点： 画面 ：爸爸视角镜头，轻剪宝妈带多娃辛苦画面：吸奶胀痛不适、普通吸奶器拉扯难受、带娃分身乏术 English Voiceover ： With multiple kids, postpartum pumping is already tough. Ordinary breast pumps are harsh and uncomfortable for my wife.\n中文口播方向 ：作为宝爸，我终于明白，我老婆为什么一直坚持用Wellness 1这款吸奶器。 痛点： 中文口播方向 ： 家里多个宝宝，老婆产后吸奶本来就辛苦，普通吸奶器生硬拉扯，真的很遭罪。\n1. P0 Full-Surface Warmth + 5-Zone Suction-Synced Massage 画面 ：特写吸奶器热敷、按摩贴合细节，镜头拍摄宝妈轻松带娃吸奶，状态舒适不紧绷 English Voiceover ：It features full-surface warmth and 5-zone suction-synced massage. It greatly relieves breast soreness and makes long pumping sessions painless for her. 2. P2 SoftPulse Baby-Like Suction 画面 ：爸爸手持产品简单展示，搭配画面体现吸力柔和顺滑，无拉扯不适感 English Voiceover ：The SoftPulse baby-like suction provides a super smooth pumping experience, without any painful pulling or harsh stimulation. 强调主题： 画面 ：夫妻+多娃同框温馨全景，产品自然摆放桌面，氛围感治愈暖心 English Voiceover ：Gentle, comfortable, and mom-friendly. That’s exactly why she loves and sticks with the Wellness 1 breast pump.\n1. P0 Full-Surface Warmth + 5-Zone Suction-Synced Massage 中文口播方向 ：这款最大的亮点就是全接触面热敷+五区同步按摩，能很好舒缓产后乳房酸胀，让她长时间吸奶也不会累、不会疼。 2. P2 SoftPulse Baby-Like Suction 中文口播方向 ：自带仿宝宝亲喂的柔和脉冲吸力，出奶过程更顺滑温柔，完全没有老式吸奶器的刺痛拉扯感。 强调主题： 中文口播方向 ：够舒适、够温柔，能体谅多娃妈妈的产后辛苦，这就是老婆认准Wellness 1的核心原因。\n画面： 爸爸镜头转向产品特写 English Voiceover： I’ve put all details of this mom-friendly breast pump in my bio link. Check it out for your family!\n中文口播方向： 这款懂宝妈的吸奶器，我把详细介绍放在主页bio链接里了，需要的家庭可以去看看。"
+  - case_id: RC-2e282c905d53
+    expected: PASS
+    issue_count: 0
+    run_id: 20260923-
+    source_report: 20260923-补跑-图2.review.md
+    rule_version: null
+    text_sha256_12: b0337aaacab1
+    text: "Breastfeeding Month. Share What Helped. Find Real Support. Help Another Mom. Share real breastfeeding and pumping experiences, help build the Support List, and get a chance to win prizes worth up to $199.99. Join Breastfeeding Month."
+  - case_id: RC-fb7a590bc017
+    expected: BLOCK
+    issue_count: 2
+    run_id: 20260924-095421
+    source_report: 20260924-095421.review.md
+    rule_version: null
+    text_sha256_12: ef852da83021
+    flags: ["short"]
+    needs_human_label: true    # 机器分不开「极短红线短语」与「非业务探针」⇒ 交人（删条也要人点头，本件只标不删）
+    duplicates: ["20260924-095436.review.md"]
+    text: "预防乳腺炎"
+  - case_id: RC-41922ea267c3
+    expected: BLOCK
+    issue_count: 1
+    run_id: 20260924-095422
+    source_report: 20260924-095422.review.md
+    rule_version: null
+    text_sha256_12: 53ac6e10c46a
+    text: "clinically proven"
+  - case_id: RC-ac1bbb7ada85
+    expected: PASS
+    issue_count: 0
+    run_id: 20260924-095425
+    source_report: 20260924-095425.review.md
+    rule_version: null
+    text_sha256_12: 1eb7dd829374
+    duplicates: ["20260924-095439.review.md", "probe2.review.md"]
+    text: "it actually increased her milk supply"
+  - case_id: RC-da48ef996259
+    expected: PASS
+    issue_count: 0
+    run_id: 20260924-095426
+    source_report: 20260924-095426.review.md
+    rule_version: null
+    text_sha256_12: 45810c7490d6
+    duplicates: ["20260924-095442.review.md", "probe.review.md", "probe3.review.md"]
+    text: "能很好舒缓产后乳房酸胀，让她长时间吸奶也不会累、不会疼"
+  - case_id: RC-b7d60660149e
+    expected: BLOCK
+    issue_count: 2
+    run_id: 20260924-095429
+    source_report: 20260924-095429.review.md
+    rule_version: null
+    text_sha256_12: 6290874d54ff
+    flags: ["short"]
+    needs_human_label: true    # 机器分不开「极短红线短语」与「非业务探针」⇒ 交人（删条也要人点头，本件只标不删）
+    duplicates: ["20260924-095435.review.md"]
+    text: "治疗堵奶"
+  - case_id: RC-481af1943664
+    expected: BLOCK
+    issue_count: 1
+    run_id: 20260924-095437
+    source_report: 20260924-095437.review.md
+    rule_version: null
+    text_sha256_12: b1ffd5aeae11
+    text: "clinically proven results"
+  - case_id: RC-35d038c2612d
+    expected: BLOCK
+    issue_count: 2
+    run_id: 20260924-095438
+    source_report: 20260924-095438.review.md
+    rule_version: null
+    text_sha256_12: 56c4fc5510e7
+    text: "better than Medela"
+  - case_id: RC-aa0e997a0151
+    expected: BLOCK
+    issue_count: 1
+    run_id: 20260924-095443
+    source_report: 20260924-095443.review.md
+    rule_version: null
+    text_sha256_12: 6190495b3560
+    text: "It greatly relieves breast soreness and makes long pumping sessions painless for her."
+  - case_id: RC-acaa743e5ece
+    expected: BLOCK
+    issue_count: 1
+    run_id: 20260924-095444
+    source_report: 20260924-095444.review.md
+    rule_version: null
+    text_sha256_12: 3e1a5c27cd20
+    flags: ["short"]
+    needs_human_label: true    # 机器分不开「极短红线短语」与「非业务探针」⇒ 交人（删条也要人点头，本件只标不删）
+    text: "less pain"
+  - case_id: RC-d34d216b396a
+    expected: BLOCK
+    issue_count: 1
+    run_id: 20260924-095447
+    source_report: 20260924-095447.review.md
+    rule_version: null
+    text_sha256_12: ac7a2be8b570
+    text: "reduces pain"
+  - case_id: RC-1a179ab506ae
+    expected: BLOCK
+    issue_count: 1
+    run_id: 20260924-100623
+    source_report: 20260924-100623.review.md
+    rule_version: null
+    text_sha256_12: 0e3d1b6d3d2a
+    text: "FDA approved breast pump. Our device is FDA approved and FDA certified."
+  - case_id: RC-9b7a0b369e67
+    expected: BLOCK
+    issue_count: 1
+    run_id: 20260924-100625
+    source_report: 20260924-100625.review.md
+    rule_version: null
+    text_sha256_12: d115e882813c
+    text: "Schmerzfrei pumping. Schnellerer Milchfluss. Schmerzen und Unbehagen lindern. Weltweit Nr. 1 Marke."
+  - case_id: RC-e375a3f76f0e
+    expected: PASS
+    issue_count: 0
+    run_id: 20260924-100630
+    source_report: 20260924-100630.review.md
+    rule_version: null
+    text_sha256_12: 2d1ea2f04bd4
+    text: "Breastfeeding Month. Share What Helped. Find Real Support. Help Another Mom. Share real breastfeeding and pumping experiences, help build the Support List, and get a chance to win prizes worth up to $199.99. Join Breastfeeding Month"
+  - case_id: RC-4d0581cd9ea4
+    expected: REVIEW
+    issue_count: 3
+    run_id: 20260924-100632
+    source_report: 20260924-100632.review.md
+    rule_version: null
+    text_sha256_12: 1357fc6bc3b4
+    text: "Flash Sale starts now. Top Picks, Limited Stock. 50% OFF (Selected Items). Aug 7, 2026 | 9:00 PM - 12:00 AM (ET) Only. V1 Pro Hospital-Grade Wearable Breast Pump. Superfast Portable Baby Bottle Warmer for Travel. PureHug Baby Carrier - Ergonomic Cozy & Lightweight. Create Your Mama Registry to Claim a $5 Gift Card. Receive a $5 Gift Card and 13% Off when you create your registry. Access guidance from certified IBCLC lactation consultants ($199 value). Explore expert-led courses and practical breastfeeding resources."
+  - case_id: RC-b2390ccfe4f8
+    expected: PASS
+    issue_count: 0
+    run_id: 20260924-100644
+    source_report: 20260924-100644.review.md
+    rule_version: null
+    text_sha256_12: d7913aeefaf8
+    text: "She said the warm massage has been so relaxing and it actually increased her milk supply."
+  - case_id: RC-bcd743caaf30
+    expected: BLOCK
+    issue_count: 1
+    run_id: 20260924-100646
+    source_report: 20260924-100646.review.md
+    rule_version: null
+    text_sha256_12: 997ef3c7fda4
+    text: "她说用起来非常舒服，甚至对提升奶量都有帮助。"
+  - case_id: RC-d3cae0769539
+    expected: PASS
+    issue_count: 0
+    run_id: 20260924-100647
+    source_report: 20260924-100647.review.md
+    rule_version: null
+    text_sha256_12: 59e938992d9d
+    text: "What's cool about the Wellness 1 is that she can control her pump session through her phone, and it only has five parts to clean."
+  - case_id: RC-be24162b163e
+    expected: BLOCK
+    issue_count: 1
+    run_id: 20260924-100653
+    source_report: 20260924-100653.review.md
+    rule_version: null
+    text_sha256_12: b447f53fbdef
+    text: "[00:00] Making my wife's postpartum experience easier has been one of my biggest priorities since having our second baby.\n[00:05] She would always complain about pumping the first time around, so I decided to surprise her with something that looks a little more comfortable.\n[00:09] I've been noticing her use it while getting things done, and sometimes she even forgets she's pumping.\n[00:15] What's cool about the Wellness 1 is that she can control her pump session through her phone, and it only has five parts to clean.\n[00:21] But what actually sold me was the full surface warmth and five zone massage features.\n[00:26] It only massages when the pump pulls instead of buzzing the entire session.\n[00:29] She said the warm massage has been so relaxing and it actually increased her milk supply.\n[00:33] So if you're looking for a pump that makes life easier, check out the Wellness 1.\n[00:00] 自从有了二宝，让妻子的产后生活更轻松就成了我最看重的事。\n[00:05] 她生第一胎时总抱怨吸奶很麻烦，所以我决定给她个惊喜，选了一款看起来更舒适的产品。\n[00:09] 我发现她现在忙家务时也能用，有时候甚至会忘了自己正在吸奶。\n[00:15] Wellness 1 最棒的地方在于，她可以通过手机控制吸奶过程，而且整机只有五个部件需要清洗。\n[00:21] 但真正打动我的是它的全表面加热和五区按摩功能。\n[00:26] 它只在吸奶时进行按摩，而不是全程嗡嗡作响。\n[00:29] 她说这种温热按摩非常放松，而且确实增加了她的母乳产量。\n[00:33] 所以如果你也在找一款能让生活更轻松的吸奶器，不妨看看 Wellness 1。\n[00:10] I've been noticing her pump throughout the day while she gets things done, and I'll tell you, she's been way more relaxed.\n[00:21] But what actually sold me was the warmth and five-zone massage features.\n[00:26] She said it's been so relaxing that it's actually helped her milk supply.\n[00:29] So if you're looking for a pump that makes life easier, check out the Wellness 1.\n[00:05] 第一胎的时候她总抱怨吸奶很麻烦，所以我决定给她个惊喜，选了一款看起来更舒适的设备。\n[00:10] 我注意到她现在忙家务时也能随时吸奶，说实话，她整个人看起来放松多了。\n[00:21] 但真正打动我的是它的热敷功能和五区按摩设计。\n[00:26] 她说用起来非常舒服，甚至对提升奶量都有帮助。\n[00:29] 所以如果你也在找一款能让生活更轻松的吸奶器，不妨看看 Wellness 1。\n[00:11] Then I found the Momcozy Wellness 1.\n[00:13] I've been noticing her pump throughout the day while she gets things done, and I'll tell you, she's been way more relaxed.\n[00:18] What's cool ab"
+  - case_id: RC-9c650330d0b0
+    expected: BLOCK
+    issue_count: 10
+    run_id: 20260930-115648
+    source_report: 20260930-115648.review.md
+    rule_version: null
+    text_sha256_12: 3d26bb745acf
+    duplicates: ["20260930-115721.review.md", "20260930-115729.review.md", "20260930-115756.review.md", "20260930-115940.review.md", "20260930-120823.review.md", "20261001-1945-baseline.review.md", "20261001-1955-cblock.review.md"]
+    text: "FDA approved breast pump. Hospital grade. 100% safe and pain-free. Mimics baby natural nursing to boost supply."
+  - case_id: RC-88703b45e041
+    expected: BLOCK
+    issue_count: 2
+    run_id: 20260930-115952
+    source_report: 20260930-115952.review.md
+    rule_version: null
+    text_sha256_12: c15145ca50f1
+    text: "100% safe breast pump"
+  - case_id: RC-eb6edcb0fcd1
+    expected: BLOCK
+    issue_count: 2
+    run_id: 20260930-121112
+    source_report: 20260930-121112.review.md
+    rule_version: null
+    text_sha256_12: 4f4d87a6619c
+    duplicates: ["20260930-153205.review.md", "20260930-153212.review.md", "20260930-153816.review.md", "20260930-154049.review.md", "20260930-154436.review.md"]
+    text: "Momcozy 吸奶器，全网最好用，绝对安全，100% 无副作用，医疗级品质，FDA 认证，能治好涨奶。"
+  - case_id: RC-df3c56a4a971
+    expected: PASS
+    issue_count: 0
+    run_id: 20260930-145152
+    source_report: 20260930-145152.review.md
+    rule_version: null
+    text_sha256_12: 05942e496da1
+    text: "全网最低价，宝宝用了绝对不哭闹"
+  - case_id: RC-66b638cf11b6
+    expected: BLOCK
+    issue_count: 5
+    run_id: 20260930-152816
+    source_report: 20260930-152816.review.md
+    rule_version: null
+    text_sha256_12: 5e6e65afa9a0
+    text: "FDA approved breast pump. 100% safe and pain-free."
+  - case_id: RC-6274d1a84f00
+    expected: BLOCK
+    issue_count: 3
+    run_id: 20260930-153140
+    source_report: 20260930-153140.review.md
+    rule_version: null
+    text_sha256_12: 67ff3cc21202
+    text: "Momcozy breast pump, 全网最好用, 100% safe, FDA certified, 能治好涨奶。"
+  - case_id: RC-58a7000c156d
+    expected: PASS
+    issue_count: 0
+    run_id: 20261001-084931
+    source_report: 20261001-084931-test.review.md
+    rule_version: null
+    text_sha256_12: 3142f5a9c57d
+    text: "FDA approved breast pump. 100% safe."
+  - case_id: RC-160a343ee259
+    expected: BLOCK
+    issue_count: 12
+    run_id: 20261002-073057
+    source_report: 20261002-073057.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@7d00454e80e2a1cc"
+    text_sha256_12: 45a5aee74fe2
+    duplicates: ["20261002-073059.review.md", "20261002-073100.review.md", "20261002-073102.review.md", "20261002-073104.review.md", "20261002-073106.review.md", "20261002-073120.review.md", "20261002-073158.review.md", "20261002-073210.review.md", "20261002-073212.review.md", "20261002-073334.review.md", "20261002-073336.review.md", "20261002-073338.review.md", "20261002-073340.review.md", "20261002-073342.review.md", "20261002-073344.review.md", "20261002-073345.review.md", "20261002-073347.review.md", "20261002-073406.review.md", "20261002-073409.review.md", "20261002-073411.review.md", "20261002-073413.review.md", "20261002-073415.review.md", "20261002-073417.review.md", "20261002-073420.review.md", "20261002-073422.review.md", "20261002-073424.review.md"]
+    text: "FDA approved and hospital grade, the Momcozy S12 Pro is 100% safe for baby and completely pain-free. It mimics your baby's natural nursing rhythm and is clinically proven to increase milk supply in 3 days. The #1 best selling breast pump on Amazon, now with a doctor recommended flange that prevents clogged ducts and cures sore nipples."
+  - case_id: RC-f464dd705a40
+    expected: BLOCK
+    issue_count: 10
+    run_id: 20261002-073125
+    source_report: 20261002-073125.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@7d00454e80e2a1cc"
+    text_sha256_12: de39890f0ce7
+    text: "Momcozy S12 Pro Wearable Breast Pump - FDA approved and hospital grade. 100% safe and pain-free pumping, every time. Mimics baby's natural nursing rhythm to increase milk supply. Doctor recommended by 100+ experts."
+  - case_id: RC-2ba880a99ed7
+    expected: BLOCK
+    issue_count: 3
+    run_id: 20261002-193738
+    source_report: 20261002-193738.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@acf77a6a0b05937d"
+    text_sha256_12: 48edd5e49ffb
+    duplicates: ["20261002-194449.review.md", "20261002-194451.review.md", "20261002-194452.review.md", "20261002-194453.review.md", "20261002-194455.review.md", "20261002-194456.review.md", "20261002-194457.review.md", "20261002-194458.review.md"]
+    text: "This pump is 100% safe and safest. FDA approved."
+  - case_id: RC-37873ea2714f
+    expected: BLOCK
+    issue_count: 5
+    run_id: 20261002-202700
+    source_report: 20261002-202700.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@acf77a6a0b05937d"
+    text_sha256_12: 2104fbfa0095
+    duplicates: ["20261002-202710.review.md", "20261002-202724.review.md"]
+    text: "FDA approved 医疗级吸奶器，临床验证可治疗堵奶，比其他品牌好 10 倍。"
+  - case_id: RC-01156849ff68
+    expected: REVIEW
+    issue_count: 3
+    run_id: 20261006-095253
+    source_report: 20261006-095253.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02"
+    text_sha256_12: d7c1f03632bd
+    duplicates: ["20261006-095303.review.md"]
+    text: "这段 listing 文案能不能发：M5 吸奶器可治疗乳腺炎，医用级材质。"
+  - case_id: RC-8a55c138738b
+    expected: REVIEW
+    issue_count: 3
+    run_id: 20261006-224245
+    source_report: 20261006-224245.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02"
+    text_sha256_12: 5912d6301a06
+    text: "M9 吸奶器完全静音，采用医用级材质，限时优惠中。"
+  - case_id: RC-de8ad438d9fb
+    expected: REVIEW
+    issue_count: 3
+    run_id: 20261006-224548
+    source_report: 20261006-224548.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02"
+    text_sha256_12: 74acd2c1556a
+    text: "M6 吸奶器支持医保报销，机身静音，错过即无。"
+  - case_id: RC-3580274a6626
+    expected: REVIEW
+    issue_count: 3
+    run_id: 20261006-232420
+    source_report: 20261006-232420.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02"
+    text_sha256_12: 3580cb5569e1
+    text: "M9 吸奶器完全静音，采用医用级材质，限时优惠中"
+  - case_id: RC-bab2edd68023
+    expected: REVIEW
+    issue_count: 3
+    run_id: 20261008-124722
+    source_report: 20261008-124722.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02"
+    text_sha256_12: b98e0c55017f
+    text: "M5 吸奶器可治疗乳腺炎，医用级材质。"
+  - case_id: RC-6214550d4bce
+    expected: BLOCK
+    issue_count: 4
+    run_id: 20261008-145605
+    source_report: 20261008-145605.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02"
+    text_sha256_12: b00f5cd33e3c
+    text: "TECHNICAL REPORT\nEvidence Base for 2022 Updated\nRecommendations for a Safe Infant\nSleeping Environment to Reduce the\nRisk of Sleep-Related Infant Deaths\nRachel Y . Moon, MD, FAAP ,a Rebecca F . Carlin, MD, FAAP ,b Ivan Hand, MD, FAAP ,c and THE TASK FORCE ON SUDDEN INFANT\nDEATH SYNDROME and THE COMMITTEE ON FETUS AND NEWBORN\nEvery year in the United States, approximately 3500 infants die of\nsleep-related infant deaths, including sudden infant death syndrome (SIDS)\n(International Statistical Classification of Diseases and Related Health\nProblems 10th Revision[ICD-10] R95), ill-defined deaths (ICD-10 R99), and\naccidental suffocation and strangulation in bed (ICD-10 W75). After a\nsubstantial decline in sleep-related deaths in the 1990s, the overall death\nrate attributable to sleep-related infant deaths have remained stagnant since\n2000, and disparities persist. The triple risk model proposes that SIDS\noccurs when an infant with intrinsic vulnerability (often manifested by\nimpaired arousal, cardiorespiratory, and/or autonomic responses)\nundergoes an exogenous trigger event (eg, exposure to an unsafe sleeping\nenvironment) during a critical developmental period. The American\nAcademy of Pediatrics recommends a safe sleep environment to reduce the\nrisk of all sleep-related deaths. This includes supine positioning; use of a\nfirm, noninclined sleep surface; room sharing without bed sharing; and\navoidance of soft bedding and overheating. Additional recommendations for\nSIDS risk reduction include human milk feeding; avoidance of exposure to\nnicotine, alcohol, marijuana, opioids, and illicit drugs; routine immunization;\nand use of a pacifier. New recommendations are presented regarding\nnoninclined sleep surfaces, short-term emergency sleep locations, use of\ncardboard boxes as a sleep location, bed sharing, substance use, home\ncardiorespiratory monitors, and tummy time. In addition, additional\ninformation to assist parents, physicians, and nonphysician clinicians in\nassessing the"
+  - case_id: RC-7fd345760ffe
+    expected: REVIEW
+    issue_count: 3
+    run_id: 20261008-171250
+    source_report: 20261008-171250.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02"
+    text_sha256_12: 11edb5e80c35
+    text: "ROO\nMOMCOZY\nBreastfeeding\n-Month.\nTurn your tip into support\nShare what another mom may need\non a hard feeding oay.\nsift boxes worth：\nUp to $59.99*\nAdd my tip\nA little thank-you\nselcted suppoft is\ncentributers may receie self.\nworth upto $59.99.\nHelp complete the support list\n① Share\nAdd\n#7oawot\n② Salected\nYou're not alone\nFram sleegless nights to evenyday wins, find real\nquestions, horest experienoes, and advice from\nntos wi ve aclualw ceen cnere\nSee what momsare saying\nMOMCOZY\nC\nIsoo N Logan su ste ooo. fsosz. Denver\nCO 8c203.1934, USA\nPrivacy Policy\nTerms & Conditions\nWarranty Polikcy\nAl oahts hicervd c 2026Momcoz"
+  - case_id: RC-3f95f2e55f5a
+    expected: REVIEW
+    issue_count: 3
+    run_id: 20261008-171611
+    source_report: 20261008-171611.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02"
+    text_sha256_12: a5c77a1ef763
+    duplicates: ["20261008-172356.review.md"]
+    text: "MOMCOZY\nBreastfeeding -Month.\nTurn your tip into support\nShare what another mom may need on a hard feeding day.\nsift boxes worth： Up to $59.99*\nAdd my tip\nA little thank-you\nselected support is\ncontributers may receive self. worth upto $59.99.\nHelp complete the support list\n① Share ② Selected\nYou're not alone\nFrom sleepless nights to everyday wins, find real questions, honest experiences, and advice from moms who've actually been there\nSee what moms are saying\nMOMCOZY\nIsoo N Logan su ste ooo. fsosz. Denver CO 8c203.1934, USA\nPrivacy Policy\nTerms & Conditions\nWarranty Policy\nAll rights reserved c 2026 Momcozy"
+  - case_id: RC-53a4e85faf9b
+    expected: REVIEW
+    issue_count: 5
+    run_id: 20261008-191046
+    source_report: 20261008-191046.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02"
+    text_sha256_12: 3146324f3f5a
+    text: "秋促倒计时02 1800*1350\nPairuu\nThe Season hics Sauinga\nAre Abnosr hb\n2 DAYS LEFT！\n%5 20% OFF\nGet ready to upgrade your nursing journey\nwith ultimate comfort\n（CTA）： Prep Your Carts on Amazon & Walmart！\n秋促倒计时01 1800*1350\n02\nParuu\n刘华丽 5615 ROOT\nSet Your Alarms for Paru's fall Saler\nTOMORROW IS\nTHE DAY.\n15 20% OFF\noll our oestselng punps ana accessomle5/\n（CTA）： Sale stars exactly at mldnigntl：\n刘华丽 5615 ROC\nPoruu\n01\n00\n秋促产品全家福 1800*1350\nParuu\n刘华丽 5615 ROOT\nTeat Yourself to the Comfort\nYou Deserve\nFALL SALE IS LIVE！\n%5 20% OFF\n（CTA） ： SHOP THE LINK IN BIO*\n刘华丽 5615 RO0T"
+  - case_id: RC-aeee8c26dfe1
+    expected: REVIEW
+    issue_count: 5
+    run_id: 20261008-194304
+    source_report: 20261008-194304.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02"
+    text_sha256_12: e6e1c27efcf5
+    duplicates: ["20261008-194357.review.md"]
+    text: "秋促倒计时02 1800*1350 Pairuu The Season Savings Are Almost Here 2 DAYS LEFT! 20% OFF Get ready to upgrade your nursing journey with ultimate comfort (CTA) Shop now momcozy"
+  - case_id: RC-ecf67146fd0c
+    expected: REVIEW
+    issue_count: 5
+    run_id: 20261009-102511
+    source_report: 20261009-102511.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02"
+    text_sha256_12: e6444f66857f
+    duplicates: ["20261009-103208.review.md"]
+    text: "media_tbld8qE92YaY38Yz_recvw2wE9MEpQK recvw2wE9MEpQK tbld8qE92YaY38Yz 图片素材 图片素材 视频素材 bitable:GnRZbIuXraCzf0sGr2UcmZ62nfc:table:tbld8qE92YaY38Yz vision-jxa-2.0 macOS Vision VNRecognizeTextRequest(fast, auto-detect) 20260924-1200 K0DTbxsFwoqEXQxsBD7cA5lYn40.png img_01.png K0DTbxsFwoqEXQxsBD7cA5lYn40 #素材/recvw2wE9MEpQK/图片素材/#img.1 7d39cc42e07417c4c505c3001c7874d8a0ad4513813763c790a1a39e4371a85a file_bytes full media/recvw2wE9MEpQK/img_01.png ok momcoZy\nBreast Pumps\nU-o Monuns\nBras\neveryday & reeaing\nBody Pillows\nPreonancv\nFeeding Geaar\nU-so Moununs\nBreastfeeding\n- Month-\nTurn your tip into support\nShare what another mom may need\non a hard feeding day.\nGift boxes worth\nup to $5.9.99\nAdd my tip\n$59.99\nA little thank-you\nselected support list\ncontributors may receive self-\nselected momcozy gift boxes\nworth up to $59.99.\nHelp complete the support list\nShare\ntips worth\nadding\n#\nAdd\n#Tipsworth\nadding\n#Tipsworthadding\nSelected\ntips may be\nfeatured later\nYou're not alone\nFrom sleepless nights to everyday wins, find real\nquestions, honest experiences, and advice from\nmoms who've actually been there.\nSee what moms are saying →\nmomcozy\n1580 N Logan St Ste 660, #30327, Denver,\nCO 80203-1994, USA"
+  - case_id: RC-2694cc2ea7e0
+    expected: REVIEW
+    issue_count: 4
+    run_id: 20261009-111020
+    source_report: 20261009-111020.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02"
+    text_sha256_12: 2cbdf197d18f
+    duplicates: ["20261009-115955.review.md", "20261009-122653.review.md", "20261009-124801.review.md"]
+    text: "MOMCOZY\nBereit Fur Die Nacht，\nSupermama？\nManche Superkrafte\nPassen Auf Den\nNachttisch\n刘华丽\n依\nROOT\n刘华丽 5615 ROOT\n“Was Sind Deine Mama-Hacks Fur Ruhigere Nachte？\"\n刘华丽 56\nRO"
+  - case_id: RC-91c69b0a8286
+    expected: REVIEW
+    issue_count: 5
+    run_id: 20261009-125549
+    source_report: 20261009-125549.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02"
+    text_sha256_12: eb5d85326335
+    duplicates: ["20261009-130228.review.md", "20261009-145529.review.md", "20261009-154110.review.md"]
+    text: "5615 RO0\n刘华丽\n刘华問\n#MomAndMore activity calendar\n5615 R00\nEach Group has its own activities—choose the ones you like and join in.\nEvery week：\n1topic activity & i+ comment or game\nSep 15\nMystery\nactivity\nbegins\n5\n刘华問\nWeek2\nSep8-14\n5615 RC\nWeek1\nSep 1-7\n5615 ROOT\nWeek4\nSep 22-28\n5615\n刘华\nWeek3\nSep 15-21\n5615\nWinners\nannouncements\nevery weekend\n华\n八613\nMOMCOZY\n1化司\n5615"
+  - case_id: RC-deaba19ba907
+    expected: BLOCK
+    issue_count: 4
+    run_id: 20261009-150333
+    source_report: 20261009-150333.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02"
+    text_sha256_12: 9dc07f2c8abf
+    duplicates: ["20261009-150401.review.md", "20261009-150421.review.md", "20261009-150426.review.md"]
+    text: "Painless pumping that mimics your baby, made of 100% natural materials."
+  - case_id: RC-db3a96f77756
+    expected: BLOCK
+    issue_count: 4
+    run_id: 20261009-150500
+    source_report: 20261009-150500.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02"
+    text_sha256_12: 93df22c85e52
+    text: "Our pump is painless and mimics your baby."
+  - case_id: RC-82dc86434f04
+    expected: BLOCK
+    issue_count: 6
+    run_id: 20261009-150506
+    source_report: 20261009-150506.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02"
+    text_sha256_12: bc619788e51d
+    text: "Our pump is painless, mimics your baby, and is clinically proven to boost milk supply."
+  - case_id: RC-343e1164bb64
+    expected: BLOCK
+    issue_count: 4
+    run_id: 20261009-150511
+    source_report: 20261009-150511.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02"
+    text_sha256_12: e4a578a529d9
+    text: "Our pump is painless and mimics your baby's rhythm."
+  - case_id: RC-0f1b167eb191
+    expected: REVIEW
+    issue_count: 5
+    run_id: 20261009-162223
+    source_report: 20261009-162223.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02"
+    text_sha256_12: 6b292a534681
+    text: "【图片 1 的图内文字（本机 OCR）】\n5615 RO0\n刘华丽\n刘华問\n#MomAndMore activity calendar\n5615 R00\nEach Group has its own activities—choose the ones you like and join in.\nEvery week：\n1topic activity & i+ comment or game\nSep 15\nMystery\nactivity\nbegins\n5\n刘华問\nWeek2\nSep8-14\n5615 RC\nWeek1\nSep 1-7\n5615 ROOT\nWeek4\nSep 22-28\n5615\n刘华\nWeek3\nSep 15-21\n5615\nWinners\nannouncements\nevery weekend\n华\n八613\nMOMCOZY\n1化司\n5615"
+  - case_id: RC-353dce943720
+    expected: REVIEW
+    issue_count: 5
+    run_id: 20261009-163650
+    source_report: 20261009-163650.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02"
+    text_sha256_12: fbd3a1893102
+    duplicates: ["20261009-164012.review.md", "20261009-165848.review.md"]
+    text: "【图片 1 的图内文字（本机 OCR，已摘除水印）】\n5615 RO0\n刘华丽\n#MomAndMore activity calendar\n5615 R00\nEach Group has its own activities—choose the ones you like and join in.\nEvery week：\n1topic activity & i+ comment or game\nSep 15\nMystery\nactivity\nbegins\n5\nWeek2\nSep8-14\n5615 RC\nWeek1\nSep 1-7\n5615 ROOT\nWeek4\nSep 22-28\n刘华\nWeek3\nSep 15-21\nWinners\nannouncements\nevery weekend\n华\n八613\nMOMCOZY\n1化司\n（本机 OCR 另读到 5 行**水印/印章类文字**，已从检索文本中摘除，**不要把它们当素材内容**；摘除明细见日志与报告，需要核对时由人调取。）"
+  - case_id: RC-7c58dd16d9e6
+    expected: REVIEW
+    issue_count: 5
+    run_id: 20261009-172137
+    source_report: 20261009-172137.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02"
+    text_sha256_12: 730d86e97ace
+    text: "【图片 1 的图内文字（本机 OCR，已摘除水印）】\n刘华丽\n#MomAndMore activity calendar\nEach Group has its own activities—choose the ones you like and join in.\nEvery week：\n1topic activity & i+ comment or game\nSep 15\nMystery\nactivity\nbegins\n5\nWeek2\nSep8-14\nWeek1\nSep 1-7\nWeek4\nSep 22-28\n刘华\nWeek3\nSep 15-21\nWinners\nannouncements\nevery weekend\n华\n八613\nMOMCOZY\n1化司\n（本机 OCR 另读到 9 行**水印/印章类文字**，已从检索文本中摘除，**不要把它们当素材内容**；摘除明细见日志与报告，需要核对时由人调取。）"
+  - case_id: RC-438f21d94cd9
+    expected: REVIEW
+    issue_count: 5
+    run_id: 20261009-175803
+    source_report: 20261009-175803.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02"
+    text_sha256_12: 9a1d4305924a
+    text: "【图片 1 的图内文字（本机 OCR，已摘除水印）】\n#MomAndMore activity calendar\nEach Group has its own activities—choose the ones you like and join in.\nEvery week：\n1topic activity & i+ comment or game\nSep 15\nMystery\nactivity\nbegins\n5\nWeek2\nSep8-14\nWeek1\nSep 1-7\nWeek4\nSep 22-28\n刘华\nWeek3\nSep 15-21\nWinners\nannouncements\nevery weekend\n华\n八613\nMOMCOZY\n1化司\n（本机 OCR 另读到 10 行**水印/印章类文字**，已从检索文本中摘除，**不要把它们当素材内容**；摘除明细见日志与报告，需要核对时由人调取。）"
+  - case_id: RC-ecacc677b638
+    expected: REVIEW
+    issue_count: 4
+    run_id: 20261009-185544
+    source_report: 20261009-185544.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02"
+    text_sha256_12: 68ec8b157b43
+    duplicates: ["20261010-094657.review.md", "20261010-113017.review.md"]
+    text: "【图片 1 的图内文字（本机 OCR，已摘除水印）】\n【7.15】社群7月IBCLC直播海报 1200*1200\nT三 60五\n【7.15】社群7月IBCLC直播海报 1080*1350\n【7.15】社群7月IBCLC直播海报 1080*1920\nLive Q&A + Giveaway f\n56\nCleaning，\nMust-Cleans\nHard-to-Clean\nLive Q&A + Civeaway H\nCleaning，\nHard-to-Clean\nOn-the-Go\nSeptember 25 1:00 PM ET\nmOMCOZY\n615\nRC\nLive Q&A + Giveaway th\nCleaning，\n仓\nMust-Cleans\nHard-to-Clean\nOn-the-Go\nSeptember 25 1:00 PM ET\nJoin Us Live 一\nSeptember 25 1:00 PM ET\n【7.15】 社群7月IBCLC直播海报 960*503\nLive Q&A + Giveaway\nEveryday Cleaning，\nSeptember 25 1:00 PM ET\nJoin Us Live 一\n；ROC\nmomCOZY\n200\n615\n（本机 OCR 另读到 25 行**水印/印章类文字**，已从检索文本中摘除，**不要把它们当素材内容**；摘除明细见日志与报告，需要核对时由人调取。）"
+  - case_id: RC-bfb2359bac62
+    expected: REVIEW
+    issue_count: 4
+    run_id: 20261010-093847
+    source_report: 20261010-093847.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@6f1327535b14ccd6"
+    text_sha256_12: b8143c2b1732
+    text: "【7.15】社群7月IBCLC直播海报 1200*1200\nT三 60五\n【7.15】社群7月IBCLC直播海报 1080*1350\n【7.15】社群7月IBCLC直播海报 1080*1920\nLive Q&A + Giveaway f\n56\nCleaning，\nMust-Cleans\nHard-to-Clean\nLive Q&A + Civeaway H\nCleaning，\nHard-to-Clean\nOn-the-Go\nSeptember 25 1:00 PM ET\nmOMCOZY\n615\nRC\nLive Q&A + Giveaway th\nCleaning，\n仓\nMust-Cleans\nHard-to-Clean\nOn-the-Go\nSeptember 25 1:00 PM ET\nJoin Us Live 一\nSeptember 25 1:00 PM ET\n【7.15】 社群7月IBCLC直播海报 960*503\nLive Q&A + Giveaway\nEveryday Cleaning，\nSeptember 25 1:00 PM ET\nJoin Us Live 一\n；ROC\nmomCOZY\n200\n615"
+  - case_id: RC-0467e7eee62c
+    expected: BLOCK
+    issue_count: 3
+    run_id: 20261010-160341
+    source_report: 20261010-160341.review.md
+    rule_version: "article-no-2+l3-0.2+rules.jsonl@3f7d50dc94608577"
+    text_sha256_12: 931bfdfb72d1
+    duplicates: ["20261010-160446.review.md", "20261010-160756.review.md", "20261010-160801.review.md", "20261010-160806.review.md", "20261010-160832.review.md", "20261010-162413.review.md", "20261010-162447.review.md"]
+    text: "Our breast pump is FDA approved and 100% safe. It increases milk supply in 3 days."
+
+# ── fragile：会随库覆盖度**合法**变化（改了要逐条解释，不算回归）──────
+fragile:
+  - case_id: RC-0ad1101ae2d8
+    expected: 拒答          # ← 只作「当时的答案」读，**不是**断言
+    issue_count: 0
+    run_id: 20260923-1500-b
+    source_report: 20260923-1500-b.review.md
+    text_sha256_12: 9391a68d2868
+    text: "关于汽车保养周期多久一次的建议，以及基金定投和股票的区别"
+  - case_id: RC-5d85a23aceb5
+    expected: 拒答          # ← 只作「当时的答案」读，**不是**断言
+    issue_count: 0
+    run_id: 20260923-155149
+    source_report: 20260923-155149.review.md
+    text_sha256_12: 9f86d081884c
+    flags: ["short"]
+    needs_human_label: true
+    text: "test"
+  - case_id: RC-fc3d3e814058
+    expected: 拒答          # ← 只作「当时的答案」读，**不是**断言
+    issue_count: 0
+    run_id: 20260923-155203
+    source_report: 20260923-155203.review.md
+    text_sha256_12: 2986398d7b13
+    flags: ["short"]
+    needs_human_label: true
+    text: "我们公司去年营收多少？"
+  - case_id: RC-a82481045cc8
+    expected: 拒答          # ← 只作「当时的答案」读，**不是**断言
+    issue_count: 0
+    run_id: 20260923-164235
+    source_report: 20260923-164235.review.md
+    text_sha256_12: b94d27b9934d
+    flags: ["short"]
+    needs_human_label: true
+    text: "hello world"
+  - case_id: RC-c4b50f4ef57d
+    expected: 拒答          # ← 只作「当时的答案」读，**不是**断言
+    issue_count: 0
+    run_id: 20260923-docrev-T02
+    source_report: 20260923-docrev-T02.review.md
+    text_sha256_12: 4bb2427c8f96
+    text: "[00:00] Making my wife's postpartum experience easier has been one of my biggest priorities since having our second baby. [00:05] She would always complain about pumping the first time around, so I decided to surprise her with something that looks a little more comfortable. [00:09] I've been noticing her use it while getting things done, and sometimes she even forgets she's pumping. [00:15] What's cool about the Wellness 1 is that she can control her pump session through her phone, and it only has five parts to clean. [00:21] But what actually sold me was the full surface warmth and five zone massage features. [00:26] It only massages when the pump pulls instead of buzzing the entire session. [00:29] She said the warm massage has been so relaxing and it actually increased her milk supply. [00:33] So if you're looking for a pump that makes life easier, check out the Wellness 1.\n[00:00] 自从有了二宝，让妻子的产后生活更轻松就成了我最看重的事。 [00:05] 她生第一胎时总抱怨吸奶很麻烦，所以我决定给她个惊喜，选了一款看起来更舒适的产品。 [00:09] 我发现她现在忙家务时也能用，有时候甚至会忘了自己正在吸奶。 [00:15] Wellness 1 最棒的地方在于，她可以通过手机控制吸奶过程，而且整机只有五个部件需要清洗。 [00:21] 但真正打动我的是它的全表面加热和五区按摩功能。 [00:26] 它只在吸奶时进行按摩，而不是全程嗡嗡作响。 [00:29] 她说这种温热按摩非常放松，而且确实增加了她的母乳产量。 [00:33] 所以如果你也在找一款能让生活更轻松的吸奶器，不妨看看 Wellness 1。"
+  - case_id: RC-77fdaa0b589c
+    expected: 拒答          # ← 只作「当时的答案」读，**不是**断言
+    issue_count: 0
+    run_id: 20260923-docrev-T05
+    source_report: 20260923-docrev-T05.review.md
+    text_sha256_12: e6c4fe26ecef
+    text: "https://drive.google.com/file/d/1sYM-soN_j5NwjwIK8--yanw248m-1PCT/view?usp=sharing\n[00:01] Making my wife's postpartum experience easier has been one of my biggest priorities since having our second baby. [00:05] She would always complain about pumping the first time around, so I decided to surprise her with something that looks a little more comfortable. [00:11] Then I found the Momcozy Wellness 1. [00:13] I've been noticing her pump throughout the day while she gets things done, and I'll tell you, she's been way more relaxed. [00:19] I knew this was the right pump when I saw it has both warmth and massage features. [00:23] That sold me immediately. [00:25] Look at that, five massage zones. [00:28] She loves it, mission accomplished. [00:30] If you're a dad looking to surprise your wife, I definitely recommend the Momcozy Wellness 1.\n[00:01] 自从有了二宝，让妻子的产后生活更轻松，一直是我最看重的事情之一。 [00:05] 第一胎的时候她总抱怨吸奶很麻烦，所以我决定买个更舒适的装备给她一个惊喜。 [00:11] 后来我发现了 Momcozy Wellness 1。 [00:13] 我注意到她现在忙家务时也能随时吸奶，说实话，她整个人看起来放松多了。 [00:19] 当我看到它同时具备热敷和按摩功能时，我就知道选对产品了。 [00:23] 这点直接打动了我。 [00:25] 你们看，有五个按摩区。 [00:28] 她非常喜欢，任务圆满完成。 [00:30] 如果你也是想给妻子制造惊喜的爸爸，我真心推荐这款 Momcozy Wellness 1。"
+  - case_id: RC-3f87b17a01c9
+    expected: 拒答          # ← 只作「当时的答案」读，**不是**断言
+    issue_count: 0
+    run_id: 20260923-docrev-T06
+    source_report: 20260923-docrev-T06.review.md
+    text_sha256_12: b313694526f3
+    text: "Hook: Voiceover: “making my wife’s postpartum experience easier has been one of my biggest priorities since having our second baby. she would always complain about pumping the first time around so I recently surprised her with a new one in the hopes that pumping would be more enjoyable this time ” Scene: Corey is unboxing the breast pump and putting it together Voiceover: she has been loving the pump I gave her and I see why. Ive been noticing her pump throughout the day while she gets things done around the house and while taking care of the kids. She has been more relaxed and even says she forgets she’s pumping sometimes. I was hoping this would be the case when I saw that the momcozy wellness 1 has both warmth and massage features. It also only has 5 parts to clean so that makes my life easier too. Scene: Julie doing stuff around the house while pumping, close up shots of the breast pump, milk input, and taking it apart for cleaning. CTA: VoiceOver: If you’re a dad looking to surprise your wife and make her postpartum experience easier, I definitely recommend the mom cozy wellness 1\n开场白： 旁白：“自从迎来第二个宝宝，让妻子的产后生活更轻松就成了我的头等大事。生头胎时，她总抱怨吸奶过程很麻烦，所以我最近给她买了一款新吸奶器作为惊喜，希望能让这次的吸奶体验更舒适愉快。” 画面：Corey 正在拆箱并组装吸奶器。 旁白：她非常喜欢这款吸奶器，我也完全理解原因。我观察到，她在做家务或照顾孩子的同时就能轻松吸奶。她整个人放松了许多，甚至说有时候都会忘了自己正在吸奶。当初看到 Momcozy Wellness 1 具备热敷和按摩功能时，我就希望能达到这种效果。而且它只有 5 个需要清洗的部件，这也让我的生活轻松了不少。 画面：Julie 佩戴着吸奶器做家务；吸奶器、吸乳过程以及拆卸清洗的特写镜头。 行动号召 (CTA)：旁白：如果你也是一位想给妻子惊喜、希望能减轻她产后负担的爸爸，我真心推荐 Momcozy Wellness 1。"
+  - case_id: RC-dda3a6e5f08e
+    expected: 拒答          # ← 只作「当时的答案」读，**不是**断言
+    issue_count: 0
+    run_id: 20260923-docrev-T07
+    source_report: 20260923-docrev-T07.review.md
+    text_sha256_12: 42c58f81d087
+    text: "“Making my wife’s postpartum experience easier has been one of my biggest priorities since having our second baby.” For the visuals, we could show Corey unboxing/ setting up the pump, gifting it to me, showing/explaining the pump and its features in the voiceover, then showing how I can continue doing my daily routines while pumping.\n“自从迎来第二个宝宝后，让妻子的产后生活更轻松，一直是我最重视的事情之一。” 在画面呈现上，我们可以展示 Corey 开箱并组装吸奶器、把它送给我，同时通过旁白介绍吸奶器及其功能；随后展示我在使用吸奶器的同时，依然能照常进行日常活动。"
+  - case_id: RC-f284bdb04abe
+    expected: 拒答          # ← 只作「当时的答案」读，**不是**断言
+    issue_count: 0
+    run_id: 20260923-
+    source_report: 20260923-补跑-图1.review.md
+    text_sha256_12: 622356ed7e20
+    text: "Bereit Für Die Nacht, Supermama? Manche Superkräfte Passen Auf Den Nachttisch \"Was Sind Deine Mama-Hacks Für Ruhigere Nächte?\""
+  - case_id: RC-d6946cbd65ef
+    expected: 拒答          # ← 只作「当时的答案」读，**不是**断言
+    issue_count: 0
+    run_id: 20260923-
+    source_report: 20260923-补跑-图3.review.md
+    text_sha256_12: d40eace8658a
+    text: "产品广告-Angel-Sale-PLA-欧洲FR- 产品广告-Jiavy-Sale-PLA-欧洲PL- 产品广告-Jolla-Sale-PLA-US-Mu"
+  - case_id: RC-c768ef800bc4
+    expected: 拒答          # ← 只作「当时的答案」读，**不是**断言
+    issue_count: 0
+    run_id: 20260924-095440
+    source_report: 20260924-095440.review.md
+    text_sha256_12: c786f520d3e9
+    text: "it boosted her milk supply"
+  - case_id: RC-3d090492af3b
+    expected: 拒答          # ← 只作「当时的答案」读，**不是**断言
+    issue_count: 0
+    run_id: 20260924-100629
+    source_report: 20260924-100629.review.md
+    text_sha256_12: 284c3179665e
+    text: "Bereit Für Die Nacht, Supermama? Manche Superkräfte Passen Auf Den Nachttisch. Was Sind Deine Mama-Hacks Für Ruhigere Nächte?"
+  - case_id: RC-8a58e029a3c0
+    expected: 拒答          # ← 只作「当时的答案」读，**不是**断言
+    issue_count: 0
+    run_id: 20260924-100631
+    source_report: 20260924-100631.review.md
+    text_sha256_12: c813f88693ff
+    text: "产品广告-Angel-Sale-PLA-欧洲FR- / 产品广告-Jiavy-Sale-PLA-欧洲PL- / 产品广告-Jolla-Sale-PLA-US-Mu"
+  - case_id: RC-f74b8316e6ed
+    expected: 拒答          # ← 只作「当时的答案」读，**不是**断言
+    issue_count: 0
+    run_id: 20260924-100645
+    source_report: 20260924-100645.review.md
+    text_sha256_12: 21e0e9cc9ebe
+    text: "She said it's been so relaxing that it's actually helped her milk supply."
+  - case_id: RC-31183748ec90
+    expected: 拒答          # ← 只作「当时的答案」读，**不是**断言
+    issue_count: 0
+    run_id: 20260924-100657
+    source_report: 20260924-100657.review.md
+    text_sha256_12: ffe1aaa454c0
+    text: "[00:00] 自从有了二宝，让妻子的产后生活更轻松就成了我最看重的事。\n[00:05] 她生第一胎时总抱怨吸奶很麻烦，所以我决定给她个惊喜，选了一款看起来更舒适的产品。\n[00:09] 我发现她现在忙家务时也能用，有时候甚至会忘了自己正在吸奶。\n[00:15] Wellness 1 最棒的地方在于，她可以通过手机控制吸奶过程，而且整机只有五个部件需要清洗。\n[00:21] 但真正打动我的是它的全表面加热和五区按摩功能。\n[00:26] 它只在吸奶时进行按摩，而不是全程嗡嗡作响。\n[00:29] 她说这种温热按摩非常放松，而且确实增加了她的母乳产量。\n[00:33] 所以如果你也在找一款能让生活更轻松的吸奶器，不妨看看 Wellness 1。\n"
+  - case_id: RC-cfa0b1a17516
+    expected: 拒答          # ← 只作「当时的答案」读，**不是**断言
+    issue_count: 0
+    run_id: 20260924-121035
+    source_report: 20260924-121035.review.md
+    text_sha256_12: 7a1bdec952c6
+    text: "产品广告-Angel-Sale-PLA-欧洲FR-\n产品广告-Jiavy-Sale-PLA-欧洲PL-\n产品广告-Jolla-Sale-PLA-US-Mu"
+  - case_id: RC-76f7c928ee6d
+    expected: 拒答          # ← 只作「当时的答案」读，**不是**断言
+    issue_count: 0
+    run_id: 20260929-094859
+    source_report: 20260929-094859.review.md
+    text_sha256_12: b50611dd27d4
+    flags: ["short"]
+    needs_human_label: true
+    text: "量子纠缠配色调参"
+  - case_id: RC-52eec8fee29d
+    expected: 拒答          # ← 只作「当时的答案」读，**不是**断言
+    issue_count: 0
+    run_id: 20260930-121141
+    source_report: 20260930-121141.review.md
+    text_sha256_12: fa4e4819994f
+    text: "Momcozy 吸奶器，绝对安全，妈妈放心。"
+  - case_id: RC-eb3a30a3304b
+    expected: 拒答          # ← 只作「当时的答案」读，**不是**断言
+    issue_count: 0
+    run_id: 20260930-121144
+    source_report: 20260930-121144.review.md
+    text_sha256_12: d026650178ca
+    text: "Momcozy 吸奶器，包装内含说明书一份。"
+  - case_id: RC-6d7baf9ccf1c
+    expected: 拒答          # ← 只作「当时的答案」读，**不是**断言
+    issue_count: 0
+    run_id: 20260930-162049
+    source_report: 20260930-162049.review.md
+    text_sha256_12: f14a60b63727
+    text: "新品到货啦，本周下单送储奶袋，宝妈们冲。"
+
+# ── 采集时**取不到**的（如实列，不藏）────────────────────────────
+unparsed_reports:
+  - 20260923-164218.review.md
+  - 20260923-164226.review.md
+  - 20260923-1646-docrev.review.md
+  - 20260930-130830.review.md
+  - 20260930-1427-文案合规审查.review.md
+  - 20261002-fda-claim.review.md
+  - 20261003-0654.review.md
+  - REV-202610031826-momcozy-pump.review.md
+  - RT-20261005-IMG-01.review.md
+  - RT-20261005-IMG-02.review.md
+  - RT-20261005-IMG-03.review.md
+  - RT-20261005-IMG-07.review.md
+  - RT-20261005-IMG-DE.review.md
+  - rv-20261003-085818.review.md
+  - rv-20261003-110500.review.md
+  - rv-20261003-212705.review.md
+  - rv-20261003-231515.review.md
+  - rv-20261004-022659.review.md
+  - rv-20261004-103543.review.md
+  - rv-20261004-115116.review.md
+  - rv-20261004-123520.review.md
+  - rv-20261005-111910.review.md
+  - rv-20261005-112957.review.md
+  - rv-20261005-113729.review.md
+  - rv-20261005-114430.review.md
+  - rv-20261005-115428.review.md
+  - rv-20261005-115806.review.md
+  - rv-20261005-120200.review.md
+  - rv-20261005-121322.review.md
+  - rv-20261005-122102.review.md
+  - rv-20261005-122829.review.md
+  - rv-20261005-125727.review.md
+  - rv-20261005-131426.review.md
+  - rv-20261005-153948.review.md
+  - rv-20261005-154704.review.md
+  - rv-20261005-155440.review.md
+  - rv-20261005-161016.review.md
+  - rv-20261005-161409.review.md
+excluded_reports:
+  - PERF-1791620537549.review.md
+  - PERF-1791620541728.review.md
+  - PERF-1791620545722.review.md
+  - PERF-1791620555149.review.md
+  - PERF-1791620559312.review.md
+  - PERF-1791620563514.review.md
+  - PERF-1791620567615.review.md
+  - PERF-1791620572014.review.md
+  - PERF-1791620576029.review.md
+  - PERF-1791620580310.review.md
+  - PERF-1791620584401.review.md
+  - PERF-1791620588463.review.md
+  - PERF-1791620597922.review.md
+  - PERF-1791620602704.review.md
+  - PERF-1791620606811.review.md
+  - PERF-1791620611472.review.md
+  - PERF-1791620711820.review.md
+  - PERF-1791620716965.review.md
+  - PERF-1791620722483.review.md
+  - PERF-1791620726956.review.md
+  - PERF-1791620731308.review.md
+  - PERF-1791620735731.review.md
+  - PERF-1791620739993.review.md
+  - PERF-1791620744125.review.md
+  - PERF-1791620748131.review.md
+  - PERF-1791620752842.review.md
+  - PERF-1791620757148.review.md
+  - PERF-1791620762934.review.md
+  - PERF-1791620769957.review.md
+  - PERF-1791620774836.review.md
+  - PERF-1791620780082.review.md
+

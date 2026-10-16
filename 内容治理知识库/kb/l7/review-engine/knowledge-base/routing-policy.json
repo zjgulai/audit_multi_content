@@ -1,0 +1,90 @@
+{
+  "routing_version": "role-routing-2026-10-12",
+  "status": "confirmed_by_user",
+  "roles": {
+    "product": "产品负责人",
+    "legal": "法务",
+    "medical": "医学顾问",
+    "expert": "专家",
+    "north_america": "北美同事",
+    "channel": "渠道负责人",
+    "signoff": "Sign-off 负责人",
+    "submitter": "内容提交方"
+  },
+  "rules": [
+    {
+      "match": [
+        "医疗",
+        "health",
+        "功效",
+        "safety",
+        "消费者安全",
+        "睡眠",
+        "喂养"
+      ],
+      "owners": [
+        "医学顾问",
+        "法务"
+      ]
+    },
+    {
+      "match": [
+        "产品",
+        "型号",
+        "功能",
+        "规格",
+        "容量",
+        "认证",
+        "product"
+      ],
+      "owners": [
+        "产品负责人",
+        "法务"
+      ]
+    },
+    {
+      "match": [
+        "背书",
+        "endorsement",
+        "testimonial",
+        "达人",
+        "influencer",
+        "排名",
+        "绝对化",
+        "平台"
+      ],
+      "owners": [
+        "法务",
+        "渠道负责人"
+      ]
+    },
+    {
+      "match": [
+        "本地",
+        "语境",
+        "文化",
+        "locale",
+        "cultural"
+      ],
+      "owners": [
+        "北美同事"
+      ]
+    }
+  ],
+  "fallback_review_owners": [
+    "法务",
+    "北美同事"
+  ],
+  "pass_owner": "Sign-off 负责人",
+  "block_owner": "内容提交方",
+  "changelog": [
+    {
+      "at": "2026-10-12",
+      "by": "Owner 指示（本会话执行）",
+      "what": "补 `roles.expert = 专家`（PRD §13/§9 四类专业团队之一：法务、医学、专家、北美）。",
+      "why": "`kb/l7/registry/permission-matrix.yaml` 的「专家」角色位此前 `routing_policy_key=null`（无对应）⇒ §9「REVIEW 自动转**对应**专业团队」在专家类问题上会转错人；而 PRD §16 写着「转错人比不转更费时间」。",
+      "what_is_NOT_done": "★ **没有新增 routing rule**：PRD 未定义「哪类问题转专家」，库内也**搜不到出处**（只有『专家修订汇总表』那张源表，无关）⇒ 按「不编」的口径**不猜触发词**。⇒ 现状：角色位**在**了（可被 rules/fallback 引用、permission-matrix 的 key 不再为空），但**尚无一条 rule 会把问题路由到它**。要闭环需人给一句「哪些问题转专家」。",
+      "version": "role-routing-2026-09-24 → role-routing-2026-10-12"
+    }
+  ]
+}

@@ -1,0 +1,495 @@
+[review_run] --loaded-skill 申报：kb-canonical-lookup kb-p0-check kb-recall kb-check 图片安全审查 
+[review_run] ① 四层前置 L4→L5→L6→L7 …
+[preflight 10:28:23] 认领成功：20261016-1028-IMG-BM04
+[preflight 10:28:23] ② L4 闸门(自带)+引擎(预演)+记账 … invoked=kb-canonical-lookup session=session-88ea3484-4a55-45e2-b37d-375097fda79b
+[preflight 10:28:25] ② L4 记账完成 → kb/l7/runs/20261016-1028-IMG-BM04-L4.json
+[preflight 10:28:25] ③ L4 审计 …
+[preflight 10:28:25] ③ L4 审计 exit=0（红 0）
+[preflight 10:28:25] ② L5 闸门(自带)+引擎(预演)+记账 … invoked=kb-p0-check session=session-88ea3484-4a55-45e2-b37d-375097fda79b
+[preflight 10:28:28] ② L5 记账完成 → kb/l7/runs/20261016-1028-IMG-BM04-L5.json
+[preflight 10:28:28] ③ L5 审计 …
+[preflight 10:28:28] ③ L5 审计 exit=0（红 0）
+[preflight 10:28:28] ② L6 闸门(自带)+引擎(预演)+记账 … invoked=kb-recall session=session-88ea3484-4a55-45e2-b37d-375097fda79b
+[preflight 10:28:29] ② L6 记账完成 → kb/l7/runs/20261016-1028-IMG-BM04-L6.json
+[preflight 10:28:29] ③ L6 审计 …
+[preflight 10:28:29] ③ L6 审计 exit=0（红 0）
+[preflight 10:28:29] ② L7 闸门(自带)+引擎(预演)+记账 … invoked=kb-check session=session-88ea3484-4a55-45e2-b37d-375097fda79b
+[preflight 10:28:30] ② L7 记账完成 → kb/l7/runs/20261016-1028-IMG-BM04-L7.json
+[preflight 10:28:30] ③ L7 审计 …
+[preflight 10:28:30] ③ L7 审计 exit=0（红 0）
+[preflight 10:28:30] ✅ 四层前置全绿（L4–L7 各一 RUN，四道审计红 0）｜BASE=20261016-1028-IMG-BM04
+[preflight 10:28:30]    下一步：出结论 —— with_kb_evidence.py --require-layer-preflight 20261016-1028-IMG-BM04 --decision-owner <判定主体>
+[preflight 10:28:30] 已释放认领 20261016-1028-IMG-BM04
+[review_run] ② 自命中检查（素材 vs 库内 181 条反例/禁区）…
+===== ② 自命中检查（确定性；它只报事实，不判三态）=====
+自命中检查：未命中
+  素材归一化字符 50 ｜ 扫过条款 209 条 ｜ 阈值 ratio≥0.9 且 run≥80
+[review_run] 若上面是 status=error，那是「没查成」，**不是**「没命中」。
+[review_run] ③ 出结论（含默认发布到飞书）…
+===== ③ 引擎结论（唯一有权产出三态的地方）=====
+飞书发布：素材属性 → 渠道='' ｜ 产品线=''（由 l0_facets 推出：{}）
+飞书发布：自动调用 feishu_publish.py --apply …
+    "error": {
+      "type": "api",
+      "subtype": "unknown",
+      "code": 800030005,
+      "message": "not_found: not_found",
+      "log_id": "2026101610284225ABF38F05566F40B2D8",
+      "troubleshooter": "排查建议查看(Troubleshooting suggestions): https://open.feishu.cn/search?
+  ⚠️ 飞书发布失败（退出码 1）—— **结论有效，但没发出去**
+{
+ "decision": {
+  "review_id": "rv-20261016-102836",
+  "content_id": "AD-20261016-001",
+  "content_id_basis": "业务编号（PRD §5.4）：PRD §5.4 `AD-YYYYMMDD-NNN`；序号=1（表内同日前缀最大 +1）；读到 100 个内容 ID（表内 100 行）",
+  "content_version": "43566885b0da8a5145638174e69fba33e088332f6c1384948f1b900c2397d6c4",
+  "agent_version": "local-core-0.1.0",
+  "rule_version": "unfrozen",
+  "knowledge_version": "unfrozen",
+  "decision": "PASS",
+  "confidence": 0.93,
+  "summary": "【审查结论：PASS】未发现已知底线风险，可转交 @sign-off 责任人（未配置） 进行 sign-off。",
+  "issue_count": 0,
+  "issue_count_including_candidates": 0,
+  "candidate_count": 0,
+  "issue_count_basis": "issue_count（0 = 库内依据，**与分类汇总同一个数**，见 PRD §5.4）= 完整清单 0 − 非权威候选 0；候选无库内条款号、只作排查线索，不构成依据",
+  "issue_summary_by_category": {},
+  "risk_items": [],
+  "report_url": null,
+  "next_action": "转 sign-off 负责人确认送审版本与发布版本一致",
+  "next_owners": [
+   "Sign-off 负责人"
+  ],
+  "sla": {
+   "priority": "any",
+   "target": "1 business day",
+   "escalate_to": [
+    "项目统筹",
+    "Sign-off 负责人"
+   ],
+   "timezone": "America/Los_Angeles",
+   "clock_rules": [
+    "Start the clock when the required input manifest is complete.",
+    "Pause the clock while waiting for missing submitter material.",
+    "Record timezone and business-calendar version with each SLA event.",
+    "SLA breach never changes the decision automatically."
+   ]
+  },
+  "version_gate": {},
+  "coverage": {
+   "text": "complete",
+   "image": "complete",
+   "audio": "not_applicable",
+   "video": "not_applicable",
+   "ocr": "complete",
+   "asr": "not_applicable",
+   "keyframes": "not_applicable",
+   "note": "声明模态：image；未拿到 provider 佐证的模态记 incomplete（缺口，不是不适用）；其中 image、ocr 的「complete」来自**调用方申报**（不是引擎自测），按申报档看待",
+   "declared_by": "caller",
+   "declared_modalities": [
+    "image",
+    "ocr"
+   ]
+  },
+  "decision_trace": {
+   "reasons": [
+    "no_known_blocking_or_review_risk"
+   ],
+   "confidence_status": "heuristic_not_calibrated",
+   "evaluated_at": "2026-10-16T02:28:38.074325+00:00",
+   "tier_trace": {
+    "P0": 0,
+    "P1": 0,
+    "P2": 0,
+    "P3": 0,
+    "p0_confirmed_blocking": 0,
+    "p0_without_evidence": 0,
+    "p3_advice_only": true,
+    "p0_confidence_flow": false
+   },
+   "confidence_route": {
+    "applies": true,
+    "band": "direct",
+    "range": ">= 0.90",
+    "effect": "keep",
+    "annotate": null,
+    "decision_before": "PASS",
+    "decision": "PASS",
+    "why": "PRD §6.6：≥0.90 直接输出结论（PASS / BLOCK）",
+    "p0_override": false,
+    "thresholds": {
+     "direct": 0.9,
+     "confirm": 0.7
+    },
+    "calibrated": false,
+    "thresholds_source": "kb/l7/registry/confidence-policy.json"
+   },
+   "confidence_derivation": {
+    "kind": "derived",
+    "base": 0.93,
+    "cat_bonus": 0.0,
+    "ev_penalty": 0.0,
+    "unc_p0_penalty": 0.0,
+    "raw": 0.93,
+    "clamped_to_keep_decision": null,
+    "final": 0.93,
+    "note": "**只让值有分布、不改结论**（截断到本结论自己的档）；动 0.90/0.70 两条线是下一步，先用 kb/l8/calibrate_confidence.py 量代价。"
+   },
+   "decision_before_confidence_flow": "PASS"
+  },
+  "submit_question": "图注：Momcozy 5-Inch Dual-mode Smart Baby Monitor-BM04 ｜ 来源页（美国站）：https://momcozy.com/products/5-inch-dual-mode-smart-baby-monitor-bm04 ｜ 本单为图片素材；画面读数（视觉模型读数，非原图）：场景=影棚；人物=婴幼儿·躺在婴儿床里，仰面朝上；婴幼儿·出现在手机与监视器屏幕画面中；物品=白色圆润机身、黑色球形镜头的摄像头（正在被使用）；带屏幕和按键的白色手持监视器（正在被使用）；竖屏手机，屏幕显示婴儿画面（正在被使用）；木质围栏婴儿床，铺印花床垫（正在被使用）；可见标识=有文字，认不清；摄像头机身与监视器上有文字标识；画面线索=婴幼儿出镜；婴幼儿仅穿浅色连体衣躺在婴儿床内；产品屏幕内显示婴幼儿画面；画面为白底产品展示合成图；读数自报看不清的：文字逐字内容；拍摄地点是否真实卧室；是否真实使用场景；人物身份与月龄"
+ },
+ "evidence_meta": {
+  "run_id": "20261016-102833",
+  "findings": 0,
+  "state": "PASS",
+  "report_path": null,
+  "material_facets": {
+   "product_line": "",
+   "channel": "",
+   "from": {},
+   "all_product_lines": [],
+   "all_channels": [],
+   "anchors_used": 0
+  },
+  "trace": {
+   "p0": {
+    "engine": "kb/l5/matcher.py",
+    "exit_code": 0,
+    "total_elapsed_ms": 57.8,
+    "engine_elapsed_ms": 15.79,
+    "hits": []
+   },
+   "rules": {
+    "engine": "kb/l3/candidates/rules.jsonl",
+    "kb_type_filter": null,
+    "rules_scanned": 509,
+    "hits": []
+   },
+   "units": {
+    "engine": "kb/l6/retriever.py",
+    "l6_mode": "vector_plus_bm25",
+    "semantic_recall": true,
+    "bm25_max": 21.3551,
+    "cosine_max": 0.0,
+    "used_vector": false,
+    "no_semantic_annotation": null,
+    "top_bm25": [
+     {
+      "source": "bm25_en",
+      "unit_id": "5f99223a2865bf7b8a49",
+      "anchor": "#素材/recvw2wE9MtYyv/图片素材/#img.1",
+      "table": "素材",
+      "kb_type": "internal_sample",
+      "source_sha256": "a2c3d81600a0d2bac096f89fe27869bb7f3a0bf839abffd13f7ee998aebc0913",
+      "raw_bm25": 21.3551,
+      "excerpt": "[image_ocr] Dans Mon Téléphone, Il N'Y A Pas Que Bébé. 20.38 • 3 829 Albums Voyage 57 Paysages 189 Pique-nique 82 Gens & Lieux Moi 245 MOMCOZY"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "c1524cbcb0024c5cee10",
+      "anchor": "#l.1-47",
+      "table": "l.1-47",
+      "kb_type": "external_standard",
+      "source_sha256": "9f3431e5c25cce983b179f47874a575a480dd4452b3e6d8c91b03ab05562c724",
+      "raw_bm25": 17.9567,
+      "excerpt": "葱段同放锅 中，加适量水，大火烧开，转小火炖煮 约20分钟，熟后加盐即可。 功效 矿物质。 鲤鱼的优质蛋白质含量高， 并能供给人体必需的氨基酸、 美味汤羹 鸡肝枸杞子汤 原料：鸡肝250克，青菜1棵，竹笋2 根，枸杞子15粒，高汤、料酒、盐、藕 粉各适量。 做法：① 竹笋洗净、切片；青菜洗净， 焯水后捞起，切段；鸡肝洗"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "86bd8390b1097c4bf83a",
+      "anchor": "#素材/recvw7XIUgnJYu/图片素材/#img.1",
+      "table": "素材",
+      "kb_type": "internal_sample",
+      "source_sha256": null,
+      "raw_bm25": 17.5342,
+      "excerpt": "[image_ocr] Momcozy Prime Day Your Deal Roadmap Sun Mon Tue Wed cC Thu Fri Sat 1 2 3 4 5 Oct 1-6 Build Your Cart Discover Mom Favorites & Get Ready 6 7 8 Oct 7-"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "d027174ede66d8fd4777",
+      "anchor": "#关键方案!A1:T202",
+      "table": "关键方案!A1:T202",
+      "kb_type": "external_standard",
+      "source_sha256": "f112478a951861c9c702dd17ca408059f5aad9bb0d9e5e53d28f0eb112fe05ec",
+      "raw_bm25": 16.3864,
+      "excerpt": "[row=1] ,关键方案,,,,关键文档,,,,,,,,,,,,,, [row=2] ,NO,内容,文档,,NO,内容,文档,,,,,,,,,,,, [row=3] ,1,再营销方案,Wellness 1 再营销规划 ,,1,专家内容整理,Wellness 1 吸奶器专家记录表 ,,,,,,,,,,,, [row=4"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "be0be30f0e1f37dc4e13",
+      "anchor": "#素材/recvw7XIUgWSxJ/图片素材/#img.1",
+      "table": "素材",
+      "kb_type": "internal_sample",
+      "source_sha256": null,
+      "raw_bm25": 15.9782,
+      "excerpt": "[image_ocr] Poster-1 (Pin) 1000x1500 Mom And More Supplying the Finest 4 40%OFF Prime Day | Oct 6-7 More for Mom. More for Baby. More for Every Day. [image_ocr]"
+     }
+    ],
+    "vector_rows": [],
+    "adopted": [
+     {
+      "source": "bm25_en",
+      "unit_id": "5f99223a2865bf7b8a49",
+      "anchor": "#素材/recvw2wE9MtYyv/图片素材/#img.1",
+      "table": "素材",
+      "kb_type": "internal_sample",
+      "source_sha256": "a2c3d81600a0d2bac096f89fe27869bb7f3a0bf839abffd13f7ee998aebc0913",
+      "raw_bm25": 21.3551,
+      "excerpt": "[image_ocr] Dans Mon Téléphone, Il N'Y A Pas Que Bébé. 20.38 • 3 829 Albums Voyage 57 Paysages 189 Pique-nique 82 Gens & Lieux Moi 245 MOMCOZY",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "c1524cbcb0024c5cee10",
+      "anchor": "#l.1-47",
+      "table": "l.1-47",
+      "kb_type": "external_standard",
+      "source_sha256": "9f3431e5c25cce983b179f47874a575a480dd4452b3e6d8c91b03ab05562c724",
+      "raw_bm25": 17.9567,
+      "excerpt": "葱段同放锅 中，加适量水，大火烧开，转小火炖煮 约20分钟，熟后加盐即可。 功效 矿物质。 鲤鱼的优质蛋白质含量高， 并能供给人体必需的氨基酸、 美味汤羹 鸡肝枸杞子汤 原料：鸡肝250克，青菜1棵，竹笋2 根，枸杞子15粒，高汤、料酒、盐、藕 粉各适量。 做法：① 竹笋洗净、切片；青菜洗净， 焯水后捞起，切段；鸡肝洗",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "86bd8390b1097c4bf83a",
+      "anchor": "#素材/recvw7XIUgnJYu/图片素材/#img.1",
+      "table": "素材",
+      "kb_type": "internal_sample",
+      "source_sha256": null,
+      "raw_bm25": 17.5342,
+      "excerpt": "[image_ocr] Momcozy Prime Day Your Deal Roadmap Sun Mon Tue Wed cC Thu Fri Sat 1 2 3 4 5 Oct 1-6 Build Your Cart Discover Mom Favorites & Get Ready 6 7 8 Oct 7-",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "d027174ede66d8fd4777",
+      "anchor": "#关键方案!A1:T202",
+      "table": "关键方案!A1:T202",
+      "kb_type": "external_standard",
+      "source_sha256": "f112478a951861c9c702dd17ca408059f5aad9bb0d9e5e53d28f0eb112fe05ec",
+      "raw_bm25": 16.3864,
+      "excerpt": "[row=1] ,关键方案,,,,关键文档,,,,,,,,,,,,,, [row=2] ,NO,内容,文档,,NO,内容,文档,,,,,,,,,,,, [row=3] ,1,再营销方案,Wellness 1 再营销规划 ,,1,专家内容整理,Wellness 1 吸奶器专家记录表 ,,,,,,,,,,,, [row=4",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "be0be30f0e1f37dc4e13",
+      "anchor": "#素材/recvw7XIUgWSxJ/图片素材/#img.1",
+      "table": "素材",
+      "kb_type": "internal_sample",
+      "source_sha256": null,
+      "raw_bm25": 15.9782,
+      "excerpt": "[image_ocr] Poster-1 (Pin) 1000x1500 Mom And More Supplying the Finest 4 40%OFF Prime Day | Oct 6-7 More for Mom. More for Baby. More for Every Day. [image_ocr]",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     }
+    ],
+    "discarded": [],
+    "gate": {
+     "bm25_raw_min": 8.0,
+     "vector_cosine_min": 0.6,
+     "use_raw_scores_only": true,
+     "why_not_rrf": "RRF 分恒为 1/(60+k)，实测 Top1 恒在 0.016393，A 组与 B 组看起来一样高，没有区分度，不能当门限",
+     "why_single_threshold_not_enough": "实测 BM25 原始分在 A/B 两组有重叠（A 组最低 5.32 < B 组最高 10.02），所以门限只用于「够不够格当参考」，要成为「依据」还必须同时命中规则层",
+     "measured": {
+      "bm25_raw": {
+       "A_group_min": 5.32,
+       "A_group_median": 12.76,
+       "B_group_median": 6.44,
+       "B_group_max": 10.02,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      },
+      "cosine": {
+       "A_group_min": 0.512,
+       "A_group_median": 0.669,
+       "B_group_median": 0.384,
+       "B_group_max": 0.569,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      }
+     },
+     "threshold_reasoning": "BM25 门限取 8.0：落在 A 组最低(5.32)与 B 组最高(10.02)之间、贴近两组中位之间，偏保守；余弦门限取 0.60：实测它是唯一能把 B 组全部挡在外面的取值（B 组最高 0.569），代价是 A 组丢 2 条；即便如此门限仍单独不可靠，必须叠加「同时命中规则层」才算依据",
+     "below_threshold_label": "参考",
+     "above_threshold_without_rule_hit": "仍只能标参考，不得作为依据",
+     "coverage_bm25_min": 16.0,
+     "coverage_reasoning": "PASS 必须建立在「知识库认识这个主题」之上，覆盖信号二选一：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ coverage_bm25_min(=16.0)。16.0 = 依据门限的 2 倍：实测 A 组中位 12.76 / 最高 23.16，B 组最高 10.02，取 16 能把实测 B 组全部挡在外面。覆盖信号不成立 → 拒答，不得输出 PASS。"
+    }
+   },
+   "coverage": {
+    "safe_vocabulary_hits": [],
+    "rule_cited_unit_hits": [],
+    "same_source_unit_hits": [],
+    "case_unit_hits": [
+     {
+      "anchor": "#素材/recvw7XIUgnJYu/图片素材/#img.1",
+      "raw_bm25": 17.5342,
+      "resource_id": "bitable__tbld8qE92YaY38Yz__recvw7XIUgnJYu"
+     }
+    ],
+    "case_clause_pool": 178,
+    "rule_cited_anchor_pool": 959,
+    "rule_cited_resource_pool": 40,
+    "coverage_bm25_min": 16.0,
+    "covered_by": "case",
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "case_theme_rejected": [
+     {
+      "anchor": "#负面样本/recvw7XIUgnJYu/具体原因/分析",
+      "article_no": "S-1.216",
+      "why": "主题词零命中（题材不对口）"
+     }
+    ],
+    "covered": true
+   },
+   "elapsed_ms": 2031.2,
+   "perf": {
+    "p0_match_ms": 57.9,
+    "rule_layer_ms": 26.5,
+    "unit_layer_ms": 1810.5,
+    "assemble_ms": 136.3,
+    "content_type": "text",
+    "text_bytes": 106,
+    "threshold_s": 10
+   },
+   "risk_category": {
+    "with_dimension": 0,
+    "unmapped_or_pending": 0,
+    "policy": "kb/l7/registry/risk-category-policy.json"
+   }
+  },
+  "source": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py",
+  "findings_source": {
+   "mode": "live",
+   "path": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py"
+  },
+  "kb_hits": [
+   {
+    "anchor": "#素材/recvw2wE9MtYyv/图片素材/#img.1",
+    "bm25": 21.3551,
+    "kb_type": "internal_sample",
+    "source_sha256": "a2c3d81600a0d2bac096f89fe27869bb7f3a0bf839abffd13f7ee998aebc0913",
+    "excerpt": "[image_ocr] Dans Mon Téléphone, Il N'Y A Pas Que Bébé. 20.38 • 3 829 Albums Voyage 57 Paysages 189 Pique-nique 82 Gens & Lieux Moi 245 MOMCOZY",
+    "url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw2wE9MtYyv"
+   },
+   {
+    "anchor": "#l.1-47",
+    "bm25": 17.9567,
+    "kb_type": "external_standard",
+    "source_sha256": "9f3431e5c25cce983b179f47874a575a480dd4452b3e6d8c91b03ab05562c724",
+    "excerpt": "葱段同放锅 中，加适量水，大火烧开，转小火炖煮 约20分钟，熟后加盐即可。 功效 矿物质。 鲤鱼的优质蛋白质含量高， 并能供给人体必需的氨基酸、 美味汤羹 鸡肝枸杞子汤 原料：鸡肝250克，青菜1棵，竹笋2 根，枸杞子15粒，高汤、料酒、盐、藕 粉各适量。 做法：① 竹笋洗净、切片；青菜洗净， 焯水后捞起，切段；鸡肝洗",
+    "url": "https://hapa8fkuicz.feishu.cn/wiki/KMRgwlBuAi3gOzkIMHTcCmwcn6e"
+   },
+   {
+    "anchor": "#素材/recvw7XIUgnJYu/图片素材/#img.1",
+    "bm25": 17.5342,
+    "kb_type": "internal_sample",
+    "source_sha256": null,
+    "excerpt": "[image_ocr] Momcozy Prime Day Your Deal Roadmap Sun Mon Tue Wed cC Thu Fri Sat 1 2 3 4 5 Oct 1-6 Build Your Cart Discover Mom Favorites & Get Ready 6 7 8 Oct 7-",
+    "url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw7XIUgnJYu"
+   },
+   {
+    "anchor": "#关键方案!A1:T202",
+    "bm25": 16.3864,
+    "kb_type": "external_standard",
+    "source_sha256": "f112478a951861c9c702dd17ca408059f5aad9bb0d9e5e53d28f0eb112fe05ec",
+    "excerpt": "[row=1] ,关键方案,,,,关键文档,,,,,,,,,,,,,, [row=2] ,NO,内容,文档,,NO,内容,文档,,,,,,,,,,,, [row=3] ,1,再营销方案,Wellness 1 再营销规划 ,,1,专家内容整理,Wellness 1 吸奶器专家记录表 ,,,,,,,,,,,, [row=4",
+    "url": "https://momcozy-in.feishu.cn/sheets/BX0QshqWThhY6HtDEFCcnMpsnRc?sheet=SWMYUF"
+   },
+   {
+    "anchor": "#素材/recvw7XIUgWSxJ/图片素材/#img.1",
+    "bm25": 15.9782,
+    "kb_type": "internal_sample",
+    "source_sha256": null,
+    "excerpt": "[image_ocr] Poster-1 (Pin) 1000x1500 Mom And More Supplying the Finest 4 40%OFF Prime Day | Oct 6-7 More for Mom. More for Baby. More for Every Day. [image_ocr]",
+    "url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw7XIUgWSxJ"
+   }
+  ],
+  "layer_preflight": {
+   "base": "20261016-1028-IMG-BM04",
+   "ok": true,
+   "red_total": 0,
+   "mode": "enforced",
+   "details": {
+    "L4": {
+     "run": "20261016-1028-IMG-BM04-L4",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L4": "session-88ea3484-4a55-45e2-b37d-375097fda79b"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L5": {
+     "run": "20261016-1028-IMG-BM04-L5",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L5": "session-88ea3484-4a55-45e2-b37d-375097fda79b"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L6": {
+     "run": "20261016-1028-IMG-BM04-L6",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L6": "session-88ea3484-4a55-45e2-b37d-375097fda79b"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L7": {
+     "run": "20261016-1028-IMG-BM04-L7",
+     "exit": 0,
+     "red": 0,
+     "yellow": 0,
+     "skill_sessions": {
+      "L7": "session-88ea3484-4a55-45e2-b37d-375097fda79b"
+     },
+     "pass": true,
+     "note": ""
+    }
+   }
+  },
+  "decision_owner": {
+   "skill": "图片安全审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check",
+    "图片安全审查"
+   ]
+  },
+  "publish": {
+   "mode": "enabled",
+   "published": false,
+   "docx": null,
+   "record_id": null
+  },
+  "report_url": null,
+  "report_url_kind": null
+ }
+}
+
+===== ③b 转述模板（照抄这一段即可，不必再跑任何命令）=====
+状态：PASS ｜ 问题数：0 ｜ 置信度：0.93
+摘要：【审查结论：PASS】未发现已知底线风险，可转交 @sign-off 责任人（未配置） 进行 sign-off。
+层前置：ok=None mode=None
+判定主体：图片安全审查 ｜ mode=declared
+
+【飞书那一步没有做】published=false ｜ 原因 未说明
+⇒ 这**由守衡侧负责**，不是你的活。**不许**自己调 lark-cli 去补写表。
+[review_run] 机读旁挂已写：/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/.work/last_review_result.json
+REVIEW_RUN_EXIT=0

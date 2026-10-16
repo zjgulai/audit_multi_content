@@ -1,0 +1,63 @@
+# L0 层操作日志 · run 20260924-1512
+# 生成 2026-09-24 15:16:38｜写入范围：kb/l0（台帐追加/registry/库目录/index）、kb/.work
+# 外部调用：0（本批无任何飞书读写；源侧零改动）
+
+[00] 先决条件
+     owner 确认 run 20260924-1115 会话已关闭（确证①）
+     $ date  → 2026-09-24 15:10:02（写者最后写入 14:35:46，已 34m16s > 30min）
+     $ find kb -newermt '-30 minutes' -type f | grep -v '^kb/.work/'
+       → 仅 kb/l0/runs/20260924-1443.report.md（我方上一批），窗口干净
+     新基线 → kb/.work/batch12/baseline_at_1512.json；与 baseline_at_1443.json diff 0 项
+     加锁 kb/.work/.kb.lock run_id=20260924-1512
+
+[01] §5.2.1 恢复件来源清单（4 个来源逐条）
+     → kb/.work/batch12/recovered_ledger_rows.sources.md（2117 B）
+     恢复件 kb/.work/batch11/recovered_ledger_rows.jsonl 12 行 sha256=bafe907b…（沿用，未重做）
+
+[02] §5.2.2 台帐追加 1 行留痕（不回填 12 行）
+     + kb/l0/manifest.jsonl  change=ledger_rows_unauthorizedly_deleted
+       3651 → 3652 行
+
+[03] §5.2.3 悬空引用处置：重建归档目录（4 个文件，重建件非原字节）
+     mkdir -p kb/l0/_archive/eval-material-excluded-20260924-1210
+     + local__review-case__img-{{1..4}}.json（各 932 B）
+     registry.source_kind_retired[0] +archived_to_reconstructed/note/archive_lost_window/archive_reconstructed_from/needs_owner_confirmation
+
+[04] §5.2.4 修 changes[6] 悬空键引用（改 changes，不补回 source_kind_note）
+[05] §5.2.5 写 L0↔L1 分叉结论 → registry.ledger_divergence_conclusion
+     + registry.ledger_audit（登记 audit: 前缀 / audit_note 状态 / pointer_resolution_policy）
+
+[06] §5 判据 $ python3 kb/.work/batch12/step1_gate.py  → 8/8 PASS，总判「全过」
+
+[07] §6.3-2 先定义后执行：写 container_policy（C1/C2/C3）到 registry
+     $ python3 kb/.work/batch12/step2a_define_container.py
+
+[08] §6.4 闸门影子（只算不写）
+     $ python3 kb/.work/batch12/step2b_container_shadow.py
+       → 容器 107 个；预期新增 L2 单元 0；deletions_risk 0；23 条改判 分布 与期望一致
+       → 闸门通过 ✔ → kb/.work/batch12/container_shadow.json
+
+[09] §6.3-1 改发射器硬编码
+     kb/.work/build2.py（:120/:159）、batch3_run.py(:201)、build.py(:103/:129)
+     三脚本注入 is_container() 读 container_policy
+
+[10] §6.5 执行改判
+     $ python3 kb/.work/batch12/step2c_apply_kbtype.py
+       index 重建配方自检：与现 index 逐字节一致 True
+       + kb/l0/manifest.jsonl 23 行 updated（change=fix_container_kb_type）3652 → 3675
+     $ python3 kb/.work/batch12/step2d_move_files.py
+       → 23 个资源文件迁入 4 个库目录（查 dir_map_reverse，非手工 mv）
+       L0 库目录 103/850/490/11/15 合计 1469
+     index/l0.jsonl 重建 → 1469 行
+
+[11] §6.6 判据：父×子 kb_type 23/23（kb/.work/batch12/step2e_crosscheck.txt）
+
+[12] §7 L1/L2 跟随（只改 kb_type）
+     $ python3 kb/.work/batch12/step3_L1L2.py
+       L1 index 136 行 / L1 manifest 23 行 / L2 manifest 23 行 / L1 产物 23 个
+       字段级 diff：非 kb_type 字段变化 0 行（三层）
+
+[13] 验收 $ python3 kb/.work/batch12/step6_verify.py → 全过 ✔
+     assignments 1242 漂移 0；canonical 1242 article_no 漂移 0
+     L5/L6/L8 sha256 前后一致；versions.jsonl 版本行 0；kb_version v0
+     开工后新写入 60 个文件，非预期 0 个（无第三方写入）

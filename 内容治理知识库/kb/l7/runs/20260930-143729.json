@@ -1,0 +1,19 @@
+{
+ "run_id": "20260930-143729",
+ "at": "2026-09-30T14:37:29",
+ "source": "trigger_blind_test",
+ "trigger": "先补 ①：brand-* 组一轮（13 成员 × 1 正 + 1 负 = 26 例），并与 kb-* 组 26 例合账",
+ "skills": [
+  "kb-manage"
+ ],
+ "commands": [
+  "52 条用例 → 各自一个新开 agent 只给一句用户话术（brand-* 26 条本轮跑完 + kb-* 26 条复用 20260930-135412 那批）",
+  "kb/kbpy l7/scripts/skills_check.py（复验改名没弄坏登记表）"
+ ],
+ "products": [
+  "kb/l7/reports/20260930-1455-全量触发盲测-第一轮-全量合账.md",
+  "kb/l7/reports/20260930-1450-修复-AI溯源成员装了选不到.md"
+ ],
+ "verdict": "27 成员 × 52 例 ｜ 逐例 52/52 ｜ 微平均 P/R/F1=1.000 ｜ 跨家族误抢 0 ｜ 低于 0.90 的成员 0 个 ｜ 同时修掉 1 个「装了但选不到」的成员",
+ "human_involved": true
+}

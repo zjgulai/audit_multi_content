@@ -1,0 +1,18 @@
+{
+ "run": "20260929-1245",
+ "at": "2026-09-29 12:44:02",
+ "decision": "图片 OCR 结案不做（库级禁止下载，用户确认本人也无法下载）",
+ "evidence": [
+  "用户 2026-09-29 口述确认：其本人无法下载图片",
+  "bot 与 user 身份对同一 (record_id,file_token) 均 HTTP 403（body 空）",
+  "auth check --scope drive:file:download → granted（仍 403，故非 scope 问题）",
+  "drive +download → permission_denied；batch_get_tmp_download_url → 空数组；drive +preview → 无候选",
+  "云端 OCR 接口 optical_char_recognition/v1/image/basic_recognize：bot 可调但入参为 base64 图片内容；user token 不支持（99991668）"
+ ],
+ "actions": [
+  "kb/l1/manifest_l1.jsonl 追加 283 行 status=forbidden（覆盖此前的 pending_ocr）",
+  "不产生任何 OCR 文本（不伪造）；图片元数据 file_token/name/size 保留在 L0 附件行与 L1 行里"
+ ],
+ "文案口径": "负面样本正文已抽（kb/l1/2_内部正负样本库，108 条 / 1,324 段 / 113,571 字），不含图片内文字",
+ "reopen_condition": "若将来库级开放下载（或所有者给应用开下载权），直接跑 kb/l8/ocr_attachments.py <RUN> --purge-images 即可补 OCR"
+}

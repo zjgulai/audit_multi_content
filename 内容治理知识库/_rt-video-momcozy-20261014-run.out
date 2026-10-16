@@ -1,0 +1,482 @@
+[preflight 20:00:21] 认领成功：20261013-2000
+[preflight 20:00:21] ② L4 闸门(自带)+引擎(预演)+记账 … invoked=kb-canonical-lookup session=session-f010e9da-a204-4a00-b80c-7c33cebbc148
+[preflight 20:00:22] ② L4 记账完成 → kb/l7/runs/20261013-2000-L4.json
+[preflight 20:00:22] ③ L4 审计 …
+[preflight 20:00:22] ③ L4 审计 exit=0（红 0）
+[preflight 20:00:22] ② L5 闸门(自带)+引擎(预演)+记账 … invoked=kb-p0-check session=session-f010e9da-a204-4a00-b80c-7c33cebbc148
+[preflight 20:00:26] ② L5 记账完成 → kb/l7/runs/20261013-2000-L5.json
+[preflight 20:00:26] ③ L5 审计 …
+[preflight 20:00:26] ③ L5 审计 exit=0（红 0）
+[preflight 20:00:26] ② L6 闸门(自带)+引擎(预演)+记账 … invoked=kb-recall session=session-f010e9da-a204-4a00-b80c-7c33cebbc148
+[preflight 20:00:27] ② L6 记账完成 → kb/l7/runs/20261013-2000-L6.json
+[preflight 20:00:27] ③ L6 审计 …
+[preflight 20:00:27] ③ L6 审计 exit=0（红 0）
+[preflight 20:00:27] ② L7 闸门(自带)+引擎(预演)+记账 … invoked=kb-check session=session-f010e9da-a204-4a00-b80c-7c33cebbc148
+[preflight 20:00:28] ② L7 记账完成 → kb/l7/runs/20261013-2000-L7.json
+[preflight 20:00:28] ③ L7 审计 …
+[preflight 20:00:28] ③ L7 审计 exit=0（红 0）
+[preflight 20:00:28] ✅ 四层前置全绿（L4–L7 各一 RUN，四道审计红 0）｜BASE=20261013-2000
+[preflight 20:00:28]    下一步：出结论 —— with_kb_evidence.py --require-layer-preflight 20261013-2000 --decision-owner <判定主体>
+[preflight 20:00:28] 已释放认领 20261013-2000
+===== ② 自命中检查（确定性；它只报事实，不判三态）=====
+自命中检查：未命中
+  素材归一化字符 149 ｜ 扫过条款 296 条 ｜ 阈值 ratio≥0.9 且 run≥80
+===== ③ 引擎结论（唯一有权产出三态的地方）=====
+{
+ "decision": {
+  "review_id": "rv-20261013-200035",
+  "content_id": "AD-20261013-001",
+  "content_id_basis": "业务编号（PRD §5.4）：PRD §5.4 `AD-YYYYMMDD-NNN`；序号=1（表内同日前缀最大 +1）；读到 100 个内容 ID（表内 100 行）",
+  "content_version": "34142a1b8f402bf4bc7cd97430f7f151661e1d9e1e6aefc512511c595d4acebe",
+  "agent_version": "local-core-0.1.0",
+  "rule_version": "unfrozen",
+  "knowledge_version": "unfrozen",
+  "decision": "NEEDS_INPUT",
+  "confidence": 0.0,
+  "summary": "【审查结论：NEEDS_INPUT】当前素材、版本或证据不完整，补齐后再审。",
+  "issue_count": 1,
+  "issue_count_including_candidates": 1,
+  "candidate_count": 0,
+  "issue_count_basis": "issue_count（1 = 库内依据，**与分类汇总同一个数**，见 PRD §5.4）= 完整清单 1 − 非权威候选 0；候选无库内条款号、只作排查线索，不构成依据",
+  "issue_summary_by_category": {
+   "原则性错误-禁区（库内反例条款）": 1
+  },
+  "risk_items": [
+   {
+    "risk_id": "sc-df7b5359f5278410",
+    "risk_type": "原则性错误-禁区（库内反例条款）",
+    "risk_category": null,
+    "risk_category_basis": "类别「原则性错误」**未映射，待裁** —— ★ **不编，留空待裁**。它是反例体系里的一类（实测 49 行），语义是「原则性/事实性错误」—— 在 PRD §5.3 的四维度里**没有明确落点**（既不是合规红线，也不只是措辞）。要人裁：归「措辞表达」还是新开一维？",
+    "priority_tier": "P1",
+    "priority_tier_basis": "规则行 p_level=P1",
+    "p_level": "P1",
+    "status": "confirmed",
+    "tier_action": "review",
+    "action": "review",
+    "location": "全文",
+    "original_text": "【原则性错误】图片 有时感觉吸奶后一切都必须井然有序。\n【问题要点】\n1. 有时感觉吸奶后一切都必须井然有序\n2. 【终审-@吴礼芳  】麻烦看看呀～\n3. 视觉效果：创作一个强有力的分屏构图，展现同一位女性的两种不同角色\n4. 左侧：这位",
+    "reason": "库内反例条款 S-1.301（原则性错误）按**同源/同题材**引证 —— 该案例记录的原文（含评审反馈）是库内留痕，**不是本素材里的字**；本单据此给 REVIEW，需人工点开 L0 核对是否真同源",
+    "suggestion": "advice 取自案例记录；实测 181 条反例里只有 46% 有 `建议` 列（这条**没有**）",
+    "rule_code": null,
+    "fact_or_inference": "事实",
+    "confidence": "中",
+    "evidence": {
+     "library": "内部正负样本库",
+     "article_no": "S-1.301",
+     "anchor": "#负面样本/recvweKJlZkABw/具体原因/分析",
+     "source_sha256": "89e67f93fe8f9d5a86a46656093ada94d1837b7bb31d7130fe143bb152d34505",
+     "excerpt": "【原则性错误】图片 有时感觉吸奶后一切都必须井然有序。\n【问题要点】\n1. 有时感觉吸奶后一切都必须井然有序\n2. 【终审-@吴礼芳  】麻烦看看呀～\n3. 视觉效果：创作一个强有力的分屏构图，展现同一位女性的两种不同角色\n4. 左侧：这位",
+     "l0_entry_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvweKJlZkABw"
+    },
+    "source": "kb-content-review",
+    "evidence_id": "《内部正负样本库 v0》第 S-1.301 条 @ #负面样本/recvweKJlZkABw/具体原因/分析 @ 89e67f93fe8f",
+    "evidence_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvweKJlZkABw",
+    "evidence_source": "L0 源记录直链（飞书）",
+    "severity": "low",
+    "evidence_complete": true
+   }
+  ],
+  "report_url": null,
+  "next_action": "补齐素材、权限、SKU、版本或证据后重新提交",
+  "next_owners": [
+   "法务",
+   "北美同事"
+  ],
+  "sla": {
+   "priority": "P1",
+   "target": "1 business day",
+   "escalate_to": [
+    "项目统筹",
+    "内容提交方"
+   ],
+   "timezone": "America/Los_Angeles",
+   "clock_rules": [
+    "Start the clock when the required input manifest is complete.",
+    "Pause the clock while waiting for missing submitter material.",
+    "Record timezone and business-calendar version with each SLA event.",
+    "SLA breach never changes the decision automatically."
+   ]
+  },
+  "version_gate": {},
+  "coverage": {
+   "text": "complete",
+   "image": "not_applicable",
+   "audio": "incomplete",
+   "video": "complete",
+   "ocr": "complete",
+   "asr": "incomplete",
+   "keyframes": "complete",
+   "note": "声明模态：video；未拿到 provider 佐证的模态记 incomplete（缺口，不是不适用）；其中 keyframes、ocr、video 的「complete」来自**调用方申报**（不是引擎自测），按申报档看待",
+   "declared_by": "caller",
+   "declared_modalities": [
+    "keyframes",
+    "ocr",
+    "video"
+   ]
+  },
+  "decision_trace": {
+   "reasons": [
+    "incomplete_coverage:asr,audio"
+   ],
+   "confidence_status": "heuristic_not_calibrated",
+   "evaluated_at": "2026-10-13T12:00:36.794948+00:00",
+   "tier_trace": {},
+   "confidence_route": {
+    "thresholds_source": "kb/l7/registry/confidence-policy.json"
+   },
+   "confidence_derivation": {},
+   "decision_before_confidence_flow": "NEEDS_INPUT"
+  }
+ },
+ "evidence_meta": {
+  "run_id": "20261013-200031",
+  "findings": 1,
+  "state": "REVIEW",
+  "report_path": null,
+  "material_facets": {
+   "product_line": "",
+   "channel": "",
+   "from": {},
+   "all_product_lines": [],
+   "all_channels": [],
+   "anchors_used": 0,
+   "records_skipped": [
+    {
+     "anchor": "#负面样本/recvweKJlZkABw/具体原因/分析",
+     "table": "负面样本",
+     "why": "素材原文**不在**该记录里 ⇒ 它是命中记录（规则样本/依据），**不是本素材** ⇒ 不采信它的品线/平台（那是那条样本自己的投放属性）"
+    }
+   ]
+  },
+  "trace": {
+   "p0": {
+    "engine": "kb/l5/matcher.py",
+    "exit_code": 0,
+    "total_elapsed_ms": 64.51,
+    "engine_elapsed_ms": 16.794,
+    "hits": []
+   },
+   "rules": {
+    "engine": "kb/l3/candidates/rules.jsonl",
+    "kb_type_filter": null,
+    "rules_scanned": 509,
+    "hits": []
+   },
+   "units": {
+    "engine": "kb/l6/retriever.py",
+    "l6_mode": "vector_plus_bm25",
+    "semantic_recall": true,
+    "bm25_max": 48.4927,
+    "cosine_max": 0.0,
+    "used_vector": false,
+    "no_semantic_annotation": null,
+    "top_bm25": [
+     {
+      "source": "bm25_en",
+      "unit_id": "274c574d92413eb9cdc7",
+      "anchor": "#h.Draft V2",
+      "table": "h.Draft V2",
+      "kb_type": "internal_sample",
+      "source_sha256": "4911b2bc5dc43db8daec4550309b3c55e17b041fe159074aaa00f44e9a4962c5",
+      "raw_bm25": 48.4927,
+      "excerpt": "<table><colgroup><col/><col/><col/><col/></colgroup><tbody><tr><td><b>Draft</b></td><td><b>Script</b></td><td><b>钛动反馈</b></td><td><b>客户反馈</b></td></tr><tr><td><"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "e567e6646c50b850c281",
+      "anchor": "#h.Draft V1- 8.29 Pending Momcozy Review",
+      "table": "h.Draft V1- 8.29 Pending Momcozy Review",
+      "kb_type": "internal_sample",
+      "source_sha256": "66f9d9d5632a4c9872597af8e3ee35a3d264d824a5a11a78090c56e91f21e427",
+      "raw_bm25": 40.649,
+      "excerpt": "<table><colgroup><col/><col/><col/><col/></colgroup><tbody><tr><td><b>Draft</b></td><td><b>Script</b></td><td><b>钛动反馈</b></td><td><b>客户反馈</b></td></tr><tr><td><"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "442d6be08545fa8fc805",
+      "anchor": "#l.1-3",
+      "table": "l.1-3",
+      "kb_type": "internal_sample",
+      "source_sha256": "d3c8b460b968644734ba68eb77d87632760f533cbbc05a1c2d965171d74612bf",
+      "raw_bm25": 38.4077,
+      "excerpt": ">修改字幕</li></ol><img name=\"image.png\" alt=\"图片展示了一位女性手持两个不同颜色的物品，画面下方字幕显示“Mom Cozy has the one press release”。该图片位于文档中关于Momcozy横测视频修改建议的上下文里，是对视频中需修改内容的示例说明，对应文档中"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "8254e1f4150588ecec35",
+      "anchor": "#l.1-2",
+      "table": "l.1-2",
+      "kb_type": "internal_sample",
+      "source_sha256": "d3c8b460b968644734ba68eb77d87632760f533cbbc05a1c2d965171d74612bf",
+      "raw_bm25": 37.9299,
+      "excerpt": "<li seq=\"1\" seq-marker=\"1. \">cover</li></ol><img name=\"image.png\" alt=\"图片展示了一位女性在厨房操作Momcozy Wellness 1按摩器的场景。她穿着黑白条纹上衣，左手持粉色按摩器，右手正在拆卸白色部件。画面下方有文字说明“and it&#39"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "c4c941880a7a057b3858",
+      "anchor": "#素材/recvweKJlZkABw/图片素材/#img.1",
+      "table": "素材",
+      "kb_type": "internal_sample",
+      "source_sha256": null,
+      "raw_bm25": 36.7015,
+      "excerpt": "[image_ocr] momcozy 家纺线下试衣镜选品 2026.08.28 momcozy 01-1 背景&要求 父利用试衣钱这个高注磨力鯪占曾品牌传構。 采药夏家： L得鑫忍烤清性： 2.R沙段格震票：一真度不任于1600mm，意境不任于500mm，满足展示全弃及产品上身效果： 3安装方式：%地式或提填式； 因"
+     }
+    ],
+    "vector_rows": [],
+    "adopted": [
+     {
+      "source": "bm25_en",
+      "unit_id": "274c574d92413eb9cdc7",
+      "anchor": "#h.Draft V2",
+      "table": "h.Draft V2",
+      "kb_type": "internal_sample",
+      "source_sha256": "4911b2bc5dc43db8daec4550309b3c55e17b041fe159074aaa00f44e9a4962c5",
+      "raw_bm25": 48.4927,
+      "excerpt": "<table><colgroup><col/><col/><col/><col/></colgroup><tbody><tr><td><b>Draft</b></td><td><b>Script</b></td><td><b>钛动反馈</b></td><td><b>客户反馈</b></td></tr><tr><td><",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "e567e6646c50b850c281",
+      "anchor": "#h.Draft V1- 8.29 Pending Momcozy Review",
+      "table": "h.Draft V1- 8.29 Pending Momcozy Review",
+      "kb_type": "internal_sample",
+      "source_sha256": "66f9d9d5632a4c9872597af8e3ee35a3d264d824a5a11a78090c56e91f21e427",
+      "raw_bm25": 40.649,
+      "excerpt": "<table><colgroup><col/><col/><col/><col/></colgroup><tbody><tr><td><b>Draft</b></td><td><b>Script</b></td><td><b>钛动反馈</b></td><td><b>客户反馈</b></td></tr><tr><td><",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "442d6be08545fa8fc805",
+      "anchor": "#l.1-3",
+      "table": "l.1-3",
+      "kb_type": "internal_sample",
+      "source_sha256": "d3c8b460b968644734ba68eb77d87632760f533cbbc05a1c2d965171d74612bf",
+      "raw_bm25": 38.4077,
+      "excerpt": ">修改字幕</li></ol><img name=\"image.png\" alt=\"图片展示了一位女性手持两个不同颜色的物品，画面下方字幕显示“Mom Cozy has the one press release”。该图片位于文档中关于Momcozy横测视频修改建议的上下文里，是对视频中需修改内容的示例说明，对应文档中",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "8254e1f4150588ecec35",
+      "anchor": "#l.1-2",
+      "table": "l.1-2",
+      "kb_type": "internal_sample",
+      "source_sha256": "d3c8b460b968644734ba68eb77d87632760f533cbbc05a1c2d965171d74612bf",
+      "raw_bm25": 37.9299,
+      "excerpt": "<li seq=\"1\" seq-marker=\"1. \">cover</li></ol><img name=\"image.png\" alt=\"图片展示了一位女性在厨房操作Momcozy Wellness 1按摩器的场景。她穿着黑白条纹上衣，左手持粉色按摩器，右手正在拆卸白色部件。画面下方有文字说明“and it&#39",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "c4c941880a7a057b3858",
+      "anchor": "#素材/recvweKJlZkABw/图片素材/#img.1",
+      "table": "素材",
+      "kb_type": "internal_sample",
+      "source_sha256": null,
+      "raw_bm25": 36.7015,
+      "excerpt": "[image_ocr] momcozy 家纺线下试衣镜选品 2026.08.28 momcozy 01-1 背景&要求 父利用试衣钱这个高注磨力鯪占曾品牌传構。 采药夏家： L得鑫忍烤清性： 2.R沙段格震票：一真度不任于1600mm，意境不任于500mm，满足展示全弃及产品上身效果： 3安装方式：%地式或提填式； 因",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     }
+    ],
+    "discarded": [],
+    "gate": {
+     "bm25_raw_min": 8.0,
+     "vector_cosine_min": 0.6,
+     "use_raw_scores_only": true,
+     "why_not_rrf": "RRF 分恒为 1/(60+k)，实测 Top1 恒在 0.016393，A 组与 B 组看起来一样高，没有区分度，不能当门限",
+     "why_single_threshold_not_enough": "实测 BM25 原始分在 A/B 两组有重叠（A 组最低 5.32 < B 组最高 10.02），所以门限只用于「够不够格当参考」，要成为「依据」还必须同时命中规则层",
+     "measured": {
+      "bm25_raw": {
+       "A_group_min": 5.32,
+       "A_group_median": 12.76,
+       "B_group_median": 6.44,
+       "B_group_max": 10.02,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      },
+      "cosine": {
+       "A_group_min": 0.512,
+       "A_group_median": 0.669,
+       "B_group_median": 0.384,
+       "B_group_max": 0.569,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      }
+     },
+     "threshold_reasoning": "BM25 门限取 8.0：落在 A 组最低(5.32)与 B 组最高(10.02)之间、贴近两组中位之间，偏保守；余弦门限取 0.60：实测它是唯一能把 B 组全部挡在外面的取值（B 组最高 0.569），代价是 A 组丢 2 条；即便如此门限仍单独不可靠，必须叠加「同时命中规则层」才算依据",
+     "below_threshold_label": "参考",
+     "above_threshold_without_rule_hit": "仍只能标参考，不得作为依据",
+     "coverage_bm25_min": 16.0,
+     "coverage_reasoning": "PASS 必须建立在「知识库认识这个主题」之上，覆盖信号二选一：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ coverage_bm25_min(=16.0)。16.0 = 依据门限的 2 倍：实测 A 组中位 12.76 / 最高 23.16，B 组最高 10.02，取 16 能把实测 B 组全部挡在外面。覆盖信号不成立 → 拒答，不得输出 PASS。"
+    }
+   },
+   "coverage": {
+    "safe_vocabulary_hits": [],
+    "rule_cited_unit_hits": [],
+    "same_source_unit_hits": [],
+    "case_unit_hits": [
+     {
+      "anchor": "#素材/recvweKJlZkABw/图片素材/#img.1",
+      "raw_bm25": 36.7015,
+      "resource_id": "bitable__tbld8qE92YaY38Yz__recvweKJlZkABw"
+     }
+    ],
+    "case_clause_pool": 239,
+    "rule_cited_anchor_pool": 959,
+    "rule_cited_resource_pool": 40,
+    "coverage_bm25_min": 16.0,
+    "covered_by": "case",
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "covered": true
+   },
+   "elapsed_ms": 2626.2,
+   "perf": {
+    "p0_match_ms": 64.6,
+    "rule_layer_ms": 29.6,
+    "unit_layer_ms": 2364.3,
+    "assemble_ms": 167.7,
+    "content_type": "text",
+    "text_bytes": 395,
+    "threshold_s": 10
+   },
+   "risk_category": {
+    "with_dimension": 0,
+    "unmapped_or_pending": 1,
+    "policy": "kb/l7/registry/risk-category-policy.json"
+   }
+  },
+  "source": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py",
+  "findings_source": {
+   "mode": "live",
+   "path": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py"
+  },
+  "kb_hits": [
+   {
+    "anchor": "#h.Draft V2",
+    "bm25": 48.4927,
+    "kb_type": "internal_sample",
+    "source_sha256": "4911b2bc5dc43db8daec4550309b3c55e17b041fe159074aaa00f44e9a4962c5",
+    "excerpt": "<table><colgroup><col/><col/><col/><col/></colgroup><tbody><tr><td><b>Draft</b></td><td><b>Script</b></td><td><b>钛动反馈</b></td><td><b>客户反馈</b></td></tr><tr><td><",
+    "url": "https://biu6ihvvco.feishu.cn/wiki/M3tWwmh8xi4V3EkKPITcIaAknRc"
+   },
+   {
+    "anchor": "#h.Draft V1- 8.29 Pending Momcozy Review",
+    "bm25": 40.649,
+    "kb_type": "internal_sample",
+    "source_sha256": "66f9d9d5632a4c9872597af8e3ee35a3d264d824a5a11a78090c56e91f21e427",
+    "excerpt": "<table><colgroup><col/><col/><col/><col/></colgroup><tbody><tr><td><b>Draft</b></td><td><b>Script</b></td><td><b>钛动反馈</b></td><td><b>客户反馈</b></td></tr><tr><td><",
+    "url": "https://biu6ihvvco.feishu.cn/wiki/WCpUwlELIi6sDlkyPN7cZ1vonQf"
+   },
+   {
+    "anchor": "#l.1-3",
+    "bm25": 38.4077,
+    "kb_type": "internal_sample",
+    "source_sha256": "d3c8b460b968644734ba68eb77d87632760f533cbbc05a1c2d965171d74612bf",
+    "excerpt": ">修改字幕</li></ol><img name=\"image.png\" alt=\"图片展示了一位女性手持两个不同颜色的物品，画面下方字幕显示“Mom Cozy has the one press release”。该图片位于文档中关于Momcozy横测视频修改建议的上下文里，是对视频中需修改内容的示例说明，对应文档中",
+    "url": "https://biu6ihvvco.feishu.cn/wiki/DAd6wOcX2iWuWhkZqqlc0AZxncg"
+   },
+   {
+    "anchor": "#l.1-2",
+    "bm25": 37.9299,
+    "kb_type": "internal_sample",
+    "source_sha256": "d3c8b460b968644734ba68eb77d87632760f533cbbc05a1c2d965171d74612bf",
+    "excerpt": "<li seq=\"1\" seq-marker=\"1. \">cover</li></ol><img name=\"image.png\" alt=\"图片展示了一位女性在厨房操作Momcozy Wellness 1按摩器的场景。她穿着黑白条纹上衣，左手持粉色按摩器，右手正在拆卸白色部件。画面下方有文字说明“and it&#39",
+    "url": "https://biu6ihvvco.feishu.cn/wiki/DAd6wOcX2iWuWhkZqqlc0AZxncg"
+   },
+   {
+    "anchor": "#素材/recvweKJlZkABw/图片素材/#img.1",
+    "bm25": 36.7015,
+    "kb_type": "internal_sample",
+    "source_sha256": null,
+    "excerpt": "[image_ocr] momcozy 家纺线下试衣镜选品 2026.08.28 momcozy 01-1 背景&要求 父利用试衣钱这个高注磨力鯪占曾品牌传構。 采药夏家： L得鑫忍烤清性： 2.R沙段格震票：一真度不任于1600mm，意境不任于500mm，满足展示全弃及产品上身效果： 3安装方式：%地式或提填式； 因",
+    "url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvweKJlZkABw"
+   }
+  ],
+  "layer_preflight": {
+   "base": "20261013-2000",
+   "ok": true,
+   "red_total": 0,
+   "mode": "enforced",
+   "details": {
+    "L4": {
+     "run": "20261013-2000-L4",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L4": "session-f010e9da-a204-4a00-b80c-7c33cebbc148"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L5": {
+     "run": "20261013-2000-L5",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L5": "session-f010e9da-a204-4a00-b80c-7c33cebbc148"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L6": {
+     "run": "20261013-2000-L6",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L6": "session-f010e9da-a204-4a00-b80c-7c33cebbc148"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L7": {
+     "run": "20261013-2000-L7",
+     "exit": 0,
+     "red": 0,
+     "yellow": 0,
+     "skill_sessions": {
+      "L7": "session-f010e9da-a204-4a00-b80c-7c33cebbc148"
+     },
+     "pass": true,
+     "note": ""
+    }
+   }
+  },
+  "decision_owner": {
+   "skill": "视频安全审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check",
+    "视频安全审查"
+   ]
+  },
+  "publish": {
+   "mode": "enabled",
+   "published": false,
+   "reason": "no_conclusion"
+  },
+  "report_url": null,
+  "report_url_kind": null
+ }
+}
+
+===== ③b 转述模板（照抄这一段即可，不必再跑任何命令）=====
+状态：REVIEW ｜ 问题数：1 ｜ 置信度：0.0
+摘要：【审查结论：NEEDS_INPUT】当前素材、版本或证据不完整，补齐后再审。
+层前置：ok=None mode=None
+判定主体：视频安全审查 ｜ mode=declared
+  ● 条款号 ? ｜ 库内反例条款 S-1.301（原则性错误）按**同源/同题材**引证 —— 该案例记录的原文（含评审反馈）是库内留痕，**不是本素材里的字**；本单据此给 REVIEW，需人工点开 L0 核对是否真同源
+
+【飞书那一步没有做】published=false ｜ 原因 no_conclusion
+⇒ 这**由守衡侧负责**，不是你的活。**不许**自己调 lark-cli 去补写表。

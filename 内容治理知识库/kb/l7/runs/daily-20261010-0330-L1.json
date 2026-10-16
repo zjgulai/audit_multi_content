@@ -1,0 +1,79 @@
+{
+ "run_id": "daily-20261010-0330-L1",
+ "at": "2026-10-10T03:58:09",
+ "source": "pipeline_sync",
+ "trigger": "--sync --via-skill L1",
+ "skills": [
+  "kb-pipeline",
+  "kb-ingest-extractor",
+  "kb-media-extractor"
+ ],
+ "commands": [
+  "kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L1 --run daily-20261010-0330-L1 --invoked kb-ingest-extractor --invoked kb-media-extractor --skill-session L1=session-f7ae73a5-a95b-4755-b90b-17983a17d242"
+ ],
+ "products": [
+  "kb/l1/runs/daily-20261010-0330-L1-manifest-reconcile.json",
+  "kb/l1/runs/daily-20261010-0330-L1-dryrun.json",
+  "kb/l1/runs/daily-20261010-0330-L1.json"
+ ],
+ "verdict": "全走完",
+ "human_involved": true,
+ "extra": {
+  "via_skill": true,
+  "skill_invoked_by": "agent",
+  "skill_evidence": "layer_stamps_observed",
+  "skill_evidence_note": "观测来源＝层落章（非预演）：L1:kb/l1/runs/daily-20261010-0330-L1-manifest-reconcile.json",
+  "observed_skills": [
+   "kb-ingest-extractor",
+   "kb-media-extractor"
+  ],
+  "observed_skills_sources": [
+   "L1:kb/l1/runs/daily-20261010-0330-L1-manifest-reconcile.json"
+  ],
+  "layers": [
+   "L1"
+  ],
+  "layer_skills": [
+   "kb-ingest-extractor",
+   "kb-media-extractor"
+  ],
+  "declared_layer_skills": {
+   "L1": [
+    "kb-ingest-extractor",
+    "kb-media-extractor"
+   ]
+  },
+  "layer_skills_uniq": [
+   "kb-ingest-extractor",
+   "kb-media-extractor"
+  ],
+  "invoked_reported": [
+   "kb-ingest-extractor",
+   "kb-media-extractor"
+  ],
+  "skill_sessions": {
+   "L1": "session-f7ae73a5-a95b-4755-b90b-17983a17d242"
+  },
+  "human_involved_basis": "--invoked 已上报（agent 按层 skill 走过）",
+  "verdict_basis": "层侧落章 applied=true → 真落盘",
+  "layer_stamps_applied": [
+   "L1:kb/l1/runs/daily-20261010-0330-L1-manifest-reconcile.json"
+  ],
+  "layer_stamps_dry": [
+   "L1:kb/l1/runs/daily-20261010-0330-L1-dryrun.json"
+  ],
+  "layer_stamps_unknown": [
+   "L1:kb/l1/runs/daily-20261010-0330-L1.json"
+  ],
+  "write_gate": {
+   "id": null,
+   "resolved": false,
+   "layers_authorized": null,
+   "unauthorized_layers": [
+    "L1"
+   ],
+   "readonly_declared": [],
+   "msg": "**未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml"
+  }
+ }
+}

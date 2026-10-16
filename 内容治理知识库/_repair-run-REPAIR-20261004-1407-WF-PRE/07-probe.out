@@ -1,0 +1,18 @@
+run records with artifact lists: 167
+
+[②] kb/l3/candidates/rules.jsonl
+     live sha          = 743dc62398311b02…
+     declared by       = 58 run records
+     newest declaration= RVW-LISTING-20261004-L4-dryrun.json @   sha=743dc62398311b02…
+     新判据 ⇒ GREEN（已溯源的演进）
+
+[③] 新判据下 red = 3 / 45
+     RED  kb/l7/skills/kb-content-review/SKILL.md
+          最新申报 20260923-1500.json @ sha=1b82260fa340683a… != 活库 057e0c7c23d674d4…
+     RED  kb/l7/registry/l7.json
+          最新申报 20260923-1500.json @ sha=36c5c78d8d01cbce… != 活库 b36c86f74d86a0a7…
+     RED  kb/l7/skills/kb-content-review/scripts/review.py
+          最新申报 20260923-1500.json @ sha=fd23e0e694fcdf12… != 活库 ed47c8f4b9bbc93f…
+
+==> 若只批 (A)（不给那几项补落章）：workflow_check 裁决 = FAIL
+    ⇒ (A) 单独转绿的条件是『③ 的 red 清单为空』；否则必须 (A)＋(C) 同时做。

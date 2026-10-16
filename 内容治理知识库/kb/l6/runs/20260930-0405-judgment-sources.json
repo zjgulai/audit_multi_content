@@ -1,0 +1,82 @@
+{
+ "run_id": "20260930-0405",
+ "kind": "l6_judgment_source_report",
+ "query_count": 14,
+ "slots": 126,
+ "human_summary": {
+  "A|bm25_only": {
+   "n": 8,
+   "hit@3": 1.0,
+   "p@3": 0.75
+  },
+  "A|vector_only": {
+   "n": 5,
+   "hit@3": 0.8,
+   "p@3": 0.4
+  },
+  "A|hybrid": {
+   "n": 6,
+   "hit@3": 1.0,
+   "p@3": 0.667
+  },
+  "B|bm25_only": {
+   "n": 4,
+   "hit@3": 0.0,
+   "p@3": 0.0
+  },
+  "B|vector_only": null,
+  "B|hybrid": {
+   "n": 3,
+   "hit@3": 0.0,
+   "p@3": 0.0
+  }
+ },
+ "merged_summary": {
+  "A|bm25_only": {
+   "n": 8,
+   "hit@3": 1.0,
+   "p@3": 1.0
+  },
+  "A|vector_only": {
+   "n": 8,
+   "hit@3": 0.75,
+   "p@3": 0.667
+  },
+  "A|hybrid": {
+   "n": 8,
+   "hit@3": 1.0,
+   "p@3": 0.875
+  },
+  "B|bm25_only": {
+   "n": 6,
+   "hit@3": 0.0,
+   "p@3": 0.0
+  },
+  "B|vector_only": {
+   "n": 6,
+   "hit@3": 0.0,
+   "p@3": 0.0
+  },
+  "B|hybrid": {
+   "n": 6,
+   "hit@3": 0.0,
+   "p@3": 0.0
+  }
+ },
+ "agent_files": [
+  "kb/.work/l6_judgments_ab.agent-20260930.json",
+  "kb/.work/l6_judgments_ab.agent-20260930b.json"
+ ],
+ "agent_pairs": 83,
+ "gap_slots": 2,
+ "gap_by_group_mode": {
+  "A|vector_only": 1,
+  "A|hybrid": 1
+ },
+ "gap_units_by_query": {
+  "hospital grade pump": [
+   "9f37bfde3a67139feecb"
+  ]
+ },
+ "note": "人判 only = 权威读法；merged 里 agent 那部分来源不同，不可当人权使用"
+}

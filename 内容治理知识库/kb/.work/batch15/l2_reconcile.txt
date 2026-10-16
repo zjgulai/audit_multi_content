@@ -1,0 +1,50 @@
+index/l1.jsonl 行数: 14858
+index 行的键组合: Counter({('anchor', 'char_count', 'kb_type', 'kind', 'resource_id', 'seg_id', 'source_sha256'): 14722, ('anchor', 'char_count', 'kb_type', 'kb_type_followed_l0_at_run', 'kind', 'resource_id', 'seg_id', 'source_sha256'): 136})
+
+口径A（L1 台账最新行 segment_count>0）: 1697
+口径B（index/l1.jsonl 的 resource_id 去重）: 1603
+有单元资源: 1026   -> A-U=671  B-U=577
+
+A\B = 171 条（在A不在B）
+B\A = 77 条（在B不在A）
+
+B\A 样例（前 12）: ['bitable__tbld8qE92YaY38Yz__recvvPK3Eb0nhw_fldnvxjaSr_K0zzbz3UcobonbxFEtScHaGhnyg', 'bitable__tbld8qE92YaY38Yz__recvvPK3Eb2SXM_fldnvxjaSr_D4UkbBdFzo5Z0qxxtoOc12ARnvg', 'bitable__tbld8qE92YaY38Yz__recvvPK3Eb2SXM_fldnvxjaSr_ZsG7b8W6xo5q6xx3HpWcj6zGnGg', 'bitable__tbld8qE92YaY38Yz__recvvPK3Eb2ufK_fldnvxjaSr_TyOAb9AasoS4agx7GUzcTmywnq0', 'bitable__tbld8qE92YaY38Yz__recvvPK3Eb4EOl_fldnvxjaSr_DUqEbjyuOoCkAix4uTHc5pcInze', 'bitable__tbld8qE92YaY38Yz__recvvPK3Eb4EOl_fldnvxjaSr_NhrWblXZMoZ4HUxeozucGeKQntw', 'bitable__tbld8qE92YaY38Yz__recvvPK3Eb4EOl_fldnvxjaSr_OQk9bJqQPol3jlxgaodcW0znnAe', 'bitable__tbld8qE92YaY38Yz__recvvPK3Eb4EOl_fldnvxjaSr_R12ob4pAUoaHM1xVeKMcI7x7ncg', 'bitable__tbld8qE92YaY38Yz__recvvPK3Eb4EOl_fldnvxjaSr_YKUIboL8eo9tzJxYyancz3TPn4b', 'bitable__tbld8qE92YaY38Yz__recvvPK3Eb6bta_fldnvxjaSr_C83YbMHGRoXZZAxbE04cJYTlnLe', 'bitable__tbld8qE92YaY38Yz__recvvPK3Eb6bta_fldnvxjaSr_DuH3b3CcgoozWOxyFl5c35EHnWd', 'bitable__tbld8qE92YaY38Yz__recvvPK3Eb8JUa_fldnvxjaSr_CizVbvt8BobWjTxN3kScDXrznJc']
+
+=== 差异来源分析 ===
+台账最新行 segment_count==0 的资源数: 162
+  其中在 index 里有行的: 77
+  这些资源的最新 status: Counter({'invalidated': 77})
+index 里有 resource_id、但台账里没有该 resource_id 的: 0
+
+口径A 复现: 1697 (batch14 报告写 1697)
+
+=== A\B 的 171 条：台账说有段、index 里没有 ===
+  status 分布: {'ok': 131, 'invalidated': 4, 'retracted': 36}
+  observed_at 分布: {'20260924-1630': 2, '20260924-1210': 4, '20260923-1215': 36, '20260924-1200': 129}
+  kb_type 分布: {'internal_sample': 167, 'unknown': 4}
+  段数合计（台账声称）: 323
+  样例: ['base__DXJ6b5cKtaXPQasoayEc74SUnog', 'local__review-case__img-1', 'local__review-case__img-2', 'local__review-case__img-3', 'local__review-case__img-4']
+
+=== 关键判定 ===
+  B 中「台账最新行 segment_count==0」的 77 条，status 全为 invalidated: True
+
+口径C（推荐）= index 里有行 且 台账最新行不是 invalidated = 1526
+  口径A(L1台账 segment_count>0)      = 1697
+  口径B(index resource_id 去重)      = 1603
+  有单元资源 = 1026
+  A: 有段 1697 / 有单元 1026 / **有段但 0 单元 = 671**
+  B: 有段 1603 / 有单元 1026 / **有段但 0 单元 = 577**
+  C: 有段 1526 / 有单元 1026 / **有段但 0 单元 = 500**
+
+=== 口径E（L1 产物 segments[] 非空，操作真相）: 1605 ===
+  其中状态有效（非 invalidated/retracted）: 1403
+  有单元 1026；**有段但 0 单元 = 377**
+
+五种口径对照：
+   A 台账 segment_count>0                 有段 1697  → 有段但 0 单元 671
+   B index resource_id 去重               有段 1603  → 有段但 0 单元 577
+   C index 且非 invalidated               有段 1526  → 有段但 0 单元 500
+   D 台账 segment_count>0 且状态有效           有段 1657  → 有段但 0 单元 631
+   E L1 产物 segments 非空且状态有效             有段 1403  → 有段但 0 单元 377
+
+→ 采信口径 E；差集清单已落 kb/.work/batch15/l2_convention.json

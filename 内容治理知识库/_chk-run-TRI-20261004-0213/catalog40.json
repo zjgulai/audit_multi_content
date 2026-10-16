@@ -1,0 +1,1297 @@
+[
+ {
+  "n": "kb-content-review",
+  "id": "kb-content-review",
+  "p": "用 Momcozy 内容治理知识库（L0–L6）为**已经给出的判定**产出可核对的**依据**（库名 + 版本 + 条款号 + 锚点 + source_sha256 + 逐字摘录）——2026-09",
+  "k": [
+   "为什么判 BLOCK",
+   "依据是哪条规则",
+   "条款号",
+   "知识库怎么说",
+   "三态结论的依据",
+   "审查依据",
+   "逐字摘录",
+   "锚点在哪"
+  ],
+  "x": [
+   "用户刚开始送来待判内容、问它该不该拦（走 kb-review）",
+   "一批素材的发布前全流程（走 brand-content-review-agent）"
+  ]
+ },
+ {
+  "n": "蒸馏",
+  "id": "蒸馏",
+  "p": "把会议纪要、白板、逐字稿、文档、教程、聊天记录、代码仓库、论文、播客、视频、笔记、某人的经验判断等素材，蒸馏成能被路由调用的 Skill（六阶段 + 三重验证闸门 + 入库验收谓词）",
+  "k": [
+   "会议蒸馏",
+   "把会议变成 skill",
+   "资料变 skill",
+   "万物皆可 skill",
+   "对话蒸馏",
+   "萃取 skill",
+   "把这份笔记蒸成 skill",
+   "把这份文档变成 skill"
+  ],
+  "x": [
+   "产出是一次性成品（文档 / 摘要 / 简报 / 会议纪要整理）",
+   "对已有 Skill 做体检、评测、优化、改触发词、建骨架、排版"
+  ]
+ },
+ {
+  "n": "root-skills-check",
+  "id": "root-skills-check",
+  "p": "root-skills-eval 评测报告放行前的单一核对入口 + 数据资产知识蒸馏：跑 15 项输出前自检与 eval CLI 硬校验（build-final-report.py --validat",
+  "k": [
+   "核对报告",
+   "报告完整性检查",
+   "漏数据",
+   "评测报告校验",
+   "报告质检",
+   "数据资产入库",
+   "知识蒸馏",
+   "自动成长"
+  ],
+  "x": [
+   "创建 skill（用 root-skills-creator）",
+   "打分 / 出题 / 三轮评测（用 root-skills-eval）"
+  ]
+ },
+ {
+  "n": "root-skills-creator",
+  "id": "root-skills-creator",
+  "p": "创建生产级 Agent Skill：整合 Iron Law Testing、CSO 优化、Universal Skill Schema，内置 with/without 对比评测、意图对话、模式分级与输",
+  "k": [
+   "创建 skill",
+   "写一个 skill",
+   "做一个 skill",
+   "创建生产级 skill",
+   "Iron Law",
+   "CSO",
+   "对比评测",
+   "Skill 类型"
+  ],
+  "x": [
+   "评估已有 skill 质量（走 root-skills-eval）",
+   "优化 / 修复已有 skill 内容（走 root-skills-opt）"
+  ]
+ },
+ {
+  "n": "root-skills-doctor",
+  "id": "root-skills-doctor",
+  "p": "Skill 结构医生：检测目录结构问题（D001–D007）与规范 / 安全静态问题（D100 系列，frontmatter 合规、触发质量、长度、脚本可执行、危险命令、硬编码密钥）并自动修复，支持单",
+  "k": [
+   "修复 skill 结构",
+   "skill 目录整理",
+   "批量修复 skills",
+   "skill 结构检测",
+   "整理 skill 目录",
+   "修复目录结构",
+   "skill-doctor",
+   "skill 体检"
+  ],
+  "x": [
+   "评测 skill 质量打分（走 root-skills-eval）",
+   "按报告改正文（走 root-skills-opt）"
+  ]
+ },
+ {
+  "n": "root-skills-eval",
+  "id": "root-skills-eval",
+  "p": "Skill 质量双轨评测：轨道 A 静态六维 + 轨道 B 触发盲测（A 卷按复杂度 25/50/100 条 × 3 轮 + B 卷 10 条封印留出）+ 轨道 C 综合评分；封顶后低于 85 或调用",
+  "k": [
+   "评测skill",
+   "测试skill",
+   "skill评测",
+   "评估 skill",
+   "skill 评分",
+   "skill 质量检查",
+   "schema 检查",
+   "触发评测"
+  ],
+  "x": [
+   "评 Agent 而不是 Skill——手上是含 agent.yaml 的 agent 契约包时走 root-agents（本 skill 只认 SKILL.md，喂 agent 包会判 SKILL.md not found）",
+   "只做快速结构验证 / 目录整理（走 root-skills-doctor）"
+  ]
+ },
+ {
+  "n": "root-skills-manage",
+  "id": "root-skills-manage",
+  "p": "root-skills 家族管理器：家族全景、成员注册、任务路由、生命周期（启停 / 版本 / 状态跟踪）、家族注册表维护",
+  "k": [
+   "root-skills 管理",
+   "家族 skill 管理",
+   "skill 注册表",
+   "skill 路由",
+   "skill 生命周期",
+   "skill 启停",
+   "家族全景",
+   "成员列表"
+  ],
+  "x": [
+   "创建单个 skill（用 root-skills-creator）",
+   "评估单个 skill（用 root-skills-eval）"
+  ]
+ },
+ {
+  "n": "root-skills-opt",
+  "id": "root-skills-opt",
+  "p": "按 root-skills-eval 的结构化报告执行全自主优化闭环（解析报告 → 生成计划 → 在 {skill}-fix/ 副本修复 → 回归验证 → 重新评分 → 副本交付），修复期间源文件只读",
+  "k": [
+   "优化 skill",
+   "改进 skill",
+   "修复 skill",
+   "修复 skill 问题",
+   "skill 优化",
+   "skill 提升",
+   "skill 重构",
+   "执行优化"
+  ],
+  "x": [
+   "评估 skill 打分（用 root-skills-eval）",
+   "创建新 skill（用 root-skills-creator）"
+  ]
+ },
+ {
+  "n": "root-skills-batch-driver",
+  "id": "root-skills-batch-driver",
+  "p": "批量评测编排驱动：把「评测一个目录里所有 skills」跑成可续、可留痕的流水线——启动并监控 root-skills-eval 的评测 subagent，以磁盘落盘 mtime 做心跳，连续无进展超",
+  "k": [
+   "批量评测",
+   "批跑 skills",
+   "批量回归",
+   "断点续跑",
+   "无进展超时",
+   "subagent 卡死",
+   "心跳检测",
+   "批量评估编排"
+  ],
+  "x": [
+   "评估单个 skill（用 root-skills-eval）",
+   "优化单个 skill（用 root-skills-opt）"
+  ]
+ },
+ {
+  "n": "lark-doc",
+  "id": "lark-doc",
+  "p": "飞书云文档（Docx / Wiki）内容操作：读取、创建、编辑文档，插入或下载图片附件，以及操作思维笔记",
+  "k": [
+   "飞书文档",
+   "云文档",
+   "docx",
+   "wiki 文档",
+   "读文档",
+   "创建文档",
+   "编辑文档",
+   "插入图片"
+  ],
+  "x": [
+   "独立评论操作（走 lark-drive）",
+   "随正文读取评论以外的情况"
+  ]
+ },
+ {
+  "n": "lark-drive",
+  "id": "lark-drive",
+  "p": "飞书云空间（云盘 / 云存储）：上传下载、文件夹与文件管理（创建 / 复制 / 移动 / 删除）、元数据与版本、权限 / 评论 / 订阅、密级标签，以及把 Word/Markdown/Excel/CS",
+  "k": [
+   "飞书云盘",
+   "云空间",
+   "云存储",
+   "上传文件",
+   "下载文件",
+   "整理云盘目录",
+   "判断链接类型",
+   "真实 token"
+  ],
+  "x": [
+   "文档内容编辑（走 lark-doc）",
+   "表格 / Base 表内数据操作（走 lark-sheets / lark-base）"
+  ]
+ },
+ {
+  "n": "lark-wiki",
+  "id": "lark-wiki",
+  "p": "飞书知识库：管理知识空间、空间成员与文档节点（层级结构、组织与快捷方式）",
+  "k": [
+   "飞书知识库",
+   "知识空间",
+   "wiki 节点",
+   "空间成员",
+   "节点层级",
+   "移动节点",
+   "复制节点",
+   "快捷方式"
+  ],
+  "x": [
+   "上传文件到知识库节点下（走 lark-drive）",
+   "编辑文档 / 表格 / Base 内容（走 lark-doc / lark-sheets / lark-base）"
+  ]
+ },
+ {
+  "n": "lark-base",
+  "id": "lark-base",
+  "p": "飞书多维表格（Base）操作：建表、字段、记录、视图、统计、公式 / lookup、表单、仪表盘、应用模式（BaseApp / AppMode）、Workspace 目录、workflow、角色权限、",
+  "k": [
+   "多维表格",
+   "Base",
+   "bitable",
+   "建表",
+   "字段",
+   "记录",
+   "视图",
+   "仪表盘"
+  ],
+  "x": [
+   "BaseApp 走 lark-apps",
+   "文件导入 / 导出（走 lark-drive）"
+  ]
+ },
+ {
+  "n": "lark-shared",
+  "id": "lark-shared",
+  "p": "lark-cli 的安装与认证：auth login / status / logout、用户与机器人身份、业务域权限（--domain，含 all / docs / drive）、缺失 scope、",
+  "k": [
+   "lark-cli 配置",
+   "lark-cli 认证",
+   "飞书登录",
+   "auth login",
+   "auth status",
+   "用户身份",
+   "机器人身份",
+   "业务域权限"
+  ],
+  "x": [
+   "具体业务操作（文档走 lark-doc、云盘走 lark-drive、多维表格走 lark-base、知识库走 lark-wiki）",
+   "非 lark 生态的通用认证问题"
+  ]
+ },
+ {
+  "n": "agent-build-flow",
+  "id": "agent-build-flow",
+  "p": "把一个模糊业务需求推成能上线的 Agent 包：入口三筛 → 无情追问 → TUI 跑通 → 规格 → 垂直切片拆解 → TDD 开发 → 验证上线 → 交接迭代，全程 20 道门禁",
+  "k": [
+   "要做个 agent",
+   "建一个智能体",
+   "这个需求要不要做成 agent",
+   "agent 立项",
+   "agent 开发流程",
+   "从问题到上线",
+   "agent 规格",
+   "agent 契约"
+  ],
+  "x": [
+   "只评测已完成的 agent 包（走 root-agents 家族的 root-agent-doctor / root-agent-eval，不是 root-skills-eval——那个家族只认 SKILL.md）",
+   "只要一个能跑的成品包、不要开发流程（走 root-agents 家族的 root-agent-creater）"
+  ]
+ },
+ {
+  "n": "code-review",
+  "id": "code-review",
+  "p": "从固定基点（commit / branch / tag / merge-base）起审改动，两条轴并行——Standards（是否符合本仓库成文规范）与 Spec（是否匹配来源 issue / 规格）",
+  "k": [
+   "review since",
+   "review this branch",
+   "审这个分支",
+   "审这个 PR",
+   "评审改动",
+   "review my changes",
+   "standards review",
+   "spec review"
+  ],
+  "x": [
+   "写实现（走 implement）",
+   "把对话转成规格 / 拆工单（走 to-spec / to-tickets）"
+  ]
+ },
+ {
+  "n": "context-handoff",
+  "id": "context-handoff",
+  "p": "检测上下文窗口压力，把进行中的任务转交到新线程而不削弱验收标准与证据；支持跨仓库使用、安全断点、校验过的交接包、经授权的线程创建与导航、目标端回归哨兵",
+  "k": [
+   "hand off",
+   "交接",
+   "continue in a new session",
+   "换个线程继续",
+   "上下文快满了",
+   "avoid context overflow",
+   "context compaction",
+   "checkpoint 交接"
+  ],
+  "x": [
+   "把当前对话压成一份交接文档（走 handoff）",
+   "只是常规摘要 / 压缩、并不换线程"
+  ]
+ },
+ {
+  "n": "domain-modeling",
+  "id": "domain-modeling",
+  "p": "建立并打磨项目的领域模型：讨论代码库术语、撰写或编辑 CONTEXT.md、记录或编辑 ADR",
+  "k": [
+   "领域模型",
+   "domain model",
+   "CONTEXT.md",
+   "ADR",
+   "术语表",
+   "代码库术语",
+   "统一语言",
+   "ubiquitous language"
+  ],
+  "x": [
+   "写业务代码（走 implement）",
+   "单纯去 AI 味改写（走 shuorenhua）"
+  ]
+ },
+ {
+  "n": "grill-me",
+  "id": "grill-me",
+  "p": "转发器：调用 grilling 执行无情访谈（本身不含访谈逻辑）",
+  "k": [
+   "方案访谈（转发）",
+   "grill-me",
+   "转发器：调用 grilling 执行无情访谈"
+  ],
+  "x": [
+   "真正的访谈执行（本 skill 只是转发器，实际走 grilling）",
+   "普通方案问答，不需要压力测试"
+  ]
+ },
+ {
+  "n": "grill-with-docs",
+  "id": "grill-with-docs",
+  "p": "对方案或设计做无情访谈，并在过程中**产出文档**（ADR 与术语表）",
+  "k": [
+   "grill with docs",
+   "访谈同时产出文档",
+   "边访谈边写 ADR",
+   "访谈并生成术语表"
+  ],
+  "x": [
+   "只要访谈、不要产出 ADR / 术语表（走 grilling）",
+   "只读评审已有文档（走 code-review）"
+  ]
+ },
+ {
+  "n": "grilling",
+  "id": "grilling",
+  "p": "就一个方案、决策或想法对用户做无情追问，用来压力测试其思考",
+  "k": [
+   "grill",
+   "grilling",
+   "压力测试我的想法",
+   "stress-test my thinking",
+   "无情追问",
+   "拷问方案",
+   "方案哪里站不住"
+  ],
+  "x": [
+   "只做摘要 / 纪要整理",
+   "已经从方案里拿到结论、只差落地（走 implement / to-tickets）"
+  ]
+ },
+ {
+  "n": "handoff",
+  "id": "handoff",
+  "p": "把当前对话压缩成一份交接文档，供另一个 agent 接手",
+  "k": [
+   "handoff",
+   "交接文档",
+   "压缩当前对话给下一个 agent",
+   "compact the conversation into a handoff document"
+  ],
+  "x": [
+   "检测上下文压力并自动切换线程、跨仓库校验交接包（走 context-handoff）",
+   "内容文案审查（走 kb-content-review）"
+  ]
+ },
+ {
+  "n": "implement",
+  "id": "implement",
+  "p": "根据规格或一组工单实现一块工作",
+  "k": [
+   "implement",
+   "按规格实现",
+   "实现这个工单",
+   "implement this ticket",
+   "开始写这块功能"
+  ],
+  "x": [
+   "没有规格或工单就直接开工",
+   "先出规格（走 to-spec）、先拆工单（走 to-tickets）"
+  ]
+ },
+ {
+  "n": "knowledge-distillation",
+  "id": "knowledge-distillation",
+  "p": "把一个或多个 OpenViking 知识库 / 文档集合编译成按主题组织、有证据支撑的高层知识：跨源发现、趋势、变化、驱动因素、对比、含义与不确定性；配合 ov compile 使用",
+  "k": [
+   "distill a knowledge base",
+   "知识蒸馏",
+   "综合多个知识库",
+   "跨源发现",
+   "ov compile",
+   "synthesize a knowledge base",
+   "compare multiple collections",
+   "derive higher-order insights"
+  ],
+  "x": [
+   "逐文档摘要（本 skill 明确不做 document-by-document summaries）",
+   "把素材蒸成可被路由调用的 Skill（走 蒸馏）"
+  ]
+ },
+ {
+  "n": "prototype",
+  "id": "prototype",
+  "p": "做一个一次性原型来回答设计问题：验证状态模型或逻辑手感对不对，或探索 UI 该长什么样",
+  "k": [
+   "prototype",
+   "做个原型",
+   "一次性原型",
+   "试一下这个状态模型",
+   "探索 UI 长什么样",
+   "throwaway prototype",
+   "sanity-check a design"
+  ],
+  "x": [
+   "把原型当生产代码交付（原型是一次性、用完即弃）",
+   "需要完整实现与测试（走 implement / tdd）"
+  ]
+ },
+ {
+  "n": "root-agents",
+  "id": "root-agents",
+  "p": "root-agents 家族：五个可执行的元 agent，管「造 agent → 验 agent → 考 agent → 修 agent → 养 agent」闭环。它**本身是 1 个 skill**",
+  "k": [
+   "root-agents",
+   "root-agent-creater",
+   "root-agent-doctor",
+   "root-agent-eval",
+   "root-agent-opt",
+   "root-agent-check",
+   "agent 包体检",
+   "agent 评测"
+  ],
+  "x": [
+   "评 Skill 而不是 Agent（走 root-skills-eval）",
+   "从模糊需求到上线的开发流程、追问、工单拆解（走 agent-build-flow）"
+  ]
+ },
+ {
+  "n": "setup-matt-pocock-skills",
+  "id": "setup-matt-pocock-skills",
+  "p": "为仓库配置这套工程 skill：设置 issue tracker、triage 标签词汇表、领域文档布局；在本套其它工程 skill 首次使用前跑一次",
+  "k": [
+   "setup matt pocock skills",
+   "配置工程 skill",
+   "配置 issue tracker",
+   "设置 triage 标签",
+   "初始化仓库工程配置"
+  ],
+  "x": [
+   "日常任务执行（本 skill 只在首次配置仓库时跑一次）",
+   "已经配好 issue tracker 的仓库重复配置"
+  ]
+ },
+ {
+  "n": "shuorenhua",
+  "id": "shuorenhua",
+  "p": "检查和清理中英文文本里的 AI 套路（模板腔、排比、万能过渡），按场景控制力度，并保留事实、术语、语域与责任主体",
+  "k": [
+   "去 AI 味",
+   "说人话",
+   "自然一点",
+   "别像模板",
+   "别太像 ChatGPT",
+   "去AI味改写",
+   "审稿标注"
+  ],
+  "x": [
+   "内容合规审查（走 kb-content-review）",
+   "为去 AI 味而改动事实、术语、语域或责任主体（本 skill 明确要保留这些）"
+  ]
+ },
+ {
+  "n": "tdd",
+  "id": "tdd",
+  "p": "测试先行开发（红-绿-重构）",
+  "k": [
+   "TDD 测试先行",
+   "tdd",
+   "测试先行开发（红-绿-重构）",
+   "先写测试再写实现"
+  ],
+  "x": [
+   "Web 端黑盒用例编写与执行（走 web-testcase / web-执行测试用例）",
+   "只做代码评审（走 code-review）"
+  ]
+ },
+ {
+  "n": "to-spec",
+  "id": "to-spec",
+  "p": "把当前对话综合为规格并发布到项目 issue tracker",
+  "k": [
+   "对话转规格",
+   "to-spec",
+   "把当前对话综合为规格并发布到项目 issue tracker",
+   "写份规格"
+  ],
+  "x": [
+   "把规格拆成工单（走 to-tickets）",
+   "把规格直接实现（走 implement）"
+  ]
+ },
+ {
+  "n": "to-tickets",
+  "id": "to-tickets",
+  "p": "把计划、规格或当前对话拆成一组 tracer-bullet 工单，每条声明其阻塞边，并发布到已配置的 tracker（本地每工单一个文件写文本边，或真实 tracker 上的原生阻塞链接）",
+  "k": [
+   "拆工单",
+   "to-tickets",
+   "拆成 tracer bullet",
+   "把规格拆成任务",
+   "blocking edges",
+   "工单依赖"
+  ],
+  "x": [
+   "写规格文档本身（走 to-spec）",
+   "直接实现工单（走 implement）"
+  ]
+ },
+ {
+  "n": "web-testcase",
+  "id": "web-testcase",
+  "p": "把 Web 端测试需求（baseurl + 一个登录账号密码 + PRD）转化为全量覆盖、可对账的测试用例，并按固定 7 列导出 Excel（主表 + 元素清单 / 覆盖对账表 / 待确认与不一致 3",
+  "k": [
+   "web-testcase",
+   "web测试用例",
+   "网页测试用例",
+   "写用例",
+   "写测试用例",
+   "编写测试用例",
+   "编写web测试用例",
+   "生成测试用例"
+  ],
+  "x": [
+   "执行用例并回归（走 web-执行测试用例）",
+   "单元测试先行开发（走 tdd）"
+  ]
+ },
+ {
+  "n": "web-执行测试用例",
+  "id": "web-执行测试用例",
+  "p": "Web 端测试的执行、修复与回归：按 A 盲执行 → B 比对判定 → C 修复闭环（≤3 轮）→ D 独立回归 → E 达标门禁五阶段跑，通过率 ≥ 90% 才允许出 Excel + HTML 测试",
+  "k": [
+   "web 执行测试用例",
+   "执行测试用例",
+   "web执行用例",
+   "跑测试用例",
+   "执行用例",
+   "用例执行",
+   "用例回归",
+   "测试执行"
+  ],
+  "x": [
+   "写用例（走 web-testcase）",
+   "单元测试与 TDD（走 tdd）"
+  ]
+ },
+ {
+  "n": "kb-retriever-20260929-184811",
+  "id": "kb-retriever",
+  "p": "面向本地知识库目录的分层索引导航与检索问答：先按分层索引导航，遇 PDF / Excel 必须先读 references 学处理方法再检索，按文件类型组合 grep / Read / pdfplumb",
+  "k": [
+   "从知识库目录回答问题",
+   "检索信息",
+   "查资料",
+   "知识库检索",
+   "分层索引导航",
+   "PDF 读取",
+   "Excel 读取",
+   "渐进式检索"
+  ],
+  "x": [
+   "内容合规三态裁决与依据输出（走 kb-content-review）",
+   "整库通读或绕过索引直接翻目录"
+  ]
+ },
+ {
+  "n": "内容审查总控",
+  "id": "brand-content-review-agent",
+  "p": "编排美国市场品牌内容（吸奶器、婴儿监护器、奶瓶清洗机、喂养类产品）的本地发布前审查：文本 / 图片 / 视频，产出带版本的 PASS / REVIEW / BLOCK / NEEDS_INPUT 决策",
+  "k": [
+   "品牌内容审查",
+   "发布前审查",
+   "送审",
+   "brand content review",
+   "pre-publication review",
+   "NEEDS_INPUT",
+   "PASS REVIEW BLOCK"
+  ],
+  "x": [
+   "单侧专项审查（走对应的 brand-*-review）",
+   "只做知识库自身的内容合规审查（走 kb-content-review）"
+  ]
+ },
+ {
+  "n": "送审登记",
+  "id": "brand-review-intake-router",
+  "p": "送审入口：把发布前品牌内容提交（文本 / 图片 / 视频 / URL / 批量行）规范化并校验，同时采集哈希、版本、SKU、渠道、语言与权限状态",
+  "k": [
+   "送审入口",
+   "提交审核",
+   "intake",
+   "提交内容审查",
+   "批量送审",
+   "submission validation"
+  ],
+  "x": [
+   "各侧专项审查（走 brand-text / image / video 等 review）",
+   "决定三态结论（走 brand-review-decision-engine）"
+  ]
+ },
+ {
+  "n": "证据源维护",
+  "id": "brand-policy-source-curator",
+  "p": "维护美国市场品牌内容审查所需的、带版本与辖区属性的证据源：监管指引、平台政策、内部规则、产品文档、生效日期、责任人与适用范围",
+  "k": [
+   "证据源维护",
+   "政策源",
+   "policy source",
+   "监管指引",
+   "平台政策",
+   "规则来源版本",
+   "生效日期"
+  ],
+  "x": [
+   "对具体内容下三态结论（走品牌审查各侧 + 决策引擎）",
+   "知识库自身的规则候选与定稿（属 L3/L4，不在 skill 层）"
+  ]
+ },
+ {
+  "n": "文案合规审查",
+  "id": "brand-text-compliance-review",
+  "p": "审查美国市场品牌文本（文案、Listing、PDP 文案、社媒文案、OCR 文本、字幕、口播转写）的广告、安全、产品宣称、背书与措辞风险",
+  "k": [
+   "文案审查",
+   "text compliance review",
+   "listing 文案审查",
+   "PDP 文案",
+   "字幕审查",
+   "口播转写审查",
+   "措辞风险"
+  ],
+  "x": [
+   "图片中的视觉风险（走 brand-image-safety-review）",
+   "视频的镜头 / 时间码证据（走 brand-video-safety-review）"
+  ]
+ },
+ {
+  "n": "产品宣称核验",
+  "id": "brand-product-claim-verifier",
+  "p": "抽取并核验美国市场品牌内容里的产品宣称，对照 SKU 级产品事实、已批准表述、测试与认证、型号 / 版本适用范围",
+  "k": [
+   "产品宣称核验",
+   "claim verification",
+   "SKU 产品事实",
+   "已批准表述",
+   "测试与认证",
+   "型号版本范围"
+  ],
+  "x": [
+   "审查广告法与绝对化用语（走 brand-text-compliance-review）",
+   "维护 SKU 级产品事实基线（走 N4 brand-product-fact-curator）"
+  ]
+ },
+ {
+  "n": "图片安全审查",
+  "id": "brand-image-safety-review",
+  "p": "审查美国市场品牌图片：OCR 文本、产品与场景准确性、婴幼儿安全、隐私、AI 溯源、背书及其它可定位的内容风险",
+  "k": [
+   "图片审查",
+   "image safety review",
+   "OCR 文本",
+   "产品与场景准确性",
+   "婴幼儿安全",
+   "图片隐私",
+   "AI 溯源"
+  ],
+  "x": [
+   "视频的镜头与音画对齐证据（走 brand-video-safety-review）",
+   "纯文本审查（走 brand-text-compliance-review）"
+  ]
+ },
+ {
+  "n": "视频安全审查",
+  "id": "brand-video-safety-review",
+  "p": "审查美国市场品牌视频：以转写、OCR、镜头、关键帧、音画对齐与时间码为证据，判安全、产品、背书、AI 与平台风险",
+  "k": [
+   "视频审查",
+   "video safety review",
+   "时间码",
+   "关键帧",
+   "音画对齐",
+   "转写审查",
+   "镜头证据"
+  ],
+  "x": [
+   "静帧图片审查（走 brand-image-safety-review）",
+   "纯文本审查（走 brand-text-compliance-review）"
+  ]
+ },
+ {
+  "n": "美国本地化审查",
+  "id": "brand-us-locale-cultural-review",
+  "p": "审查美式英语、计量单位、育儿语境、达人语言、歧义，以及可能改变消费者理解或造成品牌风险的本地市场与文化问题",
+  "k": [
+   "美国本地化",
+   "US locale review",
+   "文化审查",
+   "计量单位",
+   "美式英语",
+   "达人语言",
+   "歧义"
+  ],
+  "x": [
+   "广告法与绝对化用语审查（走 brand-text-compliance-review）",
+   "产品宣称的事实核验（走 brand-product-claim-verifier）"
+  ]
+ },
+ {
+  "n": "AI溯源与权利审查",
+  "id": "brand-ai-provenance-rights-review",
+  "p": "审查 AI 生成披露、深度伪造、儿童与人物隐私、肖像权、商标、第三方素材与达人授权证据",
+  "k": [
+   "AI 溯源",
+   "AI 生成披露",
+   "depthfake 深度伪造",
+   "肖像权",
+   "商标",
+   "第三方素材",
+   "授权证据",
+   "provenance"
+  ],
+  "x": [
+   "婴幼儿产品使用场景安全（走 brand-image-safety-review / brand-video-safety-review）",
+   "措辞与广告用语（走 brand-text-compliance-review）"
+  ]
+ },
+ {
+  "n": "审查裁决",
+  "id": "brand-review-decision-engine",
+  "p": "汇总多模态品牌审查发现，产出经校准的 PASS / REVIEW / BLOCK / NEEDS_INPUT 决策，含优先级处理、版本门、证据要求与责任人流转",
+  "k": [
+   "裁决",
+   "decision engine",
+   "三态结论汇总",
+   "PASS REVIEW BLOCK",
+   "优先级处理",
+   "版本门",
+   "责任人流转"
+  ],
+  "x": [
+   "单侧发现本身（走各侧 review）",
+   "生成报告与飞书摘要（走 brand-review-report-memory）"
+  ]
+ },
+ {
+  "n": "审查报告与记忆",
+  "id": "brand-review-report-memory",
+  "p": "生成品牌审查 JSON、可直接发飞书的简明摘要、详细证据报告、版本可追溯记录，以及经批准的人工反馈候选（供知识库更新）",
+  "k": [
+   "审查报告",
+   "report memory",
+   "飞书摘要",
+   "证据报告",
+   "版本可追溯",
+   "人工反馈候选"
+  ],
+  "x": [
+   "三态裁决本身（走 brand-review-decision-engine）",
+   "飞书侧的发送与状态变更（走 brand-feishu-review-adapter）"
+  ]
+ },
+ {
+  "n": "审查流程评测",
+  "id": "brand-review-evaluation",
+  "p": "用金标集与回归集评估本地品牌内容审查流程：测三态准确率、BLOCK 精确率、PASS 漏放、REVIEW 召回、P0 漏检、覆盖率与人工工作量",
+  "k": [
+   "品牌审查评测",
+   "review evaluation",
+   "金标集",
+   "回归集",
+   "三态准确率",
+   "BLOCK 精确率",
+   "PASS 漏放",
+   "P0 漏检"
+  ],
+  "x": [
+   "评测 Skill 质量本身（走 root-skills-eval）",
+   "评测 Agent 包（走 root-agents）"
+  ]
+ },
+ {
+  "n": "飞书审查流转",
+  "id": "brand-feishu-review-adapter",
+  "p": "把本地品牌审查契约适配到飞书：群内 @ 与文件、多维表格、云文档、状态更新与责任人流转，且不把飞书耦合进审查内核",
+  "k": [
+   "飞书流转",
+   "feishu adapter",
+   "群内 @",
+   "多维表格写回",
+   "云文档同步",
+   "状态更新",
+   "责任人流转"
+  ],
+  "x": [
+   "审查逻辑本身（走品牌审查各侧与决策引擎）",
+   "知识库自身内容的合规审查（走 kb-content-review）"
+  ]
+ },
+ {
+  "n": "kb-ingest-extractor",
+  "id": "kb-ingest-extractor",
+  "p": "从原始素材抽取知识单元并落 L1/L2（素材 → 条目）",
+  "k": [
+   "抽取单元",
+   "素材转条目",
+   "L1 抽取",
+   "L2 切分",
+   "补切",
+   "重切",
+   "切分规则",
+   "单元对账"
+  ],
+  "x": [
+   "图片 / 视频 / 附件的文本抽取（走 kb-media-extractor）",
+   "条款级抽取与规则蒸馏（走 kb-clause-extractor）"
+  ]
+ },
+ {
+  "n": "kb-media-extractor",
+  "id": "kb-media-extractor",
+  "p": "从图片 / 视频等媒体素材抽取可入库信息并落 L1",
+  "k": [
+   "图片抽取",
+   "媒体抽取",
+   "OCR 落库",
+   "图片入库",
+   "附件入库",
+   "视频字幕",
+   "关键帧",
+   "链接下钻"
+  ],
+  "x": [
+   "只对账 L0 / 飞书侧改了什么（走 kb-l0-feishu，它不跑下游）",
+   "素材切成知识单元 / 补切（走 kb-ingest-extractor）"
+  ]
+ },
+ {
+  "n": "kb-clause-extractor",
+  "id": "kb-clause-extractor",
+  "p": "从外部标准 / 规则文本抽取条款级单元并落 L3",
+  "k": [
+   "抽条款",
+   "条款级单元",
+   "规则蒸馏",
+   "L3 蒸馏",
+   "规则候选",
+   "拒绝台账",
+   "条款抽取",
+   "clause extractor"
+  ],
+  "x": [
+   "发号 / 定稿 / canonical（走 kb-pipeline 的 L4）",
+   "查条款号（走 kb-canonical-lookup）"
+  ]
+ },
+ {
+  "n": "brand-product-fact-curator",
+  "id": "brand-product-fact-curator",
+  "p": "维护 SKU 级产品事实基线：事实提案入审批队列 → 记录 product/legal/medical 角色审批事件 → 只用「已批准」条目重建活动事实库（供品牌产品宣称核验引用）",
+  "k": [
+   "产品事实基线",
+   "SKU 事实库",
+   "产品事实审批",
+   "产品事实队列",
+   "已批准表述",
+   "审批矩阵",
+   "活动事实库",
+   "事实入库"
+  ],
+  "x": [
+   "核验内容里的产品宣称（走 brand-product-claim-verifier）",
+   "通用知识单元抽取（走 kb-ingest-extractor）"
+  ]
+ },
+ {
+  "n": "锚点文本分割器",
+  "id": "锚点文本分割器",
+  "p": "【只参考 · 将来收编进 N1】基于锚点标记精确分割文本，支持 OCR 容错与模糊匹配定位",
+  "k": [
+   "锚点文本分割器",
+   "锚点分割",
+   "锚点定位分割",
+   "标记点切分",
+   "精确切分",
+   "OCR容错",
+   "模糊匹配分割"
+  ],
+  "x": [
+   "安装或复制进 ~/.dsh/skills/（只参考、只收编，一律不安装）",
+   "简单固定长度切分"
+  ]
+ },
+ {
+  "n": "语义文档分块器",
+  "id": "语义文档分块器",
+  "p": "【只参考 · 将来收编进 N1】把较长 Markdown 文档（书籍 / 论文 / 技术文档）按章节与语义边界切成保持段落完整、带层级结构的文本块，用于构建 RAG 知识库或为知识提取准备结构化输入",
+  "k": [
+   "语义文档分块器",
+   "文档分块",
+   "语义分块",
+   "智能分块",
+   "markdown分块",
+   "章节拆分",
+   "文本分块"
+  ],
+  "x": [
+   "安装或复制进 ~/.dsh/skills/（只参考、只收编，一律不安装）",
+   "文档已很短无需分块"
+  ]
+ },
+ {
+  "n": "MECE知识提取器",
+  "id": "MECE知识提取器",
+  "p": "【只参考 · 将来收编进 N1】按 MECE 原则从文本中提取结构化知识单元（SKU），保证互斥且完备",
+  "k": [
+   "MECE知识提取器",
+   "MECE提取",
+   "知识提取",
+   "SKU提取",
+   "结构化知识",
+   "知识单元",
+   "提取知识单元"
+  ],
+  "x": [
+   "安装或复制进 ~/.dsh/skills/（只参考、只收编，一律不安装）",
+   "只需简单关键词提取"
+  ]
+ },
+ {
+  "n": "术语标准化器",
+  "id": "术语标准化器",
+  "p": "【只参考 · 将来收编进 N1】统一多来源数据中的术语表达、合并同义词与标签变体、构建受控词表（taxonomy / terminology normalization）",
+  "k": [
+   "术语标准化器",
+   "术语标准化",
+   "术语统一",
+   "标签归一化",
+   "同义词合并",
+   "受控词表",
+   "taxonomy",
+   "terminology normalization"
+  ],
+  "x": [
+   "安装或复制进 ~/.dsh/skills/（只参考、只收编，一律不安装）",
+   "术语已经高度统一"
+  ]
+ },
+ {
+  "n": "语义分桶器",
+  "id": "语义分桶器",
+  "p": "【只参考 · 将来收编进 N1】把大量知识单元（SKU）按标签重叠度自动分组，用 Union-Find 处理传递关系，并对超大桶做递归细分",
+  "k": [
+   "语义分桶器",
+   "语义分桶",
+   "知识分组",
+   "自动聚类",
+   "标签分组",
+   "bucketing"
+  ],
+  "x": [
+   "安装或复制进 ~/.dsh/skills/（只参考、只收编，一律不安装）",
+   "SKU 很少（少于 10）可人工审查"
+  ]
+ },
+ {
+  "n": "知识相似度分析器",
+  "id": "知识相似度分析器",
+  "p": "【只参考 · 将来收编进 N1】找出知识库中的重复条目、检测知识冲突、判断知识单元是否相关或独立、做知识融合前的相似度评估",
+  "k": [
+   "知识相似度分析器",
+   "知识相似度",
+   "重复检测",
+   "冲突检测",
+   "多维相似度",
+   "SKU对比",
+   "知识去重",
+   "知识合并"
+  ],
+  "x": [
+   "安装或复制进 ~/.dsh/skills/（只参考、只收编，一律不安装）",
+   "SKU 很少可人工审查"
+  ]
+ },
+ {
+  "n": "vision-analysis",
+  "id": "vision-analysis",
+  "p": "【只参考 · 将来作 N2 的第二意见 / 调用入口】用 MiniMax vision MCP 工具分析、描述图片并抽取信息",
+  "k": [
+   "vision-analysis",
+   "图片分析",
+   "看图",
+   "OCR 取字",
+   "extract text from image",
+   "describe an image"
+  ],
+  "x": [
+   "安装或复制进 ~/.dsh/skills/（只参考，一律不安装）",
+   "纯文本内容审查（走 kb-content-review）"
+  ]
+ },
+ {
+  "n": "minimax-multimodal-toolkit",
+  "id": "minimax-multimodal-toolkit",
+  "p": "【只参考 · 将来作 N2 的调用入口】用 mmx 在 MiniMax 平台上生成文本、图像、视频、语音与音乐，并做对话、联网搜索与 API 管理",
+  "k": [
+   "minimax-multimodal-toolkit",
+   "mmx",
+   "MiniMax",
+   "生成图片",
+   "生成视频",
+   "生成语音",
+   "生成音乐",
+   "MiniMax API"
+  ],
+  "x": [
+   "安装或复制进 ~/.dsh/skills/（只参考，一律不安装）",
+   "读取既有素材内容（走 vision-analysis）"
+  ]
+ },
+ {
+  "n": "compliance-review-planner",
+  "id": "compliance-review-planner",
+  "p": "【只参考 · 只借方法论与结构】为特定业务场景构建合规检查清单（GDPR、个保法、广告法、数据安全法等），输出含检查项、法规依据、风险等级与整改建议的结构化清单",
+  "k": [
+   "合规检查清单",
+   "compliance checklist",
+   "GDPR 检查",
+   "个保法合规",
+   "广告法审查",
+   "数据合规",
+   "隐私合规",
+   "数据出境评估"
+  ],
+  "x": [
+   "安装或复制进 ~/.dsh/skills/（只借方法论与结构，一律不安装）",
+   "对本库内容做三态裁决（走 kb-content-review）"
+  ]
+ },
+ {
+  "n": "sop-writer",
+  "id": "sop-writer",
+  "p": "【只参考 · 只借方法论与结构】把业务流程梳理成完整 SOP 文档：流程图、RACI 分工矩阵、详细操作步骤、异常情况处理",
+  "k": [
+   "梳理流程",
+   "制定SOP",
+   "sop-writer",
+   "明确分工",
+   "规范操作",
+   "流程文档",
+   "RACI"
+  ],
+  "x": [
+   "安装或复制进 ~/.dsh/skills/（只借方法论与结构，一律不安装）",
+   "把素材蒸成可路由的 skill（走 蒸馏）"
+  ]
+ },
+ {
+  "n": "dataset-health-audit",
+  "id": "dataset-health-audit",
+  "p": "【只参考 · 只借方法论与结构】对 CSV / Excel / TSV / JSON 做 12 维度数据质量审计，输出质量评分、问题详情与修复建议",
+  "k": [
+   "数据质量检测",
+   "dataset-health-audit",
+   "数据质检",
+   "缺失值",
+   "重复行",
+   "异常值",
+   "格式校验",
+   "质量评分"
+  ],
+  "x": [
+   "安装或复制进 ~/.dsh/skills/（只借方法论与结构，一律不安装）",
+   "知识库体检与健康分（走 kb_check 工具，不是 skill）"
+  ]
+ },
+ {
+  "n": "kb-l0-feishu",
+  "id": "kb-l0-feishu",
+  "p": "把 Momcozy 内容治理知识库的 L0（源层）与飞书侧源数据做每日同步与核对：覆盖 12 类资源（图片必须 OCR、视频提字幕 + 抽关键帧、链接下钻两层），逐类出四态结论 + 覆盖率闸门；飞书侧",
+  "k": [
+   "只对账 L0",
+   "L0同步",
+   "L0 同步",
+   "L0 对齐",
+   "L0 对齐一下",
+   "L0 落库",
+   "L0 对账",
+   "飞书侧对账"
+  ],
+  "x": [
+   "整条链路 / 同步一下知识库 / 跑一遍知识库链路 / 知识库同步到最新 / 全链体检 / L0 到 L7 走一遍 / 知识库该更新了（走 kb-pipeline）",
+   "判断内容该不该拦 / 单条内容可用性（走 kb-review）"
+  ]
+ },
+ {
+  "n": "kb-manage",
+  "id": "kb-manage",
+  "p": "知识库工作流**家族管理器**：管注册表（skills.yaml / layers.yaml / routes.yaml）、管路由（意图→成员，可对账）、管生命周期（规划→造→评→修→登记→装→停用）",
+  "k": [
+   "kb-manage",
+   "知识库工作流家族",
+   "skill 家族管理",
+   "注册表",
+   "路由表",
+   "家族全景",
+   "成员列表",
+   "家族路由"
+  ],
+  "x": [
+   "创建一个新 skill（走 root-skills-creator）",
+   "评测 / 优化 / 诊断 skill 本身（走 root-skills-eval / root-skills-opt / root-skills-doctor）"
+  ]
+ },
+ {
+  "n": "kb-pipeline",
+  "id": "kb-pipeline",
+  "p": "知识库**供给链入口**：按 kb/l7/registry/layers.yaml 把 L0 → L7 整条链路编排跑一遍（对齐源层 → 抽取 → 切分 → 蒸馏 → 发号 → P0 → 索引 → 报",
+  "k": [
+   "同步知识库",
+   "同步一下知识库",
+   "知识库同步",
+   "知识库同步到最新",
+   "跑一遍知识库链路",
+   "全链体检",
+   "L0 到 L7",
+   "L0 到 L7 走一遍"
+  ],
+  "x": [
+   "只对账 L0 / 飞书侧改了什么 / 只跑每日同步（走 kb-l0-feishu，不跑下游 L1–L7）",
+   "单条内容能不能用 / 该不该拦（走 kb-review，那是评审链不是供给链）"
+  ]
+ },
+ {
+  "n": "kb-review",
+  "id": "kb-review",
+  "p": "知识库**评审链入口**：收到一段待判内容 → 先判断该谁接（让位表）→ 专项归属不明 / 跨模态 / 只问整体能不能用时由本 skill 承接 → 走评审链给三态结论（PASS / REVIEW /",
+  "k": [
+   "内容评审入口",
+   "能不能发",
+   "审一下",
+   "帮我审",
+   "合规检查",
+   "合规审查",
+   "内容审核",
+   "会不会违规"
+  ],
+  "x": [
+   "跑知识库供给链 / 同步知识库 / L0 到 L7（走 kb-pipeline）",
+   "只对账 L0 / 飞书侧改了什么（走 kb-l0-feishu）"
+  ]
+ },
+ {
+  "n": "kb-check",
+  "id": "kb-check",
+  "p": "知识库**统一闸门**：把全库各层的 check 一次跑完并汇总成一张体检表（登记表自检 / 层契约自检 / 路由对账 / 链路收口 / 信封闸门 / 投影一致性）。**只报不改**",
+  "k": [
+   "知识库体检",
+   "检查一下知识库",
+   "知识库有没有问题",
+   "全库自检",
+   "统一闸门",
+   "跑一遍所有闸门",
+   "闸门过没过",
+   "知识库健康检查"
+  ],
+  "x": [
+   "闸门没过、要**修**（走 kb-repair；本 skill 默认全只读）",
+   "跑 L0→L7 供给链本身（走 kb-pipeline）"
+  ]
+ },
+ {
+  "n": "kb-repair",
+  "id": "kb-repair",
+  "p": "知识库**修复入口**：以一条**已红的闸门**为输入，按原因码定位并修，修完重跑同一条闸门证明修好了",
+  "k": [
+   "不过就修",
+   "修知识库",
+   "闸门没过帮我修",
+   "知识库哪里坏了修一下",
+   "修复失败项",
+   "按原因码修",
+   "副本不一致帮我同步",
+   "补登记"
+  ],
+  "x": [
+   "只体检不修（走 kb-check —— 本 skill 必须以一条已红闸门为输入）",
+   "跑 L0→L7 供给链本身（走 kb-pipeline）"
+  ]
+ },
+ {
+  "n": "kb-canonical-lookup",
+  "id": "kb-canonical-lookup",
+  "p": "L4（定稿与发布层）**只读查询**：查一条规则的**条款号**、查一个条款号对应哪条规则、查这条规则**定稿了没有**（canonical 状态 / 是否已发号 / 是否 stable）",
+  "k": [
+   "条款号是多少",
+   "条款号对应哪条规则",
+   "article_no",
+   "规则定稿了吗",
+   "进 canonical 了吗",
+   "发号了吗",
+   "canonical 状态",
+   "L4 查询"
+  ],
+  "x": [
+   "发号 / 晋升 canonical（写操作，走 kb-pipeline 在 --apply 下编排 kb/.work/l4_article.py）",
+   "已经给出三态结论、要追问**结论的依据**（走 kb-content-review）"
+  ]
+ },
+ {
+  "n": "kb-p0-check",
+  "id": "kb-p0-check",
+  "p": "L5（P0 判定层）**只读查询**：回答「**这个是 P0 吗**」「这段命中哪些 P0 模式」「这条为什么被判最高优先级」——只做确定性匹配与清单查询",
+  "k": [
+   "是不是 P0",
+   "这个是 P0 吗",
+   "算不算 P0",
+   "命中 P0",
+   "P0 模式",
+   "P0 模式清单",
+   "P0 判定",
+   "最高优先级"
+  ],
+  "x": [
+   "查条款号 / 定稿了没有（走 kb-canonical-lookup）",
+   "召回相关单元 / 查资料（走 kb-recall）"
+  ]
+ },
+ {
+  "n": "kb-recall",
+  "id": "kb-recall",
+  "p": "L6（召回层）**只读检索**：按 BM25 + 向量双索引召回知识单元，并已**并入原 kb-retriever** 的分层索引导航式目录检索（遇 PDF / Excel 必须先读 referenc",
+  "k": [
+   "召回",
+   "召回一下",
+   "检索",
+   "检索单元",
+   "查资料",
+   "知识库检索",
+   "检索信息",
+   "语义召回"
+  ],
+  "x": [
+   "重建 BM25 + 向量索引（写操作，走 kb-pipeline 在 --apply 下编排 kb/.work/l6_build.py）",
+   "查条款号 / 定稿了没有（走 kb-canonical-lookup）"
+  ]
+ }
+]

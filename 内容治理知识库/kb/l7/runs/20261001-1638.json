@@ -1,0 +1,57 @@
+{
+ "run_id": "20261001-1638",
+ "at": "2026-10-01T16:36:40",
+ "source": "pipeline_sync",
+ "trigger": "--sync --via-skill L1",
+ "skills": [
+  "kb-pipeline",
+  "kb-ingest-extractor",
+  "kb-media-extractor"
+ ],
+ "commands": [
+  "kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L1 --run 20261001-1638 --invoked kb-ingest-extractor --invoked kb-media-extractor --skill-session L1=aea466e5-6a4d-4a2c-94fc-e2e31cd589e5 --skill-session L1_label=kb-layer-L1-two-skills --skill-session L1_session_dir=/Users/lute/.dsh/sessions/--Users-lute-Documents-skill-test-~6267~884Cskills-~6267~884Cskills-skills-~56DE~5F52~6D4B~8BD5-~77E5~8BC6~5E93-~5185~5BB9~6CBB~7406--/aea466e5-6a4d-4a2c-94fc-e2e31cd589e5"
+ ],
+ "products": [
+  "kb/l1/runs/20261001-1638-dryrun.json"
+ ],
+ "verdict": "全走完（预演 · 未落盘 · 非执行证据）",
+ "human_involved": true,
+ "extra": {
+  "via_skill": true,
+  "skill_invoked_by": "agent",
+  "skill_evidence": "agent_reported",
+  "layers": [
+   "L1"
+  ],
+  "layer_skills": [
+   "kb-ingest-extractor",
+   "kb-media-extractor"
+  ],
+  "declared_layer_skills": {
+   "L1": [
+    "kb-ingest-extractor",
+    "kb-media-extractor"
+   ]
+  },
+  "layer_skills_uniq": [
+   "kb-ingest-extractor",
+   "kb-media-extractor"
+  ],
+  "invoked_reported": [
+   "kb-ingest-extractor",
+   "kb-media-extractor"
+  ],
+  "skill_sessions": {
+   "L1": "aea466e5-6a4d-4a2c-94fc-e2e31cd589e5",
+   "L1_label": "kb-layer-L1-two-skills",
+   "L1_session_dir": "/Users/lute/.dsh/sessions/--Users-lute-Documents-skill-test-~6267~884Cskills-~6267~884Cskills-skills-~56DE~5F52~6D4B~8BD5-~77E5~8BC6~5E93-~5185~5BB9~6CBB~7406--/aea466e5-6a4d-4a2c-94fc-e2e31cd589e5"
+  },
+  "human_involved_basis": "--invoked 已上报（agent 按层 skill 走过）",
+  "verdict_basis": "层侧落章全是预演台账 → 未落盘",
+  "layer_stamps_applied": [],
+  "layer_stamps_dry": [
+   "L1:kb/l1/runs/20261001-1638-dryrun.json"
+  ],
+  "layer_stamps_unknown": []
+ }
+}

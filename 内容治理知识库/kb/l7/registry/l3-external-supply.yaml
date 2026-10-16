@@ -1,0 +1,160 @@
+# l3-external-supply.yaml —— L3 **外部标准供给量**的门槛与现状（#5 那条指标的登记件）
+#
+# 谁读它：`kb/l8/l3_external_supply.py`（门槛从这里取；读不到回落常量）。
+#
+# ★ 为什么要有这个登记件（2026-10-12）：
+#   任务表 #5 的验收指标当天换过一次口径。换完之后**表里写的数（3,418）与真库产物对不上**
+#   （真库是 3,155）—— 追下去发现 3,418 是**沙箱重建后**的读数，而**真库产物还没重建**。
+#   ⇒ 光有个数没有用，得有个**常驻判据**：它既比门槛，也要能分辨「不达标」与「还没重建」。
+meta:
+  file: kb/l7/registry/l3-external-supply.yaml
+  checker: kb/l8/l3_external_supply.py
+  created_at: "2026-10-12"
+  owner: 刘华丽
+  basis:
+    - 改动单-外部标准抽取口径-20261010.md
+    - 核定-自有站为何蒸不出规则与5的指标量错了-20261012.md
+
+metric:
+  name: 外部标准供给量
+  what: kb/l3/candidates/scoped_clauses.jsonl 的**唯一 clause_id 数**（＋行数）
+  artifact: kb/l3/candidates/scoped_clauses.jsonl
+  floor: 3418
+  floor_basis: >
+    核定件 §「外部标准的真实供给（同一次沙箱跑）」逐字：`scoped_clauses` **6,310 → 6,573 行**
+    （唯一 clause **3,155 → 3,418**）。⇒ 门槛取**重建后**的实测值 3,418。
+  why_not_rules_jsonl: >
+    `rules.jsonl` 的 `kb_type` **结构性恒为 `wording`**（实测 1,018 行全 wording）
+    ⇒「`rules.jsonl` 里 `external_standard` = 0 条」这个原指标**恒为 0、与抓了多少外部标准无关**
+    —— 它不是"没做到"，是**量错了产物**。
+  producers:  # 任一比产物新 ⇒ 判「还没重建」（rc=4），**不是**判红
+    - kb/l8/extract_office_batch.py
+    - kb/l8/l3_scope.py
+
+state_20261012:   # 本次实测（判据跑出来的，不是抄的）
+  live_rows: 6310
+  live_unique_clause_id: 3155
+  artifact_mtime: "2026-10-10 16:56"
+  code_fixed_at: "2026-10-12 12:53"
+  verdict: "⏳ **未重建**（判据 rc=4）：代码已修并在沙箱验证 +263，真库产物仍是 10-10 那版"
+  to_land: >
+    重建 L3（**写操作**，走 `kb-pipeline` 那条链、按并发纪律认领；**不许在判据里顺手写**）。
+    重建后本判据应转 rc=0（唯一 clause_id ≥ 3,418）。
+  note: >
+    表里 #5 原标 ✅ 并写「实测 3,418」—— 那个数**只对沙箱成立**；在真库上按同一口径量是 3,155。
+    状态建议改成 ⚠️「待重建生效」。
+
+metric_rules_article_no:
+  name: L3 条款号透传
+  what: kb/l3/candidates/rules.jsonl 的 **article_no 非空行数**（＋行数／唯一 rule_id）
+  artifact: kb/l3/candidates/rules.jsonl
+  floor: 509
+  floor_basis: >
+    已发号规则数。号码一经发出永久占用（numbering.no_reuse）⇒ **只增不减**；
+    新发号后把门槛往上调。实测 2026-10-12：1018 行／509 唯一／条款号非空 509。
+  why: >
+    下游只有这一个来源：kb/.work/l5_export.py:562-564 的 article_no_source =
+    "kb/l3/candidates/rules.jsonl#article_no"。清零 ⇒ kb/l5/p0_patterns.jsonl 的 11 条条款号全变 None，
+    而那正是**目标 18「P0 红线法务逐条确认」台账（11 条）**要签的东西；且**不会自愈**
+    （L4 写档要人开闸）。★ 2026-10-12 实测：朴素重建会把 509 → **0**（夹具库跑出来的）。
+  guard: >
+    引擎闸①b「内容同一性」（kb/l8/l3_distill_run.py 的 CONTENT_ID：按 rule_id 比 evidence_digest，
+    509 条全等 ⇒ 不重写）。**本指标 = 那道闸的常驻见证**：闸被拆掉或口径变了再重写，这里立刻红。
+  judge: "python3 kb/l8/l3_external_supply.py（合并 rc：红压过未测压过达标）"
+
+state_20261012_1640:   # ★★ 已重建（本登记件的结案状态；RUN=L3REBUILD-20261012-1640）
+  live_rows: 6573
+  live_unique_clause_id: 3418
+  verdict: "✅ 达标（判据 rc=0）—— 与核定件沙箱读数 6,573 / 3,418 **逐字一致**"
+  judge: "python3 kb/l8/l3_external_supply.py → rc=0"
+  how: >
+    按 kb-pipeline 的驱动循环走完三层：① `--gate-only` 过本层闸门（不记账）
+    ② 由本会话以 **kb-clause-extractor** 层身份跑 `kb/kbpy l8/l3_distill_run.py
+    L3REBUILD-20261012-1640 --apply` ③ 记账（`--invoked kb-clause-extractor`）。
+    写前按 kb-clause-extractor §4 红线① 归档 `rejected.jsonl`（sha 校验通过，A2）；
+    跑后三方一致审计（声明=记账=落章）**红 0 黄 0**。
+  what_changed:
+    - "kb/l3/candidates/scoped_clauses.jsonl：6,310 → **6,573** 行（唯一 3,155 → **3,418**）"
+    - "kb/l3/candidates/rules.jsonl：**逐字节未变**（1018 行 / 509 唯一 / 条款号非空 **509**）—— A3 只追加"
+    - "kb/l3/rejected.jsonl：**逐字节未变**（被引擎闸③ 骤减护栏拦下，4,149 行无损）"
+    - "kb/l3/registry/l3.json：accounting 已刷新（kept 5,786 → **6,791**、explicitly_rejected 2,158、unaccounted 2,996）"
+  why_rules_untouched: >
+    引擎新加的**闸①b 内容同一性**（kb/l8/l3_distill_run.py 的 CONTENT_ID/_content_ident_map）：
+    `rules.jsonl` 按 rule_id 比 `evidence_digest`，509 条**全等** ⇒ **不重写**。
+    没有这一步，重写会把 L4 追加回候选件的 509 个 `article_no` 抹掉
+    （夹具实测：非空 509 → **0**），而 `kb/l5/p0_patterns.jsonl` 的 **11 条条款号只有这一个来源**
+    （`article_no_source = kb/l3/candidates/rules.jsonl#article_no`）—— 那正是**目标 18 法务逐条签**的那张表。
+    反向对照两组（夹具）：改掉一条指纹 ⇒ 必须重写；缺指纹 ⇒ 回落逐字节比（不 fail-open）。
+  workflow_impact_measured: >
+    **只有 scoped_clauses.jsonl 变**。`workflow_smoke` rc=0；`workflow_check` 红集与改动前**逐条相同**
+    （②③⑥⑩，**一项没多**）；`l3_gate` / `l7_gate` 双 rc=0。
+    ★ 更正一处：`workflow_check:112-125` 的「前 1018 行 sha」钉子**在我动手之前就已经断了**
+    （L6 记的还是 2026-10-10 15:23 那版，实测 `前1018行 sha == L6 记录: False`）——
+    它是**既有红**，不是本次撞出来的；本次既没修它、也没让它变更红。
+  known_residual: >
+    `rejected.jsonl` 与蒸馏口径仍不一致（引擎本轮算出 2,188 行，盘上 4,149 行；
+    引擎按「口径不一致 ⇒ 保守回落行数」**拒写**）。这是**先于我存在**的残余，本批**未动**；
+    要收敛必须人裁「那 47% 的降幅是不是有意的」，不许为了绿而设 `KB_L3_ALLOW_DROP=1`。
+
+# ══════════════════════════════════════════════════════════════════════════
+state_20261012_1640_residuals:   # ★ 两条残留的推进结果（RUN=L3REJ-20261012-1640 + L4 干跑）
+  residual_reject_ledger:
+    what: 'L3 拒绝台账按**口径 C**（Owner 2026-10-08 裁定）重建'
+    before_after: 'kb/l3/rejected.jsonl **4,149 → 5,154 行**（+1,005，不是"降 47%"）'
+    why_not_engine_number: >
+      引擎闸③ 曾把 `rejected.jsonl` 的写入拒掉（它本轮算 2,188 行，按「两边口径不同 ⇒ 保守回落行数」
+      拦下）。**闸③ 拦得对**：权威台账不是引擎的 `rejected` 输出，而是
+      `kb/l8/l3_reject_ledger_rebuild.py` 按口径 C 重算的那份（kb-clause-extractor §4 的跑后步骤）。
+      两个数（2,188 / 5,154）是**两套口径**，不是"骤减 47%"。
+      口径 C 逐字：`进了门 − 规则用 − 样例用`；分区实测
+      `单元 14639 = 规则引用 959 ∪ 样例引用 3319 ∪ 拒绝(C) 5154 ∪ 范围外 5207`，互斥校验三项全 0。
+    safety: '旧版先归档（`_archive/L3REJ-20261012-1640-split/rejected.jsonl`，sha 校验）+ 作废声明**追加**（不删行）
+      + 留痕 + 打印回滚命令。评审链**不读**这个文件（读者只有 l3_gate / l3_status / l3_preflight /
+      layer_freshness / daily_health / l4_promote）。'
+    verified: 'l3_gate rc=0（A1）｜workflow_smoke rc=0｜regression_gate GREEN｜#5 判据 rc=0｜就绪巡检 ✅'
+  residual_new_clauses_next_station:
+    corrected: >
+      ★ 更正：先前说"等日更重建 L6"是**错的** —— L6 的 `inputs` 里只有
+      `kb/l3/candidates/rules.jsonl`（本次**逐字节未变**），**根本没有 `scoped_clauses.jsonl`**。
+      263 条新条款的下一站是 **L4 发号**：`l4_promote.py:271` 的 `pending` 判据是
+      `cid in world["assigned"]` ⇒ **没号的候选连待定稿都不进**（C8 也会判「该候选没有号」）。
+    dryrun_evidence: >
+      `python3 kb/.work/l4_article.py <RUN>`（默认干跑，零写入，实测 L3/L4 指纹一字未变）：
+      候选合计 4,523 ｜ 台账已发 4,260 ｜ **首次分配 263 条（E-1 段）** ｜
+      分段 `{E-1: 3418, E-2: 123, S-1: 316, W-1: 56, W-2: 453, W-3: 157}` ｜
+      **「将追加回候选件 263 行（原行逐字节不动）」** ⇒ 追加式，不改旧行。
+    ruling_20261012: >
+      ★ **Owner 2026-10-12 裁定：这一批 263 条暂不发号，留到「目标 5 收口」那一批一起发。**
+      理由（我给的推荐，Owner 采纳）：① 发号受 `numbering.no_reuse`「号码一经发出**永久占用**」约束
+      ⇒ **不可逆**；② L4 写档三条件含「**人开闸**」（layers.yaml L4 skill_note）；
+      ③ 这是**目标 5 收口**的动作、不是 #5 的 —— 且 E-1 条款**当前不参与评审依据**
+      （实测 findings 里的规则号只有 `r-`(W-1) 与 `sc-`(S-1)，没有 E-1）。
+      代价（照实）：这批条款继续停在"候选"，**不能被引用**，直到收口那一批。
+    how_to_resume: >
+      ① `python3 kb/.work/l4_article.py <RUN>`（**默认干跑**，零写入；加 `--apply` 才落盘，**需人开闸**）
+      —— 会「追加回候选件 N 行（原行逐字节不动）」；
+      ② `python3 kb/l8/l4_promote.py [--sample 30]`（默认干跑，出人工抽查单）→ 人签 → `--apply --signoff <签字件>`；
+      ③ 之后才轮到 L6/L5 重建 + 回归（**新条款要进召回面才需要**）。
+    backlog_readout: >
+      ★ 这条欠账**已经摆进常驻读数**，不靠记忆：`python3 kb/l8/l3_external_supply.py`
+      现在会打印「L3 待发号欠账：候选 3,418 ｜ **待发号 263**」，
+      并且**只报不判红**（未发号是正常中间态；做成红 = 造一条假红）。
+      自证里钉了两条：⑨ 欠账存在时 rc 必须仍为 0 ／ ⑨b 欠账数必须被报出来（自证 10 → **12 例**）。
+    promotion_dryrun: >
+      同批跑了 `python3 kb/l8/l4_promote.py`（默认干跑，抽查单落 `kb/l7/reports/l4-promote-sample-latest.md`，
+      sha256 `81d940b5f6592a92…`；S4 只挑 `*.review.md`，抽查单不会被当报告量，**不影响工作流**）。
+  slice_caveat:   # ★★ 读这个指标时必须一起读这一条，否则会把 3,418 当成"可用的 3,418"
+    what: '候选池里**定长切片**的比例（C9：两端词中间 ∧ 长度∈[3700,4100]，`l4_promote.py::c9_signals`）'
+    measured_20261012: '全量 3,418：切片 **1,870（54.7%）** ｜ 已发号 3,155：**1,774（56.2%）**
+      ｜ 本次新产 263：**96（36.5%）**'
+    reading: >
+      ⇒ 指标 3,418 量的是**候选供给量**，其中约 **54.7%** 因 C9 **永远进不了 canonical**（不可引用）。
+      本次新产那批的切片率 **36.5% < 既有基线 56.2%** ⇒ **不是我这次引入的问题**，
+      且比存量更好。C9 是**故意**的门（l4_promote.py:77 逐字：「一加，切片就永远进不了 canonical」；
+      作者实测「那批 2733 条里 64.9% 是网页定长切片」）。
+    root_cause_hint: >
+      长度中位 **3,995**、**max 恰好 4,000** ⇒ 定长 4,000 字符切分器的签名（与
+      `extract_office_batch.py` 的 `CHUNK=4000` 同族）。本次 96 条的来源是**抓取网页**
+      （ftc.gov / support.google.com / advertising.amazon.com / feishu wiki），
+      与 10-12 那次修的**办公文档**抽取不是同一条路 ⇒ **网页侧的定长切尚未修**。
+      ★ 未做归因核实，只登记签名与来源，**不许当结论用**。

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Feishu light adapter output",
+  "type": "object",
+  "required": ["adapter_version", "idempotency_key", "engine_result", "chat_message", "table_patch", "mentions"],
+  "properties": {
+    "adapter_version": {"type": "string"},
+    "idempotency_key": {"type": "string"},
+    "engine_result": {"type": "object"},
+    "chat_message": {"type": "string"},
+    "report_url": {"type": ["string", "null"]},
+    "table_patch": {"type": "object"},
+    "mentions": {"type": "array"},
+    "transport_status": {"type": "string"}
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,13 @@
+{
+  "input_scope_version": "input-scope-2026-09-24",
+  "status": "confirmed_by_user",
+  "accepted_sources": [
+    {"kind": "url", "purpose": "public product page, PDP, landing page, policy or media reference", "fetch_status": "adapter_required"},
+    {"kind": "file", "purpose": "local text, image, video, PDF or exported content", "hash_required": true},
+    {"kind": "text", "purpose": "pasted caption, listing, subtitle, transcript or review text", "hash_required": true},
+    {"kind": "batch", "purpose": "JSON/CSV rows containing any accepted source", "row_id_required": true}
+  ],
+  "content_types": ["text", "image", "video", "mixed", "unknown"],
+  "unsupported_without_adapter": ["private Feishu file", "NAS path from another host", "authenticated social post", "live page requiring login"],
+  "rule": "Do not emit PASS until a URL or file is actually readable and required modality coverage is complete."
+}

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  com.kb.desktop-sweep.plist —— 桌面「任务详情」散落备份**自动清扫**（每 30 分钟）
+
+  为什么要有它（实测，不是洁癖）：
+    `~/Desktop/内容治理知识库-历史版本/版本规矩.md`（Owner 自定）要求备份进归档位、不另存新名字。
+    实测**复发三次**：2026-10-12 14:48 清 11 个 → 同日 14:54–16:33 又长 8 个 → 16:53 又长 1 个。
+    成因是**并行会话逐个写一次性改表脚本**，每个脚本写前留一份备份，**没有人负责清**。
+    ⇒ 「再删一次」治不了，必须有人定时扫。
+
+  为什么**不**改 `watch_review_readiness.py`（虽然它每 30 分钟正好）：
+    那是**共享文件**（91 项自证），且当时**同时有 4 个会话**在这个工作区跑（认领账本实测）。
+    改它 = 与别人抢同一个文件。本作业**自带、可整体撤回**（bootout 即可）。
+
+  行为：
+    · 跑 `kb/l8/sweep_desktop_xlsx_backups.py --apply`
+    · 正常扫到 ⇒ **静默移入 `~/.Trash/`**（可恢复）＋ 记一行账 `kb/.work/desktop-xlsx-sweep.ndjson`
+    · **拒扫**（安全闸红：有散落件比正本更全 / 正本不在 / 读不了）⇒ **一个文件都不动**，只留日志
+      ★ 为什么**不推飞书**：桌面你直接看得见，推是重复告知；且本库已栽过
+        「同一条推 6 次、后 5 条零新信息」「一条假红挤掉一个真问题」。
+        要看随时能看账本与这里的日志。
+
+  安装：
+    cp kb/l8/com.kb.desktop-sweep.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.kb.desktop-sweep.plist
+  立刻验一次：launchctl kickstart -p gui/$(id -u)/com.kb.desktop-sweep
+  卸载：      launchctl bootout gui/$(id -u)/com.kb.desktop-sweep
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.kb.desktop-sweep</string>
+
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>-c</string>
+		<string>cd "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理" &amp;&amp; exec /usr/bin/python3 -u kb/l8/sweep_desktop_xlsx_backups.py --apply</string>
+	</array>
+
+	<!-- 环境口径与 com.kb.gates 逐字一致：launchd 的 PATH 极简；HOME 必须显式给
+	     （`~` 展开依赖它，缺失会解析成字面量 `~`）。本作业只读桌面 + 移动文件，
+	     但仍走同一套显式环境，免得以后加逻辑时踩隐式继承。 -->
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<key>LANG</key>
+		<string>en_US.UTF-8</string>
+		<key>HOME</key>
+		<string>/Users/lute</string>
+	</dict>
+
+	<!-- 每 30 分钟。散落件的产生速度实测是"每次编辑一个"，
+	     30 分钟足够把桌面维持成"只有正本"。 -->
+	<key>StartInterval</key>
+	<integer>1800</integer>
+
+	<!-- 不用 RunAtLoad：登录即跑会与用户操作抢 IO；要立刻验证用 kickstart。 -->
+	<key>StandardOutPath</key>
+	<string>/Users/lute/Library/Logs/kb-desktop-sweep/sweep.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/lute/Library/Logs/kb-desktop-sweep/sweep.err.log</string>
+</dict>
+</plist>

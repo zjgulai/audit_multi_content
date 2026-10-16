@@ -1,0 +1,172 @@
+{
+  "version": "1.0",
+  "skills_dir": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/_eval-L0L7-gap-20261003",
+  "started_at": "2026-10-03T14:31:27Z",
+  "updated_at": "2026-10-04T06:54:05Z",
+  "skills": {
+    "kb-check": {
+      "status": "running",
+      "complexity": null,
+      "timeout_minutes": 15,
+      "started_at": "2026-10-04T00:48:37Z",
+      "last_artifact_mtime": null,
+      "attempts": 3,
+      "report_path": null,
+      "score": 69.0
+    },
+    "kb-l0-feishu": {
+      "status": "done",
+      "complexity": null,
+      "timeout_minutes": 15,
+      "started_at": "2026-10-04T00:48:37Z",
+      "last_artifact_mtime": null,
+      "attempts": 3,
+      "report_path": null,
+      "score": 83.5
+    },
+    "kb-recall": {
+      "status": "done",
+      "complexity": null,
+      "timeout_minutes": 15,
+      "started_at": "2026-10-03T16:25:16Z",
+      "last_artifact_mtime": null,
+      "attempts": 1,
+      "report_path": null,
+      "score": 72.4
+    }
+  },
+  "events": [
+    {
+      "ts": "2026-10-03T14:31:47Z",
+      "skill": "kb-l0-feishu",
+      "type": "running",
+      "note": "subagent e76c9e95-b57e-4bbe-b828-9852399130ab（complex）"
+    },
+    {
+      "ts": "2026-10-03T14:31:47Z",
+      "skill": "kb-check",
+      "type": "running",
+      "note": "subagent f41c4909-8674-451f-b32b-1358305ce38e（standard）"
+    },
+    {
+      "ts": "2026-10-03T16:25:16Z",
+      "skill": "kb-l0-feishu",
+      "type": "done",
+      "note": "轨道A 94.8 / F1 0.850 / 轨道C 69.0 / market_ready=false；修复与B卷门禁未执行（源只读冲突）"
+    },
+    {
+      "ts": "2026-10-03T16:25:16Z",
+      "skill": "kb-recall",
+      "type": "running",
+      "note": "subagent 160255c3-4282-45fb-a1a2-1888ff65a541（standard）"
+    },
+    {
+      "ts": "2026-10-03T23:51:39Z",
+      "skill": "kb-check",
+      "type": "done",
+      "note": "market_ready=false；未过门槛；修复与B卷门禁未执行"
+    },
+    {
+      "ts": "2026-10-03T23:51:39Z",
+      "skill": "kb-recall",
+      "type": "done",
+      "note": "market_ready=false；未过门槛；修复与B卷门禁未执行"
+    },
+    {
+      "ts": "2026-10-03T23:52:11Z",
+      "skill": "kb-l0-feishu",
+      "type": "running",
+      "note": "进入低分修复：subagent d05a7e5f-b23c-4231-ac43-7b99ea354344（用户在家族硬规则下选择修复）"
+    },
+    {
+      "ts": "2026-10-03T23:52:11Z",
+      "skill": "kb-check",
+      "type": "running",
+      "note": "进入低分修复：subagent 0c6dd909-2376-42a7-a91a-7478fc6a4b84（用户在家族硬规则下选择修复）"
+    },
+    {
+      "ts": "2026-10-03T23:52:28Z",
+      "skill": "kb-l0-feishu",
+      "type": "done",
+      "note": "评测完成、未过放行线；低分修复：d05a7e5f"
+    },
+    {
+      "ts": "2026-10-03T23:52:28Z",
+      "skill": "kb-check",
+      "type": "done",
+      "note": "评测完成、未过放行线；低分修复：0c6dd909"
+    },
+    {
+      "ts": "2026-10-03T23:52:28Z",
+      "skill": "kb-recall",
+      "type": "done",
+      "note": "评测完成、未过放行线；低分修复：排队中"
+    },
+    {
+      "ts": "2026-10-04T00:01:02Z",
+      "skill": "kb-l0-feishu",
+      "type": "done",
+      "note": "隔夜挂起后已续跑修复（subagent d05a7e5f）；续跑前已完成 fix 草案、未跑复测"
+    },
+    {
+      "ts": "2026-10-04T00:01:02Z",
+      "skill": "kb-check",
+      "type": "done",
+      "note": "隔夜挂起后已续跑修复（subagent 0c6dd909）；续跑前已完成 fix 草案、未跑复测"
+    },
+    {
+      "ts": "2026-10-04T00:48:37Z",
+      "skill": "kb-l0-feishu",
+      "type": "running",
+      "note": "复测线中断（runner 被带走、轮次卡 6/3/6、reply 字段接线错）→ 判疑似中断，已带诊断续跑，attempts+1"
+    },
+    {
+      "ts": "2026-10-04T00:48:37Z",
+      "skill": "kb-check",
+      "type": "running",
+      "note": "复测线中断（runner 被带走、轮次卡 6/3/6、reply 字段接线错）→ 判疑似中断，已带诊断续跑，attempts+1"
+    },
+    {
+      "ts": "2026-10-04T00:56:48Z",
+      "skill": "kb-l0-feishu",
+      "type": "running",
+      "note": "口径变更（用户 2026-10-04）：只评 skill、不跑底层作业；PER_CASE_TIMEOUT 1800→~120s；限时空回复不得计为不触发"
+    },
+    {
+      "ts": "2026-10-04T00:56:48Z",
+      "skill": "kb-check",
+      "type": "running",
+      "note": "口径变更（用户 2026-10-04）：只评 skill、不跑底层作业；PER_CASE_TIMEOUT 1800→~120s；限时空回复不得计为不触发"
+    },
+    {
+      "ts": "2026-10-04T01:04:09Z",
+      "skill": "kb-l0-feishu",
+      "type": "running",
+      "note": "复测已确认在跑（查盘核实）：接线根因 abspath→realpath 已修、坏数据作废留痕、冒烟 3+13 全非空、A卷 5/312 在写、8 进程活着"
+    },
+    {
+      "ts": "2026-10-04T01:04:23Z",
+      "skill": "kb-check",
+      "type": "running",
+      "note": "查盘：首轮被中断+自查出盲测泄漏(lock.sh 可读)⇒整轮作废留痕 ABORT-NOTE.md；已加固(整个 _fixrun chmod 000)；冒烟已出；全量轮次未启动"
+    },
+    {
+      "ts": "2026-10-04T03:51:53Z",
+      "skill": "kb-l0-feishu",
+      "type": "running",
+      "note": "两轮全量完成(79.6C/80.6B)、第四轮v1.2.8在跑；已告知500字机制发现，备v1.2.9"
+    },
+    {
+      "ts": "2026-10-04T03:51:53Z",
+      "skill": "kb-check",
+      "type": "running",
+      "note": "第1轮P0.889/R1.0/F1"
+    },
+    {
+      "ts": "2026-10-04T06:54:05Z",
+      "skill": "kb-l0-feishu",
+      "type": "done",
+      "note": "修复收官（停滞规则停）：v1.2.9 P0.914/R0.99/F1 0.95、轨道C 83.5(B)、market_ready=false、B卷F1=1.000门禁过；源未写(sha 66e7dc22 与基线一致)、双闸门 exit 0、版本一致 1.2.9"
+    }
+  ]
+}

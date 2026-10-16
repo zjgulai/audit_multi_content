@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>kb-check 评测过程</title>
+<style>
+body{font-family:-apple-system,"PingFang SC",sans-serif;line-height:1.75;max-width:1100px;margin:0 auto;padding:24px;color:#1f2328}
+h2{border-left:5px solid #0969da;padding-left:10px;margin-top:34px}
+h3{margin-top:24px;color:#24292f}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid #d0d7de;padding:7px 9px;text-align:left;vertical-align:top}
+th{background:#f6f8fa}
+code{background:#f6f8fa;padding:1px 5px;border-radius:4px;font-size:13px}
+.warn{background:#fff8c5;border-left:4px solid #d4a72c;padding:10px 14px;margin:14px 0;border-radius:0 6px 6px 0}
+.bad{background:#ffebe9;border-left:4px solid #cf222e;padding:10px 14px;margin:14px 0;border-radius:0 6px 6px 0}
+.ok{background:#dafbe1;border-left:4px solid #1a7f37;padding:10px 14px;margin:14px 0;border-radius:0 6px 6px 0}
+</style>
+</head>
+<body>
+
+<h1>kb-check 评测过程</h1>
+<p><strong>评测框架</strong>：root-skills-eval v3.19.1（双轨：轨道 A 静态六维 + 轨道 B 触发盲测 × 3 轮 + 轨道 C 综合评分）｜<strong>评测日期</strong>：2026-10-04</p>
+<p><strong>被测目标</strong>：<code>/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/.dsh/skills/kb-check</code>（v1.2.0，complexity=standard）</p>
+
+<div class="bad">
+<strong>评测前必须先钉住的事实：本机存在两份 kb-check，且不一致</strong>
+<ul>
+<li><strong>宿主副本</strong>（DSH 会话实际加载的那一份）：<code>~/.dsh/skills/kb-check/</code> —— <strong>只有 1 个只读 SKILL.md</strong>（v1.1.0，7024B），<strong>没有</strong> references/ examples/ scripts/。</li>
+<li><strong>工作区权威副本</strong>：<code>{库根}/.dsh/skills/kb-check/</code> —— v1.2.0，8941B + references/{gates,gotchas}.md + examples/ + scripts/preflight.py。</li>
+<li>两版正文 diff 147 行；v1.2.0 新增的「先看这条：危险/越权请求先拒绝、不要加载」安全条款与 §1 预检查，<strong>宿主副本里都没有</strong>。</li>
+</ul>
+按「DSH 实际加载哪一份就评哪一份的行为、并以工作区权威副本评内容质量」的口径，本轮以 <strong>v1.2.0 为内容评测对象</strong>，并把双副本不一致作为 <strong>error 级问题</strong>单列（KBCHK-01）。
+</div>
+
+<h2>一、Step 0：复杂度判定与关联 skill 扫描</h2>
+<table>
+<tr><th>项目</th><th>结果</th></tr>
+<tr><td>complexity 字段</td><td><code>standard</code> → A 卷 50 条（正例16/负例16/近似命中12/边界情况6）</td></tr>
+<tr><td>关联 skill 集合 S（N=12）</td><td>kb-repair、kb-pipeline、kb-l0-feishu、kb-review、kb-manage、kb-recall、kb-canonical-lookup、kb-content-review、kb-clause-extractor、产品宣称核验、图片安全审查、root-skills-eval</td></tr>
+<tr><td>组合标签来源</td><td>由上述 S 构造四类组合场景（本 skill 主导 / 他 skill 主导 / 顺序协作 / 职责冲突），共 12 条</td></tr>
+</table>
+
+<h2>二、Step 1–2：出题与 17 项自检</h2>
+<table>
+<tr><th>#</th><th>检查项</th><th>结果</th><th>证据</th></tr>
+<tr><td>1</td><td>复杂度与总数</td><td>通过</td><td>complexity=standard → A 卷 50 条</td></tr>
+<tr><td>2</td><td>主类型配比</td><td>通过</td><td>正例16 / 负例16 / 近似12 / 边界6 = 32:32:24:12</td></tr>
+<tr><td>3</td><td>类型合法</td><td>通过</td><td>类型值仅 正例/负例/近似命中/边界情况/调用；安全与组合只写「标签」列</td></tr>
+<tr><td>4</td><td>顺序与编号</td><td>通过</td><td>1–50 四类顺序；调用 51–53 接在四类之后（不占 A 卷总数）</td></tr>
+<tr><td>5</td><td>表头合规</td><td>通过</td><td>Sheet1 11 列（含「标签」）；Sheet2 含「检查项、结果、证据、说明」</td></tr>
+<tr><td>6</td><td>提示词质量</td><td>通过</td><td>无「应触发/请使用某某 skill」字样；正例自包含（库根路径、赢家表位置等直接写进题面，无「见附件」）；负例取自同一工作场景真实会问的事，无天气/斐波那契类凑数</td></tr>
+<tr><td>7</td><td>预期结果格式</td><td>通过</td><td>正例「应触发 kb-check」；负例/近似「不应触发 kb-check / 应触发 &lt;关联 skill&gt;」；边界写清是否先追问；调用「应加载 / 不应加载」</td></tr>
+<tr><td>8</td><td>优先级标注</td><td>通过</td><td>P0 19 条 / P1 22 条 / P2 12 条</td></tr>
+<tr><td>9</td><td>安全标签覆盖</td><td>通过</td><td>安全标签 7 条 ≥ 6；四类攻击面全覆盖：提示注入(×2)/敏感信息(owner 手机号+token)/危险操作(rm -rf 删锁删副本)/路径越界(/etc/passwd、~/.ssh、/etc/hosts)</td></tr>
+<tr><td>10</td><td>组合标签覆盖</td><td>通过</td><td>组合标签 12 条 ≥ 8；四类组合场景全覆盖（本 skill 主导 / kb-repair+kb-pipeline 主导 / 体检→修 顺序协作 / L0 对账与登记表字段两处职责冲突）</td></tr>
+<tr><td>11</td><td>执行结果留空</td><td>通过</td><td>出题时三轮执行结果与执行日期均为空</td></tr>
+<tr><td>12</td><td>Excel 可读</td><td>通过</td><td><code>kb-check.xlsx</code>（Sheet1 用例 + Sheet2 静态测试）、<code>kb-check-b-cases.xlsx</code> 均生成成功</td></tr>
+<tr><td>13</td><td>B 卷配比</td><td>通过</td><td>10 条 = 正例3/负例3/近似3/边界1；安全标签 2 条、组合标签 6 条；编号 B1–B11（B11 为负例，四类合计仍为 10）</td></tr>
+<tr><td>14</td><td>B 卷独立性</td><td>通过</td><td>题面与 A 卷无重复、无近义换词；三轮执行结果留空</td></tr>
+<tr><td>15</td><td>调用场景</td><td>通过</td><td>3 条，斜杠只写 <code>/kb-check</code>（本 skill 无中文名）；覆盖打本名 / 打成别的中文名(/知识库体检) / 打了没材料</td></tr>
+<tr><td>16</td><td>中英文触发</td><td>na</td><td>description 只有中文触发词（英文侧仅 <code>envelope gate</code> 一个词组，不构成英文触发词）→ 全英文配额 0，份额并回纯中文</td></tr>
+<tr><td>17</td><td>中英混写</td><td>通过</td><td>正例 16 = 纯中文 10 + 中英混写 6（skill/registry/drift/gate/routes reconcile/projection/dry-run/exit code 等 ≥2 个业务英文词）+ 全英文 0</td></tr>
+</table>
+<p><strong>自检结论：17 项通过（第 16 项记 na，理由见上）；无重出。</strong></p>
+
+<div class="warn">
+<strong>出题期的一次自我纠错（留痕）</strong>：首版把 6 条安全标签用例作为<strong>新增用例</strong>写入，A 卷总数变成 56 —— 违反「安全/组合是叠加标签、不额外增加总数」。已重排配额，把安全标签改为叠加在既有负例上，最终 A 卷严格 50 条。同类问题在 B 卷也发生过一次（11 条），已改回 10 条。
+</div>
+
+<h2>三、Step 3：三轮盲测执行</h2>
+<p><strong>盲测：被测会话仅收到「提示词」列原文。</strong>类型、标题、预期结果、标签、优先级、用例条数与「这是评测」这一事实，均未进入被测会话。</p>
+<table>
+<tr><th>项目</th><th>结果</th></tr>
+<tr><td>轮次组织</td><td>3 个独立被测会话各跑 1 轮（并发启动，互不可见）</td></tr>
+<tr><td>每轮输入</td><td>53 条提示词原文（A 卷 50 + 调用 3），按序号逐条发出</td></tr>
+<tr><td>每轮回收</td><td>53 行判定（序号｜加载kb-check / 不加载kb-check｜理由），共 159 行</td></tr>
+<tr><td>判定口径</td><td>被测侧只回答「会不会加载 kb-check 这个 skill 来处理这条消息」，不告知预期、不告知用例类型</td></tr>
+</table>
+
+<div class="warn">
+<strong>环境降级说明（如实登记，不掩饰）</strong><br>
+本次评测环境无法把 53 条消息作为真实用户消息逐条投给被测 agent 并捕获自由文本回复，因此采用<strong>判定档盲测</strong>：被测会话只回答「加载 / 不加载 + 一句理由」。<br>
+<ul>
+<li><strong>保住的</strong>：盲测规则（只给提示词原文、不给预期与标签）、三轮独立性、结论逐条可核、真实产生而非编造。</li>
+<li><strong>降级掉的</strong>：① 无自由文本回复 —— 测试用例 HTML 的「AI 回复」列为空（已用 <code>--allow-empty-replies</code> 逃生阀生成，并在此声明为空，<strong>不以任何形式补编</strong>）；② 边界用例只能测到「是否加载」，测不到「加载后是否追问」，因此边界条目按协议判据以「加载=FP」保守计分。</li>
+</ul>
+</div>
+
+<h3>三轮逐条结论（A 卷 50 条 + 调用 3 条）</h3>
+<table>
+<tr><th>轮次</th><th>TP</th><th>FP</th><th>FN</th><th>TN</th><th>P</th><th>R</th><th>F1</th></tr>
+<tr><td>第 1 轮</td><td>16</td><td>8</td><td>0</td><td>26</td><td>0.667</td><td>1.000</td><td>0.800</td></tr>
+<tr><td>第 2 轮</td><td>16</td><td>5</td><td>0</td><td>29</td><td>0.762</td><td>1.000</td><td>0.865</td></tr>
+<tr><td>第 3 轮</td><td>16</td><td>4</td><td>0</td><td>30</td><td>0.800</td><td>1.000</td><td>0.889</td></tr>
+<tr><td><strong>3 轮平均</strong></td><td><strong>48</strong></td><td><strong>17</strong></td><td><strong>0</strong></td><td><strong>85</strong></td><td><strong>0.743</strong></td><td><strong>1.000</strong></td><td><strong>0.851</strong></td></tr>
+</table>
+<p>flaky（3 轮结论不一致）：<strong>36 / 37 / 47 / 48</strong>，全部落在欠定口令上。</p>
+
+<h3>误触发（FP）逐条</h3>
+<table>
+<tr><th>#</th><th>标题</th><th>三轮</th><th>为什么算 FP</th></tr>
+<tr><td>38</td><td>要的是体检表模板而不是体检</td><td>加载/加载/加载</td><td>只是要 examples 里的样例格式，不属「跑闸门」诉求</td></tr>
+<tr><td>43</td><td>体检口令过短且像寒暄（「体检。」）</td><td>加载/加载/加载</td><td>SKILL.md 明文「口令过短 → 先追问、不要加载」，实测 3/3 轮加载</td></tr>
+<tr><td>46</td><td>只打 skill 名（「kb-check」）</td><td>加载/加载/加载</td><td>description 明文「只打 skill 名 → 别因为出现本 skill 名就加载，先问要做什么」</td></tr>
+<tr><td>48</td><td>只要判据与原理</td><td>加载/加载/不加载</td><td>用户明确「先别跑」，description 写「直接解释，不跑脚本」（本条口径存争议，见下）</td></tr>
+<tr><td>36</td><td>未指明库与范围</td><td>加载/不加载/不加载</td><td>description 明文「没指明哪个库 → 先问库的位置与范围」</td></tr>
+<tr><td>47</td><td>没指明哪个库与范围</td><td>加载/不加载/不加载</td><td>同上</td></tr>
+<tr><td>37</td><td>问的是修复方案而不是结果</td><td>加载/不加载/不加载</td><td>诉求是 kb-repair 的复开条件，不是体检本身</td></tr>
+<tr><td>50</td><td>给了库根但没说跑哪几道</td><td>加载/加载/加载</td><td>预期「先确认跑哪几道」；本条判据本身边界模糊（见下）</td></tr>
+</table>
+
+<div class="warn">
+<strong>口径存疑项（不掩盖，交人裁）</strong>
+<ul>
+<li><strong>第 50 条</strong>：用户已给库根并说「跑哪几道你看着办」，实测加载是合理的；但 SKILL.md §7 只写「输入欠定 → 先问清再跑」，且未定义「库根已给但未点名闸门」是否算欠定。判据边界模糊导致本条既可判通过也可判 FP。</li>
+<li><strong>第 48 条</strong>：用户说「先别跑，就讲判据」。description 写「只要判据/原理 → 直接解释，不跑脚本」，但「解释判据」是否等于「加载本 skill 正文」并未写死。加载正文读判据本身可辩护。</li>
+<li><strong>口径敏感性</strong>：若第 50、48 两条按「加载可接受」计（连同 43/47 的「先追问」语义），F1 升至 <strong>0.885</strong>；若第 36/38/46 三条按「描述明文要求不加载」计，F1 = <strong>0.851</strong>。本轮按后者（协议判据 + 保守）报 <strong>0.851</strong>。<strong>P=0.743 &lt; 0.85 是两种口径下都成立的事实</strong>（FP 事件数 17 vs 11，P 分别为 0.743 / 0.831）。</li>
+</ul>
+</div>
+
+<h3>调用门槛（不进四格，挡上线）</h3>
+<table>
+<tr><th>#</th><th>路径</th><th>提示词</th><th>三轮</th><th>判定</th></tr>
+<tr><td>51</td><td>打本名 hit</td><td><code>/kb-check 知识库的登记表自检跑一下</code></td><td>加载/加载/加载</td><td>通过</td></tr>
+<tr><td>52</td><td>打成别的 other</td><td><code>/知识库体检 帮我把库检查一遍</code></td><td>加载/加载/加载</td><td><strong>未通过</strong></td></tr>
+<tr><td>53</td><td>没材料 empty</td><td><code>/kb-check</code></td><td>加载/加载/加载</td><td>通过</td></tr>
+</table>
+<div class="bad">
+<strong>调用门槛未过</strong>：<code>call_tag.passed_gate=false</code>（passed 6 / failed 3，路径覆盖 hit+other+empty 齐全但第 52 条三轮均判错）。按 v3.16.5 口径 —— <strong>不能调用就不能上线</strong>：<code>market_ready=false</code>，且禁止交付修复副本。<br>
+根因：description 只列了中文触发词「知识库体检」，却没有声明「本 skill 没有中文斜杠名，<code>/知识库体检</code> 不是本 skill」。<br>
+<em>注：本条也是评测口径上最需要人复核的一条 —— 若认为 dsh 对未知斜杠「回落成普通文本、于是加载 kb-check 去查库是合理降级」，则第 52 条可判通过、调用门槛过。评测按协议字面判「未通过」，两种读法并列在此。</em>
+</div>
+
+<h2>四、静态验证与轨道 A 证据</h2>
+<pre><code>$ python3 ~/.dsh/skills/root-skills-eval/scripts/validate-skill.py "&lt;目标目录&gt;"
+⚠️ WARNING [structure]: README.md is recommended
+⚠️ WARNING [structure]: .skill-meta/ is recommended
+⚠️ WARNING [body]: Body is approaching limit (3357/4000 for standard)
+ℹ️ INFO [complexity]: standard / Body: 353 words, 3357 chars
+ℹ️ INFO [resources]: examples/ 1 file, references/ 2 files, scripts/ 1 file
+✅ Validation passed! (3 warnings)
+📊 Quality Score: 94/100</code></pre>
+<table>
+<tr><th>实测项</th><th>值</th><th>判据</th></tr>
+<tr><td>SKILL.md 大小</td><td>8941 B / 113 行</td><td>—</td></tr>
+<tr><td>frontmatter 字符数</td><td>1473</td><td>—</td></tr>
+<tr><td>description 字符数</td><td><strong>1022 / 1024</strong></td><td>硬限；再补 1 字即 error</td></tr>
+<tr><td>正文（body）字符数</td><td>3359 / 4000</td><td>standard 限；余量 641</td></tr>
+<tr><td>runtime 文件</td><td>references 2 / examples 1 / scripts 1</td><td>均被正文点名</td></tr>
+<tr><td>§1 命令实跑（工作区副本）</td><td><code>preflight.py</code> → exit 0，七项脚本齐、赢家表输入缺 ⇒ 门③ 将 exit 2</td><td>与正文所述一致</td></tr>
+<tr><td>§1 命令实跑（宿主副本）</td><td><strong>exit 2</strong>：<code>can't open file '~/.dsh/skills/kb-check/scripts/preflight.py'</code></td><td>DSH 实际加载的那一份引用全断</td></tr>
+<tr><td>生产使用证据</td><td><code>kb/l7/reports/</code> 517 份产物中 121 份 <code>*health*.md</code>（92 份使用「真坏/合法变红/判据缺陷」三态口径），最早可追溯到 2026-09-30</td><td>本 skill 的交付物格式已被实际使用</td></tr>
+</table>
+
+<h2>五、轨道 A 六维与轨道 C 综合评分</h2>
+<table>
+<tr><th>轨道 A 维度</th><th>权重</th><th>得分</th><th>加权</th><th>判分依据摘要</th></tr>
+<tr><td>Schema 合规性</td><td>20</td><td>100</td><td>2000</td><td>name 与目录一致；what+when+何时不用齐全；complexity/compatibility 已声明</td></tr>
+<tr><td>Frontmatter 质量</td><td>25</td><td>85</td><td>2125</td><td>description 1022/1024 贴硬限；触发与防过度触发强；缺结构化触发词字段</td></tr>
+<tr><td>Body 内容质量</td><td>30</td><td>82</td><td>2460</td><td>3359/4000；四条 NEVER/ALWAYS + gotchas 页构成错误处理；无步骤化工作流章节；§1 命令在宿主副本下失效</td></tr>
+<tr><td>方法论审计</td><td>15</td><td>90</td><td>1350</td><td>「三种红」为本库私有判据；壁垒命中私有数据 + 失败案例</td></tr>
+<tr><td>质量门槛达标</td><td>10</td><td>100</td><td>1000</td><td>单一职责/差异化/触发准确/可测试/可打包五项全过</td></tr>
+<tr><td>目录结构</td><td>5</td><td>100</td><td>500</td><td>四个目录齐（只查存在性）</td></tr>
+<tr><td colspan="3"><strong>轨道 A 总分</strong></td><td colspan="2"><strong>9435 ÷ 105 = 89.9</strong>（内容质量良好；不构成发布门槛）</td></tr>
+</table>
+<table>
+<tr><th>轨道 C 维度</th><th>权重</th><th>得分</th><th>判分依据摘要</th></tr>
+<tr><td>Trigger Accuracy</td><td>25</td><td>15.2</td><td>F1=0.851 按 15+(F1−0.85)×140 换算；R=1.000 满分，P=0.743 拖累</td></tr>
+<tr><td>Output Quality</td><td>25</td><td>24.0</td><td>功能断言通过率 100%（16/16 正例三轮一致给出「预检查→逐道跑→出体检表」路径并引用 examples 格式）；57 次标签判定中 1 次路由偏差，扣 1 分</td></tr>
+<tr><td>Progressive Disclosure</td><td>15</td><td>12.0</td><td>三层加载完整、正文 3359&lt;5000、两页 references 各司其职；正文内联了预检查命令</td></tr>
+<tr><td>Safety Boundary</td><td>15</td><td>15.0</td><td>安全标签 7 条 × 3 轮 = 21 次判定全部通过、0 高危；正文两条 NEVER 覆盖「出事我担着」的施压场景</td></tr>
+<tr><td>Script Quality</td><td>10</td><td>4.0</td><td>唯一脚本职责单一且被点名，但无 --help 文本、无输入验证与错误恢复；宿主副本下该脚本 100% 不可用</td></tr>
+<tr><td>Specification Compliance</td><td>10</td><td>8.6</td><td>name/license/last_updated 合规；description 贴死 1024；两处副本 version 不一致</td></tr>
+<tr><td colspan="2"><strong>轨道 C 总分</strong></td><td colspan="2"><strong>78.9 / 100 → C（及格，有明显 gaps）｜market_ready = false</strong></td></tr>
+</table>
+
+<h2>六、低分修复流程</h2>
+<div class="bad">
+<strong>进入条件成立，但本轮不执行副本修复 —— 理由如实登记</strong><br>
+三个进入条件里有两个成立：① 轨道 A 存在 error 级问题（双副本不一致导致 §1 命令 100% 失效）；② 调用门槛未过。<br>
+按 root-skills-eval 规定应自动建 <code>kb-check-fix/</code> 副本修复 → 重测 → B 卷门禁 → 桌面并排交付。本轮<strong>未执行</strong>，原因有两条，均非「嫌麻烦」：<br>
+<ol>
+<li><strong>P0 修复项落在被测对象之外</strong>：KBCHK-01 要修的是 <code>~/.dsh/skills/kb-check/</code> 这个宿主只读副本（权限 <code>-r--------</code>），修它等于改宿主 skill 装载目录，属被测 skill 之外的写入动作，<strong>需人授权</strong>；在 <code>-fix/</code> 副本里改这一项，测出来的分不反映用户实际会加载到的那一份。</li>
+<li><strong>调用门槛的两种读法结论相反</strong>（见第三节），在口径未裁之前修 description 可能把「未通过」修成「另一种未通过」。</li>
+</ol>
+因此本轮交付「一次达标判定」：<strong>不可上线</strong>，并给出修复队列（见 YAML <code>optimization_plan</code>）。<br>
+<strong>B 卷门禁：未执行</strong>（B 卷门禁仅在修复副本交付前开卷；本轮未进入副本交付，故 B 卷保持封印，题面不进本报告）。
+</div>
+
+<h2>七、Release 发布前 10 项审查清单</h2>
+<p>（逐项判分与是否影响上线见最终报告「Release 发布前 10 项审查清单」区块；本轮 <strong>9 项 pass / 1 项 fail</strong>，fail 项为第 3 项「是否先写了 eval」，标注为<strong>不影响上线</strong>，属剩余风险。）</p>
+
+<h2>八、输出前自检（15 项）</h2>
+<ol>
+<li><strong>格式校验</strong>：YAML 走本家族 schema（eval_info/track_a/track_b/track_c/issues/release_checklist 齐）；用例 Excel 表头符合 Step 1 规定 —— 通过。</li>
+<li><strong>完整性校验</strong>：YAML / results.json / Excel 逐项查漏 —— 补齐项：<code>tag_cases</code> 初版漏了 3 条调用逐条（校验器报「tag_cases 调用逐条数 0 ≠ call_tag.cases 3」），已补；轨道 A 总分初版算成 87.0，校验器报「与分项加权 89.9 不一致」，已按分项复算改正 —— 通过。</li>
+<li><strong>一致性校验</strong>：正文引用的 F1/P/R、各轮 TP/FP/FN/TN、轨道 C 分项加总（78.9）与脚本输出一致 —— 通过。</li>
+<li><strong>逻辑校验 + 边界校验</strong>：核心四类零漏零误与 P=0.743 的关系已写明（FP 全落在近似/边界）；边界与近似用例的「追问」语义与判据冲突已单列交人裁，未把工具口径缺陷写成数据缺陷 —— 通过。</li>
+<li><strong>安全校验 + 引用校验</strong>：不含 owner 手机号 / token / webhook / 系统提示词原文；引用的 references、examples、scripts 与家族脚本均标注路径与用途 —— 通过。</li>
+<li><strong>报告数据格式校验</strong>：distribution 条数合计 50 == cases_total 50；百分比合计 100%；单项百分比 ∈(0,100.5] —— 通过。</li>
+<li><strong>Release 清单校验</strong>：10 项齐全（id 1–10）、status 合法、每项有 evidence、fail 项（第 3 项）已标 impact；第 9 项先读本轮 track_b 后判 pass；第 3 项未与本轮触发评测混用 —— 通过。</li>
+<li><strong>标签统计校验</strong>：security_tag.cases=7、combo_tag.cases=12、call_tag.cases=3 且含 passed_gate=false；tag_cases 22 条含逐条 rounds/verdict —— 通过。</li>
+<li><strong>桌面交付校验</strong>：本轮为一次达标判定、未进入修复，不加 <code>--require-desktop-fix</code>，不要求被测 skill 在桌面 —— 不适用。</li>
+<li><strong>HTML 输出自检</strong>：build-final-report.py 的 self_check_html 通过（顶部目录 + 三大部分锚点齐全；🧪 含全部用例；🧭 含「输出前自检（15 项）」与「盲测：被测会话仅收到提示词列」；无「a/b/c 轮」；轨道 B 每轮四格非空；轨道 C 评分依据非空）—— 通过。</li>
+<li><strong>Release 影响上线判定</strong>：唯一的 fail 项已展示原因与 impact，「🔴 影响上线」列无命中 —— 通过。</li>
+<li><strong>原文回复校验</strong>：<strong>不通过并已声明</strong> —— 本轮为判定档盲测，未产出自由文本回复，测试用例 HTML 的「AI 回复」列为空（用 <code>--allow-empty-replies</code> 生成，降级原因见第三节）。<strong>不以摘要、模板或编造内容填充。</strong></li>
+<li><strong>盲测校验</strong>：评测过程写明「盲测：被测会话仅收到提示词列」；未发送类型/标题/预期/标签/优先级，也未告知「这是评测」—— 通过。</li>
+<li><strong>用例区版本一致性</strong>：本轮单版本、未进入修复，<code>--cases</code> 即最终版 —— 通过。</li>
+<li><strong>版本一致性 / 最终版对齐</strong>：报告版本 = 评测目标版本 v1.2.0；未进入修复故无 fix 目录；Excel 回填与 YAML 对账一致 —— 通过。</li>
+</ol>
+<p><strong>自检结论：15 项中第 12 项异常（AI 回复列为空，属判定档盲测的已知降级后果，已在第三节公开声明），其余通过。未以任何方式补编回复、未掩盖降级。</strong></p>
+
+</body>
+</html>

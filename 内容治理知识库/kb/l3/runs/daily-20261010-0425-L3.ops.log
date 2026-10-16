@@ -1,0 +1,10 @@
+# L3 蒸馏 外部调用台账  run_id=daily-20261010-0425-L3
+# 本轮**没有任何外部调用**，也没有调用 OpenViking（ov CLI 未安装，按任务要求不安装）。
+# 输入全部来自 kb/l2 与 kb/l0 的既有产物（只读）；写入只在 kb/l3/。
+#
+时间               操作                                             性质     说明
+daily-20261010-0425-L3 读取 kb/l2/units.jsonl                           read   14237 个单元
+daily-20261010-0425-L3 读取 kb/l0/registry/kb.json 的 field_roles        read   元数据过滤依据
+daily-20261010-0425-L3 读取 ~/.dsh/skills/knowledge-distillation/SKILL.md read   方法论来源（不使用其 ov 命令）
+daily-20261010-0425-L3 本地计算：过滤 + 聚合 + 生成 rule_id                      local  产出 1018 条候选规则
+daily-20261010-0425-L3 本地计算：index/l3.jsonl 投影                         local  509 行

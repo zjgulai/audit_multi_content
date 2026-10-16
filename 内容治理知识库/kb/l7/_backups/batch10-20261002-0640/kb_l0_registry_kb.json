@@ -1,0 +1,2444 @@
+{
+ "_comment": "L0 原始库映射规则。机器判断分类一律查 dir_map，不要硬编码中文目录名。分类只能靠重跑改，不手工 mv/重命名。规则生效与否看每条规则的 enabled（缺省为 true）；停用规则不参与求值。",
+ "kb_version": "v0",
+ "dir_map": {
+  "1_外部标准库": "external_standard",
+  "2_内部正负样本库": "internal_sample",
+  "3_措辞表达库": "wording",
+  "4_产品描述库": "product_desc",
+  "9_未归类": "unknown"
+ },
+ "dir_map_reverse": {
+  "external_standard": "1_外部标准库",
+  "internal_sample": "2_内部正负样本库",
+  "wording": "3_措辞表达库",
+  "product_desc": "4_产品描述库",
+  "unknown": "9_未归类"
+ },
+ "kb_types": {
+  "external_standard": {
+   "label": "外部标准库",
+   "dir": "1_外部标准库",
+   "kb_version": "v0"
+  },
+  "internal_sample": {
+   "label": "内部正负样本库",
+   "dir": "2_内部正负样本库",
+   "kb_version": "v0"
+  },
+  "wording": {
+   "label": "措辞表达库",
+   "dir": "3_措辞表达库",
+   "kb_version": "v0"
+  },
+  "product_desc": {
+   "label": "产品描述库",
+   "dir": "4_产品描述库",
+   "kb_version": "v0"
+  },
+  "unknown": {
+   "label": "未归类（不猜）",
+   "dir": "9_未归类",
+   "kb_version": "v0"
+  }
+ },
+ "rules": [
+  {
+   "id": "R1",
+   "match_type": "field_value",
+   "scope_table": "材料收集",
+   "pattern": "知识库分类",
+   "match_value": "产品描述库",
+   "kb_type": "product_desc",
+   "note": "入口表自带的「知识库分类」标签，源侧权威，优先采信，不自行判定业务域",
+   "enabled": true,
+   "state": "active"
+  },
+  {
+   "id": "R2",
+   "match_type": "field_value",
+   "scope_table": "材料收集",
+   "pattern": "知识库分类",
+   "match_value": "措辞表达库",
+   "kb_type": "wording",
+   "note": "同上，源侧标签命中措辞表达库",
+   "enabled": true,
+   "state": "active"
+  },
+  {
+   "id": "R3",
+   "match_type": "field_value",
+   "scope_table": "材料收集",
+   "pattern": "知识库分类",
+   "match_value": "外部标准",
+   "kb_type": "external_standard",
+   "note": "同上，源侧标签命中外部标准库",
+   "enabled": true,
+   "state": "active"
+  },
+  {
+   "id": "R4",
+   "match_type": "field_value",
+   "scope_table": "材料收集",
+   "pattern": "知识库分类",
+   "match_value": "正面与负面样本",
+   "kb_type": "internal_sample",
+   "note": "同上，源侧标签命中内部正负样本库",
+   "enabled": true,
+   "state": "active"
+  },
+  {
+   "id": "R5",
+   "match_type": "table_name",
+   "scope_table": "材料收集",
+   "pattern": "材料收集",
+   "kb_type": "unknown",
+   "note": "入口容器表：一条记录是一份待收材料，本身不是知识本体，归属落在其 link 子资源上",
+   "enabled": true,
+   "state": "active"
+  },
+  {
+   "id": "R6",
+   "match_type": "field_value",
+   "scope_table": "规则库",
+   "pattern": "规则类型",
+   "match_value": "外部法规",
+   "kb_type": "external_standard",
+   "note": "规则库记录级：规则类型=外部法规 归外部标准库",
+   "enabled": false,
+   "disabled_by": "20260924-1000",
+   "state": "disabled",
+   "disabled_reason": "用户口径：「全部」不包含规则库。规则库整体不纳入 L0，R6–R10（scope_table=规则库）全部停用，规则库记录不再兜底进 unknown。"
+  },
+  {
+   "id": "R7",
+   "match_type": "field_value",
+   "scope_table": "规则库",
+   "pattern": "规则类型",
+   "match_value": "平台政策",
+   "kb_type": "external_standard",
+   "note": "规则库记录级：平台政策（Amazon/Google/Meta/TikTok）同属外部标准",
+   "enabled": false,
+   "disabled_by": "20260924-1000",
+   "state": "disabled",
+   "disabled_reason": "用户口径：「全部」不包含规则库。规则库整体不纳入 L0，R6–R10（scope_table=规则库）全部停用，规则库记录不再兜底进 unknown。"
+  },
+  {
+   "id": "R8",
+   "match_type": "field_value",
+   "scope_table": "规则库",
+   "pattern": "规则类型",
+   "match_value": "内部品线规则",
+   "kb_type": "internal_sample",
+   "note": "规则库记录级：内部品线规则 归内部正负样本库",
+   "enabled": false,
+   "disabled_by": "20260924-1000",
+   "state": "disabled",
+   "disabled_reason": "用户口径：「全部」不包含规则库。规则库整体不纳入 L0，R6–R10（scope_table=规则库）全部停用，规则库记录不再兜底进 unknown。"
+  },
+  {
+   "id": "R9",
+   "match_type": "field_value",
+   "scope_table": "规则库",
+   "pattern": "规则类型",
+   "match_value": "案例沉淀",
+   "kb_type": "internal_sample",
+   "note": "规则库记录级：案例沉淀 归内部正负样本库",
+   "enabled": false,
+   "disabled_by": "20260924-1000",
+   "state": "disabled",
+   "disabled_reason": "用户口径：「全部」不包含规则库。规则库整体不纳入 L0，R6–R10（scope_table=规则库）全部停用，规则库记录不再兜底进 unknown。"
+  },
+  {
+   "id": "R10",
+   "match_type": "table_name",
+   "scope_table": "规则库",
+   "pattern": "规则库",
+   "kb_type": "unknown",
+   "note": "规则库是双态表（外部法规与内部品线规则混装），表资源本身无单一 kb_type",
+   "enabled": false,
+   "disabled_by": "20260924-1000",
+   "state": "disabled",
+   "disabled_reason": "用户口径：「全部」不包含规则库。规则库整体不纳入 L0，R6–R10（scope_table=规则库）全部停用，规则库记录不再兜底进 unknown。"
+  },
+  {
+   "id": "R11",
+   "match_type": "field_value",
+   "scope_table": "知识库分类说明",
+   "pattern": "知识库",
+   "match_value": "外部标准",
+   "kb_type": "external_standard",
+   "note": "分类说明表按「知识库」列值归属",
+   "enabled": true,
+   "state": "active"
+  },
+  {
+   "id": "R12",
+   "match_type": "field_value",
+   "scope_table": "知识库分类说明",
+   "pattern": "知识库",
+   "match_value": "正面与负面样本",
+   "kb_type": "internal_sample",
+   "note": "同上，源侧标签命中内部正负样本库",
+   "enabled": true,
+   "state": "active"
+  },
+  {
+   "id": "R13",
+   "match_type": "field_value",
+   "scope_table": "知识库分类说明",
+   "pattern": "知识库",
+   "match_value": "措辞表达库",
+   "kb_type": "wording",
+   "note": "同上，源侧标签命中措辞表达库",
+   "enabled": true,
+   "state": "active"
+  },
+  {
+   "id": "R14",
+   "match_type": "field_value",
+   "scope_table": "知识库分类说明",
+   "pattern": "知识库",
+   "match_value": "产品描述库",
+   "kb_type": "product_desc",
+   "note": "同上，源侧标签命中产品描述库",
+   "enabled": true,
+   "state": "active"
+  },
+  {
+   "id": "R15",
+   "match_type": "field_name",
+   "pattern": "来源链接",
+   "kb_type": "external_standard",
+   "note": "规则库的来源链接指向外部标准原文；仅规则库生效（见 field_role_table_overrides）",
+   "enabled": true,
+   "state": "active"
+  },
+  {
+   "id": "R16",
+   "match_type": "field_name",
+   "pattern": "来源文档",
+   "kb_type": "external_standard",
+   "note": "规则库字段，来源文档即外部标准出处",
+   "enabled": true,
+   "state": "active"
+  },
+  {
+   "id": "R17",
+   "match_type": "field_name",
+   "pattern": "视频素材",
+   "kb_type": "internal_sample",
+   "note": "素材附件字段（视频素材 attachment，全局字段名规则），归内部正负样本库。schema 漂移同步：20260924-1100 起 `具体内容（截图/文案/OCR）` 已不存在；本规则承接新拆分出的 `视频素材`（fld87JUpEn）。",
+   "enabled": true,
+   "state": "active",
+   "pattern_before_schema_migration": "具体内容（截图/文案/OCR）"
+  },
+  {
+   "id": "R18",
+   "match_type": "table_name",
+   "scope_table": "内容公式（仅供参考）",
+   "pattern": "内容公式（仅供参考）",
+   "kb_type": "wording",
+   "note": "内容结构公式属措辞表达库（按表名判定，置信度中）",
+   "enabled": true,
+   "state": "active"
+  },
+  {
+   "id": "R19",
+   "match_type": "table_name",
+   "scope_table": "专家修订汇总表",
+   "pattern": "专家修订汇总表",
+   "kb_type": "internal_sample",
+   "note": "专家对内部稿件的修订属内部正负样本库（按表名判定，置信度中）",
+   "enabled": true,
+   "state": "active"
+  },
+  {
+   "id": "R20",
+   "match_type": "table_name",
+   "scope_table": "广告文案明细",
+   "pattern": "广告文案明细",
+   "kb_type": "wording",
+   "note": "广告文案明细即文案素材本体，属措辞表达库（按表名判定，置信度中）",
+   "enabled": true,
+   "state": "active"
+  },
+  {
+   "id": "R21",
+   "match_type": "table_name",
+   "scope_table": "风险文案改写建议库（分型号分渠道）",
+   "pattern": "风险文案改写建议库（分型号分渠道）",
+   "kb_type": "wording",
+   "note": "风险文案改写建议属措辞表达库（按表名判定，置信度中）",
+   "enabled": true,
+   "state": "active"
+  },
+  {
+   "id": "R22",
+   "match_type": "table_name",
+   "scope_table": "品线内容边界规则库",
+   "pattern": "品线内容边界规则库",
+   "kb_type": "wording",
+   "note": "品线内容边界规则指导措辞表达，属措辞表达库（按表名判定，置信度中）",
+   "enabled": true,
+   "state": "active"
+  },
+  {
+   "id": "R23",
+   "match_type": "table_name",
+   "scope_table": "W1卖点表达边界（品线反馈0910）",
+   "pattern": "W1卖点表达边界（品线反馈0910）",
+   "kb_type": "wording",
+   "note": "卖点表达边界与合规话术属措辞表达库（按表名判定，置信度中）",
+   "enabled": true,
+   "state": "active"
+  },
+  {
+   "id": "R24",
+   "match_type": "table_name",
+   "scope_table": "数据表",
+   "pattern": "数据表",
+   "kb_type": "external_standard",
+   "note": "该表内容为外部出版资料（DK/Johnson 育儿百科等），属外部标准库（按表名+内容形态判定，置信度中）",
+   "enabled": true,
+   "state": "active"
+  },
+  {
+   "id": "R25",
+   "match_type": "field_name",
+   "scope_table": "正面和负面样本",
+   "pattern": "图片素材",
+   "kb_type": "internal_sample",
+   "note": "「正面和负面样本」表的素材附件字段（图片素材 attachment，fldnvxjaSr），归内部正负样本库。schema 漂移同步：20260924-1100：`具体内容（截图/文案/OCR）` 已改名为 `图片素材`（**同一 field_id**），本规则随之迁移，保持这 77+240 条附件的历史归属口径连续。",
+   "enabled": true,
+   "state": "active",
+   "pattern_before_schema_migration": "具体内容（截图/文案/OCR）",
+   "continuity_note": "field_id fldnvxjaSr 未变；旧字段名下 77 个附件由 R25 命中，改名后 240 个附件仍由 R25 命中，口径连续、非重新判定。"
+  },
+  {
+   "id": "R26",
+   "match_type": "table_name",
+   "scope_table": "正面和负面样本",
+   "pattern": "正面和负面样本",
+   "kb_type": "internal_sample",
+   "note": "「正面和负面样本」为独立入口表：不按审核状态筛选，除「来源」字段外全部登记（补登记）",
+   "enabled": true,
+   "state": "active"
+  }
+ ],
+ "rule_eval_order": "按 rules 数组自然顺序求值，**跳过 enabled=false 的规则**，第一条命中即停。本批停用 R6 → R10（scope_table=规则库）后，生效顺序为：R1 → R2 → R3 → R4 → R5 → R11 → R12 → R13 → R14 → R15 → R16 → R17 → R18 → R19 → R20 → R21 → R22 → R23 → R24 → R25 → R26（即 R1 → R26 顺序，跳过 R6–R10）。资源级规则（字段值 / 字段名）优先于表级兜底。命中不到任何生效规则 → kb_type=unknown，落到 9_未归类/，单独汇总，不猜。例外：excluded_scope.tables 里的表整体不纳入，既不登记新资源也不兜底进 unknown。",
+ "field_roles": {
+  "From": "text",
+  "Headline": "content",
+  "Primary Text": "content",
+  "agent使用范围": "text",
+  "上传人员": "text",
+  "中文摘要": "content",
+  "中文释义": "content",
+  "主题场景": "status",
+  "使用状态": "status",
+  "依据来源": "link",
+  "修改建议": "content",
+  "修订位置（原文引用）": "content",
+  "修订内容": "content",
+  "修订原因": "content",
+  "修订类型": "status",
+  "关联现网规则": "content",
+  "具体原因/分析": "content",
+  "分类": "other",
+  "判定理由": "content",
+  "判断方式": "status",
+  "卖点ID": "text",
+  "卖点依据（产品功能）": "content",
+  "原因分类": "text",
+  "原文逐字": "content",
+  "发布日期": "other",
+  "启用状态": "status",
+  "命中原因": "content",
+  "命中片段": "content",
+  "命中规则": "content",
+  "品线": "text",
+  "地区": "status",
+  "填写/修改人": "text",
+  "处理状态": "status",
+  "备注": "text",
+  "备注（如处理结果/建议）": "other",
+  "外部广告ID": "text",
+  "字符数自检": "content",
+  "审核人": "text",
+  "对判定的意义": "content",
+  "小语种参考 FR/DE/ES/IT": "content",
+  "平台": "status",
+  "广告名称": "content",
+  "广告类型": "text",
+  "广告系列Campaign": "text",
+  "广告组": "text",
+  "广告账号": "text",
+  "建议字段/材料": "text",
+  "建议文案EN": "content",
+  "建议编号": "text",
+  "建议表达（合规话术）": "content",
+  "抓取状态": "status",
+  "投放地区": "status",
+  "投放状态": "status",
+  "提交时间": "other",
+  "数据日期": "other",
+  "文件/链接": "link",
+  "文案位置": "status",
+  "文案语种": "status",
+  "文章标题": "text",
+  "映射规则编号": "text",
+  "是否完成医学审查（医疗确认）": "status",
+  "是否完成合规审查（法务确认）": "status",
+  "是否需要授权（法务负责）": "status",
+  "权威层级（医疗确认）": "status",
+  "材料审核状态": "status",
+  "材料链接": "link",
+  "条款位置": "content",
+  "来源": "text",
+  "来源文档": "text",
+  "来源链接": "link",
+  "检查人": "other",
+  "检测关键词": "content",
+  "正则表达式": "content",
+  "法域": "other",
+  "渠道": "status",
+  "渠道/市场": "other",
+  "灯色状态": "status",
+  "父记录": "link",
+  "状态": "other",
+  "知识库": "status",
+  "知识库分类": "status",
+  "知识库分类说明-自动映射": "other",
+  "确认人": "text",
+  "确认日期": "other",
+  "素材类型": "other",
+  "细分": "text",
+  "编号-自动生成": "other",
+  "落地页URL": "link",
+  "表达类型": "text",
+  "要包含什么": "text",
+  "规则ID": "other",
+  "规则依据与边界": "content",
+  "规则来源": "other",
+  "规则类型": "other",
+  "规则编号": "text",
+  "触发原因": "content",
+  "语言": "status",
+  "豁免词": "content",
+  "负责人": "text",
+  "资料名称": "content",
+  "资料类型(医疗确认)": "status",
+  "边界内容": "content",
+  "边界类型": "status",
+  "近7天展示": "other",
+  "近7天点击": "other",
+  "近7天费用USD": "other",
+  "适用产品": "status",
+  "适用品类": "other",
+  "适用型号": "status",
+  "适用对象": "status",
+  "适用渠道": "other",
+  "避免条件/限定要求": "content",
+  "阶段": "status",
+  "需向对接人收集的问题": "text",
+  "风险原句示例": "content",
+  "风险等级": "status",
+  "风险表达模式": "content",
+  "图片素材": "attachment",
+  "视频素材": "attachment",
+  "文字素材": "content",
+  "原文反馈": "content",
+  "建议": "content"
+ },
+ "field_role_table_overrides": {
+  "广告文案明细::品线": "status",
+  "广告文案明细::落地页URL": "link",
+  "数据表::备注": "other",
+  "数据表::文件/链接": "link",
+  "材料收集::材料链接": "link",
+  "规则库::来源文档": "text",
+  "规则库::来源链接": "link",
+  "正面和负面样本::图片素材": "attachment",
+  "正面和负面样本::视频素材": "attachment",
+  "数据表::资料名称": "link"
+ },
+ "field_role_resolution": "先查 field_role_table_overrides 的「表名::字段名」，未命中再查 field_roles 裸字段名。同名不同角色必须写覆盖。L0 是唯一真相：下游不得自建补丁角色表。",
+ "fingerprint_policy": {
+  "primary": "sha256",
+  "revision_as_aux": true,
+  "hash_size_limit_mb": 2048,
+  "normalization": {
+   "encoding": "utf-8",
+   "newline": "\\n",
+   "strip_trailing_space": true,
+   "collapse_blank_lines": true,
+   "sort_keys": true,
+   "exclude_fields": [
+    "last_modified_time",
+    "last_modified_by"
+   ]
+  },
+  "sha256_input_legend": {
+   "doc_text": "文档内容，按 normalization 规范化后的文本",
+   "record_fields": "记录全部字段原值，按 field_id 升序键序列化后（剔除 exclude_fields）",
+   "file_bytes": "附件文件字节流；超 hash_size_limit_mb 不哈希",
+   "url_text": "抓取到的网页正文，按 normalization 规范化后",
+   "structure": "结构化资源（Base / 表）的字段 id、名称、类型、选项确定性序列化"
+  }
+ },
+ "filter": {
+  "field": "材料审核状态",
+  "operator": "==",
+  "value": "通过",
+  "value_semantics": "只收该字段值为 [\"通过\"] 的记录；[] / null / \"\" 以及其它取值（如 [\"暂不采用\"]）都不收",
+  "changed_at": "20260930-0410",
+  "prev": {
+   "note": "20260924-1000 曾把口径改成「!= 空（有状态就收）」，但 20260929 的排除动作是按「== 通过」执行的：kb/l0/_archive/材料收集-未通过-20260929-1045/_STATUS_CORRECTION.json 记 rule_applied=「用户指令③：只抓 材料审核状态 == 通过」，把那 10 条按 status=gone / change=l0_rule_excluded_material 排除。声明与数据因此长期不一致，20260930 按数据与后一条指令对齐。",
+   "filter": {
+    "field": "材料审核状态",
+    "operator": "!=",
+    "value": "空"
+   },
+   "expected_included": 23,
+   "evidence": "kb/l0/registry/kb.json 原文 reason：「有状态」才全量提取所有字段。实测 32 条：通过 22 / 暂不采用 1 / 空 9"
+  },
+  "reason": "与数据实际口径取齐（用户指令③「只抓 == 通过」）+ 2026-09-30 飞书实测复核：材料收集 32 条 = 通过 22 / 空 [] 10 / 暂不采用 0（那条曾为 [暂不采用] 的记录 recvvg2wL2qE3K 在飞书侧已变成空）。",
+  "expected_included": 22,
+  "expected_included_evidence": "kb/l8/runs/20260930-0220-l0-align.json 的对账快照 kb/l8/_stage/feishu-align/20260930-0220/tblMGtPfe8ZUsEdP.ndjson；L0 活跃 22 条与飞书 32 条的差额 10 条，台账里全部 status=gone / change=l0_rule_excluded_material。",
+  "note_two_readings": "两条规则**今天得出同一集合**（那条曾为「暂不采用」的记录现在也是空，两条都排除它）→ 本次改动**无数据后果**，只是把声明改成与实际一致；若该记录将来恢复为「暂不采用」，两条规则会差 1 条，届时看本字段即可。",
+  "rule_eligible_note": "采集范围未变；新门槛由材料审核状态派生（见 rule_eligible_policy）"
+ },
+ "excluded_policy": "未命中筛选的记录只在 runs/<run_id>.json 留痕，不登记资源、不进库目录、不进索引。原因枚举（本批扩充，不再只写 status_not_passed）：no_status = 筛选字段为空（本批 9 条）；excluded_by_scope = 该表按用户口径整体不纳入（本批 规则库 16 条存量 retracted）；out_of_scope_kb = 记录所属 kb_type 不在本轮范围内；dup = 与既有资源同 sha256 的重复项。已废弃：status_not_passed（口径由 == 通过 改为 != 空 后，「暂不采用」改为纳入，该枚举不再产生）。 该状态本身也不具备作为规则的条件（用户口径 2026-09-24）——与 no_status 原因并存，未覆盖原枚举。",
+ "unmatched_policy": "kb_type=unknown，落到 9_未归类/，单独汇总，不猜",
+ "filename_policy": "<source_kind>__<id>.json（如 wiki__xxx.json、bitable__tbXXX__recXXX.json）；uri 型资源用 主机名_路径slug",
+ "path_field_policy": "resource_key 不含物理路径；物理/来源路径单独记在台账 path 字段",
+ "supplemental_registrations": [
+  {
+   "run_id": "20260923-1215",
+   "what": "补登记入口表「正面和负面样本」（独立入口，不按审核状态筛选）及其图片附件",
+   "rules_added": [
+    "R25",
+    "R26"
+   ],
+   "excluded_fields": [
+    "来源"
+   ],
+   "note": "既有规则与既有字段未改动，仅追加。"
+  },
+  {
+   "run_id": "20260924-1000",
+   "what": "补登记入口 Base 兄弟表「内容公式（仅供参考）」（tblVdl0jdK9G4ld3）整表 7 条记录（该表此前 0 条登记）",
+   "rules_added": [],
+   "rules_disabled": [
+    "R10",
+    "R6",
+    "R7",
+    "R8",
+    "R9"
+   ],
+   "note": "R18（table_name=内容公式（仅供参考）→ wording）此前已在 registry 里，本次是补数据、不是补规则。"
+  }
+ ],
+ "anchor_sha256_binding": {
+  "rule": "引用锚点时必须同时给出 source_sha256；只有锚点不算完整定位。",
+  "why": "锚点（行号 / 标题路径 / #img.N）会随原文编辑而漂移；sha256 指向被锚定的那一版原文。锚点 + source_sha256 才是可复核的定位。",
+  "applies_to": "L1 及下游（结构化切分、蒸馏）的一切引用",
+  "required_pair": [
+   "anchor",
+   "source_sha256"
+  ],
+  "artifact_lookup": "kb/l0/snapshots/<resource_key>@<sha256>.md（正文快照按 sha256 版本并存）",
+  "on_mismatch": "锚点在当前正文中定位不到 → 视为失效引用，不得静默改写锚点；应回到该 sha256 的快照核对，或重新抽取生成新版本。",
+  "since": "20260923-1245"
+ },
+ "changes": [
+  {
+   "run_id": "20260923-1245",
+   "change": "append",
+   "key": "anchor_sha256_binding",
+   "note": "仅追加新键，未修改任何既有键"
+  },
+  {
+   "run_id": "20260923-1300",
+   "change": "append",
+   "keys": [
+    "sampling_policy",
+    "source_issues[]"
+   ],
+   "note": "仅追加新键；既有键未修改"
+  },
+  {
+   "run_id": "20260924-1000",
+   "change": "update",
+   "keys": [
+    "rules[].enabled（R6–R10 停用）",
+    "rule_eval_order",
+    "excluded_scope",
+    "filter",
+    "excluded_policy",
+    "field_roles",
+    "field_role_table_overrides",
+    "field_role_vocabulary",
+    "field_role_resolution",
+    "field_role_evidence_notes",
+    "field_role_coverage",
+    "supplemental_registrations[]"
+   ],
+   "note": "本批允许改 registry（口径修正的本体）；kb/l0 既有资源文件、台账旧行、links 历史行一律未改。",
+   "scanner_version": "0.6"
+  },
+  {
+   "run_id": "20260924-1100",
+   "change": "update",
+   "keys": [
+    "rules[R17].pattern",
+    "rules[R25].pattern",
+    "field_roles",
+    "field_role_table_overrides",
+    "field_role_retired",
+    "field_role_evidence_notes",
+    "field_role_coverage",
+    "schema_snapshots[]",
+    "gone_policy"
+   ],
+   "note": "本批新增 gone 检测能力与 schema 漂移同步；台账既有行未改。",
+   "scanner_version": "0.7"
+  },
+  {
+   "run_id": "20260924-1100+rulefix",
+   "change": "update",
+   "keys": [
+    "rules[R17].pattern",
+    "rules[R25].pattern"
+   ],
+   "note": "修正件6/件5 的执行顺序缺陷：schema 同步须先于登记。240 个附件的 matched_rule 由 R26 纠正为 R25。",
+   "scanner_version": "0.7"
+  },
+  {
+   "run_id": "20260924-1100+rulefix",
+   "change": "update",
+   "keys": [
+    "field_roles（移除死条目 具体内容（截图/文案/OCR））",
+    "field_role_retired"
+   ],
+   "note": "件6 死条目处置统一：override 与裸角色一并退役，均留痕于 field_role_retired。",
+   "scanner_version": "0.7"
+  },
+  {
+   "run_id": "20260924-1210",
+   "change": "update",
+   "keys": [
+    "source_kind_retired"
+   ],
+   "note": "件0：local_file 退役；4 条评测案图台账追加 retracted(not_source_projection)、文件移入 kb/l0/_archive/eval-material-excluded-20260924-1210；run_id=20260924-1115 的历史 changes 条目保留未删",
+   "keys_note": "原 keys 含 source_kind_note。该键由 run 20260924-1115 于 14:28 写入、又于 14:35:46 由其自行删除，键已不存在。run 20260924-1512 把该键从本条 keys 中**移出**（而不是补回那个来路不明的键），并在此留痕。"
+  },
+  {
+   "run_id": "20260924-1210",
+   "change": "append",
+   "keys": [
+    "ocr_reuse_gate"
+   ],
+   "note": "件0.5：新增 OCR 缓存复用门槛（拒绝非 vision-jxa-2.0 / 含 U+FFFF / 空文本缓存）"
+  },
+  {
+   "run_id": "20260924-1240",
+   "change": "append",
+   "keys": [
+    "rule_eligible_policy",
+    "filter_prev",
+    "excluded_policy_prev",
+    "r1_diagnosis"
+   ],
+   "note": "件1：新增 rule_eligible 门槛；filter/excluded_policy 旧值写入 *_prev；件2 只诊断不改 R1"
+  },
+  {
+   "run_id": "20260924-1512",
+   "change": "append",
+   "keys": [
+    "container_policy"
+   ],
+   "note": "§6.3-2 先定义后执行：容器判据 C1/C2/C3 先落配置，再跑影子与改判。"
+  },
+  {
+   "run_id": "20260929-1200",
+   "change": "append+close",
+   "keys": [
+    "open_issues",
+    "open_issues_note",
+    "projection_index"
+   ],
+   "note": "F11：更正 OI-L1-001 为误报（附证伪三据：l6/ 0 处引用 l1/index、240/240 图片 OCR 在索引内、2 条无正文）；关闭 OI-L1-002（1247 行/202 资源已剔除）；新登记并关闭 OI-L1-003（无独立重建入口）；新增 projection_index 固化写入方与下游消费者边界。"
+  },
+  {
+   "run_id": "20260929-1200",
+   "change": "append+close",
+   "keys": [
+    "open_issues",
+    "l6_scope_verification"
+   ],
+   "note": "F11 第二批：L6 结论为**不需重建**（幂等空操作验证一致）。新登记 OI-L6-001（口径把整页抓取当知识，根因待 L2/L3 侧修；L6 侧以 SCOPE.txt 止损）；新登记并关闭 OI-L6-002（SCOPE.txt 未接入建索引侧 → registry 虚假声明取子集）；新登记并关闭 OI-L6-003（字面量 1899 护栏改为基线比对 + 逐 id 差额留痕）。"
+  }
+ ],
+ "sampling_policy": {
+  "default_record_limit_per_table": 200,
+  "exempt_tables_full_scan": [
+   "专家修订汇总表",
+   "广告文案明细"
+  ],
+  "url_field_limit": null,
+  "changed_at": "20260923-1300",
+  "reason": "截断丢掉的是核心素材：「专家修订前→后」成对语料、广告文案 27 字段明细、以及 URL 字段里指向内部标准原文的飞书 wiki 节点。",
+  "history": [
+   {
+    "at": "20260923-1117",
+    "policy": "200/表；URL 建边采样 60"
+   },
+   {
+    "at": "20260923-1300",
+    "policy": "专家修订汇总表/广告文案明细 全量；URL 不设上限；其余表维持 200"
+   }
+  ]
+ },
+ "source_issues": [
+  {
+   "issue_id": "SI-001",
+   "title": "视图筛选指向已不存在的字段值",
+   "detail": "「正面和负面样本」(tbld8qE92YaY38Yz) 两个视图都按 `备注（如处理结果/建议）` 筛选：vewHHtXyx0 为 `!= \"样例\"`，vewSn5HboA 为 `== \"样例\"`。实测 125/125 行该字段都不含「样例」（值形如 `价值评分: 14；参与审核: 吴礼芳, 贺美霞`），故「样例」视图应为空、「表格」视图应显示全部 125 条。",
+   "field": "备注（如处理结果/建议）",
+   "table_id": "tbld8qE92YaY38Yz",
+   "views": [
+    "vewHHtXyx0",
+    "vewSn5HboA"
+   ],
+   "action": "只记录，未修改任何视图或筛选条件（硬约束 1）",
+   "impact": "该字段被批量覆盖过 → 定时重跑时该字段会产生大量 `updated`，**属预期，不是异常**",
+   "operator_hint": "评估变更时请把 `备注（如处理结果/建议）` 的差异排除在异常清单之外",
+   "recorded_at": "20260923-1300"
+  }
+ ],
+ "rule_eval_order_prev": "R1 → R24 顺序，第一条命中即停。资源级规则（字段值 / 字段名）优先于表级兜底。命中不到任何规则 → kb_type=unknown，落到 9_未归类/，单独汇总，不猜。",
+ "excluded_scope": {
+  "tables": [
+   "规则库"
+  ],
+  "policy": "整体不纳入：不登记资源、不进库目录、不进 index；既有存量登记为 retracted",
+  "reason": "用户口径：「全部」不包含规则库，连存量一起清",
+  "by_rule_state": "R6–R10 已 enabled=false，规则库记录不会再兜底进 unknown",
+  "since": "20260924-1000",
+  "archived_to": "kb/l0/_archive/rulelib-excluded-20260924-1000",
+  "archived_resource_count": 16,
+  "record_level_exceptions": [
+   {
+    "rule": "R15",
+    "matched_rule": "R15",
+    "pattern": "来源链接",
+    "field_id": "fld1VehxHe",
+    "kb_type": "external_standard",
+    "resource_count": 15,
+    "semantics": "规则库**表本体与其 50 条记录**继续整表排除；**但 R15 抽出的「来源链接」字段值（15 个唯一 URL）正式纳入**。它们是六平台（FTC / FDA / Amazon / Google / Meta / TikTok）合规原文的 URL 锚点，不是那 50 条记录本身（那 50 条都带 规则ID=EXT-*），也不含未确认内容。"
+   },
+   {
+    "rule": "R16",
+    "matched_rule": "R16",
+    "pattern": "来源文档",
+    "field_id": null,
+    "kb_type": "external_standard",
+    "resource_count": 0,
+    "semantics": "R16（来源文档）同样自本例外生效；实测当前 0 条资源，登记为**已授权但无实例**，避免下次又被整表排除误伤。"
+   }
+  ],
+  "record_level_exception_basis": {
+   "decision": "owner 2026-09-24 裁决（方案 A：15 条正式纳入）",
+   "recorded_at": "20260924-1700",
+   "note": "本例外只覆盖 R15/R16 抽出的字段值；规则库的表资源与记录仍未登记。"
+  },
+  "since_exception": "20260924-1700"
+ },
+ "field_role_vocabulary": {
+  "content": "承载可引用的表述 / 理由 / 条件 —— L3 step1 只保留这一类字段产生的单元",
+  "text": "自由文本，但不承载可引用表述（人名、路径、说明性文字）→ 视为元数据",
+  "status": "状态 / 分类标签（单选、多选、枚举）",
+  "link": "链接字段（URL 文本、link 类型字段）",
+  "attachment": "附件字段（图片 / 文件）",
+  "other": "编号 / 统计 / 日期 / 行政标记等其余元数据"
+ },
+ "field_role_evidence_notes": [],
+ "field_role_coverage": {
+  "l2_universe_size": 88,
+  "covered": 88,
+  "missing_count": 0,
+  "l2_universe_counts": {
+   "A": 65,
+   "B": 3,
+   "C": 80,
+   "union": 88
+  },
+  "measured_at": "20260924-1000",
+  "note": "20260924-1100 复核：L2 论域 88 项仍 100% 覆盖；本批新增的 5 个新 schema 字段亦已给角色。"
+ },
+ "field_role_retired": [
+  {
+   "key": "正面和负面样本::具体内容（截图/文案/OCR）",
+   "role": "attachment",
+   "retired_at": "20260924-1100",
+   "reason": "schema 迁移：该字段已不存在，被拆成 图片素材/视频素材/文字素材；按「改指向新字段」处置，死条目移入本清单留痕（未删除历史）"
+  },
+  {
+   "key": "具体内容（截图/文案/OCR）",
+   "role": "attachment",
+   "retired_at": "20260924-1100",
+   "reason": "schema 迁移：该字段在源侧已不存在（被拆成 图片素材/视频素材/文字素材），裸角色一并退役，避免活表里留引用不存在字段的死条目；历史记在本清单"
+  }
+ ],
+ "schema_snapshots": [
+  {
+   "table_name": "负面样本",
+   "table_id": "tbld8qE92YaY38Yz",
+   "at": "20261002-0630",
+   "rev": null,
+   "field_count": 16,
+   "records_count": null,
+   "fields": [
+    {
+     "field_id": "fldle7UpXq",
+     "field_name": "备注（如处理结果/建议）",
+     "type": "text"
+    },
+    {
+     "field_id": "fldPsspKcM",
+     "field_name": "素材类型",
+     "type": "select"
+    },
+    {
+     "field_id": "fldKDiYlgS",
+     "field_name": "原因分类",
+     "type": "select"
+    },
+    {
+     "field_id": "fldOg8fc7I",
+     "field_name": "文字素材",
+     "type": "text"
+    },
+    {
+     "field_id": "fldCLX0Eho",
+     "field_name": "提交时间",
+     "type": "datetime"
+    },
+    {
+     "field_id": "fldG6bLb1y",
+     "field_name": "渠道/市场",
+     "type": "select"
+    },
+    {
+     "field_id": "fld87JUpEn",
+     "field_name": "视频素材",
+     "type": "attachment"
+    },
+    {
+     "field_id": "fldvmyQvVV",
+     "field_name": "审核人",
+     "type": "text"
+    },
+    {
+     "field_id": "fldNiTMiw5",
+     "field_name": "来源",
+     "type": "text"
+    },
+    {
+     "field_id": "fldq7lCR19",
+     "field_name": "分类",
+     "type": "select"
+    },
+    {
+     "field_id": "fldj5jQxo1",
+     "field_name": "原文反馈",
+     "type": "text"
+    },
+    {
+     "field_id": "fldxrAEGZx",
+     "field_name": "填写/修改人",
+     "type": "text"
+    },
+    {
+     "field_id": "fldBpNHmT9",
+     "field_name": "品线",
+     "type": "text"
+    },
+    {
+     "field_id": "fldnvxjaSr",
+     "field_name": "图片素材",
+     "type": "attachment"
+    },
+    {
+     "field_id": "fld7r80PbU",
+     "field_name": "建议",
+     "type": "text"
+    },
+    {
+     "field_id": "fldDUmH4bB",
+     "field_name": "具体原因/分析",
+     "type": "text"
+    }
+   ],
+   "refresh_note": "由 kb/l8/align_l0_schema.py 按飞书最新 field-list 刷新（旧快照为 20260924-1100）"
+  },
+  {
+   "table_name": "材料收集",
+   "table_id": "tblMGtPfe8ZUsEdP",
+   "at": "20261002-0630",
+   "rev": null,
+   "field_count": 9,
+   "records_count": null,
+   "fields": [
+    {
+     "field_id": "fldr4c8nnT",
+     "field_name": "材料链接",
+     "type": "text"
+    },
+    {
+     "field_id": "fldFiUm2yr",
+     "field_name": "更新频率",
+     "type": "text"
+    },
+    {
+     "field_id": "fldhkuqIDu",
+     "field_name": "知识库分类说明-自动映射",
+     "type": "lookup"
+    },
+    {
+     "field_id": "fldn2leARA",
+     "field_name": "备注",
+     "type": "text"
+    },
+    {
+     "field_id": "fldYJzmyOw",
+     "field_name": "From",
+     "type": "text"
+    },
+    {
+     "field_id": "fldsFUp6XB",
+     "field_name": "知识库分类",
+     "type": "select"
+    },
+    {
+     "field_id": "fldHYXvg0B",
+     "field_name": "编号-自动生成",
+     "type": "auto_number"
+    },
+    {
+     "field_id": "fldzdgZxi6",
+     "field_name": "材料审核状态",
+     "type": "select"
+    },
+    {
+     "field_id": "fld5WJe8Nk",
+     "field_name": "agent使用范围",
+     "type": "text"
+    }
+   ],
+   "refresh_note": "由 kb/l8/align_l0_schema.py 按飞书最新 field-list 刷新（旧快照为 20260924-1100）"
+  },
+  {
+   "table_name": "知识库分类说明",
+   "table_id": "tblZP8jG4tiUL98C",
+   "at": "20261002-0630",
+   "rev": null,
+   "field_count": 5,
+   "records_count": null,
+   "fields": [
+    {
+     "field_id": "fldpplThkd",
+     "field_name": "知识库",
+     "type": "text"
+    },
+    {
+     "field_id": "flddzpFJ1i",
+     "field_name": "要包含什么",
+     "type": "text"
+    },
+    {
+     "field_id": "fldRIe3yHP",
+     "field_name": "建议字段/材料",
+     "type": "text"
+    },
+    {
+     "field_id": "fldBclygQ8",
+     "field_name": "需向对接人收集的问题",
+     "type": "text"
+    },
+    {
+     "field_id": "fld2dMeQMi",
+     "field_name": "负责人",
+     "type": "text"
+    }
+   ],
+   "refresh_note": "由 kb/l8/align_l0_schema.py 按飞书最新 field-list 刷新（旧快照为 20260924-1100）"
+  },
+  {
+   "table_name": "广告文案明细",
+   "table_id": "tblcbk4XiW6471YN",
+   "at": "20261002-0630",
+   "rev": null,
+   "field_count": 27,
+   "records_count": null,
+   "fields": [
+    {
+     "field_id": "fldshwHSmT",
+     "field_name": "投放地区",
+     "type": "select"
+    },
+    {
+     "field_id": "fldOvAO6Wd",
+     "field_name": "广告类型",
+     "type": "text"
+    },
+    {
+     "field_id": "fld40aKSox",
+     "field_name": "抓取状态",
+     "type": "select"
+    },
+    {
+     "field_id": "fldFjwI9JQ",
+     "field_name": "Primary Text",
+     "type": "text"
+    },
+    {
+     "field_id": "fldr2W5kFE",
+     "field_name": "修改建议",
+     "type": "text"
+    },
+    {
+     "field_id": "fld23zewA0",
+     "field_name": "风险等级",
+     "type": "select"
+    },
+    {
+     "field_id": "fldtr3dUqY",
+     "field_name": "落地页URL",
+     "type": "text"
+    },
+    {
+     "field_id": "fldkdgt6Nh",
+     "field_name": "命中片段",
+     "type": "text"
+    },
+    {
+     "field_id": "fldD4ofnq2",
+     "field_name": "平台",
+     "type": "select"
+    },
+    {
+     "field_id": "fldurtnWcg",
+     "field_name": "广告系列Campaign",
+     "type": "text"
+    },
+    {
+     "field_id": "fldUlWSZJS",
+     "field_name": "外部广告ID",
+     "type": "text"
+    },
+    {
+     "field_id": "flddx4xc4N",
+     "field_name": "广告名称",
+     "type": "text"
+    },
+    {
+     "field_id": "fldgUvVznG",
+     "field_name": "数据日期",
+     "type": "datetime"
+    },
+    {
+     "field_id": "fldrH3sZQU",
+     "field_name": "广告账号",
+     "type": "text"
+    },
+    {
+     "field_id": "fldC6DcZtw",
+     "field_name": "品线",
+     "type": "select"
+    },
+    {
+     "field_id": "fldjLfDwGf",
+     "field_name": "处理状态",
+     "type": "select"
+    },
+    {
+     "field_id": "fldYvuLtZG",
+     "field_name": "命中规则",
+     "type": "text"
+    },
+    {
+     "field_id": "fldzBKSHNY",
+     "field_name": "文案语种",
+     "type": "select"
+    },
+    {
+     "field_id": "fldKQFCUED",
+     "field_name": "检查人",
+     "type": "user"
+    },
+    {
+     "field_id": "fldHS2FmKB",
+     "field_name": "近7天点击",
+     "type": "number"
+    },
+    {
+     "field_id": "fldjX36eJ4",
+     "field_name": "命中原因",
+     "type": "text"
+    },
+    {
+     "field_id": "fldLx5h0A8",
+     "field_name": "父记录",
+     "type": "link"
+    },
+    {
+     "field_id": "fld99UjqHX",
+     "field_name": "投放状态",
+     "type": "select"
+    },
+    {
+     "field_id": "fldGtRko4O",
+     "field_name": "广告组",
+     "type": "text"
+    },
+    {
+     "field_id": "fldA2CA5V0",
+     "field_name": "近7天展示",
+     "type": "number"
+    },
+    {
+     "field_id": "flde35MPar",
+     "field_name": "近7天费用USD",
+     "type": "number"
+    },
+    {
+     "field_id": "fldxbj4ydi",
+     "field_name": "Headline",
+     "type": "text"
+    }
+   ],
+   "refresh_note": "由 kb/l8/align_l0_schema.py 按飞书最新 field-list 刷新（旧快照为 20260924-1100）"
+  },
+  {
+   "table_name": "品线内容边界规则库",
+   "table_id": "tblD1MiUK1v5fdjD",
+   "at": "20261002-0630",
+   "rev": null,
+   "field_count": 12,
+   "records_count": null,
+   "fields": [
+    {
+     "field_id": "fldgKgGJuy",
+     "field_name": "规则编号",
+     "type": "text"
+    },
+    {
+     "field_id": "fld7K1ByRA",
+     "field_name": "启用状态",
+     "type": "select"
+    },
+    {
+     "field_id": "fldxMraMu7",
+     "field_name": "判断方式",
+     "type": "select"
+    },
+    {
+     "field_id": "fldRw7KTw2",
+     "field_name": "依据来源",
+     "type": "text"
+    },
+    {
+     "field_id": "fldKfEJ6gC",
+     "field_name": "风险等级",
+     "type": "select"
+    },
+    {
+     "field_id": "fld5UgtA2v",
+     "field_name": "豁免词",
+     "type": "text"
+    },
+    {
+     "field_id": "fldnuE1F7T",
+     "field_name": "检测关键词",
+     "type": "text"
+    },
+    {
+     "field_id": "flduQz4Fba",
+     "field_name": "适用产品",
+     "type": "select"
+    },
+    {
+     "field_id": "fldGFLQ94w",
+     "field_name": "正则表达式",
+     "type": "text"
+    },
+    {
+     "field_id": "fldeFcobox",
+     "field_name": "边界类型",
+     "type": "select"
+    },
+    {
+     "field_id": "fldZ9ZjOeB",
+     "field_name": "边界内容",
+     "type": "text"
+    },
+    {
+     "field_id": "fldzB9TARZ",
+     "field_name": "触发原因",
+     "type": "text"
+    }
+   ],
+   "refresh_note": "由 kb/l8/align_l0_schema.py 按飞书最新 field-list 刷新（旧快照为 20260924-1100）"
+  },
+  {
+   "table_name": "W1卖点表达边界（品线反馈0910）",
+   "table_id": "tblqUTAKFkWheU49",
+   "at": "20261002-0630",
+   "rev": null,
+   "field_count": 8,
+   "records_count": null,
+   "fields": [
+    {
+     "field_id": "fld1QDwQs0",
+     "field_name": "卖点ID",
+     "type": "text"
+    },
+    {
+     "field_id": "fldeO9mz99",
+     "field_name": "建议表达（合规话术）",
+     "type": "text"
+    },
+    {
+     "field_id": "fldJrlfnNp",
+     "field_name": "避免条件/限定要求",
+     "type": "text"
+    },
+    {
+     "field_id": "fldLsJt0WX",
+     "field_name": "判定理由",
+     "type": "text"
+    },
+    {
+     "field_id": "fldOVRFo64",
+     "field_name": "映射规则编号",
+     "type": "text"
+    },
+    {
+     "field_id": "flds3ao5Oo",
+     "field_name": "灯色状态",
+     "type": "select"
+    },
+    {
+     "field_id": "fldiVwVIbK",
+     "field_name": "表达类型",
+     "type": "text"
+    },
+    {
+     "field_id": "fldPjuL38a",
+     "field_name": "来源",
+     "type": "text"
+    }
+   ],
+   "refresh_note": "由 kb/l8/align_l0_schema.py 按飞书最新 field-list 刷新（旧快照为 20260924-1100）"
+  },
+  {
+   "table_name": "风险文案改写建议库（分型号分渠道）",
+   "table_id": "tblLxUfPz4Wqp2na",
+   "at": "20261002-0630",
+   "rev": null,
+   "field_count": 16,
+   "records_count": null,
+   "fields": [
+    {
+     "field_id": "fldcVIkvJN",
+     "field_name": "规则依据与边界",
+     "type": "text"
+    },
+    {
+     "field_id": "fldMS4vplf",
+     "field_name": "渠道",
+     "type": "select"
+    },
+    {
+     "field_id": "fld6Elko9a",
+     "field_name": "适用型号",
+     "type": "select"
+    },
+    {
+     "field_id": "fldG4WCiBA",
+     "field_name": "卖点依据（产品功能）",
+     "type": "text"
+    },
+    {
+     "field_id": "fldFnHgqXD",
+     "field_name": "小语种参考 FR/DE/ES/IT",
+     "type": "text"
+    },
+    {
+     "field_id": "fldABehSKo",
+     "field_name": "中文释义",
+     "type": "text"
+    },
+    {
+     "field_id": "fldY2omtX5",
+     "field_name": "文案位置",
+     "type": "select"
+    },
+    {
+     "field_id": "flds5Ep1p2",
+     "field_name": "建议编号",
+     "type": "text"
+    },
+    {
+     "field_id": "fldOejQbuc",
+     "field_name": "建议文案EN",
+     "type": "text"
+    },
+    {
+     "field_id": "fldx7J64nh",
+     "field_name": "状态",
+     "type": "select"
+    },
+    {
+     "field_id": "fldJIeeoIY",
+     "field_name": "风险表达模式",
+     "type": "text"
+    },
+    {
+     "field_id": "fldNQbl556",
+     "field_name": "风险等级",
+     "type": "select"
+    },
+    {
+     "field_id": "fldWPYvbiz",
+     "field_name": "规则编号",
+     "type": "text"
+    },
+    {
+     "field_id": "fld6N78B7w",
+     "field_name": "风险原句示例",
+     "type": "text"
+    },
+    {
+     "field_id": "fld6quw4rb",
+     "field_name": "字符数自检",
+     "type": "text"
+    },
+    {
+     "field_id": "fldE7jBlcR",
+     "field_name": "备注",
+     "type": "text"
+    }
+   ],
+   "refresh_note": "由 kb/l8/align_l0_schema.py 按飞书最新 field-list 刷新（旧快照为 20260924-1100）"
+  },
+  {
+   "table_name": "数据表",
+   "table_id": "tblGFyycMc45RMga",
+   "at": "20261002-0630",
+   "rev": null,
+   "field_count": 17,
+   "records_count": null,
+   "fields": [
+    {
+     "field_id": "fldMfAXDEj",
+     "field_name": "使用状态",
+     "type": "select"
+    },
+    {
+     "field_id": "fldVztTeKT",
+     "field_name": "父记录",
+     "type": "link"
+    },
+    {
+     "field_id": "fldoZaWnsF",
+     "field_name": "是否完成合规审查（法务确认）",
+     "type": "select"
+    },
+    {
+     "field_id": "fldiQL5Rgi",
+     "field_name": "上传人员",
+     "type": "text"
+    },
+    {
+     "field_id": "fldeNyKsMl",
+     "field_name": "权威层级（医疗确认）",
+     "type": "select"
+    },
+    {
+     "field_id": "fldgsirMO6",
+     "field_name": "是否完成医学审查（医疗确认）",
+     "type": "select"
+    },
+    {
+     "field_id": "fldIxrkuGw",
+     "field_name": "文件/链接",
+     "type": "text"
+    },
+    {
+     "field_id": "fldoF1JycP",
+     "field_name": "语言",
+     "type": "select"
+    },
+    {
+     "field_id": "fldEXC0iZB",
+     "field_name": "资料名称",
+     "type": "text"
+    },
+    {
+     "field_id": "fld7Vp8l36",
+     "field_name": "阶段",
+     "type": "select"
+    },
+    {
+     "field_id": "fldSriRVa3",
+     "field_name": "备注",
+     "type": "number"
+    },
+    {
+     "field_id": "fld4xa9rrQ",
+     "field_name": "是否需要授权（法务负责）",
+     "type": "select"
+    },
+    {
+     "field_id": "fldZC3YITi",
+     "field_name": "主题场景",
+     "type": "select"
+    },
+    {
+     "field_id": "fldFA7W341",
+     "field_name": "资料类型(医疗确认)",
+     "type": "select"
+    },
+    {
+     "field_id": "fldTiZSJYO",
+     "field_name": "适用对象",
+     "type": "select"
+    },
+    {
+     "field_id": "flddCYtiIG",
+     "field_name": "发布日期",
+     "type": "number"
+    },
+    {
+     "field_id": "fldWxkCsKL",
+     "field_name": "地区",
+     "type": "select"
+    }
+   ],
+   "refresh_note": "由 kb/l8/align_l0_schema.py 按飞书最新 field-list 刷新（旧快照为 20260924-1100）"
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260930-1105",
+   "table_id": "tbld8qE92YaY38Yz",
+   "table_name": "负面样本",
+   "field_count": 16
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260930-1105",
+   "table_id": "tblMGtPfe8ZUsEdP",
+   "table_name": "材料收集",
+   "field_count": 9
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260930-1105",
+   "table_id": "tblZP8jG4tiUL98C",
+   "table_name": "知识库分类说明",
+   "field_count": 5
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260930-1105",
+   "table_id": "tblcbk4XiW6471YN",
+   "table_name": "广告文案明细",
+   "field_count": 27
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260930-1105",
+   "table_id": "tblD1MiUK1v5fdjD",
+   "table_name": "品线内容边界规则库",
+   "field_count": 12
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260930-1105",
+   "table_id": "tblqUTAKFkWheU49",
+   "table_name": "W1卖点表达边界（品线反馈0910）",
+   "field_count": 8
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260930-1105",
+   "table_id": "tblLxUfPz4Wqp2na",
+   "table_name": "风险文案改写建议库（分型号分渠道）",
+   "field_count": 16
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260930-1105",
+   "table_id": "tblGFyycMc45RMga",
+   "table_name": "数据表",
+   "field_count": 17
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260930-1105",
+   "table_id": "tbl8AI00JZO1iZtp",
+   "table_name": "专家修订汇总表",
+   "field_count": 5
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260930-1105",
+   "table_id": "tblVdl0jdK9G4ld3",
+   "table_name": "内容公式（仅供参考）",
+   "field_count": 2
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260930-1100",
+   "table_id": "tbld8qE92YaY38Yz",
+   "table_name": "负面样本",
+   "field_count": 16
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260930-1100",
+   "table_id": "tblMGtPfe8ZUsEdP",
+   "table_name": "材料收集",
+   "field_count": 9
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260930-1100",
+   "table_id": "tblZP8jG4tiUL98C",
+   "table_name": "知识库分类说明",
+   "field_count": 5
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260930-1100",
+   "table_id": "tblcbk4XiW6471YN",
+   "table_name": "广告文案明细",
+   "field_count": 27
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260930-1100",
+   "table_id": "tblD1MiUK1v5fdjD",
+   "table_name": "品线内容边界规则库",
+   "field_count": 12
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260930-1100",
+   "table_id": "tblqUTAKFkWheU49",
+   "table_name": "W1卖点表达边界（品线反馈0910）",
+   "field_count": 8
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260930-1100",
+   "table_id": "tblLxUfPz4Wqp2na",
+   "table_name": "风险文案改写建议库（分型号分渠道）",
+   "field_count": 16
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260930-1100",
+   "table_id": "tblGFyycMc45RMga",
+   "table_name": "数据表",
+   "field_count": 17
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260929-1340",
+   "table_id": "tbld8qE92YaY38Yz",
+   "table_name": "负面样本",
+   "field_count": 16
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260929-1340",
+   "table_id": "tblMGtPfe8ZUsEdP",
+   "table_name": "材料收集",
+   "field_count": 9
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260929-1340",
+   "table_id": "tblZP8jG4tiUL98C",
+   "table_name": "知识库分类说明",
+   "field_count": 5
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260929-1340",
+   "table_id": "tblcbk4XiW6471YN",
+   "table_name": "广告文案明细",
+   "field_count": 27
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260929-1340",
+   "table_id": "tblD1MiUK1v5fdjD",
+   "table_name": "品线内容边界规则库",
+   "field_count": 12
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260929-1340",
+   "table_id": "tblqUTAKFkWheU49",
+   "table_name": "W1卖点表达边界（品线反馈0910）",
+   "field_count": 8
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260929-1340",
+   "table_id": "tblLxUfPz4Wqp2na",
+   "table_name": "风险文案改写建议库（分型号分渠道）",
+   "field_count": 16
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260929-1340",
+   "table_id": "tblGFyycMc45RMga",
+   "table_name": "数据表",
+   "field_count": 17
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260929-1340",
+   "table_id": "tbl8AI00JZO1iZtp",
+   "table_name": "专家修订汇总表",
+   "field_count": 5
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260929-1340",
+   "table_id": "tblVdl0jdK9G4ld3",
+   "table_name": "内容公式（仅供参考）",
+   "field_count": 2
+  },
+  {
+   "_archived_previous": true,
+   "at": "20260924-1100",
+   "table_id": "tbld8qE92YaY38Yz",
+   "table_name": "正面和负面样本",
+   "field_count": 16
+  }
+ ],
+ "gone_policy": {
+  "status": "gone",
+  "since": "20260924-1100",
+  "rule": "台账有效 key 与源侧全量 key 清单（all_records 口径、不带视图筛选）做差集 → 差集内落 gone",
+  "assertion": "gone + 在库 + excluded + retracted == 该表历史键全集；且 源侧清单 == 在库 + excluded",
+  "reasons": [
+   "source_record_removed",
+   "parent_gone"
+  ],
+  "placement": "gone 的资源文件移出库目录到 kb/l0/_archive/gone-<run_id>/（保留不删除，与 retracted 同款处置）",
+  "note": "gone ≠ retracted：retracted 是口径排除（不该在库），gone 是源侧删除（曾经在库、现在没了）"
+ },
+ "source_kind_retired": [
+  {
+   "source_kind": "local_file",
+   "retired_at": "20260924-1210",
+   "status": "retired",
+   "decision": "user_decision_20260924",
+   "reason": "非源侧入口：会让「L0 == 源侧投影」这个核心不变量失效。曾用于 4 张评测对照报告案图（local:review-case:img-1..4），已按用户裁决从知识库移出",
+   "resource_count_removed": 4,
+   "archived_to": "kb/l0/_archive/eval-material-excluded-20260924-1210",
+   "history": "该 source_kind 由 run 20260924-1115 引入（其 changes 条目保留，未删）",
+   "archived_to_reconstructed": true,
+   "archived_to_note": "该目录连同其中 4 个归档 json 于 2026-09-24 14:28–14:35 之间被 run 20260924-1115 灭失（batch8_baseline 12:36 时仍列有这 4 个文件，size 802/808/800/803 B）。run 20260924-1512 按 batch6_run.py:57-70 的配方**重建**目录与文件，使 archived_to 可解析。**重建件不是原字节。**",
+   "archive_lost_window": {
+    "from": "2026-09-24T12:36:00",
+    "to": "2026-09-24T14:35:46",
+    "actor_run_id": "20260924-1115",
+    "evidence": "kb/.work/batch8_baseline.json 的键里列有这 4 个文件"
+   },
+   "archive_reconstructed_from": [
+    "kb/.work/batch11/recovered_ledger_rows.jsonl",
+    "kb/.work/batch12/recovered_ledger_rows.sources.md"
+   ],
+   "needs_owner_confirmation": true
+  }
+ ],
+ "source_kind_prev_note": "local_file：本地文件资源（非飞书侧）。当前仅用于评测案图补登记，run 20260924-1100。其余取值沿用既有枚举：feishu_bitable_base/table/record、feishu_sheet、feishu_slides、feishu_file、feishu_doc、feishu_attachment、url。",
+ "ocr_reuse_gate": {
+  "at": "20260924-1210",
+  "applies_to": "所有「按 sha256 命中缓存就复用 OCR」的路径",
+  "code_point": "kb/.work/kb_ocr_gate.py::ocr_cache_reusable(cache_entry) —— L1 抽取脚本（kb/.work/l1_batch5_run.py）的复用分支必须改为调用它",
+  "rule": [
+   "拒绝 ocr_version != vision-jxa-2.0 的缓存条目",
+   "拒绝 ocr_text 含 U+FFFF 的缓存条目",
+   "拒绝 ocr_line_count == 0 且 ocr_text 为空但图片字节数 > 4096 的条目（疑似坏引擎整图丢失）",
+   "不通过则**重跑 OCR**，而不是复用"
+  ],
+  "why": "坏引擎（recognitionLevel=1）在 macOS 26.6.2 上不支持中文，静默退回纯拉丁识别；命中的旧缓存正是坏引擎产物 → 曾把 240 条附件文本批量污染",
+  "measured": {
+   "mismatched_before_fix": 229,
+   "remounted": 229,
+   "uffff_before": 36
+  }
+ },
+ "rule_eligible_policy": {
+  "defined_at": "20260924-1240",
+  "decision": "user_sync_2026-09-24",
+  "采集范围不变": "材料审核状态 != 空 → 纳入 23（通过 22 + 暂不采用 1）/ 排除 9（空状态）",
+  "派生规则": {
+   "通过": {
+    "collected": true,
+    "rule_eligible": true,
+    "can_be_rule": true
+   },
+   "暂不采用": {
+    "collected": true,
+    "rule_eligible": false,
+    "can_be_rule": false,
+    "note": "只能作素材/参考"
+   },
+   "空": {
+    "collected": false,
+    "rule_eligible": null,
+    "can_be_rule": false,
+    "note": "该状态只作「不能当规则」的信号"
+   }
+  },
+  "继承": "「材料收集」记录的子资源（材料链接等）继承父记录的 rule_eligible",
+  "非材料收集来源": "不受此门槛约束，一律 rule_eligible=true，source=not_material_collection",
+  "measured": {
+   "l0_effective": 1469,
+   "true": 1467,
+   "false": 2,
+   "none": 0,
+   "false_keys": [
+    "bitable:tblMGtPfe8ZUsEdP:recvvg2wL2qE3K",
+    "wiki:EL1nw9zdyinX2iklXfLco216niM"
+   ]
+  }
+ },
+ "filter_prev": {
+  "field": "材料审核状态",
+  "operator": "!=",
+  "value": "空",
+  "note": "件1 变更前的 filter（采集范围本身未变，此处为留痕）"
+ },
+ "excluded_policy_prev": "未命中筛选的记录只在 runs/<run_id>.json 留痕，不登记资源、不进库目录、不进索引。原因枚举（本批扩充，不再只写 status_not_passed）：no_status = 筛选字段为空（本批 9 条）；excluded_by_scope = 该表按用户口径整体不纳入（本批 规则库 16 条存量 retracted）；out_of_scope_kb = 记录所属 kb_type 不在本轮范围内；dup = 与既有资源同 sha256 的重复项。已废弃：status_not_passed（口径由 == 通过 改为 != 空 后，「暂不采用」改为纳入，该枚举不再产生）。",
+ "r1_diagnosis": {
+  "recorded_at": "20260924-1240",
+  "scope": "仅诊断与留痕；未修改 R1，未改任何 kb_type 归属",
+  "affected_records": [
+   "bitable:tblMGtPfe8ZUsEdP:recvvg2wL2qE3K",
+   "bitable:tblMGtPfe8ZUsEdP:recvw2dyVUVWxg"
+  ],
+  "root_cause": "发射器硬编码（赋值而非求值）：build2.py:156 调 rule_for(...) 把结果赋给 kt/ridr/kts，紧随其后的 159-160 行硬编码 kb_type=\"unknown\", matched_rule=\"R5\"，求出的 R1 被丢弃；batch3_run.py:201 同构。build.py:103/:129 同类。",
+  "evidence": [
+   "kb/.work/build2.py:156  kt, ridr, kts = rule_for(ENTRY_TBL_NAME, hint=r.get(\"知识库分类\"))",
+   "kb/.work/build2.py:159  path=..., depth=1, kb_type=\"unknown\", matched_rule=\"R5\",",
+   "kb/.work/batch3_run.py:201  同构硬编码",
+   "kb/.work/build.py:103 / :129  同类硬编码"
+  ],
+  "verdict": "既不是 R1 配置缺陷（R1 正确且 enabled），也不是记录取值形态特殊（知识库分类 为 list[str]，求值器 `for t in (hint or [])` 支持）。缺陷是「赋值而非求值」，与 batch4 件9 修掉的 R15 同类（那次只修了规则库来源链接一条路径）。",
+  "impact": "「材料收集」23 条记录全被硬编码为 unknown → 落 9_未归类；其子资源走真求值，故 product_desc 子资源命中了 R1。",
+  "recommendation": "把 build*.py / batch3_run.py 中「材料收集记录」的 hardcode 改为真求值并整库重扫；预计 9_未归类 由 38 降到约 16。跨批决策，等裁。"
+ },
+ "ledger_divergence_conclusion": {
+  "defined_at": "20260924-1512",
+  "long_lived": true,
+  "subject": "local:review-case:img-1..4（4 张评测对照报告案图）的 L0 台账 vs L1 台账",
+  "observed": {
+   "l0_manifest_rows_for_these_keys": 0,
+   "l1_manifest_rows_for_these_keys": 8,
+   "l1_composition": "extracted 4（run 20260924-1200）+ invalidated 4（run 20260924-1210）"
+  },
+  "verdict": "**L0 无这些行是对的；L1 保留的 8 行是历史留痕，也是对的。两边不是矛盾，是「权威口径」与「审计留痕」的分工。**",
+  "basis": [
+   "口径一（源侧投影）：L0 的定义是「L0 == 源侧投影」（见 source_kind_retired[0].reason）。local_file 不是源侧入口，4 张案图已按用户裁决（user_decision_20260924）移出知识库，所以 L0 台账里**不应该有这 4 个 key 的有效行**。写者删掉它们，在「该不该在库里」这个方向上是对的。",
+   "口径二（append-only）：台账是 append-only 的审计面。撤回决定的痕迹必须留。正确做法是「保留 12 行不动 + 追加行说明已撤出索引」，而不是「删行」。写者用删达成目的，破坏了审计面 —— 这一点是错的，已由本批的 ledger_rows_unauthorizedly_deleted 行留痕。",
+   "L1 侧：kb/l1/README.md 未声明「L1 == 源侧投影」；L1 台账的主键是(resource_id, extractor_version, source_sha256)，它的 invalidated 行写明「L1 产物保留供审计但不再是有效内容」—— 这正是审计面该有的样子，无需改动。"
+  ],
+  "action": "只登记结论，不改数据：L0 不回填 12 行；L1 8 行保留原样。",
+  "residual": "l1/index/l1.jsonl 里这 4 个 key 的单元行已在 run 20260924-1115 的 14:35:46 pass 中移除（index 回到 14782），与「L1 台账保留、索引不含」的处理一致，无残留。"
+ },
+ "ledger_audit": {
+  "defined_at": "20260924-1512",
+  "why": "本批往 l0/manifest.jsonl 追加了一行非资源行（change=ledger_rows_unauthorizedly_deleted）。为免它变成一个来路不明的枚举，在此登记。",
+  "row_resource_key_prefix": "audit:",
+  "row_status_enum_added": [
+   "audit_note"
+  ],
+  "row_schema": "与资源行同 schema，但 source_kind/sha256/path/table_* 等资源字段为 null；审计细节放 audit{} 子对象。",
+  "consumer_note": "按 (resource_key, observed_at) 取最新行的消费者不受影响：audit 行的 key 前缀是 audit:，不在任何 bitable:/url:/wiki: 资源命名空间内；kb_l0_scan_lib.ledger_keys_of_table 按 `bitable:<table_id>:` 前缀过滤，天然排除本行。",
+  "pointer_resolution_policy": "「路径型引用可解析」分两类判：①**live 指针**（registry 里指向当前仍在用的位置，如 archived_to / excluded_scope.archived_to）—— 必须存在；②**历史指针**（台账行里的 moved_to / path，只描述「当时的去向」）—— 若该 key 的**最新行**状态不是gone/retracted，则该历史指针视为**已被后续行取代**，不算悬空。实测：gone 202/202 解析成功；restored 15/15 解析成功；retracted 16 行中 15 行的 moved_to 指向rulelib 归档，而这 15 个 key 的最新行均为 restored（文件已回到 kb/l0/1_外部标准库/）→ 属类②，非悬空；剩下 1 行解析成功。"
+ },
+ "container_policy": {
+  "defined_at": "20260924-1512",
+  "defined_before_run": true,
+  "purpose": "把「归哪个库」(kb_type) 与「要不要发射单元」(container) 解耦。此前发射器拿 kb_type 当发射开关用：unknown → R5 → 一个不产单元的 splitter。结果是分类一旦修真（走 rule_for 真求值），立刻会放出 101 个元数据角色的噪声单元。",
+  "criteria": [
+   {
+    "id": "C1",
+    "statement": "该资源在 L1 抽出的**全部** segment 都是元数据（每段的字段角色 role != 'content'）",
+    "check": "读 kb/l1/<kb_type>/<resource_id>.json 的 segments[]，对每段取 field_name，按 field_role_resolution 解析角色，断言集合内无 'content'",
+    "why": "只要有任意一段是可引用正文，它就不是纯容器"
+   },
+   {
+    "id": "C2",
+    "statement": "该资源在 L0 链接图里**有子资源**（存在 from_id 指向它的 depth+1 边）",
+    "check": "读 kb/l0/links/graph.jsonl，存在 from_id ∈ {record:<record_id>, <resource_key>} 的边",
+    "why": "「容器」的语义是「它的内容归属落在子资源上」；没有子资源就没有归属对象，不构成容器"
+   },
+   {
+    "id": "C3",
+    "statement": "候选容器**当前不发射任何 L2 单元**（否则打标会误删既有单元）",
+    "check": "该 resource_id 在 kb/l2/index/l2.jsonl 中的单元数 == 0",
+    "why": "这是**安全阀**：容器标记只能「不新增」，绝不能「删既有」。若某资源已有单元却被判为容器，说明 C1/C2 的口径有问题，闸门必须拦下（计入 deletions_risk）"
+   }
+  ],
+  "resolution_order": "全部 C1 ∧ C2 ∧ C3 同时成立才判 container=true；任一不成立即 non-container",
+  "effect": "container=true → **不发射 L2 单元**（发射层跳过），但 kb_type **仍按 rules 真求值**落到对应库目录。即：归属与发射彻底分开。",
+  "not_used": [
+   "表名 == 材料收集（禁止硬编码表名）",
+   "kb_type == unknown（禁止再用 kb_type 当发射开关）"
+  ],
+  "forbidden": [
+   "不得用中文目录名做判断，一律查 dir_map / dir_map_reverse",
+   "不得用 kb_type 决定是否发射单元"
+  ],
+  "evaluated_by": "kb/.work/batch12/step2b_container_shadow.py",
+  "gate": "完整修法（真求值 + 容器不发射）重跑影子，预期新增 L2 单元 == 0，且 deletions_risk == 0",
+  "container_instances": {
+   "defined_at": "20260924-1610",
+   "note": "按 container_policy(C1∧C2∧C3) 判定的容器实例清单；判据在运行时求值，此处登记结果以便下游读。",
+   "instances": {
+    "recvvg2wL2EnC0": {
+     "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvg2wL2EnC0",
+     "kb_type": "product_desc",
+     "matched_rule": "R1",
+     "container": true,
+     "criteria": [
+      "C1 全部 L1 段为元数据角色",
+      "C2 链接图有子资源",
+      "C3 当前不发射单元"
+     ],
+     "judged_at": "20260924-1610"
+    },
+    "recvvg2wL26SAU": {
+     "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvg2wL26SAU",
+     "kb_type": "product_desc",
+     "matched_rule": "R1",
+     "container": true,
+     "criteria": [
+      "C1 全部 L1 段为元数据角色",
+      "C2 链接图有子资源",
+      "C3 当前不发射单元"
+     ],
+     "judged_at": "20260924-1610"
+    },
+    "recvvlO5gFdyzx": {
+     "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvlO5gFdyzx",
+     "kb_type": "product_desc",
+     "matched_rule": "R1",
+     "container": true,
+     "criteria": [
+      "C1 全部 L1 段为元数据角色",
+      "C2 链接图有子资源",
+      "C3 当前不发射单元"
+     ],
+     "judged_at": "20260924-1610"
+    },
+    "recvvhI3yZULdA": {
+     "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvhI3yZULdA",
+     "kb_type": "internal_sample",
+     "matched_rule": "R4",
+     "container": true,
+     "criteria": [
+      "C1 全部 L1 段为元数据角色",
+      "C2 链接图有子资源",
+      "C3 当前不发射单元"
+     ],
+     "judged_at": "20260924-1610"
+    },
+    "recvvlspM5RDoj": {
+     "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvlspM5RDoj",
+     "kb_type": "internal_sample",
+     "matched_rule": "R4",
+     "container": true,
+     "criteria": [
+      "C1 全部 L1 段为元数据角色",
+      "C2 链接图有子资源",
+      "C3 当前不发射单元"
+     ],
+     "judged_at": "20260924-1610"
+    },
+    "recvvltvfBsoDP": {
+     "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvltvfBsoDP",
+     "kb_type": "internal_sample",
+     "matched_rule": "R4",
+     "container": true,
+     "criteria": [
+      "C1 全部 L1 段为元数据角色",
+      "C2 链接图有子资源",
+      "C3 当前不发射单元"
+     ],
+     "judged_at": "20260924-1610"
+    },
+    "recvvlGAKpUVF9": {
+     "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvlGAKpUVF9",
+     "kb_type": "internal_sample",
+     "matched_rule": "R4",
+     "container": true,
+     "criteria": [
+      "C1 全部 L1 段为元数据角色",
+      "C2 链接图有子资源",
+      "C3 当前不发射单元"
+     ],
+     "judged_at": "20260924-1610"
+    },
+    "recvvlGUajvYY0": {
+     "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvlGUajvYY0",
+     "kb_type": "internal_sample",
+     "matched_rule": "R4",
+     "container": true,
+     "criteria": [
+      "C1 全部 L1 段为元数据角色",
+      "C2 链接图有子资源",
+      "C3 当前不发射单元"
+     ],
+     "judged_at": "20260924-1610"
+    },
+    "recvvhv1cwO2Ry": {
+     "resource_key": "bitable:tblMGtPfe8ZUsEdP:recvvhv1cwO2Ry",
+     "kb_type": "unknown",
+     "matched_rule": "R5",
+     "container": true,
+     "criteria": [
+      "C1 全部 L1 段为元数据角色",
+      "C2 链接图有子资源",
+      "C3 当前不发射单元"
+     ],
+     "judged_at": "20260924-1610"
+    }
+   },
+   "prior_instances_ref": "run 20260924-1512 判定的 107 个容器（含 23 条材料收集记录）见该批报告；本键只登记本批新增实例"
+  }
+ },
+ "excluded_scope_prev": {
+  "tables": [
+   "规则库"
+  ],
+  "policy": "整体不纳入：不登记资源、不进库目录、不进 index；既有存量登记为 retracted",
+  "reason": "用户口径：「全部」不包含规则库，连存量一起清",
+  "by_rule_state": "R6–R10 已 enabled=false，规则库记录不会再兜底进 unknown",
+  "since": "20260924-1000",
+  "archived_to": "kb/l0/_archive/rulelib-excluded-20260924-1000",
+  "archived_resource_count": 16,
+  "record_level_exceptions": [
+   {
+    "rule": "R15",
+    "matched_rule": "R15",
+    "pattern": "来源链接",
+    "field_id": "fld1VehxHe",
+    "kb_type": "external_standard",
+    "resource_count": 15,
+    "semantics": "规则库**表本体与其 50 条记录**继续整表排除；**但 R15 抽出的「来源链接」字段值（15 个唯一 URL）正式纳入**。它们是六平台（FTC / FDA / Amazon / Google / Meta / TikTok）合规原文的 URL 锚点，不是那 50 条记录本身（那 50 条都带 规则ID=EXT-*），也不含未确认内容。"
+   },
+   {
+    "rule": "R16",
+    "matched_rule": "R16",
+    "pattern": "来源文档",
+    "field_id": null,
+    "kb_type": "external_standard",
+    "resource_count": 0,
+    "semantics": "R16（来源文档）同样自本例外生效；实测当前 0 条资源，登记为**已授权但无实例**，避免下次又被整表排除误伤。"
+   }
+  ],
+  "record_level_exception_basis": {
+   "decision": "owner 2026-09-24 裁决（方案 A：15 条正式纳入）",
+   "recorded_at": "20260924-1700",
+   "note": "本例外只覆盖 R15/R16 抽出的字段值；规则库的表资源与记录仍未登记。"
+  },
+  "since_exception": "20260924-1700"
+ },
+ "open_issues": [
+  {
+   "id": "OI-L1-001",
+   "severity": "high",
+   "title": "L1 index/l1.jsonl 少 131 条有效资源的段",
+   "evidence": {
+    "index_minus_ledger": 171,
+    "of_which_ok": 131,
+    "sample_resource_keys": [
+     "base:DXJ6b5cKtaXPQasoayEc74SUnog",
+     "media:tbld8qE92YaY38Yz:recvw2vgYX1pJ8",
+     "media:tbld8qE92YaY38Yz:recvw2vgYX1vS4",
+     "media:tbld8qE92YaY38Yz:recvw2vgYX2HC9",
+     "media:tbld8qE92YaY38Yz:recvw2vgYX4Zg3"
+    ],
+    "claimed_segments": 242,
+    "observed_at_of_these": "20260924-1200",
+    "kb_type": "internal_sample"
+   },
+   "fix_by": "L6 重建前（必须）",
+   "status": "closed_false_alarm",
+   "recorded_at": "20260924-1730",
+   "not_fixed_this_batch": {
+    "reason": "修 index 需单独一批（本批 L1 只读）",
+    "index_sha256": "759654881f3bff9318df69cc8dbd10f178f43b38b77ad1ecba7ae330689c69d4",
+    "resolution_note": "非缺陷，故不修；原 not_fixed_this_batch 保留作历史。"
+   },
+   "impact_as_recorded": "L2 不受影响（splitter 读 L1 产物）；但 **L6 检索读 index → 会漏这 131 条的段**。",
+   "impact_corrected": "不成立。①**L6 不读 L1 索引**：l6/ 全目录 0 处引用 l1/index，L6 的输入是 kb/l2/units.jsonl 经 L3 口径过滤；②**这 131 条不是内容丢失**：其中 129 条是 media_* 资源，其正文落在 kb/l1/media/<rec>/ocr.json，以资源为单位不进索引是设计口径 —— 这批 240 张图的 OCR 文本已作为父 bitable 记录的 segments（kind=image_ocr/image_visual）进了索引，实测 240/240 在索引内；另 2 条（Google Drive 文件夹 unreachable、飞书 drive 文件夹 no_scope）本就无正文。真实影响仅限：索引作为**审计投影**会少算 129 个 media 资源这一层，按资源数对账语料规模时会偏小。",
+   "evidence_corrected": {
+    "breakdown": {
+     "media_*_resources_registered_but_indexed_via_parent": 129,
+     "genuinely_empty_resources": 2,
+     "genuinely_empty_detail": {
+      "url__https____drive.google.com_drive_folders_1vZTtB4rydh": "status=unreachable，Google Drive 文件夹不越域抓取",
+      "url__https____momcozy-in.feishu.cn_drive_folder_XkSkfY4v": "status=no_scope，容器类按既有口径不抽正文"
+     }
+    },
+    "media_image_ocr_coverage": {
+     "valid_media_resources": 129,
+     "images_total": 240,
+     "images_present_in_index_via_parent": 240,
+     "images_missing_from_index": 0,
+     "how_verified": "kb/l1/index/rebuild_l1_index.py --check 的 media_coverage 段，逐图用 anchor 在索引内查找"
+    },
+    "l6_does_not_read_l1_index": {
+     "grep_l1_index_in_l6_dir_hits": 0,
+     "l6_actual_input": "kb/l2/units.jsonl（经 kb/.work/l6_scope_lib.py 口径过滤）"
+    }
+   },
+   "resolution": "判定为**误报**。不需要往索引里补 media 行 —— 补了会把同一段文本重复计数。改为把「媒体资源经父记录进索引」这条口径写成机器可查的 media_coverage 记录，由 kb/l1/index/rebuild_l1_index.py 长期盯住（缺失数必须恒为 0）。",
+   "closed_at": "20260929-1200",
+   "closed_by": "kb/l1/index/rebuild_l1_index.py --check"
+  },
+  {
+   "id": "OI-L1-002",
+   "severity": "medium",
+   "title": "L1 index/l1.jsonl 含 77 条 invalidated 残留行",
+   "fix_by": "L6 重建前（必须）",
+   "status": "closed_fixed",
+   "recorded_at": "20260924-1730",
+   "not_fixed_this_batch": {
+    "reason": "同上",
+    "index_sha256": "759654881f3bff9318df69cc8dbd10f178f43b38b77ad1ecba7ae330689c69d4",
+    "resolution_note": "本批已修；原记录保留作历史。"
+   },
+   "evidence_as_recorded": {
+    "rows": 77,
+    "all_invalidated": true,
+    "sample_resource_keys": [
+     "bitable:tbld8qE92YaY38Yz:recvvPK3Eb0nhw/fldnvxjaSr/K0zzbz3UcobonbxFEtScHaGhnyg",
+     "bitable:tbld8qE92YaY38Yz:recvvPK3Eb2SXM/fldnvxjaSr/D4UkbBdFzo5Z0qxxtoOc12ARnvg",
+     "bitable:tbld8qE92YaY38Yz:recvvPK3Eb2SXM/fldnvxjaSr/ZsG7b8W6xo5q6xx3HpWcj6zGnGg",
+     "bitable:tbld8qE92YaY38Yz:recvvPK3Eb2ufK/fldnvxjaSr/TyOAb9AasoS4agx7GUzcTmywnq0",
+     "bitable:tbld8qE92YaY38Yz:recvvPK3Eb4EOl/fldnvxjaSr/DUqEbjyuOoCkAix4uTHc5pcInze"
+    ],
+    "cause": "上游 gone 记录撤回后，L1 台账标 invalidated，但 index 行未同步移除"
+   },
+   "impact_as_recorded": "检索会召回已失效内容。",
+   "evidence_corrected": {
+    "rows_at_fix": 1247,
+    "resources_at_fix": 202,
+    "rows_as_recorded": 77,
+    "why_grew": "OI 写于 20260924-1730；其后又有记录被作废/撤回，残留随之增长到 202 资源 / 1247 行",
+    "root_cause": "写索引的循环（.work/l1_extract_v3.py:436-457）只遍历批次目录里的 *.json，**从不读台账 status**，所以已 invalidated/retracted 的资源其段仍留在索引里。",
+    "status_breakdown_of_zombies": {
+     "invalidated": 206,
+     "retracted": 36
+    }
+   },
+   "impact_corrected": "不是「检索会召回已失效内容」——L6 不读这个索引。真实影响是：索引作为**审计投影在虚报语料规模**，任何用索引当分母做覆盖率/饱和度统计的结论都会偏大。另需注意：L2 经父记录失效路径**已正确排除**这 77 张图的 OCR（L2 内 #img. 单元 240 条，与有效父记录一一对应），所以失效内容并没有进 L2/L6。",
+   "resolution": "已修：索引重建改由独立入口 kb/l1/index/rebuild_l1_index.py 生成，写入前按台账最新状态过滤（只收 ok/extracted）。实测 14,858 行 / 1,603 资源 → 13,613 行 / 1,403 资源，剔除僵尸行 1,247（202 个失效资源）；重建后 --check 判 OK（陈旧/虚报/缺段/多余 四项全清）。",
+   "closed_at": "20260929-1200",
+   "closed_by": "kb/l1/index/rebuild_l1_index.py --write"
+  },
+  {
+   "id": "OI-L1-003",
+   "severity": "medium",
+   "title": "L1 索引原先没有独立重建入口，必然漂移",
+   "evidence": {
+    "index_mtime": "2026-09-24 16:27:11",
+    "newest_covered_source_mtime": "2026-09-24 16:54:54",
+    "gap_minutes": 27,
+    "only_writer": "kb/.work/l1_extract_v3.py 尾部（全量抽取的副作用），无独立入口",
+    "consequence": "资源文件在抽取之后仍被后续批次改写时，索引不会跟着更新，且没有任何检查会告警"
+   },
+   "impact": "索引陈旧且无人察觉。因为无下游消费者（L2 直接读逐资源文件、L6 读 l2/units.jsonl），未造成检索错误；但它使「索引 = 当前语料」这一假设失效，任何据索引做的覆盖率/审计结论都可能在用旧快照。",
+   "resolution": "已修：新增常驻工具 kb/l1/index/rebuild_l1_index.py（--check / --write 两态）。--check 四查：陈旧（索引 mtime vs 源文件最晚）、虚报（僵尸行）、缺段、多余，外加 media_coverage（图片 OCR 覆盖必须 0 缺失）；有漂移即 exit 1，可直接挂进巡检。",
+   "status": "closed_fixed",
+   "recorded_at": "20260929-1200",
+   "closed_at": "20260929-1200",
+   "closed_by": "kb/l1/index/rebuild_l1_index.py"
+  },
+  {
+   "id": "OI-L6-001",
+   "severity": "medium",
+   "title": "L2/L3 可用口径把「整页抓取」当知识（83 条巨型 unit 被挡在 L6 之外）",
+   "evidence": {
+    "usable_recomputed_at_F11": 1982,
+    "indexed": 1899,
+    "excluded_by_scope_file": 83,
+    "excluded_profile": {
+     "median_chars": 24703,
+     "gt_2000_chars": "82/83",
+     "max_chars": 45080,
+     "distinct_openings": 7,
+     "top_openings": {
+      "Skip to content / Switch to your local store": 60,
+      "Zum Inhalt springen（德）": 9,
+      "Aller au contenu（法）": 5,
+      "Saltar al contenido（西）": 4,
+      "Przejdź do treści（波）": 2
+     },
+     "unit_type": "clause（全部）",
+     "kb_type": "wording 82 / external_standard 1",
+     "source_tables": "#正文（全部）",
+     "sources": "momcozy.com 及 ca/de/eu/fr/uk/es/pl/au 各站的产品页/博客页/集合页；另 drugs.dxy.cn 临床指南页 1 条"
+    },
+    "included_profile": {
+     "median_chars": 67,
+     "gt_2000_chars": "1/1899"
+    },
+    "cost_if_included": {
+     "total_chars": "292,642 → 2,400,729（×8.2）",
+     "estimated_segments": "3,654 → 21,258（×5.8）",
+     "consequence": "每个与哺乳/吸奶器相关的查询都会命中巨型产品页，把精确的规则条目挤下去"
+    },
+    "same_class_already_inside": {
+     "unit": "external_standard #l.1-1",
+     "chars": 31450,
+     "segments": 201,
+     "share_of_vector_segments": "201/2088 = 9.6% 的向量段只来自这 1 条 unit"
+    }
+   },
+   "impact": "当前**未**影响 L6 检索质量（SCOPE.txt 白名单已挡住这 83 条）。风险在别处：①L2 每增长一次就会重新引入同类噪声，靠人工核对白名单维持，属长期人力成本；②已进索引的那条 31,450 字符 unit 占掉 9.6% 的向量段，是同一类问题的存量表现；③任何直接以「L3 口径过滤结果」为范围的用法（含 L3 蒸馏本身）都会吃到这些整页全文。",
+   "root_cause": "口径只按「字段角色」筛（heading_path 属 content 即收），**没有尺寸或来源护栏**。整页抓取的正文恰好落在 content 角色下，于是被当成一条 clause。",
+   "fix_by": "L2/L3 口径侧（不属 F11；F11 只做了 L6 侧的止损）",
+   "suggested_fix": "在 l6_scope_lib.usable_units() 与 .work/l3_distill2.py 的**同一份口径**里加尺寸/来源闸门，而不是只依赖 SCOPE.txt 白名单。建议判据（择一或叠加，需 L3 侧确认）：①单 unit 字符数阈值（如 >5,000 视为整页抓取，须先切段或标注）；②来源为品牌自有站点 URL 且文本以站点外壳开头 → 标 quality_flag 而非直接收；③把「一条 unit 的最大长度」纳入 L3 体检项。",
+   "status": "open",
+   "recorded_at": "20260929-1200",
+   "mitigation_at_F11": "kb/l6/SCOPE.txt 白名单收录 1,899 条、排除 83 条；排除量在 registry 的 filter_distribution 里可见（*|outside_scope_file: 83）。"
+  },
+  {
+   "id": "OI-L6-002",
+   "severity": "medium",
+   "title": "SCOPE.txt 机制已文档化但未接入建索引侧，registry 会虚假声明已取子集",
+   "evidence": {
+    "before": "kb/l6/SCOPE.txt 只被 kb/.work/l6_scope.py（报告器）读；kb/.work/l6_build.py 走 l6_scope_lib.usable_units()，**不读 SCOPE.txt**。而 l6_build.py 写 registry 时却记 scope_file = SCOPE.txt（文件存在即记），等于声称「本次索引按 SCOPE.txt 取了子集」——实际没有。",
+    "why_it_matters": "这是**静默失真的溯源声明**：只读 registry 的人会以为范围受白名单约束，而实际建索引把全部可用单元都收了。一旦有人创建 SCOPE.txt 想收窄范围，报告会说收窄了、索引却没收窄，两边永久不一致且无人告警。",
+    "never_triggered_before": "此前从未创建过 kb/l6/SCOPE.txt，所以该缺陷一直未被暴露（属潜在缺陷，非已发生的错）。"
+   },
+   "impact": "潜在：范围白名单失效 + registry 溯源失真。因从未创建 SCOPE.txt，历史索引本身没错。",
+   "resolution": "已修：新增 l6_scope_lib.apply_scope_file()，作为 SCOPE.txt 的**唯一**读取实现，由 l6_build.py（建索引）与 l6_scope.py（报告）同源调用；被排除的条数计入 filter_distribution 的 *|outside_scope_file；registry 新增 scope_file_info（specified / hits / excluded_from_usable / specified_but_not_usable）。",
+   "status": "closed_fixed",
+   "recorded_at": "20260929-1200",
+   "closed_at": "20260929-1200",
+   "closed_by": "kb/.work/l6_scope_lib.py + kb/.work/l6_build.py"
+  },
+  {
+   "id": "OI-L6-003",
+   "severity": "low",
+   "title": "l6_build.py 用字面量 1899 当口径护栏，L2/L3 合法增长后无法重跑",
+   "evidence": {
+    "before": "kb/.work/l6_build.py:67  assert len(kept) == 1899, \"可用单元数 … != 1899，范围口径对不上，停\"",
+    "observed": "2026-09-29 F11 重算可用单元得 1,982，直接 AssertionError 撞停（差 +83）。",
+    "why_it_matters": "护栏本身是对的（防口径静默漂移），但把「预期范围」钉成字面量，使**合法**的语料增长与**非法**的口径改坏无法区分，只能改代码才能重跑 —— 而改代码正是最该避免的绕过方式。"
+   },
+   "impact": "L6 无法在 L2 增长后重建；每次都要动代码，护栏形同虚设。",
+   "resolution": "已修：护栏改为与 registry 里记录的上次范围比对。漂移默认仍停，必须显式加 --accept-scope-delta（或 L6_ACCEPT_SCOPE_DELTA=1）才放行，并把**逐 id** 差额（added / removed，含 count）写进 registry 的 scope.scope_delta，使「这次范围变了什么」可事后复核而非只看总数。另核实该文件再无其它硬编码数字护栏（其余两处 assert 为模型握手与向量维度一致性，正当）。",
+   "status": "closed_fixed",
+   "recorded_at": "20260929-1200",
+   "closed_at": "20260929-1200",
+   "closed_by": "kb/.work/l6_build.py"
+  }
+ ],
+ "open_issues_note": "只登记不修的原有约束已解除：F11 批（20260929-1200）已开 L1 索引独立重建入口并执行。OI-L1-001 判定为误报（L6 不读该索引；129 个 media 资源的 240 张图 240/240 经父记录在索引内）；OI-L1-002 已修（无状态过滤 → 独立入口带 ok/extracted 过滤，剔除 1247 僵尸行 / 202 失效资源）；新登记 OI-L1-003（原先无独立重建入口、必然漂移）并同批修复。",
+ "l0_feishu_reconcile": [
+  {
+   "run": "20260929-1045",
+   "at": "2026-09-29 10:43:19",
+   "rule_change": "材料收集（tblMGtPfe8ZUsEdP）抓取规则由「不按审核状态筛选」改为「只抓 材料审核状态=通过」；R26 的旧说明随之失效",
+   "negative_sample_rebuild": {
+    "table_id": "tbld8qE92YaY38Yz",
+    "old_local": 326,
+    "new_feishu": 108,
+    "evidence": "16 个 field_id 与旧快照一致（表未重建）；旧 record_id 在飞书 Record not found（记录被整批替换）",
+    "old_disposition": "历史留档 → kb/l0/_archive/正面和负面样本-superseded-20260929-1045（不删除）",
+    "new_disposition": "认领 → kb/l0/records/负面样本/"
+   },
+   "rule_library": "飞书侧「规则库」(tblXsrMVkDNZ3oW8, 50 条) 本期不做（用户指令①）",
+   "ledger": "kb/l0/runs/20260929-1045-l0-feishu-reconcile.json"
+  },
+  {
+   "run": "20261002-0630",
+   "at": "2026-10-02 06:28:57",
+   "rule_change": "材料收集（tblMGtPfe8ZUsEdP）抓取规则由「不按审核状态筛选」改为「只抓 材料审核状态=通过」；R26 的旧说明随之失效",
+   "negative_sample_rebuild": {
+    "table_id": "tbld8qE92YaY38Yz",
+    "old_local": 326,
+    "new_feishu": 108,
+    "evidence": "16 个 field_id 与旧快照一致（表未重建）；旧 record_id 在飞书 Record not found（记录被整批替换）",
+    "old_disposition": "历史留档 → kb/l0/_archive/正面和负面样本-superseded-20261002-0630（不删除）",
+    "new_disposition": "认领 → kb/l0/records/负面样本/"
+   },
+   "rule_library": "飞书侧「规则库」(tblXsrMVkDNZ3oW8, 50 条) 本期不做（用户指令①）",
+   "ledger": "kb/l0/runs/20261002-0630-l0-feishu-reconcile.json"
+  }
+ ],
+ "l8_field_name_fixes": [
+  {
+   "at": "2026-09-29 10:44:13",
+   "table": "材料收集",
+   "table_id": "tblMGtPfe8ZUsEdP",
+   "fact": "该表字段 field_id fldn2leARA 在飞书侧现名「备注」，本地旧快照与部分下游脚本白名单里写作「细分」（同一 field_id，登记里两名并存）",
+   "fix": "① 现役 L0 22 条已按飞书现名抓取（备注）；② 下游 5 个脚本的字段白名单补上「备注」「更新频率」（保留「细分」以兼容旧记录）；脚本原文归档 kb/l8/_archive/*.orig-*",
+   "not_captured_before": "「更新频率」(fldFiUm2yr) 此前从未进过任何白名单 → 旧快照里整字段缺失，现役 22 条已补齐"
+  }
+ ],
+ "l8_rules_20260929": [
+  {
+   "at": "2026-09-29 10:55:53",
+   "by": "用户指令（2026-09-29）",
+   "rules": [
+    {
+     "id": "R-L0-1",
+     "rule": "L0 层只能与飞书侧对齐数据；优化 L1–L7 时不得改动 L0",
+     "implication": "所有下钻/OCR/抽取产物落 L1+（kb/l1/sources、kb/l1/media），不再写 kb/l0/snapshots 与 kb/l0/links/graph.jsonl",
+     "conflict_noted": "既有实现把下钻边写在 kb/l0/links/graph.jsonl、正文快照写在 kb/l0/snapshots/；本轮按本条规则改落 L1，差异已登记"
+    },
+    {
+     "id": "R-L0-2",
+     "rule": "对于链接，需要下钻两层进行读取",
+     "impl": "kb/l8/drill_links_2levels.py（level1=材料链接；level2=level1 正文内链接，最多 5 条/份）",
+     "status": "已执行 20260929-1100：22 条记录 / 边 74（L1 17 成功 5 失败；L2 50 成功 2 失败）"
+    },
+    {
+     "id": "R-L0-3",
+     "rule": "对于图片，需要使用 OCR 提取",
+     "impl": "kb/l8/ocr_attachments.py（复用 kb/.work/ocr.jxa.js = macOS Vision vision-jxa-2.0 + kb_ocr_gate 闸门）",
+     "status": "执行中 20260929-1100：负面样本 图片素材 全量下载 + 批量 OCR → kb/l1/media 与 kb/l1/2_内部正负样本库"
+    },
+    {
+     "id": "R-L0-4",
+     "rule": "材料收集只抓 材料审核状态=通过 的记录",
+     "impl": "kb/l8/reconcile_l0_feishu.py（已执行）"
+    },
+    {
+     "id": "R-L0-5",
+     "rule": "飞书侧 规则库 本期不做",
+     "impl": "沿用既有 excluded_scope（20260924-1000 起整体不纳入）"
+    },
+    {
+     "id": "R-L0-6",
+     "rule": "视频素材需要提取「字幕 + 关键帧」",
+     "evidence_so_far": "本条规则的数据侧受阻：① 负面样本 108 条里 视频素材 非空 = 0（字段级筛选实测 count=0）；② 归档旧一代 326 条里 视频素材 = 0；③ 全 L0 按扩展名搜 .mp4/.mov/.m4v/.avi/.mkv/.webm = 0；④ 可达 base 内唯一的附件字段只有 负面样本 的 图片素材/视频素材",
+     "where_videos_may_be": [
+      "含权限缺口的那 2 个 wiki 节点（KISzwvc8OifWk8kI5cBcTtU6n9g / UOuMwKge6iX4HdkaOZBchV6ZnNf）",
+      "base SKkkbdZi9aRuMzs7ob0cpSYHnQg（专家修订汇总表所在，bot 无法列表 → 需授权）",
+      "或飞书云盘/妙记里的独立素材（不在 Base 附件字段里）"
+     ],
+     "toolchain": {
+      "ffmpeg": "无",
+      "ffprobe": "无",
+      "whisper/torch/av/moviepy": "无",
+      "cv2": "5.0 带 FFMPEG 解码 → 关键帧可做",
+      "pypi": "可达（HTTP 200）→ 可 pip install imageio-ffmpeg 取 ffmpeg 二进制（抽内嵌字幕轨 + 关键帧）；ASR 需 faster-whisper + 模型权重（HF 可达性待测）"
+     },
+     "status": "待用户确认视频位置后执行；工具链前置已查清"
+    }
+   ]
+  }
+ ],
+ "projection_index": {
+  "writer": "kb/l1/index/rebuild_l1_index.py",
+  "tool_version": "l1-index-1.0",
+  "status_filter": [
+   "ok",
+   "extracted"
+  ],
+  "rows": 13613,
+  "resources": 1403,
+  "report": "kb/l1/index/index-report.json",
+  "check_command": "python3 kb/l1/index/rebuild_l1_index.py --check",
+  "downstream_consumers": [],
+  "consumer_note": "L2 直接 glob 逐资源文件；L6 读 kb/l2/units.jsonl。本索引是审计投影，当前无检索链路消费者 —— 故其陈旧不产生检索错误，但任何以它为分母的覆盖率结论必须先用 --check 确认不陈旧。",
+  "media_coverage_rule": "媒体资源（media_*）以资源为单位不进索引；其正文经父 bitable 记录的 segments（kind=image_ocr/image_visual）进索引。禁止按 l1/media/ 再枚举一遍（会重复计数）。",
+  "registered_at": "20260929-1200"
+ },
+ "l6_scope_verification": {
+  "verified_at": "20260929-1200",
+  "conclusion": "L6 不需要重建：现有索引与其核定口径完全一致。",
+  "how": "把 SCOPE.txt 接进建索引侧后按同一口径重跑，得到幂等空操作 —— BM25 本次切词 0 条、索引无变化不重写；向量新增/变更 0、复用 2088 段、embedding 调用 0 次；索引投影 1899 行未变；总耗时 5.5s。文件系统层证据：bm25/docs.jsonl(14:03:36)、vectors/vectors.jsonl(14:19:19)、index/l6.jsonl(14:19:19) 三个产物 mtime 均未变，只有 registry/l6.json 被重写。",
+  "references_integrity": "另核：L6 的 1,899 个 unit_id **全部**仍在当前 kb/l2/units.jsonl 内；1,899 条的 source_sha256 全部命中当前 L2 的 sha 集合；1,899 条的 anchor 全部仍能在当前 L1 找到。即引用无失效。",
+  "scope_delta_measured": {
+   "prev_indexed": 1899,
+   "now_in_scope": 1982,
+   "added": 83,
+   "removed": 0
+  },
+  "why_delta_rejected": "见 OI-L6-001：新增 83 条为整页抓取，纳入会使字符量 ×8.2、估算段数 ×5.8。",
+  "command": "python3 kb/.work/l6_build.py 20260929-F11"
+ },
+ "l0_align_20260929": {
+  "run": "20260929-1220",
+  "purpose": "用户指令：对齐 DSH 知识库 L0 层与飞书侧数据",
+  "scope": "可达 3 base / 8 表（规则库按指令①不做）；入口 Base 同级表全查",
+  "result": {
+   "comparable_records": 560,
+   "identical": 550,
+   "changed_and_synced": 1,
+   "changed_detail": "知识库分类说明 recvvfWFhMpe9l：知识库 '内部正面与负面样本库'→'内部负面样本库'；要包含什么 去掉「正面：…」（飞书侧改的库定义）",
+   "excluded_by_rule": 10,
+   "excluded_detail": "材料收集 10 条（审核状态 9 条空、1 条暂不采用）按指令③不入 L0；仍在飞书表中",
+   "only_in_l0": 0,
+   "value_diffs_after_sync": 0
+  },
+  "ledger_repair": {
+   "problem": "负面样本 108 条记录文件在 L0，但 manifest.jsonl 无记录级行 → 下游 L0⊖L1 恒为 0 → 108 条永远抽不到",
+   "rows_appended": 718,
+   "breakdown": "记录级登记 108 + 附件级登记 283 + 旧代标 gone 326 + 知识库分类说明 updated 1",
+   "sha256_convention_proof": "以 recvw35kNoBkHf 反推：sha256(json([['field_id',fid,'value',val]] sort_keys,separators)) 精确复现既有行 ce546585a9be2a17…；跨表再验 17/17 命中",
+   "attachment_rows_note": "附件行 sha256_input=attachment_metadata / sha256_state=metadata_only（字节流需下载权限，403）；待取得字节后另补 file_bytes 行，不伪装成 file_bytes"
+  },
+  "blocked": {
+   "base": "SKkkbdZi9aRuMzs7ob0cpSYHnQg",
+   "tables": [
+    "专家修订汇总表 tbl8AI00JZO1iZtp",
+    "内容公式（仅供参考） tblVdl0jdK9G4ld3"
+   ],
+   "error": "91403 you don't have permission（表清单与记录读取都被拒）",
+   "impact": "L0 里 595 条来自该 base 的记录本次无法与飞书核对"
+  },
+  "reports": [
+   "kb/l8/runs/20260929-1220-l0-align.json",
+   "kb/l8/runs/20260929-1200-l0-manifest-emit.json",
+   "kb/l8/runs/20260929-1200-l0-content-sync.json"
+  ]
+ },
+ "l0_align_20260929-1240": {
+  "run": "20260929-1240/1250",
+  "identity": "user 刘华丽（app cli_aa2243de0438dcd7 / 守衡，设备码登录 12:25 授权）",
+  "why_identity_changed": "bot 身份对 SKkkbd base 报 91403、对 2 个 wiki 节点报 131006、对图片字节报 403；用户身份继承刘华丽本人权限，三者全通",
+  "coverage": "可达 base 全部 4 个 / 10 张表（含此前不可达的 SKkkbdZi9aRuMzs7ob0cpSYHnQg）",
+  "result": {
+   "identical": 952,
+   "only_feishu": 10,
+   "only_l0": 0,
+   "value_diffs": 0,
+   "pull_failed": 0,
+   "manifest_unregistered": 0,
+   "only_feishu_detail": "材料收集 10 条（9 条审核状态为空、1 条暂不采用）按用户指令③不入 L0，仍在飞书表中"
+  },
+  "structure_fix": {
+   "problem": "同一批记录在两代目录各存一份：内容公式与专家修订库__专家汇总表(200)+__内容公式（7） vs 专家修订汇总表(395)+内容公式（仅供参考）(7)，跨目录重复 record_id 207 个",
+   "verification": "207 对逐条字段值等价、旧目录无独占记录",
+   "action": "旧一代目录整体移动到 kb/l0/_archive/内容公式与专家修订库-legacy-20260929-1240/（移动，无删除；带 207 条 sha256 清单）",
+   "after": "kb/l0/records 文件 952 = 唯一 record_id 952，重复 0"
+  },
+  "wiki_nodes_resolved": {
+   "KISzwvc8OifWk8kI5cBcTtU6n9g": {
+    "title": "Meta近期在投文案",
+    "obj_type": "docx",
+    "obj_token": "Vzlwd1d9doXdJJxkJnWc4ya5ngb"
+   },
+   "UOuMwKge6iX4HdkaOZBchV6ZnNf": {
+    "title": "OGC内容生产与审核",
+    "obj_type": "bitable",
+    "obj_token": "SKkkbdZi9aRuMzs7ob0cpSYHnQg",
+    "note": "第二个 wiki 节点直接指向此前『读不到』的那个 base —— 同一对象两种入口"
+   }
+  },
+  "reports": [
+   "kb/l8/runs/20260929-1250-l0-align.json",
+   "kb/l8/runs/20260929-1240-l0-align.json"
+  ],
+  "caution": "本次设备码登录未返回 refresh_token（lark-cli 提示 no refresh_token in response）→ token 到期后需重新登录"
+ },
+ "image_ocr_policy": {
+  "decided_at": "2026-09-29 12:45",
+  "verdict": "负面样本 283 张图片不做 OCR",
+  "reason": "库级禁止下载（用户本人也无法下载）；飞书无『只读取不下载』通道",
+  "scope": [
+   "kb/l1 媒体资源 283 条 status=forbidden",
+   "L0 附件行保留元数据（attachment_metadata/metadata_only）"
+  ],
+  "do_not_retry": "不要再尝试 base +record-download-attachment / drive +download / 云端 OCR —— 三条都已实测堵死",
+  "reopen": "所有者开放下载权后跑 kb/l8/ocr_attachments.py --purge-images"
+ },
+ "l0_schema_align": [
+  {
+   "run": "20260929-1340",
+   "identity": "user/dsh-kb",
+   "result": {
+    "renamed": 0,
+    "missing_in_l0": 0,
+    "retired_in_feishu": 0,
+    "type_drift": 0
+   },
+   "report": "kb/l8/runs/20260929-1340-l0-schema-align.json"
+  },
+  {
+   "run": "20260930-1100",
+   "identity": "bot/dsh-kb",
+   "result": {
+    "renamed": 0,
+    "missing_in_l0": 0,
+    "retired_in_feishu": 0,
+    "type_drift": 0,
+    "field_list_failed": 2
+   },
+   "report": "kb/l8/runs/20260930-1100-l0-schema-align.json"
+  },
+  {
+   "run": "20260930-1105",
+   "identity": "user/dsh-kb",
+   "result": {
+    "renamed": 0,
+    "missing_in_l0": 0,
+    "retired_in_feishu": 0,
+    "type_drift": 0
+   },
+   "report": "kb/l8/runs/20260930-1105-l0-schema-align.json"
+  },
+  {
+   "run": "20261002-0630",
+   "identity": "user/dsh-kb",
+   "result": {
+    "field_list_failed": 10
+   },
+   "report": "kb/l8/runs/20261002-0630-l0-schema-align.json"
+  },
+  {
+   "run": "20261002-0630",
+   "identity": "bot/dsh-kb",
+   "result": {
+    "renamed": 0,
+    "missing_in_l0": 0,
+    "retired_in_feishu": 0,
+    "type_drift": 0,
+    "field_list_failed": 2
+   },
+   "report": "kb/l8/runs/20261002-0630-l0-schema-align.json"
+  }
+ ],
+ "attachment_store": {
+  "layout": "kb/l0/attachments/<表名>/<record_id>/<file_token>.<ext>",
+  "manifest": "kb/l0/attachments/_MANIFEST.json",
+  "policy": "字节副本用于留档与复算；L1+ 读 OCR 文本；不属于知识条目，不参与加载器扫描",
+  "registered_at": "20260929-1740",
+  "count": 283,
+  "ledger_upgrade": "附件行 sha256_input: attachment_metadata → file_bytes（补 bytes/local_path）"
+ }
+}

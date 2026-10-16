@@ -1,0 +1,42 @@
+{
+ "generated_at": "2026-10-12T11:38:32",
+ "generated_by": "kb/l8/audit_sample.py",
+ "prd_ref": "§11.2-6「每周人工抽检 100 条，评估准确率」／§11.3「准确率 = 三态一致数 / 总审查数」",
+ "week": "ALL-nodup",
+ "n_requested": 100,
+ "n_picked": 100,
+ "population": {
+  "total": 1013,
+  "strata": {
+   "BLOCK": {
+    "pool": 523,
+    "picked": 51
+   },
+   "REVIEW": {
+    "pool": 349,
+    "picked": 34
+   },
+   "PASS": {
+    "pool": 131,
+    "picked": 13
+   },
+   "NEEDS_INPUT": {
+    "pool": 10,
+    "picked": 2
+   }
+  }
+ },
+ "excluded": {
+  "同一素材的复跑（保留，--no-dedup）": 760
+ },
+ "picked_by_state": {
+  "BLOCK": 51,
+  "PASS": 13,
+  "REVIEW": 34,
+  "NEEDS_INPUT": 2
+ },
+ "unit_rule": "一单 = 一次评审运行（source == review_machine），与 baseline_table/audit_metrics 同口径",
+ "dedup_rule": "**未去重**（--no-dedup，与 §11.3「总审查数」字面一致）",
+ "known_limit": "index 的 trigger 只存 60 字摘要（长素材截断＋…）⇒ 键是前 60 字不是全文；两个素材前 60 字相同会被误并（实测回归集 100 条并出 70 个键）。要根治得让 review.py 记账时多存 text_sha8。",
+ "human_columns_are_blank": true
+}

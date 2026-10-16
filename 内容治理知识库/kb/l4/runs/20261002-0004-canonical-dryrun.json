@@ -1,0 +1,160 @@
+{
+ "run_id": "20261002-0004",
+ "dry_run": true,
+ "applied": false,
+ "engine": "kb/.work/fix_l4_repromote.py",
+ "note": "预演档：kb/l4/canonical/*.jsonl 与 kb/l4/registry/l4.json 都**未写入**；本件不是落章（不含 skill/skills 键）。",
+ "canonical_before": {
+  "wording_entry": {
+   "path": "kb/l4/canonical/wording_entry.jsonl",
+   "lines": 56,
+   "bytes": 450788,
+   "sha256": "a1b0cb254be2e2248d034909e137feb56827b37d0d4e9c9b3082b93ccb31de8a"
+  },
+  "wording_revision_pair": {
+   "path": "kb/l4/canonical/wording_revision_pair.jsonl",
+   "lines": 453,
+   "bytes": 1337706,
+   "sha256": "2624daf51ba41abbd1cc97123677a2c64488dd56b606b6eeda793227c3036d26"
+  },
+  "sample_case": {
+   "path": "kb/l4/canonical/sample_case.jsonl",
+   "lines": 358,
+   "bytes": 1481426,
+   "sha256": "5c38b2bc0e7beb647e11de8a504741d1147405f811c5a815e142ed815256a4e7"
+  },
+  "scoped_clause": {
+   "path": "kb/l4/canonical/scoped_clause.jsonl",
+   "lines": 375,
+   "bytes": 504160,
+   "sha256": "a745f72218016e7a5f096811b5605a6fd6437a21eac8102178075a9ebbae633e"
+  }
+ },
+ "canonical_planned": {
+  "wording_entry": {
+   "lines": 56,
+   "bytes": 473675,
+   "sha256": "7e58f5cebea1907c1ed4cb57ce5c063a9db5500fd5b65aeb522ac3e220b5f978",
+   "source_rows": 56,
+   "source_rows_actual": 1018
+  },
+  "wording_revision_pair": {
+   "lines": 453,
+   "bytes": 1216715,
+   "sha256": "7ff451905a208d995cd3b1644003d90c65eb811980aebe47864afd24eeaf77bb",
+   "source_rows": 453,
+   "source_rows_actual": 1018
+  },
+  "sample_case": {
+   "lines": 358,
+   "bytes": 1481426,
+   "sha256": "979eacef526be2a9f6b5e525c3be4503798a2e8ad4dbd28bd746c0957fbbff8e",
+   "source_rows": 716,
+   "source_rows_actual": null
+  },
+  "scoped_clause": {
+   "lines": 375,
+   "bytes": 504160,
+   "sha256": "abecf55424ca2698ea6de0d2e476a3190f97ec7f4730f5cb764283bb8a0dde5d",
+   "source_rows": 750,
+   "source_rows_actual": null
+  }
+ },
+ "C9_field_regression": {
+  "wording_entry": [
+   [
+    "authority_source_table（键消失）",
+    56
+   ],
+   [
+    "authority（键消失）",
+    56
+   ],
+   [
+    "distiller_version（键消失）",
+    56
+   ],
+   [
+    "effective_from（非空→空）",
+    56
+   ],
+   [
+    "half_life_days（键消失）",
+    56
+   ],
+   [
+    "owner（非空→空）",
+    56
+   ],
+   [
+    "p_level_basis（键消失）",
+    56
+   ],
+   [
+    "rule_kind（键消失）",
+    56
+   ],
+   [
+    "valid_until（键消失）",
+    56
+   ],
+   [
+    "rule_code（非空→空）",
+    21
+   ],
+   [
+    "risk_evidence_records（键消失）",
+    15
+   ]
+  ],
+  "wording_revision_pair": [
+   [
+    "authority_source_table（键消失）",
+    453
+   ],
+   [
+    "authority（键消失）",
+    453
+   ],
+   [
+    "distiller_version（键消失）",
+    453
+   ],
+   [
+    "effective_from（非空→空）",
+    453
+   ],
+   [
+    "half_life_days（键消失）",
+    453
+   ],
+   [
+    "owner（非空→空）",
+    453
+   ],
+   [
+    "p_level_basis（键消失）",
+    453
+   ],
+   [
+    "rule_kind（键消失）",
+    453
+   ],
+   [
+    "valid_until（键消失）",
+    453
+   ]
+  ]
+ },
+ "criteria": {
+  "C1_article_no_unique": false,
+  "C2_cite_triple_complete": true,
+  "C3_body_nonempty": true,
+  "C4_verbatim_with_candidates": true,
+  "C5_evidence_resolvable": true,
+  "C6_evidence_rule_eligible": true,
+  "C7_kb_version_v0": true,
+  "C8_idempotent": false,
+  "C9_no_field_regression": false
+ }
+}

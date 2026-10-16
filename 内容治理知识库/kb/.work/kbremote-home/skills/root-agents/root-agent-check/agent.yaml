@@ -1,0 +1,53 @@
+# root-agent-check 自己的契约。它是「创建-验证-优化」之外的第五环：自动成长。
+#
+# tools 为空是如实的：check 没有 tool-calling 循环，它读各目标的 evals/score.json、
+# 维护自己的成长记忆，不虚报工具。
+name: root-agent-check
+version: "0.1.0"
+stage: grow
+interface: cli
+run: python3 agent.py
+input: stdin-json
+profile: meta
+task_types:
+  - grow_agent
+deliverables:
+  - id: growth_rules
+    name: 成长规则与证据
+    format: json
+    fields:
+      - growth.json
+      - growth.md
+    acceptance: 每条规则都能回指到具体轮次的证据，不得把笔记当成成长
+tools: []
+env:
+  API_KEY: ${managed}
+  ROOT_AGENT_LLM_BASE_URL: ${managed}   # 选填：只用来在报告里标注本机有无模型端点
+scope:                    # 选填节（第 3 项）：管什么 / 不管什么
+  does:
+    - 汇总各目标的评测证据，把复现两次以上的缺陷固化成成长规则
+    - 维护跨轮记忆，逐轮累积 run 记录
+  not_for:
+    - 改被测包，check 只汇总不修包
+    - 凭单轮证据立规则，证据不足时结论是 insufficient_evidence
+limits:                   # 选填节（第 8 项）：终止预算
+  max_iterations: 1       # 一轮只汇总一次，不迭代
+state:                    # 选填节（第 10 项）：check 是本家族唯一有状态的成员
+  path: memory/growth.json
+  scope: 家族级
+  key: run_id
+  cleanup: 不自动清理，换 run_id 即开新一轮，旧轮证据保留
+  concurrency: 单进程追加写，并发调用由调用方串行化
+
+# 健康探针：check 收 {"targets":[...]}，question 探针会被正确拒绝。
+# 三点要求：
+#   1. memory_dir 指向 /tmp 下的探针目录 —— 探针绝不能写真实的成长记忆
+#      （否则每次体检都会往记忆里插一条假 run，污染成长曲线）；
+#   2. targets 为空数组是合法输入（结论 insufficient_evidence，退出码 0），
+#      这是最快且零副作用的验证路径；
+#   3. 绝对路径（check 以自身目录为 cwd 执行）。
+health:
+  input:
+    targets: []
+    run_id: health-probe
+    memory_dir: /tmp/root-agent-check-probe

@@ -1,0 +1,113 @@
+# L1 抽取（batch5）外部调用台账  run_id=20260924-1200
+# 性质：read=只读；local=本地计算（哈希/索引重建/OCR/文件移动）
+# 源侧只读：未改飞书任何内容、字段、状态、权限。**kb/l0/ 全程只读**（本批脚本对 l0 只有读路径）。
+# 探测口径：pending_fetch 补抓一律用 HTTP GET（无视图、不写源侧）。
+#
+时间              调用                                      性质      对象 / 说明
+20260924-1200   本地只读                                    read    kb/l0/manifest.jsonl + kb/l0/registry/kb.json —— 取 L0 台账最新行 1672，有效 1469，gone 202
+20260924-1200   本地只读                                    read    kb/l0/records/正面和负面样本/ —— 201 条新记录 verbatim 全 16 字段 → L1 抽取产物
+20260924-1200   本地 OCR（macOS Vision）                    read    148 个新附件图片 —— OCR 新做 148 / 复用 91 / 失败 1；media 目录 129 个记录级容器
+20260924-1200   HTTP GET                                read    https://fr.momcozy.com/products/m5-smart-wearable-breast-pump-upgraded-with-app- —— pending_fetch 补抓：ok HTTP 200 bytes=1698598 chars=25781
+20260924-1200   HTTP GET                                read    https://fr.momcozy.com/collections/electric-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1167631 chars=24593
+20260924-1200   HTTP GET                                read    https://momcozy.com/products/momcozy-wellness-1-warm-massage-wearable-breast-pum —— pending_fetch 补抓：ok HTTP 200 bytes=1689969 chars=23596
+20260924-1200   HTTP GET                                read    https://momcozy.com/products/m5-smart-wearable-breast-pump-upgraded-with-app-con —— pending_fetch 补抓：ok HTTP 200 bytes=2335012 chars=23992
+20260924-1200   HTTP GET                                read    https://momcozy.com/pages/brand-new-wellness-1-warm-massage-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1255334 chars=13057
+20260924-1200   HTTP GET                                read    https://de.momcozy.com/collections/electric-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1059156 chars=24341
+20260924-1200   HTTP GET                                read    https://uk.momcozy.com/collections/wearable-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=715687 chars=16289
+20260924-1200   HTTP GET                                read    https://fr.momcozy.com/products/momcozy-mobile-style-hands-free-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1541145 chars=27991
+20260924-1200   HTTP GET                                read    https://ca.momcozy.com/products/momcozy-mobile-flow-hands-free-breast-pump?varia —— pending_fetch 补抓：ok HTTP 200 bytes=2852014 chars=39348
+20260924-1200   HTTP GET                                read    https://momcozy.com/pages/brand-new-momcozy-air-1-ultra-slim-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1280415 chars=10994
+20260924-1200   HTTP GET                                read    https://ca.momcozy.com/collections/weekly-deals-ca —— pending_fetch 补抓：ok HTTP 200 bytes=782270 chars=7120
+20260924-1200   HTTP GET                                read    https://ca.momcozy.com/collections/electric-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1457449 chars=14115
+20260924-1200   HTTP GET                                read    https://de.momcozy.com/products/m5-smart-wearable-breast-pump-upgraded-with-app- —— pending_fetch 补抓：ok HTTP 200 bytes=1582729 chars=23957
+20260924-1200   HTTP GET                                read    https://uk.momcozy.com/products/momcozy-mobile-style-hands-free-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1484654 chars=25290
+20260924-1200   HTTP GET                                read    https://momcozy.com/collections/wearable-breast-pump/products/m5-smart-wearable- —— pending_fetch 补抓：ok HTTP 200 bytes=2339016 chars=24061
+20260924-1200   HTTP GET                                read    https://pl.momcozy.com/products/s12-pro-quick-wearable-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1741260 chars=28609
+20260924-1200   HTTP GET                                read    https://momcozy.com/blogs/breastfeeding/portable-breast-pump-reviews-comparison —— pending_fetch 补抓：ok HTTP 200 bytes=1073438 chars=31613
+20260924-1200   HTTP GET                                read    https://de.momcozy.com/products/momcozy-mobile-style-hands-free-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1463931 chars=28142
+20260924-1200   HTTP GET                                read    https://pl.momcozy.com/products/m5-smart-wearable-breast-pump-upgraded-with-app- —— pending_fetch 补抓：ok HTTP 200 bytes=1595037 chars=25262
+20260924-1200   HTTP GET                                read    https://uk.momcozy.com/products/momcozy-mobile-flow-hands-free-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=2852475 chars=39901
+20260924-1200   HTTP GET                                read    https://de.momcozy.com/pages/breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=599585 chars=6940
+20260924-1200   HTTP GET                                read    https://uk.momcozy.com/collections/electric-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=914659 chars=19126
+20260924-1200   HTTP GET                                read    https://uk.momcozy.com/products/m5-smart-wearable-breast-pump-upgraded-with-app- —— pending_fetch 补抓：ok HTTP 200 bytes=1604295 chars=20905
+20260924-1200   HTTP GET                                read    https://ca.momcozy.com/products/m5-smart-wearable-breast-pump-upgraded-with-app- —— pending_fetch 补抓：ok HTTP 200 bytes=1566521 chars=20091
+20260924-1200   HTTP GET                                read    https://au.momcozy.com/products/m5-smart-wearable-breast-pump-upgraded-with-app- —— pending_fetch 补抓：ok HTTP 200 bytes=1644018 chars=19887
+20260924-1200   HTTP GET                                read    https://momcozy.com/collections/electric-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1812274 chars=16703
+20260924-1200   HTTP GET                                read    https://ca.momcozy.com/blogs/breastfeeding/how-much-milk-to-pump —— pending_fetch 补抓：ok HTTP 200 bytes=754288 chars=18779
+20260924-1200   HTTP GET                                read    https://momcozy.com/products/momcozy-mobile-style-hands-free-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=2023290 chars=30260
+20260924-1200   HTTP GET                                read    https://ca.momcozy.com/collections/wearable-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=816063 chars=31115
+20260924-1200   HTTP GET                                read    https://eu.momcozy.com/products/m5-smart-wearable-breast-pump-upgraded-with-app- —— pending_fetch 补抓：ok HTTP 200 bytes=1564214 chars=20677
+20260924-1200   HTTP GET                                read    https://es.momcozy.com/products/momcozy-mobile-style-hands-free-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1449856 chars=28505
+20260924-1200   HTTP GET                                read    https://es.momcozy.com/products/m5-smart-wearable-breast-pump-upgraded-with-app- —— pending_fetch 补抓：ok HTTP 200 bytes=1564955 chars=24372
+20260924-1200   HTTP GET                                read    https://fr.momcozy.com/collections/featured-breast-pumps/products/momcozy-mobile —— pending_fetch 补抓：ok HTTP 200 bytes=2929927 chars=42814
+20260924-1200   HTTP GET                                read    https://ca.momcozy.com/products/momcozy-mobile-style-hands-free-breast-pump?vari —— pending_fetch 补抓：ok HTTP 200 bytes=1446028 chars=26001
+20260924-1200   HTTP GET                                read    https://de.momcozy.com/pages/breast-pump-winter-sale-in-europe —— pending_fetch 补抓：unreachable HTTP 404 bytes=0 chars=0
+20260924-1200   HTTP GET                                read    https://www.amazon.de/dp/B0G1MW5TB6/ —— pending_fetch 补抓：unreachable HTTP 200 bytes=3817 chars=174
+20260924-1200   HTTP GET                                read    https://de.momcozy.com/products/momcozy-air-1-ultra-slim-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1865993 chars=31948
+20260924-1200   HTTP GET                                read    https://ca.momcozy.com/products/momcozy-air-1-ultra-slim-breast-pump?variant=477 —— pending_fetch 补抓：ok HTTP 200 bytes=2008596 chars=28383
+20260924-1200   HTTP GET                                read    http://de.momcozy.com/products/momcozy-s12-pro-wearable-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1732198 chars=28430
+20260924-1200   HTTP GET                                read    https://eu.momcozy.com/products/momcozy-mobile-style-hands-free-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1453114 chars=25114
+20260924-1200   HTTP GET                                read    https://au.momcozy.com/products/momcozy-air-1-ultra-slim-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1918900 chars=28892
+20260924-1200   HTTP GET                                read    https://ca.momcozy.com/fr/collections/electric-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1458086 chars=14773
+20260924-1200   HTTP GET                                read    https://momcozy.com/blogs/breastfeeding/8-best-pumps-to-increase-milk-supply —— pending_fetch 补抓：ok HTTP 200 bytes=1051911 chars=24231
+20260924-1200   HTTP GET                                read    https://ca.momcozy.com/products/v1-pro-hospital-grade-wearable-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1546348 chars=19493
+20260924-1200   HTTP GET                                read    https://momcozy.com/products/momcozy-air-1-ultra-slim-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=2423813 chars=32628
+20260924-1200   HTTP GET                                read    https://eu.momcozy.com/products/momcozy-mobile-flow-hands-free-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=2817780 chars=39911
+20260924-1200   HTTP GET                                read    https://es.momcozy.com/collections/electric-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1216886 chars=31450
+20260924-1200   HTTP GET                                read    https://uk.momcozy.com/products/momcozy-air-1-ultra-slim-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=2018330 chars=26660
+20260924-1200   HTTP GET                                read    https://eu.momcozy.com/collections/electric-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1100461 chars=20754
+20260924-1200   HTTP GET                                read    https://ca.momcozy.com/fr/collections/wearable-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=824650 chars=39192
+20260924-1200   HTTP GET                                read    https://momcozy.com/products/v1-pro-hospital-grade-wearable-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=2006493 chars=25557
+20260924-1200   HTTP GET                                read    https://momcozy.com/blogs/breastfeeding/how-to-use-smart-wearable-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1080689 chars=30305
+20260924-1200   HTTP GET                                read    https://momcozy.com/blogs/breastfeeding/momcozy-breast-pump-comparison-guide —— pending_fetch 补抓：ok HTTP 200 bytes=1108818 chars=43287
+20260924-1200   HTTP GET                                read    https://uk.momcozy.com/products/momcozy-wellness-1-warm-massage-wearable-breast- —— pending_fetch 补抓：ok HTTP 200 bytes=1257528 chars=21395
+20260924-1200   HTTP GET                                read    https://de.momcozy.com/products/v1-pro-hospital-grade-wearable-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1532818 chars=22251
+20260924-1200   HTTP GET                                read    https://de.momcozy.com/products/momcozy-s12-pro-wearable-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1732198 chars=28430
+20260924-1200   HTTP GET                                read    https://de.momcozy.com/products/momcozy-mobile-flow-hands-free-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=2804106 chars=43982
+20260924-1200   HTTP GET                                read    https://momcozy.com/products/momcozy-mobile-flow-hands-free-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=3308518 chars=45080
+20260924-1200   HTTP GET                                read    https://es.momcozy.com/products/momcozy-wellness-1-warm-massage-wearable-breast- —— pending_fetch 补抓：ok HTTP 200 bytes=1136832 chars=18411
+20260924-1200   HTTP GET                                read    https://fr.momcozy.com/products/momcozy-wellness-1-warm-massage-wearable-breast- —— pending_fetch 补抓：ok HTTP 200 bytes=1321084 chars=24602
+20260924-1200   HTTP GET                                read    https://au.momcozy.com/pages/brand-new-wellness-1-warm-massage-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=990436 chars=10489
+20260924-1200   HTTP GET                                read    https://ca.momcozy.com/products/s12-pro-quick-wearable-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1694555 chars=23312
+20260924-1200   HTTP GET                                read    https://uk.momcozy.com/products/v1-pro-hospital-grade-wearable-breast-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1573678 chars=24000
+20260924-1200   HTTP GET                                read    https://momcozy.com/blogs/momcare/momcozy-m6-vs-m9-comparison —— pending_fetch 补抓：ok HTTP 200 bytes=1025513 chars=30314
+20260924-1200   HTTP GET                                read    https://momcozy.com/blogs/momcare/momcozy-m5-vs-m6-comparison —— pending_fetch 补抓：ok HTTP 200 bytes=1053884 chars=27098
+20260924-1200   HTTP GET                                read    https://momcozy.com/blogs/momcare/momcozy-m5-vs-m9-comparison —— pending_fetch 补抓：ok HTTP 200 bytes=1078977 chars=34196
+20260924-1200   HTTP GET                                read    https://momcozy.com/blogs/breastfeeding/m5-smart-vs-m6-breast-pump-comparison —— pending_fetch 补抓：ok HTTP 200 bytes=1031503 chars=21380
+20260924-1200   HTTP GET                                read    https://momcozy.com/blogs/breastfeeding/momcozy-air-1-vs-m9-pump-comparison —— pending_fetch 补抓：ok HTTP 200 bytes=1049223 chars=25727
+20260924-1200   HTTP GET                                read    https://momcozy.com/blogs/breastfeeding/best-wearable-pump-air-1-vs-m5 —— pending_fetch 补抓：ok HTTP 200 bytes=1017931 chars=24703
+20260924-1200   HTTP GET                                read    https://momcozy.com/blogs/breastfeeding/best-wearable-breast-pumps-for-busy-moms —— pending_fetch 补抓：ok HTTP 200 bytes=1045387 chars=29632
+20260924-1200   HTTP GET                                read    https://momcozy.com/blogs/breastfeeding/best-breast-pump-for-exclusive-pumping —— pending_fetch 补抓：ok HTTP 200 bytes=1065380 chars=29347
+20260924-1200   HTTP GET                                read    https://momcozy.com/blogs/breastfeeding/top-breast-pumps-for-large-breasts —— pending_fetch 补抓：ok HTTP 200 bytes=1052083 chars=34589
+20260924-1200   HTTP GET                                read    https://momcozy.com/blogs/breastfeeding/breast-pump-buying-guide-new-moms —— pending_fetch 补抓：ok HTTP 200 bytes=1077856 chars=36618
+20260924-1200   HTTP GET                                read    https://momcozy.com/blogs/breastfeeding/best-breast-pumps-for-twin-moms —— pending_fetch 补抓：ok HTTP 200 bytes=1057582 chars=26457
+20260924-1200   HTTP GET                                read    https://momcozy.com/blogs/breastfeeding/wearable-breast-pump-comparison —— pending_fetch 补抓：ok HTTP 200 bytes=1025170 chars=22758
+20260924-1200   HTTP GET                                read    https://momcozy.com/blogs/breastfeeding/m5-smart-vs-m9-wearable-pump-comparison —— pending_fetch 补抓：ok HTTP 200 bytes=1038636 chars=25517
+20260924-1200   HTTP GET                                read    https://momcozy.com/blogs/breastfeeding/slim-wearable-pump-vs-budget-app-pump —— pending_fetch 补抓：ok HTTP 200 bytes=1037784 chars=22394
+20260924-1200   HTTP GET                                read    https://momcozy.com/blogs/breastfeeding/wearable-pump-wellness-vs-smart —— pending_fetch 补抓：ok HTTP 200 bytes=1057115 chars=20951
+20260924-1200   HTTP GET                                read    https://momcozy.com/blogs/breastfeeding/heated-breast-pump-guide —— pending_fetch 补抓：ok HTTP 200 bytes=1052911 chars=21109
+20260924-1200   HTTP GET                                read    https://momcozy.com/blogs/breastfeeding/warm-massage-breast-pump-guide —— pending_fetch 补抓：ok HTTP 200 bytes=1056465 chars=21443
+20260924-1200   HTTP GET                                read    https://momcozy.com/blogs/breastfeeding/wearable-pump-warm-massage-vs-app —— pending_fetch 补抓：ok HTTP 200 bytes=1058274 chars=22284
+20260924-1200   HTTP GET                                read    http://W1卖点表达边界（品线反馈2026-09-10 —— pending_fetch 补抓：unreachable HTTP None bytes=0 chars=0
+20260924-1200   HTTP GET                                read    http://吸奶器广告文案审计_红绿灯.xlsx —— pending_fetch 补抓：unreachable HTTP None bytes=0 chars=0
+20260924-1200   HTTP GET                                read    http://W1利益点边界表(SWMYUF —— pending_fetch 补抓：unreachable HTTP None bytes=0 chars=0
+20260924-1200   HTTP GET                                read    https://www.cdc.gov/sleep/about/index.html —— pending_fetch 补抓：unreachable HTTP 403 bytes=0 chars=0
+20260924-1200   HTTP GET                                read    https://www2.hse.ie/babies-children/sleep/ —— pending_fetch 补抓：unreachable HTTP 403 bytes=0 chars=0
+20260924-1200   HTTP GET                                read    https://drugs.dxy.cn/pc/clinicalGuidelines/pa4rZGBoto4mM62FUA1GoqA —— pending_fetch 补抓：ok HTTP 200 bytes=128638 chars=740
+20260924-1200   HTTP GET                                read    https://www.iepp-eu.org/ —— pending_fetch 补抓：unreachable HTTP None bytes=0 chars=0
+20260924-1200   HTTP GET                                read    https://www.msdmanuals.com/professional/pediatrics/care-of-newborns-and-infants/ —— pending_fetch 补抓：unreachable HTTP 404 bytes=0 chars=0
+20260924-1200   lark-cli sheets +workbook-info          read    scope 探测 —— sheets:spreadsheet:read 是否可用
+20260924-1200   lark-cli slides +xml-get                read    scope 探测 —— slides:presentation:read 是否可用
+20260924-1200   lark-cli drive +download                read    scope 探测 —— drive:file:download 是否可用
+20260924-1200   HTTP GET（重试）                            read    https://www.fda.gov/medical-devices/consumer-products/breast-pumps —— unreachable 重试：unreachable HTTP 404 bytes=0 chars=0
+20260924-1200   HTTP GET（重试）                            read    https://www.fda.gov/consumers/consumer-updates/it-really-fda-approved —— unreachable 重试：unreachable HTTP None bytes=0 chars=0
+20260924-1200   HTTP GET（重试）                            read    https://www.fda.gov/regulatory-information/search-fda-guidance-documents/general —— unreachable 重试：unreachable HTTP 404 bytes=0 chars=0
+20260924-1200   HTTP GET（重试）                            read    https://docs.google.com/document/d/1Bi-xyN1CiFPVYrkOwYwr2ArGxEAh88nnL3T4Ln1ghgE/ —— unreachable 重试：ok HTTP 200 bytes=648372 chars=310
+20260924-1200   HTTP GET（批量）                            read    pending_fetch 92 条逐条补抓 —— 成功 83 / 失败 9
+20260924-1200   HTTP GET（重试）                            read    unreachable 4 条重试（最多 2 次）—— 恢复 1 / 仍失败 3
+20260924-1200   lark-cli sheets/slides/drive 探测         read    no_scope 47 条逐条复核 —— 全部仍缺 scope（{'still_missing': 47}），未重试
+20260924-1200   本地 OCR（macOS Vision）                    local   图片素材附件 OCR：新做 148 / 复用缓存 91 / 失败 0
+20260924-1200   本地只读快照复用                                local   url:https://support.momcozy.com/ 与 wiki:EL1nw9… 复用 run 20260924-1000 已抓取的正文快照，未重复调用源侧
+20260924-1200   本地切分/写盘                                 local   单行超长按句切分 34 段 → 831 子段；台账追加 970 行
+#
+# 写操作数：0。全部写入落在 kb/l1/ 内。

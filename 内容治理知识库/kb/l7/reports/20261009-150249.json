@@ -1,0 +1,126 @@
+{
+  "review_id": "20261009-150249",
+  "content_id": "text-00ee2410a97e",
+  "content_type": "text",
+  "content_version": "00ee2410a97e435a06cdaab6b83270b69a3eb3535e564d0194db908d7d1fc8da",
+  "content_hash": "00ee2410a97e435a06cdaab6b83270b69a3eb3535e564d0194db908d7d1fc8da",
+  "agent_version": "kb-content-review@1.3.0",
+  "rule_version": "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02",
+  "knowledge_version": "v0",
+  "version_binding": {
+    "review_id": "20261009-150249",
+    "content_id": "text-00ee2410a97e",
+    "content_hash": "00ee2410a97e435a06cdaab6b83270b69a3eb3535e564d0194db908d7d1fc8da",
+    "content_version": "00ee2410a97e435a06cdaab6b83270b69a3eb3535e564d0194db908d7d1fc8da",
+    "agent_version": "kb-content-review@1.3.0",
+    "rule_version": "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02",
+    "knowledge_version": "v0",
+    "sources": {
+      "content_hash": "送审文本 utf-8 的 sha256",
+      "agent_version": "kb/l7/skills/kb-content-review/SKILL.md → frontmatter.version",
+      "rule_version": "kb/l7/registry/l7.json → article_no_source.scheme_version ＋ kb/l3/registry/l3.json → distiller_version ＋ kb/l3/candidates/rules.jsonl 的 sha256[:16]",
+      "knowledge_version": "kb/l7/registry/l7.json → kb_version"
+    }
+  },
+  "decision": "REVIEW",
+  "decision_raw": "REVIEW",
+  "confidence": "未标定（本入口逐条给 高/中/低；全局数值置信度属裁决侧）",
+  "input_manifest": {
+    "text": "Our breast pump delivers hospital-grade suction.",
+    "sha256": "00ee2410a97e435a06cdaab6b83270b69a3eb3535e564d0194db908d7d1fc8da",
+    "modality": [
+      "text"
+    ]
+  },
+  "coverage": {
+    "text": "complete",
+    "image": "not_applicable",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "本批只送审 text 一种模态；其余模态不适用（不是缺口）。本块是报告契约要求的覆盖状态，不等于 OCR/ASR/关键帧流水线已执行 —— 后者见 trace。"
+  },
+  "risk_items": [
+    {
+      "risk_id": "r-85348bba00a2b5a7",
+      "risk_type": "背书与资质-医疗场景宣称",
+      "priority_tier": "P1",
+      "priority_tier_basis": "规则层",
+      "layer": "规则层",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "M05:hospital grade,hospital-grade / M07:le",
+      "reason": "逐字命中「hospital」：M03 未标注来源的效果数据声明；M05 等级背书用语（需核实是否有对应认证）；M07 效率/漏奶/奶流/移除量/短时排乳类claim需W1自身对照数据（当前仅内部测试或外部研究，28.2%/10%/70%待补样本与统计），或限定为放松叙事；未补证据前需限定或删除；U01 含泌乳顾问/认证头衔，需核实是否真实合作；U03 涉及医院/NICU 场景，需核实临床适用性声明（p_level=P2 risk_level=unknown authority=None，来源表 None）",
+      "suggestion": "",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.35",
+        "anchor": "#广告文案明细/recvuJYdObBgjg/命中片段",
+        "source_sha256": "1ca01a6690922a697e9d428439674863df67709688a6b32fe846705603f5e011",
+        "excerpt": "M05:hospital grade,hospital-grade / M07:le"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.35 条 @ #广告文案明细/recvuJYdObBgjg/命中片段 @ 1ca01a669092",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.35",
+      "merged_articles": [
+        "W-1.40"
+      ]
+    },
+    {
+      "risk_id": "r-21786ac5aff9be34",
+      "risk_type": "背书与资质-等级与资质背书",
+      "priority_tier": "P1",
+      "priority_tier_basis": "规则层",
+      "layer": "规则层",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "grade,hospital-grade / M07:leak / U01:ibclc / U03:",
+      "reason": "逐字命中「hospital-grade」：M03 未标注来源的效果数据声明；M05 等级背书用语（需核实是否有对应认证）；M07 效率/漏奶/奶流/移除量/短时排乳类claim需W1自身对照数据（当前仅内部测试或外部研究，28.2%/10%/70%待补样本与统计），或限定为放松叙事；未补证据前需限定或删除；U01 含泌乳顾问/认证头衔，需核实是否真实合作；U03 涉及医院/NICU 场景，需核实临床适用性声明（p_level=P2 risk_level=unknown authority=None，来源表 None）",
+      "suggestion": "",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.11",
+        "anchor": "#广告文案明细/recvuJYdObBgjg/命中片段",
+        "source_sha256": "1ca01a6690922a697e9d428439674863df67709688a6b32fe846705603f5e011",
+        "excerpt": "grade,hospital-grade / M07:leak / U01:ibclc / U03:"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.11 条 @ #广告文案明细/recvuJYdObBgjg/命中片段 @ 1ca01a669092",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.11"
+    }
+  ],
+  "issue_count": 2,
+  "report_url": null,
+  "next_action": "建议转复核责任人复核。",
+  "next_owners": [
+    "复核责任人"
+  ],
+  "sla": {},
+  "version_gate": {
+    "reviewed_hash": "00ee2410a97e435a06cdaab6b83270b69a3eb3535e564d0194db908d7d1fc8da",
+    "release_hash": null,
+    "note": "本入口不掌握发布版本；发布/送审版本比对属裁决侧（review_engine.py:115-119），此处不代替它下结论"
+  },
+  "decision_trace": {
+    "reasons": [
+      "findings_present_without_block"
+    ],
+    "confidence_status": "not_calibrated_by_this_entry",
+    "evaluated_at": "2026-10-09T15:02:51",
+    "decided_by": "kb-content-review/scripts/review.py（依据侧自身分支，:709-715）",
+    "note": "本报告不重算结论；三态由上表 decision_raw 原样带出"
+  },
+  "unmet_citation": []
+}

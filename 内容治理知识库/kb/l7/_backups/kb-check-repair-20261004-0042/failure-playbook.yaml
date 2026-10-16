@@ -1,0 +1,244 @@
+# failure-playbook.yaml —— 失败清单的**唯一真源**：谁、做什么、跑哪条命令、不许做什么
+#
+# 谁读它：
+#   * kb/l7/scripts/kb_pipeline.py   —— `--sync` 失败的那一刻，直接把对应条目打出来
+#   * kb/l7/scripts/daily_health.py  —— 日报的「要人做什么」每条都挂上这里的处置办法
+#
+# 为什么要有它（P3）：闸门只会说「红了」。值班的人需要的是下一句：
+#   **这归谁、现在跑哪条命令、以及哪条捷径不许走**。没有这一句，红闸门第二天就没人看了。
+#
+# 纪律（三条，别省）：
+#   1. 条目按 `id` 取，取不到就往上退到同前缀的 `*`（如 gate_red.L3 → gate_red.*）；
+#      连兜底都没有，就说「没有登记的处置办法」——**不许现编**。
+#   2. `forbidden` 是条目的一部分：写明「不许怎么绕过」。绕过的代价通常比红着更大。
+#   3. `reopen_when` 必须是**可执行的判据**（哪条闸门过、哪个数归零），不是「修好了」。
+
+meta:
+  file: kb/l7/registry/failure-playbook.yaml
+  created_at: "2026-09-30"
+  owner: 刘华丽
+  note: 本文件是人工维护的真源；改它不需要动代码（两个消费者都现读）。
+
+# ══════════════════════════════════════════════════════════════════════════
+# 分层调度（P3）：哪一档什么时候跑、谁能跑
+# ══════════════════════════════════════════════════════════════════════════
+schedules:
+  - id: read_only_daily
+    tier: 只读
+    when: 每日 08:30（launchd：com.kb.pipeline-daily）
+    runs: kb/kbpy l7/scripts/daily_health.py
+    writes: 只有 kb/l7/reports/（<YYYY-MM-DD>-daily-health.md + daily-health-latest.json）
+    who_can_run: 任何自动化；无人值守
+    notes: >
+      内含 kb_pipeline.py --check（12 道只读闸门 + 零写自证：跑前跑后对 4,000+ 个层产物取 mtime 快照）。
+      日志：~/Library/Logs/kb-pipeline-daily/{out,err}.log
+
+  - id: write_plan
+    tier: 预演（零风险）
+    when: 需要时，任何时间；建议每天看一次日报之后
+    runs: kb/kbpy l7/scripts/kb_pipeline.py --sync --only L2
+    writes: 无（引擎走干跑档；闸门只读）
+    who_can_run: 任何人 / 任何 agent
+    notes: >
+      它回答「现在开闸会写什么」。实测 2026-09-30：L2 报 units +0 / index +0 / manifest +0 行，
+      即内容已幂等收敛 —— 开闸只会多写一份 kb/l2/runs/<run>.json。
+
+  - id: write_apply
+    tier: 写档（要人批准）
+    when: 人看过 write_plan 的输出之后；当前口径为「两周只读观察期」
+    runs: kb/kbpy l7/scripts/kb_pipeline.py --sync --only L2 --apply --run <YYYYMMDD-HHMM>
+    writes: kb/l2/**（按层幂等键）
+    who_can_run: 人（agent 不得自行开闸）
+    preconditions:
+      - 无锁：kb/.work/.kb.lock 不存在（或人已处置掉陈旧锁）
+      - 本层闸门在 write_plan 里是「过」
+      - 写档白名单：SYNC_ALLOWED = [L2]；越界必须 --allow-beyond-policy 且由人拍板
+    notes: >
+      引擎落盘点按层：L2 = kb/l8/l2_split_run.py（append 到 units.jsonl / index/l2.jsonl /
+      manifest_l2.jsonl，另写一份 runs/<run>.json）。
+
+# ══════════════════════════════════════════════════════════════════════════
+# 失败 → 处置
+# ══════════════════════════════════════════════════════════════════════════
+entries:
+  # ── 闸门红（逐层）─────────────────────────────────────────────────────
+  - id: gate_red.L1
+    symptom: L1 闸门红 —— kb/l1/media/_cache 里有**不可复用**的 OCR 缓存条目
+    owner: 内容治理数据组（刘华丽）
+    do: 看 L1 闸门明细定位是哪几条（坏引擎版本 / sha256_state 非 full / 正文含 U+FFFF / 整图丢失），删掉那几条缓存后重跑 OCR
+    command: kb/kbpy l7/scripts/l1_gate.py ；确认后 kb/kbpy l8/ocr_attachments.py <RUN> --apply
+    forbidden: 不许直接改缓存 json 把 ocr_version 或正文补成能过闸门的样子——它防的就是「坏 OCR 灌进 L1」
+    reopen_when: kb/l7/scripts/l1_gate.py 退出 0
+
+  - id: gate_red.L2
+    symptom: L2 闸门红 —— 台账×单元×L1 三份对不上，或 run 内序列非法
+    owner: L2 层主
+    do: 先看是五条判据里的哪一条（行可解析 / run 内序列 / 账实上下界 / 产物归属 / 上游可溯），再决定是修台账还是重跑切分
+    command: kb/kbpy l7/scripts/l2_gate.py （明细）→ kb/kbpy l7/scripts/kb_pipeline.py --sync --only L2（预演看会写什么）
+    forbidden: 不许为了让闸门变绿去删 units.jsonl 里的行；台账是 append-only 的，删行等于毁掉出处
+    reopen_when: l2_gate.py 退出 0
+
+  - id: gate_red.L3
+    symptom: L3 闸门红 —— 规则证据回指不上 L2 单元，或有自报键没登记
+    owner: L3 层主
+    do: 按闸门输出区分两类：① 证据引用对不上（unit_id/source_sha256/anchor）→ 查蒸馏器；② 注册表自报键未登记 → 到 l3-known-drift.yaml 逐键写清口径与修法
+    command: kb/kbpy l7/scripts/l3_gate.py
+    forbidden: 不许把「复算不出来的自报数」直接删掉了事——要么复算相符，要么登记成不可复算并写修法
+    reopen_when: l3_gate.py 退出 0
+
+  - id: gate_red.L4
+    symptom: L4 闸门红 —— 定稿出现重号 / 正文空 / 证据回指不上 / 与候选件不一致 / canonical 聚合文件非空
+    owner: L4 层主
+    do: 按 C1–C6 定位；重号与「定稿被改写」两类**必须人工裁决**，不许机器自动改写定稿
+    command: kb/kbpy l7/scripts/l4_gate.py
+    forbidden: 不许改 l4/canonical/*.jsonl 里的条款号或正文来消红（定稿只加不改）
+    reopen_when: l4_gate.py 退出 0
+
+  - id: gate_red.L5
+    symptom: L5 闸门红 —— 实质 4 项里有一项 FAIL（pattern 回指 / 无凭空加词 / 版本纪律 / 离线）
+    owner: L5 层主
+    do: 跑闸门看是哪一项；基线类两项（frozen_layers / l3_append_only）红了要登记进 l5-known-drift.yaml，实质项红了要真修
+    command: kb/kbpy l7/scripts/l5_gate.py
+    forbidden: 不许把实质项也当成「判据过期」登记掉——登记只对基线类两项开口子
+    reopen_when: l5_gate.py 退出 0
+
+  - id: gate_red.L6
+    symptom: L6 闸门红 —— 计数不一致 / 向量回指失败 / 倒排编号同源断裂 / 版本纪律
+    owner: L6 层主
+    do: 只读档红了先查数据；④重跑幂等要写索引，必须人看着跑完整档（kb/.work/l6_integrity.py）
+    command: kb/kbpy l7/scripts/l6_gate.py ；需要完整档时人跑 kb/kbpy .work/l6_integrity.py <RUN>
+    forbidden: 不许在无人值守的日报里跑完整档（它会 --apply 重建索引）
+    reopen_when: l6_gate.py 退出 0
+
+  - id: gate_red.L7
+    symptom: L7 闸门红 —— 契约库名与 kb_types 对不上 / 六要素物化不全 / 条款号出处不可解析
+    owner: L7 层主
+    do: 改 kb/l7/registry/l7.json 的 citation_contract 与 kb_types 取齐；六要素缺哪一项补哪一项
+    command: kb/kbpy l7/scripts/l7_gate.py
+    forbidden: 不许自造库名（引用契约明写「不得自造库名」）
+    reopen_when: l7_gate.py 退出 0
+
+  - id: gate_red.workflow_check
+    symptom: >
+      kb/l8/workflow_check.py 收口核验红 —— 只有第 ②③ 段红（② 权威库 l0~l6 未被改动 / ③ 前序产物哈希）时，
+      是**冻结基线 vs 活库**这一类，属**判据过期**，不是数据坏了
+    owner: 维护 kb/l7/registry 的人（判定）＋ 数据面归各层层主
+    do: >
+      先看是不是只有 ②③ 红（其余 7 段是实质判据，红了要真修）；再读
+      kb/l7/registry/workflow-check-known-drift.yaml 的 stale_criteria 与 real_findings。
+      ②③ 属已登记判据漂移 ⇒ **无需修数据**；要它们转绿必须**改判据，单独走一轮**（该登记文件今天没有任何闸门读它）。
+      另注：③ 里 kb/l7/registry/l7.json 那一项是**真发现**（原地改写未落章，计数落后现库）——
+      开闸后跑 `kb/.work/l7_article_source_refresh.py <RUN> --apply` 并补 L7 run 记录。
+    command: kb/kbpy l8/workflow_check.py <RUN> ；kb/kbpy l7/scripts/skills_check.py
+    forbidden: >
+      不许为了让 ②③ 变绿去改写历史 run 记录（kb/l4|/l5|/l6|/l7/runs/20260923-*.json）里的 artifact sha —— 那是伪造台账；
+      不许把 L3 回滚到 1527 行时代的状态去让判据成立 —— 那是毁掉 2026-10-02 的蒸馏成果；
+      不许把 ②③ 的判据就地改宽而不同时报批（改判据要单独走一轮）。
+    reopen_when: "改判据后复跑 exit 0；或本轮只做登记 ⇒ 结论写「基线漂移，非缺陷」并附本文件与原始读数"
+
+  - id: gate_red.*
+    symptom: 某一层闸门红，且该层没有单独的处置条目
+    owner: 该层层主
+    do: 跑该层闸门看明细，按明细定位；**先别写档**
+    command: kb/kbpy l7/scripts/kb_pipeline.py --check
+    forbidden: 不许在有红闸门的情况下开 --apply（红线③：遇红即停）
+    reopen_when: kb_pipeline.py --check 报「硬问题：无」
+
+  - id: conformance.red
+    symptom: 四方对账红 —— skill 正文 / 注册表 depends_on_engine / layers.yaml 引擎表 / 磁盘脚本，四者不一致
+    owner: 该技能的作者（或 kb-manage 指派的成员 owner）
+    do: 跑闸门看是哪一类：① 引擎路径不存在 → 补路径或改注册表；② 注册了引擎但正文一个文件名都没提 → 把引擎点名写进 SKILL.md（agent 照正文走不到那些引擎）；③ 装机位/名字不一致 → 重装或改注册表
+    command: kb/kbpy l7/scripts/skill_conformance.py ；改完 kb/kbpy l7/scripts/skill_conformance.py --json 复核
+    forbidden: 不许为了让闸门变绿删掉注册表里的 depends_on_engine —— 那是把「说了不做」改成「不说不做」，更坏
+    reopen_when: skill_conformance.py 退出 0（红 0）
+
+  - id: gate_missing.*
+    symptom: 某层闸门回到「未执行 / 声明式」（执行脚本或白名单掉线了）
+    owner: 维护 kb/l7/registry/layers.yaml 的人
+    do: 查该层 gate 字段是否还指向 kb/l7/scripts/<层>_gate.py，以及 kb_pipeline.py 的 GATE_WHITELIST 是否还含它
+    command: kb/kbpy l7/scripts/kb_pipeline.py --check （看「闸门执行：只读白名单 N 个」，应为 12）
+    forbidden: 不许用「声明式判据」顶替可执行闸门——P1-3 就是为消灭这一档做的
+    reopen_when: 日报出现「过 8 / 未判 0」
+
+  # ── 写档过程中的失败 ───────────────────────────────────────────────────
+  - id: engine_failed.*
+    symptom: 某层写档引擎退出码非 0（产物可能写了一部分）
+    owner: 该层层主
+    do: 先跑该层**只读闸门**确认库现在是什么状态，再看引擎输出定位；必要时从 _archive 恢复
+    command: kb/kbpy l7/scripts/kb_pipeline.py --check ；kb/kbpy l7/scripts/kb_pipeline.py --sync --only <层>（预演）
+    forbidden: 不许「再跑一遍试试」——append-only 的台账会被写两遍（本库有先例：units.jsonl 被并发写到 12,144 行）
+    reopen_when: 该层闸门过，且预演报「产物变化 0 个」
+
+  - id: archive_failed.*
+    symptom: 红线①不通过 —— 写之前的台账归档失败（权限/磁盘/路径）
+    owner: 该层层主
+    do: 修归档目录的权限或磁盘空间，再重跑；归档对象是 kb/l3/rejected.jsonl（→ kb/l3/_archive/rejected-pre-<run>.jsonl）
+    command: kb/kbpy l7/scripts/kb_pipeline.py --sync --only L3 --check-archive
+    forbidden: 不许跳过归档继续写——该台账 2026-09-29 被重建过一次，历史只能从 _archive 捞回来
+    reopen_when: --check-archive 退出 0 且归档 sha256 与源一致
+
+  # ── 锁（红线②）────────────────────────────────────────────────────────
+  - id: lock.held_alive
+    symptom: kb/.work/.kb.lock 存在，且记录里的 pid **还活着**
+    owner: 发起那次写入的人
+    do: 等它跑完（或直接找那个人确认）；**不要**删锁
+    command: cat kb/.work/.kb.lock
+    forbidden: 不许 --break-lock（会把并发写变成数据竞争）
+    reopen_when: kb/.work/.kb.lock 消失
+
+  - id: lock.stale_declared
+    symptom: 锁文件还在，但记录里 status=finished* / released_at 有值，且 pid 已不在
+    owner: 发起写档的人（当前值班）
+    do: 确认没有别的写入者在跑之后，删掉锁文件（预演档会自动告警放行，写档档会被拒）
+    command: cat kb/.work/.kb.lock ；确认后 rm kb/.work/.kb.lock（或 --break-lock）
+    forbidden: 不许在没确认的情况下让 agent 自动撬锁
+    reopen_when: 锁文件不存在，且 --sync 报「已持锁」
+
+  - id: lock.held_dead
+    symptom: pid 已不在，但记录里**没有**宣布释放 —— 可能崩在中途
+    owner: 该层层主
+    do: 先判断有没有写坏（跑 --check + 该层只读闸门），确认干净之后再删锁
+    command: kb/kbpy l7/scripts/kb_pipeline.py --check
+    forbidden: 不许先删锁再看库——顺序反了就把「崩在中途」当成「跑完了」
+    reopen_when: --check 全过且该层闸门过
+
+  - id: policy.beyond_whitelist
+    symptom: 想写的层不在写档白名单里（当前只有 L2）
+    owner: 知识库负责人
+    do: 由人判断观察期是否结束；结束后改 kb_pipeline.py 的 SYNC_ALLOWED，或在单次命令上加 --allow-beyond-policy
+    command: kb/kbpy l7/scripts/kb_pipeline.py --sync --only <层>（预演，先看会写什么）
+    forbidden: 不许 agent 自己加 --allow-beyond-policy
+    reopen_when: 该层进入 SYNC_ALLOWED
+
+  # ── 新鲜度 / 并发 ──────────────────────────────────────────────────────
+  - id: backlog.L3
+    symptom: L3 落后（台账记的单元数 < 上游 kb/l2/units.jsonl 现有行数）
+    owner: L3 层主
+    do: 跑 L3 蒸馏器把新增单元纳入（**目前不在写档白名单内，要先由人拍板**）
+    command: 预演 kb/kbpy l8/l3_distill_run.py <RUN>（注意：该脚本**没有干跑档**，运行即落盘，故先备份 kb/l3/rejected.jsonl）
+    forbidden: 不许直接跑；不许跳过归档
+    reopen_when: 日报「落后」一行不再报 L3
+
+  - id: stale.*
+    symptom: 某层的 data 产物落后（mtime 超过 1 天，只看 data 不看注册表）
+    owner: 该层层主
+    do: 分两种：① 「该跑没跑」→ 按该层写档引擎跑一次；② 「上游没更新」→ 先去上游层找原因，别在本层空转
+    command: 先 kb/kbpy l7/scripts/kb_pipeline.py --check 看该层闸门与输入是否齐 → 再 kb/kbpy l7/scripts/kb_pipeline.py --sync --only <层>（预演）
+    forbidden: 不许只改文件时间戳让它「看着新鲜」（新不新鲜看内容）；不许跳过该层闸门直接写
+    reopen_when: 日报「落后 / 陈旧」不再报该层
+
+  - id: stale.L5
+    symptom: L5 的 p0_patterns.jsonl 落后（data 产物陈旧）
+    owner: L5 层主
+    do: 确认是「该跑没跑」还是「上游没更新」；该跑就走 kb/.work/l5_prep.py → l5_export.py
+    command: kb/kbpy l7/scripts/kb_pipeline.py --sync --only L5（预演）
+    forbidden: 不许只摸产物时间戳（新不新鲜看内容，不看 mtime 造假）
+    reopen_when: 日报不再报 L5 陈旧
+
+  - id: external_writer
+    symptom: 体检窗口内层产物发生变化（零写自证失败）——说明有别的写入者在跑
+    owner: 发起写档的人
+    do: 找出那个写入者（看 .work/.kb.lock、看各层 runs/ 的 run_id），等它结束再写
+    command: cat kb/.work/.kb.lock ；ls -t kb/l2/runs | head
+    forbidden: 不许在检测到外部写入者时开 --apply（本库有先例：units.jsonl 被并发写到 12,144 行）
+    reopen_when: 连续两次 --check 的零写自证都是 True

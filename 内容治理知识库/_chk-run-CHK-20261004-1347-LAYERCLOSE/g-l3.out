@@ -1,0 +1,13 @@
+$ sh kb/kbpy l7/scripts/l3_gate.py
+==========================================================================
+L3 闸门（独立复算：候选件证据 × rejected 台账 × l2/units.jsonl）
+  证据引用 3704 条 ｜ 候选记录 2730 条 / 产出资源 568 个
+  拒绝台账 10661 行 / 1033 个资源 ｜ 既产出又拒绝 367 个资源 ｜ L2 侧 1681 个资源
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+说明项：拒绝台账 kind 分布 {'no_clause_text': 30, 'clause_not_actionable': 1551, 'no_rule_derivable': 145, 'sample_only_no_verdict': 753, 'absorbed_as_reason': 132, 'unit_level': 8050}
+  归档旧台账 6803 行 / 822 个资源（现台账 10661 / 1033 → 重建导致的粒度变化，不是数据丢失）
+  已登记为不可复算的自报键 12 个：['accounting.explicitly_rejected', 'accounting.filtered_out', 'accounting.kept', 'accounting.l2_total', 'accounting.unaccounted', 'accounting.used_in_rules', 'reconcile_partition.both', 'reconcile_partition.check', 'reconcile_partition.input', 'reconcile_partition.neither', 'reconcile_partition.only_produced', 'reconcile_partition.only_rejected']
+==========================================================================
+结论：✅ 过（证据全可回指 + 自报键全已声明）
+退出码：0

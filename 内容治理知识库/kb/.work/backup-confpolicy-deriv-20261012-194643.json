@@ -1,0 +1,130 @@
+{
+  "policy_id": "confidence-policy-20261010",
+  "created_at": "2026-10-10",
+  "layer": "L7 跨层 · 置信度分流（PRD §6.6）",
+  "status": "active",
+  "owner": "法务 + 内容治理（角色位）",
+  "scope": "所有出三态结论的评审单（P0 命中与拒答态不适用）",
+  "prd_ref": {
+    "doc": "内容审查 Agent PRD v1.2",
+    "section": "§6.6 置信度与分流策略",
+    "quote": "| 置信度区间 | 处理策略 |\n|-|-|\n| ≥ 0.90 | 直接输出结论（PASS / BLOCK） |\n| 0.70 - 0.89 | 输出 REVIEW，标注\"建议人工确认\" |\n| < 0.70 | 输出 REVIEW，标注\"不确定，建议人工重点看\" |\n\nP0 层级规则不适用置信度分流，命中即 BLOCK。",
+    "acceptance_ref": "§15「准确率｜整体 ≥ 90%，BLOCK 精确率 ≥ 95%，PASS 误放率 ≤ 5%，P0 层漏报率 = 0」"
+  },
+  "thresholds": {
+    "direct": 0.9,
+    "confirm": 0.7
+  },
+  "thresholds_note": "★ 这两个数是 **PRD §6.6 的政策值**，不是从数据标定出来的。改这里 = 改政策；改代码是错的地方（派生实现只有一份：`kb/l7/review-engine/core/confidence_flow.py`）。",
+  "bands": {
+    "direct": {
+      "range": ">= 0.90",
+      "effect": "keep",
+      "annotate": null,
+      "why": "PRD §6.6：≥0.90 直接输出结论（PASS / BLOCK）"
+    },
+    "confirm": {
+      "range": "0.70 - 0.89",
+      "effect": "force_review",
+      "annotate": "建议人工确认",
+      "why": "PRD §6.6：0.70-0.89 输出 REVIEW，标注「建议人工确认」"
+    },
+    "focus": {
+      "range": "< 0.70",
+      "effect": "force_review",
+      "annotate": "不确定，建议人工重点看",
+      "why": "PRD §6.6：<0.70 输出 REVIEW，标注「不确定，建议人工重点看」"
+    }
+  },
+  "not_applicable": {
+    "p0": "PRD §6.6 明文「P0 层级规则不适用置信度分流，命中即 BLOCK」。实现里这一条是**安全闸**：若拿掉它，一个 P0 命中 + 低置信度会被压成 REVIEW ⇒ 红线降级，与 §15「P0 层漏报率 = 0」直接冲突。判据 `tests/test_tiering.py::test_p0_hit_is_never_downgraded_by_confidence`。",
+    "refusal": "拒答态（NEEDS_INPUT）不是判定结果，没有置信度可分流。",
+    "no_confidence": "引擎没给出置信度时不猜档位 —— 宁可不分流，也不塞一个看不出来的默认档。"
+  },
+  "engine_confidence_source": {
+    "current": "启发式，见 `kb/l7/review-engine/core/review_engine.py::decide()`",
+    "values": {
+      "confirmed_p0": 0.97,
+      "confirmed_block_with_evidence": 0.93,
+      "review_baseline": 0.78,
+      "review_minus_uncertain_p0": -0.05,
+      "review_minus_incomplete_evidence": -0.05,
+      "pass": 0.99
+    },
+    "status": "heuristic_not_calibrated",
+    "note": "`decision_trace.confidence_status` 与 `confidence_route.calibrated` 都是这一格的回指。"
+  },
+  "measured_20261010": {
+    "what_was_checked": "三档在现有启发式下**实际是否可达**",
+    "direct": "可达 —— PASS 单 0.99、BLOCK 单 0.97/0.93",
+    "confirm": "可达 —— 非 P0 的 REVIEW 单 0.78 / 0.73",
+    "focus": "★ **当前不可达** —— 非 P0 单的置信度最低只到 0.73，掉不到 0.70 以下。策略是对的（模块层判据覆盖），但**没有实单会落进这一档**。这是**标定问题**，不是策略问题。",
+    "guard": "`tests/test_tiering.py::test_engine_non_p0_confidence_never_reaches_focus_band` 把这件事**钉成判据**：哪天启发式改了、真有单掉进 <0.70，该用例变红，提醒回来看标定做没做。"
+  },
+  "honest_limits": [
+    "★ **阈值未标定**：0.90 / 0.70 是 PRD 政策值。把未标定的启发式数按三档切开，切得再准也只是**把猜测分了类**。★ **2026-10-12 更正**：**不必等外部金标集** —— 本库自有的带标注集合（回归集 100 条 `expected`）已可用于标定，实测见 `measured_20261012_selfcalib`。外部金标集（11/30 那 100 条）仍是**误报／漏报**那一项的前置，与**置信度标定**不是同一件事（前者要标准答案算指标，后者要的是**置信度本身有分布**）。",
+    "**`focus` 档当前无实单落进去**（见 measured_20261010）—— 不许把「策略里有这一档」说成「流程在用它」。",
+    "**分流会把 BLOCK 压成 REVIEW**（§6.6 的 0.70-0.89 与 <0.70 两档，PRD 原文都写「输出 REVIEW」）。这是 PRD 明文要求，不是实现偏差；P0 命中被排除在分流之外正是为了保住红线。原结论落在 `decision_trace.decision_before_confidence_flow`，可事后审计。"
+  ],
+  "validation": {
+    "derivation_module": "kb/l7/review-engine/core/confidence_flow.py（唯一派生实现；自证 `--selftest` 25/25）",
+    "wired_into": "kb/l7/review-engine/core/review_engine.py::decide() → `decision_trace.confidence_route`",
+    "tests": "kb/l7/review-engine/tests/test_tiering.py::ConfidenceFlowTests（5 条）+ 模块自证 25 条",
+    "mutation_proved": [
+      "拿掉 P0 override ⇒ ②a/②a2/②b/⑤c 精确变红",
+      "边界判成 `>` 而非 `>=` ⇒ ①a/①c/⑥b 精确变红",
+      "硬编码阈值（忽略政策覆盖）⇒ ⑥a/⑥b 精确变红"
+    ]
+  },
+  "revisit": {
+    "when": "金标集建好、或启发式扣分逻辑改动时",
+    "who": "法务 + 内容治理",
+    "how": "改本文件的 `thresholds`，重跑 `confidence_flow --selftest` 与引擎单测"
+  },
+  "measured_20261012_selfcalib": {
+    "what": "用**本库自有的带标注集合**（回归集 100 条，每条有人给的 `expected`）实测置信度分流的实际表现",
+    "judge": "python3 kb/l8/calibrate_confidence.py（自证 5 例，含两条反向对照）",
+    "sample": "100 单 ｜ 有置信度（进分流）**83** ｜ `expected=拒答` 而 `got=REVIEW` 的口径差异单列 **14** ｜ 其它无置信度 3",
+    "per_band": {
+      "0.99": {
+        "n": 6,
+        "ok": 4,
+        "acc": 0.67
+      },
+      "0.97": {
+        "n": 52,
+        "ok": 43,
+        "acc": 0.83
+      },
+      "0.78": {
+        "n": 25,
+        "ok": 20,
+        "acc": 0.8
+      }
+    },
+    "monotone": false,
+    "monotone_note": "★ **不同序**：0.99(67%) < 0.78(80%) < 0.97(83%) ⇒ 这个数**不携带信息** —— 切得再准也是把猜测分了类。",
+    "at_0.90": {
+      "n": 58,
+      "wrong": 11,
+      "误放率": 0.19,
+      "note": "按 PRD 政策线 ≥0.90「**直接出结论**」：58 条里有 **11 条判错**（误放 19%）。"
+    },
+    "at_0.70": {
+      "n": 0,
+      "note": "<0.70 档**仍无实单落进去**（与 measured_20261010 一致）。"
+    },
+    "root_cause": "★ 不是「阈值没标定」，是**分母的问题**：`engine_confidence_source.values` 显示置信度是**分支常量**（0.97/0.93/0.78/0.99，外加 −0.05 两处），只有 3~4 个取值 ⇒ **没有可标定的分布**。要让阈值有意义，得先把它变成**派生量**（特征如命中层级 / 依据条数 / 证据完整度 / **双轨是否一致**）。",
+    "dual_track_side": {
+      "source": "守衡侧 PMO/shouheng-state/merged-reports/*.md（29 份真实合并报告）",
+      "measured": {
+        "两侧都有命中（一致：有问题）": 20,
+        "只有模型侧命中（库无依据）": 9,
+        "只有库侧命中": 0,
+        "两侧都无命中（一致：放行）": 0
+      },
+      "counts": "库侧合计 34 条 ｜ 模型侧合计 154 条（两侧都命中的 20 单里：库 34 / 模型 95）",
+      "note": "★ **只有库侧命中 = 0 份**；★ 合并层 `dual_track.mjs` 里 `confidence` **0 命中** ⇒ 它不管置信度，两侧一致性目前**没有进任何读数**。这 29 单**没有人工标准答案** ⇒ 只能量行为，**量不了准确率**。"
+    }
+  }
+}

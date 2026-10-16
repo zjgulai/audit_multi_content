@@ -1,0 +1,32 @@
+#!/bin/bash
+# 日更 L6 批次（BASE=daily-20261010-1010）—— 闸门 → 引擎 --apply → 落章 → 记账
+# layers.yaml L6 engine 清单里 l6_bench.py 带「★ 驱动循环默认跳过」⇒ 日更不跑它（本行如实记录）。
+# l6_integrity.py 的 verdict=FAIL 是**真红、待裁**（vector_traceability P0 混入 321／回指异常 392），
+#   不是本次引入；它 exit 1 会如实记录，不阻断本层落章。
+cd "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理" || exit 2
+R="daily-20261010-1010-L6"
+SID="${DSH_SESSION_ID:-session-e6e81bae-5167-478c-8311-8ab3b22cf2d1}"
+gate() {
+  echo; echo "### $(date '+%H:%M:%S') GATE: $* ###"
+  "$@"; local rc=$?
+  echo "### rc=$rc ###"
+  if [ $rc -ne 0 ]; then echo "### ⛔ 闸门红 ⇒ 停（不跑本层引擎） ###"; exit 9; fi
+}
+step() {
+  echo; echo "### $(date '+%H:%M:%S') CMD: $* ###"
+  "$@"; local rc=$?
+  echo "### rc=$rc ###"
+  return 0
+}
+
+gate sh kb/kbpy l7/scripts/l6_gate.py
+step sh kb/kbpy .work/l6_scope.py --run "$R" --apply
+step sh kb/kbpy .work/l6_build.py "$R" --apply
+# l6_bench.py —— layers.yaml 明写「驱动循环默认跳过」（无预演档，运行即写 kb/l6/benchmark.json）⇒ 日更不跑
+echo; echo "### $(date '+%H:%M:%S') SKIP: kb/.work/l6_bench.py（layers.yaml：驱动循环默认跳过） ###"
+step sh kb/kbpy .work/l6_integrity.py "$R" --apply
+step sh kb/kbpy .work/l6_selftest.py --run="$R" --apply
+step sh kb/kbpy .work/l6_report.py "$R" --skill kb-recall --apply
+step sh kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L6 --run "$R" \
+  --invoked kb-recall --skill-session "L6=$SID"
+echo; echo "### $(date '+%H:%M:%S') L6 批次结束 ###"

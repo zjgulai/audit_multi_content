@@ -1,0 +1,23 @@
+# 子库登记表（派生视图，由 kb/.work/gen-host-library.py 生成，勿手工维护）
+# 字段口径与宿主库一致；status: derived 表示本库不是人工灌入，而是从分层新库派生。
+version: 1
+updated_at: '2026-10-04'
+
+library:
+  name: Momcozy知识库 · 内容治理（派生视图）
+  display_name: Momcozy知识库 · 内容治理（派生视图）
+  description: 内容治理知识库的分层新库（l0-l6）派生出的宿主库视图，供工作台只读镜像检索
+  owner: 刘华丽
+
+collections:
+  - id: 3_措辞表达库
+    name: 内容治理知识库 · 措辞表达库
+    display_name: 措辞表达库
+    called_by:
+      - 待定（内容审查 Agent 尚未立项编号）
+    owner: 刘华丽
+    status: derived
+    source: kb/l3/candidates/rules.jsonl + kb/l5/p0_patterns.jsonl（派生）
+    entry_count: 509
+    note: |
+      派生视图统一挂入库接受人；逐条领域 owner 待新库补 owner 字段后回填。本子库是派生视图，原库为分层 json 结构，见 _meta/DERIVED.md。

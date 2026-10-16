@@ -1,0 +1,16 @@
+### BEFORE (12:06 health table, CHK-20261004-1206) ###
+cmd : python3 tools/envelope_gate.py --reader consumer .
+exit: 1
+信封态：2
+  · _eval-L0L7-gap-20261003/kb-check-fix/SKILL.md      python=7744  node=11840  diff=-4096
+  · _eval-L0L7-gap-20261003/kb-l0-feishu-fix/SKILL.md python=17351 node=21447  diff=-4096
+两读者交叉核对：不一致 ⇒ 报红
+
+### BEFORE (re-observed live in this session at 12:12, exit 1 — quoted in full below) ###
+扫描到  : 2919 个文件
+--- 信封态（|差值| == 4096）--- 2 个
+    · .../_eval-L0L7-gap-20261003/kb-check-fix/SKILL.md ｜ python=7744 node=11840 差=-4096
+    · .../_eval-L0L7-gap-20261003/kb-l0-feishu-fix/SKILL.md ｜ python=17351 node=21447 差=-4096
+--- 两读者交叉核对（PATH 里的 node）--- **不一致 ⇒ 报红**
+正常：2917 ｜ 信封态：2 ｜ 读不到：0
+退出码：1

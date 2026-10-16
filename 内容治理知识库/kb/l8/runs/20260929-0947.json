@@ -1,0 +1,39 @@
+{
+ "run_id": "20260929-0947",
+ "layer": "L8 宿主库装载",
+ "scope": "修复计划 F1（归位与卫生清理）+ F2（拿真实体检基线）",
+ "probe": "kb/l8/loader_probe.mjs（直接 import 加载器本体，Electron 运行时）",
+ "root_probed": "kb/view",
+ "runtime": "v24.18.1",
+ "baseline": {
+  "errors_total": 508,
+  "warnings_total": 2791,
+  "code_hist": {"E026": 452, "E021": 56, "W036": 509, "W020": 2267, "W021": 10, "W019": 1, "W023": 1, "W025": 1, "W035": 1, "W037": 1},
+  "health_score": 100,
+  "health_dims": {
+   "新鲜度": {"value": 1.0, "ok": true},
+   "三件套完整率": {"value": 1.0, "ok": true},
+   "一致性": {"value": 1.0, "ok": true},
+   "孤岛率": {"value": 0.0, "ok": true},
+   "覆盖率": {"value": null, "scored": false, "reason": "未找到黄金问题集"},
+   "利用率": {"value": null, "scored": false, "reason": "尚无查询日志"}
+  },
+  "noData": ["幻觉率", "覆盖率", "利用率"],
+  "circuitBreaker": 60,
+  "collections": [{"id": "3_措辞表达库", "count": 509, "status": "derived"}],
+  "library": "Momcozy知识库 · 内容治理（派生视图）",
+  "files_total": 514, "entries": 509,
+  "entries_fm_ok": 509, "entries_id_ok": 509, "entries_kb_class_ok": 509, "entries_verbatim_ok": 509,
+  "acceptance": {"productionReady": false, "canonicalWrite": false, "maturity": "draft",
+   "conditions_unmet": ["owner_acceptance", "final_receipt", "fixed_eval_set"],
+   "blocked_codes": ["OWNER_ACCEPTANCE_INCOMPLETE", "FINAL_RECEIPT_MISSING", "DATASET_NOT_BUSINESS_AUTHORIZED"]},
+  "search_probe": [{"query": "医疗宣称", "matched": 0, "passed": false}, {"query": "量子纠缠配色调参", "matched": 0, "passed": true}]
+ },
+ "f1_changes": [
+  {"action": "backup+remove", "target": "~/.dsh/Momcozy知识库/3_措辞表达库/L2-concepts/probe-pii.md", "sha256_prefix": "244d889d12b6bd8a", "archive": "l8/_archive/fix-20260929-094703/loader-site-3_措辞表达库/probe-pii.md"},
+  {"action": "remove-empty-dir", "target": "~/.dsh/Momcozy知识库/3_措辞表达库/"},
+  {"action": "backup+move", "target": "kb/kb/l8/_stage/pre-third-round-1523", "files": 519, "to": "kb/l8/_archive/pre-third-round-1523", "archive": "l8/_archive/fix-20260929-094703/kb-shadow-pre-third-round-1523"}
+ ],
+ "f1_verification": {"kb_view_readings_unchanged": true, "kb_guide_still_fails": true, "restart_pending": true},
+ "archive_point": "kb/l8/_archive/fix-20260929-094703"
+}

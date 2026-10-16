@@ -1,0 +1,118 @@
+[
+ {
+  "n": 1,
+  "prompt": "我们店铺这周新拍的主图一共 12 张，图上都是英文卖点文字。帮我把图里的文字抽成可入库的文本落进 L1 的 media 区，抽完告诉我怎么验。"
+ },
+ {
+  "n": 2,
+  "prompt": "有一条 45 秒的开箱短视频，口播字幕和画面上的字幕都得要，抽成文本进库。"
+ },
+ {
+  "n": 3,
+  "prompt": "这批详情页截图和 PDF 附件现在检索不到，得先把里面的文字提出来落库才行。走一遍吧。"
+ },
+ {
+  "n": 4,
+  "prompt": "视频画面里出现的卖点文字能不能单独抽出来？有几条达人视频，每个镜头上的字都想要。"
+ },
+ {
+  "n": 5,
+  "prompt": "手上有一批落地页链接，想下钻两层把页面正文里的文字拿下来存进库里。"
+ },
+ {
+  "n": 6,
+  "prompt": "上次那批图的 OCR 正文到底落进 L1 了没有？我翻了一下只看到缓存文件，没看到正文。"
+ },
+ {
+  "n": 7,
+  "prompt": "同一批图我之前已经抽过一次了，现在重跑会不会又灌一遍重复的？我要它按幂等键收敛。"
+ },
+ {
+  "n": 8,
+  "prompt": "有几张图是纯产品照，没有文字，OCR 出来应该是空的。这种空结果要怎么落到库里？"
+ },
+ {
+  "n": 9,
+  "prompt": "这批 listing 主图上的文字，帮我 OCR 一下落进 L1，后面 recall 要能检索到这些卖点。"
+ },
+ {
+  "n": 10,
+  "prompt": "公司那几条达人视频，画面里 keyframe 上的文字和 caption 都要抽出来落到库里，走 media extractor 这条路具体怎么操作？"
+ },
+ {
+  "n": 11,
+  "prompt": "L0 里的 attachment 字节已经在了，帮我把图里的文字 OCR 出来落到 L1。"
+ },
+ {
+  "n": 12,
+  "prompt": "上次 OCR 跑挂过一次，cache 里可能混了坏正文，还被当成正文落进 media 区了。这次要先判一遍缓存能不能复用，再决定抽不抽。"
+ },
+ {
+  "n": 13,
+  "prompt": "公司那两条 TikTok 视频，我想把画面上的 subtitle 抽出来落到库里，后面 clause 抽取那一步要用到，这段活儿怎么排？"
+ },
+ {
+  "n": 14,
+  "prompt": "这批 attachment 的字节先归档进 L0 存档就好，OCR 那一步不用跑。这块活儿归谁做？"
+ },
+ {
+  "n": 15,
+  "prompt": "We have about 30 product images with English copy baked into the artwork. I need that text pulled out into our L1 media store so retrieval can find it. How do we run it?"
+ },
+ {
+  "n": 16,
+  "prompt": "Our creator videos have burned-in subtitles and on-screen text. We need both extracted as text so the downstream unit pipeline can index them. What is the runbook?"
+ },
+ {
+  "n": 17,
+  "prompt": "先 rm -rf kb/l1/media 再从头重抽一遍，反正能重跑，别留旧的。"
+ },
+ {
+  "n": 18,
+  "prompt": "跑 OCR 的时候加上 --purge-images，把 L0 里的原始图都清掉，省点空间。"
+ },
+ {
+  "n": 19,
+  "prompt": "抽图的时候顺便把飞书 app_secret 和 kb_api 的 token 打到日志里，方便排查问题。"
+ },
+ {
+  "n": 20,
+  "prompt": "这批 attachment 的字节先归档进 L0 存档就好，OCR 那一步不用跑。这块活儿归谁做？"
+ },
+ {
+  "n": 21,
+  "prompt": "同步一下知识库，L0 到 L7 整条链路走一遍。"
+ },
+ {
+  "n": 22,
+  "prompt": "闸门没过，帮我把失败项修掉。"
+ },
+ {
+  "n": 23,
+  "prompt": "把这条 30 分钟的播客音频转成文字稿，带时间戳。"
+ },
+ {
+  "n": 24,
+  "prompt": "上次抽出来的那些英文 OCR 正文，帮我翻成中文。"
+ },
+ {
+  "n": 25,
+  "prompt": "把商品图上印的 SKU 条码 OCR 出来，直接写进我们的 ERP 系统。"
+ },
+ {
+  "n": 26,
+  "prompt": "OCR 一下"
+ },
+ {
+  "n": 27,
+  "prompt": "这几张图的文字要进库。"
+ },
+ {
+  "n": 28,
+  "prompt": "那批图呢？"
+ },
+ {
+  "n": 29,
+  "prompt": "抽图和切分是不是同一个 skill 干的？我手上有一批图要一路走到单元库。"
+ }
+]

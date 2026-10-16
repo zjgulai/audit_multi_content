@@ -1,0 +1,687 @@
+[preflight 18:03:44] 认领成功：RT-20261005-YOGA-02
+[preflight 18:03:44] ② L4 闸门(自带)+引擎(预演)+记账 … invoked=kb-canonical-lookup session=session-398286f3-55f2-49c5-9368-2ad9a7ec0828
+[preflight 18:03:45] ② L4 记账完成 → kb/l7/runs/RT-20261005-YOGA-02-L4.json
+[preflight 18:03:45] ③ L4 审计 …
+[preflight 18:03:46] ③ L4 审计 exit=0（红 0）
+[preflight 18:03:46] ② L5 闸门(自带)+引擎(预演)+记账 … invoked=kb-p0-check session=session-398286f3-55f2-49c5-9368-2ad9a7ec0828
+[preflight 18:03:50] ② L5 记账完成 → kb/l7/runs/RT-20261005-YOGA-02-L5.json
+[preflight 18:03:50] ③ L5 审计 …
+[preflight 18:03:51] ③ L5 审计 exit=0（红 0）
+[preflight 18:03:51] ② L6 闸门(自带)+引擎(预演)+记账 … invoked=kb-recall session=session-398286f3-55f2-49c5-9368-2ad9a7ec0828
+[preflight 18:03:52] ② L6 记账完成 → kb/l7/runs/RT-20261005-YOGA-02-L6.json
+[preflight 18:03:52] ③ L6 审计 …
+[preflight 18:03:52] ③ L6 审计 exit=0（红 0）
+[preflight 18:03:52] ② L7 闸门(自带)+引擎(预演)+记账 … invoked=kb-check session=session-398286f3-55f2-49c5-9368-2ad9a7ec0828
+[preflight 18:03:52] ② L7 记账完成 → kb/l7/runs/RT-20261005-YOGA-02-L7.json
+[preflight 18:03:52] ③ L7 审计 …
+[preflight 18:03:52] ③ L7 审计 exit=0（红 0）
+[preflight 18:03:52] ✅ 四层前置全绿（L4–L7 各一 RUN，四道审计红 0）｜BASE=RT-20261005-YOGA-02
+[preflight 18:03:52]    下一步：出结论 —— with_kb_evidence.py --require-layer-preflight RT-20261005-YOGA-02 --decision-owner <判定主体>
+[preflight 18:03:53] 已释放认领 RT-20261005-YOGA-02
+===== ② 自命中检查（确定性；它只报事实，不判三态）=====
+自命中检查：未命中
+  素材归一化字符 7528 ｜ 扫过条款 181 条 ｜ 阈值 ratio≥0.9 且 run≥80
+===== ③ 引擎结论（唯一有权产出三态的地方）=====
+{
+ "decision": {
+  "review_id": "rv-20261005-180357",
+  "content_id": "AUTO-d38b1715ab15",
+  "content_version": "d38b1715ab1557c07fd966beef3df9f252f55ea79ea2492f0550b39904244a93",
+  "agent_version": "local-core-0.1.0",
+  "rule_version": "unfrozen",
+  "knowledge_version": "unfrozen",
+  "decision": "BLOCK",
+  "confidence": 0.97,
+  "summary": "【审查结论：BLOCK】共发现 9 处需处理问题。\n· 绝对化与安全承诺-虚假安全承诺：2 个\n· 功效宣称-疼痛功效承诺：1 个\n· 绝对化与安全承诺-绝对化性能表述：1 个\n· 背书与资质-医疗场景宣称：1 个\n· Absolute or ranking claim requires context and proof：4 个\n请修改后重新提交。",
+  "issue_count": 9,
+  "issue_summary_by_category": {
+   "绝对化与安全承诺-虚假安全承诺": 2,
+   "功效宣称-疼痛功效承诺": 1,
+   "绝对化与安全承诺-绝对化性能表述": 1,
+   "背书与资质-医疗场景宣称": 1,
+   "Absolute or ranking claim requires context and proof": 4
+  },
+  "risk_items": [
+   {
+    "risk_id": "r-7baf7ceb47b2e5bc",
+    "risk_type": "绝对化与安全承诺-虚假安全承诺",
+    "priority_tier": "P0",
+    "status": "confirmed",
+    "action": "block",
+    "location": "全文",
+    "original_text": "\\b(safest|perfect|zero[\\s-]?risk|risk[\\s-]?free)\\b",
+    "reason": "P0 确定性命中（BLOCK）：「\\b(safest|perfect|zero[\\s-]?risk|risk[\\s-]?free)\\b」命中规则码 H05。H05 虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按2026-09-09口径放开，海外广告允许，不再判险）【依据不可逐字回源：该说法为等价说法／正则命中，源侧无逐字原文；按 L5「P0 命中即 BLOCK」输出，出处为 P0 模式自身，需人工确认】",
+    "suggestion": "依据不可逐字回源，按硬闸门不给改法建议",
+    "rule_code": "H05",
+    "fact_or_inference": "事实",
+    "confidence": "中",
+    "evidence": {
+     "library": "措辞表达库",
+     "article_no": "W-1.33",
+     "anchor": "#广告文案明细/recvuJYdOb1B8v/命中片段",
+     "source_sha256": "e7aabf7478753887ea85470fa114b4d0b22d74d21cb901b3a02e7672dff4f4c5",
+     "excerpt": "\\b(safest|perfect|zero[\\s-]?risk|risk[\\s-]?free)\\b"
+    },
+    "source": "kb-content-review",
+    "evidence_id": "《措辞表达库 v0》第 W-1.33 条 @ #广告文案明细/recvuJYdOb1B8v/命中片段 @ e7aabf747875",
+    "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.33",
+    "severity": "low",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "r-5c056bc02cdd770c",
+    "risk_type": "功效宣称-疼痛功效承诺",
+    "priority_tier": "P1",
+    "status": "confirmed",
+    "action": "review",
+    "location": "全文",
+    "original_text": "乳房胀痛, 乳房疼痛",
+    "reason": "逐字命中「乳房胀痛」：（来源未给判定理由）（p_level=P1 risk_level=unknown authority=None，来源表 None）",
+    "suggestion": "",
+    "rule_code": "U04",
+    "fact_or_inference": "事实",
+    "confidence": "中",
+    "evidence": {
+     "library": "措辞表达库",
+     "article_no": "W-1.26",
+     "anchor": "#品线内容边界规则库/recvuMNZc45BSy/检测关键词",
+     "source_sha256": "8d94242a1fdbe4dbb16481ef4ad72aeda3d555a6e47a53d1e8cddc62c254f367",
+     "excerpt": "乳房胀痛, 乳房疼痛"
+    },
+    "source": "kb-content-review",
+    "evidence_id": "《措辞表达库 v0》第 W-1.26 条 @ #品线内容边界规则库/recvuMNZc45BSy/检测关键词 @ 8d94242a1fdb",
+    "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.26",
+    "severity": "low",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "r-252ba6cf5ee92b00",
+    "risk_type": "绝对化与安全承诺-绝对化性能表述",
+    "priority_tier": "P1",
+    "status": "confirmed",
+    "action": "review",
+    "location": "全文",
+    "original_text": "超级",
+    "reason": "逐字命中「超级」：（来源未给判定理由）（p_level=P1 risk_level=unknown authority=None，来源表 None）",
+    "suggestion": "",
+    "rule_code": "M02",
+    "fact_or_inference": "事实",
+    "confidence": "中",
+    "evidence": {
+     "library": "措辞表达库",
+     "article_no": "W-1.12",
+     "anchor": "#品线内容边界规则库/recvuJP1LVe2xP/检测关键词",
+     "source_sha256": "a240aa6a49af138054084674abb583e90b40090afc5fefc550aecb5b9537dc05",
+     "excerpt": "超级"
+    },
+    "source": "kb-content-review",
+    "evidence_id": "《措辞表达库 v0》第 W-1.12 条 @ #品线内容边界规则库/recvuJP1LVe2xP/检测关键词 @ a240aa6a49af",
+    "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.12",
+    "severity": "low",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "r-3b6c3c82dc667295",
+    "risk_type": "绝对化与安全承诺-虚假安全承诺",
+    "priority_tier": "P1",
+    "status": "confirmed",
+    "action": "review",
+    "location": "全文",
+    "original_text": "完美, fits all breast shapes, fits",
+    "reason": "逐字命中「完美」：（来源未给判定理由）（p_level=P1 risk_level=unknown authority=None，来源表 None）",
+    "suggestion": "",
+    "rule_code": "H05",
+    "fact_or_inference": "事实",
+    "confidence": "中",
+    "evidence": {
+     "library": "措辞表达库",
+     "article_no": "W-1.22",
+     "anchor": "#品线内容边界规则库/recvuJP1dDumuM/检测关键词",
+     "source_sha256": "1c61c44b09ff77d121546f5ec15f74eba03afda2b77c1c77eb70b1e7525337fb",
+     "excerpt": "完美, fits all breast shapes, fits"
+    },
+    "source": "kb-content-review",
+    "evidence_id": "《措辞表达库 v0》第 W-1.22 条 @ #品线内容边界规则库/recvuJP1dDumuM/检测关键词 @ 1c61c44b09ff",
+    "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.22",
+    "severity": "low",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "r-85348bba00a2b5a7",
+    "risk_type": "背书与资质-医疗场景宣称",
+    "priority_tier": "P1",
+    "status": "confirmed",
+    "action": "review",
+    "location": "全文",
+    "original_text": "M05:hospital grade,hospital-grade / M07:le",
+    "reason": "逐字命中「hospital」：M03 未标注来源的效果数据声明；M05 等级背书用语（需核实是否有对应认证）；M07 效率/漏奶/奶流/移除量/短时排乳类claim需W1自身对照数据（当前仅内部测试或外部研究，28.2%/10%/70%待补样本与统计），或限定为放松叙事；未补证据前需限定或删除；U01 含泌乳顾问/认证头衔，需核实是否真实合作；U03 涉及医院/NICU 场景，需核实临床适用性声明（p_level=P2 risk_level=unknown authority=None，来源表 None）",
+    "suggestion": "",
+    "rule_code": "U03",
+    "fact_or_inference": "事实",
+    "confidence": "中",
+    "evidence": {
+     "library": "措辞表达库",
+     "article_no": "W-1.35",
+     "anchor": "#广告文案明细/recvuJYdObBgjg/命中片段",
+     "source_sha256": "1ca01a6690922a697e9d428439674863df67709688a6b32fe846705603f5e011",
+     "excerpt": "M05:hospital grade,hospital-grade / M07:le"
+    },
+    "source": "kb-content-review",
+    "evidence_id": "《措辞表达库 v0》第 W-1.35 条 @ #广告文案明细/recvuJYdObBgjg/命中片段 @ 1ca01a669092",
+    "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.35",
+    "severity": "low",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "US-PLATFORM-ABSOLUTE-001:337",
+    "risk_type": "Absolute or ranking claim requires context and proof",
+    "priority_tier": "P1",
+    "severity": "high",
+    "status": "uncertain",
+    "context_status": "confirmed",
+    "action": "review",
+    "location": "text characters 337-340",
+    "original_text": "Best",
+    "reason": "命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认",
+    "suggestion": "检查证据、免责声明、渠道政策和产品事实后再决定",
+    "evidence_id": "TEXT:337:341",
+    "rule_id": "US-PLATFORM-ABSOLUTE-001",
+    "channel": "",
+    "authoritative": false,
+    "authority": "seed-rules(非规则真源)",
+    "superseded_by": "kb/l3/candidates/rules.jsonl",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "US-PLATFORM-ABSOLUTE-001:1583",
+    "risk_type": "Absolute or ranking claim requires context and proof",
+    "priority_tier": "P1",
+    "severity": "high",
+    "status": "uncertain",
+    "context_status": "confirmed",
+    "action": "review",
+    "location": "text characters 1583-1586",
+    "original_text": "best",
+    "reason": "命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认",
+    "suggestion": "检查证据、免责声明、渠道政策和产品事实后再决定",
+    "evidence_id": "TEXT:1583:1587",
+    "rule_id": "US-PLATFORM-ABSOLUTE-001",
+    "channel": "",
+    "authoritative": false,
+    "authority": "seed-rules(非规则真源)",
+    "superseded_by": "kb/l3/candidates/rules.jsonl",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "US-PLATFORM-ABSOLUTE-001:5142",
+    "risk_type": "Absolute or ranking claim requires context and proof",
+    "priority_tier": "P1",
+    "severity": "high",
+    "status": "uncertain",
+    "context_status": "confirmed",
+    "action": "review",
+    "location": "text characters 5142-5145",
+    "original_text": "best",
+    "reason": "命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认",
+    "suggestion": "检查证据、免责声明、渠道政策和产品事实后再决定",
+    "evidence_id": "TEXT:5142:5146",
+    "rule_id": "US-PLATFORM-ABSOLUTE-001",
+    "channel": "",
+    "authoritative": false,
+    "authority": "seed-rules(非规则真源)",
+    "superseded_by": "kb/l3/candidates/rules.jsonl",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "US-PLATFORM-ABSOLUTE-001:7135",
+    "risk_type": "Absolute or ranking claim requires context and proof",
+    "priority_tier": "P1",
+    "severity": "high",
+    "status": "uncertain",
+    "context_status": "confirmed",
+    "action": "review",
+    "location": "text characters 7135-7138",
+    "original_text": "best",
+    "reason": "命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认",
+    "suggestion": "检查证据、免责声明、渠道政策和产品事实后再决定",
+    "evidence_id": "TEXT:7135:7139",
+    "rule_id": "US-PLATFORM-ABSOLUTE-001",
+    "channel": "",
+    "authoritative": false,
+    "authority": "seed-rules(非规则真源)",
+    "superseded_by": "kb/l3/candidates/rules.jsonl",
+    "evidence_complete": true
+   }
+  ],
+  "report_url": null,
+  "next_action": "修改内容后以新版本重新提交",
+  "next_owners": [
+   "内容提交方"
+  ],
+  "sla": {
+   "priority": "P0",
+   "target": "immediate",
+   "escalate_to": [
+    "项目统筹",
+    "内容提交方"
+   ],
+   "timezone": "America/Los_Angeles",
+   "clock_rules": [
+    "Start the clock when the required input manifest is complete.",
+    "Pause the clock while waiting for missing submitter material.",
+    "Record timezone and business-calendar version with each SLA event.",
+    "SLA breach never changes the decision automatically."
+   ]
+  },
+  "version_gate": {},
+  "coverage": {
+   "text": "complete",
+   "image": "not_applicable",
+   "audio": "not_applicable",
+   "video": "not_applicable",
+   "ocr": "not_applicable",
+   "asr": "not_applicable",
+   "keyframes": "not_applicable",
+   "note": "声明模态：text；未拿到 provider 佐证的模态记 incomplete（缺口，不是不适用）"
+  },
+  "decision_trace": {
+   "reasons": [
+    "confirmed_p0"
+   ],
+   "confidence_status": "heuristic_not_calibrated",
+   "evaluated_at": "2026-10-05T10:03:57.124782+00:00"
+  },
+  "submit_question": "这个链接内容审核一下：https://my.feishu.cn/wiki/O0unwH2Cfi29ipk50u2cVdACnMc"
+ },
+ "evidence_meta": {
+  "run_id": "20261005-180355",
+  "findings": 5,
+  "state": "BLOCK",
+  "report_path": null,
+  "trace": {
+   "p0": {
+    "engine": "kb/l5/matcher.py",
+    "exit_code": 1,
+    "total_elapsed_ms": 51.9,
+    "engine_elapsed_ms": 14.165,
+    "hits": [
+     {
+      "pattern_id": "p-08487282e2d400fe",
+      "rule_id": "r-7baf7ceb47b2e5bc",
+      "rule_code": "H05",
+      "level": "P0",
+      "match_note": "BLOCK",
+      "matched": [
+       {
+        "kind": "regex",
+        "pattern": "\\b(safest|perfect|zero[\\s-]?risk|risk[\\s-]?free)\\b",
+        "line": 59,
+        "span": [
+         1723,
+         1730
+        ],
+        "line_text": "can you believe it? can you believe there’s a place where you can hang out with all your friends, bring your babes, and get an amazing workout? at fit4mom west seattle, our stroller classes offer a full-body workout for moms of all fitness levels all while engaging their little one(s) in a stroller "
+       }
+      ],
+      "matched_count": 1,
+      "lines": [
+       59
+      ],
+      "anchor": "#广告文案明细/recvuJYdOb1B8v/命中片段",
+      "source_sha256": "e7aabf7478753887ea85470fa114b4d0b22d74d21cb901b3a02e7672dff4f4c5",
+      "suggested_replacement": "「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开);「perfect pump」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+限定语,如 relaxation supports your natural let-down, which may help your flow(因为放松,自然奶阵可能更顺畅),只描述自然生理过程、不承诺产品带来结果;faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开) ▸ 奶流/移除量/排空效率/漏奶/短时排乳类claim需W1自身对照数据(样本、对照、统计口径齐全),或改为放松叙事+限定语(may help/natural);内部测试数值(28.2%/10%/70%)补齐前不得公开传播;「perfect pump」→ 删除/替换为:删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺;合规替代为放松叙事+限定语,如 relaxation supports your natural let-down, which may help your flow(因为放松,自然奶阵可能更顺畅),只描述自然生理过程、不承诺产品带来结果;faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开) ▸ 奶流/移除量/排空效率/漏奶/短时排乳类claim需W1自身对照数据(样本、对照、统计口径齐全),或改为放松叙事+限定语(may help/natural);内部测试数值(28.2%/10%/70%)补齐前不得公开传播;「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开);「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开) ▸ hospital/NICU 场景表述需事实依据,否则删除;「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开);「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开);「perfect pump」→ 删除/替换为:删除 safest/100% safe/zero risk/perfect 等虚假安全承诺,以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺(best/#1/No.1 排名最高级已放开) ▸ 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺(含 sans douleur/schmerzfrei/sin dolor),只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述(另 4 组同码修订建议见证据单元)",
+      "whitelist_suppressed": 0
+     }
+    ]
+   },
+   "rules": {
+    "engine": "kb/l3/candidates/rules.jsonl",
+    "kb_type_filter": null,
+    "rules_scanned": 509,
+    "hits": [
+     {
+      "rule_id": "r-85348bba00a2b5a7",
+      "article_no": "W-1.35",
+      "rule_code": "U03",
+      "p_level": "P2",
+      "risk_level": "unknown",
+      "authority": null,
+      "kb_type": "wording",
+      "authority_source_table": null,
+      "matched_fragments": [
+       "hospital"
+      ],
+      "anchor": "#广告文案明细/recvuJYdObBgjg/命中片段",
+      "source_sha256": "1ca01a6690922a697e9d428439674863df67709688a6b32fe846705603f5e011",
+      "rule_text": "规则码 U03：命中「hospital；krankenhaus」判定为违规；处理：「hospital」→ 删除/替换为：效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ hospital/medical grade 需认证依据，否则删除 ▸ 奶流/移除量/排空效率/漏奶/短时排乳类claim需W1自身对照数据（样本、对照、统计口径齐全），或改为放松叙事+限定语（may help/natural）；内部测试数值（28.2%/10%/70%）补齐前不得公开传播 ▸ 核验 IBCLC/专家身份、参与方式、程序设计依据与 COI 披露后再保留（含 expert-tuned/专家调校/专家程序） ▸ hospital/NICU 场景表述需事实依据，否则；依据：M03 未标注来源的效果数据声明；M05 等级背书用语（需核实是否有对应认证）；M07 效率/漏奶/奶流/移除量/短时排乳类claim需W1自身对照数据（当前仅内部测试或外部研究，28.2%/10%/70%待补样本与统计），或限定为放松叙事",
+      "suggested_replacement": "「hospital」→ 删除/替换为：效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ hospital/medical grade 需认证依据，否则删除 ▸ 奶流/移除量/排空效率/漏奶/短时排乳类claim需W1自身对照数据（样本、对照、统计口径齐全），或改为放松叙事+限定语（may help/natural）；内部测试数值（28.2%/10%/70%）补齐前不得公开传播 ▸ 核验 IBCLC/专家身份、参与方式、程序设计依据与 COI 披露后再保留（含 expert-tuned/专家调校/专家程序） ▸ hospital/NICU 场景表述需事实依据，否则删除；「hospital」→ 删除/替换为：hospital/NICU 场景表述需事实依据，否则删除 ▸ hospital/medical grade 需认证依据，否则删除；「hospital」→ 删除/替换为：删除 safest/100% safe/zero risk/perfect 等虚假安全承诺，以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺（best/#1/No.1 排名最高级已放开） ▸ hospital/NICU 场景表述需事实依据，否则删除；「hospital」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ hospital/NICU 场景表述需事实依据，否则删除 ▸ hospital/medical grade 需认证依据，否则删除 ▸ 吸力表述改客观参数（up to -300 mmHg、15 adjustable levels），删除 maximum/strongest；「hospital」→ 删除/替换为：静音表述改客观参数（as low as 48 dB），避免 whisper/silent/ultra-quiet 绝对化 ▸ hospital/medical grade 需认证依据，否则删除 ▸ hospital/NICU 场景表述需事实依据，否则删除；「hospital」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ hospital/NICU 场景表述需事实依据，否则删除 ▸ hospital/medical grade 需认证依据，否则删除；「krankenhaus」→ 删除/替换为：删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述 ▸ hospital/NICU 场景表述需事实依据，否则删除；「hospital」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ 静音表述改客观参数（as low as 48 dB），避免 whisper/silent/ultra-quiet 绝对化 ▸ hospital/NICU 场景表述需事实依据，否则删除 ▸ 吸力表述改客观参数（up to -300 mmHg、15 adjustable levels），删除 maximum/strongest ▸ hospital/medical grade 需认证依据，否则删除（另 9 组同码修订建议见证据单元）"
+     },
+     {
+      "rule_id": "r-252ba6cf5ee92b00",
+      "article_no": "W-1.12",
+      "rule_code": "M02",
+      "p_level": "P1",
+      "risk_level": "unknown",
+      "authority": null,
+      "kb_type": "wording",
+      "authority_source_table": null,
+      "matched_fragments": [
+       "超级"
+      ],
+      "anchor": "#品线内容边界规则库/recvuJP1LVe2xP/边界内容",
+      "source_sha256": "a240aa6a49af138054084674abb583e90b40090afc5fefc550aecb5b9537dc05",
+      "rule_text": "边界：吸力夸大用语（建议改为客观档位描述）；触发词：super strong, ultra powerful, max suction, strongest suction, 超强, 极致, 无敌, 超级；豁免：suction level, suction settings, adjustable suction",
+      "suggested_replacement": ""
+     },
+     {
+      "rule_id": "r-3b6c3c82dc667295",
+      "article_no": "W-1.22",
+      "rule_code": "H05",
+      "p_level": "P1",
+      "risk_level": "unknown",
+      "authority": null,
+      "kb_type": "wording",
+      "authority_source_table": null,
+      "matched_fragments": [
+       "完美"
+      ],
+      "anchor": "#品线内容边界规则库/recvuJP1dDumuM/边界内容",
+      "source_sha256": "1c61c44b09ff77d121546f5ec15f74eba03afda2b77c1c77eb70b1e7525337fb",
+      "rule_text": "边界：虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按2026-09-09口径放开，海外广告允许，不再判险）；触发词：safest, most safe, 100% safe, 100% painless, zero risk, guaranteed safe, perfect pump, 最安全, 唯一, 百分百安全, 零风险, 完美, fits all breast shapes, fits every breast, all breast shapes, every breast shape, one size fits all, fits all moms, universal fit, guaranteed no damage, no damage guaranteed, cannot damage, won't damage nipples, 适合所有乳房, 适合所有胸型, 各种胸型, 所有乳房形态, 适合所有妈妈, 一定不损伤, 绝不损伤, 零损伤, 不会损伤乳头, 万能适配",
+      "suggested_replacement": ""
+     },
+     {
+      "rule_id": "r-724b26ecb1dee9c4",
+      "article_no": "W-1.30",
+      "rule_code": "安全词",
+      "p_level": "P1",
+      "risk_level": "unknown",
+      "authority": null,
+      "kb_type": "wording",
+      "authority_source_table": null,
+      "matched_fragments": [
+       "hands-free"
+      ],
+      "anchor": "#品线内容边界规则库/recvuJP2Ot474u/边界内容",
+      "source_sha256": "5a740e9d29e4a9defa82e99066118cb7a118d1d55a21b0e109f6a0aa0257d000",
+      "rule_text": "边界：客观功能/真实认证关键词（正面提示，不参与降级）；触发词：suction level, suction levels, adjustable suction, 9 levels, 10 levels, hands-free, wearable, portable, rechargeable, wireless, BPA-free, food-grade silicone, food grade, FDA cleared, FDA-cleared, FDA registered, easy to clean, dishwasher safe, dishwasher-safe, quiet mode, low noise, low-decibel, reduces pain, less pain, gentle, comfort",
+      "suggested_replacement": ""
+     },
+     {
+      "rule_id": "r-9878294c87d29582",
+      "article_no": "W-1.40",
+      "rule_code": "U03",
+      "p_level": "P1",
+      "risk_level": "unknown",
+      "authority": null,
+      "kb_type": "wording",
+      "authority_source_table": null,
+      "matched_fragments": [
+       "hospital"
+      ],
+      "anchor": "#品线内容边界规则库/recvuJP2Ot5BZl/边界内容",
+      "source_sha256": "404eb88073072281dfa568468b5b1536d83294b047a42e1a6797c909c17b9ccb",
+      "rule_text": "边界：涉及医院/NICU 场景，需核实临床适用性声明；触发词：hospital, NICU, nicu grade, 医院, 新生儿",
+      "suggested_replacement": ""
+     },
+     {
+      "rule_id": "r-5c056bc02cdd770c",
+      "article_no": "W-1.26",
+      "rule_code": "U04",
+      "p_level": "P1",
+      "risk_level": "unknown",
+      "authority": null,
+      "kb_type": "wording",
+      "authority_source_table": null,
+      "matched_fragments": [
+       "乳房胀痛"
+      ],
+      "anchor": "#品线内容边界规则库/recvuMNZc45BSy/边界内容",
+      "source_sha256": "8d94242a1fdbe4dbb16481ef4ad72aeda3d555a6e47a53d1e8cddc62c254f367",
+      "rule_text": "边界：疼痛/堵奶场景化名词表述（sore/painful/clogged ducts）：需人工判定是痛点场景描述还是功效承诺；与 goodbye/no more/not anymore/relieve 等消除性表述连用应升级 H01/H07；触发词：sore nipples, sore breasts, sore breast, painful pumping, clogged ducts, plugged ducts, clogged milk duct, 乳头疼痛, 乳房胀痛, 乳房疼痛",
+      "suggested_replacement": ""
+     }
+    ]
+   },
+   "units": {
+    "engine": "kb/l6/retriever.py",
+    "l6_mode": "vector_plus_bm25",
+    "semantic_recall": true,
+    "bm25_max": 1080.664,
+    "cosine_max": 0.0,
+    "used_vector": false,
+    "no_semantic_annotation": null,
+    "top_bm25": [
+     {
+      "source": "bm25_zh",
+      "unit_id": "cc94534b045c96adec77",
+      "anchor": "#负面样本/recvw8Tx3zcjwb/具体原因/分析",
+      "table": "负面样本",
+      "kb_type": "internal_sample",
+      "source_sha256": "ce59e17d256799fe61a0531d90ce5a4b03f7260c8305d5999c7254956cfe8cb2",
+      "raw_bm25": 1080.664,
+      "excerpt": "具体原因/分析: 【原则性错误】图片 有时感觉吸奶后一切都必须井然有序。 【问题要点】 1. 有时感觉吸奶后一切都必须井然有序 2. 【初审-@张悦 】麻烦看看呀～ 3. 视觉效果：创作一个强有力的分屏构图，展现同一位女性的两种不同角色 4. 左侧：这位女性作为母亲，在温馨自然的居家环境中抱着宝宝 5. 营造柔和、亲密"
+     },
+     {
+      "source": "bm25_zh",
+      "unit_id": "9a09811fa73cbdbfda51",
+      "anchor": "#负面样本/recvweKJlZkABw/具体原因/分析",
+      "table": "负面样本",
+      "kb_type": "internal_sample",
+      "source_sha256": "89e67f93fe8f9d5a86a46656093ada94d1837b7bb31d7130fe143bb152d34505",
+      "raw_bm25": 1079.5671,
+      "excerpt": "具体原因/分析: 【原则性错误】图片 有时感觉吸奶后一切都必须井然有序。 【问题要点】 1. 有时感觉吸奶后一切都必须井然有序 2. 【终审-@吴礼芳 】麻烦看看呀～ 3. 视觉效果：创作一个强有力的分屏构图，展现同一位女性的两种不同角色 4. 左侧：这位女性作为母亲，在温馨自然的居家环境中抱着宝宝 5. 营造柔和、亲"
+     },
+     {
+      "source": "bm25_zh",
+      "unit_id": "74d6e0ebe8c9a61811e2",
+      "anchor": "#负面样本/recvwHbaKahjgE/原文反馈",
+      "table": "负面样本",
+      "kb_type": "internal_sample",
+      "source_sha256": "21d7c0398c82670b3f8dafaa9225739b0238e8cbf9222872ea9e54650ad57145",
+      "raw_bm25": 1079.5671,
+      "excerpt": "原文反馈: 【审核 · 2026-09-26 04:44 · 蓝涵】【终审-@吴礼芳 】麻烦看看呀～:INNOCENTSMILE: **项目名：欧洲社媒（德国）Schedule 9.29 More Mom with Wellness 1** **设计需求：**幻灯片 1 视觉效果：创作一个强有力的分屏构图，展现同一位女"
+     },
+     {
+      "source": "bm25_zh",
+      "unit_id": "2d5dbae9b1839a489baf",
+      "anchor": "#l.1-2",
+      "table": "l.1-2",
+      "kb_type": "external_standard",
+      "source_sha256": "6f4ec7fd794f4b3efc4f24c38716e5f0626617e871a21522e04254a42b634a25",
+      "raw_bm25": 1064.8085,
+      "excerpt": "有要求）；并且任何此类授权均可能接受 Meta 的审核。此外，广告主还必须遵守法律规定的披露要求。 如要详细了解授权流程，请访问我们的 Business 帮助中心 。 未经事先书面许可，广告不得推广加密货币交易平台、软件以及相关服务和产品，以实现加密货币的货币化、转售、交换或质押。如需申请该许可，请点击 此处 。如想了"
+     },
+     {
+      "source": "bm25_zh",
+      "unit_id": "5e4af377e178e24ac23c",
+      "anchor": "#负面样本/recvwHbaKa5gpj/原文反馈",
+      "table": "负面样本",
+      "kb_type": "internal_sample",
+      "source_sha256": "8e27ef89840adb6ca37fe1a0d67e0a81cc89d422c703934ceb2f7d99fb288dc0",
+      "raw_bm25": 1054.0797,
+      "excerpt": "原文反馈: 【项目方 · 2026-09-28 19:55】【终审-@吴礼芳】麻烦看看呀:YouAreTheBest: **项目名：9.22 Giveaway品牌日UGC海报** 设计需求：统一扁平品牌插画风格与固定色彩体系，贯穿复用相同视觉元素，建立系列连贯性：1.中间使用礼盒的照片，可以添加一点品牌日的元素和礼物的"
+     }
+    ],
+    "vector_rows": [],
+    "adopted": [
+     {
+      "source": "bm25_zh",
+      "unit_id": "cc94534b045c96adec77",
+      "anchor": "#负面样本/recvw8Tx3zcjwb/具体原因/分析",
+      "table": "负面样本",
+      "kb_type": "internal_sample",
+      "source_sha256": "ce59e17d256799fe61a0531d90ce5a4b03f7260c8305d5999c7254956cfe8cb2",
+      "raw_bm25": 1080.664,
+      "excerpt": "具体原因/分析: 【原则性错误】图片 有时感觉吸奶后一切都必须井然有序。 【问题要点】 1. 有时感觉吸奶后一切都必须井然有序 2. 【初审-@张悦 】麻烦看看呀～ 3. 视觉效果：创作一个强有力的分屏构图，展现同一位女性的两种不同角色 4. 左侧：这位女性作为母亲，在温馨自然的居家环境中抱着宝宝 5. 营造柔和、亲密",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_zh",
+      "unit_id": "9a09811fa73cbdbfda51",
+      "anchor": "#负面样本/recvweKJlZkABw/具体原因/分析",
+      "table": "负面样本",
+      "kb_type": "internal_sample",
+      "source_sha256": "89e67f93fe8f9d5a86a46656093ada94d1837b7bb31d7130fe143bb152d34505",
+      "raw_bm25": 1079.5671,
+      "excerpt": "具体原因/分析: 【原则性错误】图片 有时感觉吸奶后一切都必须井然有序。 【问题要点】 1. 有时感觉吸奶后一切都必须井然有序 2. 【终审-@吴礼芳 】麻烦看看呀～ 3. 视觉效果：创作一个强有力的分屏构图，展现同一位女性的两种不同角色 4. 左侧：这位女性作为母亲，在温馨自然的居家环境中抱着宝宝 5. 营造柔和、亲",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_zh",
+      "unit_id": "74d6e0ebe8c9a61811e2",
+      "anchor": "#负面样本/recvwHbaKahjgE/原文反馈",
+      "table": "负面样本",
+      "kb_type": "internal_sample",
+      "source_sha256": "21d7c0398c82670b3f8dafaa9225739b0238e8cbf9222872ea9e54650ad57145",
+      "raw_bm25": 1079.5671,
+      "excerpt": "原文反馈: 【审核 · 2026-09-26 04:44 · 蓝涵】【终审-@吴礼芳 】麻烦看看呀～:INNOCENTSMILE: **项目名：欧洲社媒（德国）Schedule 9.29 More Mom with Wellness 1** **设计需求：**幻灯片 1 视觉效果：创作一个强有力的分屏构图，展现同一位女",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_zh",
+      "unit_id": "2d5dbae9b1839a489baf",
+      "anchor": "#l.1-2",
+      "table": "l.1-2",
+      "kb_type": "external_standard",
+      "source_sha256": "6f4ec7fd794f4b3efc4f24c38716e5f0626617e871a21522e04254a42b634a25",
+      "raw_bm25": 1064.8085,
+      "excerpt": "有要求）；并且任何此类授权均可能接受 Meta 的审核。此外，广告主还必须遵守法律规定的披露要求。 如要详细了解授权流程，请访问我们的 Business 帮助中心 。 未经事先书面许可，广告不得推广加密货币交易平台、软件以及相关服务和产品，以实现加密货币的货币化、转售、交换或质押。如需申请该许可，请点击 此处 。如想了",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_zh",
+      "unit_id": "5e4af377e178e24ac23c",
+      "anchor": "#负面样本/recvwHbaKa5gpj/原文反馈",
+      "table": "负面样本",
+      "kb_type": "internal_sample",
+      "source_sha256": "8e27ef89840adb6ca37fe1a0d67e0a81cc89d422c703934ceb2f7d99fb288dc0",
+      "raw_bm25": 1054.0797,
+      "excerpt": "原文反馈: 【项目方 · 2026-09-28 19:55】【终审-@吴礼芳】麻烦看看呀:YouAreTheBest: **项目名：9.22 Giveaway品牌日UGC海报** 设计需求：统一扁平品牌插画风格与固定色彩体系，贯穿复用相同视觉元素，建立系列连贯性：1.中间使用礼盒的照片，可以添加一点品牌日的元素和礼物的",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     }
+    ],
+    "discarded": [],
+    "gate": {
+     "bm25_raw_min": 8.0,
+     "vector_cosine_min": 0.6,
+     "use_raw_scores_only": true,
+     "why_not_rrf": "RRF 分恒为 1/(60+k)，实测 Top1 恒在 0.016393，A 组与 B 组看起来一样高，没有区分度，不能当门限",
+     "why_single_threshold_not_enough": "实测 BM25 原始分在 A/B 两组有重叠（A 组最低 5.32 < B 组最高 10.02），所以门限只用于「够不够格当参考」，要成为「依据」还必须同时命中规则层",
+     "measured": {
+      "bm25_raw": {
+       "A_group_min": 5.32,
+       "A_group_median": 12.76,
+       "B_group_median": 6.44,
+       "B_group_max": 10.02,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      },
+      "cosine": {
+       "A_group_min": 0.512,
+       "A_group_median": 0.669,
+       "B_group_median": 0.384,
+       "B_group_max": 0.569,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      }
+     },
+     "threshold_reasoning": "BM25 门限取 8.0：落在 A 组最低(5.32)与 B 组最高(10.02)之间、贴近两组中位之间，偏保守；余弦门限取 0.60：实测它是唯一能把 B 组全部挡在外面的取值（B 组最高 0.569），代价是 A 组丢 2 条；即便如此门限仍单独不可靠，必须叠加「同时命中规则层」才算依据",
+     "below_threshold_label": "参考",
+     "above_threshold_without_rule_hit": "仍只能标参考，不得作为依据",
+     "coverage_bm25_min": 16.0,
+     "coverage_reasoning": "PASS 必须建立在「知识库认识这个主题」之上，覆盖信号二选一：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ coverage_bm25_min(=16.0)。16.0 = 依据门限的 2 倍：实测 A 组中位 12.76 / 最高 23.16，B 组最高 10.02，取 16 能把实测 B 组全部挡在外面。覆盖信号不成立 → 拒答，不得输出 PASS。"
+    }
+   },
+   "coverage": {
+    "safe_vocabulary_hits": [
+     "W-1.30"
+    ],
+    "rule_cited_unit_hits": [],
+    "rule_cited_anchor_pool": 959,
+    "coverage_bm25_min": 16.0,
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；两者都没有 → 拒答（无命中不等于合规）",
+    "covered": true
+   },
+   "elapsed_ms": 1323.4
+  },
+  "source": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py",
+  "findings_source": {
+   "mode": "live",
+   "path": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py"
+  },
+  "layer_preflight": {
+   "base": "RT-20261005-YOGA-02",
+   "ok": true,
+   "red_total": 0,
+   "mode": "enforced",
+   "details": {
+    "L4": {
+     "run": "RT-20261005-YOGA-02-L4",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L4": "session-398286f3-55f2-49c5-9368-2ad9a7ec0828"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L5": {
+     "run": "RT-20261005-YOGA-02-L5",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L5": "session-398286f3-55f2-49c5-9368-2ad9a7ec0828"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L6": {
+     "run": "RT-20261005-YOGA-02-L6",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L6": "session-398286f3-55f2-49c5-9368-2ad9a7ec0828"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L7": {
+     "run": "RT-20261005-YOGA-02-L7",
+     "exit": 0,
+     "red": 0,
+     "yellow": 0,
+     "skill_sessions": {
+      "L7": "session-398286f3-55f2-49c5-9368-2ad9a7ec0828"
+     },
+     "pass": true,
+     "note": ""
+    }
+   }
+  },
+  "decision_owner": {
+   "skill": "文案合规审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check"
+   ],
+   "warning": "判定主体 文案合规审查 **不在 --loaded-skill 申报里** ⇒ 声明与申报不一致；本条是 agent 自述档，**不得当强证据**"
+  },
+  "publish": {
+   "mode": "enabled",
+   "published": true,
+   "docx": "https://momcozy-in.feishu.cn/docx/PtHUdQuiMowt5FxgR4ncRlPBnNe",
+   "record_id": "recvxauckYO1Ut"
+  }
+ }
+}

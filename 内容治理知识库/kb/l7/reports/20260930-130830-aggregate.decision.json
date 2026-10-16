@@ -1,0 +1,140 @@
+{
+  "review_id": "rv-20260930-130830-aggregate",
+  "content_id": "text-20260930-130830",
+  "content_version": "全网最低价，宝宝用了绝对不哭闹",
+  "agent_version": "local-core-0.1.0",
+  "rule_version": "unfrozen",
+  "knowledge_version": "unfrozen",
+  "decision": "REVIEW",
+  "confidence": 0.68,
+  "summary": "【审查结论：REVIEW】共发现 4 处需处理问题。\n· 绝对化与安全承诺-无依据价格排名：1 个\n· 功效宣称-行为效果绝对承诺：1 个\n· 覆盖缺口-G1-价格类宣称无条款：1 个\n· 覆盖缺口-G2-婴儿行为结果承诺无条款：1 个\n→ 查看完整问题清单与修改建议：kb/l7/reports/20260930-130830.review.md\n建议转对应专业团队复核。",
+  "issue_count": 4,
+  "issue_summary_by_category": {
+    "绝对化与安全承诺-无依据价格排名": 1,
+    "功效宣称-行为效果绝对承诺": 1,
+    "覆盖缺口-G1-价格类宣称无条款": 1,
+    "覆盖缺口-G2-婴儿行为结果承诺无条款": 1
+  },
+  "risk_items": [
+    {
+      "risk_id": "D1",
+      "risk_type": "绝对化与安全承诺-无依据价格排名",
+      "priority_tier": "P0",
+      "severity": "high",
+      "status": "uncertain",
+      "action": "review",
+      "location": "第 1 句「全网最低价」",
+      "original_text": "全网最低价",
+      "reason": "排名级最高级价格宣称；W-1.22 触发词表内无价格词（字面 0 命中），其「排名最高级放开」例外是否延伸到价格类未界定；同时与 kb/.work/prd.md:497 一票否决第 3 项（绝对化用语含「最」）及第 4 项（无依据的销量/排名宣称）表面冲突",
+      "rule_code": "H05",
+      "evidence": {
+        "library": "措辞表达库 v0",
+        "article_no": "W-1.22",
+        "anchor": "#品线内容边界规则库/recvuJP1dDumuM/边界内容",
+        "source_sha256": "1c61c44b09ff77d121546f5ec15f74eba03afda2b77c1c77eb70b1e7525337fb",
+        "excerpt": "虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按2026-09-09口径放开，海外广告允许，不再判险）"
+      },
+      "fact_or_inference": "推断",
+      "confidence": "中",
+      "suggestion": "改为可核验价格事实，比价表述须附比价口径与留档",
+      "evidence_complete": false
+    },
+    {
+      "risk_id": "D2",
+      "risk_type": "功效宣称-行为效果绝对承诺",
+      "priority_tier": "P0",
+      "severity": "high",
+      "status": "uncertain",
+      "action": "review",
+      "location": "第 2 句「宝宝用了绝对不哭闹」",
+      "original_text": "宝宝用了绝对不哭闹",
+      "reason": "对婴儿行为结果的绝对承诺，不可验证；「不哭闹」不在 W-1.6 触发词表内，属同型绝对承诺条款的类比引用，非字面命中；全库对该表述覆盖数为 0",
+      "rule_code": "H07",
+      "evidence": {
+        "library": "措辞表达库 v0",
+        "article_no": "W-1.6",
+        "anchor": "#品线内容边界规则库/recvuJP1LV8KLr/边界内容",
+        "source_sha256": "49c1781fadff4539d4b79ac217916465065ff76085807af92b12786c36237eca",
+        "excerpt": "边界：疼痛功效承诺（pain-free/no pain/without pain/pain relief/less pain/缓解疼痛等；吸奶疼痛因人而异，只可讲 comfort/gentle 舒适与缓解胀满不适 discomfort）"
+      },
+      "fact_or_inference": "推断",
+      "confidence": "中",
+      "suggestion": "删除「绝对」，改为体验层表述，不得承诺婴儿行为结果",
+      "evidence_complete": false
+    },
+    {
+      "risk_id": "D3",
+      "risk_type": "覆盖缺口-G1-价格类宣称无条款",
+      "priority_tier": "P1",
+      "severity": "high",
+      "status": "confirmed",
+      "action": "review",
+      "location": "知识库覆盖（非文案位置）",
+      "reason": "l4/canonical 1242 条 + l3/candidates 509 条中，全网最低/最低价/最便宜/价格最低/低价/lowest price/cheapest/best price 命中 0；且 l7/runs 已记录 4 次同型触发词真实跑批 verdict 全为 PASS｜issue_count=0（假放行）",
+      "fact_or_inference": "事实",
+      "confidence": "高",
+      "evidence_gap": "知识库无对应条款（覆盖缺口），故不附条款号；需补条款后回填 L3/L4",
+      "suggestion": "按 W-1.22 / PRD §7.3 第 3、4 项补一条价格类条款，并把该触发词加入回归集",
+      "evidence_complete": false
+    },
+    {
+      "risk_id": "D4",
+      "risk_type": "覆盖缺口-G2-婴儿行为结果承诺无条款",
+      "priority_tier": "P1",
+      "severity": "high",
+      "status": "confirmed",
+      "action": "review",
+      "location": "知识库覆盖（非文案位置）",
+      "reason": "不哭闹/绝对不哭/不哭 命中 0；「哭闹」命中的 11 条均为育儿科普修订对，与广告承诺无关，不得当依据",
+      "fact_or_inference": "事实",
+      "confidence": "高",
+      "evidence_gap": "知识库无对应条款（覆盖缺口），故不附条款号；需人工+法务定口径后回填 L3",
+      "suggestion": "补一条婴儿行为结果承诺条款",
+      "evidence_complete": false
+    }
+  ],
+  "report_url": "kb/l7/reports/20260930-130830.review.md",
+  "next_action": "转法务、医学、专家或北美本地同事人工复核",
+  "next_owners": [
+    "医学顾问",
+    "法务",
+    "渠道负责人"
+  ],
+  "sla": {
+    "priority": "P0",
+    "target": "4 business hours",
+    "escalate_to": [
+      "项目统筹",
+      "法务负责人"
+    ],
+    "timezone": "America/Los_Angeles",
+    "clock_rules": [
+      "Start the clock when the required input manifest is complete.",
+      "Pause the clock while waiting for missing submitter material.",
+      "Record timezone and business-calendar version with each SLA event.",
+      "SLA breach never changes the decision automatically."
+    ]
+  },
+  "version_gate": {
+    "reviewed_hash": "全网最低价，宝宝用了绝对不哭闹",
+    "release_hash": "全网最低价，宝宝用了绝对不哭闹",
+    "note": "本次为同一文本，无版本差异；正式外发前须重核哈希"
+  },
+  "coverage": {
+    "text": "complete",
+    "image": "not_applicable",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "只送审文字；其余模态不适用"
+  },
+  "decision_trace": {
+    "reasons": [
+      "uncertain_or_review_item"
+    ],
+    "confidence_status": "heuristic_not_calibrated",
+    "evaluated_at": "2026-09-30T05:42:11.360720+00:00"
+  }
+}

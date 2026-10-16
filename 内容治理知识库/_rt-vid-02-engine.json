@@ -1,0 +1,109 @@
+{
+ "decision": {
+  "state": "NEEDS_INPUT",
+  "decision": "NEEDS_INPUT",
+  "confidence": null,
+  "review_id": "rv-20261005-131426",
+  "content_id": "AUTO-65882f22b54e",
+  "content_version": "65882f22b54e7f7ad6b385808abdcf84e762b2f6f73ea8ae36caa3da50ffde7f",
+  "issue_count": 0,
+  "summary": "【审查结论：NEEDS_INPUT】依据侧拒答（fail-closed）⇒ **不产出 PASS/BLOCK**。",
+  "risk_items": [],
+  "next_owners": [
+   "内容治理负责人"
+  ],
+  "fails_closed": true,
+  "refusal": {
+   "state": "NEEDS_INPUT",
+   "detail": "依据侧拒答（fail-closed）",
+   "fails_closed": true
+  },
+  "gate": null
+ },
+ "evidence_meta": {
+  "run_id": "20261005-131425",
+  "findings": 0,
+  "state": "NEEDS_INPUT",
+  "fails_closed": true,
+  "refusal": {
+   "state": "NEEDS_INPUT",
+   "detail": "依据侧拒答（fail-closed）",
+   "fails_closed": true
+  },
+  "report_path": null,
+  "source": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py",
+  "findings_source": {
+   "mode": "live",
+   "path": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py"
+  },
+  "layer_preflight": {
+   "base": "RT-20261005-VID-02",
+   "ok": true,
+   "red_total": 0,
+   "mode": "enforced",
+   "details": {
+    "L4": {
+     "run": "RT-20261005-VID-02-L4",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L4": "session-2ab5244d-218e-4f59-8f32-17de977f4c55"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L5": {
+     "run": "RT-20261005-VID-02-L5",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L5": "session-2ab5244d-218e-4f59-8f32-17de977f4c55"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L6": {
+     "run": "RT-20261005-VID-02-L6",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L6": "session-2ab5244d-218e-4f59-8f32-17de977f4c55"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L7": {
+     "run": "RT-20261005-VID-02-L7",
+     "exit": 0,
+     "red": 0,
+     "yellow": 0,
+     "skill_sessions": {
+      "L7": "session-2ab5244d-218e-4f59-8f32-17de977f4c55"
+     },
+     "pass": true,
+     "note": ""
+    }
+   }
+  },
+  "decision_owner": {
+   "skill": "视频安全审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "视频安全审查",
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check"
+   ]
+  },
+  "publish": {
+   "mode": "enabled",
+   "published": false,
+   "reason": "no_conclusion"
+  }
+ }
+}

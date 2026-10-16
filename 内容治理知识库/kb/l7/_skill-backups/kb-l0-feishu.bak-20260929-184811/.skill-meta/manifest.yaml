@@ -1,0 +1,134 @@
+skill:
+  name: kb-l0-feishu
+  version: "1.0.0"
+  structure_version: "1.0"
+  created_at: "2026-09-29"
+  updated_at: "2026-09-29"
+  description: "把 Momcozy 内容治理知识库的 L0（源层）与飞书侧源数据做每日同步与核对；覆盖 12 类资源（图片必须 OCR、视频提字幕+关键帧、链接下钻两层），飞书侧全程只读"
+
+directories:
+  scripts:
+    exists: true
+    count: 1
+    files:
+      - preflight.sh
+    description: "阶段 0 前置自检（凭据/身份/可达性/依赖/锁）"
+  references:
+    exists: true
+    count: 4
+    files:
+      - coverage-matrix.md
+      - auth-and-permissions.md
+      - scripts.md
+      - gotchas.md
+    description: "核对口径、权限判定、脚本用法、坑台账"
+  examples:
+    exists: true
+    count: 0
+    description: "使用示例"
+  tests:
+    exists: true
+    count: 1
+    files:
+      - red-case.md
+    description: "Iron Law RED 用例（待真跑回填）"
+  evals:
+    exists: true
+    count: 1
+    files:
+      - evals.json
+    description: "评测集：3 条真实用户 prompt + 可验证断言"
+
+dependencies:
+  tools:
+    - name: lark-cli
+      path: ~/.dsh/bin/lark-cli
+      required: true
+    - name: preflight.sh
+      path: scripts/preflight.sh
+      required: true
+    - name: python3
+      required: true
+      notes: "需 zstandard（读 dsh 会话）、yaml（跑 validate-skill.py）"
+  scripts_in_kb:
+    root: "<KB>/l8"
+    required: true
+    notes: "阶段 1–10 复用库内 29 个脚本，不在本 skill 内复制一份"
+  skills:
+    - name: root-skills-eval
+      relation: "六维度质量评估 + 触发评测（发布门禁）"
+      required: false
+    - name: root-skills-opt
+      relation: "未达标时的副本修复（只改 -fix/）"
+      required: false
+    - name: kb-content-review
+      relation: "邻近 skill，触发边界互斥（本 skill 不审内容）"
+      required: false
+
+compatibility:
+  claude:
+    status: "native"
+    tested: false
+  cursor:
+    status: "native"
+    tested: false
+  kimi:
+    status: "native"
+    tested: false
+  gpt:
+    status: "bridge"
+    tested: false
+    limitations:
+      - "脚本执行需适配"
+  minimax:
+    status: "bridge"
+    tested: false
+    limitations:
+      - "长表格需简化"
+  dsh:
+    status: "native"
+    tested: false
+    notes: "待阶段 1 只读核对真跑验证"
+  codex:
+    status: "native"
+    tested: false
+
+workflow:
+  input: user-request-to-sync-l0-with-feishu
+  output: l8-runs-json + 四段结论 + 覆盖率矩阵 + 缺口清单
+  modes:
+    - "--check：阶段 1、2、10，全只读，可无人值守"
+    - "--sync：加阶段 3–8，含写操作，需人放行"
+    - "--full：再加阶段 9，下游 L1→L2→L3 重跑"
+  steps:
+    - "阶段 0 前置自检（preflight.sh）"
+    - "阶段 1 记录层核对（只读）"
+    - "阶段 2 结构层核对"
+    - "阶段 3 认领与归档"
+    - "阶段 4 台账补齐"
+    - "阶段 5 非记录资源核验"
+    - "阶段 6 图片 OCR"
+    - "阶段 7 视频（字幕 + 关键帧）"
+    - "阶段 8 链接下钻两层 + 外链统一口径重抓"
+    - "阶段 9 下游重跑（不动 L0）"
+    - "阶段 10 收口核验 + 覆盖率闸门"
+
+framework:
+  family: root-skills
+  manager: root-skills-manage
+  created_by: root-skills-creator
+  peers:
+    - root-skills-eval（评估，active）
+    - root-skills-opt（优化，active）
+    - root-skills-doctor（诊断）
+    - root-skills-manage（家族管理）
+  status: "active"
+  mode: "explore"
+
+gates:
+  structure_validation: "passed（validate-skill.py，见下）"
+  iron_law_red: "pending — 用例已固化，真实运行未跑"
+  iron_law_green: "pending"
+  iron_law_refactor: "pending"
+  eval_track_c: "pending — 走 root-skills-eval"
+  pre_launch_checklist: "pending — 10 项未逐项审"

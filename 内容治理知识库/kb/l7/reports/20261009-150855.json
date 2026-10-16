@@ -1,0 +1,68 @@
+{
+  "review_id": "20261009-150855",
+  "content_id": "text-026a0e774614",
+  "content_type": "text",
+  "content_version": "026a0e774614e0da281fc43eae7d6ca99772f472d1ff6d2fcc67dd3c5def8379",
+  "content_hash": "026a0e774614e0da281fc43eae7d6ca99772f472d1ff6d2fcc67dd3c5def8379",
+  "agent_version": "kb-content-review@1.3.0",
+  "rule_version": "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02",
+  "knowledge_version": "v0",
+  "version_binding": {
+    "review_id": "20261009-150855",
+    "content_id": "text-026a0e774614",
+    "content_hash": "026a0e774614e0da281fc43eae7d6ca99772f472d1ff6d2fcc67dd3c5def8379",
+    "content_version": "026a0e774614e0da281fc43eae7d6ca99772f472d1ff6d2fcc67dd3c5def8379",
+    "agent_version": "kb-content-review@1.3.0",
+    "rule_version": "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02",
+    "knowledge_version": "v0",
+    "sources": {
+      "content_hash": "送审文本 utf-8 的 sha256",
+      "agent_version": "kb/l7/skills/kb-content-review/SKILL.md → frontmatter.version",
+      "rule_version": "kb/l7/registry/l7.json → article_no_source.scheme_version ＋ kb/l3/registry/l3.json → distiller_version ＋ kb/l3/candidates/rules.jsonl 的 sha256[:16]",
+      "knowledge_version": "kb/l7/registry/l7.json → kb_version"
+    }
+  },
+  "decision": "PASS",
+  "decision_raw": "PASS",
+  "confidence": "未标定（本入口逐条给 高/中/低；全局数值置信度属裁决侧）",
+  "input_manifest": {
+    "text": "The Momcozy M6 breast pump offers 9 adjustable suction levels and a rechargeable battery lasting up to 3 hours per charge.",
+    "sha256": "026a0e774614e0da281fc43eae7d6ca99772f472d1ff6d2fcc67dd3c5def8379",
+    "modality": [
+      "text"
+    ]
+  },
+  "coverage": {
+    "text": "complete",
+    "image": "not_applicable",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "本批只送审 text 一种模态；其余模态不适用（不是缺口）。本块是报告契约要求的覆盖状态，不等于 OCR/ASR/关键帧流水线已执行 —— 后者见 trace。"
+  },
+  "risk_items": [],
+  "issue_count": 0,
+  "report_url": null,
+  "next_action": "转 sign-off 责任人确认送审版本与发布版本一致",
+  "next_owners": [
+    "sign-off 责任人"
+  ],
+  "sla": {},
+  "version_gate": {
+    "reviewed_hash": "026a0e774614e0da281fc43eae7d6ca99772f472d1ff6d2fcc67dd3c5def8379",
+    "release_hash": null,
+    "note": "本入口不掌握发布版本；发布/送审版本比对属裁决侧（review_engine.py:115-119），此处不代替它下结论"
+  },
+  "decision_trace": {
+    "reasons": [
+      "no_findings_and_kb_covers_topic"
+    ],
+    "confidence_status": "not_calibrated_by_this_entry",
+    "evaluated_at": "2026-10-09T15:09:01",
+    "decided_by": "kb-content-review/scripts/review.py（依据侧自身分支，:709-715）",
+    "note": "本报告不重算结论；三态由上表 decision_raw 原样带出"
+  },
+  "unmet_citation": []
+}

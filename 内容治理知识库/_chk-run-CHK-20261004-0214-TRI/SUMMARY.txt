@@ -1,0 +1,19 @@
+kb-check 体检档 · RUN=CHK-20261004-0214-TRI
+cwd=/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理
+start=2026-10-04 02:13:50  end=2026-10-04 02:16:04
+
+== 退出码 ==
+01-skills      0
+02-layers      0
+03-workflow    1
+
+== workflow_check 失败腿 ==
+verdict: FAIL
+ - ② 权威库 l0~l6 未被改动
+ - ③ 前序产物哈希（45 项）
+ - ⑥ 文档可见性（agent 能否读到）
+
+== ⑥ 判据（脚本第188行：只以 buckets['其他'] 为空判过）==
+enveloped=511  buckets={'其他':1,'他人产物 hostlib':510}  => 仅 1 个文件致红
+
+== 并发证据：另一会话在 02:14:12 落 CHK-20261004-0217-SELF.json，失败腿完全相同 ==

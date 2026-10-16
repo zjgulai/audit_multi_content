@@ -1,0 +1,58 @@
+# L7 消费侧（使用知识库的 skill + 验收）· 操作日志 run_id=20260923-1500
+# 生成时间 2026-09-23 14:44:50｜写入范围：只写 kb/l7/；kb/l0~l6 全程只读（含 kb/l3）；未发布任何版本
+
+[01] 读 L4 条款号（只读）
+     $ python3 - (扫 kb/l3/candidates/rules.jsonl)
+     → 509 条全有 article_no，缺失 0；区间 W-1 1~56 / W-2 1~453
+
+[02] 读 root-skills-creator 规范
+     $ cat ~/.agents/skills/root-skills-creator/SKILL.md
+     → 取 Universal Skill Schema（frontmatter/命名/复杂度/渐进式披露）+ CSO（description 写触发条件）+ 输出契约
+
+[03] 建 registry（门限/语义/词表/责任人/分流）
+     $ 写 kb/l7/registry/l7.json
+     → 门限 BM25 8.0 / 余弦 0.60 / 覆盖 16.0；词表 8 类别 20 子类 + 19 条关键词兜底；no_hit_semantics 原文照搬 L6
+
+[04] 写参考实现 scripts/review.py（四层下探 + 引用契约）
+     $ python3 kb/l7/skills/kb-content-review/scripts/review.py --text ...
+     → P0 → 规则层 → 单元层 → 原文层；引用不到锚点的结论不输出
+
+[05] 发现：离题内容被判 PASS（覆盖信号缺失）
+     $ 对比冒烟 3 前后
+     → 新增覆盖门限 16.0 + 安全词判据；离题文本改判拒答
+
+[06] 发现：4 条结论引用不到锚点（用了规则首个证据单元）
+     $ 逐个证据单元重解析
+     → 改为在所有证据单元里找含摘录的那个 → 未满足引用契约归零
+
+[07] 发现：拒答文案里有假陈述（11.07 < 8.0）
+     $ 读自验 B 输出
+     → 改为逐层说明（P0/规则层/单元层 + 覆盖信号），算术与事实一致
+
+[08] 写 skill（SKILL.md + references + README + 可执行脚本）
+     $ python3 ~/.agents/skills/root-skills-creator/scripts/validate-skill.py kb/l7/skills/kb-content-review
+     → ✅ Validation passed，Quality Score 98/100（仅剩 .skill-meta 建议项）
+
+[09] 自验 A（真实 P0 命中文案 + 4 判据）
+     $ python3 kb/.work/l7_selftests.py
+     → 条款号 W-1.18｜库名 措辞表达库｜摘录回原文逐字一致｜P0 max 19.5 ms < 1s
+
+[10] 自验 B（拒答）
+     $ 同上
+     → 退出码 3；按 no_hit_semantics 原文；含检索轨迹
+
+[11] 自验 D（规避型 5 条 × 4 模式）
+     $ python3 kb/.work/l7_probe_d.py → 判断 → 生成
+     → hit@3 四模式均 4/5；p@3 bm25 0.533 ≥ vector 0.467 → 维持 BM25 为主
+
+[12] 自验 E（触发 3 正 3 反 + 2 边界）
+     $ 同上
+     → 8/8 一致；description 未改
+
+[13] 自检 7 项 + 2 项附加
+     $ python3 kb/.work/l7_integrity.py
+     → 全部 PASS（冻结层 26 个留痕产物哈希一致；无裸 URL；四类库名；拒答合规；轨迹完整；三态模板；版本纪律）
+
+[14] 生成留痕
+     $ python3 kb/.work/l7_report.py
+     → runs/20260923-1500.json / .report.md / .ops.log

@@ -1,0 +1,226 @@
+{
+ "policy_id": "confidence-policy-20261010",
+ "created_at": "2026-10-10",
+ "layer": "L7 跨层 · 置信度分流（PRD §6.6）",
+ "status": "active",
+ "owner": "法务 + 内容治理（角色位）",
+ "scope": "所有出三态结论的评审单（P0 命中与拒答态不适用）",
+ "prd_ref": {
+  "doc": "内容审查 Agent PRD v1.2",
+  "section": "§6.6 置信度与分流策略",
+  "quote": "| 置信度区间 | 处理策略 |\n|-|-|\n| ≥ 0.90 | 直接输出结论（PASS / BLOCK） |\n| 0.70 - 0.89 | 输出 REVIEW，标注\"建议人工确认\" |\n| < 0.70 | 输出 REVIEW，标注\"不确定，建议人工重点看\" |\n\nP0 层级规则不适用置信度分流，命中即 BLOCK。",
+  "acceptance_ref": "§15「准确率｜整体 ≥ 90%，BLOCK 精确率 ≥ 95%，PASS 误放率 ≤ 5%，P0 层漏报率 = 0」"
+ },
+ "thresholds": {
+  "direct": 0.9,
+  "confirm": 0.7
+ },
+ "thresholds_note": "★ 这两个数是 **PRD §6.6 的政策值**，不是从数据标定出来的。改这里 = 改政策；改代码是错的地方（派生实现只有一份：`kb/l7/review-engine/core/confidence_flow.py`）。",
+ "bands": {
+  "direct": {
+   "range": ">= 0.90",
+   "effect": "keep",
+   "annotate": null,
+   "why": "PRD §6.6：≥0.90 直接输出结论（PASS / BLOCK）"
+  },
+  "confirm": {
+   "range": "0.70 - 0.89",
+   "effect": "force_review",
+   "annotate": "建议人工确认",
+   "why": "PRD §6.6：0.70-0.89 输出 REVIEW，标注「建议人工确认」"
+  },
+  "focus": {
+   "range": "< 0.70",
+   "effect": "force_review",
+   "annotate": "不确定，建议人工重点看",
+   "why": "PRD §6.6：<0.70 输出 REVIEW，标注「不确定，建议人工重点看」"
+  }
+ },
+ "not_applicable": {
+  "p0": "PRD §6.6 明文「P0 层级规则不适用置信度分流，命中即 BLOCK」。实现里这一条是**安全闸**：若拿掉它，一个 P0 命中 + 低置信度会被压成 REVIEW ⇒ 红线降级，与 §15「P0 层漏报率 = 0」直接冲突。判据 `tests/test_tiering.py::test_p0_hit_is_never_downgraded_by_confidence`。",
+  "refusal": "拒答态（NEEDS_INPUT）不是判定结果，没有置信度可分流。",
+  "no_confidence": "引擎没给出置信度时不猜档位 —— 宁可不分流，也不塞一个看不出来的默认档。"
+ },
+ "engine_confidence_source": {
+  "current": "**派生量**（2026-10-12 改造；改前是分支常量），见 `kb/l7/review-engine/core/review_engine.py::decide()`",
+  "features": {
+   "base_by_tier": {
+    "confirmed_p0": 0.95,
+    "blocking_non_p0": 0.94,
+    "p1": 0.86,
+    "p2": 0.8,
+    "review_other": 0.83,
+    "pass": 0.93
+   },
+   "cat_bonus": "独立**大类**数 − 1（大类 = `_cat_key(_category(i))`，与 `render_summary` 的归一化同一把尺子），每个 +0.02，**上限 +0.04**（多个大类独立命中＝互证）。★ 首版写成 `i.get(\"category\")` 而该键不存在 ⇒ 特征恒不生效，探针当场照出，已修。",
+   "ev_penalty": "−0.05（`review_items` 里任一命中证据不齐）",
+   "unc_p0_penalty": "−0.06（存在未确认的 P0：命中但没站住）"
+  },
+  "band_clamp": "★ **按结论各自截断**：BLOCK/PASS → [0.90,0.99]；REVIEW → [0.70,0.89] ⇒ **本步只让值有分布、不改结论**。",
+  "trace": "`decision_trace.confidence_derivation` 记下每一分项（base/cat_bonus/ev_penalty/unc_p0_penalty/raw/是否被截断/final）",
+  "status": "derived_but_thresholds_still_policy",
+  "note": "★ 变了什么、没变什么：**值不再是常量**（同一分支内会随类目数/证据完整度变化 ⇒ 有分布、可标定）；**0.90/0.70 这两条线仍是 PRD §6.6 政策值**，一个字没动 —— 动它们要先用 `kb/l8/calibrate_confidence.py` 在自有标注集上量出误放/误转的代价。"
+ },
+ "measured_20261010": {
+  "what_was_checked": "三档在现有启发式下**实际是否可达**",
+  "direct": "可达 —— PASS 单 0.99、BLOCK 单 0.97/0.93",
+  "confirm": "可达 —— 非 P0 的 REVIEW 单 0.78 / 0.73",
+  "focus": "★ **当前不可达** —— 非 P0 单的置信度最低只到 0.73，掉不到 0.70 以下。策略是对的（模块层判据覆盖），但**没有实单会落进这一档**。这是**标定问题**，不是策略问题。",
+  "guard": "`tests/test_tiering.py::test_engine_non_p0_confidence_never_reaches_focus_band` 把这件事**钉成判据**：哪天启发式改了、真有单掉进 <0.70，该用例变红，提醒回来看标定做没做。"
+ },
+ "honest_limits": [
+  "★ **阈值未标定**：0.90 / 0.70 是 PRD 政策值。把未标定的启发式数按三档切开，切得再准也只是**把猜测分了类**。★ **2026-10-12 更正**：**不必等外部金标集** —— 本库自有的带标注集合（回归集 100 条 `expected`）已可用于标定，实测见 `measured_20261012_selfcalib`。外部金标集（11/30 那 100 条）仍是**误报／漏报**那一项的前置，与**置信度标定**不是同一件事（前者要标准答案算指标，后者要的是**置信度本身有分布**）。",
+  "**`focus` 档当前无实单落进去**（见 measured_20261010）—— 不许把「策略里有这一档」说成「流程在用它」。",
+  "**分流会把 BLOCK 压成 REVIEW**（§6.6 的 0.70-0.89 与 <0.70 两档，PRD 原文都写「输出 REVIEW」）。这是 PRD 明文要求，不是实现偏差；P0 命中被排除在分流之外正是为了保住红线。原结论落在 `decision_trace.decision_before_confidence_flow`，可事后审计。"
+ ],
+ "validation": {
+  "derivation_module": "kb/l7/review-engine/core/confidence_flow.py（唯一派生实现；自证 `--selftest` 25/25）",
+  "wired_into": "kb/l7/review-engine/core/review_engine.py::decide() → `decision_trace.confidence_route`",
+  "tests": "kb/l7/review-engine/tests/test_tiering.py::ConfidenceFlowTests（5 条）+ 模块自证 25 条",
+  "mutation_proved": [
+   "拿掉 P0 override ⇒ ②a/②a2/②b/⑤c 精确变红",
+   "边界判成 `>` 而非 `>=` ⇒ ①a/①c/⑥b 精确变红",
+   "硬编码阈值（忽略政策覆盖）⇒ ⑥a/⑥b 精确变红"
+  ]
+ },
+ "revisit": {
+  "when": "金标集建好、或启发式扣分逻辑改动时",
+  "who": "法务 + 内容治理",
+  "how": "改本文件的 `thresholds`，重跑 `confidence_flow --selftest` 与引擎单测"
+ },
+ "measured_20261012_selfcalib": {
+  "what": "用**本库自有的带标注集合**（回归集 100 条，每条有人给的 `expected`）实测置信度分流的实际表现",
+  "judge": "python3 kb/l8/calibrate_confidence.py（自证 5 例，含两条反向对照）",
+  "sample": "100 单 ｜ 有置信度（进分流）**83** ｜ `expected=拒答` 而 `got=REVIEW` 的口径差异单列 **14** ｜ 其它无置信度 3",
+  "per_band": {
+   "0.99": {
+    "n": 6,
+    "ok": 4,
+    "acc": 0.67
+   },
+   "0.97": {
+    "n": 52,
+    "ok": 43,
+    "acc": 0.83
+   },
+   "0.78": {
+    "n": 25,
+    "ok": 20,
+    "acc": 0.8
+   }
+  },
+  "monotone": false,
+  "monotone_note": "★ **不同序**：0.99(67%) < 0.78(80%) < 0.97(83%) ⇒ 这个数**不携带信息** —— 切得再准也是把猜测分了类。",
+  "at_0.90": {
+   "n": 58,
+   "wrong": 11,
+   "误放率": 0.19,
+   "note": "按 PRD 政策线 ≥0.90「**直接出结论**」：58 条里有 **11 条判错**（误放 19%）。"
+  },
+  "at_0.70": {
+   "n": 0,
+   "note": "<0.70 档**仍无实单落进去**（与 measured_20261010 一致）。"
+  },
+  "root_cause": "★ 不是「阈值没标定」，是**分母的问题**：`engine_confidence_source.values` 显示置信度是**分支常量**（0.97/0.93/0.78/0.99，外加 −0.05 两处），只有 3~4 个取值 ⇒ **没有可标定的分布**。要让阈值有意义，得先把它变成**派生量**（特征如命中层级 / 依据条数 / 证据完整度 / **双轨是否一致**）。",
+  "dual_track_side": {
+   "source": "守衡侧 PMO/shouheng-state/merged-reports/*.md（29 份真实合并报告）",
+   "measured": {
+    "两侧都有命中（一致：有问题）": 20,
+    "只有模型侧命中（库无依据）": 9,
+    "只有库侧命中": 0,
+    "两侧都无命中（一致：放行）": 0
+   },
+   "counts": "库侧合计 34 条 ｜ 模型侧合计 154 条（两侧都命中的 20 单里：库 34 / 模型 95）",
+   "note": "★ **只有库侧命中 = 0 份**；★ 合并层 `dual_track.mjs` 里 `confidence` **0 命中** ⇒ 它不管置信度，两侧一致性目前**没有进任何读数**。这 29 单**没有人工标准答案** ⇒ 只能量行为，**量不了准确率**。"
+  }
+ },
+ "measured_20261012_derived_after": {
+  "what": "**改造后**复测（置信度已是派生量）：分布 ＋ 按**管辖范围**重算的误放率",
+  "judge": "python3 kb/l8/calibrate_confidence.py --from kb/.work/regression-DERIVEDCONF-20261012.jsonl（自证 10 例）",
+  "distribution_before": {
+   "0.78": 25,
+   "0.97": 52,
+   "0.99": 6
+  },
+  "distribution_after": {
+   "0.80": 2,
+   "0.86": 2,
+   "0.88": 15,
+   "0.89": 2,
+   "0.93": 6,
+   "0.95": 34,
+   "0.97": 11,
+   "0.99": 6
+  },
+  "verdict_distribution": "取值 **3 → 8** ⇒ **有分布了**（本步目的达到）",
+  "denominator_fix": {
+   "what": "★ 更正我上一版的分母：「≥0.90 档误放率 19%」**分母错** —— 它把 **P0 命中的单**算进去了，而 PRD §6.6 明文「P0 **不适用**置信度分流」（那 8 条按设计不可能被压降）；另 3 条是 `expected=拒答` 的口径差异。",
+   "corrected": "按**分流实际管辖**（非 P0、非拒答口径）重算：管辖 **23** 条，其中 ≥0.90 落档 **5** 条、判错 **1** ⇒ 误放率 **20%**（样本极小，见 caveat）。",
+   "old_caliber_kept": "旧口径（含 P0）57 条 / 判错 11 / 19.3% **仍报出来做对照**，但标注「分母错，别单独引用」—— 不许藏。",
+   "judge": "读数器自证 ⑤／⑤b／⑤c 钉住这条（P0 豁免不许进分母、旧口径不许藏）。"
+  },
+  "caveat": "★ 管辖样本只有 **23** 条、≥0.90 档只有 **5** 条 ⇒ 这个误放率**不足以支撑动阈值**；且各档正确率**仍不同序**（0.93→80% ＜ 0.88→85%）。⇒ **结论：本步只做到「有分布」，还没做到「可预测」** —— 下一步该引入**双轨一致性**（KB 侧与模型侧一起跑）作为特征，而不是先动 0.90／0.70 两条线。",
+  "run_error_note": "同批 5 条 `got=None` 系**并发撞车**（另一会话同时在跑回归、并在跑变异脚本改活代码）；这 5 条单独复跑**与改造前逐项一致**，已从分母剔除（读数器单列「跑批异常」）。"
+ },
+ "ledger_wiring_20261012": {
+  "what": "置信度**按单可回捞**了：台账 `kb/l7/runs/index.jsonl` 新增顶层字段 `confidence`（改前实测 `source=review_machine` 1306 行里带它的 **0** 行 —— 值只活在跑批那一刻的 JSON 里）",
+  "change": "`run_record.record(confidence=…)` ＋ `with_kb_evidence` 传 `decision.get('confidence')`（只**搬运**已算好的值，不另算、不参与判定；缺省键不出现；非数字直接报错）",
+  "e2e": "2026-10-12 20:07:59 真入口落一行：`REVIEW ｜ issue_count=1` ＋ `confidence: 0.86` ＋ `content_id: AD-20261012-006`（全库带置信度的行 = **1**，就是它）",
+  "why_it_matters": "标定与双侧比对从此能按**真实评审单**算（不再只在回归跑批的 jsonl 上算），并且能与**模型侧**按单对齐 —— 这是两侧一致性（#11 第②步）的前置",
+  "honest_limit": "① 存量 1306 行**没有**置信度，**不回填**（回填＝往台账灌重跑行，正是本库治过的污染）；② 只有**评审链**记它，P0 快路不走这条；③ **仍未动** `thresholds` 的 0.90 / 0.70 两条线，也没声称标定完成",
+  "judge": "/tmp/probe_conf_ledger.py 16/16（A 单元 8 ＋ B 接线 5 ＋ C 变异自证 3：删掉源码那一行 ⇒ 精确变红）"
+ },
+ "measured_20261015_twotrack": {
+  "what": "**两侧合并数**的双轨回归标定（Owner 2026-10-15 让做的 A）：带人工 expected 的 100 条，库侧走引擎直跑（--no-publish-to-feishu）、模型侧真跑，融合调真实函数",
+  "judge": "交付-置信度双轨回归标定-A-20261015.md（含两次 harness 事故、harness 判定、可复跑命令）",
+  "harness_validity": "首判因**基线过期**触发未测；诊断后重采**今日基线**复比 ⇒ 可比 85 条、一致 85、**一致率 100%** ⇒ harness 通过",
+  "readings": {
+   "两侧合并数": "三态准确率 0.64；confirm n=92 正确率 69.6%；**direct n=8 正确率 0.0%（8 条全错）**；同序 **False（且反向）**；≥0.90 误放率 **1.00**",
+   "库侧单侧数（同批对照）": "三态准确率 0.61；confirm n=15 正确率 80%；direct n=70 正确率 70%；同序 False；≥0.90 误放率 0.30",
+   "若按 §6.6 用它分流": "两侧数会把 **52 条** PASS/BLOCK 压成 REVIEW（准确率不升）；库侧数是 0 条"
+  },
+  "structural_bias": "★ direct 档只在**模型侧 0 条命中**时出现 —— 它衡量的是「模型侧没看出问题」，不是「很有把握」；这 8 条的 expected 恰恰是 REVIEW/BLOCK ⇒ 采样偏差",
+  "verdict": "**可用性未通过** —— 这个数**不携带信息且方向相反**，不得用作分流依据；机制本身通过（已落库、已回填、已接线）",
+  "decision_20261015": "★ Owner 2026-10-15 采纳推荐：**不放开 clamp**（放开只会压 52 条）、**不拿这个数分流**、它只当**标签/留痕**并继续标「未标定」",
+  "next_if_revisited": "要让它有信息量：**direct 档改为要求「两侧都有读数且一致」**（而不是「没有反对意见」），改完重跑 A（约 50 分钟）；若同序仍不转 ⇒ 这条线关闭，它只是标签",
+  "collateral_finding": "今日 KB 单侧三态准确率 **0.61** vs 10-12 记录的 **0.67**（错 39 vs 33），方向与「**题材一致性闸门挡掉案例层依据**」一致 ⇒ 建议单独归因（不在本件范围）"
+ },
+ "correction_20261015_late": {
+  "why": "Owner 2026-10-15 晚：「你要检查自己的建议是否能解决问题」⇒ 用已存的 100 条离线复算，推翻了自己的三条结论",
+  "corrected": {
+   "≥0.90 档那个 1.00": "**措辞错**：1.00 是「高置信档**判错率**」；按「放过了该拦的」算＝**误放率 0/8**。8 条构成＝7 条库覆盖缺口（expected 拒答）＋1 条黄金集 PASS／引擎拒答",
+   "三态一致率 0.64": "**被口径不一致的尺子压低的**。期望=拒答的 20 条里 12 条引擎标了 coverage_gap（按 2026-10-07 裁定＝行为正确）⇒ 行为口径重算 = **76.0%**（solid 80%／fragile 60%）。两把尺子并列，**选哪把要 Owner 定**",
+   "改特征再测（原建议）": "**撤回**：复算与「库侧没数降 confirm」逐格相同，同序仍反向；根因是全场 both=0（互证从未发生）",
+   "题材闸门代价归因（原建议）": "**撤回**：10-12 基线文件已不在、无法对比；solid 80%／fragile 0% 已能解释那块差异 ⇒ 降级为未证实"
+  },
+  "only_evidenced_fix": {
+   "id": "F1",
+   "what": "库侧没有置信度读数（kbBand===null）时，不许由模型侧单轨顶出 direct",
+   "measured": "confirm 正确率 69.6% → 76.2%；direct 8 → 1 条；15 条回到「无读数」（fail-closed）",
+   "does_not_fix": "同序仍为 False ⇒ 它只让这个数不再骗人，不能让它可分流"
+  },
+  "real_misses_found": ["RC-f284bdb04abe", "RC-c768ef800bc4", "RC-3d090492af3b"],
+  "judge": "交付-置信度双轨回归标定-A-20261015.md 第八节（含复算口径与数据路径）"
+ },
+ "fix_20261015_F1": {
+  "what": "**库侧没有置信度读数时，不许由模型侧单轨顶出 direct** —— mergedConfidence() 的 kbBand === null 那一支改为**不出这个数**（value/band 均 null）",
+  "why": "病灶（100 条真数据离线复算抓到）：库侧拒答/覆盖缺口时 kbConfidence=null，而模型侧「0 条命中」返回 direct ⇒【库侧没有判定 ＋ 模型侧没看出问题】= **0.93「直接出结论」**。与 2026-10-07「库侧没有读数不许落 PASS」同一条纪律，只是落在置信度这条通道上。",
+  "same_trap_4_places": "同一类陷阱（Number(null) === 0）共 4 处，全修：① dual_track.mergedConfidence 那一支（主修）；② review_publish.mjs 的 Number(mergedConf?.value) ⇒ null 变 0 且 Number.isFinite(0) 为真 ⇒ 表里落 0 还写「档位 —」；③ agent.mjs 调用侧提前 Number() ⇒ 库侧无读数被改写为 0 ⇒ 进 bandOf 落 focus 档；④ agent.mjs 日志与台账 kb_value 同理。",
+  "side_fix": {
+   "what": "**置信度台账从来没写成过** —— agent.mjs 写台账那句把函数 stateDir 当字符串传（少一对括号）⇒ path.join 抛错，被 try/catch 降级成一行日志。实测 PMO/shouheng-state/confidence-merged.ndjson 至今不存在。",
+   "fix": "改 stateDir()；并让自证把 KB_CONF_LEDGER 指到 /tmp（否则修好之后第一次跑自证就会把测试单写进真台账 —— §2.4.4 同一个形状）",
+   "status": "已修；台账将在**下一次真实评审**时首次生成"
+  },
+  "evidence": {
+   "replay": "用**真实现**重放 A 的 100 条：旧规则逐条复现 **100/100**（先证重放忠实），再报新规则",
+   "readings": "direct 8 → **1**；confirm 92 → 84（与期望一致 **69.6% → 76.2%**）；**15 条**回到「无读数」（全为库侧无读数行：7 条原 direct、8 条原 confirm）；≥0.90 档误放 **0/1**",
+   "changed_rows": "逐条可核：15 条，例 RC-0ad1101ae2d8 / RC-5d85a23aceb5 / RC-fc3d3e814058 …（期望均为「拒答」）",
+   "selftests": "dual_track --selftest **113/0** ＋抽取 45/0（新增 ㉔e/㉔e2）；review_publish.test **29/0**（新增 D6/D6b）；workflow_smoke.py ✅ 契约齐；test_agent.mjs 224/2（那 2 条是 search_workspace 的既有失败：仓库 11,209 个文件撞了它 5000 的上限，与本次无关）",
+   "mutation": "副本/临时换入里做，不碰生产：退回 F1 那一支 ⇒ **㉔e／㉔e2 精确变红（111/2）**；退回 Number(mergedConf?.value) ⇒ **D6／D6b 变红（27/2）**；还原后 sha256 核对一致、全绿",
+   "end_to_end": "内核自证的台账行实录：kb_value:null, kb_band:null, merged_value:null, band:null，basis「库侧没有置信度读数（拒答/覆盖缺口/未测）⇒ 不出这个数」—— F1 在真调用路径上生效"
+  },
+  "does_not_fix": "**同序仍为 False（反向）** ⇒ 这个数**仍然不可用于分流**，继续只作标签 ＋「未标定」声明",
+  "residual": "另一会话 17:44 起的批跑（10 条尾单）在进程启动时已加载旧代码 ⇒ 那批行仍是旧口径；下次重审自然带新口径",
+  "judge": "交付-置信度双轨回归标定-A-20261015.md 第九节"
+ }
+}

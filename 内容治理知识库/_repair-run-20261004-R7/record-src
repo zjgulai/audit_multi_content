@@ -1,0 +1,73 @@
+kb-repair 第 7 轮 · 变更记录（2026-10-04 11:35–11:45）
+用户指令（第 7 次原样重复）：「workflow_check 没过，帮我把失败项按原因码修掉，修完复跑。」
+
+== 0. 复跑确认（真红，不是听说）=========================================
+kb/kbpy l8/workflow_check.py REPAIR-20261004-R7   → 退出码 1
+  PASS ①④⑤⑥⑦⑧⑨ ；FAIL ② 权威库 l0~l6 未被改动 ；FAIL ③ 前序产物哈希（45 项）
+②③ 的 detail 与 R6、与同分钟 healthcheck-20261004-1133 **三方逐字节相同**（json.dumps(sort_keys=True) 比对）
+⇒ 失败集合是**稳定的判据常量**，不是并发抖动、也没有新的实质红。
+
+== 1. 按原因码定性（kb-repair SKILL.md §2 对照表）=========================
+原因码：`workflow_check` 第 ② 段红 → 真因「冻结基线 vs 活库漂移」→ 规定动作 = **合法变红，
+写「基线漂移」结论，不要「修」**。③ 段同族（已登记在 workflow-check-known-drift.yaml）。
+⇒ 本轮的「修」= 登记 + 留证 + 复跑证明无回归；**不是**改数据、也不是改判据。
+
+== 2. 独立复算（不采信任何登记文件的自述，全部重做；证据见 04/05/06）========
+(1) ② 的 L3 算术（04-indep-leg2-recompute.txt）：
+    活库 1018 行 / 整文件 sha 743dc623…；`lines[:1018]` 与 `lines[:1527]` 两条前缀哈希**都 == 整文件**；
+    两条基线 7d00454e…（l6_integrity，2036 行时代）与 aa83d1f9…（l4/runs/20260923-1445，2778734 B）
+    都是**当时整文件**的哈希 ⇒ 不回滚 L3 就**结构上不可能**为真（判据源码 :112-125 已逐行读过）。
+    现 sha 有出处：kb/l3/registry/l3.json 的 appended_fields.old_lines_untouched.sha256（实测相等）。
+(2) ③ 的来源审计（05）：扫 1714 份 run 记录 ⇒ **17/20 有来源、3/20 无落章**，无来源者仍是同三项。
+(3) l7.json 真发现复测（06）：与 pre-edit 备份**逐字段比对，差异恰好 1 处**
+    （article_no_source.field_lives_in：四个→五个形态文件），且自报 run_id 仍停在 20260923-1500
+    ⇒ 「原地改写未落章」**成立**（真流程缺陷，OPEN，要人开闸）。
+
+== 3. 改了什么（只改登记，不改判据、不改数据）==============================
+文件 1：kb/l7/registry/workflow-check-known-drift.yaml（登记文件；**今天没有任何闸门读它**）
+  五问：读者=跑体检/看报告/写日报的人 ｜ 写者=本轮 kb-repair ｜
+        判据=**不改变任何闸门判定**，只把 ②③ 定性为判据过期并留证 ｜
+        通道=edit 工具写 .yaml（不走 4096 信封）｜
+        回滚=`cp kb/l7/_backups/kb-repair-workflow-R7-20261004-1138/workflow-check-known-drift.yaml.before kb/l7/registry/workflow-check-known-drift.yaml`
+  本轮新增内容（全部是**文本登记**）：
+    · meta.last_reverified 追加第 7 轮复算段
+    · raw_readings.repro_runs 追加 `REPAIR-20261004-R7`（第 7 次独立复现，含并发披露）
+    · pending_decision.still_unanswered_at 追加第 7 轮
+    · pending_decision.option_A_impl_sketch **新增** —— (A) 的可落地实现草案（**未应用**）
+    · do_not 追加第 7 轮说明
+文件 2：kb/l8/workflow_check_REPAIR-20261004-R7.json、…-R7-AFTER.json（闸门自身产物）
+文件 3：工作区 _repair-run-20261004-R7/（本证据目录）
+文件 4：kb/l7/_backups/kb-repair-workflow-R7-20261004-1138/（回滚基线：两份 .before + BEFORE.sha256）
+
+== 4. 没有做什么（逐条实测，不是"声明"）====================================
+· **没有**改 kb/l8/workflow_check.py —— 前后 sha 均为 e5cb3ee62f05a949…（与 .before 一致）
+· **没有**写任何 run 记录、**没有**碰 kb/l7/runs/index.jsonl
+· **没有**碰 kb/l0~l6 的任何数据与台账
+· **没有**抢循环认领 —— 实测单槽被**活会话**占着（claim session 7c45a331…、BASE
+  RT-20261004-1133-LISTING；其 pid 88906 已不在，但 11:36:22–11:36:34 有活进程在跑
+  kb_pipeline.py --check / skill_conformance.py，且 run 记录数从 1713 涨到 1714）
+· **没有**为了让 ②③ 变绿去改写历史 run 记录里的 sha，**没有**回滚 L3
+
+== 5. 未决（唯一阻塞项，需人的点头）========================================
+②③ 要转绿**只有** (A)：改 kb/l8/workflow_check.py 的 ②③ 判据（草案见 option_A_impl_sketch，
+含反向测试要求）。failure-playbook.yaml → gate_red.workflow_check 的 forbidden 明写
+「改判据要单独走一轮并报批」，故本轮只登记、不动手。
+(B) 维持现状（长期红）／(C) 只补那 3 项落章（**不会转绿**，属数据卫生）。
+第 7 轮 ask_user_question 仍被宿主拒：
+  "human interaction is unavailable while the calling agent is owned by another live agent"
+⇒ 决定原样带回委派方。
+
+== 6. 回滚 ================================================================
+cp kb/l7/_backups/kb-repair-workflow-R7-20261004-1138/workflow-check-known-drift.yaml.before \
+   kb/l7/registry/workflow-check-known-drift.yaml
+（workflow_check.py 未动，无需回滚；其 .before 仅作"未改动"的证明）
+
+== 7. 修后复跑（同一条闸门，证明"登记没有引入回归"）========================
+kb/kbpy l8/workflow_check.py REPAIR-20261004-R7-AFTER   → 退出码 1
+  裁决：FAIL（未过：['② 权威库 l0~l6 未被改动', '③ 前序产物哈希（45 项）']）
+  与修前 R7 逐段比对（json.dumps(sort_keys=True)）：
+    ① ② ③ ④ ⑤ ⑦ ⑧ ⑨ = identical ；⑥ DIFFERENT（仅工作区 md 计数 6272→6273，两轮均 PASS）
+  ⇒ 登记**没有**改变任何判据读数；②③ **照旧红**（本就预期如此：本轮的"修"不含改判据）
+旁证（同一时点另两条闸门）：kb/kbpy l7/scripts/skills_check.py → 退出 0，五类 1=0 2=0 3=0 4=0 5=0；
+                              kb/kbpy l7/scripts/layers_check.py → 退出 0，六类全 0。
+信封闸门：python3 tools/envelope_gate.py _repair-run-20261004-R7 → 退出 0，信封态 0。

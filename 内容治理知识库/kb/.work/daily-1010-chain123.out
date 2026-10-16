@@ -1,0 +1,250 @@
+
+@@@@@@@@@@ 10:37:10 开始 L1 @@@@@@@@@@
+
+### 10:37:10 GATE: sh kb/kbpy l7/scripts/l1_gate.py ###
+==========================================================================
+L1 闸门（OCR 缓存复用门槛落到实处：逐条调用 ocr_cache_reusable）
+  单图缓存 425 条 ｜ 批次文件 0 个 ｜ 版本分布 {'vision-jxa-2.0': 425}
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+说明项：_batch_ 汇总文件 0 个不参与逐条判定（它们是批次聚合，不是单图缓存）
+==========================================================================
+结论：✅ 过（全部缓存可复用）
+退出码：0
+### rc=0 ###
+
+### 10:37:10 CMD: sh kb/kbpy l8/extract_l1_new_resources.py daily-20261010-1010-L1 --apply ###
+[计划] L0 活跃 ⊖ L1 = 0  {}
+[计划] L1 需失效（L0 已 gone）= 0
+[基准] artifact 键 22 个 | manifest 键 13 个
+[去重] @extract_l1_new_resources.py/manifest_l1 候选 0 行 → 追加 0 行（新增 0 / 变更 0 / **跳过同内容重复 0**）
+[去重] @extract_l1_new_resources.py/index_l1 候选 0 行 → 追加 0 行（新增 0 / 变更 0 / **跳过同内容重复 0**）
+[写入] 抽取 0（产物 0）| manifest +0 | index +0 | 失效 +0
+        segments 合计 0 | 字符合计 0 | pending_ocr 0
+        run 记录 kb/l1/runs/daily-20261010-1010-L1.json
+### rc=0 ###
+
+### 10:37:11 CMD: sh kb/kbpy l8/ocr_attachments.py daily-20261010-1010-L1 --apply ###
+[OCR] 记录 170 条；字段 图片素材(fldnvxjaSr) / 视频素材(fld87JUpEn)
+[OCR] 图片附件 304 张
+[OCR] 下载完成 304/304（身份 bot/dsh-kb；视频 0 个不做 OCR）
+[OCR] 待 OCR 0 张（缓存命中并过闸门 304，闸门拒绝 0）
+[OCR] 完成：记录 115 条 / 图片 304 / OCR 出文本 304 段 / 字符 150124 → kb/l1/media/daily-20261010-1010-L1.manifest.json（L0 未改动）
+[接线] 已使 .publish.stamp 失效 ⇒ 下次 publish 会重出派生视图（守衡才看得到）
+### rc=0 ###
+
+### 10:37:14 CMD: sh kb/kbpy l8/apply_ocr_to_l1.py daily-20261010-1010-L1 daily-20261010-1010-L1 --apply ###
+OCR 运行统计: {"images": 304, "downloaded": 304, "download_failed": 0, "ocr_batches": 0, "ocr_ok": 304, "ocr_empty": 0, "gate_rejected": 0, "videos_skipped": 0}
+OCR 出文本段落: 304 | 字符: 150124
+读到媒体产物 115 条（记录级），附件明细 304 条
+将追加 419 行（附件级 304，媒体容器 115）
+对账：容器级 segments=304 chars=150124 | OCR manifest segments=304 chars=150124
+自洽: ✓
+[去重] @apply_ocr_to_l1.py 候选 419 行 → 追加 0 行（新增 0 / 变更 0 / **跳过同内容重复 419**）；last_seen 刷新 419
+已写入 L1 manifest +0 行（去重跳过同内容重复 419）；运行记录 kb/l1/runs/daily-20261010-1010-L1.json
+### rc=0 ###
+
+### 10:37:15 CMD: sh kb/kbpy l8/align_l1_manifest.py daily-20261010-1010-L1 --skill kb-ingest-extractor --skill kb-media-extractor --apply ###
+[daily-20261010-1010-L1] L1 层账对齐【落盘】
+  一致                                 1898
+  故意作废(不动)                           77
+  要补记 0 条 / 补记 0 字
+  故意作废、产物留档 77 条（共 7600 字）——状态即事实，不补 status=ok，否则会把这批资源复活成「可用」
+  待补记的旧状态分布: {}
+
+  [写入] kb/l1/manifest_l1.jsonl +0 行（行数 6528 → 6528）
+  [apply] 台账 → kb/l1/runs/daily-20261010-1010-L1-manifest-reconcile.json（顶层 skill=['kb-ingest-extractor', 'kb-media-extractor']）
+  [报告] kb/l1/runs/daily-20261010-1010-L1-manifest-reconcile.json
+### rc=0 ###
+
+### 10:37:16 CMD: sh kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L1 --run daily-20261010-1010-L1 --invoked kb-ingest-extractor --invoked kb-media-extractor --skill-session L1=session-e6e81bae-5167-478c-8311-8ab3b22cf2d1 ###
+[层表核对] STAMP_SPEC 7 条全部能在 layers.yaml 本层 engine: 里找到 ✅
+====================================================================================
+知识库 L0–L7 执行编排器 · --sync ｜ 预演（不带 --apply） ｜ run_id=daily-20261010-1010-L1
+====================================================================================
+锁：已持锁 pid=47115 run_id=daily-20261010-1010-L1
+[写档闸门] **未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml
+[L1] ⚠️ 写档闸门：**未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml
+[L1] 闸门：过 ｜ exit=0 ｜ 退出码：0
+[L1] via-skill：本层该调的 skill ＝ kb-ingest-extractor → kb-media-extractor
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/l8/extract_l1_new_resources.py
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/l8/ocr_attachments.py
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/l8/apply_ocr_to_l1.py
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/l8/align_l1_manifest.py
+[L1] via-skill：引擎交给 kb-ingest-extractor → kb-media-extractor（本编排器不跑；它只跑闸门 + 记账 + **--skill 透传**）
+[L1] --skill 透传：align_l1_manifest.py daily-20261010-1010-L1 --skill kb-ingest-extractor --skill kb-media-extractor ［预演档：未获本层写档凭据］
+[L1] 落章引擎 exit=0 ｜ 产物变化 0 个
+          [dry-run] 台账 → kb/l1/runs/daily-20261010-1010-L1-dryrun.json（顶层 skill=['kb-ingest-extractor', 'kb-media-extractor']）
+          [报告] kb/l1/runs/daily-20261010-1010-L1-dryrun.json
+[记账] 层侧落章实测：applied 1 ｜ dry 1 ｜ unknown 1 ｜ 读错 0 → human_involved=True ｜ verdict=全走完
+------------------------------------------------------------------------------------
+结论：L1 全部走完（预演（不带 --apply））
+提示：这是预演。真正落盘要加 --apply，且当前白名单只开 ['L1', 'L2', 'L3', 'L4', 'L5', 'L6']。
+### rc=0 ###
+
+### 10:37:19 L1 批次结束 ###
+@@@@@@@@@@ 10:37:19 L1 结束 rc=0 @@@@@@@@@@
+
+@@@@@@@@@@ 10:37:19 开始 L2 @@@@@@@@@@
+
+### 10:37:19 GATE: sh kb/kbpy l7/scripts/l2_gate.py ###
+==========================================================================
+L2 闸门（独立复算：manifest_l2.jsonl × units.jsonl × manifest_l1.jsonl）
+  台账资源行 2824 ｜ 单元 14237 条 / 1696 个资源 ｜ 当前输入集 1471 个资源
+  口径：unit_count 见 l2.json.unit_count_semantics（20260930-1440）；账实只判可证上下界（C3）
+--------------------------------------------------------------------------
+C2 run 内序列：非法 0 处 ｜ 合规的重切对（invalidated→split/skipped）233 处
+--------------------------------------------------------------------------
+说明项（不是红）：被作废后仍留产物 311 个资源 ｜ 滞后 316 个资源未切分 {'wording': 7, 'internal_sample': 305, 'external_standard': 3, 'product_desc': 1}
+  N3 口径符合性（按 l2.json.unit_count_semantics，定义于 20260930-1440）：
+     准则：对每个资源：units.jsonl 中该资源行数 == Σ(该资源**全部 split 行**的 unit_count)。全域记法：units 行数 == Σ(全库 split 行 unit_count) − 已被 l8/l2_dedup_units.py 压掉的重复行数。
+     Σ(split 行 unit_count) 不符 31 个资源 ｜ 其中**已在 registry 登记的偏差 2 条**
+       url__https____advertising.amazon.com_help_G4U9 ｜ 实际 25 行 ≠ Σsplit 26
+       url__https____advertising.amazon.com_help_G6UU ｜ 实际 35 行 ≠ Σsplit 36
+       url__https____advertising.amazon.com_help_GFND ｜ 实际 21 行 ≠ Σsplit 22
+       url__https____advertising.amazon.com_help_GPSS ｜ 实际 39 行 ≠ Σsplit 42
+       url__https____advertising.amazon.com_help_GRW2 ｜ 实际 19 行 ≠ Σsplit 20
+       url__https____advertising.amazon.com_help_GZS8 ｜ 实际 27 行 ≠ Σsplit 28
+       url__https____ca.momcozy.com_blogs_breastfeedi ｜ 实际 4 行 ≠ Σsplit 7
+       url__https____ca.momcozy.com_collections_elect ｜ 实际 4 行 ≠ Σsplit 7
+     ⚠ 未登记的偏差 29 个（须在 l2.json.unit_count_semantics.deviations 挂账）：['url__https____advertising.amazon.com_h', 'url__https____advertising.amazon.com_h', 'url__https____advertising.amazon.com_h']
+     其余两个口径（**不采用**，仅留档）：最新 split 行 129 不符 ｜ 全行求和 311 不符
+  N4 非资源行 1 行（**不是红**）：已按 l2.json.manifest_change_rows 约定认领（定义于 20260930-1440）
+     行 1456：{"change": "add_field_rule_eligible", "layer": "l2", "run_id": "20260924-1240", "result": null}
+       → 已登记为层变更记录（add_field_rule_eligible）
+==========================================================================
+结论：✅ 过（五项判据 0 违规）
+退出码：0
+### rc=0 ###
+
+### 10:37:21 CMD: sh kb/kbpy l8/l2_split_run.py daily-20261010-1010-L2 ###
+待判 27 → 元数据闭合 27 / 补切 0（新增单元 0）
+既有 unit_type → 键数: {'entry': 18, 'revision_pair': 18, 'clause': 21, 'sample': 26, 'attribute': 20}
+[dry-run] 权威库未落盘。将追加：units.jsonl +0 行 / index/l2.jsonl +0 行 / manifest_l2.jsonl +0 行
+[dry-run] 预演台账 → kb/l2/runs/daily-20261010-1010-L2-dryrun.json（**未传 --skill，无落章**）；它只证明「本层引擎被跑过」，**不是落盘证据**（落盘台账是 kb/l2/runs/daily-20261010-1010-L2.json，dry_run=false）
+[dry-run] 要真落盘：加 --apply（本轮未加）
+### rc=0 ###
+
+### 10:37:23 CMD: sh kb/kbpy l8/l2_split_run.py daily-20261010-1010-L2 --skill kb-ingest-extractor --apply ###
+待判 27 → 元数据闭合 27 / 补切 0（新增单元 0）
+既有 unit_type → 键数: {'entry': 18, 'revision_pair': 18, 'clause': 21, 'sample': 26, 'attribute': 20}
+units.jsonl 行数: 14237
+[apply] 落盘台账 → kb/l2/runs/daily-20261010-1010-L2.json（顶层 skill=kb-ingest-extractor）
+覆盖率: 1255 / 1282 → 1255 / 1282
+### rc=0 ###
+
+### 10:37:26 CMD: sh kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L2 --run daily-20261010-1010-L2 --invoked kb-ingest-extractor --skill-session L2=session-e6e81bae-5167-478c-8311-8ab3b22cf2d1 ###
+[层表核对] STAMP_SPEC 7 条全部能在 layers.yaml 本层 engine: 里找到 ✅
+====================================================================================
+知识库 L0–L7 执行编排器 · --sync ｜ 预演（不带 --apply） ｜ run_id=daily-20261010-1010-L2
+====================================================================================
+锁：已持锁 pid=47267 run_id=daily-20261010-1010-L2
+[写档闸门] **未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml
+[L2] ⚠️ 写档闸门：**未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml
+[L2] 闸门：过 ｜ exit=0 ｜ 退出码：0
+[L2] via-skill：本层该调的 skill ＝ kb-ingest-extractor
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/l8/l2_split_run.py
+[L2] via-skill：引擎交给 kb-ingest-extractor（本编排器不跑；它只跑闸门 + 记账 + **--skill 透传**）
+[L2] --skill 透传：l2_split_run.py daily-20261010-1010-L2 --skill kb-ingest-extractor ［预演档：未获本层写档凭据］
+[L2] 落章引擎 exit=0 ｜ 产物变化 0 个
+        [dry-run] 预演台账 → kb/l2/runs/daily-20261010-1010-L2-dryrun.json（顶层 skill=kb-ingest-extractor）；它只证明「本层引擎被跑过」，**不是落盘证据**（落盘台账是 kb/l2/runs/daily-20261010-1010-L2.json，dry_run
+        [dry-run] 要真落盘：加 --apply（本轮未加）
+[记账] 层侧落章实测：applied 1 ｜ dry 1 ｜ unknown 0 ｜ 读错 0 → human_involved=True ｜ verdict=全走完
+------------------------------------------------------------------------------------
+结论：L2 全部走完（预演（不带 --apply））
+提示：这是预演。真正落盘要加 --apply，且当前白名单只开 ['L1', 'L2', 'L3', 'L4', 'L5', 'L6']。
+### rc=0 ###
+
+### 10:37:29 L2 批次结束 ###
+@@@@@@@@@@ 10:37:29 L2 结束 rc=0 @@@@@@@@@@
+
+@@@@@@@@@@ 10:37:29 开始 L3 @@@@@@@@@@
+
+### 10:37:29 GATE: sh kb/kbpy l7/scripts/l3_gate.py ###
+==========================================================================
+L3 闸门（独立复算：候选件证据 × rejected 台账 × l2/units.jsonl）
+  证据引用 3704 条 ｜ 候选记录 2960 条 / 产出资源 683 个
+  拒绝台账 3792 行 / 719 个资源 ｜ 既产出又拒绝 183 个资源 ｜ L2 侧 1696 个资源
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+说明项：拒绝台账 kind 分布 {'unit_level': 3792}
+  归档旧台账 6803 行 / 822 个资源（现台账 3792 / 719 → 重建导致的粒度变化，不是数据丢失）
+  已登记为不可复算的自报键 12 个：['accounting.explicitly_rejected', 'accounting.filtered_out', 'accounting.kept', 'accounting.l2_total', 'accounting.unaccounted', 'accounting.used_in_rules', 'reconcile_partition.both', 'reconcile_partition.check', 'reconcile_partition.input', 'reconcile_partition.neither', 'reconcile_partition.only_produced', 'reconcile_partition.only_rejected']
+==========================================================================
+结论：✅ 过（证据全可回指 + 自报键全已声明）
+退出码：0
+### rc=0 ###
+
+### 10:37:30 红线① 归档 kb/l3/rejected.jsonl ###
+源  2678801 字节 sha=f000b656c864 ｜ 归档  2678801 字节 sha=f000b656c864
+### ✅ 归档通过：kb/l3/_archive/rejected-pre-daily-20261010-1010-L3.jsonl ###
+
+### 10:37:30 CMD: sh kb/kbpy l8/l3_distill_run.py daily-20261010-1010-L3 --apply ###
+L2 单元 14237 → 可用 5429
+   wording            metadata                 5229
+   external_standard  quality_flag             1927
+   wording            quality_flag             739
+   internal_sample    out_of_scope_table       386
+   external_standard  metadata                 345
+   wording            metadata_unknown_field   127
+   product_desc       out_of_scope_kb          54
+   unknown            out_of_scope_kb          1
+
+取数对账: {'l2_total': 14237, 'filtered_out': 8808, 'kept': 5429, 'used_in_rules': 959, 'used_in_cases': 677, 'explicitly_rejected': 3792, 'unaccounted': 0, 'reject_caliber': 'C', 'case_cited_source': 'read'}
+  ⛔ 拒写（闸③ 行数护栏）：kb/l3/candidates/rules.jsonl —— 行数骤减 1018 → 509（降 50%，护栏阈值 20%）
+     → 确认这是有意的就设 KB_L3_ALLOW_DROP=1 重跑；否则先查引擎的筛选口径
+[去重] @l3_distill_run.py/manifest_l3 候选 509 行 → 追加 0 行（新增 0 / 变更 0 / **跳过同内容重复 509**）；last_seen 刷新 509
+规则 509（新 0 / unchanged 509）| 拒绝 3822
+  形态: {'entry': 56, 'revision_pair': 453}
+  support_count: {102: 1, 6: 3, 36: 1, 153: 1, 9: 1, 54: 1, 27: 1, 114: 1, 12: 1, 45: 2, 48: 1, 51: 1, 4: 8, 3: 26, 2: 8, 1: 447, 246: 1, 18: 1, 74: 1, 47: 1, 57: 1}
+  拒绝: {'no_clause_text': 30, 'clause_not_actionable': 2709, 'no_rule_derivable': 559, 'sample_only_no_verdict': 392, 'absorbed_as_reason': 132}
+### rc=0 ###
+
+### 10:37:32 CMD: sh kb/kbpy l8/l3_reject_ledger_rebuild.py daily-20261010-1010-L3 --apply ###
+[重算] 单元 14229 = 规则引用 959 ∪ 样例引用 3319 ∪ **拒绝(C) 3792** ∪ 范围外 6159 → 14229
+       互斥校验：拒绝∩规则 0 | 拒绝∩样例 0 | 拒绝∩范围外 0（都应为 0）
+       口径：C = 进了门 − 规则用 − 样例用（Owner 2026-10-08 裁定）；被门剔掉的 8801 条**不进本台账**，现算见 l3_rejected_status.py --out-of-scope
+       reason 分布：{'条款不可判定或已被同库其它条款覆盖，': 2802, '登记型字段值（元数据），不含可判定内': 578, '本单元进了蒸馏但未产出规则（样本型：': 412}
+[转换] ① 归档 OK：kb/l3/rejected.jsonl
+         → kb/l3/_archive/daily-20261010-1010-L3-split/rejected.jsonl
+         1343253 B ｜ 3822 行 ｜ sha256 735caa055d86312c9e0f29eeb5ccd2d04cc95d6678a6b46148502e1cee365191
+[转换] ② 作废声明已追加：kb/l3/rejected.history.jsonl
+[转换] ③ 快照已写：kb/l3/rejected.jsonl 3822 → 3792 行（口径 C；被门剔掉的 8801 条**不在其中**，用 --out-of-scope 现算）
+[转换] ④ 留痕：kb/l3/runs/daily-20261010-1010-L3-reject-rebuild.json
+[回滚] 如需回滚：cp kb/l3/_archive/daily-20261010-1010-L3-split/rejected.jsonl kb/l3/rejected.jsonl
+### rc=0 ###
+
+### 10:37:34 CMD: sh kb/kbpy .work/l3_report.py daily-20261010-1010-L3 --skill kb-clause-extractor --apply ###
+[apply] 台账 → kb/l3/runs/daily-20261010-1010-L3.json（顶层 skill=kb-clause-extractor）
+报告已写出 | 规则 1018 | rejected 3792 | 失败 0 | 自检 全通过
+### rc=0 ###
+
+### 10:37:37 CMD: sh kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L3 --run daily-20261010-1010-L3 --invoked kb-clause-extractor --skill-session L3=session-e6e81bae-5167-478c-8311-8ab3b22cf2d1 ###
+[层表核对] STAMP_SPEC 7 条全部能在 layers.yaml 本层 engine: 里找到 ✅
+====================================================================================
+知识库 L0–L7 执行编排器 · --sync ｜ 预演（不带 --apply） ｜ run_id=daily-20261010-1010-L3
+====================================================================================
+锁：已持锁 pid=47468 run_id=daily-20261010-1010-L3
+[写档闸门] **未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml
+[L3] ⚠️ 写档闸门：**未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml
+[L3] 闸门：过 ｜ exit=0 ｜ 退出码：0
+[L3] via-skill：本层该调的 skill ＝ kb-clause-extractor
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/l8/l3_distill_run.py
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/l8/l3_reject_ledger_rebuild.py
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/.work/l3_report.py
+[L3] 预演：跳过归档（归档只在 --apply 落盘前执行；单验归档红线用 --check-archive）
+[L3] via-skill：引擎交给 kb-clause-extractor（本编排器不跑；它只跑闸门 + 记账 + **--skill 透传**）
+[L3] --skill 透传：l3_report.py daily-20261010-1010-L3 --skill kb-clause-extractor ［预演档：未获本层写档凭据］
+[L3] 落章引擎 exit=0 ｜ 产物变化 0 个
+        [dry-run] 台账 → kb/l3/runs/daily-20261010-1010-L3-dryrun.json（顶层 skill=kb-clause-extractor）
+        报告已写出 | 规则 1018 | rejected 3792 | 失败 0 | 自检 全通过
+[记账] 层侧落章实测：applied 1 ｜ dry 1 ｜ unknown 1 ｜ 读错 0 → human_involved=True ｜ verdict=全走完
+------------------------------------------------------------------------------------
+结论：L3 全部走完（预演（不带 --apply））
+提示：这是预演。真正落盘要加 --apply，且当前白名单只开 ['L1', 'L2', 'L3', 'L4', 'L5', 'L6']。
+### rc=0 ###
+
+### 10:37:42 L3 批次结束 ###
+@@@@@@@@@@ 10:37:42 L3 结束 rc=0 @@@@@@@@@@
+
+@@@@@@@@@@ 10:37:42 L1–L3 链全部完成 @@@@@@@@@@

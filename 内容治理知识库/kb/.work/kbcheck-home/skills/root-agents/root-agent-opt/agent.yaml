@@ -1,0 +1,56 @@
+# root-agent-opt 自己的契约。它是「创建-验证-优化」的收尾环节。
+#
+# tools 为空是如实的：opt 没有 tool-calling 循环，它通过子进程调用 root-agent-eval
+# 复测副本，不虚报工具。
+name: root-agent-opt
+version: "0.1.0"
+stage: optimize
+interface: cli
+run: python3 agent.py
+input: stdin-json
+profile: meta
+task_types:
+  - optimize_agent
+deliverables:
+  - id: fixed_copy
+    name: 修复后的 agent 副本
+    format: state
+    fields:
+      - 副本目录
+      - 修复清单
+      - 回归结果
+    acceptance: 源包未被改动；副本通过回归门禁（留出集 + 判定强度）才放行
+tools: []
+env:
+  API_KEY: ${managed}
+scope:                    # 选填节（第 3 项）：管什么 / 不管什么
+  does:
+    - 读评测报告，在包名加 -fix 的副本上按补丁规则修复
+    - 修完回调 root-agent-eval 回归复测，给出改进判定
+  not_for:
+    - 改写源包，源只读、修复只落在副本上
+    - 修内容类问题，那类交还人工
+limits:                   # 选填节（第 8 项）：终止预算
+  timeout_s: 600          # 回调 eval 复测的超时，等于 REEVAL_TIMEOUT
+  max_iterations: 3       # 修复迭代上限，等于 DEFAULT_MAX_ITERATIONS
+handoff:                  # 选填节（第 11 项）：opt 真的会调兄弟包，故声明交接
+  to: root-agent-eval
+  input:
+    - 修复后的副本目录
+    - 回归用例集
+  output:
+    - 副本的 evals/score.json
+    - 修复前后的分数对比
+  bounds:
+    max_depth: 1          # 只回调一层，不递归
+
+# 健康探针：opt 收 {"agent_dir": ...}，question 探针会被正确拒绝。
+# 三点要求：
+#   1. 指向仓库外的独立探针包 /tmp/root-agent-opt-probe —— opt 会写副本目录，
+#      探针绝不能把副本写进 root-agents/（否则体检会污染被检对象）；
+#   2. 该探针包自带一份「无可优化项」的 evals/score.json，使 opt 走
+#      no_actionable 路径：零补丁、零副本写入、退出码 0，是最快且无副作用的验证；
+#   3. 绝对路径（opt 以自身目录为 cwd 执行）。
+health:
+  input:
+    agent_dir: /tmp/root-agent-opt-probe

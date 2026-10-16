@@ -1,0 +1,60 @@
+{
+ "meta": {
+  "id": "9c462334-49ff-458a-ba85-80da3d8f8624",
+  "parent": "session-280d55f8-d0f5-47a2-843d-9949b5a06db3",
+  "origin": "subagent",
+  "cwd": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理",
+  "label": "L7 layer preflight gate",
+  "model": "deepseek-flash",
+  "provider": "deepseek-official",
+  "effort": "max"
+ },
+ "span_s": 170.61,
+ "tool_busy_s": 90.49,
+ "llm_plus_overhead_s": 80.12,
+ "n_calls": 22,
+ "by_tool": {
+  "skill": {
+   "n": 1,
+   "sum_s": 0.01,
+   "max_s": 0.01
+  },
+  "bash": {
+   "n": 19,
+   "sum_s": 48.59,
+   "max_s": 16.41
+  },
+  "kb_check": {
+   "n": 1,
+   "sum_s": 41.88,
+   "max_s": 41.88
+  },
+  "report": {
+   "n": 1,
+   "sum_s": 0.01,
+   "max_s": 0.01
+  }
+ },
+ "top": [
+  {
+   "sec": 41.88,
+   "name": "kb_check",
+   "desc": "{}"
+  },
+  {
+   "sec": 16.41,
+   "name": "bash",
+   "desc": "echo \"--- literal cmd 1 ---\"; sh kb/kbpy kb/l7/scripts/skills_check.py; echo \"EXIT=$?\"; echo \"--- literal cmd 2 ---\"; sh kb/kbpy kb/l7/scripts/l7_gate.py; echo \"EXIT=$?\"; echo \"--- literal cmd 3 ---\";"
+  },
+  {
+   "sec": 8.8,
+   "name": "bash",
+   "desc": "sh kb/kbpy l7/scripts/skill_conformance.py 2>&1; echo \"EXIT=$?\""
+  },
+  {
+   "sec": 7.32,
+   "name": "bash",
+   "desc": "sh kb/kbpy l7/scripts/l7_gate.py 2>&1; echo \"EXIT=$?\""
+  }
+ ]
+}

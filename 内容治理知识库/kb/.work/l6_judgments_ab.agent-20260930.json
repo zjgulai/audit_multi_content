@@ -1,0 +1,392 @@
+{
+ "run_id": "20260930-0255",
+ "kind": "l6_judgments_agent_proposal",
+ "provenance": "**本批判定是我（agent）给的，不是人判的**，与 kb/.work/l6_judgments_ab.json 里 2026-09-23 那批**不同源**。文件分开存放，绝不覆盖人判文件；要用它请显式合并，或在 selftest 里并行读两份分别报数。",
+ "rule": "判据：这条单元的内容是否回答了该查询想找的东西。A 组应当命中，B 组应当全不相关。",
+ "verdicts": {
+  "FDA approved claims||3f095d15b6c6eb9c4414": {
+   "query": "FDA approved claims",
+   "unit_id": "3f095d15b6c6eb9c4414",
+   "verdict": "弱相关",
+   "reason": "FTC 关于欺骗性健康宣称/DSHEA 免责声明的指引；属「宣称不实」同族，但不是 FDA 器械表述这条线"
+  },
+  "FDA approved claims||e772918fd9b93eec5341": {
+   "query": "FDA approved claims",
+   "unit_id": "e772918fd9b93eec5341",
+   "verdict": "弱相关",
+   "reason": "讲的是 FDA 批准药品/生物类似药，能提供「FDA 到底批准什么」的背景，但不涉及吸奶器 cleared/registered 与 approved 的区分"
+  },
+  "FDA approved claims||a4424c8206b8e8a6bcc8": {
+   "query": "FDA approved claims",
+   "unit_id": "a4424c8206b8e8a6bcc8",
+   "verdict": "相关",
+   "reason": "规则库「边界内容」原文：FDA 表述错误（吸奶器为 cleared/registered，非 approved/certified）——正是本查询要找的那条"
+  },
+  "FDA approved claims||af2b9b5f556eb911640e": {
+   "query": "FDA approved claims",
+   "unit_id": "af2b9b5f556eb911640e",
+   "verdict": "相关",
+   "reason": "同一规则的「豁免词」：FDA cleared / FDA-cleared / FDA registered / FDA 注册，是这条边界的可用表述"
+  },
+  "hospital grade pump||e7b64fb3a85179631e00": {
+   "query": "hospital grade pump",
+   "unit_id": "e7b64fb3a85179631e00",
+   "verdict": "弱相关",
+   "reason": "真实广告文案里用了 Hospital Grade（用例，不是规则）；能说明该词在投，但没给边界"
+  },
+  "hospital grade pump||c1d9ea5384afe5c53ad1": {
+   "query": "hospital grade pump",
+   "unit_id": "c1d9ea5384afe5c53ad1",
+   "verdict": "弱相关",
+   "reason": "同上，另一条广告的 Primary Text 用了 Hospital Grade"
+  },
+  "hospital grade pump||ad45009cf856c477d00f": {
+   "query": "hospital grade pump",
+   "unit_id": "ad45009cf856c477d00f",
+   "verdict": "弱相关",
+   "reason": "竞品 hospital-grade 泵的「家用租赁」定位描述，属同域背景知识"
+  },
+  "hospital grade pump||9c7a52a1bc804137cfaa": {
+   "query": "hospital grade pump",
+   "unit_id": "9c7a52a1bc804137cfaa",
+   "verdict": "弱相关",
+   "reason": "Hospital-strength suction up to 260 mmHg——与 hospital grade 同族的强度表述"
+  },
+  "hospital grade pump||294b54292b6b4e3fa2b4": {
+   "query": "hospital grade pump",
+   "unit_id": "294b54292b6b4e3fa2b4",
+   "verdict": "不相关",
+   "reason": "吸奶器模式描述（Expression/Mixed Mode），与 hospital grade 无关"
+  },
+  "hospital grade pump||7af03fad93364f08dec7": {
+   "query": "hospital grade pump",
+   "unit_id": "7af03fad93364f08dec7",
+   "verdict": "不相关",
+   "reason": "Milk Relief 与泌乳描述，与 hospital grade 无关"
+  },
+  "hospital grade pump||a438915f43849e253688": {
+   "query": "hospital grade pump",
+   "unit_id": "a438915f43849e253688",
+   "verdict": "不相关",
+   "reason": "站点导航/促销外壳（UK Mums / Autumn Care Event）"
+  },
+  "hospital grade pump||a152bcb3c0417b6a5e14": {
+   "query": "hospital grade pump",
+   "unit_id": "a152bcb3c0417b6a5e14",
+   "verdict": "不相关",
+   "reason": "集合页外壳（Best Breast Pump for Exclusive Pumping）+ 站点导航"
+  },
+  "hospital grade pump||f3de1549c178739bb8af": {
+   "query": "hospital grade pump",
+   "unit_id": "f3de1549c178739bb8af",
+   "verdict": "不相关",
+   "reason": "用户评论片段（个人档位设置），与 hospital grade 无关"
+  },
+  "more milk supply||09a8613a258d1a362df1": {
+   "query": "more milk supply",
+   "unit_id": "09a8613a258d1a362df1",
+   "verdict": "弱相关",
+   "reason": "广告文案里用了 pump for low milk supply 关键词——是待审文案本身，不是规则"
+  },
+  "more milk supply||6f9d18c14cce4e27cf96": {
+   "query": "more milk supply",
+   "unit_id": "6f9d18c14cce4e27cf96",
+   "verdict": "弱相关",
+   "reason": "同上，另一条广告的同一句 Primary Text"
+  },
+  "more milk supply||3149c7d352b014b4d59c": {
+   "query": "more milk supply",
+   "unit_id": "3149c7d352b014b4d59c",
+   "verdict": "不相关",
+   "reason": "竞品（Willow Go）产品功能描述，未涉及奶量"
+  },
+  "more milk supply||9d2b1ccd2e20a81079f7": {
+   "query": "more milk supply",
+   "unit_id": "9d2b1ccd2e20a81079f7",
+   "verdict": "弱相关",
+   "reason": "德语用户反馈称这类泵「反而让奶变少」——与奶量主题同域的真实体验，非规则"
+  },
+  "催奶增产||3db49273026dc107607a": {
+   "query": "催奶增产",
+   "unit_id": "3db49273026dc107607a",
+   "verdict": "相关",
+   "reason": "规则库「检测关键词」含催乳/下奶/追奶/增奶/more milk/trigger oxytocin 等，正是本查询的命中词表"
+  },
+  "催奶增产||0fb4da0192cca9dc897d": {
+   "query": "催奶增产",
+   "unit_id": "0fb4da0192cca9dc897d",
+   "verdict": "相关",
+   "reason": "命中原因原文：H02 催乳/增产/奶量产出承诺（无 FDA/临床证据）及其合规替代路径"
+  },
+  "催奶增产||6fed2dc0dbb8a03e2b30": {
+   "query": "催奶增产",
+   "unit_id": "6fed2dc0dbb8a03e2b30",
+   "verdict": "相关",
+   "reason": "同上，另一条广告的同一命中原因"
+  },
+  "催奶增产||115c7ea5b20a67b77a72": {
+   "query": "催奶增产",
+   "unit_id": "115c7ea5b20a67b77a72",
+   "verdict": "相关",
+   "reason": "卖点边界「建议表达」列出的禁用表述：温热治疗堵奶/乳腺炎、触发催产素、提高长期奶量"
+  },
+  "医生推荐背书||ad83f2317442eda2c56d": {
+   "query": "医生推荐背书",
+   "unit_id": "ad83f2317442eda2c56d",
+   "verdict": "相关",
+   "reason": "命中原因原文：H04 无据的医生/专家推荐背书 + U01 认证头衔需核实——正是本查询规则"
+  },
+  "医生推荐背书||6920e18b7d6324352a72": {
+   "query": "医生推荐背书",
+   "unit_id": "6920e18b7d6324352a72",
+   "verdict": "不相关",
+   "reason": "讲的是如何让孩子配合看医生（儿科就诊准备），与「背书」无关"
+  },
+  "无痛吸奶||beeac59b54fa55a1809a": {
+   "query": "无痛吸奶",
+   "unit_id": "beeac59b54fa55a1809a",
+   "verdict": "不相关",
+   "reason": "讲的是「质地偏硬、无痛感」结节的医学修订——与「无痛吸奶」只是词面撞车，语义无关"
+  },
+  "无痛吸奶||cc26fc89813087a7fce8": {
+   "query": "无痛吸奶",
+   "unit_id": "cc26fc89813087a7fce8",
+   "verdict": "相关",
+   "reason": "修改建议原文：删除 pain-free/no pain/无痛/缓解疼痛等疼痛功效承诺，只留 comfort/gentle——正是本查询规则"
+  },
+  "无痛吸奶||afc25b413550d13fa98a": {
+   "query": "无痛吸奶",
+   "unit_id": "afc25b413550d13fa98a",
+   "verdict": "不相关",
+   "reason": "母乳喂养书里「公共场所喂奶」章节，与无痛诉求无关"
+  },
+  "无痛吸奶||9d2b1ccd2e20a81079f7": {
+   "query": "无痛吸奶",
+   "unit_id": "9d2b1ccd2e20a81079f7",
+   "verdict": "不相关",
+   "reason": "德语用户评论（奶量/泵效），与无痛诉求无关"
+  },
+  "无痛吸奶||bb2bd89af073181e1c00": {
+   "query": "无痛吸奶",
+   "unit_id": "bb2bd89af073181e1c00",
+   "verdict": "不相关",
+   "reason": "产后催乳粥谱与剖宫产月子护理，与无痛诉求无关"
+  },
+  "绝对安全承诺||4beaf8c51715498baa3f": {
+   "query": "绝对安全承诺",
+   "unit_id": "4beaf8c51715498baa3f",
+   "verdict": "相关",
+   "reason": "规则库「边界内容」：虚假安全承诺 + 最高级排名口径（2026-09-09 放开）——正是本查询边界"
+  },
+  "绝对安全承诺||52573b58174354f076ed": {
+   "query": "绝对安全承诺",
+   "unit_id": "52573b58174354f076ed",
+   "verdict": "不相关",
+   "reason": "孕产书中泡热水澡的段落，讲行为安全而非文案里的安全承诺"
+  },
+  "绝对安全承诺||0452db7854ed3e46a268": {
+   "query": "绝对安全承诺",
+   "unit_id": "0452db7854ed3e46a268",
+   "verdict": "不相关",
+   "reason": "波兰语产品说明（屏幕/30 分钟自动关机）"
+  },
+  "绝对安全承诺||2869c82aedae9ffcfc5d": {
+   "query": "绝对安全承诺",
+   "unit_id": "2869c82aedae9ffcfc5d",
+   "verdict": "不相关",
+   "reason": "波兰语配送国家与免运费说明"
+  },
+  "汽车保养周期多久一次||6124e5624ab36e96842b": {
+   "query": "汽车保养周期多久一次",
+   "unit_id": "6124e5624ab36e96842b",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是产品保修条款与育儿户外章节，与汽车保养无关"
+  },
+  "汽车保养周期多久一次||7e56971133c9b5443161": {
+   "query": "汽车保养周期多久一次",
+   "unit_id": "7e56971133c9b5443161",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是产品保修条款与育儿户外章节，与汽车保养无关"
+  },
+  "汽车保养周期多久一次||f84e40b20a281a73957b": {
+   "query": "汽车保养周期多久一次",
+   "unit_id": "f84e40b20a281a73957b",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是产品保修条款与育儿户外章节，与汽车保养无关"
+  },
+  "汽车保养周期多久一次||dea0d639f97d6ff8235d": {
+   "query": "汽车保养周期多久一次",
+   "unit_id": "dea0d639f97d6ff8235d",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是产品保修条款与育儿户外章节，与汽车保养无关"
+  },
+  "汽车保养周期多久一次||0452db7854ed3e46a268": {
+   "query": "汽车保养周期多久一次",
+   "unit_id": "0452db7854ed3e46a268",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是产品保修条款与育儿户外章节，与汽车保养无关"
+  },
+  "汽车保养周期多久一次||1facc67c8ba7fdea5a2e": {
+   "query": "汽车保养周期多久一次",
+   "unit_id": "1facc67c8ba7fdea5a2e",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是产品保修条款与育儿户外章节，与汽车保养无关"
+  },
+  "基金定投和股票的区别||259c6e3b689202a9ee51": {
+   "query": "基金定投和股票的区别",
+   "unit_id": "259c6e3b689202a9ee51",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是审核记录与吸奶器噪音描述，与理财无关"
+  },
+  "基金定投和股票的区别||40221d0f33b3a15c6999": {
+   "query": "基金定投和股票的区别",
+   "unit_id": "40221d0f33b3a15c6999",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是审核记录与吸奶器噪音描述，与理财无关"
+  },
+  "基金定投和股票的区别||8fb68c24c2f4cae5037a": {
+   "query": "基金定投和股票的区别",
+   "unit_id": "8fb68c24c2f4cae5037a",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是审核记录与吸奶器噪音描述，与理财无关"
+  },
+  "基金定投和股票的区别||b0c58c5a73a6a75e88c5": {
+   "query": "基金定投和股票的区别",
+   "unit_id": "b0c58c5a73a6a75e88c5",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是审核记录与吸奶器噪音描述，与理财无关"
+  },
+  "钢琴考级曲目推荐||557c6118bb484b3d94ab": {
+   "query": "钢琴考级曲目推荐",
+   "unit_id": "557c6118bb484b3d94ab",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是孕产/营养/涂鸦段落，与钢琴考级无关"
+  },
+  "钢琴考级曲目推荐||8dbff7f2b8c5b602cf70": {
+   "query": "钢琴考级曲目推荐",
+   "unit_id": "8dbff7f2b8c5b602cf70",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是孕产/营养/涂鸦段落，与钢琴考级无关"
+  },
+  "钢琴考级曲目推荐||900ae391b5bf7ea1565c": {
+   "query": "钢琴考级曲目推荐",
+   "unit_id": "900ae391b5bf7ea1565c",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是孕产/营养/涂鸦段落，与钢琴考级无关"
+  },
+  "钢琴考级曲目推荐||9da7eb5e16e8a83989a7": {
+   "query": "钢琴考级曲目推荐",
+   "unit_id": "9da7eb5e16e8a83989a7",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是孕产/营养/涂鸦段落，与钢琴考级无关"
+  },
+  "钢琴考级曲目推荐||c4577f9a1d0f5ef1da9a": {
+   "query": "钢琴考级曲目推荐",
+   "unit_id": "c4577f9a1d0f5ef1da9a",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是孕产/营养/涂鸦段落，与钢琴考级无关"
+  },
+  "钢琴考级曲目推荐||a93d3a9b1e3ed37436b8": {
+   "query": "钢琴考级曲目推荐",
+   "unit_id": "a93d3a9b1e3ed37436b8",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是孕产/营养/涂鸦段落，与钢琴考级无关"
+  },
+  "best hiking boots for winter||64251dce552760a13225": {
+   "query": "best hiking boots for winter",
+   "unit_id": "64251dce552760a13225",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是 Boots 渠道素材与育儿穿衣段落，与「冬季登山靴」无关"
+  },
+  "best hiking boots for winter||08553a709bdbc6f123a9": {
+   "query": "best hiking boots for winter",
+   "unit_id": "08553a709bdbc6f123a9",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是 Boots 渠道素材与育儿穿衣段落，与「冬季登山靴」无关"
+  },
+  "best hiking boots for winter||ea0cd2e68097cd35e312": {
+   "query": "best hiking boots for winter",
+   "unit_id": "ea0cd2e68097cd35e312",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是 Boots 渠道素材与育儿穿衣段落，与「冬季登山靴」无关"
+  },
+  "best hiking boots for winter||3f34d11fce41fe672bdb": {
+   "query": "best hiking boots for winter",
+   "unit_id": "3f34d11fce41fe672bdb",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是 Boots 渠道素材与育儿穿衣段落，与「冬季登山靴」无关"
+  },
+  "best hiking boots for winter||17a106fae98de3cbfb6c": {
+   "query": "best hiking boots for winter",
+   "unit_id": "17a106fae98de3cbfb6c",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是 Boots 渠道素材与育儿穿衣段落，与「冬季登山靴」无关"
+  },
+  "best hiking boots for winter||cce9aa0de8ee3a6c96a0": {
+   "query": "best hiking boots for winter",
+   "unit_id": "cce9aa0de8ee3a6c96a0",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是 Boots 渠道素材与育儿穿衣段落，与「冬季登山靴」无关"
+  },
+  "best hiking boots for winter||18ea30cfcca87d53bbdc": {
+   "query": "best hiking boots for winter",
+   "unit_id": "18ea30cfcca87d53bbdc",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是 Boots 渠道素材与育儿穿衣段落，与「冬季登山靴」无关"
+  },
+  "python asyncio tutorial||e7a82c29fd0ae1b017f9": {
+   "query": "python asyncio tutorial",
+   "unit_id": "e7a82c29fd0ae1b017f9",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是宝宝玩耍与礼貌用语，与 asyncio 无关"
+  },
+  "python asyncio tutorial||29719208128f3d89d58a": {
+   "query": "python asyncio tutorial",
+   "unit_id": "29719208128f3d89d58a",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是宝宝玩耍与礼貌用语，与 asyncio 无关"
+  },
+  "python asyncio tutorial||97ab815c1cd2699d4b38": {
+   "query": "python asyncio tutorial",
+   "unit_id": "97ab815c1cd2699d4b38",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是宝宝玩耍与礼貌用语，与 asyncio 无关"
+  },
+  "how to train for a marathon||7c8da381a07155233c47": {
+   "query": "how to train for a marathon",
+   "unit_id": "7c8da381a07155233c47",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是幼儿如厕/学步训练，与马拉松训练无关"
+  },
+  "how to train for a marathon||87addf1db681c6691131": {
+   "query": "how to train for a marathon",
+   "unit_id": "87addf1db681c6691131",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是幼儿如厕/学步训练，与马拉松训练无关"
+  },
+  "how to train for a marathon||e1a9baf9b49aeaef88e2": {
+   "query": "how to train for a marathon",
+   "unit_id": "e1a9baf9b49aeaef88e2",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是幼儿如厕/学步训练，与马拉松训练无关"
+  },
+  "how to train for a marathon||851e959533f6e426c40b": {
+   "query": "how to train for a marathon",
+   "unit_id": "851e959533f6e426c40b",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是幼儿如厕/学步训练，与马拉松训练无关"
+  },
+  "how to train for a marathon||dc23a333c96b0c1fbf3f": {
+   "query": "how to train for a marathon",
+   "unit_id": "dc23a333c96b0c1fbf3f",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是幼儿如厕/学步训练，与马拉松训练无关"
+  },
+  "how to train for a marathon||b29bf12c14aa8b8b1360": {
+   "query": "how to train for a marathon",
+   "unit_id": "b29bf12c14aa8b8b1360",
+   "verdict": "不相关",
+   "reason": "B 组库外问题；命中的是幼儿如厕/学步训练，与马拉松训练无关"
+  }
+ }
+}

@@ -1,0 +1,49 @@
+{
+  "agent": "root-agent-creater",
+  "cases": [
+    {
+      "id": "smoke-001",
+      "dimension": "generate_agent",
+      "difficulty": "L1",
+      "input": {
+        "name": "smoke-agent",
+        "purpose": "冒烟",
+        "target_users": "测试",
+        "task_types": [
+          "fact_qa"
+        ],
+        "tools": [
+          {
+            "name": "search_kb",
+            "description": "检索"
+          }
+        ],
+        "target_dir": "/tmp/root-agent-smoke",
+        "force": true
+      },
+      "expect": {
+        "ok": true,
+        "files_include": [
+          "agent.yaml",
+          "agent.py",
+          "prompts/system.md"
+        ]
+      },
+      "required_tools": []
+    },
+    {
+      "id": "smoke-002",
+      "dimension": "generate_agent",
+      "difficulty": "L1",
+      "input": {
+        "name": "Bad_Name"
+      },
+      "expect": {
+        "ok": false,
+        "error_code": "invalid_name",
+        "exit_nonzero": true
+      },
+      "required_tools": []
+    }
+  ]
+}

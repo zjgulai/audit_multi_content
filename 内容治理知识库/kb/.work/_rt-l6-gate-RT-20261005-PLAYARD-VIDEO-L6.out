@@ -1,0 +1,25 @@
+[层表核对] STAMP_SPEC 7 条全部能在 layers.yaml 本层 engine: 里找到 ✅
+====================================================================================
+知识库 L0–L7 执行编排器 · --sync ｜ 预演（不带 --apply） ｜ run_id=RT-20261005-PLAYARD-VIDEO-L6
+====================================================================================
+锁：已持锁 pid=79791 run_id=RT-20261005-PLAYARD-VIDEO-L6
+[写档闸门] **未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml
+[L6] ⚠️ 写档闸门：**未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml
+[L6] 闸门：过 ｜ exit=0 ｜ 退出码：0
+[L6] via-skill：本层该调的 skill ＝ kb-recall
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/.work/l6_scope.py
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/.work/l6_build.py
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/.work/l6_bench.py
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/.work/l6_integrity.py
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/.work/l6_selftest.py
+        ↳ 该 skill 内部照 layers.yaml 跑：kb/.work/l6_report.py
+[L6] via-skill：引擎交给 kb-recall（本编排器不跑；它只跑闸门 + 记账 + **--skill 透传**）
+[L6] --skill 透传：l6_report.py RT-20261005-PLAYARD-VIDEO-L6 --skill kb-recall ［预演档：未获本层写档凭据］
+[L6] 落章引擎 exit=0 ｜ 产物变化 0 个
+        [dry-run] 台账 → kb/l6/runs/RT-20261005-PLAYARD-VIDEO-L6-dryrun.json（顶层 skill=kb-recall）
+        run verdict = FAIL
+[记账] --gate-only：本次**不写** kb/l7/runs/（只过闸门 + 持锁/释放）—— 最终态由带 --invoked 的那次记账落，一个 RUN 在 index.jsonl 里只留 1 行
+[记账] 层侧落章实测：applied 0 ｜ dry 1 ｜ unknown 0 ｜ 读错 0 → human_involved=False ｜ verdict=全走完（预演 · 未落盘 · 非执行证据）
+------------------------------------------------------------------------------------
+结论：L6 全部走完（预演（不带 --apply））
+提示：这是预演。真正落盘要加 --apply，且当前白名单只开 ['L1', 'L2', 'L3', 'L4', 'L5', 'L6']。

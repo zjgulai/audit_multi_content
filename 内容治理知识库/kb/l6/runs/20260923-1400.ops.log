@@ -1,0 +1,46 @@
+# L6 建两套索引（向量 + BM25）· 操作日志 run_id=20260923-1400
+# 生成时间 2026-09-23 14:04:57｜写入范围：只写 kb/l6/；kb/l0~l3 全程只读；未发布任何版本
+
+[01] 探针：本机有没有可用的 embedding 模型/接口
+     $ python3 kb/.work/l6_probe.py
+     → 首轮记 bm25_only（curl 只给 3 秒超时，网络误判为不可达）→ 复测网络 200 → 装依赖后改为 vector_plus_bm25
+
+[02] 复测网络 + 装 ONNX 路线依赖
+     $ python3 -m pip install --user fastembed
+     → fastembed 0.7.4 装好（含 huggingface-hub/tokenizers/loguru）；副作用：pillow 11.3.0 → 10.4.0
+
+[03] 模型冒烟：加载多语模型、验证维度与确定性
+     $ python3 - <<'PY' (TextEmbedding 冒烟) PY
+     → dim=384；同文本重复嵌入一致；『宣称治疗效果』对『宣称疗效的表述』余弦 0.83、对『best-selling』0.11
+
+[04] 确定范围：复算 L3 过滤后的可用单元并与 l3_stats.json 对账
+     $ python3 kb/.work/l6_scope.py
+     → L2 9,261 → 可用 1,899（过滤分布与 L3 记录逐项一致）；无 kb/l6/SCOPE.txt，故对全部可用单元建索引
+
+[05] 首次建索引（向量 + BM25）
+     $ python3 kb/.work/l6_build.py 20260923-1400
+     → BM25 1,899 文档（术语 zh 15,522 / en 2,028）；向量 1,578 条（321 条 P0 证据单元不入向量）；embedding 25 次批量调用、0 重试、0 失败；耗时 36.6s
+
+[06] 发现 macOS BLAS 对 1578×384 矩阵乘误报警告，验证后局部屏蔽
+     $ python3 (matmul 对比)
+     → 整块 matmul 与逐行点积最大差 5.6e-17、输出全有限 → 误报；retriever 里用 errstate 屏蔽并留注释
+
+[07] 自检发现：重跑时投影/registry 的 mtime 会变（无条件重写）
+     $ python3 kb/.work/l6_integrity.py 20260923-1400
+     → FAIL：变更文件 ['kb/l6/index/l6.jsonl','kb/l6/registry/l6.json'] → 改为按内容比对后再写
+
+[08] 修复后复跑幂等：两次运行的 mtime/size/sha256 全同
+     $ python3 kb/.work/l6_build.py 20260923-1400 ×2
+     → 零写入；本次切词 0 条；embedding 调用 0 次
+
+[09] 自验：10 条查询（5 中 + 5 英）Top3 + 人工相关性判断
+     $ python3 kb/.work/l6_selftest.py --show → 写判断 → 再跑
+     → 中 5/5、英 5/5 命中率@3；precision@3 中 0.667 / 英 0.533；每条查询的判断理由写进 selftest.json
+
+[10] 自检 7 项
+     $ python3 kb/.work/l6_integrity.py 20260923-1400
+     → 全部 PASS（冻结层与 L5 基线逐字节一致；条数对账 0 差额；幂等零写入；向量回指 0 异常；倒排自洽；版本纪律；离线）
+
+[11] 生成留痕
+     $ python3 kb/.work/l6_report.py
+     → runs/20260923-1400.json / .report.md / .ops.log

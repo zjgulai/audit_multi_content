@@ -1,0 +1,44 @@
+========================================================================
+层侧落章 skill 字段普查（kb/lx/runs/*.json）
+========================================================================
+
+L0 落章  27 个｜带 skill 值 15 个
+   layers.yaml 声明: ['kb-l0-feishu']
+   实际记录 kb-l0-feishu                   15 次  ✅
+   实际记录 <无 skill 字段>                   12 次  —
+
+L1 落章  31 个｜带 skill 值 14 个
+   layers.yaml 声明: ['kb-ingest-extractor', 'kb-media-extractor']
+   实际记录 <无 skill 字段>                   17 次  —
+   实际记录 ['kb-ingest-extractor', 'kb-media-extractor']   11 次  ❌不在声明里
+   实际记录 kb-ingest-extractor             3 次  ✅
+
+L2 落章  49 个｜带 skill 值 22 个
+   layers.yaml 声明: ['kb-ingest-extractor']
+   实际记录 <无 skill 字段>                   27 次  —
+   实际记录 kb-ingest-extractor            22 次  ✅
+
+L3 落章  36 个｜带 skill 值 16 个
+   layers.yaml 声明: ['kb-clause-extractor']
+   实际记录 <无 skill 字段>                   20 次  —
+   实际记录 kb-clause-extractor            16 次  ✅
+
+L4 落章  95 个｜带 skill 值 57 个
+   layers.yaml 声明: ['kb-canonical-lookup']
+   实际记录 kb-canonical-lookup            57 次  ✅
+   实际记录 <无 skill 字段>                   38 次  —
+
+L5 落章  57 个｜带 skill 值 54 个
+   layers.yaml 声明: ['kb-p0-check']
+   实际记录 kb-p0-check                    54 次  ✅
+   实际记录 <无 skill 字段>                    3 次  —
+
+L6 落章  69 个｜带 skill 值 43 个
+   layers.yaml 声明: ['kb-recall']
+   实际记录 kb-recall                      43 次  ✅
+   实际记录 <无 skill 字段>                   26 次  —
+
+L7 落章 1157 个｜带 skill 值 1 个
+   layers.yaml 声明: ['kb-check']
+   实际记录 <无 skill 字段>                 1156 次  —
+   实际记录 {'path': 'kb/l7/skills/kb-content-review/SKILL.md', 'name': 'kb-content-review', 'complexity': 'complex', 'bytes': 7188, 'validator': 'root-skills-creator/scripts/validate-skill.py', 'validator_result': {'passed': True, 'quality_score': 98, 'warnings': ['.skill-meta/ is recommended for future MCP integration']}, 'references': ['references/protocols.md', 'references/categories.md'], 'script': 'scripts/review.py'}    1 次  ❌不在声明里

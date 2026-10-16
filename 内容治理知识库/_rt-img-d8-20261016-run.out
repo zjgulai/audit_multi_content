@@ -1,0 +1,283 @@
+[review_run] --loaded-skill 申报：kb-canonical-lookup kb-p0-check kb-recall kb-check 图片安全审查 
+[review_run] ① 四层前置 L4→L5→L6→L7 …
+[preflight 10:13:11] 认领成功：RT-20261016-1013-IMG-D8
+[preflight 10:13:11] ② L4 闸门(自带)+引擎(预演)+记账 … invoked=kb-canonical-lookup session=session-001089be-e1c3-4ba3-a1b8-97d7f96c7efa
+[preflight 10:13:13] ② L4 记账完成 → kb/l7/runs/RT-20261016-1013-IMG-D8-L4.json
+[preflight 10:13:13] ③ L4 审计 …
+[preflight 10:13:13] ③ L4 审计 exit=0（红 0）
+[preflight 10:13:13] ② L5 闸门(自带)+引擎(预演)+记账 … invoked=kb-p0-check session=session-001089be-e1c3-4ba3-a1b8-97d7f96c7efa
+[preflight 10:13:16] ② L5 记账完成 → kb/l7/runs/RT-20261016-1013-IMG-D8-L5.json
+[preflight 10:13:16] ③ L5 审计 …
+[preflight 10:13:17] ③ L5 审计 exit=0（红 0）
+[preflight 10:13:17] ② L6 闸门(自带)+引擎(预演)+记账 … invoked=kb-recall session=session-001089be-e1c3-4ba3-a1b8-97d7f96c7efa
+[preflight 10:13:19] ② L6 记账完成 → kb/l7/runs/RT-20261016-1013-IMG-D8-L6.json
+[preflight 10:13:19] ③ L6 审计 …
+[preflight 10:13:19] ③ L6 审计 exit=0（红 0）
+[preflight 10:13:19] ② L7 闸门(自带)+引擎(预演)+记账 … invoked=kb-check session=session-001089be-e1c3-4ba3-a1b8-97d7f96c7efa
+[preflight 10:13:19] ② L7 记账完成 → kb/l7/runs/RT-20261016-1013-IMG-D8-L7.json
+[preflight 10:13:19] ③ L7 审计 …
+[preflight 10:13:19] ③ L7 审计 exit=0（红 0）
+[preflight 10:13:19] ✅ 四层前置全绿（L4–L7 各一 RUN，四道审计红 0）｜BASE=RT-20261016-1013-IMG-D8
+[preflight 10:13:19]    下一步：出结论 —— with_kb_evidence.py --require-layer-preflight RT-20261016-1013-IMG-D8 --decision-owner <判定主体>
+[preflight 10:13:19] 已释放认领 RT-20261016-1013-IMG-D8
+[review_run] ② 自命中检查（素材 vs 库内 181 条反例/禁区）…
+===== ② 自命中检查（确定性；它只报事实，不判三态）=====
+自命中检查：未命中
+  素材归一化字符 72 ｜ 扫过条款 209 条 ｜ 阈值 ratio≥0.9 且 run≥80
+[review_run] 若上面是 status=error，那是「没查成」，**不是**「没命中」。
+[review_run] ③ 出结论（含默认发布到飞书）…
+===== ③ 引擎结论（唯一有权产出三态的地方）=====
+飞书发布：素材属性 → 渠道='' ｜ 产品线=''（由 l0_facets 推出：{}）
+飞书发布：自动调用 feishu_publish.py --apply …
+    "error": {
+      "type": "api",
+      "subtype": "unknown",
+      "code": 800030005,
+      "message": "not_found: not_found",
+      "log_id": "20261016101332E79AB4B45C0F45312ADC",
+      "troubleshooter": "排查建议查看(Troubleshooting suggestions): https://open.feishu.cn/search?
+  ⚠️ 飞书发布失败（退出码 1）—— **结论有效，但没发出去**
+{
+ "decision": {
+  "state": "REVIEW",
+  "decision": "REVIEW",
+  "confidence": null,
+  "review_id": "rv-20261016-101328",
+  "content_id": "AD-20261016-001",
+  "content_id_basis": "业务编号（PRD §5.4）：PRD §5.4 `AD-YYYYMMDD-NNN`；序号=1（表内同日前缀最大 +1）；读到 100 个内容 ID（表内 100 行）",
+  "content_version": "501c9953e2e0bf08cb350618b53823ac344cad41fd371408f0d614cd8750c20d",
+  "issue_count": 0,
+  "summary": "【审查结论：REVIEW】共发现 0 处需人工确认。\n\n**本次没有发现内容问题**（0 处）。下面是**覆盖缺口**说明 —— 缺的是**库覆盖**，不是素材有问题：\n\n**覆盖缺口说明（不是内容问题）**：本次素材的**文字层逐字命中 0 条**，但覆盖判据不成立（没有「既被规则引用、又达门限」的单元）——**这不是素材有问题，是库对该题材没有可依据的条款**。\n   原因：依据侧检索到 5 条命中，最高 BM25 19.7804（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。\n   依据：`kb/l7/registry/l7.json` 的 `retrieval.gate.coverage_bm25_min=16.0`（覆盖判据标定值；覆盖信号不成立时**不得输出 PASS**）\n   建议：转人工复核后再定；补素材无用（缺的是库覆盖）。\n\n**库内命中（读数）** —— 检索命中了 5 条，逐条列出**原文与直链**：\n\n1. `#l.1-1`｜BM25 19.7804｜wording\n   命中原文（逐字）：Momcozy Autumn Sale | Up to 60% Off Canada Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether Toys B\n   直链：https://ca.momcozy.com/collections/weekly-deals-ca\n2. `#素材/recvw7XJiSyehR/图片素材/#img.1`｜BM25 15.351｜internal_sample\n   命中原文（逐字）：[image_ocr] You look amazing today. 2 MomCOZy [image_ocr] MOmCOZY [image_ocr] ay. mOmCoZY [image_ocr] You look amazing today. momcozy [image_ocr] You look absol\n   直链：https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw7XJiSyehR\n3. `#素材/recvw7XIUgAws7/图片素材/#img.1`｜BM25 15.2061｜internal_sample\n   命中原文（逐字）：[image_ocr] momcozy لعكِ في كل خطوة من رحلة الأمومة \" ()SS moMCOZY ComfortNip™ TOICOLY Pro-Collagen Bellv momcoz [image_ocr] momcozy توفير الراحة الحقيقية للأمه\n   直链：https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw7XIUgAws7\n4. `#素材/recvweKJlZkABw/图片素材/#img.1`｜BM25 14.9372｜internal_sample\n   命中原文（逐字）：[image_ocr] momcozy 家纺线下试衣镜选品 2026.08.28 momcozy 01-1 背景&要求 父利用试衣钱这个高注磨力鯪占曾品牌传構。 采药夏家： L得鑫忍烤清性： 2.R沙段格震票：一真度不任于1600mm，意境不任于500mm，满足展示全弃及产品上身效果： 3安装方式：%地式或提填式； 因\n   直链：https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvweKJlZkABw\n5. `#素材/recvw8Tx3zcjwb/图片素材/#img.1`｜BM25 14.9372｜internal_sample\n   命中原文（逐字）：[image_ocr] momcozy 家纺线下试衣镜选品 2026.08.28 momcozy 01-1 背景&要求 父利用试衣钱这个高注磨力鯪占曾品牌传構。 采药夏家： L得鑫忍烤清性： 2.R沙段格震票：一真度不任于1600mm，意境不任于500mm，满足展示全弃及产品上身效果： 3安装方式：%地式或提填式； 因\n   直链：https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw8Tx3zcjwb\n\n> ⚠️ 上面是**读数**：命中的**大多是别人的素材样本 / 外部材料，不是覆盖本素材的条款**，**不得据此当 PASS 依据**，也不得当作「本素材已合规」的证明。\n\n建议转 @法务（未配置） @北美同事（未配置） 复核。",
+  "risk_items": [
+   {
+    "risk_type": "覆盖缺口",
+    "priority_tier": "转人工",
+    "action": "库对该题材没有可依据的条款 ⇒ 转人工看**覆盖**（不是发现了内容问题）",
+    "category": "覆盖",
+    "sub": "知识库覆盖缺口",
+    "reason": "依据侧检索到 5 条命中，最高 BM25 19.7804（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。",
+    "severity": "REVIEW",
+    "reason_code": "coverage_not_covered",
+    "coverage": {
+     "covered": false,
+     "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+     "rule_cited_unit_hits": 0,
+     "safe_vocabulary_hits": 0,
+     "coverage_bm25_min": 16.0,
+     "bm25_max": 19.7804,
+     "top_hit_anchor": "#l.1-1",
+     "top_hit_excerpt": "Momcozy Autumn Sale | Up to 60% Off Canada Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether Toys B"
+    },
+    "coverage_gap": true
+   }
+  ],
+  "next_owners": [
+   "法务",
+   "医学顾问"
+  ],
+  "fails_closed": true,
+  "refusal": {
+   "state": "NEEDS_INPUT",
+   "detail": "依据侧拒答（fail-closed）",
+   "fails_closed": true,
+   "reason_code": "coverage_not_covered",
+   "coverage": {
+    "covered": false,
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "rule_cited_unit_hits": 0,
+    "safe_vocabulary_hits": 0,
+    "coverage_bm25_min": 16.0,
+    "bm25_max": 19.7804,
+    "top_hit_anchor": "#l.1-1",
+    "top_hit_excerpt": "Momcozy Autumn Sale | Up to 60% Off Canada Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether Toys B"
+   },
+   "human": "依据侧检索到 5 条命中，最高 BM25 19.7804（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。"
+  },
+  "gate": null,
+  "submit_question": "图注：Cleaning Bundle: DeepClean Baby Bottle Washer(D8) + 200 Cleaning & 30 Descaling Tablets ｜ 来源页（美国站）：https://momcozy.com/products/cleaning-bundle-deepclean-baby-bottle-washer-d8-200-cleaning-30-descaling-tablets ｜ 本单为图片素材；画面读数（视觉模型读数，非原图）：场景=影棚；读数中无人物；物品=白色方形机器（黑色控制面板+半透明上盖）、白色圆片状清洁片多板泡罩包装、浅绿色纸盒包装、浅绿色袋装多袋叠放；可见标识文字认不清；线索=机器透明盖内可见奶瓶状容器、纯白背景商品摆拍"
+ },
+ "evidence_meta": {
+  "run_id": "20261016-101323",
+  "findings": 0,
+  "state": "REVIEW",
+  "fails_closed": true,
+  "refusal": {
+   "state": "NEEDS_INPUT",
+   "detail": "依据侧拒答（fail-closed）",
+   "fails_closed": true,
+   "reason_code": "coverage_not_covered",
+   "coverage": {
+    "covered": false,
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "rule_cited_unit_hits": 0,
+    "safe_vocabulary_hits": 0,
+    "coverage_bm25_min": 16.0,
+    "bm25_max": 19.7804,
+    "top_hit_anchor": "#l.1-1",
+    "top_hit_excerpt": "Momcozy Autumn Sale | Up to 60% Off Canada Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether Toys B"
+   },
+   "human": "依据侧检索到 5 条命中，最高 BM25 19.7804（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。"
+  },
+  "report_path": null,
+  "source": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py",
+  "findings_source": {
+   "mode": "live",
+   "path": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py"
+  },
+  "kb_hits": [
+   {
+    "anchor": "#l.1-1",
+    "bm25": 19.7804,
+    "kb_type": "wording",
+    "source_sha256": "1e1ae33b261494706a9915f5c9337339a5c7e4e21ac0db548e3175498dd44925",
+    "excerpt": "Momcozy Autumn Sale | Up to 60% Off Canada Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether Toys B",
+    "url": "https://ca.momcozy.com/collections/weekly-deals-ca"
+   },
+   {
+    "anchor": "#素材/recvw7XJiSyehR/图片素材/#img.1",
+    "bm25": 15.351,
+    "kb_type": "internal_sample",
+    "source_sha256": null,
+    "excerpt": "[image_ocr] You look amazing today. 2 MomCOZy [image_ocr] MOmCOZY [image_ocr] ay. mOmCoZY [image_ocr] You look amazing today. momcozy [image_ocr] You look absol",
+    "url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw7XJiSyehR"
+   },
+   {
+    "anchor": "#素材/recvw7XIUgAws7/图片素材/#img.1",
+    "bm25": 15.2061,
+    "kb_type": "internal_sample",
+    "source_sha256": null,
+    "excerpt": "[image_ocr] momcozy لعكِ في كل خطوة من رحلة الأمومة \" ()SS moMCOZY ComfortNip™ TOICOLY Pro-Collagen Bellv momcoz [image_ocr] momcozy توفير الراحة الحقيقية للأمه",
+    "url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw7XIUgAws7"
+   },
+   {
+    "anchor": "#素材/recvweKJlZkABw/图片素材/#img.1",
+    "bm25": 14.9372,
+    "kb_type": "internal_sample",
+    "source_sha256": null,
+    "excerpt": "[image_ocr] momcozy 家纺线下试衣镜选品 2026.08.28 momcozy 01-1 背景&要求 父利用试衣钱这个高注磨力鯪占曾品牌传構。 采药夏家： L得鑫忍烤清性： 2.R沙段格震票：一真度不任于1600mm，意境不任于500mm，满足展示全弃及产品上身效果： 3安装方式：%地式或提填式； 因",
+    "url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvweKJlZkABw"
+   },
+   {
+    "anchor": "#素材/recvw8Tx3zcjwb/图片素材/#img.1",
+    "bm25": 14.9372,
+    "kb_type": "internal_sample",
+    "source_sha256": null,
+    "excerpt": "[image_ocr] momcozy 家纺线下试衣镜选品 2026.08.28 momcozy 01-1 背景&要求 父利用试衣钱这个高注磨力鯪占曾品牌传構。 采药夏家： L得鑫忍烤清性： 2.R沙段格震票：一真度不任于1600mm，意境不任于500mm，满足展示全弃及产品上身效果： 3安装方式：%地式或提填式； 因",
+    "url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw8Tx3zcjwb"
+   }
+  ],
+  "layer_preflight": {
+   "base": "RT-20261016-1013-IMG-D8",
+   "ok": true,
+   "red_total": 0,
+   "mode": "enforced",
+   "details": {
+    "L4": {
+     "run": "RT-20261016-1013-IMG-D8-L4",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L4": "session-001089be-e1c3-4ba3-a1b8-97d7f96c7efa"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L5": {
+     "run": "RT-20261016-1013-IMG-D8-L5",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L5": "session-001089be-e1c3-4ba3-a1b8-97d7f96c7efa"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L6": {
+     "run": "RT-20261016-1013-IMG-D8-L6",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L6": "session-001089be-e1c3-4ba3-a1b8-97d7f96c7efa"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L7": {
+     "run": "RT-20261016-1013-IMG-D8-L7",
+     "exit": 0,
+     "red": 0,
+     "yellow": 0,
+     "skill_sessions": {
+      "L7": "session-001089be-e1c3-4ba3-a1b8-97d7f96c7efa"
+     },
+     "pass": true,
+     "note": ""
+    }
+   }
+  },
+  "decision_owner": {
+   "skill": "图片安全审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check",
+    "图片安全审查"
+   ]
+  },
+  "publish": {
+   "mode": "enabled",
+   "published": false,
+   "docx": null,
+   "record_id": null
+  },
+  "report_url": null,
+  "report_url_kind": null
+ }
+}
+
+===== ③b 转述模板（照抄这一段即可，不必再跑任何命令）=====
+状态：REVIEW ｜ 问题数：0 ｜ 置信度：None
+摘要：【审查结论：REVIEW】共发现 0 处需人工确认。
+
+**本次没有发现内容问题**（0 处）。下面是**覆盖缺口**说明 —— 缺的是**库覆盖**，不是素材有问题：
+
+**覆盖缺口说明（不是内容问题）**：本次素材的**文字层逐字命中 0 条**，但覆盖判据不成立（没有「既被规则引用、又达门限」的单元）——**这不是素材有问题，是库对该题材没有可依据的条款**。
+   原因：依据侧检索到 5 条命中，最高 BM25 19.7804（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。
+   依据：`kb/l7/registry/l7.json` 的 `retrieval.gate.coverage_bm25_min=16.0`（覆盖判据标定值；覆盖信号不成立时**不得输出 PASS**）
+   建议：转人工复核后再定；补素材无用（缺的是库覆盖）。
+
+**库内命中（读数）** —— 检索命中了 5 条，逐条列出**原文与直链**：
+
+1. `#l.1-1`｜BM25 19.7804｜wording
+   命中原文（逐字）：Momcozy Autumn Sale | Up to 60% Off Canada Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether Toys B
+   直链：https://ca.momcozy.com/collections/weekly-deals-ca
+2. `#素材/recvw7XJiSyehR/图片素材/#img.1`｜BM25 15.351｜internal_sample
+   命中原文（逐字）：[image_ocr] You look amazing today. 2 MomCOZy [image_ocr] MOmCOZY [image_ocr] ay. mOmCoZY [image_ocr] You look amazing today. momcozy [image_ocr] You look absol
+   直链：https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw7XJiSyehR
+3. `#素材/recvw7XIUgAws7/图片素材/#img.1`｜BM25 15.2061｜internal_sample
+   命中原文（逐字）：[image_ocr] momcozy لعكِ في كل خطوة من رحلة الأمومة " ()SS moMCOZY ComfortNip™ TOICOLY Pro-Collagen Bellv momcoz [image_ocr] momcozy توفير الراحة الحقيقية للأمه
+   直链：https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw7XIUgAws7
+4. `#素材/recvweKJlZkABw/图片素材/#img.1`｜BM25 14.9372｜internal_sample
+   命中原文（逐字）：[image_ocr] momcozy 家纺线下试衣镜选品 2026.08.28 momcozy 01-1 背景&要求 父利用试衣钱这个高注磨力鯪占曾品牌传構。 采药夏家： L得鑫忍烤清性： 2.R沙段格震票：一真度不任于1600mm，意境不任于500mm，满足展示全弃及产品上身效果： 3安装方式：%地式或提填式； 因
+   直链：https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvweKJlZkABw
+5. `#素材/recvw8Tx3zcjwb/图片素材/#img.1`｜BM25 14.9372｜internal_sample
+   命中原文（逐字）：[image_ocr] momcozy 家纺线下试衣镜选品 2026.08.28 momcozy 01-1 背景&要求 父利用试衣钱这个高注磨力鯪占曾品牌传構。 采药夏家： L得鑫忍烤清性： 2.R沙段格震票：一真度不任于1600mm，意境不任于500mm，满足展示全弃及产品上身效果： 3安装方式：%地式或提填式； 因
+   直链：https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw8Tx3zcjwb
+
+> ⚠️ 上面是**读数**：命中的**大多是别人的素材样本 / 外部材料，不是覆盖本素材的条款**，**不得据此当 PASS 依据**，也不得当作「本素材已合规」的证明。
+
+建议转 @法务（未配置） @北美同事（未配置） 复核。
+层前置：ok=None mode=None
+判定主体：图片安全审查 ｜ mode=declared
+  ● 条款号 ? ｜ 依据侧检索到 5 条命中，最高 BM25 19.7804（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。
+
+【飞书那一步没有做】published=false ｜ 原因 未说明
+⇒ 这**由守衡侧负责**，不是你的活。**不许**自己调 lark-cli 去补写表。
+[review_run] 机读旁挂已写：/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/.work/last_review_result.json
+REVIEW_RUN_EXIT=0

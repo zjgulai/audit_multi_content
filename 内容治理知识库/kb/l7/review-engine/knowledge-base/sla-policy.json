@@ -1,0 +1,19 @@
+{
+  "sla_version": "sla-confirmed-2026-09-24",
+  "status": "confirmed_by_user",
+  "timezone": "America/Los_Angeles",
+  "targets": [
+    {"state": "BLOCK", "priority": "P0", "target": "immediate", "escalate_to": ["项目统筹", "内容提交方"]},
+    {"state": "REVIEW", "priority": "P0", "target": "4 business hours", "escalate_to": ["项目统筹", "法务负责人"]},
+    {"state": "REVIEW", "priority": "P1", "target": "4 business hours", "escalate_to": ["项目统筹", "对应专业负责人"]},
+    {"state": "REVIEW", "priority": "P2", "target": "1 business day", "escalate_to": ["项目统筹"]},
+    {"state": "PASS", "priority": "any", "target": "1 business day", "escalate_to": ["项目统筹", "Sign-off 负责人"]},
+    {"state": "NEEDS_INPUT", "priority": "any", "target": "1 business day", "escalate_to": ["项目统筹", "内容提交方"]}
+  ],
+  "clock_rules": [
+    "Start the clock when the required input manifest is complete.",
+    "Pause the clock while waiting for missing submitter material.",
+    "Record timezone and business-calendar version with each SLA event.",
+    "SLA breach never changes the decision automatically."
+  ]
+}

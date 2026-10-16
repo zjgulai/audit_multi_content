@@ -1,0 +1,65 @@
+{
+ "policy_id": "report-threshold-policy-20261010",
+ "created_at": "2026-10-10",
+ "layer": "L7 跨层 · 报告输出门槛（PRD §5.3.4 / §8.3 / §17）",
+ "status": "active",
+ "owner": "法务 + 内容治理（角色位）",
+ "scope": "评审结论的「输出形态」分档：逐条输出 vs 分类汇总 + 报告链接",
+ "prd_ref": {
+  "doc": "内容审查 Agent PRD v1.2",
+  "sections": {
+   "§5.3.4 输出格式设计说明": "「阈值支持配置，后续可根据用户反馈调整（**建议保留 3 作为默认值**）。」",
+   "§5.3.3 BLOCK · 问题数量 ≥ 3 个时": "只输出分类汇总 + 报告链接",
+   "§5.3.2 REVIEW · 问题数量 ≥ 3 个时": "只输出分类汇总 + 报告链接",
+   "§8.3 报告链接": "「问题数量 ≥ 3 时，生成完整报告并返回链接。」",
+   "§17 附录：结论模板速查": "PASS — ｜ REVIEW 1-2 逐条 / ≥3 汇总+链接 ｜ BLOCK 1-2 逐条 / ≥3 汇总+链接"
+  },
+  "why_3": "§5.3.4 原文：「根据行业内容审核实践，单次审查中 3 个及以上问题已超出用户可快速浏览和记忆的范围，逐条展开会显著增加认知负担。审核报告最佳实践采用『摘要 + 钻取报告』模式。」"
+ },
+ "thresholds": {
+  "report_link_min_issues": 3
+ },
+ "thresholds_note": "★ `3` 是 **PRD 的默认值**，不是自创。PRD §5.3.4 明写「阈值支持配置…建议保留 3 作为默认值」⇒ **本文件就是那个「可配置」的口**。改口径改这里；在代码里再写一个常量是错的地方（读取实现只有一份：`kb/l7/review-engine/core/report_threshold.py`）。",
+ "semantics": {
+  "below": {
+   "range": "< report_link_min_issues",
+   "output": "逐条输出（维度 + 位置 + 问题 + 原因 + 依据链接 + 建议），**不给报告链接**",
+   "why": "PRD §5.3.2 / §5.3.3：问题数量 1-2 个时逐条输出"
+  },
+  "at_or_above": {
+   "range": ">= report_link_min_issues",
+   "output": "只输出**分类汇总**（各维度问题数量）+ **报告链接** + 转对应团队",
+   "why": "PRD §5.3.2 / §5.3.3 / §8.3 / §17 四处同口径"
+  }
+ },
+ "who_reads_this": {
+  "kb_side": "`kb/l7/review-engine/core/feishu_publish.py`（决定建不建云文档、填不填「报告链接」列）",
+  "shouheng_side": {
+   "file": "tools/agent/dual_track.mjs（`REPORT_LINK_MIN_ISSUES = 3`）",
+   "status": "★ **仍是自己那份常量**（2026-10-10 实测）",
+   "why_it_matters": "两侧各判一次门槛 ⇒ 改了一侧不会同步另一侧：库侧改成 2 会为 2 条的单建文档，而守衡侧仍按 3 不显示那一行 ⇒ **建了文档却没人看得到**（孤儿文档，2026-10-03 讨论过的那类）。",
+   "convergence_plan": "库侧已把**门槛判定结果**写进机读旁挂（`report_link.required` / `n_issues` / `emitted`）⇒ 守衡侧可**直接读结论**，不必自己再判一次。守衡侧改动属另一仓库，**本批未动**，登记在此。"
+  }
+ },
+ "history": {
+  "2026-10-03_early": "门槛 3（按 PRD）",
+  "2026-10-03_late_changed": "曾改判为「每次都填」⇒ 门槛临时置 0",
+  "2026-10-03_late_reverted": "同日用户裁定「**不用改 PRD 规则，后续都按照 PRD 来做**」⇒ **已回退为 3**",
+  "registry": "`kb/l7/registry/report-output-contract.yaml` → `applied_20261003.report_output_link_threshold_20261003_late`（含 reverted）"
+ },
+ "honest_limits": [
+  "★ **改本文件只影响库侧**。守衡侧 `dual_track.mjs` 里那份常量**不会跟着变**（见 `who_reads_this.shouheng_side`）。在两侧同源之前，**改门槛属于「动了要通知守衡」的改动**。",
+  "本批**只做「阈值可配置」这一半**。PRD §8.3 / §5.3.4 的另一半「支持导出为飞书文档或 PDF」**本次未落地** —— 本地没有可靠的 docx→PDF 通道，硬做会做出一个点不开的按钮。⇒ §8.3 该条**仍不达标**，如实登记，不粉饰。",
+  "「报告链接有效期 ≥ 30 天」（§8.3 / §12）**未验证** —— 那是飞书云文档侧的性质，本库无从测量。"
+ ],
+ "validation": {
+  "derivation_module": "kb/l7/review-engine/core/report_threshold.py（唯一读取实现；自证 `--selftest`）",
+  "wired_into": "kb/l7/review-engine/core/feishu_publish.py（原 `REPORT_LINK_MIN_ISSUES = 3` 常量已删）",
+  "reader_contract": "读不到本文件 ⇒ 用 PRD 默认值 3，并**在输出里声明用的是默认值**（不许静默）。"
+ },
+ "revisit": {
+  "when": "用户反馈逐条输出过长/过短时（PRD §5.3.4 原话「后续可根据用户反馈调整」）",
+  "who": "内容治理（口径）+ 法务",
+  "how": "改本文件 `thresholds.report_link_min_issues`；**同时通知守衡侧**（见 honest_limits 第一条）"
+ }
+}

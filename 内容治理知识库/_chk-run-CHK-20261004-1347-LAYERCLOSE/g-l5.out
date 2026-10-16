@@ -1,0 +1,19 @@
+$ sh kb/kbpy l7/scripts/l5_gate.py
+==========================================================================
+L5 闸门（跑 kb/.work/l5_integrity.py 的 6 项，按「实质 / 基线」分类）
+  pattern_traceability   PASS
+  no_fabricated_words    PASS
+  version_discipline     PASS
+  offline                PASS
+  frozen_layers          FAIL
+  l3_append_only         FAIL
+--------------------------------------------------------------------------
+  ⚠️ frozen_layers = FAIL（已登记为**判据过期**，不判红）｜ 
+  ⚠️ l3_append_only = FAIL（已登记为**判据过期**，不判红）｜ 
+  ✓ C_p0_count_recomputable：P0 导出 7 条 == 按「乙」口径可复算 7 条
+--------------------------------------------------------------------------
+说明：本闸门会触发自检器写它自己的证据文件 kb/.work/l5_integrity.json（不是层产物）
+      自检器退出码 1 ｜ 末行：[PASS] offline /  / 自检总计：FAIL
+==========================================================================
+结论：✅ 过（实质 4 项全 PASS，基线项异常已登记）
+退出码：0

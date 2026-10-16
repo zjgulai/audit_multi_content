@@ -1,0 +1,79 @@
+{
+  "rule_version": "momcozy-us-seed-rules-2026-09-24",
+  "status": "scope_confirmed_pending_owner_approval",
+  "decision_policy_confirmed_by_user": true,
+  "decision_policy_confirmed_at": "2026-09-24",
+  "jurisdiction": "US",
+  "authoritative": false,
+  "authority_note": "★ 这不是知识库的规则真源。真源是 kb/l3/candidates/rules.jsonl（措辞表达库）→ kb/l4/canonical（发号）。本文件是评审引擎内置的 5 条 US 种子规则，编号体系（US-…）与库内条款号（W-/E-/S-…）不同且无映射，禁止当作同一份规则清单合并或对账；本文件的命中只算「专项第 1 源：可定位候选」，不得单独支撑 BLOCK/PASS。合并或退役这 5 条要改判定结果，属写规则真源，须人开闸。",
+  "superseded_by": "kb/l3/candidates/rules.jsonl",
+  "rules": [
+    {
+      "rule_id": "US-CLAIM-HEALTH-001",
+      "title": "Health or safety outcome claim lacks approved substantiation",
+      "priority_tier": "P0",
+      "severity": "critical",
+      "applies_to": {"product_lines": ["吸奶器", "Baby Monitor", "Bottle Washer"], "channels": ["all"], "content_types": ["text", "image", "video"]},
+      "trigger": {"patterns": ["treat", "cure", "prevent", "eliminates germs", "safe for baby"], "semantic_conditions": ["express or implied health/safety outcome"], "exceptions": ["clearly framed as a warning or quoted user claim, still requires review"]},
+      "decision": "REVIEW",
+      "evidence_required": true,
+      "source_refs": ["SRC-FTC-HEALTH", "SRC-FDA-BREAST-PUMP"],
+      "owner": "legal+medical",
+      "status": "draft",
+      "note": "Escalate to BLOCK only when the approved rule or evidence review confirms the claim is prohibited or materially false."
+    },
+    {
+      "rule_id": "US-ENDORSEMENT-001",
+      "title": "Creator or expert endorsement has missing disclosure or substantiation",
+      "priority_tier": "P0",
+      "severity": "high",
+      "applies_to": {"product_lines": ["吸奶器", "Baby Monitor", "Bottle Washer"], "channels": ["TikTok", "Instagram", "YouTube", "独立站", "Amazon"], "content_types": ["text", "image", "video"]},
+      "trigger": {"patterns": ["sponsored", "paid partnership", "affiliate", "doctor recommends", "IBCLC recommends"], "semantic_conditions": ["endorsement, testimonial, expert claim, or material connection"], "exceptions": []},
+      "decision": "REVIEW",
+      "evidence_required": true,
+      "source_refs": ["SRC-FTC-ENDORSEMENT"],
+      "owner": "legal+influencer-owner",
+      "status": "draft"
+    },
+    {
+      "rule_id": "US-PRODUCT-001",
+      "title": "Claim conflicts with confirmed SKU fact",
+      "priority_tier": "P1",
+      "severity": "high",
+      "applies_to": {"product_lines": ["吸奶器", "Baby Monitor", "Bottle Washer"], "channels": ["all"], "content_types": ["text", "image", "video"]},
+      "trigger": {"patterns": [], "semantic_conditions": ["claim conflicts with SKU, model, region, or approved specification"], "exceptions": []},
+      "decision": "BLOCK",
+      "evidence_required": true,
+      "source_refs": ["product-fact-library"],
+      "owner": "product+legal",
+      "status": "draft"
+    },
+    {
+      "rule_id": "US-PRODUCT-002",
+      "title": "Objective product claim has no approved evidence",
+      "priority_tier": "P1",
+      "severity": "high",
+      "applies_to": {"product_lines": ["吸奶器", "Baby Monitor", "Bottle Washer"], "channels": ["all"], "content_types": ["text", "image", "video"]},
+      "trigger": {"patterns": [], "semantic_conditions": ["objective performance, capacity, safety, certification, or comparative claim lacks supporting record"], "exceptions": []},
+      "decision": "REVIEW",
+      "evidence_required": true,
+      "source_refs": ["product-fact-library", "claim-substantiation-record"],
+      "owner": "product+legal",
+      "status": "draft"
+    },
+    {
+      "rule_id": "US-PLATFORM-ABSOLUTE-001",
+      "title": "Absolute or ranking claim requires context and proof",
+      "priority_tier": "P1",
+      "severity": "high",
+      "applies_to": {"product_lines": ["吸奶器", "Baby Monitor", "Bottle Washer"], "channels": ["Amazon", "Google", "TikTok", "Instagram", "独立站"], "content_types": ["text", "image", "video"]},
+      "trigger": {"patterns": ["best", "#1", "number one", "most trusted", "top-selling", "best-selling", "hospital-grade"], "semantic_conditions": ["objective superiority, ranking, or certification implication"], "exceptions": ["do not treat the mere presence of best/first as a US-wide automatic BLOCK; require platform scope, time window, methodology, and proof"]},
+      "decision": "REVIEW",
+      "evidence_required": true,
+      "source_refs": ["SRC-FTC-ADVERTISING", "SRC-GOOGLE-MISREPRESENTATION", "SRC-AMAZON-IMAGE"],
+      "owner": "legal+channel-owner",
+      "status": "draft",
+      "note": "This is intentionally REVIEW in the US seed set; the PRD's absolute-word BLOCK rule needs US legal and platform-specific confirmation."
+    }
+  ]
+}

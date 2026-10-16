@@ -1,0 +1,16 @@
+{
+ "run_at": "2026-10-12 12:50:58",
+ "target": "18 P0 红线法务逐条确认台账",
+ "prd": "§16 风险与依赖 —— 风险「P0 规则误配」→ 应对「P0 规则上线前由法务逐条确认」",
+ "entries": 11,
+ "unresolved": 0,
+ "unresolved_detail": [],
+ "signoff_status": {
+  "pending": 11,
+  "confirmed": 0,
+  "rejected": 0
+ },
+ "note": "★ 签署区一律留空 —— **本件不替法务签**。待签 11 条；夹具就绪 ≠ 已确认。",
+ "verify_cmd": "python3 kb/l8/build_p0_legal_signoff_ledger.py --verify",
+ "how_to_sign": "逐条把 legal_signoff.status 改成 confirmed/rejected，并填 signer（**具名**，不许写「法务团队」）、signed_at、basis（依据法条/内部口径）；例外写 note。改完跑 --verify，11/11 且无具名缺失才算落地。"
+}

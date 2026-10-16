@@ -1,0 +1,24 @@
+2026-10-04 00:49:50
+## ⑥ projection_reconcile
+投影对账：kb/view ⇄ 权威分层库
+  视图根：/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/view
+  ❌ R1_source_sha256
+  ❌ R2_entry_fingerprint
+  ✅ R3_id_set
+  ❌ R4_governance_passthrough
+  ✅ R5_manifest_bytes
+  ✅ R6_tier_dir
+
+  3/6 项通过，漂移项 3
+
+  ── 漂移明细
+    [R1] 源文件 rules 在视图生成后变过
+          detail: "f27a14091b2bd782… → 743dc62398311b02…"
+          修法  : 重跑 kb/.work/gen-host-library.py 到 staging 后回填（见 projection_reconcile 文档）
+    [R2] 509 条条目的权威规则已变（任一字段）
+          detail: ["cg-r-006445396c95aa10", "cg-r-1cf94543649842a0", "cg-r-21786ac5aff9be34", "cg-r-252ba6cf5ee92b00", "cg-r-3055901e5877f981", "cg-r-30d3b9b54135fa04", "cg-r-335f00d14cefe7f9", "cg-r-33ce99a813e0865a",
+          修法  : 同 R1：重新生成并回填
+    [R4] 2036 处治理字段未从权威库传导
+          detail: {"owner": 509, "half_life_days": 509, "valid_until": 509, "effective_from": 509}
+          修法  : 确认投影生成器是否从规则行读这 4 个字段（F8）
+EXIT=1

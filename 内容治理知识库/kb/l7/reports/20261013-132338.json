@@ -1,0 +1,193 @@
+{
+  "review_id": "20261013-132338",
+  "content_id": "text-ff1a070429ac",
+  "content_id_basis": "指纹（依据侧不发业务号，发号真源 = kb/l7/review-engine/core/content_id.py）",
+  "content_type": "text",
+  "content_version": "ff1a070429ac33cc876eba916f50378514a78af0610f2523e7ed5ab01d00e353",
+  "content_hash": "ff1a070429ac33cc876eba916f50378514a78af0610f2523e7ed5ab01d00e353",
+  "agent_version": "kb-content-review@1.3.0",
+  "rule_version": "article-no-2+l3-0.2+rules.jsonl@ee39dda777ed4eb3",
+  "knowledge_version": "v0",
+  "version_binding": {
+    "review_id": "20261013-132338",
+    "content_id": null,
+    "content_id_form": "AD-YYYYMMDD-NNN（PRD §5.4）",
+    "content_id_note": "本入口（依据侧）**不发业务号** —— 发号要读飞书表，而依据侧不该为此访问飞书。业务号由发号方在发飞书那一刻发：`kb/l7/review-engine/core/content_id.py`（唯一实现）。",
+    "content_fingerprint": "text-ff1a070429ac",
+    "content_hash": "ff1a070429ac33cc876eba916f50378514a78af0610f2523e7ed5ab01d00e353",
+    "content_version": "ff1a070429ac33cc876eba916f50378514a78af0610f2523e7ed5ab01d00e353",
+    "agent_version": "kb-content-review@1.3.0",
+    "rule_version": "article-no-2+l3-0.2+rules.jsonl@ee39dda777ed4eb3",
+    "knowledge_version": "v0",
+    "sources": {
+      "content_hash": "送审文本 utf-8 的 sha256",
+      "agent_version": "kb/l7/skills/kb-content-review/SKILL.md → frontmatter.version",
+      "rule_version": "kb/l7/registry/l7.json → article_no_source.scheme_version ＋ kb/l3/registry/l3.json → distiller_version ＋ kb/l3/candidates/rules.jsonl 的 sha256[:16]",
+      "knowledge_version": "kb/l7/registry/l7.json → kb_version"
+    }
+  },
+  "decision": "BLOCK",
+  "decision_raw": "BLOCK",
+  "confidence": "未标定（本入口逐条给 高/中/低；全局数值置信度属裁决侧）",
+  "input_manifest": {
+    "text": "Best Baby Wipe Warmer\n\nA baby wipe warmer ensures your little one experiences the comfort of warm wipes during every diaper change. Cold wipes can be a shock to your baby's sensitive skin, especially during nighttime changes. The best baby wipe warmer keeps your wipes at an optimal temperature, making diaper changes more comfortable and soothing for your baby. It's a simple addition to your nursery, but it makes a big difference, especially during those cold winter nights or early mornings. Choosing the best baby wipe warmer adds convenience to your daily routine while ensuring your baby feels comfortable during every diaper change. Warm wipes soothe your baby's skin, preventing the unpleasant surprise of cold, damp wipes, which can cause discomfort, especially during the night. Benefits of using a baby wipe warmer include: Provides warm wipes that are gentle on your baby's sensitive skin Keeps wipes moist and\n\n—— 来源：https://momcozy.com/collections/best-baby-wipe-warmer",
+    "sha256": "ff1a070429ac33cc876eba916f50378514a78af0610f2523e7ed5ab01d00e353",
+    "modality": [
+      "text"
+    ]
+  },
+  "coverage": {
+    "text": "complete",
+    "image": "not_applicable",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "本批只送审 text 一种模态；其余模态不适用（不是缺口）。本块是报告契约要求的覆盖状态，不等于 OCR/ASR/关键帧流水线已执行 —— 后者见 trace。"
+  },
+  "risk_items": [
+    {
+      "risk_id": "r-7baf7ceb47b2e5bc",
+      "risk_type": "绝对化与安全承诺-虚假安全承诺",
+      "risk_category": "合规",
+      "risk_category_basis": "类别「绝对化与安全承诺」⇒ 合规（硬引 PRD：PRD §7.3-3「绝对化用语（最、第一、最佳、100%、纯天然等）」；§5.3 示例逐字『【合规-绝对化用语】』）",
+      "priority_tier": "P0",
+      "priority_tier_basis": "规则行 p_level=P0",
+      "layer": "P0 确定性匹配（依据不可逐字回源）",
+      "p_level": "P0",
+      "risk_level": null,
+      "severity": "BLOCK",
+      "status": "confirmed",
+      "action": "block",
+      "location": "全文",
+      "original_text": "\\bbest\\b",
+      "reason": "P0 确定性命中（BLOCK）：「\\bbest\\b」命中规则码 H05。H05 虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按2026-09-09口径放开，海外广告允许，不再判险）【依据不可逐字回源：该说法为等价说法／正则命中，源侧无逐字原文；按 L5「P0 命中即 BLOCK」输出，出处为 P0 模式自身，需人工确认】",
+      "suggestion": "",
+      "verbatim_verified": false,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.33",
+        "anchor": "#广告文案明细/recvuJYdOb1B8v/命中片段",
+        "source_sha256": "e7aabf7478753887ea85470fa114b4d0b22d74d21cb901b3a02e7672dff4f4c5",
+        "excerpt": "\\bbest\\b"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.33 条 @ #广告文案明细/recvuJYdOb1B8v/命中片段 @ e7aabf747875（**非逐字**：P0 模式自身声明，未经逐字回验）",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.33",
+      "evidence_gap": "「\\bbest\\b」在该规则证据单元里无逐字原文（regex 命中）；本条目出处为 L5 P0 模式 p-08487282e2d400fe 自身声明的 anchor / source_sha256，**未经逐字回验**"
+    },
+    {
+      "risk_id": "sc-5e12298d5514381c",
+      "risk_type": "品牌一致性-禁区（库内反例条款）",
+      "risk_category": "措辞表达",
+      "risk_category_basis": "类别「品牌一致性」⇒ 措辞表达（硬引 PRD：PRD §6.2 P3 逐字「品牌语气不一致」）",
+      "priority_tier": "P1",
+      "priority_tier_basis": "规则行 p_level=P1",
+      "layer": "案例层（L4 定稿「反例/禁区」）",
+      "p_level": "P1",
+      "risk_level": null,
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "【品牌一致性】文案 板块3: 参与路径：Join → Featured → En。\n【问题要点】\n1. 板块3: 参与路径：Join → Featured → Enter，其中“Featured”文案需要强调\n2. 【终审-@吴礼芳  】姐",
+      "reason": "库内反例条款 S-1.240（品牌一致性）按**同源/同题材**引证 —— 该案例记录的原文（含评审反馈）是库内留痕，**不是本素材里的字**；本单据此给 REVIEW，需人工点开 L0 核对是否真同源",
+      "suggestion": "",
+      "verbatim_verified": false,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "内部正负样本库",
+        "article_no": "S-1.240",
+        "anchor": "#负面样本/recvw7XIUgJEGU/具体原因/分析",
+        "source_sha256": "809aac04effd350aaf733f8659a8bf9e595da8141d59f93094f4af901428cd89",
+        "excerpt": "【品牌一致性】文案 板块3: 参与路径：Join → Featured → En。\n【问题要点】\n1. 板块3: 参与路径：Join → Featured → Enter，其中“Featured”文案需要强调\n2. 【终审-@吴礼芳  】姐"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《内部正负样本库 v0》第 S-1.240 条 @ #负面样本/recvw7XIUgJEGU/具体原因/分析 @ 809aac04effd（**非逐字**：P0 模式自身声明，未经逐字回验）",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#S-1.240",
+      "evidence_gap": "本条依据是**库内已定稿的反例条款**（`polarity=反例`、`semantics=禁区：不能这么做 + 为什么`），命中判据是「检索命中单元与被引锚点**同源**」；该锚点的 L0 件本地无字段值 ⇒ 摘录取自案例记录本身，**需人工点开核对**"
+    },
+    {
+      "risk_id": "sc-07efc7ac1ab74958",
+      "risk_type": "品牌一致性-禁区（库内反例条款）",
+      "risk_category": "措辞表达",
+      "risk_category_basis": "类别「品牌一致性」⇒ 措辞表达（硬引 PRD：PRD §6.2 P3 逐字「品牌语气不一致」）",
+      "priority_tier": "P1",
+      "priority_tier_basis": "规则行 p_level=P1",
+      "layer": "案例层（L4 定稿「反例/禁区」）",
+      "p_level": "P1",
+      "risk_level": null,
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "【品牌一致性】视频 主图banner：整体使用真人生活方式实景图，不要插画感，整。\n原因：建议使用1至3位妈妈一起查看手机、交流或阅读内容的自然生活场景，并且有bb在场，呈现母乳喂养的氛围\n【问题要点】\n1. 主图banner：整体使用真人",
+      "reason": "库内反例条款 S-1.206（品牌一致性）按**同源/同题材**引证 —— 该案例记录的原文（含评审反馈）是库内留痕，**不是本素材里的字**；本单据此给 REVIEW，需人工点开 L0 核对是否真同源",
+      "suggestion": "建议使用1至3位妈妈一起查看手机、交流或阅读内容的自然生活场景，并且有bb在场，呈现母乳喂养的氛围",
+      "verbatim_verified": false,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "内部正负样本库",
+        "article_no": "S-1.206",
+        "anchor": "#负面样本/recvw7XIUgLj3x/具体原因/分析",
+        "source_sha256": "736d7f025ccf3548c02ba080337e7543647a23e850b760e2a34d0b8ac82f67a3",
+        "excerpt": "【品牌一致性】视频 主图banner：整体使用真人生活方式实景图，不要插画感，整。\n原因：建议使用1至3位妈妈一起查看手机、交流或阅读内容的自然生活场景，并且有bb在场，呈现母乳喂养的氛围\n【问题要点】\n1. 主图banner：整体使用真人"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《内部正负样本库 v0》第 S-1.206 条 @ #负面样本/recvw7XIUgLj3x/具体原因/分析 @ 736d7f025ccf（**非逐字**：P0 模式自身声明，未经逐字回验）",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#S-1.206",
+      "evidence_gap": "本条依据是**库内已定稿的反例条款**（`polarity=反例`、`semantics=禁区：不能这么做 + 为什么`），命中判据是「检索命中单元与被引锚点**同源**」；该锚点的 L0 件本地无字段值 ⇒ 摘录取自案例记录本身，**需人工点开核对**"
+    }
+  ],
+  "issue_count": 3,
+  "report_url": null,
+  "next_action": "请修改后重新提交。",
+  "next_owners": [
+    "内容方修改责任人"
+  ],
+  "sla": {},
+  "version_gate": {
+    "reviewed_hash": "ff1a070429ac33cc876eba916f50378514a78af0610f2523e7ed5ab01d00e353",
+    "release_hash": null,
+    "note": "本入口不掌握发布版本；发布/送审版本比对属裁决侧（review_engine.py:115-119），此处不代替它下结论"
+  },
+  "decision_trace": {
+    "reasons": [
+      "any_finding_severity_block"
+    ],
+    "confidence_status": "not_calibrated_by_this_entry",
+    "evaluated_at": "2026-10-13T13:23:44",
+    "decided_by": "kb-content-review/scripts/review.py（依据侧自身分支，:709-715）",
+    "note": "本报告不重算结论；三态由上表 decision_raw 原样带出",
+    "tier_trace": {
+      "P0": 1,
+      "P1": 2,
+      "P2": 0,
+      "P3": 0,
+      "未标层": 0
+    },
+    "confidence_route": {
+      "applies": false,
+      "band": null,
+      "calibrated": false,
+      "why": "依据侧**不合成全局数值置信度**（逐条给 高/中/低）⇒ 没有可切三档的数。PRD §6.6 的数值分档与标注在**裁决侧**生效：见 `review_engine.decide()` → `decision_trace.confidence_route`；策略真源 `kb/l7/registry/confidence-policy.json`。",
+      "handled_by": "kb/l7/review-engine/core/review_engine.py::decide()"
+    }
+  },
+  "unmet_citation": [
+    {
+      "source": "P0",
+      "rule_id": "r-7baf7ceb47b2e5bc",
+      "article_no": "W-1.33",
+      "anchor": "#广告文案明细/recvuJYdOb1B8v/命中片段",
+      "excerpt": "\\bbest\\b",
+      "disposition": "output_as_block_with_gap",
+      "why": "该规则全部证据单元里都找不到这段摘录的逐字原文（等价说法／正则命中）；已按 P0 输出为 BLOCK，出处退到 P0 模式自身"
+    }
+  ]
+}

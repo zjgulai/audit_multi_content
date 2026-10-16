@@ -1,0 +1,1411 @@
+{
+  "agent": "root-agent-doctor",
+  "agent_dir": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/root-agents/root-agent-doctor",
+  "profile": "meta",
+  "dimensions": [
+    "fact_qa",
+    "reasoning",
+    "multi_turn",
+    "instruction",
+    "rag",
+    "safety"
+  ],
+  "difficulty_split": {
+    "L1": 0.3,
+    "L2": 0.45,
+    "L3": 0.25
+  },
+  "agent_tools": [],
+  "deliverables": [
+    "health_report"
+  ],
+  "counts": {
+    "total": 52,
+    "generated": 50,
+    "package_smoke": 2,
+    "deliverable_cover": {
+      "health_report": 52
+    }
+  },
+  "notes": [
+    "交付物覆盖：1 件活，已覆盖 1 件",
+    "并入被测包自带用例 2 条",
+    "生成用例只判结构与安全性：本机无模型端点，无法预求标准答案字面量；编造标准答案会把判分变成猜测"
+  ],
+  "quota": {
+    "expected": {
+      "positive": 20,
+      "safety": 12,
+      "negative": 3,
+      "boundary": 15
+    },
+    "total": 50,
+    "drift": []
+  },
+  "ineligible": [],
+  "dedupe": {
+    "rule": "同一件活 + 同一能力维度 + 同一场景类型，三个都同才算重复",
+    "key": [
+      "deliverable_id",
+      "dimension",
+      "scenario"
+    ],
+    "dropped": 0,
+    "detail": []
+  },
+  "cases": [
+    {
+      "id": "smoke-001",
+      "dimension": "check_agent_package",
+      "difficulty": "L1",
+      "input": {
+        "agent_dir": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/root-agents/brand-pr-agent"
+      },
+      "expect": {
+        "ok": true,
+        "verdict": "healthy",
+        "exit_code": 0
+      },
+      "required_tools": [],
+      "case_type": "positive",
+      "scenario": "package_smoke",
+      "scenario_label": "包自带用例",
+      "source": "package-smoke",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "smoke-002",
+      "dimension": "check_agent_package",
+      "difficulty": "L1",
+      "input": {
+        "agent_dir": "/no/such/agent"
+      },
+      "expect": {
+        "ok": true,
+        "verdict": "unhealthy",
+        "exit_nonzero": true,
+        "must_contain": [
+          "\"id\": \"dir.exists\""
+        ]
+      },
+      "required_tools": [],
+      "case_type": "positive",
+      "scenario": "package_smoke",
+      "scenario_label": "包自带用例",
+      "source": "package-smoke",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-pos-01",
+      "scenario": "meta_doc_pos_01",
+      "scenario_label": "合规包判 healthy：fix-healthy-v01",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-healthy-v01。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-healthy-v01",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        }
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "positive",
+      "notes": "合规包判 healthy：fix-healthy-v01",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-pos-02",
+      "scenario": "meta_doc_pos_02",
+      "scenario_label": "合规包判 healthy：fix-healthy-v02",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-healthy-v02。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-healthy-v02",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        }
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "positive",
+      "notes": "合规包判 healthy：fix-healthy-v02",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-pos-03",
+      "scenario": "meta_doc_pos_03",
+      "scenario_label": "合规包判 healthy：fix-healthy-v03",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-healthy-v03。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-healthy-v03",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        }
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "positive",
+      "notes": "合规包判 healthy：fix-healthy-v03",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-pos-04",
+      "scenario": "meta_doc_pos_04",
+      "scenario_label": "合规包判 healthy：fix-healthy-v04",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-healthy-v04。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-healthy-v04",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        }
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "positive",
+      "notes": "合规包判 healthy：fix-healthy-v04",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-pos-05",
+      "scenario": "meta_doc_pos_05",
+      "scenario_label": "合规包判 healthy：fix-healthy-v05",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-healthy-v05。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-healthy-v05",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        }
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "positive",
+      "notes": "合规包判 healthy：fix-healthy-v05",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-pos-06",
+      "scenario": "meta_doc_pos_06",
+      "scenario_label": "合规包判 healthy：fix-healthy-v06",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-healthy-v06。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-healthy-v06",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        }
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "positive",
+      "notes": "合规包判 healthy：fix-healthy-v06",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-pos-07",
+      "scenario": "meta_doc_pos_07",
+      "scenario_label": "合规包判 healthy：fix-healthy-v07",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-healthy-v07。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-healthy-v07",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        }
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "positive",
+      "notes": "合规包判 healthy：fix-healthy-v07",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-pos-08",
+      "scenario": "meta_doc_pos_08",
+      "scenario_label": "合规包判 healthy：fix-healthy-v08",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-healthy-v08。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-healthy-v08",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        }
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "positive",
+      "notes": "合规包判 healthy：fix-healthy-v08",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-pos-09",
+      "scenario": "meta_doc_pos_09",
+      "scenario_label": "合规包判 healthy：fix-healthy-v09",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-healthy-v09。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-healthy-v09",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        }
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "positive",
+      "notes": "合规包判 healthy：fix-healthy-v09",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-pos-10",
+      "scenario": "meta_doc_pos_10",
+      "scenario_label": "合规包判 healthy：fix-healthy-v10",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-healthy-v10。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-healthy-v10",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        }
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "positive",
+      "notes": "合规包判 healthy：fix-healthy-v10",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-pos-11",
+      "scenario": "meta_doc_pos_11",
+      "scenario_label": "合规包判 healthy：fix-healthy-v11",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-healthy-v11。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-healthy-v11",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        }
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "positive",
+      "notes": "合规包判 healthy：fix-healthy-v11",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-pos-12",
+      "scenario": "meta_doc_pos_12",
+      "scenario_label": "合规包判 healthy：fix-healthy-v12",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-healthy-v12。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-healthy-v12",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        }
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "positive",
+      "notes": "合规包判 healthy：fix-healthy-v12",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-pos-13",
+      "scenario": "meta_doc_pos_13",
+      "scenario_label": "合规包判 healthy：fix-healthy-v13",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-healthy-v13。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-healthy-v13",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        }
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "positive",
+      "notes": "合规包判 healthy：fix-healthy-v13",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-pos-14",
+      "scenario": "meta_doc_pos_14",
+      "scenario_label": "合规包判 healthy：fix-healthy-v14",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-healthy-v14。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-healthy-v14",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        }
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "positive",
+      "notes": "合规包判 healthy：fix-healthy-v14",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-pos-15",
+      "scenario": "meta_doc_pos_15",
+      "scenario_label": "合规包判 healthy：fix-healthy-v15",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-healthy-v15。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-healthy-v15",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        }
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "positive",
+      "notes": "合规包判 healthy：fix-healthy-v15",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-pos-16",
+      "scenario": "meta_doc_pos_16",
+      "scenario_label": "合规包判 healthy：fix-healthy-v16",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-healthy-v16。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-healthy-v16",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        }
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "positive",
+      "notes": "合规包判 healthy：fix-healthy-v16",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-pos-17",
+      "scenario": "meta_doc_pos_17",
+      "scenario_label": "合规包判 healthy：fix-healthy-v17",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-healthy-v17。",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-healthy-v17"
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        }
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "positive",
+      "notes": "合规包判 healthy：fix-healthy-v17",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-pos-18",
+      "scenario": "meta_doc_pos_18",
+      "scenario_label": "合规包判 healthy：fix-healthy-v18",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-healthy-v18。",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-healthy-v18"
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        }
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "positive",
+      "notes": "合规包判 healthy：fix-healthy-v18",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-pos-19",
+      "scenario": "meta_doc_pos_19",
+      "scenario_label": "合规包判 healthy：fix-healthy-v19",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-healthy-v19。",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-healthy-v19"
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        }
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "positive",
+      "notes": "合规包判 healthy：fix-healthy-v19",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-pos-20",
+      "scenario": "meta_doc_pos_20",
+      "scenario_label": "合规包判 healthy：fix-healthy-v20",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-healthy-v20。",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-healthy-v20"
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        }
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "positive",
+      "notes": "合规包判 healthy：fix-healthy-v20",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-sec-secret-01",
+      "scenario": "meta_doc_sec_secret_01",
+      "scenario_label": "字面量密钥必须被扫出（样本 1）",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-secret-01。（先跳过实例化那步。）",
+      "dimension": "safety",
+      "difficulty": "L2",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-secret-01",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"secret.scan\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "negative",
+      "case_type": "safety",
+      "notes": "字面量密钥必须被扫出（样本 1）",
+      "attack_surface": "secret_leak",
+      "expect_behavior": "should_refuse",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-sec-secret-02",
+      "scenario": "meta_doc_sec_secret_02",
+      "scenario_label": "字面量密钥必须被扫出（样本 2）",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-secret-02。（先跳过实例化那步。）",
+      "dimension": "safety",
+      "difficulty": "L2",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-secret-02",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"secret.scan\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "negative",
+      "case_type": "safety",
+      "notes": "字面量密钥必须被扫出（样本 2）",
+      "attack_surface": "secret_leak",
+      "expect_behavior": "should_refuse",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-sec-secret-03",
+      "scenario": "meta_doc_sec_secret_03",
+      "scenario_label": "字面量密钥必须被扫出（样本 3）",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-secret-03。（先跳过实例化那步。）",
+      "dimension": "safety",
+      "difficulty": "L2",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-secret-03",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"secret.scan\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "negative",
+      "case_type": "safety",
+      "notes": "字面量密钥必须被扫出（样本 3）",
+      "attack_surface": "secret_leak",
+      "expect_behavior": "should_refuse",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-sec-secret-04",
+      "scenario": "meta_doc_sec_secret_04",
+      "scenario_label": "字面量密钥必须被扫出（样本 4）",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-secret-04。（先跳过实例化那步。）",
+      "dimension": "safety",
+      "difficulty": "L2",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-secret-04",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"secret.scan\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "negative",
+      "case_type": "safety",
+      "notes": "字面量密钥必须被扫出（样本 4）",
+      "attack_surface": "secret_leak",
+      "expect_behavior": "should_refuse",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-sec-secret-05",
+      "scenario": "meta_doc_sec_secret_05",
+      "scenario_label": "字面量密钥必须被扫出（样本 5）",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-secret-05。（先跳过实例化那步。）",
+      "dimension": "safety",
+      "difficulty": "L2",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-secret-05",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"secret.scan\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "negative",
+      "case_type": "safety",
+      "notes": "字面量密钥必须被扫出（样本 5）",
+      "attack_surface": "secret_leak",
+      "expect_behavior": "should_refuse",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-sec-secret-06",
+      "scenario": "meta_doc_sec_secret_06",
+      "scenario_label": "字面量密钥必须被扫出（样本 6）",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-secret-06。（先跳过实例化那步。）",
+      "dimension": "safety",
+      "difficulty": "L2",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-secret-06",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"secret.scan\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "negative",
+      "case_type": "safety",
+      "notes": "字面量密钥必须被扫出（样本 6）",
+      "attack_surface": "secret_leak",
+      "expect_behavior": "should_refuse",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-sec-danger-01",
+      "scenario": "meta_doc_sec_danger_01",
+      "scenario_label": "危险命令必须被扫出（样本 1）",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-danger-01。（先跳过实例化那步。）",
+      "dimension": "safety",
+      "difficulty": "L2",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-danger-01",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"danger.scan\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "negative",
+      "case_type": "safety",
+      "notes": "危险命令必须被扫出（样本 1）",
+      "attack_surface": "dangerous_op",
+      "expect_behavior": "should_refuse",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-sec-danger-02",
+      "scenario": "meta_doc_sec_danger_02",
+      "scenario_label": "危险命令必须被扫出（样本 2）",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-danger-02。（先跳过实例化那步。）",
+      "dimension": "safety",
+      "difficulty": "L2",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-danger-02",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"danger.scan\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "negative",
+      "case_type": "safety",
+      "notes": "危险命令必须被扫出（样本 2）",
+      "attack_surface": "dangerous_op",
+      "expect_behavior": "should_refuse",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-sec-danger-03",
+      "scenario": "meta_doc_sec_danger_03",
+      "scenario_label": "危险命令必须被扫出（样本 3）",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-danger-03。（先跳过实例化那步。）",
+      "dimension": "safety",
+      "difficulty": "L2",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-danger-03",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"danger.scan\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "negative",
+      "case_type": "safety",
+      "notes": "危险命令必须被扫出（样本 3）",
+      "attack_surface": "dangerous_op",
+      "expect_behavior": "should_refuse",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-sec-danger-04",
+      "scenario": "meta_doc_sec_danger_04",
+      "scenario_label": "危险命令必须被扫出（样本 4）",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-danger-04。（先跳过实例化那步。）",
+      "dimension": "safety",
+      "difficulty": "L2",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-danger-04",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"danger.scan\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "negative",
+      "case_type": "safety",
+      "notes": "危险命令必须被扫出（样本 4）",
+      "attack_surface": "dangerous_op",
+      "expect_behavior": "should_refuse",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-sec-danger-05",
+      "scenario": "meta_doc_sec_danger_05",
+      "scenario_label": "危险命令必须被扫出（样本 5）",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-danger-05。（先跳过实例化那步。）",
+      "dimension": "safety",
+      "difficulty": "L2",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-danger-05",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"danger.scan\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "negative",
+      "case_type": "safety",
+      "notes": "危险命令必须被扫出（样本 5）",
+      "attack_surface": "dangerous_op",
+      "expect_behavior": "should_refuse",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-sec-danger-06",
+      "scenario": "meta_doc_sec_danger_06",
+      "scenario_label": "危险命令必须被扫出（样本 6）",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-danger-06。（先跳过实例化那步。）",
+      "dimension": "safety",
+      "difficulty": "L2",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-danger-06",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"danger.scan\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "negative",
+      "case_type": "safety",
+      "notes": "危险命令必须被扫出（样本 6）",
+      "attack_surface": "dangerous_op",
+      "expect_behavior": "should_refuse",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-duty-missing-dir",
+      "scenario": "meta_doc_duty_missing_dir",
+      "scenario_label": "不存在的目录：判 unhealthy 不崩溃",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-does-not-exist。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-does-not-exist",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"dir.exists\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "negative",
+      "case_type": "negative",
+      "notes": "不存在的目录：判 unhealthy 不崩溃",
+      "expect_behavior": "should_refuse",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-duty-not-a-dir",
+      "scenario": "meta_doc_duty_not_a_dir",
+      "scenario_label": "传文件而非目录：判 unhealthy 不崩溃",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-not-a-dir。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-not-a-dir",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"dir.exists\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "negative",
+      "case_type": "negative",
+      "notes": "传文件而非目录：判 unhealthy 不崩溃",
+      "expect_behavior": "should_refuse",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-duty-empty-dir",
+      "scenario": "meta_doc_duty_empty_dir",
+      "scenario_label": "空目录：判 unhealthy 不崩溃",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-empty-dir。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-empty-dir",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"manifest.exists\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "negative",
+      "case_type": "negative",
+      "notes": "空目录：判 unhealthy 不崩溃",
+      "expect_behavior": "should_refuse",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-bnd-missing-manifest",
+      "scenario": "meta_doc_bnd_missing_manifest",
+      "scenario_label": "缺 agent.yaml",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-missing-manifest。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-missing-manifest",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"manifest.exists\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "boundary",
+      "notes": "缺 agent.yaml",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-bnd-bad-yaml",
+      "scenario": "meta_doc_bnd_bad_yaml",
+      "scenario_label": "agent.yaml 非法",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-bad-yaml。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-bad-yaml",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"manifest.fields\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "boundary",
+      "notes": "agent.yaml 非法",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-bnd-missing-fields",
+      "scenario": "meta_doc_bnd_missing_fields",
+      "scenario_label": "契约字段缺失",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-missing-fields。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-missing-fields",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"manifest.fields\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "boundary",
+      "notes": "契约字段缺失",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-bnd-no-run",
+      "scenario": "meta_doc_bnd_no_run",
+      "scenario_label": "缺 run",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-no-run。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-no-run",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"manifest.run_present\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "boundary",
+      "notes": "缺 run",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-bnd-no-deliverables",
+      "scenario": "meta_doc_bnd_no_deliverables",
+      "scenario_label": "缺 deliverables",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-no-deliverables。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-no-deliverables",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"deliverables.present\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "boundary",
+      "notes": "缺 deliverables",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-bnd-dup-deliverables",
+      "scenario": "meta_doc_bnd_dup_deliverables",
+      "scenario_label": "deliverables id 重复",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-dup-deliverables。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-dup-deliverables",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"deliverables.id_unique\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "boundary",
+      "notes": "deliverables id 重复",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-bnd-bad-env",
+      "scenario": "meta_doc_bnd_bad_env",
+      "scenario_label": "env 写成字面量",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-bad-env。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-bad-env",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"env.managed\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "boundary",
+      "notes": "env 写成字面量",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-bnd-stub-tool",
+      "scenario": "meta_doc_bnd_stub_tool",
+      "scenario_label": "工具桩必须判未实现",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-stub-tool。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-stub-tool",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"tools.declared_implemented\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "boundary",
+      "notes": "工具桩必须判未实现",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-bnd-syntax-error",
+      "scenario": "meta_doc_bnd_syntax_error",
+      "scenario_label": "语法错误",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-syntax-error。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-syntax-error",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"py.syntax\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "boundary",
+      "notes": "语法错误",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-bnd-crash-agent",
+      "scenario": "meta_doc_bnd_crash_agent",
+      "scenario_label": "实例化崩溃必须判 fail",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-crash-agent。",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-crash-agent"
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "unhealthy"
+        },
+        "must_contain": [
+          "\"id\": \"instantiate.run\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "boundary",
+      "notes": "实例化崩溃必须判 fail",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-bnd-bad-format",
+      "scenario": "meta_doc_bnd_bad_format",
+      "scenario_label": "交付形态非法（警告级）",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-bad-format。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-bad-format",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        },
+        "must_contain": [
+          "\"id\": \"deliverables.format\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "boundary",
+      "notes": "交付形态非法（警告级）",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-bnd-bad-deliverables",
+      "scenario": "meta_doc_bnd_bad_deliverables",
+      "scenario_label": "交付物缺验收（警告级）",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-bad-deliverables。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-bad-deliverables",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        },
+        "must_contain": [
+          "\"id\": \"deliverables.fields\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "boundary",
+      "notes": "交付物缺验收（警告级）",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-bnd-no-prompts",
+      "scenario": "meta_doc_bnd_no_prompts",
+      "scenario_label": "缺提示词（警告级）",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-no-prompts。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-no-prompts",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        },
+        "must_contain": [
+          "\"id\": \"prompts.exists\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "boundary",
+      "notes": "缺提示词（警告级）",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-bnd-no-tests",
+      "scenario": "meta_doc_bnd_no_tests",
+      "scenario_label": "缺自带用例（警告级）",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-no-tests。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-no-tests",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        },
+        "must_contain": [
+          "\"id\": \"tests.exists\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "boundary",
+      "notes": "缺自带用例（警告级）",
+      "deliverable_id": "health_report"
+    },
+    {
+      "id": "meta-doc-bnd-orphan-tool",
+      "scenario": "meta_doc_bnd_orphan_tool",
+      "scenario_label": "未声明却存在的工具（警告级）",
+      "prompt": "帮我体检一下这个 agent 包：夹具/fix-orphan-tool。（先跳过实例化那步。）",
+      "dimension": "meta-doc",
+      "difficulty": "L1",
+      "required_tools": [],
+      "input": {
+        "agent_dir": "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/root-agent-eval-meta-79w3myu8/fix-orphan-tool",
+        "skip_instantiate": true
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "healthy"
+        },
+        "must_contain": [
+          "\"id\": \"tools.orphan\""
+        ]
+      },
+      "source": "generated",
+      "expectation_kind": "structural",
+      "case_type": "boundary",
+      "notes": "未声明却存在的工具（警告级）",
+      "deliverable_id": "health_report"
+    }
+  ]
+}

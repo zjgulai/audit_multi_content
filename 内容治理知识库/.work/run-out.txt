@@ -1,0 +1,38 @@
+结论：None
+依据条数：3（来自 kb-content-review 的 509 条规则 + P0 匹配）
+{
+ "review_id": "rv-20260930-154127",
+ "content_id": "text-4f4d87a6619c",
+ "content_version": "4f4d87a6619c5af66b992e49a0602076f27335fe765a6dfd264a4ebd4535657e",
+ "agent_version": "local-core-0.1.0",
+ "rule_version": "unfrozen",
+ "knowledge_version": "unfrozen",
+ "decision": "BLOCK",
+ "confidence": 0.97,
+ "summary": "【审查结论：BLOCK】共发现 3 处需处理问题。\n· 未分类-未分类：1 个\n· 绝对化与安全承诺-虚假安全承诺：1 个\n· 背书与资质-医疗场景宣称：1 个\n请修改后重新提交。",
+ "issue_count": 3,
+ "issue_summary_by_category": {
+  "未分类-未分类": 1,
+  "绝对化与安全承诺-虚假安全承诺": 1,
+  "背书与资质-医疗场景宣称": 1
+ },
+ "risk_items": [
+  {
+   "risk_id": "r-15a607c4457c8b55",
+   "risk_type": "未分类-未分类",
+   "priority_tier": "P0",
+   "status": "confirmed",
+   "action": "block",
+   "location": "全文",
+   "original_text": "FDA approved, FDA certified, FDA 认证, FDA 批准, FDA 通过",
+   "reason": "P0 规则命中（BLOCK）：（来源未给判定理由）",
+   "suggestion": "可改为（本规则豁免表达）：FDA cleared, FDA-cleared, FDA registered, FDA 注册",
+   "rule_code": "",
+   "fact_or_inference": "事实",
+   "confidence": "高",
+   "evidence": {
+    "library": "措辞表达库",
+    "article_no": "W-1.8",
+    "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/检测关键词",
+    "source_sha256": "2e8bb36d6edf7c4971132b69ff6d39819a5a0e0e8043e9001e096be1bc2a02d6",
+    "excerpt"

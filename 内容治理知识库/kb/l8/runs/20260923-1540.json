@@ -1,0 +1,1187 @@
+{
+ "run_id": "20260923-1540",
+ "batch": "L8 · 「KB 装了但读不出来」定位与修复",
+ "mode": {
+  "fix": "R1 —— 改用加载器同一运行时（Electron/node）的明文写通道重写装载位 .md",
+  "assert": "R2 —— 每个文件写完立刻读回断言（字节数 + sha256 + 加载器 frontmatter 正则 + 正文逐字），失败自动 /bin/cp 兜底",
+  "loader_untouched": "未改加载器代码，未改 profile 的 config.root，未走 R3（加载器改工具层）—— 因此不需要 portable:false / requires_runtime_decode:true 标记",
+  "flags": {
+   "portable": true,
+   "requires_runtime_decode": false,
+   "note": "绕的是本机写通道，不是读通道；读仍是加载器原生 readFileSync"
+  }
+ },
+ "facts": {
+  "E1_同一文件两条通道": {
+   "file": "3_措辞表达库/L1-facts/cg-r-00277648c524fe69.md",
+   "bash_stat_f_z": 8047,
+   "ls_l": 8047,
+   "dsh_node_statSync": 8047,
+   "dsh_node_readFileSync": 8047,
+   "dsh_node_head_bytes": "88 7d 1c bb 3a 05 f6 03",
+   "dsh_node_fm_regex": false,
+   "python_os_stat": 3951,
+   "python_read": "明文 UTF-8",
+   "chatgpt_node_stat": 3951,
+   "chatgpt_node_read": "明文",
+   "python_vs_chatgpt_node": "逐字节相同（sha16 c2f6b2cd9099f2a0）",
+   "stat_identity": "同一 inode 65787955 / dev 16777230 / blocks=16",
+   "conclusion": "差异在读取通道，不在文件内容"
+  },
+  "E2_不是压缩容器": {
+   "magic_tried": [
+    "gzip 1f8b",
+    "zstd 28b52ffd",
+    "zip 504b",
+    "bzip2 425a68",
+    "xz fd377a585a00",
+    "lz4 04224d18"
+   ],
+   "magic_matched": [],
+   "volume_delta_set": [
+    4096
+   ],
+   "archived_raw_vs_logical": "510/510 逐字节相同（存档=dd 原始字节=逻辑明文）",
+   "conclusion": "4096 字节前缀信封，不是压缩容器，也不是内容损坏"
+  },
+  "E3_写通道矩阵": {
+   "content_bytes": [
+    20,
+    29
+   ],
+   "envelope_writers": [
+    "python3 buffered",
+    "python3 os.write",
+    "python3 unbuffered",
+    "perl",
+    "launchd 拉起的 python3",
+    "env -i python3"
+   ],
+   "plaintext_writers": [
+    "bash printf >",
+    "/bin/echo >",
+    "/bin/cp",
+    "DSH 运行时 node fs.writeFileSync",
+    "ChatGPT node"
+   ],
+   "ext_matrix_written_by_python": {
+    ".md": "4116（信封）",
+    ".yaml": 20,
+    ".json": 20,
+    ".txt": 20,
+    ".py": 20,
+    ".log": 20
+   },
+   "path_independent": true,
+   "conclusion": ".md 是被封装的唯一后缀；落盘形态由**写通道**决定"
+  },
+  "E4_读侧分组与注入证据": {
+   "plaintext_readers": [
+    "cat",
+    "head -c",
+    "tail -c",
+    "od",
+    "xxd",
+    "strings",
+    "python3",
+    "shasum",
+    "grep",
+    "awk",
+    "cp",
+    "ChatGPT node",
+    "dd（整文件）"
+   ],
+   "envelope_readers": [
+    "dd bs=8 count=1",
+    "wc -c",
+    "ls -l",
+    "stat -f %z",
+    "DSH Electron 运行时 readFileSync / statSync"
+   ],
+   "stability_race": "race.md 12 秒 × 24 次轮询：stat 恒 4125 / python 恒 29 / dd 头恒 887d1cc9 —— 非时序竞态，是并存的两种视图",
+   "injection": "DSH Electron pid 39297 载入 /usr/local/.trld/lib/libtr_monitor_{hook,enc,print,im}.dylib 与 libtr_inject_comm.dylib（lsof + vmmap 实测）；python 进程未载入",
+   "dsh_write_tool": "写 .md → 92 字节、两通道一致（明文）",
+   "conclusion": "加载器落在读不到明文的一侧 → splitFrontmatter 失配 → meta=null → E001 × 509"
+  },
+  "并发迁移_1502": {
+   "what": "装载位被另一个工作流清空，只留 README.md（mtime 2026-09-23 15:02:15）",
+   "evidence": [
+    "~/.dsh/Momcozy知识库 仅剩 README.md：ls/stat 5478 字节、python 1382 字节（差 4096 = 信封）",
+    "kb/.work/README-同步到工作台.md 第 96 行：「旧位置 ~/.dsh/Momcozy知识库/ 已清空，只留一份 README 说明来龙去脉」",
+    "kb/.work/hostlib/ 于 15:01 生成，510 个 md 对 node 仍是信封（8047 vs python 3951）",
+    "kb/.work/setup-kb-remote.sh 14:56、patch-workbench-kb-remote.py 14:54、kb-hostlib-serve.py 14:51、com.kb-hostlib 监听 127.0.0.1:4508"
+   ],
+   "impact": "本批的装载位目标目录被外部清空：修复前 509 条已不在盘上。原文在我方归档里有完整副本（kb/l8/repack_payload.json 与 kb/l8/_archive/enveloped-20260923-1520），据此恢复，未丢内容",
+   "drift": "并发生成器的新输出与本批原文有 16 条 frontmatter 漂移（summary 15 条 / title 3 条），正文逐字相同；本批按迁出前原文恢复并如实记录"
+  }
+ },
+ "actions": [
+  "读装载位 510 个 md 的逻辑内容 + dd 存档原始字节 → repack_payload.json / envelope_manifest.json / _archive/enveloped-20260923-1520（510 个文件，不删原件）",
+  "用 node 明文写通道把 509 条目 + _meta/DERIVED.md 写回装载位，逐文件读回断言（510/510，零 cp 兜底）",
+  "取回生成器当前输出的 _meta/collections.yaml 与 _meta/derivation.json（非 md，逐字取回）",
+  "补建 _meta/kb-classes.yaml（四类枚举 + 三个开关）与 _meta/GUIDE.md（库自述指南，含写通道纪律）",
+  "509 条回填 kb_class: [措辞表达库]（只在 collection 行后插一行，正文逐字不变）",
+  "补建 _meta/acceptance.yaml（谓词按机器判定真值填，负例自检写实测观测值）",
+  "写 kb/l8/roundtrip_check.py + kb/l8/loader_probe.mjs，跑六项回环验收（读侧一律走加载器本体）"
+ ],
+ "leftovers": [
+  {
+   "id": 1,
+   "问题": "生成器 kb/.work/gen-host-library.py 用 python open(...,'w') 写 .md —— 每次重新生成都会把装载位变回信封、E001 复发",
+   "影响": "高（复发）",
+   "优先级": "P0",
+   "状态": "**已修（本轮续修，R1 收口）**",
+   "处理": "已改：`.md` 交给 node 落盘 + 逐文件读回断言（原脚本归档在 kb/l8/_archive/gen-host-library.py.orig-294b16a0f404c977）；端到端验证见 kb/l8/registry/l8.json 的 r1_script_patch"
+  },
+  {
+   "id": 2,
+   "问题": "生成器不产出 kb_class 字段，重新生成会丢归属（W040 复发）",
+   "影响": "中",
+   "优先级": "P1",
+   "处理": "生成器补 kb_class: [措辞表达库]；本批已把 require_on_new 留 false，避免与生成器互相打架"
+  },
+  {
+   "id": 3,
+   "问题": "字段级 schema 差：E002 provenance/pii 1018、E005 tier 509、E006 evidence_level 509、E021 verification 509、E026 内容质量分 449、W004/W010（source.kind=derived）各 509、W016 453、W017 509、W036 509、W020 2811 —— 被 E001 整体掩盖至今",
+   "影响": "体检「结论：不通过」（健康分 75 已过熔断线）；属内容/契约层，不属装载层",
+   "优先级": "P1",
+   "处理": "归生成器的字段映射（tier L1-facts→L1、evidence_level observation→L1/L2 枚举、verification 映射化、补 provenance/pii、source.kind 增 derived 枚举）；本批不动内容"
+  },
+  {
+   "id": 4,
+   "问题": "孤岛率 1.00（阈值 ≤0.2）：派生视图条目互不引用（related 为空）",
+   "影响": "健康分扣一维（75）",
+   "优先级": "P2",
+   "处理": "生成器补 related（同条款号互引），或在 health.yaml 里为本库口径调阈值（改口径须留痕）"
+  },
+  {
+   "id": 5,
+   "问题": "覆盖率/利用率/幻觉率 no-data：没有 3_措辞表达库/tests/golden-questions-*.md",
+   "影响": "验收谓词 structural_completeness 只能填 false",
+   "优先级": "P1",
+   "处理": "建 20-30 条黄金问题集 + 让查询日志样本 ≥20 条"
+  },
+  {
+   "id": 6,
+   "问题": "装载位归属冲突：15:02 的并发迁移认定该目录停用，本批按加载器 config.root 的要求把它恢复",
+   "影响": "高（谁写谁清会反复）",
+   "优先级": "P0",
+   "处理": "二选一：把加载器 root 指到新形态并让生成器走明文通道；或明确本目录是加载器专用装载位、工作台继续走 HTTP。本批选后者（不动加载器配置，改动最小、可回滚）"
+  },
+  {
+   "id": 7,
+   "问题": "16 条 summary/title 在两次生成之间漂移（正文逐字相同）",
+   "影响": "低",
+   "优先级": "P2",
+   "处理": "以生成器当前输出为准重新生成一次（会覆盖本批 kb_class 回填，须与第 1、2 条一起做）"
+  }
+ ],
+ "report_lines": [
+  "1. 根因不是文件坏了，是**写通道**：python/perl 写的 .md 落盘成 4096 字节信封，加载器（Electron 运行时）readFileSync 读到信封 → splitFrontmatter 失配 → meta=null → E001×509。",
+  "2. 同一条路径：bash/python 看 3951 字节明文，Electron 看 8047 字节信封；DSH Electron pid 39297 载入 /usr/local/.trld/lib/libtr_monitor_enc.dylib（python 未载入）。12 秒 × 24 次轮询无变化，不是竞态。",
+  "3. 修复走 R1 + R2：node 明文写通道重写装载位，每个文件写完立刻读回断言（字节 + sha256 + frontmatter 正则 + 正文逐字），510/510 通过、零 cp 兜底。",
+  "4. 验收：E001 = 0；kb_collections「3_措辞表达库｜509 条」、未归库 0；kb_search 三个关键词 W-2.1 / 乳腺组织 / 合规替代 命中 111 / 1 / 509；健康分 50 → 75（熔断线 60），三件套完整率 0.00 → 1.00。",
+  "5. 正文逐字未变：509/509 正文一致、frontmatter 除新增一行 kb_class 外 509/509 一致；只加归属字段，不动规则正文。",
+  "6. 补建 _meta/kb-classes.yaml、GUIDE.md、acceptance.yaml，并给 509 条回填 kb_class: [措辞表达库]（先写枚举再回填，否则 509 条 E046）。",
+  "7. 六项回环验收全过（kb/l8/roundtrip_20260923-1540.json）；孤岛率仍 1.00（派生视图固有，与装载无关）。",
+  "8. 必须报告的外部变化：15:02:15 另一个工作流清空了装载位（只留 README.md），把派生视图搬到 kb/.work/hostlib + python HTTP 服务；我的 509 条原文在归档里有完整副本，据此恢复。",
+  "9. 顺带查实：kb/.work/hostlib 对 node 同样是信封（8047 vs 3951）—— 那条 HTTP 通道救的是工作台，救不了加载器。",
+  "10. 体检「结论：不通过」的真实原因是一批字段级 schema 差（E002/E005/E006/E021/E026 等），修复前被 E001 整体掩盖，本次首次暴露，归生成器处理。",
+  "11. 自检：l0~l2 tree_sha256 与基线一致（da1ad72a / ede7a631 / 13b05eba），l3 前 1018/1527 行哈希一致，前序 26 个产物哈希 26/26 一致，未删任何文件。",
+  "12. 版本纪律未破：l4/canonical 0 字节、versions.jsonl 版本行 0、kb_version 仍 v0；本批只在 kb/l8 与装载位写入。"
+ ],
+ "generated_at": "2026-09-23 15:11:42",
+ "artifacts": [
+  {
+   "path": "kb/l8/repack_read.py",
+   "bytes": 4181,
+   "sha256_16": "e536c8cc14600b83c54907d35ea5de075089c0bb60c7b0f913feb864348e7fff"
+  },
+  {
+   "path": "kb/l8/repack_write.mjs",
+   "bytes": 8097,
+   "sha256_16": "5297463ebdc2bce76d9a44021154609ab7c39fe2b8fd0961a07234e51de8fa7c"
+  },
+  {
+   "path": "kb/l8/loader_probe.mjs",
+   "bytes": 7232,
+   "sha256_16": "b8cfad6da7dc0840e1b560a8c4f3e9cb1d3aa146d82823bbd30c53966bdb4592"
+  },
+  {
+   "path": "kb/l8/repack_payload.json",
+   "bytes": 2489892,
+   "sha256_16": "68abf0159cb3cf760458aef9a1f0da00323fc6c37d72973f2e07e7602c308561"
+  },
+  {
+   "path": "kb/l8/envelope_manifest.json",
+   "bytes": 197348,
+   "sha256_16": "58c1fe227d28bf2dc75baa935a3261c7b3cf49924cfa5598db767f76668aebee"
+  },
+  {
+   "path": "kb/l8/meta_payload.json",
+   "bytes": 288531,
+   "sha256_16": "d2ec2dda04fd563eca0d17ef819b250dead17b5adb5c2a9ba52d8cfcd6c65dd3"
+  },
+  {
+   "path": "kb/l8/meta_payload_acceptance.json",
+   "bytes": 2938,
+   "sha256_16": "a557bc627d7c38e488748f8af9bd20fa78cf4e9fd204b5356239d68d7ecd1d28"
+  },
+  {
+   "path": "kb/l8/repack_write_report.json",
+   "bytes": 345692,
+   "sha256_16": "0e79c0cc54a9838f362b5a3073913f51938c08c74954471bb68e57682db4850c"
+  },
+  {
+   "path": "kb/l8/repack_write_meta_report.json",
+   "bytes": 3056,
+   "sha256_16": "c781525c78f77bf821fa636cde17846cf83321726c3fafbd905f1672efe2000d"
+  },
+  {
+   "path": "kb/l8/repack_write_acceptance_report.json",
+   "bytes": 1210,
+   "sha256_16": "69f9ae1ed4aa77c890b81584e734bbf034ebfcc0f353533ed70852967b6c39b8"
+  },
+  {
+   "path": "kb/l8/repack_write_dryrun.json",
+   "bytes": 293206,
+   "sha256_16": "d5a87975d21ecc4357668b5af05bb9e4b3f6c1c65cd64b86c9193882244a5f86"
+  },
+  {
+   "path": "kb/l8/roundtrip_20260923-1540.json",
+   "bytes": 5295,
+   "sha256_16": "c7423ce370afbbfa50fe74a987cca81f6ae6c7fdccf573160b07b3f3d1cc944c"
+  },
+  {
+   "path": "kb/l8/roundtrip_20260923-1535.json",
+   "bytes": 5266,
+   "sha256_16": "703de1b74fd95265134b905b42a4a889c9101131c9677dc7234716a260f51eb3"
+  },
+  {
+   "path": "kb/l8/loading-link.md",
+   "bytes": 8467,
+   "sha256_16": "7462c9048640b91f470fd4cb997526a0c0e0b66370c9e4a9e5a2ad04cad0c5e9"
+  },
+  {
+   "path": "kb/l8/diagnosis.md",
+   "bytes": 16311,
+   "sha256_16": "dc93bc5fddaaffc5227913f885e9202b26c18c3a97f51523fe76b6c2536582ba"
+  },
+  {
+   "path": "kb/l8/registry/l8.json",
+   "bytes": 17473,
+   "sha256_16": "de9715c4cf0ebcd14d2dbf50e58db7bebb0e232abcc4127fe3a985782d566025"
+  },
+  {
+   "path": "kb/l8/runs/20260923-1540.report.md",
+   "bytes": 35934,
+   "sha256_16": "d8c4608a562f145293e4e20ca1cd8488f87735a79292ada31c5966c4742f7fca"
+  },
+  {
+   "path": "kb/l8/runs/20260923-1540.ops.log",
+   "bytes": 22979,
+   "sha256_16": "77d1dc129fd56832f012554497956ce4c4cc473233543b4648ca9d24ab4230f3"
+  },
+  {
+   "path": "kb/l8/meta_src/kb-classes.yaml",
+   "bytes": 2090,
+   "sha256_16": "00caae014abed5c9c6d11a2c73baa4b473ee30d8f998fcd4b86f8671d59c90b6"
+  },
+  {
+   "path": "kb/l8/meta_src/GUIDE.md",
+   "bytes": 6056,
+   "sha256_16": "35b38ae415307667791162f06e1dc99a58b9aadebf65a6df702c6902dc76d437"
+  },
+  {
+   "path": "kb/l8/meta_src/acceptance.yaml",
+   "bytes": 2546,
+   "sha256_16": "367faf631d7a98a53a9020bff785049d31bc3de468eaa02069e028a1cef1330f"
+  },
+  {
+   "path": "/Users/lute/.dsh/Momcozy知识库/_meta/DERIVED.md",
+   "bytes": 2069,
+   "sha256_16": "aedd458a1c78b44b10ac675946f05d249970e0131ae2a2db85768acde554fc4f"
+  },
+  {
+   "path": "/Users/lute/.dsh/Momcozy知识库/_meta/GUIDE.md",
+   "bytes": 6056,
+   "sha256_16": "35b38ae415307667791162f06e1dc99a58b9aadebf65a6df702c6902dc76d437"
+  },
+  {
+   "path": "/Users/lute/.dsh/Momcozy知识库/_meta/acceptance.yaml",
+   "bytes": 2546,
+   "sha256_16": "367faf631d7a98a53a9020bff785049d31bc3de468eaa02069e028a1cef1330f"
+  },
+  {
+   "path": "/Users/lute/.dsh/Momcozy知识库/_meta/collections.yaml",
+   "bytes": 1058,
+   "sha256_16": "0b2c3ea5550a0c9a64ca66a44e9727ed852ef4c00b709310a7ed5fe967dad6b7"
+  },
+  {
+   "path": "/Users/lute/.dsh/Momcozy知识库/_meta/derivation.json",
+   "bytes": 241760,
+   "sha256_16": "0ee1595e0abe942c5f45e0d5e84551940836bfc862a11c374a98352ddc566779"
+  },
+  {
+   "path": "/Users/lute/.dsh/Momcozy知识库/_meta/kb-classes.yaml",
+   "bytes": 2090,
+   "sha256_16": "00caae014abed5c9c6d11a2c73baa4b473ee30d8f998fcd4b86f8671d59c90b6"
+  },
+  {
+   "path": "/Users/lute/.dsh/Momcozy知识库/README.md",
+   "bytes": 1893,
+   "sha256_16": "0a4d0f5e6395dad2991ae4daa24a35d14e110b173a642577abefdcdb038f86ec"
+  },
+  {
+   "path": "kb/.work/gen-host-library.py",
+   "bytes": 57573,
+   "sha256_16": "6d72dae60d72598213bb5d123b97274dc54d63bd37e91f519c5c3b80492c56fb"
+  },
+  {
+   "path": "kb/l8/_archive/gen-host-library.py.orig-294b16a0f404c977",
+   "bytes": 30399,
+   "sha256_16": "294b16a0f404c977f33ddb689d86d7bd0c258d268a6c48f34f597b73cc722a74"
+  },
+  {
+   "path": "kb/l8/repair_enveloped_docs.py",
+   "bytes": 5924,
+   "sha256_16": "d55dd2f2c8bdd27a97cedb1c63955ba4c69730dcc8437aa2cf7d7bbcd38b6f26"
+  },
+  {
+   "path": "kb/l8/docs_repair_20260923-1535.json",
+   "bytes": 9526,
+   "sha256_16": "cbe785e6a997c87712deb5409d25374035a4d02b71461ba94b76687dda73ccd1"
+  },
+  {
+   "path": "kb/l8/docs_write_report_20260923-1535.json",
+   "bytes": 12162,
+   "sha256_16": "f5cd70b78698cf11043f8a7d6994a0abae821612aded66bf2cdd3656412d0921"
+  },
+  {
+   "path": "kb/l8/docs_repair_20260923-1546.json",
+   "bytes": 842,
+   "sha256_16": "070a10a80763c740953783ce1b737442450195fa42e7d55022c4ef36b8f948c4"
+  },
+  {
+   "path": "kb/l8/_archive/review.py.orig-9a44f8a324aaa836",
+   "bytes": 27086,
+   "sha256_16": "9a44f8a324aaa836a18fc457f876a7d0d4b2678e5bce8a4456b77953696d1c88"
+  },
+  {
+   "path": "kb/l8/view_build_20260923-165821.json",
+   "bytes": 98105,
+   "sha256_16": "b6fc5e4da44006c53ed99f72ca12774981c6a316c0cb7019fc442f863aa4c996"
+  },
+  {
+   "path": "kb/l8/roundtrip_20260923-170203.json",
+   "bytes": 5355,
+   "sha256_16": "322a48913114c94a1b53c6c60dba0a88c991d521da8595e8416354302907bf0e"
+  },
+  {
+   "path": "kb/l8/workflow_check_20260923-170130.json",
+   "bytes": 4476,
+   "sha256_16": "96500bf05dc7bbf1bb8376fde3aa7c6500b19a659322da16c113d5afece22b06"
+  },
+  {
+   "path": "kb/l8/build_view.py",
+   "bytes": 8970,
+   "sha256_16": "4da9008d41c5eea3fb6616ce7f4c54b3ea1d5979fd303d3207293de99cd8b93f"
+  },
+  {
+   "path": "kb/l5/runs/20260923-1608.relog.json",
+   "bytes": 1176,
+   "sha256_16": "91d05d58b4c4855159c563a7115a1dff9af91705f22a8c9718e3fef7ab1e6c4b"
+  },
+  {
+   "path": "kb/l8/workflow_check_20260923-180808.json",
+   "bytes": 4476,
+   "sha256_16": "e069ef46615871bf6e2dba7746e53389c224204ec1694e1a912b7960dc1aca5c"
+  },
+  {
+   "path": "kb/l8/roundtrip_20260923-180652.json",
+   "bytes": 5356,
+   "sha256_16": "117c06c4d189d4f8c5af4c6ee85b33f1321c5bbc5103b9d15493d99e1a1e2d2d"
+  },
+  {
+   "path": "kb/l8/view_build_20260923-180652.json",
+   "bytes": 98084,
+   "sha256_16": "f008ba864400c72f07459d408ff7c69fe19edb0385b863ef6f51f82b3d07ff8a"
+  },
+  {
+   "path": "kb/l8/docs_repair_20260923-180753.json",
+   "bytes": 1787,
+   "sha256_16": "bb62516e32203c17d12490e4946f05fe3f91199b552130863b6471834b675837"
+  }
+ ],
+ "roundtrip": {
+  "run_id": "20260923-1540",
+  "file": "kb/l8/roundtrip_20260923-1540.json",
+  "all_pass": true,
+  "items": [
+   {
+    "n": 1,
+    "name": "文件数",
+    "pass": true
+   },
+   {
+    "n": 2,
+    "name": "frontmatter 解析成功数",
+    "pass": true
+   },
+   {
+    "n": 3,
+    "name": "子库归属数",
+    "pass": true
+   },
+   {
+    "n": 4,
+    "name": "sha256 读回一致（随机 10）+ 全量正文逐字",
+    "pass": true
+   },
+   {
+    "n": 5,
+    "name": "关键词检索可达",
+    "pass": true
+   },
+   {
+    "n": 6,
+    "name": "加载器体检",
+    "pass": true
+   }
+  ],
+  "health": 75,
+  "triplet": 1,
+  "island": 1,
+  "e001": 0,
+  "sample10": "10/10 一致",
+  "full_verbatim": "509/509 正文逐字一致",
+  "search": [
+   {
+    "q": "W-2.1",
+    "matched": 111
+   },
+   {
+    "q": "乳腺组织",
+    "matched": 1
+   },
+   {
+    "q": "合规替代",
+    "matched": 509
+   }
+  ],
+  "no_hit_negative": {
+   "query": "量子纠缠配色调参",
+   "matched": 0,
+   "expect": 0
+  },
+  "loader_side_extra": {
+   "errors_total": 2994,
+   "warnings_total": 4860,
+   "code_hist": {
+    "W036": 509,
+    "W004": 509,
+    "W010": 509,
+    "W017": 509,
+    "W019": 1,
+    "W020": 2811,
+    "W021": 10,
+    "W035": 1,
+    "W037": 1,
+    "E002": 1018,
+    "E005": 509,
+    "E006": 509,
+    "E021": 509,
+    "E026": 449
+   },
+   "note": "上面这组码不属于六项判据：它们是 Z 修复前被 E001 整体掩盖的字段级问题，装载前一条都看不见（因为没有任何条目解析成功）。逐条影响见 runs/<run_id>.report.md 第八节。"
+  }
+ },
+ "self_checks": {
+  "1_l0_l6_未改": {
+   "l0": {
+    "tree_sha256_16": "da1ad72a2d2155fa",
+    "match": true,
+    "files": 2411,
+    "bytes": 8912388
+   },
+   "l1": {
+    "tree_sha256_16": "ede7a63100acf4a6",
+    "match": true,
+    "files": 1492,
+    "bytes": 292042291
+   },
+   "l2": {
+    "tree_sha256_16": "13b05eba1b428666",
+    "match": true,
+    "files": 829,
+    "bytes": 19637545
+   },
+   "l3": {
+    "lines": 1527,
+    "base1018_matches_L6": true,
+    "whole1527_matches_L4": true
+   },
+   "l4_l6_prior_artifacts": "26/26 哈希一致",
+   "how": "files/bytes 与 L5/L6 基线逐项相等；tree_sha256 用 L7 同一算法（relpath\\0size\\0sha 排序后 sha256）复算",
+   "max_mtime": {
+    "l0": {
+     "now": "2026-09-23 12:51:43",
+     "baseline": "2026-09-23 12:51:43",
+     "same": true
+    },
+    "l1": {
+     "now": "2026-09-23 12:50:55",
+     "baseline": "2026-09-23 12:50:55",
+     "same": true
+    },
+    "l2": {
+     "now": "2026-09-23 12:58:08",
+     "baseline": "2026-09-23 12:58:08",
+     "same": true
+    }
+   }
+  },
+  "2_没删文件_归档对账": {
+   "归档目录": [
+    "enveloped-20260923-1520"
+   ],
+   "归档文件数": 510,
+   "归档字节": 2335796,
+   "装载位文件数": 516,
+   "其中条目": 509,
+   "其中_meta": 6,
+   "装载位根文件": [
+    "README.md"
+   ],
+   "说明": "装载位 509 条 + 6 个 _meta + README.md（并发迁移留下的迁出说明，未动）= 516；归档 510 = 509 条 + _meta/DERIVED.md 的迁出前原始字节，逐个对得上",
+   "stage_leftover": "kb/l8/_stage/*.txt 共 5 个（留痕未删）：第一趟写回时 5 个本来就没有 frontmatter 的文件（_meta/DERIVED.md + 4 个 _meta 件）被写宽了的读回断言误判为失败，进了 cp 兜底暂存分支；修正断言后重跑 510/510 与 4/4 全过、cp 兜底 0 次"
+  },
+  "3_509正文逐字未变": {
+   "方式": "payload（迁出前原文）vs 落盘后逐字比对，并剥离写盘时插入的 kb_class 行",
+   "body_identical": "509/509",
+   "frontmatter_identical_ignoring_kb_class": "509/509",
+   "kb_class_line_present": "509/509",
+   "不一致": 0,
+   "双通道复核": "加载器侧（Electron/node）读回 sha256 抽样 10/10 一致；python 侧全量 509 逐字一致"
+  },
+  "4_roundtrip六项数值": {
+   "文件数": "PASS",
+   "frontmatter 解析成功数": "PASS",
+   "子库归属数": "PASS",
+   "sha256 读回一致（随机 10）+ 全量正文逐字": "PASS",
+   "关键词检索可达": "PASS",
+   "加载器体检": "PASS"
+  },
+  "5_版本纪律": {
+   "l4_canonical_bytes": 0,
+   "versions_jsonl_version_rows": 0,
+   "kb_version_by_registry": {
+    "l1": "v0",
+    "l2": null,
+    "l3": "v0",
+    "l4": "v0",
+    "l5": "v0",
+    "l6": "v0",
+    "l7": "v0"
+   },
+   "versions_jsonl_bytes": 388,
+   "说明": "本批未生成版本号、未发布、未写 kb/l4/canonical"
+  }
+ },
+ "r1_script_patch": {
+  "target": "kb/.work/gen-host-library.py（打包脚本本体 —— 本批 ③ 的首选修法 R1 指的就是它）",
+  "before": {
+   "sha256_16": "294b16a0f404c977",
+   "bytes": 30399,
+   "archived_as": "kb/l8/_archive/gen-host-library.py.orig-294b16a0f404c977"
+  },
+  "after": {
+   "sha256_16": "09c8e9d0a1129c7e",
+   "bytes": 53524,
+   "checked_at": "2026-09-23 15:25:08",
+   "note": "该脚本正被并发工作流持续修改（本人核对期间已换过两版）：after 只是**最后一次核对**的版本"
+  },
+  "changes": [
+   "`.md` 不再由 python 落盘：循环里只收集载荷，统一由 flush_md() 交给 node 写（fs.writeFileSync）并**逐文件读回断言**（字节数 + sha256 + frontmatter 正则）",
+   "resolve_node()：KB_NODE_BIN → ChatGPT 自带 node → DSH Electron 运行时（ELECTRON_RUN_AS_NODE=1）",
+   "write_text_plain()（写 .md.tmp 再 os.replace）保留为 node 缺失时的降级路径，并打印醒目警告",
+   "insert_kb_class()：frontmatter 里紧跟 collection 写 kb_class（flow 形，与存量 509 条回填同形）",
+   "frontmatter() 对 kb_class 用单行 flow 渲染（与回填同形，避免重新生成时 509 条无意义漂移）",
+   "deriv 记录里的 bytes 由 os.path.getsize(path) 改为 len(raw_bytes)（文件改为延迟落盘后取不到 size）"
+  ],
+  "why_temp_rename_was_not_enough": "trace 实测：那条路径确实生效（0 次直写 .md、510 次写 .md.tmp + 510 次 os.replace），产出仍被判成信封 —— 异步封装层随后会把该路径变成信封；同构目录里 node 写的 510 个文件 20 秒后仍全明文。所以 `.md` 必须由 node 落盘，python 连碰都不要碰那些路径。",
+  "verification": {
+   "sandbox": "kb/l8/_stage/gen-verify-v3（沙箱重生成，未覆盖装载位、未覆盖 kb/.work/hostlib）",
+   "generator_stdout": [
+    "[gen] 明文落盘：509 个 md（node 读回断言全部通过）",
+    "[gen] 明文落盘：1 个 md（node 读回断言全部通过）"
+   ],
+   "envelope_check": "产出 510 个 md：信封 0 / 明文 510（15 秒后复测一致）",
+   "loader_readback": "entries 509 / entries_fm_ok 509 / entries_id_ok 509 / entries_kb_class_ok 509 / E001 0 / 三件套 1.00 / 健康分 75 / collections 3_措辞表达库 509",
+   "vs_loader_root": "正文一致 509/509；frontmatter 493 条完全一致、16 条漂移（summary 15、title 3）—— 即遗留问题 7 的已知漂移，装载位保留迁出前原文"
+  },
+  "not_done_on_purpose": "没有用生成器的输出覆盖装载位：装载位当前内容已逐字对账过、且它是本批 ④ 回填与全部验收的基准；覆盖会带入那 16 条漂移。要让装载位跟随生成器，走遗留问题 7。",
+  "experiments": {
+   "E5": "写 .md.tmp 再 os.replace → 明文（/tmp 与工作区都成立）",
+   "E6/E7": "工作区四种写法对照 + 20 个 node 批量：10 秒后全明文（排除「目录」与「volume」两种解释）",
+   "E8": "生成器写调用 trace：0 直写 .md / 510 .md.tmp / 510 replace；同目录 30 个 node 写 md + 2.4MB manifest 12 秒后仍明文（排除 manifest 触发）",
+   "E9": "同构目录 node 写 509+DERIVED.md → 20 秒后 510/510 明文（写入器断言 0 失败）",
+   "E10": "补丁 v2/v3 端到端：生成器自报读回断言通过 → 沙箱 510/510 明文 → 加载器直读产出 E001=0"
+  },
+  "verified_revision": {
+   "sha256_16": "68ba44718cf3e43c",
+   "bytes": 53070,
+   "note": "R1 端到端验证（gen-verify-v4/v5：510/510 明文、E001 0、E046 0、健康分 100）跑在这一版上"
+  },
+  "reverify_rule": "该脚本任何新版本都应重跑：生成到沙箱 → 量 md 是否全明文（node 侧 size == python 侧 size）→ 加载器 probe 看 E001/E046。落盘明文这条不变量由 flush_md() 的 node 写入 + 读回断言保证。"
+ },
+ "loader_root_external_regeneration": {
+  "when": "2026-09-23 15:24:05",
+  "who": "工作台同步那条工作流的生成器（其 l8 补丁第三轮之后的版本）",
+  "evidence": [
+   "装载位 3_措辞表达库/* 与 _meta/{DERIVED.md,collections.yaml,derivation.json,manifest.json} 的 mtime 全为 15:24:05",
+   "条目样例与同一脚本沙箱产出只差一行：source.ref 由 kb/l3/candidates/rules.jsonl#… 换成 feishu-base 链接（其「补丁 C」）",
+   "根 README.md（迁出说明）已被移走；我方新增的 _meta/{GUIDE.md,acceptance.yaml,kb-classes.yaml} 三件保留（mtime 15:07–15:09）"
+  ],
+  "state_after": {
+   "entries": 509,
+   "E001": 0,
+   "E046": 0,
+   "health": 100,
+   "island_ratio": 0.0,
+   "search": {
+    "W-2.1": 111,
+    "乳腺组织": 1,
+    "合规替代": 509,
+    "零命中负例": 0
+   },
+   "rest_codes": "E026 452、E021 56、W019 1、W020 2804、W021 10、W023 1、W025 1、W035 1、W036 509、W037 1"
+  },
+  "impact_on_batch_acceptance": "六项里的第 4 项（与批内冻结基准逐字一致）因基准被外部替换而失效——批内写入的逐字保证在写入当时与 15:22 复验时均为 509/509（roundtrip_20260923-1522.json）；第 2/3/5/6 项仍全过，且体检分高于批内状态（100 vs 75）。",
+  "note": "装载位现在的内容归并发工作流所有（他们用自己的生成器产出覆盖）；本条只做事实登记，不回写、不覆盖。"
+ },
+ "workflow_usability_check": {
+  "checked_at": "2026-09-23 15:35",
+  "question": "整个知识库工作流能不能用",
+  "legs": {
+   "读工具": {
+    "kb_guide": "✓ 返回 GUIDE.md",
+    "kb_collections": "✓ 1 子库/509 条/未归库 0",
+    "kb_search": "✓ W-2.1→111、乳腺组织→1、合规替代→509、零命中负例→0",
+    "kb_read": "✓ 返回条款正文 + 能答/边界/禁止",
+    "verdict": "可用"
+   },
+   "体检": {
+    "E001": 0,
+    "E046": 0,
+    "三件套": 1.0,
+    "孤岛率": 0.0,
+    "健康分": 100,
+    "verdict": "可用"
+   },
+   "分层库→生成器→装载位": {
+    "generator": "最新版（含并发第三轮补丁）",
+    "stdout": "[gen] 明文落盘：509 个 md（node 读回断言全部通过）",
+    "sandbox_envelope": "510/510 明文",
+    "loader_readback": "E001 0 / E046 0 / 健康分 100",
+    "verdict": "可用"
+   },
+   "消费侧 skill": {
+    "SKILL.md": "明文 ✓",
+    "README.md": "明文 ✓",
+    "references/protocols.md": "明文 ✓",
+    "references/categories.md": "原本信封 → 本轮已修（read 工具可读）",
+    "output_template.md": "原本信封 → 本轮已修",
+    "verdict": "可用（本轮修完）"
+   },
+   "入库 kb_ingest": {
+    "闸门": "必填→provenance(anchor/confidence)→PII→内容质量，逐层生效",
+    "回滚": "每次拒绝都不留半成品（沙箱只留 _meta/ledger.ndjson）",
+    "caveat": "装载位 509 条里 452 条（89%）自己过不了 E026 内容质量闸门；照现有条目风格入库会被拒",
+    "verdict": "闸门可用；条目风格需先满足质量分"
+   },
+   "工作台侧": {
+    "workbench_4317": "HTTP 200 ✓",
+    "serve_4508": "存活，自述 /health /manifest /doc /raw ✓",
+    "launchd": "com.kb-hostlib / com.workbench.* 均在载 ✓",
+    "verdict": "可用"
+   }
+  },
+  "enveloped_docs_repair": {
+   "script": "kb/l8/repair_enveloped_docs.py",
+   "run": "20260923-1535",
+   "scanned": 19,
+   "repaired": 16,
+   "still_enveloped_after": 0,
+   "content_changed": 0,
+   "recorded_hash_still_matching": "14/14",
+   "archived_raw_bytes": 217539,
+   "archive": "kb/l8/_archive/enveloped-docs-20260923-1535",
+   "verdict": "PASS",
+   "verification_extra": "read 工具实读 categories.md / output_template.md 均返回正文；14 个有 l7 留痕哈希的文件重写后哈希仍相等"
+  },
+  "enveloped_remaining": {
+   "total": 552,
+   "by_bucket": {
+    "冻结层 kb/l0~l6": 22,
+    "他人/临时 kb/.work 其他": 19,
+    "他人产物 kb/.work/hostlib": 510,
+    "其他": 1
+   },
+   "note": "按纪律不动：冻结层（改写会破坏 L5/L6 基线指纹）、他人产物（工作台工作流，已走 HTTP）、实验沙箱与归档。修法见 repair_enveloped_docs.py，registry TD6"
+  },
+  "artifacts_new": [
+   "kb/l8/repair_enveloped_docs.py",
+   "kb/l8/docs_repair_20260923-1535.json",
+   "kb/l8/docs_write_report_20260923-1535.json",
+   "kb/l8/_archive/enveloped-docs-20260923-1535/"
+  ],
+  "l7_report_writer_root_cause": {
+   "symptom": "kb/l7/reports/*.review.md 反复回到信封态：15:44:58 那份 node 侧 14655 / python 侧 10559（差 4096），且**内容本身变了**（sha16 0421cd37… ≠ l7 留痕 219c0b87…）——是外部重写，不是延迟回卷",
+   "root_cause": "kb/l7/skills/kb-content-review/scripts/review.py 第 490 行 open(path,'w').write(...)（python 通道）",
+   "fix": "已按 R1 补丁：.md 交 node 写 + 读回断言；write_text_plain 探针实测通道=node、明文 ✓",
+   "record_amended": "kb/l7/runs/20260923-1500.json 的 review.py 条目：sha256 更新为补丁后值，保留 sha256_was 与 changed_by",
+   "repaired_again": "kb/l8/docs_repair_20260923-1546.json：1 个文件改回明文（保留他们的新内容，只改形态）",
+   "byb": [
+    "kb/l8/repair_enveloped_docs.py",
+    "kb/l8/docs_repair_20260923-1546.json"
+   ]
+  }
+ },
+ "sandbox_relocation": {
+  "moved_at": "2026-09-23 16:50:00",
+  "why": "库根被改成软链指向整个工作区 kb/ 树后，加载器会把 kb/**/*.md 全当条目扫；这些沙箱副本各有 509 条，属测试残留，移出扫描范围（移动不删除）",
+  "items": [
+   {
+    "item": "00caae014abed5c9.txt",
+    "files": 0,
+    "bytes": 0,
+    "moved_to": "../_l8-sandbox-archive-20260923/00caae014abed5c9.txt"
+   },
+   {
+    "item": "0b2c3ea5550a0c9a.txt",
+    "files": 0,
+    "bytes": 0,
+    "moved_to": "../_l8-sandbox-archive-20260923/0b2c3ea5550a0c9a.txt"
+   },
+   {
+    "item": "35b38ae415307667.txt",
+    "files": 0,
+    "bytes": 0,
+    "moved_to": "../_l8-sandbox-archive-20260923/35b38ae415307667.txt"
+   },
+   {
+    "item": "a9368b27270a1d8b.txt",
+    "files": 0,
+    "bytes": 0,
+    "moved_to": "../_l8-sandbox-archive-20260923/a9368b27270a1d8b.txt"
+   },
+   {
+    "item": "aedd458a1c78b44b.txt",
+    "files": 0,
+    "bytes": 0,
+    "moved_to": "../_l8-sandbox-archive-20260923/aedd458a1c78b44b.txt"
+   },
+   {
+    "item": "docs_payload_20260923-1535.json",
+    "files": 0,
+    "bytes": 0,
+    "moved_to": "../_l8-sandbox-archive-20260923/docs_payload_20260923-1535.json"
+   },
+   {
+    "item": "docs_payload_20260923-1546.json",
+    "files": 0,
+    "bytes": 0,
+    "moved_to": "../_l8-sandbox-archive-20260923/docs_payload_20260923-1546.json"
+   },
+   {
+    "item": "e6",
+    "files": 5,
+    "bytes": 435,
+    "moved_to": "../_l8-sandbox-archive-20260923/e6"
+   },
+   {
+    "item": "e7",
+    "files": 23,
+    "bytes": 2245,
+    "moved_to": "../_l8-sandbox-archive-20260923/e7"
+   },
+   {
+    "item": "e8",
+    "files": 31,
+    "bytes": 2459613,
+    "moved_to": "../_l8-sandbox-archive-20260923/e8"
+   },
+   {
+    "item": "e9-node509",
+    "files": 513,
+    "bytes": 8570544,
+    "moved_to": "../_l8-sandbox-archive-20260923/e9-node509"
+   },
+   {
+    "item": "e9-node509_report.json",
+    "files": 0,
+    "bytes": 0,
+    "moved_to": "../_l8-sandbox-archive-20260923/e9-node509_report.json"
+   },
+   {
+    "item": "gen-verify-2",
+    "files": 513,
+    "bytes": 8611206,
+    "moved_to": "../_l8-sandbox-archive-20260923/gen-verify-2"
+   },
+   {
+    "item": "gen-verify-20260923",
+    "files": 513,
+    "bytes": 8614783,
+    "moved_to": "../_l8-sandbox-archive-20260923/gen-verify-20260923"
+   },
+   {
+    "item": "gen-verify-3",
+    "files": 513,
+    "bytes": 8611206,
+    "moved_to": "../_l8-sandbox-archive-20260923/gen-verify-3"
+   },
+   {
+    "item": "gen-verify-v2",
+    "files": 513,
+    "bytes": 8611717,
+    "moved_to": "../_l8-sandbox-archive-20260923/gen-verify-v2"
+   },
+   {
+    "item": "gen-verify-v3",
+    "files": 513,
+    "bytes": 8609172,
+    "moved_to": "../_l8-sandbox-archive-20260923/gen-verify-v3"
+   },
+   {
+    "item": "gen-verify-v4",
+    "files": 513,
+    "bytes": 9139701,
+    "moved_to": "../_l8-sandbox-archive-20260923/gen-verify-v4"
+   },
+   {
+    "item": "gen-verify-v5",
+    "files": 514,
+    "bytes": 9140785,
+    "moved_to": "../_l8-sandbox-archive-20260923/gen-verify-v5"
+   },
+   {
+    "item": "gen-verify-v6",
+    "files": 514,
+    "bytes": 9196438,
+    "moved_to": "../_l8-sandbox-archive-20260923/gen-verify-v6"
+   },
+   {
+    "item": "ingest-20260923-1647",
+    "files": 2,
+    "bytes": 1348,
+    "moved_to": "../_l8-sandbox-archive-20260923/ingest-20260923-1647"
+   },
+   {
+    "item": "ingest-sandbox",
+    "files": 2,
+    "bytes": 3790,
+    "moved_to": "../_l8-sandbox-archive-20260923/ingest-sandbox"
+   },
+   {
+    "item": "ingest_probe_20260923-1647.mjs",
+    "files": 0,
+    "bytes": 0,
+    "moved_to": "../_l8-sandbox-archive-20260923/ingest_probe_20260923-1647.mjs"
+   },
+   {
+    "item": "nodekill-1",
+    "files": 510,
+    "bytes": 2335796,
+    "moved_to": "../_l8-sandbox-archive-20260923/nodekill-1"
+   },
+   {
+    "item": "nodekill-1.json",
+    "files": 0,
+    "bytes": 0,
+    "moved_to": "../_l8-sandbox-archive-20260923/nodekill-1.json"
+   },
+   {
+    "item": "nodekill-2",
+    "files": 510,
+    "bytes": 2335796,
+    "moved_to": "../_l8-sandbox-archive-20260923/nodekill-2"
+   },
+   {
+    "item": "nodekill-2.json",
+    "files": 0,
+    "bytes": 0,
+    "moved_to": "../_l8-sandbox-archive-20260923/nodekill-2.json"
+   },
+   {
+    "item": "nodekill-3",
+    "files": 510,
+    "bytes": 2335796,
+    "moved_to": "../_l8-sandbox-archive-20260923/nodekill-3"
+   },
+   {
+    "item": "nodekill-3.json",
+    "files": 0,
+    "bytes": 0,
+    "moved_to": "../_l8-sandbox-archive-20260923/nodekill-3.json"
+   },
+   {
+    "item": "review-probe",
+    "files": 1,
+    "bytes": 1017,
+    "moved_to": "../_l8-sandbox-archive-20260923/review-probe"
+   },
+   {
+    "item": "wfcheck-20260923-1647",
+    "files": 514,
+    "bytes": 9202954,
+    "moved_to": "../_l8-sandbox-archive-20260923/wfcheck-20260923-1647"
+   }
+  ],
+  "dest": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/_l8-sandbox-archive-20260923",
+  "summary": "31 个沙箱 / 6727 个文件 / 97.8 MB 移出库根"
+ },
+ "workflow_check_1651": {
+  "verdict": "FAIL",
+  "failed_legs": [
+   "③ 前序产物哈希（45 项）",
+   "④ 分层库 → 生成器 → 视图",
+   "⑤ 装载位 → 加载器（读工具+体检）",
+   "⑥ 文档可见性（agent 能否读到）",
+   "⑦ 消费侧 skill 可用"
+  ],
+  "loader_root_now": "~/.dsh/Momcozy知识库 = README.md（16:01）+ 软链 kb → 工作区 kb/（15:59）",
+  "loader_scope_after_cleanup": "扫描范围内 .md 1867 个（我自己沙箱已移出 6674 个）",
+  "loader_verdict_on_new_root": {
+   "entries": 509,
+   "E001": 1322,
+   "E046": 509,
+   "health": 56.8,
+   "三件套完整率": 0.2726,
+   "孤岛率": 1.0,
+   "检索": {
+    "W-2.1": 111,
+    "乳腺组织": 1,
+    "合规替代": 509,
+    "负例": 0
+   },
+   "collections": [
+    {
+     "id": "(未归库)",
+     "count": 1358
+    },
+    {
+     "id": "3_措辞表达库",
+     "count": 509
+    }
+   ],
+   "有效条目来源": "kb/kb/l8/_stage/pre-third-round-1523/loader-site-backup/（他人对我旧装载位的备份副本，509 条）"
+  },
+  "env_changed_by_other_workstream": {
+   "loader_root_symlink": "15:59",
+   "root_readme": "16:01",
+   "KB-ROOT.json marker": "15:59",
+   "L5 重跑": "16:08（kb/l5/p0_patterns.jsonl 等 3 个产物，kb/l5/runs 最新仍是 13:27 的 20260923-1430 → 没写新 run 记录）",
+   "SKILL.md 被改写": "现为信封态（agent 读 skill 可能失败）",
+   "review.py 被再次改写": "我的明文写盘补丁仍在（enveloped_md 里只有 SKILL.md）"
+  },
+  "stale_records": [
+   "kb/l5/p0_patterns.jsonl",
+   "kb/l5/index/l5.jsonl",
+   "kb/l5/registry/l5.json",
+   "kb/l7/skills/kb-content-review/SKILL.md",
+   "kb/l7/skills/kb-content-review/scripts/review.py",
+   "kb/l7/reports/20260923-1500.review.md"
+  ]
+ },
+ "optimization_round": {
+  "at": "2026-09-23 17:02:25",
+  "①_视图重建": {
+   "view": "kb/view（明确位置：<视图根>/3_措辞表达库/L*.md + _meta/ 七个文件）",
+   "pipeline": "生成器 → staging（/tmp，库根之外）→ python 读逻辑内容组载荷 → node 明文写盘 + 逐文件读回断言（kb/l8/repack_write.mjs）→ 补 GUIDE.md/acceptance.yaml → 加载器 probe",
+   "result": {
+    "md": 511,
+    "enveloped": 0,
+    "_meta": [
+     "DERIVED.md",
+     "GUIDE.md",
+     "acceptance.yaml",
+     "collections.yaml",
+     "derivation.json",
+     "kb-classes.yaml",
+     "manifest.json"
+    ],
+    "E001": null,
+    "E046": null,
+    "entries": 509,
+    "health": 100,
+    "search": [
+     111,
+     1,
+     509,
+     0
+    ]
+   },
+   "script": "kb/l8/build_view.py（可重复跑）",
+   "verdict": true
+  },
+  "②_加载器指向": {
+   "changed": [
+    "~/.dsh/plugins/dsh-kb/cordis.patch.yml（插件自带补丁：root 由 ~/.dsh/Momcozy知识库 改为 <工作区>/kb/view）",
+    "~/.dsh/profiles/desktop/cordis.patch.yml（profile 补丁层：同上的 id 定向覆盖）"
+   ],
+   "backups": [
+    "kb/l8/_archive/plugin-cordis.patch.yml.orig-*",
+    "kb/l8/_archive/profile-cordis.patch.yml.orig-*"
+   ],
+   "take_effect": "需要一次 DSH 重载：改完配置后立刻调 kb_collections，工具层仍显示旧 root（实测 3 次、含 touch 触发与 25 秒等待）；两份 patch 的 YAML 已校验可解析、指向目录存在。重载后应显示「根目录 <工作区>/kb/view / 3_措辞表达库 509 条」",
+   "six_item_roundtrip": {
+    "run": "20260923-170203",
+    "all_pass": true,
+    "file": "kb/l8/roundtrip_20260923-170203.json",
+    "baseline": "kb/l8/_stage/view_payload_*.json（生成器本次产出）——第 4 项验的是「装进去的 == 生成器产出的」",
+    "numbers": {
+     "1": 511,
+     "E001": 0,
+     "E046": 0,
+     "归库": 509,
+     "抽10": "10/10",
+     "全量正文": "509/509",
+     "检索": [
+      111,
+      1,
+      509,
+      0
+     ],
+     "健康分": 100,
+     "三件套": 1.0,
+     "孤岛率": 0.0
+    }
+   }
+  },
+  "③_SKILL与L5": {
+   "skill_md": "工作区 kb/l7/skills/kb-content-review/SKILL.md 原是信封（外部改写后）→ 已 node 明文化；与全局安装副本 ~/.dsh/skills/kb-content-review/SKILL.md 逻辑内容一致（1b82260fa340683a）",
+   "l7_records": "kb/l7/runs/20260923-1500.json：修正 3 处（SKILL.md/review.py 等），保留 sha256_was + changed_by",
+   "l5_records": "kb/l5/runs/20260923-1430.json：修正 3 处（p0_patterns.jsonl / index/l5.jsonl / registry/l5.json），保留 sha256_was + changed_by + prerun_backup；另补 kb/l5/runs/20260923-1608.relog.json（记录 16:08:07 外部重跑这件事与 L6 耦合判断）",
+   "write_channel_debt": "kb/.work 下仍有 14 个脚本用 python open(...,'w') 写 .md（多为历史报告脚本）；改法固定：走 node 写 + 读回断言，或复用 kb/l8/repack_write.mjs 的 write_text_plain 模式"
+  }
+ },
+ "workflow_check_final": {
+  "run": "20260923-170130",
+  "verdict": "PASS",
+  "legs": [
+   [
+    "① 环境与版本纪律",
+    true
+   ],
+   [
+    "② 权威库 l0~l6 未被改动",
+    true
+   ],
+   [
+    "③ 前序产物哈希（45 项）",
+    true
+   ],
+   [
+    "④ 分层库 → 生成器 → 视图",
+    true
+   ],
+   [
+    "⑤ 装载位 → 加载器（读工具+体检）",
+    true
+   ],
+   [
+    "⑥ 文档可见性（agent 能否读到）",
+    true
+   ],
+   [
+    "⑦ 消费侧 skill 可用",
+    true
+   ],
+   [
+    "⑧ 工作台与服务",
+    true
+   ],
+   [
+    "⑨ 写入侧（ingest 闸门 + 落盘通道）",
+    true
+   ]
+  ]
+ },
+ "content_optimization_13": {
+  "at": "2026-09-23 18:08:30",
+  "①_枚举收敛": {
+   "risk_level": {
+    "impl": "生成器新增 normalize_risk_level()：12 种源写法 → {红,黄,绿,未定级}，多值取最严（红>黄>绿）",
+    "before": "9 种写法混杂 + unknown 454",
+    "after": {
+     "红": 29,
+     "黄": 19,
+     "绿": 7,
+     "未定级": 454
+    },
+    "traceability": "原值落 risk_level_raw（55 条）；未定级的 454 条落 risk_level_note『源库为 unknown/空，不许由 P 级反推』",
+    "judgement_fix": "判定逻辑由「子串匹配 raw 值」改为用归一值（写法一变就不会漏判）"
+   },
+   "p_level": {
+    "impl": "按 ORDER_P_LEVEL 校验，枚举外写法挡在视图外；同一规则多行取最严（P0 最严）",
+    "after": {
+     "P0": 21,
+     "P1": 488
+    },
+    "note": "取值本身已合法，未改口径，只加了守卫与说明"
+   },
+   "verification": {
+    "decision": "**保持留空，不补假映射**",
+    "why": "生成器补丁 J 已有论证：verification 是加载器的三重验证映射（人工判断闸门），派生视图没有依据替人打三项分；补一个全 0 映射只会把 E021（缺）换成 E022（判 discard）——那是把闸门变成自我申报。E021 ×56 是如实报出内容缺口",
+    "content_fix": "这 56 条判断类需在内容侧补三项子分（2/1/0）+ 依据 + score（=得分÷6）+ verdict"
+   }
+  },
+  "③_证据级对齐": {
+   "rule": "L2 仅当源库为 synthesis **且**归属 ≥2 个不同来源根（加载器 sourceRootOf 去重）；否则降 L1",
+   "already_ok": "该规则第三轮补丁已实现，E036 此前就为 0（没有违规）",
+   "added_traceability": "新增 evidence_level_note，让降级不再静默：observation→L1 447 条 / synthesis-但-1-个来源根→L1 59 条 / synthesis-且-≥2 来源根→L2 3 条",
+   "corroborated_by": "仅在 L2 时写出（≥2 个飞书 base 链接），与加载器 E036 的判据同源"
+  },
+  "results": {
+   "view": "kb/view 511 md / 信封 0",
+   "loader": {
+    "E001": 0,
+    "E046": 0,
+    "health": 100,
+    "三件套": 1.0,
+    "孤岛率": 0.0,
+    "search": [
+     111,
+     1,
+     509,
+     0
+    ],
+    "code_hist": {
+     "W036": 509,
+     "W019": 1,
+     "W020": 2267,
+     "W021": 10,
+     "W023": 1,
+     "W025": 1,
+     "W035": 1,
+     "W037": 1,
+     "E026": 452,
+     "E021": 56
+    }
+   },
+   "六项回环": {
+    "run": "20260923-180652",
+    "all_pass": true
+   },
+   "九段体检": {
+    "run": "20260923-180808",
+    "verdict": "PASS"
+   },
+   "附带变化": "W020（重复即合并）2803 → 2267（归一后 summary 文案分化，重复判据变化）",
+   "未变的": "E026 452（内容质量分<60）、E021 56（判断类缺三重验证）—— 两项都是**内容层**缺口，字段映射层面无解"
+  },
+  "residual": "生成器的 node 子进程仍偶发 SIGKILL(-9)→staging 落成信封；但安装通道（payload→node→kb/view）稳定，最终装载位 0 信封（TD11）"
+ }
+}

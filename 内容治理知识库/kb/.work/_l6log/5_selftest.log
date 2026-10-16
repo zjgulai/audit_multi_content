@@ -1,0 +1,19 @@
+/Users/lute/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+kb/l6/retriever.py:308: UserWarning: The model sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 now uses mean pooling instead of CLS embedding. In order to preserve the previous behaviour, consider either pinning fastembed version to 0.5.1 or using `add_custom_model` functionality.
+  self.model = TextEmbedding(model_name=self.meta["model"], **kw)
+自验写入 kb/l6/selftest.json｜已判断 5/14 条查询
+  A_zh   bm25_only: hit@3 1.0 p@3 0.833｜vector_only: hit@3 1.0 p@3 0.5｜hybrid: hit@3 1.0 p@3 0.667
+  A_en   bm25_only: hit@3 1.0 p@3 0.778｜vector_only: hit@3 0.667 p@3 0.444｜hybrid: hit@3 1.0 p@3 0.778
+  A_all  bm25_only: hit@3 1.0 p@3 0.8｜vector_only: hit@3 0.8 p@3 0.467｜hybrid: hit@3 1.0 p@3 0.733
+  B_zh   bm25_only: hit@3 None p@3 None｜vector_only: hit@3 None p@3 None｜hybrid: hit@3 None p@3 None
+  B_en   bm25_only: hit@3 None p@3 None｜vector_only: hit@3 None p@3 None｜hybrid: hit@3 None p@3 None
+  B_all  bm25_only: hit@3 None p@3 None｜vector_only: hit@3 None p@3 None｜hybrid: hit@3 None p@3 None
+  原始分对照（A 组 vs B 组，中位）：
+    A: BM25 原始分 21.8007｜余弦 0.7401
+    B: BM25 原始分 None｜余弦 None
+  B 组行为：
+    bm25_only: 返回结果=False｜Top1 相关 0/0｜Top1 分数中位 B=None vs A=0.02459
+    vector_only: 返回结果=False｜Top1 相关 0/0｜Top1 分数中位 B=None vs A=0.02459
+    hybrid: 返回结果=False｜Top1 相关 0/0｜Top1 分数中位 B=None vs A=0.0484
+总耗时 1.9s

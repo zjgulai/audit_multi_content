@@ -1,0 +1,347 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""kb_pipeline.py —— 知识库 L0–L7 的**执行编排器**（P0-1）
+
+读 kb/l7/registry/layers.yaml（静态真源）→ 拓扑排序 → 逐层校验 → 逐层跑闸门 → 汇总。
+本版**只有 `--check`（零写档）**：不执行任何会写盘的层引擎，只做静态校验 + 跑已确认只读的闸门。
+
+为什么需要它：`layers.yaml` 已把每层的 engine / inputs / outputs / gate / cwd / python /
+envelope / write_mode / dry_run 全部声明齐全，但**没有任何脚本按它去执行** —— 于是"自动化"
+实际是"agent 照文档做"。本脚本是那个缺失的执行者。
+
+零写保证（三层）：
+  1. 本版代码路径里**没有任何写操作**（无 open(...,"w")、无 shutil 落地）；
+  2. 只跑**只读白名单**里的闸门，其余闸门逐条说明为何未执行（不静默跳过）；
+  3. 跑前跑后对"各层已存在的产出文件"取 mtime 快照，**变化即报错**（自证零写）。
+
+用法（库内相对路径，cwd 必须是 kb/ 的上一级；推荐走 kb/kbpy）：
+    kb/kbpy l7/scripts/kb_pipeline.py --check                 # 全链零写体检
+    kb/kbpy l7/scripts/kb_pipeline.py --check --no-gates      # 只做静态校验，不跑闸门
+    kb/kbpy l7/scripts/kb_pipeline.py --check --only L3       # 只看/只跑某层
+    kb/kbpy l7/scripts/kb_pipeline.py --check --from L2       # 从某层起
+    kb/kbpy l7/scripts/kb_pipeline.py --check --json
+退出码：0 全过；1 有硬问题；2 用法/环境错。
+"""
+# ── 解释器守卫（2026-09-29）：不合格就用 kb/.kb-python 指定的解释器重跑自己 ──
+import os as _os, sys as _sys
+if not _os.environ.get("KB_INTERP_OK"):
+    _d = _os.path.dirname(_os.path.abspath(__file__)); _cfg = None
+    while True:
+        _p = _os.path.join(_d, ".kb-python")
+        if _os.path.isfile(_p):
+            _cfg = _p
+            break
+        _q = _os.path.dirname(_d)
+        if _q == _d:
+            break
+        _d = _q
+    if _cfg:
+        _want = next((l.split("#", 1)[0].strip() for l in open(_cfg, encoding="utf-8")
+                      if l.split("#", 1)[0].strip()), "")
+        _want = _os.path.expanduser(_want)
+        if (_want and _os.access(_want, _os.X_OK)
+                and _os.path.realpath(_want) != _os.path.realpath(_sys.executable)):
+            _os.environ["KB_INTERP_OK"] = "1"
+            _os.execve(_want, [_want, _os.path.abspath(__file__)] + _sys.argv[1:], dict(_os.environ))
+# ──────────────────────────────────────────────────────────────────────────
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+KB = os.path.dirname(os.path.dirname(HERE))          # …/kb
+CONFIG_NAME = ".kb-python"
+
+# 只读闸门白名单：**只在逐条确认"0 写盘点"或自带 --check 档后**才可加入
+GATE_WHITELIST = {
+    "kb/l7/scripts/layers_check.py": [],
+    "kb/l7/scripts/skills_check.py": [],
+    "kb/l1/index/rebuild_l1_index.py": ["--check"],
+}
+# 已知需参数/未验证只读 → 不执行，但必须出现在报告里
+GATE_NOT_RUN_REASON = {
+    "kb/.work/l5_integrity.py": "未纳入只读白名单（其写行为未逐条验证）",
+    "kb/.work/l6_integrity.py": "需要位置参数（run_id）",
+    "kb/.work/kb_ocr_gate.py": "函数引用（path::func），非独立可执行",
+}
+PLACEHOLDER = re.compile(r"<[^>]+>|\*\*")
+GLOBCH = re.compile(r"[*?{\[]")        # glob 模式（非字面路径）：按「至少匹配到一个」判
+import glob as _glob
+
+
+def home(p: str) -> str:
+    return os.path.expanduser(str(p))
+
+
+def read_config() -> str:
+    for base in (os.path.dirname(KB), KB):
+        p = os.path.join(base, CONFIG_NAME)
+        if os.path.isfile(p):
+            for ln in open(p, encoding="utf-8"):
+                ln = ln.split("#", 1)[0].strip()
+                if ln:
+                    return home(ln)
+    return os.environ.get("KB_PYTHON") or ""
+
+
+def looks_like_path(s: str) -> bool:
+    s = s.strip()
+    return bool(re.match(r"^(kb/|~/|/)", s))
+
+
+def is_glob(s: str) -> bool:
+    return bool(GLOBCH.search(s))
+
+
+def brace_expand(s: str) -> list[str]:
+    """bash 花括号展开：{1..4,9} → 1 2 3 4 9；{a,b} → a b。glob 本身不支持花括号。"""
+    m = re.search(r"\{([^{}]*)\}", s)
+    if not m:
+        return [s]
+    alts = []
+    for part in m.group(1).split(","):
+        if ".." in part:
+            a, b = part.split("..", 1)
+            try:
+                lo, hi = int(a), int(b)
+                alts += [str(i) for i in range(min(lo, hi), max(lo, hi) + 1)]
+            except ValueError:
+                alts.append(part)
+        else:
+            alts.append(part)
+    out = []
+    for a in alts:
+        out += brace_expand(s[:m.start()] + a + s[m.end():])
+    return out
+
+
+def has_match(pat: str, cwd: str) -> bool:
+    for exp in brace_expand(pat):
+        p = exp if os.path.isabs(home(exp)) else os.path.join(cwd, exp)
+        if _glob.glob(home(p), recursive=True):
+            return True
+    return False
+
+
+def strip_placeholder(p: str) -> str:
+    s = PLACEHOLDER.split(p)[0]
+    m = GLOBCH.search(s)                       # 截到第一个 glob 字符，取其目录做父目录判定
+    if m:
+        s = s[:m.start()]
+    return s.rstrip("/") or p
+
+
+def topo_sort(layers: list[dict]) -> list[dict]:
+    ids = [x.get("layer") for x in layers]
+    indeg = {}
+    for x in layers:
+        d = [y for y in (x.get("depends_on") or []) if y in ids and y != x.get("layer")]
+        indeg[x["layer"]] = len(d)
+    out, seen = [], set()
+    while len(out) < len(layers):
+        ready = [x for x in layers if x["layer"] not in seen and indeg[x["layer"]] == 0]
+        if not ready:                      # 有环 → 按声明顺序兜底，并如实标注
+            ready = [x for x in layers if x["layer"] not in seen][:1]
+            ready[0]["_cycle"] = True
+        for x in ready:
+            out.append(x); seen.add(x["layer"])
+            for y in layers:
+                if x["layer"] in (y.get("depends_on") or []):
+                    indeg[y["layer"]] -= 1
+    return out
+
+
+def snapshot_mtimes(layers: list[dict]) -> dict:
+    """对每层已存在的产出文件取 mtime 快照（零写自证用）。"""
+    snap = {}
+    for x in layers:
+        for o in (x.get("outputs") or []):
+            if not looks_like_path(o):
+                continue
+            base = strip_placeholder(o)
+            p = base if os.path.isabs(home(base)) else os.path.join(os.path.dirname(KB), base)
+            p = home(p)
+            if os.path.isfile(p):
+                try: snap[p] = os.path.getmtime(p)
+                except OSError: pass
+            elif os.path.isdir(p):
+                for r, d, f in os.walk(p):
+                    d[:] = [z for z in d if z != "__pycache__"]
+                    for z in f:
+                        q = os.path.join(r, z)
+                        try: snap[q] = os.path.getmtime(q)
+                        except OSError: pass
+                        if len(snap) > 4000: return snap
+    return snap
+
+
+def run_gate(script: str, extra: list[str], cwd: str, py: str):
+    """跑一个白名单闸门，返回 (ok, 摘要)。"""
+    target = os.path.join(cwd, script)
+    if not os.path.isfile(target):
+        return False, "闸门脚本不存在: %s" % script
+    env = dict(os.environ, KB_INTERP_OK="1", PYTHONDONTWRITEBYTECODE="1")
+    try:
+        r = subprocess.run([py, target] + extra, cwd=cwd, env=env,
+                           capture_output=True, text=True, timeout=600)
+    except subprocess.TimeoutExpired:
+        return False, "超时"
+    tail = [l for l in (r.stdout or "").strip().split("\n") if l.strip()]
+    summ = tail[-1][:110] if tail else "(无输出)"
+    return r.returncode == 0, "exit=%d ｜ %s" % (r.returncode, summ)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="知识库 L0–L7 执行编排器（本版仅 --check 零写档）")
+    ap.add_argument("--check", action="store_true", help="零写体检（本版唯一模式）")
+    ap.add_argument("--no-gates", action="store_true", help="只做静态校验，不跑闸门")
+    ap.add_argument("--only", default=None, help="只看/只跑某一层，如 L3")
+    ap.add_argument("--from", dest="from_layer", default=None, help="从某层起（拓扑序）")
+    ap.add_argument("--json", action="store_true")
+    a = ap.parse_args()
+    if not a.check:
+        print("本版只支持 --check（零写档）；--sync/--full 待干跑档补齐后再做。", file=sys.stderr)
+        return 2
+
+    reg = os.path.join(KB, "l7", "registry", "layers.yaml")
+    if not os.path.isfile(reg):
+        print("找不到 %s" % reg, file=sys.stderr); return 2
+    try:
+        import yaml
+    except ImportError:
+        print("需要 PyYAML（请用 kb/kbpy 或 /usr/bin/python3 运行）", file=sys.stderr); return 2
+    doc = yaml.safe_load(open(reg, encoding="utf-8"))
+    layers = doc.get("layers") if isinstance(doc, dict) else doc
+    ordered = topo_sort(layers)
+
+    if a.only:
+        ordered = [x for x in ordered if x["layer"] == a.only]
+    elif a.from_layer:
+        ids = [x["layer"] for x in ordered]
+        if a.from_layer in ids:
+            ordered = ordered[ids.index(a.from_layer):]
+
+    py = read_config()
+    py_ok = bool(py) and os.access(py, os.X_OK)
+    before = snapshot_mtimes(layers)          # 零写自证：跑前快照
+
+    rows, hard = [], []
+    for x in ordered:
+        lid = x["layer"]
+        cwd = home(x.get("cwd") or "")
+        eng = x.get("engine") or []
+        if isinstance(eng, str): eng = [eng]
+        # 1) cwd
+        cwd_ok = bool(cwd) and os.path.isdir(cwd) and \
+            os.path.realpath(os.path.join(cwd, "kb")) == os.path.realpath(KB)
+        # 2) engine 在位
+        miss_eng = [e for e in eng if not os.path.exists(home(e) if os.path.isabs(home(e))
+                    else os.path.join(cwd, str(e)))]
+        # 3) inputs 里像路径的
+        miss_in = []
+        for i in (x.get("inputs") or []):
+            if not looks_like_path(i):
+                continue
+            if is_glob(i):
+                if not has_match(i, cwd):
+                    miss_in.append(i + "（glob 无匹配）")
+            else:
+                q = home(strip_placeholder(i))
+                q = q if os.path.isabs(q) else os.path.join(cwd, strip_placeholder(i))
+                if not os.path.exists(q):
+                    miss_in.append(i)
+        # 4) outputs 父目录
+        miss_out = []
+        for o in (x.get("outputs") or []):
+            if not looks_like_path(o):
+                continue
+            base = strip_placeholder(o)
+            par = os.path.dirname(base)
+            p = par if os.path.isabs(home(par)) else os.path.join(cwd, par)
+            if not os.path.isdir(home(p)):
+                miss_out.append(par)
+        # 5) gate 分类与执行
+        gate = str(x.get("gate") or "")
+        gm = re.match(r"\s*(kb/[A-Za-z0-9_./\-]+\.py)", gate)
+        gscript = gm.group(1) if gm else None
+        gstate, gsumm = "声明式（表达式/契约，无独立脚本）", ""
+        if gscript and gscript in GATE_WHITELIST:
+            if a.no_gates:
+                gstate, gsumm = "只读闸门（--no-gates 已跳过）", ""
+            else:
+                ok, gsumm = run_gate(gscript, GATE_WHITELIST[gscript], cwd, py or sys.executable)
+                gstate = "只读闸门 通过" if ok else "只读闸门 **未过**"
+                if not ok:
+                    hard.append("%s 闸门未过：%s" % (lid, gsumm))
+        elif gscript and gscript in GATE_NOT_RUN_REASON:
+            gstate, gsumm = "未执行", GATE_NOT_RUN_REASON[gscript]
+        elif gscript:
+            gstate, gsumm = "未执行", "有序脚本但未纳入只读白名单（需参数或写行为未验证）"
+
+        rows.append(dict(layer=lid, cwd_ok=cwd_ok, n_eng=len(eng), miss_eng=miss_eng,
+                         miss_in=miss_in, miss_out=miss_out, gate_state=gstate,
+                         gate_summary=gsumm, envelope=x.get("envelope"),
+                         dry_run=x.get("dry_run"), write_mode=x.get("write_mode")))
+        if not cwd_ok: hard.append("%s cwd 不合格：%s" % (lid, x.get("cwd")))
+        if miss_eng:   hard.append("%s 引擎悬空 %d 个：%s" % (lid, len(miss_eng), miss_eng[:2]))
+        if miss_in:    hard.append("%s 输入缺失 %d 个：%s" % (lid, len(miss_in), miss_in[:2]))
+        if miss_out:   hard.append("%s 产出父目录不存在 %d 个：%s" % (lid, len(miss_out), miss_out[:2]))
+        if x.get("envelope") == "required" and x.get("dry_run") is False:
+            rows[-1]["note"] = "该层声明 dry_run=false（写档不可预演）"
+
+    after = snapshot_mtimes(layers)            # 零写自证：跑后快照
+    changed = [p for p in before if after.get(p) != before[p]]
+
+    if a.json:
+        print(json.dumps(dict(zero_write=not changed, changed=changed, layers=rows,
+                              hard=hard, py=py, py_ok=py_ok), ensure_ascii=False, indent=1))
+        return 0 if not hard and not changed else 1
+
+    print("=" * 84)
+    print("知识库 L0–L7 执行编排器 · --check（零写档）")
+    print("=" * 84)
+    print("库根      : %s" % KB)
+    print("解释器    : %s %s" % (py or "(未配置)", "✅" if py_ok else "**不合格**"))
+    print("层数      : %d（拓扑序：%s）" % (len(rows), " → ".join(r["layer"] for r in rows)))
+    print("闸门执行  : %s" % ("已跳过（--no-gates）" if a.no_gates else "只读白名单 3 个"))
+    print()
+    hdr = "%-4s %-5s %-6s %-9s %-8s %-8s %s" % ("层", "cwd", "engine", "inputs", "outputs", "干跑档", "闸门")
+    print(hdr); print("-" * 84)
+    for r in rows:
+        print("%-4s %-5s %-6s %-9s %-8s %-8s %s" % (
+            r["layer"], "✅" if r["cwd_ok"] else "❌",
+            "✅%d" % r["n_eng"] if not r["miss_eng"] else "❌%d/%d" % (len(r["miss_eng"]), r["n_eng"]),
+            "✅" if not r["miss_in"] else "❌%d" % len(r["miss_in"]),
+            "✅" if not r["miss_out"] else "❌%d" % len(r["miss_out"]),
+            "有" if r["dry_run"] else "**无**",
+            r["gate_state"] + (" ｜ " + r["gate_summary"] if r["gate_summary"] else "")))
+    print("-" * 84)
+    print("零写自证  : %s（产出文件 mtime 快照 %d 个，变化 %d 个）"
+          % ("✅ 未写任何文件" if not changed else "❌ 有文件被改动", len(before), len(changed)))
+    for c in changed[:5]:
+        print("    X %s" % c)
+    print()
+    if hard:
+        print("硬问题 %d 条：" % len(hard))
+        for h in hard:
+            print("   - %s" % h)
+    else:
+        print("硬问题：无 ✅")
+    skipped = [r["layer"] for r in rows if r["gate_state"].startswith("未执行")]
+    if skipped:
+        print("闸门未执行的层：%s（各自原因见上表；**不是静默跳过**）" % "、".join(skipped))
+    print("结论：%s" % ("全过" if not hard and not changed else "有问题"))
+    print("说明：本版只做零写体检。写档（--sync）仍需人工开闸：它按层序逐层调 `--apply`，"
+          "而**干跑档已于 P0-3/P0-3d（2026-09-29）补齐** —— 8 个会改库数据的脚本"
+          "（reconcile_l0_feishu / ocr_attachments / l3_distill_run / drill_links_2levels / "
+          "l4_article / l5_prep / "
+          "l5_export / l6_build）均支持 --apply，闸门位次在各自第一个副作用之前。")
+    return 0 if not hard and not changed else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

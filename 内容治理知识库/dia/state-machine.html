@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<style>
+  html,body{margin:0;padding:0;background:#fff;}
+  body{padding:26px 30px;display:inline-block;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;}
+  .diagram svg{display:block;}
+</style></head>
+<body><div class="diagram"><pre class="mermaid">flowchart LR
+    A([提交]) --> B[待审]
+    B -->|预审| C{判定}
+    C -->|通过| P[PASS]
+    C -->|存疑| R[REVIEW]
+    C -->|红线| BL[BLOCK]
+    C -->|未覆盖| RF[拒答]
+    P --> H[人工复核]
+    R --> H
+    RF --> H
+    H --> PUB([已发布])
+    BL --> F[已修改]
+    F -->|重提| B
+    B -.->|缺料| NI[NEEDS_INPUT]</pre></div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+mermaid.initialize({startOnLoad:true,theme:'default',
+  flowchart:{curve:'basis',nodeSpacing:46,rankSpacing:64,useMaxWidth:false},
+  securityLevel:'loose'});
+</script></body></html>

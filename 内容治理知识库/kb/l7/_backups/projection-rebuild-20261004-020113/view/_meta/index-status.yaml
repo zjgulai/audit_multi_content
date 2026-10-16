@@ -1,0 +1,17 @@
+# 由 kb/.work/fix_f3_gen.py 生成（修复计划 F3a）—— 顶层键必须在加载器 WIRED_META_KEYS 白名单内，
+# 顶层键：index / layer_counts / captured_at
+# ⚠ layer_counts 的键必须用 TIER 键（L1，不是层目录名 L1-facts）—— 写错会静默失效（报 W039）。
+#   判据：actual < declared → E045（删除无留痕）；actual > declared 且 L0 → W038。
+
+index:
+  status: candidate          # 合法值 candidate / active / deprecated（声明后清掉 W037）
+  search_backend_ready: false  # 本视图没有独立检索后端：kb_search 走加载器内的机械匹配
+  rebuilt_at: null             # 未建索引，无重建时间
+  version_key: null            # 未发版本（全库 kb_version=v0，无 release_id）
+
+# F3a 口径：只声明**实际存在**的层。L0/L3/L4 本视图为空且不适用，
+# 故意不写 —— 写了 L0:0 会让任何一条 L0 原文进库都触发 W038，是假警报。
+layer_counts:
+  L1: 509
+
+captured_at: '2026-09-29'

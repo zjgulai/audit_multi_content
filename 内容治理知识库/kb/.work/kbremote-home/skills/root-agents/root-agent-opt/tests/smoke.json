@@ -1,0 +1,21 @@
+{
+  "agent": "root-agent-opt",
+  "cases": [
+    {
+      "id": "smoke-001",
+      "dimension": "optimize_agent",
+      "difficulty": "L1",
+      "input": {
+        "agent_dir": "/tmp/root-agent-opt-probe"
+      },
+      "expect": {
+        "ok": true,
+        "json_equals": {
+          "verdict": "no_actionable"
+        }
+      },
+      "notes": "已通过的包 → no_actionable，零补丁零副本写入",
+      "required_tools": []
+    }
+  ]
+}

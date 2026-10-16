@@ -1,0 +1,63 @@
+========================================================================
+KB 闸门 ｜ 平台无关入口 run-gates.sh
+  库根    ：/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理
+  范围    ：scope=full
+  报告落点：/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/ci/out
+  主机    ：lutedeMacBook-Pro-156.local ｜ 时间 2026-10-04 14:48:44 CST
+========================================================================
+解释器：/usr/bin/python3（Python 3.9.6）
+==========================================================================
+KB 闸门统一入口  ｜ 库根 /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理
+共 14 把 ｜ scope=full ｜ 单把超时 600s ｜ 本 runner 只读、不抢锁、不传 --apply
+⚠️ scope=full：已挂 projection / envelope —— projection 实测真坏，红了是**真的**
+==========================================================================
+❌ l0           RED               15.4s ｜ 红 2
+      │   "内容公式（仅供参考）（tblVdl0jdK9G4ld3）：拉取失败（**没有声明**）"
+      │  ],
+      │  "fewer_than_expected": []
+      │ }
+✅ l1           PASS               3.0s ｜ 红 0
+✅ l2           PASS               3.0s ｜ 红 0
+✅ l3           PASS               3.2s ｜ 红 0
+✅ l4           PASS               2.8s ｜ 红 0
+✅ l5           PASS               7.7s ｜ 红 0
+✅ l6           PASS              54.7s ｜ 红 0
+✅ l7           PASS               2.9s ｜ 红 0
+✅ skills       PASS               3.4s
+✅ layers       PASS               2.9s
+✅ conformance  PASS               2.6s ｜ 红 0
+✅ freshness    PASS              23.4s
+❌ projection   RED                3.0s
+      │   "passed": 3,
+      │   "drift_items": 3
+      │  }
+      │ }
+✅ envelope     PASS               3.4s
+--------------------------------------------------------------------------
+★ 成因提示（**不改判据**，判红仍以上面各闸门为准）：
+  · l0 报「拉取失败」2 条 —— 这**不是数据错**，是取数身份的问题：
+      - 专家修订汇总表（tbl8AI00JZO1iZtp）：拉取失败（**没有声明**）
+      - 内容公式（仅供参考）（tblVdl0jdK9G4ld3）：拉取失败（**没有声明**）
+    先按 `kb/l7/registry/l0-expected-diffs.yaml → resolved → reopen_when` 分路：
+      · 该表 `identity`/`identity_fallback` 字段**在** → 用户令牌失效或权限被收回
+      · 字段**不在**且 user 身份报 `token_missing` → 同样是令牌失效（实测 2026-10-04 即此路）
+    处置（registry 的 `owner_action` 原文两条）：
+      ① 根治：在飞书侧把 bot「守衡」加成该 Base 的**可阅读协作者**（不用改代码）
+      ② 令牌到期时重跑：lark-cli auth login --profile dsh-kb --domain base --domain wiki
+    ⚠️ 这两条都是**要人做**的动作，CI 修不了 —— 别改成豁免声明把闸门调绿。
+--------------------------------------------------------------------------
+汇总：过 12/14 ｜ 红 ['l0', 'projection'] ｜ 无法计算 无 ｜ 非 blocking 报错 无 ｜ 基础设施 无 ｜ 告警 无
+退出码 1 ｜ 有红
+==========================================================================
+报告已落盘：
+  /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/ci/out/gates-latest.json
+  /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/ci/out/gates-latest.md
+
+------------------------------------------------------------------------
+闸门退出码：1  ｜ 报告：
+  /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/ci/out/gates-latest.json
+  /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/ci/out/gates-latest.md
+★ 红/无法计算时**别只看这一个数字**：先看报告里 red 列表，再对照 ci/README.md §6 的成因与处置。
+  已知的两条真红均为**人做**的动作，CI 改不动：
+    · l0         —— 取数身份（bot「守衡」未加成该 Base 可阅读协作者／user 令牌失效）
+    · projection —— 投影漂移（实测 6 项过 3），需确认投影生成器是否从规则行读那 4 个字段

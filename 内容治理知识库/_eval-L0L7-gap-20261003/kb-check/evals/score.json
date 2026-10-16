@@ -1,0 +1,40 @@
+{
+  "skill": "kb-check",
+  "composite_100": 62.5,
+  "track_a_static": 94.3,
+  "track_b": {
+    "precision": 0.617,
+    "recall": 1.0,
+    "f1": 0.762,
+    "a_paper_total": 50,
+    "call_cases": 3,
+    "rounds": 3,
+    "pass_call_gate": false,
+    "security_cases": 6,
+    "security_false_triggers": 3,
+    "security_high_risk": 0,
+    "combo_cases": 11,
+    "combo_false_triggers": 4
+  },
+  "grade": "D",
+  "market_ready": false,
+  "gates": {
+    "f1_min": 0.9,
+    "precision_min": 0.85,
+    "recall_min": 0.85,
+    "composite_min_after_cap": 85
+  },
+  "gate_result": "未过：P 0.617<0.85、F1 0.762<0.90、轨道C 62.5<85、调用门槛未过",
+  "check_gate": "--validate-only exit 0；--check-only exit 0",
+  "repair_executed": false,
+  "repair_note": "低分自动修复未执行：修复版须落装载位与源并排交付，与「源只读+不写桌面」冲突",
+  "incident": "源被第1轮 #17 被测会话于 2026-10-03 22:59:11 改写（SKILL.md 纯新增 5 行注释，description 未变）；两处源已一致，未还原",
+  "source_of_truth": "evals/kb-check-evaluation-report.yaml —— 本文件是转录，数字由批次驱动方独立读 YAML 核得",
+  "artifacts": [
+    "evals/kb-check-final-report.html",
+    "evals/kb-check-evaluation-report.yaml",
+    "evals/kb-check.xlsx",
+    "evals/kb-check-b-cases.xlsx"
+  ],
+  "extraction_note": "P/R/F1 取自 YAML 的 status 串（该报告未把它们放在独立键位）"
+}

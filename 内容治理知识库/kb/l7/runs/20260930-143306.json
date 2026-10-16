@@ -1,0 +1,19 @@
+{
+ "run_id": "20260930-143306",
+ "at": "2026-09-30T14:33:06",
+ "source": "review_agent",
+ "trigger": "帮我把这份审查结论汇总成最终裁决",
+ "skills": [
+  "审查裁决"
+ ],
+ "commands": [
+  "kb/kbpy l7/review-engine/core/review_engine.py l7/reports/20260930-1432-aggregate.payload.json --output …"
+ ],
+ "products": [
+  "kb/l7/reports/20260930-1432-裁决.md",
+  "kb/l7/reports/20260930-1432-aggregate.payload.json",
+  "kb/l7/reports/20260930-1432-aggregate.decision.json"
+ ],
+ "verdict": "REVIEW ｜ issue_count=4 ｜ 机器路径 PASS 判为假放行",
+ "human_involved": true
+}

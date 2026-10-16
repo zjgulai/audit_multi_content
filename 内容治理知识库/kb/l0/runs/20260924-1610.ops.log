@@ -1,0 +1,29 @@
+# L0 层操作日志 · run 20260924-1610
+# 生成 2026-09-24 16:12:09
+# 外部调用：0 —— 本批**未发起任何飞书/网络请求**，只用 kb/.work 已爬落盘 dump
+# 写入范围：kb/l0（台账追加 / index 重建 / links 追加 / registry 新增一个键 / 新增资源文件）+ kb/.work
+
+[00] 开工前置
+     $ date → 2026-09-24 16:06:00
+     $ find kb -newermt '-30 minutes' -type f | grep -v '^kb/.work/'  → 计数 0（窗口干净）
+     上一批锁 status=finished（run 20260924-1512）；本批接管 run_id=20260924-1610
+     基线 → kb/.work/batch13/baseline_at_1610.json（含既有 1469 条的 keyset/sha256map 哈希）
+
+[01] §1 比对复核（只读）
+     $ python3 kb/.work/batch13/step1_compare.py
+       → 10 张表逐条对齐；待补合计 9；被排除表 tblXsrMVkDNZ3oW8 未打开
+
+[02] §4.1+§4.2 发射
+     $ python3 kb/.work/batch13/step2_supplement.py
+       → 台账追加 18 行（9 容器 + 9 子资源）
+       → 写入 9 个记录留痕文件 + 18 个资源文件
+       → links/graph.jsonl 追加 9 条边（609 → 618）
+       → index/l0.jsonl 重建（配方先自检：与现文件逐字节一致才继续）
+       → registry.container_policy.container_instances 登记 9 个实例
+
+[03] 文件名对齐既有约定（首版错名已改正）
+     $ python3 kb/.work/batch13/step2b_fix_names.py
+       → <source_kind>__<table_id>__<record_id>.json / <source_kind>__<token>.json
+       → 终检：不符合约定的文件 = 0；库目录合计 1487 = 1469 + 18
+
+[04] 验收 $ python3 kb/.work/batch13/step3_verify.py → 判据 1-12 全过 ✔

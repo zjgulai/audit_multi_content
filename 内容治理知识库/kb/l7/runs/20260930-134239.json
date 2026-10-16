@@ -1,0 +1,21 @@
+{
+ "run_id": "20260930-134239",
+ "at": "2026-09-30T13:42:39",
+ "source": "agent_manual",
+ "trigger": "把审查结论汇总成最终裁决",
+ "skills": [
+  "审查裁决",
+  "kb-content-review"
+ ],
+ "commands": [
+  "kb/kbpy l7/review-engine/core/with_kb_evidence.py --text '全网最低价，宝宝用了绝对不哭闹' --json --dry-run",
+  "l7/review-engine/core/review_engine.py decide() ← aggregate.payload.json"
+ ],
+ "products": [
+  "kb/l7/reports/20260930-134500-裁决.md",
+  "kb/l7/reports/20260930-130830-aggregate.payload.json",
+  "kb/l7/reports/20260930-130830-aggregate.decision.json"
+ ],
+ "verdict": "REVIEW ｜ issue_count=4 ｜ 机器路径 PASS(issue_count=0) 已判为覆盖缺口导致的假放行",
+ "human_involved": true
+}

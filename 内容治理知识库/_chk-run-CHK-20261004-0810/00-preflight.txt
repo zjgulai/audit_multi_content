@@ -1,0 +1,15 @@
+kb-check 预检查（只读）
+  cwd          : /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理
+  库根         : /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理
+  OK   ① 登记表自检                          kb/l7/scripts/skills_check.py
+  OK   ② 层契约                            kb/l7/scripts/layers_check.py
+  OK   ③ 路由表对账                          kb/l7/scripts/routes_reconcile.py
+  OK   ④ 链路收口                           kb/l8/workflow_check.py
+  OK   ⑤ 信封闸门(库自带,只扫 .md)               kb/l8/envelope_census.py
+  OK   ⑤ 信封闸门(.py/.txt/.md)             tools/envelope_gate.py
+  OK   ⑥ 投影一致性                          kb/l8/projection_reconcile.py
+  赢家表输入   : **无**（门③ 将 exit 2）
+  note: 门③ 缺输入：kb/l7/reports/ 下没有 *routes-winners* 文件 ⇒ `routes_reconcile.py` 将**退出码 2**（输入缺失），**不是**「路由表 65 条全不一致」。赢家表是触发评测的运行时产物、全库无生成者；要今天的数据先按 kb-manage 的触发电测重新生成。
+  note: 会写库的闸门（无干跑档，先声明再跑）：④ 链路收口 → kb/l8/workflow_check_<RUN>.json；⑥ 投影一致性 → （无干跑档）
+  note: 本预检查全程只读：不写 kb/、不建目录、不落 __pycache__。
+结论：前置齐，可开跑闸门

@@ -1,0 +1,77 @@
+{
+ "run_id": "20261016-1501-L6",
+ "at": "2026-10-16T15:01:54",
+ "source": "pipeline_sync",
+ "trigger": "--sync --via-skill L6",
+ "skills": [
+  "kb-pipeline",
+  "kb-recall"
+ ],
+ "commands": [
+  "kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L6 --run 20261016-1501-L6 --invoked kb-recall --skill-session L6=session-2ca47c22-f03b-4343-9755-6756abb2c3a4"
+ ],
+ "products": [
+  "kb/l6/runs/build_runs.jsonl",
+  "kb/l6/bm25/docs.jsonl",
+  "kb/l6/bm25/meta.json",
+  "kb/l6/bm25/postings_zh.jsonl",
+  "kb/l6/bm25/postings_en.jsonl",
+  "kb/l6/vectors/vectors.jsonl",
+  "kb/l6/vectors/matrix.npy",
+  "kb/l6/vectors/meta.json",
+  "kb/l6/index/l6.jsonl",
+  "kb/l6/registry/l6.json",
+  "kb/l6/retriever.py",
+  "kb/l6/selftest.json",
+  "kb/l6/benchmark.json",
+  "kb/l6/runs/20260923-1400.vectors.presegment.vectors.jsonl",
+  "kb/l6/runs/20260923-1400.vectors.presegment.matrix.npy"
+ ],
+ "verdict": "全走完（预演 · 未落盘 · 非执行证据）",
+ "human_involved": true,
+ "extra": {
+  "via_skill": true,
+  "skill_invoked_by": "agent",
+  "skill_evidence": "agent_reported",
+  "skill_evidence_note": "该 RUN 在 kb/<层>/runs/ 里**读不到任何非预演落章**⇒ 无观测值，退回注册表声明（skill_evidence=registry_echo）",
+  "observed_skills": [],
+  "observed_skills_sources": [],
+  "layers": [
+   "L6"
+  ],
+  "layer_skills": [
+   "kb-recall"
+  ],
+  "declared_layer_skills": {
+   "L6": [
+    "kb-recall"
+   ]
+  },
+  "layer_skills_uniq": [
+   "kb-recall"
+  ],
+  "invoked_reported": [
+   "kb-recall"
+  ],
+  "skill_sessions": {
+   "L6": "session-2ca47c22-f03b-4343-9755-6756abb2c3a4"
+  },
+  "human_involved_basis": "--invoked 已上报（agent 按层 skill 走过）",
+  "verdict_basis": "层侧落章全是预演台账 → 未落盘",
+  "layer_stamps_applied": [],
+  "layer_stamps_dry": [
+   "L6:kb/l6/runs/20261016-1501-L6-dryrun.json"
+  ],
+  "layer_stamps_unknown": [],
+  "write_gate": {
+   "id": null,
+   "resolved": false,
+   "layers_authorized": null,
+   "unauthorized_layers": [
+    "L6"
+   ],
+   "readonly_declared": [],
+   "msg": "**未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml"
+  }
+ }
+}

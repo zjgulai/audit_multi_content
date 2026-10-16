@@ -1,0 +1,502 @@
+# failure-playbook.yaml —— 失败清单的**唯一真源**：谁、做什么、跑哪条命令、不许做什么
+#
+# 谁读它：
+#   * kb/l7/scripts/kb_pipeline.py   —— `--sync` 失败的那一刻，直接把对应条目打出来
+#   * kb/l7/scripts/daily_health.py  —— 日报的「要人做什么」每条都挂上这里的处置办法
+#
+# 为什么要有它（P3）：闸门只会说「红了」。值班的人需要的是下一句：
+#   **这归谁、现在跑哪条命令、以及哪条捷径不许走**。没有这一句，红闸门第二天就没人看了。
+#
+# 纪律（三条，别省）：
+#   1. 条目按 `id` 取，取不到就往上退到同前缀的 `*`（如 gate_red.L3 → gate_red.*）；
+#      连兜底都没有，就说「没有登记的处置办法」——**不许现编**。
+#   2. `forbidden` 是条目的一部分：写明「不许怎么绕过」。绕过的代价通常比红着更大。
+#   3. `reopen_when` 必须是**可执行的判据**（哪条闸门过、哪个数归零），不是「修好了」。
+
+meta:
+  file: kb/l7/registry/failure-playbook.yaml
+  created_at: "2026-09-30"
+  owner: 刘华丽
+  note: 本文件是人工维护的真源；改它不需要动代码（两个消费者都现读）。
+
+# ══════════════════════════════════════════════════════════════════════════
+# 分层调度（P3）：哪一档什么时候跑、谁能跑
+# ══════════════════════════════════════════════════════════════════════════
+schedules:
+  - id: read_only_daily
+    tier: 只读
+    when: 每日 08:30（launchd：com.kb.pipeline-daily）
+    runs: kb/kbpy l7/scripts/daily_health.py
+    writes: 只有 kb/l7/reports/（<YYYY-MM-DD>-daily-health.md + daily-health-latest.json）
+    who_can_run: 任何自动化；无人值守
+    notes: >
+      内含 kb_pipeline.py --check（12 道只读闸门 + 零写自证：跑前跑后对 4,000+ 个层产物取 mtime 快照）。
+      日志：~/Library/Logs/kb-pipeline-daily/{out,err}.log
+
+  - id: write_plan
+    tier: 预演（零风险）
+    when: 需要时，任何时间；建议每天看一次日报之后
+    runs: kb/kbpy l7/scripts/kb_pipeline.py --sync --only L2
+    writes: 无（引擎走干跑档；闸门只读）
+    who_can_run: 任何人 / 任何 agent
+    notes: >
+      它回答「现在开闸会写什么」。实测 2026-09-30：L2 报 units +0 / index +0 / manifest +0 行，
+      即内容已幂等收敛 —— 开闸只会多写一份 kb/l2/runs/<run>.json。
+
+  - id: write_apply
+    tier: 写档（要人批准）
+    when: 人看过 write_plan 的输出之后；当前口径为「两周只读观察期」
+    runs: kb/kbpy l7/scripts/kb_pipeline.py --sync --only L2 --apply --run <YYYYMMDD-HHMM>
+    writes: kb/l2/**（按层幂等键）
+    who_can_run: 人（agent 不得自行开闸）
+    preconditions:
+      - 无锁：kb/.work/.kb.lock 不存在（或人已处置掉陈旧锁）
+      - 本层闸门在 write_plan 里是「过」
+      - 写档白名单：SYNC_ALLOWED = [L2]；越界必须 --allow-beyond-policy 且由人拍板
+    notes: >
+      引擎落盘点按层：L2 = kb/l8/l2_split_run.py（append 到 units.jsonl / index/l2.jsonl /
+      manifest_l2.jsonl，另写一份 runs/<run>.json）。
+
+# ══════════════════════════════════════════════════════════════════════════
+# 失败 → 处置
+# ══════════════════════════════════════════════════════════════════════════
+entries:
+  # ── 闸门红（逐层）─────────────────────────────────────────────────────
+  - id: gate_red.L0
+    symptom: >
+      L0 闸门红 —— 飞书侧有表 `拉取失败`，且该差异**没有声明**（2026-10-04 实测：专家修订汇总表
+      tbl8AI00JZO1iZtp 与 内容公式（仅供参考） tblVdl0jdK9G4ld3 两张，真差异 2）
+    owner: 内容治理数据组（刘华丽）
+    do: >
+      先读 kb/l7/registry/l0-expected-diffs.yaml → resolved[EX-2/EX-3] → observed_20261004。
+      **别只看「有没有 identity_fallback 字段」就下结论**：该字段不在时有两种可能 ——
+      ① bot 那条路出了新问题；② **bot 与回落身份同时不可用**（回落自己失败时也不写该字段）。
+      2026-10-04 实测撞到的是第 ② 种：bot 恒 91403（整库级 permission_denied），
+      而 `lark-cli auth status`（`dsh-kb` 与默认 profile 都）报 user `missing`。
+      先用 `lark-cli auth status` 把两者分开，再决定走哪条修法。
+      ★ **2026-10-06 更正（Owner 开通 bot 权限后，下面这句已不成立）**：守衡 bot 已被加成可阅读协作者，实测 **5 张 L0 源表 bot 直读全部通过**（专家修订汇总表 395 行、内容公式 7 行）、PRD wiki 与评审结果表也可读 ⇒ **不必再去加协作者、也不必再扫码**。读到失败时：先把 bot 原始错误原样贴出，再分「缺资源权限 `131006`」与「缺 scope `app_scope_not_applied`」——两者修的地方不同，不许混成一句「没权限」。
+    command: >
+      kb/kbpy l7/scripts/l0_gate.py ；kb/kbpy l8/align_l0_feishu.py --check ；
+      ~/.dsh/bin/lark-cli auth status --profile dsh-kb
+    forbidden: >
+      不许把这两张表的 `pull_failed` 写进 l0-expected-diffs.yaml 的 `expected` 去「声明掉」——
+      它是回落失效的报警，不是预期差异；
+      不许改 align_l0_feishu.py 把 pull_failed 从四类差异里摘出去。
+    reopen_when: l0_gate.py 退出 0
+
+  - id: gate_red.L1
+    symptom: L1 闸门红 —— kb/l1/media/_cache 里有**不可复用**的 OCR 缓存条目
+    owner: 内容治理数据组（刘华丽）
+    do: 看 L1 闸门明细定位是哪几条（坏引擎版本 / sha256_state 非 full / 正文含 U+FFFF / 整图丢失），删掉那几条缓存后重跑 OCR
+    command: kb/kbpy l7/scripts/l1_gate.py ；确认后 kb/kbpy l8/ocr_attachments.py <RUN> --apply
+    forbidden: 不许直接改缓存 json 把 ocr_version 或正文补成能过闸门的样子——它防的就是「坏 OCR 灌进 L1」
+    reopen_when: kb/l7/scripts/l1_gate.py 退出 0
+
+  - id: gate_red.L2
+    symptom: L2 闸门红 —— 台账×单元×L1 三份对不上，或 run 内序列非法
+    owner: L2 层主
+    do: 先看是五条判据里的哪一条（行可解析 / run 内序列 / 账实上下界 / 产物归属 / 上游可溯），再决定是修台账还是重跑切分
+    command: kb/kbpy l7/scripts/l2_gate.py （明细）→ kb/kbpy l7/scripts/kb_pipeline.py --sync --only L2（预演看会写什么）
+    forbidden: 不许为了让闸门变绿去删 units.jsonl 里的行；台账是 append-only 的，删行等于毁掉出处
+    reopen_when: l2_gate.py 退出 0
+
+  - id: gate_red.L3
+    symptom: L3 闸门红 —— 规则证据回指不上 L2 单元，或有自报键没登记
+    owner: L3 层主
+    do: 按闸门输出区分两类：① 证据引用对不上（unit_id/source_sha256/anchor）→ 查蒸馏器；② 注册表自报键未登记 → 到 l3-known-drift.yaml 逐键写清口径与修法
+    command: kb/kbpy l7/scripts/l3_gate.py
+    forbidden: 不许把「复算不出来的自报数」直接删掉了事——要么复算相符，要么登记成不可复算并写修法
+    reopen_when: l3_gate.py 退出 0
+
+  - id: gate_red.L4
+    symptom: L4 闸门红 —— 定稿出现重号 / 正文空 / 证据回指不上 / 与候选件不一致 / canonical 聚合文件非空
+    owner: L4 层主
+    do: 按 C1–C6 定位；重号与「定稿被改写」两类**必须人工裁决**，不许机器自动改写定稿
+    command: kb/kbpy l7/scripts/l4_gate.py
+    forbidden: 不许改 l4/canonical/*.jsonl 里的条款号或正文来消红（定稿只加不改）
+    reopen_when: l4_gate.py 退出 0
+
+  - id: gate_red.L5
+    symptom: L5 闸门红 —— 实质 4 项里有一项 FAIL（pattern 回指 / 无凭空加词 / 版本纪律 / 离线）
+    owner: L5 层主
+    do: 跑闸门看是哪一项；基线类两项（frozen_layers / l3_append_only）红了要登记进 l5-known-drift.yaml，实质项红了要真修
+    command: kb/kbpy l7/scripts/l5_gate.py
+    forbidden: 不许把实质项也当成「判据过期」登记掉——登记只对基线类两项开口子
+    reopen_when: l5_gate.py 退出 0
+
+  - id: gate_red.L6
+    symptom: L6 闸门红 —— 计数不一致 / 向量回指失败 / 倒排编号同源断裂 / 版本纪律
+    owner: L6 层主
+    do: 只读档红了先查数据；④重跑幂等要写索引，必须人看着跑完整档（kb/.work/l6_integrity.py）
+    command: kb/kbpy l7/scripts/l6_gate.py ；需要完整档时人跑 kb/kbpy .work/l6_integrity.py <RUN>
+    forbidden: 不许在无人值守的日报里跑完整档（它会 --apply 重建索引）
+    reopen_when: l6_gate.py 退出 0
+
+  - id: gate_red.L7
+    symptom: L7 闸门红 —— 契约库名与 kb_types 对不上 / 六要素物化不全 / 条款号出处不可解析
+    owner: L7 层主
+    do: 改 kb/l7/registry/l7.json 的 citation_contract 与 kb_types 取齐；六要素缺哪一项补哪一项
+    command: kb/kbpy l7/scripts/l7_gate.py
+    forbidden: 不许自造库名（引用契约明写「不得自造库名」）
+    reopen_when: l7_gate.py 退出 0
+
+  - id: gate_red.workflow_check
+    symptom: >
+      kb/l8/workflow_check.py 收口核验红 —— 只有第 ②③ 段红（② 权威库 l0~l6 未被改动 / ③ 前序产物哈希）时，
+      是**冻结基线 vs 活库**这一类，属**判据过期**，不是数据坏了
+    owner: 维护 kb/l7/registry 的人（判定）＋ 数据面归各层层主
+    do: >
+      先看是不是只有 ②③ 红（其余 7 段是实质判据，红了要真修）；再读
+      kb/l7/registry/workflow-check-known-drift.yaml 的 stale_criteria 与 real_findings。
+      ②③ 属已登记判据漂移 ⇒ **无需修数据**；要它们转绿必须**改判据，单独走一轮**（该登记文件今天没有任何闸门读它）。
+      另注：③ 里 kb/l7/registry/l7.json 那一项是**真发现**（原地改写未落章，计数落后现库）——
+      开闸后跑 `kb/.work/l7_article_source_refresh.py <RUN> --apply` 并补 L7 run 记录。
+    command: kb/kbpy l8/workflow_check.py <RUN> ；kb/kbpy l7/scripts/skills_check.py
+    forbidden: >
+      不许为了让 ②③ 变绿去改写历史 run 记录（kb/l4|/l5|/l6|/l7/runs/20260923-*.json）里的 artifact sha —— 那是伪造台账；
+      不许把 L3 回滚到 1527 行时代的状态去让判据成立 —— 那是毁掉 2026-10-02 的蒸馏成果；
+      不许把 ②③ 的判据就地改宽而不同时报批（改判据要单独走一轮）。
+    reopen_when: "改判据后复跑 exit 0；或本轮只做登记 ⇒ 结论写「基线漂移，非缺陷」并附本文件与原始读数"
+
+  - id: gate_red.projection_reconcile
+    symptom: >
+      投影对账红（kb/l8/projection_reconcile.py 退出 1）—— 派生视图 kb/view 与权威分层库漂移。
+      2026-10-04 实测：R1 源指纹不符 / R2 509 条条目指纹全不符 / R4 2036 处治理字段未传导。
+    owner: 内容治理数据组（刘华丽）＋ L3 层主（**判定**）；kb-repair 只做分类与登记
+    do: >
+      ★ **不要按脚本自带的 `fix` 提示（「重跑生成器到 staging 后回填」）直接重生成视图** ——
+      本轮实测它是**陷阱**，两个后果都要先知道：
+      （1）**修不了 R4**：R4 的判据是「md 字段 == 权威 head 行字段」，而现行 L3 四个治理字段**全是空值**，
+          判据等价于要求 md 也留空；生成器在缺字段时走 F8 兜底分支写常量 ⇒ R4 **重生成后照样红**。
+      （2）**会造假绿**：现行视图里的 `owner`/`half_life_days`/`valid_until` 是**逐条的**（实测分布
+          法务 474 / 法务+产品负责人 14 / 法务+渠道负责人 13 / 法务+医学顾问 8；half_life 90/365），
+          而兜底分支写的是**统一常量**且 `valid_until = 今天 + 180` ⇒ 重生成会把逐条治理值换成常量，
+          并把有效期时钟归零 —— 正是 `kb/l3/registry/half-life-policy.json` 明令禁止的
+          `never_resets_on_regeneration: false` 那一类假绿。
+      ⇒ 正确顺序：**先补 L3 治理字段**（见 entry `finding.l3_governance_backfill_lost`，属报批动作），
+      再重出视图（`kb/l8/build_view.py --out kb/view`，生成到 /tmp staging + repack_write.mjs 明写回填），
+      最后复跑本闸门与 l3_gate。
+    command: >
+      kb/kbpy l8/projection_reconcile.py --json ；kb/kbpy l8/projection_reconcile.py --json-out /tmp/proj.json ；
+      python3 kb/.work/fix_f7_probe.py（只读，看 L3 字段现状）
+    forbidden: >
+      不许在 L3 治理字段仍为空时重生成视图并宣布「修好」（R4 不会绿，且逐条治理值被降级为常量）；
+      不许为了让 R4 变绿把视图的 owner/half_life_days/valid_until 清空 —— 那是把治理数据删掉换绿；
+      不许就地改宽 R4 判据而不同时报批（改判据要单独走一轮，与本库既有纪律一致）。
+    reopen_when: "kb/l8/projection_reconcile.py 退出 0（R1/R2/R4 同时绿）"
+
+  - id: finding.l3_governance_backfill_lost
+    symptom: >
+      **L3 权威侧治理字段丢失（2026-10-04 新发现，未登记过）**：现行
+      kb/l3/candidates/rules.jsonl（1018 行）里 `owner` / `effective_from` 键存在但**全空**，
+      `half_life_days` / `valid_until` **键都不存在**；而 kb/l3/registry/l3.json 的
+      `changes[2]`（run 20260929-1040）**声称**已把 `half_life_days / valid_until / effective_from / owner`
+      回填进 509 行（policy_file = l3/registry/half-life-policy.json）。
+      ⇒ **注册表声明与实文件不一致**，且它是投影闸门 R4 红的根因。
+    evidence:
+      - "只读探针 python3 kb/.work/fix_f7_probe.py：行数 1018；half_life_days 键存在 0 非空 0；valid_until 键存在 0 非空 0；owner 键存在 1018 非空 0；effective_from 键存在 1018 非空 0"
+      - "grep -c half_life kb/l3/candidates/rules.jsonl → 0"
+      - "kb/l3/registry/l3.json → changes[2]（backfill / rows 509 / 写前 sha256 a17552e1a0fabde5…）"
+      - "kb/l8/_archive/fix-20260929-094703/rules.jsonl.before-F7（509 行，四字段非空 0）= 回填**前**的状态；说明回填确实执行过，其成果在之后某次重写里没了"
+      - "kb/view/_meta/derivation.json：`governance_source` 写明逐条取自 rules.jsonl，而 `governance_fallbacks` 是**空数组** ⇒ 09-29 11:27 生成视图时，权威库里**有**这四个字段（否则会逐条记兜底）"
+      - "同源旁证：视图 owner 分布 474/14/13/8 与 half-life-policy.json 的 honest_limits（「472/509 无 rule_code ⇒ 93% 落到法务」）对得上 ⇒ 那些值是**按规则算出来的**，不是生成器常量"
+    correction_of_prior_health_report: >
+      kb/l7/reports/20260930-1314-health.md 曾判「权威库一直如此（4 个版本 509/509 全空）」并
+      定 R4 为「真坏（留痕失效）」。按本轮证据，那个结论是**取样偏差**：它比的 4 份文件里
+      **没有**「F7 回填后、下一次重写前」的那一版（它比的 before-F7 是回填**前**），
+      所以「一直如此」不成立；`governance_fallbacks` 为空恰恰说明当时**没有**发生兜底。
+    owner: L3 层主（数据面）＋ 维护 kb/l7/registry 的人（登记面）
+    do: >
+      ① 报批后重跑 `kb/.work/fix_f7_backfill.py`（设计为**仅填空白字段/新增字段**，有
+      `fix_f7_verify_c4.py` 可复核它不动 rule_text/anchor 等内容字段）；
+      ② **补一条 L3 run 记录**记回填后的 sha 与行数（本次丢失正是「改了没落章」）；
+      ③ 再重出投影视图并复跑 l3_gate + projection_reconcile。
+    command: >
+      python3 kb/.work/fix_f7_probe.py（现状，只读）→ 报批 → python3 kb/.work/fix_f7_backfill.py →
+      python3 kb/.work/fix_f7_verify_c4.py → kb/kbpy l8/build_view.py --out kb/view →
+      kb/kbpy l8/projection_reconcile.py
+    forbidden: >
+      **kb-repair 无权直接改 kb/l0…l6 的数据或台账**（本库纪律：修法涉及 l0–l6 ⇒ 先停、报批）；
+      不许只补 l3.json 的声明让它与空字段「对上」而不回填数据 —— 那是把声明改成谎；
+      不许把 half-life-policy.json 的 scope（509 条）静默改小来回避。
+    fixed_20261010: >
+      **已修（2026-10-10，Owner 批准「开始优化，不要影响现有的工作流」）** —— 本条 reopen_when
+      的两个条件均已满足：`fix_f7_probe` 显示四字段 **1018/1018 非空**（原 0/1018），
+      `projection_reconcile.py` **退出 0**（R1/R2/R4 由红转绿）。
+      修法比上面的 `do` 更进一步，因为**根因不是「忘了回填」**：日更的 `kb/l8/l3_distill_run.py`
+      把 `owner` / `effective_from` **写死成空串（5 处）**，且**根本不产** `half_life_days` /
+      `valid_until` ⇒ 回填完下一次日更照样归零。现在派生实现收成**一份** `kb/kb_governance.py`
+      （写方只有两个：日更蒸馏器 mode=force、一次性回填 mode=fill_empty；自证 28/0），
+      写盘前重算，**不再随重生成丢失**。
+      ★ 另查明两点（原条目没写）：① 日更对 `rules.jsonl` 的整份写盘**一直被闸③ 行数护栏拦下**
+      （引擎出 509 行、盘上 1018 行 = 509 生行 + 509 行由 `l4_article.py` 回填的条款号，降 50%）
+      —— 这是本条不再复发的第二道保险；② 产出 1018 行那版的 `kb/.work/l4_article.py` 是
+      **纯追加**（`open(...,"a")` ＋ `dict(r)` 复制原行、只加 `article_no`），**不会**冲掉四字段。
+      ★ **遗留缺口（未修，需回源侧）**：档 B 的判据字段 `authority_source_table` 在本层
+      **连键都不存在**（0/1018），上游 `kb/l2/units.jsonl` 也没有承载来源表的字段 ⇒ 档 B 恒为
+      **0 条**；政策表早先记的「B=22 条」是**早期数据的读数**。已写进
+      `kb/l3/registry/half-life-policy.json` 的 `honest_limits`（**是缺口，不是结论**）。
+    reopen_when: >
+      fix_f7_probe 显示四字段非空（**当前 1018/1018 ✅**），且 kb/l8/projection_reconcile.py 退出 0（**当前 ✅**）
+
+  - id: gate_red.*
+    symptom: 某一层闸门红，且该层没有单独的处置条目
+    owner: 该层层主
+    do: 跑该层闸门看明细，按明细定位；**先别写档**
+    command: kb/kbpy l7/scripts/kb_pipeline.py --check
+    forbidden: 不许在有红闸门的情况下开 --apply（红线③：遇红即停）
+    reopen_when: kb_pipeline.py --check 报「硬问题：无」
+
+  - id: conformance.red
+    symptom: 四方对账红 —— skill 正文 / 注册表 depends_on_engine / layers.yaml 引擎表 / 磁盘脚本，四者不一致
+    owner: 该技能的作者（或 kb-manage 指派的成员 owner）
+    do: 跑闸门看是哪一类：① 引擎路径不存在 → 补路径或改注册表；② 注册了引擎但正文一个文件名都没提 → 把引擎点名写进 SKILL.md（agent 照正文走不到那些引擎）；③ 装机位/名字不一致 → 重装或改注册表
+    command: kb/kbpy l7/scripts/skill_conformance.py ；改完 kb/kbpy l7/scripts/skill_conformance.py --json 复核
+    forbidden: 不许为了让闸门变绿删掉注册表里的 depends_on_engine —— 那是把「说了不做」改成「不说不做」，更坏
+    reopen_when: skill_conformance.py 退出 0（红 0）
+
+  - id: gate_missing.*
+    symptom: 某层闸门回到「未执行 / 声明式」（执行脚本或白名单掉线了）
+    owner: 维护 kb/l7/registry/layers.yaml 的人
+    do: 查该层 gate 字段是否还指向 kb/l7/scripts/<层>_gate.py，以及 kb_pipeline.py 的 GATE_WHITELIST 是否还含它
+    command: kb/kbpy l7/scripts/kb_pipeline.py --check （看「闸门执行：只读白名单 N 个」，应为 12）
+    forbidden: 不许用「声明式判据」顶替可执行闸门——P1-3 就是为消灭这一档做的
+    reopen_when: 日报出现「过 8 / 未判 0」
+
+  # ── 写档过程中的失败 ───────────────────────────────────────────────────
+  - id: engine_failed.*
+    symptom: 某层写档引擎退出码非 0（产物可能写了一部分）
+    owner: 该层层主
+    do: 先跑该层**只读闸门**确认库现在是什么状态，再看引擎输出定位；必要时从 _archive 恢复
+    command: kb/kbpy l7/scripts/kb_pipeline.py --check ；kb/kbpy l7/scripts/kb_pipeline.py --sync --only <层>（预演）
+    forbidden: 不许「再跑一遍试试」——append-only 的台账会被写两遍（本库有先例：units.jsonl 被并发写到 12,144 行）
+    reopen_when: 该层闸门过，且预演报「产物变化 0 个」
+
+  - id: archive_failed.*
+    symptom: 红线①不通过 —— 写之前的台账归档失败（权限/磁盘/路径）
+    owner: 该层层主
+    do: 修归档目录的权限或磁盘空间，再重跑；归档对象是 kb/l3/rejected.jsonl（→ kb/l3/_archive/rejected-pre-<run>.jsonl）
+    command: kb/kbpy l7/scripts/kb_pipeline.py --sync --only L3 --check-archive
+    forbidden: 不许跳过归档继续写——该台账 2026-09-29 被重建过一次，历史只能从 _archive 捞回来
+    reopen_when: --check-archive 退出 0 且归档 sha256 与源一致
+
+  # ── 锁（红线②）────────────────────────────────────────────────────────
+  - id: lock.held_alive
+    symptom: kb/.work/.kb.lock 存在，且记录里的 pid **还活着**
+    owner: 发起那次写入的人
+    do: 等它跑完（或直接找那个人确认）；**不要**删锁
+    command: cat kb/.work/.kb.lock
+    forbidden: 不许 --break-lock（会把并发写变成数据竞争）
+    reopen_when: kb/.work/.kb.lock 消失
+
+  - id: lock.stale_declared
+    symptom: 锁文件还在，但记录里 status=finished* / released_at 有值，且 pid 已不在
+    owner: 发起写档的人（当前值班）
+    do: 确认没有别的写入者在跑之后，删掉锁文件（预演档会自动告警放行，写档档会被拒）
+    command: cat kb/.work/.kb.lock ；确认后 rm kb/.work/.kb.lock（或 --break-lock）
+    forbidden: 不许在没确认的情况下让 agent 自动撬锁
+    reopen_when: 锁文件不存在，且 --sync 报「已持锁」
+
+  - id: lock.held_dead
+    symptom: pid 已不在，但记录里**没有**宣布释放 —— 可能崩在中途
+    owner: 该层层主
+    do: 先判断有没有写坏（跑 --check + 该层只读闸门），确认干净之后再删锁
+    command: kb/kbpy l7/scripts/kb_pipeline.py --check
+    forbidden: 不许先删锁再看库——顺序反了就把「崩在中途」当成「跑完了」
+    reopen_when: --check 全过且该层闸门过
+
+  - id: policy.beyond_whitelist
+    symptom: 想写的层不在写档白名单里（当前只有 L2）
+    owner: 知识库负责人
+    do: 由人判断观察期是否结束；结束后改 kb_pipeline.py 的 SYNC_ALLOWED，或在单次命令上加 --allow-beyond-policy
+    command: kb/kbpy l7/scripts/kb_pipeline.py --sync --only <层>（预演，先看会写什么）
+    forbidden: 不许 agent 自己加 --allow-beyond-policy
+    reopen_when: 该层进入 SYNC_ALLOWED
+
+  # ── 新鲜度 / 并发 ──────────────────────────────────────────────────────
+  - id: backlog.L3
+    symptom: L3 落后（台账记的单元数 < 上游 kb/l2/units.jsonl 现有行数）
+    owner: L3 层主
+    do: 跑 L3 蒸馏器把新增单元纳入（**目前不在写档白名单内，要先由人拍板**）
+    command: 预演 kb/kbpy l8/l3_distill_run.py <RUN>（注意：该脚本**没有干跑档**，运行即落盘，故先备份 kb/l3/rejected.jsonl）
+    forbidden: 不许直接跑；不许跳过归档
+    reopen_when: 日报「落后」一行不再报 L3
+
+  - id: stale.*
+    symptom: 某层的 data 产物落后（mtime 超过 1 天，只看 data 不看注册表）
+    owner: 该层层主
+    do: 分两种：① 「该跑没跑」→ 按该层写档引擎跑一次；② 「上游没更新」→ 先去上游层找原因，别在本层空转
+    command: 先 kb/kbpy l7/scripts/kb_pipeline.py --check 看该层闸门与输入是否齐 → 再 kb/kbpy l7/scripts/kb_pipeline.py --sync --only <层>（预演）
+    forbidden: 不许只改文件时间戳让它「看着新鲜」（新不新鲜看内容）；不许跳过该层闸门直接写
+    reopen_when: 日报「落后 / 陈旧」不再报该层
+
+  - id: stale.L5
+    symptom: L5 的 p0_patterns.jsonl 落后（data 产物陈旧）
+    owner: L5 层主
+    do: 确认是「该跑没跑」还是「上游没更新」；该跑就走 kb/.work/l5_prep.py → l5_export.py
+    command: kb/kbpy l7/scripts/kb_pipeline.py --sync --only L5（预演）
+    forbidden: 不许只摸产物时间戳（新不新鲜看内容，不看 mtime 造假）
+    reopen_when: 日报不再报 L5 陈旧
+
+  - id: external_writer
+    symptom: 体检窗口内层产物发生变化（零写自证失败）——说明有别的写入者在跑
+    owner: 发起写档的人
+    do: 找出那个写入者（看 .work/.kb.lock、看各层 runs/ 的 run_id），等它结束再写
+    command: cat kb/.work/.kb.lock ；ls -t kb/l2/runs | head
+    forbidden: 不许在检测到外部写入者时开 --apply（本库有先例：units.jsonl 被并发写到 12,144 行）
+    reopen_when: 连续两次 --check 的零写自证都是 True
+
+  - id: finding.view_rebuild_destroys_foreign_content
+    symptom: >
+      **`kb/l8/build_view.py` 重出视图时会连带删掉「不是生成器产的」内容**（2026-10-10 实测，
+      同一类病在本脚本里犯了三次）：
+      ① 原版 `shutil.rmtree(OUT)` 把整个 `kb/view` 删掉重装 ⇒ `_meta/` 从 **20 个文件掉到 7 个**
+         （health.yaml / vocabulary.yaml / ranking.yaml / intake.yaml / boundaries.yaml /
+         evidence-groups.yaml / index-status.yaml / entry-schema.md / ledger.ndjson /
+         query-log.ndjson / workbench-mirror.json … 全是**别的工具写的**）
+         ⇒ `projection_reconcile.py` 直接 **exit 2**「环境不完整，无法对账：缺
+         view/_meta/workbench-mirror.json」—— **闸门从此无法判定**（exit 2 绝不当作通过）。
+      ② 改成「清掉各子库的层目录」后，连**人工 `kb_ingest` 入库的条目**一起删
+         （丢了 `ref-content-review-kb-plan-v2-5`，`kb_check` 从「消失 0」变「消失 1」= E039 级）。
+      ③ 同一改动也删掉 `<子库>/tests/golden-questions-*.md`（**人工维护的黄金问题集**）
+         ⇒ `kb_check` 的「覆盖率 / 幻觉率」两维从「有数」直接变「无数据」、
+         验收契约 `structural_completeness` 由 true 翻 false。
+      ④ 生成器调参漏传 `--payload-name workbench-mirror.json` ⇒ 镜像载荷按默认名落成
+         `_meta/manifest.json`，**把加载器当「条目基线」读的那份**（510 条 entries）
+         覆盖掉 ⇒ `readManifest()` 返回 null ⇒ 永远报 W035，且**「条目被删掉」永远发现不了**。
+         生成器 `--payload-name` 的帮助原文早写着「生成 kb/view 时**必须改成别的名字**」。
+    evidence:
+      - "tar tzf <备份>/view-before.tar.gz | grep _meta/ → 20 项；重建后 ls kb/view/_meta → 7 项"
+      - "diff：kb/view/3_措辞表达库/L1-facts/ref-content-review-kb-plan-v2-5.md 消失（账本第 3 行记着它是 kb_ingest 入的）"
+      - "_meta/manifest.json 形状对照：条目基线有 entries(510)；镜像载荷有 docs(509) —— 两者不是一回事"
+      - "kb/l8/view_build_20261010-120[7-9].json 的 ok=false 与 _meta 列表"
+    owner: 维护 kb/l8/build_view.py 的人
+    do: >
+      已修（2026-10-10）：① 只删**上一轮镜像载荷 `docs[].relPath` 里、且本轮载荷没有的**文件
+      （= 过期的派生件）；不在旧清单里的一律视为「别人的」并保留；
+      ② 生成器调用补 `--payload-name workbench-mirror.json`；
+      ③ 裁决判据由「条目总数等号」改成「**载荷条目全部到位**（缺失清单为空）+ 加载器 entries == 载荷条目数」，
+      外来条目另记进 `foreign_entry_md` 备查。
+    command: >
+      kb/kbpy l8/build_view.py --out kb/view ；
+      python3 -c "import json;r=json.load(open('kb/l8/view_build_<run>.json'));print(r['ok'],r['missing_entries'],r['stale_removed'],r['foreign_entry_md'])"
+    forbidden: >
+      不许为了「重建干净」而 `rmtree` 整个视图根或整层目录 —— 视图里有**三类非派生内容**
+      （`_meta/` 他工具件、人工入库条目、`<子库>/tests/` 黄金问题集），删了不会报错、只会静默掉维度；
+      不许在 `_meta/manifest.json` 上写镜像载荷（那是条目基线，不是载荷位）。
+    reopen_when: >
+      build_view 报告 ok=true 且 missing_entries=[]、stale_removed 只含**派生件**，
+      重建前后 `_meta/manifest.json` **逐字节不变**、`<子库>/tests/` 与人工入库条目仍在
+
+  - id: finding.l3_p_level_vs_l5_p0_mismatch
+    symptom: >
+      **`rules.jsonl` 的 `p_level` 落后于 `manifest_l3` / L5（2026-10-10 实测；本条首版诊断有误，已更正）**：
+      `kb/l5/p0_patterns.jsonl` 11 条 P0 里，有 6 条指向的 rule_id 在
+      `kb/l3/candidates/rules.jsonl` 里是 **P2**：`r-37b49eadb72d7dc2`(H02) /
+      `r-3055901e5877f981`(H04) / `r-7baf7ceb47b2e5bc`(H05) / `r-d7290a0ee59c58ef`(H07) /
+      `r-006445396c95aa10`(H09) / `r-e879231d61c9bd08`(U04)。
+      ★ **更正**：首版写的「L3 里一行 P0 都没有」**只对 rule_id 成立、对 rule_code 不成立** ——
+      H02/H04/H05/H07/H09 每个码在 L3 里**都有一条 `边界` 形态的 P0 行**（锚在
+      `#品线内容边界规则库/…`）；L5 指的是同码的 `规则` 形态兄弟行（锚在 `#广告文案明细/…`）。
+      ⇒ 真正的事实是**同一 rule_id 的 `p_level` 在四处记录里不一致**：
+      `rules.jsonl`=**P2** ｜ `l4/canonical/wording_entry.jsonl`=**P2** ｜
+      `l3/manifest_l3.jsonl`=**P0** ｜ `l5/p0_patterns.jsonl`=**P0**（真正拦人的那层）。
+    evidence:
+      - "kb/kb_ledger.py:60 `ENRICH_KEYS = (\"authority\",\"p_level\",\"rule_kind\")` ⇒ **p_level 的富化真源 = manifest_l3**"
+      - "kb/kb_ledger.py:279 `rules_enriched_view`：「生行自带富化 ⇒ 以它为准，不覆盖」⇒ rules.jsonl 有 p_level ⇒ 富化不纠正它"
+      - "kb/.work/l5_export.py:68 读的正是这份富化视图；:353 `P0 = [r for r in latest.values() if r['p_level']=='P0']` ⇒ **L5 不可能选出 P2 行** ⇒ L5 建的时候 rules.jsonl 还是 P0"
+      - "kb/.work/l5_export.py:161 自陈同款先例：「manifest_l3 里该 rule_id 的 p_level 由 P1 改 P0（备份 kb/l3/_backups/pre-m03-p0-20261009/）」"
+      - "L0 源「品线内容边界规则库」：H02/H04/H05/H07/H09 对应记录边界类型=**严格限制红线**、风险等级=**高危**（9 条红线 = H01–H09，全部）"
+      - "PRD §7.3 一票否决项（revision 36）逐字七类：车内/安全座椅 · 医疗功效宣称 · 绝对化用语 · 无依据销量排名 · 危险行为示范 · 未成年人未授权出镜 · AI 深度合成未标识"
+      - "kb/.work/gen-host-library.py:706-709 只**读** L3 的 p_level（无 PRD 覆盖）⇒ 视图的 P0/P2 完全跟 L3"
+      - "陈旧视图掩盖：视图 2026-10-04 生成时 L3 还是 P0；2026-10-10 重出视图才暴露（34 条治理字段随之变化，含判定「禁用/必须修改（P0·红）」→「需按建议改写（P2·未定级）」）"
+    owner: L3 层主（数据面）＋ L5 层主（判定面）
+    do: >
+      **已按「以 PRD 为准」执行（2026-10-10，Owner 明确要求）**：
+      ① 把 `rules.jsonl` 里 **H02/H04/H05/H07/H09 这 5 个 rule_id（含条款号追加行共 10 行）
+      的 `p_level` 由 P2 同步为 P0** —— 依据 = manifest_l3（ENRICH_KEYS 里 p_level 的富化真源）
+      ＋ L5（实际拦截层）＋ L0「严格限制红线/高危」＋ PRD §7.3，四处一致指向 P0，
+      只有 rules.jsonl 一个落后者。逐格核对：**除 p_level 外 0 处差异**；
+      未动 `rule_text` / `anchor` / `article_no`（C4 不比 p_level，口径照旧守住）。
+      备份 `kb/l8/_archive/plevel-sync-20261010-1220/`，run 记录进 `l3/registry/l3.json`。
+      ⇒ L3↔L5 的不一致由 **6 条降到 1 条**。
+      ② **U04 未同步，待 Owner 裁**（见下）。
+    residual_20261010: >
+      ★ **U04（`r-e879231d61c9bd08`，疼痛/堵奶场景化名词）是唯一剩下的不一致**：
+      它进 L5 的 P0 表，但 L0 源记录 `recvuMNZc45BSy` 的边界类型是「**人工复核**」、风险等级「待复核」，
+      内容自述「**需人工判定**是痛点场景描述还是功效承诺」；L3 是 P3、L4 是 P2、manifest_l3 是 P0。
+      ⇒ **「它该不该是 P0」是实体判断，不是记录同步**：若升 P0，`painful pumping` 这类
+      **痛点场景描述**会被误判 BLOCK（L0 原文恰恰说要人判）；若降，则 L5 要摘掉它。
+      **本条目不做这个决定，等 Owner 一句话。**
+      ★ 另：PRD §7.3 七类里，**车内/安全座椅/儿童独留车内、危险行为示范、未成年人未授权出镜/隐私、
+      AI 深度合成未标识** 这 4 类在 `kb/l0/records/广告文案风控库__品线内容边界规则库`（21 条）里
+      **没有任何对应记录** ⇒ **源侧缺口**（不是蒸馏漏了）。PRD 只说明「要拦什么」，
+      给不出命中表达与替代写法，**不许据此编规则**；要补需业务侧先在边界规则库补行。
+    command: >
+      只读复核：把 L5 的每条 rule_id 逐个到 rules.jsonl / manifest_l3 / l4 canonical 里查 p_level；
+      并与 L0 边界规则库的（边界类型, 风险等级）对照
+    forbidden: >
+      不许只改一侧让两边「看起来一致」—— 先定口径（PRD §7.3 ＋ L0 边界类型）再动数据；
+      不许用 `KB_L3_ALLOW_DROP=1` 开整层重蒸馏来「顺手修」（会让 rules.jsonl 1018→509 直接落盘，
+      而它正是评审链读的那一份）；
+      不许拿 PRD 的七类当命中表达去造规则（PRD 不是 L0 源，没有可核的逐字依据）
+    reopen_when: >
+      L5 的每条 P0 在 `rules.jsonl` 里都存在 `p_level=P0` 的行
+      （**当前 11 条里 10 条已满足，仅 U04 待裁**），或 L5 侧写明该条不进 P0 的正当理由
+
+  - id: finding.risk_level_block_branch_dead
+    symptom: >
+      **引擎的「risk_level 高危即 BLOCK」分支是死代码（2026-10-10 实测）**：
+      `kb/l7/skills/kb-content-review/scripts/review.py:959` 与 `:990` 都写
+      `sev = "BLOCK" if (h.get("p_level")=="P0" or h.get("risk_level")=="高危·红") else "REVIEW"`，
+      而权威库 `kb/l3/candidates/rules.jsonl` 里 `risk_level` 的取值是 **`高危`（不带 `·红`）** ——
+      字符串不相等 ⇒ **第二个 BLOCK 触发条件永不成立**。
+      现行无害：`risk_level=高危` 的 18 行**全部同时是 `p_level=P0`**，靠第一个条件照样 BLOCK。
+      但它是**潜在缺陷**：将来若出现「高危但非 P0」的规则，它不会 BLOCK。
+    evidence:
+      - "kb/l3/candidates/rules.jsonl 的 risk_level 取值分布：unknown 976 / 高危 18 / 审慎 14 / 待复核 8 / 合规 2"
+      - "python3 -c \"print('高危' == '高危·红')\" → False"
+      - "18 条 risk_level=高危 的行里 p_level=P0 的也是 18 条 ⇒ 当前不漏"
+      - "L0 源侧用的是带后缀写法（高危·红 / 审慎·黄 / 待复核·灰 / 合规·绿），L3 落库时后缀被去掉"
+    owner: 评审链引擎维护者（kb/l7/skills/kb-content-review）
+    do: >
+      **属改动拦截行为，先定口径再动**：两种改法二选一 ——
+      ① 统一值域（把 L3 落成 `高危·红`，或让引擎接受 `高危`）；
+      ② 承认 `p_level` 是唯一 BLOCK 依据，删掉 `risk_level` 分支并在注释里写明为什么。
+      **本 playbook 不替你选**；选完再做，且必须补一条自证（构造「高危但非 P0」的样本，证明它拦得住）。
+    command: >
+      只读复核：grep 'risk_level' kb/l7/skills/kb-content-review/scripts/review.py；
+      对照 kb/l3/candidates/rules.jsonl 的 risk_level 取值
+    forbidden: >
+      不许为了让分支「看起来能跑」而就地改 L3 的值域 —— 那会同时改掉视图归一化所用的四值枚举；
+      不许在没补自证的情况下改引擎的 BLOCK 判据
+    reopen_when: >
+      要么 L3 与引擎的值域一致且有自证，要么该分支被删除并在注释里写明理由
+
+  - id: finding.w014_uses_created_at_as_basis
+    symptom: >
+      **`kb_check` 的 W014 用错了核对基准（2026-10-10）**：它报
+      「valid_until(2027-03-28) 与 **created_at + 半衰期**推出的 2027-04-08 相差 -11 天」，
+      但权威库的政策明写核对算式是 **`valid_until = effective_from + half_life_days`**
+      （`kb/l3/registry/half-life-policy.json → validation.valid_until_formula`），
+      且视图**已经把 `effective_from` 带出来就是为了当场核对**。
+      视图的 `created_at` 是**刻意**取「派生视图条目的生成日」（`gen-host-library.py:947-949` 有明确论证），
+      与 `effective_from`（策略基线日）本就不是一回事 ⇒ 只要视图在基线日之后重生成，W014 就按条数全量报。
+      2026-10-10 重出视图后实测 **W014 ×509**（旧视图 09-29 生成，两者恰好相等，所以从未暴露）。
+    evidence:
+      - "kb/.work/gen-host-library.py:947-949 注释原文：「created_at 是『本条目（派生视图条目）的生成日』…它随重生成更新是**对的**；有效期不由它决定 —— 由权威库的 valid_until 决定」"
+      - "kb/l3/registry/half-life-policy.json → validation.valid_until_formula = 'valid_until = effective_from + half_life_days'"
+      - "kb/.work/gen-host-library.py 同段注释：『也把 effective_from 带出来…带上它，effective_from + half_life_days 就能在条目上当场核对』"
+      - "实测：旧视图 created_at=2026-09-29 = 基线日 ⇒ 不报；新视图 created_at=2026-10-10 ⇒ W014×509"
+    owner: 体检器（~/.dsh/plugins/dsh-kb）维护者
+    do: >
+      **这是「评分口径」问题，按本机纪律不许顺手改**：W014 应改为
+      「条目带 `effective_from` 时用它做基准，否则才回落 `created_at`」。
+      在改之前，**W014×509 应读作「已知的口径不一致」，不是 509 个数据缺陷**。
+    command: >
+      只读复核：随机取 3 条 kb/view/**/*.md，手算 effective_from + half_life_days 与 valid_until 比
+    forbidden: >
+      不许为了消掉 W014 把视图的 created_at 改成 effective_from —— 那会推翻作者已论证的设计，
+      且 509 条的时间戳会跟着变；不许改体检器的判据而不登记
+    reopen_when: >
+      W014 的基准改为 effective_from 优先（或该告警被显式登记为已知口径差异）

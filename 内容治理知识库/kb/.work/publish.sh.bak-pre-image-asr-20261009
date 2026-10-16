@@ -1,0 +1,281 @@
+#!/usr/bin/env bash
+#
+# 权威分层库 → 守衡可查：一条命令。
+#
+# 为什么要有它（README-同步到工作台.md 的「遗留 1」）：
+#   原来这条链要人跑三步，而且第一步还漏了 l4 生成器：
+#     1. python3 kb/.work/gen-host-library.py --out kb/.work/hostlib
+#     2. 取数服务按 mtime 自动重载（不用重启）
+#     3. curl -X POST http://127.0.0.1:4317/api/kb/sync     ← 不跑就等 60 秒轮询
+#   实测代价：生成一共只要 **1.8 秒**（主 1.21s + l4 0.60s），
+#   所以「更新之后多久守衡能看到」瓶颈从来不是耗时，是**有没有人记得跑**。
+#
+# 这条命令做三件事：
+#   1. 重出派生视图 —— **两个**生成器都跑（主 + l4）。
+#      ⚠ 必须固定 `--out kb/.work/hostlib`：manifest 的 version 哈希把
+#      `docs[].absPath` 也算进去了，换输出路径 version 就变 ——
+#      接入侧会看到「版本变了」但其实内容一个字没变（实测确认过）。
+#   2. 取数服务（4508）按 manifest 的 mtime 现读，不用重启任何东西。
+#   3. **强制**工作台立即对账（POST /api/kb/sync，实测 402ms）——
+#      不等 60 秒兜底轮询，把端到端从「≤60 秒」压到「≈2 秒」。
+#
+# 用法：
+#   ./publish.sh                  # 生成 + 推送（默认，也是**唯一**的正确用法）
+#   ./publish.sh --check          # 干跑：只报当前状态，什么都不改
+#
+# 为什么没有「跳过生成」这个选项（2026-09-28 实测踩到）：
+#   `_meta/manifest.json` 是**自包含载荷** —— 每篇文档的正文（text）与 sha256
+#   都写在 manifest 里，工作台同步读的是 manifest，**不读 .md 文件**。
+#   所以直接改 hostlib 里的 .md 是**不生效**的：实测把一篇 .md 追加了一行，
+#   文件 sha256 变成 b4a0876263df1f86，而 manifest 里记的还是 3d08958830f0abf5，
+#   同步照旧报「未变 1242」。只有重跑生成器重建 manifest 才传得出去。
+#   生成一共只要 1.8 秒，没有任何理由跳过它。
+#
+# 退出码：
+#   0  = 成功，且内容发生了变化（守衡现在能查到新的）
+#   10 = 成功，但内容没变（幂等重跑，属正常）
+#   1  = 失败（生成失败 / 同步失败 / 指纹取不到）
+#
+# 自动触发（见 ~/Library/LaunchAgents/com.kb.publish-*.plist）：
+#   WatchPaths 监听那 5 个输入文件 → 改完即发
+#   StartInterval 300 秒兜底 → 防止事件漏掉
+set -uo pipefail
+
+WORK_DIR="$(cd "$(dirname "$0")" && pwd)"
+KB_ROOT="$(cd "$WORK_DIR/.." && pwd)"          # kb/
+CONTENT_DIR="$(cd "$KB_ROOT/.." && pwd)"       # 知识库/内容治理/
+HOSTLIB="$WORK_DIR/hostlib"
+LOG="$WORK_DIR/publish.log"
+
+WORKBENCH_URL="${WORKBENCH_URL:-http://127.0.0.1:4317}"
+SHARE_URL="${SHARE_URL:-http://127.0.0.1:4401}"
+HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:4508}"
+KEY_FILE="$WORK_DIR/.publish-api-key"
+
+CHECK_ONLY=0
+FORCE=0
+for arg in "$@"; do
+  case "$arg" in
+    --check) CHECK_ONLY=1 ;;
+    --force) FORCE=1 ;;
+    --no-generate)
+      echo "❌ 没有 --no-generate 这个选项：改 .md 不生效，必须重建 manifest。" >&2
+      echo "   原因见本脚本头部注释（manifest 是自包含载荷，同步读它不读 .md）。" >&2
+      exit 2 ;;
+    # shellcheck disable=SC2016
+    -h|--help) sed -n '2,45p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "未知参数：$arg（用 --help 看用法）" >&2; exit 2 ;;
+  esac
+done
+
+say() { printf '[publish %s] %s\n' "$(date '+%m-%d %H:%M:%S')" "$*" | tee -a "$LOG"; }
+
+# ── 并发锁：WatchPaths 连触发几次是常态，别让两个生成器同时写同一个目录 ──────
+LOCK="$WORK_DIR/.publish.lock"
+if [ -e "$LOCK" ]; then
+  # shellcheck disable=SC2009
+  holder="$(cat "$LOCK" 2>/dev/null || true)"
+  if [ -n "$holder" ] && kill -0 "$holder" 2>/dev/null; then
+    say "已有一次发布在跑（pid $holder），本次跳过"
+    exit 10
+  fi
+  say "发现陈旧的锁（pid ${holder:-空} 已不在），清掉继续"
+  rm -f "$LOCK"
+fi
+echo $$ > "$LOCK"
+trap 'rm -f "$LOCK"' EXIT
+
+# ── 取内容指纹：优先用共享服务（它读的就是守衡会读的那个库） ────────────────
+# contentHash = 子库全部文档 docId:sha256 排序后的哈希。
+# 只有它反映「内容真的变了」——createdAt 永不改变、docCount 只在条数变化时动。
+fingerprint() {
+  local key=""
+  [ -f "$KEY_FILE" ] && key="$(tr -d '[:space:]' < "$KEY_FILE")"
+  if [ -z "$key" ]; then echo ""; return 0; fi
+  curl -s --max-time 20 -H "Authorization: Bearer $key" "$SHARE_URL/openapi/v1/kb" \
+    | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    print(''); raise SystemExit
+cols = d.get('collections') or []
+print('|'.join(f\"{c['id']}:{c.get('contentHash','')}:{c.get('docCount',0)}\" for c in sorted(cols, key=lambda x: x['id'])))
+"
+}
+
+# ── 输入指纹：决定「要不要重跑生成器」 ─────────────────────────────────────
+# 为什么需要它：定时兜底每 5 分钟跑一次，若每次都重出派生视图，就是
+# 288 × 22 MB ≈ 6 GB/天 的无谓磁盘写。生成的结果**只**由这几个输入决定，
+# 所以输入没变就不必重跑。定时兜底于是退化成「一次便宜的同步」（0.3 秒），
+# 只有真改了东西（或改了生成器本身）才付生成那 1.8 秒。
+INPUTS=(
+  "$KB_ROOT/l3/candidates/rules.jsonl"
+  "$KB_ROOT/l5/p0_patterns.jsonl"
+  "$KB_ROOT/l2/units.jsonl"
+  "$KB_ROOT/l4/canonical/scoped_clause.jsonl"
+  "$KB_ROOT/l4/canonical/sample_case.jsonl"
+  "$WORK_DIR/gen-host-library.py"
+  "$WORK_DIR/gen-host-library-l4.py"
+  "$WORK_DIR/gen-host-library-product.py"
+  # 第四个：2_内部正负样本库 的**视频画面文字**（源是 l1 的 video_ocr_segments）——
+  # 见该脚本头部说明。它必须排在主生成器之后（往同一份 manifest 里追加）。
+  "$WORK_DIR/gen-host-library-video.py"
+  # 第五个：1_外部标准库 的**链接正文**（源是 l1 的 url__*.json，飞书内链取原件 PDF /
+  # 扫描件 OCR 抽出的正文，锚点 #l.起-止）。同样必须排在后（往同一份 manifest 追加）。
+  # ★ 2026-10-08 Owner 定：**先只入 L1 正文 ≤10 万字的**（14 条 / 34 片 / ×1.14），
+  #   观察守衡检索质量再决大件（5 本 103~208 万字的书尚未入）。放开就删掉 --max-source-chars。
+  "$WORK_DIR/gen-host-library-link.py"
+  # 表格缓存：fetch-w1-evidence.py 抓下来的《W1卖点匹配证据库》。
+  # 放进 INPUTS 的意义 —— 表格改了（重抓生成新缓存）就自动触发一次发布，不用人记得手动跑。
+  "$WORK_DIR/sources/w1-evidence.json"
+)
+STAMP_FILE="$WORK_DIR/.publish.stamp"
+
+input_stamp() {
+  local parts=()
+  for f in "${INPUTS[@]}"; do
+    parts+=("$(shasum -a 256 "$f" | cut -d' ' -f1)")
+  done
+  printf '%s' "${parts[*]}" | shasum -a 256 | cut -d' ' -f1
+}
+
+# ── 0. 前置检查 ────────────────────────────────────────────────────────────
+for f in "${INPUTS[@]}"; do
+  if [ ! -f "$f" ]; then say "❌ 缺输入文件：$f"; exit 1; fi
+done
+if ! curl -s --max-time 5 "$WORKBENCH_URL/api/health" > /dev/null 2>&1; then
+  say "❌ 工作台没响应（$WORKBENCH_URL）——先确认它在跑，再发布"; exit 1
+fi
+
+STAMP_NOW="$(input_stamp)"
+STAMP_PREV="$(cat "$STAMP_FILE" 2>/dev/null || echo '')"
+NEED_GEN=1
+if [ "$STAMP_NOW" = "$STAMP_PREV" ] && [ "$FORCE" != "1" ]; then NEED_GEN=0; fi
+
+BEFORE="$(fingerprint)"
+# 注意：`${CHECK_ONLY:+…}` 对 "0" 也成立（非空即真），所以这里必须写明判断——
+# 否则真跑也会打成「干跑」。日志一旦说谎，排障时就是白看。
+if [ "$CHECK_ONLY" = "1" ]; then
+  say "发布开始（干跑）｜发布前指纹：${BEFORE:-(取不到，检查 $KEY_FILE)}"
+  say "输入指纹 $STAMP_NOW | 需要重跑生成器：$([ "$NEED_GEN" = "1" ] && echo 是 || echo 否)"
+  say "干跑结束，什么都没改"
+  exit 0
+fi
+say "发布开始｜发布前指纹：${BEFORE:-(取不到，检查 $KEY_FILE)}｜输入指纹 $STAMP_NOW"
+START_MS=$(python3 -c 'import time;print(int(time.time()*1000))')
+
+# ── 1. 重出派生视图（两个生成器，固定输出路径） ─────────────────────────────
+# 这一步不能省：manifest 是自包含载荷，只有重建它，内容变更才传得到工作台。
+# 但输入没变时可以跳过（见 INPUTS 的注释）——跳过的只是重写 22 MB，不是同步。
+if [ "$NEED_GEN" = "0" ]; then
+  say "输入未变，跳过重出派生视图（省一次 22 MB 重写）"
+else
+  if ! /usr/bin/python3 "$WORK_DIR/gen-host-library.py" --out "$HOSTLIB" >> "$LOG" 2>&1; then
+    say "❌ 主生成器失败（见 $LOG）"; exit 1
+  fi
+  if ! /usr/bin/python3 "$WORK_DIR/gen-host-library-l4.py" --out "$HOSTLIB" >> "$LOG" 2>&1; then
+    say "❌ l4 生成器失败（见 $LOG）"; exit 1
+  fi
+  # 第三个：4_产品描述库。源是 l2 单元层（product_desc），不是 l3/l4 —— 见该脚本头部说明。
+  if ! /usr/bin/python3 "$WORK_DIR/gen-host-library-product.py" --out "$HOSTLIB" >> "$LOG" 2>&1; then
+    say "❌ 产品描述库生成器失败（见 $LOG）"; exit 1
+  fi
+  # 第四个：2_内部正负样本库 的视频画面文字（键帧 OCR，锚点 #t.MM:SS-MM:SS）。
+  if ! /usr/bin/python3 "$WORK_DIR/gen-host-library-video.py" --out "$HOSTLIB" >> "$LOG" 2>&1; then
+    say "❌ 视频画面文字生成器失败（见 $LOG）"; exit 1
+  fi
+  # 第五个：1_外部标准库 的链接正文（**只入 ≤10 万字**，口径见 INPUTS 那里的注释）。
+  # ★ 必须带 --apply —— 该生成器**默认干跑**（首次上线前要先给人报体量），
+  #   不带就等于「跑成功但什么都没写」：实测第一次就这么静默空转了，
+  #   publish 还报「内容没变（幂等重跑，属正常）」把空转说成了正常。
+  if ! /usr/bin/python3 "$WORK_DIR/gen-host-library-link.py" --out "$HOSTLIB" \
+       --max-source-chars 100000 --apply >> "$LOG" 2>&1; then
+    say "❌ 链接正文生成器失败（见 $LOG）"; exit 1
+  fi
+  printf '%s' "$STAMP_NOW" > "$STAMP_FILE"
+  say "派生视图已重出（主 + l4 + 产品描述 + 视频画面文字 + 链接正文）"
+fi
+
+# ── 1b. 校验 manifest 是完整的（防「残缺中间态」被当成真事） ────────────────
+# 为什么需要这道检查（2026-09-28 实测）：
+#   **主生成器只认 3_措辞表达库，会把 l4 生成的 1_/2_ 整个删掉**
+#   （实测：375 + 358 → 0，manifest 里只剩 509 条）。两个生成器之间有约 0.6 秒
+#   的残缺窗口，而工作台每 60 秒自己会对账一次 —— 撞上就认为那 733 篇被删了。
+#   实测已发生过一次：同步报告出现「插入 733」，833 篇文档被无谓重写。
+#   这里至少保证：**脚本自己不会在残缺状态下去同步**。
+MANIFEST="$HOSTLIB/_meta/manifest.json"
+MISSING="$(python3 - "$MANIFEST" <<'PY'
+import json, sys
+try:
+    d = json.load(open(sys.argv[1], encoding="utf-8"))
+except Exception as e:
+    print(f"读不了（{e}）"); raise SystemExit
+got = {c["id"] for c in d.get("collections") or []}
+want = {"1_外部标准库", "2_内部正负样本库", "3_措辞表达库", "4_产品描述库"}
+missing = sorted(want - got)
+print("、".join(missing))
+PY
+)"
+if [ -n "$MISSING" ]; then
+  say "❌ manifest 缺子库：$MISSING —— 拒绝同步（同步残缺载荷会把它们从镜像里删掉）"
+  exit 1
+fi
+say "manifest 完整（$(python3 -c "import json;print(len(json.load(open('$MANIFEST'))['docs']))" ) 篇，4 个子库齐）"
+
+# ── 2. 取数服务是否看得到（它按 mtime 现读，不用重启） ─────────────────────
+if curl -s --max-time 5 "$HEALTH_URL/health" > /dev/null 2>&1; then
+  say "取数服务（4508）在"
+else
+  say "⚠️ 取数服务（4508）没响应 —— 工作台会走 60 秒兜底轮询，也可能拿不到新内容"
+fi
+
+# ── 3. 强制工作台立即对账（不等 60 秒） ─────────────────────────────────────
+SYNC="$(curl -s --max-time 90 -X POST "$WORKBENCH_URL/api/kb/sync")"
+if [ -z "$SYNC" ]; then say "❌ 强制同步没有响应"; exit 1; fi
+echo "$SYNC" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+r = d.get('report') or {}
+ins, rem = r.get('inserted') or 0, r.get('removed') or 0
+err = (d.get('sync') or {}).get('lastError')
+state = (d.get('sync') or {}).get('state')
+print('[publish] 同步报告：插入 %s / 更新 %s / 删除 %s / 未变 %s（%sms）' % (
+    ins, r.get('updated', '?'), rem, r.get('unchanged', '?'), r.get('durationMs', '?')))
+if err or state == 'error':
+    print()
+    print('\u274c\u274c  同步失败，这次发布没有生效！')
+    print('    错误：%s' % (err or '(state=error，但没带错误信息)'))
+    print('    注意：「插入 0 / 未变 N」在这种情况下不代表内容没变，而是对账写库时抛了异常、')
+    print('    整个事务回滚，一篇都没落库。别把这一行读成「幂等重跑」。')
+    raise SystemExit(9)
+# 大额增删基本只有一个原因：有一次对账撞进了「主生成器删掉 l4 子库」的残缺窗口。
+# 它不是静默的——要人知道，因为代价是几百篇文档被无谓重写，且期间镜像里会短暂缺库。
+if ins + rem > 100:
+    print()
+    print('⚠️⚠️  本次增删 %d 篇（> 100），这通常不是内容变更，而是：' % (ins + rem))
+    print('      工作台的 60 秒兜底对账正好撞进了两个生成器之间的残缺窗口')
+    print('      （主生成器会把 1_外部标准库 / 2_内部正负样本库 整个删掉，manifest 只剩 509 条）。')
+    print('      影响：这几百篇被无谓重写；撞上的那一刻，镜像里这两个子库是空的。')
+    print('      处置：本次同步已把它补回；若反复出现，把 WORKBENCH_MOMCOZY_RECONCILE_MS 调大')
+    print('      （有 publish.sh 的强制同步之后，60 秒兜底已非必要），或让生成器合并 manifest。')
+" | tee -a "$LOG"
+SYNC_RC=${PIPESTATUS[0]}
+if [ "$SYNC_RC" = "9" ]; then
+  say "❌ 同步失败（见上面的错误行）—— 磁盘 manifest 与库里篇数对不上，先修同步再谈发布"
+  exit 1
+fi
+
+AFTER="$(fingerprint)"
+END_MS=$(python3 -c 'import time;print(int(time.time()*1000))')
+ELAPSED=$(( END_MS - START_MS ))
+
+say "发布后指纹：${AFTER:-(取不到)}｜端到端 ${ELAPSED}ms"
+
+if [ "$BEFORE" = "$AFTER" ]; then
+  say "内容没变（幂等重跑，属正常）—— 守衡那边不需要重新拉"
+  say "（已确认同步无报错。若篇数与 manifest 对不上，先怀疑同步失败，别信这一行。）"
+  exit 10
+fi
+say "✅ 内容已更新，守衡现在可查（端到端 ${ELAPSED}ms）"
+exit 0

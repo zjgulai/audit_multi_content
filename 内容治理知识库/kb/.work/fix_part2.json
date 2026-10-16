@@ -1,0 +1,174 @@
+{
+ "status_split": {
+  "changed": [],
+  "manifest_appended": 0,
+  "status_distribution": {
+   "no_content_expected": 13,
+   "no_scope": 17,
+   "ok": 491,
+   "forbidden": 1,
+   "empty": 3,
+   "unreachable": 4,
+   "retracted": 36,
+   "pending_ocr": 77
+  },
+  "total_units": 606,
+  "no_content_expected": 13,
+  "pending": 77,
+  "failed": 22,
+  "attemptable": 516,
+  "real_fail_rate_pct": 4.26
+ },
+ "revision": {
+  "rev_end": {
+   "知识库分类说明": 7,
+   "材料收集": 181,
+   "正面和负面样本": 369,
+   "规则库": 6
+  },
+  "touched": [
+   "kb/l0/runs/20260923-1117.json",
+   "kb/l1/runs/20260923-1140.json",
+   "kb/l0/runs/20260923-1215.json",
+   "kb/l1/runs/20260923-1215.json"
+  ],
+  "runs": {
+   "20260923-1055": {
+    "rev_start": {
+     "材料收集": 177,
+     "知识库分类说明": 7,
+     "正面和负面样本": 369,
+     "规则库": 6
+    },
+    "rev_used": {
+     "材料收集": 177,
+     "知识库分类说明": 7,
+     "正面和负面样本": 369,
+     "规则库": 6
+    },
+    "note": "首次落库；快照取自 177"
+   },
+   "20260923-1117": {
+    "rev_start": {
+     "材料收集": 177,
+     "知识库分类说明": 7,
+     "正面和负面样本": 369,
+     "规则库": 6
+    },
+    "rev_used": {
+     "材料收集": 181,
+     "知识库分类说明": 7,
+     "正面和负面样本": 369,
+     "规则库": 6
+    },
+    "note": "重跑落库；执行中发现材料收集 rev 由 177→181（recvw0o2T6HJwv 补填并通过），按最新状态整体重跑"
+   },
+   "20260923-1140": {
+    "rev_start": {
+     "材料收集": 181,
+     "知识库分类说明": 7,
+     "正面和负面样本": 369,
+     "规则库": 6
+    },
+    "rev_used": {
+     "材料收集": 181,
+     "知识库分类说明": 7,
+     "正面和负面样本": 369,
+     "规则库": 6
+    },
+    "note": "L1 首次抽取"
+   },
+   "20260923-1215": {
+    "rev_start": {
+     "材料收集": 181,
+     "知识库分类说明": 7,
+     "正面和负面样本": 369,
+     "规则库": 6
+    },
+    "rev_used": {
+     "材料收集": 181,
+     "知识库分类说明": 7,
+     "正面和负面样本": 369,
+     "规则库": 6
+    },
+    "note": "L0 补充登记（正面和负面样本）+ L1 重挂靠"
+   },
+   "20260923-1245": {
+    "rev_start": {
+     "知识库分类说明": 7,
+     "材料收集": 181,
+     "正面和负面样本": 369,
+     "规则库": 6
+    },
+    "rev_used": {
+     "知识库分类说明": 7,
+     "材料收集": 181,
+     "正面和负面样本": 369,
+     "规则库": 6
+    },
+    "note": "本轮诊断+补齐；revision 字段自本次起生效"
+   }
+  }
+ },
+ "anchor_binding": {
+  "rule": "引用锚点时必须同时给出 source_sha256；只有锚点不算完整定位。",
+  "why": "锚点（行号 / 标题路径 / #img.N）会随原文编辑而漂移；sha256 指向被锚定的那一版原文。锚点 + source_sha256 才是可复核的定位。",
+  "applies_to": "L1 及下游（结构化切分、蒸馏）的一切引用",
+  "required_pair": [
+   "anchor",
+   "source_sha256"
+  ],
+  "artifact_lookup": "kb/l0/snapshots/<resource_key>@<sha256>.md（正文快照按 sha256 版本并存）",
+  "on_mismatch": "锚点在当前正文中定位不到 → 视为失效引用，不得静默改写锚点；应回到该 sha256 的快照核对，或重新抽取生成新版本。",
+  "since": "20260923-1245"
+ },
+ "index_rows": 7534,
+ "scope": {
+  "probe": {
+   "sheets": {
+    "scope": "sheets:spreadsheet:read",
+    "available": false,
+    "error_subtype": null,
+    "message": ""
+   },
+   "slides": {
+    "scope": "slides:presentation:read",
+    "available": false,
+    "error_subtype": null,
+    "message": ""
+   },
+   "drive_download": {
+    "scope": "drive:file:download",
+    "available": false,
+    "error_subtype": null,
+    "message": ""
+   }
+  },
+  "scope_missing": [
+   "sheets__BX0QshqWThhY6HtDEFCcnMpsnRc",
+   "file__HUngb4wwpovNsXxapcIcH2RZnyb",
+   "file__IWbobAGHAoDcycxRFWNcBYd1nY6",
+   "file__T1tNbhPnmoq8gAxj4MZcHmX6nUc",
+   "slides__LDIIsI5SIl4ZumdW8XgcUIn8nTg",
+   "slides__PtNesZDDdlMSc4dtczlcxPh6nAg",
+   "wiki__L9DXbU4XxoZoTHxdKXzcTEwJnNe",
+   "sheets__KzQ1sLVCbhFCIktRkdec9Onen6e",
+   "slides__PY4UsNcdol6vJzd8v0McYRpJnZ7",
+   "file__HAEHbJVRioEzNcxDPlqcsncwnHh",
+   "file__CHbTbloQOoQBiNxaQfRcHQwhntE",
+   "file__EZEWbMiNWoLLI4x7e0Ic5qUXnOe",
+   "file__HYy1bXSlVorwzYxq2atc73f2nsd",
+   "file__E9oibDCXZoMU9fxMzYKcH5Wwnyh",
+   "file__CKqqbgVx8oCNerx730JctMRondD",
+   "file__XH2wbcgJUomw8DxxBB8cx5C3ntd",
+   "file__LUnubW6N6oJceCxFE9dcPiUTnPe"
+  ],
+  "any_available": false,
+  "needed": [
+   "drive:file:download",
+   "sheets:spreadsheet:read",
+   "slides:presentation:read"
+  ],
+  "action": "scope_missing_no_retry"
+ }
+}

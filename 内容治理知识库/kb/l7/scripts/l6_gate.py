@@ -1,0 +1,235 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""l6_gate.py —— L6 层闸门（**只读档**）：跑得动日报的那 5 项，剩下 4 项如实说「没跑」。
+
+## 为什么不直接用 kb/.work/l6_integrity.py
+
+实测（2026-09-30，读码确认，不是靠看文件变没变）：它的第 ③ 项「重跑幂等」
+**会带 `--apply` 重跑一次建索引**：
+
+    .work/l6_integrity.py:185
+    r = subprocess.run([sys.executable, "kb/.work/l6_build.py", RUN, "--apply"], ...)
+
+外加 `.work/l6_integrity.py:112-116` 会 `makedirs` + 写冻结基线文件。
+→ 它是**写档**检查器，不能进无人值守日报（日报的承诺是「不写 kb/l0…l6 的任何产物」）。
+
+所以 L6 拆成两档，本闸门是**只读档**：
+  * 只读档（本文件）：①计数一致 ②向量可回指 ④编号同源 ⑤版本纪律 —— 每天跑；
+  * 完整档（`.work/l6_integrity.py`）：另含 ③重跑幂等、⑥分段拼接、⑦倒排自洽、⑧离线、
+    ⑨baseline —— **要写索引，只在有人看着时跑**，本闸门不替它签字。
+
+## 判据（红）
+
+  C1 可用单元数一致 —— `kb/.work/l6_scope_lib.py → usable_units()`（走 L3 口径过滤）算出的
+                       可用单元数，必须等于 `kb/l6/index/l6.jsonl` 行数，
+                       也必须等于 `l6/registry/l6.json → counts.usable`。
+  C2 向量可回指     —— `l6/vectors/vectors.jsonl` 每行的 unit_id 必须在 `kb/l2/units.jsonl`，
+                        且 source_sha256 与该单元一致。
+  C3 倒排编号同源   —— `l6/bm25/docs.jsonl` 行数必须等于 `counts.bm25_indexed`；
+                        且其 unit_id 集合必须**覆盖** `l6/index/l6.jsonl` 的 unit_id 集合。
+  C4 版本纪律       —— `kb/l4/canonical/rules.jsonl` 0 字节、`kb/versions/versions.jsonl` 0 行、
+                        `kb_version` 仍为 v0。
+  C5 非空           —— 索引/向量/倒排三件都不得为空（空集上判过是假过 → 直接 exit 2）。
+
+## 说明项（不是红）
+
+  N1 bm25_failed>0 时打印（失败项必须在层证据里逐条有原因）。
+  N2 **没跑的 4 项**明写出来 —— 让人一眼看到本闸门的覆盖面边界。
+
+## 只读
+
+读 kb/l2、kb/l6、kb/l4/canonical、kb/versions 与 `.work/l6_scope_lib.py`（import 不写盘），
+**不写任何文件**。
+
+用法：
+    kb/kbpy l7/scripts/l6_gate.py [--json] [--quiet]
+    KB_GATE_KB=<夹具目录> kb/kbpy l7/scripts/l6_gate.py     # 反测用（默认真库）
+"""
+from __future__ import annotations
+
+import argparse
+import importlib.util
+import json
+import os
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+KB = os.environ.get("KB_GATE_KB") or os.path.dirname(os.path.dirname(HERE))
+ROOT = os.path.dirname(KB)
+L2_UNITS = os.path.join(KB, "l2/units.jsonl")
+L6_REG = os.path.join(KB, "l6/registry/l6.json")
+L6_INDEX = os.path.join(KB, "l6/index/l6.jsonl")
+L6_VEC = os.path.join(KB, "l6/vectors/vectors.jsonl")
+L6_DOCS = os.path.join(KB, "l6/bm25/docs.jsonl")
+CANON_AGG = os.path.join(KB, "l4/canonical/rules.jsonl")
+VERSIONS = os.path.join(KB, "versions/versions.jsonl")
+SCOPE_LIB = os.path.join(KB, ".work/l6_scope_lib.py")
+CAP = 6
+NOT_RUN = ["③ 重跑幂等（要 --apply 重跑建索引）", "⑥ 分段拼接逐字",
+           "⑦ 倒排与词频自洽", "⑨ 冻结基线（活库模式下本就该变）"]
+
+
+def _iter(p):
+    with open(p, encoding="utf-8") as fh:
+        for i, line in enumerate(fh, 1):
+            line = line.strip()
+            if line:
+                yield i, json.loads(line)
+
+
+def compute():
+    for p in (L2_UNITS, L6_REG, L6_INDEX, L6_VEC, L6_DOCS, SCOPE_LIB):
+        if not os.path.exists(p):
+            return None, "输入缺失：%s" % os.path.relpath(p, ROOT)
+
+    units = {}
+    for _, d in _iter(L2_UNITS):
+        if d.get("unit_id"):
+            units[d["unit_id"]] = d
+
+    # C1：用层自己的口径复算可用单元数（同一份 scope 定义，独立跑一遍计数）
+    os.chdir(ROOT)
+    spec = importlib.util.spec_from_file_location("l6_scope_lib", SCOPE_LIB)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    kept, _filter = mod.usable_units()
+    # ★ 2026-10-01 修：**必须再走一步 apply_scope_file()**。
+    #   病灶：本闸门原先只调 `usable_units()`（= L3 口径过滤后的集合），**漏了按 SCOPE.txt
+    #   人工白名单收窄的那一步** —— 而真正建索引的 `kb/.work/l6_build.py:106-108` 是
+    #   「usable_units() → apply_scope_file()」两步都走。于是本判据拿一个**更大的集合**
+    #   去比索引，**误报红**。实测（2026-10-01）：闸门复算 4261，build 收窄后 4206，
+    #   差 55 = 当次新增、尚未经人工核定入册的样本单元。
+    #   为什么以前看不出来：SCOPE ⊇ L3保留集时「收窄」是恒等操作，漏调无副作用；
+    #   直到有单元不在 SCOPE 里，两侧才第一次分叉 —— **潜伏缺陷被数据变化激活**。
+    #   本闸门 docstring 第 23 行原文即写「走 L3 口径过滤」，**漏写了 SCOPE 收窄**，
+    #   属实现没跟上自己的判据定义。现与 build 同源。
+    kept, _scope_removed, _scope_info = mod.apply_scope_file(kept, _filter)
+    usable = len(kept)
+
+    idx_ids, n_idx = set(), 0
+    for _, d in _iter(L6_INDEX):
+        n_idx += 1
+        if d.get("unit_id"):
+            idx_ids.add(d["unit_id"])
+
+    with open(L6_REG, encoding="utf-8") as fh:
+        reg = json.load(fh)
+    own = (reg.get("counts") or {}).get("usable")
+    c1 = []
+    if own != usable:
+        c1.append(["counts.usable", "自报 %s" % own, "复算 %s" % usable])
+    if n_idx != usable:
+        c1.append(["index/l6.jsonl", "行数 %d" % n_idx, "复算可用单元 %d" % usable])
+    if not idx_ids and n_idx:
+        c1.append(["index/l6.jsonl", "没有 unit_id 字段", ""])
+
+    # C2 向量可回指
+    c2, n_vec = [], 0
+    for ln, d in _iter(L6_VEC):
+        n_vec += 1
+        uid = d.get("unit_id")
+        u = units.get(uid)
+        if u is None:
+            if len(c2) < CAP:
+                c2.append([ln, uid, "L2 里没有这个 unit_id"])
+        elif u.get("source_sha256") != d.get("source_sha256"):
+            if len(c2) < CAP:
+                c2.append([ln, uid, "source_sha256 对不上"])
+
+    # C3 编号同源
+    c3, docs_ids, n_docs = [], set(), 0
+    for _, d in _iter(L6_DOCS):
+        n_docs += 1
+        if d.get("unit_id"):
+            docs_ids.add(d["unit_id"])
+    want = (reg.get("counts") or {}).get("bm25_indexed")
+    counter_note = None
+    if n_docs < usable:
+        c3.append(["bm25/docs.jsonl 行数", "%d" % n_docs, "少于可用单元 %d（真丢文档）" % usable])
+    elif want is not None and n_docs != want:
+        # 产物看起来是对的（docs == 可用单元），只是注册表的计数器没跟着更新 → 说明项，不判红
+        counter_note = {"docs_rows": n_docs, "counts.bm25_indexed": want,
+                        "why": "注册表计数器与产物不一致；产物侧 docs.jsonl == 可用单元数"}
+    missing = sorted(idx_ids - docs_ids)
+    if missing:
+        c3.append(["倒排缺编号", "%d 个" % len(missing), str(missing[:3])])
+
+    # C4 版本纪律
+    c4 = []
+    if os.path.exists(CANON_AGG) and os.path.getsize(CANON_AGG) != 0:
+        c4.append(["l4/canonical/rules.jsonl", "%d 字节" % os.path.getsize(CANON_AGG), "应为 0"])
+    if os.path.exists(VERSIONS):
+        # 只数**版本行**：本文件头部是注释说明（# 开头），注释不算版本行（判错过一次，记在此）
+        n = sum(1 for l in open(VERSIONS, encoding="utf-8")
+                if l.strip() and not l.lstrip().startswith("#"))
+        if n:
+            c4.append(["versions.jsonl", "%d 行版本行" % n, "应为 0"])
+    if reg.get("kb_version") not in (None, "v0"):
+        c4.append(["kb_version", str(reg.get("kb_version")), "应为 v0"])
+
+    if n_idx == 0 or n_vec == 0 or n_docs == 0:
+        return None, "索引/向量/倒排有空文件（index %d / vectors %d / docs %d）→ 空集上判过是假过" \
+            % (n_idx, n_vec, n_docs)
+
+    rep = {
+        "counts": {"usable_recomputed": usable, "usable_self_report": own, "index_rows": n_idx,
+                   "vector_rows": n_vec, "bm25_docs": n_docs, "l2_units": len(units),
+                   "bm25_failed": (reg.get("counts") or {}).get("bm25_failed")},
+        "C1_mismatch": c1[:CAP], "C1_n": len(c1),
+        "C2_bad_vectors": c2, "C2_n": len(c2),
+        "C3_mismatch": c3[:CAP], "C3_n": len(c3),
+        "C4_violation": c4[:CAP], "C4_n": len(c4),
+        "N3_counter_mismatch": counter_note,
+        "not_run": NOT_RUN,
+    }
+    rep["red_total"] = rep["C1_n"] + rep["C2_n"] + rep["C3_n"] + rep["C4_n"]
+    return rep, None
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--json", action="store_true")
+    ap.add_argument("--quiet", action="store_true")
+    a = ap.parse_args()
+
+    rep, err = compute()
+    if rep is None:
+        print("❌ 无法计算：%s" % err)
+        print("退出码：2")
+        return 2
+
+    ok = rep["red_total"] == 0
+    if a.json:
+        print(json.dumps({"gate": "l6_gate", "ok": ok, **rep}, ensure_ascii=False, indent=1))
+        return 0 if ok else 1
+
+    c = rep["counts"]
+    print("=" * 74)
+    print("L6 闸门（只读档：计数一致 / 向量回指 / 编号同源 / 版本纪律）")
+    print("  可用单元 复算 %s ｜ 自报 %s ｜ 索引 %d 行 ｜ 向量 %d 行 ｜ 倒排 %d 篇 ｜ L2 单元 %d"
+          % (c["usable_recomputed"], c["usable_self_report"], c["index_rows"],
+             c["vector_rows"], c["bm25_docs"], c["l2_units"]))
+    print("-" * 74)
+    if not a.quiet:
+        for key, label in (("C1_mismatch", "C1 计数不一致"), ("C2_bad_vectors", "C2 向量回指失败"),
+                           ("C3_mismatch", "C3 编号同源问题"), ("C4_violation", "C4 版本纪律")):
+            n = rep[key.replace("_mismatch", "_n").replace("_bad_vectors", "_n")
+                    .replace("_violation", "_n")]
+            if n:
+                print("%s（%d）：%s" % (label, n, rep[key][:3]))
+    print("-" * 74)
+    if rep.get("N3_counter_mismatch"):
+        m = rep["N3_counter_mismatch"]
+        print("说明项 N3：注册表计数器与产物不一致（不是红）—— docs.jsonl %d 行 vs counts.bm25_indexed %s；%s"
+              % (m["docs_rows"], m["counts.bm25_indexed"], m["why"]))
+    if c["bm25_failed"]:
+        print("说明项 N1：bm25_failed = %s（失败项须在层证据里逐条有原因）" % c["bm25_failed"])
+    print("说明项 N2：**本闸门没跑的 4 项**（要写索引/要人看，只在完整档跑）：%s" % "；".join(rep["not_run"]))
+    print("=" * 74)
+    print("结论：%s" % ("✅ 过（只读 4 项全过；完整档另行）" if ok else "❌ 未过（红 %d）" % rep["red_total"]))
+    print("退出码：%d" % (0 if ok else 1))
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,363 @@
+#!/usr/bin/env python3
+"""视频关键帧抽取 + OCR：把视频的**画面文字**变成 L1 里可检索的文本。
+
+## 归属与依据（照 kb-media-extractor 的能力矩阵，不自创）
+
+`references/capability-matrix.md` 逐模态写着：
+
+    视频字幕      → **未实现**（无 ASR / 字幕脚本）
+    视频关键帧 OCR → **未实现**：无抽帧件；**关键帧若已有字节，可按「图片」走 OCR 通道**
+    音频 / 播客   → **未实现**（本 skill 也不接 ASR）
+
+⇒ 本脚本做的正是矩阵指明的那条路：**抽帧**，然后**走既有的图片 OCR 通道**
+（同一台 macOS Vision、同一段 `kb/.work/ocr.jxa.js`、**同一套缓存**
+`kb/l1/media/_cache/<图片sha256>.json`）——**不另造一条 OCR 路径**。
+**字幕/口播仍不做**（本机无 ASR）；谁要字幕得另配模型，别用画面文字冒充。
+
+## 为什么抽帧有意义（本轮实测，不是推测）
+
+11 个视频都是 UGC 达人口播，**画面烧了字幕**：实测某帧 OCR 出
+`A lot of you have been asking me which breast pump I use`；
+另一帧 32 行 / 495 字。⇒ 画面文字能拿到实质内容（口播与贴片文案）。
+
+## 抽帧口径
+
+· **主**：场景切换（`select='gt(scene,0.3)'`）—— 画面一变就取一帧；
+· **补**：若场景帧不足 `--min-frames`，按 `--every` 秒定点补帧（防静止画面只取到 1 张）；
+· **上限** `--max-frames`（默认 40/视频）：超了就按时间**等距抽稀**，避免短视频被静止帧灌满。
+· 帧落 `kb/l1/media/<资源目录>/frames/`，锚点按 registry 的 video 口径
+  `#t.MM:SS-MM:SS`（每段覆盖相邻两帧之间的时间窗）。
+· **重复文本只留一次**（口播视频相邻帧字幕常常一模一样）：按「归一化文本」去重，
+  但**时间窗合并**——所以既省空间，又不丢「这句话在片子的哪一段」。
+
+## 安全 / 纪律
+
+· 只读 `kb/l0/attachments/视频/**` 的字节；`--apply` 才写 L1；
+· **帧图落完不删**（与图片附件不同：这里帧是唯一可复算画面的凭据；且体积可控）；
+· 失败**如实记**（抽帧失败 / OCR 失败分别记），不把空结果写成"已完成"；
+· 台账（L0/L1）由调用方最后单独落（库内惯例）。
+
+用法：
+    python3 kb/l8/extract_video_keyframes.py <RUN>                    # 干跑
+    python3 kb/l8/extract_video_keyframes.py <RUN> --apply
+    python3 kb/l8/extract_video_keyframes.py <RUN> --apply --only <file_token>[,…]
+"""
+# ── 解释器守卫（与 l8 其它脚本同源）──
+import os as _os, sys as _sys
+if not _os.environ.get("KB_INTERP_OK"):
+    _d = _os.path.dirname(_os.path.abspath(__file__)); _cfg = None
+    while True:
+        _p = _os.path.join(_d, ".kb-python")
+        if _os.path.isfile(_p):
+            _cfg = _p; break
+        _q = _os.path.dirname(_d)
+        if _q == _d: break
+        _d = _q
+    if _cfg:
+        _want = next((l.split("#", 1)[0].strip() for l in open(_cfg, encoding="utf-8")
+                      if l.split("#", 1)[0].strip()), "")
+        _want = _os.path.expanduser(_want)
+        if (_want and _os.access(_want, _os.X_OK)
+                and _os.path.realpath(_want) != _os.path.realpath(_sys.executable)):
+            _os.environ["KB_INTERP_OK"] = "1"
+            _os.execve(_want, [_want, _os.path.abspath(__file__)] + _sys.argv[1:], dict(_os.environ))
+# ──────────────────────────────────────────────────────────────────────────
+
+import glob
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+
+RUN = next((a for a in sys.argv[1:] if not a.startswith("--")), time.strftime("%Y%m%d-%H%M%S"))
+APPLY = "--apply" in sys.argv
+ONLY = [t for t in (sys.argv[sys.argv.index("--only") + 1].split(",") if "--only" in sys.argv else []) if t]
+SCENE = float(sys.argv[sys.argv.index("--scene") + 1]) if "--scene" in sys.argv else 0.3
+EVERY = float(sys.argv[sys.argv.index("--every") + 1]) if "--every" in sys.argv else 10.0
+MIN_F = int(sys.argv[sys.argv.index("--min-frames") + 1]) if "--min-frames" in sys.argv else 8
+MAX_F = int(sys.argv[sys.argv.index("--max-frames") + 1]) if "--max-frames" in sys.argv else 40
+BATCH = 12
+VID_DIR = "kb/l0/attachments/视频"
+L1 = "kb/l1"
+CACHE = f"{L1}/media/_cache"
+FRAME_CHUNK = 2000          # 单段文本上限（帧文字都短，2000 足够且好定位）
+
+import imageio_ffmpeg  # noqa: E402
+FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
+
+
+def sha_file(p):
+    h = hashlib.sha256()
+    with open(p, "rb") as fh:
+        for b in iter(lambda: fh.read(1 << 20), b""):
+            h.update(b)
+    return h.hexdigest()
+
+
+def hhmmss(t):
+    t = int(max(0, t))
+    return "%02d:%02d:%02d" % (t // 3600, (t % 3600) // 60, t % 60)
+
+
+def probe(p):
+    r = subprocess.run([FFMPEG, "-hide_banner", "-i", p], capture_output=True, text=True)
+    e = r.stderr
+    d = re.search(r"Duration: (\d+):(\d+):([\d.]+)", e)
+    v = re.search(r"Video: (\w+).*?, (\d+)x(\d+)", e)
+    dur = (int(d.group(1)) * 3600 + int(d.group(2)) * 60 + float(d.group(3))) if d else None
+    return {"duration": round(dur, 2) if dur else None,
+            "codec": v.group(1) if v else None,
+            "width": int(v.group(2)) if v else None, "height": int(v.group(3)) if v else None}
+
+
+def scene_times(p):
+    """返回场景切换时间点（秒）。"""
+    r = subprocess.run([FFMPEG, "-hide_banner", "-i", p, "-vf",
+                        f"select='gt(scene,{SCENE})',showinfo", "-f", "null", "-"],
+                       capture_output=True, text=True)
+    ts = [float(x) for x in re.findall(r"pts_time:([\d.]+)", r.stderr)]
+    return sorted(set(round(x, 2) for x in ts))
+
+
+def pick_times(p, dur):
+    ts = scene_times(p)
+    if dur is None:
+        return ts[:MAX_F]
+    if len(ts) < MIN_F:                      # 补定点帧
+        extra = [round(i * EVERY, 2) for i in range(1, int(dur // EVERY) + 1)]
+        ts = sorted(set(ts) | set(extra))
+    if len(ts) > MAX_F:                      # 等距抽稀
+        step = len(ts) / MAX_F
+        ts = [ts[int(i * step)] for i in range(MAX_F)]
+    return ts
+
+
+def extract_frames(p, times, outdir):
+    """按时间点抽帧。返回 [(t, path)]，抽不出的跳过。"""
+    os.makedirs(outdir, exist_ok=True)
+    got = []
+    for t in times:
+        fp = f"{outdir}/t{int(round(t*1000)):07d}.png"
+        if not os.path.exists(fp):
+            subprocess.run([FFMPEG, "-hide_banner", "-loglevel", "error", "-ss", str(t),
+                            "-i", p, "-frames:v", "1", "-y", fp],
+                           capture_output=True, timeout=300)
+        if os.path.exists(fp) and os.path.getsize(fp) > 1024:
+            got.append((t, fp))
+    return got
+
+
+def ocr_frames(frames):
+    """走既有 Vision 通道 + 既有缓存（键 = 图片 sha256）。返回 {path: (文本, 命中缓存)}。"""
+    out = {}
+    todo = []
+    for _, fp in frames:
+        h = sha_file(fp)
+        cf = f"{CACHE}/{h}.json"
+        hit = False
+        if os.path.exists(cf):
+            try:
+                c = json.load(open(cf, encoding="utf-8"))
+                if c.get("ocr_version") == "vision-jxa-2.0" and c.get("sha256") == h:
+                    out[fp] = (c.get("ocr_text") or "", True)
+                    hit = True
+            except Exception:
+                pass
+        if not hit:
+            todo.append(fp)
+    for i in range(0, len(todo), BATCH):
+        chunk = todo[i:i + BATCH]
+        outj = f"/tmp/_kf_ocr_{os.getpid()}_{i//BATCH:03d}.json"
+        subprocess.run(["osascript", "-l", "JavaScript", "kb/.work/ocr.jxa.js", outj, *chunk],
+                       capture_output=True, timeout=1800)
+        by = {}
+        if os.path.exists(outj):
+            try:
+                for d in json.load(open(outj, encoding="utf-8")):
+                    by[d.get("file")] = "\n".join(l.get("text", "") for l in (d.get("lines") or []))
+            except Exception:
+                pass
+        for fp in chunk:
+            txt = by.get(fp, "")
+            out[fp] = (txt, False)
+            if APPLY and txt:
+                h = sha_file(fp)
+                os.makedirs(CACHE, exist_ok=True)
+                json.dump({"sha256": h, "sha256_state": "full", "ocr_version": "vision-jxa-2.0",
+                           "ocr_text": txt, "engine": "macOS Vision(VNRecognizeTextRequest)",
+                           "at": RUN, "src": "video_keyframe"},
+                          open(f"{CACHE}/{h}.json", "w", encoding="utf-8"),
+                          ensure_ascii=False, indent=1)
+        for fp in chunk:
+            if os.path.exists(outj):
+                pass
+        try:
+            os.remove(outj)
+        except Exception:
+            pass
+    return out
+
+
+def build_segments(frames, ocr):
+    """按时间窗成段；相邻帧文本相同则合并时间窗（口播视频常见）。"""
+    segs, seen_norm = [], {}
+    for idx, (t, fp) in enumerate(frames):
+        txt, _ = ocr.get(fp, ("", False))
+        if not txt.strip():
+            continue
+        t_end = frames[idx + 1][0] if idx + 1 < len(frames) else t + 1.0
+        norm = re.sub(r"\s+", " ", txt).strip().lower()
+        if norm in seen_norm:                # 文本重复 ⇒ 只延长已有段的时间窗
+            j = seen_norm[norm]
+            segs[j]["_t_end"] = max(segs[j]["_t_end"], t_end)
+            continue
+        seen_norm[norm] = len(segs)
+        segs.append({"text": txt[:FRAME_CHUNK], "t": t, "_t_end": t_end, "frame": os.path.basename(fp)})
+    for s in segs:
+        s["anchor"] = f"#t.{hhmmss(s['t'])}-{hhmmss(s['_t_end'])}"
+    return segs
+
+
+# ── 目标：本地已下载的视频 ──
+vids = []
+for f in sorted(glob.glob(f"{L1}/*/*.json")):
+    if "/_archive/" in f:
+        continue
+    try:
+        d = json.load(open(f, encoding="utf-8"))
+    except Exception:
+        continue
+    if not isinstance(d, dict):
+        continue
+    for m in (d.get("media_refs") or []):
+        if not (isinstance(m, dict) and m.get("kind") == "video"):
+            continue
+        if ONLY and m.get("file_token") not in ONLY:
+            continue
+        p = m.get("media_path")
+        if not p or not os.path.exists(p):
+            continue
+        vids.append({"artifact": f, "token": m.get("file_token"), "name": m.get("name"),
+                     "path": p, "bytes": m.get("bytes")})
+
+print(f"[{RUN}] 视频关键帧{'【落盘】' if APPLY else '【干跑】'}｜场景阈值 {SCENE}｜"
+      f"每片帧上限 {MAX_F}｜目标 {len(vids)} 个视频（只处理字节已在本地、且 sha 已登记的）")
+report = []
+for v in vids:
+    t0 = time.time()
+    pr = probe(v["path"])
+    times = pick_times(v["path"], pr["duration"])
+    slug = re.sub(r"[^\w.-]", "_", os.path.basename(v["path"]))[:60]
+    outdir = f"{L1}/media/video_{slug}/frames"
+    if not APPLY:
+        print(f"  · {os.path.basename(v['path'])[:42]:44s} {pr['duration']}s "
+              f"{pr['width']}x{pr['height']} → 计划抽 {len(times)} 帧【干跑】")
+        report.append({**v, "probe": pr, "planned_frames": len(times)})
+        continue
+    frames = extract_frames(v["path"], times, outdir)
+    ocr = ocr_frames(frames) if frames else {}
+    segs = build_segments(frames, ocr)
+    chars = sum(len(s["text"]) for s in segs)
+    hits = sum(1 for x in ocr.values() if x[1])
+    ent = {**v, "probe": pr, "frames_extracted": len(frames), "cache_hits": hits,
+           "segments": len(segs), "chars": chars, "seconds": round(time.time() - t0, 1),
+           "frames_dir": outdir}
+    report.append(ent)
+    print(f"  ✓ {os.path.basename(v['path'])[:42]:44s} {pr['duration']}s → 帧 {len(frames)}"
+          f"（缓存命中 {hits}）｜段 {len(segs)} / {chars} 字｜{ent['seconds']}s", flush=True)
+    if segs:
+        art = v["artifact"]
+        d = json.load(open(art, encoding="utf-8"))
+        vsegs = d.get("video_ocr_segments") or []
+        vsegs = [x for x in vsegs if x.get("video_token") != v["token"]]
+        vsegs.append({"video_token": v["token"], "video_name": v["name"],
+                      "video_path": v["path"], "duration": pr["duration"],
+                      "codec": pr["codec"], "width": pr["width"], "height": pr["height"],
+                      "frames_dir": outdir, "frames_extracted": len(frames),
+                      "extracted_at": RUN, "engine": "ffmpeg(scene)+macOS Vision",
+                      "anchors": [s["anchor"] for s in segs],
+                      "segments": [{"kind": "video_ocr", "text": s["text"],
+                                    "anchor": s["anchor"], "frame": s["frame"],
+                                    "t_start": s["t"], "t_end": s["_t_end"]} for s in segs]})
+        d["video_ocr_segments"] = vsegs
+        d["video_ocr_segment_count"] = sum(len(x["segments"]) for x in vsegs)
+        d["video_ocr_char_count"] = sum(len(s["text"]) for x in vsegs for s in x["segments"])
+        d["video_ocr_extracted_at"] = RUN
+        tmp = art + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(d, fh, ensure_ascii=False, indent=1)
+        json.load(open(tmp, encoding="utf-8"))
+        os.replace(tmp, art)
+
+tot_f = sum(e.get("frames_extracted") or 0 for e in report)
+tot_c = sum(e.get("chars") or 0 for e in report)
+print(f"  小结：视频 {len(report)} 个｜帧 {tot_f}｜可检索文本 {tot_c} 字")
+json.dump({"run": RUN, "kind": "video_keyframe_ocr", "apply": APPLY, "scene": SCENE,
+           "every": EVERY, "min_frames": MIN_F, "max_frames": MAX_F, "results": report},
+          open(f"kb/l8/runs/{RUN}-video-keyframes.json", "w", encoding="utf-8"),
+          ensure_ascii=False, indent=1)
+print(f"  [报告] kb/l8/runs/{RUN}-video-keyframes.json")
+
+
+# ── ★ 2026-10-09 接线：抽帧完自动补**口播转写**，别让人记得打第二条命令 ──────────
+# 为什么接在这里（Owner 2026-10-09 批准「接在 extract_video_keyframes.py 之后同一步」）：
+#   视频这条链要**两步**才完整 —— 抽帧出「画面文字」（上面刚做完），音轨出「口播转写」
+#   （`kb/l8/extract_video_asr.mjs`）。不接的话，新视频进来只会补一半 ——
+#   而 hostlib 那 11 条 `cg-vid-*` 条目正是**因为缺这半**才长期只有画面文字，
+#   且正文还写着一句过期的「本机无 ASR」（2026-10-09 已更正）。
+# ★ 这条链**整链都是手动的**（`kb/l8/CHANGELOG.md` 已登记：`daily_via_skill.sh` 里
+#   0 处 `video/keyframe` 命中 ⇒ 日更**不跑**视频抽取）⇒ 接在这里**不增加日更时长**，
+#   只是把「人要记得的两条命令」变成一条。与 `recrawl_all_urls.py` 收尾自动调
+#   `l2_align_current.py` **同形**（本库既有先例，不自创）。
+# 失败**不静默**：打印退出码 + 手动命令；主流程退出码不受影响（抽帧本身已完成）。
+# 逃生口：`--no-asr` 可只做抽帧（例如 ASR 授权未给、要先把抽帧结果交出去时）。
+if APPLY and "--no-asr" not in sys.argv:
+    _asr_script = "kb/l8/extract_video_asr.mjs"
+    _node = shutil.which("node")
+    if not _node:
+        print(f"\n[接线] ⚠️ 找不到 node ⇒ 跳过口播转写。请手动跑："
+              f"\n         node {_asr_script} {RUN} --apply", flush=True)
+    elif not os.path.exists(_asr_script):
+        print(f"\n[接线] ⚠️ 找不到 {_asr_script} ⇒ 跳过口播转写", flush=True)
+    else:
+        print(f"\n[接线] 抽帧后自动补口播转写（{_asr_script}）…", flush=True)
+        _rc = subprocess.run([_node, _asr_script, RUN, "--apply"],
+                             capture_output=True, text=True)
+        for _l in [l for l in (_rc.stdout or "").strip().split("\n") if l.strip()][-6:]:
+            print("   " + _l, flush=True)
+        if _rc.returncode != 0:
+            print(f"   ⚠️ 口播转写失败（退出码 {_rc.returncode}）—— 条目会缺口播那半，"
+                  f"请手动跑：node {_asr_script} {RUN} --apply", flush=True)
+            for _l in (_rc.stderr or "").strip().split("\n")[-3:]:
+                if _l.strip():
+                    print("     stderr: " + _l[:200], flush=True)
+        else:
+            print("   ✅ 口播转写已补（本机 ASR；`no_speech`/`no_local_bytes` 是读数不是失败）",
+                  flush=True)
+
+
+# ── ★ 2026-10-09 接线：写完 L1 就**让派生视图重建**（否则守衡看不到新数据）──────────
+# 病灶实测：`publish.sh` 的 `INPUTS` 12 条里**含 L1 的 0 条**，而视频/图片生成器读的**正是 L1**
+# ⇒ 跑完抽帧/ASR（或图片 OCR）后它说「输入未变，跳过重出派生视图」，**守衡那边看不到新数据**。
+# 今天实测就撞上：14 个视频的口播转写写进了 L1，publish 却跳过重出，
+# 不得不人工 `rm kb/.work/.publish.stamp` 才把条目推出去。
+# 这里按库内既有机制（stamp 内容 ≠ 当前输入指纹 ⇒ 下次 publish 必重跑生成器）在**生产者收尾**失效它。
+# 代价：下一次 publish 会重写一次 22 MB 派生视图（本来就该写）；不失效的代价是**数据传不出去**。
+def _invalidate_publish_stamp():
+    try:
+        _st = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           ".work", ".publish.stamp")
+        if os.path.exists(_st):
+            os.remove(_st)
+            print("[接线] 已使 .publish.stamp 失效 ⇒ 下次 publish 会重出派生视图（守衡才看得到）")
+        else:
+            print("[接线] .publish.stamp 本就不在 ⇒ 下次 publish 会重出派生视图")
+    except Exception as _e:
+        print(f"[接线] ⚠️ 失效 stamp 失败（{_e}）—— 请手动跑 kb/.work/publish.sh，或删除 .publish.stamp")
+
+if APPLY:
+    _invalidate_publish_stamp()

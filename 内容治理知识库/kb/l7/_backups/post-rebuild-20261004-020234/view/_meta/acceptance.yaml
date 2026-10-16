@@ -1,0 +1,47 @@
+# 验收契约（加载器 `evaluateAcceptance` 逐条执行 —— 不是注释，是闸门）
+#
+# 本文件由内容治理知识库 l8 批次补建（2026-09-23）。此前本库没有验收契约，
+# 加载器只读得到 `confidence_floor` 一个键，其余十几个键纯装饰。
+#
+# 纪律：**谓词只许声明机器判得出来的真值**。声称 true 而机器判定不成立 = E037，
+# 那是「契约在说假话」，比内容有问题更严重。下面四条谓词的值都取自 2026-09-23
+# 实测（`kb/l8/loader_probe.mjs` 在同一运行时里跑的计数）。
+acceptance_id: content-governance-hostlib-20260923
+created_at: '2026-09-23'
+owner: 刘华丽
+status: derived-view
+maturity: draft
+# 未过正式验收（l4/canonical 为空），也不是生产就绪 —— 与 conditions 里的阻断码一致
+productionReady: false
+# 本视图不许写回权威库；置 false 后加载器会去 ingest ledger 里数「机器写了几条」
+canonicalWrite: false
+confidence_floor: 0.8
+
+predicates:
+  # 本库没有 `3_措辞表达库/tests/golden-questions-*.md`，加载器数到 0 条黄金问题
+  structural_completeness: false
+  # 509/509 都有 source{kind,ref,fingerprint,captured_at}（加载器 has("source")）
+  source_traceability: true
+  # 复用加载器 W020（重复即合并）的机械判据：实测 2811 条，所以这里**不能**填 true
+  no_duplication: false
+  # 509/509 都有 not_proves（加载器 has("not_proves")）
+  boundary_declared: true
+
+conditions:
+  # 加载器把 none/pending/missing/缺/未建/空 判为「未达」
+  owner_acceptance: 未建
+  final_receipt: 未建
+  fixed_eval_set: missing
+
+# 上面未达条件映射出的阻断码（加载器只认这三个名字）
+blocked_codes:
+  - OWNER_ACCEPTANCE_INCOMPLETE
+  - FINAL_RECEIPT_MISSING
+  - DATASET_NOT_BUSINESS_AUTHORIZED
+
+# 负例自检：`null` = 还没跑（加载器会数 pending）；跑过的填结果。
+# 三条都由 kb/l8/roundtrip_check.py 在装载位实测过，观测值写在这里（2026-09-23）。
+negative_checks:
+  查不到的词必须返回 0 条且不许编造: 已跑：查询「量子纠缠配色调参」返回 0 命中（totalMatched=0），加载器没有回落成常识答案
+  未命中本库规则不等于内容合规: 已跑：509/509 条目的 not_proves 逐字写明「未命中 ≠ 合规」，检索层没有「零命中即合规」的口子
+  P级与风险等级不得被当作放行结论: 已跑：509/509 条目的 forbidden 写明「不许把 P 级/风险等级当放行结论」

@@ -1,0 +1,28 @@
+skill:
+  name: root-skills-batch-driver
+  version: "1.0.0"
+  structure_version: "1.0"
+  type: orchestration
+directories:
+  references:
+    exists: true
+    count: 1
+    files:
+      - orchestration-loop.md
+  scripts:
+    exists: true
+    count: 1
+    files:
+      - batch-driver.py
+  examples:
+    exists: true
+  tests:
+    exists: true
+compatibility:
+  claude: { status: "native" }
+  cursor: { status: "native" }
+  kimi: { status: "native" }
+  gpt: { status: "bridge", limitations: ["subagent 编排需适配"] }
+  minimax: { status: "bridge", limitations: ["多步骤需简化"] }
+  dsh: { status: "native" }
+  codex: { status: "native" }

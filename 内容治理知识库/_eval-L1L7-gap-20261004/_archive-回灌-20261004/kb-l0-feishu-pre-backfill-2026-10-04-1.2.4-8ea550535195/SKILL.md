@@ -1,0 +1,402 @@
+---
+name: kb-l0-feishu
+description: |
+  把 Momcozy 内容治理知识库的 **L0（源层）** 与飞书侧源数据做每日同步与核对，飞书侧全程只读。
+  **本 skill 只做 L0 这一层**，不往下游 L1–L7 跑（要整条链路走 kb-pipeline）。
+  当用户说「只对账 L0 / L0 同步 / L0 对齐一下 / L0 落库 / L0 和飞书对一下 / L0 对账 /
+  飞书侧对账 / 飞书侧改了什么 / 库和飞书一致吗 / 飞书侧数据变了吗 / 跑一下每日同步 /
+  只跑每日同步这一层 / 源数据同步 / 核对一遍 L0」时使用。
+  当用户报「飞书侧改了什么」「库里这条怎么不见了」「图片/视频/链接有没有漏」，也使用。
+  触发词：只对账 L0、L0同步、L0 对齐、L0 落库、L0 对账、飞书侧对账、飞书侧改了什么、
+  源数据同步、库和飞书一致、每日同步、只跑每日同步、daily sync、reconcile L0、sync L0、
+  kb-l0-feishu。
+  不适用（各自点名）：
+    · 整条链路 / 同步一下知识库 / 跑一遍知识库链路 / 知识库同步到最新 / 全链体检 /
+      L0 到 L7 走一遍 / 知识库该更新了 → 走 **kb-pipeline**（本 skill 不跑下游 L1–L7）；
+    · 判断内容该不该拦 / 单条内容可用性 → 走 **kb-review**；
+    · 问知识库怎么建的、字段与分层定义 → 读 `_meta/GUIDE.md`；
+    · 只查条款号 / 是不是 P0 / 召回 → 走 kb-canonical-lookup / kb-p0-check / kb-recall；
+    · 知识库体检 / 闸门 → 走 **kb-check**；闸门没过的修复 → 走 **kb-repair**；
+    · 没有飞书侧源、纯本地文件的场景 → 不触发本 skill。
+version: "1.2.4"
+last_updated: 2026-09-30
+license: "Proprietary — Momcozy internal use only"
+complexity: "complex"
+compatibility:
+  claude: { status: "native" }
+  kimi: { status: "native" }
+  cursor: { status: "native" }
+  gpt: { status: "bridge", limitations: ["脚本执行需适配"] }
+  minimax: { status: "bridge", limitations: ["长表格需简化"] }
+  dsh: { status: "native", notes: "lark-cli + python3 同机可用" }
+  codex: { status: "native" }
+---
+
+# L0 ↔ 飞书侧源数据 · 每日同步
+
+## 0. 一句话
+
+**L0 就是飞书侧源数据的副本，任何差异都算缺陷。**
+本 skill 做两件事：① 把 L0 对齐到飞书侧（只读核对 → 按需认领 / 归档 / 补台账）；
+② 按需把下游 L1→L2→L3 重跑到与 L0 一致（**重跑下游时不动 L0**）。
+
+## 1. 红线（违反即中止并报告）
+
+1. **飞书侧零改动**：不建字段、不改状态、不写回、不动权限。全程只读调用。
+2. **L0 只与飞书对齐**：优化 L1–L7 时一律不碰 L0。
+3. **不删除**：被替换 / 失效 / 退役的产物一律移入 `_archive/`，并留 manifest。
+4. **不猜、不伪造**：读不到就写原因码（`gone` / `no_permission` / `no_scope` /
+   `not_found` / `blocked_by_library_setting`）。**不许用占位或推测内容填充**，
+   不许把 `forbidden` 含糊成 `pending`；OCR 认不出来就写认不出来。
+5. **写操作默认预演**：带 `--apply` 的脚本先不带 `--apply` 跑一遍，拿到差异再决定。
+6. **写入只落 `kb/` 下**；`kb/` 不得位于任何飞书同步目录内。
+7. **不许"没提就不查"**：见 §2，每类资源在报告里都必须有结论。
+8. **对象存在但拿不到正文 → 换通道，不许判"不可核"**：`drive +preview --type source_file`（原件，
+   不是预览）/ `slides +xml-get` / `sheets +workbook-*`。
+   与之配套：**台账里 `sha256_state=no_scope` 的行是欠账，不是终态** —— 登记时缺 scope ≠ 永远读不到；
+   每轮都要复验这些行，scope 已具备就补读、补登记（`kb/l8/close_stale_scope_gaps.py`）。
+   > 2026-09-30 实测代价：3 个 slides + 1 个 sheet 因"缺 scope"登记后**挂了一整天没人回头**，
+   > 而 scope 早已具备；这 4 条本可第一天就关掉。
+
+## 2. 核对范围（硬性）
+
+逐类字段口径见 `references/coverage-matrix.md`（**开始核对前先读**）。三条不可协商：
+
+- **图片必须 OCR**：字节存 L0，OCR 文本落 **L1**。认不出来就写认不出来。
+- **视频必须提字幕 + 抽关键帧**（关键帧按图片走 OCR）。若字段级筛选显示飞书侧为 0 条，
+  结论写 **`不适用（附筛选证据）`** —— 既不跳过，也不报成"缺失"。
+- **链接必须下钻两层**：第 1、2 层抓正文落快照，**第 3 层只记边、不抽内容**；
+  外链用统一口径重抓后再比。
+
+**四态制**：每类资源只能是
+`已对齐` ｜ `不适用（附证据）` ｜ `读不到（原因码）` ｜ `不可核（原因码）`。
+没有"没提就不查"这个选项。
+
+- **`不适用` 的"证据"必须可核对**，格式固定：`字段名 + 筛选条件 + 命中条数 + 快照路径 + RUN`
+  （例：`视频素材` 字段级非空筛选 0/115 → `kb/l8/runs/<RUN>-video-filter.json`）。
+  只写"没有视频"不算证据。
+- **`读不到` 必须带原因码 + 复开条件**（模板见 `references/auth-and-permissions.md` §四）；
+  原因码里 **`no_scope` 单独对待**：它是**每轮必修的欠账**（见红线 8），
+  长期挂着的必须在缺口清单里出现，不许当终态收口。
+
+**覆盖率闸门**（收尾必做）：算飞书侧实际资源类型集合 `S_feishu` 与报告出现过的 `S_report`，
+必须满足 **`S_feishu ⊆ S_report`**，缺类回到矩阵补做，**不许收口**。
+`S_feishu` 的机器来源：`kb/l0/manifest.jsonl` 里 `source_kind` 的分布（不要去问人"飞书侧有哪些类型"）。
+
+## 3. 库根与凭据
+
+| 项 | 值 |
+|---|---|
+| 权威库根 | `<工作区>/知识库/内容治理/kb`（`~/.dsh/Momcozy知识库/kb` 是它的软链接） |
+| 入口 Base | `GnRZbIuXraCzf0sGr2UcmZ62nfc`（`材料收集` = `tblMGtPfe8ZUsEdP`、`负面样本` = `tbld8qE92YaY38Yz`） |
+| CLI | `~/.dsh/bin/lark-cli`（**不在 PATH**） |
+| 可用身份 | profile `dsh-kb`（显示名 **「守衡」**`cli_aa2243de0438dcd7`）：**bot 身份可读 Base / 记录 / 附件** |
+| 不可用身份 | 默认 profile「刘华丽的飞书CLI」（`cli_aa2e11d952f85be9`）**调不动 Base 接口**，别把授权加在它上面 |
+
+细节（设备码规则、ACL 判定、换通道取正文、复开条件）见 `references/auth-and-permissions.md`。
+
+### 3.1 阶段 0：前置自检（必须先跑；不通过就停下来报"缺什么"）
+
+```bash
+bash scripts/preflight.sh
+```
+
+前置自检输出的是**能力矩阵（身份 × Base → 可读 / 不可读）**，不是一句"能不能读"。
+**按矩阵逐 Base 选身份，不许把一张表的结论外推到全部**：
+
+- 绝大多数表 **bot 可读** → 记录层 / 结构层核对直接用 bot，不需要设备码；
+- 但**已实测**：bot 对第 2 个 Base（`SKkkbdZi9aRuMzs7ob0cpSYHnQg` 的
+  `专家修订汇总表` / `内容公式（仅供参考）`）**读不到 `base +field-list`**，必须用 user 身份。
+  > 2026-09-30 实测代价：preflight 只探了「材料收集」一张表就报"bot 可读"，
+  > 于是 `align_l0_schema.py --apply` 用 bot 跑，把那两张表的快照刷成 **0 字段**（后改 user 重刷才修回）。
+- **字段读失败时脚本必须拒写快照**（宁可红，也不写退化的 0 字段快照）。
+
+只有对象级权限必须走用户身份时才发设备码，且**一次只发一条**（10 分钟有效，连发会顶掉上一条），
+码里**只放缺的那一个 scope**（不要全量重申请，会卡在管理员审核）。
+取码时**必须 `--no-wait --json > 文件` 再解析**——用 `head/tail` 管道会把 `verification_url`
+和 `device_code` 截断，逼你重发一条（见 `references/gotchas.md`）。
+
+### 3.2 权限问题判定顺序（照这个顺序问，别乱试）
+
+1. `token expired` / `token_missing` → **不是权限，是登录态掉了** → 发一条设备码。
+2. `91403` / `1063002` / `40403 DENY` → **资源级 ACL**：要所有者在**能调接口的那个应用（守衡）**上加协作者。
+   注意：**「用户自己打开得开」≠「应用读得到」，是两套权限**。
+3. 附件字节 `403` → 先做**决定性实验**：用**同一身份**上传一个小文件，再下载回来。
+   - 下得回来 → **库级限制**（Base「禁止下载、复制、打印」）。加 scope 没用，**连所有者也被挡** →
+     标 `blocked_by_library_setting` + 复开条件，**不再重试**。
+   - 下不回来 → 才是缺 `drive:file:download`。
+4. 拿不到正文但对象存在 → **换通道**：`drive +preview --type source_file`（原件，非预览）、
+   `slides +xml-get`、`sheets +workbook-*`。
+
+## 4. 执行序列
+
+统一 run_id：`RUN=<YYYYMMDD-HHMM>`，所有产物挂在这个 RUN 下。
+每个阶段的完整参数与要点见 `references/scripts.md`。
+
+**阶段 → 该先读哪份 reference**（"读取条件"不是装饰，漏读的代价已实测）：
+
+| 阶段 | 动手前必读 |
+|---|---|
+| 0 前置自检 | `references/auth-and-permissions.md`（身份与 ACL 判定） |
+| 1–4 记录层/结构层/台账 | `references/scripts.md`（阶段 1–4 小节） |
+| 5–8 非记录/图片/视频/链接 | **`references/coverage-matrix.md`（先读，逐类口径在这里）** |
+| 9 下游 | `references/scripts.md`（阶段 9 小节） |
+| 10 收口 + 出报告 | **`references/gotchas.md`（出报告前读）** |
+| 收尾 | `references/scripts.md` 的收尾小节 + `scripts/retro.py`（§8 自成长） |
+
+| 档位 | 跑到哪 | 谁触发 |
+|---|---|---|
+| `--check`（默认，每日自动） | 阶段 0、1、2 + 10 + 收尾（全只读），出报告不写 | 可无人值守 |
+| `--sync` | 加阶段 3–8（含写操作，需人确认） | 有差异时人工放行 |
+| `--full` | 再加阶段 9（下游 L1→L2）**与 9.5（索引层 L6）** | 人工指定 |
+
+### 阶段 1 记录层核对（只读）
+```bash
+python3 kb/l8/align_l0_feishu.py $RUN
+```
+读 `kb/l8/runs/$RUN-l0-align.json` 的 `summary`：`same / only_feishu / only_l0 / changed`
+与 `record_files_not_registered_total`。
+
+- `only_feishu`：漏抓。**但 `材料收集` 里审核状态 ≠「通过」的记录本就不入 L0，属预期，不算差异。**
+- `only_l0`：飞书侧被删或被整批替换。`changed`：值变了。
+- `record_files_not_registered_total > 0` → **必须进阶段 4**，否则下游永远抽不出来。
+- 除预期的 `only_feishu` 外全为 0，才叫记录层对齐。
+
+### 阶段 2 结构层核对（字段 id / 名 / 类型）
+```bash
+python3 kb/l8/align_l0_schema.py $RUN            # 预演
+python3 kb/l8/align_l0_schema.py $RUN --apply    # 刷新 schema_snapshots
+```
+只比值不看字段集合，会漏掉**改名 / 改类型 / 增删字段**；下游 L1/L2 是按字段名取角色的。
+
+> **存放位置（批次18「丙」起）**：`kb/l0/registry/kb.json → schema_snapshots`
+> **只存现行集**（= 本轮读到 field-list 的表，正常 **10 条**），**不再并归档摘要**。
+> 历史在 **`kb/l0/_archive/schema_snapshots/<at>.jsonl`**（append-only、永不删）。
+> 要查「当初那轮 schema 是什么」**去归档目录**，不要在 registry 里找。
+> ⚠️ 归档里 **`20261002-1420` 之前**的轮次是**压扁摘要行**（无 `fields`，只有 `field_count`）
+> —— 那些轮次**只能回答字段个数、回答不了字段清单**。
+
+### 阶段 3 认领与归档（写操作）
+```bash
+python3 kb/l8/reconcile_l0_feishu.py $RUN
+```
+判"表是否被重建"的正确方法：比 **field_id 集合**（一致 → 表没重建，是记录被换），
+再抽查旧 `record_id` 是否返回 `Record not found` 作为第二证据。
+
+### 阶段 4 台账补齐（append-only）
+```bash
+python3 kb/l8/emit_l0_manifest_reconcile.py $RUN           # 预演
+python3 kb/l8/emit_l0_manifest_reconcile.py $RUN --apply
+```
+**最容易漏、也最贵**：记录文件在但 `manifest.jsonl` 没行 → 下游算「L0 活跃集 ⊖ L1」得 0 →
+**这批新记录永远抽不出来**。sha256 口径必须与既有行一致：**先用一条既有行反向复现**再批量写。
+
+### 阶段 5 非记录资源
+```bash
+python3 kb/l8/verify_l0_nonrecord.py  $RUN [--apply]
+python3 kb/l8/verify_l0_nonrecord2.py $RUN [--apply]
+python3 kb/l8/refresh_l0_drifted.py   $RUN [--apply]     # 漂移刷新进 L0（旧文件先归档）
+python3 kb/l8/store_l0_attachments.py $RUN [--apply]     # 附件字节落 L0（bot 身份）
+```
+字节级比 `sha256(file_bytes)`；文档类比 **`rev` + 字节指纹**（摘要口径天然不同，别用摘要判等）。
+标 `gone` 要**双证**：用户确认 + API 报文件不存在（如 `981003`）。
+别把"存在但无权限"误标成 `gone`（曾经 11 条误标又改回 4 条）。
+逐类出结论，按 §2 打印覆盖率矩阵。
+
+### 阶段 6 图片 OCR
+```bash
+python3 kb/l8/ocr_attachments.py $RUN                    # 下载 → Vision OCR → 抽文案 → 删图
+python3 kb/l8/apply_ocr_to_l1.py <OCR_RUN> <L1_RUN> [--apply]
+```
+缓存闸门 `vision-jxa-2.0`：**新旧图 file_token 交集为 0 时缓存不可复用**，别套旧缓存。
+
+### 阶段 7 视频
+先做字段级非空筛选、留证（飞书侧可能根本没有视频素材）。
+有 → 下载字节 → 提字幕 + 抽关键帧 → 关键帧走 OCR → 文本落 **L1**。
+取不到字节时按 §3.2 第 3 步区分 `no_scope` 与 `blocked_by_library_setting`。
+
+### 阶段 8 链接：下钻两层 + 外链比对
+```bash
+python3 kb/l8/drill_links_2levels.py $RUN
+python3 kb/l8/fill_drill_failures.py $RUN [--apply]
+python3 kb/l8/verify_l0_urls.py       $RUN
+python3 kb/l8/verify_urls_headless.py $RUN
+python3 kb/l8/verify_urls_shingles.py $RUN                        # 词 8-gram 双向重叠判等
+python3 kb/l8/recrawl_all_urls.py     $RUN [--apply] [--limit N]  # 统一口径重抓
+python3 kb/l8/recrawl_jsnoise_urls.py $RUN [--apply]              # 抓到 JS 噪声的
+```
+- **混口径 = 没对齐**：同一层 `sha256_input` 口径必须统一（如全 `url_text_rendered_v1`）。
+  三种口径混在一个字段里时，必须明说"**不能算严格一致**"。
+- 判等用**词 8-gram 双向重叠**，不要整行逐字比。
+- 飞书域名链接**走 API，不裸 HTTP**。反爬页先加渲染预算（TikTok ~20s），再考虑换 UA / 降级取文本。
+- 源侧真失效（404 / 403 / 域名挂）单列，不混进"内容变了"。
+
+### 阶段 9 下游重跑（**不动 L0**）
+```bash
+python3 kb/l8/extract_l1_new_resources.py $RUN [--apply]
+python3 kb/l8/l2_split_run.py $RUN [--apply]        # 新写法：不带 --apply 是干跑
+python3 kb/l8/l3_distill_run.py <L3_RUN>
+python3 kb/l8/l3_reject_ledger_rebuild.py <L3_RUN> [--apply]
+python3 kb/l1/index/rebuild_l1_index.py
+```
+> ⚠️ `l3_distill_run.py` 会以 `w` 模式覆盖 `rejected.jsonl`。跑前先归档现状，
+> 跑后必须按既有口径把**逐单元**拒绝台账重建回来（否则重演 11,860 → 1,053 行回归，真实发生过）。
+
+### 阶段 9.5 索引层（新数据"能被检索到"才算同步完）
+```bash
+python3 kb/l8/l6_scope_append.py $RUN --resources <逗号分隔的资源或 token> --note "<入库理由>" [--apply]
+python3 kb/.work/l6_build.py $RUN --accept-scope-delta --apply
+python3 kb/.work/l6_integrity.py $RUN                 # 10 项闸门
+python3 kb/l6/retriever.py --query "<新数据里的一个词>" --top 3   # 抽查真的查得到
+```
+> **为什么必须有这一段**：L2 切出单元 ≠ 能被检索到。L6 是**人工核定白名单**（`kb/l6/SCOPE.txt`）——
+> 不 append 就永远查不到；改了白名单必须带 `--accept-scope-delta` 重建，并在 registry 里留口径差额。
+> **`l6_build.py` 现在有干跑档**：不带 `--apply` 只会打一行 `[dry-run]` 就退出（别以为它跑完了）。
+> 2026-09-30 实测：7 条新记录走完 L0→L1→L2 后，不补这一段就一条也搜不到。
+
+### 阶段 10 收口核验
+```bash
+python3 kb/l8/workflow_check.py $RUN                     # 接受 RUN
+L8_KB_ROOT="$PWD/kb/view" python3 kb/l8/roundtrip_check.py $RUN
+python3 kb/l8/projection_reconcile.py                    # 只吃 --json，**不收 RUN**
+python3 kb/l8/envelope_census.py                         # 只吃 --json，**不收 RUN**
+python3 kb/l8/build_view.py --run $RUN                   # 需刷新工作台投影时才做
+```
+- **`roundtrip_check.py` 必须带 `L8_KB_ROOT`，且要指向投影根 `kb/view`**（默认值
+  `~/.dsh/Momcozy知识库` 是本布局下的错根，会 `FileNotFoundError`）。
+- 另两个脚本**不收位置参数**，传 RUN 会 argparse 报错。
+- **FAIL 要分级，别一律当回归**：
+  - `workflow_check` 的「权威库 l0~l6 未被改动」「前序产物哈希」在**同步当天必然红**
+    —— 今天 L0–L6 就是被改动的对象。判据是"变的是不是本轮同步造成的"，
+    报告里必须写明**因何而变**；说不清才当回归。
+  - 一次性快照型基线（如 L6 的 `frozen_layers`）**要有承认通道**（带必填理由），
+    否则一红就永远红、红久了没人看 —— 这比不检查更糟。
+外加强制项：§2 覆盖率自检（`S_feishu ⊆ S_report`），缺类不许收口。
+
+## 5. 交付物
+
+1. `kb/l8/runs/<RUN>-*.json`：各阶段运行记录（存原始数据，不转述）。
+2. **一段结论，固定四段**：① 记录层四类计数 ② 结构层（改名/缺字段/类型漂移）
+   ③ 非记录层按矩阵**逐类出结论**（四态之一，读不到/不可核的逐条列原因码）
+   ④ 口径层：URL 是否统一口径，不统一就明说"不能算严格一致"。
+3. **覆盖率矩阵**：每类一行 = 类型 + 状态 + 条数 + 原因码。
+4. `_archive/` 归档记录 + manifest（有写操作时）。
+5. **缺口清单**：对象 + 原因码 + **要人做什么**（如"把守衡加成可阅读协作者"）+ 复开条件。
+6. **待确认清单**：每条按 §6.1 的四要素写（事实 / **我的建议** / 理由 / 取舍），建议项排第一；
+   组织成"回一句『按你的建议做』即可整体放行"的形式。
+
+## 6. 何时停下来问人
+
+- 阶段 0 自检不过（凭据 / 库根 / 锁）→ 报"缺什么"，不绕路硬试。
+- 存在 `.kb.lock`，或 `kb/.work` 近 30 分钟有大量写入 → **可能有另一批在跑**，先确认再动。
+- 出现 `only_l0` / `changed` 且原因不明 → **先只读取证，不要先写**。
+- 权限类硬缺口（库级禁止下载、所有者不给）→ 标原因收口，**不重试**。
+
+### 6.1 问人的格式：**每条待确认事项必须自带建议**（用户 2026-09-30 明确要求）
+
+把选择权交出去、却不给判断，等于把活推回给人。**每条待确认项一律四项俱全**：
+
+| 要素 | 要求 |
+|---|---|
+| ① 事实 | 实测数字 + 证据路径（`kb/l8/runs/<RUN>-*.json`），不写"大概""可能" |
+| ② **我的建议** | **必须明确选一个**（"我建议做 X"），不许只罗列选项让人挑 |
+| ③ 理由 | 为什么是它：代价 / 风险 / 可逆性 / 与已有口径是否冲突 |
+| ④ 取舍 | 其他选项各差在哪；默认（不做）会怎样 |
+
+- 排序：把**我建议的那个放第一条**。
+- 允许说"这条我没有建议，因为缺 X 信息" —— 但要写明**缺什么信息才能形成建议**。
+- 收尾时用一句"**按你的建议做**"就能整体放行的写法组织清单；需要拆开决策的，逐条标注依赖关系。
+
+> 这一条与红线 4（不许把工具 bug 报成数据缺陷）同源：**要么给人可执行的判断，要么明说判断不了**，
+> 不要把"没想清楚"伪装成"等你决定"。
+
+## 7. 每次结束前
+
+- 留一句"L0 本次有没有被改过"的弱证据，**命令固定**（没有版本控制就如实说这是弱证据）：
+  ```bash
+  wc -l kb/l0/manifest.jsonl
+  find kb/l0 -newermt '<本轮开始时的墙钟时间>' -type f | head -20
+  ```
+  ⚠️ **别拿 run_id 当时间读**：run_id 是会话标号，实测可能比机器墙钟快好几小时；
+  时间线一律以文件 mtime / `observed_at` 为准。
+- 报告必须区分「**库的问题**」和「**我的工具/脚本的问题**」。
+  同一天两次事故都是后者（核验脚本把 `record_id` 当字段比、把 wiki token 当 base token），
+  **不许把工具 bug 报成数据缺陷**。更多坑见 `references/gotchas.md`。
+
+## 8. 自成长（每轮同步后自动积累；**规则层改动一律要人确认**）
+
+分两层。**能自动的自动，不该自动的绝不自动** —— 这条分界是本节的要点。
+
+### 8.1 事实层：全自动、append-only、只从产物推导
+
+每次收口后跑：
+
+```bash
+python3 kb/l7/skills/kb-l0-feishu/scripts/retro.py $RUN     # 从**库内源**跑（装位路径已废，见 §8.3 第 5 步）
+```
+
+它只做三件事，**全部是机械推导，不含任何判断**：
+
+1. **记一行运行台账** `kb/l8/retro/ledger.ndjson`：RUN、各阶段判据的结果计数、
+   本轮出现的**原因码集合**、`only_*` / `changed` / 未登记数等关键量；
+2. **与上一轮做集合差**：把这轮**新出现**的原因码与失败模式单列（附首次出现时间与证据路径）；
+3. **数重复**：同一原因码 / 同一失败模式累计 **≥2 轮** → 在
+   **库内源** `references/gotchas.proposals.md` 追加一条**升级建议**（升为红线？改 preflight？
+   改脚本默认值？），并注明证据来自哪些 RUN。
+
+> `retro.py` **不写** `SKILL.md`、**不写** `gotchas.md` 正文、**不写**任何闸门 ——
+> 它只写台账与"候选"，候选区与人工确认区分开放置。
+> 候选的落点**固定在库内源**（按库根解析，并带「拒绝写装载位」护栏）：
+> 装载位是**只读运行副本**（`l7/registry/skills.yaml` :: `meta.single_writer_rule`），
+> 写进去就会变成 `skills_check` 第 3 类「副本不一致」。**别再让它按脚本自己旁边写。**
+> 写完之后脚本**当场把这一个文件镜像到装载位** —— 一次跑完两侧逐字节相同，
+> 第 3 类**两个方向都不会红**，收尾也不必再手工回灌。
+
+**同时跑一次重复项审计**（只读，不修）：
+
+```bash
+python3 kb/l8/audit_l0_duplicates.py $RUN
+```
+
+一次出四段，**它们不是一回事，报告里不许混成一句"有重复"**：
+
+| 段 | 是什么 | 怎么处置 |
+|---|---|---|
+| **A 磁盘字节** | 同一份图/文件字节在 `kb/l0/attachments` 存了多份 | 真占空间；**是否合并是存储策略，要人拍板** |
+| **B 台账行** | 同一资源同一状态被重复登记进 `manifest.jsonl` | 我们的工具问题：新写入必须走 `kb/l8/l0_ledger.py` 的 `append_changed()`（有变化才写，未变的记 `last_seen`） |
+| **C 记录层** | `record_id` 重复 / 记录内容重复 | 真缺陷，必修（当前 959/959 唯一、0 组重复） |
+| **D 差集** | 磁盘有台账无 / 台账有磁盘无 | 完整性线索，逐条给原因码 |
+
+> **别把源侧的重复当自己的 bug 去删**：同一张图挂在 21 个 `file_token` 下是**飞书侧事实**
+> （实测回源核对过），删掉 20 份等于篡改源状态。C 段那类"同一素材被多条记录引用"永远不是缺陷。
+
+### 8.2 规则层：**不许自动改**
+
+凡触及"判定标准"的东西 —— `SKILL.md` 的红线、阶段闸门、`coverage-matrix` 的四态口径、
+`preflight.sh` 的通过线、`gotchas.md` 的已确认坑 —— 一律要**人（或用户显式授权的一次落盘）**。
+
+**理由**：拿证据自动改判据，等于让被考核的一方自己改考卷。同一天里已经见到两次"判据本身写错"
+（检查器不带 `--apply` 在干跑里空转、冻结层基线只比一次性快照导致必红）——
+**自动化的应该是"发现"，不是"裁决"**。
+
+### 8.3 落盘留痕（改 skill 文件时的硬要求）
+
+任何 skill 文件被改，同一次改动里必须：
+
+1. 备份：改的是哪一侧就备哪一侧，但**库内源必留一份**（它是唯一可写位置）——
+   `cp -Rp kb/l7/skills/kb-l0-feishu ~/.dsh/backups/kb-l0-feishu-<YYYYMMDD-HHMM>/`；
+2. 追加 `references/CHANGELOG.md`：日期 / 改了什么 / 依据哪个 RUN 的证据 / 谁确认；
+3. `SKILL.md` 同步 bump frontmatter 的 `version` 与 `last_updated`
+   （`.skill-meta/manifest.yaml` 的 `version` 一起改，别让两份版本号各说各话）；
+4. 改完**验一次明文**（这个仓库踩过信封坑）：
+   ```bash
+   f=SKILL.md; [ "$(stat -f %z "$f")" = "$(python3 -c "import os;print(os.path.getsize('$f'))")" ] && echo OK || echo 信封态
+   ```
+5. **回灌 + 自证**（2026-09-30 新增，本 skill 连红四次换来的）：
+   ```bash
+   rsync -a --delete kb/l7/skills/kb-l0-feishu/ ~/.dsh/skills/kb-l0-feishu/   # 源 → 装载位
+   kb/kbpy l7/scripts/skills_check.py                                         # 第 3 类必须为 0、exit=0
+   ```
+   **两个方向都要收口**：只改源不回灌装位、或只改装位不回灌源，都会当场变成一条第 3 类红
+   —— 这正是 2026-09-30 那次连红四次的形态（13:10 / 13:38 / 13:46 / 14:50）。
+   口径真源：`l7/registry/skills.yaml` :: `meta.single_writer_rule`。

@@ -1,0 +1,227 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""`pre_edit_backup.py` —— **改文件前的强制步骤**（批次14 · 0-6，用户裁定选「甲」）。
+
+## 为什么要有它（两次事故换来的）
+
+批次12、批次13 **连续两次**漏掉 pre-edit 备份：
+  · 批次12：`kb_ledger.py` / `l2_align_current.py` / `ledger-read-contract.yaml`
+    —— 改完才发现没备份，只能补 `.post-edit`。
+  · 批次13：同一批文件**重演**。
+靠「记住先备份」必然还会漏 —— 所以把它做成**机械步骤**，不靠纪律。
+
+## 为什么选「甲」（独立脚本）而不是「乙」（接入写闸）
+
+用户裁定的理由（我复核同意）：**写闸凭据只在 `kb_pipeline.py --via-skill` 路径生效**，
+而那两次编辑是**直接改文件**，根本走不到写闸 ⇒ 乙管不住真正的编辑路径。
+甲对**所有权改路径**都管用。
+
+## 用法（**同一命令内先备份再放行**）
+
+    python3 kb/l8/pre_edit_backup.py --note "批次14 改 l5_prep 守卫" \\
+        kb/.work/l5_prep.py kb/kb_ledger.py
+
+  · 成功 → 每个文件在备份目录下生成 `<basename>.pre-edit`（`shutil.copy2` 保留 mtime），
+    打印「文件 → 备份路径 → 两份 sha256 相同」，**退出码 0**。
+  · 任一文件备份失败 → **退出码非 0**，并打印「**拒绝后续写入**」。
+    ⇒ 调用方必须 `&&` 串联：备份失败则后续编辑命令**不会执行**。
+
+  例：`python3 kb/l8/pre_edit_backup.py F && <真正的编辑命令>`
+
+## 判据（本批要求）
+
+`--verify` 模式：给出机器可核清单 —— 每个文件的「现文件 sha256」与「pre-edit 备份 sha256」
+**必须相同**（即备份确实是改前状态），并报告**有没有出现 `.post-edit` 兜底**（应为 0 处）。
+
+## 备份目录
+
+默认 `kb/l7/_backups/batch14b-<YYYYMMDD-HHMM>/`（也可 `--dir` 指定）。
+目录名带批次与时间，便于人一眼看出这是哪一批、哪一刻的改前状态。
+"""
+import argparse
+import datetime
+import hashlib
+import os
+import shutil
+import sys
+
+WS = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+os.chdir(WS)
+
+DEFAULT_DIR = "kb/l7/_backups/batch14b-" + datetime.datetime.now().strftime("%Y%m%d-%H%M")
+SUFFIX = ".pre-edit"
+
+
+def sha256(p):
+    h = hashlib.sha256()
+    with open(p, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def do_backup(files, dest, note=None, quiet=False):
+    os.makedirs(dest, exist_ok=True)
+    rows, failed = [], []
+    for f in files:
+        if not os.path.isfile(f):
+            failed.append((f, "文件不存在"))
+            continue
+        dst = os.path.join(dest, os.path.basename(f) + SUFFIX)
+        try:
+            shutil.copy2(f, dst)
+            # ★ 批次18 实测修正：**basename 会碰撞** —— 本批一次备份里有两个 `SKILL.md`、
+            #   两个 `layer-playbook.md`，只按 basename 存会让 `--verify` 解析到**错误的现文件**
+            #   （实测：`SKILL.md` 被解析到 `kb/.work/kbcheck-home/...`、`layer-playbook.md` 被解析到
+            #    `kb/l7/skills/kb-recall/...`）⇒ 报出误导性的「已改/未改」。
+            #   修法：旁车记**库根相对路径**（不动备份文件名，免破坏既有备份的兼容）。
+            with open(dst + ".path", "w", encoding="utf-8") as _fh:
+                _fh.write(os.path.relpath(os.path.abspath(f), WS) + "\n")
+            a, b = sha256(f), sha256(dst)
+            rows.append({"file": f, "backup": dst, "sha256_src": a, "sha256_bak": b,
+                         "same": a == b})
+        except Exception as e:                                   # noqa: BLE001
+            failed.append((f, repr(e)))
+    if note:
+        with open(os.path.join(dest, "_NOTE.txt"), "a", encoding="utf-8") as fh:
+            fh.write("%s  %s\n" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), note))
+    if not quiet:
+        print("备份目录：%s" % dest)
+        for r in rows:
+            flag = "✓" if r["same"] else "✗ sha 不一致"
+            print("  %-46s → %s  %s  (%s)" % (r["file"], r["backup"],
+                                              r["sha256_bak"][:16], flag))
+        for f, why in failed:
+            print("  ❌ %s —— %s" % (f, why))
+    return rows, failed
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("files", nargs="*", help="要改的文件（相对库根）")
+    ap.add_argument("--dir", default=DEFAULT_DIR,
+                    help="备份目录。**相对库根**，例如 kb/l7/_backups/xxx；写成 l7/_backups/xxx 也行（本工具会自动补 kb/ 前缀）")
+    ap.add_argument("--note", default=None, help="写进 _NOTE.txt 的说明")
+    ap.add_argument("--verify", action="store_true",
+                    help="只核验：现文件与 pre-edit 备份 sha256 是否相同；并扫 .post-edit 兜底")
+    ap.add_argument("--scan-dir", default=None,
+                    help="--verify 时扫描哪个目录找 .post-edit（默认同 --dir）")
+    a = ap.parse_args()
+
+    # 批次17 · 0-3：`--dir` 两种写法都接上（原先只认「库根相对」，写 `l7/_backups/x` 会误报不存在）
+    def _norm_dir(p):
+        if not p:
+            return p
+        if os.path.isdir(p):
+            return p
+        if not p.startswith("kb/") and os.path.isdir(os.path.join("kb", p)):
+            return os.path.join("kb", p)
+        return p
+
+    a.dir = _norm_dir(a.dir)
+    a.scan_dir = _norm_dir(a.scan_dir)
+    if a.verify:
+        d = a.scan_dir or a.dir
+        if not os.path.isdir(d):
+            print("❌ 备份目录不存在：%s" % d)
+            return 2
+        names = sorted(os.listdir(d))
+        pre = [n for n in names if n.endswith(SUFFIX)]
+        post = [n for n in names if n.endswith(".post-edit")]
+        print("=== pre-edit 备份核验（%s）===" % d)
+        bad = 0
+        # ── 批次17 · 0-3：路径解析改成**按 kb/** 递归定位**，不再靠硬编码候选 ──────
+        # 病根（批次14/16 实测）：原实现只试 `kb/l7/registry` 与 `kb/l4/canonical` 两处，
+        #   于是 `l5.json` / `l5.jsonl` / `p0_patterns.jsonl` 三份**明明存在**却报
+        #   「找不到现文件」（它们实际在 `kb/l5/registry/`、`kb/l5/index/`、`kb/l5/`）。
+        #   假告警比没告警更坏 —— 会让人以为备份系统坏了。
+        _idx = None
+        def _find_orig(name, bakpath=None):
+            """优先用旁车 `.path` 里的**库根相对路径**；没有旁车才退回递归 basename 查找。
+
+            退回时会**如实报歧义**（同名多份）—— 不许静默挑一个，那正是本批踩到的坑。
+            """
+            nonlocal _idx
+            side = (bakpath or "") + ".path"
+            if side and os.path.isfile(side):
+                rel = open(side, encoding="utf-8").read().strip()
+                if os.path.isfile(rel):
+                    return rel, False
+            if os.path.isfile(name):
+                return name, False
+            if _idx is None:
+                _idx = {}
+                for root, _dirs, files in os.walk("kb"):
+                    if os.sep + "_backups" in root or os.sep + "_archive" in root:
+                        continue
+                    for fn in files:
+                        _idx.setdefault(fn, []).append(os.path.join(root, fn))
+            hits = _idx.get(name) or []
+            if len(hits) == 1:
+                return hits[0], False
+            if len(hits) > 1:
+                return None, True          # 歧义：同名多份，拒绝猜
+            return None, False
+
+        n_unchanged = n_changed = n_missing = 0
+        for n in pre:
+            orig = n[: -len(SUFFIX)]
+            bak = os.path.join(d, n)
+            found, ambiguous = _find_orig(orig, bak)
+            if ambiguous:
+                n_missing += 1
+                print("  ⚠️ %-40s **同名多份，拒绝猜**（缺 `.path` 旁车；旧备份无旁车时会出现）" % orig)
+                continue
+            if not found:
+                n_missing += 1
+                print("  ⚠️ %-44s 找不到现文件（可能已移动/删除）" % orig)
+                continue
+            same = sha256(found) == sha256(bak)
+            if same:
+                n_unchanged += 1
+                print("  ✓ 未被改   %-40s 现=%s 备=%s  (%s)"
+                      % (orig, sha256(found)[:16], sha256(bak)[:16], found))
+            else:
+                n_changed += 1
+                bad += 1
+                print("  ✗ 已改(正常) %-38s 现=%s 备=%s  (%s)"
+                      % (orig, sha256(found)[:16], sha256(bak)[:16], found))
+        print()
+        print("  pre-edit 份数：%d" % len(pre))
+        print("    ✓ 未被改：%d ｜ ✗ 已改(正常)：%d ｜ ⚠️ 找不到：%d"
+              % (n_unchanged, n_changed, n_missing))
+        print("    **.post-edit 兜底：%d 处**（应为 0）" % len(post))
+        if post:
+            for n in post:
+                print("      ⚠️ .post-edit 兜底：%s" % n)
+        # ── 三态判定（批次17 · 0-3）：把「已改」与「异常」分开报 ────────────────
+        # 「已改」是**备份起作用**的证据（备份 = 改前状态，文件被改过 ⇒ 两者本就该不同），
+        # **不是**失败。真正的失败只有两种：`.post-edit` 兜底 > 0，或备份数 = 0。
+        ok = (len(post) == 0 and len(pre) > 0)
+        if ok:
+            print("结论：✅ 通过 —— 每份都有真 pre-edit；%d 份被改过（正常，正是备份生效的证明）；"
+                  "%d 份未被改；0 处 .post-edit 兜底" % (n_changed, n_unchanged))
+            if n_missing:
+                print("      注：%d 份找不到现文件 —— 若确为已删/已移动则不影响通过" % n_missing)
+        else:
+            print("结论：❌ 未通过 —— %s"
+                  % ("存在 .post-edit 兜底" if post else "没有任何 pre-edit 备份"))
+        return 0 if ok else 1
+
+    if not a.files:
+        print("用法：python3 kb/l8/pre_edit_backup.py [--note ...] <文件...>")
+        print("     python3 kb/l8/pre_edit_backup.py --verify [--dir ...]")
+        return 2
+
+    rows, failed = do_backup(a.files, a.dir, note=a.note)
+    if failed:
+        print()
+        print("❌ 有 %d 个文件未能备份 ⇒ **拒绝后续写入**（备份失败即不得改文件）。" % len(failed))
+        return 1
+    print()
+    print("✅ %d 个文件已备份 ⇒ 可以安全改文件。" % len(rows))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

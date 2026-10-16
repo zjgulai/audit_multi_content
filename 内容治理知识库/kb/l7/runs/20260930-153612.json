@@ -1,0 +1,21 @@
+{
+ "run_id": "20260930-153612",
+ "at": "2026-09-30T15:36:12",
+ "source": "agent_manual",
+ "trigger": "按 kb-pipeline 的逐层调用契约改造供给链（主链 + L4 样板档位化）",
+ "skills": [
+  "kb-pipeline",
+  "kb-canonical-lookup",
+  "kb-check"
+ ],
+ "commands": [
+  "kb/kbpy l7/scripts/kb_pipeline.py --check",
+  "kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --all",
+  "kb/kbpy l7/scripts/skill_conformance.py"
+ ],
+ "products": [
+  "kb/l7/reports/20260930-1535-change-record.md"
+ ],
+ "verdict": "逐层 skill 绑定落地｜三闸门红0｜8/8 层闸门过｜零写｜L5/L6 未档位化为显式缺口",
+ "human_involved": true
+}

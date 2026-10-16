@@ -1,0 +1,128 @@
+{
+ "L0": {
+  "change_state": "no_new_input",
+  "change_state_detail": "落章显式记 `manifest_rows_delta=None`（对账/认领这一支不改 manifest） 且 `verdict=PASS` ⇒ 无行数变化",
+  "executed_at": 1790916636.468165,
+  "input_watermark": "l0/manifest.jsonl:7020:7003743",
+  "input_watermark_sources": [
+   "l0/manifest.jsonl"
+  ],
+  "note": "批次18 第0块：机制落地前跑的落章，补记三字段",
+  "output_watermark": "l0/manifest.jsonl:7020:7003743",
+  "provenance": "seeded_from_disk",
+  "provenance_note": "**补记，非观测**：`input_watermark` 记的是**此刻**水位，不是该次运行当时的水位 ⇒ **不构成当时上游是什么的证明**。`change_state` 由「产物 mtime vs 落章 mtime」现算得出（见 detail）。",
+  "run_id": "20261002-1500-l0-feishu-reconcile",
+  "run_record": "kb/l0/runs/20261002-1500-l0-feishu-reconcile.json"
+ },
+ "L1": {
+  "change_state": "no_new_input",
+  "change_state_detail": "落章 `manifest_dedup.appended=0` ⇒ 无追加（幂等）",
+  "executed_at": 1790916673.7477703,
+  "input_watermark": "l0/manifest.jsonl:7020:7003743",
+  "input_watermark_sources": [
+   "l0/manifest.jsonl"
+  ],
+  "note": "批次18 第0块：机制落地前跑的落章，补记三字段",
+  "output_watermark": "l1/index/l1.jsonl:14707:3901636|l1/manifest_l1.jsonl:6351:3549536",
+  "provenance": "seeded_from_disk",
+  "provenance_note": "**补记，非观测**：`input_watermark` 记的是**此刻**水位，不是该次运行当时的水位 ⇒ **不构成当时上游是什么的证明**。`change_state` 由「产物 mtime vs 落章 mtime」现算得出（见 detail）。",
+  "run_id": "20261002-1505",
+  "run_record": "kb/l1/runs/20261002-1505.json"
+ },
+ "L2": {
+  "change_state": "no_new_input",
+  "change_state_detail": "落章 `new_units=0` / `refilled=0` / `cov_before==cov_after=True` ⇒ 无新增单元（幂等）",
+  "executed_at": 1790918477.6488917,
+  "input_watermark": "l1/manifest_l1.jsonl:6351:3549536",
+  "input_watermark_sources": [
+   "l1/manifest_l1.jsonl"
+  ],
+  "note": "批次18 第0块：机制落地前跑的落章，补记三字段",
+  "output_watermark": "l2/manifest_l2.jsonl:2543:743588|l2/units.jsonl:12213:28352926",
+  "provenance": "seeded_from_disk",
+  "provenance_note": "**补记，非观测**：`input_watermark` 记的是**此刻**水位，不是该次运行当时的水位 ⇒ **不构成当时上游是什么的证明**。`change_state` 由「产物 mtime vs 落章 mtime」现算得出（见 detail）。",
+  "run_id": "20261002-1330",
+  "run_record": "kb/l2/runs/20261002-1330.json"
+ },
+ "L3": {
+  "change_state": "produced_changes",
+  "change_state_detail": "落章 `rules=509`（本层产出条数 >0 ⇒ 这一跑产出了规则）",
+  "executed_at": 1790916699.6303341,
+  "input_watermark": "l2/manifest_l2.jsonl:2543:743588",
+  "input_watermark_sources": [
+   "l2/manifest_l2.jsonl"
+  ],
+  "note": "批次18 第0块：机制落地前跑的落章，补记三字段",
+  "output_watermark": "l3/candidates/rules.jsonl:509:1387741|l3/manifest_l3.jsonl:13506:3669544|l3/rejected.jsonl:10661:6230994",
+  "provenance": "seeded_from_disk",
+  "provenance_note": "**补记，非观测**：`input_watermark` 记的是**此刻**水位，不是该次运行当时的水位 ⇒ **不构成当时上游是什么的证明**。`change_state` 由「产物 mtime vs 落章 mtime」现算得出（见 detail）。",
+  "run_id": "20261002-1515",
+  "run_record": "kb/l3/runs/20261002-1515.json"
+ },
+ "L4": {
+  "change_state": "no_new_input",
+  "executed_at": 1790918565.987774,
+  "exit_code": 0,
+  "input_unchanged": true,
+  "input_watermark": "l3/manifest_l3.jsonl:13506:3669544",
+  "input_watermark_after_run": "l3/manifest_l3.jsonl:13506:3669544",
+  "input_watermark_sources": [
+   "l3/manifest_l3.jsonl"
+  ],
+  "measured_at": 1790918565.987774,
+  "note": "",
+  "output_changed": false,
+  "output_watermark": "l4/canonical/wording_entry.jsonl:56:493833",
+  "provenance": "measured",
+  "run_id": "20261002-1330-L4"
+ },
+ "L5": {
+  "change_state": "no_new_input",
+  "executed_at": 1790918570.624518,
+  "exit_code": 0,
+  "input_unchanged": true,
+  "input_watermark": "l4/registry/l4.json:3591:132382",
+  "input_watermark_after_run": "l4/registry/l4.json:3591:132382",
+  "input_watermark_sources": [
+   "l4/registry/l4.json"
+  ],
+  "measured_at": 1790918570.624518,
+  "note": "",
+  "output_changed": false,
+  "output_watermark": "l5/p0_patterns.jsonl:7:93848",
+  "provenance": "measured",
+  "run_id": "20261002-1330-L5"
+ },
+ "L6": {
+  "change_state": "no_new_input",
+  "executed_at": 1790918578.546767,
+  "exit_code": 0,
+  "input_unchanged": true,
+  "input_watermark": "l5/registry/l5.json:323:13191",
+  "input_watermark_after_run": "l5/registry/l5.json:323:13191",
+  "input_watermark_sources": [
+   "l5/registry/l5.json"
+  ],
+  "measured_at": 1790918578.546767,
+  "note": "",
+  "output_changed": false,
+  "output_watermark": "l6/selftest.json:2735:90735",
+  "provenance": "measured",
+  "run_id": "20261002-1330-L6"
+ },
+ "L7": {
+  "change_state": "produced_changes",
+  "change_state_detail": "**跨层闸门层**：无 data 产物；本次执行事实由 run 记账 `kb/l7/runs/20261002-1321.json` 证明",
+  "executed_at": 1790918491.1105459,
+  "input_watermark": "l6/registry/l6.json:541:15020",
+  "input_watermark_sources": [
+   "l6/registry/l6.json"
+  ],
+  "note": "批次18 第0块：机制落地前跑的落章，补记三字段",
+  "output_watermark": "",
+  "provenance": "seeded_from_disk",
+  "provenance_note": "**补记，非观测**：`input_watermark` 记的是**此刻**水位，不是该次运行当时的水位 ⇒ **不构成当时上游是什么的证明**。`change_state` 由「产物 mtime vs 落章 mtime」现算得出（见 detail）。",
+  "run_id": "20261002-1321",
+  "run_record": "kb/l7/runs/20261002-1321.json"
+ }
+}

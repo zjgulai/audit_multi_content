@@ -1,0 +1,179 @@
+# l0-url-probe-known-defect.yaml —— L0 外链核验里**判据自己 fail-open** 的一处（**已修，非豁免**）
+#
+# ★★ 先读这一句：**今天没有任何闸门读本文件**，它也不改变任何闸门语义。
+#   建它的目的与姊妹件（l3-/l4-/l5-known-drift.yaml）**不同**：
+#     那几份登记的是「闸门报红、但红的是**判据过期**」；
+#     本份登记的是「**判据自己把失败读成了成功**」——方向相反，是**假绿**那一类。
+#   所以本份的结论不是「这一项不算」，而是「**这一项已经修好，并配了反向对照**」。
+#
+# ★ 与 workflow-check-known-drift.yaml 的关系：那份文件头写着「今天没有任何闸门读本文件」，
+#   本份**同款**（`read_by_gate: none`）。区别：那份是**分类留痕**，本份是**结案留痕**。
+#
+# ★ 边界（照抄，别外推）：
+#   * 本件只讲**一处**判据：空正文判 same。**不**涵盖：
+#       · `url_change_triage.py` 未接进日更（65 条差异分诊不落地）—— 那是**接线**问题，另一轮（②）
+#       · 403 反爬页被当正文（`www.ftc.gov` 那条 331 字的申诉页）—— 需另定口径，本轮**故意没碰**
+#       · `hapa8fkuicz.feishu.cn` 是外部租户、需 API 读取 —— 本轮**未实测**，只是域名形态推测
+#   * 本件**不改**任何字段名、**不动**日更摘要与输出格式、**不写** L0 台账。
+
+meta:
+  file: kb/l7/registry/l0-url-probe-known-defect.yaml
+  created_at: "2026-10-13"
+  owner: 刘华丽
+  defect_class: 判据 fail-open（**假绿**：取不到被记成一致）
+  site:
+    script: kb/l8/verify_l0_urls.py
+    function: judge_verdict()          # 2026-10-13 起为唯一判据本体（原先是两处内联三元式）
+    line_before_fix: 内联三元式，裸 HTTP 分支（原文逐字：`"same" if row.get("sha256") and h == row["sha256"] else …`）
+  read_by_gate: none
+  selfcheck_at_creation: "`--selftest` 10/10（含 ①–④ 正例与 ⑤–⑧ 反向对照，⑨ 为「把缺陷写法喂同一组输入」的变异自证）"
+
+# ── 病灶：逐字、可复现 ──────────────────────────────────────────────────────
+defect:
+  what: >
+    `judge_verdict` 的**旧写法**先比 sha、后问「有没有正文」。而空串的 sha256
+    恒为 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`；
+    若台账那一行的 sha 也是**从空串算出来的**（同一台机器、同一条抓取路径写进去的），
+    两个 sha **必然相等** ⇒ 判 `same`。于是「我抓不到」被记成「内容没变」。
+  reproduction:
+    command: "python3 kb/l8/verify_l0_urls.py daily-20261013-0330"
+    artifact: kb/l8/runs/daily-20261013-0330-L0-l0-url-verify.json
+    reading_before_fix:
+      checked: 145
+      by_verdict: {same: 78, recomputed_differ: 65, unreachable: 2}
+      empty_sha_rows: 38          # l0_sha256 == e3b0c442…b7852b855，**全部记在 same 里**
+      unique_empty_sha: 1         # 38 行同值 —— 就是空串的哈希，自证
+      by_domain: {hapa8fkuicz.feishu.cn: 17, momcozy-in.feishu.cn: 21}
+      chars: 38/38 为 0，text_head 空
+  why_it_matters: >
+    L0 的 `source_sha256` 是**整条溯源链第四段的锚**（报告里每条依据都要给 anchor + source_sha256）。
+    锚若是空串的哈希，下游「sha 与 L0 记录值比对一致」这句话就**没有内容可托底**；
+    而摘要把这 38 条算进「已对齐」⇒ 人看到的是「链接都对齐了」。
+
+# ── 修法：最小改动，只改判读 ────────────────────────────────────────────────
+fix:
+  rule: 正文（**先 strip**）长度 ≤ `MIN_BODY_CHARS` ⇒ `probe_empty`，**绝不判 same**。
+  order: 先问「有没有拿到正文」，再问「像不像」—— 顺序调回来就是本缺陷本身。
+  threshold: "MIN_BODY_CHARS = 0（**只钉空串**）"
+  why_zero: >
+    故意**不**顺手把「短正文」也判掉：假红比漏报更坏。同文件里已有先例教训 ——
+    假 Chrome UA 让 fda.gov 整站 404，8 条监管依据被误报「不可达」。
+    要收敛「403 反爬页算不算正文」，必须**单独一轮**定口径（见 known_residuals）。
+  observable: >
+    产物里这 38 条 `verdict` 由 `same` 变 `probe_empty`，并带
+    `fail_class: probe_empty`、`why`（写明 chars 与 HTTP 状态）⇒ 进入 `fail_classes` 分档。
+  scope_limit_20261013: >
+    ★★ **只改裸 HTTP 分支**（台账口径 ≠ `url_text_rendered_v1` 的那一支）。
+    渲染分支取不到正文**原本**就是 `unreachable` + `fail_class=render_empty`（fail-closed，没病）
+    ⇒ **形状一个字没动**。
+    实测教训（我犯的，留痕）：第一版把两条桶统一成 `probe_empty`，实测**多出 10 条**
+    （渲染件的 `render_empty` 从 `unreachable` 挪了桶）—— 那不是本缺陷、却改了失败分类的分布，
+    与「不许动输出格式」直接冲突 ⇒ **已收回**，渲染分支恢复原判。
+    ⇒ 结论：**改一个桶别顺手统一另一个桶**，哪怕两边语义看起来一样。
+  not_touched: >
+    · 字段名一个没改（`verdict` / `l0_sha256` / `feishu_sha256` / `chars` / `text_head` 原样）
+    · L0 台账**不写**（日更里本脚本强制只读，见脚本内 2026-10-10 那段：写台账会顶陈旧、自激到小时级日更）
+    · 日更摘要格式**不动**：`kb/l8/daily_digest.py::_row_state` 的四态派生读的是**台账**的
+      `sha256_state`/`status`（这 38 条是 `full`/`updated` ⇒ 仍是「已对齐」），**不读产物 verdict**
+      ⇒ 摘要那两行**逐字不变**（这是"不许动输出格式"的落点）
+    · 任何闸门清单（`ci/run_gates.py`）**未加、未删**
+
+# ── 自证（判据不许恒绿，也不许恒红）────────────────────────────────────────
+selftest:
+  command: "python3 kb/l8/verify_l0_urls.py --selftest"
+  result: "10/10（2026-10-13 实测）"
+  cases:
+    - "①空正文 × 台账空串 sha ⇒ probe_empty —— 本缺陷的病灶，逐字真实形状"
+    - "②空正文 × 台账真实 sha ⇒ probe_empty"
+    - "③空正文 × 台账无 sha ⇒ probe_empty（不是 first_hash）"
+    - "④纯空白正文 ⇒ probe_empty（★ 这一条**第一次跑是红的**：判据漏了 strip，见 defects_found_by_selftest）"
+    - "⑤正文 ＋ 摘要相等 ⇒ same（正常路径没被误伤）"
+    - "⑥正文 ＋ 摘要不同 ⇒ recomputed_differ"
+    - "⑦正文 ＋ 台账无 sha ⇒ first_hash"
+    - "⑧含换行的正文 ⇒ same"
+    - "⑨★变异自证：把**缺陷写法**喂同一组输入 ⇒ 必须判 same（证明 ① 不是恒真）"
+    - "⑩阈值可调但默认 0：min_chars=5 时 3 字正文 ⇒ probe_empty"
+  defects_found_by_selftest: >
+    ④ 第一次跑**红了**（纯空白 `"   \n\t  "` 长度 6 > 阈值 0 ⇒ 漏过）。
+    修的是**判据本体**（`judge_verdict` 里先 `.strip()`），**不是**改测试去迁就代码。
+    这条本身说明自证有用：它抓出了一个我第一版没想到的形状。
+
+# ── 残余：本轮**没做**的，摆出来不藏 ────────────────────────────────────────
+known_residuals:
+  ledger_rows_unchanged:
+    what: 台账里那 38 行仍是 `sha256_state=full` / `status=updated` / sha=空串
+    why: |
+      本脚本在日更里**强制只读**；改正台账要**人工**跑 `--apply`（白天，像 2026-10-09 那样）。
+      本轮**没跑** —— 依据：写 L0 台账会推进水位，而 L1 在同一趟里已落章 ⇒ L1 恒判陈旧
+      ⇒ 就绪巡检的受控自愈每小时踢一次日更 ⇒ **小时级日更 + 小时级推送**（2026-10-10 实发事故）。
+    consequence: 摘要那两行**本轮不变**（符合「不许动输出格式」）；台账层面的「已对齐」要等人工 `--apply` 那轮才会转
+  ftc_403_body:
+    what: "`www.ftc.gov/…/health-products-compliance-guidance` 取回的是 403 申诉页（331 字，非空）⇒ 本判据**管不住**"
+    evidence: "库内该 key 有 16 行观测，末行状态 `blocked_by_ua_policy`；实测 HTTP 403、正文为 Apologies 申诉页"
+    next: 需单独定「反爬页算不算正文」的口径（阈值？状态码白名单？），**不许**顺手塞进本轮
+  triage_not_wired:
+    what: "65 条 `recomputed_differ` 只出读数、不落地：`url_change_triage.py` 不在日更 engine 清单里"
+    verdict: "**已知**，属第 ② 步（用户 2026-10-13 定序：先①后②）"
+  hapa_tenant:
+    what: "`hapa8fkuicz.feishu.cn` 17 条为何取不到 —— 推测是**另一个租户、需 API 读取**，**未实测**"
+    next: "要坐实得跑一次 API 读取探针；**不许**把推测当结论写进任何报告"
+
+# ── 真库实测（**核心读数用键集合算，不看计数**；理由见 measurement_hygiene）─────────
+live_measurement_20261013:
+  baseline:
+    artifact: kb/l8/runs/daily-20261013-0330-L0-l0-url-verify.json
+    sha256: 6dd96ffadf549a49ee0f0c6f74eeacb4e5b6fff160882b30185c4743bc44f20c
+    by_verdict: {same: 78, recomputed_differ: 65, unreachable: 2}
+    empty_sha_rows_in_same: 38
+  after_fix:
+    artifact: kb/l8/runs/vfyfix-20261013-post-l0-url-verify.json
+    by_verdict: {same: 41, recomputed_differ: 60, probe_empty: 38, unreachable: 6}
+  core_reading:
+    claim: 改动前那 38 条空 sha 行，**38/38 全部**转为 `probe_empty`，零遗漏
+    how_measured: 按 **resource_key 键集合**比对（不是按计数），脚本化、可复跑
+  collateral:
+    what: 另有 **5 条**判决变了，全部落在 `url_text_rendered_v1` 渲染件上
+    detail: 4 条 `recomputed_differ → unreachable`（`momcozy.com/blogs/**` 本轮渲染取不到正文）
+      ＋ 1 条 `recomputed_differ → same`
+    why_not_my_change: 渲染件的判决**天然抖动** —— 同一份代码连跑两次，`momcozy.com` 那几条
+      会因无头渲染是否拿到正文而在 same／differ／unreachable 之间移动。
+      ⇒ 这也是**为什么核心读数必须按键集合算**：计数差（65→60、78→41）里混着抖动，不能当证据。
+  not_measured:
+    - 这 38 条对应的 L0 台账行**未改**（日更里本脚本强制只读）⇒ 摘要那两行本轮逐字不变
+    - 台账 sha 未变，实证：`kb/l0/manifest.jsonl` sha256 前后同为
+      `e09589ac948dd02e5c35fca1281c432be1ed7f631abd0077d1eac6619238acdd`
+
+# ── 测量过程本身的教训（我犯的，两条都留痕）────────────────────────────────
+measurement_hygiene:
+  do_not_trust_counts:
+    what: 不要拿「判决计数」当证据
+    why: 渲染件抖动会污染计数（见 collateral）；核心结论必须**按 key 集合**算差集
+  overwrote_canonical_artifact:
+    what: 第一次"验证跑"用了**与日更同名**的 RUN（`daily-20261013-0330`），
+      产物直接写回 canonical 路径
+    outcome: 事后核对**逐字节相同**（sha `6dd96ffa…`）⇒ **无实际损失**；
+      但当时我并不知道这一点，一度在对话里把对照结论说错了（自认假绿）
+    lesson: 验证跑**一律用独立 RUN 名**，不许复用日更 RUN（本件的 after_fix 用的就是 `vfyfix-*`）
+  ran_before_edit:
+    what: 第一次"验证跑」是在**代码改动之前**起的（后台排队），所以它必然复现基线
+    outcome: 它给出的 `same 78` 被误读成「修复无效」，实际是「跑的还是旧代码」
+    lesson: 起长任务前先确认**改动的落盘时刻**早于进程启动时刻
+  unified_two_buckets:
+    what: 第一版把渲染分支的 `render_empty` 也并进 `probe_empty`
+    outcome: 与「不许动输出格式」冲突 ⇒ **已收回**（见 fix.scope_limit_20261013）
+    lesson: 改一个桶，别顺手统一看起来一样的另一个桶
+
+# ── 工作流影响：改完必须自己量一遍（Owner 2026-10-10 硬规矩）────────────────
+workflow_impact_measured:
+  workflow_smoke: "rc=0（改动前后各跑一次，结论行逐字相同：`结论：✅ 契约齐`）"
+  gates_wiring: "未增未删（`ci/run_gates.py` 一个字未动）"
+  digest_format: "未动。**用代码验过**：`kb/l8/daily_digest.py:244-246` 明写
+    `v, code = _row_state(r)` / `if v is None: v = 已对齐`，而这 38 条的台账形状（`full`/`updated`）
+    返回 `(None, None)` —— 该文件自证 ③g2 正是钉这一形状（`_row_state(_full) == (None, None)`）。
+    ⇒ 它们仍渲染「已对齐」"
+  related_gates_ab:
+    note: 另有两条判据本来就红，**A/B 证明与本次改动无关**（用「改动前副本」与「改动后」各跑一次，
+      退出码与逐行输出**完全相同**）
+    check_external_standard_supply: "rc=3（两条：product_desc 不可依据 / E3 发号登记过期）—— 改前改后同"
+    l3_external_supply: "rc=4（真库产物未重建）—— 改前改后同"
+  selftests_after: "`verify_l0_urls.py --selftest` 10/10 ｜ `daily_digest.py --selftest` 通过 32 / 失败 0"

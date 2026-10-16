@@ -1,0 +1,18 @@
+========================================================================
+门③ 静默忽略的 50 行（kb-* 供给/查询链）—— 期望取 routes.yaml 的 to
+========================================================================
+成员                         routes.yaml 说谁接                    实际接走命中
+  kb-canonical-lookup      条款号 / 定稿状态查询                     5/5 条
+  kb-check                 体检 / 闸门                          5/5 条
+  kb-content-review        某条判定的依据                          5/5 条
+  kb-l0-feishu             只看 L0                            5/5 条
+  kb-manage                家族管理 / 注册表 / 路由 / 生命周期           4/5 条
+  kb-p0-check              P0 判定查询                          5/5 条
+  kb-pipeline              全链同步 / 整条链路                      5/5 条
+  kb-recall                召回 / 检索                          5/5 条
+  kb-repair                不过就修                             5/5 条
+  kb-review                单条内容能不能用（专项归属不明 / 跨模态）           5/5 条
+
+总计：49/50 条三轮全对
+不一致： [('kb-manage-4', 'kb-manage', ['kb-manage', 'kb-manage', 'kb-pipeline'])]
+这 10 个成员里，routes.yaml 没有任何 route 指向的： 无

@@ -1,0 +1,66 @@
+{
+ "run_id": "20261002-0630",
+ "at": "2026-10-02T06:30:05",
+ "source": "pipeline_sync",
+ "trigger": "--sync --via-skill L0",
+ "skills": [
+  "kb-pipeline",
+  "kb-l0-feishu"
+ ],
+ "commands": [
+  "kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L0 --run 20261002-0630 --invoked kb-l0-feishu --skill-session L0=kb-layer-L0-kb-l0-feishu"
+ ],
+ "products": [
+  "kb/l0/runs/20261002-0630-l0-feishu-reconcile.json"
+ ],
+ "verdict": "全走完（预演 · 未落盘 · 非执行证据）",
+ "human_involved": true,
+ "extra": {
+  "via_skill": true,
+  "skill_invoked_by": "agent",
+  "skill_evidence": "agent_reported",
+  "layers": [
+   "L0"
+  ],
+  "layer_skills": [
+   "kb-l0-feishu"
+  ],
+  "declared_layer_skills": {
+   "L0": [
+    "kb-l0-feishu"
+   ]
+  },
+  "layer_skills_uniq": [
+   "kb-l0-feishu"
+  ],
+  "invoked_reported": [
+   "kb-l0-feishu"
+  ],
+  "skill_sessions": {
+   "L0": "kb-layer-L0-kb-l0-feishu"
+  },
+  "human_involved_basis": "--invoked 已上报（agent 按层 skill 走过）",
+  "verdict_basis": "层侧落章全是预演台账 → 未落盘",
+  "layer_stamps_applied": [],
+  "layer_stamps_dry": [],
+  "layer_stamps_unknown": [
+   "L0:kb/l0/runs/20261002-0630-l0-feishu-reconcile.json"
+  ],
+  "write_gate": {
+   "id": "batch9-20261002",
+   "resolved": true,
+   "layers_authorized": [
+    "L0",
+    "L1",
+    "L2",
+    "L3",
+    "L4",
+    "L5",
+    "L6"
+   ],
+   "unauthorized_layers": [],
+   "readonly_declared": [],
+   "msg": "凭据命中 id=batch9-20261002（authorized_by=用户（批次9 任务书 §0 原文）, at=2026-10-02），覆盖层=['L0', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6']"
+  }
+ }
+}

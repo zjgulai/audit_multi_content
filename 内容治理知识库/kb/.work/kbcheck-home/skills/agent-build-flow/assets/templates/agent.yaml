@@ -1,0 +1,39 @@
+# 十字段契约模板。字段含义与映射规则见 ../../references/spec-to-contract.md
+# 生成前先跑：python3 scripts/render-contract.py spec.md
+# 校验：python3 scripts/check-flow.py <项目目录>
+
+name: <kebab-case>            # 必填，kebab-case
+version: "0.1.0"              # 语义化版本
+interface: cli                # cli | http | sdk
+run: python3 agent.py         # 必须真的可执行
+input: stdin-json             # 统一输入协议
+profile: general              # general | code | web-ops —— 决定维度权重
+task_types:                   # 能承接的维度（说"怎么答"）
+  - fact_qa
+  - reasoning
+  - multi_turn
+  - instruction
+  - rag
+  - safety
+deliverables:                 # 交出去的东西（说"交什么"）—— len() = 能干几件活
+  - id: <kebab-id>
+    name: <业务方看得懂的名字>
+    format: text              # text | markdown | json | file
+    fields:
+      - <字段1>
+      - <字段2>
+    acceptance: <用业务语言写；禁止"返回 200""调用 xx 工具"这类实现细节>
+tools:                        # 工具清单（出题资格判定：case.tool_required ⊆ tools）
+  - name: <tool_name>
+    description: <这个工具干什么>
+    schema: {}
+env:                          # 密钥一律 ${managed} 注入，禁止字面量（硬门禁）
+  API_KEY: ${managed}
+
+# ---- 交付前自检 ----
+# [ ] 十字段齐全
+# [ ] len(deliverables) 与"能干几件活"一致；工具/skill/约束/变体没被算成活
+# [ ] 每件活都能写出一条工作流（输入 → 步骤 → 交付物）
+# [ ] 每条 acceptance 念给需求方听，他能判断过没过
+# [ ] env 无字面量密钥
+# [ ] run 命令可执行

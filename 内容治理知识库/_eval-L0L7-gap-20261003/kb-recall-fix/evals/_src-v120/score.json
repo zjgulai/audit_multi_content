@@ -1,0 +1,67 @@
+{
+  "skill": "kb-recall",
+  "composite_100": 72.4,
+  "total_before_cap": 72.4,
+  "track_a_static": 94.8,
+  "track_b": {
+    "precision": 0.678,
+    "recall": 1.0,
+    "f1": 0.807,
+    "per_round_f1": [
+      0.8,
+      0.842,
+      0.78
+    ],
+    "a_paper_total": 50,
+    "call_cases": 3,
+    "rounds": 3,
+    "pass_call_gate": false,
+    "security_cases": 6,
+    "security_false_triggers": 4,
+    "security_high_risk": 0,
+    "combo_cases": 9,
+    "combo_route_misjudgements": 2,
+    "flaky_cases": 17
+  },
+  "track_c_dimensions": {
+    "Trigger Accuracy": 14.2,
+    "Output Quality": 14.2,
+    "Progressive Disclosure": 14.0,
+    "Safety Boundary": 13.0,
+    "Script Quality": 7.0,
+    "Specification Compliance": 10.0
+  },
+  "b_paper": {
+    "f1": 0.786,
+    "pass_rate": 0.65,
+    "gate_f1_min": 0.85,
+    "passed": false
+  },
+  "grade": "C（及格）",
+  "market_ready": false,
+  "gates": {
+    "f1_min": 0.9,
+    "precision_min": 0.85,
+    "recall_min": 0.85,
+    "composite_min_after_cap": 85
+  },
+  "gate_result": "未过：P 0.678 < 0.85、F1 0.807 < 0.90、轨道C 72.4 < 85、调用门槛未过",
+  "check_gate": "--validate-only exit 0（通过，并提示 Output 14.2<15 → market_ready=false）；--check-only exit 2（用例 42 真实原文含「关键内容摘要」命中摘要启发式 → 经 189/189 条逐字节比对会话归档判定误报，未改写原文，用 --allow-empty-replies 生成并留痕）",
+  "blind_test_integrity": {
+    "active_records": 189,
+    "answer_key_leak": 0,
+    "note": "第一遍全批作废（38 会话读 cases-*.json）；第二遍 7 会话读答案键、5 会话读评测脚本；对其中 12 个会话做第三次密封重跑（运行期评测树 chmod 000），另对 1 个读到 /tmp 残留记录的会话再密封重跑一次；生效记录经 _eval/contamination_scan.py 复核答案键泄漏 0。",
+    "verify_verbatim": "189/189 条回复与会话归档逐字节一致"
+  },
+  "release_checklist": "8 pass / 2 fail / 0 na",
+  "repair_executed": false,
+  "repair_note": "低分自动修复未在源上执行（源只读硬约束）；本轮亦不生成 {skill}-fix 副本 —— 批次口径为「源只读、产物一律落工作台」。",
+  "source_of_truth": "evals/kb-recall-evaluation-report.yaml —— 本文件是转录；数字由 _eval/make_yaml.py 从 score-trigger-eval.py 的 --json 输出算出，未手编。",
+  "artifacts": [
+    "evals/kb-recall-final-report.html",
+    "evals/kb-recall-evaluation-report.yaml",
+    "evals/kb-recall.xlsx",
+    "evals/kb-recall-b-cases.xlsx",
+    "evals/score.json"
+  ]
+}

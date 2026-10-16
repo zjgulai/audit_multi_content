@@ -1,0 +1,24 @@
+# L0 范围冻结（batch3）外部调用台账  run_id=20260924-1000  scanner_version=0.6
+# 性质：read=只读；local=本地计算（哈希/索引重建/格式转换）
+# 本批对源侧（飞书）未做任何写操作：未改内容、字段、状态、权限，未建标记字段，未改任何视图或筛选条件。
+# 筛选口径（registry.filter）是 DSH 本地 L0 的配置，不是源侧视图筛选。
+# 全部外部调用均为读；明细如下。
+#
+时间              调用                                          性质      对象 / 说明
+20260924-1000   base +table-list                            read    GnRZbIuXraCzf0sGr2UcmZ62nfc —— 入口 Base 表清单：4 张表
+20260924-1000   base +table-list                            read    Lk3Qb8y2QaVyZns6gprcVNE9nA0 —— 广告文案风控库 表清单：4 张表
+20260924-1000   base +table-list                            read    N2qkb2YxuatqGLsa4U4cFQxgnCe —— 外部资料库 表清单：1 张表
+20260924-1000   base +table-list                            read    SKkkbdZi9aRuMzs7ob0cpSYHnQg —— 内容公式与专家修订库 表清单：2 张表
+20260924-1000   base +field-list                            read    tblMGtPfe8ZUsEdP 材料收集 —— 8 字段 schema（含「材料审核状态」选项枚举）
+20260924-1000   base +field-list                            read    tblVdl0jdK9G4ld3 内容公式（仅供参考） —— 2 字段 schema
+20260924-1000   base +record-list                           read    材料收集（tblMGtPfe8ZUsEdP） —— 32 条记录全字段（不按视图、不加视图筛选），has_more=false
+20260924-1000   base +record-list                           read    内容公式（仅供参考）（tblVdl0jdK9G4ld3） —— 7 条记录全字段，has_more=false
+20260924-1000   base +record-list                           read    正面和负面样本（tbld8qE92YaY38Yz） —— 201 条记录 id（仅用于源侧漂移核对，未登记）
+20260924-1000   wiki +node-get                              read    EL1nw9zdyinX2iklXfLco216niM —— 新增纳入记录 recvvg2wL2qE3K 的材料链接节点（docx）
+20260924-1000   docs +fetch                                 read    wiki/EL1nw9zdyinX2iklXfLco216niM —— 取正文并算 sha256(doc_text)
+20260924-1000   docs +fetch                                 read    wiki/QX0Yw2neriOdA3k1giBciQDsn2c —— 指纹规范化口径复核：复算旧资源 sha256，与台账一致
+20260924-1000   HTTP GET                                    read    https://support.momcozy.com/ —— 新增纳入记录 recvw2dyVUVWxg 的材料链接
+20260924-1000   本地只读                                        read    kb/l0/**、kb/l2/**、kb/.work/** —— 台账 / 记录 / 边 / registry / 缓存，无写操作
+#
+# 写操作数：0。本地计算（sha256 / index 重建 / 文件移动）落在 kb/ 内，不触及源侧。
+# 读取失败/无权限：0（本批全部调用 exit=0；既有 6 条 no_permission 资源为历史状态，见报告第 9 节）。

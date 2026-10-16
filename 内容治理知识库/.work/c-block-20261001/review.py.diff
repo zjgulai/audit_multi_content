@@ -1,0 +1,351 @@
+--- kb/l7/_backups/batch6-20261001-1940/kb_l7_skills_kb-content-review_scripts_review.py	2026-10-01 10:56:39
++++ kb/l7/skills/kb-content-review/scripts/review.py	2026-10-01 19:48:17
+@@ -880,6 +880,17 @@
+     fs = result["findings"]
+     L = [f"# 内容审查完整问题清单（run_id {run_id}）", "",
+          f"结论：**{result['state']}**｜问题数：{len(fs)}｜生成时间：{time.strftime('%Y-%m-%d %H:%M:%S')}", ""]
++    # ── 接线（2026-10-01 · C 块）：版本绑定 ────────────────────────────────
++    # 「审查报告与记忆」SKILL.md :17 要求每份报告绑 review_id + content hash + content version
++    # + agent version + rule version + knowledge version。改之前这份报告**一个版本号都没有**。
++    # 这里只补一张绑定表，不动结论、不动问题清单里的任何一行。
++    _vb = version_binding(result.get("content") or "", reg)
++    L += ["## 版本绑定", "",
++          f"- review_id：`{run_id}`",
++          f"- content hash（= content version）：`{_vb['content_hash']}`",
++          f"- agent version：`{_vb['agent_version']}`",
++          f"- rule version：`{_vb['rule_version']}`",
++          f"- knowledge version：`{_vb['knowledge_version']}`", ""]
+     if result.get("content"):
+         L += ["## 送审内容", "", "```", result["content"][:2000], "```", ""]
+     L += ["## 问题清单", ""]
+@@ -931,8 +942,304 @@
+     # （实测 `Expecting value: line 1 column 2`，因为日志占掉了第 1 行）。
+     print(f"[review] 报告落盘通道：{channel} → {path}", file=sys.stderr)
+     return os.path.relpath(path, ROOT)
++
++
++# ══ 接线（2026-10-01 · C 块）：「报告与记忆」这一跳 ══════════════════════════
++# 手册 §五-1 记的断点：「报告与记忆这一跳（审查报告与记忆）没接：结论目前落在
++# review.py 的报告里，没走它的模板/存档契约。」被接的另一头是
++# `kb/l7/review-engine/core/report_memory.py`（该 SKILL.md :15 明写用它渲染）。
++#
++# ★ 本段**只做接线**：把本脚本已经算出的结论与依据**改名搬过去**，不重算任何东西。
++#   `state` / `findings[].severity` / `layer` / `confidence` 全部原样；
++#   这里不合成全局置信度数值、不改三态、不调用 review_engine.decide()（那边一个字没动）。
++REPORT_MEMORY_REL = ("l7", "review-engine", "core", "report_memory.py")
++SKILL_MD_REL = ("l7", "skills", "kb-content-review", "SKILL.md")
++
++#: 契约要的 next_action —— 逐字取自 kb/l7/output_template.md「尾部动作」四行，不是新判定。
++_NEXT_ACTION = {
++    "PASS": "转 sign-off 责任人确认送审版本与发布版本一致",
++    "REVIEW": "建议转复核责任人复核。",
++    "BLOCK": "请修改后重新提交。",
++    "拒答": "补齐证据后重新提交。",
++}
++
++
++def _load_report_memory():
++    """按解析出的 ROOT 动态加载报告渲染器，返回 (module, path)。
++
++    加载不到**只警告、不让评审失败** —— 报告是产物不是前置（口径同下面的 _write_findings_cache）。
++    """
++    import importlib.util
++    p = os.path.join(ROOT, *REPORT_MEMORY_REL)
++    try:
++        spec = importlib.util.spec_from_file_location("report_memory", p)
++        mod = importlib.util.module_from_spec(spec)
++        spec.loader.exec_module(mod)
++        return mod, p
++    except Exception as e:                      # noqa: BLE001
++        print("[warn] report_memory 没加载上（%s）：%r" % (p, e), file=sys.stderr)
++        return None, p
++
++
++def _read_json_soft(path):
++    try:
++        return json.load(open(path, encoding="utf-8"))
++    except (OSError, ValueError):
++        return {}
++
++
++def _sha256_file(path):
++    try:
++        h = hashlib.sha256()
++        with open(path, "rb") as fh:
++            for chunk in iter(lambda: fh.read(1 << 20), b""):
++                h.update(chunk)
++        return h.hexdigest()
++    except OSError:
++        return None
++
++
++def _skill_version():
++    """读本 skill SKILL.md frontmatter 的 version —— 版本绑定的真源，不硬编码。"""
++    p = os.path.join(ROOT, *SKILL_MD_REL)
++    try:
++        with open(p, encoding="utf-8") as fh:
++            first = fh.readline()
++            if first.strip() != "---":
++                return None
++            for line in fh:
++                if line.strip() == "---":
++                    break
++                if line.startswith("version:"):
++                    return line.split(":", 1)[1].strip().strip('"').strip("'")
++    except OSError:
++        return None
++    return None
++
++
++def version_binding(text, reg):
++    """版本绑定：钉死「这份结论是对着哪一版内容 / 哪一版规则 / 哪一版库」。
++
++    契约要求（`审查报告与记忆/SKILL.md` :17）：review_id + content hash + content version
++    + agent version + rule version + knowledge version，六项全带。
++    **读不到的项写 null，不编**（sources 里记明每一项读的是哪个文件）。
++    """
++    sha = hashlib.sha256((text or "").encode("utf-8")).hexdigest()
++    l3 = _read_json_soft(os.path.join(ROOT, "kb", "l3", "registry", "l3.json"))
++    rules_sha = _sha256_file(RULES)
++    scheme = (reg.get("article_no_source") or {}).get("scheme_version")
++    distiller = l3.get("distiller_version")
++    rule_parts = [x for x in (scheme, distiller,
++                              ("rules.jsonl@" + rules_sha[:16]) if rules_sha else None) if x]
++    ver = _skill_version()
++    return {
++        "review_id": None,                       # 由调用方按 run_id 填（本脚本的运行标识就是报告名）
++        "content_id": "text-" + sha[:12],
++        "content_hash": sha,
++        "content_version": sha,
++        "agent_version": ("kb-content-review@" + ver) if ver else "kb-content-review@unknown",
++        "rule_version": "+".join(rule_parts) or None,
++        "knowledge_version": reg.get("kb_version"),
++        "sources": {
++            "content_hash": "送审文本 utf-8 的 sha256",
++            "agent_version": "kb/" + "/".join(SKILL_MD_REL) + " → frontmatter.version",
++            "rule_version": "kb/l7/registry/l7.json → article_no_source.scheme_version"
++                            " ＋ kb/l3/registry/l3.json → distiller_version"
++                            " ＋ kb/l3/candidates/rules.jsonl 的 sha256[:16]",
++            "knowledge_version": "kb/l7/registry/l7.json → kb_version",
++        },
++    }
++
++
++def _coverage_block(content_type):
++    """报告契约要的 coverage 块：本入口只送审一种模态，其余标 not_applicable。
++
++    这**不是**「OCR/ASR 流水线跑完了」的声明，故 note 里写明口径；逐模态的真实执行情况看 trace。
++    """
++    cov = {k: "not_applicable" for k in
++           ("text", "image", "audio", "video", "ocr", "asr", "keyframes")}
++    cov[content_type if content_type in cov else "text"] = "complete"
++    cov["note"] = ("本批只送审 %s 一种模态；其余模态不适用（不是缺口）。"
++                   "本块是报告契约要求的覆盖状态，不等于 OCR/ASR/关键帧流水线已执行 —— "
++                   "后者见 trace。" % content_type)
++    return cov
++
++
++def _decision_reasons(res):
++    """把 review.py :709-715 那个 if/elif 链**读出来**（不改它），供 decision_trace 记录。"""
++    st, fs = res.get("state"), res.get("findings") or []
++    if st == "拒答":
++        return ["no_rule_hit_and_no_coverage_signal"]     # 无命中又不认识主题 → 拒答
++    if st == "BLOCK":
++        return ["any_finding_severity_block"]
++    if st == "REVIEW":
++        return ["findings_present_without_block"]
++    return ["no_findings_and_kb_covers_topic"]
++
++
++def _finding_to_risk_item(f, index):
++    """依据 → report_memory 的 risk_items 一条。**只改名、不改值**（映射见 docstring 表）。
++
++    六要素（库名 / 条款号 / anchor / source_sha256 / 逐字摘录）原样塞进 `evidence`，
++    并在齐了的时候给出 `evidence_id` / `evidence_url`；不齐就显式写 `evidence_gap`，不静默。
++    """
++    lib, art = f.get("library"), f.get("article_no")
++    anc, sha, exc = f.get("anchor"), f.get("source_sha256"), f.get("excerpt")
++    complete = all([lib, art, anc, sha, exc])
++    layer = str(f.get("layer") or "")
++    verified = f.get("verbatim_verified", True)
++    cat, sub = f.get("category") or "未分类", f.get("sub") or ""
++    sev = f.get("severity")
++    item = {
++        "risk_id": f.get("rule_id") or ("R%d" % index),
++        "risk_type": ("%s-%s" % (cat, sub)) if sub else cat,
++        # priority_tier 只从 layer 机械推：P0 匹配层 → P0，规则层 → P1。
++        # 原值 layer 一并留在 priority_tier_basis / layer，不丢信息。（口径与
++        # l7/review-engine/core/with_kb_evidence.py:129 一致，全链一个口径。）
++        "priority_tier": "P0" if "P0" in layer else "P1",
++        "priority_tier_basis": layer,
++        "layer": layer,
++        "severity": sev,
++        "status": "confirmed",
++        "action": "block" if str(sev).upper() == "BLOCK" else "review",
++        "location": f.get("position") or "未定位",
++        "original_text": exc or "",
++        "reason": f.get("reason") or "",
++        "suggestion": f.get("advice") or "",
++        "verbatim_verified": verified,
++        "fact_or_inference": f.get("fact_or_inference"),
++        "confidence": f.get("confidence"),          # 逐条原样（高/中/低），不合成全局数值
++        "evidence": {"library": lib, "article_no": art, "anchor": anc,
++                     "source_sha256": sha, "excerpt": exc},
++        "source": "kb-content-review",
++    }
++    if complete:
++        item["evidence_id"] = ("《%s v0》第 %s 条 @ %s @ %s%s"
++                               % (lib, art, anc, str(sha)[:12],
++                                  "" if verified else "（**非逐字**：P0 模式自身声明，未经逐字回验）"))
++        item["evidence_url"] = "kb/l3/candidates/rules.jsonl#%s" % art
++    else:
++        item["evidence_gap"] = "引用契约六要素不全（缺 %s）" % ",".join(
++            k for k, v in (("库名", lib), ("条款号", art), ("anchor", anc),
++                           ("source_sha256", sha), ("逐字摘录", exc)) if not v)
++    if not verified:
++        item["evidence_gap"] = f.get("evidence_gap") or item.get("evidence_gap") or "未经逐字回验"
++    if f.get("merged_articles"):
++        item["merged_articles"] = f["merged_articles"]
++    return item
+ 
+ 
++def report_memory_payload(res, reg, text, run_id, content_type="text", position="全文"):
++    """把 review.py 的结论翻译成 core/report_memory.py 的输入契约。
++
++    字段映射（左=review.py，右=契约）——**只改名不改值**：
++
++      | review.py                    | report_memory 契约            |
++      |------------------------------|-------------------------------|
++      | state                        | decision（拒答 → NEEDS_INPUT，原值另存 decision_raw） |
++      | findings[]                   | risk_items[]                  |
++      | findings[].rule_id           | risk_items[].risk_id          |
++      | findings[].category + .sub   | risk_items[].risk_type        |
++      | findings[].position          | risk_items[].location         |
++      | findings[].excerpt           | risk_items[].original_text    |
++      | findings[].advice            | risk_items[].suggestion       |
++      | findings[].layer             | risk_items[].priority_tier（含 P0 → P0，否则 P1）|
++      | findings[].confidence        | risk_items[].confidence       |
++      | —（新增）                    | review_id / content_id / content_version /
++                                       agent_version / rule_version / knowledge_version |
++    """
++    vb = version_binding(text, reg)
++    vb["review_id"] = run_id
++    state = res.get("state")
++    cov = _coverage_block(content_type)
++    ap = reg.get("approvers") or {}
++
++    def _role(key):
++        v = ap.get(key) or {}
++        return v.get("role") or key
++
++    owners = {"PASS": [_role("pass_signoff")],
++              "REVIEW": [_role("review_reviewers")],
++              "BLOCK": [_role("block_owner")]}.get(state, [])
++    return {
++        "review_id": run_id,
++        "content_id": vb["content_id"],
++        "content_type": content_type,
++        "content_version": vb["content_version"],
++        "content_hash": vb["content_hash"],
++        "agent_version": vb["agent_version"],
++        "rule_version": vb["rule_version"],
++        "knowledge_version": vb["knowledge_version"],
++        "version_binding": vb,
++        "decision": "NEEDS_INPUT" if state == "拒答" else state,
++        "decision_raw": state,               # 原值：review.py 的「拒答」不是四态之一，不改写它
++        # confidence 保持 review.py 的粒度（逐条 高/中/低）；本入口**不合成**全局数值置信度，
++        # 免得把「依据侧」的定性判断伪装成已标定的概率（裁决侧的数值置信度属 decide()）。
++        "confidence": "未标定（本入口逐条给 高/中/低；全局数值置信度属裁决侧）",
++        "input_manifest": {"text": text, "sha256": vb["content_hash"],
++                           "modality": [content_type]},
++        "coverage": cov,
++        "risk_items": [_finding_to_risk_item(f, i) for i, f in enumerate(res.get("findings") or [], 1)],
++        "issue_count": len(res.get("findings") or []),
++        "report_url": res.get("report_path") or None,
++        "next_action": _NEXT_ACTION.get(state, ""),
++        "next_owners": owners,
++        "sla": {},                           # 本入口不做 SLA 计时（sla.py 属裁决侧），留空不编
++        "version_gate": {"reviewed_hash": vb["content_hash"], "release_hash": None,
++                         "note": "本入口不掌握发布版本；发布/送审版本比对属裁决侧"
++                                 "（review_engine.py:115-119），此处不代替它下结论"},
++        "decision_trace": {
++            "reasons": _decision_reasons(res),
++            "confidence_status": "not_calibrated_by_this_entry",
++            "evaluated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
++            "decided_by": "kb-content-review/scripts/review.py（依据侧自身分支，:709-715）",
++            "note": "本报告不重算结论；三态由上表 decision_raw 原样带出",
++        },
++        "unmet_citation": res.get("unmet_citation") or [],
++    }
++
++
++def write_report_memory(res, reg, text, report_dir, content_type="text", position="全文", apply=True):
++    """渲染 + 存档 report_memory 契约的两份产物：`{review_id}.md` / `{review_id}.json`。
++
++    返回 dict（供 --json 消费）；任何一步失败都只警告并返回 None，**不影响主结论与主报告**。
++    """
++    mod, p = _load_report_memory()
++    if mod is None:
++        return None
++    payload = report_memory_payload(res, reg, text, res["run_id"], content_type, position)
++    md = mod.render_markdown(payload)
++    if not apply:
++        print("[dry-run] report_memory 未落盘。目标：%s/%s.md ＋ .json｜%d 字节"
++              % (report_dir, payload["review_id"], len(md.encode("utf-8"))), file=sys.stderr)
++        return None
++    os.makedirs(report_dir, exist_ok=True)
++    try:
++        paths = mod.write_report(payload, report_dir)
++    except Exception as e:                      # noqa: BLE001
++        print("[warn] report_memory 存档失败：%r" % (e,), file=sys.stderr)
++        return None
++    # ★ report_memory.write_report 用 Path.write_text 写 .md —— 在本机会撞上 l8 已诊断的
++    #   「按后缀生效的写封装 → 4096 字节前缀信封」（见本文件上方 _NODE_WRITE_AND_VERIFY 段），
++    #   宿主侧 agent/镜像器读到的是信封而不是文本。所以**同一份 md 再走一遍明文通道**，
++    #   由 node 写盘并回读断言（write_text_plain 自带 sha 校验）。
++    channel = write_text_plain(paths["markdown_path"], md)
++    md_bytes = os.path.getsize(paths["markdown_path"])
++    json_bytes = os.path.getsize(paths["json_path"])
++    print("[review] 报告记忆落盘通道：%s → %s（md %d 字节 ｜ json %d 字节）"
++          % (channel, paths["markdown_path"], md_bytes, json_bytes), file=sys.stderr)
++    return {
++        "renderer": os.path.relpath(p, ROOT),
++        "review_id": payload["review_id"],
++        "content_version": payload["content_version"],
++        "markdown_path": os.path.relpath(paths["markdown_path"], ROOT),
++        "json_path": os.path.relpath(paths["json_path"], ROOT),
++        "markdown_bytes": md_bytes,
++        "json_bytes": json_bytes,
++        "channel": channel,
++    }
++
++
+ def _write_findings_cache(path, text, payload):
+     """把本次依据落成 run 内中间产物，供同一次评审的裁决侧复用（不再跑第二遍本脚本）。
+ 
+@@ -1003,8 +1310,13 @@
+     res["content"] = text
+     res["query_words"] = text[:120]
+     path = write_report(res, reg, rep_dir, res["run_id"], apply=not a.dry_run) if (len(res["findings"]) >= 3 or a.report_dir) else None
++    # ── 接线（2026-10-01 · C 块）：报告与记忆这一跳 ────────────────────────
++    # 手册 §五-1 的断点。走 report_memory 的模板/存档契约，产物 `{review_id}.md` + `.json`。
++    # 与上面 write_report 的 `<run>.review.md` **并存**：那份是 output_template.md :12 的
++    # A4 契约件（完整清单），这份是「审查报告与记忆」的契约件。两边都是原样带出，不改判定。
++    rm = write_report_memory(res, reg, text, rep_dir, a.content_type, pos, apply=not a.dry_run)
+     rendered = render(res, reg, path)
+-    out_obj = {**res, "rendered": rendered, "report_path": path}
++    out_obj = {**res, "rendered": rendered, "report_path": path, "report_memory": rm}
+     if a.findings_out:
+         _write_findings_cache(a.findings_out, text, out_obj)
+     if a.json:
+@@ -1018,7 +1330,9 @@
+               f"｜无法满足引用契约 {len(res['unmet_citation'])} 条")
+         if path:
+             print(f"完整清单：{path}")
+-        elif a.dry_run:
++        if rm:
++            print(f"报告记忆（审查报告与记忆契约）：{rm['markdown_path']} ｜ {rm['json_path']}")
++        if a.dry_run and not path and not rm:
+             print("（--dry-run：报告未落盘；去掉该参数或加 --apply 即落盘）")
+     sys.exit(0 if res["state"] in ("PASS", "REVIEW", "BLOCK") else 3)
+ 

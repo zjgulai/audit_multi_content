@@ -1,0 +1,217 @@
+{
+  "review_id": "20261013-115515",
+  "content_id": "text-97d595ad31d6",
+  "content_id_basis": "指纹（依据侧不发业务号，发号真源 = kb/l7/review-engine/core/content_id.py）",
+  "content_type": "text",
+  "content_version": "97d595ad31d615d7dac7c23d98c640c40d11bfb83d226a9b7ee416f846bcef03",
+  "content_hash": "97d595ad31d615d7dac7c23d98c640c40d11bfb83d226a9b7ee416f846bcef03",
+  "agent_version": "kb-content-review@1.3.0",
+  "rule_version": "article-no-2+l3-0.2+rules.jsonl@ee39dda777ed4eb3",
+  "knowledge_version": "v0",
+  "version_binding": {
+    "review_id": "20261013-115515",
+    "content_id": null,
+    "content_id_form": "AD-YYYYMMDD-NNN（PRD §5.4）",
+    "content_id_note": "本入口（依据侧）**不发业务号** —— 发号要读飞书表，而依据侧不该为此访问飞书。业务号由发号方在发飞书那一刻发：`kb/l7/review-engine/core/content_id.py`（唯一实现）。",
+    "content_fingerprint": "text-97d595ad31d6",
+    "content_hash": "97d595ad31d615d7dac7c23d98c640c40d11bfb83d226a9b7ee416f846bcef03",
+    "content_version": "97d595ad31d615d7dac7c23d98c640c40d11bfb83d226a9b7ee416f846bcef03",
+    "agent_version": "kb-content-review@1.3.0",
+    "rule_version": "article-no-2+l3-0.2+rules.jsonl@ee39dda777ed4eb3",
+    "knowledge_version": "v0",
+    "sources": {
+      "content_hash": "送审文本 utf-8 的 sha256",
+      "agent_version": "kb/l7/skills/kb-content-review/SKILL.md → frontmatter.version",
+      "rule_version": "kb/l7/registry/l7.json → article_no_source.scheme_version ＋ kb/l3/registry/l3.json → distiller_version ＋ kb/l3/candidates/rules.jsonl 的 sha256[:16]",
+      "knowledge_version": "kb/l7/registry/l7.json → kb_version"
+    }
+  },
+  "decision": "REVIEW",
+  "decision_raw": "REVIEW",
+  "confidence": "未标定（本入口逐条给 高/中/低；全局数值置信度属裁决侧）",
+  "input_manifest": {
+    "text": "【图片 1 的图内文字（本机 OCR，已摘除水印）】\n【7.15】 社群7月IBCLC直播海报 1200*1200\n［7.15】社群7月IBCLC直播海报 1080*1350\n【7.15】 社群7月IBCLC直播海报 1080*1920\nMOmCOZY\nLive Q&A + Giveaway f\nCleaning，\nMust-Cleans|\nHard-to-Clean\nOn-the-Go\nLive Q&A + Civeaway H\nCleaning，\nLive Q&A + Giveaway t\nCleaning，\nSeptember 25 1:00 PM ET\nMust-Cleans\nHard-to-Clean\nOn-the-Go\nSeptember 25 1:00 PM ET\nMust-Cleans\nHard-to-Clean\nOn-the-Go\nSeptember 25 1:00 PM ET\nJoin Us Live -\n刘\n615 R0\n【7.15】 社群7月IBCLC直播海报 960*503\nLive Q&A + Giveawayt\nEveryday Cleaning，\nmomCOZY\n刘华丽 56\nJoin Us Live -\n（本机 OCR 另读到 30 行**水印/印章类文字**，已从检索文本中摘除，**不要把它们当素材内容**；摘除明细见日志与报告，需要核对时由人调取。）",
+    "sha256": "97d595ad31d615d7dac7c23d98c640c40d11bfb83d226a9b7ee416f846bcef03",
+    "modality": [
+      "text"
+    ]
+  },
+  "coverage": {
+    "text": "complete",
+    "image": "not_applicable",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "本批只送审 text 一种模态；其余模态不适用（不是缺口）。本块是报告契约要求的覆盖状态，不等于 OCR/ASR/关键帧流水线已执行 —— 后者见 trace。"
+  },
+  "risk_items": [
+    {
+      "risk_id": "r-65198e7c3e5b833e",
+      "risk_type": "背书与资质-专业头衔与合作",
+      "risk_category": "合规",
+      "risk_category_basis": "类别「背书与资质」⇒ 合规（软判（按 §6.2/§5.2 语义归类）：PRD §7.3-4「无依据的销量/排名宣称」＋ §5.3 示例的依据例《广告法禁用语》）",
+      "priority_tier": "P2",
+      "priority_tier_basis": "规则行 p_level=P2",
+      "layer": "规则层",
+      "p_level": "P2",
+      "risk_level": "Medium",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "U01:ibclc",
+      "reason": "逐字命中「ibclc」：U01 含泌乳顾问/认证头衔，需核实是否真实合作（p_level=P2 risk_level=Medium authority=None，来源表 None）",
+      "suggestion": "",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.27",
+        "anchor": "#广告文案明细/recvuJYdOb0Jfx/命中片段",
+        "source_sha256": "ac3d74ae9804ea99ac06c8ad1f8d847b213f84215d0ff9d1920091ae6790101e",
+        "excerpt": "U01:ibclc"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.27 条 @ #广告文案明细/recvuJYdOb0Jfx/命中片段 @ ac3d74ae9804",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.27",
+      "merged_articles": [
+        "W-1.48"
+      ]
+    },
+    {
+      "risk_id": "sc-d06d875f8450e48e",
+      "risk_type": "品牌一致性-禁区（库内反例条款）",
+      "risk_category": "措辞表达",
+      "risk_category_basis": "类别「品牌一致性」⇒ 措辞表达（硬引 PRD：PRD §6.2 P3 逐字「品牌语气不一致」）",
+      "priority_tier": "P1",
+      "priority_tier_basis": "规则行 p_level=P1",
+      "layer": "案例层（L4 定稿「反例/禁区」）",
+      "p_level": "P1",
+      "risk_level": null,
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "【品牌一致性】视频 ③ 场景要体现“真实日常清洁”，但水槽、奶瓶、配件不要堆得过。\n原因：避免画面杂乱\n【问题要点】\n1. ③ 场景要体现“真实日常清洁”，但水槽、奶瓶、配件不要堆得过满，避免画面杂乱\n2. 【 终审-@吴礼芳 】辛苦看看这",
+      "reason": "库内反例条款 S-1.159（品牌一致性）按**同源/同题材**引证 —— 该案例记录的原文（含评审反馈）是库内留痕，**不是本素材里的字**；本单据此给 REVIEW，需人工点开 L0 核对是否真同源",
+      "suggestion": "",
+      "verbatim_verified": false,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "内部正负样本库",
+        "article_no": "S-1.159",
+        "anchor": "#正面和负面样本/recvw2wE9M0tak/原文反馈",
+        "source_sha256": "58a79c96ee828ecc6b8532a9c9142a82a9628719c3542a53760712c648b508ab",
+        "excerpt": "【品牌一致性】视频 ③ 场景要体现“真实日常清洁”，但水槽、奶瓶、配件不要堆得过。\n原因：避免画面杂乱\n【问题要点】\n1. ③ 场景要体现“真实日常清洁”，但水槽、奶瓶、配件不要堆得过满，避免画面杂乱\n2. 【 终审-@吴礼芳 】辛苦看看这"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《内部正负样本库 v0》第 S-1.159 条 @ #正面和负面样本/recvw2wE9M0tak/原文反馈 @ 58a79c96ee82（**非逐字**：P0 模式自身声明，未经逐字回验）",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#S-1.159",
+      "evidence_gap": "本条依据是**库内已定稿的反例条款**（`polarity=反例`、`semantics=禁区：不能这么做 + 为什么`），命中判据是「检索命中单元与被引锚点**同源**」；该锚点的 L0 件本地无字段值 ⇒ 摘录取自案例记录本身，**需人工点开核对**"
+    },
+    {
+      "risk_id": "sc-3ed68746df33ac88",
+      "risk_type": "品牌一致性-禁区（库内反例条款）",
+      "risk_category": "措辞表达",
+      "risk_category_basis": "类别「品牌一致性」⇒ 措辞表达（硬引 PRD：PRD §6.2 P3 逐字「品牌语气不一致」）",
+      "priority_tier": "P1",
+      "priority_tier_basis": "规则行 p_level=P1",
+      "layer": "案例层（L4 定稿「反例/禁区」）",
+      "p_level": "P1",
+      "risk_level": null,
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "【品牌一致性】文案 【终审-@吴礼芳   】麻烦看看这个呀。\n【问题要点】\n1. 【终审-@吴礼芳   】麻烦看看这个呀\n2. 修改把人物和镜子里的自己方向一致",
+      "reason": "库内反例条款 S-1.224（品牌一致性）按**同源/同题材**引证 —— 该案例记录的原文（含评审反馈）是库内留痕，**不是本素材里的字**；本单据此给 REVIEW，需人工点开 L0 核对是否真同源",
+      "suggestion": "",
+      "verbatim_verified": false,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "内部正负样本库",
+        "article_no": "S-1.224",
+        "anchor": "#负面样本/recvw7XIUgWZi1/具体原因/分析",
+        "source_sha256": "c119472528ae601038204a40e3edd143035373805092532710687ab070bca11f",
+        "excerpt": "【品牌一致性】文案 【终审-@吴礼芳   】麻烦看看这个呀。\n【问题要点】\n1. 【终审-@吴礼芳   】麻烦看看这个呀\n2. 修改把人物和镜子里的自己方向一致"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《内部正负样本库 v0》第 S-1.224 条 @ #负面样本/recvw7XIUgWZi1/具体原因/分析 @ c119472528ae（**非逐字**：P0 模式自身声明，未经逐字回验）",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#S-1.224",
+      "evidence_gap": "本条依据是**库内已定稿的反例条款**（`polarity=反例`、`semantics=禁区：不能这么做 + 为什么`），命中判据是「检索命中单元与被引锚点**同源**」；该锚点的 L0 件本地无字段值 ⇒ 摘录取自案例记录本身，**需人工点开核对**"
+    },
+    {
+      "risk_id": "sc-da2474ca32fb958d",
+      "risk_type": "品牌一致性-禁区（库内反例条款）",
+      "risk_category": "措辞表达",
+      "risk_category_basis": "类别「品牌一致性」⇒ 措辞表达（硬引 PRD：PRD §6.2 P3 逐字「品牌语气不一致」）",
+      "priority_tier": "P1",
+      "priority_tier_basis": "规则行 p_level=P1",
+      "layer": "案例层（L4 定稿「反例/禁区」）",
+      "p_level": "P1",
+      "risk_level": null,
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "【品牌一致性】视频 ③ 场景要体现“真实日常清洁”，但水槽、奶瓶、配件不要堆得过。\n原因：避免画面杂乱\n【问题要点】\n1. ③ 场景要体现“真实日常清洁”，但水槽、奶瓶、配件不要堆得过满，避免画面杂乱\n2. 【 终审-@吴礼芳 】辛苦看看这",
+      "reason": "库内反例条款 S-1.296（品牌一致性）按**同源/同题材**引证 —— 该案例记录的原文（含评审反馈）是库内留痕，**不是本素材里的字**；本单据此给 REVIEW，需人工点开 L0 核对是否真同源",
+      "suggestion": "",
+      "verbatim_verified": false,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "内部正负样本库",
+        "article_no": "S-1.296",
+        "anchor": "#负面样本/recvw7XIUgkQRI/具体原因/分析",
+        "source_sha256": "a6c2f88086a93fe4fc1db4b94ddd187768140112fa7ce03f901a273e52acd73d",
+        "excerpt": "【品牌一致性】视频 ③ 场景要体现“真实日常清洁”，但水槽、奶瓶、配件不要堆得过。\n原因：避免画面杂乱\n【问题要点】\n1. ③ 场景要体现“真实日常清洁”，但水槽、奶瓶、配件不要堆得过满，避免画面杂乱\n2. 【 终审-@吴礼芳 】辛苦看看这"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《内部正负样本库 v0》第 S-1.296 条 @ #负面样本/recvw7XIUgkQRI/具体原因/分析 @ a6c2f88086a9（**非逐字**：P0 模式自身声明，未经逐字回验）",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#S-1.296",
+      "evidence_gap": "本条依据是**库内已定稿的反例条款**（`polarity=反例`、`semantics=禁区：不能这么做 + 为什么`），命中判据是「检索命中单元与被引锚点**同源**」；该锚点的 L0 件本地无字段值 ⇒ 摘录取自案例记录本身，**需人工点开核对**"
+    }
+  ],
+  "issue_count": 4,
+  "report_url": null,
+  "next_action": "建议转复核责任人复核。",
+  "next_owners": [
+    "复核责任人"
+  ],
+  "sla": {},
+  "version_gate": {
+    "reviewed_hash": "97d595ad31d615d7dac7c23d98c640c40d11bfb83d226a9b7ee416f846bcef03",
+    "release_hash": null,
+    "note": "本入口不掌握发布版本；发布/送审版本比对属裁决侧（review_engine.py:115-119），此处不代替它下结论"
+  },
+  "decision_trace": {
+    "reasons": [
+      "findings_present_without_block"
+    ],
+    "confidence_status": "not_calibrated_by_this_entry",
+    "evaluated_at": "2026-10-13T11:55:24",
+    "decided_by": "kb-content-review/scripts/review.py（依据侧自身分支，:709-715）",
+    "note": "本报告不重算结论；三态由上表 decision_raw 原样带出",
+    "tier_trace": {
+      "P0": 0,
+      "P1": 3,
+      "P2": 1,
+      "P3": 0,
+      "未标层": 0
+    },
+    "confidence_route": {
+      "applies": false,
+      "band": null,
+      "calibrated": false,
+      "why": "依据侧**不合成全局数值置信度**（逐条给 高/中/低）⇒ 没有可切三档的数。PRD §6.6 的数值分档与标注在**裁决侧**生效：见 `review_engine.decide()` → `decision_trace.confidence_route`；策略真源 `kb/l7/registry/confidence-policy.json`。",
+      "handled_by": "kb/l7/review-engine/core/review_engine.py::decide()"
+    }
+  },
+  "unmet_citation": []
+}

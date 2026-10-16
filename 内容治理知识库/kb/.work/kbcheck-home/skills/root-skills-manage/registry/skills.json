@@ -1,0 +1,91 @@
+{
+  "family": "root-skills",
+  "root_dir": "../..",
+  "version": "2.2.0",
+  "updated_at": "2026-09-04T01:34:14Z",
+  "members": [
+    {
+      "name": "root-skills-creator",
+      "path": "../../root-skills-creator",
+      "status": "active",
+      "version": "4.1.4",
+      "role": "create",
+      "description": "创建生产级 skill：Iron Law + CSO + 真实运行验证 + 意图对话 + 模式分级 + 输出契约",
+      "depends_on": [
+        "root-skills-eval"
+      ],
+      "created_by": "self（元 skill 本源）"
+    },
+    {
+      "name": "root-skills-manage",
+      "path": "..",
+      "status": "active",
+      "version": "1.0.2",
+      "role": "manage",
+      "description": "root-skills 家族管理器：注册表 + 路由 + 生命周期 + 版本跟踪",
+      "depends_on": [],
+      "created_by": "root-skills-creator v4.0.0（履历: creation-records/root-skills-manage.md）"
+    },
+    {
+      "name": "root-skills-doctor",
+      "path": "../../root-skills-doctor",
+      "status": "active",
+      "version": "2.1.0",
+      "role": "diagnose",
+      "description": "诊断 skill 结构（D001-D007）+ 规范/安全静态检查（D100 系列，基于企业评测研究报告）",
+      "depends_on": [
+        "root-skills-creator"
+      ],
+      "created_by": "root-skills-creator v4.0.0（履历: creation-records/root-skills-doctor.md）"
+    },
+    {
+      "name": "root-skills-eval",
+      "path": "../../root-skills-eval",
+      "status": "active",
+      "version": "3.19.0",
+      "role": "evaluate",
+      "description": "一键全自主双轨评估：自动出题（A 卷按复杂度 25/50/100 条 + B 卷固定 10 条留出门禁；正例/负例/近似/边界 + 安全/组合叠加标签）、自检、3轮执行、低分修复与副本交付（不写回被测 skill 原文，副本复制到解析后的交付目标（路径可配置：显式参数/.batch.yaml/相对默认/桌面兜底，不写死））；最终交付为**单一 HTML**（v3.13.0 起：顶部目录「📊 测试报告 / 🧭 评测过程 / 🧪 测试用例」三大部分，测试用例/评测过程内容内联进同一文档——含标签用例逐条执行情况 + 每轮 AI 原文回复逐字不提炼 + 出题自检/低分修复/B 卷门禁/输出前自检，不再生成独立 HTML/内嵌 iframe/底部跳转链接；含 Release 10 项审查清单逐项判分 + 是否影响上线，v3.9.0 起硬校验 security_tag/combo_tag/tag_cases，缺失拒绝生成），交付前强制交付校验（--require-desktop-fix；交付目标可配置：显式参数/.batch.yaml 批配置/相对默认/桌面兜底，不写死路径），全程不需用户确认",
+      "depends_on": [
+        "root-skills-doctor",
+        "root-skills-check"
+      ],
+      "created_by": "root-skills-creator v4.0.0（履历: creation-records/root-skills-eval.md）"
+    },
+    {
+      "name": "root-skills-opt",
+      "path": "../../root-skills-opt",
+      "status": "active",
+      "version": "3.6.0",
+      "role": "optimize",
+      "description": "读取评估报告，全自主完成副本修复、回归验证、B 卷门禁与交付目标副本交付（不写回被测 skill 原文；路径可配置：显式参数/.batch.yaml/相对默认/桌面兜底，不写死）；借鉴 SkillOpt 训练纪律（留出验证门/编辑预算/拒绝缓冲/元记忆）；全程不需用户确认",
+      "depends_on": [
+        "root-skills-eval",
+        "root-skills-doctor",
+        "root-skills-check"
+      ],
+      "created_by": "root-skills-creator v4.0.0（履历: creation-records/root-skills-opt.md）"
+    },
+    {
+      "name": "root-skills-check",
+      "path": "../../root-skills-check",
+      "status": "active",
+      "version": "1.0.2",
+      "role": "check",
+      "description": "报告放行入口 + 知识蒸馏：核对/回填/放行引用 eval 输出前闸门（Step 5.4/5.5），硬校验调用 eval 脚本，唯一新增「自动成长」蒸馏进 knowledge-base",
+      "depends_on": [],
+      "created_by": "root-skills-creator v4.1.2（履历: creation-records/root-skills-check.md）"
+    },
+    {
+      "name": "root-skills-batch-driver",
+      "role": "orchestrate",
+      "version": "1.0.0",
+      "status": "active",
+      "path": "../../root-skills-batch-driver",
+      "description": "批量评测编排驱动：启动 & 监控评测 subagent、心跳检测（磁盘落盘 mtime）、无进展超时判定、自动续接/重启、断点续跑留痕",
+      "depends_on": [
+        "root-skills-eval"
+      ],
+      "created_by": "root-skills-creator v4.1.4（Iron Law + 补齐 manifest/README/tests）"
+    }
+  ]
+}

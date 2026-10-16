@@ -1,0 +1,259 @@
+# L8 运行日志 · run_id 20260923-1540
+# 记录原则：每条都给命令与当时的关键输出；数值取自落盘产物（repack_write_*.json / roundtrip_*.json / probe），不是事后回忆。
+# 时间：2026-09-23 14:5x–15:5x（本机时间）。工作目录 <WS> = 工作区/知识库/内容治理。
+DSH="/Applications/DSH Desktop.app.pre-lute-20260907-111753/Contents/MacOS/DSH Desktop"   # v24.18.1，与被测加载器同一运行时
+
+## 0 起点现象（修复前）
+$ # 加载器体检（工具层 kb_check）
+健康分 50（熔断线 60）   ← 已触发熔断
+  OK 新鲜度 1.00 / !! 三件套完整率 0.00 / OK 一致性 1.00 / !! 孤岛率 1.00
+  [E001] × 509 缺 frontmatter
+结论：不通过
+$ # kb_collections
+3_措辞表达库｜0 条； (未归库)｜509 条
+$ # kb_search 三个已知词：0 命中
+
+## 1 E1 · 同一文件的两种视图
+$ F=~/.dsh/Momcozy知识库/3_措辞表达库/L1-facts/cg-r-00277648c524fe69.md
+$ stat -f %z "$F"                      → 8047
+$ ls -l "$F" | awk '{print $5}'          → 8047
+$ ELECTRON_RUN_AS_NODE=1 "$DSH" -e 'const fs=require("fs");console.log(fs.statSync(process.argv[1]).size, fs.readFileSync(process.argv[1]).length)' "$F"
+  → 8047 8047   （首 16 字节 88 7d 1c bb 3a 05 f6 03 be eb 3c b9 bc 6a 84 b4；frontmatter 正则 false）
+$ python3 -c 'import os,sys;print(os.stat(sys.argv[1]).st_size)' "$F"   → 3951（内容为明文 UTF-8）
+$ /Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node -e '…'   → 3951，与 python 逐字节相同（sha16 c2f6b2cd9099f2a0）
+$ stat -f 'inode=%i dev=%d blocks=%b' "$F"   → inode=65787955 dev=16777230 blocks=16（只与带前缀的体积自洽）
+
+## 2 E2 · 不是压缩容器
+$ for m in '1f8b:gzip' '28b52ffd:zstd' '504b:zip' '425a68:bzip2' 'fd377a585a00:xz' '04224d18:lz4'; do dd if="$F" bs=8 count=1 2>/dev/null | xxd -p | grep -q "^${m%%:*}" && echo "命中 ${m##*:}"; done
+  → 无输出：六种容器 magic 全不匹配
+$ # 全库体积差（kb/l8/envelope_manifest.json）
+  → 文件 510（信封态 510），体积差集合 [4096]；dd 原始字节与逻辑明文逐字节相同的文件数 510/510
+
+## 3 E3 · 写通道矩阵（同一段 20 字节内容）
+$ cd /tmp/e3 && python3 -c 'open("w-py-open.md","w").write(t)'      → python 见 20 / ls 见 4116 / dd 头 887d1c??   ✗ 信封
+$ perl -e 'open(F,">","w-perl.md");print F $t'                       → python 见 20 / ls 见 4116                    ✗ 信封
+$ env -i python3 -c 'open("py-envi.md","w").write(t)'               → python 见 20 / ls 见 4116                    ✗ 信封
+$ launchctl submit -l dsh_dlp_probe -- /usr/bin/python3 -c 'open("/tmp/e3/launchd-py.md","w").write(t)'
+  → 脱离 DSH 进程树的 python 同样信封（py 20 / ls 4116 / dd 887d1c85）   ✗ 信封
+$ launchctl submit -l dsh_dlp_probe2 -- /bin/sh -c "printf $t > /tmp/e3/launchd-sh.md"
+  → 24 字节，两通道一致                                                  ✓ 明文
+$ printf '%s' "$t" > /tmp/e3/bash-printf.md ; /bin/echo "$t" > /tmp/e3/echo-bin.md ; /bin/cp src.md /tmp/e3/copied.md
+  → 全部 20/29 字节，两通道一致                                        ✓ 明文
+$ ELECTRON_RUN_AS_NODE=1 "$DSH" -e 'require("fs").writeFileSync("/tmp/e3/node-fs.md",t)'   → 明文  ✓
+$ /Applications/ChatGPT.app/.../node -e 'require("fs").writeFileSync("/tmp/e3/node-cg.md",t)' → 明文  ✓
+$ # 扩展名矩阵（python 写同一内容）：.md→4116 ✗ ｜ .yaml/.json/.txt/.py/.log→20 ✓
+
+## 4 E4 · 读侧分组与注入证据
+$ head -c 8 race.md | od -An -tx1        → 2d 2d 2d 0a 70 79 74 68   （明文）
+$ dd if=race.md bs=8 count=1 | od -An -tx1 → 88 7d 1c c9 …            （信封）
+$ wc -c race.md ; ls -l race.md ; stat -f %z race.md   → 4125 / 4125 / 4125（信封侧）
+$ python3 -c 'print(len(open("race.md").read()))'      → 29（明文侧）
+$ # 12 秒 × 24 次轮询：stat 恒 4125、python 恒 29、dd 头恒 887d1cc9 → 非竞态
+$ lsof -p 39297 | grep -i trld
+  → /usr/local/.trld/lib/libtr_monitor_hook.dylib, libtr_monitor_enc.dylib, libtr_monitor_print.dylib,
+    libtr_monitor_im.dylib, libtr_inject_comm.dylib（vmmap 同样可见）
+$ lsof -c Python | grep -i libtr        → 无输出（python 未载入）
+$ # DSH write 工具写 .md：92 字节，ls/stat/python/node 四处一致 → 明文 ✓（写者身份要逐个测，不能按 App 猜）
+
+## 5 装载位被并发迁移清空（外部变化，修复窗口内发生）
+$ ls -la ~/.dsh/Momcozy知识库           → 只有 README.md（mtime 2026-09-23 15:02:15，5478 字节/ls、1382 字节/python）
+$ grep -n 已清空 kb/.work/README-同步到工作台.md   → 96:4. 旧位置 ~/.dsh/Momcozy知识库/ 已清空，只留一份 README 说明来龙去脉。
+$ ls kb/.work/hostlib/3_措辞表达库/L1-facts/ | wc -l  → 453（新形态，15:01 生成）
+$ ELECTRON_RUN_AS_NODE=1 "$DSH" -e '…readFileSync(hostlib 里那条).length'  → 8047（对 node 仍是信封）
+$ python3 -c '…len(open(hostlib 里那条).read())'                            → 3951（python 侧明文）
+  ⇒ 那条 HTTP 通道救工作台、救不了加载器
+$ # 我方在清空前已存档：kb/l8/repack_payload.json（510 条逻辑内容）+ kb/l8/_archive/enveloped-20260923-1520/（510 个原始字节）
+
+## 6 修复：明文写通道 + 写后读回断言（R1 + R2）
+$ python3 kb/l8/repack_read.py 20260923-1520
+  → 读 510 个文件：信封态 510 / 明文 0；体积差集合 {4096}
+  → 载荷 kb/l8/repack_payload.json（2489892 字节）；旧字节存档 510 个文件 / 2335796 字节；不删除任何原文件
+$ ELECTRON_RUN_AS_NODE=1 "$DSH" kb/l8/repack_write.mjs --payload kb/l8/repack_payload.json \
+    --root ~/.dsh/Momcozy知识库 --out kb/l8/repack_write_report.json --add-class 措辞表达库 --dry
+  → dry：510 个文件读回断言全部失败（fm=false）—— 这就是修复前的故障现象（node 侧读不到明文）
+$ …同上，去掉 --dry（第 1 趟：509 条目 + _meta/DERIVED.md）
+  → node_write_ok 510 / cp_fallback 0 / failed 0；kb_class_added 509；fm_regex_ok 509；body_unchanged 509
+$ # 第 1 趟（修正断言前）的留痕：5 个「本来就没有 frontmatter」的文件（_meta/DERIVED.md + 4 个 _meta 件）
+$ #   被我的读回断言误判为失败（断言写宽了：非条目也要求 frontmatter），进了 cp 兜底的暂存分支，
+$ #   暂存件留在 kb/l8/_stage/*.txt（5 个，未删）。修正断言后重跑，510/510 与 4/4 全过、cp 兜底 0 次。
+$ ELECTRON_RUN_AS_NODE=1 "$DSH" kb/l8/repack_write.mjs --payload kb/l8/meta_payload.json（第 2 趟：kb-classes.yaml / GUIDE.md / collections.yaml / derivation.json）
+  → node_write_ok 4 / failed 0
+$ …--payload kb/l8/meta_payload_acceptance.json（第 3 趟：acceptance.yaml）
+  → node_write_ok 1 / failed 0
+
+## 7 六项回环验收
+$ python3 kb/l8/roundtrip_check.py 20260923-1535
+  → 5 项 PASS，第 5 项 FAIL：负例关键词也被算进「必须有命中」——修的是探针的判定口径（负例加 `!` 前缀），不是知识库
+$ python3 kb/l8/roundtrip_check.py 20260923-1540
+  → 项1 文件数：PASS
+  → 项2 frontmatter 解析成功数：PASS
+  → 项3 子库归属数：PASS
+  → 项4 sha256 读回一致（随机 10）+ 全量正文逐字：PASS
+  → 项5 关键词检索可达：PASS
+  → 项6 加载器体检：PASS
+  → 六项 全过；健康分 75、三件套 1、孤岛率 1、E001 0
+
+## 8 加载器侧体检直方图（修复后；修复前只有 E001×509）
+$ ELECTRON_RUN_AS_NODE=1 "$DSH" kb/l8/loader_probe.mjs ~/.dsh/Momcozy知识库 kb/l8/repack_payload.json "W-2.1,乳腺组织,合规替代,!量子纠缠配色调参"
+  → 计数：{"W036": 509, "W004": 509, "W010": 509, "W017": 509, "W019": 1, "W020": 2811, "W021": 10, "W035": 1, "W037": 1, "E002": 1018, "E005": 509, "E006": 509, "E021": 509, "E026": 449}
+  → errors_total 2994 / warnings_total 4860
+  → 检索：W-2.1→111、乳腺组织→1、合规替代→509、量子纠缠配色调参→0（负例）
+  → 归属：3_措辞表达库 509 条、未归库 0
+
+## 9 自检（5 项）
+  1 l0~l6 未改：l0 7873e545543bab44（2411 文件 / 8912388 字节）、l1 215fd0d113efa0d9（1492 / 292042291）、l2 4b60f46e31ec8a12（829 / 19637545） 全部与 L5 基线 tree_sha256 相同；l3 前 1018 行 == L6 记录、前 1527 行 == L4 记录；前序 26 个产物哈希 26/26 一致
+  2 未删文件：归档 510 个文件 / 2335796 字节（enveloped-20260923-1520）；装载位 516 个文件（条目 509 + _meta 6 + 根 README.md）
+  3 正文逐字：509/509 正文一致；frontmatter 除新增一行 kb_class 外 509/509 一致；不一致 0
+  4 roundtrip 六项数值：见第 7 节
+  5 版本纪律：kb/l4/canonical/rules.jsonl 0 字节；versions.jsonl 版本行 0；kb_version {"l1": "v0", "l2": null, "l3": "v0", "l4": "v0", "l5": "v0", "l6": "v0", "l7": "v0"}
+
+## 10 产物哈希
+  e536c8cc14600b83c54907d35ea5de075089c0bb60c7b0f913feb864348e7fff      4181  kb/l8/repack_read.py
+  5297463ebdc2bce76d9a44021154609ab7c39fe2b8fd0961a07234e51de8fa7c      8097  kb/l8/repack_write.mjs
+  b8cfad6da7dc0840e1b560a8c4f3e9cb1d3aa146d82823bbd30c53966bdb4592      7232  kb/l8/loader_probe.mjs
+  68abf0159cb3cf760458aef9a1f0da00323fc6c37d72973f2e07e7602c308561   2489892  kb/l8/repack_payload.json
+  58c1fe227d28bf2dc75baa935a3261c7b3cf49924cfa5598db767f76668aebee    197348  kb/l8/envelope_manifest.json
+  d2ec2dda04fd563eca0d17ef819b250dead17b5adb5c2a9ba52d8cfcd6c65dd3    288531  kb/l8/meta_payload.json
+  a557bc627d7c38e488748f8af9bd20fa78cf4e9fd204b5356239d68d7ecd1d28      2938  kb/l8/meta_payload_acceptance.json
+  0e79c0cc54a9838f362b5a3073913f51938c08c74954471bb68e57682db4850c    345692  kb/l8/repack_write_report.json
+  c781525c78f77bf821fa636cde17846cf83321726c3fafbd905f1672efe2000d      3056  kb/l8/repack_write_meta_report.json
+  69f9ae1ed4aa77c890b81584e734bbf034ebfcc0f353533ed70852967b6c39b8      1210  kb/l8/repack_write_acceptance_report.json
+  d5a87975d21ecc4357668b5af05bb9e4b3f6c1c65cd64b86c9193882244a5f86    293206  kb/l8/repack_write_dryrun.json
+  c7423ce370afbbfa50fe74a987cca81f6ae6c7fdccf573160b07b3f3d1cc944c      5295  kb/l8/roundtrip_20260923-1540.json
+  703de1b74fd95265134b905b42a4a889c9101131c9677dc7234716a260f51eb3      5266  kb/l8/roundtrip_20260923-1535.json
+  7462c9048640b91f470fd4cb997526a0c0e0b66370c9e4a9e5a2ad04cad0c5e9      8467  kb/l8/loading-link.md
+  dc93bc5fddaaffc5227913f885e9202b26c18c3a97f51523fe76b6c2536582ba     16311  kb/l8/diagnosis.md
+  de9715c4cf0ebcd14d2dbf50e58db7bebb0e232abcc4127fe3a985782d566025     17473  kb/l8/registry/l8.json
+  d8c4608a562f145293e4e20ca1cd8488f87735a79292ada31c5966c4742f7fca     35934  kb/l8/runs/20260923-1540.report.md
+  77d1dc129fd56832f012554497956ce4c4cc473233543b4648ca9d24ab4230f3     22979  kb/l8/runs/20260923-1540.ops.log
+  00caae014abed5c9c6d11a2c73baa4b473ee30d8f998fcd4b86f8671d59c90b6      2090  kb/l8/meta_src/kb-classes.yaml
+  35b38ae415307667791162f06e1dc99a58b9aadebf65a6df702c6902dc76d437      6056  kb/l8/meta_src/GUIDE.md
+  367faf631d7a98a53a9020bff785049d31bc3de468eaa02069e028a1cef1330f      2546  kb/l8/meta_src/acceptance.yaml
+  aedd458a1c78b44b10ac675946f05d249970e0131ae2a2db85768acde554fc4f      2069  /Users/lute/.dsh/Momcozy知识库/_meta/DERIVED.md
+  35b38ae415307667791162f06e1dc99a58b9aadebf65a6df702c6902dc76d437      6056  /Users/lute/.dsh/Momcozy知识库/_meta/GUIDE.md
+  367faf631d7a98a53a9020bff785049d31bc3de468eaa02069e028a1cef1330f      2546  /Users/lute/.dsh/Momcozy知识库/_meta/acceptance.yaml
+  0b2c3ea5550a0c9a64ca66a44e9727ed852ef4c00b709310a7ed5fe967dad6b7      1058  /Users/lute/.dsh/Momcozy知识库/_meta/collections.yaml
+  0ee1595e0abe942c5f45e0d5e84551940836bfc862a11c374a98352ddc566779    241760  /Users/lute/.dsh/Momcozy知识库/_meta/derivation.json
+  00caae014abed5c9c6d11a2c73baa4b473ee30d8f998fcd4b86f8671d59c90b6      2090  /Users/lute/.dsh/Momcozy知识库/_meta/kb-classes.yaml
+  0a4d0f5e6395dad2991ae4daa24a35d14e110b173a642577abefdcdb038f86ec      1893  /Users/lute/.dsh/Momcozy知识库/README.md
+  6d72dae60d72598213bb5d123b97274dc54d63bd37e91f519c5c3b80492c56fb     57573  kb/.work/gen-host-library.py
+  294b16a0f404c977f33ddb689d86d7bd0c258d268a6c48f34f597b73cc722a74     30399  kb/l8/_archive/gen-host-library.py.orig-294b16a0f404c977
+  d55dd2f2c8bdd27a97cedb1c63955ba4c69730dcc8437aa2cf7d7bbcd38b6f26      5924  kb/l8/repair_enveloped_docs.py
+  cbe785e6a997c87712deb5409d25374035a4d02b71461ba94b76687dda73ccd1      9526  kb/l8/docs_repair_20260923-1535.json
+  f5cd70b78698cf11043f8a7d6994a0abae821612aded66bf2cdd3656412d0921     12162  kb/l8/docs_write_report_20260923-1535.json
+  070a10a80763c740953783ce1b737442450195fa42e7d55022c4ef36b8f948c4       842  kb/l8/docs_repair_20260923-1546.json
+  9a44f8a324aaa836a18fc457f876a7d0d4b2678e5bce8a4456b77953696d1c88     27086  kb/l8/_archive/review.py.orig-9a44f8a324aaa836
+  b6fc5e4da44006c53ed99f72ca12774981c6a316c0cb7019fc442f863aa4c996     98105  kb/l8/view_build_20260923-165821.json
+  322a48913114c94a1b53c6c60dba0a88c991d521da8595e8416354302907bf0e      5355  kb/l8/roundtrip_20260923-170203.json
+  96500bf05dc7bbf1bb8376fde3aa7c6500b19a659322da16c113d5afece22b06      4476  kb/l8/workflow_check_20260923-170130.json
+  4da9008d41c5eea3fb6616ce7f4c54b3ea1d5979fd303d3207293de99cd8b93f      8970  kb/l8/build_view.py
+  91d05d58b4c4855159c563a7115a1dff9af91705f22a8c9718e3fef7ab1e6c4b      1176  kb/l5/runs/20260923-1608.relog.json
+  e069ef46615871bf6e2dba7746e53389c224204ec1694e1a912b7960dc1aca5c      4476  kb/l8/workflow_check_20260923-180808.json
+  117c06c4d189d4f8c5af4c6ee85b33f1321c5bbc5103b9d15493d99e1a1e2d2d      5356  kb/l8/roundtrip_20260923-180652.json
+  f008ba864400c72f07459d408ff7c69fe19edb0385b863ef6f51f82b3d07ff8a     98084  kb/l8/view_build_20260923-180652.json
+  bb62516e32203c17d12490e4946f05fe3f91199b552130863b6471834b675837      1787  kb/l8/docs_repair_20260923-180753.json
+
+## 11 R1 收口：打包脚本改明文写盘（本轮续修）
+$ # 先隔离「写通道 vs 目录 vs 时机」三个变量（E5–E9）
+$ python3 -c 'open("a-direct.md","w").write(t)'                     → node 4191 / python 95  → 信封 ✗
+$ python3 -c 'open("b.md.tmp","w").write(t); os.replace("b.md.tmp","b.md")' → node 95 = python 95 → 明文 ✓（/tmp 与工作区都成立）
+$ # 但同一手法放进生成器上下文就不成立：给生成器所有写调用装 trace（E8-A）
+$   open w 次数 513：直接写 .md **0 次**；写 .md.tmp **510 次**；os.replace **510 次**
+$   → 产出仍是信封（node 8077 / python 3981），而最后写的 DERIVED.md 当场明文、3 秒后变信封
+$ # 排除「大 manifest 触发」假设（E8-B）：30 个 node 写 md + 2.4MB manifest → 12 秒后仍 30/30 明文
+$ # 结论性的对照（E9）：同构目录里用 node 写 509 条 + DERIVED.md → 20 秒后 510/510 明文、写入器断言 0 失败
+$ python3 - <<'PY'  # 给生成器打补丁：.md 不再由 python 落盘，改为收集载荷 → node 写盘 + 逐文件读回断言
+$   write_text_plain()  写 .md.tmp 再 os.replace（保留为 node 缺失时的降级路径，会打醒目警告）
+$   flush_md()          一次 spawn 一个 node：fs.writeFileSync + readFileSync 断言（字节/sha256/frontmatter 正则）
+$   resolve_node()      KB_NODE_BIN → ChatGPT 自带 node → DSH Electron 运行时（带 ELECTRON_RUN_AS_NODE=1）
+$   insert_kb_class()   frontmatter 里紧跟 collection 写 kb_class（flow 形，与存量 509 条回填同形）
+$ python3 kb/.work/gen-host-library.py --out kb/l8/_stage/gen-verify-v3
+$   [gen] 明文落盘：509 个 md（node 读回断言全部通过）
+$   [gen] 明文落盘：1 个 md（node 读回断言全部通过）
+$   → 产出 510 个 md：信封 0 / 明文 510（15 秒后复测仍 510/510）
+$ ELECTRON_RUN_AS_NODE=1 "$DSH" kb/l8/loader_probe.mjs kb/l8/_stage/gen-verify-v3 kb/l8/repack_payload.json "W-2.1,乳腺组织,合规替代,!量子纠缠配色调参"
+$   → 加载器直接读生成器产出：entries 509 / fm_ok 509 / id_ok 509 / kb_class_ok 509 / **E001 0** / 三件套 1.00 / 健康分 75 / collections 509
+$   → 与已验收的装载位逐条对账：正文一致 509/509；frontmatter 493 条完全一致、16 条漂移（summary 15、title 3）
+$   → 那 16 条是并发生成器 14:54 版的新渲染（正文逐字相同），装载位保留迁出前原文，见遗留问题 7
+$ shasum -a 256 kb/.work/gen-host-library.py
+$   294b16a0f404c977（原，30399 字节，已归档 kb/l8/_archive/gen-host-library.py.orig-294b16a0f404c977）
+$   6d72dae60d725982（补丁后，57573 字节）
+
+## 12 E11：并发工作流加「第三轮补丁」之后的复验 + 自己补丁的 E046 洞已补
+$ # 另一条工作流在同一脚本上加了 l8 补丁（第三轮）：tier 目录名/值拆开、kind 对齐、source.kind 落枚举、related 邻居、补 provenance/pii/corroborated_by
+$ diff -u kb/l8/_archive/gen-host-library.py.orig-294b16a0f404c977 kb/.work/gen-host-library.py | grep '^+' | head
+$   → 我的明文写盘补丁仍在（write_text_plain 1 处定义 + flush_md 2 处调用；无 python 直写 .md）
+$ python3 kb/.work/gen-host-library.py --out kb/l8/_stage/gen-verify-v4
+$   → 产出 510 个 md：信封 0 / 明文 510（我的写通道补丁在并发版本上依然有效）
+$ ELECTRON_RUN_AS_NODE=1 "$DSH" kb/l8/loader_probe.mjs kb/l8/_stage/gen-verify-v4 …
+$   → entries 509 / fm_ok 509 / kb_class_ok 509 / **E001 0** / 健康分 **100** / 孤岛率 **0.00**
+$   → 但 E046 × 509：生成器写了 kb_class，却没产出枚举文件 _meta/kb-classes.yaml（换 --out 落新位置即报）
+$ # 补：生成器一并产出 _meta/kb-classes.yaml（内容与 KB_CLASS_BY_DIR 同源）
+$ python3 kb/.work/gen-host-library.py --out kb/l8/_stage/gen-verify-v5
+$   [gen] 明文落盘：509 个 md（node 读回断言全部通过）＋ 1 个 md（DERIVED.md）
+$   _meta: DERIVED.md collections.yaml derivation.json kb-classes.yaml manifest.json
+$   → 加载器直读产出：E001 0 / **E046 0** / 健康分 100 / 孤岛率 0.00 / collections 509
+$   → 剩余非装载类告警：E026 452、E021 56、W012 509、W020 2804、W036 509（字段级口径，归生成器）
+$ shasum -a 256 kb/.work/gen-host-library.py   # 并发第三轮 + 我的三轮补丁之后的当前版本
+
+## 13 终局：装载位被并发工作流重新生成（事实登记，不回写）
+$ stat -f '%Sm %N' -t '%H:%M:%S' ~/.dsh/Momcozy知识库/_meta/* ~/.dsh/Momcozy知识库/3_措辞表达库/L1-facts/cg-r-00277648c524fe69.md
+$   → 条目与 DERIVED.md/collections.yaml/derivation.json/manifest.json 全为 15:24:05；GUIDE.md 15:07:38、acceptance.yaml 15:09:57、kb-classes.yaml 15:07:38（我方三件保留）
+$ ls -A ~/.dsh/Momcozy知识库   → 3_措辞表达库 _meta（迁出说明 README.md 已被移走）
+$ diff <(head -45 装载位条目) <(head -45 kb/l8/_stage/gen-verify-v5/同路径)
+$   → 31c31：source.ref 由 kb/l3/candidates/rules.jsonl#r-… 换成 feishu-base 链接（其「补丁 C」）
+$ python3 kb/l8/roundtrip_check.py 20260923-1524
+$   → 1 PASS / 2 PASS / 3 PASS / 4 **FAIL（与批内冻结基准逐字一致——基准内容已被外部替换）** / 5 PASS / 6 PASS
+$   → 健康分 100 / 三件套 1.00 / 孤岛率 0.00 / E001 0 / E046 0 / 检索 111·1·509·0（含零命中负例）
+$   → 第 4 项失效的原因写在 roundtrip_check.py 的 baseline_note 里：基线与写入当时 509/509 一致（roundtrip_20260923-1522.json）
+$ # 本轮结论：修的是流水线的写通道，不是这一批文件 —— 外部用同一个脚本重新生成，落盘即明文，E001 仍为 0
+
+## 14 全链路可用性复核 + 文档可见性修复（本轮追加）
+$ # 读工具：kb_guide / kb_collections / kb_search / kb_read 逐个跑
+$   → kb_guide 返回 GUIDE.md；kb_collections「措辞表达库（3_措辞表达库）｜509 条｜未归库 0」
+$   → kb_search：W-2.1→111、乳腺组织→1、合规替代→509、量子纠缠配色调参→0（负例）
+$   → kb_read cg-r-00277648c524fe69：返回条款正文 + 能答/边界/禁止
+$ # 消费侧 skill 文件形态抽查：SKILL.md/README.md/protocols.md 明文 ✓；categories.md 与 output_template.md 是信封 ✗（agent read 工具读不到）
+$ python3 kb/l8/repair_enveloped_docs.py 20260923-1535
+$   [扫描] kb/l7 + kb/versions 下 .md 共 19 个；信封态 16 个
+$   [归档] 旧物理字节 217539 字节 → kb/l8/_archive/enveloped-docs-20260923-1535
+$   [写入] node 明文落盘（repack_write.mjs，逐文件读回断言）
+$   [对账] 仍是信封 0 个 | 内容变了 0 个 | 留痕哈希仍相等 14/14 → PASS
+$ # 复核：read 工具实读 categories.md（# 受控分类词表）与 output_template.md（# 内容审查输出模板）均正常
+$ # 入库通道：kb_ingest 在沙箱根上逐层撞闸门（必填→provenance.anchor/confidence→PII→E026 内容质量），每次都回滚不留半成品
+$   → 装载位 509 条里有 452 条自己过不了 E026；E021 56 条
+$ # 工作台侧：curl 127.0.0.1:4317 → 200；127.0.0.1:4508 存活（/health /manifest /doc /raw）；launchd com.kb-hostlib / com.workbench.* 在载
+$ # 复核后仍不可读的 .md：冻结层 22、他人产物 hostlib 510、他人/临时 .work 19 —— 按纪律不动，登记在 registry TD6
+
+## 15 l7 报告写入路径的根因修复（review.py）
+$ # 现象：kb/l7/reports/20260923-1500.review.md 修完又变回信封，且内容本身变了（sha16 0421cd37… ≠ l7 留痕 219c0b87…）
+$ # 根因：kb/l7/skills/kb-content-review/scripts/review.py:490  open(path,"w").write("\n".join(L))
+$ cp -p kb/l7/skills/kb-content-review/scripts/review.py kb/l8/_archive/review.py.orig-9a44f8a324aaa836
+$ python3 /tmp/patch_review.py && python3 -m py_compile kb/l7/skills/kb-content-review/scripts/review.py
+$   → 补丁后 sha16 d09886860d0c4a3e；落盘交给 node + 读回断言；node 缺失时降级并打印警告
+$ python3 -c '… importlib 直接调 write_text_plain …'
+$   → 通道: node | python 侧 1017 字节 | node 侧 1017 字节 → 明文 ✓
+$ python3 kb/l8/repair_enveloped_docs.py 20260923-1546
+$   → 1 个文件改回明文；内容变了 0 个（保留外部重写后的新内容，只改形态）
+$ # 留痕同步：kb/l7/runs/20260923-1500.json 里 review.py 的 sha256 已更新，并保留 sha256_was 与 changed_by 说明
+
+## 16 优化轮 ①②③
+$ python3 kb/l8/build_view.py --out kb/view --run <id>     # 生成→staging→载荷→node 明文安装→复核
+$   → 511 md / 信封 0 / _meta 7 件 / E001 0 / E046 0 / 健康分 100 / 检索 111·1·509·0 → PASS
+$ # 加载器 root：改 ~/.dsh/plugins/dsh-kb/cordis.patch.yml 与 ~/.dsh/profiles/desktop/cordis.patch.yml → kb/view（各留 .orig 备份）
+$ L8_KB_ROOT=kb/view L8_BASELINE_PAYLOAD=$(ls -t kb/l8/_stage/view_payload_*.json|head -1) python3 kb/l8/roundtrip_check.py <id>
+$   → 六项 6/6 全过（基准=生成器本次产出；第 4 项验「装进去的==生成器产出的」）
+$ python3 kb/l8/workflow_check.py <id>   → 九段 9/9 PASS
+$ # ③：kb/l7 下 39 个被回卷的文件修回明文（含 SKILL.md）；L7/L5 run 记录各补 3 处 sha256_was+changed_by
+$ # 根因：生成器 node 子进程偶发 SIGKILL(-9)，崩溃报告 reason = SIGKILL (Code Signature Invalid)
+
+## 17 优化轮 ①③（枚举收敛 / 证据级对齐）
+$ # ① risk_level：生成器新增 normalize_risk_level()（12 种写法 → 红/黄/绿/未定级，多值取最严）
+$ python3 -c 'exec 生成器的归一函数；对 kb/l3 1527 行跑一遍'
+$   → {未定级 1417, 红 58, 黄 38, 绿 14}；守例：审慎·黄；高危·红 → 红
+$ # ① verification：决定不改（补丁 J 的论证成立）—— 补假映射只会把 E021 换成 E022 判 discard
+$ # ③ evidence_level：规则已对（E036=0），本轮补 evidence_level_note 让降级留痕
+$ python3 kb/l8/build_view.py --out kb/view --run <id>
+$   → 视图 risk_level {红 29, 黄 19, 绿 7, 未定级 454}；evidence_level_note {observation→L1 447, synthesis-1根→L1 59, synthesis-≥2根→L2 3}
+$   → 加载器 E001 0 / E046 0 / 健康分 100 / 六项回环 6/6；W020 2803→2267
+$ python3 kb/l8/workflow_check.py <id>   → 九段 9/9（其间修了 3 个被回卷的新 l7 报告）

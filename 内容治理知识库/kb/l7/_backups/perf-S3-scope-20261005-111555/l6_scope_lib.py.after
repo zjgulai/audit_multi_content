@@ -1,0 +1,179 @@
+#!/usr/bin/env python3
+"""L6 共用口径：可用单元 = L3 过滤后保留的那批，再按 SCOPE.txt 收窄为人工核定白名单。
+本文件是唯一口径来源，kb/.work/l6_scope.py 与 kb/.work/l6_build.py 都从这里取。
+kb/l0~l3 只读。
+"""
+import collections, json, os
+
+L0 = "kb/l0"
+SCOPE_FILE = "kb/l6/SCOPE.txt"
+
+# ── 2026-09-29 用户核定（选 A + 尺寸护栏）────────────────────────────────
+#  ① 负面样本纳入可用集：internal_sample 原先只收表=专家修订汇总表；现同时收 表=负面样本
+#  ② 尺寸护栏：单条 >8000 字不进索引（当年被排除的整页抓取中位 24,703 字；本批最长 12,641）
+#  ③ quality_flag 只挡"确有质量缺陷"的标记（l1_extraction_includes_code）；
+#     2026-09-29 无头重抓的 recrawl_headless_rendered 是干净正文，不再被挡
+#  ④ 尊重 L2 台账失效：资源在 manifest_l2 的最新 result=invalidated 时，其单元不进索引
+#  ⑤（2026-09-30 补）尊重**单元级**退役：kb/l2/retired_units.jsonl。
+#     ④ 只挡到资源级，而资源一旦被重切，manifest 最新 result 就从 invalidated 变成 split，
+#     ④ 当场失效 —— 旧正文的单元会继续进索引。实测 31 条 / 88,588 字就是这样漏进来的。
+#  ⑥（2026-09-30 补）pdf_ocr_vision 是扫描件经 pdftoppm+Vision OCR 得到的**正文本身**
+#     （不是提取缺陷标记，与 recrawl_headless_rendered 同类）。原先漏在放行名单外，
+#     后果是 7 本已 OCR 的扫描书在 L6 里只剩 OCR 前的 62~1,074 字外壳文本，
+#     正文（每本约 3~4.8 万字）整个检索不到。
+INTERNAL_SAMPLE_TABLES = {"专家修订汇总表", "负面样本"}
+MAX_UNIT_CHARS = 8000
+# 只放行「确认是干净正文」的标记；其余任何 quality_flag 一律照挡（勿放松，否则整页抓取会涌入）
+GOOD_QUALITY_FLAGS = {"recrawl_headless_rendered", "pdf_ocr_vision"}
+
+
+def _invalidated_resources(path="kb/l2/manifest_l2.jsonl"):
+    latest = {}
+    if not os.path.exists(path):
+        return set()
+    for l in open(path, encoding="utf-8"):
+        if l.strip():
+            r = json.loads(l)
+            latest[r.get("resource_id")] = r.get("result")
+    return {k for k, v in latest.items() if v == "invalidated"}
+
+
+def _retired_unit_ids(path="kb/l2/retired_units.jsonl"):
+    """单元级退役账（kb/l8/l2_align_current.py 写）。
+    资源被重切后旧单元不删，只在这里记账 —— 所以索引侧必须读它，否则旧正文照进。"""
+    if not os.path.exists(path):
+        return set()
+    out = set()
+    for l in open(path, encoding="utf-8"):
+        if l.strip():
+            out.add(json.loads(l)["unit_id"])
+    return out
+
+
+
+def content_metadata_fields():
+    """内容字段 / 元数据字段两张表。基础清单来自 L3 的补充字段表，
+    再并入 L0 registry 里角色为 status/other/link/attachment 的字段。"""
+    L0_FR = json.load(open(f"{L0}/registry/kb.json", encoding="utf-8"))["field_roles"]
+    content = {
+        "Primary Text", "Headline", "广告名称", "命中片段", "命中原因", "命中规则", "修改建议",
+        "边界内容", "检测关键词", "豁免词", "触发原因", "正则表达式", "判定理由",
+        "建议表达（合规话术）", "避免条件/限定要求", "风险原句示例", "建议文案EN", "中文释义",
+        "风险表达模式", "规则依据与边界", "卖点依据（产品功能）", "小语种参考 FR/DE/ES/IT",
+        "字符数自检", "修订位置（原文引用）", "修订内容", "修订原因", "备注（如处理结果/建议）",
+        "具体原因/分析", "原文逐字", "对判定的意义", "中文摘要", "关联现网规则", "条款位置",
+        "要包含什么", "需向对接人收集的问题", "建议字段/材料", "资料名称",
+    }
+    metadata = {
+        "启用状态", "风险等级", "规则编号", "映射规则编号", "卖点ID", "外部广告ID", "建议编号",
+        "处理状态", "抓取状态", "投放状态", "使用状态", "灯色状态", "状态", "分类", "素材类型",
+        "边界类型", "判断方式", "表达类型", "文案位置", "文案语种", "渠道", "渠道/市场", "平台",
+        "适用型号", "适用产品", "适用品类", "适用渠道", "投放地区", "地区", "主题场景", "阶段",
+        "语言", "品线", "广告类型", "广告账号", "广告组", "广告系列Campaign", "数据日期",
+        "近7天展示", "近7天点击", "近7天费用USD", "上传人员", "是否需要授权（法务负责）",
+        "是否完成医学审查（医疗确认）", "是否完成合规审查（法务确认）", "权威层级（医疗确认）",
+        "资料类型(医疗确认)", "适用对象", "发布日期", "父记录", "来源", "文件/链接", "知识库",
+        "知识库分类", "材料审核状态", "From", "细分", "备注", "更新频率", "agent使用范围", "负责人",   # 细分=该字段的旧名（飞书现名 备注，field_id fldn4bB 同源）；更新频率 此前漏列
+        *[k for k, v in L0_FR.items() if v in ("status", "other", "link", "attachment")],
+    }
+    return content, metadata
+
+
+CONTENT_FIELDS, METADATA_FIELDS = content_metadata_fields()
+
+
+def frole(n):
+    return "content" if n in CONTENT_FIELDS else ("metadata" if n in METADATA_FIELDS else "unknown")
+
+
+def load_units(path="kb/l2/units.jsonl"):
+    return [json.loads(l) for l in open(path, encoding="utf-8") if l.strip()]
+
+
+def usable_units(units=None):
+    """返回 (kept, FILTER)：口径与 kb/.work/l3_distill2.py 逐条一致。"""
+    units = units if units is not None else load_units()
+    FILTER = collections.Counter()
+    kept = []
+    # ★ 2026-10-05 提速（S3 · 纯重复计算，**判据一字未改**）：
+    #   病灶（分段实测）：本函数 42.64 s，而 L6 闸门总共 54.7 s —— 贵在这里。
+    #   原因：下面那两个集合与**单元无关**，却被写在逐单元循环里 ——
+    #     12,213 个单元 ⇒ `manifest_l2.jsonl` 与 `retired_units.jsonl` 各被
+    #     **重新打开+重新解析 12,213 次**。
+    #   改法：循环外算一次。判定逻辑、集合内容、计数口径全部原样。
+    _invalid = _invalidated_resources()
+    _retired = _retired_unit_ids()
+    for u in units:
+        kb = u["kb_type"]
+        if kb not in ("wording", "external_standard", "internal_sample"):
+            FILTER[(kb, "out_of_scope_kb")] += 1
+            continue
+        _tbl = (u.get("meta") or {}).get("table") or u.get("heading_path")
+        if kb == "internal_sample" and _tbl not in INTERNAL_SAMPLE_TABLES:
+            FILTER[(kb, "out_of_scope_table")] += 1
+            continue
+        if len(u.get("text") or "") > MAX_UNIT_CHARS:
+            FILTER[(kb, "oversize_gt_%d" % MAX_UNIT_CHARS)] += 1
+            continue
+        if u["unit_type"] == "entry" and frole(u.get("heading_path")) != "content":
+            FILTER[(kb, "metadata" if frole(u.get("heading_path")) == "metadata"
+                    else "metadata_unknown_field")] += 1
+            continue
+        flag = (u.get("meta") or {}).get("content_quality_flag")
+        if flag and flag not in GOOD_QUALITY_FLAGS:
+            FILTER[(kb, "quality_flag")] += 1
+            continue
+        if u.get("resource_id") in _invalid:
+            FILTER[(kb, "l2_invalidated")] += 1
+            continue
+        if u["unit_id"] in _retired:
+            FILTER[(kb, "l2_unit_retired")] += 1
+            continue
+        kept.append(u)
+    return kept, FILTER
+
+
+def apply_scope_file(kept, FILTER, path=None):
+    """按 kb/l6/SCOPE.txt 把可用集合收窄为人工核定的白名单。
+
+    **为什么要有这个函数**：SCOPE.txt 这个机制原先只被 kb/.work/l6_scope.py（报告器）读，
+    而真正建索引的 kb/.work/l6_build.py 走的是本文件的 usable_units()，**不读 SCOPE.txt**。
+    于是 registry 里那句 `scope_file: kb/l6/SCOPE.txt` 会在文件存在时声称「已按它取子集」，
+    实际建索引根本没理会 —— 属静默失真的溯源声明。2026-09-29 F11 把读取接进本文件，
+    让报告器与建索引器同源；口径只能有一份。
+
+    返回 (收窄后的 kept, 被排除的条数, 说明 dict)。无 SCOPE.txt 时原样返回。
+    """
+    path = path or SCOPE_FILE
+    if not os.path.exists(path):
+        return kept, 0, None
+    want = [l.strip() for l in open(path, encoding="utf-8")
+            if l.strip() and not l.startswith("#")]
+    wanted = set(want)
+    have = {u["unit_id"] for u in kept}
+    out = [u for u in kept if u["unit_id"] in wanted]
+    removed = len(kept) - len(out)
+    if removed:
+        FILTER[("*", "outside_scope_file")] += removed
+    return out, removed, {
+        "specified": len(want),
+        "distinct_specified": len(wanted),
+        "hits": len(out),
+        "excluded_from_usable": removed,
+        "specified_but_not_usable": sorted(wanted - have),
+    }
+
+
+def p0_evidence_unit_ids(path="kb/l3/candidates/rules.jsonl"):
+    """P0 规则的证据单元 id 集合。P0 不入向量（走 kb/l5/matcher.py 的确定性匹配）。"""
+    latest = {}
+    for l in open(path, encoding="utf-8"):
+        if l.strip():
+            r = json.loads(l)
+            latest[r["rule_id"]] = r
+    out = set()
+    for r in latest.values():
+        if r.get("p_level") == "P0":
+            for u in r.get("evidence_units") or []:
+                out.add(u["unit_id"])
+    return out

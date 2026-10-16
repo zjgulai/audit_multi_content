@@ -1,0 +1,472 @@
+#!/usr/bin/env python3
+"""L6 建索引（向量 + BM25，分语言）。
+- kb/l0~l3 全程只读；产物只写 kb/l6/
+- BM25：自实现倒排，不新增任何库；切法未变时索引一字不写
+- 向量：超长单元**按段落/句边界分段，不截断**；每段一条向量，共享 unit_id
+- 幂等：向量主键 (unit_id, segment_index, content_hash, model, dim, quantization)
+        全部没变 → unchanged，不重新调 embedding；全量无变化时不重写任何索引文件
+- embedding 失败退避重试（最多 3 次），仍失败登记原因，不静默跳过
+- BM25 与向量统一用全局 doc_id（= 单元在可用集合里的序号）当键，两边编号同源
+"""
+import collections, hashlib, json, os, sys, time, importlib.util
+
+sys.path.insert(0, "kb/.work")
+import l6_scope_lib as SL
+
+RUN = sys.argv[1] if len(sys.argv) > 1 else "20260923-1440"
+L6 = "kb/l6"
+B_DIR, V_DIR = f"{L6}/bm25", f"{L6}/vectors"
+for d in (B_DIR, V_DIR, f"{L6}/index", f"{L6}/registry", f"{L6}/runs"):
+    os.makedirs(d, exist_ok=True)
+
+spec = importlib.util.spec_from_file_location("l6_retriever", f"{L6}/retriever.py")
+RT = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(RT)
+
+MP = json.load(open("kb/.work/l6_model_probe.json", encoding="utf-8"))
+MODEL, DIM = MP["model"], MP["dim"]
+QUANT = MP["weights"]["quantization_verdict"]
+CACHE = MP["weights"]["stable_cache_dir"]
+BATCH, MAX_RETRY = 32, 3
+SEG_MAX = RT.SEG_MAX_TOKENS
+t_start = time.time()
+
+
+def write_if_changed(path, text):
+    if os.path.exists(path):
+        with open(path, "rb") as fh:
+            if fh.read() == text.encode("utf-8"):
+                return False
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(text)
+    return True
+
+
+def chash(t):
+    return hashlib.sha256((t or "").encode("utf-8")).hexdigest()[:32]
+
+
+def excerpt(t, n=160):
+    import re as _re
+    return _re.sub(r"\s+", " ", t or "").strip()[:n]
+
+
+def table_of(a):
+    a = a or ""
+    return a[1:].split("/")[0] if a.startswith("#") else a.split("/")[0]
+
+
+def langtag(t):
+    zh = any(RT.is_cjk(c) for c in t)
+    en = any(c.isascii() and c.isalpha() for c in t)
+    return "中英混排" if zh and en else ("中文" if zh else ("英文/拉丁" if en else "无字母"))
+
+
+# ---------------- 范围 ----------------
+kept, FILTER = SL.usable_units()
+# SCOPE.txt 是人工核定的白名单，必须**在建索引这一侧**生效（原先只有报告器读它）。
+kept, _scope_removed, scope_file_info = SL.apply_scope_file(kept, FILTER)
+
+
+def _recorded_scope():
+    """上一次建索引时记录在案的可用单元数（registry 为准；拿不到返回 None）。
+
+    护栏的本意是「口径不能静默漂移」。原先写成字面量 1899，导致 L2/L3 合法增长后
+    无法重跑 —— 2026-09-29 F11 实测：L2 增长到 1,982 就撞停。
+    改成与**上次记录**比对：漂移仍然默认停，但必须由人显式确认才放行，差额留痕。
+    """
+    p = f"{L6}/registry/l6.json"
+    if not os.path.exists(p):
+        return None
+    try:
+        return json.load(open(p, encoding="utf-8")).get("scope", {}).get("usable_units")
+    except Exception:
+        return None
+
+
+prev_scope = _recorded_scope()
+accept_delta = ("--accept-scope-delta" in sys.argv) or os.environ.get("L6_ACCEPT_SCOPE_DELTA") == "1"
+if prev_scope is not None and len(kept) != prev_scope and not accept_delta:
+    raise SystemExit(
+        f"可用单元数 {len(kept)} != 上次记录 {prev_scope}（差 {len(kept) - prev_scope:+d}），范围口径变了。\n"
+        f"  先确认这是 L2/L3 的**合法**增长，再加 --accept-scope-delta 重跑；"
+        f"差额会写进 registry 的 scope.scope_delta。\n"
+        f"  不要改这个判断里的数字 —— 它是防口径静默漂移的护栏。"
+    )
+p0_ids = SL.p0_evidence_unit_ids()
+p0_in_scope = p0_ids & {u["unit_id"] for u in kept}
+unit_by_id = {u["unit_id"]: u for u in kept}
+print(f"可用单元 {len(kept)}｜P0 证据单元（不入向量）{len(p0_in_scope)}")
+
+# ---------------- BM25（自实现，切法未变 → 期望不重写） ----------------
+old_docs = {}
+if os.path.exists(f"{B_DIR}/docs.jsonl"):
+    for l in open(f"{B_DIR}/docs.jsonl", encoding="utf-8"):
+        if l.strip():
+            r = json.loads(l)
+            old_docs[r["unit_id"]] = r
+
+# 口径差额留痕：与**上次已索引**的集合逐 id 比，而不是只比总数。
+# 只有新增/移除都摆出来，人才判得了这次范围变化是合法增长还是口径被改坏。
+kept_ids = {u["unit_id"] for u in kept}
+scope_delta = {
+    "prev_recorded_usable": prev_scope,
+    "prev_indexed": len(old_docs) or None,
+    "now_in_scope": len(kept_ids),
+    "delta_vs_prev_recorded": (len(kept_ids) - prev_scope) if prev_scope is not None else None,
+    "delta_vs_prev_indexed": (len(kept_ids) - len(old_docs)) if old_docs else None,
+    "added": sorted(kept_ids - set(old_docs)) if old_docs else [],
+    "removed": sorted(set(old_docs) - kept_ids) if old_docs else [],
+    "accepted_by_flag": bool(accept_delta),
+}
+print(f"口径差额：新增 {len(scope_delta['added'])} 移除 {len(scope_delta['removed'])}"
+      f"（上次记录 {prev_scope} → 本次 {len(kept_ids)}）")
+
+bm_status, docs, tok_work = {}, [], 0
+for i, u in enumerate(kept):
+    uid, txt = u["unit_id"], u.get("text") or ""
+    ch = chash(txt)
+    prev = old_docs.get(uid)
+    if prev and prev["content_hash"] == ch and prev["tokenizer_version"] == RT.TOKENIZER_VERSION:
+        rec = dict(prev)
+        rec["doc_id"] = i
+        bm_status[uid] = "unchanged"
+    else:
+        zh, en = RT.tokenize(txt)
+        rec = {"doc_id": i, "unit_id": uid, "kb_type": u["kb_type"], "anchor": u["anchor"],
+               "source_sha256": u["source_sha256"], "content_hash": ch,
+               "tokenizer_version": RT.TOKENIZER_VERSION, "table": table_of(u["anchor"]),
+               "heading_path": u.get("heading_path"), "lang": langtag(txt), "char_len": len(txt),
+               "text_excerpt": excerpt(txt), "dl_zh": len(zh), "dl_en": len(en),
+               "tf_zh": dict(collections.Counter(zh)), "tf_en": dict(collections.Counter(en))}
+        bm_status[uid] = "changed" if prev else "new"
+        if not zh and not en:
+            bm_status[uid] = "failed"
+            rec["fail_reason"] = "文本切不出任何词元（无汉字字母数字，仅标点/空白/符号）"
+        tok_work += 1
+    docs.append(rec)
+
+post = {"zh": collections.defaultdict(list), "en": collections.defaultdict(list)}
+dl_sum, N = {"zh": 0, "en": 0}, {"zh": 0, "en": 0}
+for d in docs:
+    for lang in ("zh", "en"):
+        tf = d[f"tf_{lang}"]
+        if tf:
+            N[lang] += 1
+            dl_sum[lang] += d[f"dl_{lang}"]
+            for term, c in tf.items():
+                post[lang][term].append([d["doc_id"], c])
+bm_meta = {"tokenizer_version": RT.TOKENIZER_VERSION, "k1": RT.K1, "b": RT.B,
+           "docs_total": len(docs), "N_zh": N["zh"], "N_en": N["en"],
+           "avgdl_zh": round(dl_sum["zh"] / N["zh"], 3) if N["zh"] else 0,
+           "avgdl_en": round(dl_sum["en"] / N["en"], 3) if N["en"] else 0,
+           "terms_zh": len(post["zh"]), "terms_en": len(post["en"]),
+           "postings_zh": sum(len(v) for v in post["zh"].values()),
+           "postings_en": sum(len(v) for v in post["en"].values()),
+           "built_at": time.strftime("%Y-%m-%d %H:%M:%S"), "run_id": RUN,
+           "algorithm": RT.BM25.algorithm,
+           "lang_policy": "中文 bigram / 英文小写+分词+轻词干；两套词表与倒排分语言存放，不混",
+           "libs": "无第三方检索库：未使用 jieba / rank_bm25（自实现倒排 + BM25 打分）"}
+bm_touched = [u for u, s in bm_status.items() if s in ("new", "changed")]
+bm_files_changed = bool(bm_touched) or not os.path.exists(f"{B_DIR}/meta.json")
+if bm_files_changed:
+    with open(f"{B_DIR}/docs.jsonl", "w", encoding="utf-8") as fh:
+        for d in docs:
+            fh.write(json.dumps(d, ensure_ascii=False, sort_keys=True) + "\n")
+    for lang in ("zh", "en"):
+        with open(f"{B_DIR}/postings_{lang}.jsonl", "w", encoding="utf-8") as fh:
+            for term in sorted(post[lang]):
+                pl = sorted(post[lang][term])
+                fh.write(json.dumps({"term": term, "df": len(pl), "postings": pl},
+                                    ensure_ascii=False, sort_keys=True) + "\n")
+    json.dump(bm_meta, open(f"{B_DIR}/meta.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+print(f"BM25（自实现）：{bm_meta['docs_total']} 文档｜术语 zh {bm_meta['terms_zh']} / en {bm_meta['terms_en']}｜"
+      f"平均长度 zh {bm_meta['avgdl_zh']} / en {bm_meta['avgdl_en']}｜本次切词 {tok_work} 条｜"
+      f"{'重写' if bm_files_changed else '索引无变化 → 不重写文件'}")
+
+# ---------------- 向量：分段 + 增量 ----------------
+from fastembed import TextEmbedding  # noqa: E402
+model = TextEmbedding(model_name=MODEL, cache_dir=CACHE) if os.path.isdir(CACHE) else TextEmbedding(model_name=MODEL)
+count_tokens = model.token_count
+hs_text = "握手自检：这是一次真实的 embedding 请求。"
+hv = [float(x) for x in list(model.embed([hs_text]))[0]]
+handshake = {"how": "向模型发一次真实 embedding 请求，校验返回向量合法且维度一致（不用端口/依赖存在性判定）",
+             "text": hs_text, "dim_returned": len(hv), "dim_expected": int(model.embedding_size),
+             "all_finite": all(x == x and abs(x) != float("inf") for x in hv),
+             "norm": round(sum(x * x for x in hv) ** 0.5, 4),
+             "verdict": "可用" if len(hv) == model.embedding_size else "不可用"}
+print(f"握手：{handshake['verdict']}（返回 {handshake['dim_returned']} 维，期望 {handshake['dim_expected']}，范数 {handshake['norm']}）")
+assert handshake["verdict"] == "可用", "模型握手失败，不得伪造向量"
+
+old_vec = {}
+old_dim = old_quant = None
+if os.path.exists(f"{V_DIR}/vectors.jsonl"):
+    import numpy as np
+    vm = json.load(open(f"{V_DIR}/meta.json", encoding="utf-8"))
+    old_dim, old_quant = vm.get("dim"), vm.get("quantization")
+    M_old = np.load(f"{V_DIR}/matrix.npy")
+    for l in open(f"{V_DIR}/vectors.jsonl", encoding="utf-8"):
+        if l.strip():
+            r = json.loads(l)
+            if "segment_index" in r:                 # 老版（单元级、被截断）不算可复用
+                old_vec[(r["unit_id"], r["segment_index"], r["content_hash"])] = (r, M_old[r["row"]])
+
+todo, keep_rows, vec_status, seg_stats = [], [], {}, []
+units_segmented = 0
+for d in docs:
+    uid = d["unit_id"]
+    u = unit_by_id[uid]
+    if uid in p0_in_scope:
+        vec_status[uid] = ("skipped_p0", "P0 规则的证据单元：P0 走 kb/l5/matcher.py 确定性匹配，不入向量")
+        continue
+    txt = u.get("text") or ""
+    if not txt.strip():
+        vec_status[uid] = ("failed", "文本为空，无内容可嵌入")
+        continue
+    segs = RT.segment_text(txt, count_tokens, SEG_MAX)
+    seg_stats.append({"unit_id": uid, "char_len": len(txt), "segments": len(segs),
+                      "max_seg_tokens": max(s["token_count"] for s in segs),
+                      "hard_split_segments": sum(1 for s in segs if s["hard_split"]),
+                      "table": table_of(u["anchor"])})
+    if len(segs) > 1:
+        units_segmented += 1
+    for s in segs:
+        key = (uid, s["segment_index"], chash(s["text"]))
+        hit = old_vec.get(key)
+        if hit and hit[0]["model"] == MODEL and hit[0]["dim"] == DIM and hit[0]["quantization"] == QUANT:
+            keep_rows.append((dict(hit[0], doc_id=d["doc_id"], segment_count=len(segs),
+                                   char_offset=s["char_offset"], token_count=s["token_count"]), hit[1]))
+            vec_status[uid] = ("unchanged", "")
+        else:
+            todo.append((d, u, s, len(segs)))
+            vec_status[uid] = ("new" if not hit else "changed", "")
+
+embed_calls = retries = 0
+new_rows, failures = [], []
+if todo:
+    import numpy as np
+    for st in range(0, len(todo), BATCH):
+        chunk = todo[st:st + BATCH]
+        texts = [c[2]["text"] for c in chunk]
+        vecs, err = None, None
+        for attempt in range(1, MAX_RETRY + 1):
+            try:
+                embed_calls += 1
+                vecs = [np.asarray(v, dtype="float32") for v in model.embed(texts)]
+                break
+            except Exception as e:                       # noqa: BLE001 退避重试
+                err = f"{type(e).__name__}: {e}"
+                if attempt < MAX_RETRY:
+                    retries += 1
+                    time.sleep(2 ** attempt)
+        if vecs is None:
+            for d, u, s, n in chunk:
+                vec_status[u["unit_id"]] = ("failed", f"embedding 连续失败 {MAX_RETRY} 次：{err}")
+                failures.append({"unit_id": u["unit_id"], "segment_index": s["segment_index"], "reason": err})
+            continue
+        for (d, u, s, n), v in zip(chunk, vecs):
+            norm = float(np.linalg.norm(v))
+            if not np.isfinite(norm) or norm == 0:
+                vec_status[u["unit_id"]] = ("failed", "模型返回零向量/非有限值，不写入（拒绝伪造）")
+                failures.append({"unit_id": u["unit_id"], "segment_index": s["segment_index"],
+                                 "reason": "zero_or_nonfinite"})
+                continue
+            new_rows.append(({
+                "unit_id": u["unit_id"], "kb_type": u["kb_type"], "anchor": u["anchor"],
+                "source_sha256": u["source_sha256"], "model": MODEL, "dim": DIM, "quantization": QUANT,
+                "content_hash": chash(s["text"]), "unit_content_hash": chash(u.get("text") or ""),
+                "segment_index": s["segment_index"], "segment_count": n, "char_offset": s["char_offset"],
+                "token_count": s["token_count"], "hard_split": s["hard_split"],
+                "table": table_of(u["anchor"]), "lang": langtag(u.get("text") or ""),
+                "char_len": len(s["text"]), "doc_id": d["doc_id"],
+            }, (v / norm).astype("float32")))
+
+all_rows = keep_rows + new_rows
+all_rows.sort(key=lambda x: (x[0]["doc_id"], x[0]["segment_index"]))
+vec_files_changed = bool(new_rows) or not os.path.exists(f"{V_DIR}/meta.json")
+if all_rows and vec_files_changed:
+    import numpy as np
+    dims = {r["dim"] for r, _ in all_rows}
+    assert dims == {DIM}, f"维度不一致 {dims}，停"
+    with open(f"{V_DIR}/vectors.jsonl", "w", encoding="utf-8") as fh:
+        for i, (row, _) in enumerate(all_rows):
+            fh.write(json.dumps(dict(row, row=i), ensure_ascii=False, sort_keys=True) + "\n")
+    np.save(f"{V_DIR}/matrix.npy", np.vstack([v for _, v in all_rows]).astype("float32"))
+    seg_counts = collections.Counter(r["segment_count"] for r, _ in all_rows)
+    json.dump({
+        "model": MODEL, "dim": DIM, "quantization": QUANT,
+        "quantization_evidence": MP["weights"]["quantization_verdict"] + "；ONNX initializer dtype 直方图 "
+                                 + json.dumps(MP["weights"]["initializer_dtype_histogram"])
+                                 + "；量化算子命中 0",
+        "weights_repo": MP["weights"]["hf_repo"], "weights_file": MP["weights"]["model_file"],
+        "weights_bytes": MP["weights"]["bytes"], "cache_dir": CACHE,
+        "provider": "fastembed 0.7.4 + onnxruntime 1.19.2（本地 CPU，ONNX 路线，未装 torch）",
+        "normalize": "l2（存的就是归一化后的向量，点积即余弦）",
+        "count": len(all_rows), "units": len({r["unit_id"] for r, _ in all_rows}),
+        "segmentation": {
+            "segmenter_version": RT.SEGMENTER_VERSION, "seg_max_tokens": SEG_MAX,
+            "effective_model_max_tokens": MP["effective_max_tokens"],
+            "how": "按段落换行 + 句末标点切句，贪心打包到 ≤seg_max_tokens；单句超限时按 token 二分硬切。"
+                   "不截断、不丢内容：各段文本拼回来等于原文。",
+            "why": "实测该模型在 128 token 处静默截断（两条只有前 300 字相同的文本得到完全相同向量）",
+            "segment_count_histogram": {str(k): v for k, v in sorted(seg_counts.items())},
+        },
+        "built_at": time.strftime("%Y-%m-%d %H:%M:%S"), "run_id": RUN,
+    }, open(f"{V_DIR}/meta.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    vec_write = "重写"
+else:
+    vec_write = "向量无变化 → 不重写文件" if all_rows else "无向量可写"
+vec_units = len({r["unit_id"] for r, _ in all_rows})
+print(f"向量：单元 {vec_units} 个 → 段 {len(all_rows)} 条｜被分段单元 {units_segmented}｜"
+      f"新增/变更 {len(new_rows)}｜复用 {len(keep_rows)}｜embedding 调用 {embed_calls} 次、"
+      f"重试 {retries} 次｜失败 {len(failures)}｜{vec_write}")
+
+# ---------------- 投影 + registry ----------------
+VDIM = json.load(open(f"{V_DIR}/meta.json", encoding="utf-8"))["dim"] if os.path.exists(f"{V_DIR}/meta.json") else None
+bm_indexed = {d["unit_id"] for d in docs if d["dl_zh"] or d["dl_en"]}
+seg_by_unit = collections.Counter(r["unit_id"] for r, _ in all_rows)
+tf_by_unit = {d["unit_id"]: d for d in docs}
+idx = []
+for u in kept:
+    uid = u["unit_id"]
+    b_ok, v_ok = uid in bm_indexed, uid in seg_by_unit
+    vs, vreason = vec_status.get(uid, ("unknown", "未处理"))
+    idx.append({
+        "unit_id": uid, "kb_type": u["kb_type"], "anchor": u["anchor"],
+        "source_sha256": u["source_sha256"], "content_hash": chash(u.get("text") or ""),
+        "model": MODEL if v_ok else None, "dim": VDIM if v_ok else None,
+        "status": "indexed" if (b_ok and v_ok) else ("partial" if (b_ok or v_ok) else "failed"),
+        "bm25": {"indexed": b_ok, "terms_zh": len(tf_by_unit[uid]["tf_zh"]),
+                 "terms_en": len(tf_by_unit[uid]["tf_en"])},
+        "vector": {"indexed": v_ok, "segments": seg_by_unit.get(uid, 0),
+                   "reason": None if v_ok else (vreason or "未入向量")},
+    })
+proj_written = write_if_changed(f"{L6}/index/l6.jsonl",
+                                "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in idx))
+
+seg_hist = collections.Counter(s["segments"] for s in seg_stats)
+longest = max(seg_stats, key=lambda s: s["segments"]) if seg_stats else None
+cap = {
+    "mode": "vector_plus_bm25",
+    "semantic_recall": True,
+    "model": MODEL, "dim": DIM, "quantization": QUANT,
+    "provider": "fastembed 0.7.4 + onnxruntime 1.19.2（本地 CPU）",
+    "weights_repo": MP["weights"]["hf_repo"], "weights_file": MP["weights"]["model_file"],
+    "weights_cache_dir": CACHE, "weights_bytes": MP["weights"]["bytes"],
+    "effective_max_tokens": MP["effective_max_tokens"],
+    "handshake": handshake,
+    "known_limitations": [
+        "跨语言只有多语模型的弱对齐：中文查询能拿到英文素材的较高相似度，但不等价于翻译级召回",
+        "同义改写受限：2019 年的多语 MiniLM（384 维），对行业黑话/新造词的语义区分有限",
+        "规避型表述（拼音、拆字、谐音、符号分隔、小语种）召回受限：这类本来就绕开字面，向量也未必抓到",
+        "无重排（本轮不做 rerank 模型），Top-N 只做 RRF 融合，长尾排序质量未校验",
+        "无命中阈值：检索器一律返回 Top-N，不带相关性阈值，是否采纳由下游判定",
+        "融合分不能当阈值用：RRF 分只是名次的倒数（Top1 恒为 1/(k+1)=0.016393），A 组与 B 组看起来一样高；"
+        "真要设阈值得取原始分（BM25 分 / 余弦分），而原始分在 A/B 两组之间仍有重叠（实测 A 组 BM25 最低 5.32 < B 组最高 10.02）",
+        "超长单元分段后每段独立成向量，段间语义依赖未建模",
+        "P0 证据单元（321 条）不在向量索引内，只能走 kb/l5/matcher.py",
+    ],
+    "no_hit_semantics": {
+        "bm25_only": "字面未匹配，不代表合规",
+        "vector_only": "语义未匹配，不代表合规",
+        "hybrid": "字面与语义均未匹配，但仍不代表合规",
+    },
+    "no_hit_note": "向量检索会让『无命中』看起来更权威，但它仍然召不到语料里没有的东西；"
+                   "规避型文案本来就绕开字面，无命中不是放行理由。",
+}
+probe = json.load(open("kb/.work/l6_probe.json", encoding="utf-8"))
+probe0 = json.load(open("kb/.work/l6_probe_initial.json", encoding="utf-8"))
+reg = {
+    "kb_version": "v0", "run_id": RUN, "mode": "vector_plus_bm25",
+    "mode_note": "必装项已完成：本地 ONNX 多语模型可用（真实握手通过），向量与 BM25 双索引都落盘",
+    "retrieval_capability": cap,
+    "scope": {"usable_units": len(kept), "source": "kb/l2/units.jsonl 经 L3 口径过滤",
+              "filter_distribution": {f"{k[0]}|{k[1]}": v for k, v in FILTER.items()},
+              "scope_file": "kb/l6/SCOPE.txt" if scope_file_info else None,
+              "scope_file_info": scope_file_info,
+              "scope_file_note": "SCOPE.txt 是人工核定白名单，由 l6_scope_lib.apply_scope_file() 在建索引侧生效；"
+                                 "不在此文件里的可用单元**不会**进索引（宁可少收，不可把整页抓取混进来稀释检索）。",
+              "scope_delta": {k: (v if not isinstance(v, list) else
+                                  {"count": len(v), "unit_ids": v[:50],
+                                   "truncated": len(v) > 50})
+                              for k, v in scope_delta.items()},
+              "scope_delta_note": "与上一次已索引集合的逐 id 差额；added/removed 只留前 50 个 id，count 为全量数。"
+                                  "口径变化必须由人用 --accept-scope-delta 确认，不允许静默漂移。"},
+    "tokenizer": {
+        "version": RT.TOKENIZER_VERSION, "rrf_k": RT.RRF_K, "bm25": {"k1": RT.K1, "b": RT.B},
+        "implementation": RT.BM25.algorithm,
+        "zh": "按字符类别切出连续汉字段 → 直接 bigram（不依赖分词库）；单字段退化为 unigram",
+        "en": "小写化 → 按标点/空白分词 → 轻词干（复数/时态/副词后缀保守剥离）",
+        "mixed": "按字符类别分段，各段用各自的切法；词表与倒排分语言存放，不混",
+        "why": "中文 bigram 对英文会明显劣化；素材里英文占比高，混一套切法会拉低英文侧召回",
+    },
+    "segmentation": json.load(open(f"{V_DIR}/meta.json", encoding="utf-8"))["segmentation"],
+    "embedding": {"model": MODEL, "dim": DIM, "quantization": QUANT, "provider": cap["provider"],
+                  "normalized": "l2", "batch": BATCH, "max_retry": MAX_RETRY,
+                  "weights_repo": MP["weights"]["hf_repo"], "weights_file": MP["weights"]["model_file"],
+                  "weights_cache_dir": CACHE, "handshake": handshake,
+                  "p0_excluded_units": len(p0_in_scope),
+                  "p0_policy": "走 kb/l5/matcher.py 的确定性匹配，因此不重复建向量"},
+    "fusion": {"method": "RRF", "k": RT.RRF_K,
+               "how": "先在 bm25_zh / bm25_en 两个语言子索引之间按名次融合，再与 vector 名次融合",
+               "why": "RRF 只用名次不用原始分，规避 BM25 分与余弦分量纲不同；两路统一用全局 doc_id 当键",
+               "rerank": "本轮不做 rerank 模型"},
+    "idempotency": {
+        "vector_key": ["unit_id", "segment_index", "content_hash", "model", "dim", "quantization"],
+        "bm25_key": ["unit_id", "content_hash", "tokenizer_version"],
+        "content_hash": "向量的 content_hash = sha256(该段文本)[:32]；另存 unit_content_hash = sha256(单元全文)[:32]",
+        "unchanged": "键全同 → 复用已有向量/词频表，不重新切词、不重新调 embedding；全量无变化时不重写索引文件",
+    },
+    "embedding_probe": probe, "embedding_probe_initial": probe0,
+    "mode_history": [
+        {"step": "首轮探测（13:56）", "result": "bm25_only",
+         "why": "curl 只给 3 秒超时，huggingface/pypi 全判不可达；本机也确实没有现成 embedding 依赖与模型文件"},
+        {"step": "复测网络（13:58）", "result": "可达", "why": "两站均 200，首轮是超时太短导致的误判"},
+        {"step": "装 ONNX 路线依赖（13:59）", "result": "fastembed 0.7.4",
+         "why": "onnxruntime 已在本机，fastembed 走 ONNX 不拉 torch"},
+        {"step": "权重落稳（14:12）", "result": "复制到 ~/.dsh/models/fastembed",
+         "why": "fastembed 默认缓存在 /var/folders 临时目录，系统清理后离线就跑不了；挪到稳定目录并让 retriever 指过去"},
+        {"step": "发现截断（14:13）", "result": "必须分段",
+         "why": "实测该模型 128 token 截断，31,450 字的单元只进前 ~128 字；本版改为按段落分段"},
+        {"step": "修正融合编号（14:15）", "result": "统一 doc_id",
+         "why": "上一版向量用矩阵行号、BM25 用文档号，两套编号不同源（1,573/1,578 对不上），融合会张冠李戴"},
+    ],
+    "counts": {
+        "usable": len(kept),
+        "bm25_indexed": len(bm_indexed), "bm25_failed": len(kept) - len(bm_indexed),
+        "vector_units_indexed": vec_units, "vector_segments": len(all_rows),
+        "units_segmented": units_segmented,
+        "vector_skipped_p0": len(p0_in_scope),
+        "vector_failed": len(kept) - vec_units - len(p0_in_scope),
+        "note": "全部为持久口径（索引里到底有没有这条）；本次运行做了什么写在 runs/ 里",
+    },
+    "bm25_scale": {k: bm_meta[k] for k in ("docs_total", "N_zh", "N_en", "avgdl_zh", "avgdl_en",
+                                           "terms_zh", "terms_en", "postings_zh", "postings_en")},
+}
+reg_written = write_if_changed(f"{L6}/registry/l6.json", json.dumps(reg, ensure_ascii=False, indent=1) + "\n")
+
+did_work = bool(new_rows) or tok_work > 0 or bm_files_changed or vec_files_changed
+if did_work:
+    with open(f"{L6}/runs/build_runs.jsonl", "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({
+            "run_id": RUN, "at": time.strftime("%Y-%m-%d %H:%M:%S"), "usable": len(kept),
+            "bm25_tokenized": tok_work, "bm25_docs": len(docs), "units_segmented": units_segmented,
+            "vector_segments_new_or_changed": len(new_rows), "vector_segments_reused": len(keep_rows),
+            "vector_segments_total": len(all_rows), "embedding_calls": embed_calls,
+            "embedding_retries": retries, "embedding_failures": len(failures),
+            "elapsed_s": round(time.time() - t_start, 1),
+            "wrote_bm25": bm_files_changed, "wrote_vectors": vec_files_changed,
+        }, ensure_ascii=False, sort_keys=True) + "\n")
+
+json.dump({"run_id": RUN, "bm_status": bm_status, "vec_status": {k: v[0] for k, v in vec_status.items()},
+           "vec_reasons": {k: v[1] for k, v in vec_status.items() if v[1]},
+           "bm25_meta": bm_meta, "seg_stats": seg_stats, "seg_hist": dict(seg_hist),
+           "longest": longest, "units_segmented": units_segmented,
+           "embed_calls": embed_calls, "retries": retries, "failures": failures,
+           "handshake": handshake, "vec_units": vec_units, "vec_segments": len(all_rows),
+           "bm_files_changed": bm_files_changed, "vec_files_changed": vec_files_changed,
+           "elapsed_s": round(time.time() - t_start, 1)},
+          open("kb/.work/l6_build.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+print(f"索引投影 {len(idx)} 行（{'重写' if proj_written else '未变不写'}）｜"
+      f"registry（{'重写' if reg_written else '未变不写'}）｜总耗时 {time.time()-t_start:.1f}s")
+print(f"分段分布：{dict(sorted(seg_hist.items()))}｜最长单元 {longest['char_len']} 字 → {longest['segments']} 段")

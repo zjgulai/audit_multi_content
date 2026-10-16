@@ -1,0 +1,38 @@
+{
+ "run_id": "20261009-193733",
+ "at": "2026-10-09T19:37:33",
+ "source": "review_machine",
+ "trigger": "视觉风格参考最终EDM 图，整体使用真人生活方式实景图，不要插画感。整体是一张竖版长图，采用分区模块排版，不是多张图拼接…",
+ "skills": [
+  "kb-content-review",
+  "审查裁决"
+ ],
+ "commands": [
+  "kb-content-review/scripts/review.py --text …",
+  "l7/review-engine/core/review_engine.py decide()"
+ ],
+ "products": [],
+ "verdict": "BLOCK ｜ issue_count=5",
+ "human_involved": false,
+ "extra": {
+  "decision_owner": {
+   "skill": "图片安全审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "图片安全审查",
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check"
+   ]
+  },
+  "loaded_skills": [
+   "图片安全审查",
+   "kb-canonical-lookup",
+   "kb-p0-check",
+   "kb-recall",
+   "kb-check"
+  ]
+ }
+}

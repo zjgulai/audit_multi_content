@@ -1,0 +1,245 @@
+===CASE 101===
+===ROUTE 101: kb-clause-extractor===
+**结论：能蒸，但它蒸出来的不是「规则」而是一条「词表命中型」规则候选（本库对这类条款的既有形态是 `scoped_clause`）；而且这条本身有个要先定的口径问题 —— 「等」字是开口的。**
+
+先说为什么能：
+
+| 可判定三要素 | 这条政策有没有 | 逐字依据 |
+|---|---|---|
+| 判定条件 | 有 | 用于「描述/宣传商品」时 |
+| 命中表达 | 有，但**开口** | 「最」字（明示）；「等绝对化用语」（未列举） |
+| 处理方式 | 有 | 「禁止使用」→ 处理动作 = 删除 / 替换为客观表述或限定语 |
+
+禁则型（prohibition）是最好抽的一类：有模态词「禁止」、有动作「使用」、有词表锚点「最」。所以它过得了「命中 → 处理」这道门槛，**不是** `narrative_no_obligation` 那类叙述性正文。
+
+**但有一个必须先定的事**：库里已有的同型规则，词表都是**穷举**的，不是「等」字。看现成的两条：
+
+- `r-3b6c3c82dc667295`（虚假安全承诺）：`forbidden_expression` = `safest, most safe, 100% safe, …, 最安全, 唯一, 百分百安全, 零风险, 完美, …` —— 33 个词，中英双语，逐条列清；
+- `r-33ce99a813e0865a`（压力话术）：`last chance, limited time, final hours, …, 错过即无, 限时, 最后机会, 不买后悔, 手慢无` —— 11 个词。
+
+也就是说：判定器靠的是 `forbidden_expression` 这张表。**你给的这句只给了「最」一个词 + 一个「等」，蒸出来的候选只判得了「最」**（「第一」「顶级」「100%」「极限词」这些都不在表里，`min/max` 一类英文最高级也不在）。要么你补一张完整词表，要么这条候选的 `term_list` 只能写 `["最"]` 并在 `quality_flag` 上如实标注「词表开口」。
+
+---
+
+**这条要是入库，落成什么样（本库既有形态，字段照抄）**
+
+L3 现有三种落盘形态：`rules.jsonl`（wording 类）、`sample_cases.jsonl`、`scoped_clauses.jsonl`（external_standard 类）。你这条是政策文本 → 走 `external_standard` / `scoped_clause`：
+
+```json
+{
+  "clause_id": "scl-m-<sha1(unit_id|scoped_clause)[:16]>",
+  "form": "scoped_clause",
+  "kb_type": "external_standard",
+  "kb_version": "v0",
+  "clause_text": "禁止使用「最」字等绝对化用语。",
+  "term_list": ["最"],
+  "threshold": [],
+  "effective_period": null,
+  "quality_flag": "词表开口：源文「等」字未列举，除「最」外的绝对化表达未纳入",
+  "evidence_strength": "<按来源定：机关指引 / 平台政策 / 内部规则>",
+  "anchor": "#<表名或页名>/<记录id>/<字段名>",
+  "source_sha256": "<源文件或记录指纹>",
+  "unit_id": "<L2 单元 id>",
+  "unit_ids": ["<L2 单元 id>"],
+  "owner": "<具名人>",
+  "status": "provisional",
+  "article_no": ""
+}
+```
+
+同一批里如果这条能补上判定条件与处理方式，可以另出一行 `form: "external_standard"` 的**规则候选**：
+
+```
+rule_text     ：命中「最」（及其他绝对化用语）用于描述商品 → 判违规；处理：删除或替换为客观表述/限定语
+rule_code     ：留空或按新码登记（现有码 H02/H05/M01… 全是措辞库的，不要蹭）
+forbidden_expression ：最
+suggested_replacement：改为客观表述（如 up to -300 mmHg、15 adjustable levels）或加限定语，不写最高级
+scope         ：{ "channel": …, "market": …, "language": … } —— 现在是空的，等你确认
+p_level       ：**不能在 L3 定**；P0/P1 由 L5 判（kb-p0-check）
+status        ：provisional
+verification  ：待验证（support_count=1）；单条来源算 1 个来源根，不是多源互证
+article_no    ：空串 —— L3 一律不自造条款号，条款号由 L4 发
+```
+
+---
+
+**要跑的链路（我不会偷偷跑，命令照抄给你）**
+
+引擎不读你贴的文本，它读 `kb/l2/units.jsonl` + `kb/l0/registry/kb.json`（`kb/l8/l3_distill_run.py` 开头就是这两行取数）。所以这段政策必须先成为**库里的一条 L0 资源 → L1 正文 → L2 单元**，否则它没有 `unit_id + anchor + source_sha256` 三件套，`l3_gate.py` 判据 C1 会逐条核，缺一样也进不了库。
+
+```bash
+cd "<库根>"          # 本机：/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理
+RUN=$(date +%Y%m%d-%H%M)      # 例：20260930-1600
+
+# 0) 先确认这条政策到底进没进库（很可能没有）
+grep -rl "绝对化用语" kb/l0/records kb/l1 kb/l2 2>/dev/null | head
+
+# 1) 还没进库 → 先落 L0（这条路依赖飞书读通道）
+#    走 kb-l0-feishu：把政策原文登记成 L0 记录，拿到 resource_id
+#    进库后再往下走；没拿到 resource_id 就别往下跑，跑了也是无源候选
+
+# 2) L1 抽正文
+kb/kbpy l8/extract_l1_new_resources.py "$RUN"            # 不带 --apply 即预演
+kb/kbpy l8/extract_l1_new_resources.py "$RUN" --apply
+
+# 3) L2 切分（★ 本仓库唯一「不带 --apply 即预演」的层主引擎）
+kb/kbpy l8/l2_split_run.py "$RUN"                        # 先看清「将追加 N 行」
+kb/kbpy l8/l2_split_run.py "$RUN" --apply
+#    条款切分口径见 kb/l2/registry/l2.json → splitters.clause：
+#    minimal_unit=一个法条；正则识别 第X条(之Y) / §X.X / Art. N / Article N / Section N / N.N.N
+#    ★ 你这条如果是政策里的独立一段、没有「第X条」形态，切出来可能是 entry 而不是 clause，这会改变下游形态
+
+# 4) 红线①：蒸馏前先把拒绝台账归档并校验 sha256
+cp kb/l3/rejected.jsonl kb/l3/_archive/rejected-pre-"$RUN".jsonl      # 用 /bin/cp，不要 python
+shasum -a 256 kb/l3/_archive/rejected-pre-"$RUN".jsonl
+shasum -a 256 kb/l3/rejected.jsonl                                    # 两个值必须一致
+
+# 5) L3 蒸馏（默认干跑、加 --apply 才落盘，见下面那条提醒）
+kb/kbpy l8/l3_distill_run.py "$RUN"
+kb/kbpy l8/l3_distill_run.py "$RUN" --apply
+
+# 6) 收敛后重建逐单元拒绝台账（默认也是干跑）
+kb/kbpy l8/l3_reject_ledger_rebuild.py "$RUN" --apply
+
+# 7) 两道闸门
+kb/kbpy l7/scripts/l3_gate.py
+kb/kbpy l7/scripts/l7_gate.py
+```
+
+**两条要提醒的实情：**
+
+1. **红线①不是形式主义**：`l3_distill_run.py` 会以 `w` 模式**覆盖写** `kb/l3/rejected.jsonl`。本库真发生过逐单元拒绝台账从 **11,860 行掉到 1,053 行**，所以归档要在 `--apply` 之前做完。另：脚本的干跑档是 2026-09-29 才补上的，**不加 `--apply` 只打印不落盘**（技能文档里「没有干跑档，运行即落盘」是旧口径，按代码走）。
+2. **★ 这条政策大概率会在第 5 步被整批丢掉**：`kb/l8/l3_distill_run.py` 第 337–356 行对 `unit_type=clause` 的单元是**无条件拒绝**的 —— `for u in cl:` 循环体里没有任何判定，直接落 `rejected`，理由写「非自然语言条款（页面脚本 / base64 编码载荷）」，而这个理由与文本事实不符。库里现有 **3,871 个 clause 单元**（其中 3,389 个 `kb_type=external_standard`）就是这么被丢的，这也是 `kb/l4/canonical/rules.jsonl` 至今 0 字节、L3 从没出过一条 policy-rule 的机理。同样这批素材里，有人已经用只读方式自己蒸出过 104 条可判定条款（`条款抽取-deliverable/ftc-health-products.candidates.jsonl`），说明**判不了的不是条款，是那段代码**。所以走之前先定：**修那段代码**（改脚本、补真判定、跑回归），还是**沿用只读路线**（`条款抽取-deliverable/segment_and_distill.py <resource_id> --out-prefix <前缀>`，产 `<前缀>.units.jsonl` / `.candidates.jsonl` / `.rejected.jsonl` 三件，不改正式库）。
+
+---
+
+**这条现在还不能算数的地方（边界，逐条点名）**
+
+- **候选 ≠ 定稿**。`kb/l3/candidates/rules.jsonl` 里 509 条 `status` 全是 `provisional`；L4 的 1,242 条定稿是**机器晋升、人工抽查未做**，连它都只允许当「已编号的定稿快照」用，不允许当「已发布版本」用。这条蒸出来只会更靠前一步。
+- **条款号不在我这儿发**。全库现有台账：`W-1.*` 56 / `W-2.*` 453 / `W-3.*` 157 / `S-1.*` 201 / `E-1.*` 375（E-1 就是 external_standard 的 scoped_clause），号码一经发出永久占用、不回收、不复用。要发号走 L4（`kb-pipeline --apply` 编排发号）。
+- **单条来源 = 1 个来源根**，`support_count=1` → `verification=待验证`，不构成多来源互证。
+- **管辖与效力范围必须你定，不能我默认**。库内已有明确口径：美国市场**不应**直接套用「出现最 / 第一 / 最佳即 BLOCK」的中国广告法式规则；而措辞库里另有一条**已生效的口径**：`best / #1 / No.1 / 最佳 / 最好` 这类**排名最高级自 2026-09-09 起放开，不再判险**（见 `r-3b6c3c82dc667295` 的 `rule_text`）。你这条和它**正面冲突**。所以蒸之前要写清：这是中国《广告法》口径、还是美国侧内部规则、还是平台政策？`scope.market` / `jurisdiction` / `effective_from` 填什么？不写清，这条候选一旦被下游拿去判美国素材，就会和现有口径互相打架。
+- **`「等」字蒸不成规则**。开口词表只能靠人工补齐；在补齐前，这条的命中率就是「只有『最』」。
+- 我不会在 L3 判 P0；这轮也不改任何库文件。
+
+**要把这条真正跑出候选，我需要你给三样：**
+1. 这条政策的**逐字原文与出处**（整份政策更好，不只这一句；只有一句也能做，但词表开口）；
+2. 它在库里的 **`resource_id`**（或表名@记录 id）—— 没有的话先走 `kb-l0-feishu` 登记；
+3. **管辖与生效期**（中国法 / 美国侧 / 平台政策，哪天生效）。
+
+===CASE 102===
+===ROUTE 102: kb-ingest-extractor, kb-clause-extractor===
+**先说工具：你点的是 `kb-ingest-extractor`，但它只能完成一半。**
+
+分工是死的：`kb-ingest-extractor` 是 **L1 抽取 / L2 切分**（素材 → 知识单元，一句话叫「只拆不合」），**条款抽取与规则蒸馏是 L3 的事，归 `kb-clause-extractor`**。所以「抽条款并蒸成规则候选」这句诉求，得串两个成员：
+
+```
+素材 →(kb-ingest-extractor：L1 抽正文 / L2 切分)→ L2 单元 →(kb-clause-extractor：L3 蒸馏)→ 规则候选 →(kb-pipeline：L4 发号 / L5 P0)→ 定稿
+```
+
+**但这条消息里没有素材。** 你没给原文、没给链接，也没给 `resource_id`。没有源，`source_sha256` 与 `unit_id` 都算不出来 —— 而 `l3_gate.py` 判据 C1 每天逐条核的就是「证据能不能回指到 L2 单元」，三件套缺一样规则就进不了库。所以现在没法直接开工，我不能凭一句话编出条款。
+
+---
+
+**你补齐素材后，我按这个顺序跑（命令照抄）**
+
+```bash
+cd "<库根>"     # /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理
+RUN=$(date +%Y%m%d-%H%M)
+
+# ① 素材还没进库：先落 L0（走 kb-l0-feishu，飞书侧只读、登记成 L0 记录）
+#    拿到 resource_id 再往下；没拿到就别跑，跑出来是无源候选
+
+# ② L1：把资源抽成单元（kb/l1/**）
+kb/kbpy l8/extract_l1_new_resources.py "$RUN"                  # 预演
+kb/kbpy l8/extract_l1_new_resources.py "$RUN" --apply
+
+# ③ L2：切分（★ 本仓库唯一「不带 --apply 即预演」的层主引擎）
+kb/kbpy l8/l2_split_run.py "$RUN"                              # 先看「将追加 N 行」
+kb/kbpy l8/l2_split_run.py "$RUN" --apply                      # 落盘：units / index / manifest
+#    切分口径：kb/l2/registry/l2.json → splitters.{entry,revision_pair,clause,sample}
+#    clause = 一个法条，正则识别 第X条(之Y) / §X.X / Art. N / Article N / Section N / N.N.N
+```
+
+当下基线（我读到的，拿它做前后比对）：`kb/l2/units.jsonl` **12,158 行** = `entry` 7,152 / `clause` **3,871** / `sample` 681 / `revision_pair` 447 / `attribute` 7；`kb/l1/manifest_l1.jsonl` 5,457 行。L2 引擎的缺口口径是「**该资源没有『当前正文』的单元**」（`units.jsonl` 是 append-only，旧行不删，所以判据不是「有没有任何单元行」）。
+
+切完是 `kb-clause-extractor` 接手：归档 → 干跑 → `--apply` → 重建台账 → 两道闸门（`l3_gate.py` / `l7_gate.py`），并把「逐条证据回指 L2」当硬门槛。
+
+---
+
+**开工前我要先跟你确认的（会决定产出形态）**
+
+1. **素材是什么、在哪**：逐字原文（贴全文或给路径）最省事；给链接的话我先走 `kb-l0-feishu` 登记，依赖飞书读通道。
+2. **它在库里的 `resource_id`**（或 表名@记录id / 页名@锚点）—— 决定 `anchor` 与 `source_sha256` 怎么落。
+3. **源侧 `rule_eligible` 是什么**。这不是小事：库内 L0 口径写死了「材料审核状态 = 暂不采用 → `rule_eligible=false` → **只能作素材/参考**」，这类源**不允许**产出规则类形态（只能出 `sample_case` / `scoped_clause` 这种非规则形态，或落 `rejected` 并写明原因）。我实读到的分布是：`rule_eligible=true` 2,237 条、`=false` 5 条、`=null` 1 条。若你的源正好是那 5 条之一，这条就得按「不能成规则」处理。
+4. **要蒸哪一层**：只要 L1/L2（切成单元、可召回），还是接着走 L3（出规则候选）。
+
+---
+
+**★ 有个比入口更要紧的事，你现在就该知道**
+
+L3 那台蒸馏器对条款单元是**无条件拒绝**的：`kb/l8/l3_distill_run.py` 第 337–356 行 `for u in cl:` 的循环体里**没有任何判定**，直接把每个 clause 单元落成「条款文本不可判定：非自然语言条款（页面脚本 / base64 编码载荷）」。后果是 ——
+
+- 库里**已经有 3,871 个条款单元**（3,389 个属外部标准库），**全数被丢**；
+- `kb/l4/canonical/rules.jsonl` **0 字节**，L3 从未出过一条政策类规则；
+- 台账里 1,748 行的理由是「条款不可判定**或**已被同库其它条款覆盖」，可代码里**这两件事都没做**（「覆盖」这个条件在代码里根本不存在）。**理由与行为不符，比没记账更坏。**
+
+所以「抽条款并蒸成规则候选」这件事，**要么先修那段（改脚本、补真判定、跑回归、过双闸门），要么沿用只读路线**（`条款抽取-deliverable/segment_and_distill.py <resource_id> --out-prefix <前缀>`，产 `.units.jsonl` / `.candidates.jsonl` / `.rejected.jsonl` 三件、不改正式库；同一批素材已经这么产出过 104 条可判定条款，含 `判定条件 / 阈值·词表 / 处理方式 / 逐字证据 / source_sha256` 五件套）。不修就直接跑 `--apply`，你这次的条款会和那 3,871 个一样被整批丢掉，还白覆盖一次拒绝台账。
+
+**所以请回我三句：**
+① 素材是什么（贴原文 / 给链接 / 给 `resource_id`）；
+② 它是否已在 L0（没有我先登记）；
+③ 只到 L2 就停，还是要一路到 L3 出候选（若是后者，先定「修 L3 那段」还是「走只读路线」）。
+
+给齐我就直接开跑，全程不改库文件之外的东西，并在产出的候选里带上 `unit_id + anchor + source_sha256` 三件套。
+
+===CASE 103===
+===ROUTE 103: kb-clause-extractor===
+`kb-clause-extractor` 已就位 —— 我是**知识库 L3（规则层）的条款抽取与蒸馏 owner**。不过你这行只有调用、没带内容，我不知道你要处理哪份材料。先说清我能干什么、现在的库是什么状态，你把东西丢过来就行。
+
+**我负责的**（都在 L3 这一层）：
+
+| 你说 | 我做 |
+|---|---|
+| 抽条款 / 条款级单元 | 把外部标准、平台政策、内部规则文本抽成条款级单元，再蒸馏成**可判定的规则候选** |
+| 规则蒸馏 / 蒸馏漏了没 | 跑蒸馏并按单元对账，产出候选 + 逐单元拒绝台账（`unaccounted == 0`） |
+| 这条能不能成规则 | 按「判定条件 + 阈值/词表 + 处理方式 + 条款锚点 + 生效期」判，能则出候选，不能则写明**逐单元**的具体理由 |
+| 拒绝台账 | 台账重建（收敛后必须重建，否则会重演「11,860 行掉到 1,053 行」那次回归） |
+
+**不在我这儿的**（各自点名，别在这儿等）：发号 / 定稿 / canonical → `kb-pipeline`（L4）；查条款号 → `kb-canonical-lookup`；判 P0 → `kb-p0-check`；召回单元 → `kb-recall`；把素材切成单元 → `kb-ingest-extractor`（那是 L1/L2，不是本 skill）。
+
+---
+
+**L3 现状基线（我刚读的，拿它做前后比对）**
+
+| 项 | 值 |
+|---|---|
+| `kb/l3/candidates/rules.jsonl` | 509 行｜`form` 全是 `revision_pair` 453 / `entry` 56，`kb_type` 全是 `wording` |
+| `kb/l3/candidates/scoped_clauses.jsonl` | 375 行（`external_standard`） |
+| `kb/l3/candidates/sample_cases.jsonl` | 358 行（去重后；原 562 行里有 204 行逐字节重复被删） |
+| `kb/l3/rejected.jsonl` | 6,911 行（`kind` 分布：`unit_level` 5,858 / `sample_only_no_verdict` 753 / `no_rule_derivable` 136 / `absorbed_as_reason` 132 / `no_clause_text` 30 / `clause_not_actionable` 2） |
+| `kb/l2/units.jsonl` | 12,158 单元，其中 **`clause` 3,871** |
+| L4 定稿 | 1,242 条（wording_entry 56 / wording_revision_pair 453 / sample_case 358 / scoped_clause 375），条款号 W-1.* / W-2.* / W-3.* / S-1.* / **E-1.***，机器晋升、人工抽查未做 |
+| 已有归档 | `kb/l3/_archive/rejected-pre-20260930-*.jsonl` 若干（均 4,216,927 字节） |
+
+**而这张表里最扎眼的是**：`clause` 单元 3,871 个、`kb/l4/canonical/rules.jsonl` **0 字节** —— L3 从未产出过一条政策类规则。原因不是素材没有，是 `kb/l8/l3_distill_run.py` 第 337–356 行对 `clause` 单元**无条件拒绝**（`for u in cl:` 循环体里没有任何判定）。这一条你要不要我这次一起处理，请明确。
+
+---
+
+**把材料或意图给我，我就能开工。三种给法：**
+
+1. **贴逐字原文**（一份政策/标准/内部规则，或就一段）。我按条款切，逐条判「能不能成规则」，能出的出候选，不能的写明逐单元理由。
+2. **给库里已有的 `resource_id`**（或 表名@记录id / 页名@锚点）。我先核它在不在 L0、`rule_eligible` 是不是 true，再从 L2 单元直接蒸 —— 省掉重新登记那一步。※ 已经有一批条款素材（FTC《Health Products Compliance Guidance》、Google Ads 政策、Amazon 广告帮助等）在库里等着，你若指的是这些，报个名字我去核。
+3. **只给任务、不给文件**：例如「重切某批条款」「重建拒绝台账」「把无登记行的约 2,041 个 clause 单元补上逐单元理由」「把 L3 那段无条件拒绝改掉并跑回归」—— 这类也接，我按你说的跑。
+
+**动手前我会守的规矩（先跟你交底）：**
+- **红线①：`--apply` 之前先归档** `kb/l3/rejected.jsonl`（`/bin/cp` 到 `kb/l3/_archive/rejected-pre-<RUN>.jsonl` 并校验 sha256）。不做这一步就跑，等于拿本库真出过的那次事故再赌一次。
+- **默认干跑**：`l3_distill_run.py` 不加 `--apply` 只打印不落盘（技能文档写的「没有干跑档」是旧口径，按代码走）。
+- **只追加**：既有候选行逐字节不变；改主意走「新建 + supersedes 留痕」，不覆盖。
+- **候选不是定稿**：`status=provisional`，`article_no` 留空（发号是 L4 的事，我不自造条款号）。
+- **证据逐条回指**：每条规则的 `evidence_units[]` 都要给 `unit_id + anchor + source_sha256`，`l3_gate.py` 会逐条核。
+- **收尾过闸门**：`kb/kbpy l7/scripts/l3_gate.py` + `kb/kbpy l7/scripts/l7_gate.py`，重建台账后对账到 0。
+
+**另有一件跟「拿条款去判内容」有关的口径，先摆在这儿**：库内已有明文 —— 美国市场**不应**直接套用「出现最 / 第一 / 最佳即 BLOCK」的中国广告法式规则；而措辞库现行口径里，`best / #1 / No.1 / 最佳 / 最好` 这类**排名最高级自 2026-09-09 起放开，不再判险**。你的条款若来自中国《广告法》体系，我会照中国法条口径抽，并在产物里写明适用范围，**不与美国侧规则混用**。
+
+发材料吧 —— 一句原文、一个链接、或一个 `resource_id` 都行。

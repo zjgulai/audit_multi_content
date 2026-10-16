@@ -1,0 +1,31 @@
+[dry-run] l7_article_source_refresh.py 未落盘。
+[dry-run] 会写入：kb/l7/registry/l7.json（只改 article_no_source 一个块）
+台账：1365 号｜段 ['E-1', 'E-2', 'S-1', 'W-1', 'W-2', 'W-3']｜预留未用 ['P-1', 'S-2', 'W-4', 'W-5', 'W-6']
+候选件：2730 行｜唯一 id 1365｜其中在台账里 1365｜缺号 0
+canonical：1365 行 / 1365 个号，全部在台账：True
+
+差异（旧 → 新）：
+  field_lives_in:
+     "kb/l4/canonical/*.jsonl（定稿，五个形态文件）+ kb/l3/candidates/rules.jsonl（L4 追加写的带号行）+ kb/l3/candidates/external_standard.jsonl（L4 追加写的带号行）+ kb/l4/registry/l4
+  →  "kb/l4/canonical/*.jsonl（定稿；**五个形态文件** — wording_entry/wording_revision_pair/sample_case/scoped_clause/clause；rules.jsonl 为空迁移留痕不计）+ kb/l3/candidates/
+  total_outputs_note:
+     "全部带条款号的记录数 = 1365（台账 numbering.issued 逐段相加）。其中 canonical 落盘 1242 条；E-2 的 123 条仍是**候选**，未晋升定稿（晋升要过人工抽查，不在本批）。"
+  →  "全部带条款号的记录数 = 1365（台账 numbering.issued 逐段相加）。其中 canonical 落盘 1365 条；E-2 的 123 条仍是**候选**，未晋升定稿（晋升要过人工抽查，不在本批）。"
+  candidate_rows:
+     1997
+  →  2730
+  read_at:
+     "2026-09-30 17:45:27"
+  →  "2026-10-04 12:32:11"
+  read_at_previous:
+     "2026-09-30 17:44:19"
+  →  "2026-09-30 17:45:27"
+  candidate_rows_note:
+     "1997 行 = 唯一 id 1365 条，其中 rules/external_standard 两个文件按 L4 的追加约定各存两份（原行 + 带号行），差异只有 article_no 一个字段。各文件自带 article_no 的行数：{'external_standard.jsonl': 1
+  →  "2730 行 = 唯一 id 1365 条，其中 rules/external_standard 两个文件按 L4 的追加约定各存两份（原行 + 带号行），差异只有 article_no 一个字段。各文件自带 article_no 的行数：{'external_standard.jsonl': 1
+  refreshed_by:
+     "kb/.work/l7_article_source_refresh.py 20260930-1740"
+  →  "kb/.work/l7_article_source_refresh.py CHK-20261004-1226-WFREP"
+
+[dry-run] 未落盘。加 --apply 才写。
+EXIT=0

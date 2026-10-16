@@ -1,0 +1,502 @@
+{
+ "kb_version": "v0",
+ "layer": "L8 宿主库装载（写通道修复与回环验收）",
+ "run_id": "20260929-1200",
+ "scope": "只修「装进去的 md 加载器读不出来」这一件事：改落盘形态（写通道）+ 补 _meta 三件 + 六项回环验收。不改内容、不改加载器、不改 kb/l0~l6。",
+ "loader_root": {
+  "path": "~/.dsh/Momcozy知识库",
+  "resolved_by": "profile 里 dsh-kb 的 config.root（lib/index.js:32 必填、:50 resolve）—— 加载器不硬编码路径，本批**没有**改这个配置",
+  "entries": 509,
+  "files_now": 516,
+  "files_breakdown": "509 条目（3_措辞表达库/L1-facts 453 + L2-concepts 56）+ 6 个 _meta（DERIVED.md / GUIDE.md / acceptance.yaml / collections.yaml / derivation.json / kb-classes.yaml）+ 1 个根 README.md（并发迁移留下的迁出说明，本批未动）",
+  "current_owner_note": "2026-09-23 15:24:05 该目录被「工作台同步」那条工作流用自己的生成器重新生成（source.ref 换成 feishu-base 链接等）；根 README.md 被移走；本批新增的 _meta/{GUIDE.md,acceptance.yaml,kb-classes.yaml} 保留。重新体检：条目 509 / E001 0 / E046 0 / 健康分 100 / 孤岛率 0.00。本批只登记，不回写。",
+  "state_checked_at": "2026-09-23 15:24（roundtrip_20260923-1524.json）"
+ },
+ "loader_recognized_id": {
+  "collection_id": "3_措辞表达库",
+  "where": "_meta/collections.yaml → collections[0].id（加载器 loadCollections() 按 id 匹配）",
+  "cross_check": "与 kb/l7/registry/l7.json 的 citation_contract.libraries.wording.dir = 3_措辞表达库 一致",
+  "kb_class_value": "措辞表达库（枚举在 _meta/kb-classes.yaml）",
+  "called_by": "待定（内容审查 Agent 尚未立项编号）—— 照抄 _meta/collections.yaml 的登记；全机未找到含 momcozy:内容治理Agent 的接入说明，本批不编造消费方",
+  "note": "任务描述里出现过别的子库 id 写法；本批一律以**实际登记**为准：`3_措辞表达库`。检索、归属、kb_class 三处口径统一到这一个 id/名。"
+ },
+ "write_channel": {
+  "chosen": "node `fs.writeFileSync`（用加载器同一运行时：ELECTRON_RUN_AS_NODE=1 \"<DSH Electron>\"）",
+  "fallback": "/bin/cp（先由 node 写到 .txt 暂存，再 cp 成 .md）—— 本批实测零次触发",
+  "forbidden_for_md": [
+   "python3 open(path,'w') / os.write",
+   "perl print 到文件",
+   "任何经 python/perl 的落盘（含 launchd 拉起的 python）"
+  ],
+  "why": "本机存在按后缀生效的写封装：python/perl 写的 .md 落盘成 4096 字节前缀信封（首字节 88 7d 1c ??），加载器（Electron 运行时，已载入 /usr/local/.trld/lib/libtr_monitor_enc.dylib）readFileSync 读到信封 → splitFrontmatter 失配 → meta=null → E001。node / cp / bash 重定向写的 .md 在两条通道下都是明文。",
+  "md_only": true,
+  "extension_matrix": {
+   ".md": "受封装（必须走明文写通道）",
+   ".yaml/.json/.txt/.py/.log": "两条通道一致，任意写通道"
+  },
+  "post_write_assert": "R2：每个文件写完立刻 readFileSync 读回，断言 字节数 + sha256 + 加载器 frontmatter 正则 + 正文逐字；条目另断言 id 行与 kb_class 行。510/510 通过、零 cp 兜底。",
+  "impl": "kb/l8/repack_write.mjs"
+ },
+ "portability": {
+  "portable": true,
+  "requires_runtime_decode": false,
+  "loader_modified": false,
+  "reason": "没有把解密/解封装置塞进加载器，也没有只在本机有效的加载器补丁：修复发生在**写侧**（写盘形态），读侧仍是加载器原生 readFileSync；换一台机器没有这层封装时，node 写的明文同样是加载器能读的。因此不需要打 portable:false / requires_runtime_decode:true 标记。",
+  "regression_condition": "若将来改为「让加载器读信封/密文」（例如加解封适配层），必须回头把 portability 标记改成 portable:false + requires_runtime_decode:true，并在此处登记回归条件。"
+ },
+ "loader_read_path": {
+  "walk_skips_dirs": [
+   "intake-log",
+   "candidates",
+   "pending",
+   "tests",
+   "baseline",
+   "_meta"
+  ],
+  "walk_excludes_filenames": [
+   "INDEX.md",
+   "SKILL.md",
+   "README.md"
+  ],
+  "read_call": "loadEntry() = readFileSync(absPath,'utf8') → splitFrontmatter(raw)",
+  "frontmatter_regex": "/^---\\r?\\n([\\s\\S]*?)\\r?\\n---\\r?\\n?([\\s\\S]*)$/（kb.js:768）",
+  "failure_semantics": "正则不匹配 → { meta: null, body: text } → E001「缺 frontmatter」",
+  "measured": "本批验收时 _meta/GUIDE.md、_meta/DERIVED.md、根 README.md 都在盘上且都没有 frontmatter，E001 仍为 0 —— 印证上面的跳过规则"
+ },
+ "added_meta_files": {
+  "_meta/kb-classes.yaml": "四类素材枚举（外部标准库/内部正负样本库/措辞表达库/产品描述库）+ ranking + 三个开关（require_on_new=false / allow_empty=true / multi=true）。必须先写它再回填 kb_class，否则 509 条 E046。",
+  "_meta/GUIDE.md": "本库自述指南：三步读法、四条硬规则、本库边界口径、回源规则、入库判据、体检维度，以及第八节「装载纪律」（写通道纪律写进库里，避免下次重新生成又踩）。",
+  "_meta/acceptance.yaml": "验收契约：四条谓词按机器判定真值填（structural_completeness=false / source_traceability=true / no_duplication=false / boundary_declared=true），三个未达条件映射出三个阻断码，三条负例自检写成实测观测值（pending=0）。"
+ },
+ "backfill": {
+  "field": "kb_class",
+  "value": "[措辞表达库]",
+  "files": 509,
+  "method": "在 frontmatter 的 `collection:` 行后**插入一行**，其余行一字不动；正文逐字不变（509/509 已逐字比对）",
+  "gate_held_open_on_purpose": "kb-classes.yaml 的 require_on_new 取 false：本视图 509 条的 created_at 是派生日期，且生成器暂不产出 kb_class —— 取 true 会让下一次重新生成当场产生 509 条 E048，那是与并发生成器互相打架，不是纪律。回填本身已 100% 完成。"
+ },
+ "roundtrip": {
+  "artifacts": [
+   "kb/l8/roundtrip_check.py",
+   "kb/l8/loader_probe.mjs",
+   "kb/l8/roundtrip_20260923-1540.json",
+   "kb/l8/roundtrip_20260923-1535.json"
+  ],
+  "reading_side": "六项里凡涉及「读」的一律走加载器本体（import ~/.dsh/plugins/dsh-kb/lib/kb.js，在 Electron 运行时里跑），不走 python 读通道 —— 要验收的正是加载器能不能读出来",
+  "six_items": {
+   "1_文件数": "PASS 条目 509/509，无缺件",
+   "2_frontmatter解析": "PASS E001=0；fm 可切 509/509；id 行 509/509",
+   "3_子库归属": "PASS 3_措辞表达库 509 条，未归库 0",
+   "4_sha256读回": "PASS 随机 10/10 一致（加载器侧）；全量 509/509 正文逐字一致（python 侧）",
+   "5_检索可达": "PASS W-2.1→111、乳腺组织→1、合规替代→509；负例「量子纠缠配色调参」→0",
+   "6_体检": "PASS 健康分 75（熔断线 60）、三件套完整率 1.00；孤岛率 1.00 如实记录（派生视图固有，与装载无关）"
+  },
+  "all_pass": true
+ },
+ "technical_debt": [
+  {
+   "id": "TD1",
+   "item": "打包脚本 kb/.work/gen-host-library.py 用 python open(...,'w') 写 .md",
+   "impact": "重新生成即把装载位变回信封、E001 复发",
+   "priority": "P0",
+   "status": "已修（本轮续修）",
+   "fix": "改为收集载荷 → node 写盘 + 逐文件读回断言；原脚本归档 kb/l8/_archive/gen-host-library.py.orig-294b16a0f404c977；验证见本文件 r1_script_patch",
+   "owner": "l8 批次（原脚本作者如要回退，用归档件覆盖即可）"
+  },
+  {
+   "id": "TD2",
+   "item": "生成器不产出 kb_class",
+   "impact": "重新生成丢归属，W040 复发",
+   "priority": "P1",
+   "fix": "生成器补 kb_class: [措辞表达库]"
+  },
+  {
+   "id": "TD3",
+   "item": "字段级 schema 差（E002/E005/E006/E021/E026/W004/W010/W015/W016/W017/W036/W020 等，明细见 report 第八节）",
+   "impact": "kb_check 结论仍为「不通过」；修复前被 E001 整体掩盖",
+   "priority": "P1",
+   "fix": "生成器做字段映射，不改知识内容口径"
+  },
+  {
+   "id": "TD4",
+   "item": "孤岛率 1.00（阈值 ≤0.2）",
+   "impact": "健康分扣一维",
+   "priority": "P2",
+   "fix": "生成器补 related，或改 health.yaml 阈值（改口径须留痕）"
+  },
+  {
+   "id": "TD5",
+   "item": "无黄金问题集，覆盖率/利用率/幻觉率 no-data",
+   "impact": "structural_completeness 只能填 false",
+   "priority": "P1",
+   "fix": "建 3_措辞表达库/tests/golden-questions-*.md（20–30 条）"
+  },
+  {
+   "id": "TD6",
+   "item": "工作区仍有 552 个 .md 对 node 侧读者不可读（{'冻结层 kb/l0~l6': 22, '他人/临时 kb/.work 其他': 19, '他人产物 kb/.work/hostlib': 510, '其他': 1}）",
+   "impact": "agent 的 read 工具读不到这些历史报告/文档（cat/python 能读，所以此前没被发现）；不影响装载与检索",
+   "priority": "P2",
+   "fix": "用 kb/l8/repair_enveloped_docs.py 改范围后同样处理；**冻结层那批必须先重建 L5/L6 基线指纹**，否则自检会红"
+  },
+  {
+   "id": "TD7",
+   "item": "l7 消费侧 skill 的报告写入路径 review.py 用 python open(...,'w') 写 *.review.md",
+   "impact": "每次跑 skill 产出的报告都是信封态，agent 的 read 工具读不到（自查发现：15:44:58 那次重写即为此）",
+   "priority": "P0",
+   "status": "已修（本轮）",
+   "fix": "改为 node 写 + 读回断言，node 缺失时降级并警告；原文归档 kb/l8/_archive/review.py.orig-9a44f8a324aaa836；探针验证落盘通道=node、node 侧字节==python 侧字节；l7/runs 留痕已同步修正（含 sha256_was 与 changed_by）"
+  },
+  {
+   "id": "TD8",
+   "item": "库根语义变更未通知加载器：~/.dsh/Momcozy知识库 现在是「入口（README + 软链 kb→工作区）」",
+   "impact": "加载器按「视图」解析这个 root → 扫到 1867 个 md、E001 1322、E046 509（root 里没有 _meta/kb-classes.yaml）、三件套 0.27、健康分 56.8（低于熔断线 60）",
+   "priority": "P0",
+   "fix": "二选一：把 dsh-kb 的 config.root 指回一个真正的视图目录；或让加载器认 kb/KB-ROOT.json 标记 / 只扫 <子库>/L* 形状。**本批不改加载器**（属他人迁移决策）",
+   "status": "已修（本轮）：两份 patch 已改为 kb/view；等一次 DSH 重载生效"
+  },
+  {
+   "id": "TD9",
+   "item": "当前生效的 509 条内容来自备份副本 kb/kb/l8/_stage/pre-third-round-1523/loader-site-backup/",
+   "impact": "备份副本成了唯一可服务内容源；它没有随附 _meta/kb-classes.yaml，所以 E046 509",
+   "priority": "P1",
+   "fix": "把视图放到明确位置并同行产出 _meta/{kb-classes.yaml,collections.yaml}；生成器已支持（kb_classes_yaml()）",
+   "status": "已修（本轮）：视图重建在 kb/view，随附 _meta/kb-classes.yaml 等 7 件"
+  },
+  {
+   "id": "TD10",
+   "item": "异步封装层仍会回卷：新生成的沙箱里偶发 1 个 .md 变信封（DERIVED.md 曾 3 秒后回卷）",
+   "impact": "写入当时明文（R1 断言能抓到当时的失败），但事后回卷不会被写入者发现",
+   "priority": "P1",
+   "fix": "把「读回验证」做成周期检查（kb/l8/workflow_check.py 可定时跑），发现回卷即用 repack/repair 脚本重写",
+   "status": "保留：异步回卷仍会偶发（本轮实测 l7 下 39 个文件被回卷后已修复）；对策=周期跑 kb/l8/workflow_check.py，发现即用 repair 脚本重写"
+  },
+  {
+   "id": "TD11",
+   "item": "生成器的 node 子进程被 SIGKILL（-9）；崩溃报告显示原因类别是 `SIGKILL (Code Signature Invalid)`",
+   "impact": "生成器自身写通道降级为 python（落盘成信封）；本机 24 个 DSH / 66 个 node 进程在跑，疑与注入的监控 dylib + 代码签名强校验有关",
+   "priority": "P1",
+   "fix": "已加重试 3 次 + DSH 运行时优先；**权威落盘步骤改为安装通道**（payload → node → kb/view），并保留读回断言；建议后续把生成器的 node 写通道彻底替换为安装通道（build_view.py 已是模板）"
+  },
+  {
+   "id": "TD12",
+   "item": "内容层两项缺口无字段映射解：E026 452（内容质量分<60）、E021 56（判断类缺三重验证）",
+   "impact": "视图能装、能检索、健康分 100，但这两项说明内容本身还没做完（薄 / 未验证）",
+   "priority": "P1",
+   "fix": "内容侧：① 判断类补三重验证三项子分与依据；② 薄条目补密度/结构（不是补长度）。字段形状已就位（verification 键留给加载器，rule_verification 保留源值）"
+  },
+  {
+   "id": "TD13",
+   "item": "写通道纪律：Python 写 kb/view 会落成信封，且 Python 自己看不见",
+   "impact": "本轮实测：`shutil.copy2` 把同一份 4,532 字节的 md 落盘后，**node 读到 8,628 字节**（=4,532+4,096，即「4096 字节前缀 + 原文」的信封），加载器据此报 **E001×509「缺 frontmatter」**，并因 loadAll 拿不到条目把条目基线刷成 0 条（removed 509）。而 **Python 的 stat/sha256/head 报的仍是 4,532 字节、sha256 与源文件一致** —— 当时那个用 Python 读首 3 字节的「明文自检」**结构上不可能发现它**，给了一个假绿灯。同一份文件走 shell `cp` → node 读到 4,532 字节、首 3 字节 `---`。",
+   "priority": "P0",
+   "status": "已定纪律（纪律比修复重要：这类缺陷只能由消费方运行时发现）",
+   "fix": "(1) 落进 kb/view 的文件只用 shell `cp` 或 node 写，**不要用 Python 写**（含 shutil.copy2 / open(...,'w') / sed / perl）；追加账本行也用 shell。(2) 校验必须用**消费方运行时**：`kb/.work/which_enveloped.mjs`（node 看首字节）、`kb/l8/scan_envelope.mjs`（全库扫描），不要用 Python 自证。(3) 留底也要用 `cp` —— 信封版留底在回滚时会把信封带回来。",
+   "owner": "l8 批次"
+  },
+  {
+   "id": "TD14",
+   "item": "`_meta/manifest.json` 一名两义，同树不可兼得（W035 的真正形状）",
+   "impact": "同一个文件名被两类消费方以不同 schema 要求：**发布链**（gen-host-library-l4.py:366 / gen-host-library-product.py:482 回补、kb-hostlib-serve.py:25 的 GET /manifest、publish.sh 的同步只读它不读 .md）要它当**自包含镜像载荷** docs[].text/sha256；**加载器** kb.js readManifest() 要它当**条目基线**（顶层必须有 entries）。readManifest 读到没有 entries 的载荷就返回 null → 永远报 W035，于是「条目被删掉」与「治理字段被原地改写」都发现不了（2026-09-22 六条 L0-raw 原文存档被整体删掉、检查器一声不吭，就是这个洞放过去的）。",
+   "priority": "P1",
+   "status": "已修（按输出目标分开命名）",
+   "fix": "生成器新增 `--payload-name`，**默认保持 `manifest.json`**（发布链三处硬编码不受影响，已实测 publish.sh 端到端成功：1346 篇 / 4 子库齐 / exit 0）；生成 kb/view 时显式传 `--payload-name workbench-mirror.json`。配套：kb/l8/projection_reconcile.py 的 R5 改为读 workbench-mirror.json；kb/view/_meta/manifest.json 腾出来给加载器条目基线（用 kb/l8/manifest_baseline.mjs 建）。踩到的连带：先按「一律改名」改时打断了发布链（hostlib 上 manifest.json 消失、取数服务与 l4/product 都读不到），已用默认名+显式开关的方式收回。",
+   "owner": "l8 批次"
+  },
+  {
+   "id": "TD15",
+   "item": "l1 批次目录里有未入台账的写入方（108 个孤儿文件）",
+   "impact": "实测 2026-09-29 11:03 有 8 个 `media_*` 文件同秒落盘（source_kind=feishu_attachment、status=empty、0 段），**台账里没有这些资源**；累计 108 个未入台账文件。无内容，不影响索引正确性，但说明有别于 l1_extract 的写入方在往批次目录里放文件，且它不写台账 —— 台账作为「谁在何时放了什么」的记录因此不完整。",
+   "priority": "P2",
+   "status": "已可见化（未定位写入方）",
+   "fix": "kb/l1/index/rebuild_l1_index.py 已把「未入台账文件」单列 `untracked_files_on_disk` 并打印，**不再把它们算进「索引陈旧」判据**（否则索引会永远显示假的 DRIFT）。待办：定位该写入方（候选：kb/.work/kb_api:app 的 8787 端口服务、kb/.work/publish.sh 的 LaunchAgent WatchPaths），并让它补写台账。",
+   "owner": "待定"
+  }
+ ],
+ "r1_script_patch": {
+  "target": "kb/.work/gen-host-library.py（打包脚本本体）",
+  "before": {
+   "sha256_16": "294b16a0f404c977",
+   "bytes": 30399,
+   "archived_as": "kb/l8/_archive/gen-host-library.py.orig-294b16a0f404c977"
+  },
+  "after": {
+   "sha256_16": "09c8e9d0a1129c7e",
+   "bytes": 53524,
+   "checked_at": "2026-09-23 15:25:08",
+   "note": "该脚本正被并发工作流持续修改（本人核对期间已换过两版）：after 只是**最后一次核对**的版本"
+  },
+  "what_changed": [
+   "`.md` 不再由 python 落盘：循环只收集载荷，统一由 flush_md() 交给 node fs.writeFileSync 写，并逐文件读回断言（字节数 + sha256 + frontmatter 正则）",
+   "resolve_node()：KB_NODE_BIN → ChatGPT 自带 node → DSH Electron 运行时（ELECTRON_RUN_AS_NODE=1）",
+   "write_text_plain()（写 .md.tmp 再 os.replace）保留为 node 缺失时的降级路径，打印醒目警告",
+   "insert_kb_class()：frontmatter 里紧跟 collection 写 kb_class；frontmatter() 对 kb_class 用单行 flow 形（与存量 509 条回填同形）"
+  ],
+  "why_temp_rename_not_enough": "trace 实测：0 次直写 .md、510 次写 .md.tmp + 510 次 os.replace，产出仍被封成信封（node 8077 / python 3981）；同趟的 DERIVED.md 当场明文、3 秒后变信封。异步封装层随后会按路径把 .md 变成信封，所以 .md 必须由非 python 的写者落盘。",
+  "verified": {
+   "sandbox": "kb/l8/_stage/gen-verify-v3（未覆盖装载位与 kb/.work/hostlib）",
+   "generator_stdout": "[gen] 明文落盘：509 个 md（node 读回断言全部通过）+ 1 个 md（DERIVED.md）",
+   "envelope": "510 个 md：信封 0 / 明文 510（15 秒后复测一致）",
+   "loader_readback": "E001 0 / entries_fm_ok 509 / entries_id_ok 509 / entries_kb_class_ok 509 / 三件套 1.00 / 健康分 75 / collections 3_措辞表达库 509",
+   "vs_loader_root": "正文 509/509 一致；frontmatter 493 完全一致 + 16 条已知漂移（summary 15、title 3）"
+  },
+  "loader_untouched": true,
+  "not_done_on_purpose": "没有用生成器输出覆盖装载位：装载位是回填与全部验收的基准，覆盖会带入那 16 条漂移（遗留问题 7）",
+  "verified_revision": {
+   "sha256_16": "68ba44718cf3e43c",
+   "bytes": 53070,
+   "note": "R1 端到端验证（gen-verify-v4/v5：510/510 明文、E001 0、E046 0、健康分 100）跑在这一版上"
+  },
+  "reverify_rule": "该脚本任何新版本都应重跑：生成到沙箱 → 量 md 是否全明文（node 侧 size == python 侧 size）→ 加载器 probe 看 E001/E046。落盘明文这条不变量由 flush_md() 的 node 写入 + 读回断言保证。"
+ },
+ "coexistence": {
+  "concurrent_workstream": "另一条工作流在 2026-09-23 15:01–15:02 把装载位清空（只留 README.md），把派生视图搬到 kb/.work/hostlib/ + python HTTP 服务（com.kb-hostlib，127.0.0.1:4508），并给工作台加了 remote 取数通道（WORKBENCH_MOMCOZY_KB_REMOTE）",
+  "measured": "kb/.work/hostlib 的 md 对 node 同样是信封（8047 vs python 3951）：那条 HTTP 通道救工作台、救不了加载器",
+  "decision": "本批按加载器 config.root 的要求把 ~/.dsh/Momcozy知识库 恢复为「加载器专用装载位」，工作台继续走它自己的 HTTP 通道；README.md 原样保留不删。两条通道互不依赖。",
+  "rollback": "恢复内容全部来自 kb/l8/repack_payload.json（迁出前原文）与 kb/l8/_archive/enveloped-20260923-1520/（迁出前原始字节）；若需回滚到「空目录 + README」状态，删掉 509 条与本次新增的 5 个 _meta 文件即可，归档里两份证据都留着。"
+ },
+ "evidence": {
+  "link": "kb/l8/loading-link.md",
+  "diagnosis": "kb/l8/diagnosis.md",
+  "run": "kb/l8/runs/20260923-1540.json",
+  "report": "kb/l8/runs/20260923-1540.report.md",
+  "ops_log": "kb/l8/runs/20260923-1540.ops.log",
+  "archive": "kb/l8/_archive/enveloped-20260923-1520/（510 个文件的迁出前原始字节）"
+ },
+ "doc_visibility_repair": {
+  "run": "20260923-1535",
+  "repaired": 16,
+  "archive": "kb/l8/_archive/enveloped-docs-20260923-1535",
+  "content_changed": 0,
+  "recorded_hashes_still_match": "14/14",
+  "note": "消费侧 skill 的 references/categories.md 与 output_template.md 是致命堵点，已修；l7 其余报告同批修完"
+ },
+ "review_py_patch": {
+  "path": "kb/l7/skills/kb-content-review/scripts/review.py",
+  "before": {
+   "sha256_16": "9a44f8a324aaa836",
+   "bytes": 27086
+  },
+  "after": {
+   "sha256_16": "d09886860d0c4a3e",
+   "bytes": 30243
+  },
+  "verified": "调打过补丁的 write_text_plain 直接落盘：通道=node、node 侧 1017 = python 侧 1017 字节（明文）",
+  "record_amended": "kb/l7/runs/20260923-1500.json 的 artifacts 条目已更新并留 sha256_was/changed_by"
+ },
+ "view_root": {
+  "path": "kb/view",
+  "built_by": "kb/l8/build_view.py",
+  "entries": 509,
+  "meta": [
+   "DERIVED.md",
+   "GUIDE.md",
+   "acceptance.yaml",
+   "collections.yaml",
+   "derivation.json",
+   "kb-classes.yaml",
+   "manifest.json"
+  ],
+  "loader_config": "~/.dsh/plugins/dsh-kb/cordis.patch.yml + ~/.dsh/profiles/desktop/cordis.patch.yml 均指向它（等 DSH 重载生效）"
+ },
+ "content_optimization_13": {
+  "at": "2026-09-23 18:08:30",
+  "①_枚举收敛": {
+   "risk_level": {
+    "impl": "生成器新增 normalize_risk_level()：12 种源写法 → {红,黄,绿,未定级}，多值取最严（红>黄>绿）",
+    "before": "9 种写法混杂 + unknown 454",
+    "after": {
+     "红": 29,
+     "黄": 19,
+     "绿": 7,
+     "未定级": 454
+    },
+    "traceability": "原值落 risk_level_raw（55 条）；未定级的 454 条落 risk_level_note『源库为 unknown/空，不许由 P 级反推』",
+    "judgement_fix": "判定逻辑由「子串匹配 raw 值」改为用归一值（写法一变就不会漏判）"
+   },
+   "p_level": {
+    "impl": "按 ORDER_P_LEVEL 校验，枚举外写法挡在视图外；同一规则多行取最严（P0 最严）",
+    "after": {
+     "P0": 21,
+     "P1": 488
+    },
+    "note": "取值本身已合法，未改口径，只加了守卫与说明"
+   },
+   "verification": {
+    "decision": "**保持留空，不补假映射**",
+    "why": "生成器补丁 J 已有论证：verification 是加载器的三重验证映射（人工判断闸门），派生视图没有依据替人打三项分；补一个全 0 映射只会把 E021（缺）换成 E022（判 discard）——那是把闸门变成自我申报。E021 ×56 是如实报出内容缺口",
+    "content_fix": "这 56 条判断类需在内容侧补三项子分（2/1/0）+ 依据 + score（=得分÷6）+ verdict"
+   }
+  },
+  "③_证据级对齐": {
+   "rule": "L2 仅当源库为 synthesis **且**归属 ≥2 个不同来源根（加载器 sourceRootOf 去重）；否则降 L1",
+   "already_ok": "该规则第三轮补丁已实现，E036 此前就为 0（没有违规）",
+   "added_traceability": "新增 evidence_level_note，让降级不再静默：observation→L1 447 条 / synthesis-但-1-个来源根→L1 59 条 / synthesis-且-≥2 来源根→L2 3 条",
+   "corroborated_by": "仅在 L2 时写出（≥2 个飞书 base 链接），与加载器 E036 的判据同源"
+  },
+  "results": {
+   "view": "kb/view 511 md / 信封 0",
+   "loader": {
+    "E001": 0,
+    "E046": 0,
+    "health": 100,
+    "三件套": 1.0,
+    "孤岛率": 0.0,
+    "search": [
+     111,
+     1,
+     509,
+     0
+    ],
+    "code_hist": {
+     "W036": 509,
+     "W019": 1,
+     "W020": 2267,
+     "W021": 10,
+     "W023": 1,
+     "W025": 1,
+     "W035": 1,
+     "W037": 1,
+     "E026": 452,
+     "E021": 56
+    }
+   },
+   "六项回环": {
+    "run": "20260923-180652",
+    "all_pass": true
+   },
+   "九段体检": {
+    "run": "20260923-180808",
+    "verdict": "PASS"
+   },
+   "附带变化": "W020（重复即合并）2803 → 2267（归一后 summary 文案分化，重复判据变化）",
+   "未变的": "E026 452（内容质量分<60）、E021 56（判断类缺三重验证）—— 两项都是**内容层**缺口，字段映射层面无解"
+  },
+  "residual": "生成器的 node 子进程仍偶发 SIGKILL(-9)→staging 落成信封；但安装通道（payload→node→kb/view）稳定，最终装载位 0 信封（TD11）"
+ },
+ "post_fix_tools": {
+  "projection_reconcile": {
+   "path": "kb/l8/projection_reconcile.py",
+   "added_at": "20260929-1130",
+   "why": "kb/view 是 kb/l3…l6 的只读投影，此前只在生成那一刻对过一次、之后无人对账。实测后果：62 条 rule_verification 仍写旧标签「已归纳」（权威库已是「已支持」）、11 条 p_level 不一致、2 条正文还是旧的长串 —— 而**没有任何东西会报出来**，视图看起来正常、kb_check 也照样 100 分。",
+   "checks": [
+    "R1 源文件 sha256",
+    "R2 条目级指纹（sha256(head 规则行)[:32]）",
+    "R3 id 集合一一对应",
+    "R4 治理字段传导（owner/half_life_days/valid_until/effective_from）",
+    "R5 落盘与 manifest 一致",
+    "R6 tier ↔ 层目录"
+   ],
+   "exit_codes": {
+    "0": "六项全过",
+    "1": "有漂移",
+    "2": "环境缺失（无法判定，绝不当作通过）"
+   },
+   "usage": "python3 kb/l8/projection_reconcile.py [--json] [--json-out F]",
+   "first_run": "20260929-1130：6/6 通过、零漂移"
+  },
+  "golden_questions": {
+   "path": "kb/view/3_措辞表达库/tests/golden-questions-content-governance.md",
+   "generator": "kb/.work/fix_f10_golden.py",
+   "added_at": "20260929-1130",
+   "purpose": "解锁加载器「覆盖率」维度（此前因无黄金问题集恒为 noData）",
+   "count": 38,
+   "coverage_first_run": 0.9211,
+   "discipline": "题干只来自两处、都与规则来源表不重叠：① l7 vocabulary 的类别/子类名（prd_source=PRD §7.2/§7.3）；② 技术方案 9 案与 L7 自验的真实送审原句。**没有**从条目正文摘句子当题干 —— 那是自己考自己。",
+   "known_gotcha": "加载器按行扫 `|`、只要 cells[1] 匹配 ^Q\\d+$ 就收一道题。所以同一文件里的其他表格**首列不能再用 Q 编号** —— 实测第一次把 38 题收成了 76 题，覆盖率被稀释到 0.46（真实值 0.92）。",
+   "status": "技术侧种子集，待 business 复核扩充（目标 30–50 题起）"
+  },
+  "note": "F7–F11 的常驻工具与资产登记；一次性修复脚本在 kb/.work/，报告在 kb/l8/runs/。巡检断言：rebuild_l1_index.py --check（exit 0）与 projection_reconcile.py（6/6）。",
+  "l1_index_rebuild": {
+   "path": "kb/l1/index/rebuild_l1_index.py",
+   "added_at": "20260929-1200",
+   "why": "kb/l1/index/l1.jsonl 原先只是 .work/l1_extract_v3.py 全量抽取的**尾部副作用**，没有独立入口。后果两层：①必然漂移（实测索引 mtime 2026-09-24 16:27:11 早于它应覆盖的最新源文件 16:54:54）；②写入循环只遍历批次目录、不读台账 status，已 invalidated/retracted 的资源其段仍留在索引里（实测 202 资源 / 1247 行虚报）。",
+   "scope_filter": {
+    "include": [
+     "ok",
+     "extracted"
+    ],
+    "excluded_with_reason": [
+     "invalidated",
+     "retracted",
+     "no_scope",
+     "forbidden",
+     "unreachable",
+     "empty",
+     "no_content_expected",
+     "pending_fetch",
+     "pending_ocr",
+     "failed",
+     "audit_note"
+    ]
+   },
+   "checks": [
+    "陈旧（索引 mtime vs 源文件最晚）",
+    "虚报（僵尸行：资源已失效而段仍在）",
+    "缺段（当前语料有、索引没有）",
+    "多余（索引有、当前语料没有）",
+    "media_coverage（图片 OCR 覆盖，缺失数必须恒为 0）"
+   ],
+   "exit_codes": {
+    "0": "无漂移",
+    "1": "有漂移（可直接做巡检断言）"
+   },
+   "usage": "python3 kb/l1/index/rebuild_l1_index.py --check | --write [--run ID]",
+   "downstream_consumers": [],
+   "not_a_retrieval_dependency": "L2 直接 glob 逐资源文件、L6 读 kb/l2/units.jsonl，均不读本索引。本索引是审计投影，其陈旧不产生检索错误，但**任何以它为分母的覆盖率结论必须先 --check 确认不陈旧**。",
+   "media_coverage_rule": "media_* 资源以资源为单位不进索引；其正文经父 bitable 记录的 segments（kind=image_ocr/image_visual）进索引。禁止按 l1/media/ 再枚举一遍 —— 会重复计数。实测 129 个有效 media 资源的 240 张图 240/240 在索引内。",
+   "first_run": "20260929-1200：DRIFT → 重建 14,858/1,603 → 13,613/1,403，剔除僵尸 1,247 行/202 资源；复检 [OK]"
+  },
+  "l6_scope_whitelist": {
+   "path": "kb/l6/SCOPE.txt",
+   "added_at": "20260929-1200",
+   "count": 1899,
+   "why": "重算 L6 可用口径得 1,982 条，比已索引的 1,899 多 83 条；实测这 83 条是**整页抓取**（中位 24,703 字符、82/83 > 2,000 字符、去重后只有 7 种开头，来自 momcozy 各站产品/博客/集合页 + dxy 指南页），纳入会使总字符量 ×8.2、估算段数 ×5.8，每个哺乳相关查询都会命中巨型产品页。故用人工白名单挡住。",
+   "wiring_fix": "SCOPE.txt 原先只被 kb/.work/l6_scope.py（报告器）读，建索引的 l6_build.py 不读，而 registry 却记 scope_file=SCOPE.txt —— 静默失真的溯源声明。已新增 l6_scope_lib.apply_scope_file() 作为唯一读取实现，两侧同源。",
+   "maintenance": "新增/移除 unit_id 是人的动作。不要为了跟上 L2 增长而整批灌入 —— L2 增长里混着整页抓取。根因待 L2/L3 口径侧加尺寸/来源护栏（见 OI-L6-001）。"
+  }
+ },
+ "known_biases": {
+  "E026": {
+   "count_at_run": 454,
+   "level": "error",
+   "verdict": "**不是缺陷，是口径错配** —— 散文质量闸门套在结构化规则库上。",
+   "why_not_fixed_by_agent": "闸门口径（kb.js QUALITY / quality()）：正文 ≥200 字符且总分 ≥60，总分 = 长度(≤20, n/500 封顶) + 密度(30) + 去重(20) + 语言(30)。这四维是为**手写散文条目**设计的。本库 509 条的正文是**规则行的忠实渲染**（规则原文 / 命中表达 / 判为违规的依据 / 处理方式 / 适用范围 / 证据单元明细），样例 1,305 字符 —— 不是写得薄，是规则本身就短。实测 454 条全部落在「分数 <60」分支（短正文分支 0 条），现有总分 52.5 / 55.8 / 59.9（min/中位/max）。",
+   "rejected_fix": "**不采用「往正文灌水凑长度」**：按 lengthScore=min(20, n/500) 反推，分别需要新增约 801 / 3,151 / 7,000 字符即可过线 —— 也就是给每条规则补 0.8k–7k 字的**非知识内容**。那正是本库明令禁止的「为指标造数据」（同类判例：related 为压孤岛率而造的合成边，见 W025 一条）。灌水还会同时改变 density（去重比被拉低）与 language（重复句 `(.)\\1{5,}` 直接扣分），属于用一个假绿换另一个假绿。",
+   "two_honest_paths": [
+    "① 给 QUALITY 闸门加**按库分档**的口径（结构化规则库 vs 散文库），由插件侧改、需留痕；",
+    "② 若权威库里这些规则确实还有未渲染的正文（rule_text/reason 之外的长文本），则把它渲染出来 —— 那是**暴露已有内容**，不是灌水。本轮核对：正文已渲染规则原文/依据/处理方式/证据明细，未见明显可渲染的长字段，故 ② 预计收益有限。"
+   ],
+   "note": "health 分不把 errors 计入维度，但熔断看 errors；本库 errors 全为 E026 时 health 仍 98.4，而 kb_check 的 ok=false 由 errors.length>0 决定 —— 这一条决定了「本库算不算通过」。"
+  },
+  "W020": {
+   "count_at_run": 2218,
+   "level": "warning",
+   "verdict": "**机器只报疑似，判归人** —— 需人工决定合并或补写分工。",
+   "why_not_fixed_by_agent": "加载器自己的措辞：「要么合并（新建 + supersedes 留痕，不许原地改写），要么把两者的分工写进 summary。**机器只报疑似，判归人**」。合并会改知识口径并触发 AP14（改主意 = 新建 + supersedes，不许原地改），那是业务判断，不是工程修复。样例：元字段 Jaccard 0.61、正文 Jaccard 0.59 —— 相似度只说明「同源同族」，不说明「该合并」。",
+   "action_needed": "业务方按疑似清单逐条判定（清单可由 kb_check 导出）。"
+  },
+  "W021": {
+   "count_at_run": 10,
+   "level": "warning",
+   "verdict": "**疑似数值矛盾，且经查为解析伪影** —— 键名是截断串。",
+   "evidence": "样例消息：「同一个键「recvunn」+ 同一个单位「(无)」 取值不相交 —— 本条 6，对端 4」。键名 `recvunn` 是记录 id 前缀被截断的产物，不是知识里的键；另一类「同一个键「命中表达」+ 单位「条」，本条 1、对端 3」比较的是**各条目自己的命中表达条数**（每条规则天然不同），不是对同一量的两个断言。",
+   "why_not_fixed_by_agent": "加载器已声明「**疑似项不是判决**：可能是不同对象、不同口径、或其一已过期。属数值冲突的走 governance.yaml，**不许自动裁决**」。本轮判定为伪影，但按该口径也不应自动改数据 —— 记此判定供人复核。",
+   "action_needed": "人工确认 10 条均为伪影后，可在 governance.yaml 记「已复核为伪影」。"
+  },
+  "W025": {
+   "count_at_run": 1,
+   "affected_entries": 509,
+   "level": "warning",
+   "verdict": "**待决策** —— 修它会把一个假绿维度换成真的红。",
+   "background": "生成器「补丁 E」的注释自己写明：related 是「给每条规则挂几个 related 邻居（**用来把孤岛率从 1.00 打下来**）」。两个依据：①同 rule_code —— 真的规则族关系（37 条规则、22 个码）；②同主来源表 —— 文档原话是「每条指向稳定序上紧随其后的 N 条，**使全组都有入边**」，即**为过门槛而制造的合成边**，不是关系。",
+   "consequence_if_migrated": "加载器只认「related 为空/不存在」才消警（把内容搬进 typed keys 不算）。故修它必须删/清空 related。而孤岛率 = 没被任何条目引用的占比，清掉合成边后只剩 37 条有真边 → 孤岛率约 0.93，**超过 ≤0.2 阈值，该维度转红**，健康分随之下行（当前 98.4，熔断线 60）。",
+   "options": {
+    "A": "只让生成器**不再新写** related（合规字面要求），存量不动 → W025 仍报 1 条，孤岛率仍是假绿。",
+    "B": "删掉合成边、只保留同 rule_code 的真边并迁到 complements → W025 归零，孤岛率转真红（约 0.93），健康分下行。",
+    "C": "把合成边也迁成 complements → W025 归零且孤岛率保持绿，但**类型是编造的**，违反本库「不许为指标造数据」，已排除。"
+   },
+   "recommendation": "B（与 F10「健康分从 100 掉到 98.4 是假绿被拆掉」同一处置逻辑），但需人确认，因为它改的是一个已公开的健康数字。",
+   "note": "真孤岛率约 0.93 本身是有价值的业务结论：472/509 条规则与其他条目**没有任何真实引用关系**。要真正降下来，需要来源表提供真实的关联列（当前没有）→ 属业务动作。"
+  }
+ }
+}

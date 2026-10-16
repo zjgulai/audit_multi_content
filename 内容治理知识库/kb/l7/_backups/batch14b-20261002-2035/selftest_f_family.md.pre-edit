@@ -1,0 +1,174 @@
+# selftest F —— kb-manage 工作流家族的验收自测
+
+> 适用范围：`kb-manage` / `kb-pipeline` / `kb-review` / `kb-check` / `kb-repair` /
+> `kb-canonical-lookup` / `kb-p0-check` / `kb-recall` / `kb-l0-feishu` /
+> `kb-content-review`（`skills.yaml` 的 `selftest` 字段一律指向本文件）。
+>
+> **这是一条真的能跑的验收，不是一句话结论。** 逐条给出命令 + 判据 + 期望输出。
+> 跑法固定：**cwd = `kb/` 的上一级**（`~/.dsh/Momcozy知识库`），解释器一律 `kb/kbpy`。
+
+---
+
+## 0. 前置（不通过就停，别往下跑）
+
+```bash
+cd ~/.dsh/Momcozy知识库
+kb/kbpy l8/_interp.py          # 报告「配置 / 解析结果 / 当前解释器是否合格」
+```
+
+**判据**：解析结果 = `/usr/bin/python3`，且当前解释器判定为合格。
+不合格 → 报「缺什么」，**不许降级硬跑**（受管 external-python 缺 numpy / fastembed，L6 召回两者都要）。
+
+---
+
+## F1. 注册表：成员编目与安装状态一致
+
+```bash
+kb/kbpy l7/scripts/skills_check.py            # 五类问题必须全 0
+kb/kbpy l7/scripts/skills_check.py --json | python3 -c "import json,sys;print(json.load(sys.stdin)['total_problems'])"
+```
+
+**判据**：`五类问题：1=0 2=0 3=0 4=0 5=0`，退出码 0。
+**必看的两个信息桶（不算错误，但必须逐条有解释）**：
+- `1b 预期未装` = 4 条（`kb-ingest-extractor` / `kb-media-extractor` / `kb-clause-extractor` / `brand-product-fact-curator`，全部 `status: 规划`）；
+- `未登记 selftest` = 宿主通用 + lark-* 等，与家族无关。
+
+**已知判据缺陷（不许当成数据缺陷）**：本脚本第 4/5 类判 `depends_on_engine` / `selftest`
+路径时**不做 `expanduser`**（第 1001–1002、1018–1019 行）→ 凡 `~` 开头的路径都会被误报
+「路径不存在」。**这两个字段一律写库根相对路径**，不要写 `~/...`。
+
+---
+
+## F2. 层契约：L0–L7 八层齐全且可执行
+
+```bash
+kb/kbpy l7/scripts/layers_check.py
+```
+
+**判据**：
+- 六类问题全 0、退出码 0；
+- 8 层齐全（`layer` 恰为 L0…L7）；
+- 每层含 `cwd` / `python` / `envelope` 三个字段，且
+  `cwd == ~/.dsh/Momcozy知识库`（= `kb/` 的上一级）、`python == ${KB_PYTHON}`、`envelope == required`；
+- `engine` 路径全部存在（**本脚本做 expanduser**，与 F1 的缺陷相反）；
+- `depends_on` 反映**实测 DAG**，不是线性链 —— 逐条核这两组断言：
+  `L3←L2`、`L5←L2`、`L6←L2`（L2 扇出），`L4←L3`、`L5←L3`、`L6←L3`（L3 扇出）；
+- 「无干跑档清单」必须非空且**可见**：`L3 / L4 / L5 / L6`（覆盖式写入但 `dry_run=false`）。
+
+---
+
+## F3. 路由表：意图 → 成员，且与登记表对得上
+
+```bash
+# 3a 路由表自检（id 都在 skills.yaml 里、互斥点名成立、触发语不越界）
+kb/kbpy l7/scripts/routes_reconcile.py <winners.txt> --quiet
+
+# 3b 逐条对账（实际被谁接走 vs 路由表写谁）
+kb/kbpy l7/scripts/routes_reconcile.py <winners.txt> --alias
+```
+
+**判据（3a，第 ④ 节必须 0 条）**：
+- `routes.yaml` 里每个 `to` / `members` / `entry` 都是 `skills.yaml` 登记过的成员 id；
+- 每个 intent 都有非空 `not_for`；
+- **互斥点名**（去 `SKILL.md` 里逐字核，不只看表）：
+  `kb-pipeline.not_for` 点名 `kb-l0-feishu` / `kb-review` / `kb-canonical-lookup` / `kb-p0-check` / `kb-recall`；
+  `kb-l0-feishu.not_for` 点名 `kb-pipeline` / `kb-review`；
+- **语义范围不扩大**：`kb-pipeline` 的**触发语**里不出现「只对账 L0 / 只跑每日同步 / 飞书侧改了什么」；
+  `kb-l0-feishu` 的触发语里不出现「同步一下知识库 / 跑一遍知识库链路 / 知识库同步到最新 /
+  全链体检 / L0 到 L7 走一遍 / 知识库该更新了」。
+
+**判据（3b）**：逐条全轮命中率与打分器 F1 交叉核对一致（见 F4）。
+
+---
+
+## F4. 触发盲测：F1 ≥ 0.90
+
+```bash
+# 用例：13 个 brand-* × 5 条 = 65 条纯中文冻结用例（2026-09-29 冻结）
+#    /Users/lute/Desktop/skill/内容治理中文skill/_基线用例.json
+# 协议：每条 prompt 3 轮，每轮一个**新开 agent**，只给提示词，由它自己的 skill 目录决定加载谁。
+# 打分：~/.dsh/skills/root-skills-eval/scripts/score-trigger-eval.py
+python3 _eval-kb-manage/kb_routes_score.py <winners.txt> --alias
+```
+
+**判据**：`3轮平均 ... F1 ≥ 0.900` → 过；否则**不登记**（按 `root-skills-opt` 修完再评）。
+
+⚠️ **口径必须写清楚，否则数字不可比**：
+- **strict 口径**：赢家 name 必须逐字等于登记 id；
+- **alias 口径**：把「描述里写了、其实**没装**」的中文名（`产品宣称核验` / `图片安全审查` /
+  `美国本地化审查` / `AI溯源与权利审查` / `文案合规审查`）折回它意图指向的成员，
+  并把 `视频安全审查`（目录名）折回 `brand-video-safety-review`（登记 id）。
+- 与 `_中文基线.md`（翻译前 · 轮 1）**只能比方向与机制，不能直接比绝对值** ——
+  两轮 harness 的判定协议不同（详见变更记录）。
+
+---
+
+## F5. 信封闸门：活路径上没有信封
+
+```bash
+# 5a 库自带：只扫 .md
+kb/kbpy l8/envelope_census.py
+# 5b 本家族补的工具：.py / .txt / .md 三件套（与 5a 互补，谁都替代不了谁）
+python3 tools/envelope_gate.py
+```
+
+**判据**：`envelope_gate` 的**扫描范围**（本家族的活路径）内信封态 = 0、退出码 0。
+**判据口径**：信封态 = 同一路径 `abs(python os.path.getsize - node fs.statSync().size) == 4096`。
+**已知存量（本轮不动，只报告）**：`kb/l0/attachments/README.md` 为信封态（差 −4096）——
+属 `kb/l0` 既有问题，按「本轮不得改 `kb/l0…l6` 数据与台账」的约束**只报告、不修**。
+
+---
+
+## F6. 写通道自查（本家族的产物必须能被宿主读出来）
+
+```bash
+python3 tools/envelope_gate.py kb/l7/registry kb/l7/scripts kb/l7/skills tools
+```
+
+**判据**：信封态 = 0。
+**通道规定**：python 写 `.py` / `.txt` / `.md` 会落成信封 → 一律
+「python 生成内容 → 写到**无扩展名**临时件 → `cp` 落到目标」；
+python 写 `.json` / `.yaml`、bash 重定向、`cp`、node 写盘都是安全的。
+
+---
+
+## F7. 停用项留痕（kb-retriever → kb-recall）
+
+```bash
+kb/kbpy l7/scripts/skills_check.py --json | grep -n "kb-retriever" || true
+ls -d ~/.dsh/skills/kb-retriever 2>/dev/null            # 期望：不存在（已移入 kb/l7/_skill-backups/）
+ls -d ~/.dsh/skills/kb-recall                           # 期望：存在
+ls -d kb/l7/_skill-backups/kb-retriever-*               # 期望：回滚基线在
+```
+
+**判据**：`kb-retriever` 的 `status` = `废弃`；安装位无 `kb-retriever` 目录；
+能力已并入 `kb-recall`（触发语含「分层索引导航 / PDF 读取 / Excel 读取 / 渐进式检索」）。
+
+---
+
+## 汇总：本自测的通过条件
+
+| 段 | 判据 | 不通过怎么办 |
+|---|---|---|
+| F1 | 五类问题全 0、退出码 0 | 交 `kb-repair`，按原因码修 |
+| F2 | 六类问题全 0、8 层齐全、DAG 断言成立 | 改 `layers.yaml`（**先改表再改代码**） |
+| F3 | 第 ④ 节 0 条 | 改 description 或 `routes.yaml`；**改完必须重跑 F4** |
+| F4 | alias 口径 F1 ≥ 0.90 | 按 `root-skills-opt` 修，**不达标不得登记** |
+| F5 | 活路径信封 = 0 | 按写通道重写；`kb/l0…l6` 的存量只报告 |
+| F6 | 本家族产物信封 = 0 | 同上 |
+| F7 | 废弃项留痕齐（副本移出 + 回滚基线在） | 补 `_skill-backups/` |
+
+## 本轮实测（2026-09-29 · 轮 2）
+
+| 段 | 结果 |
+|---|---|
+| F1 注册表 | ✅ 五类 `1=0 2=0 3=0 4=0 5=0`、退出码 0（71 行登记、36 个生产成员已装） |
+| F2 层契约 | ✅ 六类全 0；8 层齐全；`L3←{L0,L2}` `L4←{L2,L3}` `L5←{L0,L2,L3}` `L6←{L0,L2,L3}` `L7←{L0,L3,L4,L5,L6}`；无干跑档清单 = L3/L4/L5/L6 |
+| F3 路由对账 | ✅ 第 ④ 节 0 条（7 条互斥点名规则**真去 SKILL.md 逐字核**过）；② 不一致 5 条，全部落在 `AI溯源与权利审查` |
+| F4 触发盲测 | ✅ **我的 10 个成员 4 轮全部 ≥ 0.90**（最好轮 1.000；v2 轮因单条翻转降到 0.963/0.970，仍过）；13 个 brand-* 里 12 个过、`AI溯源与权利审查` 未过（v1 第4轮 0.440 → **v2 0.222**）。**v2 用例修订实验结果为负**，暴露出 `I` 组三类结构缺陷（`I1`↔`G3` 已解 / **`I5`↔`F5` 未解** / `I2` 欠定义）。**已停止改用例与调 description**，见变更记录 §9 |
+| F5 信封闸门 | ✅ 本家族活路径 0 信封；`kb/l0/attachments/README.md` 的存量 1 个**只报告不修** |
+| F6 写通道 | ✅ `kb/l7/registry` + `kb/l7/scripts` + `kb/l7/skills` + `tools` 共 27 个文件 0 信封 |
+| F7 停用留痕 | ✅ `kb-retriever` status=废弃；**两个装载位**的副本都已移入 `kb/l7/_skill-backups/`；`kb-recall` 已装 |
+
+**任一段不通过 → 整条家族验收不通过**，且必须在 `kb/l7/reports/<RUN>-change-record.md` 里
+写明「哪一段、什么命令、什么输出、下一步谁做」。

@@ -1,0 +1,34 @@
+---
+source_url: https://lh7-us.googleusercontent.com/docs/AHkbwyKrOzGh-h4FjWbm7YNb6XNsIlkjf2QBGzS3FBU7XEE2OecvPC3WfqWtOUiC3EjsEuUD0g3e5nSIH_9YlRjDQVtQJLyFh8fcHtBDyCd5zM1euQSBs9pb=w1200-h630-p
+kind: docx
+title: 
+fetched_at: 2026-10-10 16:42:15
+sha256: 8facd7c756632b2cb6efcdf05d2436416621d154a3c36f39d941350e4f512a80
+bytes: 549
+run: spec-fix-20261010-1645
+---
+
+{
+  "ok": false,
+  "error": {
+    "type": "validation",
+    "subtype": "invalid_argument",
+    "message": "unknown flag \"--token\" for \"lark-cli docs +fetch\"",
+    "hint": "run `lark-cli docs +fetch --help` to see valid flags",
+    "params": [
+      {
+        "name": "--token",
+        "reason": "unknown flag"
+      }
+    ]
+  },
+  "_notice": {
+    "update": {
+      "command": "lark-cli update",
+      "current": "1.0.95",
+      "latest": "1.0.97",
+      "message": "lark-cli 1.0.97 available, current 1.0.95, run: lark-cli update"
+    }
+  }
+}
+

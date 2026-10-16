@@ -1,0 +1,30 @@
+{
+ "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+ "dim": 384,
+ "quantization": "fp16（ONNX initializer 全部为 FLOAT16，且无 QuantizeLinear/MatMulInteger 等量化算子）",
+ "quantization_evidence": "fp16（ONNX initializer 全部为 FLOAT16，且无 QuantizeLinear/MatMulInteger 等量化算子）；ONNX initializer dtype 直方图 {\"FLOAT16(fp16)\": 149}；量化算子命中 0",
+ "weights_repo": "qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q",
+ "weights_file": "model_optimized.onnx",
+ "weights_bytes": 235052644,
+ "cache_dir": "/Users/lute/.dsh/models/fastembed",
+ "provider": "fastembed 0.7.4 + onnxruntime 1.19.2（本地 CPU，ONNX 路线，未装 torch）",
+ "normalize": "l2（存的就是归一化后的向量，点积即余弦）",
+ "count": 2088,
+ "units": 1578,
+ "segmentation": {
+  "segmenter_version": "l6-seg-0.1",
+  "seg_max_tokens": 120,
+  "effective_model_max_tokens": 128,
+  "how": "按段落换行 + 句末标点切句，贪心打包到 ≤seg_max_tokens；单句超限时按 token 二分硬切。不截断、不丢内容：各段文本拼回来等于原文。",
+  "why": "实测该模型在 128 token 处静默截断（两条只有前 300 字相同的文本得到完全相同向量）",
+  "segment_count_histogram": {
+   "1": 1297,
+   "2": 502,
+   "3": 84,
+   "4": 4,
+   "201": 201
+  }
+ },
+ "built_at": "2026-09-23 14:19:19",
+ "run_id": "20260923-1440"
+}

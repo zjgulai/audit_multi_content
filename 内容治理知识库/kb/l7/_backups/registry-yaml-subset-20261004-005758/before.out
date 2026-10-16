@@ -1,0 +1,18 @@
+== 修前 2026-10-04 00:57:58 ==
+---- skills_check.py 
+
+五类问题：1=0 2=0 3=0 4=0 5=0 ｜合计 0
+结论：全过。
+退出码：0
+exit=0
+---- skills_check.py --no-yaml --quiet
+环境错：/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/registry/skills.yaml 用了内置解析器覆盖不到的 YAML 构造（**没有**静默当成空值）：
+  第 92 行：未加引号的标量里出现 ' #'，YAML 会把后面当注释截掉 —— 请给这个串加双引号：'snapshots/   # 24M 归档快照，不进权威库'
+  支持的子集见本文件「内置 YAML 子集解析器」一节；也可以装上 PyYAML 或改回表里的写法。
+exit=2
+---- skills_check.py --verify-parsers
+    self.err(lineno, "未加引号的标量里出现 ' #'，YAML 会把后面当注释截掉 —— "
+  File "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l7/scripts/skills_check.py", line 207, in err
+    raise YamlSubsetError("第 %d 行：%s" % (lineno, msg))
+__main__.YamlSubsetError: 第 92 行：未加引号的标量里出现 ' #'，YAML 会把后面当注释截掉 —— 请给这个串加双引号：'snapshots/   # 24M 归档快照，不进权威库'
+exit=1

@@ -1,0 +1,134 @@
+{
+ "checks": [
+  [
+   "1. 原目录未被改动",
+   "通过：本次对外部只有读调用，无任何 create/update/delete/move/permission 写调用，飞书侧未建字段、未改状态、未改权限。全部调用见 runs/20260923-1055.ops.log"
+  ],
+  [
+   "2. 记录数校验（按 resource_key 取最新一行 == 实际登记资源数）",
+   "通过：最新台账 405 == 登记资源 405（≠ manifest 总行数 405）"
+  ],
+  [
+   "3. 每条资源要么有 sha256，要么有明确 sha256_state",
+   "通过：有 sha256 389 条；无 sha256 但已标 sha256_state 16 条（{'structure_only': 3, 'no_scope': 9, 'unreachable': 4}）；无说明的 0 条"
+  ],
+  [
+   "4. 不存在既无 kb_type 又无 status 的行",
+   "通过：0 条"
+  ],
+  [
+   "5. index/l0.jsonl 记录数 == 最新台账记录数",
+   "通过：405 == 405"
+  ],
+  [
+   "6. 所有写入路径都在 kb/ 内",
+   "通过：kb/ 下 447 个文件，越界 0 个"
+  ],
+  [
+   "7. registry kb_version 仍为 v0，未产生版本号",
+   "通过：kb_types 全部 v0={'v0'}，registry 顶层 kb_version=v0，versions.jsonl 版本行 0 条"
+  ],
+  [
+   "8. 重建 VERSIONS.md 后逐字节一致",
+   "通过：865 字节，sha256 736b3af270696a2f，重建后一致=True"
+  ]
+ ],
+ "rule_hits": {
+  "R5": 32,
+  "NO_RULE": 3,
+  "R9": 1,
+  "R2": 4,
+  "R3": 6,
+  "R1": 3,
+  "R4": 7,
+  "R20": 201,
+  "R22": 22,
+  "R23": 20,
+  "R21": 53,
+  "R24": 33,
+  "R10": 3,
+  "R16": 1,
+  "R17": 1,
+  "R11": 15
+ },
+ "zero_rules": [
+  "R6",
+  "R7",
+  "R8",
+  "R12",
+  "R13",
+  "R14",
+  "R15",
+  "R18",
+  "R19"
+ ],
+ "by_kb": {
+  "unknown": 38,
+  "internal_sample": 8,
+  "wording": 301,
+  "external_standard": 54,
+  "product_desc": 4
+ },
+ "by_sk": {
+  "feishu_bitable_record": 360,
+  "feishu_bitable_base": 4,
+  "feishu_bitable_table": 9,
+  "feishu_sheet": 2,
+  "feishu_slides": 3,
+  "feishu_file": 4,
+  "feishu_doc": 7,
+  "url": 16
+ },
+ "by_st": {
+  "registered": 405
+ },
+ "unk": 38,
+ "unk_reasons": {
+  "入口表「材料收集」的记录本身是收料容器，不是知识本体（R5 兜底 unknown）": 31,
+  "入口 Base 容器本身，不是知识本体": 1,
+  "入口表本身（R5 兜底 unknown）": 1,
+  "分类说明表：记录是收料要求说明而非知识本体，5 行中 3 行「知识库」列为空/其它": 4,
+  "规则库表资源：该表是双态表（记录级含外部法规与内部品线规则），表级无单一 kb_type": 1
+ },
+ "sha_by_input": {
+  "record_fields": 360,
+  "structure": 10,
+  "doc_text": 7,
+  "url_text": 12
+ },
+ "nohash_reason": {
+  "structure_only": 3,
+  "no_scope": 9,
+  "unreachable": 4
+ },
+ "fail_rate": 19.723865877712033,
+ "n_edges": 507,
+ "n_fail_edges": 100,
+ "dups": {
+  "bitable:N2qkb2YxuatqGLsa4U4cFQxgnCe:recvuBKsauxCqN": [
+   "bitable:N2qkb2YxuatqGLsa4U4cFQxgnCe:recvvruCWFve7g"
+  ]
+ },
+ "suspicious": [
+  "命名风格异常：广告文案风控库/W1卖点表达边界（品线反馈0910）（含括号/口语化/临时性措辞）",
+  "命名风格异常：广告文案风控库/风险文案改写建议库（分型号分渠道）（含括号/口语化/临时性措辞）",
+  "记录偏少：内容公式与专家修订库/内容公式（仅供参考）（7 条）",
+  "命名风格异常：内容公式与专家修订库/内容公式（仅供参考）（含括号/口语化/临时性措辞）",
+  "入口表「知识库分类说明」仅 5 条记录，属说明性表",
+  "入口表「材料收集」31 条记录，其中 11 条无「通过」状态（10 条空状态 + 1 条暂不采用）"
+ ],
+ "versions_rows": 0,
+ "versions_same": true,
+ "multi_ref": {
+  "url:https://www.ftc.gov/business-guidance/resources/health-products-compliance-guidance": 8,
+  "url:https://transparency.meta.com/policies/ad-standards/": 6,
+  "url:https://advertising.amazon.com/help/GPSSMTEAA6AEWY3A": 5,
+  "url:https://advertising.amazon.com/help/G6UU66YLSCUYDULQ": 5,
+  "url:https://transparency.meta.com/policies/ad-standards/restricted-goods-services/health-wellness/": 4,
+  "url:https://support.google.com/adspolicy/answer/6020955": 4,
+  "url:https://www.fda.gov/medical-devices/consumer-products/breast-pumps": 4,
+  "url:https://www.tiktok.com/legal/page/global/bc-policy/en": 4,
+  "url:https://advertising.amazon.com/help/GRW23T7LB4MFMBXQ": 3,
+  "url:https://support.google.com/adspolicy/answer/176031": 3
+ }
+}

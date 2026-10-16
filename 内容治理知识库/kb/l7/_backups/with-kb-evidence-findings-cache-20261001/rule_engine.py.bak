@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""Small deterministic candidate scanner for the US seed rules.
+
+It deliberately produces review candidates. Product/model conflicts are supplied
+by the product claim verifier because a keyword scanner cannot establish them.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+from typing import Any, Dict, List
+
+
+ROOT = Path(__file__).parents[1]
+
+
+def _rules() -> List[Dict[str, Any]]:
+    data = json.loads((ROOT / "knowledge-base" / "seed-rules.json").read_text(encoding="utf-8"))
+    return data["rules"]
+
+
+def _context_status(text: str, start: int) -> str:
+    context = text[max(0, start - 40):start].lower()
+    if re.search(r"\b(do not|don't|does not|not|never|avoid|warning|禁止|不要)\b", context):
+        return "uncertain"
+    return "confirmed"
+
+
+def scan_text(text: str, *, product_line: str = "", channel: str = "") -> List[Dict[str, Any]]:
+    """Return locatable risk candidates; no final decision is made here."""
+    findings: List[Dict[str, Any]] = []
+    for rule in _rules():
+        patterns = rule.get("trigger", {}).get("patterns", [])
+        if not patterns:
+            continue
+        applies = rule.get("applies_to", {})
+        if product_line and product_line not in applies.get("product_lines", []) and "all" not in applies.get("product_lines", []):
+            continue
+        if channel and channel not in applies.get("channels", []) and "all" not in applies.get("channels", []):
+            continue
+        matches = []
+        for pattern in patterns:
+            matches.extend(re.finditer(re.escape(pattern), text, flags=re.IGNORECASE))
+        selected = []
+        for match in sorted(matches, key=lambda m: (m.start(), -(m.end() - m.start()))):
+            if any(match.start() < other.end() and match.end() > other.start() for other in selected):
+                continue
+            selected.append(match)
+        for match in selected:
+            context_status = _context_status(text, match.start())
+            findings.append({
+                "risk_id": f"{rule['rule_id']}:{match.start()}",
+                "risk_type": rule["title"],
+                "priority_tier": rule["priority_tier"],
+                "severity": rule["severity"],
+                "status": "uncertain",
+                "context_status": context_status,
+                "action": "review",
+                "location": f"text characters {match.start()}-{match.end() - 1}",
+                "original_text": match.group(0),
+                "reason": "命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认",
+                "suggestion": "检查证据、免责声明、渠道政策和产品事实后再决定",
+                "evidence_id": f"TEXT:{match.start()}:{match.end()}",
+                "rule_id": rule["rule_id"],
+                "channel": channel,
+            })
+    return findings
+
+
+def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Scan text for US seed-rule candidates")
+    parser.add_argument("text")
+    parser.add_argument("--product-line", default="")
+    parser.add_argument("--channel", default="")
+    args = parser.parse_args()
+    print(json.dumps(scan_text(args.text, product_line=args.product_line, channel=args.channel), ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()

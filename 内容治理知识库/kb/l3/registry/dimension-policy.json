@@ -1,0 +1,351 @@
+{
+ "policy_id": "dimension-policy-20261010",
+ "created_at": "20261012-1414",
+ "layer": "L3 蒸馏层 · 规则维度（PRD §6.5 / §5.2）",
+ "status": "active",
+ "owner": "法务 + 内容治理（角色位）",
+ "scope": "l3/candidates/rules.jsonl 全部 1018 条规则",
+ "prd_refs": {
+  "risk_level": "PRD §6.5「每条规则必须包含…风险等级（Critical / High / Medium / Low）」",
+  "applicable_scope": "PRD §6.5「…适用产品线 / 渠道 / 内容类型」",
+  "modality": "PRD §5.2 审查能力表：文字（全文审查）/ 图片（OCR+视觉）/ 视频（字幕旁白+关键帧）",
+  "p_level_basis": "PRD §6.2 四层定义（P0 法务红线 / P1 安全准确性 / P2 通识常识 / P3 措辞表达）"
+ },
+ "why_this_file": "`risk_level` / `applicable_scope` / `modality` 三个字段此前在 L3 **要么全空、要么根本不存在**（实测 976/1018 **行** unknown；modality 连字段都没有）。根因不是「源里没有」，而是**蒸馏时把信号丢了**：`l3_distill.py` 的 METADATA_FIELDS 把 `风险等级` 显式归成元数据，5 条产出路径里只有 1 条读它、另外 4 条写死 `p_level='P1', risk_level='unknown'`。本文件把口径搬进权威库并写明理由；逐条数据由 `kb/l3/kb_rule_dimensions.py` 派生。 ｜ ★ **2026-10-12 v2（目标 6 按维度重算）**：v1 的四档批量兜底（P1→High…）实测把 **840 行整批压成同一档**、零区分度 ⇒ **已删除**，改成四维链（源 `风险等级` → 源 `灯色状态` → 源 `修订类型` → P0 地板），见 `p0_floor` / `lamp_color_map` / `revision_type_map` 三段。 ｜ ⚠️ **条数口径**：本文件 `scope` 与各分布里的 1018 是 **`rules.jsonl` 的行数**；**唯一 `rule_id` 是 509 条**（每条规则 2 行：生行 + 富化行）。报数时**必须写明是行还是条**。",
+ "risk_level_map": {
+  "source_field": "风险等级（L0 源表字段，带色标后缀如 `高危·红`）",
+  "map": {
+   "高危": "Critical",
+   "审慎": "High",
+   "待复核": "Medium",
+   "合规": "Low"
+  },
+  "note": "**这是换词表，不是补空值** —— 源用中文四档，PRD §6.5 要英文四级。"
+ },
+ "lamp_color_map": {
+  "source_field": "灯色状态（W1 卖点表达边界表；取值为 `红色-禁用` / `黄色-需限定` / `绿色-可用`）",
+  "map": {
+   "红": "Critical",
+   "黄": "High",
+   "绿": "Low"
+  },
+  "note": "**复用既有换词表的色标语汇**，不是新造：源 `风险等级` 的色标后缀（`高危·红` / `审慎·黄` / `合规·绿`）用的就是这一套 ⇒ 红→Critical / 黄→High / 绿→Low。"
+ },
+ "revision_type_map": {
+  "source_field": "修订类型（专家修订汇总表；专家**逐条手填**的「这条修订是什么性质」）",
+  "map": {
+   "去绝对化": {
+    "risk_level": "High",
+    "prd_basis": "PRD §6.2 P1 消费者安全（表述缺少适用边界；**非** §7.3-3 广告绝对化用语）",
+    "hard": false
+   },
+   "安全警示强化": {
+    "risk_level": "High",
+    "prd_basis": "PRD §6.2 P1 消费者安全",
+    "hard": true
+   },
+   "安全提示补充": {
+    "risk_level": "High",
+    "prd_basis": "PRD §6.2 P1 消费者安全",
+    "hard": true
+   },
+   "安全提示": {
+    "risk_level": "High",
+    "prd_basis": "PRD §6.2 P1 消费者安全",
+    "hard": true
+   },
+   "禁忌说明补充": {
+    "risk_level": "High",
+    "prd_basis": "PRD §6.2 P1 消费者安全",
+    "hard": true
+   },
+   "高风险人群提示": {
+    "risk_level": "High",
+    "prd_basis": "PRD §6.2 P1 消费者安全",
+    "hard": true
+   },
+   "就医指征完善": {
+    "risk_level": "High",
+    "prd_basis": "PRD §6.2 P1 消费者安全",
+    "hard": false
+   },
+   "就医时间阈值收紧": {
+    "risk_level": "High",
+    "prd_basis": "PRD §6.2 P1 消费者安全",
+    "hard": false
+   },
+   "用药安全提示": {
+    "risk_level": "High",
+    "prd_basis": "PRD §6.2 P1 消费者安全",
+    "hard": false
+   },
+   "护理方式纠正": {
+    "risk_level": "High",
+    "prd_basis": "PRD §6.2 P1 消费者安全",
+    "hard": true
+   },
+   "护理方式修正": {
+    "risk_level": "High",
+    "prd_basis": "PRD §6.2 P1 消费者安全",
+    "hard": true
+   },
+   "动作指导补全": {
+    "risk_level": "High",
+    "prd_basis": "PRD §6.2 P1 消费者安全（错误示范/危险使用）",
+    "hard": true
+   },
+   "产品信息更新": {
+    "risk_level": "High",
+    "prd_basis": "PRD §6.2 P1 产品描述准确性",
+    "hard": true
+   },
+   "适用范围说明": {
+    "risk_level": "High",
+    "prd_basis": "PRD §6.2 P1 产品描述准确性（功能边界/型号差异）",
+    "hard": false
+   },
+   "科学性纠错": {
+    "risk_level": "Medium",
+    "prd_basis": "PRD §6.2 P2 通识与常识",
+    "hard": true
+   },
+   "科学性补充": {
+    "risk_level": "Medium",
+    "prd_basis": "PRD §6.2 P2 通识与常识",
+    "hard": true
+   },
+   "科学性完善": {
+    "risk_level": "Medium",
+    "prd_basis": "PRD §6.2 P2 通识与常识",
+    "hard": true
+   },
+   "表述对齐指南": {
+    "risk_level": "Medium",
+    "prd_basis": "PRD §6.2 P2 通识与常识（与权威指南一致）",
+    "hard": false
+   },
+   "医学内容补充": {
+    "risk_level": "Medium",
+    "prd_basis": "PRD §6.2 P2 通识与常识",
+    "hard": false
+   },
+   "内容补充": {
+    "risk_level": "Medium",
+    "prd_basis": "PRD §6.2 P2 通识与常识",
+    "hard": false
+   },
+   "参考文献规范": {
+    "risk_level": "Medium",
+    "prd_basis": "PRD §6.2 P2 通识与常识（依据来源）",
+    "hard": false
+   },
+   "内容逻辑优化": {
+    "risk_level": "Medium",
+    "prd_basis": "PRD §6.2 P2 通识与常识（场景合理性）",
+    "hard": false
+   },
+   "逻辑清晰化": {
+    "risk_level": "Medium",
+    "prd_basis": "PRD §6.2 P2 通识与常识",
+    "hard": false
+   },
+   "内容不准确": {
+    "risk_level": "Medium",
+    "prd_basis": "PRD §6.2 P2 通识与常识",
+    "hard": false
+   },
+   "内容方向性修改": {
+    "risk_level": "Medium",
+    "prd_basis": "PRD §6.2 P2 通识与常识",
+    "hard": false
+   },
+   "内容修订": {
+    "risk_level": "Medium",
+    "prd_basis": "PRD §6.2 P2 通识与常识",
+    "hard": false
+   },
+   "概念澄清": {
+    "risk_level": "Medium",
+    "prd_basis": "PRD §6.2 P2 通识与常识",
+    "hard": false
+   },
+   "决策支持完善": {
+    "risk_level": "Medium",
+    "prd_basis": "PRD §6.2 P2 通识与常识",
+    "hard": false
+   },
+   "文章定位调整": {
+    "risk_level": "Medium",
+    "prd_basis": "PRD §6.2 P2 通识与常识",
+    "hard": false
+   },
+   "表述精确化": {
+    "risk_level": "Low",
+    "prd_basis": "PRD §6.2 P3 措辞与表达",
+    "hard": true
+   },
+   "表述完善": {
+    "risk_level": "Low",
+    "prd_basis": "PRD §6.2 P3 措辞与表达",
+    "hard": true
+   },
+   "表述温和化": {
+    "risk_level": "Low",
+    "prd_basis": "PRD §6.2 P3 措辞与表达",
+    "hard": true
+   },
+   "表述简化": {
+    "risk_level": "Low",
+    "prd_basis": "PRD §6.2 P3 措辞与表达",
+    "hard": true
+   },
+   "术语规范": {
+    "risk_level": "Low",
+    "prd_basis": "PRD §6.2 P3 措辞与表达",
+    "hard": true
+   },
+   "内容删减": {
+    "risk_level": "Low",
+    "prd_basis": "PRD §6.2 P3 措辞与表达",
+    "hard": true
+   },
+   "删减": {
+    "risk_level": "Low",
+    "prd_basis": "PRD §6.2 P3 措辞与表达",
+    "hard": true
+   },
+   "文章整体重写建议": {
+    "risk_level": "Low",
+    "prd_basis": "PRD §6.2 P3 措辞与表达",
+    "hard": true
+   },
+   "内容分类调整": {
+    "risk_level": "Low",
+    "prd_basis": "PRD §6.2 P3 措辞与表达",
+    "hard": true
+   },
+   "标题修改建议": {
+    "risk_level": "Low",
+    "prd_basis": "PRD §6.2 P3 措辞与表达",
+    "hard": true
+   },
+   "过度警示修正": {
+    "risk_level": "Low",
+    "prd_basis": "PRD §6.2 P3 措辞与表达（反向：降警示力度）",
+    "hard": false
+   },
+   "存疑/待讨论": {
+    "risk_level": null,
+    "prd_basis": "源字段 修订类型=存疑/待讨论 ⇒ **不编**，留 unknown",
+    "hard": true
+   }
+  },
+  "compound_rule": "值形如 `科学性纠错/表述精确化` ⇒ 按 `/` 拆、逐 token 定档、**取最高档**；整值若本身是键则**先整值查**（`存疑/待讨论`）。",
+  "note": "★ 这是「按维度重算」的那一维。`p_level` 是 PRD **§6.2 的优先级层级**、`risk_level` 是 **§6.5 的风险等级**，**两个轴**；拿前者顶替后者正是本次修掉的病。`修订类型` 天然落在严重度轴上，且逐条可核。`hard=False` 的条目是**软判**（按 §6.2 四层语义归类）—— 逐条列在 map 里供复核。"
+ },
+ "p0_floor": {
+  "when": "`p_level == \"P0\"`（PRD §7.3 一票否决）",
+  "rule": "风险等级**不得低于 Critical**；**只提不降**。",
+  "basis": "层级地板：p_level=P0（PRD §7.3 逐字「命中即驳回，不进入后续审查层级」）",
+  "trace": "被提上来的条，`risk_level_basis` 里明写「由 X **提到** Critical（**源/维度与层级冲突，需人核**）」—— 静默抬档比不抬更坏。",
+  "no_dimension": "P0 且**无任何维度可依** ⇒ 仍取 Critical，出处写「无其他维度可依」（不静默留空）。",
+  "why_not_p1_p2_p3": "★★ **P1/P2/P3 不再有任何 `p_level` 兜底**。旧版四档批量兜底实测把 **840 行**整批压成同一档 `P1 → High`，零区分度 —— 那是拿错轴，本次删除。"
+ },
+ "applicable_scope_sources": {
+  "product_line": [
+   "品线",
+   "适用产品",
+   "适用型号",
+   "卖点ID"
+  ],
+  "channel": [
+   "渠道",
+   "平台",
+   "投放地区",
+   "渠道/市场"
+  ],
+  "content_type": []
+ },
+ "applicable_scope_note": "只做**归一**，不做语义映射：源 `平台`（投放平台）与源 `渠道` 同归 `channel`。维度顺序按声明源优先级（更专指的源在前），保证重跑稳定。取不到的维度落 `null` 并记进 `gaps` —— **不许用常识补齐**。",
+ "modality": {
+  "enum": [
+   "text",
+   "image",
+   "video",
+   "undetermined"
+  ],
+  "field_hints": {
+   "图片素材": "image",
+   "素材图": "image",
+   "主图": "image",
+   "image": "image",
+   "视频素材": "video",
+   "video": "video"
+  }
+ },
+ "honest_limits": [
+  "★★ 2026-10-12 穷尽复核（任务拆解 10/12–10/16 必须做 #3）：**509 条规则全部推不出模态**。取证四条，缺一条都不算查过： ① **5 张锚点表的字段逐个列过，没有一张有媒体列** —— `专家修订汇总表`（修订位置（原文引用）/修订内容/修订原因/修订类型/文章标题）、`风险文案改写建议库（分型号分渠道）`（16 字段）、`品线内容边界规则库`（12 字段）、`W1卖点表达边界（品线反馈0910）`（8 字段）、`广告文案明细`（27 字段，媒体类只有 `落地页URL`）； ② **锚点字段名 0 个含媒体专名**（实测只有 5 种：`修订位置（原文引用）` 401 ／ `风险原句示例` 52 ／ `边界内容` 21 ／ `建议表达（合规话术）` 19 ／ `命中片段` 16）； ③ **0 条规则锚在 `负面样本`** —— 而**全库唯一有媒体字段的表就是它**（`素材类型` 图片 168 ／ 文字 2 ＋ `图片素材` ／ `视频素材` ／ `文字素材`） ⇒ **信号在库里，只是不在规则的路径上**； ④ 正文模态词**已实测不可靠**（「文字」139 : 「图片」6 : 「视频」5，且 6/5 是同一句『文案为空/非文本广告』的说明）。 ⇒ 原一律落 `undetermined`。★★ **2026-10-12 Owner 已签候选 B**（见 `TEXT_ANCHOR_FIELDS`）：锚点字段属「文字改写类」⇒ 判 `text`，并在 `modality_basis` 写明是**签过的口径、非源声明**。 源里真有媒体字段时（路径①②）**一律以源为准**，口径只在源推不出时生效。 明细与逐表取证见《交付-目标8-模态结案-20261012.md》。",
+  "★ **候选口径 A（未签、未执行）**：`广告文案明细.广告类型` 含 `图片需求开发广告` 83 ／ `视频需求开发广告` 31 ／ `自适应搜索广告` 84 ／ `产品广告` 55 —— 是**真的模态信号**（这一格此前从没查过）。 但它只覆盖**锚在该表的 16 条规则**，且要先答一个问题：**「这条文案规则算不算视频规则」**（规则正文是 Primary Text / Headline，是**文案**；而它所属的**广告**是视频）—— 那是口径，不是机械补丁。",
+  "★ **候选口径 B（未签、未执行）**：四张主要来源表（专家修订汇总表 401 ＋ 风险文案改写建议库 52 ＋ 品线内容边界规则库 21 ＋ W1 表 19）的锚点字段分别是「修订位置（原文引用）」「风险原句示例」「边界内容」「建议表达（合规话术）」—— **全都是在改「文字怎么写」** ⇒ 可论证绝大多数规则的模态是 `text`。 ⚠️ 但这是**从来源性质推**，不是源字段声明；且 PRD §6.5 要的是规则自己的适用内容类型。 **要人签**；签之前一律 `undetermined`。",
+  "★★ **`risk_level` 现在是「按维度重算」的结果，不再有 `p_level` 批量兜底**（2026-10-12）。旧版 840 行整批压成 `P1 → High`；现在四个维度逐条取：源 `风险等级` → 源 `灯色状态` → 源 `修订类型` → P0 地板。**仍取不到的落 `unknown`**（实测 1 条：源 `修订类型=存疑/待讨论`，专家自己说「待讨论」，本库不替它定级）。**源侧仍缺「风险等级」列的规则表**是这条链的长期依赖。",
+  "★ `critical` 档**全部来自源字段**（源 `高危` / `高危·红` / `红色-禁用`）＋ P0 地板，**没有一条**来自本库自己的语义判断 —— 这是「不编」的直接体现。",
+  "`applicable_scope.content_type` 与 `modality` 同义（PRD §5.2 的「内容类型」就是文字/图片/视频） ⇒ 只出一份，不重复造第二个字段。",
+  "**未覆盖任何既有非空值中的『真实值』**：未被覆盖的不一致 **0 处**（交人判）；点名归一改写 **0 处**（`risk_level` 换词表，逐条留痕在 l3.json changes[] 与本文件 `risk_level_map`）。"
+ ],
+ "validation": {
+  "derivation_module": "kb/l3/kb_rule_dimensions.py（唯一派生实现；自证 python3 kb/l3/kb_rule_dimensions.py --selftest）",
+  "selftest": "46/46（含 ①f「P1/P2/P3 不兜底」、①i2「取最高≠取最低」、①i3「复合键不拆散」、①i4「去绝对化不是红线」、①e2「P0 地板留痕」等反向对照；另有**变异自证 5/5**：`sh kb/kbpy .work/mutate_risk_level.py` —— 把缺陷真造一遍，尺子精确变红）",
+  "writers": [
+   "kb/.work/backfill_dimensions.py（一次性回填；risk_level 为**点名列**，以派生为准并逐条留痕）"
+  ],
+  "reader_contract": "★ **日更已接线（2026-10-10 同日完成）**：`kb/l8/l3_distill_run.py:699` 在写盘前调 `kb_rule_dimensions.apply_dimensions(rules, mode=\"force\")` ⇒ 本回填**不再易失**，且与日更**同口径**（改口径只改 `kb/l3/kb_rule_dimensions.py` 一处）。"
+ },
+ "current_distribution": {
+  "risk_level": {
+   "Medium": 217,
+   "Low": 123,
+   "High": 112,
+   "Critical": 56,
+   "unknown": 1
+  },
+  "modality": {
+   "text": 509
+  },
+  "scope_gaps": {
+   "content_type": 509,
+   "channel": 40
+  }
+ },
+ "fields_backfilled": {
+  "risk_level": "新增（PRD 四级枚举）",
+  "risk_level_basis": "新增（写出处：走了哪一维 / P0 地板提档 / 推不出的原因）",
+  "applicable_scope": "新增（含 _derivation 子键写各维度出处）",
+  "modality": "新增（枚举含 undetermined）",
+  "modality_basis": "新增（写出处）",
+  "dimensions_derivation": "新增（三字段出处汇总 + not_derivable 清单）"
+ },
+ "signed_off": {
+  "by": "Owner（内容治理）",
+  "at": "2026-10-12",
+  "what": "维度重算口径（四维链 + P0 地板 + 软判 token）；签字件见《交付-目标6-风险等级重算-对照与签字件-20261012.md》",
+  "pending": "法务事后追认（Owner 2026-10-12 裁定：「你签即可，法务事后追认」） ⇒ **追认前本字段不得当强证据**。"
+ },
+ "rulings": [
+  {
+   "id": "p0-floor-beats-source",
+   "at": "2026-10-12",
+   "by": "Owner（内容治理）",
+   "question": "某条规则源字段 `风险等级=审慎·黄`（⇒ High），但 `p_level=P0` —— 听谁的？",
+   "ruling": "**PRD 为准** ⇒ 维持 Critical（即 P0 地板优先于源字段）。",
+   "prd_basis": "PRD §7.3 逐字：「以下为 P0 级硬性规则，**命中即驳回**，**不进入后续审查层级**」＋ §6.2 P0 行「法务合规红线 / 一票否决项」。",
+   "applied_to": "`r-4f309d6ebde80283`（全库仅此 1 条；15 条 P0 规则里其余 14 条源字段本就是 `高危`/`高危·红`，无冲突）。",
+   "boundary": "★ **本条只管 P0**。`p_level` 是 §6.2 的**优先级层级**、`risk_level` 是 §6.5 的**风险等级**，两者是彼此独立的两个轴 —— 非 P0 档位（P1/P2/P3）与源严重度**不构成冲突**（PRD 没有对 P1–P3 说「严重度不得低于/高于某档」）。⇒ **不许把本条扩大成「PRD 一律覆盖源字段」**：那是另一件事，需单独裁定。",
+   "trace": "被地板提上来的条，`risk_level_basis` 里逐条写明「由 X **提到** Critical（**源/维度与层级冲突，需人核**）」—— 静默抬档比不抬更坏。"
+  }
+ ],
+ "revisit": {
+  "when": "源侧为其余规则表补「风险等级」列、或补媒体字段时；或法务对软判 token 提出异议时",
+  "who": "法务 + 内容治理",
+  "how": "改 kb/l3/kb_rule_dimensions.py 的映射表（唯一口径），再重跑本脚本"
+ }
+}

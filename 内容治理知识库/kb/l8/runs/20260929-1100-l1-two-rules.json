@@ -1,0 +1,83 @@
+{
+ "run": "20260929-1100",
+ "at": "2026-09-29 10:55:53",
+ "scope": "下游派生层重跑的前置：规则②链接下钻两层 + 规则③图片 OCR（产物落 L1，L0 只读）",
+ "drill": {
+  "run": "20260929-1100",
+  "at": "2026-09-29 10:55:12",
+  "rule": "链接下钻两层（用户 2026-09-29 口径②）",
+  "l0_untouched": true,
+  "output_dir": "kb/l1/sources",
+  "stats": {
+   "level1_ok": 17,
+   "level1_fail": 5,
+   "level2_ok": 50,
+   "level2_fail": 2,
+   "records": 22
+  },
+  "edges": 74,
+  "by_status": {
+   "ok": 67,
+   "fail": 7
+  }
+ },
+ "ocr": "见 kb/l1/media/20260929-1100.manifest.json（作业仍在跑）",
+ "pipeline_rerun": {
+  "status": "未执行",
+  "why": "并发风险：另一批次 2026-09-29 10:48:35 正在发布宿主库（写 publish.log + 1247 个 hostlib 文件，且 l4 生成器报错失败）；l1/l2 近 1 小时 0 写入但 publish 会读同一批产物。共享索引（kb/l1/index/l1.jsonl、kb/l2/units.jsonl、kb/l3/candidates/rules.jsonl）是 read-modify-write，抢写会互相覆盖",
+  "next_step": "需 5–10 分钟独占窗口：① 按 kb/.work/.kb.lock 约定取锁并声明 scope；② L1 用 kb/.work/batch14/l1_extract.py 的口径对 L0 增量（108 新 + 22 刷新）产出 seg；③ L2 用 batch16/l2_split.py 口径切单元；④ L3 用 batch16/final.py + l3_distill2.py 蒸馏；⑤ 逐层写 runs 记录与缺口对账"
+ },
+ "drill_failures": {
+  "count": 7,
+  "detail": [
+   {
+    "n": 2,
+    "kind": "sheets",
+    "cause": "脚本 flag 写错：lark-cli sheets 无 +meta、--token 已废弃",
+    "fix": "已改为 +workbook-meta / +read --spreadsheet-token（下次重跑即正确）"
+   },
+   {
+    "n": 1,
+    "kind": "wiki",
+    "cause": "--token 已废弃（已修）+ 该节点 bot 无权限（code 131006 permission_denied）",
+    "fix": "flag 已修；该节点需把应用加为协作者，或改用用户身份"
+   },
+   {
+    "n": 2,
+    "kind": "web(google)",
+    "cause": "正文里抓到的外部 URL（google csp / googleusercontent 图床），405/非文档",
+    "fix": "建议正则收紧为只收 feishu 文档链接 + 明确的正文 URL"
+   },
+   {
+    "n": 2,
+    "kind": "level2 其他",
+    "cause": "同上传入链接类型（sheets/wiki）",
+    "fix": "随上面一并重跑"
+   }
+  ]
+ },
+ "rule_video_subtitle_keyframe": {
+  "rule": "视频：字幕 + 关键帧（用户 2026-09-29）",
+  "blocker": "数据侧：当前飞书侧无视频（视频素材非空 0 条）；工具链：无 ffmpeg/whisper，cv2 可做关键帧",
+  "asked_user": [
+   "106 个视频在哪个表/base/链接",
+   "是否授权 base SKkkbdZi9aRuMzs7ob0cpSYHnQg 与那 2 个 wiki 节点"
+  ],
+  "closed_by": "kb/l8/runs/20260929-1155-video-none-ocr-download.json",
+  "closed_verdict": "用户裁定：知识库范围内只有飞书侧 + dsh 知识库，没有视频就是没有 → 视频 0 个，规则④无数据可落地，结案不做；「106」在库内无任何出处，作废"
+ },
+ "wiki_permission_links": [
+  {
+   "url": "https://momcozy-in.feishu.cn/wiki/KISzwvc8OifWk8kI5cBcTtU6n9g",
+   "node_token": "KISzwvc8OifWk8kI5cBcTtU6n9g",
+   "record": "recvvrLzQEUJa6",
+   "备注": "广告审核"
+  },
+  {
+   "url": "https://momcozy-in.feishu.cn/wiki/UOuMwKge6iX4HdkaOZBchV6ZnNf?table=ldxmTzrUKMtK807X",
+   "node_token": "UOuMwKge6iX4HdkaOZBchV6ZnNf",
+   "record": "recvvyOA0wU7nl",
+   "分类": "外部标准"
+  }
+ ]
+}

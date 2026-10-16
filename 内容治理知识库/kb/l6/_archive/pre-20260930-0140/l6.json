@@ -1,0 +1,555 @@
+{
+ "kb_version": "v0",
+ "run_id": "20260929-2230",
+ "mode": "vector_plus_bm25",
+ "mode_note": "必装项已完成：本地 ONNX 多语模型可用（真实握手通过），向量与 BM25 双索引都落盘",
+ "retrieval_capability": {
+  "mode": "vector_plus_bm25",
+  "semantic_recall": true,
+  "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "dim": 384,
+  "quantization": "fp16（ONNX initializer 全部为 FLOAT16，且无 QuantizeLinear/MatMulInteger 等量化算子）",
+  "provider": "fastembed 0.7.4 + onnxruntime 1.19.2（本地 CPU）",
+  "weights_repo": "qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q",
+  "weights_file": "model_optimized.onnx",
+  "weights_cache_dir": "/Users/lute/.dsh/models/fastembed",
+  "weights_bytes": 235052644,
+  "effective_max_tokens": 128,
+  "handshake": {
+   "how": "向模型发一次真实 embedding 请求，校验返回向量合法且维度一致（不用端口/依赖存在性判定）",
+   "text": "握手自检：这是一次真实的 embedding 请求。",
+   "dim_returned": 384,
+   "dim_expected": 384,
+   "all_finite": true,
+   "norm": 3.119,
+   "verdict": "可用"
+  },
+  "known_limitations": [
+   "跨语言只有多语模型的弱对齐：中文查询能拿到英文素材的较高相似度，但不等价于翻译级召回",
+   "同义改写受限：2019 年的多语 MiniLM（384 维），对行业黑话/新造词的语义区分有限",
+   "规避型表述（拼音、拆字、谐音、符号分隔、小语种）召回受限：这类本来就绕开字面，向量也未必抓到",
+   "无重排（本轮不做 rerank 模型），Top-N 只做 RRF 融合，长尾排序质量未校验",
+   "无命中阈值：检索器一律返回 Top-N，不带相关性阈值，是否采纳由下游判定",
+   "融合分不能当阈值用：RRF 分只是名次的倒数（Top1 恒为 1/(k+1)=0.016393），A 组与 B 组看起来一样高；真要设阈值得取原始分（BM25 分 / 余弦分），而原始分在 A/B 两组之间仍有重叠（实测 A 组 BM25 最低 5.32 < B 组最高 10.02）",
+   "超长单元分段后每段独立成向量，段间语义依赖未建模",
+   "P0 证据单元（321 条）不在向量索引内，只能走 kb/l5/matcher.py"
+  ],
+  "no_hit_semantics": {
+   "bm25_only": "字面未匹配，不代表合规",
+   "vector_only": "语义未匹配，不代表合规",
+   "hybrid": "字面与语义均未匹配，但仍不代表合规"
+  },
+  "no_hit_note": "向量检索会让『无命中』看起来更权威，但它仍然召不到语料里没有的东西；规避型文案本来就绕开字面，无命中不是放行理由。"
+ },
+ "scope": {
+  "usable_units": 2630,
+  "source": "kb/l2/units.jsonl 经 L3 口径过滤",
+  "filter_distribution": {
+   "wording|metadata": 5229,
+   "wording|metadata_unknown_field": 127,
+   "external_standard|metadata": 345,
+   "external_standard|quality_flag": 1674,
+   "external_standard|oversize_gt_8000": 102,
+   "internal_sample|out_of_scope_table": 451,
+   "product_desc|out_of_scope_kb": 10,
+   "wording|oversize_gt_8000": 80,
+   "unknown|out_of_scope_kb": 1,
+   "internal_sample|oversize_gt_8000": 1
+  },
+  "scope_file": "kb/l6/SCOPE.txt",
+  "scope_file_info": {
+   "specified": 2631,
+   "distinct_specified": 2631,
+   "hits": 2630,
+   "excluded_from_usable": 0,
+   "specified_but_not_usable": [
+    "8a9e40e462204b848464"
+   ]
+  },
+  "scope_file_note": "SCOPE.txt 是人工核定白名单，由 l6_scope_lib.apply_scope_file() 在建索引侧生效；不在此文件里的可用单元**不会**进索引（宁可少收，不可把整页抓取混进来稀释检索）。",
+  "scope_delta": {
+   "prev_recorded_usable": 2581,
+   "prev_indexed": 2581,
+   "now_in_scope": 2630,
+   "delta_vs_prev_recorded": 49,
+   "delta_vs_prev_indexed": 49,
+   "added": {
+    "count": 49,
+    "unit_ids": [
+     "0ff514cd2585876e598b",
+     "110b8be003d8e3e1cb65",
+     "13dabeafc73966f3a360",
+     "1fb0d45ed4688969a627",
+     "20a51e64d569147ba0a2",
+     "223fdb746bc121e9cf91",
+     "3e458637d1911da4ddf3",
+     "42e5de9514b83f7b9fb0",
+     "42f78ed486f7b61005b6",
+     "46b33af72419425524ba",
+     "588893312a7b69a50324",
+     "5a76bcc6b80fb84ffd81",
+     "5d84d4eee1eb358b8772",
+     "5f677f4e32bfd81a3854",
+     "6821144167ce2f3562b7",
+     "6a8d7fa19ced38e367b7",
+     "6af5b0741a26e0d328d6",
+     "6c5238b0e2c4d1b4b540",
+     "709ae6ccae4a5c181a82",
+     "73b2dba4eeca6521cac7",
+     "7a90b56d48459e614dd0",
+     "7be950c2ef81b5242e38",
+     "7e104721a34345618750",
+     "802bfb20c7fd94346d53",
+     "92c91ba92558fc8814fb",
+     "985f5044c1689310ede5",
+     "9aa85bde8bd8a37aa25d",
+     "9d2b1ccd2e20a81079f7",
+     "a0d520a1ab6596cd6f0e",
+     "a0ddc218db36b764ca27",
+     "a1dd06e46c30674a2040",
+     "a5131d3ef56f2aaf46a3",
+     "ae001b389cb604e8e31a",
+     "b5e382333fce49e5e7b2",
+     "b9be51c34b39ada36a27",
+     "c4f1e5fdf9b88496dc49",
+     "c718fc1b02e3dc13ba4d",
+     "cc88cacf119d2e9522e5",
+     "cef29116832e5689318c",
+     "cf8a1d51df1f63949e1f",
+     "d0b5b718ab6491889f30",
+     "d984697c5ff0d2af5b37",
+     "e37c0e700ff26a7fcde6",
+     "e69181b17bef42185a70",
+     "e772918fd9b93eec5341",
+     "e9b70939f86b26171021",
+     "ecf53ff13b136fbbdebe",
+     "fa346a9ae3b8547df091",
+     "fccfc428f682e65e1bad"
+    ],
+    "truncated": false
+   },
+   "removed": {
+    "count": 0,
+    "unit_ids": [],
+    "truncated": false
+   },
+   "accepted_by_flag": true
+  },
+  "scope_delta_note": "与上一次已索引集合的逐 id 差额；added/removed 只留前 50 个 id，count 为全量数。口径变化必须由人用 --accept-scope-delta 确认，不允许静默漂移。"
+ },
+ "tokenizer": {
+  "version": "l6-tok-0.1",
+  "rrf_k": 60,
+  "bm25": {
+   "k1": 1.2,
+   "b": 0.75
+  },
+  "implementation": "自实现倒排（无 jieba / 无 rank_bm25）",
+  "zh": "按字符类别切出连续汉字段 → 直接 bigram（不依赖分词库）；单字段退化为 unigram",
+  "en": "小写化 → 按标点/空白分词 → 轻词干（复数/时态/副词后缀保守剥离）",
+  "mixed": "按字符类别分段，各段用各自的切法；词表与倒排分语言存放，不混",
+  "why": "中文 bigram 对英文会明显劣化；素材里英文占比高，混一套切法会拉低英文侧召回"
+ },
+ "segmentation": {
+  "segmenter_version": "l6-seg-0.1",
+  "seg_max_tokens": 120,
+  "effective_model_max_tokens": 128,
+  "how": "按段落换行 + 句末标点切句，贪心打包到 ≤seg_max_tokens；单句超限时按 token 二分硬切。不截断、不丢内容：各段文本拼回来等于原文。",
+  "why": "实测该模型在 128 token 处静默截断（两条只有前 300 字相同的文本得到完全相同向量）",
+  "segment_count_histogram": {
+   "1": 1608,
+   "2": 710,
+   "3": 231,
+   "4": 184,
+   "5": 155,
+   "6": 168,
+   "7": 140,
+   "8": 264,
+   "9": 1782,
+   "10": 1600,
+   "11": 242,
+   "12": 84,
+   "13": 65,
+   "14": 28,
+   "15": 30,
+   "17": 34,
+   "21": 84,
+   "22": 22,
+   "24": 144,
+   "25": 325,
+   "26": 130,
+   "29": 29
+  }
+ },
+ "embedding": {
+  "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "dim": 384,
+  "quantization": "fp16（ONNX initializer 全部为 FLOAT16，且无 QuantizeLinear/MatMulInteger 等量化算子）",
+  "provider": "fastembed 0.7.4 + onnxruntime 1.19.2（本地 CPU）",
+  "normalized": "l2",
+  "batch": 32,
+  "max_retry": 3,
+  "weights_repo": "qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q",
+  "weights_file": "model_optimized.onnx",
+  "weights_cache_dir": "/Users/lute/.dsh/models/fastembed",
+  "handshake": {
+   "how": "向模型发一次真实 embedding 请求，校验返回向量合法且维度一致（不用端口/依赖存在性判定）",
+   "text": "握手自检：这是一次真实的 embedding 请求。",
+   "dim_returned": 384,
+   "dim_expected": 384,
+   "all_finite": true,
+   "norm": 3.119,
+   "verdict": "可用"
+  },
+  "p0_excluded_units": 0,
+  "p0_policy": "走 kb/l5/matcher.py 的确定性匹配，因此不重复建向量"
+ },
+ "fusion": {
+  "method": "RRF",
+  "k": 60,
+  "how": "先在 bm25_zh / bm25_en 两个语言子索引之间按名次融合，再与 vector 名次融合",
+  "why": "RRF 只用名次不用原始分，规避 BM25 分与余弦分量纲不同；两路统一用全局 doc_id 当键",
+  "rerank": "本轮不做 rerank 模型"
+ },
+ "idempotency": {
+  "vector_key": [
+   "unit_id",
+   "segment_index",
+   "content_hash",
+   "model",
+   "dim",
+   "quantization"
+  ],
+  "bm25_key": [
+   "unit_id",
+   "content_hash",
+   "tokenizer_version"
+  ],
+  "content_hash": "向量的 content_hash = sha256(该段文本)[:32]；另存 unit_content_hash = sha256(单元全文)[:32]",
+  "unchanged": "键全同 → 复用已有向量/词频表，不重新切词、不重新调 embedding；全量无变化时不重写索引文件"
+ },
+ "embedding_probe": {
+  "checked_at": "2026-09-23 14:02:42",
+  "get": {
+   "py:sentence_transformers": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:transformers": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:torch": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:onnxruntime": {
+    "ok": true,
+    "version": "1.19.2"
+   },
+   "py:numpy": {
+    "ok": true,
+    "version": "2.0.2"
+   },
+   "py:fastembed": {
+    "ok": true,
+    "version": "0.7.4"
+   },
+   "py:text2vec": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:FlagEmbedding": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:openai": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:cohere": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:dashscope": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:modelscope": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:jieba": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:rank_bm25": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:sklearn": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:faiss": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "bin:ollama": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:llama-server": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:llama-cli": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:mlx_lm.generate": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:vllm": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:text-embeddings-router": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:infinity": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:lmstudio": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:localai": {
+    "ok": false,
+    "path": ""
+   },
+   "port:11434": {
+    "ok": false
+   },
+   "port:1234": {
+    "ok": false
+   },
+   "port:8080": {
+    "ok": false
+   },
+   "port:8000": {
+    "ok": false
+   },
+   "port:9997": {
+    "ok": false
+   },
+   "port:5000": {
+    "ok": false
+   },
+   "port:43121": {
+    "ok": false
+   }
+  },
+  "model_files_found": [],
+  "network": {
+   "https://huggingface.co": "200",
+   "https://pypi.org": "200",
+   "https://api.openai.com": "421"
+  },
+  "usable_embedding_found": true,
+  "why": "发现候选：['py:fastembed']",
+  "mode": "vector_plus_bm25"
+ },
+ "embedding_probe_initial": {
+  "checked_at": "2026-09-23 13:56:51",
+  "get": {
+   "py:sentence_transformers": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:transformers": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:torch": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:onnxruntime": {
+    "ok": true,
+    "version": "1.19.2"
+   },
+   "py:numpy": {
+    "ok": true,
+    "version": "2.0.2"
+   },
+   "py:fastembed": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:text2vec": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:FlagEmbedding": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:openai": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:cohere": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:dashscope": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:modelscope": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:jieba": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:rank_bm25": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:sklearn": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "py:faiss": {
+    "ok": false,
+    "err": "ModuleNotFoundError"
+   },
+   "bin:ollama": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:llama-server": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:llama-cli": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:mlx_lm.generate": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:vllm": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:text-embeddings-router": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:infinity": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:lmstudio": {
+    "ok": false,
+    "path": ""
+   },
+   "bin:localai": {
+    "ok": false,
+    "path": ""
+   },
+   "port:11434": {
+    "ok": false
+   },
+   "port:1234": {
+    "ok": false
+   },
+   "port:8080": {
+    "ok": false
+   },
+   "port:8000": {
+    "ok": false
+   },
+   "port:9997": {
+    "ok": false
+   },
+   "port:5000": {
+    "ok": false
+   },
+   "port:43121": {
+    "ok": false
+   }
+  },
+  "model_files_found": [],
+  "network": {
+   "https://huggingface.co": "200",
+   "https://pypi.org": "200",
+   "https://api.openai.com": "421"
+  },
+  "usable_embedding_found": false,
+  "why": "没找到任何可产出真实向量的本地模型或接口：无 embedding 运行时依赖、无本地服务端口、磁盘无 .onnx/.gguf/.safetensors 模型文件、外网不可达（远程 embedding API 也用不了）",
+  "mode": "bm25_only"
+ },
+ "mode_history": [
+  {
+   "step": "首轮探测（13:56）",
+   "result": "bm25_only",
+   "why": "curl 只给 3 秒超时，huggingface/pypi 全判不可达；本机也确实没有现成 embedding 依赖与模型文件"
+  },
+  {
+   "step": "复测网络（13:58）",
+   "result": "可达",
+   "why": "两站均 200，首轮是超时太短导致的误判"
+  },
+  {
+   "step": "装 ONNX 路线依赖（13:59）",
+   "result": "fastembed 0.7.4",
+   "why": "onnxruntime 已在本机，fastembed 走 ONNX 不拉 torch"
+  },
+  {
+   "step": "权重落稳（14:12）",
+   "result": "复制到 ~/.dsh/models/fastembed",
+   "why": "fastembed 默认缓存在 /var/folders 临时目录，系统清理后离线就跑不了；挪到稳定目录并让 retriever 指过去"
+  },
+  {
+   "step": "发现截断（14:13）",
+   "result": "必须分段",
+   "why": "实测该模型 128 token 截断，31,450 字的单元只进前 ~128 字；本版改为按段落分段"
+  },
+  {
+   "step": "修正融合编号（14:15）",
+   "result": "统一 doc_id",
+   "why": "上一版向量用矩阵行号、BM25 用文档号，两套编号不同源（1,573/1,578 对不上），融合会张冠李戴"
+  }
+ ],
+ "counts": {
+  "usable": 2630,
+  "bm25_indexed": 2625,
+  "bm25_failed": 5,
+  "vector_units_indexed": 2626,
+  "vector_segments": 8059,
+  "units_segmented": 1018,
+  "vector_skipped_p0": 0,
+  "vector_failed": 4,
+  "note": "全部为持久口径（索引里到底有没有这条）；本次运行做了什么写在 runs/ 里"
+ },
+ "bm25_scale": {
+  "docs_total": 2630,
+  "N_zh": 1322,
+  "N_en": 2294,
+  "avgdl_zh": 128.514,
+  "avgdl_en": 137.348,
+  "terms_zh": 39888,
+  "terms_en": 16976,
+  "postings_zh": 110870,
+  "postings_en": 159991
+ }
+}

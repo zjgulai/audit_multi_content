@@ -1,0 +1,205 @@
+{
+ "note": "L6 冻结层「承认基线」链：每条都必须带 at/reason/被取代的旧值；L5 那次快照在 kb/.work/l5_integrity.json 里原样保留，不被本文件覆盖。",
+ "accepted": [
+  {
+   "at": "20260930-0310",
+   "reason": "2026-09-30 合法数据增长：11 本扫描件 OCR（1,055 页 / 765,143 字）+ What to Expect 三部曲补全文（5,063,013 字）+ 退役 1,777 条陈旧单元 + 去重 21 行。L3 规则 509 条未变（前 509 行 sha 与 L5 一致），L5 仍按其 L3 依据有效；L6 已按新 L2 重建为 4,192 段。见 kb/l8/runs/20260930-0150-batch-notes.json 的 R1–R7。",
+   "layers": {
+    "l0": {
+     "tree_sha256": "0a1b7241604bc66d49fbb67d00b16cdf666970bcac150067be0af02f20df17d1",
+     "files": 3578,
+     "bytes": 1444815375,
+     "max_mtime": "2026-09-29 18:41:05"
+    },
+    "l1": {
+     "tree_sha256": "f5571ac0e486dad5ed097a2bb94551b99f6c25f9b4cc2956a384ad91d7f9583d",
+     "files": 2734,
+     "bytes": 212773484,
+     "max_mtime": "2026-09-29 18:41:05"
+    },
+    "l2": {
+     "tree_sha256": "bd9102fff05bdb097652bc0dac5c01307136e61e7e432aac5f276c983e606fb7",
+     "files": 850,
+     "bytes": 71505619,
+     "max_mtime": "2026-09-29 18:41:34"
+    }
+   },
+   "superseded": {
+    "l0": {
+     "files": 2411,
+     "bytes": 8912388,
+     "tree_sha256": "da1ad72a2d2155fa1cbf79428a36d1302ccb4637a6556f7b4d26364ffe370f2a",
+     "max_mtime": "2026-09-23 12:51:43"
+    },
+    "l1": {
+     "files": 1492,
+     "bytes": 292042291,
+     "tree_sha256": "ede7a63100acf4a6e129bffe7b45699f8af7495c1d4b38cea30a2aa9dca8cbc7",
+     "max_mtime": "2026-09-23 12:50:55"
+    },
+    "l2": {
+     "files": 829,
+     "bytes": 19637545,
+     "tree_sha256": "13b05eba1b4286667502b7464b4e0b1d3830b7ffa914f0fcfd63f64a68c20e90",
+     "max_mtime": "2026-09-23 12:58:08"
+    }
+   },
+   "superseded_note": "L5 一次性快照",
+   "compared_against_l5": {
+    "l0": false,
+    "l1": false,
+    "l2": false
+   }
+  },
+  {
+   "at": "20260930-0420",
+   "reason": "2026-09-30 第二轮：① kb/l6/retriever.py 加「依据优先」规则性字段权重（纯读侧，实测 14 条查询 Top3 相关 8→14、无退化、B 组拒答不变）；② kb/l0/registry/kb.json 的 filter 声明改成与数据一致的 == 通过（无数据后果，见该字段 note_two_readings）。L3 规则 509 条仍未变。",
+   "layers": {
+    "l0": {
+     "tree_sha256": "c091adf7901c29f0149ff438e69acc7013e21dfd549a27fb2c8a072c76e2cbde",
+     "files": 3579,
+     "bytes": 1444904616,
+     "max_mtime": "2026-09-29 20:01:16"
+    },
+    "l1": {
+     "tree_sha256": "f5571ac0e486dad5ed097a2bb94551b99f6c25f9b4cc2956a384ad91d7f9583d",
+     "files": 2734,
+     "bytes": 212773484,
+     "max_mtime": "2026-09-29 18:41:05"
+    },
+    "l2": {
+     "tree_sha256": "bd9102fff05bdb097652bc0dac5c01307136e61e7e432aac5f276c983e606fb7",
+     "files": 850,
+     "bytes": 71505619,
+     "max_mtime": "2026-09-29 18:41:34"
+    }
+   },
+   "superseded": {
+    "l0": {
+     "tree_sha256": "0a1b7241604bc66d49fbb67d00b16cdf666970bcac150067be0af02f20df17d1",
+     "files": 3578,
+     "bytes": 1444815375,
+     "max_mtime": "2026-09-29 18:41:05"
+    },
+    "l1": {
+     "tree_sha256": "f5571ac0e486dad5ed097a2bb94551b99f6c25f9b4cc2956a384ad91d7f9583d",
+     "files": 2734,
+     "bytes": 212773484,
+     "max_mtime": "2026-09-29 18:41:05"
+    },
+    "l2": {
+     "tree_sha256": "bd9102fff05bdb097652bc0dac5c01307136e61e7e432aac5f276c983e606fb7",
+     "files": 850,
+     "bytes": 71505619,
+     "max_mtime": "2026-09-29 18:41:34"
+    }
+   },
+   "superseded_note": "上一版承认基线 20260930-0310",
+   "compared_against_l5": {
+    "l0": false,
+    "l1": false,
+    "l2": false
+   }
+  },
+  {
+   "at": "20260930-1030",
+   "reason": "2026-09-30 第三轮：L0↔飞书增量对齐落地——飞书侧新增 7 条负面样本（09-29 20:08~09-30 03:30）已入库（含 21 张图 / 78.1 MB 字节 / 8,194 字 OCR），L1 台账 +447 行、258 条 L0-gone 资源在 L1 标失效，L2 +14 单元，L6 4,192→4,206 段。L3 规则 509 条仍未变。",
+   "layers": {
+    "l0": {
+     "tree_sha256": "38369d9f4b62bf649c758403000c201a85e5388810bb9639a921e843737e0ae2",
+     "files": 3607,
+     "bytes": 1526927972,
+     "max_mtime": "2026-09-30 09:31:58"
+    },
+    "l1": {
+     "tree_sha256": "42194061cfc94f3f24e019427f8e7e2c7607ee0e436769b9b61ef0cdfb0f871f",
+     "files": 3064,
+     "bytes": 1144747291,
+     "max_mtime": "2026-09-30 09:43:09"
+    },
+    "l2": {
+     "tree_sha256": "dee44596d3238695086d6e6f7bc020173909fa7e921c071c636e73f88c264e17",
+     "files": 851,
+     "bytes": 71554491,
+     "max_mtime": "2026-09-30 09:43:17"
+    }
+   },
+   "superseded": {
+    "l0": {
+     "tree_sha256": "c091adf7901c29f0149ff438e69acc7013e21dfd549a27fb2c8a072c76e2cbde",
+     "files": 3579,
+     "bytes": 1444904616,
+     "max_mtime": "2026-09-29 20:01:16"
+    },
+    "l1": {
+     "tree_sha256": "f5571ac0e486dad5ed097a2bb94551b99f6c25f9b4cc2956a384ad91d7f9583d",
+     "files": 2734,
+     "bytes": 212773484,
+     "max_mtime": "2026-09-29 18:41:05"
+    },
+    "l2": {
+     "tree_sha256": "bd9102fff05bdb097652bc0dac5c01307136e61e7e432aac5f276c983e606fb7",
+     "files": 850,
+     "bytes": 71505619,
+     "max_mtime": "2026-09-29 18:41:34"
+    }
+   },
+   "superseded_note": "上一版承认基线 20260930-0420",
+   "compared_against_l5": {
+    "l0": false,
+    "l1": false,
+    "l2": false
+   }
+  },
+  {
+   "at": "20261009-final-l6",
+   "reason": "L2 去重：20261009-dedup 压掉 85 行逐字段相同的重复单元（归档 kb/l2/_archive/units.jsonl.before-dedup-20261009-dedup），7 对真冲突冻住并写入 kb/l2/duplicate_conflicts.jsonl 待人工裁决",
+   "layers": {
+    "l0": {
+     "tree_sha256": "2ba659bd561052af0c897df0133a785ffeaf5fe94e2d9a70d444a00aa68c894f",
+     "files": 4267,
+     "bytes": 2348301152,
+     "max_mtime": "2026-10-09 13:10:30"
+    },
+    "l1": {
+     "tree_sha256": "c11262b160296b76d0e8412927958addaa3dff3127ae35a31b0ade05ad92c942",
+     "files": 3936,
+     "bytes": 1268611541,
+     "max_mtime": "2026-10-09 13:19:34"
+    },
+    "l2": {
+     "tree_sha256": "04d87a17138f164db7a7872714015f751ecc5bf0f10cab465e72ec1671e390a8",
+     "files": 932,
+     "bytes": 238952278,
+     "max_mtime": "2026-10-09 14:41:36"
+    }
+   },
+   "superseded": {
+    "l0": {
+     "tree_sha256": "38369d9f4b62bf649c758403000c201a85e5388810bb9639a921e843737e0ae2",
+     "files": 3607,
+     "bytes": 1526927972,
+     "max_mtime": "2026-09-30 09:31:58"
+    },
+    "l1": {
+     "tree_sha256": "42194061cfc94f3f24e019427f8e7e2c7607ee0e436769b9b61ef0cdfb0f871f",
+     "files": 3064,
+     "bytes": 1144747291,
+     "max_mtime": "2026-09-30 09:43:09"
+    },
+    "l2": {
+     "tree_sha256": "dee44596d3238695086d6e6f7bc020173909fa7e921c071c636e73f88c264e17",
+     "files": 851,
+     "bytes": 71554491,
+     "max_mtime": "2026-09-30 09:43:17"
+    }
+   },
+   "superseded_note": "上一版承认基线 20260930-1030",
+   "compared_against_l5": {
+    "l0": true,
+    "l1": true,
+    "l2": false
+   }
+  }
+ ]
+}

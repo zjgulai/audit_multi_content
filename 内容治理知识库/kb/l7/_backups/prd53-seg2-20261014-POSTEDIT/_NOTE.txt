@@ -1,0 +1,1 @@
+2026-10-14 16:11:27  Owner 第二次裁定（拿真卡片指出）：≥3 汇总行必须紧挨着（卡片上「逐条问题」那一组装的就是它）；<3 条目之间才空一行。★ 同上一批：编辑已发生，本备份是**改后**状态（目录名 POSTEDIT）。逐字改动：① review_engine.py 的 render_summary —— ≥3 分支撤掉 lines.append('')（汇总行紧挨）、并在链接前补一个空行；<3 分支保持条目间空一行。② prd53_format.test.py —— ②b 改成「汇总行之间不空行（应 0）」，新增 ③c 反向对照（汇总行被空开必须判得出）。判据：prd53_format.test.py 13/0；routing.test.py 34/0；pytest 101 全过；workflow_smoke 契约齐。

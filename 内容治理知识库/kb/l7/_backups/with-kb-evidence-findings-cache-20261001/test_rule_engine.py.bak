@@ -1,0 +1,25 @@
+import unittest
+
+from core.rule_engine import scan_text
+
+
+class RuleEngineTests(unittest.TestCase):
+    def test_health_and_ranking_candidates_are_review(self):
+        findings = scan_text("This pump treats plugged ducts and is the best-selling choice.", product_line="吸奶器", channel="TikTok")
+        self.assertEqual(len(findings), 2)
+        self.assertTrue(all(item["action"] == "review" for item in findings))
+        self.assertTrue(all(item["status"] == "uncertain" for item in findings))
+        self.assertTrue(all(item["evidence_id"].startswith("TEXT:") for item in findings))
+
+    def test_warning_context_is_uncertain(self):
+        findings = scan_text("Warning: do not use this product to treat plugged ducts.", product_line="吸奶器", channel="TikTok")
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["status"], "uncertain")
+
+    def test_unrelated_product_line_is_ignored(self):
+        findings = scan_text("This is the best-selling choice.", product_line="其他", channel="TikTok")
+        self.assertEqual(findings, [])
+
+
+if __name__ == "__main__":
+    unittest.main()

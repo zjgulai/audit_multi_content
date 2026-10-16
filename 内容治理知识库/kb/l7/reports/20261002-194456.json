@@ -1,0 +1,150 @@
+{
+  "review_id": "20261002-194456",
+  "content_id": "text-48edd5e49ffb",
+  "content_type": "text",
+  "content_version": "48edd5e49ffb09d710a7363234fa4cbbf704c7a4bc44289da7e5674f4184e304",
+  "content_hash": "48edd5e49ffb09d710a7363234fa4cbbf704c7a4bc44289da7e5674f4184e304",
+  "agent_version": "kb-content-review@1.2.0",
+  "rule_version": "article-no-2+l3-0.2+rules.jsonl@acf77a6a0b05937d",
+  "knowledge_version": "v0",
+  "version_binding": {
+    "review_id": "20261002-194456",
+    "content_id": "text-48edd5e49ffb",
+    "content_hash": "48edd5e49ffb09d710a7363234fa4cbbf704c7a4bc44289da7e5674f4184e304",
+    "content_version": "48edd5e49ffb09d710a7363234fa4cbbf704c7a4bc44289da7e5674f4184e304",
+    "agent_version": "kb-content-review@1.2.0",
+    "rule_version": "article-no-2+l3-0.2+rules.jsonl@acf77a6a0b05937d",
+    "knowledge_version": "v0",
+    "sources": {
+      "content_hash": "送审文本 utf-8 的 sha256",
+      "agent_version": "kb/l7/skills/kb-content-review/SKILL.md → frontmatter.version",
+      "rule_version": "kb/l7/registry/l7.json → article_no_source.scheme_version ＋ kb/l3/registry/l3.json → distiller_version ＋ kb/l3/candidates/rules.jsonl 的 sha256[:16]",
+      "knowledge_version": "kb/l7/registry/l7.json → kb_version"
+    }
+  },
+  "decision": "BLOCK",
+  "decision_raw": "BLOCK",
+  "confidence": "未标定（本入口逐条给 高/中/低；全局数值置信度属裁决侧）",
+  "input_manifest": {
+    "text": "This pump is 100% safe and safest. FDA approved.",
+    "sha256": "48edd5e49ffb09d710a7363234fa4cbbf704c7a4bc44289da7e5674f4184e304",
+    "modality": [
+      "text"
+    ]
+  },
+  "coverage": {
+    "text": "complete",
+    "image": "not_applicable",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "本批只送审 text 一种模态；其余模态不适用（不是缺口）。本块是报告契约要求的覆盖状态，不等于 OCR/ASR/关键帧流水线已执行 —— 后者见 trace。"
+  },
+  "risk_items": [
+    {
+      "risk_id": "r-7baf7ceb47b2e5bc",
+      "risk_type": "绝对化与安全承诺-虚假安全承诺",
+      "priority_tier": "P0",
+      "priority_tier_basis": "P0 确定性匹配",
+      "layer": "P0 确定性匹配",
+      "severity": "BLOCK",
+      "status": "confirmed",
+      "action": "block",
+      "location": "全文",
+      "original_text": "删除 safest/100% safe/zero risk/perfect 等虚假安全承诺，以及",
+      "reason": "P0 规则命中（BLOCK）：H05 虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按2026-09-09口径放开，海外广告允许，不再判险）",
+      "suggestion": "",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "高",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.33",
+        "anchor": "#广告文案明细/recvuJYdOb1B8v/修改建议",
+        "source_sha256": "e7aabf7478753887ea85470fa114b4d0b22d74d21cb901b3a02e7672dff4f4c5",
+        "excerpt": "删除 safest/100% safe/zero risk/perfect 等虚假安全承诺，以及"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.33 条 @ #广告文案明细/recvuJYdOb1B8v/修改建议 @ e7aabf747875",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.33"
+    },
+    {
+      "risk_id": "r-15a607c4457c8b55",
+      "risk_type": "背书与资质-监管认证宣称",
+      "priority_tier": "P0",
+      "priority_tier_basis": "P0 确定性匹配",
+      "layer": "P0 确定性匹配",
+      "severity": "BLOCK",
+      "status": "confirmed",
+      "action": "block",
+      "location": "全文",
+      "original_text": "FDA approved, FDA certified, FDA 认证, FDA 批",
+      "reason": "P0 规则命中（BLOCK）：（来源未给判定理由）",
+      "suggestion": "可改为（本规则豁免表达）：FDA cleared, FDA-cleared, FDA registered, FDA 注册",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "高",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.8",
+        "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/检测关键词",
+        "source_sha256": "2e8bb36d6edf7c4971132b69ff6d39819a5a0e0e8043e9001e096be1bc2a02d6",
+        "excerpt": "FDA approved, FDA certified, FDA 认证, FDA 批"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.8 条 @ #品线内容边界规则库/recvuJP1LVW6E0/检测关键词 @ 2e8bb36d6edf",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.8"
+    },
+    {
+      "risk_id": "r-3b6c3c82dc667295",
+      "risk_type": "绝对化与安全承诺-虚假安全承诺",
+      "priority_tier": "P1",
+      "priority_tier_basis": "规则层",
+      "layer": "规则层",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "safest, most safe, 100% safe, 100% p",
+      "reason": "逐字命中「safest」：（来源未给判定理由）（p_level=P1 risk_level=unknown authority=None，来源表 None）",
+      "suggestion": "",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.22",
+        "anchor": "#品线内容边界规则库/recvuJP1dDumuM/检测关键词",
+        "source_sha256": "1c61c44b09ff77d121546f5ec15f74eba03afda2b77c1c77eb70b1e7525337fb",
+        "excerpt": "safest, most safe, 100% safe, 100% p"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.22 条 @ #品线内容边界规则库/recvuJP1dDumuM/检测关键词 @ 1c61c44b09ff",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.22"
+    }
+  ],
+  "issue_count": 3,
+  "report_url": null,
+  "next_action": "请修改后重新提交。",
+  "next_owners": [
+    "内容方修改责任人"
+  ],
+  "sla": {},
+  "version_gate": {
+    "reviewed_hash": "48edd5e49ffb09d710a7363234fa4cbbf704c7a4bc44289da7e5674f4184e304",
+    "release_hash": null,
+    "note": "本入口不掌握发布版本；发布/送审版本比对属裁决侧（review_engine.py:115-119），此处不代替它下结论"
+  },
+  "decision_trace": {
+    "reasons": [
+      "any_finding_severity_block"
+    ],
+    "confidence_status": "not_calibrated_by_this_entry",
+    "evaluated_at": "2026-10-02T19:44:57",
+    "decided_by": "kb-content-review/scripts/review.py（依据侧自身分支，:709-715）",
+    "note": "本报告不重算结论；三态由上表 decision_raw 原样带出"
+  },
+  "unmet_citation": []
+}

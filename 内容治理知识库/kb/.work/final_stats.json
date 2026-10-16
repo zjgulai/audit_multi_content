@@ -1,0 +1,61 @@
+{
+ "checks": [
+  [
+   "源未改动；写入全在 kb/ 内；外部调用全为读",
+   "通过：本轮写入 kb/l0/snapshots/（7 个新目录内文件）、kb/l0/registry、kb/l0/runs、kb/l0/index、kb/l1 产物与台账；外部调用全为 read（base +view-list/+view-get-*/+record-list/+table-list、sheets/slides/drive 探测），见 runs/20260923-1245.ops.log"
+  ],
+  [
+   "kb/l0/ 既有资源文件、records/、links/ 未被修改",
+   "通过：1301 个既有文件中，本次启动（12:30）后被写入的仅 4 个，且全部是本批明确允许的：kb/l0/registry/kb.json（追加 anchor_sha256_binding）、kb/l0/runs/{20260923-1117,20260923-1215}.json（本批要求加 source_revision_* 字段）、kb/l0/runs/20260923-1245.report.md（本批新报告）。**资源文件 0 个被改、records/ 与 links/ 0 个被改**；台账前 404 行前缀逐字节未变（`head -404 kb/l0/manifest.jsonl | shasum -a 256` = 21dc488ab36fdb4a）；links/graph.jsonl 未触碰；registry 仅追加新键 anchor_sha256_binding"
+  ],
+  [
+   "台账按 key 取最新一行的条数 == 资源文件总数",
+   "通过：606 == 606"
+  ],
+  [
+   "三方一致：文件内 kb_type == 台账 == 所在库目录",
+   "通过：606 个文件，0 处不符"
+  ],
+  [
+   "kb_version 仍为 v0；versions.jsonl 版本行 0",
+   "通过：registry.kb_version=v0；版本行 0"
+  ]
+ ],
+ "mism": 0,
+ "n_files": 606,
+ "by_kb_now": {
+  "unknown": 37,
+  "wording": 301,
+  "external_standard": 55,
+  "product_desc": 4,
+  "internal_sample": 209
+ },
+ "by_kb_first": {
+  "unknown": 37,
+  "wording": 301,
+  "external_standard": 55,
+  "product_desc": 4,
+  "internal_sample": 7
+ },
+ "st": {
+  "no_content_expected": 13,
+  "no_scope": 17,
+  "ok": 491,
+  "forbidden": 1,
+  "empty": 3,
+  "unreachable": 4,
+  "retracted": 36,
+  "pending_ocr": 77
+ },
+ "units": 606,
+ "attempt": 516,
+ "fail": 22,
+ "real_fail_rate_pct": 4.26,
+ "extract_rate_pct": 95.16,
+ "snapshots": 7,
+ "unreadable": 1,
+ "ocr_empty": 0,
+ "ocr_total": 77,
+ "status_changed_files": 77,
+ "l1_units": 606
+}

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SKU product fact approval queue",
+  "type": "object",
+  "required": ["queue_version", "status", "entries"],
+  "properties": {
+    "queue_version": {"type": "string"},
+    "status": {"enum": ["pending_owner_approval", "active", "closed"]},
+    "knowledge_version": {"type": ["string", "null"]},
+    "source_manifest_version": {"type": ["string", "null"]},
+    "approval_policy_version": {"type": ["string", "null"]},
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["fact_id", "sku", "kind", "evidence_refs", "required_approval_roles", "status"],
+        "properties": {
+          "fact_id": {"type": "string"},
+          "sku": {"type": "string"},
+          "kind": {"enum": ["verified_fact", "claim_phrase"]},
+          "evidence_refs": {"type": "array"},
+          "required_approval_roles": {"type": "array", "items": {"type": "string"}},
+          "approval_route": {"type": "array"},
+          "status": {"enum": ["evidence_gap", "pending_product_owner", "pending_product_legal_review", "approved", "rejected", "needs_input"]}
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

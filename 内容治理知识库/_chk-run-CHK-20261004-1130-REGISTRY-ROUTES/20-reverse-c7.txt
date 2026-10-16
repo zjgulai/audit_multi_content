@@ -1,0 +1,25 @@
+layers.yaml 顶层键: ['meta', 'layers']
+
+层契约 skill 清单：
+  L0  ['kb-l0-feishu']
+  L1  ['kb-ingest-extractor', 'kb-media-extractor']
+  L2  ['kb-ingest-extractor']
+  L3  ['kb-clause-extractor']
+  L4  ['kb-canonical-lookup']
+  L5  ['kb-p0-check']
+  L6  ['kb-recall']
+  L7  ['kb-check']
+
+登记表里 scope=本项目 且 layer 是单一 Lx 的成员，是否在该层 skill: 清单里：
+  ❌ kb-content-review            layer=L7   status=生产
+  ✅ kb-media-extractor           layer=L1   status=生产
+  ✅ kb-clause-extractor          layer=L3   status=生产
+  ❌ brand-product-fact-curator   layer=L3   status=生产
+  ✅ kb-l0-feishu                 layer=L0   status=生产
+  ✅ kb-canonical-lookup          layer=L4   status=生产
+  ✅ kb-p0-check                  layer=L5   status=生产
+  ✅ kb-recall                    layer=L6   status=生产
+
+❌ 反向不一致（登记表说在 Lx，层契约没列它）: 2 个
+    ('kb-content-review', 'L7', '生产', None)
+    ('brand-product-fact-curator', 'L3', '生产', None)

@@ -1,0 +1,96 @@
+{
+  "review_id": "20261008-114345",
+  "content_id": "text-e48e00ce17e0",
+  "content_type": "text",
+  "content_version": "e48e00ce17e0293387e43d4cc3e52417a371f64ef92a068688eb69b1493d8711",
+  "content_hash": "e48e00ce17e0293387e43d4cc3e52417a371f64ef92a068688eb69b1493d8711",
+  "agent_version": "kb-content-review@1.3.0",
+  "rule_version": "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02",
+  "knowledge_version": "v0",
+  "version_binding": {
+    "review_id": "20261008-114345",
+    "content_id": "text-e48e00ce17e0",
+    "content_hash": "e48e00ce17e0293387e43d4cc3e52417a371f64ef92a068688eb69b1493d8711",
+    "content_version": "e48e00ce17e0293387e43d4cc3e52417a371f64ef92a068688eb69b1493d8711",
+    "agent_version": "kb-content-review@1.3.0",
+    "rule_version": "article-no-2+l3-0.2+rules.jsonl@743dc62398311b02",
+    "knowledge_version": "v0",
+    "sources": {
+      "content_hash": "送审文本 utf-8 的 sha256",
+      "agent_version": "kb/l7/skills/kb-content-review/SKILL.md → frontmatter.version",
+      "rule_version": "kb/l7/registry/l7.json → article_no_source.scheme_version ＋ kb/l3/registry/l3.json → distiller_version ＋ kb/l3/candidates/rules.jsonl 的 sha256[:16]",
+      "knowledge_version": "kb/l7/registry/l7.json → kb_version"
+    }
+  },
+  "decision": "REVIEW",
+  "decision_raw": "REVIEW",
+  "confidence": "未标定（本入口逐条给 高/中/低；全局数值置信度属裁决侧）",
+  "input_manifest": {
+    "text": "M6 吸奶器静音设计，夜里泵奶不吵醒宝宝，一次充电够用一整天",
+    "sha256": "e48e00ce17e0293387e43d4cc3e52417a371f64ef92a068688eb69b1493d8711",
+    "modality": [
+      "text"
+    ]
+  },
+  "coverage": {
+    "text": "complete",
+    "image": "not_applicable",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "本批只送审 text 一种模态；其余模态不适用（不是缺口）。本块是报告契约要求的覆盖状态，不等于 OCR/ASR/关键帧流水线已执行 —— 后者见 trace。"
+  },
+  "risk_items": [
+    {
+      "risk_id": "r-ddf0f8360c7b53a7",
+      "risk_type": "平台与促销-静音绝对化表述",
+      "priority_tier": "P1",
+      "priority_tier_basis": "规则层",
+      "layer": "规则层",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "静音程度夸大（建议改为 low noise / quiet mo",
+      "reason": "逐字命中「静音」：（来源未给判定理由）（p_level=P1 risk_level=unknown authority=None，来源表 None）",
+      "suggestion": "",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.54",
+        "anchor": "#品线内容边界规则库/recvuJP1LV2uxa/边界内容",
+        "source_sha256": "1bf6ceb91a0d404e52dadd28aa2aa63585b57e03f3ac51a55f58635772e903d2",
+        "excerpt": "静音程度夸大（建议改为 low noise / quiet mo"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.54 条 @ #品线内容边界规则库/recvuJP1LV2uxa/边界内容 @ 1bf6ceb91a0d",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.54"
+    }
+  ],
+  "issue_count": 1,
+  "report_url": null,
+  "next_action": "建议转复核责任人复核。",
+  "next_owners": [
+    "复核责任人"
+  ],
+  "sla": {},
+  "version_gate": {
+    "reviewed_hash": "e48e00ce17e0293387e43d4cc3e52417a371f64ef92a068688eb69b1493d8711",
+    "release_hash": null,
+    "note": "本入口不掌握发布版本；发布/送审版本比对属裁决侧（review_engine.py:115-119），此处不代替它下结论"
+  },
+  "decision_trace": {
+    "reasons": [
+      "findings_present_without_block"
+    ],
+    "confidence_status": "not_calibrated_by_this_entry",
+    "evaluated_at": "2026-10-08T11:43:49",
+    "decided_by": "kb-content-review/scripts/review.py（依据侧自身分支，:709-715）",
+    "note": "本报告不重算结论；三态由上表 decision_raw 原样带出"
+  },
+  "unmet_citation": []
+}

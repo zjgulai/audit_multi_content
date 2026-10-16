@@ -1,0 +1,83 @@
+{
+ "run": "20260929-1045",
+ "at": "2026-09-29 10:43:17",
+ "base_token": "GnRZbIuXraCzf0sGr2UcmZ62nfc",
+ "instructions": [
+  "规则库本期不做",
+  "负面样本核实重建并处置",
+  "材料收集只抓 通过",
+  "L0 = 飞书副本"
+ ],
+ "actions": [
+  {
+   "table": "负面样本",
+   "table_id": "tbld8qE92YaY38Yz",
+   "action": "archive_old",
+   "files": 326,
+   "to": "kb/l0/_archive/正面和负面样本-superseded-20260929-1045",
+   "reason": "飞书侧记录整批替换：本地 326 条的 record_id 在飞书返回 Record not found（抽查 3 个）；表未重建（16 个 field_id 不变）"
+  },
+  {
+   "table": "负面样本",
+   "table_id": "tbld8qE92YaY38Yz",
+   "action": "claim_new",
+   "files": 108,
+   "dir": "kb/l0/records/负面样本",
+   "ids_sha16": "4b22b3a1f4ad1d76"
+  },
+  {
+   "table": "材料收集",
+   "action": "archive_prerefresh",
+   "files": 22,
+   "to": "kb/l0/_archive/材料收集-pre-refresh-20260929-1045"
+  },
+  {
+   "table": "材料收集",
+   "action": "drop_unapproved_to_archive",
+   "files": 10,
+   "to": "kb/l0/_archive/材料收集-未通过-20260929-1045",
+   "rule": "材料审核状态 == 通过"
+  },
+  {
+   "table": "材料收集",
+   "table_id": "tblMGtPfe8ZUsEdP",
+   "action": "refresh_capture",
+   "files": 22,
+   "filter": "材料审核状态 == 通过"
+  }
+ ],
+ "verification": {
+  "l0_active_total": 1159,
+  "per_dir": {
+   "专家修订汇总表": 395,
+   "内容公式与专家修订库__专家修订汇总表": 200,
+   "内容公式与专家修订库__内容公式（仅供参考）": 7,
+   "内容公式（仅供参考）": 7,
+   "外部资料库__数据表": 32,
+   "广告文案明细": 91,
+   "广告文案风控库__W1卖点表达边界（品线反馈0910）": 19,
+   "广告文案风控库__品线内容边界规则库": 21,
+   "广告文案风控库__广告文案明细": 200,
+   "广告文案风控库__风险文案改写建议库（分型号分渠道）": 52,
+   "材料收集": 22,
+   "知识库分类说明": 5,
+   "负面样本": 108
+  },
+  "materials_after_refresh": "材料收集 22 条与飞书逐字段对账：**22/22 完全一致、0 差异**（字段名 备注/更新频率 已对齐、lookup 与 select 值已刷新）",
+  "negative_samples_new": "负面样本 108 条按本地既有格式写入（12 个顶层键 + fields{field_id,field_type,value,raw_verbatim} + raw_record + schema）；108 条均含 图片素材 附件（file_token/name/size 原样保留）",
+  "delta": "-326（旧负面样本）=整体替换已确认；-32/-10（材料收集全部移出后按新规则重写 22 条）；+108（新负面样本）；净 -228 → 1387 → 1159",
+  "archives": {
+   "正面和负面样本-superseded-20260929-1045": "326 条 + _MANIFEST.json（历史留档，可回溯旧一代样本）",
+   "材料收集-pre-refresh-20260929-1045": "22 条 + _MANIFEST.json（刷新前留档）",
+   "材料收集-未通过-20260929-1045": "10 条 + _MANIFEST.json（按指令③不入 L0）"
+  },
+  "no_deletion": "全部为移动（shutil.move），无任何文件被删除；每处归档均带 sha256 清单"
+ },
+ "downstream_flag": {
+  "stale": "L1/L2/L3 现在相对 L0 已过期：L0 净减 228 条并刷新 22 条、新增 108 条 → 需按各自流水线重跑派生层（本次未动 l1+）",
+  "known_remaining": {
+   "规则库": "飞书侧 50 条，本期不做（用户指令①）——本地 _archive/rulelib-excluded-20260924-1000 显示此前也已排除",
+   "字段名漂移源头": "本地旧快照把 备注(fldn2leARA) 记成「细分」，现役 22 条已修正；若 scanner 仍按旧名字表抓取，下次同步会重演，需修字段名映射"
+  }
+ }
+}

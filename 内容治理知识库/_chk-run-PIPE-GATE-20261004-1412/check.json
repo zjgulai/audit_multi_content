@@ -1,0 +1,148 @@
+{
+ "zero_write": true,
+ "changed": [],
+ "layers": [
+  {
+   "layer": "L0",
+   "cwd_ok": true,
+   "n_eng": 4,
+   "miss_eng": [],
+   "miss_in": [],
+   "miss_out": [],
+   "gate_state": "只读闸门 **未过**",
+   "gate_summary": "exit=1 ｜ 退出码：1",
+   "envelope": "required",
+   "dry_run": true,
+   "write_mode": "append_then_archive",
+   "skills": [
+    "kb-l0-feishu"
+   ],
+   "skill_write": true
+  },
+  {
+   "layer": "L1",
+   "cwd_ok": true,
+   "n_eng": 4,
+   "miss_eng": [],
+   "miss_in": [],
+   "miss_out": [],
+   "gate_state": "只读闸门 通过",
+   "gate_summary": "exit=0 ｜ 退出码：0",
+   "envelope": "required",
+   "dry_run": true,
+   "write_mode": "append_then_archive",
+   "skills": [
+    "kb-ingest-extractor",
+    "kb-media-extractor"
+   ],
+   "skill_write": true
+  },
+  {
+   "layer": "L2",
+   "cwd_ok": true,
+   "n_eng": 1,
+   "miss_eng": [],
+   "miss_in": [],
+   "miss_out": [],
+   "gate_state": "只读闸门 通过",
+   "gate_summary": "exit=0 ｜ 退出码：0",
+   "envelope": "required",
+   "dry_run": true,
+   "write_mode": "append_only",
+   "skills": [
+    "kb-ingest-extractor"
+   ],
+   "skill_write": true
+  },
+  {
+   "layer": "L3",
+   "cwd_ok": true,
+   "n_eng": 3,
+   "miss_eng": [],
+   "miss_in": [],
+   "miss_out": [],
+   "gate_state": "只读闸门 通过",
+   "gate_summary": "exit=0 ｜ 退出码：0",
+   "envelope": "required",
+   "dry_run": true,
+   "write_mode": "overwrite_in_place_no_archive",
+   "skills": [
+    "kb-clause-extractor"
+   ],
+   "skill_write": true
+  },
+  {
+   "layer": "L4",
+   "cwd_ok": true,
+   "n_eng": 5,
+   "miss_eng": [],
+   "miss_in": [],
+   "miss_out": [],
+   "gate_state": "只读闸门 通过",
+   "gate_summary": "exit=0 ｜ 退出码：0",
+   "envelope": "required",
+   "dry_run": true,
+   "write_mode": "overwrite_in_place_atomic",
+   "skills": [
+    "kb-canonical-lookup"
+   ],
+   "skill_write": true
+  },
+  {
+   "layer": "L5",
+   "cwd_ok": true,
+   "n_eng": 4,
+   "miss_eng": [],
+   "miss_in": [],
+   "miss_out": [],
+   "gate_state": "只读闸门 通过",
+   "gate_summary": "exit=0 ｜ 退出码：0",
+   "envelope": "required",
+   "dry_run": true,
+   "write_mode": "overwrite_with_archive",
+   "skills": [
+    "kb-p0-check"
+   ],
+   "skill_write": true
+  },
+  {
+   "layer": "L6",
+   "cwd_ok": true,
+   "n_eng": 6,
+   "miss_eng": [],
+   "miss_in": [],
+   "miss_out": [],
+   "gate_state": "只读闸门 通过",
+   "gate_summary": "exit=0 ｜ 退出码：0",
+   "envelope": "required",
+   "dry_run": true,
+   "write_mode": "overwrite_in_place_with_guard",
+   "skills": [
+    "kb-recall"
+   ],
+   "skill_write": true
+  },
+  {
+   "layer": "L7",
+   "cwd_ok": true,
+   "n_eng": 3,
+   "miss_eng": [],
+   "miss_in": [],
+   "miss_out": [],
+   "gate_state": "只读闸门 通过",
+   "gate_summary": "exit=0 ｜ 退出码：0",
+   "envelope": "required",
+   "dry_run": true,
+   "write_mode": "append_new_files_by_run",
+   "skills": [
+    "kb-check"
+   ],
+   "skill_write": false
+  }
+ ],
+ "hard": [
+  "L0 闸门未过：exit=1 ｜ 退出码：1"
+ ],
+ "py": "/usr/bin/python3",
+ "py_ok": true
+}

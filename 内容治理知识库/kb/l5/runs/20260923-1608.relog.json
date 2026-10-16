@@ -1,0 +1,33 @@
+{
+ "recorded_by": "l8 批次（补记，非重跑者）",
+ "at": "2026-09-23 17:01:22",
+ "fact": "kb/l5 的三个产物在 2026-09-23 16:08:07 被外部重跑（脚本 kb/.work/l5_export.py），但 kb/l5/runs/ 没有新增 run 记录",
+ "artifacts": [
+  {
+   "path": "kb/l5/p0_patterns.jsonl",
+   "now_sha16": "470e3fbad21489b9",
+   "now_bytes": 93848,
+   "prerun_sha16": "a31a2cf387e100fc",
+   "prerun_bytes": 91049,
+   "lines_now": 7
+  },
+  {
+   "path": "kb/l5/index/l5.jsonl",
+   "now_sha16": "2bbf831ce7621a7a",
+   "now_bytes": 784,
+   "prerun_sha16": "9a45db7217588910",
+   "prerun_bytes": 672,
+   "lines_now": 7
+  },
+  {
+   "path": "kb/l5/registry/l5.json",
+   "now_sha16": "34db2adddbd08019",
+   "now_bytes": 7413,
+   "prerun_sha16": "fdec793e40e2eeed",
+   "prerun_bytes": 6866,
+   "lines_now": null
+  }
+ ],
+ "prerun_archive": "kb/.work/_archive/l5-prerun-20260923-160651",
+ "l6_coupling": "kb/l6/registry/l6.json 未 pin L5/p0 的哈希（只提到 P0 走 kb/l5/matcher.py 确定性匹配、不重复建向量）→ 本次 L5 重跑不构成 L6 索引的哈希不一致；但若 p0 模式集语义变化，检索命中会与旧索引口径不同，需 L6 侧确认"
+}

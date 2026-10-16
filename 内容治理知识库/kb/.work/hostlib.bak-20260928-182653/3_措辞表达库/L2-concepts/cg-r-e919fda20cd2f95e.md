@@ -1,0 +1,86 @@
+---
+id: cg-r-e919fda20cd2f95e
+title: "[W-1.56] 措辞表达库规则（3 条证据）"
+collection: 3_措辞表达库
+kb_class: [措辞表达库]
+tier: L2
+topic: 未登记规则码
+kind: judgment
+summary: "[W-1.56] 判为「禁用/必须修改」（P0·红）：命中表达 0 条、证据单元 3 条；处理方式是「（禁用）适合所有乳房形态、一定不疼、一定不损伤。」。状态 provisional、verification 已支持。"
+owner: 刘华丽
+evidence_level: L1
+data_level: L2
+sensitivity_level: L2
+half_life_days: 180
+created_at: 2026-09-28
+valid_until: 2027-03-27
+asks:
+  - W-1.56 判什么、命中什么算违规
+  - W-1.56 应该怎么改（合规替代写法）
+  - W-1.56 的证据有几条、证据级是什么
+  - W-1.56 是 P 几、风险等级是什么
+not_proves: 不能证明该条已过新库的正式验收（新库 l3 全部为 provisional，l4 canonical 尚未写入）；不能证明该条可替代合规/法务意见；不能证明「W-1.56」以外的规则码（未命中 ≠ 合规）
+forbidden: 不许把本条的 P 级/风险等级当成放行结论 —— 未命中本规则不等于内容合规；不许据本条的 suggested_replacement 直接外发文案，外发前仍需人工复核；不许把派生视图的字段改动当成新库改动（视图不写回）
+related:
+  - cg-r-039822ed5c8e3448
+  - cg-r-1cf94543649842a0
+  - cg-r-30d3b9b54135fa04
+source:
+  kind: feishu-base
+  ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblqUTAKFkWheU49"
+  fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblqUTAKFkWheU49
+  captured_at: 2026-09-28
+provenance:
+  anchor: "kb/l3/candidates/rules.jsonl#r-e919fda20cd2f95e"
+  confidence: 确定
+pii:
+  detected: false
+  masked: false
+  strategy: 未检出自然人信息：正文为广告文案/规则表述与专家修订记录，不含姓名、联系方式等个人数据；如后续来源变化需重新判定
+rule_id: r-e919fda20cd2f95e
+article_no: W-1.56
+rule_code: ""
+p_level: P0
+risk_level: 红
+risk_level_raw: 红色-禁用
+evidence_level_note: 源库证据级 synthesis，但只归属 1 个来源根（需 ≥2）→ 按加载器 E036 的口径降为 L1（单一来源，只能当线索）
+rule_status: provisional
+rule_verification: 已支持
+support_count: 3
+form: entry
+kb_type: wording
+---
+
+# [W-1.56] 措辞表达库规则（3 条证据）
+
+**条款号**：W-1.56　|　**规则码**：（未登记）　|　**rule_id**：`r-e919fda20cd2f95e`　|　**判定**：P0 · 红
+
+## 规则原文（照抄新库，未改写）
+
+建议表达：（禁用）适合所有乳房形态、一定不疼、一定不损伤。；限定要求：禁用。；判定理由：个体差异是现有证据的一部分，绝对化表达反而违背证据。
+
+## 判为违规的依据
+
+个体差异是现有证据的一部分，绝对化表达反而违背证据。
+
+## 处理方式 / 合规替代
+
+（禁用）适合所有乳房形态、一定不疼、一定不损伤。
+
+## 适用范围与证据
+
+- 覆盖记录数：0
+- 证据单元数：3（support_count 取新库值 3）
+- 证据级（新库取值）：L1
+- 验证状态（新库取值）：已支持 · 规则状态：provisional
+- 形态：entry　|　库：措辞表达库（wording）
+
+## 证据单元明细（前 30 条，unit_id 可回查 kb/l2/units.jsonl）
+
+- `690a1f31e1a8c2a2599a`　#W1卖点表达边界（品线反馈0910）/recvuNf8jlRMlk/建议表达（合规话术）　→ （禁用）适合所有乳房形态、一定不疼、一定不损伤。
+- `7efa8fb7ceead62a647f`　#W1卖点表达边界（品线反馈0910）/recvuNf8jlRMlk/判定理由　→ 个体差异是现有证据的一部分，绝对化表达反而违背证据。
+- `b05df86dbb0d6d3b1321`　#W1卖点表达边界（品线反馈0910）/recvuNf8jlRMlk/避免条件/限定要求　→ 禁用。
+
+---
+
+> 本条是**派生视图**（由 `kb/.work/gen-host-library.py` 从新库 l3/l5 生成），不是新库的权威条目。字段来源见 frontmatter 的 `provenance`。

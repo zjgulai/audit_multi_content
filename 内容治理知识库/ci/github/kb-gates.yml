@@ -1,0 +1,135 @@
+# GitHub Actions —— KB 闸门 CI（每日只读体检 + 手动触发）
+#
+# ⚠️ 放哪：`.github/workflows/kb-gates.yml`（相对**代码仓库根**，不是相对 kb 库根）
+#
+# ⚠️ 前提（不满足就挂了也不会有意义，先读 ci/README.md）：
+#   1. **必须有 git 仓库**。当前 `…/知识库/内容治理` 实测不是 git 仓库
+#      （`git rev-parse` → `fatal: not a git repository`）。没有仓库，本文件无处安放。
+#   2. **必须用 self-hosted runner，且 runner 就装在这台 Mac 上**。
+#      实测（2026-10-04）：本机**没有装任何 runner**（无 `~/actions-runner`、无 `gitlab-runner`）。
+#      理由：库里硬编码本机绝对路径、`kb/kbpy` 要读 `kb/.kb-python` 指定的解释器、
+#      闸门要读 `kb/l0…l7` 的**真实活数据**。GitHub 托管 runner 上这三样一个都没有。
+#   3. 若仓库要公开或推到远端：先定 `.gitignore`。库里含 `kb/.work/.publish-api-key`
+#      这类凭据与巨量数据产物，**别让 workflow 成为第一件把它们 push 上去的事**。
+#
+# ★★ 本 workflow 的**关键设计**：闸门**读的是运行机上的活库**，不是 checkout 出来的副本 ★★
+#   GitHub runner 的工作目录是 `_work/<repo>/<repo>`，**没有 checkout 就是个空目录**；
+#   而即使 checkout 了，那也是一份**快照副本**，不是 08:30 写档任务正在改的那个活库。
+#   ⇒ 所以本 workflow **故意不 checkout**，每一步都 `cd "$KB_LIVE_ROOT"`（见下面的 env）。
+#   ⚠️ `KB_LIVE_ROOT` **必须改成 runner 这台机器上的库根绝对路径**，否则第一步自检就会拦下。
+#
+# 设计口径（三条）：
+#   · 本 workflow **只读**：不调 kb_pipeline.py --apply、不调 kb_loop_claim.py、
+#     不调 daily_sync.py（那个会写 kb/l0…l6）。→ 因此它**不抢** `kb/.work/.kb.lock`。
+#   · 本 workflow **不替代** 本机 launchd 的 08:30 写档任务，只做「写档之后的守门」。
+#   · cron 用 UTC 且故意与 08:30 本机时间错开（见下），避免与写档循环撞在一起。
+#     （闸门只读，撞上不会坏数据，但会读到**写了一半**的层而报假红。）
+#
+# 退出码语义（ci/run_gates.py 定的，CI 就照这个判；已用假闸门逐档注入独立验证过）：
+#   0 全过 ｜ 1 有红 ｜ 2 有「无法计算」｜ 3 runner 故障
+name: KB Gates
+
+on:
+  schedule:
+    # 本机时区是 Asia/Shanghai（UTC+8）。08:30 本机 = 00:30 UTC。
+    # 写档循环实测跑到 08:45 左右结束（L6 最慢，单层 460s）→ 取 10:15 UTC = 18:15 本机。
+    - cron: "15 10 * * *"
+  workflow_dispatch:
+    inputs:
+      strict_warn:
+        description: "把告警（如供给链超期）也当失败"
+        type: boolean
+        default: false
+  # 若仓库已有 PR 流程，想「改到 kb/ 就在 PR 上跑一次」，把下面两行放开。
+  # 注意：闸门读的是**运行机上活库的真实数据**，PR 里的代码改动不一定影响结果。
+  # pull_request:
+  #   paths: ["kb/l7/scripts/**", "kb/l7/registry/**"]
+
+# 与写档循环互斥：同一时间只允许一个 KB 作业，避免读到写了一半的层
+concurrency:
+  group: kb-gates
+  cancel-in-progress: false
+
+env:
+  # ★ 改成 runner 这台机器上的**库根绝对路径**（含 kb/KB-ROOT.json 的那一层）
+  KB_LIVE_ROOT: /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理
+
+jobs:
+  gates:
+    # self-hosted + macOS + 这台机器专属标签。把 `kb-host` 换成你给 runner 打的标签。
+    runs-on: [self-hosted, macOS, kb-host]
+    timeout-minutes: 30
+
+    steps:
+      # ⚠️ 故意**没有** actions/checkout —— 见文件头「关键设计」。
+      - name: 环境自检（缺一样后面全是假红）
+        run: |
+          set -eu
+          echo "runner 主机：$(hostname)"
+          if [ ! -d "$KB_LIVE_ROOT" ]; then
+            echo "::error::KB_LIVE_ROOT 不存在：$KB_LIVE_ROOT —— 请把它改成这台 runner 上的库根绝对路径"
+            exit 1
+          fi
+          cd "$KB_LIVE_ROOT"
+          test -f kb/KB-ROOT.json || { echo "::error::$KB_LIVE_ROOT 不是权威库根（缺 kb/KB-ROOT.json）"; exit 1; }
+          test -x kb/kbpy         || { echo "::error::缺 kb/kbpy 解释器入口"; exit 1; }
+          echo "库根：$(pwd)"
+
+      # 只提示、**不判成败**：L0 要能拿到数，需要 user 身份（bot 读不到那两个 wiki Base）。
+      # 令牌一失效，l0 必红且**不是数据错** —— 把根因提前摊开，省得值班的去查数据。
+      - name: L0 取数身份自检（不判成败，只为红了能立刻看出根因）
+        if: always()
+        run: |
+          echo "--- lark-cli auth status（user 身份缺失 ⇒ l0 的「拉取失败」就是这个原因）---"
+          "$HOME/.dsh/bin/lark-cli" auth status --profile dsh-kb 2>&1 || true
+
+      - name: 跑全部闸门
+        id: gates
+        # 不写 shell 的 `set -e` 陷阱：要让 runner 自己拿到退出码再决定成败
+        #
+        # `--scope full`（2026-10-04 加）= 12 把 + 补挂的 projection / envelope。
+        #   ⚠️ 补挂后**预期每天红**，且两条真红都要人做、CI 改不动：
+        #     · l0         —— 取数身份（bot「守衡」未加成该 Base 可阅读协作者／user 令牌失效）
+        #     · projection —— 投影漂移（实测 6 项过 3）
+        #   要一条绿基线就先退回 `--scope core`（或删掉这个 flag）。
+        run: |
+          cd "$KB_LIVE_ROOT"
+          # 库根路径可能含空格/中文 ⇒ 路径一律加引号，只让标志位参与分词
+          if [ "${{ inputs.strict_warn }}" = "true" ]; then
+            python3 ci/run_gates.py --scope full --outdir "$KB_LIVE_ROOT/ci/out" --strict-warn
+          else
+            python3 ci/run_gates.py --scope full --outdir "$KB_LIVE_ROOT/ci/out"
+          fi
+
+      # 报告复制到 workspace 相对路径，好让 upload-artifact 稳定找得到
+      # （upload-artifact 的 path 是相对 $GITHUB_WORKSPACE 解析的，不是相对我们 cd 过去的活库）
+      - name: 收拢报告
+        if: always()
+        run: |
+          mkdir -p ci-out
+          cp -f "$KB_LIVE_ROOT/ci/out/gates-latest.json" ci-out/ 2>/dev/null || true
+          cp -f "$KB_LIVE_ROOT/ci/out/gates-latest.md"   ci-out/ 2>/dev/null || true
+
+      - name: 汇总进 Job Summary
+        if: always()
+        run: |
+          if [ -f ci-out/gates-latest.md ]; then
+            cat ci-out/gates-latest.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "没落到报告（闸门可能在更早的步骤就挂了）" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: 归档机读产物
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kb-gates-${{ github.run_id }}
+          path: ci-out/
+          retention-days: 30
+          if-no-files-found: warn
+
+      # 可选：红了往飞书群推。库内已有发布件通道（kb/l7/review-engine/core/feishu_publish.py），
+      # 但那是给「审查结论」用的，不是给闸门告警用的 —— 要接告警请单独确认去向，别混用。
+      # - name: 红则告警
+      #   if: failure()
+      #   run: ./ci/notify.sh

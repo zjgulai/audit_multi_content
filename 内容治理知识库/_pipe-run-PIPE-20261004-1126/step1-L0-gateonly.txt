@@ -1,0 +1,24 @@
+[层表核对] STAMP_SPEC 7 条全部能在 layers.yaml 本层 engine: 里找到 ✅
+====================================================================================
+知识库 L0–L7 执行编排器 · --sync ｜ 预演（不带 --apply） ｜ run_id=PIPE-20261004-1126-L0
+====================================================================================
+锁：已持锁 pid=78033 run_id=PIPE-20261004-1126-L0
+[写档闸门] **未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml
+[L0] ⚠️ 写档闸门：**未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml
+[L0] 闸门：**红** ｜ exit=1 ｜ 退出码：1
+  ┌ 处置 gate_red.L0
+  │ 症状    ：L0 闸门红 —— 飞书侧有表 `拉取失败`，且该差异**没有声明**（2026-10-04 实测：专家修订汇总表 tbl8AI00JZO1iZtp 与 内容公式（仅供参考） tblVdl0jdK9G4ld3 两张，真差异 2）
+
+  │ 谁      ：内容治理数据组（刘华丽）
+  │ 做什么  ：先读 kb/l7/registry/l0-expected-diffs.yaml → resolved[EX-2/EX-3] → observed_20261004。 **别只看「有没有 identity_fallback 字段」就下结论**：该字段不在时有两种可能 —— ① bot 那条路出了新问题；② **bot 与回落身份同时不可用**（回落自己失败时也不写该字段）。 2026-10-04 实测撞到的是第 ② 种：bot 恒 91403（整库级 permission_denied）， 而 `lark-cli auth status`（`dsh-kb` 与默认 profile 都）报 user `missing`。 先用 `lark-cli auth status` 把两者分开，再决定走哪条修法。
+
+  │ 命令    ：kb/kbpy l7/scripts/l0_gate.py ；kb/kbpy l8/align_l0_feishu.py --check ； ~/.dsh/bin/lark-cli auth status --profile dsh-kb
+
+  │ **不许**：不许把这两张表的 `pull_failed` 写进 l0-expected-diffs.yaml 的 `expected` 去「声明掉」—— 它是回落失效的报警，不是预期差异； 不许改 align_l0_feishu.py 把 pull_failed 从四类差异里摘出去。
+
+  └ 复开条件：l0_gate.py 退出 0
+[记账] --gate-only：本次**不写** kb/l7/runs/（只过闸门 + 持锁/释放）—— 最终态由带 --invoked 的那次记账落，一个 RUN 在 index.jsonl 里只留 1 行
+[记账] 层侧落章实测：applied 0 ｜ dry 0 ｜ unknown 0 ｜ 读错 0 → human_involved=False ｜ verdict=停在 L0 闸门红：exit=1 ｜ 退出码：1
+------------------------------------------------------------------------------------
+**已在 L0 闸门红：exit=1 ｜ 退出码：1 停下**（红线：遇红即停，后面的层不跑）
+要人做什么：看上面那一层的闸门/引擎输出；修好之后重跑同一条命令。

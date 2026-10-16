@@ -1,0 +1,347 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""skill_invocation_audit.py —— 「每到达一层就调该层 skill」的**证据闸门**。
+
+## 它补的是哪个洞（2026-09-30 实测）
+
+`--via-skill` 让编排器**不跑层引擎**、把执行交给层 skill。可这一跑到底**调没调**那些 skill，
+全库没有任何判据能回答 —— 因为唯一声称「调了」的物证是 `kb/l7/runs/<RUN>.json` 的 `skills` 字段，
+而它在 `kb/l7/scripts/kb_pipeline.py` 里是这么来的：
+
+    skills_here = _layer_skills(x)      # 读 layers.yaml 的 skill: 字段
+    called_skills.extend(skills_here)   # 名字来自注册表
+    ...  skills=["kb-pipeline"] + uniq  # 写进 run 记录
+
+也就是说：**它会一模一样地生成，无论 agent 到底加载了几个 skill —— 包括一个都没加载。**
+该字段因此**结构上不可能为假**，不能当证据用。这与本库反复栽的「自报失真 / 闸门静默说谎」
+是同一类缺陷（对照 `kb/l2/runs/20260929-1754-l2-unscheduled-run.json`）。
+
+## 三方对账（本闸门只做这件事，**不重写**别人已做的判据）
+
+  ① 声明   `kb/l7/registry/layers.yaml` 各层 `skill:`        —— 「该调谁」
+  ② 记账   `kb/l7/runs/<RUN>.json` 的 `skills` / `extra`      —— 「编排器说调了谁」
+  ③ 落章   `kb/<layer>/runs/<RUN>*.json` 里的 skill 字段      —— 「层侧真被谁跑了」
+
+「层 ↔ skill 存不存在 / 登记没登记 / 装没装」**不在这里判** —— 那是
+`kb/l7/scripts/skill_conformance.py` 的 C7；「源 ↔ 装位副本是否一致」也不在这里判 ——
+那是 `kb/l7/scripts/skills_check.py` 第 3 类。本闸门不复制它们的判据。
+
+## 判据（红 = 这一跑的「调了」不算数；黄 = 需人裁）
+
+  E1 记账即复述      **红**：run 的 `skills` 恰等于「kb-pipeline + 声明去重保序」，
+                     且 `extra.skill_evidence` 缺失或为 `registry_echo`
+                     → 该字段是注册表的复述，不是观测值。
+  E2 逐层无落章      **红**：本 run 涉及的层，在 `kb/<layer>/runs/` 里找不到
+                     「属于本 RUN 且带 skill 落章」的记录 → 该层的「调了」无证据。
+  E3 落章与声明不符  **黄**：找到了落章，但落章的 skill 与 layers.yaml 声明的不一致。
+  E4 无 via-skill run **no-data**：没跑过该模式，无从核 —— 不算通过，也不算失败。
+
+## 落章契约（①(a) 要落的就是这个）
+
+    kb/<layer>/runs/<RUN>*.json 里至少一条记录满足：
+      · `run_id` 以 `<RUN>` 开头，或 `pipeline_run_id == <RUN>`；
+      · 带 `skill` / `skill_id` / `skills` 任一字段（顶层或 `extra` 内），
+        值 = **真正执行本层的 skill id**（如 `kb-l2-splitter` 就是 `kb-ingest-extractor`）。
+
+## 只读
+
+只读 `kb/l7/registry/layers.yaml`、`kb/l7/runs/**`、`kb/<layer>/runs/**`。
+**不写任何文件。**
+
+用法：
+    kb/kbpy l7/scripts/skill_invocation_audit.py [--run <RUN>] [--all-runs] [--json] [--quiet]
+
+退出码：0 = 过（有样本且红 0）｜1 = 未过（有红）｜2 = no-data（没有可核的 via-skill run）
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+KB = Path(os.environ.get("KB_GATE_KB") or HERE.parents[1])       # …/kb
+ROOT = KB.parent
+REG = KB / "l7/registry"
+LAYERS_YAML = REG / "layers.yaml"
+RUNS = KB / "l7/runs"
+
+# 落章字段的**可接受写法**（三种任一即可）—— 这就是给层侧落章的契约
+SKILL_KEYS = ("skill", "skill_id", "skills")
+CAP = 8
+
+# 显式豁免的层（**不静默跳过** —— 每条豁免都在输出里打出来，理由写死在这里）
+EXEMPT_LAYERS = {
+    "L7": "跨层统一闸门（kb-check，注册表 layer=「—」）不是 L7 的层主 —— 与 "
+          "skill_conformance.py 的 C7 对 kb-check 的同款豁免一致；"
+          "且 kb/l7/runs/<RUN>.json 就是编排器自己的记账文件，结构上不能自证",
+}
+
+
+def _yaml(p):
+    import yaml
+    return yaml.safe_load(open(p, encoding="utf-8"))
+
+
+def _as_list(v):
+    if v is None:
+        return []
+    if isinstance(v, str):
+        return [v] if v else []
+    return [str(s) for s in v if str(s)]
+
+
+def declared(layers):
+    """① 声明：层 → [skill id]。唯一真源 = layers.yaml 各层 `skill:` 字段。"""
+    return {x.get("layer"): _as_list(x.get("skill")) for x in layers}
+
+
+def declared_flat(layers):
+    """声明按层序拍平、**去重保序** —— 与 kb_pipeline.py 记账时的算法一致，
+    用来识破「记账即复述」。"""
+    seq = []
+    for x in layers:
+        for s in _as_list(x.get("skill")):
+            if s not in seq:
+                seq.append(s)
+    return seq
+
+
+def load_runs():
+    """② 记账：kb/l7/runs/*.json 里 via-skill 的那些 run（按 run_id 升序）。"""
+    out = []
+    if not RUNS.is_dir():
+        return out
+    for p in sorted(RUNS.glob("*.json")):
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if not isinstance(d, dict):
+            continue
+        ex = d.get("extra") or {}
+        if ex.get("via_skill") is True or "via-skill" in str(d.get("trigger") or ""):
+            out.append((p, d))
+    out.sort(key=lambda t: str(t[1].get("run_id") or t[0].stem))
+    return out
+
+
+def stamp_of(lid, run_id, exclude=()):
+    """③ 落章：kb/<lid>/runs/ 里属于本 RUN 且带 skill 字段的记录。
+
+    返回 [(文件名, [skill id, …]), …]；找不到就是 []（= E2 红）。
+
+    `exclude` = 必须排除的文件（**编排器自己的记账文件**）。为什么必须排：
+    `kb/l7/runs/` 既是编排器的 run 记录目录，**又是 L7 那层的 runs 目录**（同一个路径），
+    不排掉就会拿「声称」当「证据」——L7 会永远自证通过（2026-09-30 实测到这个假阳）。
+    """
+    d = KB / str(lid).lower() / "runs"      # layers.yaml 写「L6」，磁盘上是 kb/l6/
+    ex = {Path(p).resolve() for p in exclude}
+    hits = []
+    if not d.is_dir():
+        return hits
+    for p in sorted(d.glob("*.json")):
+        if p.resolve() in ex:
+            continue
+        try:
+            r = json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if not isinstance(r, dict):
+            continue
+        rid = str(r.get("run_id") or "")
+        pipe = str(r.get("pipeline_run_id") or "")
+        if not (rid.startswith(run_id) or pipe == run_id):
+            continue
+        found = None
+        for src in (r, r.get("extra") or {}):
+            for k in SKILL_KEYS:
+                vals = _as_list(src.get(k))
+                if vals:
+                    found = vals
+                    break
+            if found:
+                break
+        if found:
+            hits.append((p.name, found))
+    return hits
+
+
+def compute(only_run=None, all_runs=False):
+    if not LAYERS_YAML.exists():
+        return None, "输入缺失：%s" % LAYERS_YAML
+    try:
+        layers = _yaml(LAYERS_YAML)["layers"]
+    except Exception as exc:                      # noqa: BLE001
+        return None, "layers.yaml 读不动：%r" % (exc,)
+
+    dec = declared(layers)
+    dec_flat = declared_flat(layers)
+
+    runs = load_runs()
+    if only_run:
+        runs = [(p, d) for (p, d) in runs if str(d.get("run_id") or p.stem) == only_run]
+    elif not all_runs:
+        runs = runs[-1:] if runs else []
+
+    e1, e2, e3, exempt, scanned = [], [], [], [], []
+    for p, d in runs:
+        rid = str(d.get("run_id") or p.stem)
+        ex = d.get("extra") or {}
+        got = _as_list(d.get("skills"))
+        ev = ex.get("skill_evidence")
+
+        # 本 run 涉及哪些层：优先读 ①(b) 新写的 extra.layers；老 run 由 layer_skills 推导
+        lids = _as_list(ex.get("layers"))
+        derived = False
+        if not lids:
+            dls = _as_list(ex.get("layer_skills"))
+            lids = [lid for lid, ss in dec.items() if ss and any(s in dls for s in ss)]
+            derived = True
+
+        # ── E1 记账即复述 ──────────────────────────────────────────
+        # 参照系 = **本跑真走到的那些层**的声明（去重保序），**不是全 8 层** ——
+        # 否则 `--only L2` 这类部分跑永远比不中，E1 对它假阴（2026-09-30 实测到）。
+        # 同时比的是**去重保序**后的序列：老版记账不去重（kb-ingest-extractor 在 L1/L2 各出现一遍），
+        # 新版去重（`uniq = dict.fromkeys(called_skills)`）—— 两种形态**都**是「注册表的复述」，
+        # 都要判出来。**闸门自己的假阴**比漏检更危险，所以两处都收紧了。
+        expected = ["kb-pipeline"]
+        for _lid in lids:
+            for _s in (dec.get(_lid) or []):
+                if _s not in expected:
+                    expected.append(_s)
+        got_uniq = list(dict.fromkeys(got))
+        echo = got_uniq == expected
+        if echo and ev in (None, "", "registry_echo"):
+            e1.append([rid,
+                       "skills=%d 项（去重后 %d）与本跑走到各层的声明**逐项相同**；skill_evidence=%s"
+                       % (len(got), len(got_uniq), ev if ev else "**缺失**"),
+                       "该字段由 kb_pipeline.py 复述注册表生成 → 无论真调没调都长这样，不是观测值"])
+
+        # ── E2 / E3 逐层落章 ───────────────────────────────────────
+        # 排除编排器自己的记账文件：kb/l7/runs/<RUN>.json 与 L7 的层目录是**同一路径**，
+        # 不排就是拿「声称」当「证据」。exempt 则是对**跨层闸门**的显式豁免（不静默跳过）。
+        own_record = RUNS / (rid + ".json")
+        for lid in lids:
+            want = dec.get(lid) or []
+            if not want:
+                continue
+            if lid in EXEMPT_LAYERS:
+                exempt.append([rid, lid, "／".join(want), EXEMPT_LAYERS[lid]])
+                continue
+            hits = stamp_of(lid, rid, exclude=[own_record])
+            if not hits:
+                e2.append([rid, lid, "／".join(want),
+                           "kb/%s/runs/ 里没有本 RUN 的落章（见本闸门 docstring「落章契约」）"
+                           % str(lid).lower()])
+                continue
+            names = sorted({s for _, vals in hits for s in vals})
+            if not all(w in names for w in want):
+                e3.append([rid, lid,
+                           "声明=%s ｜ 落章=%s" % ("／".join(want), "／".join(names)),
+                           "落章存在但与声明不符，交人裁"])
+
+        scanned.append({
+            "run_id": rid, "record": p.name, "layers": lids, "layers_derived": derived,
+            "skills_recorded": got, "skill_evidence": ev, "echo_of_registry": echo,
+        })
+
+    rep = {
+        "counts": {"layers_declared": len(layers), "skills_declared": len(dec_flat),
+                   "runs_scanned": len(scanned)},
+        "scanned": scanned,
+        "E1_registry_echo": e1, "E1_n": len(e1),
+        "E2_no_stamp": e2, "E2_n": len(e2),
+        "E3_stamp_mismatch": e3, "E3_n": len(e3),
+        "exempt": exempt, "exempt_n": len(exempt),
+    }
+    rep["red_total"] = rep["E1_n"] + rep["E2_n"]
+    rep["warn_total"] = rep["E3_n"]
+    # no-data：没有可核的 run。**既不算通过也不算失败** —— 不凑分、不给假绿。
+    rep["no_data"] = rep["counts"]["runs_scanned"] == 0
+    return rep, None
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--run", default=None, help="只看某个 run_id（默认看最近一次 via-skill run）")
+    ap.add_argument("--all-runs", action="store_true", help="核全部 via-skill run")
+    ap.add_argument("--json", action="store_true")
+    ap.add_argument("--quiet", action="store_true")
+    a = ap.parse_args()
+
+    rep, err = compute(only_run=a.run, all_runs=a.all_runs)
+    if rep is None:
+        print("❌ 无法计算：%s" % err)
+        print("退出码：2")
+        return 2
+
+    if a.json:
+        print(json.dumps({"gate": "skill_invocation_audit", **rep}, ensure_ascii=False, indent=1))
+        return 2 if rep["no_data"] else (0 if rep["red_total"] == 0 else 1)
+
+    c = rep["counts"]
+    print("=" * 78)
+    print("skill_invocation_audit —— 「每到达一层就调该层 skill」的证据对账")
+    print("  ① 声明 layers.yaml ｜ ② 记账 l7/runs/<RUN>.json ｜ ③ 落章 <layer>/runs/<RUN>*.json")
+    print("  层 %d ｜ 声明 skill %d 个 ｜ 本次核了 %d 个 via-skill run"
+          % (c["layers_declared"], c["skills_declared"], c["runs_scanned"]))
+    print("-" * 78)
+
+    if rep["no_data"]:
+        print("⚪ no-data：没有可核的 via-skill run —— **既不算通过，也不算失败**。")
+        print("   跑一次 `kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only Lx` 再来。")
+        print("-" * 78)
+        print("结论：⚪ no-data（不凑分）")
+        print("退出码：2")
+        return 2
+
+    if not a.quiet:
+        for row in rep["scanned"]:
+            print("在看：RUN=%s（%s）" % (row["run_id"], row["record"]))
+            print("  ② 记账 skills：%d 项 ｜ 证据标记 skill_evidence=%s"
+                  % (len(row["skills_recorded"]), row["skill_evidence"] or "**缺失**"))
+            print("  ① 本 run 涉及 %d 层%s：%s"
+                  % (len(row["layers"]),
+                     "（由 layer_skills 推导，老 run 无 extra.layers）" if row["layers_derived"] else "",
+                     "、".join(row["layers"]) or "（空）"))
+        print("-" * 78)
+
+    for key, nkey, label in (("E1_registry_echo", "E1_n",
+                              "🔴 E1 记账即复述（skills 由注册表复述而来，不是观测值）"),
+                             ("E2_no_stamp", "E2_n",
+                              "🔴 E2 逐层无落章（这一层「调了」没有证据）")):
+        if rep[nkey]:
+            print("%s（%d）：" % (label, rep[nkey]))
+            for row in rep[key][:CAP]:
+                print("   · %s" % " ｜ ".join(str(x)[:78] for x in row))
+            if rep[nkey] > CAP:
+                print("   …（另有 %d 条未列）" % (rep[nkey] - CAP))
+    if rep["E3_n"]:
+        print("🟡 E3 落章与声明不符（%d）：" % rep["E3_n"])
+        for row in rep["E3_stamp_mismatch"][:CAP]:
+            print("   · %s" % " ｜ ".join(str(x)[:70] for x in row))
+
+    # 豁免**明写出来**，不静默跳过（静默跳过 = 闸门自己说谎）
+    if rep["exempt_n"]:
+        _seen = []
+        for row in rep["exempt"]:
+            if row[1] in _seen:
+                continue
+            _seen.append(row[1])
+            print("⚪ 豁免 %s：%s" % (row[1], row[3]))
+
+    print("-" * 78)
+    if rep["red_total"]:
+        print("结论：❌ 未过 ｜ 红 %d ｜ 黄 %d —— 本 run 声称的「逐层调了」，**证据不成立**。"
+              % (rep["red_total"], rep["warn_total"]))
+    else:
+        print("结论：✅ 过（三方一致：声明 = 记账 = 落章）｜ 红 0 ｜ 黄 %d" % rep["warn_total"])
+    print("退出码：%d" % (0 if rep["red_total"] == 0 else 1))
+    return 0 if rep["red_total"] == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

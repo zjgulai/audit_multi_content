@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+"""跟随写入器：批跑**每完成一条**，就把它的新报告写进表里的 `10/14重跑报告链接`，
+并把 `报告链接` 还原成**原始报告**（跑批器会把它刷成新链接，与库里 (c) 裁定不符）。
+
+## 为什么单开一个进程
+
+跑批器（`batch_review_runner.mjs`）只写结论表和采集表的 `报告链接`，**不认**我们新加的那一列。
+而「跑一条写一条」要求结果**落地就可见**，不能等 70 条跑完。
+
+## 它只读账本、只写飞书表
+
+  · 读：`PMO/shouheng-state/batch-review.json` 的 `answered_at` / `report_url` / `ran_from`
+  · 写：采集表 `tblavfbMDMeRsulo` 的两列（`10/14重跑报告链接`、`报告链接`）
+  ⇒ **不碰跑批器、不碰账本**，两边不会互相踩。
+
+用法：`python3 采集-20261013/follow_writeback.py [--until-done]`
+"""
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.abspath(os.path.join(HERE, '..'))
+LARK = os.path.expanduser('~/.dsh/bin/lark-cli')
+LEDGER = '/Users/lute/Project/audit_multi_content/PMO/shouheng-state/batch-review.json'
+BASE = 'RY2UbCRjXaeeWwscUPScVN5AnQc'
+TABLE = 'tblavfbMDMeRsulo'
+OUT = os.path.join(HERE, 'out')
+STATE = os.path.join(OUT, 'follow_writeback_state.json')
+RUN_STARTED = '2026-10-14T09:23'          # ⚠ **UTC** —— 本轮 70 条起跑是本地 17:23 = UTC 09:23。
+                                          #   账本的 `ran_from` 是 UTC ISO（实测 `…09:23:18.718Z`），
+                                          #   拿本地时刻去比会**永远为假** ⇒ 一条都写不进去（踩过）。
+
+
+def sh(args):
+    return subprocess.run(args, capture_output=True, text=True)
+
+
+def write_row(rid, new_url, orig_url):
+    fields = {'10/14重跑报告链接': new_url}
+    if orig_url:
+        fields['报告链接'] = f'https://momcozy-in.feishu.cn/docx/{orig_url}'
+    payload = {'update_records': {rid: fields}}
+    r = sh([LARK, 'base', '+record-batch-update', '--base-token', BASE, '--table-id', TABLE,
+            '--json', json.dumps(payload, ensure_ascii=False), '--profile', 'dsh-kb', '--as', 'bot'])
+    ok = '"ok": true' in (r.stdout or '')
+    return ok, (r.stdout or r.stderr or '')[:200]
+
+
+def read_row(rid):
+    r = sh([LARK, 'base', '+record-get', '--base-token', BASE, '--table-id', TABLE,
+            '--record-id', rid, '--profile', 'dsh-kb', '--as', 'bot'])
+    return r.stdout or ''
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--until-done', action='store_true', help='一直跟到 todo 全部写完')
+    a = ap.parse_args()
+
+    todo = json.load(open(os.path.join(OUT, 'todo70.json'), encoding='utf-8'))
+    orig = json.load(open(os.path.join(OUT, 'orig_links.json'), encoding='utf-8'))
+    done = set(json.load(open(STATE, encoding='utf-8'))) if os.path.exists(STATE) else set()
+    print(f'待跟 {len(todo)} 条 ｜ 已跟 {len(done)} 条', flush=True)
+
+    idle = 0
+    while True:
+        led = json.load(open(LEDGER, encoding='utf-8'))['items']
+        wrote = 0
+        for cid in todo:
+            if cid in done or cid not in led:
+                continue
+            d = led[cid]
+            if not d.get('answered_at') or not d.get('report_url'):
+                continue
+            if str(d.get('ran_from') or '') < RUN_STARTED:      # 上一轮的陈旧值，不认
+                continue
+            url = d['report_url']
+            m = re.search(r'/docx/([A-Za-z0-9]+)', url)
+            if not m:
+                continue
+            ok, out = write_row(orig[cid]['rid'], url, orig[cid]['orig'])
+            if ok:
+                done.add(cid)
+                wrote += 1
+                print(f"  ✅ {cid:<42} → {m.group(1)}", flush=True)
+            else:
+                print(f"  ❌ {cid} 写入失败：{out}", flush=True)
+        json.dump(sorted(done), open(STATE, 'w'), ensure_ascii=False, indent=1)
+        leftover = [c for c in todo if c not in done]
+        print(f'[{time.strftime("%H:%M:%S")}] 已跟 {len(done)}/{len(todo)} ｜ 本轮新写 {wrote} ｜ 还剩 {len(leftover)}',
+              flush=True)
+        if not a.until_done:
+            return 0
+        if not leftover:
+            print('全部跟完 ✅', flush=True)
+            return 0
+        idle = idle + 1 if wrote == 0 else 0
+        time.sleep(20)
+
+
+if __name__ == '__main__':
+    sys.exit(main())

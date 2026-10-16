@@ -1,0 +1,23 @@
+{
+ "run_id": "20260930-150104",
+ "at": "2026-09-30T15:01:04",
+ "source": "agent_manual",
+ "trigger": "闸门红了，帮我按原因码定位并修复（kb-repair）",
+ "skills": [
+  "kb-repair",
+  "kb-l0-feishu"
+ ],
+ "commands": [
+  "kb/kbpy l7/scripts/skills_check.py",
+  "rsync -a --delete ~/.dsh/skills/kb-l0-feishu/ kb/l7/skills/kb-l0-feishu/",
+  "rsync -a --delete kb/l7/skills/kb-l0-feishu/ ~/.dsh/skills/kb-l0-feishu/",
+  "python3 tools/envelope_gate.py kb/l7 --quiet"
+ ],
+ "products": [
+  "kb/l7/reports/20260930-1458-闸门修复-副本漂移-根治.md",
+  "kb/l7/skills/kb-l0-feishu/scripts/retro.py",
+  "kb/l7/registry/skills.yaml"
+ ],
+ "verdict": "skills_check 3类 1→0 ｜ exit=0 ｜ 根因已除（retro.py 落库内源+拒写装位+写完镜像装位）",
+ "human_involved": true
+}

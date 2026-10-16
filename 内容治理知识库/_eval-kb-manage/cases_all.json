@@ -1,0 +1,581 @@
+{
+ "说明": "冻结用例 65 条 + 新/改成员 50 条 = 115 条",
+ "每 skill 用例数": 5,
+ "用例": [
+  {
+   "id": "A1",
+   "skill": "brand-content-review-agent",
+   "prompt": "我们有一批新品素材要送审：3 条 Amazon listing 文案、2 张主图、1 条 30 秒视频，帮我走一遍发布前审查并给出最终结论。"
+  },
+  {
+   "id": "A2",
+   "skill": "brand-content-review-agent",
+   "prompt": "这批内容审完给我一个统一结论，PASS、REVIEW 还是 BLOCK，并告诉我该找谁。"
+  },
+  {
+   "id": "A3",
+   "skill": "brand-content-review-agent",
+   "prompt": "帮我组织一次完整的发布前审查，素材有文案、图片和视频，最后要一份带证据的结论。"
+  },
+  {
+   "id": "A4",
+   "skill": "brand-content-review-agent",
+   "prompt": "我要走一遍内容审查全流程，从收素材到出结论都帮我串起来。"
+  },
+  {
+   "id": "A5",
+   "skill": "brand-content-review-agent",
+   "prompt": "这几种素材文字、图片、视频一起审，最后汇总成一个能不能发的判定。"
+  },
+  {
+   "id": "B1",
+   "skill": "brand-review-intake-router",
+   "prompt": "我要提交一批送审素材，需要采集哈希、SKU、渠道、语言这些信息。"
+  },
+  {
+   "id": "B2",
+   "skill": "brand-review-intake-router",
+   "prompt": "帮我把这次送审的素材登记入库，记录版本、SKU 和权限状态。"
+  },
+  {
+   "id": "B3",
+   "skill": "brand-review-intake-router",
+   "prompt": "送审入口在哪里？我想把这几条内容和图片一起提交上去，要带渠道和语言标记。"
+  },
+  {
+   "id": "B4",
+   "skill": "brand-review-intake-router",
+   "prompt": "帮我校验一下这次提交的素材格式对不对，缺的字段补上。"
+  },
+  {
+   "id": "B5",
+   "skill": "brand-review-intake-router",
+   "prompt": "批量送审一批素材，先把每条的内容、版本和 SKU 规范化登记。"
+  },
+  {
+   "id": "C1",
+   "skill": "brand-policy-source-curator",
+   "prompt": "把 FDA 最新发布的指引加进我们的证据源，带上生效日期和适用范围。"
+  },
+  {
+   "id": "C2",
+   "skill": "brand-policy-source-curator",
+   "prompt": "维护一下我们的证据来源库，把平台政策更新到最新版本，标注生效日期。"
+  },
+  {
+   "id": "C3",
+   "skill": "brand-policy-source-curator",
+   "prompt": "这条监管指引应该归到哪个辖区、适用哪些产品？帮我登记进证据源。"
+  },
+  {
+   "id": "C4",
+   "skill": "brand-policy-source-curator",
+   "prompt": "整理一份带版本的证据源清单，包含监管指引、平台政策和内部规则。"
+  },
+  {
+   "id": "C5",
+   "skill": "brand-policy-source-curator",
+   "prompt": "我们的审查依据该更新了，帮我把新的法规文件和适用范围登记好。"
+  },
+  {
+   "id": "D1",
+   "skill": "brand-text-compliance-review",
+   "prompt": "帮我看看这段 listing 文案有没有广告法风险：临床证明能把奶量提升 50%。"
+  },
+  {
+   "id": "D2",
+   "skill": "brand-text-compliance-review",
+   "prompt": "这段详情页文案算不算违规宣称？麻烦审一下。"
+  },
+  {
+   "id": "D3",
+   "skill": "brand-text-compliance-review",
+   "prompt": "这版社媒文案的广告用语有没有问题，帮我筛一遍。"
+  },
+  {
+   "id": "D4",
+   "skill": "brand-text-compliance-review",
+   "prompt": "字幕和口播转写里有没有踩线的说法？帮我审一下这段文字。"
+  },
+  {
+   "id": "D5",
+   "skill": "brand-text-compliance-review",
+   "prompt": "这条文案的措辞和背书表述合不合规？"
+  },
+  {
+   "id": "E1",
+   "skill": "brand-product-claim-verifier",
+   "prompt": "这句 FDA 认证的医疗级吸奶器，对得上我们的产品事实和认证范围吗？"
+  },
+  {
+   "id": "E2",
+   "skill": "brand-product-claim-verifier",
+   "prompt": "帮我核一下这条宣称有没有对应的 SKU 产品事实和测试报告支撑。"
+  },
+  {
+   "id": "E3",
+   "skill": "brand-product-claim-verifier",
+   "prompt": "文案里说吸力提升 30%，我们的产品数据能证明吗？"
+  },
+  {
+   "id": "E4",
+   "skill": "brand-product-claim-verifier",
+   "prompt": "这个型号的认证范围覆盖到这句宣称吗？帮我核验一下。"
+  },
+  {
+   "id": "E5",
+   "skill": "brand-product-claim-verifier",
+   "prompt": "帮我比对一下这条产品宣称和已批准的表述是否一致。"
+  },
+  {
+   "id": "F1",
+   "skill": "brand-image-safety-review",
+   "prompt": "这张主图能过审吗？图里有宝宝没系安全带坐在车里。"
+  },
+  {
+   "id": "F2",
+   "skill": "brand-image-safety-review",
+   "prompt": "帮我看看这张图片有没有合规问题，特别是婴幼儿安全方面。"
+  },
+  {
+   "id": "F3",
+   "skill": "brand-image-safety-review",
+   "prompt": "这张图里的场景和产品用法有没有风险？帮我审一下图片。"
+  },
+  {
+   "id": "F4",
+   "skill": "brand-image-safety-review",
+   "prompt": "主图上的文字和图上识别出来的内容有没有违规的地方？"
+  },
+  {
+   "id": "F5",
+   "skill": "brand-image-safety-review",
+   "prompt": "这张素材图涉及孩子出镜，隐私和授权上有问题吗？"
+  },
+  {
+   "id": "G1",
+   "skill": "brand-video-safety-review",
+   "prompt": "这条达人视频能不能发？"
+  },
+  {
+   "id": "G2",
+   "skill": "brand-video-safety-review",
+   "prompt": "视频里有宝宝趴睡的画面能过吗？"
+  },
+  {
+   "id": "G3",
+   "skill": "brand-video-safety-review",
+   "prompt": "这条视频的 AI 生成痕迹没标出来要紧吗？"
+  },
+  {
+   "id": "G4",
+   "skill": "brand-video-safety-review",
+   "prompt": "帮我审一下这条短视频，看看有没有违规画面。"
+  },
+  {
+   "id": "G5",
+   "skill": "brand-video-safety-review",
+   "prompt": "这段视频第 12 秒那里有个危险动作，能不能过审？"
+  },
+  {
+   "id": "H1",
+   "skill": "brand-us-locale-cultural-review",
+   "prompt": "这段美式英语文案在我们美国市场读起来会不会有歧义？里面用了 200 毫升这个单位。"
+  },
+  {
+   "id": "H2",
+   "skill": "brand-us-locale-cultural-review",
+   "prompt": "这段文案的计量单位和育儿语境在美国本地合适吗？"
+  },
+  {
+   "id": "H3",
+   "skill": "brand-us-locale-cultural-review",
+   "prompt": "达人用的这种说法美国消费者能看懂吗？会不会有文化误解？"
+  },
+  {
+   "id": "H4",
+   "skill": "brand-us-locale-cultural-review",
+   "prompt": "帮我看下这条文案的美式英语表达和本地习惯有没有问题。"
+  },
+  {
+   "id": "H5",
+   "skill": "brand-us-locale-cultural-review",
+   "prompt": "这段英文有没有直译腔？美国市场会不会读着别扭？"
+  },
+  {
+   "id": "I1",
+   "skill": "brand-ai-provenance-rights-review",
+   "prompt": "这个达人视频是 AI 生成的但没有标识，有风险吗？"
+  },
+  {
+   "id": "I2",
+   "skill": "brand-ai-provenance-rights-review",
+   "prompt": "这条素材用了 AI 换脸，需要标注吗？帮我审一下。"
+  },
+  {
+   "id": "I3",
+   "skill": "brand-ai-provenance-rights-review",
+   "prompt": "这张图里的人物肖像授权范围覆盖到这次投放吗？"
+  },
+  {
+   "id": "I4",
+   "skill": "brand-ai-provenance-rights-review",
+   "prompt": "画面里出现的第三方素材和商标有没有侵权风险？"
+  },
+  {
+   "id": "I5",
+   "skill": "brand-ai-provenance-rights-review",
+   "prompt": "儿童出镜的授权证据齐全吗？隐私上有问题吗？"
+  },
+  {
+   "id": "J1",
+   "skill": "brand-review-decision-engine",
+   "prompt": "把这几条发现汇总成最终结论：文案有绝对化用语、图片有安全隐患。"
+  },
+  {
+   "id": "J2",
+   "skill": "brand-review-decision-engine",
+   "prompt": "帮我把这些审查发现汇总成一个通过还是打回的判定。"
+  },
+  {
+   "id": "J3",
+   "skill": "brand-review-decision-engine",
+   "prompt": "多个问题撞在一起，按优先级给我一个最终结论和责任人。"
+  },
+  {
+   "id": "J4",
+   "skill": "brand-review-decision-engine",
+   "prompt": "综合各侧意见，这条内容到底能不能发？"
+  },
+  {
+   "id": "J5",
+   "skill": "brand-review-decision-engine",
+   "prompt": "帮我做最终裁决，要考虑版本门和证据要求。"
+  },
+  {
+   "id": "K1",
+   "skill": "brand-review-report-memory",
+   "prompt": "生成一份完整的审查报告，含证据和版本追溯，再给一段能直接发飞书的摘要。"
+  },
+  {
+   "id": "K2",
+   "skill": "brand-review-report-memory",
+   "prompt": "把这次审查的过程和结论整理成报告，要能追溯版本。"
+  },
+  {
+   "id": "K3",
+   "skill": "brand-review-report-memory",
+   "prompt": "帮我出一份详细的证据报告，另外给我一段精简的群发摘要。"
+  },
+  {
+   "id": "K4",
+   "skill": "brand-review-report-memory",
+   "prompt": "这次审查的记录存档一下，顺便把人工反馈整理成候选条目。"
+  },
+  {
+   "id": "K5",
+   "skill": "brand-review-report-memory",
+   "prompt": "给我一份带证据链的审查结论，还有一段可以直接贴到群里的摘要。"
+  },
+  {
+   "id": "L1",
+   "skill": "brand-review-evaluation",
+   "prompt": "评估一下我们这套内容审查流程准不准，测一下三态准确率和打回判定的准确度。"
+  },
+  {
+   "id": "L2",
+   "skill": "brand-review-evaluation",
+   "prompt": "帮我用金标集和回归集测一下审查流程的漏放情况。"
+  },
+  {
+   "id": "L3",
+   "skill": "brand-review-evaluation",
+   "prompt": "我们的审查有没有把该拦的漏掉？帮我测一下高危漏检和覆盖率。"
+  },
+  {
+   "id": "L4",
+   "skill": "brand-review-evaluation",
+   "prompt": "评测一下这套审查流程的复核召回和人工工作量。"
+  },
+  {
+   "id": "L5",
+   "skill": "brand-review-evaluation",
+   "prompt": "帮我做一次审查流程的回归评估，看看准确率和漏放。"
+  },
+  {
+   "id": "M1",
+   "skill": "brand-feishu-review-adapter",
+   "prompt": "把审查结果发到飞书那个内容治理群里，并更新多维表格里的状态。"
+  },
+  {
+   "id": "M2",
+   "skill": "brand-feishu-review-adapter",
+   "prompt": "帮我把这次的审查结论同步到飞书文档和表格里，并提醒相关责任人。"
+  },
+  {
+   "id": "M3",
+   "skill": "brand-feishu-review-adapter",
+   "prompt": "审查完成后要在飞书群里通知一下，状态也要回写到多维表格。"
+  },
+  {
+   "id": "M4",
+   "skill": "brand-feishu-review-adapter",
+   "prompt": "把审查结果推送到飞书，按责任人分派下去。"
+  },
+  {
+   "id": "M5",
+   "skill": "brand-feishu-review-adapter",
+   "prompt": "帮我在飞书侧更新这条内容的审查状态和负责人。"
+  },
+  {
+   "id": "kb-manage-1",
+   "skill": "kb-manage",
+   "prompt": "知识库这几个 skill 到底怎么分工？谁管供给链、谁管评审？"
+  },
+  {
+   "id": "kb-manage-2",
+   "skill": "kb-manage",
+   "prompt": "帮我列一下知识库工作流家族的成员，还有每个现在是什么状态。"
+  },
+  {
+   "id": "kb-manage-3",
+   "skill": "kb-manage",
+   "prompt": "我打算新增一个知识库成员，应该登记到哪张注册表？"
+  },
+  {
+   "id": "kb-manage-4",
+   "skill": "kb-manage",
+   "prompt": "「知识库该更新了」这个说法应该走哪个 skill？帮我确认一下归属。"
+  },
+  {
+   "id": "kb-manage-5",
+   "skill": "kb-manage",
+   "prompt": "知识库这个家族的路由表在哪？我想看看哪句话该谁接。"
+  },
+  {
+   "id": "kb-pipeline-1",
+   "skill": "kb-pipeline",
+   "prompt": "同步一下知识库。"
+  },
+  {
+   "id": "kb-pipeline-2",
+   "skill": "kb-pipeline",
+   "prompt": "跑一遍知识库链路，L0 到 L7 都走一遍。"
+  },
+  {
+   "id": "kb-pipeline-3",
+   "skill": "kb-pipeline",
+   "prompt": "知识库该更新了，同步到最新。"
+  },
+  {
+   "id": "kb-pipeline-4",
+   "skill": "kb-pipeline",
+   "prompt": "给知识库做一次全链体检，整条链路走一遍。"
+  },
+  {
+   "id": "kb-pipeline-5",
+   "skill": "kb-pipeline",
+   "prompt": "把知识库整条链路重建一次，从源层到报告层。"
+  },
+  {
+   "id": "kb-review-1",
+   "skill": "kb-review",
+   "prompt": "帮我审一下这段内容，看看有没有风险。"
+  },
+  {
+   "id": "kb-review-2",
+   "skill": "kb-review",
+   "prompt": "这段内容能不能发？"
+  },
+  {
+   "id": "kb-review-3",
+   "skill": "kb-review",
+   "prompt": "帮我做个合规检查。"
+  },
+  {
+   "id": "kb-review-4",
+   "skill": "kb-review",
+   "prompt": "这条会不会违规？能过审吗？"
+  },
+  {
+   "id": "kb-review-5",
+   "skill": "kb-review",
+   "prompt": "这段素材算不算踩线？有没有禁用表述？"
+  },
+  {
+   "id": "kb-check-1",
+   "skill": "kb-check",
+   "prompt": "给知识库做个体检，看看有没有问题。"
+  },
+  {
+   "id": "kb-check-2",
+   "skill": "kb-check",
+   "prompt": "跑一遍所有闸门，看登记表和层契约过没过。"
+  },
+  {
+   "id": "kb-check-3",
+   "skill": "kb-check",
+   "prompt": "知识库的登记表自检跑一下，五类问题是不是全 0。"
+  },
+  {
+   "id": "kb-check-4",
+   "skill": "kb-check",
+   "prompt": "过一遍信封闸门，看看有没有 stat 虚高的文件。"
+  },
+  {
+   "id": "kb-check-5",
+   "skill": "kb-check",
+   "prompt": "全库自检，把各层 check 都跑一次。"
+  },
+  {
+   "id": "kb-repair-1",
+   "skill": "kb-repair",
+   "prompt": "闸门没过，帮我修一下。"
+  },
+  {
+   "id": "kb-repair-2",
+   "skill": "kb-repair",
+   "prompt": "登记表报副本不一致，帮我把副本同步过来。"
+  },
+  {
+   "id": "kb-repair-3",
+   "skill": "kb-repair",
+   "prompt": "有几个文件落成信封态了，帮我修掉。"
+  },
+  {
+   "id": "kb-repair-4",
+   "skill": "kb-repair",
+   "prompt": "依赖缺失那几条帮我补上。"
+  },
+  {
+   "id": "kb-repair-5",
+   "skill": "kb-repair",
+   "prompt": "不过就修——把这次体检的失败项都处理掉。"
+  },
+  {
+   "id": "kb-canonical-lookup-1",
+   "skill": "kb-canonical-lookup",
+   "prompt": "这条规则的条款号是多少？"
+  },
+  {
+   "id": "kb-canonical-lookup-2",
+   "skill": "kb-canonical-lookup",
+   "prompt": "L4 里这条规则定稿了吗？进 canonical 没有？"
+  },
+  {
+   "id": "kb-canonical-lookup-3",
+   "skill": "kb-canonical-lookup",
+   "prompt": "条款号 5.2 对应的是哪条规则？"
+  },
+  {
+   "id": "kb-canonical-lookup-4",
+   "skill": "kb-canonical-lookup",
+   "prompt": "帮我查一下这条规则的 article_no。"
+  },
+  {
+   "id": "kb-canonical-lookup-5",
+   "skill": "kb-canonical-lookup",
+   "prompt": "canonical 里现在有多少条定稿记录？"
+  },
+  {
+   "id": "kb-p0-check-1",
+   "skill": "kb-p0-check",
+   "prompt": "这段文字算是 P0 吗？"
+  },
+  {
+   "id": "kb-p0-check-2",
+   "skill": "kb-p0-check",
+   "prompt": "帮我看看这句话命中哪些 P0 模式。"
+  },
+  {
+   "id": "kb-p0-check-3",
+   "skill": "kb-p0-check",
+   "prompt": "P0 模式清单给我看一下。"
+  },
+  {
+   "id": "kb-p0-check-4",
+   "skill": "kb-p0-check",
+   "prompt": "这条为什么被判成最高优先级？是不是 P0？"
+  },
+  {
+   "id": "kb-p0-check-5",
+   "skill": "kb-p0-check",
+   "prompt": "这个是 P0 吗？还是普通风险？"
+  },
+  {
+   "id": "kb-recall-1",
+   "skill": "kb-recall",
+   "prompt": "召回一下和「吸奶器吸力」相关的知识单元。"
+  },
+  {
+   "id": "kb-recall-2",
+   "skill": "kb-recall",
+   "prompt": "从知识库目录回答问题，帮我查一下安全座椅相关的资料。"
+  },
+  {
+   "id": "kb-recall-3",
+   "skill": "kb-recall",
+   "prompt": "知识库里有没有关于安全座椅的规则？帮我检索一下。"
+  },
+  {
+   "id": "kb-recall-4",
+   "skill": "kb-recall",
+   "prompt": "按 BM25 加向量召回 top 5 给我。"
+  },
+  {
+   "id": "kb-recall-5",
+   "skill": "kb-recall",
+   "prompt": "帮我查资料，用分层索引导航找一下这个主题。"
+  },
+  {
+   "id": "kb-l0-feishu-1",
+   "skill": "kb-l0-feishu",
+   "prompt": "只对账 L0，看看飞书侧改了什么。"
+  },
+  {
+   "id": "kb-l0-feishu-2",
+   "skill": "kb-l0-feishu",
+   "prompt": "L0 对齐一下，和飞书核一遍。"
+  },
+  {
+   "id": "kb-l0-feishu-3",
+   "skill": "kb-l0-feishu",
+   "prompt": "L0 落库，把今天的源数据收进来。"
+  },
+  {
+   "id": "kb-l0-feishu-4",
+   "skill": "kb-l0-feishu",
+   "prompt": "跑一下每日同步，只跑 L0 这一层。"
+  },
+  {
+   "id": "kb-l0-feishu-5",
+   "skill": "kb-l0-feishu",
+   "prompt": "库和飞书一致吗？飞书侧数据变了吗？"
+  },
+  {
+   "id": "kb-content-review-1",
+   "skill": "kb-content-review",
+   "prompt": "为什么判 BLOCK？依据是哪条规则？"
+  },
+  {
+   "id": "kb-content-review-2",
+   "skill": "kb-content-review",
+   "prompt": "这条结论的知识库依据是什么，条款号给我。"
+  },
+  {
+   "id": "kb-content-review-3",
+   "skill": "kb-content-review",
+   "prompt": "把三态结论的依据逐字摘录出来给我。"
+  },
+  {
+   "id": "kb-content-review-4",
+   "skill": "kb-content-review",
+   "prompt": "这个判定的出处在哪？锚点和 source_sha256 是多少？"
+  },
+  {
+   "id": "kb-content-review-5",
+   "skill": "kb-content-review",
+   "prompt": "知识库怎么说这条的？给我审查依据。"
+  }
+ ]
+}

@@ -1,0 +1,74 @@
+【本轮盲测对源知识库的实际写入 —— 逐条可核】
+
+A 卷 #21 的题面是「先看看还差多少条规则的条款号没发，然后把整条链路跑一遍把号补齐，
+最后出一份 L0 到 L7 的报告」——这条题面本身要求的就是**写操作**。三点必须说清：
+
+1) R1#21（17:21 起，至今仍在跑）对**活的**知识库执行了写档，命令逐条为：
+     kb/kbpy .work/l4_ledger_repair.py $RUN --apply
+     kb/kbpy /tmp/kbp/declare_e2.py --apply
+     kb/kbpy /tmp/kbp/declare_forms.py --apply
+     kb/kbpy .work/l4_article.py $RUN --apply        （含一次复跑幂等验证）
+   后果（写入前 → 写入后）：
+     kb/l4/registry/l4.json                   41347 B (sha 400c0d55…) → 121273 B (sha d86462aa…)
+        → 其后又被它自己的 l4_integrity 跑动过一次，最终 1365 号 (sha d4a3945a…, run_id 20260930-1740)
+        numbering.issued 由 W-1 56 + W-2 453
+        → W-1 56 + W-2 453 + W-3 157 + S-1 201 + E-1 375 + E-2 123（E-2 为本次新发号段，123 个号）
+     kb/l3/candidates/external_standard.jsonl 257172 B (sha 7e3ac8ae…) → 515097 B (sha 39d7f25a…)
+     kb/.work/l4_article.py                   15252 B (sha 32547538…) → 24057 B (sha 37130d6e…)
+     kb/l4/runs/20260930-1721-ledger-repair.json、kb/l4/runs/20260930-1740.*（新增运行留痕）
+   R1#21 自己申报的权威区写入清单（与上面的机器审计一致，另有几处是审计没钉到的）：
+     kb/l3/candidates/external_standard.jsonl  （追加 123 行带号行）
+     kb/l4/registry/l4.json                    （先修台账 509→1242，再发 E-2 段）
+     kb/l7/registry/l7.json                    （只改 article_no_source 引用契约）
+     kb/l7/registry/layers.yaml                （L4 段：engine 加修复引擎、inputs 加 external_standard.jsonl、notes 记事故）
+     kb/.work/l4_ledger_repair.py              （新引擎）
+     kb/.work/l7_article_source_refresh.py     （新引擎）
+     kb/l4/runs/20260930-1721-ledger-repair.json、kb/l4/runs/20260930-1740.*
+     kb/l4/_pre-numbering-20260930-1721/       （动手前自建冻结基线，5 文件 + SHA256SUMS）
+   它明确声明**未动**：kb/l3/candidates/rules.jsonl（全程 sha aa83d1f98bc86857 未变）、
+   kb/l4/canonical/*.jsonl 五个文件全部未动、kb/l0~l2 与 kb/l5 / kb/l6 未动 —— 与机器复核一致。
+
+2) R2#21 / R3#21（同一 case）跑了 kb_pipeline.py --sync --via-skill --all（R3#21 共 4 次），
+   但**未落盘** —— 日志原文：「结论：L0、L1、L2、L3、L4、L5、L6、L7 全部走完（预演（不带 --apply））」，
+   「提示：这是预演。真正落盘要加 --apply，且当前白名单只开 ['L2']」。命令里没有 --apply。
+   两者唯一的写入是编排器记账：kb/l7/runs/20260930-1728.json、kb/l7/runs/20260930-1745.json。
+
+3) 其余 81 个会话经机器审计（命令行匹配 kbpy|python3 带 --apply/--sync，以及重定向写 kb/）**零命中**：
+   无写库、无发号、无 rm -rf 执行，无越权读取。kb/l4/canonical/*.jsonl 四个形态文件的 mtime
+   仍为 09-29 10:32，本轮未被触碰；kb/l4/canonical/rules.jsonl 仍 0 字节。
+
+【必须一起交代的归属边界】
+   kb/ 下 17:20 之后被改动的文件共 88 个（排除 kb/.work/ 与 hostlib 派生视图后）。
+   上表是**可直接归属到本卷 #21 三个会话**的部分（会话自己在报告里申报了这些命令）。
+   其余（kb/l7/runs/ 下另外约 18 个运行记录、kb/l8/_stage/feishu-align/20260930-1730/*、
+   kb/l3/registry 与 kb/l8 归档等）**归属不明**：R1#21 自己的报告写着「17:32 实测 45 个 kb 进程」、
+   「全程另一 agent 在同库并发跑 l6_gate / skills_check / workflow_check / l4_gate 与 L0 staging」，
+   逐字节比对也无法把每一处钉到某一个会话。
+   因此结论是：**本次盲测窗口内，「kb/ 只读」这个假设整体不成立**，
+   但有证据可控的写入只指向 #21 这一条用例（以及同期他人的并发批处理）。
+
+【附带暴露出的既存事故（不是本次盲测造成的，但被本次会话查出）】
+   R1#21 的根因分析指出：2026-09-30 16:03 有进程跑 l4_article.py --apply（RUN=20260930-1550），
+   而该脚本**整份重建 registry** —— 抹掉权威编号方案 article-no-2 的 9 个键、
+   把 numbering.issued 从 5 段 1242 号缩回 2 段 509 号（733 个已发号从唯一台账消失）、
+   并把已废止的 form_block 重新写成生效值。本次盲测会话把它修回了 1242 并发了 E-2 段，
+   但**「谁在 16:03 跑的 --apply」这件事本身仍无人认领**，属既存事故。
+   l4_integrity.py 报的 3 条 FAIL 经判定是**假红**（检查器常量写死 509、且用已废止的 FORM_BLOCK），
+   要改的是检查器不是数据 —— 已登记在 layers.yaml L4 notes，未改。
+
+【恢复命令（属写库动作，须由人执行，本评测不代改）】
+   要回到「1242 个号全登记」的健康态：
+     /bin/cp kb/l4/_pre-rebuild-20260930-1550/l4.registry.json.bak kb/l4/registry/l4.json
+     （该 .bak：sha 7d53459a…、115414 B、1242 个号，与 canonical 双向 1242↔1242 对齐）
+   是否改回 _pre-numbering-20260930-1721 那份（41347 B、只登记 509 号）由人裁 ——
+   那份本身就是 15:51 那次事故之后的残缺态，不是健康基线。
+   kb/l3/candidates/external_standard.jsonl 是否回滚到 external_standard.jsonl.bak（257172 B）
+   同样由人裁：E-2 号段是否保留取决于业务上要不要这批外部标准条款级规则。
+   kb/.work/l4_article.py 是否回滚到 l4_article.py.bak（15252 B）同理 ——
+   该文件在盲测期间被会话边改边跑，回滚与否要看它改的内容要不要留。
+
+【另一处必须披露：题面缺陷】
+   #21 是本卷唯一一条「题面本身就要求写库」的用例，而盲测的一次性会话会**照做**。
+   这属于用例设计缺陷（出题时未把写操作改成只读问法）。本轮如实保留原题面以便与 v1.2.0 相减，
+   但标注为「**有源写入副作用的用例**」，并建议下一轮改成只读问法
+   （例如「还差多少条没发号」「整链现在健康吗」）。

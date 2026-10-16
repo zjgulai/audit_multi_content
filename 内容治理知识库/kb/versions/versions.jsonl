@@ -1,0 +1,6 @@
+# 版本指针流水（append-only）
+# 本文件只放指针，不放内容副本；每行一条 JSON，主键 version_id。
+# 两层版本号，不要混成一个字段：
+#   kb_version  —— 每类库独立，如 external_standard: v3
+#   release_id  —— 组合发布号，如 rel-0007
+# L0 原始库阶段不生成任何版本号、不做发布，本文件保持零版本行。

@@ -1,0 +1,27 @@
+{
+ "run": "daily-20261011-0330-L3",
+ "layer": "l3",
+ "kind": "reject_snapshot_write",
+ "caliber": "C",
+ "caliber_definition": "进了门 ∧ 没被规则用 ∧ 没被样例用",
+ "snapshot_rows": 4149,
+ "snapshot_rows_before": 3705,
+ "archive": "kb/l3/_archive/daily-20261011-0330-L3-split/rejected.jsonl",
+ "archive_sha256": "c0f4edee63fa671415aab8f0aa15c0599e6174c14b880716ec3e370532681e3c",
+ "archive_bytes": 1261157,
+ "history": "kb/l3/rejected.history.jsonl",
+ "out_of_scope_count": 8854,
+ "out_of_scope_query": "kb/l7/scripts/l3_rejected_status.py --out-of-scope",
+ "partition": {
+  "rule_units": 959,
+  "case_units": 3319,
+  "rejected_C": 4149,
+  "out_of_scope_free": 6212,
+  "units_total": 14639,
+  "partition_ok": true
+ },
+ "rules_jsonl_untouched": {
+  "note": "本模式**只写 rejected.jsonl**，不跑蒸馏 ⇒ rules.jsonl 一字不动",
+  "sha256_prefix": "743dc62398311b02（转换前后实测一致）"
+ }
+}

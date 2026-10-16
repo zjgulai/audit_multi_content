@@ -1,0 +1,45 @@
+# root-agent-doctor 自己的契约。它按 root-agents/refs/agent-contract.yaml 体检别人，自己也守同一份契约。
+#
+# doctor 只读：除自身外不改任何文件。tools 为空是如实的——它没有 tool-calling 循环，
+# 结构性检查（文件读取、语法编译、子进程实例化）都在实现里，不虚报为工具。
+name: root-agent-doctor
+version: "0.1.0"
+stage: verify
+interface: cli
+run: python3 agent.py
+input: stdin-json
+profile: meta
+task_types:
+  - check_agent_package
+deliverables:
+  - id: health_report
+    name: 体检报告
+    format: json
+    fields:
+      - verdict
+      - checks
+      - blockings
+      - warnings
+    acceptance: verdict 为 healthy/unhealthy；checks 逐项带级别与状态；阻断项列进 blockings
+tools: []
+env:
+  API_KEY: ${managed}
+scope:                    # 选填节（第 3 项）：管什么 / 不管什么
+  does:
+    - 体检单个 agent 包：目录与契约字段、语法、密钥与危险命令、实例化探针
+    - 六项扩展静态检查：职责边界、指令质量、文件与环境依赖、执行流程、状态、协作
+  not_for:
+    - 评能力好坏，那是 root-agent-eval 的活
+    - 改被检包，doctor 只读
+limits:                   # 选填节（第 8 项）：终止预算
+  timeout_s: 120          # 实例化探针超时，等于 INSTANTIATE_TIMEOUT
+  max_iterations: 1       # 一轮只体检一次，不重试
+# 健康探针：doctor 收 {"agent_dir": ...}，question 探针会被正确拒绝。
+# 必须满足三点：指向真实合法包（否则结构检查就失败）、绝对路径（doctor 以自身
+# 目录为 cwd 执行）、skip_instantiate: true（否则体检自己会递归体检下去）。
+health:
+  input:
+    # 探针指向家族内恒定存在的兄弟包，相对路径在源树与安装副本里都成立；
+    # 不指向 doctor 自己（体检会用被测包声明的探针实例化，自指会无限递归）。
+    agent_dir: ../root-agent-creater
+    skip_instantiate: true

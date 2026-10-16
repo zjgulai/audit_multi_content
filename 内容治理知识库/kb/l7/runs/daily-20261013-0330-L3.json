@@ -1,0 +1,73 @@
+{
+ "run_id": "daily-20261013-0330-L3",
+ "at": "2026-10-13T03:39:06",
+ "source": "pipeline_sync",
+ "trigger": "--sync --via-skill L3",
+ "skills": [
+  "kb-pipeline",
+  "kb-clause-extractor"
+ ],
+ "commands": [
+  "kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L3 --run daily-20261013-0330-L3 --invoked kb-clause-extractor --skill-session L3=session-c97b2ad1-1b2b-42d2-ad02-00b4835018d1"
+ ],
+ "products": [
+  "kb/l3/runs/daily-20261013-0330-L3.json",
+  "kb/l3/runs/daily-20261013-0330-L3-dryrun.json",
+  "kb/l3/runs/daily-20261013-0330-L3-reject-rebuild.json"
+ ],
+ "verdict": "全走完",
+ "human_involved": true,
+ "extra": {
+  "via_skill": true,
+  "skill_invoked_by": "agent",
+  "skill_evidence": "layer_stamps_observed",
+  "skill_evidence_note": "观测来源＝层落章（非预演）：L3:kb/l3/runs/daily-20261013-0330-L3.json",
+  "observed_skills": [
+   "kb-clause-extractor"
+  ],
+  "observed_skills_sources": [
+   "L3:kb/l3/runs/daily-20261013-0330-L3.json"
+  ],
+  "layers": [
+   "L3"
+  ],
+  "layer_skills": [
+   "kb-clause-extractor"
+  ],
+  "declared_layer_skills": {
+   "L3": [
+    "kb-clause-extractor"
+   ]
+  },
+  "layer_skills_uniq": [
+   "kb-clause-extractor"
+  ],
+  "invoked_reported": [
+   "kb-clause-extractor"
+  ],
+  "skill_sessions": {
+   "L3": "session-c97b2ad1-1b2b-42d2-ad02-00b4835018d1"
+  },
+  "human_involved_basis": "--invoked 已上报（agent 按层 skill 走过）",
+  "verdict_basis": "层侧落章 applied=true → 真落盘",
+  "layer_stamps_applied": [
+   "L3:kb/l3/runs/daily-20261013-0330-L3.json"
+  ],
+  "layer_stamps_dry": [
+   "L3:kb/l3/runs/daily-20261013-0330-L3-dryrun.json"
+  ],
+  "layer_stamps_unknown": [
+   "L3:kb/l3/runs/daily-20261013-0330-L3-reject-rebuild.json"
+  ],
+  "write_gate": {
+   "id": null,
+   "resolved": false,
+   "layers_authorized": null,
+   "unauthorized_layers": [
+    "L3"
+   ],
+   "readonly_declared": [],
+   "msg": "**未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml"
+  }
+ }
+}

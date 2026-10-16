@@ -1,0 +1,29 @@
+#!/bin/sh
+# kb/kbpy —— 用库内约定的解释器运行任意 KB 脚本（解释器约定的统一调用入口）
+#
+#   用法：  kb/kbpy l8/l2_split_run.py 20260929-1700
+#           kb/kbpy .work/l6_build.py 20260929-1700
+#           kb/kbpy l7/skills/kb-content-review/scripts/review.py --text "..."
+#
+# 为什么要它：受管 external-tools python 缺 numpy/fastembed（L6 召回必需），
+# 而 PATH 里的 python3 会随会话变化。解释器写死在 kb/.kb-python，本脚本负责解析并代跑。
+# 顺带导出 PYTHONDONTWRITEBYTECODE=1：不在权威库里落 __pycache__（避免副本比对误报）。
+set -e
+ROOT=$(cd "$(dirname "$0")" && pwd)
+BOOT="${KB_BOOTSTRAP:-python3}"
+PY=$("$BOOT" "$ROOT/l8/_interp.py" 2>/dev/null | sed -n 's/^解析结果[[:space:]]*:[[:space:]]*//p' | head -1)
+if [ -z "$PY" ]; then
+  echo "kbpy: 找不到合格解释器。" >&2
+  echo "kbpy: 执行 '$BOOT $ROOT/l8/_interp.py' 看明细；把合格解释器写进 $ROOT/.kb-python" >&2
+  exit 2
+fi
+[ "$#" -ge 1 ] || { echo "kbpy: 用法: kbpy <kb 内相对路径> [args...]" >&2; exit 2; }
+cmd=$1; shift
+case "$cmd" in
+  /*) target="$cmd" ;;
+  *)  target="$ROOT/$cmd" ;;
+esac
+[ -f "$target" ] || { echo "kbpy: 找不到脚本 $target" >&2; exit 2; }
+export PYTHONDONTWRITEBYTECODE=1
+export KB_INTERP_OK=1
+exec "$PY" "$target" "$@"

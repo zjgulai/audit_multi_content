@@ -1,0 +1,243 @@
+{
+ "review_id": "rv-20261005-115428",
+ "review_base": "RT-20261005-IMG-05",
+ "content_id": "AD-20261005-006",
+ "content_version": "48cac901ac43c7454f1b90177fdc451dfeb07a9cb7fea241b27b87faef3b679f",
+ "content_type": "社媒图片",
+ "channel": "社媒",
+ "product_line": "洗瓶机/喂养",
+ "version": "v1.0",
+ "submitted_text_sha256": "48cac901ac43c7454f1b90177fdc451dfeb07a9cb7fea241b27b87faef3b679f",
+ "submitted_text_verbatim": "5\nMOMCOZY\nBereit Fur Die Nacht，\nSupermama？\nManche Superkrafte\nPassen Auf Den\nNachttisch\n5615\nRC\n刘华的\nROOT\n刘华丽\n5615 ROOT\n\"Was Sind Deine Mama-Hacks Fuir Ruhigere Nachte？\"\n5615 ROC\n",
+ "submitted_watermark_tokens": [
+  "5615 ROOT",
+  "5615 ROC",
+  "刘华丽",
+  "刘华的",
+  "ROOT",
+  "RC"
+ ],
+ "decision": "BLOCK",
+ "issue_count": 2,
+ "decision_provenance": {
+  "engine_state": "NEEDS_INPUT",
+  "engine_review_id": "rv-20261005-115428",
+  "engine_content_version": "48cac901ac43c7454f1b90177fdc451dfeb07a9cb7fea241b27b87faef3b679f",
+  "engine_refusal_detail": "依据侧拒答（fail-closed）",
+  "rule": "Owner 2026-10-05 规则①（自命中是反面依据，不是拒答的理由）",
+  "statement": "【本结论的来路，必须一起读】引擎 with_kb_evidence.py 本单实际输出 = NEEDS_INPUT（拒答 · 退出码 3，理由：库内规则 0 命中、P0 0 命中、无覆盖信号）；本 BLOCK **不是引擎产出的**，而是判定主体『图片安全审查』按 Owner 2026-10-05 规则①（自命中已定稿反例/禁区 = 本素材本身有定论，必须登记 findings 并出三态，不许降级/拒答）登记得出。引擎侧缺口登记为 GAP-SELFHIT-1（对反例/禁区无消费者）。【同时摆出的冲突，不许静默】库内 sample_case 自带的边界字段逐字为：not_proves=「案例是参照，不构成规则 —— 不能证明『和它像』就违规、也不能证明『和它像』就合规」；forbidden=「不许把案例当规则用（案例只作参照）；不许据本条直接判 BLOCK」。Owner 规则①（同一素材命中已定稿反例/禁区即出三态、通常 BLOCK）与该数据边界在位阶上冲突：规则①说的是「同一素材的定论」，边界字段说的是「不许把案例当规则用」。本单按 Owner 明示「规则① 优先于默认流程」执行，但把冲突原样登记，交 Owner/治理侧裁定；在引擎补上「反例/禁区消费者」之前，本 BLOCK 是**判定主体档**，不是引擎可复现档。",
+  "conflict_disclosed": true,
+  "assembled_by": "kb/l7/review-engine 的消费者侧组装（feishu_publish.py 的输入形状），未改引擎、未改发布件"
+ },
+ "findings": [
+  {
+   "risk_type": "原则性错误（自命中已定稿反例/禁区）",
+   "priority_tier": "BLOCK",
+   "action": "自命中库内已定稿反例/禁区条款 → 按已定稿定论处置，改正后重新提交",
+   "original_text": "mOmCOZY\nBereit Für Die Nacht,\nSupermama?\nManche Superkräfte\nPassen Auf Den\nNachttisch\n\"Was Sind Deine Mama-Hacks Für Ruhigere Nächte?\"",
+   "rule_code": "S-1.2",
+   "evidence": {
+    "library": "内部正负样本库（kb_type=internal_sample）",
+    "article_no": "S-1.2",
+    "anchor": "#正面和负面样本/recvw2vgYXHKgM/原文反馈",
+    "source_sha256": "9f39a37061cf6d1e33af111127156a9a38e69d2cfd6de70e6c71f3e8685c5136",
+    "excerpt": "【原则性错误】图片 奶瓶不建议倒着放，对于宝宝和妈妈来说，奶瓶的卫生重要至极，所。\n原因：我们的产品才会有奶瓶消毒器，喝完奶、喝之前都要消毒杀菌的，所以随意倒着放这个行为不符合用户习惯"
+   },
+   "suggestion": "按已定稿反例处置：改正画面中奶瓶的摆放（不得倒置），改后重新提交。注：L0「建议」字段文本与「具体原因/分析」逐字相同、首句却是否定句（原文「建议倒着放…」），疑为采集时字段复制错误 ⇒ 该字段**不得直接外发**，需业务先确认口径。",
+   "trace": {
+    "form": "sample_case",
+    "polarity": "反例",
+    "semantics": "禁区：不能这么做 + 为什么",
+    "reason_category": "原则性错误",
+    "status": "stable",
+    "owner": "刘华丽",
+    "valid_until": "2027-03-28",
+    "effective_from": "2026-09-29",
+    "material_type": "图片",
+    "channel": "社媒",
+    "l4_anchor": "#正面和负面样本/recvw2vgYXHKgM/原文反馈",
+    "l2_unit_id": "f8e2ee3741a6d1b8c307",
+    "l2_media_anchor": "#素材/recvw2vgYXHKgM/图片素材/#img.1",
+    "l1_source_sha256": "9f39a37061cf6d1e33af111127156a9a38e69d2cfd6de70e6c71f3e8685c5136",
+    "l1_image_file_sha256": "a3c7828f2f66554dfa574e112d66026473023265f771df1d63410de11423ff8a",
+    "l1_image_bytes": 123988,
+    "l1_file": "kb/l1/2_内部正负样本库/bitable__tbld8qE92YaY38Yz__recvw2vgYXHKgM.json",
+    "l0_entry_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw2vgYXHKgM",
+    "l0_record_id": "recvw2vgYXHKgM",
+    "l0_verbatim_field": "具体原因/分析",
+    "sha_note": "与 L0 记录值比对一致（不是重算）：sha 输入是 record_fields 字段 blob，本地 L0 件不含该 blob；要真核对只能点 L0 直链。",
+    "near_duplicate": {
+     "article_no": "S-1.175",
+     "material_type": "文字",
+     "anchor": "#正面和负面样本/recvw2wE9MmvI2/原文反馈",
+     "unit_id": "ce49d00481ce3e18785e",
+     "source_sha256": "a39db867fa9cdd73bc2013dcb5d4639209d0974cf36ce6700c635f674cfbe773",
+     "entry_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw2wE9MmvI2",
+     "l0_verbatim_field": "原文反馈",
+     "excerpt_in_l0": "5\nMOMCOZY\nBereit Fur Die Nacht，\nSupermama？\nManche Superkrafte\nPassen Auf Den\nNachttisch\n5615\nRC\n刘华的\nROOT\n刘华丽\n5615 ROOT\n\"Was Sind Deine Mama-Hacks Fuir Ruhigere Nachte？\"\n5615 ROC\n"
+    },
+    "kb_boundary_field_conflict": {
+     "not_proves": "案例是参照，不构成规则 —— 不能证明「和它像」就违规、也不能证明「和它像」就合规",
+     "forbidden": "不许把案例当规则用（案例只作参照）；不许据本条直接判 BLOCK"
+    }
+   }
+  },
+  {
+   "risk_type": "证据边界（非条款项）",
+   "priority_tier": "REVIEW",
+   "action": "人工看一眼画面本体：确认成品图与送审件的差异、以及奶瓶倒置是否真的在成图里",
+   "original_text": "5\nMOMCOZY\nBereit Fur Die Nacht，\nSupermama？\nManche Superkrafte\nPassen Auf Den\nNachttisch\n5615\nRC\n刘华的\nROOT\n刘华丽\n5615 ROOT\n\"Was Sind Deine Mama-Hacks Fuir Ruhigere Nachte？\"\n5615 ROC\n",
+   "rule_code": null,
+   "evidence": {
+    "library": "（无条款号：本项不是规则命中，是画面证据边界）",
+    "article_no": null,
+    "anchor": null,
+    "source_sha256": null,
+    "excerpt": "送审到达审查链的只有宿主 OCR 文本，没有图片文件本体／URL／content_hash ⇒ 画面安全（婴幼儿 / 睡眠 / 隐私 / 换脸合成）本次未判；「奶瓶倒着放」这一画面事实来自已定稿条款的记录，不是本次独立观测。"
+   },
+   "suggestion": "补送图片文件本体（或可访问 URL / file_token），以便：① 对送审件复算 sha256 与 a3c7828f…（123,988 字节）逐字节比对；② 独立观测奶瓶摆放；③ 补判画面安全。"
+  }
+ ],
+ "self_hit": {
+  "method": "对 kb/l4/canonical/sample_case.jsonl 中全部 polarity=反例 / semantics 以「禁区」开头的条款做规范化字符 n-gram 重叠（n=8/12/16/20/24）；本单现跑，不引用前会话结论",
+  "top": [
+   {
+    "article_no": "S-1.2",
+    "shared_16": 65,
+    "shared_12": 77,
+    "shared_24": 49
+   },
+   {
+    "article_no": "S-1.175",
+    "shared_16": 65,
+    "shared_12": 77,
+    "shared_24": 49
+   },
+   {
+    "article_no": "S-1.56",
+    "shared_16": 0,
+    "shared_12": 0,
+    "shared_24": 0
+   },
+   {
+    "article_no": "S-1.133",
+    "shared_16": 0,
+    "shared_12": 0,
+    "shared_24": 0
+   },
+   {
+    "article_no": "S-1.90",
+    "shared_16": 0,
+    "shared_12": 0,
+    "shared_24": 0
+   }
+  ],
+  "conclusion": "S-1.2 与 S-1.175 断层领先（16-gram 65 vs 次高 0），其余全部 ≤2（8-gram）⇒ 命中成立，且不是泛用词撞车"
+ },
+ "identity_evidence": {
+  "submitted_ocr_german": "mOmCOZY\nBereit Für Die Nacht,\nSupermama?\nManche Superkräfte\nPassen Auf Den\nNachttisch\n\"Was Sind Deine Mama-Hacks Für Ruhigere Nächte?\"",
+  "kb_l1_ocr_cache_sha256": "a3c7828f2f66554dfa574e112d66026473023265f771df1d63410de11423ff8a",
+  "kb_l1_image_bytes": 123988,
+  "kb_l1_ocr_cache": "kb/l1/media/recvw2vgYXHKgM/ocr.json（原生 OCR 7 行，无任何水印文字）",
+  "match": "德语 7 行逐字相同（送审侧 OCR 把 ä/ü 读成 a/u、逗号读成全角，属 OCR 归一化差异）",
+  "extra_tokens_in_submission": [
+   "5615 ROOT",
+   "5615 ROC",
+   "刘华丽",
+   "刘华的",
+   "ROOT",
+   "RC"
+  ],
+  "extra_tokens_note": "这些串在库内同一图片的原生 OCR 里没有；IMG-03 判为审阅侧 DLP 水印、不是烧进成图的内部标识。本单未独立观测画面，故按「未复核项」处理，不计入问题数量。",
+  "residual_uncertainty": "图片文件本体未到本机 ⇒ 无法对送审件复算 sha256 与 a3c7828f… 逐字节比对；同一性由「德语 OCR 逐字相同 + 同一活动 + 库内 5 条记录引用同一图片实体」确立，不是字节级证明。"
+ },
+ "screened_out": {
+  "p0_hits": 0,
+  "rules_hits": 0,
+  "rules_scanned": 509,
+  "bm25_max": 147.7935,
+  "bm25_top3_note": "Top3 全是同一张德语海报的重复素材（recvw7XIUg72fA / recvwwiEKDTDWq / recvwC9IMVeaGY），是同源留痕，不是新依据。",
+  "why_not": "未命中 ≠ 合规（库内统一口径）；但本次也没有任何规则/P0 命中可用作依据。"
+ },
+ "engine_envelope": {
+  "engine_json": "_rt-img-20261005/rt-img-05-engine.json",
+  "engine_state": "NEEDS_INPUT",
+  "engine_review_id": "rv-20261005-115428",
+  "layer_preflight": {
+   "base": "RT-20261005-IMG-05",
+   "ok": true,
+   "red_total": 0,
+   "mode": "enforced",
+   "details": {
+    "L4": {
+     "run": "RT-20261005-IMG-05-L4",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L4": "session-c89c7bae-b434-4dca-9304-736256999892"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L5": {
+     "run": "RT-20261005-IMG-05-L5",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L5": "session-c89c7bae-b434-4dca-9304-736256999892"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L6": {
+     "run": "RT-20261005-IMG-05-L6",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L6": "session-c89c7bae-b434-4dca-9304-736256999892"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L7": {
+     "run": "RT-20261005-IMG-05-L7",
+     "exit": 0,
+     "red": 0,
+     "yellow": 0,
+     "skill_sessions": {
+      "L7": "session-c89c7bae-b434-4dca-9304-736256999892"
+     },
+     "pass": true,
+     "note": ""
+    }
+   }
+  },
+  "decision_owner": {
+   "skill": "图片安全审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "图片安全审查",
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check"
+   ]
+  },
+  "run_id": "20261005-115427"
+ },
+ "feishu": {
+  "base_token": "RY2UbCRjXaeeWwscUPScVN5AnQc",
+  "table_id": "tblCXPQVzfFWWCon",
+  "record_id": "recvx8ZhG6qgnA",
+  "readback": "consistent",
+  "docx": null,
+  "report_link_column": "left_blank_per_PRD (issue_count 2 < 3)",
+  "report_local": "kb/l7/reports/rv-20261005-115428.review.md",
+  "publish_render": "kb/l7/reports/rv-20261005-115428.feishu.md",
+  "readback_file": "_rt-img-20261005/rt-img-05-readback.json"
+ }
+}

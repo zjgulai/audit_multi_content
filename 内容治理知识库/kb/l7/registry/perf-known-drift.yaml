@@ -1,0 +1,153 @@
+# perf-known-drift.yaml —— 性能类**未达标/判据过期**的登记处（只做分类，不给豁免）
+#
+# 谁读它：kb/l8/check_prd12_acceptance.py（§12 逐行落点核验）。
+#         ——「声明了但代码从不读」= 散文；所以本文件**必须有读方**，且读方要把它用在判定上。
+#
+# 规则（与 l0-expected-diffs / l3-known-drift / l5-known-drift 同一套纪律）：
+#   * 登记**不是豁免** —— 它只说明「这条已知、成因已定、处置已派给人」，
+#     免得同一件事每天被当成新事故重报一遍（狼来了）。
+#   * **读数不抄进本文件当结论**：每条只写 `measured_by`（判据路径），
+#     现场读数由判据现读。`snapshot_*` 只记登记那一刻的读数，**会过期**，不许当现状引用。
+#     （反面教材：`check_prd12_acceptance.py` 曾把「群响应观测数 0」硬写进表里，
+#       而判据后来给出 6 次观测 —— 账实不符，就是这么来的。）
+#   * 未登记的性能 FAIL = **新事件**，必须报出来。
+
+meta:
+  file: kb/l7/registry/perf-known-drift.yaml
+  checker: kb/l8/check_prd12_acceptance.py
+  created_at: "2026-10-12"
+  owner: 刘华丽
+  note: >
+    本件因 Owner 2026-10-12 的口径裁定而建。裁定把 PRD §12「性能」三档
+    从「证据层地板」（`kb/l8/perf_measure.py`，明确不含 agent 与 LLM）
+    改成「**用户实际等的时间**」，于是三档的结论从「达标」翻成「未达标」——
+    翻的是**量法**，不是库变慢了（证据层读数一个字没变）。
+
+ruling:
+  issued_by: Owner
+  issued_at: "2026-10-12"
+  verbatim: >
+    「单条文字 ≤ 10 秒；图片 ≤ 20 秒；视频 ≤ 60 秒 ==》指的是飞书侧守衡回复的时间
+     比如：我发文字给守衡，守衡 10s 内可以回复我结果」
+  therefore: >
+    §12「性能」三档 = `tIngress` → **守衡发出结果卡（reply-card）**。
+    判据 = `kb/l8/measure_verdict_latency.py`（本裁定当日新建，含 15 项自证与反向对照）。
+  not_this:
+    - "不是证据层地板（那是 kb/l8/perf_measure.py，5.145 s，**不含 agent/LLM**）"
+    - "不是回执卡时延（那是 §12「可用性 ≤5s」，kb/l8/measure_group_response.py）"
+  consequence: >
+    `kb/l7/reports/perf-latest.md` 原先那句「六项全部达标」在新口径下**不成立**
+    —— 它量的是机制地板，而 PRD 这条问的是用户等多久。该报告已在同日加口径注记。
+
+registered:
+
+  # ── 三档「性能」时限：按裁定口径**未达标**（2026-10-12 首次按此口径实测） ──────────
+  - id: perf_text
+    requirement: "PRD §12 性能：单条文字 ≤ 10 秒"
+    measured_by: kb/l8/measure_verdict_latency.py
+    snapshot_at_registration: "文字 n=45 ｜ min 12.0 s ｜ **中位 101.0 s** ｜ max 471.5 s ｜ 45/45 超线"
+    verdict_at_registration: fail
+    why: >
+      瓶颈不在知识库：证据层地板 5.1 s、四层前置 ~15 s，而**模型侧生成**占大头
+      （守衡日志逐字：「💬 回复 2903 字，耗时 54541ms」）。链本身很快
+      （逐字：「🧭 送审链返回：跑成｜1875ms」），慢的是 **LLM 写那张卡**。
+    owner_action: >
+      **守衡侧**（另一仓库 `/Users/lute/Project/audit_multi_content`）压 LLM 段：
+      典型手段是缩短回复、按结论分流（P0 命中直接回短卡）、或换更快的模型档。
+      知识库侧**没有可动的余地** —— 证据层 4~5 s 已接近地板，砍它换不来 10 s。
+    mitigation_20261012: >
+      **已做（守衡侧，另一仓库 `/Users/lute/Project/audit_multi_content`）**：
+      P0 命中那一路加**短卡**要求 —— `tools/agent/agent.mjs` 的 `P0_SHORT_REPLY_INSTRUCTION`
+      ＋ 纯函数 `p0ShortReplyBlock()`（只在这一路生效；评审链/拒答/普通对话**一个字不加**）。
+      · 判据 `node tools/agent/p0_short_reply.test.mjs` **11/11**（含反向对照 B1–B5 与变异 C1/C2）；
+        守衡既有 8 个测试全绿；改前备份 `.backups/agent.mjs.bak-pre-p0short-20261012`；已重启（新 pid 76147，四项就绪）。
+      · **覆盖只有 16.3%** —— 按守衡日志实测：送审单 129 ｜ P0 命中 21 ⇒ 这一步只救 P0 那一路。
+      · ★ **效果待观测，现在不许当达标**：中位数在一次真实 P0 命中送审之后才会动，
+        且**中位本身预期不动**（P0 单占不到一半）—— 见本文件 `perf_text` 的 `why`。
+    expected_effect: >
+      P0 命中单：结果卡从 **2903 字 / 54.5 s** 压到 ≤300 字 / ≤10 s。**这是目标，不是实测** ——
+      要等下一次真实 P0 命中送审，由 `kb/l8/measure_verdict_latency.py` 自动纳入。
+    status: open
+
+  - id: perf_image
+    requirement: "PRD §12 性能：图片 ≤ 20 秒"
+    measured_by: kb/l8/measure_verdict_latency.py
+    snapshot_at_registration: "图片 n=24 ｜ min 14.4 s ｜ **中位 201.2 s** ｜ max 681.5 s ｜ 23/24 超线"
+    verdict_at_registration: fail
+    why: >
+      与文字同因（LLM 段）＋ 媒材读取（逐字：「视频 68.9 秒｜抽帧 OCR 8/8 帧｜音轨转写 158 字」）。
+      ★ 注意：`perf-latest.md` 里那个 4.132 s 是**用 OCR 文本代输入**的近似，
+      **不含**真实 OCR/抽帧成本 —— 两个数不是一回事，别互相引证。
+    owner_action: 同 prd12_perf_text；媒材抽取链要不要进这条预算，**待裁**。
+    mitigation_20261012: >
+      **已做（守衡侧，另一仓库 `/Users/lute/Project/audit_multi_content`）**：
+      P0 命中那一路加**短卡**要求 —— `tools/agent/agent.mjs` 的 `P0_SHORT_REPLY_INSTRUCTION`
+      ＋ 纯函数 `p0ShortReplyBlock()`（只在这一路生效；评审链/拒答/普通对话**一个字不加**）。
+      · 判据 `node tools/agent/p0_short_reply.test.mjs` **11/11**（含反向对照 B1–B5 与变异 C1/C2）；
+        守衡既有 8 个测试全绿；改前备份 `.backups/agent.mjs.bak-pre-p0short-20261012`；已重启（新 pid 76147，四项就绪）。
+      · **覆盖只有 16.3%** —— 按守衡日志实测：送审单 129 ｜ P0 命中 21 ⇒ 这一步只救 P0 那一路。
+      · ★ **效果待观测，现在不许当达标**：中位数在一次真实 P0 命中送审之后才会动，
+        且**中位本身预期不动**（P0 单占不到一半）—— 见本文件 `perf_text` 的 `why`。
+    expected_effect: >
+      P0 命中单：结果卡从 **2903 字 / 54.5 s** 压到 ≤300 字 / ≤10 s。**这是目标，不是实测** ——
+      要等下一次真实 P0 命中送审，由 `kb/l8/measure_verdict_latency.py` 自动纳入。
+    status: open
+
+  - id: perf_video
+    requirement: "PRD §12 性能：视频 ≤ 60 秒"
+    measured_by: kb/l8/measure_verdict_latency.py
+    snapshot_at_registration: "视频 n=13 ｜ min 63.4 s ｜ **中位 186.6 s** ｜ max 316.6 s ｜ 13/13 超线"
+    verdict_at_registration: fail
+    why: 同图片档（ASR + 抽帧 + LLM）。
+    owner_action: 同 prd12_perf_text。
+    mitigation_20261012: >
+      **已做（守衡侧，另一仓库 `/Users/lute/Project/audit_multi_content`）**：
+      P0 命中那一路加**短卡**要求 —— `tools/agent/agent.mjs` 的 `P0_SHORT_REPLY_INSTRUCTION`
+      ＋ 纯函数 `p0ShortReplyBlock()`（只在这一路生效；评审链/拒答/普通对话**一个字不加**）。
+      · 判据 `node tools/agent/p0_short_reply.test.mjs` **11/11**（含反向对照 B1–B5 与变异 C1/C2）；
+        守衡既有 8 个测试全绿；改前备份 `.backups/agent.mjs.bak-pre-p0short-20261012`；已重启（新 pid 76147，四项就绪）。
+      · **覆盖只有 16.3%** —— 按守衡日志实测：送审单 129 ｜ P0 命中 21 ⇒ 这一步只救 P0 那一路。
+      · ★ **效果待观测，现在不许当达标**：中位数在一次真实 P0 命中送审之后才会动，
+        且**中位本身预期不动**（P0 单占不到一半）—— 见本文件 `perf_text` 的 `why`。
+    expected_effect: >
+      P0 命中单：结果卡从 **2903 字 / 54.5 s** 压到 ≤300 字 / ≤10 s。**这是目标，不是实测** ——
+      要等下一次真实 P0 命中送审，由 `kb/l8/measure_verdict_latency.py` 自动纳入。
+    status: open
+
+  # ── L5 的 1MB 余量用例：判据 FAIL，但**没有任何周期闸门看它** ─────────────────────
+  - id: p0_response
+    requirement: "PRD §12 P0 层响应 ≤ 1 秒（PRD 原文**未限定输入规模**）"
+    measured_by: kb/l5/benchmark.json（`verdict` 字段；由 kb/.work/l5_bench.py 产出）
+    snapshot_at_registration: >
+      11 条模式 ｜ 1MB 用例中位 **1229 ms**（`under_1s: false`）⇒ `verdict = FAIL`；
+      真实送审形态三档 0.04 / 0.95 / 154 ms 全部 ≤1s。
+    verdict_at_registration: fail
+    why: >
+      **判据过期，不是算法劣化**（2026-10-10 定性件 `定性-L5性能FAIL是否回归-20261010.md`）：
+      每模式耗时四次测量恒定 102.9–105.3 ms，而模式表从 7 条扩到 11 条（补 H01/H03/H08/M03）
+      ⇒ 1132→1229 ms 是**线性于模式数**。1MB ≈ 37 万字符 ≈一本书，而真实送审是单条文案/一张图 OCR。
+    evidence: >
+      跳变时刻可钉死：`m03-p0-20261009`（7 模式，730.884 ms，PASS）→
+      `daily-20261010-1010-L5`（11 模式，1132.333 ms，FAIL）。
+      消费方现状：`grep -rn benchmark kb/l8 kb/l7/scripts ci tools` = **0 命中**
+      ⇒ 只有 `kb/.work/l5_report.py` 读它来写 L5 落章 verdict（今天 2026-10-12 16:52 的落章仍是 FAIL），
+      **闸门不看、日报不提、未达标说明没写**。本登记补的就是这一格。
+    owner_action: >
+      二选一，**要 Owner 点头**（属口径变更）：
+      ① 判据分级 —— 真实送审形态仍须 <1s，1MB 余量用例改判「**每模式 ≤ 120 ms**」
+         （超过 120 才说明真劣化）；
+      ② 优化 matcher 保住 1MB <1s（代价：另一工时；已做过两轮优化，再压 30% 不便宜）。
+      改 `kb/.work/l5_bench.py` 前**必须先备份 `kb/l5/benchmark.json`**（它不解析 argv、无干跑档，一跑无条件覆写）。
+    status: resolved
+    resolution: >
+      **Owner 2026-10-12 同意走 ①（判据分级）**，已落地：
+      · `kb/.work/l5_bench.py` 改为分级判定 —— **真实送审形态三档硬门槛 <1000 ms 一个字没松**，
+        余量用例 `large_doc_1mb` 改判**每模式中位 ≤ 120 ms**；口径写进 `benchmark.json.criterion`（**单一真源**）。
+      · 判据自证 `l5_bench.py --selftest` **10/10**（含反向对照：真实形态 1000 ms ⇒ FAIL、
+        余量用例 1500 ms ⇒ FAIL；**⑥ 真实形态超线时整体必须 FAIL ⇒ 分级不覆盖真实形态**）。
+      · 复跑后 `kb/l5/benchmark.json`：`verdict = PASS`（真实形态 0.039 / 0.965 / 147.185 ms；
+        1MB 1185.489 ms ÷ 11 模式 = **107.772 ms/模式**）。改前备份在 `kb/l5/_backups/bench-grading-20261012/`。
+      · **接线**：新增复算闸门 `kb/l8/check_perf_bench.py`（只读、读 `criterion` 复算、
+        并比对「记下来的 verdict」与「复算 verdict」）⇒ 挂进 `ci/run_gates.py` 的 **CORE_GATES（blocking）**。
+        自证 **9/9**。这是补上原来的缺口：**此前全库没有任何周期闸门读 benchmark.json**
+        （`grep -rn benchmark kb/l8 kb/l7/scripts ci tools` = 0 命中），所以那次 FAIL 一直红着没人看见。

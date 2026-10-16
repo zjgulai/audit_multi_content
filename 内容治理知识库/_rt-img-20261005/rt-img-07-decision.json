@@ -1,0 +1,187 @@
+{
+ "decision": {
+  "state": "BLOCK",
+  "decision": "BLOCK",
+  "confidence": null,
+  "review_id": "rv-20261005-130807",
+  "content_id": "AUTO-48cac901ac43",
+  "content_version": "48cac901ac43c7454f1b90177fdc451dfeb07a9cb7fea241b27b87faef3b679f",
+  "issue_count": 2,
+  "summary": "【审查结论：BLOCK】送审图片与库内已定稿反例/禁区条款 S-1.2（近重复 S-1.175）实质同一：同一图片文件实体（sha256 a3c7828f…，123,988 字节）、同一活动（欧洲社媒德国 8.14 Jeder Schritt der Stillreise）、德语 OCR 与样本正文逐字相同；该条款定论 = 原则性错误「奶瓶不建议倒着放」。⇒ 不能发。【本结论的来路，必须一起读】引擎 with_kb_evidence.py 本单实际输出 = NEEDS_INPUT（拒答 · 退出码 3）：P0 0 命中、509 条规则 0 命中、L6 召回 Top10 未召回 S-1.2 的单元（f8e2ee3741a6d1b8c307，本单现跑复核：该 unit 不在 kb/l6/bm25 的 4261 个 doc 里）。⇒ 引擎对「已定稿反例/禁区」没有消费者，按 no_hit fail-closed 拒答。本 BLOCK **不是引擎产出的**，而是判定主体『图片安全审查』按 Owner 2026-10-05 规则①（自命中已定稿反例/禁区 = 本素材本身有定论，必须登记 findings 并出三态，不许降级/拒答）登记得出。引擎侧缺口记作 GAP-SELFHIT-1（**未登记进 kb/l7/registry**，前几单也未登记）。【本单新增事实：画面本体这次真的看到了】前几单（IMG-02/03/06）报告写「画面本体未到本机、画面未判」。本单现核：库内同一图片文件实体 sha256 a3c7828f…（123,988 字节）**就在本机** —— kb/l1/media 下有 4 份同 sha 副本（逐份复算一致，本单读的是 kb/l1/media/media_tbld8qE92YaY38Yz_recvw7XIUg72fA/img_01.png）。本单用 read_image 看了原图（1080x1350）与床头柜区域放大图；画面观察见风险项 2。**但送审件的字节仍未到本机** —— 同一性仍由「OCR 逐字相同 + 该文件实体被 5 条 L0 记录引用」确立，不能对送审件复算 sha。这条边界没有变，不许读成「送审件已逐字节比对」。【更正前几单的一处不实陈述】IMG-04/05 曾称「库内 sample_case 自带 not_proves / forbidden（案例只作参照、不许据本条直接判 BLOCK）」。本单现核：权威 L4（kb/l4/canonical/sample_case.jsonl）的 S-1.2 / S-1.175 **没有** not_proves / forbidden 字段（全文 grep 0 命中）；那段文字只在**派生视图生成器**（kb/.work/gen-host-library-l4.py:242-249 及其备份）里，是宿主库视图给案例统一盖的「参照」章，且当前 live view（kb/view）只有 3_措辞表达库、**不含案例** ⇒ 不是活冲突。**权威 L4 对该两条的定性是**：polarity=反例 · semantics=禁区：不能这么做 + 为什么 · status=stable · evidence_strength=禁区可复现：有完整样本本体 + 原因分析；rule_eligible 单元可在 L2 解析。",
+  "risk_items": [
+   {
+    "risk_type": "原则性错误（自命中已定稿反例/禁区 S-1.2，近重复 S-1.175）",
+    "priority_tier": "BLOCK",
+    "action": "按已定稿反例定论处置：改正画面中奶瓶的摆放（不得倒置/横倒放置），改后重新提交",
+    "original_text": "mOmCOZY\nBereit Für Die Nacht,\nSupermama?\nManche Superkräfte\nPassen Auf Den\nNachttisch\n\"Was Sind Deine Mama-Hacks Für Ruhigere Nächte?\"",
+    "rule_code": "S-1.2",
+    "evidence": {
+     "library": "内部正负样本库（kb_type=internal_sample）",
+     "article_no": "S-1.2",
+     "anchor": "#正面和负面样本/recvw2vgYXHKgM/原文反馈",
+     "source_sha256": "9f39a37061cf6d1e33af111127156a9a38e69d2cfd6de70e6c71f3e8685c5136",
+     "excerpt": "【原则性错误】图片 奶瓶不建议倒着放，对于宝宝和妈妈来说，奶瓶的卫生重要至极，所。\n原因：我们的产品才会有奶瓶消毒器，喝完奶、喝之前都要消毒杀菌的，所以随意倒着放这个行为不符合用户习惯",
+     "trace": {
+      "form": "sample_case",
+      "polarity": "反例",
+      "semantics": "禁区：不能这么做 + 为什么",
+      "reason_category": "原则性错误",
+      "status": "stable",
+      "owner": "刘华丽",
+      "valid_until": "2027-03-28",
+      "effective_from": "2026-09-29",
+      "material_type": "图片",
+      "channel": "社媒",
+      "evidence_strength": "禁区可复现：有完整样本本体 + 原因分析",
+      "l4_anchor": "#正面和负面样本/recvw2vgYXHKgM/原文反馈",
+      "l2_unit_id": "f8e2ee3741a6d1b8c307",
+      "l2_media_anchor": "#素材/recvw2vgYXHKgM/图片素材/#img.1",
+      "l1_source_sha256": "9f39a37061cf6d1e33af111127156a9a38e69d2cfd6de70e6c71f3e8685c5136",
+      "l1_image_file_sha256": "a3c7828f2f66554dfa574e112d66026473023265f771df1d63410de11423ff8a",
+      "l1_image_file_bytes": 123988,
+      "l1_image_local_copies": [
+       "kb/l1/media/media_tbld8qE92YaY38Yz_recvw7XIUg72fA/img_01.png",
+       "kb/l1/media/media_tbld8qE92YaY38Yz_recvw7XIUg72fA/img_02.png",
+       "kb/l1/media/media_tbld8qE92YaY38Yz_recvwC9IMVeaGY/img_01.png",
+       "kb/l1/media/media_tbld8qE92YaY38Yz_recvwwiEKDTDWq/img_01.png"
+      ],
+      "l1_file": "kb/l1/2_内部正负样本库/bitable__tbld8qE92YaY38Yz__recvw2vgYXHKgM.json",
+      "l2_file": "kb/l2/units.jsonl（unit_id=f8e2ee3741a6d1b8c307）",
+      "l0_entry_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw2vgYXHKgM",
+      "l0_record_id": "recvw2vgYXHKgM",
+      "l0_verbatim_field": "具体原因/分析",
+      "sha_note": "与 L0 记录值比对一致（**不是重算**）：sha 输入是 record_fields 字段 blob，本地 L0 件不含该 blob；要真核对只能点 L0 直链。"
+     },
+     "near_duplicate": {
+      "article_no": "S-1.175",
+      "material_type": "文字",
+      "anchor": "#正面和负面样本/recvw2wE9MmvI2/原文反馈",
+      "unit_id": "ce49d00481ce3e18785e",
+      "source_sha256": "a39db867fa9cdd73bc2013dcb5d4639209d0974cf36ce6700c635f674cfbe773",
+      "entry_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw2wE9MmvI2",
+      "reason_analysis": "【原则性错误】文案 奶瓶不建议倒着放，对于宝宝和妈妈来说，奶瓶的卫生重要至极，所。\n原因：我们的产品才会有奶瓶消毒器，喝完奶、喝之前都要消毒杀菌的，所以随意倒着放这个行为不符合用户习惯"
+     }
+    },
+    "suggestion": "按已定稿反例处置 —— 定论逐字：「奶瓶不建议倒着放，对于宝宝和妈妈来说，奶瓶的卫生重要至极……随意倒着放这个行为不符合用户习惯」。改正画面中奶瓶的摆放后重新提交。⚠️ L0「建议」字段文本与「具体原因/分析」逐字相同、首句却是否定句（原文「建议倒着放…」），疑为采集时字段复制错误 ⇒ 该字段**不得直接外发**，需业务先确认口径。"
+   },
+   {
+    "risk_type": "画面观察（本次首次可判 · 知识库无对应条款）",
+    "priority_tier": "REVIEW",
+    "action": "人工确认画面场景是否可接受（夜间卧室 + 婴儿在成人床上）；如需逐字节核送审件，请补送图片文件本体",
+    "original_text": "mOmCOZY\nBereit Für Die Nacht,\nSupermama?\nManche Superkräfte\nPassen Auf Den\nNachttisch\n\"Was Sind Deine Mama-Hacks Für Ruhigere Nächte?\"",
+    "rule_code": null,
+    "evidence": {
+     "library": "（无条款号：本项不是规则命中，是画面观察 + 证据边界）",
+     "article_no": null,
+     "anchor": null,
+     "source_sha256": null,
+     "excerpt": "本单已看原图（kb/l1/media 同 sha 副本，123,988 字节，1080x1350）。画面逐项观察：① 夜景卧室插画：窗外月牙 + 暖色床头灯；妈妈盘腿坐在**成人床**上，宝宝俯卧/侧卧在她腿上；② 妈妈 T 恤印超人「S」标志（对应设计要求的「带超人标志」）；③ 床头柜自左至右：蓝色圆柱设备（momcozy 标）、薄荷绿保温瓶（momcozy 标 + 「37」）、**一只白色奶瓶状物件横放**（非直立）、平板/手机；④ 宝宝面部不可见（不构成可识别的儿童出镜）；⑤ 未见换脸/合成痕迹（插画风格）。【边界，必须一起读】库内**没有**针对「图片里的婴儿睡眠场景」的可判条款：引擎规则层 0 命中、P0 0 命中；库内最接近的定稿是**措辞类**条款 W-2.122 / W-2.103（AAP 安全睡眠：不应让宝宝在成人床上睡整觉），但它们是**文字表述**条款，**不构成本图的可判依据**。⇒ 按库口径「查不到就说查不到」：本项不作为 BLOCK 依据，登记为人工复核项。送审件**字节**仍未到本机，无法对送审件复算 sha256。"
+    },
+    "suggestion": "① 人工看画面确认场景可接受性；② 如需把同一性钉到字节级，补送图片文件本体/URL；③ 该画面场景若要自动化判定，需先由 kb-pipeline 把「婴儿睡眠场景」类规则补进 L3/L5（本库现无）。"
+   }
+  ],
+  "next_owners": [
+   "内容治理负责人"
+  ],
+  "fails_closed": true,
+  "refusal": {
+   "state": "NEEDS_INPUT",
+   "detail": "依据侧拒答（fail-closed）",
+   "fails_closed": true
+  },
+  "gate": null,
+  "issue_summary_by_category": {
+   "原则性错误（自命中已定稿反例/禁区 S-1.2，近重复 S-1.175）": 1,
+   "画面观察（本次首次可判 · 知识库无对应条款）": 1
+  }
+ },
+ "evidence_meta": {
+  "run_id": "20261005-130806",
+  "findings": 0,
+  "state": "NEEDS_INPUT",
+  "fails_closed": true,
+  "refusal": {
+   "state": "NEEDS_INPUT",
+   "detail": "依据侧拒答（fail-closed）",
+   "fails_closed": true
+  },
+  "report_path": null,
+  "source": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py",
+  "findings_source": {
+   "mode": "live",
+   "path": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py"
+  },
+  "layer_preflight": {
+   "base": "RT-20261005-IMG-07",
+   "ok": true,
+   "red_total": 0,
+   "mode": "enforced",
+   "details": {
+    "L4": {
+     "run": "RT-20261005-IMG-07-L4",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L4": "session-96cf115a-f09e-4b22-8d6c-8580ded8654f"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L5": {
+     "run": "RT-20261005-IMG-07-L5",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L5": "session-96cf115a-f09e-4b22-8d6c-8580ded8654f"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L6": {
+     "run": "RT-20261005-IMG-07-L6",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L6": "session-96cf115a-f09e-4b22-8d6c-8580ded8654f"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L7": {
+     "run": "RT-20261005-IMG-07-L7",
+     "exit": 0,
+     "red": 0,
+     "yellow": 0,
+     "skill_sessions": {
+      "L7": "session-96cf115a-f09e-4b22-8d6c-8580ded8654f"
+     },
+     "pass": true,
+     "note": ""
+    }
+   }
+  },
+  "decision_owner": {
+   "skill": "图片安全审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "图片安全审查",
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check"
+   ]
+  },
+  "publish": {
+   "mode": "enabled",
+   "published": false,
+   "reason": "no_conclusion"
+  }
+ },
+ "source": "kb-evidence-findings-cache/1 + 判定主体登记（Owner 2026-10-05 规则①）",
+ "registered_by": "图片安全审查（会话 session-96cf115a）",
+ "base": "RT-20261005-IMG-07"
+}

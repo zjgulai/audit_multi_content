@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Brand content review payload",
+  "type": "object",
+  "required": ["review_id", "content_id", "content_type", "content_version", "input_manifest", "coverage", "risk_items"],
+  "properties": {
+    "review_id": {"type": "string"},
+    "content_id": {"type": "string"},
+    "submitted_by": {"type": "string"},
+    "product_line": {"type": "string"},
+    "sku": {"type": "string"},
+    "channel": {"type": "string"},
+    "content_type": {"enum": ["text", "image", "video", "mixed"]},
+    "content_version": {"type": "string"},
+    "input_manifest": {"type": "object"},
+    "coverage": {"type": "object"},
+    "risk_items": {"type": "array", "items": {"type": "object"}},
+    "version_gate": {"type": "object"},
+    "next_owners": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": true
+}
