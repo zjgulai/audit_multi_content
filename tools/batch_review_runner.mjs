@@ -38,6 +38,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { handleMessage } from './agent/agent.mjs';
+import { bestImageVariant } from './agent/image_variant.mjs';
 import * as videoMod from './agent/video.mjs';
 import { client, sendMarkdown } from './agent/feishu.mjs';
 import { toCardOrText } from './reply-cards/envelope.mjs';
@@ -114,8 +115,24 @@ function readTable(table, { sortDesc = false } = {}) {
   return { fields, rows: (dd.data ?? []).map((row, n) => ({ record_id: ids[n] ?? null, row, cell: (name) => cell(row, name) })) };
 }
 
+/**
+ * 采采表里那一列「报告链接」的**真实列名**（本表叫 `10/14重跑报告链接`）。
+ *
+ * ★ 2026-10-16：回填字段名是 `报告链接`，而列名带前缀 ⇒ 以前按名字对不上就整个跳过
+ *   ⇒ **复跑新建的报告永远进不了那一列**（37 行「格内结论新一轮、点开是上一轮」）。
+ *   这里只认「名字里含『报告链接』」的那一列；`KNOWN_FIELDS` 还没填时回 null（离线自证不拦）。
+ */
+function linkColumn() {
+  if (!KNOWN_FIELDS) return null;
+  return KNOWN_FIELDS.includes('报告链接')
+    ? '报告链接'
+    : (KNOWN_FIELDS.find((f) => /报告链接/.test(f)) ?? null);
+}
+
 /** 把结论表里这一条的结果字段搬进采集表（**读回来再写**，不猜字段、不编值）。 */
-async function writeBack(contentId, recordId, sinceMs, materialText = '', publishedRowId = null, currentStatus = '') {
+async function writeBack(contentId, recordId, sinceMs, materialText = '', publishedRowId = null,
+                         currentStatus = '', reportUrl = null, verdict = null,
+                         { strict = false } = {}) {
   // ★ 认领方式**不是**按 `内容 ID`：链会给素材**自己编一个**（实测它是 `AD-20261013-001`，
   //   而不是采集表里的 `MC-AMZ-…`）—— 按内容 ID 找会一条都找不到（我第一版就是这么写的）。
   //   改成**按时间窗认领「这一轮刚出现的那一行」**：与 `review_publish.ensureReviewRow`
@@ -184,9 +201,43 @@ async function writeBack(contentId, recordId, sinceMs, materialText = '', publis
   //     「【对方这条消息里附了视频，共 1 段。…】」）⇒ 文本键**结构上对不上**，
   //     时间窗又会捡到链侧那行空的。实测栽过两次（`问题数量` 先被写成 0、视频行被写成 PASS/0）。
   //   ⇒ 有 publishedRowId 就用它；没有（例如 `--backfill` 补历史）才退回猜。
-  const hit = (publishedRowId && res.rows.find((r) => r.record_id === publishedRowId)) || _guess;
-  if (!hit) return { ok: false, why: `结论表里这一单（素材原文 ／ 自 ${new Date(sinceMs).toISOString()} 起）都没有行 —— 不写` };
-  return writeFields(recordId, dropHumanTerminalStatus(fieldsFrom(hit), currentStatus));
+  //   ★★ 2026-10-16（Owner：「3 只有你写，别人没写」＋ 80 行逐字段核对）：**常规批跑不再猜**。
+  //     实测代价（拿 80 行逐字段核出来的）：猜错行 = 把**另一遍/上一轮**的字段搬进采集表 ——
+  //     行22 搬回了上一轮的占位话术；行30/33/34/48/52 的数与**本轮报告**对不上
+  //     （本轮报告 4/1/4/4/4，表里落的 3/2/3/2/3，而那与本单在结论表里的**另一遍**一致）。
+  //     ⇒ `strict`（批跑路径）**只认本轮 `publishedRowId`**；认不到 ⇒ **不写**并**出声**。
+  //       `--backfill` 那条历史补写的老路保留猜（它本来就没有本轮 id，写的是历史）。
+  const strictHit = publishedRowId ? res.rows.find((r) => r.record_id === publishedRowId) : null;
+  const hit = strictHit || (strict ? null : _guess);
+  if (!hit) {
+    return { ok: false, why: strict
+      ? (publishedRowId
+          ? `本轮结论表行 ${publishedRowId} 读不到（可能被清理）⇒ **不写**（不许猜另一行）`
+          : '本单没拿到本轮结论表行 id（`publishedRowId` 为空）⇒ **不写**（不许猜另一行）')
+      : `结论表里这一单（素材原文 ／ 自 ${new Date(sinceMs).toISOString()} 起）都没有行 —— 不写` };
+  }
+  const fields = dropHumanTerminalStatus(fieldsFrom(hit), currentStatus);
+  // ── ★★ 2026-10-16：链接列**以本轮自己跑出来的那一份为准**（Owner 裁定「换成与格内同源的最新那份」）──
+  //   为什么不能直接抄结论表那一格：`review_publish.ensureReviewRow` 对 `报告链接` 是
+  //   「**只补空**」（那条规则防的是"新报告成孤儿"），于是**复跑新建的报告进不了结论表**，
+  //   那一格永远是**上一轮**那一份 ⇒ 抄过来就是「格内结论新一轮、点开是上一轮」。
+  //   本轮的报告 URL 就在手边（`out.meta.reportLink`），它才是与刚写进去的那几格同源的。
+  //   · 有本轮报告 ⇒ 写本轮的；
+  //   · **本轮没建报告（PASS：没有可并的条目）⇒ 把链接清掉** —— 与本表既有规则一致
+  //     （「清空只走 PASS 那条规则」），否则会出现「格内 PASS/0、点开那份写着 4 处」。
+  const LINK_COL = linkColumn();
+  if (LINK_COL) {
+    const u = String(reportUrl ?? '').trim();
+    // ★★ 2026-10-16 修（Owner：「这一列有的黑字、有的蓝色可点」的**第二个**成因）——
+    //   这里原先写的是 **markdown 字符串** `[内容审查报告](url)`。那一列是**超链接**字段：
+    //     · 字段是「超链接」时，字符串会被拒（`1254068 URLFieldConvFail`）；
+    //     · 字段被改成「文本」时，字符串能写进去，但飞书按**纯文本**渲染 ⇒ **黑字、点不开**
+    //       —— 实测 2026-10-16 那 7 格就是这么来的（65 格历史数据是 URL 段，所以是蓝的）。
+    //   ⇒ 统一写成**对象式** `{link, text}`（与那一列的历史形态、以及 `fieldsFrom()` 那条路一致）。
+    if (/^https?:\/\//.test(u)) fields[LINK_COL] = { link: u, text: '内容审查报告' };
+    else if (String(verdict ?? '').toUpperCase() === 'PASS') fields[LINK_COL] = '';
+  }
+  return writeFields(recordId, fields);
 }
 
 /**
@@ -222,7 +273,32 @@ function fieldsFrom(hit) {
     //   实测背景：Owner 删了采集表的「报告链接」列 ⇒ `RESULT_FIELDS` 里那一个名字成了非法字段名，
     //   batchUpdate 会整批被拒（与 200 行分页那个坑的症状一样、根因完全不同）。
     //   `KNOWN_FIELDS` 没填时（例如离线自证）**不拦**，行为与改动前逐字相同。
-    if (KNOWN_FIELDS && !KNOWN_FIELDS.includes(name)) { SKIPPED_FIELDS.add(name); continue; }
+    if (KNOWN_FIELDS && !KNOWN_FIELDS.includes(name)) {
+      // ★★ 2026-10-16：**"名字对不上"不等于"没有这一列"** —— 采集表那一列现在叫
+      //   `10/14重跑报告链接`，而回填字段名是 `报告链接` ⇒ 上面那条跳过规则把它整个吞掉，
+      //   于是**复跑新建的报告永远进不了那一列**。实测后果（Owner 2026-10-16 那句
+      //   「飞书表格中的数据和报告都对齐」）：37 行「格内结论是新一轮的、
+      //   链接点开却是上一轮那份」（例：第 17 行格内 1 处、点开那份写 4 处）。
+      //   ⇒ 只对 `报告链接` 这一个字段兜底：找名字里含「报告链接」的那一列。
+      //   ⚠️ 别的字段照旧「对不上就跳过」—— 乱猜列名比漏一列更坏。
+      let target = name;
+      if (name === '报告链接') {
+        const alt = KNOWN_FIELDS.find((f) => /报告链接/.test(f));
+        if (alt) target = alt;
+      }
+      if (!KNOWN_FIELDS.includes(target)) { SKIPPED_FIELDS.add(name); continue; }
+      const v0 = hit.cell(name);
+      if (v0 === '' || v0 == null) continue;
+      // ★★ 2026-10-16 改（与 `writeBack` 那处同一条口径）：**写成对象式 `{link, text}`**。
+      //   原先这里写的是 markdown 字符串，理由写的是「本表链接列实测是文本列」——
+      //   那只是**当时**的形状（列被改成文本时，字符串才写得进去）。列恢复成**超链接**之后：
+      //     · 字符串会被拒（`1254068 URLFieldConvFail`）；
+      //     · 就算写进去了（文本列），飞书按**纯文本**渲染 ⇒ **黑字、点不开**（实测 7 格）。
+      //   ⇒ 这一列唯一正确的形状是 `{link, text}`（历史那 65 格就是这个形状，所以是蓝的）。
+      const mm = /\]\((https?:\/\/[^)]+)\)/.exec(String(v0)) || /(https?:\/\/\S+)/.exec(String(v0));
+      fields[target] = { link: mm ? mm[1] : String(v0), text: '内容审查报告' };
+      continue;
+    }
     const v = hit.cell(name);
     if (v === '' || v == null) continue;                       // 空的不写（不许把空值刷上去）
     let val = Array.isArray(v) && v.length === 1 && typeof v[0] === 'string' ? v[0]
@@ -230,11 +306,21 @@ function fieldsFrom(hit) {
     // ★ `报告链接` 那一列是 **URL 型字段**：塞 markdown 链接会 `1254068 URLFieldConvFail`
     //   ⇒ **整批 batchUpdate 被拒**（实测：六字段一起写时 ok=false 且 reason 为空，
     //   逐字段二分才看出是这一个字段）。判据里那一步「接口成功 ≠ 数据落下来」正是治它的。
-    if (name === '报告链接') {
+    //
+    // ★★ 2026-10-16 修（Owner 报「这一列有的黑字、有的蓝色可点」）——**判据写错了列名**：
+    //   这里原先写的是 `name === '报告链接'`（写死），而这一列在表里叫
+    //   **`10/14重跑报告链接`**（由上面的 `linkColumn()` 解析出来的）。两者不相等 ⇒
+    //   **这个转换从来没执行过** ⇒ markdown 串被当**纯文本**写进去，飞书按文本渲染（黑字、点不开）。
+    //   实测（当时 80 行）：**65 格**是历史遗留的 URL 段（蓝）＋ **7 格**是我最近几次复跑写进去的
+    //   纯文本（黑）——正是 Owner 看到的那两种长相。
+    //   ⇒ 判据改成**按解析出来的列名**判（`linkColumn()` 是这一列的唯一取法，别再写死第二个名字）。
+    const linkCol = linkColumn();
+    if (linkCol && name === linkCol) {
       const m = /\]\((https?:\/\/[^)]+)\)/.exec(String(val)) || /(https?:\/\/\S+)/.exec(String(val));
       // ★ 而且它要**对象式** `{link, text}` —— 裸字符串也是 `1254068 URLFieldConvFail`（实测三种形状：
       //   裸 URL ✗、带尾斜杠 ✗、`{link,text}` ✓）。这两层是同一个字段的两种坑，一起写在这儿。
-      val = { link: m ? m[1] : String(val), text: '审查报告' };
+      //   ⚠️ 文本统一成 `内容审查报告`（与历史那 65 格一致）—— 原先这里写的 `审查报告` 会让同一列两种文字。
+      val = { link: m ? m[1] : String(val), text: '内容审查报告' };
     }
     fields[name] = val;
   }
@@ -364,6 +450,26 @@ function imageUrlOf(text) {
     if (u && /\.(jpe?g|png|webp|gif|bmp)(\?|$)/i.test(u)) return u;
   }
   return null;
+}
+
+/**
+ * 素材图 URL → **最大可用变体**（Owner 2026-10-16：「按照你的推荐先做 a」）。
+ *
+ * 病灶（一手实测，见 `agent/image_variant.mjs` 头部）：同一批 20 行视频素材里，
+ * **10 行存 `hqdefault`（480×360）、10 行存 `maxresdefault`（1280×720）** —— 前者 OCR 出来是乱码，
+ * 模型侧只看文字层 ⇒ 它回 `[]` ⇒ 该行从 REVIEW 翻成 PASS（2026-10-16 重跑第 33 行就是这么翻的）。
+ * 三条纪律：① 取不到高清就**用原图**（fail-open，绝不把图丢掉）；
+ * ② **不动素材记录**（只读源、也不改自己的采集格）——升级只发生在读的时候；
+ * ③ 不是 YouTube 缩略图 ⇒ 一个请求都不发（见 `bestImageVariant`）。
+ * 用了哪个变体**打进日志**：看日志的人要能说出"这一轮读的是哪张图"。
+ */
+async function resolveMaterialImage(text) {
+  const u = imageUrlOf(text);
+  if (!u) return null;
+  const best = await bestImageVariant(u, { log: (s) => console.log(`   ${s}`) });
+  // 探过但没升级成功（高清都 404/超时）⇒ 也要看得见：不然"这一轮读的是糊图"就没人知道
+  if (best.tried.length && !best.upgraded) console.log(`   🖼 素材图：${best.note}`);
+  return best.url;
 }
 
 /** 非 URL 的那些行（图注 / 来源页说明）—— 作为这条图消息的正文。 */
@@ -515,7 +621,7 @@ async function runOne(row, tag) {
     }
   }
   const imgUrl = (_ct.includes('图片') || (_isVid && msgType === 'text' && !usedLocalRead))
-    ? imageUrlOf(matText) : null;
+    ? await resolveMaterialImage(matText) : null;
   if (imgUrl) {
     try {
       const cap = _isVid
@@ -679,7 +785,13 @@ async function main() {
     saveState(st);
     // ── 回填采集表：从结论表把这一条的结果搬过来（守衡的链刚刚自己写进去的那一行）
     const wb = await writeBack(row.content_id, row.record_id, t, row.text,
-                               out.meta?.chain?.publish?.record_id ?? null, row.state);
+                               out.meta?.chain?.publish?.record_id ?? null, row.state,
+                               // ★ 2026-10-16：本轮的**报告 URL** 与三态一起传进去 ——
+                               //   链接列要以本轮那份为准（PASS 本轮没报告 ⇒ 清掉），见 writeBack 里那段。
+                               out.meta?.reportLink ?? null, state,
+                               // ★ 2026-10-16：常规批跑**只认本轮那一行**（拿不到就不写、出声）——
+                               //   猜行的代价见 writeBack 里那段（80 行逐字段核对抓出来的）。
+                               { strict: true });
     st.items[row.content_id].write_back = wb.ok ? 'ok' : `失败：${wb.why ?? wb.detail}`;
     st.items[row.content_id].write_back_readback = wb.readback ?? null;
     st.items[row.content_id].write_back_fields = wb.fields ?? null;

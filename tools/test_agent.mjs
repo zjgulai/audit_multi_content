@@ -23,6 +23,14 @@ process.env.SHOUHENG_REVIEW_TABLE = 'off';
 //   ⇒ 自证一律指到 /tmp。修这条的背景：台账此前因 `stateDir` 少个 `()` **从来没写成过**，
 //   现在修好了，若不拉闸，第一次跑自证就会把测试单写进真台账。
 process.env.KB_CONF_LEDGER = '/tmp/shouheng-test-confidence-merged.ndjson';
+// ★ 2026-10-16：**身份拒收账本同理** —— `PMO/logs/identity-reject.ndjson` 是判「那把锁有没有
+//   又失效」的真读数，而 N2 那组会**真跑拒收路径**（真文件行为级）⇒ 不拉闸就会往真账本里
+//   掺测试行，把「线上拒收了几次」这个读数弄脏（§2.4.4 同一个形状，第三次）。
+//   判据在 N4b：本次运行前后，**真账本必须一个字节都没动**。
+const REAL_REJECT_LOG = new URL('../PMO/logs/identity-reject.ndjson', import.meta.url).pathname;
+const realRejectLogStat = () => { try { const st = fs.statSync(REAL_REJECT_LOG); return `${st.size}:${st.mtimeMs}`; } catch { return 'absent'; } };
+const REAL_REJECT_LOG_BEFORE = realRejectLogStat();
+process.env.SHOUHENG_IDENTITY_REJECT_LOG = '/tmp/shouheng-test-identity-reject.ndjson';
 import fs from 'node:fs';
 import * as feishu from './agent/feishu.mjs';
 import { executeTool, runtimeContext, TOOL_SCHEMAS } from './agent/tools.mjs';
@@ -2748,6 +2756,264 @@ await t('子进程端到端·跑完整条 handleMessage（LLM 指死地址、KB 
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 第 18d 组：**额度耗尽不许输出空回复**（2026-10-16，Owner 选定「修根因」）
+//
+// 起因（真读数，不是我推的）：离线重跑李倩怡那张图，日志写着
+//   `⚠️ 回复被截断：finish_reason=length（额度耗尽）｜正文 0 字｜reasoning 12000 tok`
+// 而**报告本身是完整的** —— 被截断的是"说给群里的那句话"。旧代码里处置空正文的那一支
+// 要求 `toolTrace.length`（这一轮用过工具），而这一跑模型**没调工具** ⇒ 落到通用分支，
+// 通用分支只**附一句截断说明** ⇒ **那句说明自己成了回答**，群里收到一条只有说明的消息。
+//
+// 新口径：空正文 ＋ 额度耗尽 ＋ 没调工具 ⇒ **关掉思考重写一次**（额度是被推理吃光的）；
+// 仍写不出来 ⇒ 落兜底话术。**任何情况下都不许让"只有说明"的回复出门。**
+//
+// 判据用**假 LLM 端点**（真起一个 http server、`SHOUHENG_LLM_BASE_URL` 指过去），
+// 因为这样验的是**协议层**：重写那一次必须真的带上 `thinking:{type:'disabled'}` ——
+// 只读源码文本的话，正是 AGENTS.md §2.4 点名的「名字出现过 ≠ 拦得住」。
+//
+// ★ 这里踩过一次并记下来：**假端点必须与子进程并发活着**。
+//   第一版用 `spawnSync` 起子进程 —— 它**阻塞父进程的事件循环**，于是跑在父进程里的
+//   这个 http server 一个请求都答不了：子进程的请求连得上、永远等不到回应，
+//   表现为「0 次请求 + 被超时杀掉」，而报错看着像是内核挂住了（指向完全无关的方向）。
+//   ⇒ 改成异步 `spawn` ＋ await close（父进程事件循环空着，端点才答得上话），
+//     并加一条看门狗超时：真挂住时是**红**，不是把整个自证拖死。
+// ★ 这里踩过一次并记下来（**第一版判据是假绿的**）：按「第几次请求」发响应不行 ——
+//   这条消息在**内核回话之前**已经有一次模型调用（**模型侧**，`max_tokens=8000`、无工具），
+//   于是「空正文 ＋ length」被喂给了模型侧，内核那次反倒直接拿到了正文，
+//   前两条断言**蒙对了**，只有「重写带没带关思考」把它揭穿（实测 `thinking=undefined`）。
+//   ⇒ 判据改成**按角色识别**：`messages[0].content` 含「你是「守衡」」的那次才是内核；
+//     非内核的调用一律回一个合法空数组（模型侧就吃这个）。这样与调用顺序解耦。
+async function runEmptyReplyCase({ firstContent, firstFinish }) {
+  const http = await import('node:http');
+  const { spawn } = await import('node:child_process');
+  const os = await import('node:os');
+  const pathMod = await import('node:path');
+  const tmp = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'shouheng-empty-'));
+  const kernelBodies = [];
+  const otherBodies = [];
+  const server = http.createServer((req, res) => {
+    let raw = '';
+    req.on('data', (c) => { raw += c; });
+    req.on('end', () => {
+      let b = {}; try { b = JSON.parse(raw || '{}'); } catch { /* 记原样即可 */ }
+      const sys = String(b.messages?.[0]?.content ?? '');
+      const isKernel = sys.includes('你是「守衡」');
+      let content; let finish;
+      if (isKernel) {
+        kernelBodies.push(b);
+        const first = kernelBodies.length === 1;
+        content = first ? firstContent : '重写后的结论：这条文案可以发。';
+        finish = first ? firstFinish : 'stop';
+      } else {
+        otherBodies.push(b);
+        content = '[]';           // 模型侧／别的旁支调用吃 JSON 数组
+        finish = 'stop';
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        choices: [{ message: { role: 'assistant', content }, finish_reason: finish }],
+        usage: { completion_tokens_details: { reasoning_tokens: finish === 'length' ? 12000 : 0 } },
+      }));
+    });
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const port = server.address().port;
+  const script = `
+    process.on('uncaughtException', (e) => { console.log('THREW ' + (e?.message ?? e)); process.exit(3); });
+    process.on('unhandledRejection', (e) => { console.log('THREW ' + (e?.message ?? e)); process.exit(3); });
+    const { handleMessage } = await import(${JSON.stringify(new URL('./agent/agent.mjs', import.meta.url).href)});
+    const r = await handleMessage({
+      message: { message_id: 'om_empty_' + Date.now(), chat_id: 'oc_e2e', chat_type: 'p2p',
+                 message_type: 'text',
+                 content: JSON.stringify({ text: '这段 listing 文案能不能发：M5 吸奶器是最好的' }) },
+      sender: { sender_id: { open_id: 'ou_e2e_test' } },
+    }, { notify: async (t) => { console.log('ACK ' + String(t).slice(0, 40)); },
+         publishRunner: async () => ({ ok: true, action: 'skipped', detail: '桩' }) });
+    console.log('RESULT ' + JSON.stringify({ reply: String(r.reply ?? '') }));
+  `;
+  const child = spawn(process.execPath, ['--input-type=module', '-e', script], {
+    env: { ...process.env,
+           SHOUHENG_STATE_DIR: tmp,
+           SHOUHENG_KB_ROOT: '/tmp/shouheng-绝不存在-的知识库',
+           SHOUHENG_LLM_BASE_URL: `http://127.0.0.1:${port}` },
+  });
+  let out = '';
+  child.stdout.on('data', (d) => { out += d; });
+  child.stderr.on('data', (d) => { out += d; });
+  const watchdog = setTimeout(() => child.kill('SIGKILL'), 90_000);
+  const code = await new Promise((res) => child.on('close', res));
+  clearTimeout(watchdog);
+  server.close();
+  try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* 收尾失败不影响断言 */ }
+  const m = out.match(/RESULT (\{.*\})/);
+  return { out, bodies: kernelBodies, others: otherBodies, code, res: m ? JSON.parse(m[1]) : null };
+}
+
+await t('额度耗尽＋正文 0 字＋没调工具 ⇒ 必须关思考重写一次，回复不许"只有说明"', async () => {
+  const { out, bodies, res } = await runEmptyReplyCase({ firstContent: '', firstFinish: 'length' });
+  assert.ok(!/THREW|is not defined/.test(out), `子进程塌了：\n${out.slice(-400)}`);
+  assert.ok(res, `没拿到 RESULT：\n${out.slice(-400)}`);
+  // ① 最要紧：**回复非空、且不是那句截断说明**
+  assert.ok(res.reply.trim().length > 0,
+    `正文 0 字还发出去了（旧版就是这个形状）：${JSON.stringify(res.reply)}`);
+  assert.ok(!/^[\s\-—]*⚠️/.test(res.reply.trim()) && !/这条回答被长度上限截断/.test(res.reply.trim()),
+    `回复里只有截断说明、没有一个字的答案：${JSON.stringify(res.reply.slice(0, 120))}`);
+  assert.ok(/重写后的结论/.test(res.reply), `重写写出来的正文没被采用：${JSON.stringify(res.reply.slice(0, 120))}`);
+  // ② 重写**真的发生了**（协议层读数，不是读源码）
+  assert.strictEqual(bodies.length, 2, `该重写一次，实际请求 ${bodies.length} 次`);
+  // ③ 重写那一次必须**关掉思考** —— 额度就是被推理吃光的
+  assert.strictEqual(bodies[1]?.thinking?.type, 'disabled',
+    `重写没带 thinking:{type:'disabled'} ⇒ 额度还会被推理吃光：${JSON.stringify(bodies[1]?.thinking)}`);
+  // ④ 反向对照：**第一次不许自带关思考**（否则上面那条恒真，等于没测）
+  assert.strictEqual(bodies[0]?.thinking, undefined,
+    `首次调用就带着关思考 ⇒ 上面那条断言恒真：${JSON.stringify(bodies[0]?.thinking)}`);
+});
+
+await t('反向对照·正文正常时不许重写（只调一次、回复原样）', async () => {
+  const { bodies, res } = await runEmptyReplyCase({ firstContent: '正常的回答。', firstFinish: 'stop' });
+  assert.ok(res, '没拿到 RESULT');
+  assert.strictEqual(bodies.length, 1, `正文正常却多调了模型（${bodies.length} 次）—— 重写分支越界了`);
+  assert.ok(/正常的回答/.test(res.reply), `正文被改动了：${JSON.stringify(res.reply.slice(0, 80))}`);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 第 18b 组：**「送审问题」这一格只留原文 ＋ 媒材链接**（2026-10-16，Owner 裁定）
+//
+// 起因：Owner 说「送审问题 里面的图片和视频要优化成链接，点击就可以打开的，
+// **只留原文，不要写其他话**」。查真表发现**比那句话更坏** —— 一页 200 行里
+// **54 行**的格子里躺着我们自己的内部指令（`【★ 这是送审素材…】`、`【对方这条消息里附了图…】`
+// ＋ OCR 全文）。根因是落表时直接写了 `input.question` —— 那是**拼给模型看的那一轮**
+// （人话 ＋ 我们的探针 ＋ OCR 全文），不是「对方说的话」。
+//
+// 这一组钉两件事：① 探针/读数**不许进格子**；② 有链接就写链接、没链接**绝不写死链接**。
+// 判据全走桩：`mediaLinksRunner` 注入 ⇒ **一次都不真上传**（§2.4.4）。
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\n═══ 18b. 「送审问题」只留原文 + 媒材链接（含反向对照）═══');
+
+const PROBE_TEXT = '【对方这条消息里附了图，共 1 张。下面每一格是**本机 OCR 读出的图内文字**'
+  + '（逐字，可能有识别错误；也可能读不全）。你就此能判断的只有「图上写了什么字」——'
+  + '画面本身**不在这些字里，你看不到**。】\n【图 1 内文字｜3 行】\nROO\nMOMCOZY\n';
+
+/** 跑一遍闸门，把**落表那一刻收到的 question** 抓回来（其余全桩）。 */
+async function gateRowQuestion({ userText, question, mediaLinks }) {
+  const { runSubmissionGate } = await import('./agent/agent.mjs');
+  let got = null;
+  await runSubmissionGate({
+    inbound: { text: '请审查\n[图片]', imageCount: 1, videoCount: 0, images: [{ index: 1, msgId: 'om_x', imageKey: 'img_k' }], videos: [] },
+    question, userText,
+    notify: async () => {},
+    chainRunner: async () => ({ answer: '结论：REVIEW' }),
+    modelSideRunner: async () => ({ ok: true, findings: [], dropped: [], ms: 1 }),
+    mergedReportRunner: async () => ({ ok: true, action: 'skipped' }),
+    adviceRunner: async () => ({ ok: true }),
+    mediaLinksRunner: async () => mediaLinks,
+    publishRunner: async (row) => { got = row.question; return { ok: true, action: 'skipped' }; },
+  });
+  return got;
+}
+
+await t('Q1 ★ 格子 = 对方原文 ＋ 图片链接；**探针与 OCR 全文一个字都不许进**', async () => {
+  const got = await gateRowQuestion({
+    userText: '请审查',
+    question: '请审查\n\n' + PROBE_TEXT,
+    mediaLinks: [{ kind: 'image', ok: true, url: 'https://momcozy-in.feishu.cn/file/AAA' }],
+  });
+  assert.strictEqual(got, '请审查\n[图片](https://momcozy-in.feishu.cn/file/AAA)');
+  assert.ok(!got.includes('【'), '内部指令进了表 = 我们把自己的提示词发出去了');
+  assert.ok(!/MOMCOZY/.test(got), 'OCR 全文不该进这一格（它有自己的落点：报告附录）');
+});
+
+await t('Q2 ★ 反向对照：没拿到链接 ⇒ 只留原文，**绝不写死链接**', async () => {
+  const got = await gateRowQuestion({
+    userText: '请审查', question: '请审查\n\n' + PROBE_TEXT, mediaLinks: [],
+  });
+  assert.strictEqual(got, '请审查');
+  assert.ok(!got.includes('http'), '点不开的链接比空格更坏');
+});
+
+await t('Q3 调用方忘了传 userText ⇒ 仍不许把探针漏进表（stripInternal 兜底）', async () => {
+  const got = await gateRowQuestion({
+    userText: undefined, question: '请审查\n\n' + PROBE_TEXT, mediaLinks: [],
+  });
+  assert.ok(!got.includes('【'), `没传 userText 时探针漏进表了：${JSON.stringify(got)}`);
+  assert.ok(got.includes('请审查'), '兜底也要保住对方那句话');
+});
+
+await t('Q4 对方只发了图、一个字没写 ⇒ 这一格就只有链接', async () => {
+  const got = await gateRowQuestion({
+    userText: '',
+    question: PROBE_TEXT,
+    mediaLinks: [{ kind: 'image', ok: true, url: 'https://x/file/B' }],
+  });
+  assert.strictEqual(got, '[图片](https://x/file/B)');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 第 18c 组：**「@守衡」不是素材**（2026-10-16，Owner 拿着报告来问的那一条）
+//
+//   现场（报告 docx `NKmbdpRrbooHFAxSNb2cIdlsnGe` 第 1 条，逐字）：
+//     「【本地化】素材正文（发布账号名）与图 1 主文字（品牌名 momcozY）…**正文只带了中文账号名
+//       @守衡**，美国消费者既看不懂中文 handle 也无法把这条内容归到某个品牌名下…」
+//   Owner 原话：「这是我们做飞书的提问，面对美国市场，是提供的素材能不能进美国市场，
+//   **不是指我调用守衡的方式**」。
+//
+//   根因：`readingsForModelSide` 拿 `inbound.text`（**消息原文，含 mention**）当【素材正文】。
+//   这一组钉两件：① 那句 `@…` 一个字都不许进读数；② 有媒材时那一节的**标签**必须说明
+//   「这不是素材本身」—— 标签本身就会指挥模型怎么判（报告那条正是照着标签判出来的）。
+//   判据走**接线级**：真调 `runSubmissionGate`，抓它递给模型侧的 readings。
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\n═══ 18c. 「@守衡」不是素材（含标签与反向对照）═══');
+
+/** 跑一遍闸门，抓**递给模型侧的那段读数**（其余全桩）。 */
+async function gateReadings({ inbound, userText, question = '（自证：这一条不起真链）' }) {
+  const { runSubmissionGate } = await import('./agent/agent.mjs');
+  let got = null;
+  await runSubmissionGate({
+    inbound, userText, question,
+    notify: async () => {},
+    chainRunner: async () => ({ answer: '结论：REVIEW' }),
+    modelSideRunner: async ({ readings }) => { got = readings; return { ok: true, findings: [], dropped: [], ms: 1 }; },
+    mergedReportRunner: async () => ({ ok: true, action: 'skipped' }),
+    adviceRunner: async () => ({ ok: true }),
+    mediaLinksRunner: async () => [],
+    publishRunner: async () => ({ ok: true, action: 'skipped' }),
+  });
+  return got;
+}
+
+await t('R1 ★ 对方只 @ 了一下（没写话）⇒ 读数里既没有「@守衡」也没有【素材正文】那一节', async () => {
+  const got = await gateReadings({
+    inbound: { text: '@守衡', imageCount: 1, videoCount: 0,
+               images: [{ index: 1, msgId: 'om_x', imageKey: 'k', text: 'momcozY' }], videos: [] },
+    userText: '',
+  });
+  assert.ok(got, '没抓到读数');
+  assert.ok(!got.includes('@守衡'), `调用方式漏进读数了：${JSON.stringify(String(got).slice(0, 160))}`);
+  assert.ok(!got.includes('【素材正文】'), '对方没写话时不许印【素材正文】那一节（空标签会被当成"正文为空"去判）');
+  assert.ok(got.includes('momcozY'), '图上那行字照旧要在（那是真素材）');
+});
+
+await t('R2 ★ 有媒材时，那一节必须**自报不是素材**（标签本身会指挥模型怎么判）', async () => {
+  const got = await gateReadings({
+    inbound: { text: '@守衡 这张能发吗', imageCount: 1, videoCount: 0,
+               images: [{ index: 1, msgId: 'om_x', imageKey: 'k', text: 'momcozY' }], videos: [] },
+    userText: '这张能发吗',
+  });
+  assert.ok(got.includes('这张能发吗'), '对方真写的话要留着（它是提问，也是判"要不要拦"的上下文）');
+  assert.ok(!got.includes('@守衡'), 'mention 不许留');
+  assert.ok(/不是素材本身/.test(got), `带媒材时那节必须自报不是素材：${JSON.stringify(String(got).slice(0, 200))}`);
+});
+
+await t('R3 反向对照：**纯文案单**照旧是【素材正文】（不许因为 R1/R2 就不敢收正文）', async () => {
+  const got = await gateReadings({
+    inbound: { text: '这段 listing 能不能发：M5 吸奶器续航 8 小时', imageCount: 0, videoCount: 0, images: [], videos: [] },
+    userText: '这段 listing 能不能发：M5 吸奶器续航 8 小时',
+  });
+  assert.ok(got.includes('【素材正文】'), '纯文案单的正文就是素材，标签必须还是它');
+  assert.ok(got.includes('续航 8 小时'), '正文内容要在');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 第 19 组：**自证自己不许往真表里写东西**（§2.4.4 那个形状的现场实例）
 //
 // 2026-10-05 实测：`runSubmissionGate` 里那段「保证落表」对**测试桩**也照跑不误 ——
@@ -2785,6 +3051,10 @@ console.log('\n═══ 20. PRD §5.3 结论行（逐字进卡片 + 反向对�
 
 const { deriveVerdictLine, conforms, leadsWith } = await import('./agent/prd53.mjs');
 const { toCardOrText, applyVerdictLine, verdictSlotOf } = await import('./reply-cards/envelope.mjs');
+// ★ 2026-10-16（FIX-043）：P0 读数那一格的判据是**命名空间导入** ——
+//   因为里面既有纯函数（`p0PayloadOf`）、又有每轮边界与只给自证用的 arming
+//   （`beginP0Turn` / `_armP0MemoForTest` / `_resetP0MemoForTest`），逐个解构会写很长。
+const toolsMod = await import('./agent/tools.mjs');
 
 await t('W1 权威结论行的三个来源：链原文 / P0 快路派生 / 都没有 → null（不许编）', () => {
   // ① 链原文里有 5.3 行 → 用它（这就是「链说了算」）
@@ -3192,6 +3462,270 @@ await t('Y3 接线：内核必须把「这一轮调成了链」当成凭据传�
   assert.ok(!/kb_review_chain'\)\s*\?/.test(src), '凭据没有校验 ok —— 一次失败的链也会被当成审查过');
 });
 
+// ═══ 第 22b 组 · **P0 快路**也要出 §5.3 块（FIX-043，2026-10-16）═══
+//
+// 真单：`om_x100b622a8e762cbcce3b9bfa8402ccb`（群 `oc_49a7…`，2026-10-16 17:20 北京时间）——
+// 群里问「m5 pro是最好的吸奶器，这句话能过审吗？」，守衡 180 字卡：
+//   `【证据】` ␤ `BLOCK —— 「最好」命中 P0 一票否决项 E-2.124；红线拦截，非专项审查结论`
+//   ␤ `（已收起 1 条证据：判定 · 1）` ␤ …（四组折叠摘要）—— **PRD §5.3.3 的逐条块一个字都没有**。
+//
+// 根因（两个各自都对的部件，接缝断了）：那一单闸门判「**不是送审**」（原话「在问审查这件事
+// 本身怎么运作（过审）」）⇒ `g.verdict53 = null` ⇒ 内核落到兜底那一支，而兜底**只喂 `replyText`**
+// ⇒ 结论行取决于**模型有没有把链那一行抄进回复**。这一单模型没抄（它写 `**结论：BLOCK…**`）。
+// 而 `deriveVerdictLine` 第 ② 支**早就**会按 `p0Fastpath.matched_patterns` 派生 §5.3.3 那一行
+// （`W1` 一直在喂它）—— **全仓没有一个调用点给它传过 `p0Fastpath`**。
+// 又一个 FIX-021：「判据写对了」≠「调用方接上了」。
+//
+// 下面这一组是**行为级**的：喂真单逐字夹具，断言**卡上真的有那四行**。
+await t('Y4 ★★ P0 快路单：结论行与逐条块必须从**链返回**派生，不许靠模型有没有抄', () => {
+  // 链返回的 `answer`（= `kb/l5/p0_fastpath.py --json` 的 `rendered`，逐字）
+  const ANSWER = [
+    '【审查结论：BLOCK】共发现 1 处必须修改。', '',
+    '1.【绝对化与安全承诺-绝对化用语】全文，逐字命中 `最好`',
+    '  **原因**：按 PRD §7.3 判定（Owner 2026-10-13 同意入选）',
+    '  **依据**：《外部标准库 v0（试用版，未发布）》第 E-2.124 条（链接：https://example.invalid/wiki/NB55）',
+    '  **锚点**：#h.7. 知识库与规则体系 / 7.3 一票否决项（P0 级，命中即 BLOCK）｜source_sha256：6671c283…',
+    '  **建议**：（来源未给修改建议）', '',
+    '请修改后重新提交。', '', '---', '【来路与边界】…',
+  ].join('\n');
+  // 模型这一轮的回复（逐字）—— 关键：它**没有**把结论行抄进来，写的是自己那句
+  const REPLY = '**结论：BLOCK —— 共 1 处必须修改。** 「m5 pro 是最好的吸奶器」**过不了审**。\n\n'
+    + '[[card:evidence]]\n'
+    + JSON.stringify({ verdict: 'BLOCK —— 「最好」命中 P0 一票否决项 E-2.124；红线拦截，非专项审查结论',
+                       groups: [{ title: '判定', content: 'P0 快路 63.121 ms｜逐字命中 最好', count: 1 }] });
+  const FAST = { mode: 'p0_fastpath', elapsed_ms: 63.121, matched_patterns: 1, rule_codes: ['V02'],
+                 layer_preflight: { enforced: false, is_pass_basis: false } };
+
+  // ① 反向对照（**这一条就是那一单的真实形状**）：只喂 replyText ⇒ 派不出任何结论
+  assert.strictEqual(deriveVerdictLine({ replyText: REPLY, reviewedByTool: true }), null,
+    '模型没抄结论行时不该派生 —— 若这里变成非 null，说明判据放宽了，W2 那条「引用模板 ≠ 一次结论」会跟着松');
+
+  // ② 带上 P0 载荷 ⇒ 派生 §5.3.3 那一行，且**逐条四要素整块**跟着来
+  const v = deriveVerdictLine({ replyText: REPLY, reviewedByTool: true, answer: ANSWER, p0Fastpath: FAST });
+  assert.ok(v, '带上 P0 读数后仍派生不出结论行 —— 卡面又会退成模型自拟的四组折叠摘要');
+  assert.strictEqual(v.line, '【审查结论：BLOCK】共发现 1 处必须修改。', `结论行不对：${v.line}`);
+  assert.strictEqual(conforms(v.line).ok, true, '派生出来的这一行必须与 §5.3.3 逐字一致');
+  assert.ok(v.block && v.block.endsWith('请修改后重新提交。'),
+    '逐条块必须从结论行起到动作行止（半截块比不搬更坏）');
+
+  // ③ **卡上真的有**（行为级）：四要素逐条 + 动作行
+  const r = toCardOrText(REPLY, { verdict53: v });
+  assert.strictEqual(r.kind, 'evidence', `评审单必须收敛到 evidence，实际 ${r.kind}`);
+  assert.strictEqual(r.data?.groups?.[0]?.title, '逐条问题', '第一组标题必须固定');
+  const body = String(r.data?.groups?.[0]?.content ?? '');
+  for (const k of ['**原因**：', '**依据**：', '**建议**：', '请修改后重新提交。']) {
+    assert.ok(body.includes(k), `卡上缺「${k}」—— 这正是 Owner 报的那条（180 字卡上没有逐条块）`);
+  }
+});
+
+await t('Y5 ★★ P0 读数只在**这一轮真跑了快路**时才有货（纯函数 + 反向对照）', () => {
+  const { p0PayloadOf } = toolsMod;
+  // 判据是纯函数 ⇒ 断言不产生任何副作用（不起链、不写飞书、不落报告）
+  const res = { ok: true, answer: '【审查结论：BLOCK】共发现 2 处必须修改。\n\n请修改后重新提交。',
+                p0_fastpath: { matched_patterns: 2, elapsed_ms: 12.3, rule_codes: ['V02', 'H05'] },
+                p0_findings: [{ rule_code: 'V02' }] };
+  const p = p0PayloadOf(res);
+  assert.ok(p, '命中快路的结果必须能取出载荷 —— 取不出就等于这一格从来没接上');
+  assert.strictEqual(p.p0Fastpath.matched_patterns, 2, '条数必须原样搬（兜底那条派生行读的就是它）');
+  assert.strictEqual(p.p0Findings.length, 1, 'P0 的结构化逐条要一起带出去（双轨对齐那一格读它）');
+  // 反向对照①：**没命中快路**结果不许造一个载荷出来
+  //   （否则会给一个走链走成了的单子派一条 §5.3 行 —— 那条行不是它算出来的）
+  assert.strictEqual(p0PayloadOf({ ok: true, answer: '走链去了' }), null, '没命中快路也取了载荷');
+  // 反向对照②：**跑失败**的信封不许取 —— `{error}` 是「结论未知」，
+  //   拿它派生结论行等于把未测说成已判（§2.4.2：未测不许与通过长得一样）。
+  assert.strictEqual(p0PayloadOf({ ok: false, error: '找不到知识库工作区' }), null,
+    '跑失败的结果被当成了一次判定');
+  assert.strictEqual(p0PayloadOf(null), null, '空结果不该取载荷');
+  // 反向对照③：`p0_fastpath` 在、但**不是对象**（历史上见过字符串读数）⇒ 不取
+  assert.strictEqual(p0PayloadOf({ ok: true, p0_fastpath: 'hit' }), null, '坏形状的读数被当成载荷');
+});
+
+await t('Y5b ★★ 每轮必须清空：上一轮的 P0 读数不许拿来答这一轮（会拿别人的结论上卡）', () => {
+  const tools = toolsMod;
+  tools._resetP0MemoForTest();
+  assert.strictEqual(tools.p0MemoRead(), null, '干净状态下不许有货');
+  tools._armP0MemoForTest({ p0Fastpath: { matched_patterns: 1 }, answer: 'x', p0Findings: [] });
+  assert.ok(tools.p0MemoRead(), '装上之后要读得到（否则下面那条恒真）');
+  tools.beginP0Turn();                       // ← 一轮的边界，`agent.mjs` 调闸门之前那一跳
+  assert.strictEqual(tools.p0MemoRead(), null,
+    '换了轮次还留着上一轮的读数 ⇒ 下一次兜底会把**上一单**的结论行与逐条块搬到这张卡上');
+  tools._resetP0MemoForTest();
+});
+
+await t('Y6 接线：兜底那一支必须**真的**把 P0 读数喂进 deriveVerdictLine（文案断言只作补充）', () => {
+  const src = fs.readFileSync(new URL('./agent/agent.mjs', import.meta.url), 'utf8');
+  // ① 一轮的边界要有它 —— 与 `beginChainTurn()` 同一处、同一套理由
+  assert.ok(/beginChainTurn\(\);[\s\S]{0,600}?beginP0Turn\(\);/.test(src),
+    '`beginP0Turn()` 没有跟在 `beginChainTurn()` 后面 ⇒ 上一轮的 P0 读数会串到下一轮');
+  // ② 兜底那一支要带上 answer 与 p0Fastpath
+  assert.ok(/p0MemoRead\(\)/.test(src), '兜底那一支没有读 P0 读数');
+  assert.ok(/p0Fastpath:\s*p0Payload\.p0Fastpath/.test(src),
+    '没有把 p0Fastpath 喂进 deriveVerdictLine —— 那就还是「判据写好了、没人接」');
+  assert.ok(/answer:\s*p0Payload\.answer/.test(src),
+    '没有把链返回的 answer 喂进去 ⇒ 逐条块（原因/依据/建议/动作行）整块还是上不了卡');
+  // ③ 反向对照：**载荷为空时一个字段都不许多带**（否则会给没跑快路的单子编一条 §5.3 行）。
+  //   ⚠️ 2026-10-16（FIX-044）：形状从「`...(p0Payload ? {…} : {})` 展开」改成了
+  //     「`p0Payload ? deriveVerdictLine({…}) : (退回 toolTrace 那一支)`」——
+  //     因为现在有两个来源，得**先**判有没有载荷、再决定走哪一支。
+  //     ⇒ 判据跟着钉**新形状**（钉不住的格式改动会悄悄退回），拦的还是同一件事：
+  //       **没有载荷时不许把字段塞进去**。
+  assert.ok(/p0Payload\s*\n?\s*\?\s*deriveVerdictLine\(\{/.test(src),
+    '那一支必须写成「有载荷才派生」—— 无条件塞字段会把 null 当结论派生出假抬头');
+  // ④ 工具调用要能被注入 —— 没有这条缝，下面那条端到端断言根本写不出来
+  //   （上面那四条全是**源码文本**，正是 §2.4 点名的假执行点；真正拦得住的是 Y7）
+  assert.ok(/deps\?\.executeTool \?\? executeTool/.test(src),
+    '工具循环没留注入点 ⇒ 「P0 读数接线」只能靠源码文本断言，端到端跑不起来');
+});
+
+await t('Y7 ★★★ 行为级：钩子取出的载荷 → 上游结论行 → 卡面（这一条不碰真链、不碰模型）', () => {
+  // 真单形状（`om_x100b622a8e762cbcce3b9bfa8402ccb`）：
+  //   ① 闸门判「不是送审」（原话「在问审查这件事本身怎么运作（过审）」）⇒ `g.verdict53 = null`；
+  //   ② 模型**自己**调了 `kb_review_chain`，工具**命中 P0 快路**（`executeTool` 里装进那一格）；
+  //   ③ 模型的回复**只写自己那句**，没有把结论行抄进来。
+  // 这一条把 ①→③ 串起来跑：**载荷由 `p0PayloadOf` 从「链返回」里取**（不是手写一个字面量），
+  // 再经 `p0MemoRead()` 那一跳，最后看**卡面**上有没有 §5.3.3 的逐条块。
+  //
+  // ⚠️ **未测的那一格（如实写在这里，不许假装测过）**：`handleMessage` 内部那一跳
+  //    （`const p0Payload = p0MemoRead()` 之后喂进 `deriveVerdictLine` 的那几行）**不在这条里**
+  //    —— 它要有一次真的模型往返才跑得到，而 LLM 那一跳没有注入点（真跑会真起链、真写飞书）。
+  //    守着那一跳的是 `Y6` ②③ 两条**源码级**断言 ＋ `deps.executeTool` 那个注入点。
+  //    ——「未测」与「通过」在这里**长得不一样**，这是它必须写出来的理由（§2.4.2）。
+  const tools = toolsMod;
+  const ANSWER = [
+    '【审查结论：BLOCK】共发现 1 处必须修改。', '',
+    '1.【绝对化与安全承诺-绝对化用语】全文，逐字命中 `最好`',
+    '  **原因**：按 PRD §7.3 判定（Owner 2026-10-13 同意入选）',
+    '  **依据**：《外部标准库 v0（试用版，未发布）》第 E-2.124 条（链接：https://example.invalid/wiki/NB55）',
+    '  **锚点**：#h.7. 知识库与规则体系 / 7.3 一票否决项（P0 级，命中即 BLOCK）',
+    '  **建议**：（来源未给修改建议）', '',
+    '请修改后重新提交。',
+  ].join('\n');
+  const MODEL_REPLY = '**结论：BLOCK —— 共 1 处必须修改。** 「m5 pro 是最好的吸奶器」**过不了审**。\n\n'
+    + '[[card:evidence]]\n'
+    + JSON.stringify({ verdict: 'BLOCK —— 「最好」命中 P0 一票否决项 E-2.124；红线拦截，非专项审查结论',
+                       groups: [{ title: '判定', content: 'P0 快路 63.121 ms｜逐字命中 最好', count: 1 }] });
+
+  // ② 「链返回」= `kb_review_chain` 真正回的那个 result（逐格照真单）
+  const chainResult = { ok: true, answer: ANSWER,
+    p0_fastpath: { mode: 'p0_fastpath', elapsed_ms: 63.121, matched_patterns: 1, rule_codes: ['V02'],
+                   layer_preflight: { mode: 'p0_fastpath', enforced: false, is_pass_basis: false } },
+    p0_findings: [{ rule_code: 'V02', matched: [{ line_text: 'm5 pro是最好的吸奶器' }] }],
+    issue_count: 1, confidence: 1.0 };
+  // ③ 钩子那一跳（`executeTool` 里就是这两行）
+  const payload = tools.p0PayloadOf(chainResult);
+  assert.ok(payload, '链返回取不出载荷 ⇒ 兜底那一支拿不到任何读数');
+  tools._resetP0MemoForTest();
+  tools._armP0MemoForTest(payload);
+
+  // ④ 兜底那一支的两次读：`p0MemoRead()` → `deriveVerdictLine`
+  const read = tools.p0MemoRead();
+  assert.ok(read, '装上的载荷读不回来 ⇒ 接线断了（`p0MemoRead()` 读的是 `memo.payload`）');
+  const v = deriveVerdictLine({ replyText: MODEL_REPLY, reviewedByTool: true,
+                                answer: read.answer, p0Fastpath: read.p0Fastpath });
+  assert.ok(v, '取到载荷仍派生不出结论行');
+  assert.strictEqual(v.line, '【审查结论：BLOCK】共发现 1 处必须修改。', `结论行不对：${v.line}`);
+
+  // ⑤ 卡面：逐条四要素必须真的印上去
+  const r = toCardOrText(MODEL_REPLY, { verdict53: v });
+  assert.strictEqual(r.kind, 'evidence');
+  assert.strictEqual(r.data?.groups?.[0]?.title, '逐条问题', '第一组标题必须固定');
+  const body = String(r.data?.groups?.[0]?.content ?? '');
+  for (const k of ['**原因**：', '**依据**：', '**建议**：', '请修改后重新提交。']) {
+    assert.ok(body.includes(k), `卡上缺「${k}」`);
+  }
+  tools._resetP0MemoForTest();
+});
+
+// ═══ 第 22c 组 · **P0 不许取决于模型肯不肯调工具**（FIX-044，2026-10-16）═══
+//
+// 真事故（同一个群、**同一句话**，问了两遍，两遍形状不同）：
+//   · 17:19 —— 闸门不起链（`meta-ask`），模型**自己**调了 `kb_review_chain`
+//     ⇒ 链返回在，卡面 180 字（格式不符：一段都没搬进卡）；
+//   · 19:4x —— 闸门**同一条判词**，模型**没调**（原话「重跑会往飞书再加一行，故未重跑」）
+//     ⇒ 链返回整个不存在 ⇒ 卡面 163 字，连条款号都只剩模型转述。
+// ⇒ 病灶：**P0 判据（确定性、只读、毫秒级）此前只能由「模型愿不愿意调工具」触发**。
+//   而 PRD §6.3 第一层说的是「命中即停止后续审查，直接输出 BLOCK」—— 它是判据，不是自选项。
+//
+// 这一组守两条：① 内核在闸门不起链时**自己**跑一遍；② 那一遍**只读**
+//   （不落报告文件、不建云文档、不写飞书）—— 否则等于顺手改了别人的工作流。
+await t('Y8 ★★★ 行为级：P0 命中 ⇒ 内核**自己**拿得到 §5.3.3 块（不靠模型调不调工具）', async () => {
+  const { runP0Preflight } = toolsMod;
+  const Q = 'm5 pro是最好的吸奶器，这句话能过审吗？';
+  const out = await runP0Preflight({ text: 'm5 pro是最好的吸奶器', question: Q });
+  assert.ok(out, '快路没命中那一句 —— 下面所有断言都会退化成恒真，先看知识库在不在');
+  assert.strictEqual(out.p0_fastpath.matched_patterns, 1, `命中条数不对：${out.p0_fastpath?.matched_patterns}`);
+  assert.ok(String(out.answer).includes('【审查结论：BLOCK】'),
+    '链返回里没有 §5.3.3 那一行 —— 那卡上就不可能有逐条块');
+  // ★ 只读那一条：内核那条前置路**不许**产生报告落盘
+  assert.ok(!out.report_path, `内核前置写报告文件了：${out.report_path}（那条路以前不落盘）`);
+  assert.strictEqual(out.report, '', '内核前置建云文档了 —— 那是在改别人的工作流');
+  // 派生：结论行 + 逐条块（与内核兜底那一支逐字同一条路）
+  const v = deriveVerdictLine({ replyText: '**结论：BLOCK —— 共 1 处必须修改。**',
+                                reviewedByTool: true, answer: out.answer, p0Fastpath: out.p0_fastpath });
+  assert.ok(v, '取到 P0 读数仍派生不出结论行');
+  assert.strictEqual(v.line, '【审查结论：BLOCK】共发现 1 处必须修改。', `结论行不对：${v.line}`);
+  assert.ok(v.block && v.block.endsWith('请修改后重新提交。'), '逐条块必须到动作行止');
+  // 卡面：模型这一轮**没调链、也没抄结论行**，四要素照样得在
+  const REPLY = '**这句我上一轮刚判过，结论没变：BLOCK。** 我没有重跑。\n\n[[card:query-answer]]\n'
+    + JSON.stringify({ title: 'm5 pro 是最好的吸奶器 —— BLOCK（同上轮，未重跑）',
+                       verdict: 'BLOCK：命中「最好」，E-2.124', evidence: ['证据 · 1 条'] });
+  const r = toCardOrText(REPLY, { verdict53: v });
+  assert.strictEqual(r.kind, 'evidence', `评审单必须收敛到 evidence，实际 ${r.kind}`);
+  const body = String(r.data?.groups?.[0]?.content ?? '');
+  for (const k of ['**原因**：', '**依据**：', '**建议**：', '请修改后重新提交。']) {
+    assert.ok(body.includes(k), `卡上缺「${k}」—— 这正是 Owner 连报两次的那张卡`);
+  }
+  // ★★ 2026-10-16（FIX-044）：**「块在卡里」不等于「人看得见」** ——
+  //   那一组必须**默认展开**。实测过：`renderText`（纯文本降级渲染器）对所有 collapsible
+  //   一律打成「（已收起 N 条证据：…）」，所以拿它当判据会**误报**成「块没上卡」；
+  //   真正要钉的是**建出来的那个元素**：`collapsible_panel.expanded === true`。
+  //   —— 「Owner 两次都只看到一行结论」那个形状，就是这一格为 false 时长出来的。
+  const panel = (r.card?.body?.elements ?? []).find((e) => e?.tag === 'collapsible_panel');
+  assert.ok(panel, '卡上没有折叠区 —— 逐条块无处安放');
+  assert.strictEqual(panel.expanded, true,
+    '逐条块那一组是**收起**的 ⇒ 群里只看得见一行结论（Owner 报的就是这个形状）');
+  const inner = String(panel.elements?.[0]?.content ?? '');
+  // ⚠️ 这里核对的是**卡上那一格**（渲染后的形态）：markdown 元素会把 `**原因**` 转成 rich text
+  //   ⇒ 卡元素里是 `原因：`。**数据层**（`r.data.groups[0].content`）保留 `**原因**` 原文，
+  //   上面那四条查的就是数据层。两边都查，是因为「数据层有、卡上没有」也是一种真事故。
+  for (const k of ['原因：', '依据：', '建议：', '请修改后重新提交。']) {
+    assert.ok(inner.includes(k), `**默认展开的那一组**里缺「${k}」—— 收起区里有不算`);
+  }
+  assert.strictEqual(r.card?.header?.title?.content, v.line, '抬头必须是权威结论行');
+});
+
+await t('Y9 ★★ 反向对照：不该拦的话，前置一声不吭（否则闲聊也会弹一张 BLOCK 卡）', async () => {
+  const { runP0Preflight } = toolsMod;
+  for (const s of ['你的能力图谱有哪些？', '谢谢，我明白了', 'PRD §5.3 里 PASS 长什么样？', '']) {
+    assert.strictEqual(await runP0Preflight({ text: s, question: s }), null,
+      `这一句被误判成 P0 命中了：${JSON.stringify(s)}`);
+  }
+});
+
+await t('Y10 接线：闸门不起链时内核必须**自己**跑 P0（含反向对照：不许重复跑／不许建文档）', () => {
+  const src = fs.readFileSync(new URL('./agent/agent.mjs', import.meta.url), 'utf8');
+  // ① 前置那一跳在，且**只**在闸门不起链时跑
+  assert.ok(/if \(!gate\?\.yes\) \{[\s\S]{0,400}?runP0Preflight\(/.test(src),
+    '闸门不起链时内核没有自己跑 P0 —— 那 P0 又会取决于模型肯不肯调工具（就是这条缺陷）');
+  const calls = (src.match(/runP0Preflight\(/g) ?? []).length;
+  const docs = (src.match(/runP0Preflight\(\{/g) ?? []).length;   // doc 注释里也写着签名，别把它算成调用
+  assert.strictEqual(docs, 1, `runP0Preflight 的**调用点**有 ${docs} 个（应当恰好 1 个）`);
+  assert.ok(calls >= docs, `调用次数 ${calls} 少于调用点 ${docs} —— 判据自己坏了`);
+  // ② 兜底那一支要同时认两个来源（工具来的 / 内核前置来的）
+  assert.ok(/p0MemoRead\(\)[\s\S]{0,200}?p0Preflight/.test(src),
+    '兜底那一支没有把「内核前置」也算成一个来源 ⇒ 19:4x 那种走法还是空');
+  // ③ 报告链接：P0 前置那条路也要给（拿不到就是 null，不编）
+  assert.ok(/reportLink:\s*g\.dual\?\.reportUrl \?\? \(p0Preflight\?\.report \|\| null\)/.test(src),
+    'P0 前置那条路的报告链接没接上（或写成了会编一个链接的形状）');
+  // ④ 反向对照：**不许**把前置写成会建文档的形状（那是动别人的工作流）。
+  //   判据落在 `agent.mjs` 那一跳的参数上：`runP0Preflight({ text…, question… })` 里
+  //   不许出现 `allowPublish`（函数默认 false ⇒ 只读）。
+  const call = /if \(!gate\?\.yes\)[\s\S]{0,500}?(runP0Preflight\(\{[\s\S]{0,300}?\}\))/.exec(src);
+  assert.ok(call, '找不到那一跳的调用');
+  assert.ok(!/allowPublish/.test(call[1]),
+    '内核前置那一跳显式传了 allowPublish —— 它会在「不是送审」的消息上建云文档（默认只读，别动它）');
+});
+
 // ═══ 第 23 组 · 模型侧必须与链**并行**（2026-10-08）═══
 //
 // 方案 §③ 的原话是「每层的两侧都是完整的一遍审查，**互不等待**」。
@@ -3464,8 +3998,25 @@ await t('Z12 纯判据：**编不出数的时候一个都不许编** —— 六�
     assert.strictEqual(P.conforms(z.line).ok, true,
       `派出来的 PASS 行必须过 §5.3.1 那把尺子，实际：${z?.line}`);
     assert.ok(!/\d/.test(z.line), `§5.3.1 那一句里**没有 N**，实际：${z.line}`);
+    // ★★ 2026-10-16（FIX-043）：`conform` 的形状**每一支都必须是对象** `{ok, state, why}` ——
+    //   这一支原先给的是 `conforms(line).ok`（一个布尔）⇒ 发送层那一行
+    //   `⚠️ 措辞不合 §5.3：${c.why}` 会打出 `undefined`
+    //   （实测日志逐字：`PASS（来自 dual-track-merged）… ⚠️ 措辞不合 §5.3：undefined`）。
+    //   后果不在卡上，在**日志**：回退本是最该看得见的东西，配一个空原因等于没写。
+    assert.strictEqual(typeof z.conform, 'object',
+      'PASS 支的 conform 必须是对象（与其余各支同形）—— 布尔会让日志打出「措辞不合：undefined」');
+    assert.strictEqual(z.conform.ok, true, 'PASS 行是合规的，conform.ok 必须为 true');
+    assert.ok(String(z.conform.why || '').trim(), 'conform.why 不许是空的 —— 它会被日志原样打出来');
     // 反向对照：REVIEW 那一档一个字没松（0 永远回 null）
     assert.strictEqual(P.verdictLineFor({ state: 'REVIEW', n: 0 }), null, 'REVIEW ＋ 0 仍不许编');
+  }
+  // 反向对照：**每一条能派出来的结论行**，`conform` 都得是那个形状 ——
+  //   少一支就够让日志里出现一句「措辞不合：undefined」（正是本条要治的）。
+  for (const q of [{ state: 'PASS', n: 0 }, { state: 'REVIEW', n: 2 }, { state: 'BLOCK', n: 3 }]) {
+    const d = P.verdictLineFor(q);
+    assert.ok(d && typeof d.conform === 'object' && typeof d.conform.ok === 'boolean'
+              && String(d.conform.why || '').trim(),
+      `${q.state} 那一支的 conform 形状不对：${JSON.stringify(d?.conform)}`);
   }
   // 反向对照：合法的数**必须**派得出来 —— 否则上面六条恒真（一个全都返回 null 的实现也能过）
   assert.ok(P.verdictLineFor({ state: 'REVIEW', n: 1 }), 'n=1 是合法条数，必须派得出来');
@@ -5604,6 +6155,87 @@ await t('N2 行为级·真读文件：别人的旁挂/引擎 JSON 拒收，本�
 //   **107.6 秒**在 `grep -rn "macos-vision"` / `grep -rn "review_run.sh"` 上，
 //   而真正的链只占 101.9 秒；根因是模板留了三处"要自己去查"的空。
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// 第 23 组（N4）：**身份拒收要落成可数的读数**（2026-10-16，Owner「彻底修复了吗」）
+//
+// 缺口是查出来的，不是想出来的：拒收此前只留一行 console.log ⇒ **没有任何东西统计它**。
+// 于是哪天那把锁又失效（历史实测令牌转发 34 次只成功 1 次），表现是
+// 「每一单都少了库侧依据」，而**没有人会发现** —— 本仓最忌讳的那种静默退化。
+// 现在：拒收落一行账（`identity-reject.ndjson`），daemon 心跳在计数变了时 ⚠。
+//
+// 判据两条，第二条是防「自证有副作用」的（§2.4.4，本仓栽过三次）：
+//   N4a 写：拒收会往账本追加一行，字段齐（谁 / 为什么 / 四个读数）
+//   N4b **反向对照**：本次自证跑完，**真账本一个字节都没动**
+// ─────────────────────────────────────────────────────────────────────────────
+await t('N5 ★ 模型侧与建议生成必须**显式传 temperature: 0**（Owner 2026-10-16：每次跑结果不一样）', async () => {
+  // 为什么是接线级：`llm.ask` 的默认仍是 0.2 —— 所以「谁传了 0」必须在这一跳被钉住，
+  // 否则改一次调用点，判定就又变成抽样的（实测同图两次零重合：一次 3 条、一次 2 条）。
+  const seen = [];
+  const stubAsk = async (_p, opts = {}) => { seen.push(opts.temperature); return JSON.stringify({ findings: [] }); };
+  const { reviewModelSide } = await import('./agent/model_side.mjs');
+  await reviewModelSide({ readings: '【素材正文】\n测试', question: '测', ask: stubAsk });
+  assert.ok(seen.length >= 1, '模型侧一次都没调 ask');
+  assert.ok(seen.every((t) => t === 0),
+    `模型侧判定必须传 temperature: 0，实际 ${JSON.stringify(seen)}`);
+  const { generateAdvice } = await import('./agent/advice.mjs');
+  const seen2 = [];
+  const stubAsk2 = async (_p, opts = {}) => { seen2.push(opts.temperature); return JSON.stringify({ advice: [] }); };
+  await generateAdvice({ items: [{ category: '合规', location: '图 1', reason: 'r', suggestion: 's' }],
+                         readings: '【素材正文】\n测试', question: '测', ask: stubAsk2 });
+  if (seen2.length) {
+    assert.ok(seen2.every((t) => t === 0),
+      `建议生成必须传 temperature: 0，实际 ${JSON.stringify(seen2)}`);
+  }
+});
+
+await t('N4a 拒收会落一行可数账（谁 / 为什么 / 四个读数）', async () => {
+  const { noteIdentityReject, identityRejectLogPath } = await import('./agent/tools.mjs');
+  const f = identityRejectLogPath();
+  assert.ok(f.includes('/tmp/shouheng-test-'), `自证必须写临时账本，实际=${f}`);
+  const before = fs.existsSync(f) ? fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).length : 0;
+  noteIdentityReject('旁挂', { why: '四把锁全不成立', base: '20261015-1754',
+                               want: { sha8: 'aaaaaaaa' }, got: { sha8: 'bbbbbbbb' } });
+  const lines = fs.readFileSync(f, 'utf8').split('\n').filter(Boolean);
+  assert.strictEqual(lines.length, before + 1, '拒收没落账 ⇒ 那条读数永远是 0，等于没有');
+  const last = JSON.parse(lines[lines.length - 1]);
+  assert.strictEqual(last.where, '旁挂');
+  assert.match(last.why, /四把锁/);
+  assert.strictEqual(last.got.sha8, 'bbbbbbbb', '四个读数要一起落，否则下一单还得倒推');
+});
+
+await t('N4c 计数读数：数得对、文件不在 → 0、读不到 → **null（未测）**', async () => {
+  const { identityRejectCount } = await import('./agent/tools.mjs');
+  const n = identityRejectCount();
+  assert.ok(Number.isInteger(n) && n >= 1,
+    `N4a 刚写过一行，这里应当数得到（实际 ${n}）—— 心跳那条 ⚠ 就靠它`);
+  const prev = process.env.SHOUHENG_IDENTITY_REJECT_LOG;
+  try {
+    process.env.SHOUHENG_IDENTITY_REJECT_LOG = '/tmp/绝不存在-' + Date.now() + '.ndjson';
+    assert.strictEqual(identityRejectCount(), 0, '文件不存在 = 那条路从没发生过 = 0（不是未测）');
+    process.env.SHOUHENG_IDENTITY_REJECT_LOG = '/tmp';
+    assert.strictEqual(identityRejectCount(), null, '读抛了必须回 null（未测），不许回 0');
+  } finally {
+    if (prev === undefined) delete process.env.SHOUHENG_IDENTITY_REJECT_LOG;
+    else process.env.SHOUHENG_IDENTITY_REJECT_LOG = prev;
+  }
+});
+
+await t('N4b ★★ 反向对照：跑一次自证，**真拒收账本一个字节都不许动**', async () => {
+  assert.strictEqual(realRejectLogStat(), REAL_REJECT_LOG_BEFORE,
+    `真账本被自证改动了（${REAL_REJECT_LOG}）—— 那会把「线上拒收了几次」这个读数弄脏`);
+  // 反向对照的反向：把闸门拆掉（指回真账本）时，这条断言必须会红
+  const { identityRejectLogPath } = await import('./agent/tools.mjs');
+  const prev = process.env.SHOUHENG_IDENTITY_REJECT_LOG;
+  delete process.env.SHOUHENG_IDENTITY_REJECT_LOG;
+  try {
+    assert.ok(identityRejectLogPath().endsWith('PMO/logs/identity-reject.ndjson'),
+      '闸门拆掉后应当指回真账本 —— 这条不成立说明 N4b 恒真');
+  } finally {
+    process.env.SHOUHENG_IDENTITY_REJECT_LOG = prev;
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 await t('N3 命令模板必须真被拼进 task，且三处"要自己查"的空必须堵死（含反向对照）', async () => {
   const { reviewTaskFor } = await import('./agent/tools.mjs');
   assert.strictEqual(typeof reviewTaskFor, 'function', 'reviewTaskFor 没导出（接线第一跳就断）');
@@ -5650,6 +6282,101 @@ await t('N3 命令模板必须真被拼进 task，且三处"要自己查"的空�
     '反向对照失效：模板标记被抹掉后判据仍为真 ⇒ 这条判据是恒真的');
   assert.strictEqual(wired(task.replaceAll(`--material-file ${mp}`, '--text "…"')), false,
     '反向对照失效：内联路径被拿掉后判据仍为真');
+});
+
+await t('Z45 ★★ P0 命中 ⇒ 置信度**两侧同档 1.0**（Owner 2026-10-16：「模型侧应该也是 1，最终出 1」）', async () => {
+  // ── 为什么有这一条（当天吵了三轮的收口）
+  //   PRD §6.6 末句：「P0 层级规则不适用置信度分流，命中即 BLOCK，**置信度记为 1.0**。」
+  //   Owner 的补充：「**模型侧应该也是 1，最终出 1**」—— 即 P0 那一档**不参与"取保守"**：
+  //   模型侧照样跑、照样出条目，但**不许**把确定性命中拉低（原先会被拉到 0.85，
+  //   于是出现「结论 BLOCK ／ 置信度 0.85」这种与 §6.6 打架的显示）。
+  //
+  //   ⚠️ 与 Z42 同一条纪律：模块级自证（`dual_track` ㉕a–㉕e）只管到纯函数，
+  //      **表行那个数**是 `agent.mjs` 算完再传进发布件的 —— 只有在这里真跑一遍
+  //      `runSubmissionGate`、读**捕获桩拿到的表行参数**，才叫验过。
+  const { runSubmissionGate } = await import('./agent/agent.mjs');
+  const inbound = { text: '审核下这个吸奶器文案：吸奶器M9，是最好的吸奶器', imageCount: 0, videoCount: 0 };
+  const mkFindings = (n) => Array.from({ length: n }, (_, i) => ({
+    location: `图 ${i + 1}`, category: '措辞表达', severity: 'REVIEW',
+    reason: 'r', excerpt: 'e', suggestion: 's', source: 'none',
+  }));
+  const run = async (chainExtra) => {
+    let captured = null;
+    await runSubmissionGate({
+      inbound, question: inbound.text, notify: async () => {},
+      chainRunner: async () => ({ answer: '【审查结论：BLOCK】占位', ...chainExtra }),
+      modelSideRunner: async () => ({ ok: true, findings: mkFindings(5), dropped: [] }),
+      publishRunner: async (row) => { captured = row; return { ok: true, action: 'skipped', detail: '自证桩' }; },
+      mergedReportRunner: async () => ({ ok: true, url: 'https://example.invalid/docx/STUB', detail: '自证桩' }),
+      adviceRunner: async () => ({ ok: true, ms: 1, advice: {} }),
+    });
+    return captured;
+  };
+  // ① 正向：P0 快路命中（库侧 1.0）＋ 模型侧 5 条命中 ⇒ 表行那个数必须是 **1**
+  const p0 = await run({ p0_fastpath: { elapsed_ms: 48, matched_patterns: 1, rule_codes: ['H05'] },
+                         issue_count: 2, confidence: 1.0 });
+  assert.ok(p0, '捕获桩没被调用 —— 这一条会退化成空断言');
+  assert.strictEqual(p0.confidence, 1,
+    `P0 命中的置信度必须是 1.0（两侧同档），实得 ${p0.confidence}`);
+  // ② **格内**按现行口径只有 PRD §5.3 块（2026-10-09 裁定：口径说明不占这一格）——
+  //    这里钉住它，免得有人又把内部读数塞回格子；置信度那句口径由 `machineNumbers` 的
+  //    `note` 出，**单测 D2 逐字管着**（PRD 原文 ＋「两侧同档」）。
+  assert.ok(/【审查结论：BLOCK】共发现 \d+ 处必须修改/.test(String(p0.summary ?? '')),
+    '格内必须是 PRD §5.3 的结论行');
+  assert.ok(!/⚠️ 口径|两侧合并 · 档位|两端条数对不上/.test(String(p0.summary ?? '')),
+    '格内不许塞内部口径读数（口径有它自己那一列 / 报告）');
+  // ③ ★ 反向对照：同一套输入、**不带 P0**（普通 BLOCK，库侧 0.95）⇒ 必须落回 0.85。
+  //    少了它，① 可能只是"所有 BLOCK 都给 1.0"的恒真判据。
+  const normal = await run({ review: { state: 'BLOCK', issue_count: 3, confidence: 0.95 } });
+  assert.strictEqual(normal.confidence, 0.85,
+    `非 P0 的 BLOCK 仍要按两侧取保守 ⇒ 0.85，实得 ${normal.confidence}`);
+});
+
+await t('Z46 ★★ PASS 行（没有可合并条目）格内必须是 **PRD §5.3.2 结论行**，不许回落占位话术', async () => {
+  // ── 为什么有这一条（80 行逐字段核对抓出来的最后一个异类：行22）
+  //   行22 的格内是「链已跑完（59s）。结论原文见对话与报告；本行由守衡在链返回后核对落表。
+  //   ⚠️ 产品线、渠道：…」——**那不是 PRD 块**，而是"没有 `rendered.block` 时回落 `summaryText`"
+  //   那一支的产物（PASS、两侧 0 条的常见形状）。9 个 PASS 行里只有它长这样。
+  //   判据：PASS + 无可合并条目 ⇒ 格内**必须**含 `【审查结论：PASS】`。
+  const { runSubmissionGate } = await import('./agent/agent.mjs');
+  let cap = null;
+  await runSubmissionGate({
+    inbound: { text: '审一下这条：普通商品图，无宣称', imageCount: 0, videoCount: 0 },
+    question: 'x', notify: async () => {},
+    chainRunner: async () => ({ answer: '【审查结论：PASS】占位',
+                               review: { state: 'PASS', issue_count: 0, confidence: 0.93 } }),
+    modelSideRunner: async () => ({ ok: true, findings: [], dropped: [] }),
+    publishRunner: async (row) => { cap = row; return { ok: true, action: 'skipped', detail: '自证桩' }; },
+    mergedReportRunner: async () => ({ ok: true, url: null, detail: '桩：无可并条目 ⇒ 不建' }),
+    adviceRunner: async () => ({ ok: true, ms: 1, advice: {} }),
+  });
+  assert.ok(cap, '捕获桩没被调用');
+  const cell = String(cap.summary ?? '');
+  assert.ok(/【审查结论：PASS】/.test(cell), `PASS 行格内必须是 PRD §5.3.2 结论行，实得：${cell.slice(0, 80)}`);
+  assert.ok(!/链已跑完|本行由守衡在链返回后核对落表/.test(cell),
+    '不许回落成占位话术（那不是 PRD 块）');
+  assert.strictEqual(cap.conclusion, 'PASS');
+  assert.strictEqual(cap.issueCount, 0);
+});
+
+await t('Z47 ★★ 批跑器回填**只认本轮那一行**（猜行的代价：把另一遍/上一轮的字段搬进你的表）', async () => {
+  const { readFileSync } = await import('node:fs');
+  // ── Owner 2026-10-16：「3 只有你写，别人没写」＋ 80 行逐字段核对：
+  //   行22 搬回了上一轮的占位话术；行30/33/34/48/52 落的数与**本轮报告**对不上
+  //   （报告 4/1/4/4/4，表里 3/2/3/2/3 —— 那与本单在结论表里的**另一遍**一致）。
+  //   ⇒ 常规批跑路径必须 `strict: true`：拿不到本轮 `publishedRowId` ⇒ **不写**并出声。
+  //   `--backfill`（历史补写）保留猜：它本来就没有本轮 id。
+  const src = readFileSync(new URL('./batch_review_runner.mjs', import.meta.url), 'utf8');
+  const wired = (t) => /\{ strict: true \}/.test(t) && /const hit = strictHit \|\| \(strict \? null : _guess\)/.test(t);
+  assert.ok(wired(src), '批跑器没接 strict —— 回填又会去猜行');
+  assert.ok(/strict\s*\n?\s*\? \(publishedRowId/.test(src) || /is: strict/.test(src) || /ok: false, why: strict/.test(src),
+    '拿不到本轮行时必须**不写**并给出原因（不许静默写别的行）');
+  // 反向对照：把 strict 那两处抹掉后，判据必须变假（否则它只是"文件里出现过某几个字"）
+  assert.strictEqual(wired(src.replace(/\{ strict: true \}/g, '{ strict: false }')), false,
+    '反向对照失效：strict 关掉后判据仍为真');
+  assert.strictEqual(wired(src.replace('const hit = strictHit || (strict ? null : _guess);',
+                                       'const hit = strictHit || _guess;')), false,
+    '反向对照失效：去掉严格分支后判据仍为真');
 });
 
 // 汇总必须放在**所有**分组之后（2026-10-09 修：中间那两块重复的汇总+exit

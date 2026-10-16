@@ -441,8 +441,12 @@ print("\nA7–A14 「同意」的保质期（读数与执行不同一个调用 �
 
 
 def write_consent(path, at=None, pid=None, digest=None):
+    # ★ 2026-10-16：默认 PID 取**现读**的，不取脚本开头抓到的那一个。
+    #   实测踩到：自证跑到一半，另一个会话走闸门重启了 daemon ⇒ A11 的凭证 PID 变旧
+    #   ⇒ 它先撞上「PID 对不上」（那是 A10 的情形），于是 A11 报了**假红**
+    #   （退出码对、理由不对）。假红比不报更糟（§2.1.1）—— 修法就是这里别用陈旧 PID。
     path.write_text(f"at={at if at is not None else int(time.time())}\n"
-                    f"pid={pid if pid is not None else (PID or 'none')}\n"
+                    f"pid={pid if pid is not None else (daemon_pid() or 'none')}\n"
                     f"digest={digest if digest is not None else 'x'}\n", encoding="utf-8")
 
 
@@ -893,6 +897,109 @@ check("G2", runs_doc_commands('SKILL = os.path.join(ROOT, "AGENTS.md")'),
       "反向对照：喂一个把 AGENTS.md 当扫描目标的假样本 → 报红")
 check("G3", not runs_doc_commands('SKILL = os.path.join(ROOT, "skills", "x", "SKILL.md")'),
       "反向对照：正常的 SKILL.md 目标 → 不报")
+
+# ── J 身份拒收的读数（2026-10-16 加）────────────────────────────────────
+# 拒收是**正确行为**（不把别人的结论当本单的），所以**不加闸**；
+# 要看见的是「它开始频繁发生」—— 那意味着那把锁又失效了，
+# 表现是「每一单都少了库侧依据」，而卡片上只写「库侧没读数」。
+# ★ 这一段的读数是**事实**（数出来的），不是判决；唯一会红的是 J3 那个计数器自证。
+print("\nJ 身份拒收（读数；拒收本身是正确行为，不判红）")
+
+
+def count_identity_rejects(path, since_ts=None):
+    """数账本里的拒收行。坏行**单独计数**（不许悄悄吃掉，也不许当 0）。"""
+    pth = Path(path)
+    if not pth.exists():
+        return {"n": 0, "bad": 0, "exists": False}
+    n = bad = 0
+    for line in pth.read_text(encoding="utf-8", errors="replace").splitlines():
+        if not line.strip():
+            continue
+        try:
+            d = json.loads(line)
+        except Exception:
+            bad += 1
+            continue
+        if since_ts is not None:
+            try:
+                t = datetime.datetime.fromisoformat(str(d.get("at", "")).replace("Z", "+00:00"))
+            except Exception:
+                bad += 1
+                continue
+            if t.timestamp() < since_ts:
+                continue
+        n += 1
+    return {"n": n, "bad": bad, "exists": True}
+
+
+REJECT_LOG = ROOT / "PMO" / "logs" / "identity-reject.ndjson"
+try:
+    _j = count_identity_rejects(REJECT_LOG)
+    _j24 = count_identity_rejects(REJECT_LOG, time.time() - 86400)
+    if not _j["exists"]:
+        check("J1", True, "拒收账本还没出现过 ⇒ 上线以来 **0 次拒收**（这是事实，不是未测）")
+    elif _j["bad"]:
+        cannot_test("J1", f"⚠️ 账本里有 {_j['bad']} 行解不开 ⇒ 数不准（先看 PMO/logs/identity-reject.ndjson）")
+    else:
+        check("J1", True, f"身份拒收：累计 {_j['n']} 次｜最近 24 小时 {_j24['n']} 次")
+    if _j24["n"] >= 3:
+        check("J2", True, f"⚠️ 24 小时内拒收 {_j24['n']} 次 —— 那把锁可能在失效（打开账本看 want/got 逐字对比）")
+    else:
+        check("J2", True, "拒收频次正常（< 3 次/24h）—— 它是**正确行为**，只在这个数开始爬时才说明锁失效")
+except Exception as _e:
+    cannot_test("J1", f"⚠️ 读拒收账本抛了：{_e}")
+
+# J3 反向对照：**计数器自己**必须会数错的时候数错（否则这一段就是个安慰）
+try:
+    with tempfile.NamedTemporaryFile("w", suffix=".ndjson", delete=False, encoding="utf-8") as fh:
+        _tp = fh.name
+        fh.write(json.dumps({"at": datetime.datetime.now(datetime.timezone.utc).isoformat(), "where": "旁挂"}) + "\n")
+        fh.write("{坏行\n")
+        fh.write("\n")
+    _c = count_identity_rejects(_tp)
+    _c_old = count_identity_rejects(_tp, time.time() + 3600)
+    _c_missing = count_identity_rejects(_tp + ".nope")
+    check("J3", _c["n"] == 1 and _c["bad"] == 1 and _c_old["n"] == 0 and _c_missing["n"] == 0 and not _c_missing["exists"],
+          "计数器自证：好行数对、**坏行单独计数**、时间窗外的行不算、文件不在 ⇒ 0 次且标 `exists=false`")
+    os.unlink(_tp)
+except Exception as _e:
+    check("J3", False, f"计数器自证抛了：{_e}")
+
+# J4/J5 域外依据被挡的读数（2026-10-16 加，与 J1/J2 同形但看**另一本账**）────────
+# 为什么要有它：菜单只列美国来源，**解析也只认美国来源**（非美国 id ⇒ 不给链接、
+# 按「无库内依据」写）。被挡是**正确行为**，所以不判红；要看见的是「**它开始出现**」——
+# 出现就意味着它在点一个**菜单里没有**的来源（猜的），或菜单又被改宽了。
+NONUS_LOG = ROOT / "PMO" / "logs" / "nonus-cite.ndjson"
+try:
+    _n4 = count_identity_rejects(NONUS_LOG)      # 同一把尺子：数行、坏行单独计
+    if not _n4["exists"]:
+        check("J4", True, "域外依据账本还没出现过 ⇒ 上线以来 **0 次被挡**（这是事实，不是未测）")
+    elif _n4["bad"]:
+        cannot_test("J4", f"⚠️ 账本里有 {_n4['bad']} 行解不开 ⇒ 数不准（先看 PMO/logs/nonus-cite.ndjson）")
+    else:
+        check("J4", True, f"域外依据被挡：累计 {_n4['n']} 次（打开账本看是哪个 id、哪个辖区）")
+except Exception as _e:
+    cannot_test("J4", f"⚠️ 读域外依据账本抛了：{_e}")
+
+# J5 接线：心跳里必须**真的调**那条读数 —— 只定义不调用 ＝ 写了没人看
+#   （与 `test_agent.mjs` 那条「handleMessage 必须真的调闸门」同一种断言：**接线级**。
+#    它只证明读数被接上，**不证明模型真的会被挡** —— 后者在 `ext_basis.mjs --selftest`
+#    里用「喂 S15 ⇒ 不给链接」＋「S15 辖区改 US ⇒ 又给链接」两条反向对照证。）
+try:
+    _dae = (ROOT / "tools" / "ws_daemon.mjs").read_text(encoding="utf-8")
+    _tail = _dae.split("const hb = setInterval", 1)
+    # 心跳体就在紧跟的那一段里；取一个足够宽的窗口（两段读数都必须落在里面）
+    _win = _tail[1][:1500] if len(_tail) == 2 else ""
+    check("J5",
+          # ★ 判据要按**位置**分开看，别把两件事混成一句（这条断言第一版就是这么红的：
+          #   我要求「心跳窗口里出现 `nonUsCiteCount()`」，而那个调用在**心跳之前**的函数体里，
+          #   心跳里调的只是 `nonUsCiteLine()` —— 一个写错的判据会报出一条指向无关方向的假红）。
+          "function nonUsCiteLine()" in _dae        # ① 读数函数有定义
+          and "nonUsCiteCount()" in _dae             # ② 定义体里真的去读了账本
+          and "nonUsCiteLine()" in _win,             # ③ **心跳里真的调了它**
+          "接线：`ws_daemon.mjs` 里 `nonUsCiteLine()` 有定义（且体里真读账本），**心跳里真的调了它**")
+except Exception as _e:
+    check("J5", False, f"读 ws_daemon.mjs 抛了：{_e}")
 
 # ── H 结论行自己不许撒谎（反向对照，全在内存里，不碰盘）─────────────────
 print("\nH 结论行自己不许撒谎（未测 ≠ 通过 ≠ 红）")

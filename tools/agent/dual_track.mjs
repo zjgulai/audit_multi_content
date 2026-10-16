@@ -477,8 +477,38 @@ export function mergeSummary(stats = {}) {
  */
 export const CONF_LINES = Object.freeze({ direct: 0.90, confirm: 0.70 });
 /** 档位 → 对外那个**代表值**（唯一一张表；换它 = 改口径，不是调参）。 */
-export const CONF_REPRESENTATIVE = Object.freeze({ direct: 0.93, confirm: 0.85, focus: 0.65 });
-const CONF_ORDER = ['focus', 'confirm', 'direct'];      // 越靠前越保守
+export const CONF_REPRESENTATIVE = Object.freeze({ p0: 1.0, direct: 0.93, confirm: 0.85, focus: 0.65 });
+const CONF_ORDER = ['focus', 'confirm', 'direct'];      // 越靠前越保守（★ `p0` **不在这条链上**，见下）
+
+/**
+ * 这一单**是不是 P0 命中** —— 决定置信度走不走分流（PRD §6.6 末句）。
+ *
+ * ★★ 2026-10-16（Owner 逐字裁定）：
+ *   「按照 prd：**P0 层级规则不适用置信度分流，命中即 BLOCK，置信度记为 1.0**。
+ *     模型侧应该也是 **1**，最终出 **1**。」
+ *
+ *   为什么非要这个判据（当天吵了三轮，两个口径在 P0 行上顶着）：
+ *     · 只按 PRD 字面 ⇒ 表里写 1.0，**但那个数只反映库侧**（模型侧的档位被豁免丢掉）；
+ *     · 只按「两侧一起出」⇒ 表里写 0.85（模型侧把库侧的 1.0 拉低）⇒ 与 PRD 那句冲突。
+ *     Owner 的裁法把两者都满足：**命中 P0 ⇒ 两侧一起记 1.0**（模型侧不再是 0.85），
+ *     于是"两侧都出了"与"记为 1.0"同时成立。
+ *
+ *   判据来源（**引擎的读数，不是我猜的**）：
+ *     · P0 快路：`res.p0_fastpath` / `kbSideOf().source === 'p0_fastpath'`；
+ *     · 评审链：引擎 JSON 的 `tier_trace.P0`（`review_engine.py` 明写「数**命中的**，不是数拦住的」
+ *       —— 连"P0 命中但证据不齐、结论走 REVIEW"那一单也记 P0>0）；
+ *     · 兜底：库侧那个数本身就是 `1.0`（`bandOf(1) === 'p0'`，只有 P0 会写这个值）。
+ */
+export function p0HitOf({ res = null, kb = null } = {}) {
+  if (kb && kb.source === 'p0_fastpath') return true;
+  if (res && res.p0_fastpath) return true;
+  const tt = res?.engine?.tier_trace;
+  if (tt && Number(tt.P0) > 0) return true;
+  const items = res?.engine?.risk_items ?? res?.engine?.items;
+  if (Array.isArray(items)
+      && items.some((i) => String(i?.priority_tier ?? '').toUpperCase() === 'P0')) return true;
+  return bandOf(res?.review?.confidence ?? res?.confidence) === 'p0';
+}
 
 /** 一个数 → PRD §6.6 的档位（拿不到数就 `null`：**不猜档**）。 */
 export function bandOf(confidence) {
@@ -488,13 +518,27 @@ export function bandOf(confidence) {
   if (confidence === null || confidence === undefined || confidence === '') return null;
   const c = Number(confidence);
   if (!Number.isFinite(c)) return null;
+  // ★ 2026-10-16：`1.0` 是 **P0 的记法**（PRD §6.6「置信度记为 1.0」），单独一档 ——
+  //   它与 `direct`（0.90–0.99 的代表值 0.93）语义不同：direct 是"够格直接出结论"，
+  //   p0 是"确定性命中、不适用分流"。混成一档，下游就没法把 P0 行挑出来（豁免、口径说明都要它）。
+  if (c >= 1) return 'p0';
   if (c >= CONF_LINES.direct) return 'direct';
   if (c >= CONF_LINES.confirm) return 'confirm';
   return 'focus';
 }
 
 /** 模型侧置信度（**派生**，不让模型自报）。`bothCount` = 双轨确认条数（§④「取交集」那一格）。 */
-export function modelConfidenceOf({ model = null, kbCovered = false, bothCount = 0 } = {}) {
+export function modelConfidenceOf({ model = null, kbCovered = false, bothCount = 0, p0Hit = false } = {}) {
+  // ★★ 2026-10-16（Owner 逐字裁定，**以后一句为准**）：
+  //   「命中知识库 P0 就是 block，**置信度就是 1**。这时候**不用合并模型侧的置信度**，
+  //     这条修复后落库」
+  //   ⇒ P0 命中这一档**根本不进入合并**：模型侧那一格记「未参与」（**不是**记 1.0）——
+  //     记 1.0 会让台账看起来像"模型侧也算出了一个 1"，而事实是这一档不看它。
+  //     （上一版我按「模型侧应该也是 1」记成两侧同档 1.0，口径以本条为准。）
+  if (p0Hit) {
+    return { band: null, value: null,
+             why: '本单 P0 命中 ⇒ 按 PRD §6.6 不适用置信度分流，**模型侧不参与置信度合并**' };
+  }
   if (!model || model.ok === false || model.skipped === true) {
     return { band: null, value: null, why: '模型侧未参与（没跑成或跳过）' };
   }
@@ -539,12 +583,30 @@ export function modelConfidenceOf({ model = null, kbCovered = false, bothCount =
  *            model_band:string|null, basis:string}}
  */
 export function mergedConfidence({ kbConfidence = null, kbCovered = false,
-                                   model = null, modelFailed = false, bothCount = 0 } = {}) {
+                                   model = null, modelFailed = false, bothCount = 0,
+                                   p0Hit = false } = {}) {
   const kbVal = (kbConfidence === null || kbConfidence === undefined || kbConfidence === '')
     ? null
     : (Number.isFinite(Number(kbConfidence)) ? Number(kbConfidence) : null);   // 同上：`null` 不是 0
   const kbBand = bandOf(kbVal);
-  const mb = modelConfidenceOf({ model, kbCovered, bothCount });
+  const mb = modelConfidenceOf({ model, kbCovered, bothCount, p0Hit });
+  // ── ★★ 2026-10-16（Owner 逐字裁定，**以后一句为准**）**P0 那一档最先判、且不进合并** ──
+  //   Owner 原话：「**命中知识库 P0 就是 block，置信度就是 1。这时候不用合并模型侧的置信度**，
+  //     这条修复后落库」
+  //   与 PRD §6.6 末句一致：「P0 层级规则**不适用置信度分流**，命中即 BLOCK，**置信度记为 1.0**。」
+  //   ⇒ 命中 P0 ⇒ 置信度 = **1.0**（库侧那个数），**模型侧不参与**（`model_band: null`，
+  //     basis 里如实写明）——**不许**被模型侧拉到 0.85（那正是「结论 BLOCK ／ 置信度 0.85」
+  //     这种与 §6.6 打架的显示）。
+  //   ⚠️ 这一支必须排在 modelFailed / F1 之前：P0 是**确定性匹配**（正则/关键词），
+  //     不依赖模型侧跑没跑成，也不适用"库侧没读数就不出数"那条（那说的是**判定**缺失）。
+  if (p0Hit || kbBand === 'p0' || mb.band === 'p0') {
+    return {
+      value: CONF_REPRESENTATIVE.p0, band: 'p0',
+      kb_band: kbBand ?? 'p0', model_band: null,
+      basis: 'PRD §6.6：**P0 层级规则不适用置信度分流，命中即 BLOCK，置信度记为 1.0** '
+        + '⇒ 置信度 = 1.0；**不合并模型侧**（确定性匹配，不受模型侧读数影响）',
+    };
+  }
   if (mb.band === null || modelFailed) {
     return { value: kbVal, band: kbBand, kb_band: kbBand, model_band: null,
              basis: `本单模型侧未参与 ⇒ 用库侧读数（单轨）｜${mb.why}` };
@@ -1309,6 +1371,58 @@ export function selftest() {
     const f2 = mergedConfidence({ kbConfidence: 0.95, kbCovered: true, model: mkModel(2), bothCount: 1 });
     eq('㉔f2 反向对照：有 1 条互证 ⇒ 必须回 direct（与 ㉔f 的档位必须不同）',
        [f2.band, f2.band !== f.band], ['direct', true]);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ㉕ P0：不适用分流 ⇒ **两侧同档 1.0，最终出 1**（Owner 2026-10-16 逐字裁定）
+  //
+  //   「按照 prd：P0 层级规则不适用置信度分流，命中即 BLOCK，置信度记为 1.0。
+  //     **模型侧应该也是 1，最终出 1**。」
+  //
+  //   为什么单开一组：这一档**不参与"取保守"** —— 上面 ㉔ 那一整套（模型侧拉低、
+  //   没有互证就落 confirm）在 P0 行上**一个都不适用**。少了这组，
+  //   下次谁把 P0 并回普通链，就会出现「结论 BLOCK ／ 置信度 0.85」那种与 §6.6 打架的显示。
+  {
+    const mkModel = (n) => ({ ok: true, findings: Array.from({ length: n }, (_, i) => ({
+      location: `图 ${i + 1}`, category: '措辞表达', severity: 'REVIEW',
+      reason: 'r', excerpt: 'e', suggestion: 's' })), dropped: [] });
+
+    // ㉕a P0 命中（快路）⇒ 两侧 1.0、合并 1.0；**模型侧有 3 条命中也不许拉低**
+    const a = mergedConfidence({ kbConfidence: 1.0, kbCovered: true, model: mkModel(3),
+                                 bothCount: 0, p0Hit: true });
+    eq('㉕a P0 命中 ⇒ 置信度 = 1.0（档位 p0），**模型侧不参与合并**（Owner：不用合并模型侧的置信度）',
+       [a.value, a.band, a.model_band, /不合并模型侧/.test(a.basis)], [1, 'p0', null, true]);
+    eq('㉕a1b 模型侧那几条命中**不许**把确定性命中拉低（同一份输入、非 P0 ⇒ 0.85）',
+       mergedConfidence({ kbConfidence: 0.95, kbCovered: true, model: mkModel(3) }).value, 0.85);
+    eq('㉕a2 同一份输入、把库侧那个数换成**非 P0 的 0.95** ⇒ 必须回到 0.85'
+       + '（证明这一档只在 P0 上生效，不是"所有单子都给 1.0"的恒真判据）',
+       mergedConfidence({ kbConfidence: 0.95, kbCovered: true, model: mkModel(3) }).value, 0.85);
+    eq('㉕a3 `1.0` 本身就是 P0 的记法 ⇒ **不显式声明 p0Hit 也认**（库侧那个 1.0 只可能来自 P0）',
+       mergedConfidence({ kbConfidence: 1.0, kbCovered: true, model: mkModel(3) }).value, 1);
+    eq('㉕a4 P0 那一档的模型侧读数记「未参与」——**不是**记 1.0（免得台账看起来像算过）',
+       a.model_band, null);
+
+    // ㉕b `bandOf(1.0)` 单独成档：`p0` ≠ `direct`（0.99 仍是 direct）
+    eq('㉕b `bandOf(1) === "p0"`、`bandOf(0.99) === "direct"`（1.0 是 P0 的记法，不许与 direct 混）',
+       [bandOf(1), bandOf(0.99), CONF_REPRESENTATIVE.p0], ['p0', 'direct', 1]);
+
+    // ㉕c 判据来自**引擎读数**：`tier_trace.P0 > 0` / 快路标记 / 库侧那个 1.0
+    eq('㉕c `p0HitOf`：快路 ⇒ true；`tier_trace.P0=1` ⇒ true；普通单 ⇒ false',
+       [p0HitOf({ kb: { source: 'p0_fastpath' } }),
+        p0HitOf({ res: { engine: { tier_trace: { P0: 1, P1: 2 } } } }),
+        p0HitOf({ res: { engine: { tier_trace: { P0: 0 } } }, kb: { source: 'chain' } })],
+       [true, true, false]);
+
+    // ㉕d 模型侧没跑成也照样是 1.0（P0 是**确定性匹配**，与模型侧参不参与无关）
+    const d = mergedConfidence({ kbConfidence: 1.0, kbCovered: true, model: null,
+                                 modelFailed: true, p0Hit: true });
+    eq('㉕d P0 命中 ＋ 模型侧没跑成 ⇒ 仍然 1.0（确定性匹配不依赖模型侧）',
+       [d.value, d.band], [1, 'p0']);
+
+    // ㉕e ★ 接线：`agent.mjs` 必须真的把 `p0Hit` 传进去（只写函数不接线 = 判据是注释）
+    const src = readFileSync(new URL('./agent.mjs', import.meta.url), 'utf8');
+    eq('㉕e 接线：`agent.mjs` 里 `p0HitOf(...)` 的结果必须传进 `mergedConfidence`',
+       /const p0Hit = p0HitOf\(/.test(src) && /p0Hit,\s*\n?\s*\/\//.test(src), true);
   }
 
   console.log(`\n自证：通过 ${pass} / 失败 ${bad.length}`);
@@ -2822,6 +2936,12 @@ export function categorySummary(list = [], total = null) {
     // ⚠️ 这一行**必须留**：没有它，读者把分类行加起来会小于抬头那个数
     //   （实测 19:08 那单：抬头 12、分类只有 7）—— 那是「卡内算术不闭合」，
     //   比多一句话坏得多。它只说「还有 N 条在哪」，不下口径解释。
+    // ★ 2026-10-16：我曾把这里改成「未并进明细」并给报告加了一段说明 —— **已回退**。
+    //   理由（Owner 当场问的）：「你在补守衡的文件吗？理由是什么？……你的任务就是负责这 80 条
+    //   数据采集任务的一致性和准确性」⇒ 守衡引擎不是我的改动范围。**这一格是缺陷，不是我的活**：
+    //   `n − list.length` 恰好等于 `kbGap` ＝「库侧报了条数、逐条没抽出来」，
+    //   所以「（明细在报告里）」在那种情况下是假话（实测 5 行：行 9/10/15/46 各差 1 条、行 37 差 3 条）。
+    //   留档在 `~/.dsh/AGENTS.md` ？不 —— 留在这里，谁接手引擎谁看得见。
     rows.push(`· 另有 ${n - list.length} 条（明细在报告里）`);   // 2026-10-15 Owner 格式：不加粗
   }
   // 汇总行**紧挨着**输出（不空行）—— 见上面那条口径

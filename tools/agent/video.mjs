@@ -31,6 +31,7 @@ import { promisify } from 'node:util';
 import { REPO_ROOT, AGENT_DIR } from './config.mjs';
 import * as vision from './vision.mjs';
 import * as asr from './asr.mjs';
+import * as sceneMod from './scene.mjs';
 
 const execFileP = promisify(execFile);
 
@@ -49,6 +50,15 @@ export const VIDEO_FIXTURE_TOKEN = 'SHOUHENG VIDEO FIXTURE';
 
 /** 一次最多抽几帧。8 帧是本模块的上限（PRD §5.2 要的是「关键帧」，不是逐帧）。 */
 export const VIDEO_MAX_FRAMES = 8;
+
+/**
+ * 画面层**看几帧**（默认 3，`SHOUHENG_SCENE_FRAMES=0` 可整块关掉）。
+ * 为什么不是每帧都看：8 帧 = 8 次模型调用，成本与延迟按帧数线性涨，
+ * 而画面层的价值在「有没有这回事」（有没有人、有没有婴幼儿、产品在不在用），
+ * 不在逐帧穷举。**取哪几帧是均匀取的（含首尾），且必须写进读数** ——
+ * 没覆盖的帧是**真未测**，读数里不许把它糊过去。
+ */
+export const SCENE_FRAMES_MAX = Number(process.env.SHOUHENG_SCENE_FRAMES ?? 3);
 /** 帧 OCR 文字总量上限（字）。超了截断并明写 —— 不许静默截。 */
 export const VIDEO_MAX_OCR_CHARS = 8000;
 /** 单条视频的字节上限。飞书侧本身上限 100MB，这里再收一道。 */
@@ -250,6 +260,9 @@ export async function readVideo(filePath, {
   locale = null,
   frames = VIDEO_MAX_FRAMES,
   ocr = vision.ocrImage,
+  // ★ 2026-10-16：**画面层**（PRD §5.1 对视频写的「画面关键帧」）。
+  //   与 `ocr` 同级注入：测试要能打桩，否则这条路只能联网+花 token 才测得动。
+  scene = sceneMod.sceneRead,
   asrFn = asr.transcribe,
   tempDir = null,
 } = {}) {
@@ -289,7 +302,12 @@ export async function readVideo(filePath, {
     }
     const text = String(r.text ?? '');
     ocrChars += text.length;
-    frameOcr.push({ t_s: f.t_s, text, lines: r.lines ?? null });
+    // ★★ 2026-10-16：**逐行置信度一起带出去**（`boxes` 里带 `c`，见 `vision.mjs` 那一段）。
+    //   为什么视频这一路也要：模型侧对视频同样会写「画面 / 字幕上是中文」这类条目，
+    //   而「汉字声称闸」（`ocr_claim_gate.mjs`）判的就是「这条声称有没有读数撑得住」——
+    //   帧上的字若没有 `c`，闸门只能一律降级 ⇒ 真中文字幕会被误杀。
+    //   ⚠️ 帧上文字仍以 `text` 为唯一对外文本；`boxes` 只作证据，**不进卡片**。
+    frameOcr.push({ t_s: f.t_s, text, lines: r.lines ?? null, boxes: r.boxes ?? null });
   }
   if (probe.n_frames === 0) {
     // 「抽不出帧」有三种成因（没有视频轨 / 解不开 / 时长读成 0），探针的读数分不开，
@@ -332,12 +350,59 @@ export async function readVideo(filePath, {
     ocrText = `${ocrText.slice(0, VIDEO_MAX_OCR_CHARS)}\n…〔关键帧 OCR 文字原长 ${ocrText.length} 字，按 ${VIDEO_MAX_OCR_CHARS} 字上限截断〕`;
   }
 
+  // ── ★★ 2026-10-16：**关键帧的画面层**（PRD §5.1 对视频写的是「画面关键帧」）──────
+  //   与图片那条同形状、同纪律（见 `scene.mjs` 头注）：只读临时目录里的帧、
+  //   只陈述看得见的、读不到要说「未测」而不是「没问题」。
+  //   ⚠️ **不是每帧都看**：`SCENE_FRAMES_MAX`（默认 3，可环境变量覆盖）——
+  //      8 帧各一次调用，成本与延迟按帧数线性涨；画面层的价值在「有没有这回事」，
+  //      不在逐帧穷举。**覆盖了哪几帧必须写进读数**（没覆盖的帧是真·未测）。
+  const frameScene = [];
+  // ★ 「这一单没跑」**不许由消费方猜**（空数组可能是「开关关着」「没抽到帧」「老数据没这个字段」）——
+  //   由产者在这里写成一句 `sceneSkipReason`。猜出来的那句话，正是 §2.4.1 那个病。
+  let sceneSkipReason = null;
+  {
+    const all = probe.frames ?? [];
+    const k = Math.max(0, Math.min(Number(SCENE_FRAMES_MAX) || 0, all.length));
+    if (!sceneMod.SCENE_ENABLED || (Number(SCENE_FRAMES_MAX) || 0) <= 0) {
+      sceneSkipReason = '画面层未开（SHOUHENG_SCENE=0 或 SHOUHENG_SCENE_FRAMES=0）';
+    } else if (!all.length) {
+      sceneSkipReason = '这一段没抽出帧，画面层无从读起';
+    }
+    const picks = [];
+    for (let j = 0; j < k; j++) {
+      // 均匀取 k 帧（含首尾）：开头/中间/结尾各看一眼，比连看三帧有用
+      picks.push(k === 1 ? 0 : Math.round((j * (all.length - 1)) / (k - 1)));
+    }
+    // ★★ 2026-10-16 实测：**串行跑这 3 帧要 41 秒**（各 16.1 / 21.1 / 3.7 s）——
+    //   它们之间**没有任何依赖**（同一段视频的三帧，各自独立一次读数）
+    //   ⇒ 并行发出去，总时长 ≈ 最慢的那一帧，不是三者之和。
+    //   ⚠️ `Promise.all` 保序（与 `picks` 一一对应），所以「哪一帧是哪一帧」不会错位。
+    const uniq = [...new Set(picks)].map((i) => all[i]).filter((f) => f?.path);
+    const settled = await Promise.all(uniq.map(async (f) => {
+      try { return { t_s: f.t_s ?? null, ...(await scene(f.path)) }; }
+      catch (e) { return { t_s: f.t_s ?? null, ok: false, ms: 0, error: `画面读数抛异常：${e?.message ?? e}` }; }
+    }));
+    frameScene.push(...settled);
+    if (frameScene.length) {
+      const got = frameScene.filter((s) => s.ok).length;
+      notes.push(`画面读数覆盖 ${frameScene.map((s) => `${Number(s.t_s ?? 0).toFixed(1)}s`).join(' / ')}`
+        + `（共 ${all.length} 帧，成功 ${got}/${frameScene.length}）`
+        + `—— **没覆盖的那几帧画面是真未测**，不许说成「整条视频的画面都看过了」`);
+    }
+    if (frameScene.some((s) => !s.ok && s.error)) {
+      notes.push(`${frameScene.filter((s) => !s.ok && s.error).length} 帧画面**没读到**`
+        + '（「没读到」不是「画面没问题」）');
+    }
+  }
+
   return {
     ok: true,
     meta,
     frames: frameOcr,
     framesRead: frameOcr.length - framesFailed,
     framesFailed,
+    frameScene,
+    sceneSkipReason,
     ocrText,
     ocrChars,
     ocrTruncated,

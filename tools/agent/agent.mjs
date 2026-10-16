@@ -19,19 +19,27 @@ import * as mem from './memory.mjs';
 import * as feishu from './feishu.mjs';
 import * as vision from './vision.mjs';
 import * as sceneMod from './scene.mjs';
+import { SCENE_MAX_EDGE } from './scene.mjs';
+// ★ 2026-10-16（Owner）：「送审问题」里的图/视频要变成**点一下就开**的链接，
+//   且那一格**只留原文**（起因是实测发现 54 行里躺着我们自己的内部指令）。
+//   详见 `media_link.mjs` 头注（三条裁定、fail-closed、红线）。
+import * as mediaLink from './media_link.mjs';
 // ★ 2026-10-09：OCR 水印摘除（Owner 看出图内文字里的用户名是水印）——见该模块头注
 import { stripOcrWatermark } from './ocr_watermark.mjs';
 import * as video from './video.mjs';
 import { TOOL_SCHEMAS, executeTool, runtimeContext, toolNames, claimStatus, facetsFromMaterial,
-         beginChainTurn, chainMemoStats } from './tools.mjs';
+         beginChainTurn, chainMemoStats, beginP0Turn, p0MemoRead,
+         runP0Preflight } from './tools.mjs';
 import { detectTruncation, annotateTruncation, tailOf, collapseToolMessages, clipToolOutput,
          TOOL_OUTPUT_MAX_CHARS } from './truncate.mjs';
 import { parentIdOf, alreadyInHistory, buildQuoteBlock } from './thread.mjs';
 import * as reviewGate from './review_gate.mjs';
 import { mergeFindings, mergedState, kbFindingsOf, kbCoveredOf, renderMerged, mergeSummary, kbSideOf,
-         mergedConfidence, kbNoReadingOf, REPORT_LINK_MIN_ISSUES, evidenceBlock } from './dual_track.mjs';
+         mergedConfidence, kbNoReadingOf, REPORT_LINK_MIN_ISSUES, evidenceBlock,
+         p0HitOf } from './dual_track.mjs';
 import { renderMergedReportMd, publishMergedReport } from './merged_report.mjs';
 import { reviewModelSide, readingsForModelSide } from './model_side.mjs';
+import * as ocrGate from './ocr_claim_gate.mjs';
 import { generateAdvice } from './advice.mjs';
 import * as reviewPublish from './review_publish.mjs';
 import { deriveVerdictLine } from './prd53.mjs';
@@ -394,6 +402,10 @@ export async function readInboundContent(msg, {
       }
       const pushImg = (extra) => images.push({
         index: i + 1, imageKey: k.imageKey, fromParent, bytes: got.bytes,
+        // ★ 2026-10-16：**把来源消息 id 带出去** —— 落表时要把这张图上传成链接，
+        //   而那时读入阶段的临时字节早就删了（用完即删那条纪律），只能凭
+        //   「消息 id + image_key」再取一次。这就是那两个键在 `inbound` 里的落点。
+        msgId: srcMsgId,
         ...(sceneRes ? { scene: sceneRes } : {}), ...extra,
       });
       // OCR 自己抛也要接住：本模块的契约是「**任何一张图读不到都不该让整条回话失败**」，
@@ -436,8 +448,15 @@ export async function readInboundContent(msg, {
         //     · `wm*`     = 留痕（摘了哪些行、靠哪条判据）—— 缺了它，摘除就是不可核的。
         const senderName = senderNameForWatermark ? await senderNameForWatermark() : null;
         const wm = stripOcrWatermark({ text: r.text, boxes: r.boxes, senderName });
+        // ★★ 2026-10-16：**逐行读数（含置信度）一起带出去** —— 汉字声称闸（`ocr_claim_gate.mjs`）
+        //   判的就是「这条声称有没有读数撑得住」。摘掉的水印行**不进证据**
+        //   （水印是文档产生的，不是素材上的字；拿它去"确认"等于用噪声证噪声）。
+        const keptBoxes = Array.isArray(r.boxes)
+          ? r.boxes.filter((b) => !(wm.dropped ?? []).includes(String(b?.t ?? '')))
+          : null;
         pushImg({ text: wm.text, textRaw: r.text,
                       lines: r.lines ?? null, chars: r.chars ?? null,
+                      boxes: keptBoxes,
                       w: r.w ?? null, h: r.h ?? null, truncated: !!r.truncated,
                       // `wlText` 保留为**同一份**（老读者还有人在用；值恒等，不再各挑各的）
                       wlText: wm.text, wmDropped: wm.dropped, wmBasis: wm.basis });
@@ -496,6 +515,8 @@ export async function readInboundContent(msg, {
       }
       videos.push({
         index: i + 1, fileKey: v.fileKey, fileName: v.fileName, fromParent, bytes: got.bytes,
+        // ★ 2026-10-16：与图片同一个理由（落表时凭「消息 id + file_key」再取一次来做成链接）
+        msgId: srcMsgId,
         meta: r.meta, frames: r.frames, framesRead: r.framesRead, framesFailed: r.framesFailed,
         ocrText: r.ocrText, ocrChars: r.ocrChars, ocrTruncated: r.ocrTruncated,
         // ★ 2026-10-16：关键帧的画面读数 —— **必须原样带出去**（这一行漏了，
@@ -812,6 +833,23 @@ export async function defaultChainRunner(args) {
  */
 export async function runSubmissionGate({
   inbound, question = '', notify = null,
+  // ★★ 2026-10-16（Owner 裁定）：「**送审问题**」这一格**只留对方原文** ＋ 媒材链接。
+  //
+  //   为什么非要单独传一个 `userText`：`question` 是**拼给模型看的那一轮** ——
+  //   `buildUserTurn` 把对方的话、我们的探针（`【对方这条消息里附了图…】`）、OCR 全文
+  //   拼成了一个字符串。落表时直接写 `question` ⇒ **我们自己的内部指令进了表**
+  //   （实测 200 行里 54 行如此，见 `media_link.mjs` 头注）。
+  //   `userText` 是**剥掉 mention 之后、加任何块之前**的那句话，两件事本来就分得开。
+  //   ⚠️ 不传（`undefined`）时退回 `question` —— 而 `stripInternal` 仍会把探针块切掉，
+  //     所以「调用方忘了传」不会立刻把指令漏进表（只是少了对方原话的精确切分）。
+  userText = undefined,
+  // ★ 媒材链接这一步**必须可注入**：它默认会真往云空间上传（§2.4.4 那个形状 ——
+  //   自证有副作用）。不注入的话，任何一条「带媒材 + 链跑成」的自证用例都会
+  //   真上传一个文件到 Owner 的云空间里，而且会真的发出一个组织内可读的链接。
+  mediaLinksRunner = mediaLink.collectMediaLinks,
+  mediaUpload = mediaLink.uploadForLink,
+  fetchImageForLink = feishu.fetchMessageImage,
+  fetchVideoForLink = feishu.fetchMessageVideo,
   // ★ 目标 19（2026-10-10）：消息到达时刻（ms epoch）。PRD §12「飞书群 @Agent 响应时间 ≤5 秒」
   //   量的就是 **tIngress → 回执卡发送完成** 这一段。null ⇒ 不打这条指标（不编数）。
   tIngress = null,
@@ -885,6 +923,22 @@ export async function runSubmissionGate({
                   ` chat=${gate?.chatId ?? inbound?.chatId ?? '-'}`);
     }
   }
+  // ── ★★ 2026-10-16：媒材链接 —— **回执之后才起，且不 await** ────────────────────
+  //
+  //   为什么必须在这里起（三个约束一起决定的，改哪一条都会坏）：
+  //     · **不许在回执之前**：上传要 5 次 CLI 调用（实测 9.6 s 首次 / 之后约 7 s），
+  //       摆在回执前就是往 PRD §12 那条「@ → 回执 ≤5 秒」上直接加时间；
+  //     · **不许在落表时才起**：链要跑 100 秒上下，那时再上传等于白等 7 秒；
+  //     · **不能等到那时才去取字节**：读入阶段的临时文件按红线**用完即删**，
+  //       所以这里起的是「**重新取一次字节 → 上传 → 删临时文件**」（见 `collectMediaLinks`）。
+  //   ⇒ 与链**并行**跑；落表那一刻用 `awaitLinks` **有界等待**（P0 快路几毫秒就到落表，
+  //     等不到就按「没链接」落，那一格只留原文 —— 绝不写一个点不开的链接）。
+  const linksP = (inbound?.imageCount || inbound?.videoCount)
+    ? mediaLinksRunner({
+        inbound, fetchImage: fetchImageForLink, fetchVideo: fetchVideoForLink, upload: mediaUpload,
+        log: (s) => console.log(`[agent] ${s}`),
+      }).catch((e) => { console.log(`[agent] ⚠️ 媒材链接这一步抛了：${e?.message ?? e}`); return []; })
+    : null;
   // ── ★ 2026-10-08：**模型侧与链同时起跑**（方案 §③ 的原话是「互不等待」）──────────
   //
   //   改前是**串行**：`if (chainRan) { await modelSideRunner(...) }` ——
@@ -896,7 +950,10 @@ export async function runSubmissionGate({
   //   现在：**两路同时起，谁先完谁先等**。链侧慢或坏，模型侧那几条照样进结论
   //   —— 这正是方案说的「没有主判与辅助之分」。
   //   `.catch` 兜在起跑处：模型侧抛异常**不算这一轮失败**，它只是没有产出（边界①）。
-  const readings = readingsForModelSide(inbound);
+  // ★ 2026-10-16：把**对方原话（剥掉 @ 之后）**一并传进去 —— 不许再把
+  //   `inbound.text`（含 `@守衡` 这个 mention）当成【素材正文】喂给模型侧。
+  //   现场见报告第 1 条：「正文只带了中文账号名 @守衡…建议换成品牌官方英文 handle」。
+  const readings = readingsForModelSide(inbound, { userText });
   const modelSideP = modelSideRunner({ readings, question, ask: llm.ask })
     .catch((e) => ({ ok: false, findings: [], dropped: [], ms: 0, error: `${e?.message ?? e}` }));
 
@@ -943,6 +1000,45 @@ export async function runSubmissionGate({
       //   逐条正则抠不到 ⇒ 库侧被读成「0 条」⇒ 合并把**库侧的 BLOCK 降级成 REVIEW**。
       const kbSide = kbSideOf(res);
       const merged = mergeFindings(kb.findings, model.findings);
+      // ── ★★ 2026-10-16：**汉字声称闸**（Owner 当场问的那一行；详见 `ocr_claim_gate.mjs`）──
+      //   病灶（第 17 行，实测）：那张**通篇英文**的商品图，本机 OCR 在「控制面板 Cleaning
+      //   图标处」「纸盒上印的 30 那一带」读出汉字（置信度 0.3 = 引擎下限；整图 2× 再读汉字归零），
+      //   模型侧看不到原图、只吃这段 OCR ⇒ 写成「图上有中文」，出了 REVIEW ＋ 改图建议。
+      //   80 行里同类 4 条，**真阳性 0**。
+      //   闸门口径：声称「画面/图上有非英文文字」的条目，必须过（a）画面读数确认 或
+      //   （b）OCR 逐字命中且置信度 ≥ 0.5；都不过 ⇒ **降级**：**不进 `merged.items`**
+      //   ⇒ 既不计入问题数、也不影响三态与报告链接（与「不是发现的问题不许当发现」同一条纪律）。
+      //   ⚠️ 降级**不是删除**：每一条都在日志里逐条留痕（引了什么字、置信度多少、画面层说了什么），
+      //      闸门自己抛异常时**原样放行**并出声（减噪工具不许把整单结论带下水）。
+      let gateRes = { kept: merged.items, downgraded: [], applied: false, note: '（没跑）' };
+      try {
+        gateRes = ocrGate.gateFindings(merged.items, ocrGate.evidenceOf(inbound));
+        if (gateRes.downgraded.length) {
+          merged.items = gateRes.kept;
+          // 计数口径跟着走：按 `source` 重算（与 `mergeFindings` 的统计同口径）。
+          const st = { both: 0, conflict: 0, kb_only: 0, model_only: 0 };
+          for (const f of merged.items) {
+            if (f.source === 'both') st.both += 1;
+            else if (f.source === 'both-conflict') st.conflict += 1;
+            else if (f.source === 'kb') st.kb_only += 1;
+            else st.model_only += 1;
+          }
+          merged.stats = { ...merged.stats, ...st, merged: merged.items.length,
+                           gate_downgraded: gateRes.downgraded.length };
+        }
+        if (gateRes.downgraded.length) {
+          for (const d of gateRes.downgraded) {
+            console.log(`[agent] 🚦 汉字声称闸：降级 1 条（**不计入问题数**）`
+              + `｜${String(d.item?.location ?? '').slice(0, 60)}｜${d.why}`);
+          }
+          console.log(`[agent] 🚦 汉字声称闸：本单降级 ${gateRes.downgraded.length} 条，`
+            + `并入条目 ${merged.items.length} 条（原 ${merged.items.length + gateRes.downgraded.length} 条）`);
+        } else if (gateRes.applied) {
+          console.log(`[agent] 🚦 汉字声称闸：过（${gateRes.note}）`);
+        }
+      } catch (e) {
+        console.log(`[agent] 🚦 汉字声称闸异常（**原样放行**，不影响本单）：${e?.message ?? e}`);
+      }
       // ★★ 2026-10-14：**模型侧没跑成也要传进合并态**（与 `renderMerged` 里那个同名判据**一处口径**：
       //   `model.ok === false`）。原先只传给卡片文案，**没传进 `mergedState`** ⇒
       //   模型侧解析失败被当成「模型侧 0 条」⇒ 库侧安全词覆盖就能落 **PASS**
@@ -966,10 +1062,15 @@ export async function runSubmissionGate({
       const kbConfidence = (kbConfRaw === null || kbConfRaw === undefined || kbConfRaw === '')
         ? null
         : (Number.isFinite(Number(kbConfRaw)) ? Number(kbConfRaw) : null);
+      // ── ★★ 2026-10-16（Owner）：「P0 命中 ⇒ 置信度记 1.0，**模型侧应该也是 1，最终出 1**」──
+      //   判据取自引擎读数（快路标记 / `tier_trace.P0` / 库侧那个 1.0），见 `p0HitOf` 头注。
+      //   P0 命中时合并数走 `p0` 档 ⇒ 恒 1.0（模型侧的命中不许把它拉低）。
+      const p0Hit = p0HitOf({ res, kb: kbSide });
       const mergedConf = mergedConfidence({
         kbConfidence,
         kbCovered: kbCoveredOf(res?.answer),
         model, modelFailed,
+        p0Hit,
         // ★ `both` = 双轨确认条数（§④「同一个问题取交集」那一格）。
         //   没有它，v1 会把「库侧 PASS/0 条 ＋ 模型侧 2 条」这种**分歧**算成 direct ——
         //   端到端实测（RC-78ce50b3732c）当场抓到这个不自洽，见 dual_track.mjs 里那段注释。
@@ -994,8 +1095,15 @@ export async function runSubmissionGate({
         //   实测（2026-10-15）：链"回缓存"时**旁挂不更新** ⇒ `res.review.content_id` 是
         //   **上一单**那个号（四条不同素材落出同一个 `AD-20261015-001`）⇒ 台账按它对齐会串行。
         //   素材哈希永远可得，且与"这一单是哪条素材"一一对应。
+        // ★★ 2026-10-16 修（与报告第 1 条同一个根因）：**键要按素材，不能按消息原文**。
+        //   原先取 `inbound.text` —— 而**纯图单的 `inbound.text` 就是 `@守衡` 这一句**
+        //   （对方只 @ 了一下 + 一张图）⇒ **所有纯图单会撞成同一个键**，
+        //   而这一格的全部意义就是「与"这一单是哪条素材"一一对应」（见下面那段的理由）。
+        //   ⇒ 改成 `input.text`（链那一侧的素材文本：图上是 OCR、视频是读数、纯文案才是原文）。
+        //   ⚠️ 它**只**影响台账这把键 —— 行上的 `内容 ID` 是另一处独立计算（`contentIdOf`），
+        //      不在这一改动的范围内（那会动到行去重语义，要单独定）。
         const materialSha8 = createHash('sha256')
-          .update(String(inbound?.text ?? ''), 'utf8').digest('hex').slice(0, 8);
+          .update(String(input?.text ?? inbound?.text ?? ''), 'utf8').digest('hex').slice(0, 8);
         fs.appendFileSync(lp, JSON.stringify({
           at: new Date().toISOString(),
           material_sha8: materialSha8,
@@ -1008,6 +1116,11 @@ export async function runSubmissionGate({
           model_findings: model?.findings?.length ?? null,
           both: merged.stats?.both ?? null, kb_only: merged.stats?.kb_only ?? null,
           model_only: merged.stats?.model_only ?? null,
+          // ★ 2026-10-16：汉字声称闸降了几条 —— 落一行机读台账。
+          //   为什么非落不可：降级的条目**不上卡、不进格**（PRD §5.3 的格式要求），
+          //   若这里也不记，「闸门扣了一条」就只剩一行日志 —— 事后没人能按素材对齐复核
+          //   （与 `confidence-merged.ndjson` 当初那条理由逐字相同：只活在内存里的读数 = 没有读数）。
+          gate_downgraded: merged.stats?.gate_downgraded ?? 0,
           basis: mergedConf.basis,
         }) + '\n', 'utf8');
       } catch (e) {
@@ -1374,16 +1487,22 @@ export async function runSubmissionGate({
           + `与库侧机器读数不同时，差在模型侧那几条「无库内依据」的条目上。`;
       }
     }
-    // ★ **口径必须跟数一起进表**（Owner 2026-10-06「不允许为空」）：
-    //   `machineNumbers()` 在替换过任何一个读数时给出说明（例如「置信度按 0 记 ——
-    //   0 = 引擎未做判定，不是"零风险"」）。留空时没人看得懂；**填了 0 却不说口径
-    //   同样没人看得懂** —— 一个 0 看起来像一个结论。`note` 为空时不追加任何东西。
-    if (nums.note) summaryText += ` ⚠️ ${nums.note}。`;
-    // ★ 产品线/渠道为空时**写明为什么空** —— 一个空格说不出是「库里没有」还是「我们没读到」，
-    //   而这两件事要人做的动作完全不同（补登记 vs 查取数）。所以**空也要有原因**。
-    if (!productLine || !channel) {
+    // ★★ 2026-10-16（Owner 亲口：「**把多余口径删除**」）——**口径不再进这一格**。
+    // ──────────────────────────────────────────────────────────────────────────
+    //   这一格只放 PRD §5.3 的「审查结论」块（Owner 2026-10-15 的裁定，判据 `test_agent` V6
+    //   早就断言了「`⚠️` 不许进这一格」）—— 而**代码里还留着两条会写它的路**，
+    //   于是判据与行为分家：V6 走的是有合并块那条路（不经过这里）⇒ 一直是绿的。
+    //   存量代价实测（Owner 2026-10-16 看到的那 12 格）：我 10-15 亲手挂上去的
+    //   「⚠️ 口径：本格 0 ＝ 没有可用的置信度…」**留在了格子里**（10-09 那句
+    //   「口径必须跟数一起进表」已被 10-15 的裁定取代，存量没清）。
+    //   ⇒ 现在两条都撤：① 置信度口径（`nums.note`）；② 产品线/渠道为空的原因说明。
+    //     **信息不丢**：改走**运行日志**（下面那行 `📌 口径`），要查的人查得到，
+    //     读表的人不会再在一格里读到两套东西。台账侧另有 `confidence-merged.ndjson`。
+    if (nums.note || !productLine || !channel) {
       const miss = [!productLine && '产品线', !channel && '渠道'].filter(Boolean).join('、');
-      summaryText += ` ⚠️ ${miss}：**库内命中记录与素材原文都没有** ⇒ 留空，需人工补。`;
+      console.log('[agent] 📌 口径（**不上表**：这一格只放 PRD §5.3 块）：'
+        + [nums.note, miss ? `${miss}：库内命中记录与素材原文都没有 ⇒ 留空，需人工补` : null]
+            .filter(Boolean).join(' ｜ '));
     }
 
     // ★ 2026-10-09：**在落表之前**把「这一行会写什么结论/状态」记下来 ——
@@ -1391,9 +1510,20 @@ export async function runSubmissionGate({
     publishConclusion = conclusion;
     publishStatus = reviewPublish.statusOf(conclusion);
 
+    // ★★ 2026-10-16（Owner）：**「送审问题」这一格只写对方原话 ＋ 媒材链接**。
+    //   `input.question` 是拼给模型看的那一轮（含我们的探针与 OCR 全文）——
+    //   写进表就是**内部指令外发**（实测 200 行里 54 行如此）。
+    //   `awaitLinks` 有界等待：上传没在时限内成 ⇒ 这一格只留原文（**未测**，不是「没有媒材」）。
+    const { media: mediaLinks } =
+      await mediaLink.awaitLinks(linksP, { log: (s) => console.log(`[agent] ${s}`) });
+    const rowQuestion = mediaLink.questionForRow({
+      userText: userText === undefined ? input.question : userText,
+      media: mediaLinks,
+    });
+
     publish = await publishRunner({
       contentId: reviewPublish.contentIdOf(input.text),
-      question: input.question,
+      question: rowQuestion,
       contentType: gate.kind === 'media' ? '图片/视频' : (gate.kind === 'link' ? '链接' : '文字'),
       conclusion,
       // ★ 2026-10-06 **重定口径**（Owner 现场：「置信度**和问题数量不允许为空**」；
@@ -1499,7 +1629,15 @@ export async function runSubmissionGate({
           || deriveVerdictLine({ answer: String(res?.answer ?? '') })?.line || '';
         return line || summaryText;
       })(),
-    }, { since: t0 - 1000, question: input.question, ctx: { actor: 'shouheng/review-gate' } });
+    }, { since: t0 - 1000,
+         // ★★ 2026-10-16：认旧行用的问句**必须与写进去的那一份同形** ——
+         //   `ensureReviewRow` 是拿它和表里那格的「送审问题」做包含比较来认行的
+         //   （见那里的 `sameQ`）。以前写的就是 `input.question`（含探针与 OCR 全文）；
+         //   现在格子里写的是 `rowQuestion`（原文＋链接）⇒ 这里若还传 `input.question`，
+         //   多轮送审时会**认不出上一轮自己写的那一行**，退到内容 ID 兜底、
+         //   兜不住就新建一行（同一单两行，正是那一类最难查的脏数据）。
+         question: rowQuestion,
+         ctx: { actor: 'shouheng/review-gate' } });
     console.log(`[agent] 🧭 落表：${publish?.ok ? publish.action : '失败'}`
       + `${publish?.record_id ? `｜${publish.record_id}` : ''}`
       + `｜回读=${publish?.readback ?? '（未回读）'}`
@@ -1838,7 +1976,10 @@ export function mediaReadAppendix(inbound) {
       if (!sc) { L.push(`- **图 ${i.index}**：这一单没跑画面层`); continue; }
       if (sc.skipped) { L.push(`- **图 ${i.index}**：这一单**没跑**画面层（${sc.error ?? '未开'}）`); continue; }
       if (!sc.ok) { L.push(`- **图 ${i.index}**：**没读到**（${sc.error}）—— 画面层是**未测**，不是「没有画面」`); continue; }
-      L.push(`- **图 ${i.index}**（${sc.ms}ms）：`);
+      // 「送模型的是什么」如实写出来（缩过图/多少字节）—— 别让人以为它看的是原分辨率
+      const sent = sc.sent ? `，送模型前${sc.sent.shrunk ? `缩到 ${SCENE_MAX_EDGE}px` : '未缩'}`
+        + `（${Math.round((sc.sent.bytes ?? 0) / 1024)}KB${sc.sent.origBytes ? ` ← 原 ${Math.round(sc.sent.origBytes / 1024)}KB` : ''}）` : '';
+      L.push(`- **图 ${i.index}**（${sc.ms}ms${sent}）：`);
       L.push('');
       L.push('```');
       L.push(sceneMod.sceneBlock(sc.scene));
@@ -1941,6 +2082,11 @@ export function buildUserTurn({ questionText = '', imageBlock = '', videoBlock =
 /**
  * 处理一条飞书消息，返回要发出的回复文本（不负责发送）。
  * @param {object} event  im.message.receive_v1 的 data
+ * @param {object} [opts]
+ * @param {{fetchImage?:Function, ocr?:Function, executeTool?:Function}} [opts.deps]
+ *   测试注入用；生产走真实现。★ `executeTool`（2026-10-16 加，FIX-043）**只有一个默认值**：
+ *   工具循环里那一行 `deps?.executeTool ?? executeTool` —— 加它是为了让「P0 读数接线」
+ *   能端到端跑一遍，而不是只剩源码文本断言（§2.4：名字出现过 ≠ 它拦得住）。
  * @returns {Promise<{reply:string|null, reason?:string, sessionKey?:string, meta?:object}>}
  */
 export async function handleMessage(event, {
@@ -2099,8 +2245,11 @@ export async function handleMessage(event, {
   const rawText = inbound.text;
   const { display, mentions } = feishu.resolveMentions(rawText, msg.mentions);
   const botMentioned = feishu.isBotMentioned(mentions);
+  // ★ 2026-10-16：**对方真写过的那句话**，与 `question` 分开留着 ——
+  //   落表用的「送审问题」只许写它（＋媒材链接），见 `runSubmissionGate` 的 `userText`。
+  const userText = botMentioned ? feishu.stripBotMention(display, mentions) : display.trim();
   let question = buildUserTurn({
-    questionText: botMentioned ? feishu.stripBotMention(display, mentions) : display.trim(),
+    questionText: userText,
     imageBlock, videoBlock,
   });
 
@@ -2261,13 +2410,47 @@ export async function handleMessage(event, {
     if (chainMemoPrevHits > 0) {
       console.log(`[agent] · 上一轮链缓存命中 ${chainMemoPrevHits} 次（这一轮已复位）`);
     }
-    const g = await runSubmissionGate({ inbound, question, notify, chainRunner, publishRunner, modelSideRunner,
+    // ★★ 2026-10-16（FIX-043）：**同一处、同一套理由** —— 本轮 P0 快路读数也要清零。
+    //   不清的后果比链缓存那条更直接：上一轮命中的那份 PRD §5.3.3 块会被当成
+    //   **这一轮**的结论上卡（`g.verdict53` 为空时兜底要读它）。
+    beginP0Turn();
+    const g = await runSubmissionGate({ inbound, question, userText, notify, chainRunner, publishRunner, modelSideRunner,
                                     mergedReportRunner, adviceRunner, force,
                                     // ★ 目标 19：把「消息到达时刻」带进闸门，好量「@ → 回执卡」那一段。
                                     //   没给就退回此刻（并会被标成 origin=handle_entry，不许当 ingress 报）。
                                     tIngress: tIngress ?? Date.now() });
     const gate = g.gate;
     const chainRan = g.chainRan;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ★★ 2026-10-16（FIX-044）：闸门判「**不起链**」时，P0 由**内核自己**跑一遍。
+    // ══════════════════════════════════════════════════════════════════════════
+    // 真事故（同一个群、同一句话，问了两遍，**两遍都不一样**）：
+    //   · 17:19 —— 闸门不起链（`meta-ask`），模型**自己**调了 `kb_review_chain`
+    //     ⇒ 链返回里那份 §5.3.3 块在，卡面 180 字（格式不符：一段都没搬进卡）；
+    //   · 19:4x —— 闸门**同一条**判词，模型**没调**（原话「重跑会往飞书再加一行，故未重跑」）
+    //     ⇒ **链返回整个不存在** ⇒ 连条款号都只剩模型转述，卡面 163 字。
+    // ⇒ 病灶不是"格式没对上"，是 **P0 判据此前只能由「模型愿不愿意调工具」触发**。
+    //   模型这次的理由还很正当（不想重复写飞书行）—— 而 PRD §6.3 第一层说的恰恰是
+    //   「**命中即停止后续审查，直接输出 BLOCK**」：它是**判据**，不是模型的自选项。
+    //
+    // 为什么只在 `!gate.yes` 时跑（两条路各自唯一的 P0 来源，不重复跑）：
+    //   · `gate.yes === true` ⇒ 闸门自己会调 `kb_review_chain`，工具内**本来就在跑**
+    //     同一条快路（`runP0Preflight`），跑完那份读数由 `p0Memo` 交上来；
+    //   · `gate.yes === false` ⇒ 上面那件事**没有任何人做** ⇒ 这里补上。
+    //   ⚠️ 快路**只读**（模式表 + L4 canonical + L0 记录），不抢库锁、不 spawn agent、
+    //     不产生任何新行；命中同一份素材时报告**按内容 ID 复用**（`p0HitPayload` 那一跳），
+    //     ⇒ 正好回答了模型那个顾虑：**同一句话再问一次不会多写一行**。
+    //   ⚠️ 失败/超时**一律按未命中算**（回 `null`），一个字都不许因此拦住正常回话。
+    let p0Preflight = null;
+    if (!gate?.yes) {
+      try {
+        p0Preflight = await runP0Preflight({ text: userText ?? question ?? '', question });
+      } catch (e) {
+        console.log(`[agent] ⚠️ P0 前置没跑成（按未命中算，正常回话）：${e?.message ?? e}`);
+        p0Preflight = null;
+      }
+    }
 
     // ⚠️ 2026-10-08：`chainUnmeasured` 由**另一个会话**在同一文件里声明（见下方 `let`）——
     //    两边同时改同一个文件撞过一次（重复声明 → SyntaxError）。这里不再重复声明。
@@ -2390,6 +2573,42 @@ export async function handleMessage(event, {
           break;
         }
 
+        // ★★ 2026-10-16：**这一轮没用过工具**（`toolTrace` 为空）时也要处置。
+        //   上面那一支要求 `toolTrace.length`，于是「空正文 ＋ 额度耗尽 ＋ 没调工具」
+        //   直接落到下面的通用分支 —— 而通用分支只会**附一句截断说明**，
+        //   于是那句说明**自己成了回答**：正文 0 字，群里收到的是一条只有说明的消息。
+        //   实测（离线重跑李倩怡那张图，2026-10-16 16:16，`finish_reason=length`、
+        //   `reasoning 12000 tok`、正文 0 字，而报告本身是完整的）。
+        //   处置与上面那支同理但手段不同：这一轮没有工具结果可折叠，
+        //   额度是被**推理**吃光的 ⇒ **关掉思考再写一次**（`thinking` 透传见 `llm.mjs`）。
+        if (empty && cut.cut && !toolTrace.length) {
+          console.warn(`[agent] ⚠️ 模型烧光额度没写出正文（${cut.reason}）且这一轮没调工具`
+            + ` → 关掉思考重写一次`);
+          const again = await llm.chat(messages, { thinking: { type: 'disabled' } });
+          const got = again.ok ? String(again.message?.content ?? '').trim() : '';
+          const rTok2 = again.usage?.completion_tokens_details?.reasoning_tokens ?? null;
+          console.warn(`[agent] · 关思考重写：ok=${again.ok}｜正文 ${got.length} 字`
+            + `｜reasoning ${rTok2 ?? '?'} tok` + (again.ok ? '' : `｜失败：${again.error}`));
+          if (got) {
+            reply = got;
+            const cut2 = detectTruncation({ finishReason: again.finishReason, text: reply });
+            if (cut2.cut) { reply = annotateTruncation(reply, { reason: cut2.reason }); truncated = true; }
+            appendAssistant(sess, { role: 'assistant', content: reply,
+                                    ...(truncated ? { truncated: true } : {}),
+                                    ...(chainUnmeasured ? { chain_not_run: true } : {}),
+                                    ...reasoningToPassBack(again.message) });
+            break;
+          }
+          // 重写仍是空 → 落兜底话术（至少是一句人话）。**不许把空正文配上说明发出去。**
+          console.warn('[agent] ⚠️ 关思考重写也没写出正文 → 改用兜底话术（这一轮确实没答上来）');
+          toolExhausted = true;
+          truncated = true;
+          reply = fallbackReply(toolTrace);
+          appendAssistant(sess, { role: 'assistant', content: reply, tool_exhausted: true, truncated: true,
+                                  ...reasoningToPassBack(m) });
+          break;
+        }
+
         if (cut.cut) {
           const reasoning = r.usage?.completion_tokens_details?.reasoning_tokens ?? null;
           console.warn(
@@ -2397,7 +2616,14 @@ export async function handleMessage(event, {
             `｜正文 ${reply.length} 字｜reasoning ${reasoning ?? '?'} tok` +
             `｜结尾「${tailOf(reply)}」`
           );
-          reply = annotateTruncation(reply, { reason: cut.reason });
+          // ★ 最后一道闸：**空正文永远不许只带一句说明出门**（上面的分支都 break 了，
+          //   能走到这里的只剩「有正文被腰斩」；这一行是防以后有人改动上面那两支时的兜底）。
+          if (!reply) {
+            toolExhausted = true;
+            reply = fallbackReply(toolTrace);
+          } else {
+            reply = annotateTruncation(reply, { reason: cut.reason });
+          }
           truncated = true;
         }
 
@@ -2415,7 +2641,15 @@ export async function handleMessage(event, {
       for (const tc of toolCalls) {
         const name = tc.function?.name;
         const t0 = Date.now();
-        const out = await executeTool(name, tc.function?.arguments);
+        // ★★ 2026-10-16（FIX-043）：**工具调用要能被注入**。
+        //   为什么非加不可：这一条缺陷（P0 单上不了 §5.3 块）的判据**只在接线上**，
+        //   而那一段在此前**没有任何缝**能喂桩 —— `executeTool` 是直接 import 的，
+        //   `deps` 在别处注入得再多也到不了这里。于是"接线对了没有"只剩下**源码文本断言**，
+        //   正是 §2.4 点名的假执行点（FIX-021 就是栽在这上面）。
+        //   ★ 这**不是**把生产逻辑搬走：默认值就是原本那一行，生产调用点一个字不用改。
+        //   ★ 只有**一处**：`deps.executeTool` 就是「怎么调工具」的唯一默认值
+        //     （与 `chainRunner` 那条纪律同源 —— 两处默认值会各自漂移，见上面那段头注）。
+        const out = await (deps?.executeTool ?? executeTool)(name, tc.function?.arguments);
         toolTrace.push({ tool: name, ok: out.ok, ms: Date.now() - t0,
                          args: String(tc.function?.arguments ?? '').slice(0, 300),
                          error: out.ok ? undefined : out.error });
@@ -2523,10 +2757,46 @@ export async function handleMessage(event, {
     //   判据改成「链有没有给出 PASS/REVIEW/BLOCK」—— 比 `!chainRan` 严格得多，
     //   而且**不依赖任何字符串猜测**：`verdict53` 只可能由三态结论行（或 P0 派生）产生，
     //   `NEEDS_INPUT` 那一类根本没有 §5.3 行可抽（`LINE_RE` 只认三态）。
+    // ★★ 2026-10-16（FIX-043）：兜底那一支**必须带上这一轮 P0 快路的读数**。
+    //
+    //   真单（`om_x100b622a8e762cbcce3b9bfa8402ccb`，群里「m5 pro是最好的吸奶器」）：
+    //   闸门判「不是在送审、是在问审查怎么运作」⇒ `g.verdict53 = null` ⇒ 落到这一支，
+    //   而这一支此前**只喂 `replyText`** ⇒ 结论行取决于**模型有没有把链那行抄进回复**。
+    //   那一单模型没抄（它写 `**结论：BLOCK —— 共 1 处必须修改。**` 加自己的分组），
+    //   于是 `verdict53Final = null` ⇒ 信封层 `reviewShape=false` ⇒ 卡上**一个字的
+    //   PRD §5.3 逐条块都没有**，只剩模型自拟的四组折叠摘要。Owner 报的就是这条。
+    //
+    //   判据本来就写好了（`prd53.deriveVerdictLine` 第 ② 支专门派生 §5.3.3 那一行），
+    //   `W1` 也一直在喂它 —— 缺的是**把它接上**（与 FIX-021 同一个形状）。
+    //   `p0MemoRead()` 拿的是 `kb_review_chain` 真正返回的那份渲染好的块
+    //   （`kb/l5/p0_fastpath.py --json` 的 `rendered`，走 `p0_findings` 同一趟），
+    //   不是从中文里抠 —— 库里那条规矩：结论与条数只读结构化字段。
+    //   ⚠️ `reviewedByTool` 仍然要着：它管的是「这一轮真的调成了链」，
+    //     而 P0 读数只可能由**真的跑过那一次**产生（`executeTool` 里装的），两者同时成立。
+    //
+    // ★★★ 2026-10-16（FIX-044）：**两个来源各自唯一，缺一个就会出现「同一条缝第二次」**。
+    //   上面那段（FIX-043）修的是「链跑了、但结论行寄在模型措辞上」；
+    //   而 19:4x 那一单证明还有第二种走法：**链压根没跑**（模型不肯重跑），
+    //   于是 `p0Payload` 是空的、`verdict53Final` 又是 null —— 同一张 163 字卡。
+    //   ⇒ 现在 `!gate.yes` 时内核**自己**跑过一遍 `runP0Preflight()`（见上面那一跳），
+    //     它回的那一份与工具返回体**同形**，所以这里读法完全一样。
+    const p0Payload = p0MemoRead()
+      ?? (p0Preflight
+            ? { answer: p0Preflight.answer, p0Fastpath: p0Preflight.p0_fastpath }
+            : null);
     const verdict53Final = g?.verdict53
-      ?? ((toolTrace ?? []).some((x) => x.tool === 'kb_review_chain' && x.ok)
-           ? deriveVerdictLine({ replyText: reply ?? '', reviewedByTool: true })
-           : null);
+      ?? (p0Payload
+           ? deriveVerdictLine({ replyText: reply ?? '', reviewedByTool: true,
+                                 answer: p0Payload.answer, p0Fastpath: p0Payload.p0Fastpath })
+           : ((toolTrace ?? []).some((x) => x.tool === 'kb_review_chain' && x.ok)
+                ? deriveVerdictLine({ replyText: reply ?? '', reviewedByTool: true })
+                : null));
+    if (!g?.verdict53 && verdict53Final) {
+      console.log(`[agent] 🧭 闸门没判送审、但 P0 快路命中了`
+        + `（来源=${p0Preflight ? '内核前置' : '模型自调链'}）—— 结论行与逐条块按 §5.3 派生`
+        + `（**不靠模型有没有抄、也不靠模型肯不肯调**）：${verdict53Final.line}`
+        + `｜逐条块=${verdict53Final.block ? '有' : '**没有**'}`);
+    }
     /** 闸门判了送审，但**没拿到三态结论** —— 还要看**这个缺口是不是会变的**，才决定补不补发。 */
     //
     // ══════════════════════════════════════════════════════════════════════════
@@ -2640,7 +2910,9 @@ export async function handleMessage(event, {
                      //    2026-10-13 他把那一整段贴回来说「这里多余的回复也去掉」。两条相反，以最新为准）。
                      //   读数仍有三处落点：`📥 读到｜…` 日志（`raw:true`）、会话记忆、报告附录。
                      // 2026-10-09: 报告链接走**可见格**（结论块会被收起，藏里面等于没有）
-                     reportLink: g.dual?.reportUrl ?? null,
+                     // ★ 2026-10-16（FIX-044）：P0 前置那条路也要给 —— 它是内核自己跑的
+                     //   P0 报告链接（同一个字段、同一个口径：拿不到就是 null，**不编**）。
+                     reportLink: g.dual?.reportUrl ?? (p0Preflight?.report || null),
                      outbound: { folded: outboundFold.folded, untested: outboundFold.plan.untested } } };
   });
 }

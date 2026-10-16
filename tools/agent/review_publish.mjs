@@ -40,6 +40,57 @@ import { plainify } from './plain.mjs';
 const execFileP = promisify(execFile);
 
 /**
+ * 报告云文档的**可见范围**（Owner 2026-10-16 指令，逐字）：
+ *   「所有上审查报告，有飞书云文档阅读权限的，都必须可以打开，**权限跟随飞书云文档**」
+ * ⇒ `tenant_readable` ＝「组织内获得链接的人可阅读」（**不是**公网公开：`anyone_*` 没用）。
+ *
+ * 为什么必须在这里做（2026-10-16 实测）：报告文档原先**建完不碰权限** ⇒
+ * `link_share_entity = closed`（**全量 76/76 份都是 closed**）⇒ 协作者只有「刘华丽 ＋ 守衡 app」
+ * ⇒ **业务侧同事点开必然 Access Denied**（Owner 当天报的第 16 行就是这个）。
+ * 而**媒材**那条路早就有同款步骤（`tools/agent/media_link.mjs`：patch → **回读确认**），报告这条路一直漏着。
+ *
+ * ★ 纪律（照抄 media_link 那条）：**接口成功 ≠ 数据落下来** —— patch 之后**必须回读确认**；
+ *   回读不是目标值 ⇒ 当失败，**链接不写进表**（宁可空着，也不给一个点不开的链接）。
+ */
+export const REPORT_SHARE_ENTITY = 'tenant_readable';
+
+/**
+ * 把一份云文档设成「组织内可阅读」并**回读确认**。
+ *
+ * @param {string} docId docx token（`docs +create` 回的 `document_id`）
+ * @param {{run?:Function, timeoutMs?:number}} [opts] `run` 可注入 —— 自证时不碰真库
+ * @returns {Promise<{ok:boolean, detail:string, got?:string}>}
+ */
+export async function ensureTenantReadable(docId, opts = {}) {
+  const id = String(docId ?? '').trim();
+  if (!id) return { ok: false, detail: '没给 document_id，无法设权限' };
+  const run = opts.run ?? ((bin, args, o) => execFileP(bin, args, o));
+  const timeout = opts.timeoutMs ?? P0_DOC.timeoutMs;
+  const base = ['--profile', P0_DOC.profile];
+  try {
+    await run(P0_DOC.bin, [...base, 'drive', 'permission.public', 'patch', '--token', id, '--type', 'docx',
+      '--data', JSON.stringify({ link_share_entity: REPORT_SHARE_ENTITY }),
+      '--as', 'bot', '--yes'], { timeout, maxBuffer: 4 << 20 });
+  } catch (e) {
+    return { ok: false,
+             detail: `设可见范围失败：${(String(e?.stderr ?? '').trim() || String(e?.message ?? e)).slice(0, 200)}` };
+  }
+  try {
+    const { stdout } = await run(P0_DOC.bin, [...base, 'drive', '+permission-get-setting',
+      '--token', id, '--type', 'docx', '--as', 'bot'], { timeout, maxBuffer: 4 << 20 });
+    let got = '';
+    try { got = JSON.parse(String(stdout))?.data?.permission_public?.link_share_entity ?? ''; } catch { got = ''; }
+    if (got !== REPORT_SHARE_ENTITY) {
+      return { ok: false, got, detail: `回读不是 ${REPORT_SHARE_ENTITY}（读到 ${got || '空'}）⇒ 链接不写进表` };
+    }
+    return { ok: true, got, detail: `可见范围 = ${got}` };
+  } catch (e) {
+    return { ok: false,
+             detail: `回读权限失败：${(String(e?.stderr ?? '').trim() || String(e?.message ?? e)).slice(0, 200)}` };
+  }
+}
+
+/**
  * **P0 报告投递**（2026-10-06 加）。
  *
  * ── 为什么要有它
@@ -99,7 +150,17 @@ export async function publishReportDoc(mdPath) {
       return { ok: false, url: null,
         detail: `lark-cli 回了但没给 url：${String(stdout).slice(0, 200)}` };
     }
-    return { ok: true, url, detail: `云文档已建（${j?.data?.document?.document_id ?? '?'}）` };
+    // ★★ 2026-10-16（Owner：「所有上审查报告…权限跟随飞书云文档」）：
+    //   建完**立刻**把可见范围设成「组织内可阅读」并**回读确认**。
+    //   回读不过 ⇒ **不给 url**（宁可空着，也不给一个点不开的链接）——
+    //   这一条与「报告出不来就照实说原因」同一条纪律。
+    const docId = j?.data?.document?.document_id ?? '';
+    const perm = await ensureTenantReadable(docId);
+    if (!perm.ok) {
+      return { ok: false, url: null,
+        detail: `云文档已建但**权限没设成组织内可阅读** ⇒ 链接不写进表：${perm.detail}` };
+    }
+    return { ok: true, url, detail: `云文档已建（${docId || '?'}）｜${perm.detail}` };
   } catch (e) {
     // ★ 把 CLI 的原话带出来 —— 库规「有权限不许说没权限」的反面同样成立：
     //   报错要能区分「没建权限」与「命令写错」，糊成一句「失败了」等于把排查成本转给人。
@@ -168,6 +229,29 @@ export const MACHINE_FIELDS = Object.freeze([
 export const CONCLUSION_DERIVED_FIELDS = Object.freeze([
   '状态', 'Agent 结论', '问题数量', '置信度', '问题分类汇总',
 ]);
+
+/**
+ * **可改写列的总集** ＝ 上面的结论派生列 ＋ `送审问题`（2026-10-16，Owner 裁定）。
+ *
+ * ── 为什么把 `送审问题` 从「只补空」挪进来
+ *
+ *   Owner 2026-10-16：「送审问题 里面的图片和视频要优化成链接，点击就可以打开的，
+ *   **只留原文，不要写其他话**」，并选定「**直接覆盖送审问题，不要新建**」。
+ *
+ *   而这一格此前的形态是**写错了就再也改不回来**：实测结论表 200 行里 ——
+ *   **54 行**的格子里躺着我们自己的内部指令（`【★ 这是送审素材…】`、`【对方这条消息里附了图…】`
+ *   ＋ OCR 全文），**20 行**是 `[图片]` 占位。这些格子**都已经有值** ⇒
+ *   「只补空」这条规则会让它们**永远保持脏**，后面判据修好了也追不回来
+ *   （与 2026-10-08 那两格自相矛盾的行是**同一个形状**：错值一旦落格就钉死）。
+ *
+ * ── 边界一个字没松
+ *
+ *   · `HUMAN_FIELDS` 照旧一个字都不碰；
+ *   · 其余的机器列（内容 ID／内容类型／渠道／产品线／送审版本／**报告链接**）照旧「只补空」——
+ *     尤其**报告链接**：它只该被第一次写进去，复跑不许把旧链接换掉（那会让新报告成孤儿）；
+ *   · 值没变就不写。
+ */
+export const OVERWRITABLE_FIELDS = Object.freeze([...CONCLUSION_DERIVED_FIELDS, '送审问题']);
 
 /** 把飞书那几种字段形状摊平成可比较的字符串（文本数组 / 数字 / 链接 / 选项）。 */
 function plainOf(v) {
@@ -314,7 +398,13 @@ export function machineNumbers(res = {}, conclusion = null, mergedConf = null) {
   } else {
     if (mergedGiven && (p0Exempt || refusedExempt)) {
       notes.push(p0Exempt
-        ? '置信度按本库 P0 口径记（PRD §6.6：**P0 不适用置信度分流**）⇒ 不采用两侧合并数'
+        // ★★ 2026-10-16（Owner 逐字裁定）：「按照 prd：P0 层级规则不适用置信度分流，命中即 BLOCK，
+        //   置信度记为 1.0。**模型侧应该也是 1，最终出 1**。」
+        //   ⇒ 这一格的口径行必须把两件事都写出来：① 这句 PRD 原文；② **两侧同档**
+        //     （模型侧读数照出、只是不参与取保守）—— 否则读表的人会以为"这个 1.0 是单侧的"。
+        //     （合并层那边同步改了：`dual_track.mergedConfidence` 的 `p0` 档现在本身就出 1.0。）
+        ? '置信度按 **1.0** 记（PRD §6.6：**P0 层级规则不适用置信度分流，命中即 BLOCK，置信度记为 1.0**）'
+          + '｜**不合并模型侧的置信度**（确定性匹配 ⇒ 该档不受模型侧读数影响）'
         : '置信度按 **0** 记（**引擎未做判定**）⇒ 不采用两侧合并数（拒答态没有可分流的结果）');
     }
     if (confidence === undefined) {
@@ -598,7 +688,9 @@ export async function ensureReviewRow(row, { ctx = { actor: 'shouheng/review-gat
       //   `状态` 原先就在这里开过一次口子（「拒答 → 待审」必须能改过来），
       //   现在把同一理由**推广到另外四格**：多轮送审结论会变（REVIEW→BLOCK），
       //   而「只补空」会让表**定格在第一轮**、甚至把一次写错**永久钉死**（见 `CONCLUSION_DERIVED_FIELDS` 注释）。
-      if (has && !CONCLUSION_DERIVED_FIELDS.includes(k)) continue;
+      //   ★ 2026-10-16：判定集合从 `CONCLUSION_DERIVED_FIELDS` 换成 `OVERWRITABLE_FIELDS`
+      //     （多一个 `送审问题`，理由见那个常量的注释：内部指令进了格、不覆盖就永远脏着）。
+      if (has && !OVERWRITABLE_FIELDS.includes(k)) continue;
       // ══════════════════════════════════════════════════════════════════════════
       // ★★ 2026-10-15（Owner）：**`状态` 不许把人/内容方的终态改回「待审」** ────────────
       // ──────────────────────────────────────────────────────────────────────────

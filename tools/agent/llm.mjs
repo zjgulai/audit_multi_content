@@ -206,8 +206,13 @@ function recordUsage(model, usage) {
  *                    error?:string, layer?:string, chain?:Array, attempts?:Array, retryable?:boolean}>}
  */
 export async function chat(messages, { tools, model = config.llm.model, maxTokens = config.llm.maxTokens,
-                                       temperature = 0.3, jsonMode = false } = {}) {
+                                       temperature = 0.3, jsonMode = false, thinking = null } = {}) {
   const body = { model, messages, max_tokens: maxTokens, temperature };
+  // ★ 2026-10-16：**思考开关**（形如 `{type:'disabled'}`）。
+  //   为什么必须有它：本机模型是**推理模型**，思考与正文共用 `max_tokens`，
+  //   而实测同输入两次的思考长度可以是 9957 vs 13686 字 —— **温度 0 管不住它**，
+  //   于是同一张图两次跑出 3 条 vs 0 条。画面层（`scene.mjs`）早就关着它。
+  if (thinking) body.thinking = thinking;
   if (tools?.length) { body.tools = tools; body.tool_choice = 'auto'; }
   if (jsonMode) body.response_format = { type: 'json_object' };
 
@@ -274,11 +279,24 @@ function finishFailure({ error, layer, chain, attempts, retryable, model, baseUr
 }
 
 /** 便捷：纯文本问答，无工具 */
-export async function ask(prompt, { system, maxTokens = 800, model = config.llm.model } = {}) {
+export async function ask(prompt, { system, maxTokens = 800, model = config.llm.model,
+                                   temperature = 0.2, thinking = null } = {}) {
+  // ★★ 2026-10-16（Owner：「检查为什么每次跑的结果都不一样」→「先只降温度到 0」）：
+  //   原先这里把温度**写死 0.2**，于是同一条素材两次跑出的问题**零重合**
+  //   （实测：同图两次，一次 3 条、一次 2 条，一条都不重）。
+  //   ⇒ 改成**可传**；**进报告的两处调用（模型侧判定、建议生成）显式传 0**。
+  //   ⚠️ 默认值仍是 0.2 —— 不改默认，是为了不悄悄改掉别的调用方的行为；
+  //     谁的温度要紧，谁自己写出来（可 grep 到）。
   const messages = [];
   if (system) messages.push({ role: 'system', content: system });
   messages.push({ role: 'user', content: prompt });
-  const r = await chat(messages, { model, maxTokens, temperature: 0.2 });
+  let r = await chat(messages, { model, maxTokens, temperature, ...(thinking ? { thinking } : {}) });
+  if (!r.ok && thinking) {
+    // 端点不认 `thinking`（4xx）⇒ **退回一次不带它的** —— 与 `scene.mjs` 同一条纪律：
+    // 不许因为一个可选参数把整条读数丢掉。
+    console.log(`[llm] ⚠️ 端点不认 thinking 参数 ⇒ 退回带思考的那次请求（${String(r.error).slice(0, 80)}）`);
+    r = await chat(messages, { model, maxTokens, temperature });
+  }
   return r.ok ? (r.message?.content ?? '') : `〔LLM 调用失败〕${r.error}`;
 }
 

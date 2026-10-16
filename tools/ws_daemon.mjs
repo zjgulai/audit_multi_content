@@ -27,7 +27,12 @@ import * as vision from './agent/vision.mjs';
 import * as scene from './agent/scene.mjs';
 import * as video from './agent/video.mjs';
 import * as asr from './agent/asr.mjs';
+// ★ 2026-10-16：**媒材链接**（送审问题那一格里的图/视频链接）的启动自检 —— 见下面横幅那一条
+import * as mediaLink from './agent/media_link.mjs';
 import { handleMessage, flushSeen, loadedTools, status, mediaWithoutChain } from './agent/agent.mjs';
+// ★ 拒收账本的**唯一**取路径口（可被 SHOUHENG_IDENTITY_REJECT_LOG 覆盖）—— 从它定义处导入
+import { identityRejectCount } from './agent/tools.mjs';
+import { nonUsCiteCount } from './agent/ext_basis.mjs';
 import { toCardOrText } from './reply-cards/envelope.mjs';
 import { deriveVerdictLine } from './agent/prd53.mjs';
 import { shapeOf } from './reply-cards/registry.mjs';
@@ -889,6 +894,23 @@ try {
   log(`  读视频(抽帧+OCR)      = ⚠️ 未测（自检自己抛了：${e?.message ?? e}）`);
 }
 
+// ★★ 2026-10-16 加：**媒材链接**那条路的启动自检。
+//   它断掉的表现是「结论表里那一格只有原文、没有链接」—— 与「这一单没有媒材」
+//   **长得一模一样**，没有任何东西会红，而 Owner 要的正是「点击就能打开」。
+//   它依赖两样本机之外的东西：`lark-cli` 在不在、云空间的上传/权限 scope 还有没有效
+//   ⇒ 探法与上面三条同一条：**真跑一次**（建/取当月月夹子，一次 CLI 调用）。
+try {
+  const mp = await mediaLink.preflight();
+  if (mp.ok) log(`  媒材链接(云空间)      = ✅ 就绪（${String(mp.detail).slice(0, 96)}）`);
+  else if (mp.skipped) log(`  媒材链接(云空间)      = ⏸ 未开（${mp.detail}）`);
+  else log(`  媒材链接(云空间)      = ❌ 不可用（${String(mp.detail).slice(0, 160)}）`);
+  if (!mp.ok && !mp.skipped) {
+    log('                          → 「送审问题」那一格只会有原文、没有链接（不是「这一单没有媒材」）');
+  }
+} catch (e) {
+  log(`  媒材链接(云空间)      = ⚠️ 未测（自检自己抛了：${e?.message ?? e}）`);
+}
+
 // ★ 2026-10-05 加：**语音转写**那条路的启动自检（本机识别试纸里那句话）。
 //   ★ 这一行是有意做得显眼的：它红的时候，视频的「口播/旁白」那一半就是**未测**——
 //     而 PRD §12 不许改用云端识别，所以唯一的修法是**人去点一次系统授权**
@@ -920,9 +942,52 @@ if (!DUMP_ONLY) void externalWatch('startup');
 //   「长连接起来了、我开始接事件了」，写在启动之前会把「正在连」报成「已在跑」。
 writeRunState('startup');
 
+/**
+ * **身份拒收**的可见读数（2026-10-16 加，Owner 问「这问题彻底修复了吗」时查出的缺口）。
+ *
+ * 拒收本身是**正确行为**（不把别人的结论当本单的），所以**不加硬闸**；
+ * 要看见的是「**它开始频繁发生**」—— 那意味着那把锁又失效了，
+ * 表现是「每一单都少了库侧依据」而没人知道（历史实测令牌转发 34 次里只成功 1 次）。
+ *
+ * 口径：**只在计数变了的时候出声**（每 5 分钟一拍，不变就不刷屏）；
+ * 读不到文件就说 0（那条路本来就没发生过）；读抛了**不说**（不编）。
+ */
+let lastRejectSeen = null;
+function identityRejectLine() {
+  const n = identityRejectCount();
+  if (n === null) return null;           // 读抛了 ⇒ 不说（**不许**当成 0 报）
+  const prev = lastRejectSeen;
+  lastRejectSeen = n;
+  if (prev === null || n === prev) return null;
+  return `⚠ 身份拒收 +${n - prev}（累计 ${n}）—— 见 PMO/logs/identity-reject.ndjson｜`
+       + '连续出现说明那把锁又失效了（表现：每单都少了库侧依据，而卡片上只写「库侧没读数」）';
+}
+
+/**
+ * **被辖区挡下的引用**的可见读数（2026-10-16 加，紧接着上面那条）。
+ *
+ * 口径：菜单只列美国来源，**解析也只认美国来源**（非美国 id ⇒ 不给链接、按「无库内依据」写）。
+ * 拒挂是**正确行为**，所以要看的不是"拒了多少"，而是「**它开始出现**」——
+ * 那意味着模型在点一个它**看不到 id** 的来源（猜的），或者哪天菜单又被改宽了。
+ * 与身份拒收同一条口径：只在计数变了的时候出声；读不到说 0；读抛了不说（不编）。
+ */
+let lastNonUsSeen = null;
+function nonUsCiteLine() {
+  const n = nonUsCiteCount();
+  if (n === null) return null;           // 读抛了 ⇒ 不说（**不许**当成 0 报）
+  const prev = lastNonUsSeen;
+  lastNonUsSeen = n;
+  if (prev === null || n === prev) return null;
+  return `⚠ 域外依据被挡 +${n - prev}（累计 ${n}）—— 见 PMO/logs/nonus-cite.ndjson｜`
+       + '出现说明它在点一个菜单里没有的来源（猜的），或菜单又被改宽了；'
+       + '被挡的条目按「无库内依据」写，不会带域外链接出去';
+}
+
 // 每 5 分钟打一次心跳，方便判断进程是活着还是卡死
 const hb = setInterval(() => {
   log(`· 心跳 事件 ${counters.events} 已回答 ${counters.handled} 失败 ${counters.failed} 未捕获 ${counters.uncaught} | LLM 调用 ${status().llm.calls}`);
+  { const rl = identityRejectLine(); if (rl) log(`  ${rl}`); }
+  { const nl = nonUsCiteLine(); if (nl) log(`  ${nl}`); }
   // ★ 每一拍都把长连接状态说出来（断的时候还会带错误与断线时长）——
   //   「守衡还连着飞书吗」从此是一个**每分钟都在刷新的读数**，不用等人发现它不回话。
   log(`  ${wsLine()}`);

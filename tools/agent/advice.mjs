@@ -117,7 +117,7 @@ export async function generateAdvice({ items = [], readings = '', question = '',
   let r;
   // ★ `ask` 的真实签名是 `ask(用户提示词, { system, maxTokens })` 且**返回字符串**
   //   —— 与 `model_side.mjs:132` 一致。第一版我猜成了 `ask({system,user})` 收 `{text}`，那是错的。
-  try { r = await ask(prompt, { system: SYSTEM, maxTokens }); }
+  try { r = await ask(prompt, { system: SYSTEM, maxTokens, temperature: 0 }); }  // ★ 2026-10-16 同上：建议也进报告，须确定
   catch (e) { return { ok: false, advice: {}, ms: Date.now() - t0, error: `${e?.name ?? 'Error'}: ${e?.message ?? e}` }; }
   // ★★ 2026-10-09：**截断或 0 字就重试一次**（额度翻倍）—— 与 `model_side.mjs` 同一条兜底。
   //   实测那一单的建议生成是 `raw=0 字`（**额度被 reasoning 烧光**，不是解析问题）⇒
@@ -130,7 +130,7 @@ export async function generateAdvice({ items = [], readings = '', question = '',
     console.log(`[agent] ↻ 建议生成输出${txt.length === 0 ? '为 0 字（额度被 reasoning 烧光）' : '被截断'}，`
       + `重试一次（额度 ${maxTokens} → ${maxTokens * 2}）`);
     try {
-      r = await ask(prompt, { system: SYSTEM, maxTokens: maxTokens * 2 });
+      r = await ask(prompt, { system: SYSTEM, maxTokens: maxTokens * 2, temperature: 0 });
       txt = String(r ?? '');
       p = parseAdvice(txt);
     } catch (e) { /* 重试也失败 ⇒ 走下面的回退，不编 */ }

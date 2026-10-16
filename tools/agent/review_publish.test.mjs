@@ -240,11 +240,14 @@ await ta('★ 结论派生列：**值变了就要改写**（不许定格在第�
     '报告链接': { link: 'https://old.example/doc', text: '审查报告' },
   } }];
   const { sent } = install({ rows });
+  // ★ 2026-10-16：这一轮喂进去的「送审问题」**与格子里那份不同** ——
+  //   要验的正是「旧格里的脏内容能不能被覆盖」（同值的情况在下面那条反向对照里）。
+  const NEW_Q = '这一轮的原文（修掉旧格里的内部指令）';
   const r = await rp.ensureReviewRow({
-    contentId: rp.contentIdOf(IMG_TEXT), question: '审一下这张图能过吗？', contentType: '社媒图片',
+    contentId: rp.contentIdOf(IMG_TEXT), question: NEW_Q, contentType: '社媒图片',
     conclusion: 'BLOCK', issueCount: 3, confidence: 1, summary: '命中 S-1.2 / S-2.1',
     reportUrl: 'https://new.example/doc',
-  }, { since: Date.now() - 60_000, question: '审一下这张图能过吗？' });
+  }, { since: Date.now() - 60_000, question: NEW_Q });
   eq(r.action, 'updated');
   const patch = sent.updated[0].fields;
   eq(patch['Agent 结论'], 'BLOCK', '结论变了 ⇒ 必须改写（不许定格 REVIEW）');
@@ -255,7 +258,14 @@ await ta('★ 结论派生列：**值变了就要改写**（不许定格在第�
      '**状态不跟结论走**：PRD §8.2 的三档里机器只拥有「待审」；三态只进 `Agent 结论`');
   // 反向对照：**非**派生列照旧只补空 —— 报告链接只该被写一次（复跑不许把旧链接改掉）
   ok_(!('报告链接' in patch), '报告链接不是派生列：已有值 ⇒ 不许改写（否则复跑会把旧链接换掉）');
-  ok_(!('内容 ID' in patch) && !('送审问题' in patch), '内容 ID / 送审问题照旧只补空');
+  ok_(!('内容 ID' in patch), '内容 ID 照旧只补空');
+  // ★★ 2026-10-16（Owner 裁定）这条断言**改了** —— 旧话是「送审问题照旧只补空」。
+  //   改的理由（实测）：那一格一旦落脏就**永远改不回来** —— 结论表 200 行里 54 行是
+  //   我们自己的内部指令、20 行是 `[图片]` 占位，全都「已有值」⇒ 只补空 = 永远脏着。
+  //   Owner 原话：「只留原文，不要写其他话」＋「**直接覆盖送审问题，不要新建**」。
+  //   反向对照在下面那一条（**同值不写**：值没变仍不许写）。
+  eq(patch['送审问题'], NEW_Q,
+     '送审问题已进可改写列：旧格里的脏内容必须能被覆盖（否则这一行无法自愈）');
   for (const k of rp.HUMAN_FIELDS) ok_(!(k in patch), `人填的「${k}」照旧一个字都不许动`);
 });
 
@@ -441,10 +451,13 @@ t('D1 普通评审单（非 P0、非拒答）⇒ 用两侧合并数', () => {
   eq(r.confidence, 0.85, '普通单必须采用两侧合并数');
   ok_(/两侧合并/.test(r.note), '填了合并数就必须同时填口径说明');
 });
-t('D2 ★ P0 命中 ⇒ **不许**被合并数覆盖（PRD §6.6 不适用分流）', () => {
+t('D2 ★ P0 命中 ⇒ **不许**被合并数覆盖（PRD §6.6 不适用分流；Owner 2026-10-16：「模型侧也是 1，最终出 1」）', () => {
   const r = rp.machineNumbers({ p0_fastpath: true, confidence: 1.0 }, 'BLOCK', MERGED_CONF);
   eq(r.confidence, 1, 'P0 命中的置信度是确定性命中（本库口径 1.0），不许降成 0.93/0.85');
-  ok_(/P0 不适用置信度分流/.test(r.note), '豁免必须写明理由，否则读表的人以为算错了');
+  ok_(/不适用置信度分流，命中即 BLOCK，置信度记为 1\.0/.test(r.note),
+    '豁免必须**逐字**写明 PRD 那句理由，否则读表的人以为算错了');
+  ok_(/不合并模型侧的置信度/.test(r.note),
+    '还要写明「不合并模型侧」——Owner 2026-10-16 原话：「置信度就是 1。这时候**不用合并模型侧的置信度**」');
 });
 t('D3 ★ 拒答/未判 ⇒ **不许**被合并数覆盖（0 = 没有做出判定）', () => {
   const r = rp.machineNumbers({ review: { issue_count: 0, confidence: null } }, 'NEEDS_INPUT', MERGED_CONF);
@@ -525,6 +538,41 @@ t('D6b 反向对照：合并数缺失、但**引擎给了数** ⇒ 照旧用引�
   eq(r.confidence, 0.95, '引擎有读数时照旧回落，不许因为合并数缺失就把 0.95 抹成 0');
   ok_(!/两侧合并 · 档位/.test(r.note), '没用合并数就不许写"两侧合并"');
   ok_(/不得用作分流依据/.test(r.note), '回落出来的数同样未标定 ⇒ 仍要自带声明');
+});
+
+/* ── 4e. 报告云文档「可见范围跟随飞书云文档」（Owner 2026-10-16）─────────────────
+ * Owner 原话：「所有上审查报告，有飞书云文档阅读权限的，都必须可以打开，**权限跟随飞书云文档**」。
+ * 病灶（实测）：报告建完不碰权限 ⇒ 76/76 份 `link_share_entity=closed` ⇒ 业务侧点开必 Access Denied。
+ * ★ 变异自证：把 `ensureTenantReadable` 里的回读确认删掉（或把目标值改回 closed）⇒ **E1b/E1c 精确变红**。 */
+console.log('\n═══ 4e. 报告云文档设为「组织内可阅读」（含回读确认）═══');
+const _fakeRun = (patchThrows, readback) => async (_bin, args) => {
+  if (args.includes('permission.public')) {
+    if (patchThrows) throw Object.assign(new Error('cli failed'), { stderr: 'permission denied (99991672)' });
+    return { stdout: '{"ok":true}' };
+  }
+  if (args.includes('+permission-get-setting')) {
+    return { stdout: JSON.stringify({ ok: true, data: { permission_public: { link_share_entity: readback } } }) };
+  }
+  return { stdout: '{}' };
+};
+await ta('E1 正常路径：patch 成功且回读 = tenant_readable ⇒ ok', async () => {
+  const r = await rp.ensureTenantReadable('DoccTokenX', { run: _fakeRun(false, 'tenant_readable') });
+  eq(r.ok, true, '两者的组合必须判成立');
+  ok_(/tenant_readable/.test(r.detail), 'detail 要写清可见范围');
+});
+await ta('E1b ★ 回读不是 tenant_readable（接口成功≠数据落下来）⇒ 必须判失败', async () => {
+  const r = await rp.ensureTenantReadable('DoccTokenX', { run: _fakeRun(false, 'closed') });
+  eq(r.ok, false, '回读还是 closed ⇒ 不许当成功');
+  ok_(/链接不写进表/.test(r.detail), '要给"链接不写进表"的结论');
+});
+await ta('E1c ★ patch 抛错 ⇒ 必须判失败并把 CLI 原话带出来', async () => {
+  const r = await rp.ensureTenantReadable('DoccTokenX', { run: _fakeRun(true, 'tenant_readable') });
+  eq(r.ok, false, 'patch 失败不许当成功');
+  ok_(/permission denied|99991672/.test(r.detail), '要把 CLI 的原话带出来（排查成本不许转给人）');
+});
+await ta('E1d 没给 document_id ⇒ 失败（不许静默跳过权限）', async () => {
+  const r = await rp.ensureTenantReadable('', { run: _fakeRun(false, 'tenant_readable') });
+  eq(r.ok, false, '没 token 就没法设权限 ⇒ 必须失败');
 });
 
 /* ─────────────────────────── 5. 自证自身无副作用 ─────────────────────────── */

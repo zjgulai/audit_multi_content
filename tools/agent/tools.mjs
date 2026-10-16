@@ -1490,6 +1490,204 @@ async function runP0FastPath(text, { reportOut = null, reportRef = '' } = {}) {
 }
 
 /**
+ * ★★ **P0 快路作为「本轮的确定性前置」单独跑一次**（FIX-044，2026-10-16）。
+ *
+ * ── 为什么必须把它从工具里抽出来（真单 `om_x100b6214a146d0a0cd13079897c6483`）
+ *
+ * 同一句话（「m5 pro是最好的吸奶器，这句话能过审吗？」）在同一个群里问了**两次**：
+ *
+ * | | 17:19 那一单 | 19:4x 那一单 |
+ * |---|---|---|
+ * | 送审闸门 | 不起链（**meta-ask**：在问「审查这件事本身怎么运作（过审）」） | **同一条**，逐字相同 |
+ * | 模型自己调链 | ✅ 调了 | ❌ **没调**（原话「重跑会往飞书再加一行，故未重跑」） |
+ * | 链返回 | 有 ⇒ 结论行/条款号全都拿得到 | **没有** ⇒ 什么都拿不到 |
+ * | 群里看到的 | 180 字卡（格式不符） | 163 字卡（**也**格式不符，且连条款号都只剩转述） |
+ *
+ * ⇒ 病灶：**P0 判据（确定性、只读、毫秒级）此前只能由「模型愿不愿意调 `kb_review_chain`」触发**。
+ *   模型的措辞一抖（这次的理由还很正当：不想重复写飞书行），**红线拦截就整个消失** ——
+ *   而 PRD §6.3 第一层说的恰恰是「**命中即停止后续审查，直接输出 BLOCK**」，
+ *   它是**判据**，不是**模型的自选项**。
+ *
+ * ⚠️ 与「一个产出者」的关系：整块报告/回执/对齐逻辑**只有这一份**（它从注册体里搬出来），
+ *   工具那一支也调它 —— 两处各写一份迟早不一致（§2.5 的分工纪律同理）。
+ *
+ * @param {{text?:string, question?:string, reportOut?:string, allowPublish?:boolean}} o
+ *        判定对象取**素材**（`text`），没有素材才退回提问 —— 不许合并扫：
+ *        提问里出现「有没有 safest 这种词？」会把提问也当素材 ⇒ 假 BLOCK。
+ *        ★ 默认 **`reportOut=''` ＋ `allowPublish=false`＝纯只读**：
+ *          不落报告文件、不建云文档、**一行都不往飞书写**。
+ *          这是内核那条路要的形状 —— 它跑在**闸门判「不是送审」**的消息上，
+ *          那条路以前**从来不建文档**；在这里悄悄开始建，等于动了别人的工作流。
+ *          （飞书那一行落表由落表那一跳负责，那条跳照旧按闸门口径走。）
+ * @returns {Promise<object|null>} 命中 ⇒ 那一整份结果（与工具返回体同形）；未命中/出错 ⇒ `null`
+ */
+export async function runP0Preflight({ text = '', question = '', reportOut = '',
+                                       allowPublish = false } = {}) {
+  const p0Target = String(text ?? '').trim() || String(question ?? '').trim();
+  if (!p0Target) return null;
+  let p0 = null;
+  try {
+    p0 = await runP0FastPath(p0Target, reportOut ? { reportOut } : {});
+  } catch (e) {
+    console.log(`[p0] ⚠️ 快路没跑成（这一单按未命中算，回落原路）：${e?.message ?? e}`);
+    return null;
+  }
+  if (!p0?.hit) return null;
+  return await p0HitPayload({ p0, text, p0Target, p0ReportPath: reportOut, allowPublish });
+}
+
+/**
+ * P0 **命中之后**那一整块：报告复用/生成 → 回执重渲染 → 两端对齐核对 → 组装返回体。
+ *
+ * ⚠️ 它**只搬不算**：所有值来自 `kb/l5/p0_fastpath.py` 的输出与 `review_publish` 的读回，
+ *   这里不新增任何判据、不改任何结论、不编任何链接。
+ *
+ * @param {{p0:object, p0Target:string, text:string, p0ReportPath:string, allowPublish:boolean}} o
+ * @returns {Promise<object>} 与工具返回体同形（`answer` / `p0_fastpath` / `p0_findings` / 报告…）
+ */
+async function p0HitPayload({ p0, text, p0ReportPath, allowPublish }) {
+  // ── ★ P0 报告（2026-10-06，Owner 三条口径）─────────────────────────────
+  //   ① 「P0 问题可先在飞书侧响应」 ⇒ 回执卡在 `runSubmissionGate` 里**已经先发过了**
+  //      （`notify(ackMessage(...))` 在调本工具之前），所以这一步**不占任何响应预算**；
+  //   ② 「写入云文档报告的时间不统计在 ≤1 秒内」 ⇒ PRD §12 的「P0 层响应 ≤1s」
+  //      量的是**判定**（`p0.elapsed_ms`，实测 9.8 ms），「报告生成」是另一条 ≤30s 的指标；
+  //   ③ 「补充报告」 ⇒ 报告**必须**跑，跑成了把链接填进回执（PRD §5.3.3 要求 ≥3 条时出报告链接），
+  //      跑不成要**看得见**（`report_detail` 带出 CLI 原话），**不许静默留空、更不许编链接**。
+  let reportUrl = null;
+  let reportDetail = '';
+  // ── ★ **同一内容已有报告就复用，不新建**（Owner 2026-10-06 选定方案 (c)）──────────
+  //   实测的病：同一份素材**复跑**时，`ensureReviewRow` 会按「内容 ID」找到**旧行**，
+  //   而它的「报告链接」被「非空不覆盖」挡住了 ⇒ 这里新建的那一份**没人能点到**（孤儿文档）。
+  //   (a) 改成新建一行 ⇒ 会多出**重复行**（比缺行更难发现）；
+  //   (b) 改成覆盖旧链接 ⇒ 行内**自相矛盾**（汇总写旧审查、链接指新报告）；
+  //   (c) **复用旧链接、不新建** ← 选它：不产孤儿、不产重复行、行与报告始终一致。
+  //   为什么复用是对的：**内容 ID 是送审文本的 sha256** ⇒ 同一 ID 就是**同一份素材**，
+  //   报告逐字相同。代价：多一次查表（实测 15 行 **~1.0 s**），发生在**回执卡之后**，
+  //   不占 PRD §12 任何一条预算（「P0 层响应 ≤1s」量的是判定，仍 ~12 ms）。
+  //   ★ FIX-044：内核那条前置路**只查不改**（`allowPublish=false`）——
+  //     它跑在「闸门判不是送审」的消息上，那条路**以前从不建文档**；
+  //     在这儿开始建，等于顺手改了别人的工作流（Owner 2026-10-16 明说过不许）。
+  //     所以：**只在已有报告时复用链接**，没有就如实留空（`report: ''`，不编）。
+  const p0ContentId = reviewPublish.contentIdOf(String(text ?? ''));
+  const prevReport = await reviewPublish.previousReportLink(p0ContentId);
+  if (prevReport) {
+    reportUrl = prevReport;
+    reportDetail = `复用同一内容已有的报告（内容 ID ${p0ContentId}）：${prevReport}`;
+    console.log(`[p0] ♻️ 同一内容已有报告，复用不新建：${prevReport}`);
+  } else if (!allowPublish) {
+    reportDetail = '这一遍是**只读前置**（闸门没判送审）⇒ 不新建报告、不写飞书；'
+      + '报告仍可由送审那条路生成';
+    console.log(`[p0] · 只读前置：命中但**不建文档**（闸门判「不是送审」那条路以前也不建）`);
+  } else if (p0.report_path) {
+    const pub = await reviewPublish.publishReportDoc(p0.report_path);
+    reportDetail = pub.detail;
+    if (pub.ok) {
+      reportUrl = pub.url;
+      console.log(`[p0] 📄 报告已出：${pub.url}`);
+    } else {
+      console.log(`[p0] ⚠️ 报告没出（结论不受影响）：${pub.detail}`);
+    }
+  } else {
+    reportDetail = '快路没给出 report_path（未落报告文件）';
+    console.log(`[p0] ⚠️ ${reportDetail}`);
+  }
+  // ★ 拿到真链接就**重渲染一次回执**，把「报告链接」那一格填上（PRD §5.3.3）。
+  //   没拿到就保留原文那句「报告在回执之后补」——那是实话，改掉它才是撒谎。
+  let rendered = String(p0.rendered ?? '');
+  if (reportUrl) {
+    try {
+      const again = await runP0FastPath(String(text ?? ''), { reportRef: reportUrl });
+      if (again?.rendered) rendered = String(again.rendered);
+    } catch (e) {
+      console.log(`[p0] ⚠️ 回执重渲染失败（保留原回执，报告链接改由表行与落表摘要带出）：${e?.message ?? e}`);
+    }
+  }
+  // ── ★ 两端对齐的运行期核对（Owner 2026-10-06：「后续两端数据必须对齐」）────────
+  //   当天的事故形状：**回执说 3 条、云文档里读出来像 1 条**。
+  //   根因是版式（已修），但那件事暴露了一个更根本的问题：
+  //   「回执说的条数」与「报告里的条目数」**没有任何东西在运行时对照过**。
+  //   所以这里加一道**生产期**核对（不能只写在自检里 —— 自检跑不到真实素材）：
+  //     ① 回执正文里 `共发现 N 处` 的 N（**重渲染之后**的最终文本）
+  //     ② 结构化字段 `p0.issue_count`（= findings 长度，落表「问题数量」用的就是它）
+  //     ③ 报告文件里 `### 问题 N ｜` 的条数
+  //   三处不一致 ⇒ **必须看得见**（日志 + 落进 report_detail，汇总格里会带出来）。
+  //   **不许静默**：数量对不上时，看表的人只会觉得"怪"，说不出哪里错。
+  let alignNote = '';
+  try {
+    const stated = Number((rendered.match(/共发现\s*(\d+)\s*处/) || [])[1]);
+    let items = null;
+    if (p0.report_path && fs.existsSync(p0.report_path)) {
+      items = (fs.readFileSync(p0.report_path, 'utf8').match(/^### 问题 \d+ ｜ /gm) || []).length;
+    }
+    const expect = p0.issue_count;
+    const bad = [];
+    if (stated !== expect) bad.push(`回执写 ${stated}`);
+    if (items !== null && items !== expect) bad.push(`报告里 ${items}`);
+    if (bad.length) {
+      alignNote = `⚠️ **两端条数对不上**：结构化=${expect} ｜ ${bad.join(' ｜ ')}。`;
+      console.log(`[p0] ${alignNote}`);
+    } else {
+      console.log(`[p0] ✓ 两端对齐：回执 ${stated} ｜ 结构化 ${expect}`
+        + ` ｜ 报告 ${items === null ? '（未落盘）' : items}`);
+    }
+  } catch (e) {
+    alignNote = `（两端对齐核对没跑成：${e?.message ?? e}）`;
+    console.log(`[p0] ⚠️ ${alignNote}`);
+  }
+  // ★ 2026-10-06：这里原先**又写了一遍**「本单走的是 P0 快路…未跑层前置…不是专项审查结论」。
+  //   而 `kb/l5/p0_fastpath.py` 的 `_render()` 现在自己带一整节「来路与边界」——
+  //   两处一说，模型就会当成两句不同的话分别转述（实测卡片里就是两段重复）。
+  //   所以这一段**只留渲染器没有的那两个读数**（耗时 / 命中条数），边界不再重说。
+  const answer = rendered.trim()
+    + `\n\n（本单走 P0 快路：确定性匹配 ${p0.elapsed_ms} ms ｜ 命中 ${p0.matched_patterns} 条 P0 模式。）`;
+  console.log(`[p0] 🚦 P0 命中 ⇒ 直接 BLOCK，不起链：${(p0.findings ?? []).map((f) => f.rule_code).join(',')}`
+    + `｜${p0.elapsed_ms} ms`);
+  return {
+    ok: true,
+    answer,
+    p0_fastpath: {
+      mode: p0.mode,
+      elapsed_ms: p0.elapsed_ms,
+      matched_patterns: p0.matched_patterns,
+      rule_codes: (p0.findings ?? []).map((f) => f.rule_code),
+      layer_preflight: p0.layer_preflight,
+    },
+    // ★★ 2026-10-14：「同问题取交集」缺的那一格 —— P0 的**结构化逐条**原样带出去。
+    //   病灶：双轨的对齐判据比的是两侧的**逐字命中片段**，而库侧条目一直只有
+    //   「命中正则」（实测 `最\s*(好|佳|…)`）；模型侧给的是**逐字引用的原句**
+    //   ⇒ 两者永远不重叠 ⇒ **交集在实测 123 次双轨里一次都没成立过**。
+    //   这一格**只搬不算**（值来自 CLI 自己的 `matched[].{line_text, span}`），
+    //   不新增判据、不改任何结论、不改任何版式。
+    p0_findings: Array.isArray(p0.findings) ? p0.findings : [],
+    // ★ 2026-10-05（Owner 指出 BLOCK 却问题数量空 = 自相矛盾）：把引擎**已经给出**的
+    //   结构化字段带出去。原先只带 mode/elapsed/patterns，落表侧取不到 ⇒ 表里恒空。
+    //   **值来自 `kb/l5/p0_fastpath.py` 自己的输出，这里只搬不算。**
+    issue_count: p0.issue_count,
+    // P0 是**确定性匹配**（正则/关键词命中），PRD §6.6 明写「P0 层级规则**不适用置信度分流**，
+    //   命中即 BLOCK」⇒ 不参与分流，但 **§8.2 要求该字段必须记录** ⇒ 记 1.0 = 「确定性命中」。
+    //   这是**取值口径**，不是算出来的概率 —— 汇总列里会写明。
+    confidence: 1.0,
+    // ★ 报告（2026-10-06）：`report` 是**云文档链接**（没建成就是空串，**不是**"待生成"的占位）；
+    //   `report_path` 是本地 .md；`report_detail` 是「成没成、为什么」的原话。
+    //   `review_gate.formatChainBlock` 读 `report` 那一格 —— 空就什么都不显示（不许编）。
+    report: reportUrl ?? '',
+    report_path: p0.report_path ?? null,
+    // ★ `align_note`（2026-10-06）：非空 = **两端条数对不上**，它是**给落表用的**——
+    //   `agent.mjs` 会把它拼进「问题分类汇总」，于是**在表里看得见**。
+    //   空串 = 三处一致（回执 / 结构化 / 报告条目数），正常情形。
+    report_detail: reportDetail + alignNote,
+    align_note: alignNote,
+    // ★ 产品线 / 渠道（2026-10-06）：值来自 `kb/l5/p0_fastpath.py` 的 `facets`
+    //   —— 它从**命中的 L0 记录**里取（`品线`/`适用产品`、`渠道/市场`/`渠道`/`平台`）。
+    //   取不到就是空串 ⇒ 落表侧**不写这一格**（不许写「未指定」充数，更不许从素材正文猜）。
+    product_line: p0.product_line ?? '',
+    channel: p0.channel ?? '',
+    // ★ FIX-044：报告落点也带出去 —— 预检那条路要把它填进 `reportLink`（与闸门那条同口径）。
+    _report_path_used: p0ReportPath,
+  };
+}
+
+/**
  * 读「机读旁挂」`kb/.work/last_review_result.json`（由 `kb/l8/review_run.sh` 写）。
  *
  * ★ 为什么需要它（Owner 2026-10-05 指出「BLOCK 却问题数量空」「拒答却问题数量 0」自相矛盾）：
@@ -1572,6 +1770,52 @@ async function runP0FastPath(text, { reportOut = null, reportRef = '' } = {}) {
  * 执行点：`tools/test_agent.mjs` 的「旁挂身份」一组（判据表 + 反向对照 + 真读文件的
  * 行为级），改这里必须同时改那一组 —— 判据与自证只有一对，不许各写一份。
  */
+/**
+ * **记一次身份拒收** —— `PMO/logs/identity-reject.ndjson`（一行一次）。
+ *
+ * ── 为什么需要它（2026-10-16，Owner 问「这问题彻底修复了吗」时查出来的缺口）
+ *
+ *   拒收本身是**正确行为**，但在此之前它只留一行 `console.log` ⇒
+ *   **没有任何东西在统计它**。后果是单向的静默退化：哪天令牌转发率再掉回去
+ *   （历史实测 34 次里只成功 1 次），表现会是「每一单都少了库侧依据」，
+ *   而**没有人会发现** —— 这正是本仓最忌讳的那种形状（读数存在、没有执行点看它）。
+ *
+ *   ⇒ 落成**可数的**一行：谁（旁挂/引擎 JSON）、为什么拒、四个读数各是什么。
+ *     看它的人：daemon 心跳（变了就 ⚠）与 `tools/verify_shouheng_ops.py` 的 J 段。
+ *   ⚠️ 记不上**不许**影响这一单（与「临时文件删不掉不该让回话失败」同一条纪律）。
+ */
+/**
+ * 拒收账本的落点。**可用 `SHOUHENG_IDENTITY_REJECT_LOG` 覆盖** ——
+ * 自证必须能把它指到临时文件上，否则「跑一次自证」就会往真账本里掺垃圾
+ * （§2.4.4 那个形状：自证有副作用；`test_agent` 的 N2 组真跑拒收路径）。
+ */
+export function identityRejectLogPath() {
+  return process.env.SHOUHENG_IDENTITY_REJECT_LOG
+    || path.join(REPO_ROOT, 'PMO', 'logs', 'identity-reject.ndjson');
+}
+
+/**
+ * 数拒收账本里有几行。**读不到就说 0**（那条路本来就没发生过），
+ * **读抛了返回 null**（= 未测，不许当成 0 —— 与「取不到读数要说未测」同一条纪律）。
+ */
+export function identityRejectCount() {
+  try {
+    const f = identityRejectLogPath();
+    if (!fs.existsSync(f)) return 0;
+    return fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).length;
+  } catch {
+    return null;
+  }
+}
+
+export function noteIdentityReject(where, detail = {}) {
+  try {
+    const f = identityRejectLogPath();
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    fs.appendFileSync(f, JSON.stringify({ at: new Date().toISOString(), where, ...detail }) + '\n', 'utf8');
+  } catch { /* 记不上不该让这一单失败 */ }
+}
+
 export function identityVerdict({ sinceMs, at, want = {}, got = {} } = {}) {
   const atMs = Date.parse(String(at ?? ''));
   if (!Number.isFinite(atMs) || !Number.isFinite(sinceMs) || atMs < sinceMs - 2000) {
@@ -1616,6 +1860,11 @@ function readReviewSidecar(sinceMs, textSha8, contentId, reviewToken = '', textF
         + `｜内容ID 旁挂=${String(j?.content_id ?? '').trim() || '（缺）'}（本单=${contentId || '（无）'}）`
         + `｜旁挂自报 base=${j?.base ?? '?'}｜at=${j?.at ?? '?'}`
         + '｜⇒ 本单按「库侧没读数」走（**不是**「库里说没问题」）');
+      noteIdentityReject('旁挂', {
+        why: v.why, base: j?.base ?? null,
+        want: { token: reviewToken || null, sha8: textSha8 || null, cid: contentId || null },
+        got: { token: j?.review_token ?? null, sha8: j?.text_sha8 ?? null, cid: j?.content_id ?? null },
+      });
       return null;
     }
     // ★ 成功也要出声（一行）：否则"这一单到底靠哪把锁认下来的"无从统计
@@ -1865,154 +2114,22 @@ register('kb_review_chain', {
     //    不碰 kb/.work/.kb.lock、也不写库 ⇒ 不该去抢那条全局单槽。
     //    命中 ⇒ **不 spawn agent**（实测 0.13 s，对照走链 4~10 分钟）；
     //    未命中 ⇒ 原样往下走；快路**自身出错也照样回落**原链（不许因为快路坏了就不审）。
-    let p0 = null;
-    // 判定对象取**素材**（text）；没有素材才退回提问。
-    // 为什么不把两者合并扫：提问里可能出现「这条有没有 safest 这种词？」——
-    // 把提问也当判定对象会**误报红线**（假 BLOCK）。
-    // ★ 提到 try 外面（2026-10-06）：报告那一步要用**同一个**判定对象重渲染，
-    //   若它只在 try 里可见，就得在下面再算一遍 —— 两份"同一个东西"迟早会不一致。
-    const p0Target = String(text ?? '').trim() || String(question ?? '').trim();
-    // 报告落点：`kb/.work/p0_reports/`（工作区临时区，不写层数据）。带时间戳 + pid，
-    // 同一秒两单也不会互相覆盖（实测并发单槽，但仍不留这个隐患）。
-    const p0ReportPath = path.join(KB_ROOT, 'kb/.work/p0_reports',
-      `${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}-${process.pid}.p0.md`);
-    try {
-      p0 = await runP0FastPath(p0Target, { reportOut: p0ReportPath });
-    } catch (e) {
-      p0 = null;
-      console.log(`[p0] ⚠️ 快路没跑成，回落原链：${e?.message ?? e}`);
-    }
-    if (p0?.hit) {
-      // ── ★ P0 报告（2026-10-06，Owner 三条口径）─────────────────────────────
-      //   ① 「P0 问题可先在飞书侧响应」 ⇒ 回执卡在 `runSubmissionGate` 里**已经先发过了**
-      //      （`notify(ackMessage(...))` 在调本工具之前），所以这一步**不占任何响应预算**；
-      //   ② 「写入云文档报告的时间不统计在 ≤1 秒内」 ⇒ PRD §12 的「P0 层响应 ≤1s」
-      //      量的是**判定**（`p0.elapsed_ms`，实测 9.8 ms），「报告生成」是另一条 ≤30s 的指标；
-      //   ③ 「补充报告」 ⇒ 报告**必须**跑，跑成了把链接填进回执（PRD §5.3.3 要求 ≥3 条时出报告链接），
-      //      跑不成要**看得见**（`report_detail` 带出 CLI 原话），**不许静默留空、更不许编链接**。
-      let reportUrl = null;
-      let reportDetail = '';
-      // ── ★ **同一内容已有报告就复用，不新建**（Owner 2026-10-06 选定方案 (c)）──────────
-      //   实测的病：同一份素材**复跑**时，`ensureReviewRow` 会按「内容 ID」找到**旧行**，
-      //   而它的「报告链接」被「非空不覆盖」挡住了 ⇒ 这里新建的那一份**没人能点到**（孤儿文档）。
-      //   (a) 改成新建一行 ⇒ 会多出**重复行**（比缺行更难发现）；
-      //   (b) 改成覆盖旧链接 ⇒ 行内**自相矛盾**（汇总写旧审查、链接指新报告）；
-      //   (c) **复用旧链接、不新建** ← 选它：不产孤儿、不产重复行、行与报告始终一致。
-      //   为什么复用是对的：**内容 ID 是送审文本的 sha256** ⇒ 同一 ID 就是**同一份素材**，
-      //   报告逐字相同。代价：多一次查表（实测 15 行 **~1.0 s**），发生在**回执卡之后**，
-      //   不占 PRD §12 任何一条预算（「P0 层响应 ≤1s」量的是判定，仍 ~12 ms）。
-      const p0ContentId = reviewPublish.contentIdOf(String(text ?? ''));
-      const prevReport = await reviewPublish.previousReportLink(p0ContentId);
-      if (prevReport) {
-        reportUrl = prevReport;
-        reportDetail = `复用同一内容已有的报告（内容 ID ${p0ContentId}）：${prevReport}`;
-        console.log(`[p0] ♻️ 同一内容已有报告，复用不新建：${prevReport}`);
-      } else if (p0.report_path) {
-        const pub = await reviewPublish.publishReportDoc(p0.report_path);
-        reportDetail = pub.detail;
-        if (pub.ok) {
-          reportUrl = pub.url;
-          console.log(`[p0] 📄 报告已出：${pub.url}`);
-        } else {
-          console.log(`[p0] ⚠️ 报告没出（结论不受影响）：${pub.detail}`);
-        }
-      } else {
-        reportDetail = '快路没给出 report_path（未落报告文件）';
-        console.log(`[p0] ⚠️ ${reportDetail}`);
-      }
-      // ★ 拿到真链接就**重渲染一次回执**，把「报告链接」那一格填上（PRD §5.3.3）。
-      //   没拿到就保留原文那句「报告在回执之后补」——那是实话，改掉它才是撒谎。
-      let rendered = String(p0.rendered ?? '');
-      if (reportUrl) {
-        try {
-          const again = await runP0FastPath(p0Target, { reportRef: reportUrl });
-          if (again?.rendered) rendered = String(again.rendered);
-        } catch (e) {
-          console.log(`[p0] ⚠️ 回执重渲染失败（保留原回执，报告链接改由表行与落表摘要带出）：${e?.message ?? e}`);
-        }
-      }
-      // ── ★ 两端对齐的运行期核对（Owner 2026-10-06：「后续两端数据必须对齐」）────────
-      //   当天的事故形状：**回执说 3 条、云文档里读出来像 1 条**。
-      //   根因是版式（已修），但那件事暴露了一个更根本的问题：
-      //   「回执说的条数」与「报告里的条目数」**没有任何东西在运行时对照过**。
-      //   所以这里加一道**生产期**核对（不能只写在自检里 —— 自检跑不到真实素材）：
-      //     ① 回执正文里 `共发现 N 处` 的 N（**重渲染之后**的最终文本）
-      //     ② 结构化字段 `p0.issue_count`（= findings 长度，落表「问题数量」用的就是它）
-      //     ③ 报告文件里 `### 问题 N ｜` 的条数
-      //   三处不一致 ⇒ **必须看得见**（日志 + 落进 report_detail，汇总格里会带出来）。
-      //   **不许静默**：数量对不上时，看表的人只会觉得"怪"，说不出哪里错。
-      let alignNote = '';
-      try {
-        const stated = Number((rendered.match(/共发现\s*(\d+)\s*处/) || [])[1]);
-        let items = null;
-        if (p0.report_path && fs.existsSync(p0.report_path)) {
-          items = (fs.readFileSync(p0.report_path, 'utf8').match(/^### 问题 \d+ ｜ /gm) || []).length;
-        }
-        const expect = p0.issue_count;
-        const bad = [];
-        if (stated !== expect) bad.push(`回执写 ${stated}`);
-        if (items !== null && items !== expect) bad.push(`报告里 ${items}`);
-        if (bad.length) {
-          alignNote = `⚠️ **两端条数对不上**：结构化=${expect} ｜ ${bad.join(' ｜ ')}。`;
-          console.log(`[p0] ${alignNote}`);
-        } else {
-          console.log(`[p0] ✓ 两端对齐：回执 ${stated} ｜ 结构化 ${expect}`
-            + ` ｜ 报告 ${items === null ? '（未落盘）' : items}`);
-        }
-      } catch (e) {
-        alignNote = `（两端对齐核对没跑成：${e?.message ?? e}）`;
-        console.log(`[p0] ⚠️ ${alignNote}`);
-      }
-      // ★ 2026-10-06：这里原先**又写了一遍**「本单走的是 P0 快路…未跑层前置…不是专项审查结论」。
-      //   而 `kb/l5/p0_fastpath.py` 的 `_render()` 现在自己带一整节「来路与边界」——
-      //   两处一说，模型就会当成两句不同的话分别转述（实测卡片里就是两段重复）。
-      //   所以这一段**只留渲染器没有的那两个读数**（耗时 / 命中条数），边界不再重说。
-      const answer = rendered.trim()
-        + `\n\n（本单走 P0 快路：确定性匹配 ${p0.elapsed_ms} ms ｜ 命中 ${p0.matched_patterns} 条 P0 模式。）`;
-      console.log(`[p0] 🚦 P0 命中 ⇒ 直接 BLOCK，不起链：${(p0.findings ?? []).map((f) => f.rule_code).join(',')}`
-        + `｜${p0.elapsed_ms} ms`);
-      return {
-        ok: true,
-        answer,
-        p0_fastpath: {
-          mode: p0.mode,
-          elapsed_ms: p0.elapsed_ms,
-          matched_patterns: p0.matched_patterns,
-          rule_codes: (p0.findings ?? []).map((f) => f.rule_code),
-          layer_preflight: p0.layer_preflight,
-        },
-        // ★★ 2026-10-14：「同问题取交集」缺的那一格 —— P0 的**结构化逐条**原样带出去。
-        //   病灶：双轨的对齐判据比的是两侧的**逐字命中片段**，而库侧条目一直只有
-        //   「命中正则」（实测 `最\s*(好|佳|…)`）；模型侧给的是**逐字引用的原句**
-        //   ⇒ 两者永远不重叠 ⇒ **交集在实测 123 次双轨里一次都没成立过**。
-        //   这一格**只搬不算**（值来自 CLI 自己的 `matched[].{line_text, span}`），
-        //   不新增判据、不改任何结论、不改任何版式。
-        p0_findings: Array.isArray(p0.findings) ? p0.findings : [],
-        // ★ 2026-10-05（Owner 指出 BLOCK 却问题数量空 = 自相矛盾）：把引擎**已经给出**的
-        //   结构化字段带出去。原先只带 mode/elapsed/patterns，落表侧取不到 ⇒ 表里恒空。
-        //   **值来自 `kb/l5/p0_fastpath.py` 自己的输出，这里只搬不算。**
-        issue_count: p0.issue_count,
-        // P0 是**确定性匹配**（正则/关键词命中），PRD §6.6 明写「P0 层级规则**不适用置信度分流**，
-        //   命中即 BLOCK」⇒ 不参与分流，但 **§8.2 要求该字段必须记录** ⇒ 记 1.0 = 「确定性命中」。
-        //   这是**取值口径**，不是算出来的概率 —— 汇总列里会写明。
-        confidence: 1.0,
-        // ★ 报告（2026-10-06）：`report` 是**云文档链接**（没建成就是空串，**不是**"待生成"的占位）；
-        //   `report_path` 是本地 .md；`report_detail` 是「成没成、为什么」的原话。
-        //   `review_gate.formatChainBlock` 读 `report` 那一格 —— 空就什么都不显示（不许编）。
-        report: reportUrl ?? '',
-        report_path: p0.report_path ?? null,
-        // ★ `align_note`（2026-10-06）：非空 = **两端条数对不上**，它是**给落表用的**——
-        //   `agent.mjs` 会把它拼进「问题分类汇总」，于是**在表里看得见**。
-        //   空串 = 三处一致（回执 / 结构化 / 报告条目数），正常情形。
-        report_detail: reportDetail + alignNote,
-        align_note: alignNote,
-        // ★ 产品线 / 渠道（2026-10-06）：值来自 `kb/l5/p0_fastpath.py` 的 `facets`
-        //   —— 它从**命中的 L0 记录**里取（`品线`/`适用产品`、`渠道/市场`/`渠道`/`平台`）。
-        //   取不到就是空串 ⇒ 落表侧**不写这一格**（不许写「未指定」充数，更不许从素材正文猜）。
-        product_line: p0.product_line ?? '',
-        channel: p0.channel ?? '',
-      };
-    }
+    //
+    // ⚠️ 2026-10-16（FIX-044）：**这一整块搬进了 `runP0Preflight()`** ——
+    //    因为内核现在也要在同一轮里直接调它（闸门判「不是送审」时），而
+    //    「一个产出者」这条纪律不允许两处各写一份报告/回执/对齐逻辑。
+    //    ⚠️ 两条路的**只读性不同，必须各说各的**：
+    //      · 这一条（工具）＝**原来那一套**：落报告文件 + 建云文档 + 填表行（`allowPublish: true`）；
+    //      · 内核那条前置 ＝ **只读**（默认 `allowPublish: false`，不落盘也不建文档）。
+    //    报告落点：`kb/.work/p0_reports/`（工作区临时区，不写层数据）。带时间戳 + pid，
+    //    同一秒两单也不会互相覆盖（实测并发单槽，但仍不留这个隐患）。
+    const p0Out = await runP0Preflight({
+      text, question,
+      reportOut: path.join(KB_ROOT, 'kb/.work/p0_reports',
+        `${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}-${process.pid}.p0.md`),
+      allowPublish: true,
+    });
+    if (p0Out) return p0Out;
 
     // ★ 前置：清一下陈旧的跑批认领（自愈）。
     //   2026-10-05 加；2026-10-08 一天里改了两轮，**以 `preflightClaim()` 头注为准**：
@@ -2134,6 +2251,11 @@ register('kb_review_chain', {
         if (v.accept) {
           engineJson = jj;
         } else {
+          noteIdentityReject('引擎JSON', {
+            why: v.why, review_id: dec?.review_id ?? null, content_id: dec?.content_id ?? null,
+            want: { full8: textSha8 || null, cid: contentId || null },
+            got: { full8: String(gotFull).slice(0, 8) || null },
+          });
           console.log('[review] ⛔ 引擎 JSON **不是本单的 ⇒ 拒收**'
             + `｜${v.why}`
             + `｜内容指纹 引擎=${String(gotFull).slice(0, 8) || '（缺）'}（本单=${textSha8}）`
@@ -2241,6 +2363,69 @@ export function beginChainTurn() {
   return prevHits;
 }
 
+/* ══════════════ ★★ P0 快路读数（2026-10-16，FIX-043）══════════════════════
+ *
+ * **为什么会有这一格**（真单：`om_x100b622a8e762cbcce3b9bfa8402ccb`，
+ * 群里问「m5 pro是最好的吸奶器，这句话能过审吗？」，2026-10-16 17:20 北京时间）——
+ *
+ * 那一单走的是 **P0 快路**（`kb_review_chain` 工具内，命中 `最好`／V02，63.121 ms），
+ * 而**送审闸门判它「不是送审」**（「在问审查这件事本身怎么运作（过审）」）⇒ `gate.yes=false`
+ * ⇒ `g.verdict53 = null` ⇒ 内核走兜底那一支，而兜底只拿得到 **`replyText`**
+ * （`toolTrace` 只记 `{tool, ok, ms, args, error}`，**不记返回体**）
+ * ⇒ `deriveVerdictLine` 抠的是**模型自己有没有把结论行抄进回复**。
+ * 这一单模型没抄（它写的是 `**结论：BLOCK —— 共 1 处必须修改。**`）⇒ `verdict53 = null`
+ * ⇒ 信封层 `reviewShape=false` ⇒ **PRD §5.3 的逐条块一个字都没上卡**，
+ * 卡面只剩模型自拟的四组折叠摘要（「（已收起 1 条证据：判定 · 1）」×4）。
+ *
+ * **判据早就写好了，缺的是把它接上**（与 FIX-021 同一个形状）：
+ * `prd53.deriveVerdictLine` 的第 ② 支**专门**处理 P0 快路（`p0Fastpath.matched_patterns`
+ * ⇒ 派生 `【审查结论：BLOCK】共发现 N 处必须修改。`），`test_agent.mjs` 的 `W1` 也一直在喂它
+ * —— 而**全仓没有任何一个调用点给它传过 `p0Fastpath`**。
+ *
+ * **为什么不从 `toolTrace` 里抠**：`kb_review_chain` 的 `answer` 是**已经渲染好的 PRD 块**
+ * （`kb/l5/p0_fastpath.py --json` 的 `rendered` 字段），而 `toolTrace` 里没有它。
+ * 所以记的是**这一次调用真正返回的那个结果对象**，与链缓存同一个漏斗（`executeTool`）、
+ * 同一条纪律（**每轮清空**，见 `agent.mjs` 调闸门之前那一跳）。
+ *
+ * ⚠️ 与链缓存一样**只装跑成的**：`{error}` 是「结论未知」，拿它派生结论行等于把未测说成已判。
+ * ⚠️ **同一轮重复命中取最后一次** —— 同一份素材重跑结论一样（`p0_fastpath.py` 是纯函数），
+ *    所以这个方向不会产生假结论。
+ */
+let p0Memo = null;         // { at:number, payload:{ p0Fastpath, answer, p0Findings } }
+
+/** 一轮的边界：清掉上一轮的 P0 读数（与 `beginChainTurn()` 同一处调用、同一套理由）。 */
+export function beginP0Turn() { p0Memo = null; }
+
+/**
+ * 这一轮 `kb_review_chain` **真的命中了 P0 快路**时，要留下来的那几格结构化读数。
+ *
+ * **纯函数**（§2.4：判据要能被调用）—— 与 `chainMemoLookup`/`chainMemoShouldArm` 同一个理由：
+ * 断言可以直接喂一个构造出来的结果，一次真链、一次真飞书写入都不产生。
+ *
+ * @param {object} result `kb_review_chain` 的 `result`（不是信封）
+ * @returns {{p0Fastpath:object, answer:string, p0Findings:Array}|null}
+ */
+export function p0PayloadOf(result) {
+  if (!result || typeof result !== 'object') return null;
+  // 只装**跑成的**（与链缓存同一条纪律）：`{error}` 是「结论未知」，
+  // 拿它派生结论行等于把未测说成已判 —— §2.4.2：未测不许与通过长得一样。
+  if (result.ok === false || result.error) return null;
+  const fast = result.p0_fastpath;
+  if (!fast || typeof fast !== 'object') return null;   // 没命中快路 ⇒ 没什么可留的
+  return {
+    p0Fastpath: fast,
+    answer: String(result.answer ?? ''),
+    p0Findings: Array.isArray(result.p0_findings) ? result.p0_findings : [],
+  };
+}
+
+/** 这一轮命中的 P0 读数（没命中回 `null`）。 */
+export function p0MemoRead() { return p0Memo?.payload ?? null; }
+
+/** 只给自证用 —— 从干净状态起跑，或构造一个「这一轮命中了快路」的现场。 */
+export function _resetP0MemoForTest() { p0Memo = null; }
+export function _armP0MemoForTest(payload, at = Date.now()) { p0Memo = { at, payload }; }
+
 /** 给日志/`meta` 用的读数：这一轮命中过几次、现在有没有装着缓存。 */
 export function chainMemoStats() {
   return { hit: chainMemoHits, armed: !!chainMemo };
@@ -2301,6 +2486,11 @@ export async function executeTool(name, argsJson) {
     const result = await def.run(args);
     const envelope = { tool: name, ok: true, result };
     if (chainMemoShouldArm({ name, result })) chainMemo = { at: Date.now(), envelope };
+    // ★★ 2026-10-16（FIX-043）：命中 P0 快路时**把那份渲染好的 PRD §5.3.3 块留下来**。
+    //   没有这一格，送审闸门判「不是送审」而模型自己调了链的那一单，
+    //   内核兜底只拿得到 `replyText` ⇒ 结论行取决于**模型有没有抄**（见本文件那段头注）。
+    const p0p = p0PayloadOf(result);
+    if (p0p) p0Memo = { at: Date.now(), payload: p0p };
     return envelope;
   } catch (e) {
     return { tool: name, ok: false, error: `${e?.name ?? 'Error'}: ${e?.message ?? e}` };

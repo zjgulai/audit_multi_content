@@ -19,6 +19,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { REPO_ROOT } from './config.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const EXT_JSON = path.join(path.dirname(HERE), '..', 'research/kb/外部标准库-v1.json');
@@ -33,12 +34,45 @@ function load() {
 
 /** 给提示词用的**闭集**：模型只能从这 17 个里挑（id + 机构 + 文档名，**不给 URL**）。 */
 export function sourceChoices() {
-  return load().sources.map((s) => ({ id: s.id, org: s.机构, doc: s.文档, url: s.url }));
+  return load().sources.map((s) => ({ id: s.id, org: s.机构, doc: s.文档, url: s.url,
+                                      jurisdiction: s.辖区 ?? null, tier: s.辖区层级 ?? null }));
 }
 
-/** 模型侧提示词里那一节「能引什么」——与 `sourceChoices()` 同源，不手抄。 */
+/**
+ * ★★ 2026-10-16（Owner 追问「**目前模型侧是按照下面的美国区来跑的吗？**」）——
+ * **递到模型面前的菜单只列美国来源**。
+ *
+ * 病灶：登记表 17 条里有 **2 条是英国的**（`S15` MHRA、`S16` ASA/CAP），而模型侧提示词
+ * 第 7 条（2026-10-14 加）明写「**不得援引非美国市场的合规要求**……英国 MHRA / ASA-CAP
+ * **都不是本项目的判据**」——**规矩与菜单打架**：规矩说不许引，菜单却把这两个 id 递到它面前。
+ * 实测当时**还没被引用过**（写回台账里 `"S15"/"S16"` **0 次**、报告/表里 `MHRA`/`CAP Code`
+ * **0 命中**）⇒ 是**隐患**、不是已发生的错；但「还没出事」不是不修的理由，菜单就是它能挑的东西。
+ *
+ * 判据落在**数据**上，不在代码里写死 id 名单：`外部标准库-v1.json` 的 `sources[].辖区`
+ * （2026-10-16 逐条标注：`US` × **15** ＝ 联邦监管 4 ＋ 平台政策 11；`UK` × 2）。
+ * 以后新增来源**必须带辖区** —— 缺字段的会被自证逮住（见 `selftest` 的「缺辖区」那条）。
+ */
+export function usSourceChoicesOf(sources) {
+  return (sources ?? []).filter((s) => (s.辖区 ?? s.jurisdiction) === 'US')
+                        .map((s) => ({ id: s.id, org: s.机构, doc: s.文档, url: s.url,
+                                       jurisdiction: 'US', tier: s.辖区层级 ?? null }));
+}
+
+/** 被挡在菜单外的（非美国）——**不是不存在，是不进提示词**；自证与日志要看得见。 */
+export function nonUsSourceChoicesOf(sources) {
+  return (sources ?? []).filter((s) => (s.辖区 ?? s.jurisdiction) !== 'US')
+                        .map((s) => ({ id: s.id, org: s.机构, doc: s.文档,
+                                       jurisdiction: s.辖区 ?? s.jurisdiction ?? null }));
+}
+
+/** 模型侧提示词里那一节「能引什么」——**只列美国来源**，与 `sourceChoices()` 同源、不手抄。 */
 export function sourceMenuLines() {
-  return sourceChoices().map((s) => `   ${s.id} = ${s.org}《${s.doc}》`);
+  return usSourceChoicesOf(load().sources).map((s) => `   ${s.id} = ${s.org}《${s.doc}》`);
+}
+
+/** 自证 / 日志用：这一轮**被排除**在菜单外的来源（非美国）。 */
+export function nonUsSourceChoices() {
+  return nonUsSourceChoicesOf(load().sources);
 }
 
 const isId = (v) => /^S\d{1,2}$/.test(String(v ?? '').trim());
@@ -137,13 +171,46 @@ export function probeLabel(pr) {
  *          excerpt?:string, category?:string, probe?:object}} f
  */
 export function basisText(f = {}) {
+  return basisTextOf(load().sources, f);
+}
+
+/* ── ★★ 2026-10-16（Owner 选定「解析也只认美国来源」）────────────────────────
+ * 上面那条 `sourceMenuLines()` 只把**美国**来源递到模型面前；而**解析**这一步原先
+ * 仍认登记表里任何 id —— 实测 `basisText({source:'S15'})` **照样把 MHRA 的英国链接挂上去**
+ * 并标成「登记来源」。菜单挡住、解析没挡，等于只关了半扇门：模型猜中（或哪天菜单又被改宽）
+ * 就有一条域外依据进了对外报告，而**没有任何断言盖住它** ——
+ * 自证那时只覆盖了无效 id（`S99` / 小写 / 空 / null / 注入串）。
+ *
+ * ⇒ 口径：**能递到它面前的**与**能被挂上报告的**必须是同一个集合（都按 `辖区 === 'US'`）。
+ *   非美国 id 与未知 id **同样是 fail-closed**（不给链接）。
+ *   ★ 但两支**不许混成一支**：未知 id 是「没给来源」；非美国 id 是「给了、按美国口径不作数」——
+ *     后者要**照实写出来**并**落台账**（`PMO/logs/nonus-cite.ndjson`，可数）。
+ *     丢弃不留痕＝静默消失，那正是本项目反复吃过的形状。
+ *   ★ 抽成纯函数并**显式接收 sources**：否则「挡住它的到底是不是辖区」这条反向对照
+ *     只能靠读源码去证 —— 而 §2.4 已经点名「名字出现过 ≠ 拦得住」。
+ */
+export function basisTextOf(sources, f = {}) {
   const hint = `${f.reason ?? ''} ${f.excerpt ?? ''} ${f.category ?? ''}`;
   const id = resolveSourceId(f.source);
   if (id) {
-    const s = byId(id);
+    const s = (sources ?? []).find((x) => x.id === id) ?? null;
+    const jur = s?.辖区 ?? s?.jurisdiction ?? null;
+    if (!s || jur !== 'US') {
+      noteNonUsCite({ id, jurisdiction: jur, org: s?.机构 ?? null, doc: s?.文档 ?? null,
+                      where: f.where ?? f.location ?? null });
+      console.warn(`[ext_basis] ⚠️ 挡下一条非美国来源的引用：${id}（辖区=${jur ?? '未标'}）`
+        + ' ⇒ 不给链接、按「无库内依据」写；已落台账 ' + nonUsCiteLogPath());
+      return {
+        cited: false, kind: 'non-us', id, jurisdiction: jur, url: null, probe: null,
+        line: `**无库内依据** —— 本条点了 \`${id}\`（${s?.机构 ?? '未登记机构'}`
+            + `${s?.文档 ? `《${s.文档}》` : ''}），辖区是 **${jur ?? '未标'}**；`
+            + '本项目只审美国市场（美国联邦 ＋ 美国平台政策），域外依据不作判据，故不给链接'
+            + '（独立语义复核给出的判断，需人工复核）',
+      };
+    }
     const w = pickWhere(id, hint);
     const where = w?.where ? ` · ${w.where}` : '';
-    return { cited: true, kind: 'registry', id, url: s.url, probe: null,
+    return { cited: true, kind: 'registry', id, jurisdiction: jur, url: s.url, probe: null,
              // 渲染层自己印 `**依据**：` —— 这一行**不带前缀**（否则印两遍，实测过）
              line: `${s.机构}《${s.文档}》${where} → ${s.url}（登记来源 · 每日复核）` };
   }
@@ -161,6 +228,34 @@ export function basisText(f = {}) {
   };
 }
 
+/** 被辖区挡下的引用**落台账**（路径可用环境变量指走 —— 自证不许写真台账，§2.4.4）。 */
+export function nonUsCiteLogPath() {
+  return process.env.SHOUHENG_NONUS_CITE_LOG
+    || path.join(REPO_ROOT, 'PMO', 'logs', 'nonus-cite.ndjson');
+}
+
+export function noteNonUsCite(detail = {}) {
+  try {
+    const f = nonUsCiteLogPath();
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    fs.appendFileSync(f, JSON.stringify({ at: new Date().toISOString(), ...detail }) + '\n', 'utf8');
+    return true;
+  } catch (e) {
+    // 台账写不进去**不许**把引用放行（fail-closed 的方向不能反），只报一句
+    console.warn(`[ext_basis] ⚠️ 非美国来源台账写不进去（${e?.code ?? e?.message}）—— 引用仍按拒挂处理`);
+    return false;
+  }
+}
+
+/** 数台账行数。**读不到说 0**；**读抛了返回 null（未测）**，不许当成 0。 */
+export function nonUsCiteCount() {
+  try {
+    const f = nonUsCiteLogPath();
+    if (!fs.existsSync(f)) return 0;
+    return fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).length;
+  } catch { return null; }
+}
+
 /* ══════════════════════════ 自证（判据 + 反向对照）══════════════════════════ */
 function selftest() {
   let pass = 0; let fail = 0;
@@ -169,7 +264,62 @@ function selftest() {
   const ch = sourceChoices();
   T('来源闭集读得到 17 个', ch.length === 17, `实际 ${ch.length}`);
   T('闭集里每条都带真 URL', ch.every((s) => /^https?:\/\//.test(s.url)));
-  T('提示词菜单与闭集同源（不手抄）', sourceMenuLines().length === ch.length && sourceMenuLines()[0].includes(ch[0].id));
+  // ★★ 2026-10-16 改：菜单**只列美国来源**（原来断言"菜单 = 闭集"，那正是病灶：
+  //    闭集里 2 条英国来源被原样递到模型面前，而提示词第 7 条明写不许引）
+  const us = usSourceChoicesOf(ch);
+  const nonUs = nonUsSourceChoicesOf(ch);
+  T('菜单只列美国来源 ⇒ 15 条', us.length === 15, `实际 ${us.length}`);
+  T('非美国来源被挡在菜单外 ⇒ S15/S16 两条',
+    nonUs.length === 2 && nonUs.map((s) => s.id).sort().join(',') === 'S15,S16',
+    `实际 ${nonUs.map((s) => `${s.id}(${s.jurisdiction})`).join(',')}`);
+  T('提示词菜单与「美国子集」同源（不手抄）',
+    sourceMenuLines().length === us.length && sourceMenuLines()[0].includes(us[0].id));
+  T('★ 菜单里**不出现**非美国来源的 id',
+    nonUs.every((s) => !sourceMenuLines().join('\n').includes(s.id)));
+  T('每条来源都标了辖区（缺字段 ⇒ 会在菜单里静默消失）',
+    ch.every((s) => s.jurisdiction === 'US' || s.jurisdiction === 'UK'),
+    `缺辖区：${ch.filter((s) => !s.jurisdiction).map((s) => s.id).join(',') || '无'}`);
+  // ★ 反向对照：把一条英国来源的辖区改成 US ⇒ 它**必须**进菜单；
+  //   改回 UK ⇒ 必须出去。少了这一条，「菜单里没有 S15」可能只是"它压根没被读进来"。
+  const fake = ch.map((s) => (s.id === 'S15' ? { ...s, jurisdiction: 'US' } : s));
+  T('★ 反向对照：S15 辖区改 US ⇒ 进菜单（证明挡住它的是辖区，不是别的）',
+    usSourceChoicesOf(fake).some((s) => s.id === 'S15'));
+  T('★ 反向对照：仍是 UK ⇒ 不进菜单',
+    !usSourceChoicesOf(ch).some((s) => s.id === 'S15'));
+
+  // ★★ 2026-10-16（Owner 选定「解析也只认美国来源」）：**菜单挡住了，解析也必须挡** ——
+  //    病灶是「菜单只列美国、而挂链接那一步仍认登记表里任何 id」，实测 S15 会被挂上英国链接。
+  //    判据必须**行为级**（真调一次）+ **反向对照**（证明挡住它的是辖区），
+  //    且**不许写真台账**（§2.4.4：跑一次自证改掉它要保护的东西，比没有自证更糟）。
+  const ledProbe = path.join('/tmp', `nonus-cite-selftest-${process.pid}.ndjson`);
+  const oldLedEnv = process.env.SHOUHENG_NONUS_CITE_LOG;
+  process.env.SHOUHENG_NONUS_CITE_LOG = ledProbe;
+  try { fs.rmSync(ledProbe, { force: true }); } catch { /* 本来就没有 */ }
+  const led0 = nonUsCiteCount();
+  const g15 = basisText({ source: 'S15', reason: '英国 CAP 口径', category: '合规' });
+  T('非美国 id（S15 = 英国 MHRA）⇒ **不给链接**',
+    g15.cited === false && g15.url === null, JSON.stringify(g15).slice(0, 160));
+  T('★ 且**不是**与「未知 id」同一支（`kind=non-us`，两支要能分辨）',
+    g15.kind === 'non-us', `kind=${g15.kind}`);
+  T('★ 报告里要**照实写出来**（点了哪个 id、辖区是什么），不许静默消失',
+    /S15/.test(g15.line) && /UK/.test(g15.line) && /不作判据/.test(g15.line), g15.line);
+  const g16 = basisText({ source: 'S16', category: '合规' });
+  T('非美国 id（S16 = 英国 ASA/CAP）同样不给链接', g16.cited === false && g16.kind === 'non-us');
+  T('★ 留痕：这两次被拒的引用进了台账（可数，+2）',
+    nonUsCiteCount() === (led0 ?? 0) + 2, `before=${led0} after=${nonUsCiteCount()}`);
+  // 反向对照①：把 S15 的辖区改成 US ⇒ **必须**又挂得上链接（证明挡住它的是辖区，不是别的）
+  const rawUs = load().sources.map((s) => (s.id === 'S15' ? { ...s, 辖区: 'US' } : s));
+  const g15us = basisTextOf(rawUs, { source: 'S15', category: '合规' });
+  T('★ 反向对照①：S15 辖区改 US ⇒ 又挂得上链接（挡住它的是辖区）',
+    g15us.cited === true && /gov\.uk/.test(g15us.url ?? ''), JSON.stringify(g15us).slice(0, 160));
+  // 反向对照②：未知 id 走的仍是原来那一支（没被新分支吃掉），且**不落**台账
+  const g99 = basisText({ source: 'S99' });
+  T('★ 反向对照②：未知 id（S99）仍走「无库内依据」那一支，且不落台账',
+    g99.cited === false && g99.kind === 'none' && nonUsCiteCount() === (led0 ?? 0) + 2,
+    `kind=${g99.kind} count=${nonUsCiteCount()}`);
+  if (oldLedEnv === undefined) delete process.env.SHOUHENG_NONUS_CITE_LOG;
+  else process.env.SHOUHENG_NONUS_CITE_LOG = oldLedEnv;
+  try { fs.rmSync(ledProbe, { force: true }); } catch { /* 收尾失败不影响断言 */ }
 
   // ① 正例：模型挑了一个真 id ⇒ 给登记链接
   const a = basisText({ source: 'S11', reason: 'FDA 批准表述', category: '合规' });

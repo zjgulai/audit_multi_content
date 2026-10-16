@@ -71,7 +71,11 @@ export const SYSTEM = [
     //   提示词里留着旧形状，模型就会照着旧形状"抄"一个 `[12.34s]` 回去。
     + '视频关键帧上的字 ⇒ **给该帧的时间码**（行首 `[00:12]` 那种 `分:秒`，直接抄那个数）；'
     + '音轨转写 ⇒ 给**转写里的第几段 / 原句**（转写**没有**时间戳，**不许编一个秒数**）；'
-    + '图上的字 ⇒ 给图上位置（如「主标题」「右下角贴片」）；素材正文 ⇒ 给所在句子。',
+    + '图上的字 ⇒ 给图上位置（如「主标题」「右下角贴片」）；素材正文 ⇒ 给所在句子；'
+    // ★ 2026-10-16：新增的那一节（带媒材时它叫「对方这条消息里写的字」）也要能定位 ——
+    //   而且**它本身不是素材**：只在"对方的话与素材冲突/说明改哪里"时才引它。
+    + '「对方这条消息里写的字」⇒ 给所在句子（**那不是素材本身**，是对方的提问/说明，'
+    + '不要把它当成待审内容去挑毛病）。',
   '4b. ★ **每条都要给 suggestion：具体怎么改** —— 改哪个词、换成什么、删哪一句、补什么。',
   '    不许写「转对应负责人复核」「请人工确认」「建议修改」这类**没有动作**的话：',
   '    收到它的人还是不知道改什么。写不出具体改法时，就写清**缺什么信息才能定**（例如',
@@ -238,14 +242,16 @@ export async function reviewModelSide({ readings, question = '', ask, maxTokens 
   if (noRead) return { ok: true, findings: [], ms: 0, skipped: '文字层是空的 —— 模型侧无需跑，也不会编' };
   if (typeof ask !== 'function') return { ok: false, findings: [], ms: 0, error: '没有可用的 llm.ask' };
   try {
-    let raw = await ask(buildPrompt({ readings, question }), { system: SYSTEM, maxTokens });
+    // ★ 2026-10-16：**判定这一跳必须确定** —— 温度 0（原先吃 `ask` 的默认 0.2，
+    //   实测同一条素材两次跑出的问题零重合）。见 `llm.mjs::ask` 那段注释。
+    let raw = await ask(buildPrompt({ readings, question }), { system: SYSTEM, maxTokens, temperature: 0 });
     let p = parseFindings(raw);
     // ★★ 2026-10-09：**截断就重试一次**（额度翻倍）。不重试的话，一次腰斩就把模型侧整条丢掉，
     //   用户拿到的卡里只剩库侧条目 —— 实测那张夜间图就是这样（`raw=1545 字`、无结尾）。
     //   只对「截断」重试：真没写数组（散文）重试也没用，那是提示词问题，不该白烧一次。
     if (!p.ok && /被截断/.test(String(p.error ?? ''))) {
       console.log(`[agent] ↻ 模型侧输出被截断，重试一次（额度 ${maxTokens} → ${maxTokens * 2}）`);
-      raw = await ask(buildPrompt({ readings, question }), { system: SYSTEM, maxTokens: maxTokens * 2 });
+      raw = await ask(buildPrompt({ readings, question }), { system: SYSTEM, maxTokens: maxTokens * 2, temperature: 0 });
       p = parseFindings(raw);
     }
     // ★ 2026-10-13：模型自己写了 URL ⇒ 就地**探一次**（标出核验状态；不判「信不信」）。
@@ -277,7 +283,7 @@ export async function reviewModelSide({ readings, question = '', ask, maxTokens 
  *   把「没有画面」喂进去只会换来模型编一段「画面描述」。所以这里给什么，
  *   提示词里就写死「不许评价画面」（见 `SYSTEM`）。
  */
-export function readingsForModelSide(inbound) {
+export function readingsForModelSide(inbound, { userText } = {}) {
   if (!inbound) return '';
   const parts = [];
   // ★ 2026-10-06 补：**纯文案也必须进来**。
@@ -287,8 +293,32 @@ export function readingsForModelSide(inbound) {
   //   漏了它，等于「双轨」只对少数带媒材的单子成立。
   //   （这个洞是 Owner 2026-10-06 追问「文案/图片/视频/链接都可以跑知识库+模型吧？」时
   //    逐态核出来的；我原来的四形态自测第①态传了 `ask: null`，**把它盖住了**。）
-  const body = String(inbound.text ?? '').trim();
-  if (body) parts.push('【素材正文】\n' + body);
+  //
+  // ══════════════════════════════════════════════════════════════════════════
+  // ★★ 2026-10-16（Owner 拿报告来问的那一条）：**「@守衡」不是素材**
+  // ──────────────────────────────────────────────────────────────────────────
+  //   现场：李倩怡那条图单，报告第 1 条写着
+  //     「【本地化】素材正文（发布账号名）与图 1 主文字（品牌名 momcozY）…正文只带了**中文账号名**
+  //      **@守衡**，美国消费者看不懂中文 handle…建议把正文里的 @守衡 换成品牌官方英文 handle」
+  //   —— 而 **`@守衡` 是她"怎么叫我们"的动作，不是素材内容**。Owner 原话：
+  //     「这是我们做飞书的提问，面对美国市场，是提供的素材能不能进美国市场，
+  //       **不是指我调用守衡的方式**」。
+  //
+  //   根因就在这一行：`inbound.text` 是**消息原文**（含 `@守衡` 这个 mention），
+  //   而它被贴上了 **【素材正文】** 这个标签 ⇒ 模型照着标签判，把调用方式当成了发布内容。
+  //   ⇒ 两点都改：① 取**剥掉 @ 之后**的那份（`userText`，由 `handleMessage` 算好）；
+  //     ② 标签说实话 —— 有媒材时它**是提问/说明，不是素材本身**（素材是下面那些读数）。
+  //   ⚠️ 剥完为空就**一节都不印**（对方只 @ 了一下，没有正文）——
+  //     不许印个空标签，更不许拿它当"正文为空"去判。
+  // ══════════════════════════════════════════════════════════════════════════
+  const hasMedia = !!(inbound.imageCount || inbound.videoCount
+                      || (inbound.images ?? []).length || (inbound.videos ?? []).length);
+  const body = String((userText === undefined ? inbound.text : userText) ?? '').trim();
+  if (body) {
+    parts.push(hasMedia
+      ? '【对方这条消息里写的字（**这不是素材本身**，是对方的提问/说明；素材是下面的读数）】\n' + body
+      : '【素材正文】\n' + body);
+  }
   // 链接单：文字层就是那条链接本身（正文内容由链那一侧去读，见 model_side 的边界说明）。
   for (const u of inbound.links ?? []) {
     if (String(u ?? '').trim()) parts.push('【待审链接】\n' + String(u).trim());
@@ -330,6 +360,18 @@ export function readingsForModelSide(inbound) {
     if (fr.length) parts.push('【视频 ' + v.index + ' 关键帧上的字（每行开头是该帧的时间码）】\n' + fr.join('\n'));
     const t = v.transcript ?? {};
     if (t.ok && String(t.text ?? '').trim()) parts.push('【视频 ' + v.index + ' 音轨转写】\n' + String(t.text).trim());
+    // ★★ 2026-10-16：**关键帧的画面读数**（PRD §5.1 对视频写的「画面关键帧」）。
+    //   与图片那条同一条纪律：三种结局分开写 —— **看过的**／**没读到的（未测）**／**没跑**。
+    //   只摊「看过的那几帧」，并把**时间码**带上：模型要指位置，就得给它位置
+    //   （2026-10-09 那次教训：要它指第几帧却不给它帧号，它只能编）。
+    const fs2 = v.frameScene ?? [];
+    if (fs2.length) {
+      const body = fs2.map((s) => (s.ok
+        ? `- [${Number(s.t_s ?? 0).toFixed(1)}s] ${sceneBlock(s.scene).replace(/\n/g, ' ')}`
+        : `- [${Number(s.t_s ?? 0).toFixed(1)}s] **没读到**（${s.error ?? '未知'}）—— 这一帧画面是未测`))
+        .join('\n');
+      parts.push(`【视频 ${v.index} 关键帧的画面读数（视觉模型的读数，不是原图；只覆盖列出的时间码）】\n${body}`);
+    }
   }
   return parts.join('\n\n');
 }

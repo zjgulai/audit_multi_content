@@ -41,7 +41,15 @@
 node_modules/
 
 # 第三方技能库与克隆（各自有自己的 .git；纳管会变成 gitlink 或重复纳管）
-skills/
+# ★ 2026-10-16 锚定（`skills/` → `/skills/`，本行原为无前导斜杠）。
+#   原因：无前导斜杠的 `skills/` 被 git 判定为**匹配任意层级**名为 skills 的目录。
+#   2026-10-16 实测：`git check-ignore -v kb/l7/skills/kb-check/SKILL.md`
+#   ⇒ `.gitignore:44:skills/` —— 即知识库自带的 22 个 skill 目录会被**静默吞掉**。
+#   本仓的意图（见上行注释）是**只看根的 `skills/`**；锚定后语义与今日行为**完全一致**
+#   （实测：仓内除根 `skills/` 外，无第二处名为 skills 的目录），
+#   但不再误伤 `内容治理知识库/kb/l7/skills/`。
+#   ADR-0013 §三 同步：本次为**收窄通配范围**，不新增/不取消任何 L1/L2/L3 分级条目。
+/skills/
 research/repos/
 research/method/codex_research/
 research/method/Kb2Agent/

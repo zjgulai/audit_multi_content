@@ -41,7 +41,11 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { config } from './config.mjs';
+
+const execFileP = promisify(execFile);
 
 /** 总开关。关掉 ⇒ 画面层整块不跑，读数如实记「未开」，**不假装读过**。 */
 export const SCENE_ENABLED = process.env.SHOUHENG_SCENE === '0' ? false : true;
@@ -49,8 +53,36 @@ export const SCENE_ENABLED = process.env.SHOUHENG_SCENE === '0' ? false : true;
 /** 单张图的字节上限（base64 后约 ×1.37）。超了**如实报**，不截断、不压缩 —— 压缩是另一个决定。 */
 export const SCENE_MAX_BYTES = 8 * 1024 * 1024;
 
+/**
+ * ★★ 2026-10-16 实测逼出来的两个数（**不缩图就会拖垮回执**）：
+ *   第一次真跑：她那张 813KB / 1574×894 的图，**画面层自己 4.4 s**；
+ *   视频那 3 帧（1920×1080）各 **16.1 s / 21.1 s / 3.7 s = 40.9 s** —— 而回执卡是在
+ *   `readInboundContent()` **之后**才发的 ⇒ 图片整条 **6.2 s**、视频 **57.4 s**，
+ *   双双越过 PRD §12 那条「群 @Agent 响应 ≤5 秒」（`[metric] … prd_limit_ms=5000`）。
+ *   读数**不需要** 1080p：「有没有人 / 有没有婴幼儿 / 产品在不在用」在 768px 上一样看得见。
+ *   ⇒ 送模型前**先缩**（macOS 自带 `sips`，不引第三方、不联网，与 `vision.mjs` 同一条纪律），
+ *     并把「缩过」这件事**如实带在读数里**（别让人以为模型看的是原分辨率）。
+ */
+export const SCENE_MAX_EDGE = Number(process.env.SHOUHENG_SCENE_MAX_EDGE || 768);
+/** 小于这个体积就不折腾（缩图本身也要几十毫秒）。 */
+export const SCENE_SHRINK_OVER_BYTES = Number(process.env.SHOUHENG_SCENE_SHRINK_BYTES || 300 * 1024);
+
 /** 一次调用等的上限。画面层是**加分读数**，不许把回话拖死。 */
 export const SCENE_TIMEOUT_MS = Number(process.env.SHOUHENG_SCENE_TIMEOUT_MS || 45_000);
+
+/**
+ * **要不要让它先"想"**（默认不想）。
+ *
+ * ★★ 2026-10-16 实测（同一张 813KB 的图、同一段提示词）：
+ *     · 默认（带思考）：`reasoning 635 tokens`、**总 5.8~6.5 s**；
+ *     · `thinking:{type:'disabled'}`：**总 1.8~2.0 s**、JSON 照样成形。
+ *   而画面层只是**读数**（不判合规、不下结论）⇒ 那几百个思考 token 换不来判定质量，
+ *   却把「@ → 回执卡」那一段顶到 PRD §12 的 **≤5 秒**线上（实测：图片整条 6.2 s ⇒ FAIL；
+ *   历史 12 次同类读数**全部 pass**，最大 3564 ms —— 这是我的改动带来的回归）。
+ *   ⇒ 默认关；`SHOUHENG_SCENE_THINK=1` 可开回来（A/B 复现用）。
+ *   ⚠️ 端点不认这个参数时（4xx）会**自动退回一次不带它的请求**，不把读数丢掉。
+ */
+export const SCENE_THINK = process.env.SHOUHENG_SCENE_THINK === '1';
 
 /** 体量档位：小图直接发。 */
 const EXT_MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
@@ -69,7 +101,25 @@ export const SCENE_SYSTEM = [
   '2. **不许判合规、不许给建议、不许下结论**（不写「违规」「风险」「建议改为」这类判断）。',
   '3. **不许推断看不见的东西**：月龄只能写「婴幼儿/儿童/成人」这一档，不许写「6 个月」；',
   '   不许推断品牌合作、不许推断声音、不许推断这张图之外的情节。',
-  '4. `visible_marks` 只写**图上真有的**商标/文字标识（逐字照抄，认不出就写认不出）。',
+  // ★★ 2026-10-16 实测（A/B 对照）：关掉思考后模型把品牌读成了 `MAMAZY`（实际是 momcozy）——
+  //   **猜品牌名**这类错误比"少写一条"坏得多（它会进模型侧输入，变成对素材的错误指控）。
+  //   分工本来就清楚：**"图上写着什么"归本机 OCR（逐字、可回源）**；
+  //   画面层只报「有没有文字/标识存在」。所以这一条从"逐字照抄"改成"不许猜"。
+  '4. `visible_marks` **只报"有没有"**：有没有文字/标识存在、大致在最显眼处还是边角。',
+  '   **不许写你猜的品牌名或文字内容** —— 逐字内容以另一路本机 OCR 为准；',
+  '   只有当你**百分之百看得清**时才可照抄，否则写「有文字，认不清」。',
+  // ★★ 2026-10-16 加（Owner：「第 17 行报告里「嫩圈o」「白」，图片中有吗？你验证下」）——
+  //   实测：那张**通篇英文**的商品图上，本机 OCR 在「控制面板的 Cleaning 图标」与
+  //   「纸盒上印的 30」两处读出了汉字（置信度 0.3 = 引擎下限），一路出成
+  //   「图上有中文、要改成英文」的整改建议。**判它真假的唯一一手证据在画面这层** ——
+  //   这一层真的看了像素，OCR 那层只是在猜。
+  //   ⇒ 新增一格 `text_script`：**只报用的是什么文字（脚本），不报内容**。
+  //     它既不违反上面那条「不许写文字内容」，又给了下游一个可核的事实。
+  //     ⚠️ 少了这一格，「汉字声称闸」永远拿不到确认 ⇒ 会连**真中文**一起降级。
+  '4b. `text_script` **只报用的是什么文字**（脚本），**一个字的内容都不许写**：',
+  '   `英文` / `中文` / `中英混排` / `其他文字` / `无文字` / `无法辨认`（看不清就写这个，别猜）。',
+  '   判据是**你眼睛看到的字形**：看到汉字就写「中文」，看到英文字母写「英文」，两种都有写「中英混排」。',
+  '   宁可写「无法辨认」，也不许把看不清的东西说成某种文字。',
   '5. 画面里出现婴幼儿、儿童、可识别人物、产品正在被使用（或贴近人体）时，',
   '   **必须**如实写进 `risk_cues` —— 只陈述「我看到了什么」，不要解释它为什么重要。',
   '',
@@ -80,6 +130,7 @@ export const SCENE_SYSTEM = [
   '  "people": [{"kind":"婴幼儿|儿童|成人|分不清","doing":"在做什么（看得见的动作）"}],',
   '  "products": [{"what":"看得见的物品（逐字描述外形即可，认不出牌子就只说外形）","in_use":true}],',
   '  "visible_marks": ["图上真有的商标或文字标识（逐字）"],',
+  '  "text_script": "英文 / 中文 / 中英混排 / 其他文字 / 无文字 / 无法辨认",',
   '  "risk_cues": ["看得见、且与内容审查有关的事实（婴幼儿出镜、产品贴近人体、疑似合成痕迹…）"],',
   '  "unclear": ["看不清或这张图里没有的信息"]',
   '}',
@@ -94,6 +145,9 @@ export function assertTempPath(p) {
   }
   return abs;
 }
+
+/** `text_script` 的闭集（解析侧只认这几个值；见 `parseScene` 里那段理由）。 */
+export const TEXT_SCRIPTS = Object.freeze(['英文', '中文', '中英混排', '其他文字', '无文字', '无法辨认']);
 
 /**
  * 把模型回来的文本读成**读数**（纯函数 —— 判据只有这一处，喂样本就能证）。
@@ -128,6 +182,13 @@ export function parseScene(raw) {
         in_use: typeof p?.in_use === 'boolean' ? p.in_use : null,
       })).filter((p) => p.what),
       visible_marks: arr(o.visible_marks).map((x) => String(x).trim()).filter(Boolean),
+      // ★ 2026-10-16：**只有出现在闭集里的值才收** —— 模型爱自由发挥（写「中文和英文混着」），
+      //   而那会让下游的「声称闸」把确认判据变成模糊匹配。不在闭集 ⇒ 落「未给」，
+      //   下游据此**判不了确认**（那是诚实的一侧：宁可降级，不许拿一句模糊话当证据）。
+      text_script: (() => {
+        const v = String(o.text_script ?? '').trim();
+        return TEXT_SCRIPTS.includes(v) ? v : '未给';
+      })(),
       risk_cues: arr(o.risk_cues).map((x) => String(x).trim()).filter(Boolean),
       unclear: arr(o.unclear).map((x) => String(x).trim()).filter(Boolean),
     },
@@ -150,6 +211,8 @@ export function sceneBlock(scene) {
   line('人物', (s.people ?? []).map((p) => [p.kind, p.doing].filter(Boolean).join(' · ')).join('；'));
   line('物品', (s.products ?? []).map((p) => p.what + (p.in_use === true ? '（正在被使用）' : '')).join('；'));
   line('可见标识', (s.visible_marks ?? []).join('；'));
+  // ★ 2026-10-16：文字**脚本**（英文/中文/中英混排…）—— 汉字声称闸的确认依据。
+  line('图上文字用的是什么文字', s.text_script && s.text_script !== '未给' ? s.text_script : '');
   line('画面线索', (s.risk_cues ?? []).join('；'));
   line('读数自报看不清的', (s.unclear ?? []).join('；'));
   return L.join('\n');
@@ -163,8 +226,35 @@ export function sceneBlock(scene) {
   if (s.people?.length) parts.push(`人物=${s.people.map((p) => [p.kind, p.doing].filter(Boolean).join('')).join('、')}`);
   if (s.products?.length) parts.push(`物品=${s.products.map((p) => p.what + (p.in_use ? '（在用）' : '')).join('、')}`);
   if (s.visible_marks?.length) parts.push(`可见标识=${s.visible_marks.join('、')}`);
+  if (s.text_script && s.text_script !== '未给') parts.push(`文字=${s.text_script}`);
   if (s.risk_cues?.length) parts.push(`画面线索=${s.risk_cues.join('、')}`);
   return parts.join('｜');
+}
+
+/**
+ * 送模型前**缩一下**（纯本机：macOS 自带 `sips`）。
+ *
+ * 落点只许是**临时目录**（与取字节那条豁免同一个形状），调用方用完即删。
+ * 缩图失败**不阻断**：退回原图，并把「没缩成」如实记进读数 —— 不许假装缩过。
+ * @returns {{path:string, bytes:number, shrunk:boolean, cleanup?:Function, note?:string}}
+ */
+export async function shrinkForModel(p, { maxEdge = SCENE_MAX_EDGE, overBytes = SCENE_SHRINK_OVER_BYTES } = {}) {
+  const abs = assertTempPath(p);
+  const origBytes = fs.statSync(abs).size;
+  const passthrough = (note) => ({ path: abs, bytes: origBytes, shrunk: false, ...(note ? { note } : {}) });
+  if (maxEdge <= 0 || origBytes <= overBytes) return passthrough();
+  const out = path.join(os.tmpdir(), `shouheng-scene-small-${process.pid}-${Date.now().toString(36)}.jpg`);
+  const cleanup = () => { try { fs.unlinkSync(out); } catch { /* 删不掉不影响读数 */ } };
+  try {
+    await execFileP('sips', ['-Z', String(maxEdge), '-s', 'format', 'jpeg', abs, '--out', out],
+      { timeout: 20_000, maxBuffer: 1 << 20 });
+    const bytes = fs.existsSync(out) ? fs.statSync(out).size : 0;
+    if (!bytes) { cleanup(); return passthrough('缩图产出 0 字节 ⇒ 退回原图'); }
+    return { path: out, bytes, shrunk: true, origBytes, cleanup };
+  } catch (e) {
+    cleanup();
+    return passthrough(`缩图没成（${e?.code ?? e?.message}）⇒ 退回原图`);
+  }
 }
 
 /**
@@ -195,28 +285,44 @@ export async function sceneRead(imagePath, { model = config.llm.model, timeoutMs
     return { ok: false, ms: Date.now() - t0,
              error: `图太大（${buf.length}B > ${SCENE_MAX_BYTES}B）⇒ 没送模型（不压缩、不截断，压缩是另一个决定）` };
   }
-  const mime = EXT_MIME[path.extname(abs).toLowerCase()] ?? 'image/jpeg';
+  // ★ 先缩（见 `shrinkForModel` 头注：不缩图，图片会把回执拖过 PRD 的 5 秒线、视频拖到近 1 分钟）
+  const small = await shrinkForModel(abs).catch((e) => ({ path: abs, bytes: buf.length, shrunk: false,
+                                                          note: `缩图抛异常：${e?.message ?? e}` }));
+  let sendBuf;
+  try { sendBuf = fs.readFileSync(small.path); }
+  catch (e) { small.cleanup?.(); return { ok: false, ms: Date.now() - t0, error: `读不到缩过的图：${e?.code ?? e?.message}` }; }
+  const mime = EXT_MIME[path.extname(small.path).toLowerCase()] ?? 'image/jpeg';
   const body = {
     model, max_tokens: maxTokens, temperature: 0,
+    ...(SCENE_THINK ? {} : { thinking: { type: 'disabled' } }),   // 见 SCENE_THINK 头注
     messages: [
       { role: 'system', content: SCENE_SYSTEM },
       { role: 'user', content: [
         { type: 'text', text: '读这一张。只输出 JSON。' },
-        { type: 'image_url', image_url: { url: `data:${mime};base64,${buf.toString('base64')}` } },
+        { type: 'image_url', image_url: { url: `data:${mime};base64,${sendBuf.toString('base64')}` } },
       ] },
     ],
   };
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    const r = await fetchImpl(config.llm.baseUrl.replace(/\/$/, '') + '/chat/completions', {
+    const callOnce = (b) => fetchImpl(config.llm.baseUrl.replace(/\/$/, '') + '/chat/completions', {
       method: 'POST', signal: ac.signal,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.llm.apiKey}` },
-      body: JSON.stringify(body),
+      body: JSON.stringify(b),
     });
+    let r = await callOnce(body);
+    // ★ 端点不认 `thinking` 时（4xx）**退回一次不带它的**：不许因为一个可选参数把读数丢掉。
+    if (!r.ok && !SCENE_THINK && r.status >= 400 && r.status < 500) {
+      const t0msg = await r.text().catch(() => '');
+      console.log(`[scene] ⚠️ 端点不认 thinking 参数（HTTP ${r.status}）⇒ 退回带思考的那次请求`
+        + `（会慢约 2~3 倍）：${t0msg.slice(0, 120)}`);
+      const { thinking, ...without } = body;
+      r = await callOnce(without);
+    }
     if (!r.ok) {
       const t = await r.text().catch(() => '');
-      return { ok: false, ms: Date.now() - t0, error: `画面模型 HTTP ${r.status}：${t.slice(0, 200)}` };
+      return { ok: false, ms: Date.now() - t0, sent: sentNote(small), error: `画面模型 HTTP ${r.status}：${t.slice(0, 200)}` };
     }
     const j = await r.json();
     const choice = j?.choices?.[0] ?? {};
@@ -227,19 +333,26 @@ export async function sceneRead(imagePath, { model = config.llm.model, timeoutMs
     //   判据必须比**内容的完整性**，不能比那句报错：
     //   截断 ⇒ **未测**（`ok:false`），**不许**把半份读数收下，也不许说成「没有画面」。
     if (choice?.finish_reason === 'length') {
-      return { ok: false, ms: Date.now() - t0,
+      return { ok: false, ms: Date.now() - t0, sent: sentNote(small),
                error: `画面读数**被截断**（max_tokens=${maxTokens} 用尽）⇒ 这一张的画面层是**未测**`
                  + '（不是「没有画面」，也不是「读数是空的」）' };
     }
     const p = parseScene(raw);
-    return p.ok ? { ok: true, scene: p.scene, ms: Date.now() - t0 }
-                : { ok: false, ms: Date.now() - t0, error: p.error };
+    return p.ok ? { ok: true, scene: p.scene, ms: Date.now() - t0, sent: sentNote(small) }
+                : { ok: false, ms: Date.now() - t0, sent: sentNote(small), error: p.error };
   } catch (e) {
     const why = e?.name === 'AbortError' ? `超时（${timeoutMs}ms）` : `${e?.cause?.code ?? e?.name ?? 'Error'}: ${e?.message ?? e}`;
     return { ok: false, ms: Date.now() - t0, error: why };
   } finally {
     clearTimeout(timer);
+    small.cleanup?.();          // 缩过的那份**用完即删**（与取字节同一条纪律）
   }
+}
+
+/** 「送模型的是什么」——读数里必须看得见（别让人以为它看的是原分辨率）。 */
+function sentNote(small) {
+  return { bytes: small.bytes, shrunk: !!small.shrunk, ...(small.origBytes ? { origBytes: small.origBytes } : {}),
+           ...(small.note ? { note: small.note } : {}) };
 }
 
 /**

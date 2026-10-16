@@ -77,6 +77,17 @@ check('S1f 字符串写成数组的地方 ⇒ 归一，不炸', () => {
   const r = parseScene(JSON.stringify({ setting: '浴室', visible_marks: 'momcozy' }));
   assert.deepStrictEqual(r.scene.visible_marks, ['momcozy']);
 });
+// ★★ 2026-10-16 加（汉字声称闸的确认依据）：`text_script` —— 只报"用的是什么文字"。
+check('S1g ★ `text_script` 落在闭集里 ⇒ 收下（汉字声称闸唯一的一手视觉证据）', () => {
+  for (const v of ['英文', '中文', '中英混排', '其他文字', '无文字', '无法辨认']) {
+    assert.strictEqual(parseScene(JSON.stringify({ text_script: v })).scene.text_script, v, v);
+  }
+  assert.strictEqual(parseScene('{}').scene.text_script, '未给', '缺字段要如实留「未给」');
+});
+check('S1h ★ 反向对照：闭集外的自由发挥（「中文和英文混着」）⇒ 落「未给」，不许当证据', () => {
+  assert.strictEqual(parseScene(JSON.stringify({ text_script: '中文和英文混着' })).scene.text_script, '未给');
+  assert.strictEqual(parseScene(JSON.stringify({ text_script: 'Chinese' })).scene.text_script, '未给');
+});
 
 /* ── S2 守卫：只读临时目录 ────────────────────────────────────────────── */
 check('S2a 仓内路径 ⇒ **拒**（这是 §2.6 加宽那条边界唯一的执行点）', () => {
@@ -152,9 +163,22 @@ await checkAsync('S5a 桩返回合法 JSON ⇒ ok:true（不许因为上面那�
 });
 check('S5b 摊给模型侧时，**空项要写明「读数里没有」**（否则模型会把"没提"当成"没有"）', () => {
   const b = sceneBlock(parseScene('{}').scene);
-  assert.strictEqual((b.match(/（读数里没有）/g) ?? []).length, 6, `六项都要写：\n${b}`);
+  assert.strictEqual((b.match(/（读数里没有）/g) ?? []).length, 7, `七项都要写：\n${b}`);
   const b2 = sceneBlock(parseScene(GOOD).scene);
   assert.ok(!/（读数里没有）/.test(b2.split('\n')[0]), '有内容的那一行不该写「读数里没有」');
+});
+check('S5d ★ 提示词里必须有 `text_script` 那一格与它的 4b 条（掉了 ⇒ 汉字声称闸永远拿不到确认）', () => {
+  assert.ok(/"text_script"/.test(SCENE_SYSTEM), '字段表里没有 text_script');
+  assert.ok(/只报用的是什么文字/.test(SCENE_SYSTEM), '4b 条（只报脚本、不报内容）掉了');
+  assert.ok(/无法辨认/.test(SCENE_SYSTEM), '「看不清就写无法辨认」那条掉了 —— 会逼它猜');
+});
+check('S5e ★ 反向对照（跨模块）：画面层说「英文/无法辨认」⇒ **不许**被当成确认', () => {
+  // 这一条钉的是下游：`ocr_claim_gate.sceneConfirms` 只认「中文 / 中英混排」，
+  // 若有人把它放宽成「读数里出现任何文字相关词」，真单（画面说"认不清"）又会降不了级。
+  const s1 = sceneBlock(parseScene(JSON.stringify({ text_script: '英文', visible_marks: ['有文字，认不清'] })).scene);
+  const s2 = sceneBlock(parseScene(JSON.stringify({ text_script: '无法辨认' })).scene);
+  assert.ok(/文字：英文/.test(s1) && /文字：无法辨认/.test(s2), `脚本要摊出来：\n${s1}\n${s2}`);
+  assert.ok(!/中文|汉字/.test(s1) && !/中文|汉字/.test(s2), '英文/无法辨认不许被写成中文');
 });
 check('S5c 提示词里两条硬约束必须在（改提示词时不许悄悄掉）', () => {
   assert.ok(/不许判合规/.test(SCENE_SYSTEM), '「不许判合规」掉了 —— 读数会变成第二个判定者');
