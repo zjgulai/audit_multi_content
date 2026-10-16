@@ -1,0 +1,34 @@
+skill:
+  name: 图片安全审查
+  version: 1.0.0
+  structure_version: '1.0'
+  created_at: 未登记
+  updated_at: '2026-10-15'
+  created_by: '**未登记 —— 本 skill 不是 root-skills-creator 创建的**（登记表里唯一有 creator 署名的是 kb-l0-feishu）'
+  format_aligned_at: '2026-10-15'
+  format_aligned_by: tools/session_distill/align_skill_format.py
+  description: '|'
+directories:
+  references:
+    exists: true
+    count: 0
+    files: []
+  agents:
+    exists: true
+    count: 1
+    files:
+    - openai.yaml
+gates:
+  iron_law_red: pending — **未跑**（本 skill 从未走过 Iron Law）
+  iron_law_green: pending
+  iron_law_refactor: pending
+  eval_track_c: pending — 走 root-skills-eval
+  pre_launch_checklist: pending — 10 项未逐项审
+known_nonconformance:
+- description 未按 CSO 口径补触发条件 /（AI溯源与权利审查）超 1024 字符 —— **Owner 2026-10-15 冻结令：description 是 DSH 的路由开关，一律不改**；本项保留并登记
+- '`agents/`（与 `vendor/`）不是 Universal Skill Schema 的允许目录，但**是本项目的约定目录**，故保留'
+- （仅 kb-pipeline）正文 10788 字符 > complex 上限 8000 —— 搬进 references/ 会改变「常加载什么」，属改行为，故不拆
+note: |-
+  本文件由 `align_skill_format.py` 于 2026-10-15 生成，目的是让 14 个 L0–L7 skill 的**结构件一致**。
+  ★ 它**如实登记 pending**，不是「通过门禁」—— 有 `.skill-meta/` 只说明缺口可见，不代表质量达标（对照 kb-l0-feishu：有 manifest，iron_law 五项至今 pending）。
+  ★ 生成过程**一个字节都没写 SKILL.md**。

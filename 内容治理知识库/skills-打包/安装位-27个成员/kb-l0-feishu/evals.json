@@ -1,0 +1,44 @@
+{
+  "skill_name": "kb-l0-feishu",
+  "evals": [
+    {
+      "id": 1,
+      "name": "daily-drift-check",
+      "prompt": "L0 和飞书侧对一下，看看今天有没有变动",
+      "expected_output": "先跑阶段 0 前置自检；确认 bot 身份可读后不再索要设备码；跑记录层与结构层只读核对；按四态给出覆盖率矩阵；输出固定四段结论；本轮不写任何数据。",
+      "expectations": [
+        "运行了阶段 0 前置自检（preflight 或等价的 auth status + 一次真实 record-list 读取）",
+        "使用 dsh-kb / 守衡 的 bot 身份读取，未因记录层核对而索要设备码",
+        "输出包含记录层四类计数：same / only_feishu / only_l0 / changed",
+        "输出包含覆盖率矩阵（按资源类型逐类给四态之一）",
+        "本轮未执行带 --apply 的写操作"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "new-records-sync",
+      "prompt": "飞书侧我加了几条内容，同步一下",
+      "expected_output": "跑阶段 1 找到 only_feishu 差异；按「材料收集 审核状态=通过」过滤掉预期外的记录；认领新记录并归档被替换记录；补齐 manifest.jsonl 台账使 record_files_not_registered_total 归零；写操作前先预演并给出差异。",
+      "expectations": [
+        "识别 only_feishu 差异并逐条说明是否属预期（审核状态≠通过不入 L0）",
+        "写操作前先预演（不带 --apply 跑一遍）并给出差异摘要",
+        "执行或明确建议阶段 4 台账补齐，并说明不补的后果（下游差集得 0）",
+        "被替换/失效产物移入 _archive/ 而非删除",
+        "结论中含缺口清单（对象 + 原因码 + 要人做什么）"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "missing-record-and-dead-link",
+      "prompt": "库里这条怎么不见了？还有飞书侧那个链接现在还能打开吗",
+      "expected_output": "定位为 only_l0；取证区分「飞书侧被替换」与「判断错误」；链接下钻两层，区分源侧真失效（404/403/域名挂）与内容变更；标 gone 必须有双证，否则写读不到的原因码。",
+      "expectations": [
+        "对 only_l0 先只读取证，未直接写入或删除",
+        "链接处理下钻到第 2 层，第 3 层只记边不抽内容",
+        "区分「源侧真失效」与「内容变了」，未把两者混为一类",
+        "标 gone 时给出双证（用户确认 + API 报文件不存在），否则写原因码而非结论",
+        "报告区分「库的问题」与「工具/脚本的问题」"
+      ]
+    }
+  ]
+}
