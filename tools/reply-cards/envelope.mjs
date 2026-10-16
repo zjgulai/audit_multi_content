@@ -68,24 +68,55 @@ const len = (x) => [...s(x)].length;
  *          data 为 null 表示找到了块但解析失败，error 说明原因。
  */
 /**
+ * PRD §5.3 逐条块在卡面那一组的**组标题**（唯一真源）。
+ *
+ * ★ 判据要引它 —— `verify_cards.mjs` 的 J11b3 断言「组标题与组内容首行不许逐字相同」，
+ *   两边必须是**同一个**字符串；判据里抄第二份字面量，改名那天判据就假绿了。
+ * ★ 2026-10-16（FIX-033）：它同时是 `blockRows` 的去重依据（见下）。
+ */
+export const VERDICT_GROUP_TITLE = '逐条问题';
+
+/**
  * 逐条块的**卡内版**：去掉开头那行结论行（它与卡抬头逐字相同）。
  *
  * ★★ 2026-10-14（Owner：「去掉『审查结论』多余的」）：抬头已经印了
  *   `【审查结论：BLOCK】共发现 N 处必须修改。`，而 `verdict.block` 的第一行**就是它**
  *   ⇒ 同一句在卡上出现两次。这里只去掉**那一行**，其余（汇总 / 链接 / 逐条 / 动作行）原样保留。
  *
+ * ★★ 2026-10-16（FIX-033；Owner 原话：「出现了两个『逐条问题』定位下问题」）——
+ *   **组内容的首行不许与组标题同名**。两条改动各自都对，叠在一起才出的问题：
+ *     · 2026-10-14 组标题改成 `逐条问题` —— 那次治的是「组标题『审查结论』与块首行重复」；
+ *     · 2026-10-15 ≥3 的块首行**也**变成 `逐条问题` —— Owner 给的 PRD §5.3.3 逐字格式件。
+ *   ⇒ 而评审单卡面**恒定** `evidence`（`cardKind → evidence`，口径是 Owner 2026-10-13 那句
+ *     「群里与私聊必须一样 ⇒ 卡面形状由代码定」）⇒ **每一张 ≥3 的评审卡**都连着印两个
+ *     「逐条问题」。真单 `om_x100b6223f22efcacdff84ca547c51b4`（2026-10-16 01:20，
+ *     台账 `PMO/logs/ws_outbound.jsonl` 第 1210 行；离线复原与该行 43 字逐字一致）。
+ *
+ *   ⚠️ 剥的判据是「**逐字等于组标题**」，不是「删掉『逐条问题』这四个字」——
+ *     所以：1–2 条那条路（块首行是 `1.【合规】…`）一个字不动；
+ *     没有组标题的载体（`reasoning` 卡、表行 `问题分类汇总`、报告）**照旧保留这一行**，
+ *     Owner 2026-10-15 给的逐字格式里它必须在。
+ *   ⚠️ 不给 `title` ⇒ 一个字都不剥（默认无操作，老调用点行为不变）。
+ *
  * ⚠️ 只动**卡面**：`verdict.block` 本身不改（报告、留痕、日志里仍是全份）——
  *   与「搬是搬，砍是砍」同一条纪律。
  * @param {string} block 结论块原文
+ * @param {string|null} title 这一组要用的**组标题**（给了才去重）
  * @returns {string}
  */
-export function blockRows(block) {
+export function blockRows(block, title = null) {
   const lines = String(block ?? '').split('\n');
   // 只认**第一行**是不是结论行（PRD §5.3 的形状），中间出现的三态词一律不动
   const isHead = (l) => /^\s*【审查结论\s*[：:]/.test(l);
-  while (lines.length && !lines[0].trim()) lines.shift();
+  const dropLeadingBlanks = () => { while (lines.length && !lines[0].trim()) lines.shift(); };
+  dropLeadingBlanks();
   if (lines.length && isHead(lines[0])) lines.shift();
-  while (lines.length && !lines[0].trim()) lines.shift();
+  dropLeadingBlanks();
+  // ★ FIX-033：组标题已经承担了「逐条问题」这一行 —— 内容里再来一行就是同一个词印两遍
+  if (title && lines.length && lines[0].trim() === String(title).trim()) {
+    lines.shift();
+    dropLeadingBlanks();
+  }
   return lines.join('\n');
 }
 
@@ -284,7 +315,11 @@ export function applyVerdictLine(kind, data, verdict) {
     //      ⇒ 同一句出现两次（抬头一次、第一组首行一次）。
     //   ⇒ 组标题改成描述**这一组装什么**（`逐条问题`），块去掉开头那行结论行 ——
     //     结论行由**抬头**独占。⚠️ 块本身一个字不丢（只去重），报告与留痕里仍是全份。
-    out.groups = [{ title: '逐条问题', content: blockRows(verdict.block), expanded: true }, ...groups];
+    // ★★ 2026-10-16（FIX-033）：组标题与组内容**必须一起给** ——
+    //   `blockRows` 按这个标题去重（组里再印一遍就是两个「逐条问题」）。
+    //   两处各自写一个字面量是这次缺陷的温床：改名时只改一边，重复就回来了。
+    out.groups = [{ title: VERDICT_GROUP_TITLE, content: blockRows(verdict.block, VERDICT_GROUP_TITLE),
+                    expanded: true }, ...groups];
     return { ...r, data: out, block: { action: 'forced', slot: bs } };
   };
 

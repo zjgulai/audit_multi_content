@@ -288,7 +288,8 @@ head('H 入库 · 规程文件不在 .gitignore 里');
 /* ─────────────── J 信封 · 模型输出 → 卡片，且内部标记永不出现在群里 ─────────────── */
 head('J 信封 · 解析、上限执行、以及「标记不许漏进群」');
 {
-  const { toCardOrText, extractCardBlock, enforceLimits, leaksInternalMark, publicTextOf, stripInternalNotes, CARD_MARK } =
+  const { toCardOrText, extractCardBlock, enforceLimits, leaksInternalMark, publicTextOf, stripInternalNotes, CARD_MARK,
+          blockRows, VERDICT_GROUP_TITLE } =
     await import(path.join(CARDS_DIR, 'envelope.mjs'));
 
   // J1 三个上限：**不查名字，查它真的会拦。**
@@ -666,6 +667,52 @@ head('J 信封 · 解析、上限执行、以及「标记不许漏进群」');
     if (groups[0]?.count !== undefined) {
       no('J11b2 第一组不许带计数占位（发过「· 0」）', JSON.stringify(groups[0]?.count));
     } else ok('J11b2 第一组不许带计数占位（发过「· 0」）');
+    // ══════════════════════════════════════════════════════════════════════════
+    // ★★ J11b3（2026-10-16，FIX-033；Owner 原话：「出现了两个『逐条问题』定位下问题」）
+    //    **组标题与组内容的首行不许逐字相同。**
+    // ══════════════════════════════════════════════════════════════════════════
+    //   病灶是两条改动叠在一起（各自都对）：
+    //     · 2026-10-14 组标题改成「逐条问题」（治的是「组标题『审查结论』与块首行重复」）；
+    //     · 2026-10-15 ≥3 的块首行**也**变成「逐条问题」（Owner 给的 PRD §5.3.3 逐字格式件）。
+    //   而评审单卡面**恒定** evidence（`cardKind → evidence`，Owner 2026-10-13：
+    //   「群里与私聊必须一样」）⇒ **每一张 ≥3 的评审卡**都连着印两个「逐条问题」。
+    //   真单 `om_x100b6223f22efcacdff84ca547c51b4`（2026-10-16 01:20，台账第 1210 行）。
+    //
+    //   ⚠️ 去重在 `blockRows(block, title)` 里做，判据是「**逐字等于组标题**」，
+    //     不是「删掉『逐条问题』这四个字」—— 没有组标题的载体（reasoning 卡 / 表行 /
+    //     报告）照旧保留这一行，那是 Owner 给的格式件。
+    //   ⚠️ 为什么这条判据单列：J11b 只断言**标题**，J11c2 只比**形状**（tag 与标题列表）
+    //     ⇒ 内容首行多一行这种「两个词连印」在两层判据之间漏了过去。
+    {
+      const SUM_BLOCK = '【审查结论：REVIEW】共发现 5 处需人工确认。\n\n'
+        + '逐条问题\n· 合规类问题：3 个\n· 措辞表达类问题：2 个\n\n'
+        + '→ 查看完整问题清单与修改建议：https://feishu.cn/review/x\n\n'
+        + '建议转 @法务（未配置） 复核。';
+      const V53_SUM = { state: 'REVIEW', line: '【审查结论：REVIEW】共发现 5 处需人工确认。',
+                        from: 'chain', block: SUM_BLOCK };
+      const rSum = toCardOrText('模型这一轮没给卡片块，只写了些话。', { verdict53: V53_SUM });
+      const gSum = (rSum.data?.groups ?? [])[0];
+      const firstOf = (t) => String(t ?? '').split('\n').map((l) => l.trim()).find(Boolean) ?? '';
+      const firstLine = firstOf(gSum?.content);
+      if (!gSum) {
+        no('J11b3 ≥3 的评审单：逐条块必须在第一组', 'groups 是空的');
+      } else if (gSum.title === firstLine) {
+        no('J11b3 组标题与组内容首行不许是同一个词（卡上会连印两个「逐条问题」）',
+           `组标题=「${gSum.title}」 内容首行=「${firstLine}」`);
+      } else ok(`J11b3 ≥3 的评审单：组标题「${gSum.title}」与内容首行「${firstLine}」不重复`);
+      // 去重只许剥**那一行**：汇总行必须还在（顺手剥多了就是把内容删了）
+      if (!/· .*类问题：\d+ 个/.test(String(gSum?.content ?? ''))) {
+        no('J11b3b 去重只剥那一个标题行，汇总行必须留着',
+           String(gSum?.content ?? '').slice(0, 120));
+      } else ok('J11b3b 去重之后汇总行仍在');
+      // ★ 反向对照（本仓纪律）：把组标题参数拿掉（＝回到修复前的行为），
+      //   那一行**真的会**出现在这一格的首行 —— 若它不出现，说明 J11b3 恒绿。
+      const rawFirst = firstOf(blockRows(SUM_BLOCK));
+      if (rawFirst !== VERDICT_GROUP_TITLE) {
+        no('J11b3c 反向对照：不去重时首行就是组标题（否则 J11b3 恒绿）',
+           `实际首行「${rawFirst}」`);
+      } else ok('J11b3c 反向对照：不去重时首行正是组标题 ⇒ J11b3 咬得住');
+    }
     // ★★ 2026-10-13（Owner：「群聊里跟私聊的格式不一样？」）：**评审单的形状由代码定** ——
     //   模型自拟的分组/结论格/块外正文**都不上卡**（它们仍是这一轮的回复正文，
     //   会话记忆与 `💬 回复 N 字` 日志里都在）。所以 J11c 从「原卡内容必须逐字搬过去」
