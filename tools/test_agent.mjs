@@ -214,19 +214,42 @@ await t('白名单只放行 lark_find.py 的**读**子命令，下载类一律�
 });
 
 await t('search_workspace 找得到那个 token（对事故的**真阳性**对照）', async () => {
-  const r = await executeTool('search_workspace', JSON.stringify({ keyword: 'NB55wAq8liEOdKkquL2cgtPEnmg' }));
+  // ★★ 2026-10-16（FIX-034）：检索范围收到 `PRD/` —— 本判据治的是 2026-09-22 那次事故
+  //   （守衡 `grep -rl <token> .` 超时被杀 ⇒ 它读空 stdout 说「0 命中」，
+  //   而那份 PRD 副本**就在工作区里**；事故原文见 `tools.mjs` 的 `run_readonly_command` 注释）。
+  //
+  //   旧版**搜整个仓库**并断言 `stopped_early === false`，而这条前提今天**已经不成立**：
+  //   实测 2026-10-16 —— `searched=5000 · skipped=1192 · stopped_early=true`
+  //   （仓库可扫文本文件突破 `MAX_FILES` 默认 **5000**）⇒ 这一条**恒红**，
+  //   红的是「仓库变大了」这个环境事实，不是它要守的那件事。**一条假红会挤掉一个真问题。**
+  //
+  //   收窄后前提重新成立：范围内扫得完 ⇒「有命中就必须找得到」才是一句能判的话。
+  //   ★ 覆盖没有变少：「扫不完时该说什么」由第三条（`max_files: 3` ⇒ 必须说未测）守着，
+  //     三条合起来仍是完整三态（扫完有命中 / 扫完没命中 / 扫不完 ⇒ 未测）。
+  //
+  //   ⚠️ 收窄顺手治好了一个更隐蔽的毛病：搜全仓时这个 token **也**出现在
+  //   `tools/agent/tools.mjs`（**search_workspace 自己的实现**）与 `tools/test_agent.mjs`（本文件）里
+  //   ⇒ 命中可能来自「自己搜到自己」，判据等于给自己作证。收进 `PRD/` 后命中只可能来自
+  //   `PRD/feishu/索引-v1.json` —— 正是事故当时那份证据（实测 `grep -c` = 1）。
+  const r = await executeTool('search_workspace',
+    JSON.stringify({ keyword: 'NB55wAq8liEOdKkquL2cgtPEnmg', sub_dir: 'PRD' }));
   assert.ok(r.ok && r.result.status === 'ok', JSON.stringify(r.result).slice(0, 200));
   assert.ok(r.result.matches >= 1,
     `那次说「0 命中」，真值是至少 1 —— 实际 ${r.result.matches}（扫了 ${r.result.searched_files} 个文件）`);
-  assert.strictEqual(r.result.stopped_early, false, '整仓检索不该被截断，否则「0 命中」不成立');
+  assert.strictEqual(r.result.stopped_early, false,
+    `范围（PRD/，10 个文件）必须扫得完，否则「0 命中」不成立；实际扫了 ${r.result.searched_files} 个`);
 });
 
 await t('search_workspace：0 命中必须带分母，且分母为 0 时不算数', async () => {
   // 关键词必须**当场生成**：写死的字符串会出现在本测试文件自己里，
   // 于是「一定不存在」变成「一定存在」—— 这正是那类「假阴性/假阳性都在骗人」的坑。
   const ghost = `zz${Date.now()}x${Math.random().toString(36).slice(2)}q`;
-  const r = await executeTool('search_workspace', JSON.stringify({ keyword: ghost }));
+  // ★ 2026-10-16（FIX-034）：同上，范围收到 `PRD/` ——
+  //   这条要的是「**扫完了**、确实 0 命中，且那句结论有分母撑着」。
+  //   全仓扫不完时那句话**根本不会出现**（走的是「未测」分支）⇒ 判据守不到它该守的东西。
+  const r = await executeTool('search_workspace', JSON.stringify({ keyword: ghost, sub_dir: 'PRD' }));
   assert.ok(r.result.searched_files > 0, '分母必须大于 0，否则「没找到」是未测不是 0');
+  assert.strictEqual(r.result.stopped_early, false, '没扫完就不该走「0 命中」这一支');
   assert.strictEqual(r.result.matches, 0, `不该命中，实际 ${r.result.matches}`);
   assert.ok(/分母/.test(r.result.note), `0 命中时要说清分母撑着：${r.result.note}`);
 });
