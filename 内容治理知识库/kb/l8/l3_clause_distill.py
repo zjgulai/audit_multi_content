@@ -569,6 +569,29 @@ def main():
 
     _old_c, _new_c = _merge(OUT_CAND, all_rules, "rule_id")
     _old_r, _new_r = _merge(OUT_REJ, all_rej, "unit_id")
+    # ── 人工口径：所属类别 / 所属子类 / p_level（2026-10-17）────────────────────
+    # ★ 为什么也要接在这一处：本函数对**既有行是「保留原样」**（`_merge` 的 old 段），
+    #   但**重蒸过的资源**那几行是**新建的**（`all_rules`）⇒ 那几行不带人工口径。
+    #   两条来源都盖一遍，才不会出现「同一份候选件里一半有归类、一半没有」。
+    # 真源 = `kb/l3/registry/rule-taxonomy.json`；实现 = kb_rule_dimensions.apply_taxonomy（唯一一份）。
+    # ★ 不改 risk_level（另一个轴），只盖这三格 + `taxonomy_basis`。
+    sys.path.insert(0, os.path.join(KB, "l3"))
+    import kb_rule_dimensions as _kb_dim_tax          # noqa: E402  （唯一实现）
+    try:
+        _tax = _kb_dim_tax.load_taxonomy(_kb_dim_tax.TAXONOMY_DEFAULT)
+    except FileNotFoundError:
+        _tax = None
+        if APPLY:
+            print("[规则归类] ⚠ 注册表不在位（%s）⇒ 本轮不盖归类/优先级（**不静默**）"
+                  % os.path.relpath(_kb_dim_tax.TAXONOMY_DEFAULT, KB))
+    if _tax:
+        _st1 = _kb_dim_tax.apply_taxonomy(_new_c, _tax, mode="force")
+        _st2 = _kb_dim_tax.apply_taxonomy(_old_c, _tax, mode="force")
+        if APPLY:
+            print("[规则归类] 注册表 %s：新 %d 条 / 既有 %d 条 已盖（p_level 变更 %d 条 ｜ 冲突 %d）"
+                  % (_tax["version"], _st1["matched"], _st2["matched"],
+                     _st1["p_level_changed"] + _st2["p_level_changed"],
+                     len(_st1["conflicts"]) + len(_st2["conflicts"])))
     with open(OUT_CAND, "w", encoding="utf-8") as fh:
         for x in _old_c + _new_c:
             fh.write(json.dumps(x, ensure_ascii=False, sort_keys=True) + "\n")

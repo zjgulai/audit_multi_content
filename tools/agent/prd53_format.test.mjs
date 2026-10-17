@@ -54,10 +54,15 @@ const ok = (m) => { pass++; console.log(`  ✅ ${m}`); };
 const no = (m, w) => { fail++; bad.push(`${m} —— ${w}`); console.log(`  ❌ ${m}\n       ${w}`); };
 const head = (t) => console.log(`\n${t}`);
 
-const F = (category, location) => ({
+const F = (category, location, taxonomyCategory = null) => ({
   location, category, severity: 'REVIEW', source: 'kb', kb: { basisLine: '《库》第 1 条' },
+  // ★ 2026-10-17（Owner：「把卡片的分类汇总行改成 11 类」）：汇总行现在按 **11 类** 出，
+  //   所以夹具必须带 `taxonomyCategory` —— 不带就全落「未归 11 类」一桶，`个\n·` 的边界
+  //   根本不存在（实测 ②b/③b 当场变红，那不是判据错，是**夹具没跟上口径**）。
+  ...(taxonomyCategory ? { taxonomyCategory } : {}),
 });
-const mk = (...pairs) => mergeFindings(pairs.map(([c, l]) => F(c, l)), []).items;
+// ★ 2026-10-17：第三格是 11 类 —— 原先只解构 [c, l]，第三格被**静默丢掉**（夹具没跟上口径）。
+const mk = (...pairs) => mergeFindings(pairs.map(([c, l, t]) => F(c, l, t)), []).items;
 
 /** 两个锚点之间的**空行数**：1 = 恰好一个空行；0 = 紧挨着。`-1` = 没匹配上（本身就是缺陷）。 */
 const blanks = (text, re) => {
@@ -65,7 +70,10 @@ const blanks = (text, re) => {
   return m ? (m[0].match(/\n/g) || []).length - 1 : -1;
 };
 
-const FIVE = () => mk(['合规', 'a'], ['合规', 'b'], ['合规', 'c'], ['消费者安全', 'd'], ['措辞表达', 'e']);
+// 三桶 11 类（3 + 1 + 1）—— 用来验「汇总行之间不空行」这条 PRD 规则
+const FIVE = () => mk(['合规', 'a', '合规与受监管宣称'], ['合规', 'b', '合规与受监管宣称'],
+  ['合规', 'c', '合规与受监管宣称'], ['消费者安全', 'd', '产品安全与高危使用场景'],
+  ['措辞表达', 'e', '母婴知识内容准确性']);
 const TWO = () => mk(['合规-医疗宣称', '第1行'], ['消费者安全', '第2行']);
 
 /* ─────────── ① <3 逐条：**每条之间空一行** ─────────── */
@@ -145,7 +153,10 @@ head('③ 整跳 · 形状过信封后落到卡面上仍对（卡片上那一组
     const c = blanks(body5, /个\n+·/);
     if (c !== 0) no('③b ≥3：卡片正文里汇总行之间不空行', `实际 ${c} 个空行`);
     else ok('③b ≥3：卡片正文里汇总行之间不空行（Owner 报的就是它）');
-    if (!/· .*类问题/.test(body5)) no('③b2 正文里装的是汇总行', body5.slice(0, 120));
+    // ★ 2026-10-17（汇总行改 11 类）：桶名形状从「· XX类问题：N 个」变成「· <11 类名>：N 个」，
+    //   判据只认**形状**（`· 名称：N 个`），不绑死旧名称 —— 绑死的判据在口径一变就误红。
+    //   未归类桶仍是「· 未归 11 类问题：N 个」，两种形状都被这条认。
+    if (!/· .+：\s*\d+ 个/.test(body5)) no('③b2 正文里装的是汇总行', body5.slice(0, 120));
     else ok('③b2 正文里装的确是汇总行');
   }
 

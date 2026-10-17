@@ -46,6 +46,8 @@ import sys
 KB = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RULES_DEFAULT = os.path.join(KB, "l3", "candidates", "rules.jsonl")
 L0_RECORDS = os.path.join(KB, "l0", "records")
+#: 人工口径注册表（所属类别 / 所属子类 / 优先级）。真源，**不是派生件**。
+TAXONOMY_DEFAULT = os.path.join(KB, "l3", "registry", "rule-taxonomy.json")
 
 # ══════════════════════════════════════════════════════════════════
 # 1. 风险等级：源 4 级 → PRD §6.5 的 Critical / High / Medium / Low
@@ -561,6 +563,134 @@ def apply_dimensions(rows: list, l0_index: dict | None = None, mode: str = "forc
 
 
 # ══════════════════════════════════════════════════════════════════
+# 4b. 规则归类与优先级（所属类别 / 所属子类 / p_level）—— 人工口径
+# ══════════════════════════════════════════════════════════════════
+#
+# ## 为什么这三格不写在规则行上
+#
+# `kb/l3/candidates/rules.jsonl` 与 `external_standard.jsonl` 都是**上游重建的派生件**
+# （`kb/l8/l3_distill_run.py` 覆盖写、`kb/l8/l3_clause_distill.py` 重蒸某资源时重建那些行）。
+# 人工口径一旦只写进派生件，**下一次重建就消失** —— 与 `risk_level` 当年「蒸馏时把信号丢了」
+# 是同一类病（见本文件抬头）。
+# ⇒ 真源 = `kb/l3/registry/rule-taxonomy.json`（注册表，614 附带出处/回滚/边界），
+#   重建时由本节的 `apply_taxonomy()` 盖回规则行。**读注册表的实现只此一份。**
+#
+# ## 三条纪律
+#
+# 1. **表里没有的 rule_id 一律不动**（既不置空也不猜），只计数进 `unmatched`；
+# 2. **p_level 只在 force 档才覆盖**，且把原值写进 `taxonomy_basis.p_level_before`
+#    （原值来自注册表，**不取自当前行** —— 否则重复应用一次就把原值冲掉了）；
+# 3. **不动 `risk_level`**：那是 PRD §6.5 的另一个轴。`p_level=P0` 的 P0 地板
+#    （`P0_FLOOR`）只在 `derive()` 里由**当次 p_level** 触发；本节刻意排在
+#    `apply_dimensions()` **之后**执行，就是不让「人工定级」顺手把风险等级抬一档。
+
+TAXONOMY_FIELDS = ("taxonomy_category", "taxonomy_subcategory")
+
+
+def load_taxonomy(path: str = TAXONOMY_DEFAULT) -> dict:
+    """读人工口径注册表。**fail-closed**：读不到 / 版本空 / status 不是 active ⇒ 抛错。
+
+    为什么不静默跳过（那是 fail-open，最坏的一类）：
+    注册表是这三格的唯一真源；它坏了还照常重建，等于**把人工口径悄悄抹掉**
+    而没有任何人看得见 —— 所以宁可在重建时炸，也不要静默降级。
+
+    返回 `{version, status, owner, source, by_rule, classes, subclass_to_category}`，
+    其中 `by_rule[rule_id] = {"category","subcategory","p_level","p_level_before","p0_fastpath","source"}`。
+    """
+    if not os.path.exists(path):
+        raise FileNotFoundError("规则归类注册表不在位：%s" % path)
+    o = json.load(open(path, encoding="utf-8"))
+    status = str(o.get("status") or "").strip()
+    if status != "active":
+        raise ValueError("规则归类注册表 status=%r ≠ active ⇒ 不应用"
+                         "（rolled_back/retired 的注册表不许继续盖规则行）" % status)
+    ver = str(o.get("taxonomy_version") or "").strip()
+    if not ver:
+        raise ValueError("规则归类注册表缺 taxonomy_version ⇒ 不应用（版本是留痕的最小单位）")
+    by_rule = {}
+    for r in o.get("rules") or []:
+        rid = str(r.get("rule_id") or "").strip()
+        if not rid:
+            continue
+        by_rule[rid] = {
+            "category": r.get("category"),
+            "subcategory": r.get("subcategory"),
+            "p_level": r.get("p_level"),
+            "p_level_before": r.get("p_level_before"),
+            "p0_fastpath": bool(r.get("p0_fastpath")),
+            "source": r.get("source"),
+        }
+    return {
+        "version": ver,
+        "status": status,
+        "owner": o.get("owner"),
+        "source": o.get("source") or {},
+        "by_rule": by_rule,
+        "classes": [c.get("name") for c in (o.get("classes") or [])],
+        "subclass_to_category": o.get("subclass_to_category") or {},
+        "path": path,
+    }
+
+
+def apply_taxonomy(rows: list, taxonomy: dict, mode: str = "force") -> dict:
+    """就地把注册表的三格盖到规则行上。
+
+    mode="force"       —— 三格一律以注册表为准（重建器用；p_level 会变，故用 force）
+    mode="fill_empty"  —— 只补空的；已有真实值与注册表不同 ⇒ **不覆盖**并记进 conflicts
+
+    返回值（全部可复核）：
+      rows / matched / unmatched / stamped / kept / conflicts / p_level_changed / version
+    """
+    if not taxonomy or not taxonomy.get("by_rule"):
+        raise ValueError("apply_taxonomy 需要非空的注册表（否则等于没有任何口径）")
+    st = {"rows": 0, "matched": 0, "unmatched": 0, "stamped": 0, "kept": 0,
+          "conflicts": [], "p_level_changed": 0, "version": taxonomy.get("version")}
+    for r in rows:
+        st["rows"] += 1
+        rid = str(r.get("rule_id") or "")
+        t = (taxonomy.get("by_rule") or {}).get(rid)
+        if not t:
+            # 表里没有 ⇒ 一个字不动（不回填、不置空、不猜）
+            st["unmatched"] += 1
+            continue
+        st["matched"] += 1
+        # ① 两格归类
+        for key, want in ((TAXONOMY_FIELDS[0], t.get("category")),
+                          (TAXONOMY_FIELDS[1], t.get("subcategory"))):
+            cur = r.get(key)
+            empty = cur in (None, "")
+            if (mode == "force") or empty:
+                if cur != want:
+                    st["stamped"] += 1
+                r[key] = want
+            elif cur != want:
+                st["conflicts"].append({"rule_id": rid, "field": key,
+                                        "kept": cur, "would_be": want})
+                st["kept"] += 1
+        # ② 优先级
+        want_p = t.get("p_level")
+        cur_p = r.get("p_level")
+        if want_p:
+            if (mode == "force") or cur_p in (None, ""):
+                if cur_p != want_p:
+                    st["p_level_changed"] += 1
+                r["p_level"] = want_p
+            elif cur_p != want_p:
+                st["conflicts"].append({"rule_id": rid, "field": "p_level",
+                                        "kept": cur_p, "would_be": want_p})
+                st["kept"] += 1
+        # ③ 出处（每次应用都刷成当前注册表的说法，便于「这条是谁盖的」）
+        r["taxonomy_basis"] = {
+            "version": taxonomy.get("version"),
+            "source": "kb/l3/registry/rule-taxonomy.json",
+            "p_level_before": t.get("p_level_before"),
+            "p0_fastpath": t.get("p0_fastpath"),
+            "note": "人工口径（Owner 重标）；规则行是派生件，重建时由 apply_taxonomy 盖回",
+        }
+    return st
+
+
+# ══════════════════════════════════════════════════════════════════
 # 5. 小工具
 # ══════════════════════════════════════════════════════════════════
 
@@ -865,6 +995,88 @@ def _selftest() -> int:
     st = apply_dimensions(rows, None, mode="fill_empty")
     ck("⑤i 缺省不覆盖", rows[0]["risk_level"] == "高危" and st["overrode"] == 0,
        "得到 %r" % rows[0]["risk_level"])
+
+    # ── ⑥ 规则归类与优先级（apply_taxonomy）─────────────────────────────
+    TAX = {"version": "vT", "status": "active", "by_rule": {
+        "r-a": {"category": "合规与受监管宣称", "subcategory": "绝对化与最高级用语",
+                "p_level": "P0", "p_level_before": "P1", "p0_fastpath": True},
+        "r-b": {"category": "母婴知识内容准确性", "subcategory": "哺乳与泌乳",
+                "p_level": "P3", "p_level_before": "P1", "p0_fastpath": False},
+    }, "classes": [], "subclass_to_category": {}}
+
+    # ⑥a force：三格全部盖上，且 p_level 原值取自**注册表**（不是当次行）
+    rows = [{"rule_id": "r-a", "p_level": "P1", "risk_level": "Critical"},
+            {"rule_id": "r-b", "p_level": "P1"}]
+    apply_taxonomy(rows, TAX, mode="force")
+    ck("⑥a force 盖三格",
+       rows[0]["taxonomy_category"] == "合规与受监管宣称"
+       and rows[0]["taxonomy_subcategory"] == "绝对化与最高级用语"
+       and rows[0]["p_level"] == "P0" and rows[1]["p_level"] == "P3",
+       "得到 %r" % [rows[0].get("p_level"), rows[1].get("p_level")])
+    ck("⑥a2 原值来自注册表", rows[1]["taxonomy_basis"]["p_level_before"] == "P1",
+       "得到 %r" % rows[1]["taxonomy_basis"].get("p_level_before"))
+
+    # ⑥b **不动 risk_level**（另一轴；P0 地板只属于 derive()）
+    ck("⑥b risk_level 未被改写",
+       rows[0]["risk_level"] == "Critical" and "risk_level" not in rows[1],
+       "得到 %r" % rows[0]["risk_level"])
+
+    # ⑥c 注册表里没有的 rule_id ⇒ 一个字不动、计入 unmatched（不留空、不猜）
+    rows = [{"rule_id": "r-zzz", "p_level": "P2"}]
+    st = apply_taxonomy(rows, TAX, mode="force")
+    ck("⑥c 表外规则不动", rows[0] == {"rule_id": "r-zzz", "p_level": "P2"} and st["unmatched"] == 1,
+       "得到 %r / unmatched=%r" % (rows[0], st["unmatched"]))
+
+    # ⑥d fill_empty 档：真实值不许被静默覆盖，且必须看得见（conflicts）
+    rows = [{"rule_id": "r-a", "p_level": "P2", "taxonomy_category": "别的东西"}]
+    st = apply_taxonomy(rows, TAX, mode="fill_empty")
+    ck("⑥d fill_empty 不覆盖且留痕",
+       rows[0]["p_level"] == "P2" and rows[0]["taxonomy_category"] == "别的东西"
+       and any(c["field"] == "p_level" for c in st["conflicts"]),
+       "得到 %r / conflicts=%r" % (rows[0], st["conflicts"]))
+
+    # ⑥e 空值才补（fill_empty 的正例）
+    rows = [{"rule_id": "r-b", "p_level": ""}]
+    apply_taxonomy(rows, TAX, mode="fill_empty")
+    ck("⑥e 空值补上", rows[0]["p_level"] == "P3" and rows[0]["taxonomy_category"] == "母婴知识内容准确性",
+       "得到 %r" % rows[0].get("taxonomy_category"))
+
+    # ⑥f 注册表没到位 / status 不是 active / 没版本 ⇒ **抛错**（fail-closed，不许静默跳过）
+    import tempfile
+    td = tempfile.mkdtemp()
+    p_bad = os.path.join(td, "bad.json")
+    for payload, why in (({"status": "rolled_back", "taxonomy_version": "v1", "rules": []}, "status≠active"),
+                         ({"status": "active", "taxonomy_version": "", "rules": []}, "缺版本"),
+                         ({"status": "active", "rules": []}, "缺版本键")):
+        json.dump(payload, open(p_bad, "w", encoding="utf-8"), ensure_ascii=False)
+        try:
+            load_taxonomy(p_bad)
+            ck("⑥f %s 必须拒" % why, False, "没抛错")
+        except (ValueError, FileNotFoundError):
+            ck("⑥f %s 拒" % why, True)
+    try:
+        load_taxonomy(os.path.join(td, "nope.json"))
+        ck("⑥f 缺件必须拒", False, "没抛错")
+    except FileNotFoundError:
+        ck("⑥f 缺件拒", True)
+
+    # ⑥g 空注册表 ⇒ apply_taxonomy 必须抛错（否则等于「应用了零条口径」却报成功）
+    try:
+        apply_taxonomy([{"rule_id": "r-a"}], {"version": "v1", "by_rule": {}})
+        ck("⑥g 空注册表必须拒", False, "没抛错")
+    except ValueError:
+        ck("⑥g 空注册表拒", True)
+
+    # ⑥h 真注册表可读（存在就必须能被本模块读通；不存在则跳过，不伪造成功）
+    if os.path.exists(TAXONOMY_DEFAULT):
+        tx = load_taxonomy()
+        ck("⑥h 真注册表可读",
+           bool(tx["version"]) and len(tx["by_rule"]) >= 600,
+           "得到 version=%r / %d 条" % (tx["version"], len(tx["by_rule"])))
+        n_p0 = sum(1 for v in tx["by_rule"].values() if v["p_level"] == "P0")
+        n_fast = sum(1 for v in tx["by_rule"].values() if v["p0_fastpath"])
+        ck("⑥h2 P0 与快路是两个集合（P0 > 快路）", n_p0 > n_fast,
+           "P0=%d / 快路=%d" % (n_p0, n_fast))
 
     print("kb_rule_dimensions --selftest：%d/%d" % (ok, ok + fail))
     for f in fails:

@@ -1,0 +1,428 @@
+# prd-v1.3-alignment.yaml —— PRD 升到 v1.3 后，**知识库跟了哪几条、没跟的为什么**
+#
+# 一句话：这是「PRD 改版 → 知识库落点」的**逐条对账件**，不是判据。
+# 它存在的理由（2026-10-17 立）：PRD 改了 10 处、其中 6 处与会签结论方式直接相关，
+# 但 PRD 自己还有 6 处「三态」残留没改齐。**没有这份件，谁都不知道我们跟到了哪一版、
+# 哪几条是故意没跟的** —— 于是「知识库与 PRD 不一致」会被反复当成 bug 重新发现一遍。
+#
+# 边界（写清楚，免得被误用）：
+#   · 本件**只登记差异与处置**，不改任何行为；判定口径仍在原落点文件里。
+#   · 本件不参与 L0–L7 数据链路，不改变任何层的 inputs / outputs。
+#   · 唯一被代码读取的段落是 `section_12`（由 `kb/l8/check_prd12_acceptance.py` 的
+#     `V13_ROWS` / `v13` 字段体现，本件与那边**必须一致**）；其余段落人工维护。
+#
+# 登记时间 2026-10-17（PRD v1.3 落地当天）。
+
+meta:
+  file: kb/l7/registry/prd-v1.3-alignment.yaml
+  answers: "PRD v1.3 相对 v1.2 改了什么；知识库跟了哪几条、没跟的为什么"
+  checker: kb/l8/check_prd12_acceptance.py
+  checker_note: >
+    只机械核 `section_12` 那一段（v1.3 六行覆盖 + 两条已删除条的处置，`--selftest` 17/17）。
+    其余段落是人工维护的登记，没有自动对账器 —— 改了 PRD 记得回来改这里。
+  scope: >
+    PRD 全文（§1–§17）。**明确不含 §5.3.1 问题分类枚举** —— 那一节由另一个会话更新
+    （Owner 2026-10-17 划定），本件不对它做任何处置，见 `out_of_scope`。
+  registered_at: "2026-10-17"
+  owner: 刘华丽
+
+# ══════════════════════════════════════════════════════════════════
+# PRD 现版本与**怎么核的**（每条都能用命令复现）
+# ══════════════════════════════════════════════════════════════════
+
+prd:
+  doc_title: 内容审查 Agent PRD-第一阶段
+  version: v1.3
+  wiki_token: NB55wAq8liEOdKkquL2cgtPEnmg
+  docx_token: PXfBdjTwFokEQixtmTscqm7knNh
+  url: https://momcozy-in.feishu.cn/wiki/NB55wAq8liEOdKkquL2cgtPEnmg
+  revision_id: 223
+  last_edited:
+    at: "2026-10-17 09:02–09:09 (+08)"
+    evidence: "lark-cli docs +history-list --doc PXfBdjTwFokEQixtmTscqm7knNh --profile dsh-kb --as bot"
+    revisions: "221→222→223 连续 6 次编辑，editor_open_id=7618067999336975328"
+  identity: "bot（--profile dsh-kb），直读通过，未回落 user 身份"
+  fetch_command: >
+    lark-cli docs +fetch --doc PXfBdjTwFokEQixtmTscqm7knNh --doc-format markdown
+    --profile dsh-kb --as bot
+  previous:
+    version: v1.2
+    revision_id: 36
+    archive: kb/l8/_archive/prd-consistency-20261010/PRD-v1.2-全文.md
+    archive_note: "2026-10-10 抓的全文，本地可比对；本件全部 diff 都拿它当基线"
+  # ★★ 结构变化：正文搬进了**内嵌飞书表格**
+  embedded_spreadsheet:
+    token: B1aUs2Vuah8YwjtwWO6cr5MFnUd
+    created_at: "2026-10-15T06:47:04Z"
+    modified_at: "2026-10-17T09:06:13Z"
+    revision: 96
+    why_it_matters: >
+      `docs +fetch` 对这 10 处只返回 `<sheet sheet-id=... token=.../>` 占位符，
+      **表格里的字读不出来**。任何"读 PRD 正文"的自动流程（周更抽取、回源核验）
+      从 v1.3 起都拿不到这 10 节 —— 含 §12 非功能需求与 §15 验收标准。
+      必须另用 `lark-cli sheets +csv-get --spreadsheet-token ... --sheet-id ...` 拉。
+    sheets:
+      - {sheet_id: pwDYpQ, section: "§5.2 审查能力"}
+      - {sheet_id: xcdTpv, section: "§5.3.2 四态定义与边界"}
+      - {sheet_id: 9aoowy, section: "§6.2 规则优先级分层设计"}
+      - {sheet_id: phfjQo, section: "§6.6 置信度与分流策略"}
+      - {sheet_id: gi4XqI, section: "§10.2 日常统计指标"}
+      - {sheet_id: nvWbMk, section: "§12 非功能需求"}
+      - {sheet_id: wsQRyR, section: "§13 权限与安全"}
+      - {sheet_id: C6ukdm, section: "§15 验收标准"}
+      - {sheet_id: W2rksb, section: "§16 风险与依赖"}
+      - {sheet_id: XWnpiN, section: "§17 附录：结论模板速查"}
+    sheet_fetch_command: >
+      lark-cli sheets +csv-get --spreadsheet-token B1aUs2Vuah8YwjtwWO6cr5MFnUd
+      --sheet-id <id> --profile dsh-kb --as bot --format csv
+
+# ══════════════════════════════════════════════════════════════════
+# 十处实质变化（逐条带出处；disposition = 本轮处置）
+#   followed  = 已按 v1.3 落
+#   partial   = 部分落（落哪半、留哪半，写在 note 里）
+#   recorded  = 只登记、不动代码（本轮不跟，理由写明）
+# ══════════════════════════════════════════════════════════════════
+
+changes:
+
+  - id: A
+    title: 新增第四态 SUGGEST（三态 → 四态）
+    where: ["§5.3.2", "§6.2 输出映射", "§6.3 执行规则 3/4", "§10.2", "§15", "§17"]
+    old: "PASS / REVIEW / BLOCK（三态）"
+    new: >
+      PASS / SUGGEST / REVIEW / BLOCK（四态）。SUGGEST 定义：「存在非强制性问题
+      （措辞优化、轻微常识瑕疵、非核心卖点描述）」，动作：「提示内容方，**不阻断流程**，
+      随 PASS 一起进入下一步」。§6.2 里 P3 的输出映射 = 「强制 SUGGEST（不阻断）」；
+      §6.3 规则 4：「无 P0、P1、P2 明确违规，只有 SUGGEST 时，最终状态为 PASS（附 SUGGEST 建议）」。
+    kb_landing:
+      - kb/l7/review-engine/core/review_engine.py   # DECISIONS = {PASS,REVIEW,BLOCK,NEEDS_INPUT}
+      - kb/l7/review-engine/core/feishu_publish.py  # STATUS_PASS = {PASS,REVIEW,BLOCK}
+      - kb/l5/p0_fastpath.py                        # §5.3 逐条块与结论行
+      - kb/l7/review-engine/core/tiering.py         # P3 = 只出建议、不改结论
+      - kb/l7/registry/regression-set.yaml          # 100 条期望态：BLOCK44/REVIEW23/PASS13/拒答20
+    disposition: recorded
+    why_not_this_round: >
+      ① **单方面落会断链**：守衡侧 `agent/prd53.mjs` 的 `STATES` 只认三态、
+      `LINE_RE` 只匹配 `【审查结论：(PASS|REVIEW|BLOCK)】`；知识库一旦输出 SUGGEST，
+      守衡判「没拿到三态结论」⇒ 进补发队列重跑、表行记「未判」。
+      ② PRD 自己还有 6 处写"三态"（见 `prd_internal_conflicts`），现在落四态等于把矛盾固化进代码。
+      ③ SUGGEST 的典型类别是「措辞表达」，正落在 Owner 划给另一会话的 §5.3.1 范围内。
+    unblock_when: "PRD 内部统一为四态 + 守衡侧同一批改（本件 next_batches.丙）"
+    risk_if_skipped: "四态过渡期，措辞建议类问题仍落 REVIEW —— 比 PRD 严一档，不构成漏放"
+
+  - id: B
+    title: 置信度阈值与低置信度语义
+    where: ["§6.6"]
+    old: "≥0.90 直接出结论（PASS/BLOCK）｜0.70–0.89 输出 REVIEW｜<0.70 输出 REVIEW"
+    new: "≥0.85 直接出结论（BLOCK/SUGGEST/PASS）｜0.60–0.84 输出 REVIEW｜**<0.60 未命中 P0 ⇒ 输出 PASS**"
+    kb_landing:
+      - kb/l7/registry/confidence-policy.json       # thresholds = 0.90 / 0.70
+      - kb/l7/review-engine/core/confidence_flow.py # direct / confirm / focus 三档
+    disposition: followed
+    followed_at: "2026-10-17（Owner：「置信度问题按照 prd 来做」）"
+    did:
+      - "kb/l7/review-engine/core/confidence_flow.py：DEFAULT_THRESHOLDS 0.90/0.70 → **0.85/0.60**；"
+      - "  `focus` 档 effect 由 `force_review` → **`pass`**（未命中 P0 ⇒ PASS），annotate 置空（v1.3 不再要求标注）；"
+      - "  `route()` 新增 `fail_open` / `warning`：**放行必须留 machine-readable 痕迹**（不上屏、不进摘要）；"
+      - "kb/l7/registry/confidence-policy.json：thresholds + bands + prd_ref 全部换 v1.3；原 `prd_v13_delta`（写着「本轮不跟」）→ `applied_20261017_prd13`（写着「已跟 ＋ 引擎实测边界」）"
+      - "kb/l7/review-engine/tests/test_tiering.py：focus 档用例按 v1.3 改（PASS + 留痕），"
+      - "  并把「非 P0 置信度不会掉进 focus」那条守卫的线从 0.70 改成 **0.60**（守卫的线必须跟着政策走）"
+    engine_delta_measured:
+      only_real_change: "REVIEW 单里 0.85–0.89 那一段**不再被标注「建议人工确认」**（结论仍是 REVIEW）"
+      correct_my_earlier_statement: >
+        ⚠️ 更正：本件首次登记时我写过「19 单会从转人工变直接出结论」—— **那句是错的**。
+        实测引擎对 REVIEW 的置信度截断在 [0.70,0.89]，那些单**本来就是 REVIEW**；
+        改阈值只让它们**少一句标注**，状态不变。
+      focus_unreachable: >
+        `<0.60` 档**当前不可达**：引擎按结论截断（BLOCK/PASS→[0.90,0.99]、REVIEW→[0.70,0.89]）⇒ 最低 0.70。
+        规则已按 PRD 落好，但**不许把「规则已落」说成「这条规则在生效」**。
+      p0: "不受影响（P0 override 在上游先判，不分流）"
+    risk_recorded: >
+      `<0.60 ⇒ PASS` 是 **fail-open**：一条非 P0 的 BLOCK 若置信度掉到 0.60 以下**会被改写成 PASS**。
+      本库照 PRD 落地、不自行收紧；但用 `warning` 留痕，并在 confidence-policy.json 的
+      `bands.focus.danger` 里逐字写明后果。要不要接受，是 PRD 的产品决策。
+    validation: "confidence_flow --selftest **35/35**（含 ③b2 钉住「focus 会把非 P0 的 BLOCK 改成 PASS」、①g 钉住旧边界已失效）｜review-engine pytest **101 passed**"
+
+  - id: C
+    title: 结论行模板前缀
+    where: ["§5.3.4 各状态输出模板"]
+    old: "`【审查结论：PASS】…` / `【审查结论：REVIEW】共发现 N 处需人工确认。`"
+    new: "`【PASS】…` / `【SUGGEST】…` / `【REVIEW】…` / `【BLOCK】…`；问题 ≥3 的汇总用 `【状态】共发现 X 处问题。`"
+    kb_landing:
+      - kb/l5/p0_fastpath.py                          # 结论行逐字写 【审查结论：BLOCK】
+      - kb/l7/review-engine/core/review_engine.py     # 「措辞逐字照 PRD」
+      - kb/l7/review-engine/core/confidence_flow.py   # annotate_summary 里也写死
+      - 守衡 agent/prd53.mjs                          # LINE_RE / STATES / conforms()
+    disposition: recorded
+    why_not_this_round: "与 A 同因：改前缀会让守衡的 `conforms()` 判整行不合规（它是逐字正则）"
+    coupling: "必须与 A 同批、跨仓改"
+
+  - id: D
+    title: 输出字数与格式硬约束（首次成文）
+    where: ["§5.3.3"]
+    old: "v1.2 无此节（§5.3.4 只讲「阈值 3」的设计依据）"
+    new: >
+      单条：描述 ≤50 字、原因 ≤50 字、修改建议 ≤30 字。位置必须精确到
+      「图 N 第 X 处」/「视频 00:12」/「正文第 X 段」。依据必须写「《文档名》第 X 条」或
+      「规则 ID」，**禁止写「相关法规」**。语言客观指令式，禁止"可能/建议可以考虑"。
+    kb_landing:
+      - kb/l5/p0_fastpath.py                        # 逐条块版式（位置/依据行）
+      - kb/l7/review-engine/core/review_engine.py   # render_summary
+    disposition: recorded
+    why_not_this_round: >
+      本轮**没有**新增字数校验器 —— 它是新判据，按本库纪律必须同时给反向对照，
+      属独立一小块工程；且一旦校验生效，存量报告可能成片超标（会红）。
+      先登记，不偷偷加一道会红的闸门。
+    next: "第二批可加 `check_prd53_wordlimits.py`（只读、非阻断、带 --selftest）"
+
+  - id: E
+    title: §5.4 结构化 JSON 规范 —— **整节删除**
+    where: ["§5.4（v1.2）→ 无"]
+    old: >
+      v1.2 §5.4 定义 review_id / content_id / decision / confidence / issue_count /
+      issue_summary_by_category / report_url / risk_items[priority_tier, severity, …]；
+      §15 验收里还有一项「JSON 输出｜字段完整」。
+    new: "v1.3 **没有 §5.4**；§15 验收里「JSON 输出」一项也删了。"
+    kb_landing:
+      - kb/l7/registry/conclusion-destination.yaml   # 拿 §5.4「每条审查生成一份 JSON」当"每单一行"的依据
+      - kb/l7/registry/report-output-contract.yaml   # JSON 字段契约
+    disposition: recorded
+    disposition_note: >
+      **契约保留、撤掉 PRD 锚**（D3 推荐）。下游（报告、结论表、统计）都在读这些字段，
+      按 PRD 删字段 = 断链。⇒ 后续应把结论去向件里那句「依据：PRD §5.4…」改注为
+      「本地契约，沿用 v1.2 字段；PRD v1.3 已删除 §5.4」。
+    why_not_this_round: "改登记件措辞本身无风险，但会同时牵动 report-output-contract 的多处 prd_ref，留到第二批成批改（免得半改）"
+
+  - id: F
+    title: §12 非功能需求 9 行 → 6 行
+    where: ["§12"]
+    old: "性能｜并发｜可用性｜P0 层响应｜报告生成 ≤30s｜记录｜权限｜安全｜可扩展（9 行）"
+    new: "性能｜响应｜批量｜记录｜权限｜安全（6 行）；**删掉「报告生成 ≤30s」「可扩展」**"
+    kb_landing:
+      - kb/l8/check_prd12_acceptance.py
+    disposition: followed
+    did: >
+      按 v1.3 六行重排：`row` 一律改用 v1.3 原词（并发→批量、可用性/P0 层响应→响应）；
+      新增 `v13` 字段区分在册 / 已删除；`report_gen` 与 `extensible` 标 `removed`
+      ⇒ **照旧跑、照旧打印**（⬜），但**不进结论口径**；新增 `V13_ROWS` 六行覆盖率判据
+      （任一行没有在册落点 ⇒ 判红）。自证 17/17（含新造的反向对照 ⑤/⑤b/⑧/⑧b）。
+    note: >
+      ⚠️ **这不是豁免**：移出的两条在输出里单列一段，且 `--selftest` ①f/⑤ 钉着
+      「已删除的仍在输出里」「无落点判据不是恒绿」。
+
+  - id: G
+    title: §14 里程碑（1 个月试用）—— 整节删除
+    where: ["§14"]
+    old: "W1–W4 逐周目标 / 关键动作 / 输出"
+    new: "节标题被改成「14. 已删除」，正文为空"
+    disposition: recorded
+    needs_confirmation: >
+      疑似**删除后又留了个空标题**。若不打算保留，应把 §14 整节去掉（或改回有内容的里程碑）；
+      现在是"标题写着已删除、正文空白"，任何人读 PRD 都会在这里卡一下。**这条要 PRD 作者裁。**
+    kb_landing: []
+
+  - id: H
+    title: §15 验收标准重写（11 行 → 8 行）
+    where: ["§15"]
+    old: >
+      飞书群 @Agent｜批量扫描｜**三态结论**｜问题 ≥3 汇总｜规则分层｜**JSON 输出**｜准确率｜
+      人工复核｜Sign-off｜记录｜上线（11 行）
+    new: "四态输出｜字数约束｜位置精度｜依据明确｜问题 ≥3｜P0 规则｜统计｜准确率（8 行）"
+    kb_landing:
+      - kb/l8/check_prd12_acceptance.py   # §12 那件不核 §15；§15 目前无判据
+    disposition: recorded
+    why_not_this_round: "§15 的验收项与 A/C/D 重叠，落它必然先落四态；随第二批走"
+
+  - id: I
+    title: §11 指标删减（三态→四态，且删掉三项）
+    where: ["§11.1", "§11.2"]
+    old: >
+      整体三态准确率 ≥90%｜BLOCK 精确率 ≥95%｜**PASS 误放率 ≤5%**｜
+      **REVIEW 召回率 ≥95%**｜**人工复核负担降低 ≥50%**
+    new: >
+      整体**四态**准确率 ≥90%｜BLOCK 精确率 ≥95%｜P0 漏报率 = 0｜
+      SUGGEST 不纳入硬性准确率考核（但需控制误报量）｜评估以人工复核和抽检为准。
+      **PASS 误放率、REVIEW 召回率、负担降 50% 三项被删。**
+    kb_landing:
+      - kb/l8/regression_run.py            # 三态准确率口径
+      - kb/l7/registry/regression-set.yaml # 期望态集合
+    disposition: recorded
+    risk: >
+      「PASS 误放率 ≤5%」与「REVIEW 召回率 ≥95%」是**拦漏放**的两个指标。PRD 删掉它们，
+      等于不再考核"该拦的有没有漏"。本库现有回归仍按三态算，且 `fragile` 层已实测 PASS 误放
+      （2026-10-15 复盘 RC-c768ef800bc4）。⇒ **建议保留本库侧这两项读数**，不随 PRD 删，
+      并在下一版 PRD 讨论时提出来。**这是判断，不是 PRD 的要求。**
+
+  - id: J
+    title: §6.2 表结构变化 + §6.3 执行规则第 4 条改写
+    where: ["§6.2", "§6.3"]
+    old: "§6.2 六列（含「审查策略」「模型能力要求」）；§6.3 规则 4「多条命中按最高优先级输出」"
+    new: >
+      §6.2 四列（优先级/层级名称/典型规则/输出映射）；§6.3 规则 4 改为
+      「无 P0、P1、P2 明确违规，只有 SUGGEST 时，最终状态为 PASS（附 SUGGEST 建议），不阻断流转」。
+    kb_landing:
+      - kb/l7/review-engine/core/tiering.py   # 层级 → 动作映射（唯一口径表）
+    disposition: recorded
+    why_not_this_round: "P3 的动作要从「只出建议」变成「强制 SUGGEST」，与 A 同批"
+
+# ══════════════════════════════════════════════════════════════════
+# ★★ PRD v1.3 自身的 6 处矛盾（「三态」与「四态」并存）—— 这是本轮**不动四态**的直接理由
+# ══════════════════════════════════════════════════════════════════
+
+prd_internal_conflicts:
+  summary: >
+    v1.3 在 6 处定义四态（§5.3.2 / §6.2 / §6.3 / §10.2 / §15 / §17），
+    却在另外 6 处仍写"三态"。**这不是我的解读差异，是 PRD 原文并存。**
+    知识库现在按三态跑，恰好与这 6 处一致、与那 6 处不一致。
+  items:
+    - {loc: "§1.2 目标", text: "分流：PASS / REVIEW / BLOCK 三态结论，自动转交对应负责人。"}
+    - {loc: "§4 核心流程", text: "PASS / REVIEW / BLOCK"}
+    - {loc: "§5.1 方式一", text: "输出三态结论（详见 5.3 输出规范）。", note: "它指向的 §5.3 已经是四态"}
+    - {loc: "§5.1 方式二", text: "支持按 PASS / REVIEW / BLOCK 筛选、导出、统计。"}
+    - {loc: "§10.1 记录要求", text: "`decision`：PASS / REVIEW / BLOCK", note: "而 §10.2 要「四态分布 PASS / SUGGEST / REVIEW / BLOCK」"}
+    - {loc: "§11.2 评估方式", text: "准确率 = 三态结论一致数 ÷ 总审查数。", note: "而 §11.1 要「整体四态准确率 ≥ 90%」"}
+  # ★★ 第八条是 2026-10-17 做 §12 归因时**新发现**的，性质比前六条更硬：
+  #    前六条是"同一个词两种写法"，这一条是"**同一个字段两种语义**" —— 定不下来就没法落四态。
+  definition_level_conflict:
+    id: K
+    where: ["§5.3.2 SUGGEST 动作", "§6.3 执行规则 4", "§10.1 decision 字段", "§10.2 四态分布"]
+    verbatim:
+      - "§5.3.2 SUGGEST：存在非强制性问题（措辞优化、轻微常识瑕疵、非核心卖点描述）／ 提示内容方，不阻断流程，随 PASS 一起进入下一步"
+      - "§6.3 规则 4：无 P0、P1、P2 明确违规，只有 SUGGEST 时，最终状态为 PASS（附 SUGGEST 建议），不阻断流转。"
+      - "§10.1：`decision`：PASS / REVIEW / BLOCK"
+      - "§10.2：四态分布｜PASS / SUGGEST / REVIEW / BLOCK 数量及占比｜各状态数量 ÷ 已审内容数"
+    clash: >
+      按 §6.3 规则 4，**只有 SUGGEST 时最终状态是 PASS** ⇒ `decision` 到底能不能取 `SUGGEST`？
+      若能 ⇒ 与"最终状态为 PASS"直接矛盾；若不能 ⇒ §10.2 的「四态分布」里 SUGGEST 那一格从哪来？
+    three_readings:
+      "①": "SUGGEST 是可取的最终态（decision 四值） ⇒ 与 §6.3 规则 4 矛盾"
+      "②": "SUGGEST 只是标签（decision 仍三值） ⇒ 与 §5.3.2/§10.2 的「四态」字面矛盾，但内部自洽"
+      "③": "decision 三值 ＋ 新增 suggest_count/suggestions 字段；§10.2 拆成「最终态分布 ＋ SUGGEST 计数」"
+    our_recommendation: "③" 
+    why_3: >
+      §6.3 规则 4 已把"只有 SUGGEST ⇒ 最终 PASS"定死，那 SUGGEST 就不是能"最终停留在"的状态，
+      而是 PASS 上的附加信息。两个字段分别表达，两处原文都不用推翻，只改措辞。
+    cost_if_3: "§5.3.2 的「四态」标题要改口；§10.2 指标从 1 项变 2 项；下游报告/统计按新字段读"
+    blocks: "A + C + J（四态贯通整批）"
+  ask: >
+    PRD 作者统一二～七那六处「三态」，**并且**就上面这条 definition_level_conflict 定一个读法
+    （我们推荐 ③）。两者都定下来，本库才能启动 A/C/J。
+    清单已整理成可直接转发的《反馈单》：feedback_doc 字段。
+  feedback_doc: 反馈单-PRD-v1.3-给作者-20261017.md
+  feedback_status: "已出单，待转给作者（2026-10-17）"
+
+# ══════════════════════════════════════════════════════════════════
+# 本轮**故意没跟**的清单（不许静默，一条条点名）
+# ══════════════════════════════════════════════════════════════════
+
+deliberately_not_followed:
+  items:
+  - {id: A, what: "四态 SUGGEST", why: "会断守衡链 + PRD 自相矛盾 + 与 §5.3.1 会话交叉"}
+  - {id: C, what: "结论行前缀 【X】", why: "守衡 conforms() 逐字正则，会判不合规"}
+  - {id: D, what: "字数硬约束校验", why: "新判据须带反向对照，独立成块；且存量报告可能成片超标"}
+  - {id: E, what: "撤 §5.4 的 PRD 锚", why: "会牵动 report-output-contract 多处 prd_ref，须成批改（契约本身保留）"}
+  - {id: H, what: "§15 验收口径", why: "依赖 A/C/D"}
+  - {id: I, what: "删 PASS 误放率 / REVIEW 召回率 / 负担降 50%", why: "**建议不跟**：这两项是拦漏放的读数，见 changes[I].risk"}
+  - {id: J, what: "P3 → 强制 SUGGEST", why: "依赖 A"}
+  consequence: >
+    本轮之后，知识库仍按 **三态 + 拒答态** 出结论，置信度仍 0.90/0.70，
+    结论行仍 `【审查结论：X】`。**与 PRD v1.3 的差异点已全部在此登记**，
+    不得再被当成"漏改"重新发现。
+
+# ══════════════════════════════════════════════════════════════════
+# §12 那一段的机器可读口径（与 check_prd12_acceptance.py 的 V13_ROWS 必须一致）
+# ══════════════════════════════════════════════════════════════════
+
+section_12:
+  source_sheet: nvWbMk
+  rows_v13: ["性能", "响应", "批量", "记录", "权限", "安全"]
+  rows_v13_verbatim:
+    性能: "文字 ≤10 秒；图片 ≤20 秒；视频 ≤60 秒；brief 按文字处理"
+    响应: "飞书群 @Agent ≤5 秒；P0 命中 ≤1 秒"
+    批量: "支持 100-500 条批量扫描"
+    记录: "审查记录保存 ≥1 年；报告链接有效期 ≥30 天"
+    权限: "按角色控制查看、复核、sign-off"
+    安全: "默认权限控制；导出、报告分享、模型训练样本按需脱敏"
+  removed_in_v13:
+    - id: report_gen
+      req: "问题 ≥ 3 时，报告链接生成 ≤ 30 秒"
+      disposition: "保留落点与读数，移出 §12 达标口径（仍跑、仍打印）"
+      why: "量得出来（中位 0.141 s），删判据 = 丢掉现成观测"
+    - id: extensible
+      req: "支持后续接入图片、视频深度识别、平台界面"
+      disposition: "同上（本就无落点）"
+      why: "与 batch_scan 的前瞻边界相关，留着比删掉省事"
+  checker: kb/l8/check_prd12_acceptance.py
+  checker_selftest: "17/17（2026-10-17 实测）"
+  checker_rc_now: 0
+  checker_rc_note: >
+    2026-10-17 归因后登记：`group_response`「飞书群 @Agent ≤5 秒」的 1 次 15.8 s 超时已查明
+    —— **判定只占 224 ms，约 15.55 s 花在「把回执卡发出去」这一段外部调用**，且同刻该消息被飞书
+    **重复投递** ⇒ 平台侧偶发。已登记进 `kb/l7/registry/perf-known-drift.yaml → group_response`
+    （`status: open`，`limits` 字段写明"是推断不是证死"：日志没记发送完成时刻，15.55 s 是相减得出）。
+    于是该件由 ❌未登记 FAIL 转为 ⚠️已登记未达标 ⇒ **退出码 3 → 0**。
+    ★ **这不是"修好了"**：判据口径一个字没放宽（1/57 超线仍判 FAIL），证据见
+    `诊断-飞书群回执1次超时归因-PRD12响应行-20261017.md`。
+
+# ══════════════════════════════════════════════════════════════════
+# 已知缺口与存量脏数据（发现了就写下来，不留在别人脑子里）
+# ══════════════════════════════════════════════════════════════════
+
+known_gaps:
+  - id: GAP-PRD-SHEET
+    what: "内嵌飞书表格抽取能力缺失"
+    detail: >
+      v1.3 把 10 节正文搬进内嵌电子表格，现有抽取器只拿得到 `<sheet>` 占位符。
+      ⇒ 周更抽取器、回源核验都会**静默少掉这 10 节**。
+    impact: "§12/§15 这类「带硬指标」的节尤其危险 —— 读不到不会报错，只会看起来像「没要求」"
+    decision_20261017: "Owner 选择**本轮不补**，先登记（另立一块工程）"
+    fix_when_scheduled: "抽取器遇 `<sheet>` 时按 token+sheet-id 调 sheets +csv-get 摊平成行文本"
+  - id: GAP-L1-STALE
+    what: "L1 里的 PRD 快照自称 v1.3，实际是 v1.3 的中间态"
+    evidence: >
+      kb/l1/sources/daily-20261016-0330-L0__L1-prd-content-review-agent.md 第 11 行写
+      「文档版本：v1.3」，但「三态」出现 8 次、「四态」0 次、`SUGGEST` 0 次。
+      ⇒ 抓的是 10-16 那天的中间修订（PRD 今天 09:02–09:09 才补上四态）。
+    impact: "**用版本号判断新鲜度会失效** —— 它写着 v1.3 但是过期的"
+    note: "PRD 未蒸出任何 L3 规则（kb/l3/candidates/rules.jsonl 引用 PRD 源 = 0 条），故不影响评审依据"
+  - id: GAP-L2-NAMECOLLIDE
+    what: "L2 切片文件名与内容对不上"
+    evidence: >
+      daily-20261016-0330-L0__L2-prd-content-review-agent-1.md（231 KB）与
+      -2.md（1.28 MB）的正文分别是 amazon 店铺页与 momcozy.com 的抓取结果，
+      与 PRD 无关 ⇒ 文件名撞车。
+    impact: "低（这两个文件不参与判定），但会误导任何按文件名做溯源的人"
+    status: "未修，另立"
+
+# ══════════════════════════════════════════════════════════════════
+# 明确划出去的边界（Owner 2026-10-17 划定）
+# ══════════════════════════════════════════════════════════════════
+
+out_of_scope:
+  - item: "§5.3.1 问题分类枚举"
+    reason: "Owner：「不要管 5.3.1 问题分类枚（另一个会话中更新）」"
+    landed_files_untouched:
+      - kb/l7/registry/risk-category-policy.json
+      - kb/l7/skills/kb-content-review/scripts/risk_category.py
+    collision_note: >
+      ⚠️ **交叉点**：SUGGEST 的典型类别是「措辞表达」，它属于 §5.3.1 的枚举。
+      等那一节定稿后，A 的落地要与之对齐（类别 → 状态的映射），本件不预设。
+
+# ══════════════════════════════════════════════════════════════════
+# 后续批次（本轮只做了"安全批"）
+# ══════════════════════════════════════════════════════════════════
+
+next_batches:
+  乙_置信度:
+    status: "✅ 已于 2026-10-17 完成（changes[B] disposition=followed）"
+    scope: "B"
+    files: [kb/l7/registry/confidence-policy.json, kb/l7/review-engine/core/confidence_flow.py]
+    must_also: "重跑 100 条回归、重建 regression-baseline.json、confidence_flow --selftest 25 条同步更新"
+    open_question: "<0.60 ⇒ PASS 要不要照做（fail-open）"
+  丙_四态贯通:
+    scope: "A + C + D + H + J"
+    files:
+      kb: [review_engine.py, feishu_publish.py, p0_fastpath.py, tiering.py, with_kb_evidence.py]
+      shouheng: [agent/prd53.mjs, agent/dual_track.mjs, agent/review_publish.mjs, agent/agent.mjs]
+    must_also: "重建 regression-set 期望态（新增 SUGGEST 样本）；两仓同一批改，否则断链"
+    blocked_by: "PRD 六处三态残留改齐"

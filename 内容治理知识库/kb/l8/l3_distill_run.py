@@ -821,6 +821,28 @@ if _dim_st["scope_gaps"]:
     print("[规则维度] 范围缺口（**源侧缺口，非本步失败**）：%s"
           % dict(_dim_st["scope_gaps"]), flush=True)
 
+# ── 规则归类与优先级：人工口径注册表（2026-10-17）──────────────────────────
+# 三格 = 所属类别 / 所属子类 / p_level。真源 = `kb/l3/registry/rule-taxonomy.json`
+# （人工口径的注册表；规则行是**派生件**，写进去下一次重建就没了 ⇒ 必须在这里盖回）。
+# ★ **必须排在 `apply_dimensions()` 之后**：`derive()` 里有一条 P0 地板
+#   （p_level==P0 ⇒ risk_level 不得低于 Critical）。若先盖 p_level 再算维度，
+#   这 63 条 P0 会**顺便把 risk_level 抬一档** —— 那是另一个轴（PRD §6.5），
+#   要改得单独裁，不许由「人工定级」顺带完成。
+# ★ fail-closed：注册表不在位 / status≠active / 没版本 ⇒ 抛错（不静默跳过）——
+#   静默跳过等于把人工口径悄悄抹掉，那是比重建失败更坏的结果。
+_tax_st = None
+if os.path.exists(_kb_dim.TAXONOMY_DEFAULT):
+    _tax = _kb_dim.load_taxonomy()
+    _tax_st = _kb_dim.apply_taxonomy(rules, _tax, mode="force")
+    print("[规则归类] 注册表 %s：盖 %d 条 / 表外 %d 条 ｜ p_level 变更 %d 条 ｜ 冲突 %d"
+          % (_tax["version"], _tax_st["matched"], _tax_st["unmatched"],
+             _tax_st["p_level_changed"], len(_tax_st["conflicts"])), flush=True)
+else:
+    # 没注册表是**首次跑的正常状态**（历史库），但要看得见，不许静默
+    print("[规则归类] ⚠ 注册表不在位（%s）⇒ 本轮不盖归类/优先级；"
+          "若本轮真重写了规则行，这三格会退回未盖状态（见交付件）"
+          % _kb_dim.TAXONOMY_DEFAULT, flush=True)
+
 # ── 逐份过闸写档（取代原来的 6 处无条件 open(...,"w")）────────────────────
 _write_guarded(f"{L3}/candidates/rules.jsonl", _serialize(rules))
 _write_guarded(f"{L3}/rejected.jsonl", _serialize(rejected))

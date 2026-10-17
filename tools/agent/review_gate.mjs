@@ -68,6 +68,29 @@ export function findLinks(text) {
   return m ? [...new Set(m)] : [];
 }
 
+
+/**
+ * **「链接送审」的判据**：贴的链接**就是**要审的东西 —— 正文（去掉链接之后）很短。
+ *
+ * ★★ 2026-10-17 真单（Owner 拿着报告来问：「**为什么文字类的还加个错误的链接**」）：
+ *   一段 900 字的广告文案里，粘贴时被编辑器自动加了一个 `http://production.it/`
+ *   （正文原话 `increasing milk production.It supports`）。旧判据是「**有链接 ⇒ kind=link**」
+ *   ⇒ 这一单被判成「贴了链接，要读的就在链接里」⇒ 报告在「审查对象」里印出
+ *   「文案 926 字｜链接 1 条 / 链接：[点开](http://production.it/)」——
+ *   **一条文字送审被挂上一个与素材毫无关系的域名**。
+ *   ⇒ 判据补一条：**正文（去掉链接）要短**，链接才当素材；长正文里带的链接只是正文的一部分。
+ *   ⚠️ 阈值取 40 字：正常「贴个链接让我看」那句话（「审一下这个落地页」= 8 字）
+ *      与「这条视频的落地页能发吗」= 10 字 都在里面；而任何一段真文案都远超它。
+ *   ⚠️ 判成纯文字**不等于丢掉链接** —— `links` 照样回给调用方（它仍在正文里，链该读还是会读）。
+ */
+export const LINK_ONLY_MAX_BODY = 40;
+
+export function linkOnly(text) {
+  const links = findLinks(text);
+  const body = bareText(text);
+  return { links, body, isLinkOnly: links.length > 0 && body.length <= LINK_ONLY_MAX_BODY };
+}
+
 /* ───────── 「这条是在问机制，不是在送审」—— 与送审词是两件事 ───────── */
 
 /**
@@ -184,8 +207,10 @@ export function isSubmission({ text = '', imageCount = 0, videoCount = 0 } = {})
       .filter(Boolean).join(' + ');
     return { yes: true, kind: 'media', why: `带了媒材（${what}）—— 媒材本身就是送审`, links };
   }
-  // ② 链接：贴了链接就是要看里面的东西。
-  if (links.length) {
+  // ② 链接：**贴的链接就是素材**才走这一支（正文去掉链接后要短，见 `linkOnly`）。
+  //    ★ 2026-10-17 真单：900 字广告文案里粘着一个 `http://production.it/`（编辑器自动加的链接），
+  //      旧写法「有链接 ⇒ kind=link」把文字送审判成链接送审 ⇒ 报告里印出「链接 1 条 / 链接：点开」。
+  if (linkOnly(text).isLinkOnly) {
     return { yes: true, kind: 'link', why: `贴了链接（${links.length} 条）—— 要读的就在链接里`, links };
   }
   // ③ ★ 机制问句先挡一道（2026-10-14 事故，见 `mechanismQuestion` 的注释）。

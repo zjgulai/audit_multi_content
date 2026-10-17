@@ -40,7 +40,8 @@ import { readFileSync } from 'node:fs';
 import { conforms as prd53Conforms } from './prd53.mjs';
 // ★ 2026-10-14（Owner：收尾动作行与 PRD §5.3.2 不符）：收件人**按问题方向算**，
 //   不再是一个硬编码常量。路由真源在库里（`routing-policy.json`），本文件只读不抄。
-import { loadRoutingPolicy, loadRoleHandles, reviewOwnersFor, renderReviewAction }
+import { loadRoutingPolicy, loadRoleHandles, reviewOwnersFor, renderReviewAction,
+         loadRiskCategoryPolicy, dimensionForCategory }
   from './routing.mjs';
 
 /**
@@ -50,6 +51,9 @@ import { loadRoutingPolicy, loadRoleHandles, reviewOwnersFor, renderReviewAction
  * 它们改了要重启守衡才生效（与改任何其它被 import 的模块一样）。
  */
 const ROUTING_POLICY = loadRoutingPolicy();
+// ★ 2026-10-17：维度政策件（`risk-category-policy.json`）—— 报告要按 PRD 四维度分组，
+//   映射口径**只认库侧那一份**，不在守衡再抄一张表。
+const RISK_CATEGORY_POLICY = loadRiskCategoryPolicy();
 const ROLE_HANDLES = loadRoleHandles();
 
 /** 严重度序（越大越重）。只认三态里的两个可裁剪值 + 空。 */
@@ -277,13 +281,34 @@ export function mergeFindings(kbFindings = [], modelFindings = []) {
           note: '两轨都命中同一个问题，结论一致 —— 双轨确认（置信最高）' + soInfo,
         });
       } else {
-        // ── 交集冲突：降为 REVIEW，不许任一侧单独定案 ──
+        // ── 交集冲突 ──────────────────────────────────────────────────────────
+        // ★★ 2026-10-17（Owner 第三次拿报告来问；这是「BLOCK 但分论点 REVIEW」的**残余那一半**）：
+        //   原实现**无条件**降 REVIEW。可库侧的 BLOCK **只可能来自 P0 确定性命中**
+        //   （关键词/正则，`[p0] 🚦 命中即 BLOCK`）—— 它不是"判断"，是**读数**。
+        //   让一条模型侧的 REVIEW 把它降级，等于用一条意见推翻一个确定性命中：
+        //     · 违反 PRD §6.6「P0 层级规则**不适用置信度分流**，命中即 BLOCK」；
+        //     · 违反本文件题注的**单调性**「合并只许保持或升级，不许降级」；
+        //     · 卡上还会印出「结论冲突 ⇒ 已降 REVIEW」，而报告抬头写着 BLOCK —— 自相矛盾。
+        //   ⇒ 现在：**库侧 BLOCK ⇒ 保持 BLOCK**（不降级），并在注里说清谁说了什么。
+        //     反向那条**一个字没松**：模型侧报 BLOCK、库侧只有 REVIEW ⇒ 仍然降 REVIEW
+        //     （模型不许单独定 BLOCK）。
         nConflict++;
+        const kbP0Held = a === 'BLOCK';
         items.push({
-          location, category, severity: 'REVIEW', source: 'both-conflict',
+          location, category,
+          severity: kbP0Held ? 'BLOCK' : 'REVIEW',
+          // ⚠️ 不能挂 `both-conflict` —— 那个来源标记在渲染层写着「结论冲突 ⇒ 已降 REVIEW」，
+          //    而这一支根本没有降级。挂 `both` 才是实话。
+          source: kbP0Held ? 'both' : 'both-conflict',
+          kb_p0_held: kbP0Held,
           reason: kb.reason ?? model.reason ?? null,
           kb: pickKb(kb), model: pickModel(model),
-          note: `两轨都命中同一个问题但结论不一致（库侧 ${a || '—'} ／ 模型侧 ${b || '—'}）`
+          note: kbP0Held
+            ? `两轨都命中同一个问题；**库侧是 P0 红线**（确定性命中、命中即拦）／`
+              + `独立复核给的是 ${b || '—'} ⇒ **不降级，仍按 BLOCK**`
+              + '（PRD §6.6：P0 不适用分流；单调性：合并只许保持或升级）。'
+              + '两侧依据都留在这里，供人复核。'
+            : `两轨都命中同一个问题但结论不一致（库侧 ${a || '—'} ／ 模型侧 ${b || '—'}）`
               + ' ⇒ **降为 REVIEW**，连同两侧依据一起转人工；不许任一侧单独定案',
         });
       }
@@ -341,9 +366,22 @@ const pickKb = (f) => ({
   reasonLine: f?.reasonLine ?? null,
   // ★ 2026-10-09：库侧已经产好的「建议」——不搬过来，渲染层只能印硬编码那句
   suggestionLine: f?.suggestionLine ?? null,
+  // ★★ 2026-10-17：**优先级与维度**（报告要按 P 级分组、每条要标维度）。
+  //   白名单式搬运的代价见 `pickModel` 那段注释：新字段不加进来就**静默消失**。
+  priorityTier: f?.priorityTier ?? null,
+  priorityTierBasis: f?.priorityTierBasis ?? null,
+  riskCategory: f?.riskCategory ?? null,
+  riskCategoryBasis: f?.riskCategoryBasis ?? null,
+  // ★ 2026-10-17：11 类。**白名单式搬运，不加这一行它就静默消失**（第 N 次同一个形状）。
+  taxonomyCategory: f?.taxonomyCategory ?? null,
+  taxonomySubcategory: f?.taxonomySubcategory ?? null,
+  // ★ 2026-10-17：库侧也能有「问题描述」（P0 快路那条来路给了逐字命中）
+  description: f?.description ?? null,
 });
 const pickModel = (f) => ({
   reason: f?.reason ?? null, excerpt: f?.excerpt ?? null, severity: normSev(f?.severity) || null,
+  // ★★ 2026-10-17：**问题描述**（报告六格里的那一格，见 `model_side.mjs` 提示词 4c）
+  description: f?.description ?? null,
   // ★ 2026-10-09：模型侧新增的「可执行改法」字段（见 model_side.mjs）
   suggestion: f?.suggestion ?? null,
   // ★ 2026-10-13：**依据来源 id**（闭集 id，不是 URL）—— 少了这一行，
@@ -678,12 +716,22 @@ export function selftest() {
        [1, 'BLOCK', 'both']);
     eq('① 库侧依据被带出来（条款号）', r.items[0].kb.article_no, 'W-1.1');
   }
-  // ② 同题冲突 → 降 REVIEW（不许任一侧单独定案）
+  // ② 同题冲突 ────────────────────────────────────────────────────────────────
+  // ★★ 2026-10-17（Owner 第三次拿报告来问「总结论是 block，但是分论点是 review」）：
+  //   冲突**不再一律降 REVIEW** —— 库侧的 BLOCK 只可能来自 P0 确定性命中，
+  //   让一条模型侧意见把它降级，等于用意见推翻读数（也违反 PRD §6.6 与单调性）。
+  //   两条方向分别钉住：库侧 BLOCK 保住；模型侧 BLOCK 不许单独立案。
   {
     const r = mergeFindings([F('00:12', '合规', 'BLOCK')], [F('00:12', '合规', 'REVIEW')]);
-    eq('② 同题冲突 → 降为 REVIEW', [r.items.length, r.items[0].severity, r.items[0].source],
-       [1, 'REVIEW', 'both-conflict']);
-    eq('② 冲突时两侧依据都留着（转人工用）', [!!r.items[0].kb, !!r.items[0].model], [true, true]);
+    eq('② 冲突：**库侧 P0 ⇒ 保 BLOCK、不降级**', [r.items.length, r.items[0].severity, r.items[0].source],
+       [1, 'BLOCK', 'both']);
+    eq('② 保 BLOCK 时两侧依据都留着（供人复核）', [!!r.items[0].kb, !!r.items[0].model], [true, true]);
+    eq('② 来源标记不能挂 both-conflict（那个标记在渲染层写着「已降 REVIEW」）',
+       /已降 REVIEW/.test(String(r.items[0].note)), false);
+    // 反向对照：模型侧报 BLOCK、库侧只有 REVIEW ⇒ **仍然降 REVIEW**（模型不许单独定案）
+    const r2 = mergeFindings([F('00:12', '合规', 'REVIEW')], [F('00:12', '合规', 'BLOCK')]);
+    eq('② 反向：模型侧 BLOCK ＋ 库侧 REVIEW ⇒ 仍降 REVIEW',
+       [r2.items.length, r2.items[0].severity, r2.items[0].source], [1, 'REVIEW', 'both-conflict']);
   }
   // ③ 仅库侧 → 走并集，按其严重度计入
   {
@@ -1534,9 +1582,35 @@ function _kbFromEngineJson(answer, engine = null) {
       //   教训：补一条「搬运」时要把**这个字段的每一条来路**都数一遍 ——
       //   今天的病全是同一个形状（两个产出者，只修了一个）。
       suggestionLine: String(r.suggestion || '').trim() || null,
+      // ★★ 2026-10-17（Owner：报告按「审计报告」模式重做）：**优先级与维度必须搬过来**。
+      //   引擎 `risk_items` 里本来就有（`with_kb_evidence.py::_to_risk_item` 投影了
+      //   `priority_tier` / `priority_tier_basis` / `risk_category` / `risk_category_basis`），
+      //   而这一层**一格都没带** ⇒ 渲染层拿不到 P 级与维度，
+      //   报告只能不分级、不分组（这一步做出来之前它连「先按 P 级」都不可能）。
+      //   ⚠️ 这是第三次同一个形状（2026-10-08 `basisLine`、2026-10-09 `suggestionLine`、
+      //      今天这两对）—— **搬运漏一格 = 报告少一格**。
+      priorityTier: String(r.priority_tier || '').trim().toUpperCase() || null,
+      priorityTierBasis: String(r.priority_tier_basis || '').trim() || null,
+      riskCategory: String(r.risk_category || '').trim() || null,
+      riskCategoryBasis: String(r.risk_category_basis || '').trim() || null,
+      // ★★ 2026-10-17（Owner：「既然分了11类，就要按照11类的出结果」）：
+      //   **11 类 / 58 子类**由引擎逐条盖在 finding 上（`review.py::stamp_taxonomy`），
+      //   真源 `kb/l3/registry/rule-taxonomy.json`（**人工口径、Owner 采用，不是源表字段**）。
+      //   ⚠️ 它与 `riskCategory`（PRD §5.3 四维）**是两件不同的东西**，互不顶替；
+      //      这一格只用于「按 11 类」的附加汇总，不改 PRD 结论行与逐条格式。
+      taxonomyCategory: String(r.taxonomy_category || '').trim() || null,
+      taxonomySubcategory: String(r.taxonomy_subcategory || '').trim() || null,
       kb: { article_no: art, anchor: anc, entry_url: link || null,
             source_sha256: ev.source_sha256 || null, library: ev.library || null, basisLine,
-            suggestionLine: String(r.suggestion || '').trim() || null },
+            suggestionLine: String(r.suggestion || '').trim() || null,
+            // ⚠️ 必须**同时**挂进 `kb` —— `mergeFindings` 是**白名单式重建**条目
+            //   （`pickKb` / `pickModel`），顶层字段到不了渲染层，只有进 `kb` 才活得下来。
+            priorityTier: String(r.priority_tier || '').trim().toUpperCase() || null,
+            priorityTierBasis: String(r.priority_tier_basis || '').trim() || null,
+            riskCategory: String(r.risk_category || '').trim() || null,
+            riskCategoryBasis: String(r.risk_category_basis || '').trim() || null,
+            taxonomyCategory: String(r.taxonomy_category || '').trim() || null,
+            taxonomySubcategory: String(r.taxonomy_subcategory || '').trim() || null },
       // ★★ 2026-10-14（Owner：「所有参考知识库的，都必须带飞书侧源链接」）：
       //   **把库自己的「不权威」声明读出来**。`scan_text()` 产的非权威候选带着
       //   `authoritative: false`（种子规则自己写着「这不是知识库的规则真源」），
@@ -1643,6 +1717,123 @@ export function excerptFromLocation(location, byPattern) {
   return hits.length ? [...new Set(hits)].join('、') : null;
 }
 
+/**
+ * **P0 快路的命中 ⇒ 一等条目**（2026-10-17，Owner 拿着报告来问的那两条）。
+ *
+ * ── 病灶（实测，`merged-2026-10-17T01_48_20` / 文档 `XzNxdvaE1o3KuJxSuAqcftRdnqd`）──
+ *   那一单库侧走 **P0 快路**：`[p0] 🚦 P0 命中 ⇒ 直接 BLOCK，不起链：H02,H05,M03`，
+ *   还**自己出过一份 3 条的 report**（`QthVdRYFVo9R9XxpDiSckCZKnfd`，两端对齐 3/3/3）。
+ *   而双轨那份合并报告：`结论=BLOCK/3 条 ｜ 逐条抽出 0 条` ⇒
+ *     · 结论行写「共发现 **9** 处」（= 模型侧 6 ＋ 库侧缺口 3），**清单只有 6 条**；
+ *     · 总结论 BLOCK，**6 条全是 REVIEW** ⇒ 读者找不到是谁把它拦下来的。
+ *   两个症状同一个病根：`p0_findings` 一直被当成「修 `excerpt` 的辅助数据」
+ *   （`p0MatchedMap`），**从来没被变成条目**。
+ *
+ * ── 为什么能变成条目（字段都齐，不需要编）────────────────────────────────
+ *   一条 P0 命中带：`_category`（= `类别-子类`，如「功效宣称-催乳与通乳宣称」）、
+ *   `article_no`、`anchor`、`source_sha256`、`verbatim.entry_url`（**飞书源直链**）、
+ *   `_l3.reason`、`suggested_replacement`、`matched[].span/line_text`（逐字命中）。
+ *   ⇒ 维度由 `risk-category-policy.json` 映射（查不到就 `null`，**不猜**）。
+ *
+ * ── 三条边界 ──────────────────────────────────────────────────────────
+ *   · **不新造判定**：`severity` 恒 `BLOCK`（P0 命中即拦，PRD §6.6），不是这里判的；
+ *   · 取不到的格子**留空并如实说**（没有 `entry_url` 就不给链接，没有 reason 就说没有）；
+ *   · 与结构化 `risk_items` 重叠时**按 `anchor|article_no` 去重**（不重复计数）。
+ *
+ * @param {Array|null} p0Findings `res.p0_findings`（`kb/l5/p0_fastpath.py` 的 `findings`）
+ * @returns {Array} 与 `kbFindingsOf` 产出的条目同形的条目
+ */
+export function p0FindingsToItems(p0Findings) {
+  const list = Array.isArray(p0Findings) ? p0Findings : [];
+  const out = [];
+  for (const f of list) {
+    if (!f || typeof f !== 'object') continue;
+    const rc = String(f.rule_code || '').trim() || null;
+    // 逐字命中：`matched[0]` 的 `span` 切 `line_text`
+    const m = (Array.isArray(f.matched) ? f.matched : [])[0] || null;
+    const lt = String(m?.line_text ?? '');
+    const sp = Array.isArray(m?.span) ? m.span : null;
+    const hit = (lt && sp && sp.length === 2) ? lt.slice(Number(sp[0]), Number(sp[1])).trim() : '';
+    // 类别：`_category` 是 `类别-子类`，按**第一个** `-` 拆（子类里还可能带 `-`）
+    const catRaw = String(f._category || '').trim();
+    const dash = catRaw.indexOf('-');
+    const category = (dash > 0 ? catRaw.slice(0, dash) : catRaw).trim() || '未分类';
+    const sub = dash > 0 ? catRaw.slice(dash + 1).trim() : '';
+    const l3 = (f._l3 && typeof f._l3 === 'object') ? f._l3 : {};
+    const art = String(f.article_no || l3.article_no || '').trim() || null;
+    const anc = String(f.anchor || '').trim() || null;
+    const vb = (f.verbatim && typeof f.verbatim === 'object') ? f.verbatim : {};
+    const url = String(vb.entry_url || '').trim() || null;
+    const lib = String(l3.kb_type || '').trim() === 'wording' ? '措辞表达库 v0' : '知识库';
+    // ⚠️ 库侧 `reason` 同样是**同族规则的拼接**（一条能到 200+ 字，里面还夹着相邻规则码），
+    //   原样印出来业务侧抓不到重点 ⇒ 截断到第一句主要意思，并如实标注另有说明。
+    const reasonRaw = String(l3.reason || '').trim();
+    let reason = reasonRaw || `命中 P0 红线（模式表判 BLOCK${rc ? `，规则码 ${rc}` : ''}）`;
+    if (reasonRaw.length > 180) {
+      const seg = reasonRaw.slice(0, 180);
+      const stop = Math.max(seg.lastIndexOf('；'), seg.lastIndexOf('。'));
+      reason = `${(stop > 60 ? seg.slice(0, stop) : seg)}…（另有同族规则说明，见库内条款）`;
+    }
+    // ⚠️ 模式表的 `suggested_replacement` 是**整条变体清单的拼接**（实测 2000+ 字，
+    //   同一条改法会被「」变体重复十几遍）—— 原样印进报告，业务侧根本读不下去。
+    //   这里只取**第一组**（第一处「」之前的动作），并如实标注「完整改法见库内条款」。
+    const sugRaw = String(f.suggested_replacement || '').trim();
+    let sug = sugRaw || null;
+    if (sugRaw) {
+      const cut = sugRaw.search(/[；;]\s*「/);      // 第一个变体分隔处
+      const first = (cut > 0 ? sugRaw.slice(0, cut) : sugRaw).trim();
+      sug = first.length > 260 ? `${first.slice(0, 260)}…` : first;
+      if (first.length < sugRaw.length) sug += '（完整改法见库内条款）';
+    }
+    const basisLine = `《${lib}》${art ? `第 ${art} 条` : '（未给条款号）'}`
+      + (hit ? ` ← 命中「${hit}」` : '')
+      + (anc ? `｜锚点：${anc}` : '')
+      + (url ? `｜原始出处：${url}` : '');
+    out.push({
+      // ⚠️ 位置：P0 是**全文确定性匹配**，不给它编一个段落号。
+      //   ★ 2026-10-17 第五轮后半（Owner：「表格有些丑」）：这里原先写
+      //   `全文，逐字命中「boosts milk」` —— 而总览表**另有一列「命中描述」印的正是那一句**
+      //   ⇒ 同一行说两遍，还把「位置」这一列撑成最宽的一列。现在只留 `全文`。
+      location: '全文',
+      category, sub,
+      severity: 'BLOCK',                    // P0 命中即拦（PRD §6.6），不是这里判的
+      source: 'kb',
+      reason,
+      // 问题描述只说**现象**；规则码属于「依据」那一格（业务侧不需要拿规则码当描述）
+      description: hit ? `逐字命中「${hit}」` : null,
+      excerpt: hit || null,
+      suggestionLine: sug,
+      // ★ 分级的**真出处**：P0 快路（模式表 `p_level=P0`）
+      priorityTier: 'P0',
+      priorityTierBasis: `P0 快路（模式表 p_level=P0${rc ? `，rule_code=${rc}` : ''}）`,
+      riskCategory: dimensionForCategory(category, RISK_CATEGORY_POLICY),
+      riskCategoryBasis: RISK_CATEGORY_POLICY
+        ? 'risk-category-policy.json（库侧唯一口径；未映射则留空待裁）' : null,
+      // ⚠️ **顶层也要挂一份** —— `mergeFindings` 走 `pickKb()`，那是**白名单式重建**，
+      //   读的是条目的**顶层** `basisLine`/`suggestionLine`/`excerpt`（不是 `kb.*`）。
+      //   第一版只挂了 `kb` ⇒ 依据退化成「《知识库》（未给条款号）（锚点：—）」，
+      //   来源标记还被判成「非权威候选线索 · 不构成证据」（实测当场就看到）。
+      //   这是本文件第四次同一个形状（basisLine / suggestionLine / priorityTier / 这次）。
+      basisLine, reasonLine: reason, suggestionLine: sug,
+      // ⚠️ 顶层也要挂：`mergeFindings` 的 `pickKb` 读**顶层** `source_sha256`
+      //   （第五次同一个形状 —— 只挂进 `kb` 的那一份会被静默丢掉）。
+      source_sha256: String(f.source_sha256 || '').trim() || null,
+      rule_code: rc,
+      kb: { article_no: art, anchor: anc, entry_url: url,
+            source_sha256: String(f.source_sha256 || '').trim() || null,
+            library: lib, basisLine, suggestionLine: sug,
+            description: hit ? `逐字命中「${hit}」` : null,
+            priorityTier: 'P0',
+            priorityTierBasis: `P0 快路（模式表 p_level=P0${rc ? `，rule_code=${rc}` : ''}）`,
+            riskCategory: dimensionForCategory(category, RISK_CATEGORY_POLICY),
+            riskCategoryBasis: 'risk-category-policy.json' },
+    });
+  }
+  return out;
+}
+
+const _p0Key = (f) => `${String(f?.kb?.anchor ?? '')}|${String(f?.kb?.article_no ?? '')}`;
+
 export function kbFindingsOf(answer, engine = null, p0Findings = null) {
   // ══════════════════════════════════════════════════════════════════════════
   // ★★ 2026-10-08（第六批）：**结构化优先 —— 先找引擎 JSON 的 `risk_items`**。
@@ -1663,10 +1854,19 @@ export function kbFindingsOf(answer, engine = null, p0Findings = null) {
   //      （直链优先 `evidence.l0_entry_url`，其次 `evidence_url` 里像 http 的那个；
   //      两者都没有就**不编**，如实不带链接）。
   const structured = _kbFromEngineJson(answer, engine);
+  // ★★ 2026-10-17：**P0 快路的命中要变成条目**（见 `p0FindingsToItems` 的病灶段）。
+  //   两条来路（结构化 / 逐行正则）都要并，且**按 `anchor|article_no` 去重** ——
+  //   P0 命中与 L3 命中可能指向同一条款，重复计数会被读成「多报了 N 处」。
+  const p0Items = p0FindingsToItems(p0Findings);
   // ★ 2026-10-09：命中读数**两条来路都要带**（结构化 / 逐行正则）——
   //   它与「明细从哪儿抠出来」无关：数据都在**同一份** `engine` 里。
   //   原先只挂在 `coverage` 上（且只在覆盖缺口时才挂）⇒ 常规单子一个字都没有。
-  if (structured) return { ...structured, kbHitsBlock: kbHitsBlockOf(engine) };
+  if (structured) {
+    const seen = new Set(structured.findings.map(_p0Key));
+    const extra = p0Items.filter((f) => !seen.has(_p0Key(f)));
+    return { ...structured, findings: [...structured.findings, ...extra],
+             kbHitsBlock: kbHitsBlockOf(engine) };
+  }
 
   // ★★ 2026-10-14：P0 快路的**真实命中文字**映射（正则 ⇒ 命中文字）。
   //   没有它，「同问题取交集」判据恒「无从比」—— 见 `p0MatchedMap` 的说明。
@@ -1725,7 +1925,9 @@ export function kbFindingsOf(answer, engine = null, p0Findings = null) {
     }
     out.push(item);
   }
-  return { findings: out, coverage, candidates, kbHitsBlock: kbHitsBlockOf(engine) };
+  // ★★ 2026-10-17：P0 命中**排在前面**（红线要先看见），再是正文抠出来的条目。
+  return { findings: [...p0Items, ...out], coverage, candidates,
+           kbHitsBlock: kbHitsBlockOf(engine) };
 }
 
 /**
@@ -2176,6 +2378,35 @@ export function selftestExtract() {
        [/有库内条款依据/.test(weakNoLink), /有库内条款依据/.test(weakNoArt)], [false, false]);
     eq('㉒e3 它们要如实说「非权威候选线索 · 不构成依据」',
        [/非权威候选线索/.test(weakNoLink), /非权威候选线索/.test(weakNoArt)], [true, true]);
+
+    // ── ㉔ 按 11 类汇总（2026-10-17，Owner：「既然分了11类，就要按照11类的出结果」）──────
+    //   这一组钉三件事：① 有 11 类就出这一行且计数对；② **一条都没有就不出这一行**
+    //   （不许印一张空分类表冒充结论）；③ 无 11 类的条数**照实写在行尾**，不硬塞进任何一类。
+    const taxA = [{ source: 'kb', category: '功效宣称', taxonomyCategory: '合规与受监管宣称', taxonomySubcategory: '生理功效与效果承诺' },
+                  { source: 'kb', category: '功效宣称', taxonomyCategory: '合规与受监管宣称', taxonomySubcategory: '绝对化与最高级用语' },
+                  { source: 'kb', category: '背书与资质', taxonomyCategory: '证据与实质证明', taxonomySubcategory: '临床与科学证据要求' }];
+    const lineA = taxonomySummaryLine(taxA);
+    eq('㉔a 有 11 类 ⇒ 出这一行且计数对',
+       [/按 11 类/.test(lineA), /合规与受监管宣称 2/.test(lineA), /证据与实质证明 1/.test(lineA)],
+       [true, true, true]);
+    eq('㉔b 一条都没有 ⇒ 空串（不印空分类表）', taxonomySummaryLine([{ source: 'kb', category: '合规' }]), '');
+    const lineC = taxonomySummaryLine([...taxA, { source: 'model', category: '合规' }]);
+    eq('㉔c 无 11 类的条数照实写、不硬塞', /另有 1 条无 11 类/.test(lineC), true);
+    // ㉔d 反向对照：**把 11 类抹掉，这一行必须消失** —— 证明它不是恒真的常量
+    const kbNoTax = taxA.map((f) => { const g = { ...f }; delete g.taxonomyCategory; return g; });
+    eq('㉔d 反向对照：抹掉 11 类 ⇒ 这一行消失', taxonomySummaryLine(kbNoTax), '');
+    // ㉔f 报告那一段（表 + 无 11 类交代），且一条都没有时**整段不出现**
+    const repLines = taxonomyReportLines(taxA);
+    eq('㉔f 报告段含表格与无 11 类交代',
+       [/附录 · 按 11 类汇总/.test(repLines.join('\n')),
+        /\| 合规与受监管宣称 \| 2 \|/.test(repLines.join('\n'))], [true, true]);
+    eq('㉔f2 没有 11 类 ⇒ 报告整段不出现', taxonomyReportLines([{ source: 'model' }]).length, 0);
+
+    // ㉔e `pickKb` 白名单：不加这两格它们就静默消失（同一个形状栽过多次）
+    const picked = pickKb({ taxonomyCategory: '合规与受监管宣称', taxonomySubcategory: '法定认证与注册表述' });
+    eq('㉔e pickKb 必须搬运 11 类',
+       [picked.taxonomyCategory, picked.taxonomySubcategory],
+       ['合规与受监管宣称', '法定认证与注册表述']);
   }
 
   console.log(`\n抽取自证：通过 ${pass} / 失败 ${bad.length}`);
@@ -2242,10 +2473,628 @@ export function evidenceBlock(items, { max = 12 } = {}) {
  * @returns {number}
  */
 export function countRenderedItems(text) {
-  return (String(text ?? '').match(/^ *\d+\.【[^】]+】/gm) || []).length;
+  const t = String(text ?? '');
+  const card = (t.match(/^ *\d+\.【[^】]+】/gm) || []).length;
+  // ★ 2026-10-17 第十五轮：报告那一份的条目改成了 `**F-01 ｜ …**` 的形状
+  //   （Owner 样张），不再以 `1.【…】` 开头 ⇒ 计数要同时认两种，否则
+  //   「报告里应有 N 条」这条断言会**静默数出 0 条**（红得对不上病）。
+  const report = (t.match(/^\*\*F-\d{2,} ｜ /gm) || []).length;
+  return card + report;
 }
 
-export function renderMergedItem(f, i, { must = false } = {}) {
+// ══════════════════════════════════════════════════════════════════════════
+// 分级（P0–P3）· 维度 · 承办 —— 报告「分论点」与「执行」两步的判据
+// ══════════════════════════════════════════════════════════════════════════
+//
+// ★★ 2026-10-17（Owner 拿着白板来定格式）。白板画的是：
+//
+//      总（state + 1句话）  →  分：`P0 → G1/G2/G3 → rule 1 out` ｜ `P1 → rule 2 out`
+//      →  执行 @角色
+//      圈起来的判定规则：`P0 ≥ 1 → Block` ｜ `P1 ≥ 1 且无 P0 → review` ｜ `Pn ……`
+//
+// 那一圈**就是 PRD §6.3 的四层执行规则**，而 `P0…P3` 就是那四层：
+//   P0 红线（关键词/正则，毫秒级）→ 命中即 BLOCK
+//   P1 安全与准确性（**大模型语义理解**）→ 至少 REVIEW
+//   P2 通识常识（大模型多模态）→ 同上
+//   P3 措辞建议 → **不影响结论**
+//
+// ── 边界（写清楚，别让它比输入大）────────────────────────────────────────
+//   · **库侧**的 P 级只认引擎给的 `priority_tier`（`core/tiering.py` 的单一口径）。
+//     拿不到就如实说「未分级」，**不从 severity 反推一个**（BLOCK≠P0：模型侧也能报 BLOCK，
+//     而它是 P1）。反推会把「登记过的分级」换成「猜的分级」，比空着更坏。
+//   · **模型侧**统一归 P1 —— 这是 PRD §6.3 给「大模型语义层」定的位置，不是我们迁就数据。
+//     它自己的 BLOCK/REVIEW 照旧印在 `**优先级**` 那一行里（轻重没丢，只是不冒充 P0）。
+//   · **维度**只认 PRD §5.3 的四维度（合规 / 消费者安全 / 产品描述 / 措辞表达）。
+//     映射表在 `kb/l7/registry/risk-category-policy.json`，**政策件自己写着
+//     「不编，留空待裁」** ⇒ 这里对不上的就标「未映射」，**不硬塞进某一维**。
+//     实测影响面：模型侧 7 个类目里「隐私 / AI 披露 / 本地化」三个**现在没有维度**。
+//   · **承办**只搬 `routing.mjs` 的算出来的角色位；**句柄没配就写「（未配置）」**，
+//     **不编人名**（`kb/l7/registry/l7.json` 的 `approvers.configured` 现在还是 false）。
+
+/** PRD §6.3 的四层（**顺序有意义**：报告按这个次序分组）。 */
+export const PRIORITY_LEVELS = Object.freeze(['P0', 'P1', 'P2', 'P3']);
+
+/** 每一层是什么 —— 措辞取自 PRD §6.3 原文，**不是**我们自己起的名字。 */
+export const PRIORITY_LABEL = Object.freeze({
+  // ★ 2026-10-17 第二次（Owner：「这是给业务侧看的报告」）：**层名只用业务读得懂的那半**。
+  //   原来的「（关键词/正则，毫秒级）」「（大模型语义理解层）」是实现细节，
+  //   留在登记件与留底附录里，不进给业务看的那一份。
+  P0: '红线（命中即拦）',
+  P1: '安全与准确性',
+  P2: '通识常识',
+  P3: '措辞建议（不改结论）',
+});
+
+/** PRD §5.3 的四维度（`risk-category-policy.json` 的 `dimensions` 同一份）。 */
+export const PRD_DIMENSIONS = Object.freeze(['合规', '消费者安全', '产品描述', '措辞表达']);
+
+const _isKbSide = (f) => f?.source === 'kb' || f?.source === 'both' || f?.source === 'both-conflict';
+const _kbOf = (f) => ((f && typeof f.kb === 'object' && f.kb) ? f.kb : {});
+
+/**
+ * 这一条的**优先级**。
+ * @returns {{level:string|null, basis:string|null, text:string}}
+ */
+export function priorityOf(f) {
+  const x = (f && typeof f === 'object') ? f : {};
+  const kb = _kbOf(x);
+  if (_isKbSide(x)) {
+    const raw = String(kb.priorityTier || x.priorityTier || '').trim().toUpperCase();
+    if (PRIORITY_LEVELS.includes(raw)) {
+      // 组标题里已经印过 `P1 — 安全与准确性`，条目行**只留级别** ——
+      // 引擎口径（`p_level=P0` 之类）是实现细节，留在留底附录里，不给业务侧看。
+      return { level: raw, basis: 'kb_tier', text: raw };
+    }
+    return { level: null, basis: null,
+             text: '（**未分级** —— 库侧这一条来路没带 `priority_tier`，**不代定**）' };
+  }
+  // 模型侧：PRD §6.3 第二层就是「大模型语义理解」，它天然落 P1。
+  const sev = String(x.asked_severity || x.severity || 'REVIEW').toUpperCase();
+  return { level: 'P1', basis: 'model_side_default',
+           // ⚠️ 措辞里**不许出现「模型侧」/「知识库侧」**（Owner 2026-10-13 点名去掉）——
+           //   ⑱b2 拿 `renderMergedItem` 的产出当反向对照，一撞就红。
+           //   ★ 2026-10-17 第二次：**去掉「按 PRD §6.3 第二层归 P1」**这半句 ——
+           //   业务侧不需要知道内部分层依据；留下「自评」是因为那是**这一条的读数**。
+           text: `P1（自评 ${sev}）` };
+}
+
+/**
+ * 这一条的**维度**（PRD §5.3 四维度之一）。
+ * @returns {{dimension:string|null, text:string}}
+ */
+export function dimensionOf(f) {
+  const x = (f && typeof f === 'object') ? f : {};
+  const kb = _kbOf(x);
+  // 库侧优先用引擎盖过章的 `risk_category`；模型侧类目本身就是维度口径（闭集 7 个）。
+  const cand = String((_isKbSide(x) ? (kb.riskCategory || x.riskCategory || '') : '')
+    || x.category || '').trim();
+  if (PRD_DIMENSIONS.includes(cand)) return { dimension: cand, text: cand };
+  // ★ 2026-10-17 第二次：理由说成**业务读得懂**的一句（原来的「PRD §5.3 / 政策件留空待裁」
+  //   是内部口径）。四个维度直接列出来，读者自己就能判断它为什么不在这四类里。
+  return { dimension: null,
+           text: `（未映射 —— 「${cand || '未给类别'}」不属于 合规 / 消费者安全 / 产品描述 / 措辞表达 这四类）` };
+}
+
+/**
+ * 这一条的**问题描述**（PRD §8.3 六格里的那一格）。
+ *
+ * 三条口径：
+ *   · 有 `description`（模型侧新字段 / 库侧将来也能给）⇒ 直接用它；
+ *   · 没有但有逐字命中（`excerpt`）⇒ **如实写成「逐字命中「…」」并标明这是替代**，
+ *     因为它确实是「哪里有问题」的原文，但它**不是**模型写的描述；
+ *   · 都没有 ⇒ 如实说「未给」，**不把 `reason` 搬过来顶**（那等于两格又合成一格）。
+ */
+export function descriptionOf(f) {
+  const x = (f && typeof f === 'object') ? f : {};
+  const d = String(x.description || x.kb?.description || x.model?.description || '').trim();
+  if (d) return { description: d, basis: 'given', text: d };
+  const exc = String(x.excerpt || x.model?.excerpt || '').trim();
+  if (exc) {
+    return { description: exc, basis: 'excerpt',
+             text: `逐字命中「${exc}」（**本条未单独给问题描述，此处取的是命中原文**）` };
+  }
+  return { description: null, basis: null,
+           text: '（本条未提供问题描述）' };
+}
+
+/** 分组表头：P 级。 */
+// ── 「发现 N（合规 x｜安全 0｜权利 0｜本地化 0｜措辞 x）」这一行的分桶 ────────────
+//
+// ★★ 2026-10-17 第六轮（Owner 给的样张）。分桶是**业务口径**，不是 PRD §5.3 的四维度：
+//   样张给的是「合规 / 安全 / 权利 / 本地化」，而 §5.3 的四维度是
+//   「合规 / 消费者安全 / 产品描述 / 措辞表达」。
+//   ⚠️ **这两套对不上** ——「措辞表达」「产品描述」在样张的四个格子里没有落点。
+//   ⇒ 现在保留样张那四格、**另加一格「措辞」**（第 5 格，是我加的，不是 Owner 给的）。
+//     要把它并进别的格，改这张表即可（只有这一处）。
+export const BUCKETS = Object.freeze([
+  { key: '合规', from: ['合规'] },
+  { key: '安全', from: ['消费者安全'] },
+  { key: '权利', from: ['隐私', 'AI 披露', '人物肖像与 AI'] },
+  { key: '本地化', from: ['本地化'] },
+  { key: '措辞', from: ['措辞表达', '产品描述', '表述与术语准确性', '品牌一致性'] },
+]);
+
+/**
+ * 这一条落哪个业务桶。**先看维度、维度没有再看类别**（模型侧类目本身就是维度口径）。
+ * @returns {string|null} 桶名；落不进任何一个就 `null`（由 `discoveryLine` 记进「其他」）
+ */
+export function bucketOf(f) {
+  const dim = dimensionOf(f).dimension || '';
+  const cat = String(f?.category ?? '').trim();
+  for (const key of [dim, cat]) {
+    if (!key) continue;
+    const b = BUCKETS.find((x) => x.from.includes(key));
+    if (b) return b.key;
+  }
+  return null;
+}
+
+/**
+ * `发现 N（合规 x｜安全 0｜权利 0｜本地化 0｜措辞 x）`
+ *
+ * ⚠️ 这里的 **N 是「本清单条数」**，不是结论行那个数。两者正常相等；
+ *   一旦不等（库侧报了几条但明细没取到），报告里另有一道「账不平」告警会说话 ——
+ *   不允许出现「括号里加起来 ≠ 括号前那个数」。
+ */
+export function discoveryLine(items) {
+  const list = Array.isArray(items) ? items : [];
+  const counts = new Map(BUCKETS.map((b) => [b.key, 0]));
+  let other = 0;
+  for (const f of list) {
+    const k = bucketOf(f);
+    if (k && counts.has(k)) counts.set(k, counts.get(k) + 1);
+    else other += 1;
+  }
+  // ★ 2026-10-17 第八轮（Owner：「权利 0｜本地化 0，没有的你不写呀」）——
+  //   **只写非零的桶**。四格全 0 只在「一条都没有」时出现，而那一档根本不进这里。
+  const parts = BUCKETS
+    .filter((b) => counts.get(b.key) > 0)
+    .map((b) => `${b.key} ${counts.get(b.key)}`);
+  if (other) parts.push(`其他 ${other}`);
+  // 兜底：一条都落不进桶里（理论上不会），也不印一对空括号
+  return parts.length
+    ? `发现 ${list.length}（${parts.join('｜')}）`
+    : `发现 ${list.length}`;
+}
+
+/**
+ * `一句话：…` —— **只陈述事实与指针，不下判断**。
+ *
+ * ★ 2026-10-17（Owner 样张：「一句话：本版 listing 有三处功效/等级宣称需替换，**其余可发**」）：
+ *   后半句是**判断**，代码编不出来。所以这一版是**自动小结**：
+ *   只写「几处 / 其中红线几条 / 最该先看哪几条（什么类别）」，**不写「其余可发」**。
+ *   要那种人话，得让模型写（像 `advice.mjs` 那样单独一次调用）—— 排在下一轮。
+ *
+ * @returns {string|null} 没有条目时返回 null（不编一句空话）
+ */
+export function autoSummaryLine(items, { state = '' } = {}) {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) return null;
+  // ★★ 2026-10-17 第九轮（Owner：「一句话：共 7 处…P0 红线 2 处；集中在合规（3 条），也只有 5 条呀」）
+  //   —— 病灶不是数错了，是**句子读起来该相加**：`P0 红线 2 处` 与 `合规 3 条` **本来就是重叠的**
+  //   （合规 3 条里含 P0 那 2 条），并排放，读者自然算成 5。
+  //   而且「集中在合规 3 条」与上面 `发现 7（合规 3｜…）` 说的是同一件事，重复了一遍。
+  //   ⇒ 现在这句话只回答两件事：**优先级怎么分（能相加）**、**先看哪几条**：
+  //        `共 7 处必须修改，其中 P0 红线 2 处、其余 5 处需人工确认；建议先看第 1、2 条（功效宣称 / 绝对化与安全承诺）。`
+  //     数字口径：「P0 红线 p 处 ＋ 其余 N−p 处 ＝ N」，**恒等**，不会再被读成另一个数。
+  const st = String(state).toUpperCase();
+  const p0 = list.filter((f) => priorityOf(f).level === 'P0');
+  const head = st === 'BLOCK'
+    ? `共 ${list.length} 处必须修改`
+    : `共 ${list.length} 处需人工确认`;
+  // 口径：`P0 p 处 + 其余 N−p 处 = N`（**不重叠、可相加**）
+  const p0Part = p0.length
+    ? `，其中 **P0 红线 ${p0.length} 处**、其余 ${list.length - p0.length} 处需人工确认`
+    : '，未见 P0 红线';
+  // 指路：有 P0 就指 P0，否则指前两条；**用条号**（与总览表、分论点同一个号）
+  const pick = (p0.length ? p0 : list).slice(0, 2);
+  const idxs = pick.map((f) => list.indexOf(f) + 1);
+  const nums = idxs.length ? `第 ${idxs.join('、')} 条` : '';
+  const cats = [...new Set(pick.map((f) => String(f?.category || '').trim()).filter(Boolean))].join(' / ');
+  const pickPart = nums ? `；建议先看${nums}${cats ? `（${cats}）` : ''}` : '';
+  return `一句话：${head}${p0Part}${pickPart}。`;
+}
+
+/**
+ * 级别 → **处置动作**（Owner 2026-10-17 样张里的映射：
+ * `P0 = 立即停发 ｜ P1 = 24h 内改完再送 ｜ P2 = 本版内改 ｜ P3 = 记录`）。
+ *
+ * ⚠️ **这几个 SLA（24h／本版内改）是照抄样张的、还没经业务确认** ——
+ *   写进报告就是对外承诺；口径定了只改这一张表。
+ */
+export const FAILURE_ACTION = Object.freeze({
+  P0: '立即停发', P1: '24h 内改完再送', P2: '本版内改', P3: '记录',
+});
+// ⚠️ **当前不印进报告**（2026-10-17 第二十轮）：
+//   这套映射来自 Owner 发来的一份**样张截图**，查过 `kb/l7`/`kb/l5` 全库（排除备份）
+//   —— `立即停发 / 24h 内改完再送 / 本版内改 / 记录` **一条都没有**，**不是 PRD、也不是本库规矩**。
+//   ⇒ 不再按条重复印「立即停发」「24h 内改完再送」；也不印那行「处置口径」。
+//   PRD 规定的动作只有两句（已在 `orderActionLine()` 那一行）：
+//     REVIEW ⇒ `建议转 @… 复核。`；BLOCK ⇒ `请修改后重新提交。`
+//   这张表**留着**是备将来：若 Owner 正式确认处置口径，只需在**一处**重新引它，别再散到每条。
+
+/**
+ * **短级别名**（`P0 红线`）—— 给合并后的分组标题用（`### **P0 红线 · 合规 ｜ 2 条**`）。
+ *
+ * ★ 2026-10-17 第二十轮（Owner：「下面这几行内容有些啰嗦，那么多标题，这里写两行就好」）：
+ *   原先是 `### P0 — 红线（命中即拦） ｜ 2 条` ＋ `#### 合规 ｜ 2 条` **两层标题**，
+ *   加上节标题和那行处置口径，条目正文前面压了**五行**。现在并成一行。
+ */
+export const PRIORITY_SHORT = Object.freeze({
+  P0: 'P0 红线', P1: 'P1 安全与准确性', P2: 'P2 通识常识', P3: 'P3 措辞建议',
+});
+
+export function actionPolicyLine() {
+  return '处置口径：**P0 立即停发** ｜ **P1 24h 内改完再送** ｜ **P2 本版内改** ｜ **P3 记录**。';
+}
+
+export function priorityHeading(level) {
+  if (level === 'UNRANKED') return '未分级（本次没拿到分级读数）';
+  return `${level} — ${PRIORITY_LABEL[level] ?? ''}`;
+}
+
+/** 分组表头：维度。 */
+export function dimensionHeading(dim) {
+  if (dim === 'UNMAPPED') return '未映射维度（不属于那四个维度）';
+  return dim;
+}
+
+/**
+ * 把条目排成 **P 级 → 维度** 两级分组（报告的「分论点」就是按它印的）。
+ *
+ * ⚠️ 空等级**不出现**（没命中就别占一行标题）—— 但**分组内的次序是固定的**
+ *    （P0→P1→P2→P3；维度按 PRD §5.3 的四维度次序，未映射排最后），
+ *    所以同一批条目两次渲染必然同序。
+ *
+ * @param {Array} items
+ * @returns {Array<{level:string, groups:Array<{dimension:string, items:Array}>, count:number}>}
+ */
+export function groupByPriorityAndDimension(items) {
+  const list = Array.isArray(items) ? items : [];
+  const byP = new Map();
+  for (const f of list) {
+    const p = priorityOf(f).level || 'UNRANKED';
+    const d = dimensionOf(f).dimension || 'UNMAPPED';
+    if (!byP.has(p)) byP.set(p, new Map());
+    const m = byP.get(p);
+    if (!m.has(d)) m.set(d, []);
+    m.get(d).push(f);
+  }
+  const pOrder = [...PRIORITY_LEVELS, 'UNRANKED'];
+  const dOrder = [...PRD_DIMENSIONS, 'UNMAPPED'];
+  const out = [];
+  for (const p of pOrder) {
+    const m = byP.get(p);
+    if (!m) continue;
+    const groups = dOrder.filter((d) => m.has(d))
+      .map((d) => ({ dimension: d, items: m.get(d) }));
+    out.push({ level: p, groups, count: groups.reduce((s, g) => s + g.items.length, 0) });
+  }
+  return out;
+}
+
+/**
+ * 每条问题该转谁（**逐条**算，不是整单一次）。
+ *
+ * 与整单那一行的差异：整单是「把全部方向词并起来取并集」，逐条是「这一条自己的方向」。
+ * 两种都要 —— 逐条回答「这一处找谁改」，整单回答「这一单转给谁复核」。
+ * 方向词一个都没命中 ⇒ 落 `routing-policy.json` 的 `fallback`，并**如实标出来**
+ * （「落默认」与「按方向命中」是两件事，读者有权知道）。
+ */
+/**
+ * 角色 → 执行段那个 `@…`。**句柄没配就写「（未配置）」**，不编人名
+ * （`kb/l7/registry/l7.json` 的 `approvers.configured` 现在是 false）。
+ * ⚠️ **飞书云文档里的 @ 不产生通知** —— 报告里这一格是**给人看的分派**；
+ *    真通知仍靠群卡片那一行（那里才是 IM 消息）。
+ */
+export function handlesConfigured() {
+  return ROLE_HANDLES.size > 0;
+}
+
+/**
+ * @param {string} role
+ * @param {{ bare?: boolean }} [opt] `bare:true` ⇒ 只给 `@角色`（配置状态由**小节头一句**统一说，
+ *   不再每个角色重复一遍「（未配置）」—— Owner 2026-10-17：「这里格式好丑」）
+ */
+export function roleTag(role, { bare = false } = {}) {
+  const r = String(role ?? '').trim();
+  if (!r) return '@（未指定）';
+  const h = ROLE_HANDLES.get(r);
+  if (h) return `@${h}`;
+  return bare ? `@${r}` : `@${r}（未配置）`;
+}
+
+export function ownersByItem(items) {
+  const list = Array.isArray(items) ? items : [];
+  return list.map((f) => {
+    const r = reviewOwnersFor([f], ROUTING_POLICY);
+    const named = r.owners.map((o) => (ROLE_HANDLES.get(o)
+      ? `@${ROLE_HANDLES.get(o)}` : `${o}（未配置）`));
+    const text = named.length
+      ? named.join('、') + (r.unmatched ? '（**方向未命中，按默认分派**）' : '')
+      : '（**未给出承办** —— 没命中任何分派规则，转人工）';
+    return { owners: r.owners, unmatched: r.unmatched, text };
+  });
+}
+
+/**
+ * 整单那一行收尾（PRD §5.3.2 / §5.3.3 的「建议转 @… 复核。」／「请修改后重新提交。」）。
+ *
+ * ★ 2026-10-17：从 `renderMerged` 里抽出来 —— 报告（`merged_report.mjs`）也要印同一行，
+ *   两处各写一遍必然漂移（本文件已因「同一个东西两个产出者」栽过多次）。
+ */
+export function orderActionLine(items, { must = false, routing = null } = {}) {
+  const list = Array.isArray(items) ? items : [];
+  const r = routing || reviewOwnersFor(list, ROUTING_POLICY);
+  if (must) return '请修改后重新提交。';
+  return renderReviewAction(r.owners, ROLE_HANDLES,
+    { unmatched: r.unmatched, total: list.length,
+      // ★ 没有任何条目可路由（空清单）时落这个 —— 与「读不到路由表」同一答案。
+      //   库侧覆盖缺口那一支恒为空清单，靠的就是这条（`routing.py` 同口径）。
+      fallback: ROUTING_POLICY?.fallback });
+}
+
+/**
+ * **一句话要点**（执行段用）——`第 N 条（类别·命中「X」）` 里的那个括号。
+ *
+ * ★ 2026-10-17（Owner：「最后执行要用 @xxx 来查 xx 点」）：只有条号不够 ——
+ *   业务同事拿到「第 1、2、3、5 条」还得翻回去对照。要点取**逐字命中**，
+ *   没有命中就退到问题描述的前若干字，两者都没有就**只说类别**（不编一句）。
+ */
+/**
+ * **问题编号**（`F-xxxxxx`）—— 跨复跑能对上的那个键。
+ *
+ * ★ 2026-10-17（审计报告惯例：Finding ID）。病灶：现在只有「第 3 条」这种**序号**，
+ *   而序号**随分组次序漂**（多一条、少一条、优先级变了，全都要重排）⇒ 一封邮件里写的
+ *   「第 3 条」过两天对不上同一条问题。业内的做法是给每条一个稳定 ID，整改台账挂在 ID 上。
+ *
+ * 派生规则（**确定性，不含时间**）：
+ *   · 库侧：`anchor|article_no|类别`（这三个是库内坐标，素材不变就不变）；
+ *   · 独立复核侧：`位置|类别|逐字命中`（没有逐字命中就退到位置|类别）。
+ *
+ * ⚠️ 边界说清楚：**这三样变了，ID 就会变** —— 它保证的是「同一条问题在复跑里对得上」，
+ *   **不保证跨素材稳定**，也不承担「同一素材改了文案后仍是同一条」的语义等价。
+ */
+export function stableIdOf(f) {
+  const x = (f && typeof f === 'object') ? f : {};
+  const kb = _kbOf(x);
+  const key = _isKbSide(x)
+    ? ['kb', kb.anchor || '', kb.article_no || '', x.category || ''].join('|')
+    : ['model', x.location || '', x.category || '',
+       String(x.excerpt || '') || String(descriptionOf(x).description || '')].join('|');
+  return `F-${createHash('sha256').update(key).digest('hex').slice(0, 6)}`;
+}
+
+/** 一批条目的编号表（同键合并撞号时按出现次序补 `-2/-3`，**确定性**）。 */
+export function stableIdsOf(items) {
+  const list = Array.isArray(items) ? items : [];
+  const seen = new Map();
+  const out = new Map();
+  for (const f of list) {
+    const base = stableIdOf(f);
+    const n = (seen.get(base) ?? 0) + 1;
+    seen.set(base, n);
+    out.set(f, n === 1 ? base : `${base}-${n}`);
+  }
+  return out;
+}
+
+/**
+ * 一条问题的**「查什么」**（表与执行段共用）。
+ *
+ * ⚠️ 2026-10-17 当天修的两个可读性坑（真渲染里当场看到）：
+ *   ① **双层套娃** `命中「逐字命中「boosts milk」」` —— 因为合并后「逐字命中」只在
+ *      `description` 里、`excerpt` 掉到了 `kb.excerpt`（`mergeFindings` 是白名单式重建，
+ *      顶层没有 `excerpt`）⇒ 这里三格都找一遍，并且**把包装词剥掉**；
+ *   ② `命中「「1,000 trials」无样本量」` —— 描述本身带中文引号，外面再包一层就读不成句。
+ *      ⇒ 改成 `类别：内容` 的形状，不再自己加引号。
+ */
+/**
+ * **实际原文**（总览表「命中描述」那一列就印它）。
+ *
+ * ★★ 2026-10-17 第十一轮（Owner：「命中描述 写实际的原文」）——
+ *   病灶：那一列原先走 `pointOf()`，而它的取值顺序是
+ *   `excerpt → 问题描述`。**模型侧的 `excerpt` 常是空的**，而它把原文放在
+ *   `location` 的 `「…」` 里（实测真件第 3/5/7 条：`素材正文第 2 段「Through over 1,000 trials …」句`）
+ *   ⇒ 表里退成了模型写的描述，印出来是「该句以…」「该句用…」——**16 字全花在「该句以」上，等于没有**。
+ *
+ * 取值顺序（三格，缺一不可）：
+ *   ① `excerpt`（库侧 = 命中词/命中片段；模型侧 = 它引的原句）
+ *   ② **`location` 里的 `「…」`**（模型侧实际把原文放这儿）
+ *   ③ 都没有 ⇒ `null`（表里印 `—`，**不许拿描述冒充原文**）
+ *
+ * ⚠️ 会把 markdown 链接 `[文字](url)` 还原成 `文字` —— 那是排版不是原文，
+ *   留在表格单元格里会把 Markdown 表格撑坏。
+ */
+export function verbatimOf(f) {
+  const x = (f && typeof f === 'object') ? f : {};
+  let t = String(x.excerpt || x.kb?.excerpt || x.model?.excerpt || '').trim();
+  if (!t) {
+    // `location` 里可能有多组「…」：取第一组（其余在分论点的「位置」里看得全）
+    const m = /「([^」]{2,})」/.exec(String(x.location || ''));
+    if (m) t = m[1].trim();
+  }
+  if (!t) return null;
+  return t
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')   // markdown 链接 → 文字
+    .replace(/\s+/g, ' ')
+    .trim() || null;
+}
+
+/** 引用块里只放原文本身：剥掉「逐字命中」这层壳与两端的中文引号。 */
+export function prettyQuote(t) {
+  let x = String(t ?? '').trim();
+  const m = /^逐字命中[「"]([^」"]+)[」"]$/.exec(x);
+  if (m) x = m[1].trim();
+  return x.replace(/^「(.+)」$/s, '$1').trim();
+}
+
+export function pointOf(f, max = 18) {
+  const cat = String(f?.category || '').trim() || '—';
+  const _exc = String(f?.excerpt || f?.kb?.excerpt || f?.model?.excerpt || '').trim();
+  const _desc = String(descriptionOf(f).description || '').trim();
+  // ⚠️ 逐字命中本身**可能被截断成半个引号**（`增产声称「Boosts Mi`）—— 那比少写几个字难读。
+  //   判据只看引号配不配平：配不平就改用问题描述（描述是完整句子）。
+  const _balanced = (_exc.match(/[「『]/g) || []).length === (_exc.match(/[」』]/g) || []).length;
+  let raw = (_exc && _balanced ? _exc : (_desc || _exc));
+  // 剥掉「逐字命中「X」」这层包装，只留 X
+  const m = /^逐字命中[「"]([^」"]+)[」"]$/.exec(raw);
+  if (m) raw = m[1].trim();
+  // ⚠️ 只在**整条被引号包住**时才脱壳（`「X」` ⇒ `X`）。
+  //   原来写的是 `replace(/^「|」$/g,'')` —— 句子里本来就有引号时（`增产声称「Boosts」`）
+  //   会把收尾那个 `」` 单独剃掉，留下一个**没有闭合**的引号（实测就是这么印出来的）。
+  const wrapped = /^「([^「」]*)」$/.exec(raw) || /^『([^『』]*)』$/.exec(raw);
+  if (wrapped) raw = wrapped[1].trim();
+  if (!raw) return cat;
+  let q = raw;
+  if (raw.length > max) {
+    q = raw.slice(0, max);
+    // ⚠️ 截断把中文引号劈成一半时（`增产声称「Boosts Mi`），退到那个「之前 ——
+    //   半个引号比少几个字难读得多。
+    const open = (q.match(/[「『]/g) || []).length;
+    const close = (q.match(/[」』]/g) || []).length;
+    if (open > close) {
+      const k = Math.max(q.lastIndexOf('「'), q.lastIndexOf('『'));
+      if (k > 0) q = q.slice(0, k);
+    }
+    q = `${q.replace(/[，、；：\s]+$/, '')}…`;
+  }
+  return `${cat}：${q}`;
+}
+
+/** 兼容旧名（外部与自证里还有调用点）。 */
+export const shortPoint = pointOf;
+
+// ════════════════════════════════════════════════════════════════════════════
+// 「后台词」清扫 ＋ 原因去建议（2026-10-17 第二十二轮，Owner 两条原话）
+//
+//   ① 「**禁止用任何后台词（recvuJYdOb1Rm1/），别人听不懂的字符编码**」
+//   ② 「每个细分，**原因就说原因，别建议，少做少错**」
+//
+// ── 为什么必须在这里做，而不是在数据源头做
+//
+//   `reasonLine` / `basisLine` 是**引擎与库侧产出的原样文本**（内部坐标、记录主键、
+//   模式 id、sha 指纹都在里面），它们对**回源**有用、对**业务侧读报告**没用。
+//   改数据源头会同时改掉卡片与台账（Owner 明令「卡片格式不要动」）；
+//   所以在**报告那一支**做显示层清扫 —— 一个函数、一个入口。
+//
+// ── 判据要窄（宁可漏洗，不许把正文洗坏）
+//
+//   只认**有形状的内部标识**：内部坐标 `#表名/rec…/命中片段`、记录主键 `rec…`、
+//   消息/会话/用户 id、表 id `tbl…`、应用 id、模式 id `p-…`、图片 key、
+//   32 位以上十六进制（sha/md5）。**裸数字、条款号（W-1.18）、产品型号（M6/M8）
+//   一律不动** —— 它们是给业务侧看的。
+// ════════════════════════════════════════════════════════════════════════════
+const BACKEND_TOKEN_RES = [
+  // `#广告文案明细/rec…/命中片段` 这种内部坐标。
+  // ⚠️ 判据必须要求**第一段含中文**（表名），否则会把正文里的 `best/#1/No.1/最佳`
+  //    这种**列表写法**当成路径删掉（2026-10-17 当场踩到：`best/#1/No.1` → `best/.1`）。
+  /#[A-Za-z0-9_]*[\u4e00-\u9fff][\u4e00-\u9fffA-Za-z0-9_]*(?:\/[A-Za-z0-9_]+){1,3}/g,
+  /\brec[A-Za-z0-9]{8,}\b/g,                               // 表记录主键
+  /\b(?:om|oc|ou|on)_[A-Za-z0-9_]{6,}\b/g,                 // 消息 / 会话 / 用户 id
+  /\btbl[A-Za-z0-9]{6,}\b/g,                               // 表 id
+  /\bbas[A-Za-z0-9]{6,}\b/g,                               // 多维表格 app id
+  /\bcli_[a-z0-9]{8,}\b/g,                                 // 应用 id
+  /\bp-[0-9a-f]{8,}\b/gi,                                  // 模式 id
+  /\bimg(?:_v\d)?_[A-Za-z0-9_-]{6,}\b/g,                    // 图片 key
+  /\b[a-f0-9]{32,}\b/gi,                                   // sha256 / md5
+];
+
+/**
+ * 把一段**给人看**的文字里的内部标识挖掉，并清掉挖空后留下的残渣。
+ *
+ * ★★ **链接里的一律不挖**（2026-10-17 当天就栽了一次）：第一版对整段文本做替换，
+ *    于是 `…?table=tbl…&record=rec…` 被打成 `?table=&record=` ⇒ **直链当场失效**。
+ *    内部标识该消失的是**正文里的字面量**，不是 URL 的 query。
+ */
+export function stripBackendTokens(text) {
+  const s0 = String(text ?? '');
+  // 先把 URL 挖出来存成占位符（`{@U0}` 不含任何会被下面规则命中的形状）
+  const urls = [];
+  const stash = (u) => {
+    urls.push(u);
+    return `{@U${urls.length - 1}}`;
+  };
+  let s = s0.replace(/https?:\/\/[^\s)）」』]+/g, stash);
+  for (const re of BACKEND_TOKEN_RES) s = s.replace(re, '');
+  s = s
+    .replace(/[（(]\s*[，、；:：]?\s*[）)]/g, '')   // 挖空的括号
+    .replace(/[：:]\s*(?=[｜）)]|$)/g, '')        // 「锚点：」这种只剩标签的
+    .replace(/[ \t]{2,}/g, ' ')
+    // 掉光内容的分段（`｜指纹｜模式｜表`）整段删掉，别留一堆空标签。
+    // ⚠️ 判据必须**窄**：只认那几个内部标签名 —— 第一版写成「≤3 字就丢」，
+    //    于是 `P0`、`合规`、`全文` 这种**正常短值**被一起删掉（2026-10-17 当场踩到，
+    //    表格六列只剩命中描述、问题清单的维度/位置全空）。短值不是噪声，标签才是。
+    .split('｜').map((x) => x.trim())
+    .filter((x) => x && !/^(?:指纹|锚点|模式|表|记录|坐标|主键|id|ID|sha)$/.test(x)).join('｜')
+    .replace(/^[\s｜，、；]+|[\s｜，、；]+$/g, '')
+    .trim();
+  return s.replace(/\{@U(\d+)\}/g, (_m, i) => urls[Number(i)] ?? '');
+}
+
+/**
+ * 「原因」这一格的**业务版**：只留**这一次命中**的理由 —— 去规则码、去别条规则的引用、去建议。
+ *
+ * Owner 2026-10-17：「原因就说原因，**别建议**，少做少错」——
+ * 改法本来就有「修改建议」那一格；原因里再混一遍建议，读者会分不清
+ * 「这是判定理由」还是「这是要我做的事」。
+ * 另一半同样重要：引擎的 reason 常常把**几条规则怎么分工**也写进来
+ * （`放松叙事…走 M07 语境守卫`）—— 那是内部编排，不是这条命中的理由。
+ */
+export function businessReason(text) {
+  const raw = stripBackendTokens(String(text ?? '').replace(/\s+/g, ' '));
+  // ① 按分句切（`；` `。` 末尾保留）
+  const segs = raw.split(/(?<=[；;。！？])/).map((x) => x.trim()).filter(Boolean);
+  // ② 丢掉三类句子：
+  //    · 含「建议」语义的（原因格不承担改法）；
+  //    · 讲**别的规则**怎么接的（`走 M07` / `按 H05` / `见 U01`）—— 那是内部编排；
+  //    · 规则码露头、去掉之后只剩几个字的。
+  const SUGGEST_RE = /建议|改为|改成|可改|应改|宜改|替换为|换成|rewrite|recommend/i;
+  const CROSS_RULE_RE = /(?:走|按|见|依据|另按)\s*[A-Z]\d{2}/;
+  const kept = segs.filter((x) => !SUGGEST_RE.test(x) && !CROSS_RULE_RE.test(x));
+  return (kept.length ? kept : segs).join('')
+    .replace(/\b[A-Z]\d{2}\b/g, '')             // 剩下的裸规则码
+    .replace(/[；;]，/g, '；')
+    .replace(/^[；;，、\s]+|[；;，、\s]+$/g, '')  // ⚠️  不在里面：句号是正常标点
+    .replace(/[（(]\s*[）)]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+/**
+ * 「依据文档链接」这一格的**业务版**：去内部坐标（锚点那段），保留条款号与可点直链。
+ *
+ * 锚点 `#广告文案明细/rec…/命中片段` 是**回源用的坐标**，业务侧读不懂也不该读；
+ * 它仍在**卡片与台账**里（一个字没动），只是不进这份报告。
+ */
+export function businessBasis(basis) {
+  const s = String(basis ?? '');
+  const segs = s.split('｜').map((x) => x.trim()).filter(Boolean)
+    .filter((x) => !/^锚点[:：]/.test(x));      // 内部坐标整段不印
+  return stripBackendTokens(segs.join('｜'));
+}
+
+/**
+ * 把 markdown 链接语法降成**纯文字**（只留可见文字）。
+ *
+ * ★★ 2026-10-17 第二十三轮（Owner 追问「你送的文案，为什么给『链接：点开』？这链接跳转是哪里？」）
+ *   那条 `http://production.it/` **不是我们加的**，是素材原文在粘贴时被编辑器自动加上的
+ *   markdown 链接（正文原话是 `increasing milk production.It supports`），域名
+ *   `production.it` 是别人的（.it ＝ 意大利），与我们、与这条素材都无关。
+ *   而报告**引用了这段原文**（审查对象的文案，以及第 5 条问题描述里逐字引的那一句）⇒
+ *   飞书会把 `[production.It](http://…)` 渲染成**可点链接** ⇒ 我们的对外文件里
+ *   平白多出一个指向陌生域名的入口。
+ *   ⇒ 规矩：**引用原文不等于替原文做入口**。除「依据文档链接」那一格（那是我们自己的
+ *   飞书直链，必须可点）外，其余任何一格的 markdown 链接语法一律降成文字。
+ */
+export function demoteLinks(text) {
+  return String(text ?? '')
+    .replace(/\[([^\]\n]*)\]\((?:https?:)?[^)\s]*\)/g, '$1')
+    .replace(/<(https?:[^>\s]+)>/g, '$1');
+}
+
+export function renderMergedItem(f, i, { must = false, layout = 'card', itemId = null,
+                                     owner = null } = {}) {
   // 来源标记（Owner 2026-10-06：「备注下是规则库侧问题，还是模型侧问题」）
   // ★★ 2026-10-13（Owner：「不要出现 知识库侧，模型侧」）——
   //   **去的是那两个词，不是那条信息**。这个标记真正的用处是回答
@@ -2346,18 +3195,76 @@ export function renderMergedItem(f, i, { must = false } = {}) {
   //   ⚠️ 「来源标记」（`—— **模型侧**（无库内依据）`）**留在第一行末尾**，理由不变：
   //      它决定这条的下一步（库侧回得了源、模型侧回不了），挪到补充区会让人读到第三行
   //      才知道「这条其实没有依据」。
-  return `${i + 1}.【${f.category}${f.sub ? '-' + f.sub : ''}】${f.location}  —— ${origin}\n`
+  // ── ★ ★★ 2026-10-17（Owner 两次裁定，后令优先）───────────────────────────────
+  //   第一次：「按『审计报告』模式重做」＝ PRD §8.3 的六格 ＋ P 级 ＋ 承办。
+  //   第二次（同日，看到卡片变长后）：「**守衡输出的卡片格式不要动，你只是优化报告**」
+  //   ⇒ 这里有**两个版式**，且**只有报告是新的**：
+  //     · `layout === 'report'`（`merged_report.mjs` 唯一调用处）＝ 八格版；
+  //     · 其余（卡片 `renderMerged`）＝ **与 2026-10-17 之前逐字一致**的三行版。
+  //   ⚠️ 为什么仍放在**同一个函数**里而不是复制一份：两个函数就是两个产者，
+  //      下一次改格式必然漂移（本文件已因「同一个东西两个产出者」栽过多次）。
+  //      一个函数、两个分支 ⇒ 共享同一套 `origin` / `basis` / `sugLine` 计算，
+  //      不一样的**只有版式**。
+  //   ⚠️ 第一行两边都**一个字没动**：`N.【维度-子类】位置  —— 来源标记` 是 PRD §5.3 的
+  //      逐条契约（`countRenderedItems`、`verify_cards` J11、`l7_integrity.py` 都在核它）。
+  //   ⚠️ 加粗不许撤：`verify_cards` / selftest 多处钉着 `**原因**` `**依据**` `**建议**`。
+  const head = `${i + 1}.【${f.category}${f.sub ? '-' + f.sub : ''}】${f.location}  —— ${origin}\n`
     + `   **原因**：${f.kb?.reasonLine ?? f.reason ?? '（未给理由）'}\n`
     + `   **依据**：${basis}\n`
-    + (must ? `   **建议**：${sugLine}\n` : '')
-    // ── ★★ 2026-10-14（Owner 裁定）：**`**判定**` 那一行整行删除** ────────────────────
-    //   口径：PRD §5.3 的逐条模板只有 `原因` / `依据` /（BLOCK 才有）`建议`，
-    //   三态只出现在**结论行** `【审查结论：X】` 一处 —— 逐条再挂一个「判定」，
-    //   同一张卡上就有两个「判定」，业务侧分不清哪个是结论。
-    //   ⚠️ 2026-10-09 那次「把它降格成补充行、加粗保留」的裁定**已被本次取代**
-    //      （同一 Owner，后令优先）；上面第 1665 行那段注释留作历史，**勿据以恢复该行**。
-    //   `verdict` 这个局部量仍算（上面 headline 那段），但**不再有任何输出点**。
-    + (!must ? `   **建议**：${sugLine}\n` : '');
+    + `   **建议**：${sugLine}\n`;
+  // ── 卡片：**就是上面三行**（2026-10-17 之前一直如此，一个字都没改）──
+  if (layout !== 'report') return head;
+  // ── ★ ★★ 2026-10-17 第十八轮（Owner：「我给你的报告字段是 **维度、位置、问题描述、原因、
+  //      依据文档链接、修改建议**。你不要乱改，改回去」）────────────────────────────────
+  //   我把样张的字段名（定位/原文/依据/证据指纹/事实/判断/处置）当成了可改项 —— 那是**越界**。
+  //   ⇒ 现在：**形状**照样张（标题行 ＋ 子弹点），**字段名逐字用 Owner 定的那六个**。
+  const pri = priorityOf(f);
+  const dim = dimensionOf(f);
+  const desc = descriptionOf(f);
+  const label = `${String(f.category || '').trim()}${f.sub ? `·${f.sub}` : ''}`;
+  const fidTxt = itemId ? String(itemId) : `F-${String(i + 1).padStart(2, '0')}`;
+  // 修改建议：**全写**（2026-10-17 第二十四轮，Owner：「建议都写全」）
+  //   之前只留前 120 字、尾巴挂「…（完整改法见「依据文档链接」条款原文）」——
+  //   读的人得跳到另一格才拼得出完整改法，而那一格是**条款原文**，本来就不含改法。
+  //   ⚠️ 卡片那一支不受影响：它直接用 `sugLine`，从来就没截过。
+  const sugFull = String(sugLine || '').trim();
+  const sugShort = sugFull;
+  // ⚠️ 来源标记（`**有库内条款依据**` / `**无库内依据 · 建议转人工**`）留在**标题行末尾** ——
+  //   它是业务侧判断「这条能不能回源」的唯一信号（Owner 2026-10-14 的口径，Z21/Z48 都在核）。
+  //   第六个字段里没有它，所以它只能挂在标题行上；也不许塞进六个字段里改名字。
+  // ★★ 2026-10-17 第十九轮（Owner：「这堆字体要对齐，**字体小一些**」）──────────────
+  //   飞书 docx 没有字号可设。**唯一能把字变小又保持左对齐的结构是引用块 `>`**
+  //   （实测：多行 `>` 合成一个 `<blockquote>`，行内 `<br/>` 换行，字号小于正文、
+  //    左边一条竖线、折行与文字左缘对齐）。`#####`/`######` 不行 —— 那是标题，反而更大。
+  //   ⇒ 六个字段从**项目符号**改成**引用块**：整块变灰变小、六行左缘对齐，
+  //     字段名仍加粗，扫读不受影响。
+  //   另外「依据文档链接」里的长 URL 改成**文字链接**（实测那一段折行后把版面顶乱）：
+  //     `原始出处：[点开核对](https://…)` —— 链接照样可点，行宽不再被 URL 撑爆。
+  // ★★ 2026-10-17 第二十二轮（Owner 两条）：「**禁止用任何后台词**（recvuJYdOb1Rm1/），
+  //   别人听不懂的字符编码」＋「**原因就说原因，别建议**，少做少错」。
+  //   ⇒ 六格逐格过一遍：
+  //     · 依据：先去**内部坐标**（`锚点：#表名/rec…/命中片段`），再把长 URL 收成文字链接；
+  //     · 原因：去规则码、去建议子句（`businessReason`）；
+  //     · 位置/问题描述/维度/建议：只挖内部标识（`stripBackendTokens`），语义一个字不改。
+  //   ⚠️ **卡片那一支（上面那个 `head`）一个字符都没动** —— 清扫只发生在报告分支。
+  const basisLinked = businessBasis(basis).replace(
+    /(原始出处[:：])(https?:\/\/\S+)/,
+    (_m, p1, url) => `${p1}[点开核对](${url.replace(/）$/, '')})`,
+  );
+  const q = (t) => `> ${t}`;
+  // 标题三格：`F-01 ｜ 类别·子类 ｜ 级别` —— **不带「立即停发」这类未经确认的处置词**
+  // ★★ 2026-10-17 第二十三轮：除「依据文档链接」外，其余每一格的 markdown 链接语法
+  //   一律降成纯文字（`demoteLinks`）—— 引用原文不等于替原文做可点入口。
+  //   ⚠️ 依据那一格是**我们自己的飞书直链**，必须保持可点，**不降**。
+  const text = (v) => demoteLinks(stripBackendTokens(v));
+  return `**${fidTxt} ｜ ${label} ｜ ${pri.level || '未分级'}**  —— ${origin}\n`
+    + `${q(`**维度**：${text(dim.dimension || dim.text)}`)}\n`
+    + `${q(`**位置**：${text(f.location)}`)}\n`
+    + `${q(`**问题描述**：${text(desc.text)}`)}\n`
+    + `${q(`**原因**：${demoteLinks(businessReason(f.kb?.reasonLine ?? f.reason ?? '（未给理由）'))
+        || '（本次没有可念的理由，见「依据文档链接」条款原文）'}`)}\n`
+    + `${q(`**依据文档链接**：${basisLinked}`)}\n`
+    + `${q(`**修改建议**：${text(sugShort)}`)}\n`;
 }
 
 /**
@@ -2486,6 +3393,9 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   const line = must
     ? `【审查结论：BLOCK】共发现 ${total} 处必须修改。`
     : `【审查结论：REVIEW】共发现 ${total} 处需人工确认。`;
+  // ★ 卡片这一支**只用三行版**（Owner 2026-10-17：「卡片格式不要动」）⇒
+  //   不传 `layout`、也不算逐条承办 —— 逐条承办只在**报告**里出现。
+  //   整单那一行 `建议转 @… 复核。` 本来就是卡片的（PRD §5.3.2 收尾），照旧在。
   const items = list.map((f, i) => renderMergedItem(f, i, { must }));
   // ★★ 2026-10-14（Owner 报：与 PRD 不符）—— 收尾动作行的**收件人按问题方向算**。
   //
@@ -2500,13 +3410,9 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   //      以及「一个方向都没命中时不许编一个收件人」。
   //   ⚠️ `applyVerdictLine` 只搬**结论行**（`【审查结论：…】`），不碰这一行 ⇒ 两处不打架。
   const routing = reviewOwnersFor(list, ROUTING_POLICY);
-  const action = must
-    ? '请修改后重新提交。'
-    : renderReviewAction(routing.owners, ROLE_HANDLES,
-        { unmatched: routing.unmatched, total: list.length,
-          // ★ 没有任何条目可路由（空清单）时落这个 —— 与「读不到路由表」同一答案。
-          //   库侧覆盖缺口那一支恒为空清单，靠的就是这条（`routing.py` 同口径）。
-          fallback: ROUTING_POLICY?.fallback });
+  // ★★ 2026-10-17：收尾那一行**收口到 `orderActionLine()`** —— 报告（`merged_report.mjs`）
+  //   也要印同一行，两处各写一遍必然漂移（本文件已因「两个产者」栽过多次）。
+  const action = orderActionLine(list, { must, routing });
   // ★ 块首汇总：**先让人看到「这次是谁在说话」**，而不是读完四条才自己拼出来。
   //   库侧 0 条而模型侧 5 条，与库侧 5 条，是两种完全不同的单子 —— 前者没有一条回得了源。
   const fromKb = list.filter((f) => f.source === 'kb' || f.source === 'both' || f.source === 'both-conflict').length;
@@ -2785,9 +3691,13 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   //     …
   //     · 另有 3 条（明细在报告里）
   //   ⚠️ 这一行**不是**我加的说明文字，是 Owner 指定的格式件；1–2 条那条路（逐条展开）**不加**。
+  // ★ 2026-10-17：11 类那一行（附加汇总，紧跟汇总行；逐条分支里放在最后一条之后，空行口径不变）
+  // ★ 2026-10-17：汇总路的分类行**本身就是 11 类** ⇒ 不再追加第二行（同一件事不许说两遍）；
+  //   逐条路（<3）没有分类行、标题又是「库内 8 类-子类」⇒ 补一行「按 11 类」给业务侧对齐口径。
+  const taxLine = summarized ? '' : taxonomySummaryLine(list);
   const bodyText = summarized
     ? `逐条问题\n${categorySummary(list, total)}`
-    : itemBlocks.join('\n\n');
+    : itemBlocks.join('\n\n') + (taxLine ? '\n\n' + taxLine : '');
   // ══════════════════════════════════════════════════════════════════════════
   // ★★ 2026-10-13（Owner 裁定）：**库侧/模型侧的口径读数与解释不上卡，只留在守衡的记忆里**
   // ══════════════════════════════════════════════════════════════════════════
@@ -2908,11 +3818,94 @@ function coverageGapNote(kbN) {
  *   它**没有丢**：原样落在 `renderMerged` 的 `internalNotes` 里（守衡凭它答追问），
  *   所以这个函数现在**只产出 PRD §5.3.3 要的那几行**，一句解释都不带。
  */
+/**
+ * **按 11 类的一句话汇总**（Owner 2026-10-17：「既然分了11类，就要按照11类的出结果」）。
+ *
+ * ★ 它是什么：11 类 / 58 子类这套分类体系是 2026-10-16 会话里提出、Owner 采用的人工口径
+ *   （真源 `kb/l3/registry/rule-taxonomy.json`），**不是源表字段、也不是 PRD 原文类目**。
+ * ★ 它不是什么：**不顶替** PRD §5.3 的四维（`categorySummary` 那几行照旧按四维出）、
+ *   也不改 PRD 结论行与逐条格式 —— 这一行是**附加汇总**。
+ * ★ 没有一条带 11 类时**返回空串**（整行不出现，不印空的分类表当结论）。
+ * ★ 无 11 类的条目（模型侧、反例/案例层、覆盖缺口）**不硬塞**，只计数并在行尾写明 —— 蒙一个类比留空更坏。
+ */
+export function taxonomySummaryLine(list = []) {
+  const counts = new Map();
+  for (const f of list || []) {
+    const kb = (f && typeof f === 'object' && typeof _kbOf === 'function') ? _kbOf(f) : {};
+    const cat = String((kb?.taxonomyCategory || f?.taxonomyCategory || '')).trim();
+    if (cat) counts.set(cat, (counts.get(cat) ?? 0) + 1);
+  }
+  if (!counts.size) return '';
+  const rows = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([c, n]) => `${c} ${n}`);
+  const withClass = [...counts.values()].reduce((a, b) => a + b, 0);
+  const noClass = Math.max(0, (list || []).length - withClass);
+  return `· 按 11 类：${rows.join('、')}`
+    + (noClass > 0 ? `（另有 ${noClass} 条无 11 类：反例条款/覆盖缺口，**不编**）` : '');
+}
+
+/**
+ * **报告里的「按 11 类汇总」段**（Owner 2026-10-17：「既然分了11类，就要按照11类的出结果」）。
+ *
+ * ★ 投云文档那一份也印（与卡片那行同一口径、同一份计数）：业务侧在报告里要能按 11 类扫一遍。
+ * ★ 一条都没有 11 类 ⇒ 返回空数组（整段不出现）。
+ * ★ 无 11 类的条目**单独一行交代**（模型侧 / 反例条款 / 覆盖缺口），不混进任何一类。
+ */
+export function taxonomyReportLines(list = []) {
+  const groups = taxonomyGroupsOf(list);
+  if (!groups.size) return [];
+  const order = [...groups.entries()].sort((a, b) => b[1].length - a[1].length);
+  const L = ['## **附录 · 按 11 类汇总**', '',
+             '> 这一栏的分类体系是**人工口径的 11 类**（真源 `kb/l3/registry/rule-taxonomy.json`），'
+             + '与上面「维度」（PRD §5.3 四维）是两套，互不顶替。', '',
+             '| 所属类别（11 类） | 条数 | 最高优先级 |', '|---|---:|---|'];
+  for (const [cat, items] of order) {
+    const tiers = items.map((f) => priorityOf(f).level).filter(Boolean);
+    const top = tiers.length ? [...PRIORITY_LEVELS].find((p) => tiers.includes(p)) : null;
+    L.push(`| ${cat} | ${items.length} | ${top || '—'} |`);
+  }
+  const withClass = order.reduce((s, [, v]) => s + v.length, 0);
+  const noClass = Math.max(0, (list || []).length - withClass);
+  if (noClass > 0) {
+    L.push('', `> 另有 **${noClass}** 条没有 11 类（模型侧条目 / 反例条款 / 覆盖缺口）—— **不编**，`
+      + '它们的优先级与维度照旧在上面的问题清单里。');
+  }
+  L.push('');
+  return L;
+}
+
+/**
+ * `{11 类: [条目]}`（按 `taxonomyCategory`；取不到就不进桶）。卡片与报告**共用这一份**。
+ */
+export function taxonomyGroupsOf(list = []) {
+  const g = new Map();
+  for (const f of list || []) {
+    const kb = (f && typeof f === 'object' && typeof _kbOf === 'function') ? _kbOf(f) : {};
+    const cat = String((kb?.taxonomyCategory || f?.taxonomyCategory || '')).trim();
+    if (!cat) continue;
+    if (!g.has(cat)) g.set(cat, []);
+    g.get(cat).push(f);
+  }
+  return g;
+}
+
+export const TAXONOMY_UNCLASSED = '未归 11 类';
+
 export function categorySummary(list = [], total = null) {
+  // ══════════════════════════════════════════════════════════════════════════
+  // ★★ 2026-10-17（Owner 逐字：「推荐：把卡片的分类汇总行改成 11 类」）────────────
+  //   改前按 `catFamily(f.category)`＝**库内 8 类词表族**（功效宣称 / 背书与资质 / …）——
+  //   与「按 11 类出结果」这条口径**不是一套**，同一单会出现 8 类（卡）/4 维（报告）两种说法。
+  //   现在：**分类汇总行一律用 11 类**（`taxonomyCategory`）。
+  //   ⚠️ 两条例外，都**如实署名、不许藏**：
+  //     · 没有 11 类的条目（模型侧、反例/案例层 `sc-…`、覆盖缺口）⇒ 单成一桶 `未归 11 类`；
+  //     · 全部都没有 11 类（例如纯模型侧的单）⇒ 只剩 `未归 11 类` 一桶，**不印空表**。
+  //   ⚠️ 这条偏离 PRD §5.3.2/§5.3.3 的逐字样例（那几行原文是四维示例）—— **Owner 已签**，
+  //      登记在 `kb/l7/registry/report-output-contract.yaml::fix_20261017_card_summary_11class`。
   const counts = new Map();
   for (const f of list) {
-    const fam = catFamily(f?.category) || '未分类';
-    counts.set(fam, (counts.get(fam) ?? 0) + 1);
+    const kb = (f && typeof f === 'object') ? _kbOf(f) : {};
+    const cat = String((kb?.taxonomyCategory || f?.taxonomyCategory || '')).trim() || TAXONOMY_UNCLASSED;
+    counts.set(cat, (counts.get(cat) ?? 0) + 1);
   }
   // ★★ 2026-10-14（Owner 第二次裁定，**推翻我上一轮的做法**）：
   //   汇总行**不空行**。PRD §5.3.2 / §5.3.3 的 ≥3 块逐字是：
@@ -2928,8 +3921,11 @@ export function categorySummary(list = [], total = null) {
   //   Owner 原话：「问题大于等于3个 …… 输出的卡片逐条问题是不空行的」。
   //   ⇒ 空行只在**结论行之后**与**链接/动作行之前**；汇总行内部不空。
   //   （<3 的逐条路径**相反**：那一条 PRD 明确每条之间空一行，见 `itemBlocks`。）
+  // 11 类桶名已自带语义 ⇒ 写成「· <类名>：N 个」；未归类桶保留「…类问题」形状（可被判据认出）。
   const rows = [...counts.entries()].sort((a, b) => b[1] - a[1])
-    .map(([fam, n]) => `· ${fam}类问题：${n} 个`);
+    .map(([cat, n]) => (cat === TAXONOMY_UNCLASSED
+      ? `· ${TAXONOMY_UNCLASSED}问题：${n} 个`
+      : `· ${cat}：${n} 个`));
   if (!rows.length) rows.push('·（本次没有并进任何逐条）');
   const n = total ?? list.length;
   if (n > list.length) {

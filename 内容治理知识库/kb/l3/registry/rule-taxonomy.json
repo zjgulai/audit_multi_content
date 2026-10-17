@@ -1,0 +1,6718 @@
+{
+ "taxonomy_id": "rule-taxonomy-v1-20261017",
+ "taxonomy_version": "v1-20261017",
+ "created_at": "2026-10-17",
+ "layer": "L3 规则层 · 规则归类与优先级（人工口径）",
+ "status": "active",
+ "owner": "刘华丽",
+ "approved_by": "Owner（内容治理）",
+ "what_it_is": "把「所属类别 / 所属子类 / 优先级」三格落成**人工口径的注册表**，并声明它们在规则行上的字段名：`taxonomy_category` / `taxonomy_subcategory` / `p_level`。",
+ "why_registry_not_rule_rows": "`kb/l3/candidates/rules.jsonl` 与 `external_standard.jsonl` 都是**上游重建的派生件**（`kb/l8/l3_distill_run.py` / `kb/l8/l3_clause_distill.py` 会重建行）。人工口径写进派生件 ⇒ 下一次重建必然消失。⇒ 真源放本注册表，重建时由 `kb/l3/kb_rule_dimensions.py::apply_taxonomy()` 盖回规则行。",
+ "source": {
+  "file": "/Users/lute/Desktop/规则清单-P0-P3-按等级-20261016.xlsx",
+  "sheet": "全部规则 (P0-P3)",
+  "sha256": "c0b974610fe151bb206c72ccebc75292597d1f15d88ce8702dbd07e394136300",
+  "exported_at": "2026-10-16 21:05（原始导出）+ 2026-10-17 按类别/子类重标",
+  "owner_statement": "规则从 DSH 知识库提取；所属类别 / 所属子类 / 优先级三格由 Owner 优化（重标）",
+  "rows": 638,
+  "by_source": {
+   "external_standard": 129,
+   "rules": 509
+  }
+ },
+ "classes": [
+  {
+   "name": "合规与受监管宣称",
+   "meaning": "合规＝法律法规与法定要求：法定认证与注册表述、等级与资质背书用语、保险与报销资格、结构功能与免责声明。\n受监管宣称＝受监管管制的产品宣称：医疗与疾病功效、生理功效与效果、绝对化与最高级用语、无痛/安全/零风险、临床与科学背书、智能与仿生。\n判的是“话本身越不越线”，不看有没有证据。"
+  },
+  {
+   "name": "产品安全与高危使用场景",
+   "meaning": "产品安全＝产品或用法本身带来的健康风险：儿童乘车与居家防护。\n高危使用场景＝危险行为示范与事故高发场景：怀抱乘车、趴睡、无人看护下水、未用安全座椅。\n现有 2 条，两个子类各占 1 条。"
+  },
+  {
+   "name": "商品信息与Listing准确性",
+   "meaning": "商品信息＝规格参数、功能与部件、产品体验与设计方向。\nListing 准确性＝页面上适配尺码、防漏密封等描述与实物是否一致。\n只判“对不对”，不判“合不合规”。"
+  },
+  {
+   "name": "证据与实质证明",
+   "meaning": "证据＝宣称有没有依据：销量排名依据、临床与科学证据要求、证据不足待验证。\n实质证明＝证据够不够硬：研究方法与统计口径、限定语与整体印象是否误导。"
+  },
+  {
+   "name": "推广与价格透明",
+   "meaning": "推广＝促销话术是否施压或制造虚假紧迫感。\n价格透明＝折扣与会员活动的价格表述是否清楚。"
+  },
+  {
+   "name": "背书与披露透明",
+   "meaning": "背书＝专家与专业人士的背书是否成立、资质是否够。\n披露透明＝有没有如实说：达人合作与付费推广、利益关系与资质、限定信息与免责声明（须清晰显著）、风险信息、视听形式要求。"
+  },
+  {
+   "name": "品牌信任与声誉",
+   "meaning": "品牌信任＝slogan、价值主张是否与品牌调性一致。\n声誉＝竞品对比是否构成贬低。\n不违法但伤品牌，以 P1/P3 建议类为主。"
+  },
+  {
+   "name": "权利、肖像、隐私与AI",
+   "meaning": "权利＝版权、商标等第三方权利——现有 0 条。\n肖像＝肖像授权范围——现有 0 条。\n隐私＝未成年人出镜与隐私保护；AI＝AI 生成内容是否标识。这两段各 1 条，均为 P0。"
+  },
+  {
+   "name": "平台与渠道政策",
+   "meaning": "平台政策＝平台侧的投放与素材规则：禁投品类与场景、版位与投放形式、平台标识与授权素材、素材提交规范。\n渠道政策＝按投放渠道（Google / Meta / 其他）区分的规则。本类仅 1 条带渠道（W-1.7）；「渠道」在表中主要落在「适用范围」列——全表 68 条带具体渠道，散在合规 48、品牌 6、背书 4、商品信息 4、推广 3、证据 2、本类 1。\n注：本类 20 条中 19 条无渠道限定，正文实为各国广告禁令（奥地利、新加坡、英国 HFSS、FTC）与素材提交要求，类名与内容不符。"
+  },
+  {
+   "name": "北美本地化与标签要求",
+   "meaning": "本地化＝美国市场的表达、计量单位与育儿语境——现有 0 条。\n标签要求＝标签与包装的法定要求——现有 1 条，但正文是巴西（有机标识须落在包装上），不是北美。类名与内容不符，需复核。"
+  },
+  {
+   "name": "母婴知识内容准确性",
+   "meaning": "内容准确性＝母婴科普的事实是否对：哺乳泌乳、吸奶器使用与母乳储存、孕期产检、产后恢复、睡眠喂养等。\n兼收措辞表达类问题＝文字表达、排版、大小写、语法、术语，落在「内容形式与表达规范」27 条；该子类还混着配图、参考文献、适用范围等非措辞项。"
+  },
+  {
+   "name": "未归类",
+   "meaning": "兜底类＝暂不归入上述 11 类的问题，设阈值监控，不计入正式类别数（对应 PRD §5.3.1 的「其他」）。\n当前占位为「（暂无命中）」，现 0 条。"
+  }
+ ],
+ "subclass_to_category": {
+  "AI 生成内容标识": "权利、肖像、隐私与AI",
+  "专家与专业人士背书": "背书与披露透明",
+  "临床与科学背书宣称": "合规与受监管宣称",
+  "临床与科学证据要求": "证据与实质证明",
+  "产后恢复": "母婴知识内容准确性",
+  "产品体验与设计方向表述": "商品信息与Listing准确性",
+  "促销紧迫感与压力话术": "推广与价格透明",
+  "保险与报销资格宣称": "合规与受监管宣称",
+  "儿童乘车与居家防护": "产品安全与高危使用场景",
+  "儿童安全与居家防护": "母婴知识内容准确性",
+  "内容形式与表达规范": "母婴知识内容准确性",
+  "分地区投放禁令": "平台与渠道政策",
+  "分娩与待产": "母婴知识内容准确性",
+  "利益关系与资质披露": "背书与披露透明",
+  "功能与部件描述准确性": "商品信息与Listing准确性",
+  "医疗与疾病功效宣称": "合规与受监管宣称",
+  "危险行为示范与模仿风险": "产品安全与高危使用场景",
+  "吸奶器使用与母乳储存": "母婴知识内容准确性",
+  "品牌口号与价值主张": "品牌信任与声誉",
+  "哺乳与泌乳": "母婴知识内容准确性",
+  "喂养与辅食营养": "母婴知识内容准确性",
+  "备孕与受孕": "母婴知识内容准确性",
+  "妈妈心理与情绪": "母婴知识内容准确性",
+  "婴幼儿睡眠": "母婴知识内容准确性",
+  "孕期与产检": "母婴知识内容准确性",
+  "安全信息与风险披露": "背书与披露透明",
+  "平台政策总体合规": "平台与渠道政策",
+  "平台标识与授权素材使用": "平台与渠道政策",
+  "投放形式与版位限制": "平台与渠道政策",
+  "折扣与会员活动表述": "推广与价格透明",
+  "效果数据与销量排名宣称": "证据与实质证明",
+  "新生儿护理与就医指征": "母婴知识内容准确性",
+  "无痛、安全与零风险承诺": "合规与受监管宣称",
+  "智能与仿生宣称": "合规与受监管宣称",
+  "未成年人出镜与隐私保护": "权利、肖像、隐私与AI",
+  "标签与包装法定要求": "北美本地化与标签要求",
+  "母乳喂养通用建议": "母婴知识内容准确性",
+  "母乳成分与过敏": "母婴知识内容准确性",
+  "法定认证与注册表述": "合规与受监管宣称",
+  "生理功效与效果承诺": "合规与受监管宣称",
+  "生长发育与里程碑": "母婴知识内容准确性",
+  "用药与成分安全": "母婴知识内容准确性",
+  "研究方法与统计口径": "证据与实质证明",
+  "禁止投放品类与场景": "平台与渠道政策",
+  "离乳与夜奶": "母婴知识内容准确性",
+  "竞品对比与贬低": "品牌信任与声誉",
+  "等级与资质背书用语": "合规与受监管宣称",
+  "素材提交与形式规范": "平台与渠道政策",
+  "结构功能宣称与免责声明": "合规与受监管宣称",
+  "绝对化与最高级用语": "合规与受监管宣称",
+  "规格与参数表述": "商品信息与Listing准确性",
+  "视听披露形式要求": "背书与披露透明",
+  "证据不足与待验证宣称": "证据与实质证明",
+  "证据局限、限定语与整体印象": "证据与实质证明",
+  "达人合作与付费推广披露": "背书与披露透明",
+  "适配与尺码宣称": "商品信息与Listing准确性",
+  "防漏与密封宣称": "商品信息与Listing准确性",
+  "限定信息与免责声明（清晰显著）": "背书与披露透明"
+ },
+ "class_counts": {
+  "平台与渠道政策": 20,
+  "证据与实质证明": 78,
+  "背书与披露透明": 31,
+  "北美本地化与标签要求": 1,
+  "合规与受监管宣称": 78,
+  "产品安全与高危使用场景": 2,
+  "权利、肖像、隐私与AI": 2,
+  "商品信息与Listing准确性": 13,
+  "推广与价格透明": 4,
+  "品牌信任与声誉": 8,
+  "母婴知识内容准确性": 401
+ },
+ "subclass_counts": {
+  "产品安全与高危使用场景 / 儿童乘车与居家防护": 1,
+  "产品安全与高危使用场景 / 危险行为示范与模仿风险": 1,
+  "北美本地化与标签要求 / 标签与包装法定要求": 1,
+  "合规与受监管宣称 / 临床与科学背书宣称": 2,
+  "合规与受监管宣称 / 保险与报销资格宣称": 1,
+  "合规与受监管宣称 / 医疗与疾病功效宣称": 5,
+  "合规与受监管宣称 / 无痛、安全与零风险承诺": 12,
+  "合规与受监管宣称 / 智能与仿生宣称": 9,
+  "合规与受监管宣称 / 法定认证与注册表述": 10,
+  "合规与受监管宣称 / 生理功效与效果承诺": 17,
+  "合规与受监管宣称 / 等级与资质背书用语": 7,
+  "合规与受监管宣称 / 结构功能宣称与免责声明": 2,
+  "合规与受监管宣称 / 绝对化与最高级用语": 13,
+  "品牌信任与声誉 / 品牌口号与价值主张": 3,
+  "品牌信任与声誉 / 竞品对比与贬低": 5,
+  "商品信息与Listing准确性 / 产品体验与设计方向表述": 4,
+  "商品信息与Listing准确性 / 功能与部件描述准确性": 4,
+  "商品信息与Listing准确性 / 规格与参数表述": 1,
+  "商品信息与Listing准确性 / 适配与尺码宣称": 2,
+  "商品信息与Listing准确性 / 防漏与密封宣称": 2,
+  "平台与渠道政策 / 分地区投放禁令": 2,
+  "平台与渠道政策 / 平台政策总体合规": 9,
+  "平台与渠道政策 / 平台标识与授权素材使用": 1,
+  "平台与渠道政策 / 投放形式与版位限制": 1,
+  "平台与渠道政策 / 禁止投放品类与场景": 4,
+  "平台与渠道政策 / 素材提交与形式规范": 3,
+  "推广与价格透明 / 促销紧迫感与压力话术": 3,
+  "推广与价格透明 / 折扣与会员活动表述": 1,
+  "权利、肖像、隐私与AI / AI 生成内容标识": 1,
+  "权利、肖像、隐私与AI / 未成年人出镜与隐私保护": 1,
+  "母婴知识内容准确性 / 产后恢复": 34,
+  "母婴知识内容准确性 / 儿童安全与居家防护": 2,
+  "母婴知识内容准确性 / 内容形式与表达规范": 27,
+  "母婴知识内容准确性 / 分娩与待产": 4,
+  "母婴知识内容准确性 / 吸奶器使用与母乳储存": 47,
+  "母婴知识内容准确性 / 哺乳与泌乳": 97,
+  "母婴知识内容准确性 / 喂养与辅食营养": 20,
+  "母婴知识内容准确性 / 备孕与受孕": 25,
+  "母婴知识内容准确性 / 妈妈心理与情绪": 8,
+  "母婴知识内容准确性 / 婴幼儿睡眠": 14,
+  "母婴知识内容准确性 / 孕期与产检": 41,
+  "母婴知识内容准确性 / 新生儿护理与就医指征": 31,
+  "母婴知识内容准确性 / 母乳喂养通用建议": 11,
+  "母婴知识内容准确性 / 母乳成分与过敏": 11,
+  "母婴知识内容准确性 / 生长发育与里程碑": 13,
+  "母婴知识内容准确性 / 用药与成分安全": 8,
+  "母婴知识内容准确性 / 离乳与夜奶": 8,
+  "背书与披露透明 / 专家与专业人士背书": 8,
+  "背书与披露透明 / 利益关系与资质披露": 4,
+  "背书与披露透明 / 安全信息与风险披露": 1,
+  "背书与披露透明 / 视听披露形式要求": 3,
+  "背书与披露透明 / 达人合作与付费推广披露": 1,
+  "背书与披露透明 / 限定信息与免责声明（清晰显著）": 14,
+  "证据与实质证明 / 临床与科学证据要求": 23,
+  "证据与实质证明 / 效果数据与销量排名宣称": 9,
+  "证据与实质证明 / 研究方法与统计口径": 17,
+  "证据与实质证明 / 证据不足与待验证宣称": 4,
+  "证据与实质证明 / 证据局限、限定语与整体印象": 25
+ },
+ "p_level_counts": {
+  "P0": 63,
+  "P1": 243,
+  "P2": 213,
+  "P3": 119
+ },
+ "p0_policy": {
+  "p0_rules": 63,
+  "p0_fastpath_rules": 17,
+  "rule": "★ `p_level=P0` 与「进 P0 快路」**不是同一件事**：快路集合 = `kb/l5/p0_patterns.jsonl`（现 17 条，法务签字台账 `kb/l5/registry/p0-legal-signoff-ledger.json`）；`p_level=P0` 是本表口径的优先级档（63 条）。表里这 17 条一律锁 P0（表跟随引擎），其余 46 条 P0 由评审链**规则层**命中并判 BLOCK，不走 ≤1s 快路、依据标「不可逐字回源」。",
+  "locked_to_engine": [
+   "E-2.124",
+   "E-2.125",
+   "E-2.126",
+   "E-2.127",
+   "E-2.128",
+   "E-2.129",
+   "W-1.1",
+   "W-1.13",
+   "W-1.18",
+   "W-1.25",
+   "W-1.33",
+   "W-1.4",
+   "W-1.43",
+   "W-1.53",
+   "W-1.55",
+   "W-1.8",
+   "W-1.9"
+  ],
+  "warning": "实测（2026-10-17 落库后当天复核）：`kb/.work/l5_export.py` 的 P0 选取口径是 `p_level==\"P0\"`，但它读的是 **manifest 富化的合成视图**（`kb_ledger.rules_enriched_view_multi`），而富化对 515 条规则**覆盖**了规则行的 p_level ⇒ 导出侧看到的是 P0=45（28 来自 manifest ＋ 17 条无富化的外部标准），按 atomic/authority 门槛筛后**仍是 17 条**，与现表一致。⇒ 快路本次**没有任何扩容**；「改成表值后 19 条」只在**把表值同步进 manifest** 时才会发生（本件没做，见 dual_axis）。守卫仍保留并已做**反向对照**：把 p0_patterns.jsonl 移走后跑 --apply ⇒ 退出码 4、逐条打印 17 条「新增」、一个文件都没写（实测 sha 复原一致）。"
+ },
+ "exceptions": [
+  {
+   "rule_id": "r-ca61bf7be5b26052",
+   "article_no": "W-2.350",
+   "what": "源字段「修订类型」缺失 ⇒ **不猜**，优先级保持库内原值。",
+   "p_level": "P1"
+  }
+ ],
+ "field_names": {
+  "taxonomy_category": "所属类别（11 类 + 未归类兜底；枚举见 classes）",
+  "taxonomy_subcategory": "所属子类（58 个实有 + 1 个占位「（暂无命中）」）",
+  "p_level": "优先级 P0–P3（PRD §6.2 四层；**覆盖原值**，原值见每条 p_level_before）"
+ },
+ "applied_by": "kb/l3/kb_rule_dimensions.py::apply_taxonomy()（唯一实现）",
+ "rebuild_wiring": [
+  "kb/l8/l3_distill_run.py（措辞库 rules.jsonl 写盘前）",
+  "kb/l8/l3_clause_distill.py（外部标准 external_standard.jsonl 写盘前）"
+ ],
+ "rollback": {
+  "how": "每条 `p_level_before` 即入库前的库内值；把本注册表 status 置 \"rolled_back\" 后重跑 apply_taxonomy(mode=\"restore\")，或直接按 p_level_before 回写。",
+  "backup_dir": "kb/l3/_backups/rule-taxonomy-20261017/"
+ },
+ "boundary": [
+  "★ 本表只给「归类 + 优先级」两件事，**不动**规则正文 / 证据 / 条款号（逐条已核 0 处差异）。",
+  "★ `risk_level`（PRD §6.5 风险等级）是**另一个轴**，本件不碰；不许由 `p_level` 推导它。",
+  "★ 11 类体系是**第三套类目**（前两套：`l7.json.vocabulary.categories` 规则词表、`l4/canonical/sample_case.reason_category` 反例类目），与 PRD §5.3 四维（`risk-category-policy.json`）的映射**尚未裁**。"
+ ],
+ "rules": [
+  {
+   "rule_id": "r-03ec44de7eb8fb64",
+   "article_no": "E-2.1",
+   "source": "external_standard",
+   "category": "平台与渠道政策",
+   "subcategory": "禁止投放品类与场景",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-0fdb19f119fce1ab",
+   "article_no": "E-2.10",
+   "source": "external_standard",
+   "category": "平台与渠道政策",
+   "subcategory": "投放形式与版位限制",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c05e4d0d49199fe1",
+   "article_no": "E-2.100",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "研究方法与统计口径",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c1c859346be1dcc9",
+   "article_no": "E-2.101",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "研究方法与统计口径",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c504306123c60711",
+   "article_no": "E-2.102",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c69dec0ef9ab6e4e",
+   "article_no": "E-2.103",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "限定信息与免责声明（清晰显著）",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-d76d6985901d3278",
+   "article_no": "E-2.104",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-d8ed24d58ff4d282",
+   "article_no": "E-2.105",
+   "source": "external_standard",
+   "category": "北美本地化与标签要求",
+   "subcategory": "标签与包装法定要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-d9c4f7a14274935d",
+   "article_no": "E-2.106",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-dceacb814c5a991d",
+   "article_no": "E-2.107",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e36cb8bd701d99d7",
+   "article_no": "E-2.108",
+   "source": "external_standard",
+   "category": "合规与受监管宣称",
+   "subcategory": "法定认证与注册表述",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e4159db9af7df124",
+   "article_no": "E-2.109",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-10ed80ffbfb24032",
+   "article_no": "E-2.11",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e61c58d5be723832",
+   "article_no": "E-2.110",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "效果数据与销量排名宣称",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e94b17b91c98fa1b",
+   "article_no": "E-2.111",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "限定信息与免责声明（清晰显著）",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e969eceb9ea05663",
+   "article_no": "E-2.112",
+   "source": "external_standard",
+   "category": "平台与渠道政策",
+   "subcategory": "素材提交与形式规范",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e9b7e1915e009fa9",
+   "article_no": "E-2.113",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "限定信息与免责声明（清晰显著）",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ec4e0cbe33252ef2",
+   "article_no": "E-2.114",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ed0e2649f067d34b",
+   "article_no": "E-2.115",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ef49dc851367df09",
+   "article_no": "E-2.116",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f28af88b8656e01c",
+   "article_no": "E-2.117",
+   "source": "external_standard",
+   "category": "合规与受监管宣称",
+   "subcategory": "法定认证与注册表述",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f4c5aed63e7f819f",
+   "article_no": "E-2.118",
+   "source": "external_standard",
+   "category": "平台与渠道政策",
+   "subcategory": "平台政策总体合规",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f7b1aad0634595dc",
+   "article_no": "E-2.119",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "利益关系与资质披露",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-12fe094401654cb2",
+   "article_no": "E-2.12",
+   "source": "external_standard",
+   "category": "合规与受监管宣称",
+   "subcategory": "法定认证与注册表述",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f7cf08e7828f2aae",
+   "article_no": "E-2.120",
+   "source": "external_standard",
+   "category": "平台与渠道政策",
+   "subcategory": "平台政策总体合规",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f86b6172f13eb9da",
+   "article_no": "E-2.121",
+   "source": "external_standard",
+   "category": "合规与受监管宣称",
+   "subcategory": "法定认证与注册表述",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-fe7d3b0e2162ab00",
+   "article_no": "E-2.122",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-fed6086dbb506d2e",
+   "article_no": "E-2.123",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-1bd7d4b564bb8663",
+   "article_no": "E-2.124",
+   "source": "external_standard",
+   "category": "合规与受监管宣称",
+   "subcategory": "绝对化与最高级用语",
+   "p_level": "P0",
+   "p_level_before": "P0",
+   "p0_fastpath": true
+  },
+  {
+   "rule_id": "r-242c9de1bf755dca",
+   "article_no": "E-2.125",
+   "source": "external_standard",
+   "category": "产品安全与高危使用场景",
+   "subcategory": "危险行为示范与模仿风险",
+   "p_level": "P0",
+   "p_level_before": "P0",
+   "p0_fastpath": true
+  },
+  {
+   "rule_id": "r-2f333e23ced1d524",
+   "article_no": "E-2.126",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "效果数据与销量排名宣称",
+   "p_level": "P0",
+   "p_level_before": "P0",
+   "p0_fastpath": true
+  },
+  {
+   "rule_id": "r-6430cde694cab5b7",
+   "article_no": "E-2.127",
+   "source": "external_standard",
+   "category": "权利、肖像、隐私与AI",
+   "subcategory": "AI 生成内容标识",
+   "p_level": "P0",
+   "p_level_before": "P0",
+   "p0_fastpath": true
+  },
+  {
+   "rule_id": "r-9961b7d19cdd81e6",
+   "article_no": "E-2.128",
+   "source": "external_standard",
+   "category": "产品安全与高危使用场景",
+   "subcategory": "儿童乘车与居家防护",
+   "p_level": "P0",
+   "p_level_before": "P0",
+   "p0_fastpath": true
+  },
+  {
+   "rule_id": "r-fbbd2396bcd0c136",
+   "article_no": "E-2.129",
+   "source": "external_standard",
+   "category": "权利、肖像、隐私与AI",
+   "subcategory": "未成年人出镜与隐私保护",
+   "p_level": "P0",
+   "p_level_before": "P0",
+   "p0_fastpath": true
+  },
+  {
+   "rule_id": "r-14cd4d14b49f07a6",
+   "article_no": "E-2.13",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-16ad781f7f015952",
+   "article_no": "E-2.14",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-1942420ea6573f59",
+   "article_no": "E-2.15",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-1acd99e05c923d6f",
+   "article_no": "E-2.16",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-1ec2df3c627a939c",
+   "article_no": "E-2.17",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-206273d8caed900a",
+   "article_no": "E-2.18",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-21d3c3ac51781f46",
+   "article_no": "E-2.19",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "利益关系与资质披露",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-046b59182be4ec7a",
+   "article_no": "E-2.2",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "研究方法与统计口径",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-2621039e6668bb23",
+   "article_no": "E-2.20",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-27b4636b8be795e4",
+   "article_no": "E-2.21",
+   "source": "external_standard",
+   "category": "平台与渠道政策",
+   "subcategory": "平台政策总体合规",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-29bf2758f44d19de",
+   "article_no": "E-2.22",
+   "source": "external_standard",
+   "category": "合规与受监管宣称",
+   "subcategory": "法定认证与注册表述",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-2c9ee3f09c1704ba",
+   "article_no": "E-2.23",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "限定信息与免责声明（清晰显著）",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-2cd3e9d8cfed2098",
+   "article_no": "E-2.24",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-2e626d2a1e0c410b",
+   "article_no": "E-2.25",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "研究方法与统计口径",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-2e706852abbe23df",
+   "article_no": "E-2.26",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "安全信息与风险披露",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3346ccf9dd9f872a",
+   "article_no": "E-2.27",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "研究方法与统计口径",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-33fc17f39f94cd64",
+   "article_no": "E-2.28",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3542bcb8a373e596",
+   "article_no": "E-2.29",
+   "source": "external_standard",
+   "category": "平台与渠道政策",
+   "subcategory": "平台政策总体合规",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-053cbc5270c06ee3",
+   "article_no": "E-2.3",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3719625c0de5a474",
+   "article_no": "E-2.30",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-394d2167758b03ee",
+   "article_no": "E-2.31",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3cbe7cca4fbd7b3f",
+   "article_no": "E-2.32",
+   "source": "external_standard",
+   "category": "平台与渠道政策",
+   "subcategory": "平台标识与授权素材使用",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3dc0665232dc63ed",
+   "article_no": "E-2.33",
+   "source": "external_standard",
+   "category": "合规与受监管宣称",
+   "subcategory": "结构功能宣称与免责声明",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3f16262e0ce69c64",
+   "article_no": "E-2.34",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-403f0cf4352276db",
+   "article_no": "E-2.35",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-46e00e697c5bb9a9",
+   "article_no": "E-2.36",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-48562f605e944564",
+   "article_no": "E-2.37",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "研究方法与统计口径",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-48f8114bc6c05385",
+   "article_no": "E-2.38",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "研究方法与统计口径",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-4c529cf3d8de64c5",
+   "article_no": "E-2.39",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "限定信息与免责声明（清晰显著）",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-05fc5c5bb2ad11c7",
+   "article_no": "E-2.4",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "研究方法与统计口径",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-4ee707c5cbb00c56",
+   "article_no": "E-2.40",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-4fdfb95997854147",
+   "article_no": "E-2.41",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5106e7fd2f38d77c",
+   "article_no": "E-2.42",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "视听披露形式要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-53a0f8d5f6f1780b",
+   "article_no": "E-2.43",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-579a5e4330cd2bb7",
+   "article_no": "E-2.44",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-587dbb4cf0f67eb1",
+   "article_no": "E-2.45",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-58f8778c7df5e0de",
+   "article_no": "E-2.46",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "研究方法与统计口径",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5b9f6b066d7e5639",
+   "article_no": "E-2.47",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "研究方法与统计口径",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5db1bec0011aad9d",
+   "article_no": "E-2.48",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-62e70b7bb37d5042",
+   "article_no": "E-2.49",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-06b5f92f2232ec0d",
+   "article_no": "E-2.5",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "限定信息与免责声明（清晰显著）",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-64205773cd4ec1f2",
+   "article_no": "E-2.50",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "限定信息与免责声明（清晰显著）",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-64bdddb0f087300e",
+   "article_no": "E-2.51",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "视听披露形式要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-64cde165077bc5fe",
+   "article_no": "E-2.52",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-659431b7cda22110",
+   "article_no": "E-2.53",
+   "source": "external_standard",
+   "category": "合规与受监管宣称",
+   "subcategory": "法定认证与注册表述",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-67ffdb69e67ca85b",
+   "article_no": "E-2.54",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-69df999ad28daa94",
+   "article_no": "E-2.55",
+   "source": "external_standard",
+   "category": "平台与渠道政策",
+   "subcategory": "平台政策总体合规",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6baf24eb6b66d43f",
+   "article_no": "E-2.56",
+   "source": "external_standard",
+   "category": "合规与受监管宣称",
+   "subcategory": "结构功能宣称与免责声明",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6d240d56cfc3ee97",
+   "article_no": "E-2.57",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "视听披露形式要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6e212146ea9a1bcf",
+   "article_no": "E-2.58",
+   "source": "external_standard",
+   "category": "平台与渠道政策",
+   "subcategory": "禁止投放品类与场景",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6e969adf28744b44",
+   "article_no": "E-2.59",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "研究方法与统计口径",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-0992ac3abaa12743",
+   "article_no": "E-2.6",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6eb73fce2ce2cd6a",
+   "article_no": "E-2.60",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "限定信息与免责声明（清晰显著）",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6fffe02830b86b2c",
+   "article_no": "E-2.61",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "研究方法与统计口径",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-70d707e83d9863ac",
+   "article_no": "E-2.62",
+   "source": "external_standard",
+   "category": "平台与渠道政策",
+   "subcategory": "平台政策总体合规",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-71181b6e93037a76",
+   "article_no": "E-2.63",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "限定信息与免责声明（清晰显著）",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-740c024aca6f288e",
+   "article_no": "E-2.64",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "限定信息与免责声明（清晰显著）",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-75fa18a4ef7d3c75",
+   "article_no": "E-2.65",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-76b0de0f856badfd",
+   "article_no": "E-2.66",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "研究方法与统计口径",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-77563fc5131c5e86",
+   "article_no": "E-2.67",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-78a077ce5e1c2344",
+   "article_no": "E-2.68",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "利益关系与资质披露",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-7c0d541cb506ce30",
+   "article_no": "E-2.69",
+   "source": "external_standard",
+   "category": "平台与渠道政策",
+   "subcategory": "禁止投放品类与场景",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-0b924fbfd4b05c53",
+   "article_no": "E-2.7",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "限定信息与免责声明（清晰显著）",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-7c3820d4a375028c",
+   "article_no": "E-2.70",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-7c8cc00eaeca9b7b",
+   "article_no": "E-2.71",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-7e243749e0eec06b",
+   "article_no": "E-2.72",
+   "source": "external_standard",
+   "category": "平台与渠道政策",
+   "subcategory": "平台政策总体合规",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-8334d7fba8f6d436",
+   "article_no": "E-2.73",
+   "source": "external_standard",
+   "category": "合规与受监管宣称",
+   "subcategory": "法定认证与注册表述",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-83b8e3118cd67b5e",
+   "article_no": "E-2.74",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "专家与专业人士背书",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-846a6e55701cc746",
+   "article_no": "E-2.75",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-86e50ef8b8099b3c",
+   "article_no": "E-2.76",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "利益关系与资质披露",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-872fb5f5ed4cd5b5",
+   "article_no": "E-2.77",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-891986ac67ba14e4",
+   "article_no": "E-2.78",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "研究方法与统计口径",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-8b7c16edca37f645",
+   "article_no": "E-2.79",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-0d03daa365c189fa",
+   "article_no": "E-2.8",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-9258a5796300346e",
+   "article_no": "E-2.80",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "研究方法与统计口径",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-92a6b9e1abc30af5",
+   "article_no": "E-2.81",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "限定信息与免责声明（清晰显著）",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-94aa197c2c5d13a8",
+   "article_no": "E-2.82",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "限定信息与免责声明（清晰显著）",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-9952487059dd0f41",
+   "article_no": "E-2.83",
+   "source": "external_standard",
+   "category": "平台与渠道政策",
+   "subcategory": "分地区投放禁令",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-995d828f5ef27974",
+   "article_no": "E-2.84",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "限定信息与免责声明（清晰显著）",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-99910d3c9ce42aa5",
+   "article_no": "E-2.85",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-a05639d323f9cd51",
+   "article_no": "E-2.86",
+   "source": "external_standard",
+   "category": "合规与受监管宣称",
+   "subcategory": "法定认证与注册表述",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-a16f7c8d40677bbb",
+   "article_no": "E-2.87",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "效果数据与销量排名宣称",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-a256d6151fe461b1",
+   "article_no": "E-2.88",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-a37db2c994b08fbe",
+   "article_no": "E-2.89",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "效果数据与销量排名宣称",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-0d1e46b923cbf9f8",
+   "article_no": "E-2.9",
+   "source": "external_standard",
+   "category": "背书与披露透明",
+   "subcategory": "达人合作与付费推广披露",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-a5255155797254db",
+   "article_no": "E-2.90",
+   "source": "external_standard",
+   "category": "平台与渠道政策",
+   "subcategory": "平台政策总体合规",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-a65b1e8a7c4b267c",
+   "article_no": "E-2.91",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "研究方法与统计口径",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-a8cdfc64db3cfc8e",
+   "article_no": "E-2.92",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "研究方法与统计口径",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ad80c02af1e44287",
+   "article_no": "E-2.93",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "效果数据与销量排名宣称",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ae8a049f84b6265b",
+   "article_no": "E-2.94",
+   "source": "external_standard",
+   "category": "平台与渠道政策",
+   "subcategory": "分地区投放禁令",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b30e04bc9feec43a",
+   "article_no": "E-2.95",
+   "source": "external_standard",
+   "category": "平台与渠道政策",
+   "subcategory": "平台政策总体合规",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b3329c8ade9dfe0e",
+   "article_no": "E-2.96",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "证据局限、限定语与整体印象",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b4c492f9a4b00b33",
+   "article_no": "E-2.97",
+   "source": "external_standard",
+   "category": "平台与渠道政策",
+   "subcategory": "禁止投放品类与场景",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b60da70387394094",
+   "article_no": "E-2.98",
+   "source": "external_standard",
+   "category": "证据与实质证明",
+   "subcategory": "临床与科学证据要求",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b72814f279c22813",
+   "article_no": "E-2.99",
+   "source": "external_standard",
+   "category": "平台与渠道政策",
+   "subcategory": "素材提交与形式规范",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-006445396c95aa10",
+   "article_no": "W-1.1",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "智能与仿生宣称",
+   "p_level": "P0",
+   "p_level_before": "P2",
+   "p0_fastpath": true
+  },
+  {
+   "rule_id": "r-1cf94543649842a0",
+   "article_no": "W-1.10",
+   "source": "rules",
+   "category": "商品信息与Listing准确性",
+   "subcategory": "功能与部件描述准确性",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-21786ac5aff9be34",
+   "article_no": "W-1.11",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "等级与资质背书用语",
+   "p_level": "P1",
+   "p_level_before": "P2",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-252ba6cf5ee92b00",
+   "article_no": "W-1.12",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "绝对化与最高级用语",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3055901e5877f981",
+   "article_no": "W-1.13",
+   "source": "rules",
+   "category": "背书与披露透明",
+   "subcategory": "专家与专业人士背书",
+   "p_level": "P0",
+   "p_level_before": "P2",
+   "p0_fastpath": true
+  },
+  {
+   "rule_id": "r-30d3b9b54135fa04",
+   "article_no": "W-1.14",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "医疗与疾病功效宣称",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-335f00d14cefe7f9",
+   "article_no": "W-1.15",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "保险与报销资格宣称",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-33ce99a813e0865a",
+   "article_no": "W-1.16",
+   "source": "rules",
+   "category": "推广与价格透明",
+   "subcategory": "促销紧迫感与压力话术",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-379572868aa01151",
+   "article_no": "W-1.17",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "生理功效与效果承诺",
+   "p_level": "P1",
+   "p_level_before": "P2",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-37b49eadb72d7dc2",
+   "article_no": "W-1.18",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "生理功效与效果承诺",
+   "p_level": "P0",
+   "p_level_before": "P2",
+   "p0_fastpath": true
+  },
+  {
+   "rule_id": "r-38148746d4e6516d",
+   "article_no": "W-1.19",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "等级与资质背书用语",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-039822ed5c8e3448",
+   "article_no": "W-1.2",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "智能与仿生宣称",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3b18c7d1af8f8d4d",
+   "article_no": "W-1.20",
+   "source": "rules",
+   "category": "品牌信任与声誉",
+   "subcategory": "竞品对比与贬低",
+   "p_level": "P1",
+   "p_level_before": "P2",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3b3460eab4528002",
+   "article_no": "W-1.21",
+   "source": "rules",
+   "category": "证据与实质证明",
+   "subcategory": "证据不足与待验证宣称",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3b6c3c82dc667295",
+   "article_no": "W-1.22",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "无痛、安全与零风险承诺",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-4142a3c2dbf3cbe5",
+   "article_no": "W-1.23",
+   "source": "rules",
+   "category": "商品信息与Listing准确性",
+   "subcategory": "产品体验与设计方向表述",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-478f43899bcb5b8a",
+   "article_no": "W-1.24",
+   "source": "rules",
+   "category": "证据与实质证明",
+   "subcategory": "证据不足与待验证宣称",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-4f309d6ebde80283",
+   "article_no": "W-1.25",
+   "source": "rules",
+   "category": "证据与实质证明",
+   "subcategory": "效果数据与销量排名宣称",
+   "p_level": "P0",
+   "p_level_before": "P2",
+   "p0_fastpath": true
+  },
+  {
+   "rule_id": "r-5c056bc02cdd770c",
+   "article_no": "W-1.26",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "无痛、安全与零风险承诺",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-65198e7c3e5b833e",
+   "article_no": "W-1.27",
+   "source": "rules",
+   "category": "背书与披露透明",
+   "subcategory": "专家与专业人士背书",
+   "p_level": "P1",
+   "p_level_before": "P2",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6773cda1135632c8",
+   "article_no": "W-1.28",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "生理功效与效果承诺",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-69f4049b9cd733ea",
+   "article_no": "W-1.29",
+   "source": "rules",
+   "category": "商品信息与Listing准确性",
+   "subcategory": "产品体验与设计方向表述",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-03fb6f7a5fe1655a",
+   "article_no": "W-1.3",
+   "source": "rules",
+   "category": "背书与披露透明",
+   "subcategory": "专家与专业人士背书",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-724b26ecb1dee9c4",
+   "article_no": "W-1.30",
+   "source": "rules",
+   "category": "商品信息与Listing准确性",
+   "subcategory": "规格与参数表述",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-7489e156a5d2c7b2",
+   "article_no": "W-1.31",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "智能与仿生宣称",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-755d3407cf8ce75b",
+   "article_no": "W-1.32",
+   "source": "rules",
+   "category": "商品信息与Listing准确性",
+   "subcategory": "适配与尺码宣称",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-7baf7ceb47b2e5bc",
+   "article_no": "W-1.33",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "无痛、安全与零风险承诺",
+   "p_level": "P0",
+   "p_level_before": "P2",
+   "p0_fastpath": true
+  },
+  {
+   "rule_id": "r-7bed60d9dd01793a",
+   "article_no": "W-1.34",
+   "source": "rules",
+   "category": "商品信息与Listing准确性",
+   "subcategory": "产品体验与设计方向表述",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-85348bba00a2b5a7",
+   "article_no": "W-1.35",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "等级与资质背书用语",
+   "p_level": "P1",
+   "p_level_before": "P2",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-870bf797d240b725",
+   "article_no": "W-1.36",
+   "source": "rules",
+   "category": "品牌信任与声誉",
+   "subcategory": "竞品对比与贬低",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-8dfbcdca24e18a60",
+   "article_no": "W-1.37",
+   "source": "rules",
+   "category": "证据与实质证明",
+   "subcategory": "证据不足与待验证宣称",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-8e049d8b38a8ac31",
+   "article_no": "W-1.38",
+   "source": "rules",
+   "category": "证据与实质证明",
+   "subcategory": "效果数据与销量排名宣称",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-97044c3283e41aea",
+   "article_no": "W-1.39",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "智能与仿生宣称",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-0823b2d08a7e4ec2",
+   "article_no": "W-1.4",
+   "source": "rules",
+   "category": "品牌信任与声誉",
+   "subcategory": "竞品对比与贬低",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": true
+  },
+  {
+   "rule_id": "r-9878294c87d29582",
+   "article_no": "W-1.40",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "等级与资质背书用语",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-9b672eff05199974",
+   "article_no": "W-1.41",
+   "source": "rules",
+   "category": "背书与披露透明",
+   "subcategory": "专家与专业人士背书",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-9e252d15425a4179",
+   "article_no": "W-1.42",
+   "source": "rules",
+   "category": "商品信息与Listing准确性",
+   "subcategory": "功能与部件描述准确性",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b10ee2b8361c8a3d",
+   "article_no": "W-1.43",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "医疗与疾病功效宣称",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": true
+  },
+  {
+   "rule_id": "r-b301be45b8cd64a9",
+   "article_no": "W-1.44",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "生理功效与效果承诺",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b3d0d5f656f0df34",
+   "article_no": "W-1.45",
+   "source": "rules",
+   "category": "商品信息与Listing准确性",
+   "subcategory": "产品体验与设计方向表述",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b8669712e27146e3",
+   "article_no": "W-1.46",
+   "source": "rules",
+   "category": "商品信息与Listing准确性",
+   "subcategory": "功能与部件描述准确性",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b8aea07e90a86b59",
+   "article_no": "W-1.47",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "生理功效与效果承诺",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c40ed52e71a07743",
+   "article_no": "W-1.48",
+   "source": "rules",
+   "category": "背书与披露透明",
+   "subcategory": "专家与专业人士背书",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c767bb12e6a8698d",
+   "article_no": "W-1.49",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "绝对化与最高级用语",
+   "p_level": "P0",
+   "p_level_before": "P2",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-0ffc53715dfa4e43",
+   "article_no": "W-1.5",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "绝对化与最高级用语",
+   "p_level": "P0",
+   "p_level_before": "P2",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-cbfa62aa397fc6ba",
+   "article_no": "W-1.50",
+   "source": "rules",
+   "category": "推广与价格透明",
+   "subcategory": "促销紧迫感与压力话术",
+   "p_level": "P2",
+   "p_level_before": "P2",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-d00103c52a98512e",
+   "article_no": "W-1.51",
+   "source": "rules",
+   "category": "证据与实质证明",
+   "subcategory": "效果数据与销量排名宣称",
+   "p_level": "P0",
+   "p_level_before": "P0",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-d451847b1d6b75f4",
+   "article_no": "W-1.52",
+   "source": "rules",
+   "category": "证据与实质证明",
+   "subcategory": "证据不足与待验证宣称",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-d7290a0ee59c58ef",
+   "article_no": "W-1.53",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "无痛、安全与零风险承诺",
+   "p_level": "P0",
+   "p_level_before": "P2",
+   "p0_fastpath": true
+  },
+  {
+   "rule_id": "r-ddf0f8360c7b53a7",
+   "article_no": "W-1.54",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "绝对化与最高级用语",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e879231d61c9bd08",
+   "article_no": "W-1.55",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "无痛、安全与零风险承诺",
+   "p_level": "P0",
+   "p_level_before": "P2",
+   "p0_fastpath": true
+  },
+  {
+   "rule_id": "r-e919fda20cd2f95e",
+   "article_no": "W-1.56",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "无痛、安全与零风险承诺",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-106e4c5b6475d0e3",
+   "article_no": "W-1.6",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "无痛、安全与零风险承诺",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-13fd137cd293d657",
+   "article_no": "W-1.7",
+   "source": "rules",
+   "category": "平台与渠道政策",
+   "subcategory": "素材提交与形式规范",
+   "p_level": "P1",
+   "p_level_before": "P2",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-15a607c4457c8b55",
+   "article_no": "W-1.8",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "法定认证与注册表述",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": true
+  },
+  {
+   "rule_id": "r-16cac1c85580f8f7",
+   "article_no": "W-1.9",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "临床与科学背书宣称",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": true
+  },
+  {
+   "rule_id": "r-00277648c524fe69",
+   "article_no": "W-2.1",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-06d26975e0cb5e36",
+   "article_no": "W-2.10",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3cdb837656c3b45b",
+   "article_no": "W-2.100",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-40d7019b629deca0",
+   "article_no": "W-2.101",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-417b04d6a458ced6",
+   "article_no": "W-2.102",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-4244b23b0f2d3cc4",
+   "article_no": "W-2.103",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-42a861229c61398c",
+   "article_no": "W-2.104",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-42b33135794ac9f9",
+   "article_no": "W-2.105",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-4314a1122bf8b6f8",
+   "article_no": "W-2.106",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-435eb55384615006",
+   "article_no": "W-2.107",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "绝对化与最高级用语",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-44b792d8a078ca6f",
+   "article_no": "W-2.108",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-45a701810adbab0a",
+   "article_no": "W-2.109",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "喂养与辅食营养",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-06ef1afcd242f6ef",
+   "article_no": "W-2.11",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-45cbef67fff0141a",
+   "article_no": "W-2.110",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-4672dee81676fe59",
+   "article_no": "W-2.111",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "婴幼儿睡眠",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-48189e2be06c1524",
+   "article_no": "W-2.112",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-4851b472d119df42",
+   "article_no": "W-2.113",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "儿童安全与居家防护",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-48559eb5f5c8cf1f",
+   "article_no": "W-2.114",
+   "source": "rules",
+   "category": "推广与价格透明",
+   "subcategory": "折扣与会员活动表述",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-491919c142250340",
+   "article_no": "W-2.115",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-49a58aca87e2b71d",
+   "article_no": "W-2.116",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-49f6cd2dd3368fe2",
+   "article_no": "W-2.117",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-4ab470afe1babf69",
+   "article_no": "W-2.118",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-4ad88b78e4b179aa",
+   "article_no": "W-2.119",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "生长发育与里程碑",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-0733ea66b95d7e76",
+   "article_no": "W-2.12",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-4b42db866834c17a",
+   "article_no": "W-2.120",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "母乳喂养通用建议",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-4b937805d9521673",
+   "article_no": "W-2.121",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-4ba0e39291ddfdae",
+   "article_no": "W-2.122",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "婴幼儿睡眠",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-4e325add60ec5d2d",
+   "article_no": "W-2.123",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "生理功效与效果承诺",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-4f92de5ddb23ffbf",
+   "article_no": "W-2.124",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-4fb9902dbefa8db1",
+   "article_no": "W-2.125",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "母乳成分与过敏",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-50420ae29cf1d27d",
+   "article_no": "W-2.126",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-50430666754020ad",
+   "article_no": "W-2.127",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5071ec2a3e142bcb",
+   "article_no": "W-2.128",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-50b250702aa0cf52",
+   "article_no": "W-2.129",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "喂养与辅食营养",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-07b16b9680a49a61",
+   "article_no": "W-2.13",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5129868cac83a174",
+   "article_no": "W-2.130",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "母乳喂养通用建议",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-517689429e03204b",
+   "article_no": "W-2.131",
+   "source": "rules",
+   "category": "背书与披露透明",
+   "subcategory": "专家与专业人士背书",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-52673ec4607526be",
+   "article_no": "W-2.132",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5308db78b4d9628d",
+   "article_no": "W-2.133",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-532ddf59fc811d83",
+   "article_no": "W-2.134",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "母乳成分与过敏",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-537388c58afe1db6",
+   "article_no": "W-2.135",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-544ebe211678cd6e",
+   "article_no": "W-2.136",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-55472536827bcde0",
+   "article_no": "W-2.137",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "婴幼儿睡眠",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-55486fca5185add6",
+   "article_no": "W-2.138",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "等级与资质背书用语",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5551320becd930ac",
+   "article_no": "W-2.139",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-07cf2086914b7931",
+   "article_no": "W-2.14",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5564c6b0433a7728",
+   "article_no": "W-2.140",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5571476ffde5bd4f",
+   "article_no": "W-2.141",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-557bb0c3a5ae9a75",
+   "article_no": "W-2.142",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-56b378f28d544a46",
+   "article_no": "W-2.143",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-572621f6d6f51ca5",
+   "article_no": "W-2.144",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-585150cf9fdea110",
+   "article_no": "W-2.145",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-58b1f1efc0f35bb0",
+   "article_no": "W-2.146",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-58d94a3b69c68cfa",
+   "article_no": "W-2.147",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "医疗与疾病功效宣称",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5965698f706cd145",
+   "article_no": "W-2.148",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5976aa4e943b699c",
+   "article_no": "W-2.149",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "母乳成分与过敏",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-07f6ea8c7ba9d05b",
+   "article_no": "W-2.15",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5984472833911239",
+   "article_no": "W-2.150",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "婴幼儿睡眠",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5a8a196b7081e1bb",
+   "article_no": "W-2.151",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5b37a86cfddeec60",
+   "article_no": "W-2.152",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5b87304284483927",
+   "article_no": "W-2.153",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5bb9e1fea6bbec0f",
+   "article_no": "W-2.154",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5bf90ff7d35e7a33",
+   "article_no": "W-2.155",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5c0f1a1f1e1ed5df",
+   "article_no": "W-2.156",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5c147dadb4776118",
+   "article_no": "W-2.157",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5c56029cde3ea5bd",
+   "article_no": "W-2.158",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5c7b86436c1e96c9",
+   "article_no": "W-2.159",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-07fce20b5afc879a",
+   "article_no": "W-2.16",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5d972f29a9761590",
+   "article_no": "W-2.160",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-5fbef400bb256c9c",
+   "article_no": "W-2.161",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-60635da2a17a4831",
+   "article_no": "W-2.162",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-606ad8dfd6bcb607",
+   "article_no": "W-2.163",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-60ad3fb21b428305",
+   "article_no": "W-2.164",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "生理功效与效果承诺",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-60e847bcecfff66f",
+   "article_no": "W-2.165",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "绝对化与最高级用语",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6118f1ddf182b8c9",
+   "article_no": "W-2.166",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-621753fca6e19a0f",
+   "article_no": "W-2.167",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-628ff05537a84400",
+   "article_no": "W-2.168",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "分娩与待产",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-62e68b8722830074",
+   "article_no": "W-2.169",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-082e954afd41cf1e",
+   "article_no": "W-2.17",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "无痛、安全与零风险承诺",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-62ec2272a23c5930",
+   "article_no": "W-2.170",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "离乳与夜奶",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-62ecfeb974b0a781",
+   "article_no": "W-2.171",
+   "source": "rules",
+   "category": "证据与实质证明",
+   "subcategory": "效果数据与销量排名宣称",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-62f0d4edd401a20e",
+   "article_no": "W-2.172",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-62f78e0b09921fe2",
+   "article_no": "W-2.173",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-63f95baa375fc97b",
+   "article_no": "W-2.174",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-640dfb910ee7c32b",
+   "article_no": "W-2.175",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "离乳与夜奶",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6449be54796427f3",
+   "article_no": "W-2.176",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "智能与仿生宣称",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-64efe2e19a3a1b21",
+   "article_no": "W-2.177",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "绝对化与最高级用语",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-65141862397d1eda",
+   "article_no": "W-2.178",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "妈妈心理与情绪",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6628b5061755afff",
+   "article_no": "W-2.179",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "婴幼儿睡眠",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-08dc6481589eaaed",
+   "article_no": "W-2.18",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6768699540085fd3",
+   "article_no": "W-2.180",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-67e52ebca673c280",
+   "article_no": "W-2.181",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6807472bc078bb8d",
+   "article_no": "W-2.182",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-68c6a82355851309",
+   "article_no": "W-2.183",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-69199a1bda96e7c9",
+   "article_no": "W-2.184",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "喂养与辅食营养",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-69aa317f4a45fd4f",
+   "article_no": "W-2.185",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "生理功效与效果承诺",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6a09f5b191de1ddd",
+   "article_no": "W-2.186",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6a35c2f74318578e",
+   "article_no": "W-2.187",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6a5cef517524a88c",
+   "article_no": "W-2.188",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6b1a5d2525df56e6",
+   "article_no": "W-2.189",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-08f116a3f7e13f8b",
+   "article_no": "W-2.19",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "无痛、安全与零风险承诺",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6b65398d52025490",
+   "article_no": "W-2.190",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "离乳与夜奶",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6be850e79f672fb0",
+   "article_no": "W-2.191",
+   "source": "rules",
+   "category": "品牌信任与声誉",
+   "subcategory": "竞品对比与贬低",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6c16496a92407285",
+   "article_no": "W-2.192",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "喂养与辅食营养",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6caf62e49de787ae",
+   "article_no": "W-2.193",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6d6d92cf498eccc7",
+   "article_no": "W-2.194",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "婴幼儿睡眠",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6dae14c7b18917d0",
+   "article_no": "W-2.195",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6ee73b990e5366a2",
+   "article_no": "W-2.196",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6f2500bc187d8fae",
+   "article_no": "W-2.197",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6fd55af6656155ff",
+   "article_no": "W-2.198",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-6fe3c7d79d8e5e42",
+   "article_no": "W-2.199",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "医疗与疾病功效宣称",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-01870b675a3e2dad",
+   "article_no": "W-2.2",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-08f814586df8d646",
+   "article_no": "W-2.20",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "母乳喂养通用建议",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-70eeb7f38a817307",
+   "article_no": "W-2.200",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "生理功效与效果承诺",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-70fb8e51ef009b81",
+   "article_no": "W-2.201",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-710b612a819e7264",
+   "article_no": "W-2.202",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-71a0e5eafa7b9f37",
+   "article_no": "W-2.203",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "分娩与待产",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-71c439352ad464eb",
+   "article_no": "W-2.204",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-726b0696a357046c",
+   "article_no": "W-2.205",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "用药与成分安全",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-74089a05a918da54",
+   "article_no": "W-2.206",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-74f34707be0698b9",
+   "article_no": "W-2.207",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-754797702ce415ac",
+   "article_no": "W-2.208",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-756e75a63660618e",
+   "article_no": "W-2.209",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-0984959bc9a46010",
+   "article_no": "W-2.21",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-75fba1336be292c5",
+   "article_no": "W-2.210",
+   "source": "rules",
+   "category": "商品信息与Listing准确性",
+   "subcategory": "适配与尺码宣称",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-769cfa1751dbabc9",
+   "article_no": "W-2.211",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-773b5a192d129d7d",
+   "article_no": "W-2.212",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-77d0eb267717cf15",
+   "article_no": "W-2.213",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-78810215b255e00c",
+   "article_no": "W-2.214",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "用药与成分安全",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-788eb62c3facdcbf",
+   "article_no": "W-2.215",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-78946c32d35b9383",
+   "article_no": "W-2.216",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-790e26c27102e241",
+   "article_no": "W-2.217",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "智能与仿生宣称",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-7a2077c8131dc3b2",
+   "article_no": "W-2.218",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-7d275d03b1df4cd5",
+   "article_no": "W-2.219",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-09d0efc57cd12c77",
+   "article_no": "W-2.22",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-7d90d01b5964022d",
+   "article_no": "W-2.220",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-7dac0c64407acd20",
+   "article_no": "W-2.221",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "母乳成分与过敏",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-7e167b512a26f455",
+   "article_no": "W-2.222",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-7e2b362b3131b1b5",
+   "article_no": "W-2.223",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-81e73f48cf67cc65",
+   "article_no": "W-2.224",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-821eb3505364e349",
+   "article_no": "W-2.225",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "婴幼儿睡眠",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-8239786a7b850ba3",
+   "article_no": "W-2.226",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-833206375b2c991d",
+   "article_no": "W-2.227",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-8380b74f7d98d063",
+   "article_no": "W-2.228",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-838ebf2c28c0f74a",
+   "article_no": "W-2.229",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "婴幼儿睡眠",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-0abf1c5f448ea6fe",
+   "article_no": "W-2.23",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "母乳喂养通用建议",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-83e012b69931f9bb",
+   "article_no": "W-2.230",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "妈妈心理与情绪",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-84927c3e6a3a06d0",
+   "article_no": "W-2.231",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-85080eb28d7d8d01",
+   "article_no": "W-2.232",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-855fcb180c9d8f2f",
+   "article_no": "W-2.233",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-856c5f79e155e198",
+   "article_no": "W-2.234",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "喂养与辅食营养",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-857bf4cbbde83708",
+   "article_no": "W-2.235",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "喂养与辅食营养",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-877e5d527965b874",
+   "article_no": "W-2.236",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-88cd4f4e23457938",
+   "article_no": "W-2.237",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "喂养与辅食营养",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-898bb92d8028a8c3",
+   "article_no": "W-2.238",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-89dc0e2ca4ba0979",
+   "article_no": "W-2.239",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "生理功效与效果承诺",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-0ad91c080a52c7f3",
+   "article_no": "W-2.24",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-8b3fc5cb8e0fa45b",
+   "article_no": "W-2.240",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "生理功效与效果承诺",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-8b9869608dca6a4b",
+   "article_no": "W-2.241",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-8bd71732765aa4c8",
+   "article_no": "W-2.242",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-8bfa6b3ebaed7dd5",
+   "article_no": "W-2.243",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "喂养与辅食营养",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-8cc51181aeb92daa",
+   "article_no": "W-2.244",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "医疗与疾病功效宣称",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-8cd3ef9bcfce9529",
+   "article_no": "W-2.245",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-8cfdee8434350faa",
+   "article_no": "W-2.246",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-8d1cb80faa934923",
+   "article_no": "W-2.247",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-8d4c0a3d3b35bada",
+   "article_no": "W-2.248",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-8dcfd7d5bf12e1a4",
+   "article_no": "W-2.249",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "用药与成分安全",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-0af9225afcf907de",
+   "article_no": "W-2.25",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-8e2d4cadfb6b0c9a",
+   "article_no": "W-2.250",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-8e87721769ffa61e",
+   "article_no": "W-2.251",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "婴幼儿睡眠",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-8ecc5a331750a443",
+   "article_no": "W-2.252",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "喂养与辅食营养",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-8fbedeba32d7d788",
+   "article_no": "W-2.253",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-9163183dc2f334ef",
+   "article_no": "W-2.254",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-91a2961a5de5bbda",
+   "article_no": "W-2.255",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-92e381921bfe9807",
+   "article_no": "W-2.256",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-94ef0260d4764078",
+   "article_no": "W-2.257",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-9570bbd5b5f2d5db",
+   "article_no": "W-2.258",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-9692d3f2cc56c536",
+   "article_no": "W-2.259",
+   "source": "rules",
+   "category": "品牌信任与声誉",
+   "subcategory": "竞品对比与贬低",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-0c256e8a81d4ac52",
+   "article_no": "W-2.26",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-976ba269427fee46",
+   "article_no": "W-2.260",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-990aae9f4876012c",
+   "article_no": "W-2.261",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-990b801ee30ae2fd",
+   "article_no": "W-2.262",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-99839b4c5e713fa0",
+   "article_no": "W-2.263",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "等级与资质背书用语",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-9998a1b27fe3caab",
+   "article_no": "W-2.264",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-99a8d3c3bf203083",
+   "article_no": "W-2.265",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-99aa0a6cdad70618",
+   "article_no": "W-2.266",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "离乳与夜奶",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-99b67c9df2c45cce",
+   "article_no": "W-2.267",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "绝对化与最高级用语",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-99e129bfc18ec018",
+   "article_no": "W-2.268",
+   "source": "rules",
+   "category": "品牌信任与声誉",
+   "subcategory": "品牌口号与价值主张",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-9aaec0ac23369296",
+   "article_no": "W-2.269",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "婴幼儿睡眠",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-0c2ce93d178d3efd",
+   "article_no": "W-2.27",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-9ac459a1e1841c80",
+   "article_no": "W-2.270",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-9bb0fdd5fad10af9",
+   "article_no": "W-2.271",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-9cbe7dd16653e5af",
+   "article_no": "W-2.272",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "分娩与待产",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-9cdc5af925dc9483",
+   "article_no": "W-2.273",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-9dc00849000e8b72",
+   "article_no": "W-2.274",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-9ef9c5eaf628088a",
+   "article_no": "W-2.275",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "用药与成分安全",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-a0b15b26f05444a0",
+   "article_no": "W-2.276",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-a1a9c278662bcad2",
+   "article_no": "W-2.277",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-a279a5929b90276d",
+   "article_no": "W-2.278",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "用药与成分安全",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-a32925909b9216c9",
+   "article_no": "W-2.279",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "用药与成分安全",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-0c4b58fdf47bb3b4",
+   "article_no": "W-2.28",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-a4b7f846e91120e2",
+   "article_no": "W-2.280",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-a4bca08ac69bc2c0",
+   "article_no": "W-2.281",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-a5ddf19a11fdb31e",
+   "article_no": "W-2.282",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-a5fa71eeca24af2f",
+   "article_no": "W-2.283",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-a6411e2fb30e094e",
+   "article_no": "W-2.284",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-a656b1bb2b5c3e94",
+   "article_no": "W-2.285",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-a6dad26affbcba24",
+   "article_no": "W-2.286",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "母乳成分与过敏",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-a7b2b833ef7bb856",
+   "article_no": "W-2.287",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-aae43984328abdd7",
+   "article_no": "W-2.288",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "妈妈心理与情绪",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ab261a055de0ec1c",
+   "article_no": "W-2.289",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-0c800afd634a36c1",
+   "article_no": "W-2.29",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ab4dac72300ce9ea",
+   "article_no": "W-2.290",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ab7c1a45f83b3482",
+   "article_no": "W-2.291",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ac05b9e4669866b4",
+   "article_no": "W-2.292",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ac0d6a09d2ddf809",
+   "article_no": "W-2.293",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "母乳成分与过敏",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ad1ad30cf52bf707",
+   "article_no": "W-2.294",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "无痛、安全与零风险承诺",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ad1e572f9222c386",
+   "article_no": "W-2.295",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ad7bea5e52842702",
+   "article_no": "W-2.296",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "母乳喂养通用建议",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-aee62d35ef8916a8",
+   "article_no": "W-2.297",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "用药与成分安全",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-af9be5ade9ccddc7",
+   "article_no": "W-2.298",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-aff0d8aca8347b36",
+   "article_no": "W-2.299",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-031e17f2fd4ee59c",
+   "article_no": "W-2.3",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "母乳喂养通用建议",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-0cf17d3461fc4c36",
+   "article_no": "W-2.30",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b00d53230757caf6",
+   "article_no": "W-2.300",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b02fba41f0b26e02",
+   "article_no": "W-2.301",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b2530a099df678b3",
+   "article_no": "W-2.302",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b431f1a0067a728d",
+   "article_no": "W-2.303",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b44983db9cb74d68",
+   "article_no": "W-2.304",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b4660b7a28845f00",
+   "article_no": "W-2.305",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b494390dfbc77466",
+   "article_no": "W-2.306",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b5053c79bc6a2bfe",
+   "article_no": "W-2.307",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b51f2e000664dd84",
+   "article_no": "W-2.308",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b690604920484a9c",
+   "article_no": "W-2.309",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-0ebdcbb7aca60084",
+   "article_no": "W-2.31",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b6b3ce919460af47",
+   "article_no": "W-2.310",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "绝对化与最高级用语",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b6b84137fa2512ed",
+   "article_no": "W-2.311",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "妈妈心理与情绪",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b6d8f65597a51e88",
+   "article_no": "W-2.312",
+   "source": "rules",
+   "category": "商品信息与Listing准确性",
+   "subcategory": "防漏与密封宣称",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b6e68cd5852b35af",
+   "article_no": "W-2.313",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b73b423ca1908487",
+   "article_no": "W-2.314",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "喂养与辅食营养",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b7c2b35c5a9239fe",
+   "article_no": "W-2.315",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "临床与科学背书宣称",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b7d8c9e322eec780",
+   "article_no": "W-2.316",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-b9765382ef883eb0",
+   "article_no": "W-2.317",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ba327d907c2ad828",
+   "article_no": "W-2.318",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "喂养与辅食营养",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ba92201b5262708b",
+   "article_no": "W-2.319",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "生理功效与效果承诺",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-0f23a07001325fb8",
+   "article_no": "W-2.32",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-bb3f463582e1fd37",
+   "article_no": "W-2.320",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-bb68bd1d1a98626a",
+   "article_no": "W-2.321",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-bc2e1cfec178cd7a",
+   "article_no": "W-2.322",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-bc54bf1e6e42dfd1",
+   "article_no": "W-2.323",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-bda3ae3e2347d88b",
+   "article_no": "W-2.324",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-bda7a01a82f1a74b",
+   "article_no": "W-2.325",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-be4dd0bdcdd53082",
+   "article_no": "W-2.326",
+   "source": "rules",
+   "category": "品牌信任与声誉",
+   "subcategory": "品牌口号与价值主张",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-be647d3abe261ba1",
+   "article_no": "W-2.327",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "用药与成分安全",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-beba3ddaa5f32511",
+   "article_no": "W-2.328",
+   "source": "rules",
+   "category": "品牌信任与声誉",
+   "subcategory": "品牌口号与价值主张",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-bebb5570bc5bb55c",
+   "article_no": "W-2.329",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-0f90d588747190c8",
+   "article_no": "W-2.33",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "母乳成分与过敏",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-bf6ab0d4d6e610dc",
+   "article_no": "W-2.330",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c0cd959447738b3a",
+   "article_no": "W-2.331",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "无痛、安全与零风险承诺",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c0e53c3a4bc98a24",
+   "article_no": "W-2.332",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c12133ccfd10080b",
+   "article_no": "W-2.333",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "生长发育与里程碑",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c149d450d7dc5775",
+   "article_no": "W-2.334",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "母乳喂养通用建议",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c181f732df8821f7",
+   "article_no": "W-2.335",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c3a2f8f54e6d8e19",
+   "article_no": "W-2.336",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "生理功效与效果承诺",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c3a9bb2b1f1bebcd",
+   "article_no": "W-2.337",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "喂养与辅食营养",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c3fae13f5c970bef",
+   "article_no": "W-2.338",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c48fb9cca3c40f48",
+   "article_no": "W-2.339",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-0fc932e8b19801f5",
+   "article_no": "W-2.34",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c4961150d20c31b2",
+   "article_no": "W-2.340",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c4a76f4e1a34e2cd",
+   "article_no": "W-2.341",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c515e503185d5234",
+   "article_no": "W-2.342",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "生理功效与效果承诺",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c63bbc3a4555f705",
+   "article_no": "W-2.343",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "生长发育与里程碑",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c6681dd0154f8824",
+   "article_no": "W-2.344",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c6a943bf027e2a80",
+   "article_no": "W-2.345",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "生长发育与里程碑",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c6b6090c2db050bd",
+   "article_no": "W-2.346",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c6fa27383935ff2f",
+   "article_no": "W-2.347",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "智能与仿生宣称",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-c77d30c8368d107e",
+   "article_no": "W-2.348",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ca215af1ebcf5f03",
+   "article_no": "W-2.349",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-12220c1d23e32516",
+   "article_no": "W-2.35",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "分娩与待产",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ca61bf7be5b26052",
+   "article_no": "W-2.350",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-cacfb1c9ad026c1b",
+   "article_no": "W-2.351",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-cad705f629d3ed7a",
+   "article_no": "W-2.352",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "法定认证与注册表述",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-cc19183c56653ae2",
+   "article_no": "W-2.353",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "母乳成分与过敏",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-cc980235e4ee2853",
+   "article_no": "W-2.354",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-cd2184ddd60560fe",
+   "article_no": "W-2.355",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-cd2fe84154366282",
+   "article_no": "W-2.356",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-cdce0d7447a57105",
+   "article_no": "W-2.357",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-cdd817707426f918",
+   "article_no": "W-2.358",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ceb2e1fa576af45b",
+   "article_no": "W-2.359",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-14056187c2923e38",
+   "article_no": "W-2.36",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "婴幼儿睡眠",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-cf4afecffa6cb8fa",
+   "article_no": "W-2.360",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-d0373580920ad56b",
+   "article_no": "W-2.361",
+   "source": "rules",
+   "category": "商品信息与Listing准确性",
+   "subcategory": "防漏与密封宣称",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-d1723884170a7700",
+   "article_no": "W-2.362",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-d2ccb0a2ebe92b78",
+   "article_no": "W-2.363",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-d344696169f0731a",
+   "article_no": "W-2.364",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-d45f8dba3961e2fc",
+   "article_no": "W-2.365",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-d54c2484ecbdf1da",
+   "article_no": "W-2.366",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "母乳成分与过敏",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-d576deb5c7c422ed",
+   "article_no": "W-2.367",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-d5dcf4e36a2f693e",
+   "article_no": "W-2.368",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "离乳与夜奶",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-d7f0ee1005eac657",
+   "article_no": "W-2.369",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "无痛、安全与零风险承诺",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-146a312c68d61ed0",
+   "article_no": "W-2.37",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-d827cc631a0cd70a",
+   "article_no": "W-2.370",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "智能与仿生宣称",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-d88e933b2140a374",
+   "article_no": "W-2.371",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-d927c54ff0f54ef5",
+   "article_no": "W-2.372",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-d97452b05ff0d770",
+   "article_no": "W-2.373",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-d9aa349137ef8628",
+   "article_no": "W-2.374",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-da384742d48d8b07",
+   "article_no": "W-2.375",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-db70213f67efa6d8",
+   "article_no": "W-2.376",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-dc6c374e88c98074",
+   "article_no": "W-2.377",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-dcb12e3663a5674a",
+   "article_no": "W-2.378",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-dcc49585a1e6364c",
+   "article_no": "W-2.379",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-15c1f4e4b09ef9d4",
+   "article_no": "W-2.38",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-dcce7860a587f79e",
+   "article_no": "W-2.380",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-dd43e1afe7ec11e1",
+   "article_no": "W-2.381",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "绝对化与最高级用语",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-dd7be258d1ba3049",
+   "article_no": "W-2.382",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-dd807574fa901ea8",
+   "article_no": "W-2.383",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-dd990a83bc2dd62e",
+   "article_no": "W-2.384",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-de342b7f2f5feaa5",
+   "article_no": "W-2.385",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-de36b8cb137951d9",
+   "article_no": "W-2.386",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-de573ff3260adb99",
+   "article_no": "W-2.387",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-df02345308ee0113",
+   "article_no": "W-2.388",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-df1b71423703c6f7",
+   "article_no": "W-2.389",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-165317382e4be1d4",
+   "article_no": "W-2.39",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "妈妈心理与情绪",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-dfcab496a5a49d3d",
+   "article_no": "W-2.390",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e0066bde9338357e",
+   "article_no": "W-2.391",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e063ed601d478dd7",
+   "article_no": "W-2.392",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e088559924e918e7",
+   "article_no": "W-2.393",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "生理功效与效果承诺",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e0aaee6df2424e29",
+   "article_no": "W-2.394",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "喂养与辅食营养",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e10aae2f1b889dce",
+   "article_no": "W-2.395",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e156365db2b01a21",
+   "article_no": "W-2.396",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e1e4a3266afe9d0c",
+   "article_no": "W-2.397",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e252a8cd042a83af",
+   "article_no": "W-2.398",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e2676dd31c724d97",
+   "article_no": "W-2.399",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-0384cb5e3fac494a",
+   "article_no": "W-2.4",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "等级与资质背书用语",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-16df6f8a4a0d597c",
+   "article_no": "W-2.40",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "母乳喂养通用建议",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e35686066211d64d",
+   "article_no": "W-2.400",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "喂养与辅食营养",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e35d49f6692a8ad2",
+   "article_no": "W-2.401",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "喂养与辅食营养",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e3e26db71f289ebc",
+   "article_no": "W-2.402",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e3e99ca45c9875ad",
+   "article_no": "W-2.403",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e4043b60b73950df",
+   "article_no": "W-2.404",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e4c3e2611c195ce9",
+   "article_no": "W-2.405",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e4def100fd4a428b",
+   "article_no": "W-2.406",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e4faf24a7b9c9e6a",
+   "article_no": "W-2.407",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e62ceee5c36f8a19",
+   "article_no": "W-2.408",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e820dea5d6069755",
+   "article_no": "W-2.409",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "绝对化与最高级用语",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-17f5d2d2dbd05c13",
+   "article_no": "W-2.41",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e84e595f203a75e2",
+   "article_no": "W-2.410",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "生理功效与效果承诺",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e8bef64d33f880ac",
+   "article_no": "W-2.411",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e8c213b735b75ddd",
+   "article_no": "W-2.412",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e8e677658c048890",
+   "article_no": "W-2.413",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-e920e99103fd392f",
+   "article_no": "W-2.414",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ea827249c4dd9ed2",
+   "article_no": "W-2.415",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "生长发育与里程碑",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ebb85ba148b58614",
+   "article_no": "W-2.416",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ec280f36b2cbf2db",
+   "article_no": "W-2.417",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "生长发育与里程碑",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ecca70d86d44653c",
+   "article_no": "W-2.418",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ed3087ae36864ed4",
+   "article_no": "W-2.419",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-18204ac2721417ec",
+   "article_no": "W-2.42",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "母乳喂养通用建议",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ed650c228f9300f7",
+   "article_no": "W-2.420",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-edaffe219831ba0a",
+   "article_no": "W-2.421",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ee877a8fc5d260ec",
+   "article_no": "W-2.422",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ef33ce6f81328fb1",
+   "article_no": "W-2.423",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "母乳成分与过敏",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ef7f9432b01d3d42",
+   "article_no": "W-2.424",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ef9611bb146479c9",
+   "article_no": "W-2.425",
+   "source": "rules",
+   "category": "推广与价格透明",
+   "subcategory": "促销紧迫感与压力话术",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-efbbe630f281f6cb",
+   "article_no": "W-2.426",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f0480ee84f5ec59e",
+   "article_no": "W-2.427",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "生长发育与里程碑",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f071f6db5c5f7f65",
+   "article_no": "W-2.428",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f0942e10a8b74228",
+   "article_no": "W-2.429",
+   "source": "rules",
+   "category": "商品信息与Listing准确性",
+   "subcategory": "功能与部件描述准确性",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-182ae8901d7ab5e0",
+   "article_no": "W-2.43",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f13d2751a45c58f8",
+   "article_no": "W-2.430",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "婴幼儿睡眠",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f195d1894891c168",
+   "article_no": "W-2.431",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f1e4839bc0fb5265",
+   "article_no": "W-2.432",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f2509c6725479888",
+   "article_no": "W-2.433",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f2d5b592a5bf4113",
+   "article_no": "W-2.434",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f46e6c23ba9824b4",
+   "article_no": "W-2.435",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f4e5ae3f478ab876",
+   "article_no": "W-2.436",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "生长发育与里程碑",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f4fff9f83474d164",
+   "article_no": "W-2.437",
+   "source": "rules",
+   "category": "背书与披露透明",
+   "subcategory": "专家与专业人士背书",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f57d7e0d4f46204d",
+   "article_no": "W-2.438",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f8005cca476ffa7d",
+   "article_no": "W-2.439",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "母乳喂养通用建议",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-18b9334b8c7d91f4",
+   "article_no": "W-2.44",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f80e7175c1920310",
+   "article_no": "W-2.440",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f8dba4570c9fbf7d",
+   "article_no": "W-2.441",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f8e1f14e3c18c3fd",
+   "article_no": "W-2.442",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "生长发育与里程碑",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f91bc51b7a5c34b7",
+   "article_no": "W-2.443",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-f9763c2c2efb3494",
+   "article_no": "W-2.444",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "喂养与辅食营养",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-fa965e984f39fc10",
+   "article_no": "W-2.445",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "母乳喂养通用建议",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-faa270bf40790e77",
+   "article_no": "W-2.446",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "离乳与夜奶",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-fb46d01be2dbfcb6",
+   "article_no": "W-2.447",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "生长发育与里程碑",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-fbe8e2b1583e7dfa",
+   "article_no": "W-2.448",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "妈妈心理与情绪",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-fcf44c4307537e1f",
+   "article_no": "W-2.449",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "喂养与辅食营养",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-19879d39577bd781",
+   "article_no": "W-2.45",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-fe0eeaa57065e7f1",
+   "article_no": "W-2.450",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "妈妈心理与情绪",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-fee1218774e9d1d9",
+   "article_no": "W-2.451",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ff09a3cb894d8e0a",
+   "article_no": "W-2.452",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-ffa11cd3f49c185b",
+   "article_no": "W-2.453",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "儿童安全与居家防护",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-198ec64ae47a4df5",
+   "article_no": "W-2.46",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-1abf812c4f09f107",
+   "article_no": "W-2.47",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-1c3bcfb153e82975",
+   "article_no": "W-2.48",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-1ccb6e1f11e92680",
+   "article_no": "W-2.49",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-04153de8e8cbce98",
+   "article_no": "W-2.5",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "生理功效与效果承诺",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-1d0563c01d83f5f6",
+   "article_no": "W-2.50",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-1ef6b9992d59744b",
+   "article_no": "W-2.51",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-1f23037f5f7208f0",
+   "article_no": "W-2.52",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "母乳成分与过敏",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-207b2c7c84b5981f",
+   "article_no": "W-2.53",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "喂养与辅食营养",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-2144caea2afdb625",
+   "article_no": "W-2.54",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-223bba503e14a279",
+   "article_no": "W-2.55",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-22d9b839671d54d8",
+   "article_no": "W-2.56",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "生长发育与里程碑",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-23621e88165051fb",
+   "article_no": "W-2.57",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-24f45edaaecc9d52",
+   "article_no": "W-2.58",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-2629716cfcba4bf1",
+   "article_no": "W-2.59",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-04723763ebfd2b2b",
+   "article_no": "W-2.6",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-27a67e6aaab55c04",
+   "article_no": "W-2.60",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-27d7fffcd66f573e",
+   "article_no": "W-2.61",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-27ef7c1999ea23a4",
+   "article_no": "W-2.62",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-28685ccfde9f9ae9",
+   "article_no": "W-2.63",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "喂养与辅食营养",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-294fe953bd531692",
+   "article_no": "W-2.64",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-2a3f238840217fdd",
+   "article_no": "W-2.65",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-2b63e637e6689c75",
+   "article_no": "W-2.66",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-2c0a2041a1ed87aa",
+   "article_no": "W-2.67",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-2c3b431a4f8981db",
+   "article_no": "W-2.68",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "离乳与夜奶",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-2e9f373fa7ef841c",
+   "article_no": "W-2.69",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-04ebe7b4ad137159",
+   "article_no": "W-2.7",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "离乳与夜奶",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-2ec08aa16c14550c",
+   "article_no": "W-2.70",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "婴幼儿睡眠",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-2fd8d83bb35653f5",
+   "article_no": "W-2.71",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-304676c89b541d7c",
+   "article_no": "W-2.72",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "婴幼儿睡眠",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-30c3d9dbd0f5f2a0",
+   "article_no": "W-2.73",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-310e09a914d557bb",
+   "article_no": "W-2.74",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "产后恢复",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3134c393ae983f75",
+   "article_no": "W-2.75",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-31fc1be407975cad",
+   "article_no": "W-2.76",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-327f3dad575a6b17",
+   "article_no": "W-2.77",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "生长发育与里程碑",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-330f8f19ef82aa0e",
+   "article_no": "W-2.78",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-332988d6aec06d58",
+   "article_no": "W-2.79",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "绝对化与最高级用语",
+   "p_level": "P0",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-058b9f4c20afa0be",
+   "article_no": "W-2.8",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-33cd728f1d7ed427",
+   "article_no": "W-2.80",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-341de2620214b905",
+   "article_no": "W-2.81",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-34b8904f72675de0",
+   "article_no": "W-2.82",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3609e77fee4b6cbe",
+   "article_no": "W-2.83",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "内容形式与表达规范",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3702a81cdf6455a8",
+   "article_no": "W-2.84",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "喂养与辅食营养",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-38f01299f58fc6e4",
+   "article_no": "W-2.85",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3951383423c8bb49",
+   "article_no": "W-2.86",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "妈妈心理与情绪",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-396772209e17185d",
+   "article_no": "W-2.87",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-39b29b57103f9888",
+   "article_no": "W-2.88",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-39c4d3cfa74f2672",
+   "article_no": "W-2.89",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-06ae8f80558f9637",
+   "article_no": "W-2.9",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3a8f828fc7a8537d",
+   "article_no": "W-2.90",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "生长发育与里程碑",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3ac6600d94451a57",
+   "article_no": "W-2.91",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3b1cf3a1622133a9",
+   "article_no": "W-2.92",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3b2c1007cc16de19",
+   "article_no": "W-2.93",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "吸奶器使用与母乳储存",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3b2eae0f566d32a6",
+   "article_no": "W-2.94",
+   "source": "rules",
+   "category": "合规与受监管宣称",
+   "subcategory": "智能与仿生宣称",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3b8c946efdf083b5",
+   "article_no": "W-2.95",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "孕期与产检",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3b9212dc4072b59b",
+   "article_no": "W-2.96",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "备孕与受孕",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3bbba4daed7cba38",
+   "article_no": "W-2.97",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P1",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3c36e7a8e76a2206",
+   "article_no": "W-2.98",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "哺乳与泌乳",
+   "p_level": "P3",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  },
+  {
+   "rule_id": "r-3c48f9b524a6333d",
+   "article_no": "W-2.99",
+   "source": "rules",
+   "category": "母婴知识内容准确性",
+   "subcategory": "新生儿护理与就医指征",
+   "p_level": "P2",
+   "p_level_before": "P1",
+   "p0_fastpath": false
+  }
+ ],
+ "dual_axis": {
+  "state": "known",
+  "what": "★ 本次落库后，库里 `p_level` 有**两个读者、两种取数**：① 评审链规则层（`kb/l7/skills/kb-content-review/scripts/review.py::load_rules`）读 `kb/l3/candidates/rules.jsonl` **逐行 last-wins**，不吃富化 ⇒ 看到本次的表值（509 条：P0 40 / P1 137 / P2 213 / P3 119，与表内 rules 部分逐档一致）；② L5 侧（`l5_export` / `l5_prep` / `l5_report`）读 `kb_ledger.rules_enriched_view*`，**manifest_l3 的富化会覆盖规则行的 p_level** ⇒ 仍看到旧值（P0 22 等）。",
+  "why_not_unified_today": "把表值同步进 manifest 会连带改变 `kb/l7/scripts/l5_gate.py::_p0_recompute` 的可复算条数（expected 17 → 19），那是**阻断闸门**；快路扩容另有法务签字台账约束。⇒ 本件按「不动工作流」口径**只写规则行**，把双轴**显式登记在这里**，不静默。",
+  "impact_of_engine_axis": {
+   "severity_flips": 26,
+   "review_to_block": 23,
+   "block_to_review": 3,
+   "block_to_review_rules": [
+    {
+     "article_no": "W-2.268",
+     "before": "P1",
+     "after": "P3",
+     "risk_level": "Critical"
+    },
+    {
+     "article_no": "W-2.326",
+     "before": "P1",
+     "after": "P3",
+     "risk_level": "Critical"
+    },
+    {
+     "article_no": "W-2.328",
+     "before": "P1",
+     "after": "P3",
+     "risk_level": "Critical"
+    }
+   ],
+   "note": "★ 这 3 条是**唯一需要人看的地方**：P1＋Critical 原本判 BLOCK，改 P3 后 `severity_for` 回 REVIEW；而 `tiering.decide_effect` 对「仅 P3 命中」给 `effect=none`（PRD §6.3 执行规则3「只出建议，不改结论」）⇒ 若某稿只命中这 3 条，结论会从 BLOCK 变 PASS＋建议。**要谁说了算，写入前请 Owner 确认。**"
+  },
+  "external_standard_note": "★ 129 条外部标准规则**不在**评审链规则层的取数里（`review.py` 只读 `rules.jsonl`）⇒ 它们的 `p_level` 只影响表/报告/导出，不影响引擎三态；其中 17 条改成 P0 也不会让引擎多 BLOCK。"
+ },
+ "impact_measured_20261017": {
+  "engine_rules_layer_p_level": {
+   "P0": 40,
+   "P1": 137,
+   "P2": 213,
+   "P3": 119
+  },
+  "table_rules_side_p_level": {
+   "P0": 40,
+   "P1": 137,
+   "P2": 213,
+   "P3": 119
+  },
+  "all_638_p_level": {
+   "P0": 63,
+   "P1": 243,
+   "P2": 213,
+   "P3": 119
+  },
+  "p0_patterns_after": 17,
+  "gates": {
+   "workflow_smoke": "exit 0 契约齐",
+   "ci_run_gates_core": "与基线同（红 l0 属既存、perf_bench 属基础设施）",
+   "l5_gate": "ok（p0_recompute 17/17）"
+  }
+ },
+ "taxonomy_provenance": {
+  "status": "AI-proposed / owner-adopted（**不是**源表字段，也不是 PRD 原文类目）",
+  "what": "11 个「所属类别」＋58 个「所属子类」这套类目体系，由助手在 2026-10-16 会话中提出，Owner 采用并在 2026-10-17 按子类重标优先级后随本注册表落库。",
+  "evidence_it_is_not_source": [
+   "`grep -r 所属类别 kb/` 除本注册表外 0 命中（改动前与改动后都核过）",
+   "库内既有两套类目都不是这 11 类：`kb/l7/registry/l7.json → vocabulary.categories`（8 类规则词表）、`kb/l4/canonical/sample_case.jsonl → reason_category`（7 类反例类目，含 unknown）",
+   "PRD §5.3 的四维是「合规 / 消费者安全 / 产品描述 / 措辞表达」（见 `risk-category-policy.json`），与这 11 类**不是同一套**"
+  ],
+  "boundary": [
+   "★ 类目本身的权威性需要 Owner 签字 —— 它是**建议性分类**，不许当成「源里就这么分」。",
+   "★ 11 类与库内两套类目、PRD 四维的映射**未裁**；在裁之前不许在报告里把它当维度用。",
+   "★ 每条规则的 `taxonomy_basis.note` 已写明「人工口径（Owner 重标）」+ 本 provenance 可回查。"
+  ]
+ }
+}

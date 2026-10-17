@@ -773,6 +773,14 @@ def _to_risk_item(f):
         #   **未映射的类别留 `None`，不蒙维度** —— 出处见同级的 `risk_category_basis`。
         "risk_category": f.get("risk_category"),
         "risk_category_basis": f.get("risk_category_basis"),
+        # ★★ 2026-10-17（Owner：「既然分了11类，就要按照11类的出结果」）：
+        #   **11 类 / 58 子类**（附加视图）。上面两格是 PRD §5.3 四维、`risk_type` 是库内 8 类词表，
+        #   三格并存、互不顶替；本格只用于「按 11 类」的附加汇总与报告分组。
+        #   由 `review.py::stamp_taxonomy()` 逐条盖章（真源 `kb/l3/registry/rule-taxonomy.json`，
+        #   **人工口径 / Owner 采用，不是源表字段**）；盖不到就是 None + basis 写明原因，**不编**。
+        "taxonomy_category": f.get("taxonomy_category"),
+        "taxonomy_subcategory": f.get("taxonomy_subcategory"),
+        "taxonomy_basis": f.get("taxonomy_basis"),
         "priority_tier": _tier,
         "priority_tier_basis": _tier_basis,
         "p_level": f.get("p_level"),

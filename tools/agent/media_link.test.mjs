@@ -29,6 +29,7 @@ import path from 'node:path';
 import {
   stripInternal, questionForRow, mediaLabel, monthFolderName,
   ensureMonthFolder, uploadForLink, MEDIA_LINK, PROBE_MARKERS, collectMediaLinks, awaitLinks, preflight,
+  magicExt, withMagicExt,
 } from './media_link.mjs';
 
 const results = [];
@@ -368,6 +369,47 @@ await checkAsync('M8c 云空间取不到 ⇒ 报「不可用」并带原话（�
   assert.strictEqual(r.ok, false);
   assert.strictEqual(r.skipped, false);
   assert.match(r.detail, /99991672/);
+});
+
+/* ── M6 扩展名：飞书靠**名字**决定能不能预览（2026-10-17 真事故）─────────
+ *
+ * Owner 原话：「图片 1：点开查看 —— **点击后无法查看**，修复下」。
+ * 实测那条文件：`drive +download` 下回来是完好的 JPEG（魔数 ffd8ffe0 …JFIF，83 KB），
+ * 但它在云空间里叫 `守衡送审素材-image-1`（**没有扩展名**）⇒ `drive +preview` 回
+ * `1060006 file type does not support preview`；**只改名加 .jpg（token 不变）就通了**。
+ * ⇒ 字节一直是好的，坏的是名字。
+ */
+const tmpMagic = (bytes) => {
+  const p = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'mlx-')), 'f.img');
+  fs.writeFileSync(p, Buffer.from(bytes));
+  return p;
+};
+const JPEG = [0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01];
+const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d];
+const MP4 = [0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x6d, 0x70, 0x34, 0x32];
+
+check('M6a 魔数认得出 jpg / png / mp4', () => {
+  assert.strictEqual(magicExt(tmpMagic(JPEG)), '.jpg');
+  assert.strictEqual(magicExt(tmpMagic(PNG)), '.png');
+  assert.strictEqual(magicExt(tmpMagic(MP4)), '.mp4');
+});
+check('M6b ★ 认不出就**不加**（不编一个假扩展名）', () => {
+  assert.strictEqual(magicExt(tmpMagic([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])), '');
+  assert.strictEqual(withMagicExt('守衡送审素材-图片-1', tmpMagic([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])),
+    '守衡送审素材-图片-1');
+});
+check('M6c 没扩展名 ⇒ 按魔数补；已有扩展名一字不动（反向对照）', () => {
+  assert.strictEqual(withMagicExt('守衡送审素材-图片-1', tmpMagic(JPEG)), '守衡送审素材-图片-1.jpg');
+  assert.strictEqual(withMagicExt('a.png', tmpMagic(JPEG)), 'a.png', '已有扩展名被改动了');
+});
+
+await checkAsync('M6d ★★ 真传到 CLI 的名字必须带扩展名（拆掉修法 = 又给一个点不开的链接）', async () => {
+  const { exec, calls } = makeStub();
+  const r = await uploadForLink(tmpMagic(JPEG), { name: '守衡送审素材-图片-1', ym: '2026-10',
+    deps: { exec, cacheFile: tmpCache() } });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  const up = calls.find((c) => c.includes('+upload')) ?? '';
+  assert.match(up, /--name 守衡送审素材-图片-1\.jpg/, `上传名没带扩展名（飞书画不出来）：${up}`);
 });
 
 /* ── 收口 ───────────────────────────────────────────────────────────── */

@@ -86,6 +86,46 @@ export function routingPolicyPath() {
     || path.join(kbRoot(), 'l7', 'review-engine', 'knowledge-base', 'routing-policy.json');
 }
 
+/**
+ * 维度政策件位置（`kb/l7/registry/risk-category-policy.json`）——
+ * **库侧唯一真源**，本文件只读它，**不抄第二份映射**。
+ */
+export function riskCategoryPolicyPath() {
+  return process.env.SHOUHENG_RISK_CATEGORY_POLICY
+    || path.join(kbRoot(), 'l7', 'registry', 'risk-category-policy.json');
+}
+
+/**
+ * 读维度政策件。读不到返回 `null`（调用方负责「不编维度」，**不在这里兜一个默认值**）。
+ *
+ * ★★ 2026-10-17：为什么要它 —— 报告要给**业务侧**看，每条问题的「维度」
+ * 必须落在 PRD §5.3 的四维度（合规 / 消费者安全 / 产品描述 / 措辞表达）上。
+ * 而这件事库侧已经定过口径（`risk-category-policy.json` 的 `map`），守衡只消费。
+ * ⚠️ **政策件自己写着「不编，留空待裁」的类别，这里一律返回 `null`** ——
+ * 实测影响面：模型侧 7 个类目里「隐私 / AI 披露 / 本地化」三个没有映射。
+ */
+export function loadRiskCategoryPolicy(p = riskCategoryPolicyPath()) {
+  const raw = _readJson(p);
+  if (!raw || typeof raw !== 'object') return null;
+  return raw;
+}
+
+/**
+ * 类别 → PRD 四维度。**查不到就是 `null`**（不猜、不塞进某一维）。
+ * @param {string} category 类别（如「功效宣称」）
+ * @param {object|null} policy `loadRiskCategoryPolicy()` 的返回值
+ * @returns {string|null}
+ */
+export function dimensionForCategory(category, policy) {
+  const cat = String(category ?? '').trim();
+  if (!cat || !policy) return null;
+  const hit = policy.map && Object.prototype.hasOwnProperty.call(policy.map, cat)
+    ? policy.map[cat] : null;
+  const dim = hit && typeof hit === 'object' ? String(hit.risk_category ?? '').trim() : '';
+  const dims = Array.isArray(policy.dimensions) ? policy.dimensions : [];
+  return dim && dims.includes(dim) ? dim : null;
+}
+
 /** 句柄表位置（与库侧 `review_engine.py::_approvers` **同一份**，不另造第二处）。 */
 export function approversPath() {
   return process.env.SHOUHENG_APPROVERS

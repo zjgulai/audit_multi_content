@@ -239,6 +239,76 @@ def layer_p0(text):
 
 
 # ---------------- 第 2 层：规则层 ----------------
+# ── ★★ 2026-10-17（Owner：「既然分了11类，就要按照11类的出结果」）：11 类归类 ──────────
+# 背景（先说清楚它是什么，免得后人当成源字段）：**「所属类别 / 所属子类」不是源表字段，也不是
+#   PRD 原文类目** —— 它是 2026-10-16 会话里由助手提出、Owner 采用的一套 11 类分类体系
+#   （真源 = `kb/l3/registry/rule-taxonomy.json`，出处与边界登记在它的 `taxonomy_provenance`）。
+# 与既有两格的**关系**（三格并存，互不顶替）：
+#   · `risk_type`   = `category-sub`（**库内 8 类规则词表**，`l7.json → vocabulary.categories`）
+#   · `risk_category` = **PRD §5.3 四维**（合规/消费者安全/产品描述/措辞表达）
+#   · `taxonomy_category` / `taxonomy_subcategory` = **本件新增的 11 类 / 58 子类**
+# ⇒ 本件**只增不改**：不动 `risk_type`（`review_engine.route_owners()` 拿它做关键词路由，
+#   改它 = 静默降级责任人分派，那份改动单里实测 6 条里 3 条会变），也不动 `risk_category`。
+_TAXONOMY_FIELDS = ("taxonomy_category", "taxonomy_subcategory")
+
+
+def taxonomy_index():
+    """`rule_id → {taxonomy_category, taxonomy_subcategory, taxonomy_basis}`。**只读**。
+
+    ★ 为什么要把 `external_standard.jsonl` 也读进来：**P0 快路的 17 条里有 6 条是外部标准规则**
+      （E-2.124~E-2.129），它们不住 `candidates/rules.jsonl`。只读 rules.jsonl 的话，
+      这 6 条命中的 finding 会**永远是「无 11 类」**，而那恰好是最该分类的红线命中。
+    ★ 读不到就返回空表（**不抛**）：本格是附加视图，不许因为它把整条评审链拖死；
+      空表的后果是报告里写明「未挂 11 类」，可见、不静默。
+    """
+    idx = {}
+    for rel in ("kb/l3/candidates/rules.jsonl", "kb/l3/candidates/external_standard.jsonl"):
+        p = os.path.join(ROOT, rel)
+        if not os.path.exists(p):
+            continue
+        try:
+            for line in open(p, encoding="utf-8"):
+                if not line.strip():
+                    continue
+                r = json.loads(line)
+                rid = r.get("rule_id")
+                cat, sub = r.get("taxonomy_category"), r.get("taxonomy_subcategory")
+                if rid and (cat or sub):
+                    idx[rid] = {"taxonomy_category": cat, "taxonomy_subcategory": sub,
+                                "taxonomy_basis": (r.get("taxonomy_basis") or {}).get("version")
+                                or "kb/l3/registry/rule-taxonomy.json"}
+        except Exception:                                    # noqa: BLE001
+            continue
+    return idx
+
+
+def stamp_taxonomy(findings, idx):
+    """把 11 类盖到每条 finding 上；**盖不到就留空并写明原因，不编**。
+
+    返回 `{stamped, missing}`（missing = 没有 11 类的条数，报告里要显式写出来）。
+    盖不到的两种来路（都如实标）：
+      · `rule_id` 不在规则表里 —— 典型是**反例/案例层**（`sc-…`，住 l4 canonical）；
+      · 该规则行本身没有 11 类（本批 638 条都有，将来新增源可能没有）。
+    """
+    st = {"stamped": 0, "missing": 0}
+    for f in findings or []:
+        if not isinstance(f, dict):
+            continue
+        t = idx.get(f.get("rule_id") or "")
+        if t:
+            f["taxonomy_category"] = t["taxonomy_category"]
+            f["taxonomy_subcategory"] = t["taxonomy_subcategory"]
+            f["taxonomy_basis"] = t["taxonomy_basis"]
+            st["stamped"] += 1
+        else:
+            f["taxonomy_category"] = None
+            f["taxonomy_subcategory"] = None
+            f["taxonomy_basis"] = ("该命中不在规则表里（如反例/案例层 sc-… 或覆盖缺口）"
+                                   "⇒ 11 类留空，**不编**")
+            st["missing"] += 1
+    return st
+
+
 def layer_rules(text, rules, kb_type=None):
     tn = norm(text)
     hits = []
@@ -1265,6 +1335,11 @@ def review(text, content_type="text", position="全文", report_dir=None, run_id
     trace["risk_category"] = {"with_dimension": _stamped_ru, "unmapped_or_pending": _stamped_rn,
                              "policy": "kb/l7/registry/risk-category-policy.json"}
 
+    # ── ★★ 2026-10-17：11 类归类盖章（附加视图，不动上面两格）────────────────────
+    _tax_st = stamp_taxonomy(findings, taxonomy_index())
+    trace["taxonomy"] = {"with_class": _tax_st["stamped"], "without_class": _tax_st["missing"],
+                         "policy": "kb/l3/registry/rule-taxonomy.json（人工口径，Owner 采用；非源字段）"}
+
     return {"state": state, "findings": findings, "unmet_citation": unmet, "trace": trace,
             "registry": {"gate": reg["retrieval"]["gate"], "routing": reg["decision_rules"]["routing"],
                          "approvers": reg["approvers"], "no_hit_semantics": reg["retrieval"]["no_hit_semantics"]},
@@ -1351,13 +1426,23 @@ def render(result, reg, report_path=None):
         #   **既不丢掉、也不并进「合规」** —— 桶名与 `report_memory` 的「未标注维度」保持同一个词。
         #   ⚠️ 桶**不按**一份写死的四维顺序排（那会是第二份词表）：按首次出现顺序，
         #      只把「未标注维度」压到最后。
+        # ★★ 2026-10-17（Owner 逐字：「推荐：把卡片的分类汇总行改成 11 类」）──────────────
+        #   上面那段 2026-10-12 的口径是 **PRD §5.3 四维**；今天 Owner 定了：**分类汇总一律按 11 类**，
+        #   四维退回它唯一该待的位置 —— 报告的分组与逐条「维度」格（`report_memory` / `merged_report`）。
+        #   ⚠️ 一处独立生产者的同批改动：守衡 `dual_track.categorySummary()` 已同步切 11 类
+        #      （两处若只改一处，同一单会在卡上与引擎文本里出现两种分类）。
+        #   桶规则：
+        #     · 有 11 类 ⇒ `· <11 类名>：N 个`
+        #     · 没有 11 类（反例/案例层 sc-…、覆盖缺口、P0「不可逐字回源」那类）
+        #       ⇒ 单成一桶 `· 未归 11 类问题：N 个`（**如实署名，既不丢也不并进任何一类**）
+        _tax_unclassed = "未归 11 类"
         agg = {}
-        _bucket = _unmapped_dim_bucket()      # None ⇒ 退回库内类别分组（= 改前行为，且已告警）
         for f in fs:
-            k = (f.get("risk_category") or _bucket) if _bucket else (f.get("category") or "未分类")
+            k = str(f.get("taxonomy_category") or "").strip() or _tax_unclassed
             agg[k] = agg.get(k, 0) + 1
-        for k in sorted(agg, key=lambda x: (x == _bucket,)):
-            lines.append(f"· {k}类问题：{agg[k]} 个")
+        for k in sorted(agg, key=lambda x: (x == _tax_unclassed, -agg[x])):
+            lines.append(f"· {k}：{agg[k]} 个" if k != _tax_unclassed
+                         else f"· {k}问题：{agg[k]} 个")
         lines.append("")
         lines.append(f"→ 查看完整问题清单与修改建议：{report_path or '（未写报告，见 --report-dir）'}")
     lines.append("")
@@ -1502,8 +1587,14 @@ def write_report(result, reg, report_dir, run_id, apply=True):
             _bkt = _unmapped_dim_bucket()
             _label = f"{_bkt}（待裁）" if _bkt else "（维度模块不可用，本格留空）"
             _dim_line = f"- 维度：**{_label}**" + (f" —— {_dim_basis}" if _dim_basis else "")
+        # ★ 2026-10-17：11 类那一格（附加视图，只增不改）。取不到就**不印**（不写「未分类」冒充）。
+        _tax_line = None
+        if f.get("taxonomy_category"):
+            _tax_line = "- 11 类：**%s**%s" % (
+                f["taxonomy_category"],
+                (" / %s" % f["taxonomy_subcategory"]) if f.get("taxonomy_subcategory") else "")
         L += [f"### {i}.【{f['category']}-{f['sub']}】{f['position']}", "",
-              _dim_line,
+              _dim_line] + ([_tax_line] if _tax_line else []) + [
               _quote_line,
               f"- 原因：{f['reason']}",
               f"- 依据：{cite(f, reg)}",
@@ -1550,6 +1641,16 @@ def write_report(result, reg, report_dir, run_id, apply=True):
             mark = ("**已输出为 BLOCK**（依据不可逐字回源，见问题清单里 `verbatim_verified=False` 的那条）"
                     if u.get("disposition") == "output_as_block_with_gap" else "**未输出**")
             L += [f"- {u['source']}｜{u.get('article_no')}｜{mark}｜{u.get('why')}｜摘录：{u.get('excerpt')}", ""]
+    # ── ★ 2026-10-17：11 类汇总段（Owner：「既然分了11类，就要按照11类的出结果」）──────
+    # 实现**只有一份** = `report_memory.taxonomy_section_lines()`；本处只调它，不写第二份。
+    # 位置：排在「问题清单 / 引用契约」之后、「检索轨迹」之前 —— 附加视图，不动既有段落。
+    try:
+        _rm = _load_report_memory()[0]
+        _tax = _rm.taxonomy_section_lines(fs) if _rm else []
+    except Exception:                                     # noqa: BLE001
+        _tax = []
+    if _tax:
+        L += _tax
     L += ["## 检索轨迹", "", "```json", json.dumps(result["trace"], ensure_ascii=False, indent=1)[:6000], "```", ""]
     body = "\n".join(L)
     # ── 干跑档（l7 补丁 2026-09-29）：不带 --apply 之外的路径，一律先能预演
@@ -1907,6 +2008,10 @@ def _finding_to_risk_item(f, index):
         #   **未映射的类别照旧留 None ＋ basis 写明「待裁」，不蒙维度**（与唯一实现同一条纪律）。
         "risk_category": f.get("risk_category"),
         "risk_category_basis": f.get("risk_category_basis"),
+        # ★ 2026-10-17：11 类 / 58 子类（附加视图）。盖不到就是 None + basis 写明原因，不编。
+        "taxonomy_category": f.get("taxonomy_category"),
+        "taxonomy_subcategory": f.get("taxonomy_subcategory"),
+        "taxonomy_basis": f.get("taxonomy_basis"),
         # priority_tier：**从规则的 `p_level` 取**（任务拆解 目标12 · PRD §6.2 主路）。
         # 改前是 `"P0" if "P0" in layer else "P1"` —— 看的是**层文案里有没有「P0」二字**，
         # 于是 `p_level=P2`（11 条）与 `p_level=P3`（4 条）的规则命中了也只报 P1，

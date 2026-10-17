@@ -151,3 +151,30 @@ registered:
         并比对「记下来的 verdict」与「复算 verdict」）⇒ 挂进 `ci/run_gates.py` 的 **CORE_GATES（blocking）**。
         自证 **9/9**。这是补上原来的缺口：**此前全库没有任何周期闸门读 benchmark.json**
         （`grep -rn benchmark kb/l8 kb/l7/scripts ci tools` = 0 命中），所以那次 FAIL 一直红着没人看见。
+
+  # ── §12「响应」回执卡时延：57 次里 1 次超线（2026-10-17 归因后登记） ────────────────
+  - id: group_response
+    requirement: "PRD §12 响应：飞书群 @Agent ≤ 5 秒（v1.3 把 v1.2 的「可用性」并进「响应」行）"
+    measured_by: kb/l8/measure_group_response.py
+    snapshot_at_registration: "n=57 ｜ min 796 ms ｜ **中位 1053 ms** ｜ max 15807 ms ｜ **1/57 超 5000 ms**"
+    verdict_at_registration: fail
+    why: >
+      判据口径是「**任一条超门槛即 FAIL**」（`measure_group_response.py:71`；本件不改它）。
+      ⇒ 红在**唯一那一次 15807 ms**，不是常态：中位 1053 ms、57 次里 56 次达标。
+      **归因（2026-10-17 查 `ws_daemon.log` 行 16497 上下文）**：该次 `ack_decision_ms=224`（判定正常），
+      建卡日志 `🃏 卡片 receipt` 落在 ingress 后 **251 ms** ⇒ 与常态同形
+      （对照常态例：ingress→建卡 254 ms、总 1004 ms）。即 **15.8 s 里约 15.55 s 花在「把回执卡发出去」**这一段外部调用
+      （该段常态 ~0.75 s，慢约 20 倍），**且同一时刻同一条消息事件被飞书重复投递**
+      （+72447 逐字：`· 不回复（duplicate）`）。
+      ⇒ 指向**平台侧偶发**，不是判定路径变慢、不是 LLM（本条未调 LLM）。
+    limits: >
+      ⚠️ **是推断，不是证死**：日志**没有记「发送完成」时刻**，那 15.55 s 是用
+      `group_response_ms − ack_decision_ms − 建卡时刻` **相减**得出的。两条证据（发送段尖峰 ＋ 同刻重复投递）
+      一致指向外部，但没有一条我们自己的埋点能直接证明「卡在 API 上」。
+    owner_action: >
+      **守衡侧（另一仓库 `/Users/lute/Project/audit_multi_content`）**：
+      ① 给回执卡发送**前后各加一个时刻埋点**，把 `group_response` 拆成 **decision / build / send** 三段
+      （现在前两段可推、send 段只能相减）；② 观察是否复发 —— 若 7 天内不再出现，即为偶发尖峰。
+      知识库侧**无可动余地**：判据口径一个字不放宽（任一条超线仍判 FAIL）。
+    diagnosis_doc: 诊断-飞书群回执1次超时归因-PRD12响应行-20261017.md
+    status: open

@@ -36,7 +36,18 @@ import path from 'node:path';
 //   「判断：PRD §5.3.4 问题数量 ≥3 时生成完整报告」被 Owner 点名去掉了（它讲的是
 //   我们自己的门槛），而这个常数在报告这一层就没有第二个用处。门槛仍在**两处**起着作用：
 //   `dual_track.renderMerged`（卡上要不要只出分类汇总）与 `agent.mjs`（要不要建这份报告）。
-import { renderMergedItem } from './dual_track.mjs';
+import {
+  renderMergedItem, groupByPriorityAndDimension, ownersByItem, orderActionLine,
+  taxonomyReportLines,
+  priorityHeading, dimensionHeading, priorityOf, pointOf, roleTag,
+  discoveryLine, autoSummaryLine, handlesConfigured, verbatimOf, PRIORITY_SHORT,
+  stableIdsOf, dimensionOf, descriptionOf,
+  // ★ 2026-10-17 第二十二轮（Owner：「禁止用任何后台词」）：表格格子也要清扫
+  stripBackendTokens,
+  // ★ 第二十三轮：除依据那一格外，其余格子的 markdown 链接一律降成文字
+  demoteLinks,
+} from './dual_track.mjs';
+
 import { publishReportDoc } from './review_publish.mjs';
 
 /** 报告留底目录（`PMO/shouheng-state/` 是 gitignored 的运行时状态目录）。 */
@@ -158,6 +169,92 @@ export function titleForReport() {
   return '内容审查报告';
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// 「审查对象」块（2026-10-17 第二十二轮，Owner 原话）
+//
+//   「**审查对象，要加进来**，比如**图片就放点击可打开的链接**，**文案**」
+//
+// ── 它治的是什么
+//
+//   改前那份报告通篇讲「哪里有问题」，**从不说在审什么** —— 转给别人时
+//   连「这一份是哪个素材的报告」都要靠文件名/链接去猜。审计报告的第一格就该是对象。
+//
+// ── 三条实现口径（每条都有个坑）
+//
+//   ① **文案**：印**对方真写的那句话**（或那段广告原文），**不是** `question`
+//      ——后者是拼给模型看的那一轮，里面夹着我们的探针与 OCR 全文（`media_link.mjs` 头注
+//      记着「内部指令被当成内容发出去」那次事故）。超过 400 字截断并写明总字数。
+//   ② **图片/视频**：只印**能点开的链接**。链接来自 `media_link.collectMediaLinks()`
+//      （上传到飞书云空间 + 设「组织内可阅读」并回读确认）。**没拿到链接就照实写**
+//      「链接未生成」—— 一个点不开的链接比一句话更坏。
+//   ③ **链接只来自两处，绝不从正文里挖** —— 见下面 2026-10-17 第二十三轮那段。
+//
+// ★★ 2026-10-17 第二十三轮（Owner 追问「你送的文案，为什么给『链接：点开』？
+//    这链接跳转是哪里？」）—— 上一版第 ③ 条写的是「**裸 URL** 在文案里出现时单列一格」，
+//    那是个错，而且错得比「少一格」糟得多：
+//      · 那一单的素材正文里粘着 `[production.It](http://production.it/)` —— 这是**粘贴时
+//        被编辑器自动加的链接**（正文原话是 `increasing milk production.It supports`），
+//        域名 `production.it` 是**别人的**（.it ＝ 意大利），跟我们、跟这条素材都没关系；
+//      · 我从正文里把那个 URL 挖出来、单印成「链接：点开」⇒ **等于在对外文件里
+//        给一个陌生域名发了一张「这是送审素材」的通行证**；
+//      · 同一份报告第 5 条问题恰好写着「后面直接粘着一个 markdown 链接残留」——
+//        **一边说这是缺陷、一边给它可点入口**，自相矛盾（Owner 就是被这一行问住的）。
+//    ⇒ 两条硬规矩：
+//      ⓐ **链接只来自两处**：我们上传的媒材（`media[].url`），或这一单**本身就是链接送审**
+//        （`kind === 'link'`，调用方显式传 `links`）。**不从任意正文里挖 URL。**
+//      ⓑ 文案里的 **markdown 链接语法一律降成纯文字**（`[production.It](http://…)` → `production.It`）：
+//        引用原文不等于替原文做可点入口 —— 陌生域名不该借我们的报告变得可点。
+// ════════════════════════════════════════════════════════════════════════════
+export { demoteLinks };
+
+export function materialBlock(material) {
+  const m = material && typeof material === 'object' ? material : null;
+  if (!m) return [];
+  const text = demoteLinks(String(m.text ?? '')).replace(/\s+\n/g, '\n').trim();
+  const media = Array.isArray(m.media) ? m.media.filter(Boolean) : [];
+  // ⓐ 显式传进来的链接（只允许 http(s)）：**不做正文挖掘**
+  const links = [...new Set((Array.isArray(m.links) ? m.links : [])
+    .map((u) => String(u ?? '').trim())
+    .filter((u) => /^https?:\/\//i.test(u))
+    .filter((u) => !media.some((x) => x?.url === u)))];
+  const imgs = media.filter((x) => x.kind !== 'video');
+  const vids = media.filter((x) => x.kind === 'video');
+  const kinds = [];
+  if (text) kinds.push(`文案 ${text.length} 字`);
+  if (imgs.length) kinds.push(`图片 ${imgs.length} 张`);
+  if (vids.length) kinds.push(`视频 ${vids.length} 段`);
+  if (links.length) kinds.push(`链接 ${links.length} 条`);
+  if (!kinds.length) return [];
+
+  const L = ['## 审查对象', ''];
+  L.push(`> **送审内容**：${kinds.join('｜')}`);
+  if (text) {
+    const flat = text.replace(/\n+/g, ' ').trim();
+    // ★★ 2026-10-17 第二十四轮（Owner：「这里你写全了吗？… 建议都写全」）——
+    //   **不再截断**。之前压到 400 字、尾巴挂「（全文 N 字）」，Owner 一眼就看出没写全：
+    //   审查对象是报告里唯一「必须完整」的一格 —— 它是判定对象的原文，缺一段就没法核。
+    //   ⚠️ 总量仍由送审那一行交代（`文案 N 字`），正文里不必再标「全文多少字」。
+    const cut0 = flat;
+    // ⓑ 裸 URL 在**引用原文**里一律包成行内代码（`https://…`）：飞书会把裸 URL 自动变成超链接，
+    //    而我们不该替原文里的陌生域名做可点入口。要真给链接，走下面那条**显式**的链接行。
+    const cut = cut0.replace(/(https?:\/\/[^\s)）」』]+)/g, '`$1`');
+    L.push(`> **文案**：${cut}`);
+  }
+  media.forEach((x, i) => {
+    const label = `${x.kind === 'video' ? '视频' : '图片'} ${x.index ?? i + 1}`;
+    L.push(x?.ok && x?.url
+      ? `> **${label}**：[点开查看](${x.url})`
+      : `> **${label}**：链接未生成（${String(x?.detail ?? '上传未成').slice(0, 60)}）`);
+  });
+  // ⓐ 链接行**只印显式传进来的**（链接送审那一档）；正文里的 URL 一个都不挖。
+  links.forEach((u, i) => {
+    const label = links.length > 1 ? `链接 ${i + 1}` : '链接';
+    L.push(`> **${label}**：[点开](${u})`);
+  });
+  L.push('');
+  return L;
+}
+
 /**
  * 渲染合并报告 markdown（**纯函数**，不碰磁盘、不碰网络 ⇒ 可以直接断言）。
  *
@@ -174,6 +271,9 @@ export function renderMergedReportMd({
   //   入参**留着**：调用方仍在传（`agent.mjs`），而它们是这一单唯一的机读口径读数，
   //   将来若要再加一格（例如按维度分组统计）不必回头改调用方。
   kbGap = 0, kbTextCount = 0, modelCount = 0,
+  // ★★ 2026-10-17 第二十二轮（Owner）：「**审查对象，要加进来**，比如图片就放点击可打开的链接，文案」
+  //   `{ text, media: [{kind,index,url,ok,detail}] }`；不给 ⇒ 这一节不印（不编「素材」）。
+  material = null,
   // Owner 2026-10-09: 结构化告警（可选）—— 有就照搬进正文，没有也不能装作没有（常驻免责已在正文里）
   warnings = [],
   // ★ 2026-10-09：**从卡上撤下来的检索读数**（`kbHitsBlock`）—— 原样进附录，一条不丢。
@@ -241,8 +341,216 @@ export function renderMergedReportMd({
   //   · `- 结论：REVIEW ｜ 问题数量：10` —— 与下面 §5.3 结论行**同一件事说两遍**。
   //   结论与条数仍在（就在下面那一行，PRD §5.3 的原文），一条信息都没少。
   if (line) { L.push(line); L.push(''); }
+  // ── ★★ 2026-10-17 第二次（Owner 拿着真报告 `XzNxdvaE1o3KuJxSuAqcftRdnqd` 来的四条）──
+  //   「2. 总结论是 block，但是分论点是 review」——**根因在数据，不在版式**：
+  //   库侧走 P0 快路命中 3 条（那也是 BLOCK 的出处），而那 3 条**从来没变成条目**
+  //   （`kbFindingsOf` 只拿 `p0_findings` 修 excerpt）⇒ 清单里 6 条全是模型侧 REVIEW。
+  //   ⇒ 已修在 `dual_track.p0FindingsToItems()`（P0 命中 ⇒ 一等条目，落 `P0` 组）。
+  //   **版式这边不再写任何口径说明**（Owner：「判定口径不用写，这是给业务侧看的报告」），
+  //   只留两道**异常才出声**的兜底：
+  //     ① **账不平**（结论行那个数 > 清单条数）⇒ 说清差在哪，不许让读者自己发现；
+  //     ② **结论悬空**（BLOCK 但清单里没有任何一条 P0/BLOCK）⇒ 必须点破。
+  //   正常单子这两句**一个字都不印**。
+  // ── ★★ 2026-10-17 第六轮（Owner 给的样张）────────────────────────────────────
+  //   `【审查结论：BLOCK】共发现 7 处必须修改。｜发现 x（合规 x｜安全 0｜…）`
+  //   ⚠️ **没有照抄成一行**：`prd53.conforms` 的三态判据是 `^…$` **整行锚定**
+  //      （`REVIEW`/`BLOCK` 都带 `$`），`l7_integrity.py` 的「REVIEW 逐字」与 S7 跨仓判据也在核它
+  //      ⇒ 往结论行尾巴上接任何东西都会**直接违约**。
+  //   ⇒ 分布与一句话**各占下一行**，视觉上几乎一样，契约零风险。
   if (ordered.length) {
-    ordered.forEach((f, i) => { L.push(renderMergedItem(f, i, { must })); L.push(''); });
+    L.push(discoveryLine(ordered));
+    const sum = autoSummaryLine(ordered, { state });
+    if (sum) L.push(sum);
+    L.push('');
+  }
+  const listedN = ordered.length;
+  const declaredN = Number.isFinite(total) ? total : listedN;
+  // ── 审查对象（Owner 2026-10-17：**要加进来**，图片给可点开的链接，文案给原文）──
+  //   位置钉在这里：结论 → 发现分布 → 一句话 → **审查对象** → 异常告警 → 一、问题总览。
+  //   为什么不放在最前面：报告的第一屏要放**结论**（业务侧先知道能不能发）。
+  L.push(...materialBlock(material));
+  if (declaredN > listedN) {
+    L.push(`> ⚠️ 本清单列了 **${listedN}** 条，结论行那个数是 **${declaredN}** —— 差 **${declaredN - listedN}** 处：`
+      + '库里判到了，但明细这一次没取到（结构化读数有、逐条没展开）。'
+      + '**那几处仍算在结论里，别当它们不存在。**');
+    L.push('');
+  }
+  const p0Listed = ordered.filter((f) => priorityOf(f).level === 'P0').length;
+  const blkListed = ordered.filter((f) => String(f?.severity).toUpperCase() === 'BLOCK').length;
+  if (must && p0Listed === 0 && blkListed === 0) {
+    L.push('> ⚠️ **结论是 BLOCK，但本清单里没有一条 P0 红线** —— 触发拦截的那几处这一次没能展开成条目。'
+      + '**别据此认为「没有红线问题」**，请向内容治理侧取原始命中。');
+    L.push('');
+  }
+  if (ordered.length) {
+    // ══════════════════════════════════════════════════════════════════════════
+    // 审计报告式的四段：① 问题总览（表）→ ② 问题清单 → ③ 执行 → ④ 本次未覆盖/未能取证
+    // ══════════════════════════════════════════════════════════════════════════
+    // ★★ 2026-10-17 第三轮（Owner 同意「先落 ①③④」）。借的三条业内惯例：
+    //   ① **摘要先行**：业务侧先扫一张表（编号/优先级/维度/位置/命中/承办），
+    //      再决定要不要读逐条 —— 现在是「直接进八行长文」，一屏只放得下一条；
+    //   ④ **Finding ID**：给每条一个跨复跑不变的编号（`stableIdOf`），
+    //      否则「第 3 条」在复跑/换序之后就对不上邮件里的那一句；
+    //   ③ **Scope & Limitations**：内审报告的标配小节 —— 本次**没覆盖到什么**、
+    //      **哪些格没取到**，集中一处说完，不散在条目里打断阅读。
+    //
+    // 编号一次算好：`flat` 是**显示次序**（P0→P3，再按维度），表与逐条共用同一个号。
+    const grouped = groupByPriorityAndDimension(ordered);
+    const flat = [];
+    for (const g of grouped) for (const dg of g.groups) for (const f of dg.items) flat.push(f);
+    const numOf = new Map(flat.map((f, n0) => [f, n0 + 1]));
+    const idOf = stableIdsOf(flat);
+    // 承办按**这一条自己的方向词**算（与卡片同一条路由表）
+    const itemOwners = new Map(flat.map((f) => {
+      const r = ownersByItem([f])[0];
+      return [f, r];
+    }));
+
+    // ── ① 问题总览 ─────────────────────────────────────────────────────────
+    // ★★ 2026-10-17 第二十二轮（Owner：「**禁止用任何后台词**」）：表格这一格也过一遍清扫 ——
+    //   上一轮只清了「问题清单」的六格，位置/命中里夹带的记录主键会**从表里再漏一次**
+    //   （判据 Z49c 就是拿这个抓住的：清单干净、表还脏）。
+    const cell = (v) => demoteLinks(stripBackendTokens(String(v ?? '')))
+      .replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim();
+    L.push('## **一、问题总览**');
+    L.push('');
+    // ★ 2026-10-17 第四轮（Owner）：「问题总览有序号，还有编号，隐藏编号」⇒ 去掉「编号」列；
+    //   「去掉 /」⇒ 表头不再用斜杠分隔（`命中描述`）。
+    //   库侧条目有逐字命中就用命中，没有就退到问题描述 —— **那一格不会空着**。
+    // ★ 2026-10-17 第五轮后半（Owner：「表格有些丑」）—— 三处收口：
+    //   ① 位置那一列不再重复命中片段（`p0FindingsToItems` 已把位置改回「全文」）；
+    //   ② 「命中描述」在表里**截到 16 字**（完整内容在问题清单里，表只用来扫）；
+    //   ③ 表前一句话说明它是什么，免得业务侧把表当结论。
+    L.push('> 下表按「优先级 → 维度」排列，只用来扫读；完整的问题、依据与改法在第二节。');
+    L.push('');
+    L.push('| # | 优先级 | 维度 | 位置 | 命中描述 | 承办 |');
+    L.push('|---|---|---|---|---|---|');
+    for (const f of flat) {
+      const dim = dimensionOf(f).dimension || '—';
+      // ★ 2026-10-17 第十一轮（Owner：「命中描述 写实际的原文」）——
+      //   这一格**只印原文**（`verbatimOf`：excerpt → location 里的「…」），
+      //   **不许拿模型写的描述冒充**（那是「问题描述」，在第二节逐条里有）。
+      //   取不到就印 `—`：空着会被读成「没问题」，写描述会被读成「原文就长这样」。
+      const rawV = verbatimOf(f);
+      const exc = rawV
+        ? (rawV.length > 28 ? `${rawV.slice(0, 28)}…` : rawV)
+        : '—';
+      const who = (itemOwners.get(f)?.owners ?? []).join('、') || '—';
+      L.push(`| ${numOf.get(f)} | ${priorityOf(f).level || '—'} | ${cell(dim)} `
+        + `| ${cell(f?.location)} | ${cell(exc)} | ${cell(who)} |`);
+    }
+    L.push('');
+
+    // ── ② 问题清单（P 级 → 维度）─────────────────────────────────────────────
+    L.push('## **二、问题清单（P0 → P1 → P2 → P3）**');
+    L.push('');
+    // ★ 2026-10-17 第十五轮（Owner 样张）：节首一行处置口径 —— 业务侧先知道「P0 意味着什么」。
+    //   ⚠️ 与之前被删掉的「判定口径」不同：那是**我们怎么判**（内部方法），
+    //      这是**判到之后该做什么**（对方要执行的事）。
+    // ★★ 2026-10-17 第二十轮（Owner 追问「处置口径从哪里来的？prd 写了吗？」）——
+    //   **删掉**。查过 `kb/l7`、`kb/l5` 全库（排除备份）：`立即停发 / 24h 内改完再送 /
+    //   本版内改 / 记录` **一条都没有** —— 那是我从 Owner 发来的**样张截图**里抄的第三方口径，
+    //   **不是 PRD、也不是本库的规矩**。把别人的东西印成自己的口径，比不印更坏。
+    //   PRD 侧规定的动作只有两句：REVIEW 的 `建议转 @… 复核。`、BLOCK 的 `请修改后重新提交。`
+    //   （都在 `orderActionLine()` 那一行里，本来就有）。
+    // ★★ 2026-10-17 第十四轮（Owner：「每个问题之间能空一行吗？现在看起来还是好密集」）——
+    //   实测：条目之间只有 **1 个空行、而且不一致**（有的 1 个、有的 2 个，
+    //   取决于条目字符串末尾那个 `\n` 与 `L.push('')` 叠不叠），飞书再把连续空行折一次
+    //   ⇒ 七条问题看上去是一整块。空行在飞书里靠不住，**分隔线才靠得住**。
+    //   规则：**每条问题之间一条 `---`**；组标题（`### P…` / `#### 维度`）前不重复加 ——
+    //   而且刚打过标题的那一条**不再补线**（否则标题下面就顶一条横线，更难看）。
+    for (const [gi, g] of grouped.entries()) {
+      // ★★ 2026-10-17 第十轮（Owner：「P0 …和下面的 P1 之间能空一行吗？太密集了」）——
+      //   实测：源码里**本来就有两个空行**，但飞书把连续空行折成一个；而上一组的最后一条
+      //   是一条 400+ 字的「建议」，整面墙压下来，空行根本不起作用。
+      //   ⇒ 换成**分隔线**（`---`，飞书渲染成一条横线）。⚠️ 前后都留空行 ——
+      //      紧贴在文字行下面的 `---` 会被当成 setext 标题（把那行变成 H2）。
+      // ★ 2026-10-17 第二十轮（Owner：「那么多标题，这里写两行就好」）——
+      //   P 级与维度**并成一行**：`### **P0 红线 · 合规 ｜ 2 条**`。
+      //   条目正文前面现在只剩两级：`## 二、问题清单…` ＋ 这一行（原先还多一行 `#### 维度`、
+      //   以及一行处置口径，五行压在一起）。
+      for (const dg of g.groups) {
+        const pName = PRIORITY_SHORT[g.level] || priorityHeading(g.level);
+        L.push(`### **${pName} · ${dimensionHeading(dg.dimension)} ｜ ${dg.items.length} 条**`);
+        L.push('');
+        for (const f of dg.items) {
+          // `layout: 'report'` = PRD §8.3 的八格版；**卡片不传这个参数**（Owner：卡片不要动）
+          // ★ 第十五轮（Owner 样张）：条目编号用 `F-01` 这种**可扫的序号**；
+          //   稳定哈希编号（`stableIdOf`）**不再显示**（Owner 之前就要求隐藏「编号」）。
+          L.push(renderMergedItem(f, numOf.get(f) - 1, {
+            must, layout: 'report',
+            // 「处置」那一粒要写责任人（样张：`处置：… ｜ 责任人 医学顾问 ＋ 法务 ｜ 期限 …`）
+            owner: itemOwners.get(f)?.owners?.join('、') || null,
+          }));
+          // ★ 每条问题**后面**一条分隔线（不是前面）——
+          //   这样组标题（`### P…` / `#### 维度`）永远跟在一条线之后，
+          //   不会有「标题下面顶一条横线」的形状，也不会在组边界出现两条线。
+          L.push('');
+          L.push('---');
+          L.push('');
+        }
+      }
+    }
+
+    // ── ③ 执行 ───────────────────────────────────────────────────────────────
+    // ★★ 2026-10-17 第二十六轮（Owner 原话）：
+    //   「按照 prd，命中 block，审查报告不会 @xx @xxx 去修复，**直接打回建议修复**；
+    //     命中 review 的，审查报告才会 @xx @xx 去修复。目前审查报告的执行 3 适合 review 模版，
+    //     若结论是 block 要按照 prd 优化。」
+    //   ⇒ 这一节**按结论分两支**，不再一套模版套到底：
+    //     · **BLOCK** ⇒ 打回：**不 @ 任何人、不派单**，只写「按修改建议逐条改完再重新提交」
+    //       ＋ PRD §5.3.3 那句收尾 `请修改后重新提交。`；
+    //     · **REVIEW** ⇒ 派单：`@角色 跟进问题（第 N 条）` ＋ PRD §5.3.2 那句收尾
+    //       `建议转 @… 复核。`。
+    //   ⚠️ 原来那套（`## 三、执行（按问题分派）` ＋ 逐角色 @）**字面就是从 REVIEW 模版来的**，
+    //      而两种结论共用一套模版，等于让红线单也走「转人复核」——与 PRD 相反。
+    if (must) {
+      L.push('## **三、执行（打回，修改后重新提交）**');
+      L.push('');
+      L.push('> 结论是 **BLOCK**：这一单**打回**，**不派单、不转人复核**。'
+        + '请按上面每一条的「修改建议」改完，**再重新提交一次**。');
+      L.push('');
+    } else {
+      //   Owner（REVIEW 单）：「最后执行要用 @xxx 来查 xx 点」。
+      L.push('## **三、执行（按问题分派）**');
+      L.push('');
+      const byRole = new Map();
+      for (const f of flat) {
+        for (const role of (itemOwners.get(f)?.owners ?? [])) {
+          if (!byRole.has(role)) byRole.set(role, []);
+          byRole.get(role).push(f);
+        }
+      }
+      // ★★ 2026-10-17 第八轮（Owner：「@xx 跟进问题（xxx)，不要把每个问题又写一遍」）——
+      //   上一版把每条的命中内容又抄进执行段（`第 1 条（boosts milk）、第 2 条（best-selling）…`），
+      //   等于把第二节重述一遍。执行段要回答的只有两件事：**谁办**、**办哪几条**。
+      //   ⇒ 只印条号；命中内容在总览表与问题清单里，不在这一节重复第三遍。
+      //   另外「（未配置）」原先在每个角色后面重复 —— 改成**小节头说一次**。
+      const bare = !handlesConfigured();
+      if (bare) {
+        L.push('> 下列角色**暂未绑定飞书句柄**，`@` 只是角色位，暂时不会推送给具体的人。');
+        L.push('');
+      }
+      for (const [role, arr] of byRole) {
+        arr.sort((a, b) => numOf.get(a) - numOf.get(b));   // 条号升序（不排会印出「第 2、1 条」）
+        // 条号压成 `第 1、4 条`（不再逐条写「第 X 条」）
+        const nums = arr.map((f) => numOf.get(f)).join('、');
+        L.push(`- **${roleTag(role, { bare })}**：跟进问题（第 ${nums} 条）`);
+      }
+      L.push('');
+    }
+    // ⚠️ 这一行是 PRD 的收尾，**句式不许改**（`renderReviewAction` 的产出）：
+    //   BLOCK ⇒ `请修改后重新提交。`｜REVIEW ⇒ `建议转 @… 复核。`
+    L.push(orderActionLine(ordered, { must }));
+    L.push('');
+
+    // ── ★ 2026-10-17 第四轮（Owner：「去掉 四、本次未覆盖、未能取证」）──────────
+    //   那一节整段下线。**不是把诚实性砍掉**：它列的四个缺口各有各的落点 ——
+    //     · 维度未归类 ⇒ 问题清单里本来就有 `#### 未映射维度（不属于那四个维度）` 分组；
+    //     · 未分级    ⇒ 问题清单里有 `### 未分级` 分组；
+    //     · 无问题描述 ⇒ 逐条那一格直接写「本条未提供问题描述」；
+    //     · 无任何可核依据 ⇒ 逐条第一行的来源标记写着「**无库内依据 · 建议转人工**」。
+    //   ⇒ 缺口仍然**逐条可见**，只是不再另开一节重复一遍（业务侧不读长尾巴）。
   } else {
     L.push('（本单没有并进任何条目。）');
     L.push('');
@@ -255,6 +563,12 @@ export function renderMergedReportMd({
     for (const w of warnings) L.push(`> ⚠️ ${w}`);
     L.push('');
   }
+
+  // ── ★ 2026-10-17（Owner：「既然分了11类，就要按照11类的出结果」）──────────────
+  //   「按 11 类汇总」这一段**投云文档那一份也要印**（不受 `withAppendix` 管）：
+  //   它和附录里那些检索读数/OCR 全文不同 —— 它是**结论的另一个分类视角**，
+  //   业务侧要在报告里按 11 类扫一遍。计数与卡片那一行同一份实现（`taxonomyReportLines`）。
+  L.push(...taxonomyReportLines(ordered));
 
   // ── 附录（**投云文档那一份不印** —— Owner 2026-10-13；留底那一份照印）──────────
   if (!withAppendix) return L.join('\n');
@@ -301,7 +615,11 @@ export function renderMergedReportMd({
   }
   L.push('---');
   L.push('');
-  L.push('*本报告由守衡在**本机**渲染后投成云文档；条目措辞与卡片逐字同源*'
+  // ★ 2026-10-17（Owner：「卡片格式不要动，你只是优化报告」）：措辞**不再逐字同源**了 ——
+  //   卡片是三行版、报告是 PRD §8.3 的八格版。所以这行只说**真话**：
+  //   同源的是**依据/原因/建议那三格的文字**（同一个函数算的），不同的是**版式**。
+  L.push('*本报告由守衡在**本机**生成；「原因 / 依据 / 建议」与群卡片里的说法一致，'
+    + '分组、优先级、维度、承办只在报告里给出*'
     + '（同一函数 `dual_track.renderMergedItem`）。');
   return L.join('\n');
 }

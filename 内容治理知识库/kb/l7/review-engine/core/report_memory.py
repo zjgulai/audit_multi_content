@@ -45,6 +45,66 @@ def _write_text_safely(path: Path, text: str) -> None:
                            % (len(text), len(back), p))
 
 
+#: 优先级排序（高→低）；未知值排最后，**不猜**
+_P_ORDER = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
+
+
+def taxonomy_groups(risk_items) -> tuple[dict, int]:
+    """按 **11 类**（`taxonomy_category`）分组 —— 返回 `({类别: [条目]}, 未挂类的条数)`。
+
+    ★ 这是什么、不是什么（写死在这里，免得后人当成源字段）：
+      · 是 **2026-10-16 会话里提出、Owner 采用**的一套 11 类分类体系（真源
+        `kb/l3/registry/rule-taxonomy.json`）；**不是**源表字段，也**不是** PRD 原文类目。
+      · 它**不顶替** `risk_category`（PRD §5.3 四维）与 `risk_type`（库内 8 类规则词表）——
+        三格并存，各说各的一件事。
+    ★ 未挂类的条目（反例/案例层 `sc-…`、覆盖缺口行）**不硬塞进任何一类**，
+      只计数并由调用方在报告里写明 —— 蒙一个类比留空更坏。
+    """
+    groups: dict = defaultdict(list)
+    unnamed = 0
+    for it in risk_items or []:
+        cat = str(it.get("taxonomy_category") or "").strip()
+        if cat:
+            groups[cat].append(it)
+        else:
+            unnamed += 1
+    return groups, unnamed
+
+
+def taxonomy_section_lines(risk_items, heading: str = "## 按 11 类汇总（附加视图）") -> list:
+    """渲染「按 11 类分组」那一段（表格：类别 / 条数 / 最高优先级 / 条款号）。
+
+    没有一条挂上 11 类时**返回空列表**（整段不出现，不输出空表当结论）。
+    """
+    groups, unnamed = taxonomy_groups(risk_items)
+    if not groups:
+        return []
+    rows = []
+    for cat, items in groups.items():
+        # findings（review.py 的旧报告路径）用 `p_level`，risk_items 用 `priority_tier` —— 两者都认
+        tiers = [str(i.get("priority_tier") or i.get("p_level") or "").upper() for i in items]
+        tiers = [t for t in tiers if t]
+        top = min(tiers, key=lambda t: _P_ORDER.get(t, 9)) if tiers else "—"
+        # `article_no` 可能在顶层（findings）或 `evidence.article_no`（risk_items）—— 两处都认
+        arts = [str(i.get("article_no") or ((i.get("evidence") or {}).get("article_no")) or "").strip()
+                for i in items]
+        arts = [a for a in arts if a]
+        rows.append((cat, len(items), top, "、".join(arts) if arts else "—"))
+    rows.sort(key=lambda r: (_P_ORDER.get(r[2], 9), -r[1], r[0]))
+    lines = [heading, "",
+             "| 所属类别（11 类） | 条数 | 最高优先级 | 条款号 |",
+             "|---|---:|---|---|"]
+    for cat, n, top, arts in rows:
+        lines.append(f"| {cat} | {n} | {top} | {arts} |")
+    lines.append("")
+    total = sum(r[1] for r in rows)
+    note = f"（本单 {total} 条挂上 11 类"
+    note += f"；另有 {unnamed} 条无 11 类 —— 反例/案例层或覆盖缺口，**不编**）" if unnamed else "）"
+    lines.append(note)
+    lines.append("")
+    return lines
+
+
 def render_markdown(result: Dict[str, Any]) -> str:
     groups = defaultdict(list)
     for item in result.get("risk_items", []):
@@ -97,7 +157,11 @@ def render_markdown(result: Dict[str, Any]) -> str:
                 # ★★ 2026-10-12（同一条改动单）：分组键换成「维度」后，**每条必须补回「细分」**
                 #   否则细分信息就真丢了 —— 改前它是分组标题，改后那个位置变成了维度。
                 #   PRD §5.3 的展示形态本就是 `【维度-细分】`：分组给维度、这条给细分，两格各就各位。
-                f"{index}. **{item.get('risk_id', '')}**【{item.get('risk_type') or item.get('category') or '未分类'}】（{item.get('priority_tier', '')} / {item.get('severity', '')}）",
+                f"{index}. **{item.get('risk_id', '')}**【{item.get('risk_type') or item.get('category') or '未分类'}】（{item.get('priority_tier', '')} / {item.get('severity', '')}）"
+                # ★ 2026-10-17：11 类标签。取不到就**不印这一格**（不写「未分类」冒充分类）
+                + (f"｜11 类：{item.get('taxonomy_category')}"
+                   + (f" / {item.get('taxonomy_subcategory')}" if item.get('taxonomy_subcategory') else "")
+                   if item.get("taxonomy_category") else ""),
                 f"   - 位置：{item.get('location', '未定位')}",
                 f"   - 原文/观察：{item.get('original_text') or item.get('observation') or '未提供'}",
                 f"   - 原因：{item.get('reason', '')}",
@@ -105,6 +169,8 @@ def render_markdown(result: Dict[str, Any]) -> str:
                 f"   - 证据：{item.get('evidence_url') or item.get('evidence_id') or '缺失'}",
                 "",
             ])
+    # ★ 2026-10-17：11 类汇总段（附加视图，排在 PRD 维度分组之后，不动既有结构）
+    lines.extend(taxonomy_section_lines(result.get("risk_items") or []))
     lines.extend([
         "## 决策轨迹",
         "",

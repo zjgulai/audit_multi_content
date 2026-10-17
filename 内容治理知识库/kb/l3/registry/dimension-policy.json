@@ -347,5 +347,36 @@
   "when": "源侧为其余规则表补「风险等级」列、或补媒体字段时；或法务对软判 token 提出异议时",
   "who": "法务 + 内容治理",
   "how": "改 kb/l3/kb_rule_dimensions.py 的映射表（唯一口径），再重跑本脚本"
+ },
+ "taxonomy_20261017": {
+  "created_at": "2026-10-17",
+  "owner": "刘华丽",
+  "what": "规则「所属类别 / 所属子类 / 优先级」三格的人工口径（真源 = `kb/l3/registry/rule-taxonomy.json`）",
+  "fields": {
+   "taxonomy_category": "所属类别（11 类 + 「未归类」兜底；枚举在注册表 `classes`）",
+   "taxonomy_subcategory": "所属子类（58 个实有 + 1 个 0 条占位「（暂无命中）」）",
+   "p_level": "优先级 P0–P3（PRD §6.2 四层）。**覆盖原值**；原值逐条记在注册表 `p_level_before` 与规则行 `taxonomy_basis.p_level_before`",
+   "taxonomy_basis": "出处（version / source / p_level_before / p0_fastpath / note）"
+  },
+  "why_not_in_rule_rows_only": "规则行（`candidates/rules.jsonl` / `candidates/external_standard.jsonl`）都是**上游重建的派生件**；人工口径只写进去，下一次重建就没了。⇒ 真源在注册表，重建时由 `apply_taxonomy()` 盖回。",
+  "validation": {
+   "implementation": "kb/l3/kb_rule_dimensions.py::load_taxonomy / apply_taxonomy（唯一实现）",
+   "selftest": "python3 kb/l3/kb_rule_dimensions.py --selftest（74/74，含 ⑥a–⑥h 十四条反向对照：force 盖三格 / 不动 risk_level / 表外规则不动 / fill_empty 不覆盖且留痕 / status≠active 与缺版本必拒 / 空注册表必拒 / 真注册表可读 / P0 与快路是两个集合）",
+   "wiring": [
+    "kb/l8/l3_distill_run.py（apply_dimensions 之后，避免 P0 地板顺带抬 risk_level）",
+    "kb/l8/l3_clause_distill.py（外部标准候选件写盘前）"
+   ],
+   "rebuild_print": "[规则归类] 注册表 v1-20261017：盖 N 条 / 表外 M 条 ｜ p_level 变更 K 条"
+  },
+  "known_tension": {
+   "dual_axis": "评审链规则层读规则行（吃到本次表值）；L5 侧读 manifest 富化（覆盖规则行 ⇒ 仍是旧值）。两轴并存**已显式登记**在注册表 `dual_axis`，**不是**静默漂移。",
+   "why_not_synced": "同步进 manifest 会让 `l5_gate._p0_recompute` 的 expected 从 17 变 19（阻断闸门）+ 快路扩容需法务签字。",
+   "engine_impact": "severity 变化 26 条（23 条 REVIEW→BLOCK，3 条 BLOCK→REVIEW：W-2.268 / W-2.326 / W-2.328）。"
+  },
+  "boundary": [
+   "★ 不动 `risk_level`（PRD §6.5 的另一轴）——`apply_taxonomy()` 不写这一列，也不触发 P0 地板。",
+   "★ 不动 `p0_patterns.jsonl`（快路 17 条，法务签字台账）——导出侧另加 fail-closed 守卫。",
+   "★ 11 类体系与库内既有两套类目（`l7.json.vocabulary.categories` 规则词表、`l4/canonical/sample_case.reason_category` 反例类目）及 PRD §5.3 四维的映射关系**尚未裁**。"
+  ]
  }
 }

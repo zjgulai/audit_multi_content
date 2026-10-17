@@ -4287,10 +4287,24 @@ await t('Z17 ★ 接线：建报告那一步**必须可注入**，且默认走�
   //   闸**必须挂在「条目」上**，不能挂在那个计数上 —— 库侧报 3 条、明细抠不出来（`kbGap=3`）
   //   ＋ 模型侧 0 条时 `total=3`，而 `itemsWithAdvice` 是**空的** ⇒ 又建出一份空报告，
   //   还**顶掉了库侧那份有明细的**（`reportUrlOverride` 优先于 `kbSide.reportUrl`）。
-  assert.ok(/if \(rendered0 && itemsWithAdvice\.length > 0\) \{/.test(src),
-    '报告闸不见了、或没挂在「条目」上 —— 会重建空报告（Owner 2026-10-15/16）');
-  assert.ok(!/rendered0\.total >= REPORT_LINK_MIN_ISSUES/.test(src),
-    '`>= REPORT_LINK_MIN_ISSUES` 被加回来了 —— 那会让 <3 的行又没有报告');
+  // ★★ 2026-10-17（Owner 裁定，**推翻 2026-10-14 那条本地要求**）：
+  //   「逻辑不变，按照 PRD 问题数量 ≥3 个时才输出审查报告」⇒ 闸回到**两道条件**。
+  //   ① 必须有**真条目**（否则建出来是空文档，2026-10-15/16 两次定过）；
+  //   ② 卡内那个数必须 **≥ REPORT_LINK_MIN_ISSUES**（PRD §5.3.4）。
+  assert.ok(/itemsWithAdvice\.length > 0/.test(src),
+    '报告闸丢了「必须有真条目」这一半 —— 会重建空报告（Owner 2026-10-15/16）');
+  assert.ok(/rendered0\.total >= REPORT_LINK_MIN_ISSUES/.test(src),
+    '报告闸丢了 `>= REPORT_LINK_MIN_ISSUES` 这一半 —— 1–2 条的单子又会建报告（违反 PRD §5.3.4）');
+  // ★ 反向对照：把门槛改成 `> 0`（= 只要有条目就建）⇒ 上面那条必须精确变红。
+  //   变异体只在内存里做，不碰盘。
+  {
+    const body = src.match(/if \(rendered0 && itemsWithAdvice\.length > 0[\s\S]*?\) \{/)?.[0] ?? '';
+    const mutated = body.replace(/rendered0\.total >= REPORT_LINK_MIN_ISSUES/, 'rendered0.total > 0');
+    assert.ok(body && !/rendered0\.total >= REPORT_LINK_MIN_ISSUES/.test(mutated),
+      '反向对照失效：把 ≥3 改成 >0 之后，判据的输入没有变化');
+    assert.ok(!/rendered0\.total >= REPORT_LINK_MIN_ISSUES/.test(mutated),
+      '反向对照失效：门槛真的被改掉了却没反映出来');
+  }
   assert.ok(/total: rendered0\.total/.test(src),
     '报告正文没读 `rendered0.total` —— 会退回「并进来几条」，把库侧未并进的那部分丢掉');
 });
@@ -4427,8 +4441,14 @@ await t('Z21 ★ 报告只留 PRD 字段：两个来源小标题、免责、计�
   assert.ok(/\*\*有库内条款依据\*\*/.test(md), '库侧条目丢了来源标记 —— 读者就看不出它回得了源');
   assert.ok(/\*\*无库内依据 · 建议转人工\*\*/.test(md), '无依据那条丢了来源标记 —— 会被当成有依据的');
   assert.ok(!/知识库侧|模型侧/.test(md), '「知识库侧/模型侧」又出现了（Owner 2026-10-13 点名去掉）');
-  assert.ok(/1\.【平台与促销】/.test(md) && /2\.【合规】/.test(md),
-    '两段合并后编号必须连号（各从 1 开始会被读成两份清单）');
+  // ★★ 2026-10-17：报告改成「先 P 级、再维度」分组（Owner 白板）⇒ **条目次序由分组决定**，
+  //   不再固定「库侧在前」。原断言钉的是具体某条排第 1，那属于**另一个口径**，已失效。
+  //   要守住的本意没变：**编号连号 1..N**（每组各从 1 开始 = 两份清单 = 这一次要修的病灶）。
+  // ★ 第十五轮：条目不再是 `N.【类别】`，标题行改成 `**F-01 ｜ 类别 ｜ 级别 动作**`
+  assert.ok(/｜ 平台与促销 ｜/.test(md) && /｜ 合规 ｜/.test(md), '两条来源的条目必须都还在');
+  // ★ 第十五轮：报告条目改成 `**F-01 ｜ …**`，连号断言跟着认这个形状
+  assert.deepStrictEqual((md.match(/^\*\*F-(\d{2}) ｜ /gm) || []).map((x) => x.slice(4, 6)),
+    ['01', '02'], '条目必须跨组连号 F-01..F-NN（各从 01 开始会被读成两份清单）');
 });
 
 await t('Z21b ★ 报告 H1 **固定**「内容审查报告」—— 文案/图片/视频一律（Owner 2026-10-13 第三次改这条）', async () => {
@@ -4678,7 +4698,12 @@ await t('Z28 接线：汇总那一段必须与报告链接**同时出现**（少
   const withUrl = T.renderMerged(m.items, { state: 'REVIEW',
     kb: T.kbSideOf({ review: { state: 'REVIEW', issue_count: 0 } }), kbTextCount: 0,
     model: { ok: true, findings: [] }, reportUrlOverride: 'https://x/docx/Y' });
-  assert.ok(/· 合规类问题：5 个/.test(String(withUrl.block)), '汇总没出');
+  // ★ 2026-10-17（Owner：「把卡片的分类汇总行改成 11 类」）：
+  //   这 5 条是**模型侧**条目（没有 11 类）⇒ 汇总行如实落「未归 11 类问题」一桶。
+  //   断言只钉**形状 + 计数**，不钉桶名（桶名会随口径变，钉死就会误红）。
+  assert.ok(/· .+：5 个/.test(String(withUrl.block)), '汇总没出');
+  assert.ok(/未归 11 类/.test(String(withUrl.block)),
+    '没有 11 类的条目必须落「未归 11 类」这一桶（不许藏、也不许硬塞进某个 11 类）');
   assert.ok(/https:\/\/x\/docx\/Y/.test(String(withUrl.block)), '链接没出');
 });
 // ═══ 第 32 组 · 截断要如实报成截断，且要重试（Owner 那张夜间图的真因）═══
@@ -5038,10 +5063,24 @@ await t('Z17 ★ 接线：建报告那一步**必须可注入**，且默认走�
   //   闸**必须挂在「条目」上**，不能挂在那个计数上 —— 库侧报 3 条、明细抠不出来（`kbGap=3`）
   //   ＋ 模型侧 0 条时 `total=3`，而 `itemsWithAdvice` 是**空的** ⇒ 又建出一份空报告，
   //   还**顶掉了库侧那份有明细的**（`reportUrlOverride` 优先于 `kbSide.reportUrl`）。
-  assert.ok(/if \(rendered0 && itemsWithAdvice\.length > 0\) \{/.test(src),
-    '报告闸不见了、或没挂在「条目」上 —— 会重建空报告（Owner 2026-10-15/16）');
-  assert.ok(!/rendered0\.total >= REPORT_LINK_MIN_ISSUES/.test(src),
-    '`>= REPORT_LINK_MIN_ISSUES` 被加回来了 —— 那会让 <3 的行又没有报告');
+  // ★★ 2026-10-17（Owner 裁定，**推翻 2026-10-14 那条本地要求**）：
+  //   「逻辑不变，按照 PRD 问题数量 ≥3 个时才输出审查报告」⇒ 闸回到**两道条件**。
+  //   ① 必须有**真条目**（否则建出来是空文档，2026-10-15/16 两次定过）；
+  //   ② 卡内那个数必须 **≥ REPORT_LINK_MIN_ISSUES**（PRD §5.3.4）。
+  assert.ok(/itemsWithAdvice\.length > 0/.test(src),
+    '报告闸丢了「必须有真条目」这一半 —— 会重建空报告（Owner 2026-10-15/16）');
+  assert.ok(/rendered0\.total >= REPORT_LINK_MIN_ISSUES/.test(src),
+    '报告闸丢了 `>= REPORT_LINK_MIN_ISSUES` 这一半 —— 1–2 条的单子又会建报告（违反 PRD §5.3.4）');
+  // ★ 反向对照：把门槛改成 `> 0`（= 只要有条目就建）⇒ 上面那条必须精确变红。
+  //   变异体只在内存里做，不碰盘。
+  {
+    const body = src.match(/if \(rendered0 && itemsWithAdvice\.length > 0[\s\S]*?\) \{/)?.[0] ?? '';
+    const mutated = body.replace(/rendered0\.total >= REPORT_LINK_MIN_ISSUES/, 'rendered0.total > 0');
+    assert.ok(body && !/rendered0\.total >= REPORT_LINK_MIN_ISSUES/.test(mutated),
+      '反向对照失效：把 ≥3 改成 >0 之后，判据的输入没有变化');
+    assert.ok(!/rendered0\.total >= REPORT_LINK_MIN_ISSUES/.test(mutated),
+      '反向对照失效：门槛真的被改掉了却没反映出来');
+  }
   assert.ok(/total: rendered0\.total/.test(src),
     '报告正文没读 `rendered0.total` —— 会退回「并进来几条」，把库侧未并进的那部分丢掉');
 });
@@ -6377,6 +6416,615 @@ await t('Z47 ★★ 批跑器回填**只认本轮那一行**（猜行的代价�
   assert.strictEqual(wired(src.replace('const hit = strictHit || (strict ? null : _guess);',
                                        'const hit = strictHit || _guess;')), false,
     '反向对照失效：去掉严格分支后判据仍为真');
+});
+
+await t('Z48e ★ 提示词：`excerpt` 必须逐字引用原文（报告有一列只印它）', async () => {
+  // ★ 2026-10-17 第十二轮：真件那一列整片是「该句以…」，图片条目更是 `—`。
+  //   要求写进提示词，就得有东西钉住它 —— 改提示词是最容易"以为改了"的一处。
+  const MS = await import('./agent/model_side.mjs');
+  const sys = String(MS.SYSTEM);
+  assert.ok(/4d\./.test(sys), '提示词没有 4d 那一条（excerpt 逐字引用）');
+  // ★ 第十三轮：口径从「字或读数」收紧成「素材上真实存在的字 / 说出口的话」
+  assert.ok(/只抄"素材上真实存在的东西"|只抄素材上真实存在的东西/.test(sys),
+    '4d 没写「图片/视频只抄素材上真实存在的东西」');
+  assert.ok(/不要把\*\*描述\*\*当原文|不要把描述当原文/.test(sys), '4d 没禁止拿描述冒充原文');
+  assert.ok(/不许编一串字出来/.test(sys), '4d 没给「画面里没字就 null、不许编」的出口');
+  // ★ 第十三轮：**读数不是原文** —— 上一版写成「字或读数」，那是把别人的描述当素材上的字
+  assert.ok(/画面读数不算原文/.test(sys), '4d 没写「画面读数不算原文」');
+  assert.ok(!/看得见的那串字或读数/.test(sys), '4d 又把「读数」算进原文了');
+  assert.ok(/图片给\*\*图上区域\*\*|图片给\*\*图上区域/.test(sys) || /图上区域/.test(sys),
+    '4d 没给图片的「位置」口径（图上区域）');
+  // 反向对照：把 4d 整段从提示词里抹掉 ⇒ 上面第一条必须变假
+  assert.ok(!/4d\./.test(sys.replace(/4d\.[\s\S]*?5\. 你出的每一条/, '5. 你出的每一条')),
+    '反向对照失效：抹掉 4d 后判据仍然通过');
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// 第 48 组 · 报告按「审计报告」模式：总 → 问题清单（P 级 → 维度）→ 执行（2026-10-17）
+//
+// Owner 白板（标题逐字「审计报告不是模板（V1）」）画的顺序：
+//     审计报告 → 结构 → **总（state + 1句话）** → **分**（`P0 → G1/G2/G3 → rule1 out`
+//     ｜ `P1 → rule2 out` ｜ `Pn → rule3 out`）→ **执行 @**
+//   居中那个圈 = 判定规则：`P0 ≥ 1 → Block` ｜ `P1 ≥ 1 且无 P0 → review` ｜ `Pn ……`
+//
+// 当天五条裁定（Owner 逐条选的对）：
+//   ① 报告门槛回到 PRD 的 **≥3**（推翻 2026-10-14「<3 也出」那条本地要求）
+//   ② 问题清单 **先 P 级、再维度** 两级分组（**第二十一轮 Owner 把这节的标题从「分论点」改成「问题清单」**）
+//   ③ 模型侧条目**统一归 P1**（PRD §6.3 第二层），行内另标自评 BLOCK/REVIEW
+//   ④ 「问题描述」**单列一格**（模型侧 prompt 新增 `description`）
+//   ⑤ 第三步：**逐条给承办** ＋ 末尾整单一行（卡片那行照旧保留）
+// ════════════════════════════════════════════════════════════════════════════
+
+await t('Z48 ★★ 报告三步：总结论 → 问题清单（P0→P3 → 维度）→ 执行（@角色）', async () => {
+  const M = await import('./agent/merged_report.mjs');
+  const mk = (tier) => ({
+    location: '视频 00:12', category: '合规', severity: 'REVIEW', source: 'kb',
+    reason: '原因句', description: '描述句',
+    kb: { article_no: 'W-1.54', priorityTier: tier, riskCategory: '合规',
+          basisLine: '《措辞表达库 v0》第 W-1.54 条 ← 命中「最」'
+            + '｜原始出处：https://momcozy-in.feishu.cn/base/a?record=b',
+          suggestionLine: '删掉「最」' } });
+  const md = M.renderMergedReportMd({
+    merged: [mk('P1'), mk('P0'), { location: '图 1', category: '本地化',
+      severity: 'REVIEW', source: 'model', reason: 'r', suggestion: 's' }],
+    total: 3, state: 'BLOCK', line: '【审查结论：BLOCK】共发现 3 处必须修改。',
+    question: 'q', contentId: 'C', at: 'x' });
+
+  // ① 总结论：PRD §5.3 那一行**逐字不动**，且紧跟 H1
+  assert.ok(/^# 内容审查报告\n\n【审查结论：BLOCK】共发现 3 处必须修改。\n/.test(md),
+    `① 总结论不是紧跟 H1 的 PRD §5.3 逐字那一行：${md.slice(0, 90)}`);
+  // ①b **发现分布 ＋ 一句话**（Owner 2026-10-17 给的样张）
+  //   ⚠️ 样张写的是「结论行 ｜ 发现 x（…）」**接在同一行** —— 那会破坏 PRD §5.3：
+  //      `prd53.conforms` 的三态是 `^…$` 整行锚定。这里钉两头：
+  //      ① 分布行在、且括号里加起来等于条数；② **结论行一个字没被污染**。
+  {
+    const dist = (md.match(/^发现 (\d+)（(.+)）$/m) || []);
+    assert.ok(dist.length, `①b 没有「发现 N（…）」那一行：${md.slice(0, 200)}`);
+    // ★ 第八轮（Owner：「权利 0｜本地化 0，没有的你不写呀」）⇒ **只写非零的桶**。
+    const buckets = dist[2].split('｜');
+    for (const b of buckets) {
+      const m2 = /^(合规|安全|权利|本地化|措辞|其他) (\d+)$/.exec(b);
+      assert.ok(m2, `①b 分桶格式不对：${JSON.stringify(b)}`);
+      assert.ok(Number(m2[2]) > 0, `①b 出现 0 的桶（Owner：没有的你不写）：${b}`);
+    }
+    const sum = buckets.reduce((t, x) => t + Number(x.split(' ')[1]), 0);
+    // ★ 第十五轮：条目改成 `**F-01 ｜ …**`，条数要按这个形状数
+    const nItems = (md.match(/^\*\*F-\d{2} ｜ /gm) || []).length;
+    assert.strictEqual(sum, nItems, `①b 括号里加起来（${sum}）不等于清单条数（${nItems}）`);
+    assert.ok(/^一句话：共 \d+ 处/m.test(md), '①b 没有「一句话：…」那一行');
+    // ★★ 第九轮（Owner：「P0 红线 2 处；集中在合规（3 条），也只有 5 条呀」）——
+    //   一句话里的两个数**必须能相加**，且等于条数。原先「P0 2 处 ＋ 合规 3 条」是**重叠**的，
+    //   并排印出来读者自然算成 5。现在口径固定为「P0 p 处 + 其余 N−p 处 = N」。
+    {
+      const m2 = /^一句话：共 (\d+) 处[^；]*?P0 红线 (\d+) 处\*\*、其余 (\d+) 处/m.exec(md);
+      assert.ok(m2, `①b 一句话没有「P0 p 处、其余 N−p 处」的可相加口径：${(md.match(/^一句话：.*$/m) || [''])[0]}`);
+      assert.strictEqual(Number(m2[2]) + Number(m2[3]), Number(m2[1]),
+        `①b 一句话里的数加不起来：P0 ${m2[2]} + 其余 ${m2[3]} ≠ ${m2[1]}`);
+      // 反向对照：句子不许再出现「集中在X（k 条）」那种**与 P0 重叠**的并排计数
+      assert.ok(!/；集中在/.test(md), '①b 一句话又用「集中在X（k 条）」把重叠计数并排印了');
+    }
+    // ★ 反向对照：把分布行接到结论行后面 ⇒ `conforms` 必须变红（这就是不能照抄样张的原因）
+    const P = await import('./agent/prd53.mjs');
+    const polluted = '【审查结论：BLOCK】共发现 3 处必须修改。｜发现 3（合规 3｜安全 0｜权利 0｜本地化 0）';
+    assert.strictEqual(P.conforms(polluted).ok, false,
+      '把分布接到结论行后面竟然仍然合规 —— 那说明 conforms 的锚定松了');
+    assert.strictEqual(P.conforms('【审查结论：BLOCK】共发现 3 处必须修改。').ok, true,
+      '干净的结论行必须合规');
+  }
+  // ①c **「命中描述」列必须印实际原文**（Owner 2026-10-17：「命中描述 写实际的原文」）
+  //   病灶：模型侧的 `excerpt` 常是空的，它把原文放在 `location` 的 `「…」` 里
+  //   ⇒ 那一列原先退成模型写的描述，印出来是「该句以…」「该句用…」（16 字全花在开头三个字上）。
+  {
+    const T = await import('./agent/dual_track.mjs');
+    const q = '素材正文第 2 段「Through over 1,000 trials, the R&D team」句';
+    assert.strictEqual(T.verbatimOf({ location: q, description: '该句以模糊数据支撑功效' }),
+      'Through over 1,000 trials, the R&D team', '①c 没从 location 的「…」里取到原文');
+    assert.strictEqual(T.verbatimOf({ location: '图 1', description: '账号名是中文' }), null,
+      '①c 没有原文时应当返回 null（表里印 —），不许拿描述冒充');
+    // markdown 链接必须还原成文字，否则会把表格撑坏
+    assert.strictEqual(T.verbatimOf({ excerpt: 'increasing milk [production.It](http://production.it/) supports' }),
+      'increasing milk production.It supports', '①c 原文里的 markdown 链接没还原');
+    // 反向对照：**表里那一格不许出现「该句以」这种模型描述**
+    assert.ok(!/\| 该句以/.test(md), '①c 表格「命中描述」列印的还是模型描述，不是原文');
+  }
+  // ② **判定口径那一行已删**（Owner 2026-10-17：「这是给业务侧看的报告」）
+  assert.ok(!/判定口径/.test(md), '② 「判定口径」又出现了 —— 那是内部口径，不给业务侧看');
+  assert.ok(!/PRD §6\.3/.test(md), '② 报告里又出现了内部章节号（业务侧读不懂也不关心）');
+  // ★ 第二十一轮（Owner：「把分论点改成"问题清单"」）—— 第二节标题逐字为「问题清单」，
+  //   旧名「分论点」**一个字都不许再出现在报告里**（同一条判据管两头，免得只改了代码没改测试）。
+  assert.ok(/^## (?:\*\*)?二、问题清单（P0 → P1 → P2 → P3）(?:\*\*)?$/m.test(md),
+    `③ 第二节标题不是「二、问题清单」：${(md.match(/^## .*$/gm) || []).join(' / ')}`);
+  assert.ok(!/分论点/.test(md), '③ 报告里还有旧标题「分论点」');
+  // ③ 问题清单：P 级在前、维度在后，次序固定
+  // ★ 第十六轮：二级目录改**加粗**（`### **P0 — … ｜ 2 条**`）⇒ 判据要认 `**` 包装，
+  //   否则它会把「格式改对了」判成「分组没了」。
+  const heads = (md.match(/^### (?:\*\*)?(.*)｜ \d+ 条(?:\*\*)?$/gm) || [])
+    .map((x) => x.replace(/^### /, '').replace(/^\*\*/, '').replace(/｜.*$/, '').trim());
+  // ★ 第二十轮：P 级与维度并成一行（`P0 红线 · 合规 ｜ 2 条`）⇒ 一个 P 级可能出现多行（每个维度一行）。
+  //   这里只断言**级别出现的先后次序**是 P0 → P1 → P2 → P3（去重保序），不再假设「一个 P 级一行」。
+  const pOrder = [...new Set(heads.map((x) => x.slice(0, 2)))];
+  assert.deepStrictEqual(pOrder, ['P0', 'P1'],
+    `③ P 级分组次序必须是 P0→P1→P2→P3，实际：${JSON.stringify(heads)}`);
+  // ★ 第二十轮：维度并进了分组标题（`### **P0 红线 · 合规 ｜ 2 条**`），
+  //   PRD §8.3 的「按维度分组展示」仍然成立 —— 只是维度从**独立一行**变成**标题里的一格**。
+  assert.ok(/^### (?:\*\*)?P[0-3] .+ · 合规 ｜ \d+ 条(?:\*\*)?$/m.test(md),
+    '③ 维度没出现在分组标题里（PRD §8.3「按维度分组展示」）');
+  assert.ok(!/PRD §/.test(md), '③ 维度/分级的**内部依据**不该出现在业务报告里');
+  // ④ 六格 + 承办，一格不许少（PRD §8.3 五格 + 白板的 P 级 + 第三步的承办）
+  // ★ 第十八轮（Owner：「我给你的报告字段是 维度、位置、问题描述、原因、依据文档链接、修改建议。
+  //   **你不要乱改**」）⇒ 形状照样张（标题行 ＋ 子弹点），**字段名逐字用这六个**。
+  for (const k of ['**维度**', '**位置**', '**问题描述**', '**原因**', '**依据文档链接**', '**修改建议**']) {
+    assert.ok(md.includes(k), `④ 逐条块缺「${k}」这一格`);
+  }
+  // 反向对照：样张那七个字段名**不许再出现在报告里**（那是我越界改的）
+  for (const bad of ['**定位**', '**原文**', '**证据指纹**', '**处置**']) {
+    assert.ok(!md.includes(bad), `④ 报告里又出现了样张的字段名「${bad}」—— Owner 定的字段不是它`);
+  }
+  // ★ 第二十轮：标题三格是 `F-01 ｜ 类别·子类 ｜ P0`（**动作词已删** —— 那是样张口径、非 PRD），
+  //   末尾还挂着来源标记（`—— **有库内条款依据**`）⇒ 判据不能锚在行尾。
+  assert.ok(/^\*\*F-\d{2} ｜ [^｜]+ ｜ P[0-3]/m.test(md),
+    '④ 条目标题行不是「F-NN ｜ 类别 ｜ 级别」的形状');
+  assert.ok(!/\*\*承办\*\*/.test(md), '④ 逐条块里又出现了「承办」—— 承办只留总览表与执行段两处');
+  // ⑤ 模型侧没有 P 级 ⇒ 按 PRD §6.3 第二层归 P1（**不冒充 P0**）
+  assert.ok(/｜ P1\*\*/m.test(md),
+    '⑤ 模型侧那条没按 P1 落（或处置动作没印出来）');
+  assert.ok(!/PRD §/.test(md), '⑤ 报告里出现了内部章节号（业务侧读不懂也不关心）');
+  // ⚠️ ⑤ 查的是**报告**：八格版式只由 `layout: 'report'` 产出，卡片那边是另一支（见 Z48c）。
+  // ⑥ 执行段 —— ★★ 2026-10-17 第二十六轮（Owner 原话）：
+  //   「按照 prd，命中 block，审查报告**不会 @xx @xxx 去修复，直接打回建议修复**；
+  //     命中 review 的，审查报告才会 @xx @xx 去修复。目前审查报告的执行 3 适合 review 模版，
+  //     若结论是 block 要按照 prd 优化。」
+  //   ⇒ 这一节按结论分两支，**Z48 的夹具是 BLOCK** ⇒ 只许「打回」那一支：
+  //     不 @ 任何人、不派单，写「按修改建议改完再重新提交」＋ PRD §5.3.3 那句收尾。
+  assert.ok(/^## (?:\*\*)?三、执行（打回，修改后重新提交）(?:\*\*)?$/m.test(md),
+    '⑥ BLOCK 的执行段标题不是「打回，修改后重新提交」');
+  const execBlk = md.slice(md.indexOf('三、执行'));
+  assert.ok(!/@法务|@北美同事|跟进问题（第/.test(execBlk),
+    `⑥ BLOCK 单里出现了 @ 派单（PRD：BLOCK 是打回，不是转人复核）：${execBlk.slice(0, 200)}`);
+  assert.ok(/请修改后重新提交。/.test(execBlk), '⑥ BLOCK 单的收尾不是 PRD §5.3.3 那句');
+  assert.ok(/打回/.test(execBlk) && /修改建议/.test(execBlk),
+    '⑥ 打回那一支要写清「按修改建议改完再提交」');
+
+  // ⑥b **问题总览表**（审计报告惯例：摘要先行）—— 一张表 7 列，行数 = 条目数
+  assert.ok(/^## (?:\*\*)?一、问题总览(?:\*\*)?$/m.test(md), '⑥b 没有「问题总览」表 —— 业务侧又得直接读八行长文');
+  // ★ 第四轮：**隐藏编号列**、表头不再用斜杠
+  assert.ok(/^\| # \| 优先级 \| 维度 \| 位置 \| 命中描述 \| 承办 \|$/m.test(md),
+    '⑥b 总览表的表头不是约定的那 6 列（编号要隐藏、命中描述不带斜杠）');
+  assert.ok(!/^\| # \| 编号 \|/m.test(md), '⑥b 「编号」列又回来了');
+  // ⚠️ 同一批里两条问题若**同一坐标**（同条款同类别），编号会补 `-2` 后缀（确定性规则）
+  //   ⇒ 判据必须认后缀，否则会把「同条款的两条」数成一行。
+  const tRows = (md.match(/^\| \d+ \| (?:P[0-3]|—) \|/gm) || []).length;
+  const nBody = (md.match(/^\*\*F-\d{2} ｜ /gm) || []).length;   // ★ 第十五轮：新条目形状
+  assert.strictEqual(tRows, nBody, `⑥b 总览表行数与逐条条数不一致：表 ${tRows} / 逐条 ${nBody}`);
+  // ⑥c **Finding 编号**（跨复跑对得上）：同一条两次渲染必须同号，换序也不变
+  // ★ 第十五轮：条目编号改成**可扫的序号** `F-01`（Owner 样张），
+  //   稳定哈希编号（`stableIdOf`）**不再显示** —— 它仍在代码里，供将来整改台账用。
+  assert.ok(/^\*\*F-01 ｜ /m.test(md), '⑥c 条目编号不是 F-01 这种可扫的序号');
+  {
+    const T = await import('./agent/dual_track.mjs');
+    const f = mk('P0');
+    const a = T.stableIdOf(f); const b = T.stableIdOf({ ...f });
+    assert.strictEqual(a, b, '⑥c 同一条目两次算出的编号不同 —— 复跑会对不上');
+    assert.ok(/^F-[0-9a-f]{6}$/.test(a), `⑥c 编号形状不对：${a}`);
+    // ⚠️ 位置**只对独立复核侧的条目**参与派生 —— 库侧的坐标是 `anchor|条款号|类别`，
+    //   位置不在里面（同一个条款命中在不同位置，本来就是同一条证据）。这一点必须钉住，
+    //   否则下一个人会以为「改了位置就该换号」而把库侧的号改成随位置漂。
+    const mo = { source: 'model', location: '图 1', category: '措辞表达', excerpt: 'x' };
+    assert.notStrictEqual(T.stableIdOf({ ...mo, location: '图 2' }), T.stableIdOf(mo),
+      '⑥c 独立复核侧换了位置编号却没变 —— 两条不同的问题会撞成同一个号');
+    assert.strictEqual(T.stableIdOf({ ...f, location: '别的地方' }), a,
+      '⑥c 库侧换位置不该换号（坐标是 anchor ＋ 条款号）');
+  }
+  // ⑥d ★ 第四轮（Owner：「去掉 四、本次未覆盖、未能取证」）—— 那一节下线；
+  //   但**缺口必须仍然逐条可见**（分组 `### 未分级` / `#### 未映射维度`、逐条「本条未提供问题描述」、
+  //   来源标记「无库内依据 · 建议转人工」），所以这里钉两条：节必须没有了、缺口还看得见。
+  assert.ok(!/本次未覆盖/.test(md), '⑥d 「本次未覆盖」那一节又回来了（Owner 已删）');
+  assert.ok(/### (?:\*\*)?未分级|#### (?:\*\*)?未映射维度|本条未提供问题描述/.test(md),
+    '⑥d 未覆盖那一节删了，但缺口也没有逐条可见的落点了 —— 等于把诚实性一起删了');
+  // ⑦ 反向对照：**描述缺了就如实说缺**，不许把 `reason` 搬过去顶上
+  assert.ok(/（本条未提供问题描述）/.test(md),
+    '⑦ 没给 description 时没如实标「未提供」（可能把 reason 搬去冒充问题描述）');
+  // ⑧ 反向对照：拿不到 `priority_tier` ⇒ 落「未分级」，**不从 severity 反推 P0**
+  const md2 = M.renderMergedReportMd({
+    merged: [{ ...mk('P1'), kb: { ...mk('P1').kb, priorityTier: null } }],
+    total: 1, state: 'REVIEW', line: '【审查结论：REVIEW】共发现 1 处需人工确认。',
+    question: 'q', contentId: 'C', at: 'x' });
+  assert.ok(/### (?:\*\*)?未分级/.test(md2), '⑧ 没有 priority_tier 却没落「未分级」组');
+  assert.ok(!/^### (?:\*\*)?P0 /m.test(md2), '⑧ 没有 priority_tier 却猜出了一个 P0');
+});
+
+await t('Z48g ★★ 执行段按结论分两支：REVIEW 才 @ 人派单；BLOCK 打回（Owner：block 不 @ 任何人）', async () => {
+  // Owner 2026-10-17：「按照 prd，命中 block，审查报告不会 @xx @xxx 去修复，直接打回建议修复；
+  //   命中 review 的，审查报告才会 @xx @xx 去修复。目前执行 3 适合 review 模版，
+  //   若结论是 block 要按照 prd 优化。」
+  const M = await import('./agent/merged_report.mjs');
+  const one = (sev, tier) => ({
+    location: '全文', category: '合规', severity: sev, source: 'kb',
+    reason: '原因句', description: '描述句',
+    kb: { article_no: 'W-1.18', priorityTier: tier, riskCategory: '合规',
+          basisLine: '《措辞表达库 v0》第 W-1.18 条 ← 命中「x」',
+          suggestionLine: '改成例句' },
+  });
+  const rv = M.renderMergedReportMd({
+    merged: [one('REVIEW', 'P1')], total: 1, state: 'REVIEW',
+    line: '【审查结论：REVIEW】共发现 1 处需人工确认。', question: 'q', at: 'x',
+  });
+  const rvExec = rv.slice(rv.indexOf('三、执行'));
+  // ① REVIEW：逐角色派单（这是唯一允许 @ 的那一支）
+  assert.ok(/^## (?:\*\*)?三、执行（按问题分派）(?:\*\*)?$/m.test(rv),
+    'REVIEW 的执行段标题不是「按问题分派」');
+  assert.ok(/^- \*\*@[^*]+\*\*：跟进问题（第 [\d、]+ 条）$/m.test(rv),
+    `REVIEW 单没有逐角色派单那一行：${rvExec.slice(0, 260)}`);
+  assert.ok(/建议转 @[^\n]*复核。/.test(rvExec), 'REVIEW 的收尾不是 PRD §5.3.2 那句「建议转 @… 复核。」');
+  assert.ok(!/请修改后重新提交。/.test(rvExec), 'REVIEW 单里出现了 BLOCK 的收尾（两支串了）');
+  // ② 反向对照：同一批条目换成 BLOCK ⇒ **一个 @ 都不许有**，且收尾换成「请修改后重新提交。」
+  const blk = M.renderMergedReportMd({
+    merged: [one('BLOCK', 'P0')], total: 1, state: 'BLOCK',
+    line: '【审查结论：BLOCK】共发现 1 处必须修改。', question: 'q', at: 'x',
+  });
+  const blkExec = blk.slice(blk.indexOf('三、执行'));
+  assert.ok(!/@/.test(blkExec), `BLOCK 单里出现了 @（PRD：打回，不派单）：${blkExec.slice(0, 200)}`);
+  assert.ok(/打回/.test(blkExec), 'BLOCK 单的执行段没写「打回」');
+  assert.ok(/请修改后重新提交。/.test(blkExec), 'BLOCK 单的收尾不是 PRD §5.3.3 那句');
+  assert.ok(!/跟进问题（第/.test(blkExec), 'BLOCK 单里还留着「跟进问题（第 N 条）」那种派单句式');
+  // ③ 两支的标题**必须不同**（同名就说明根本没分支）
+  assert.notStrictEqual(
+    (rv.match(/^## (?:\*\*)?三、执行[^\n]*/m) || [''])[0],
+    (blk.match(/^## (?:\*\*)?三、执行[^\n]*/m) || [''])[0],
+    'BLOCK 与 REVIEW 的执行段标题一模一样 —— 说明没按结论分支');
+});
+
+await t('Z48d ★★ P0 快路命中**必须变成条目**（真报告 9 条只列 6 条、BLOCK 无出处的根因）', async () => {
+  // 病灶（实测 `merged-2026-10-17T01_48_20` / 文档 `XzNxdvaE1o3KuJxSuAqcftRdnqd`）：
+  //   `[p0] 🚦 P0 命中 ⇒ 直接 BLOCK，不起链：H02,H05,M03` ＋ `结论=BLOCK/3 条 ｜ 逐条抽出 0 条`
+  //   ⇒ 结论行「9 处」、清单只有 6 条模型侧的、而且**一条 P0 都没有**。
+  //   根因：`p0_findings` 只被拿去修 `excerpt`（`p0MatchedMap`），从没变成条目。
+  const T = await import('./agent/dual_track.mjs');
+  const M = await import('./agent/merged_report.mjs');
+  // 夹具按**真产出**的形状造（`kb/l5/p0_fastpath.py --json` 实测输出，别按我以为的写）
+  const p0 = [{
+    rule_code: 'H02', level: 'P0', verdict: 'BLOCK', rule_id: 'r-37b49eadb72d7dc2',
+    matched: [{ kind: 'regex', pattern: 'x', line: 1, span: [16, 27],
+                line_text: 'momcozy v1 pro. boosts milk supply. hospital grade.' }],
+    matched_count: 1, whitelist_suppressed: 0,
+    suggested_replacement: '删除 more milk/增产承诺；改放松叙事＋限定语',
+    anchor: '#广告文案明细/recvuJYdOb1Rm1/命中片段', source_sha256: 'c'.repeat(64),
+    article_no: 'W-1.18',
+    clause: { article_no: 'W-1.18', rule_id: 'r-37b49eadb72d7dc2' },
+    verbatim: { record_id: 'recvuJYdOb1Rm1', table: '广告文案明细', field: '命中片段',
+                entry_url: 'https://momcozy-in.feishu.cn/base/Lk3Q?table=tblcbk4XiW6471YN&record=recvuJYdOb1Rm1' },
+    _category: '功效宣称-催乳与通乳宣称',
+    _l3: { reason: 'H02 催乳/增产/奶量产出承诺（无 FDA/临床证据）', kb_type: 'wording', article_no: 'W-1.18' },
+  }];
+  const kb = T.kbFindingsOf('', null, p0);
+  assert.strictEqual(kb.findings.length, 1, `P0 命中没变成条目：抽到 ${kb.findings.length} 条`);
+  const it = kb.findings[0];
+  assert.strictEqual(it.severity, 'BLOCK', 'P0 命中条目的严重度必须是 BLOCK（命中即拦，PRD §6.6）');
+  assert.deepStrictEqual([it.category, it.sub], ['功效宣称', '催乳与通乳宣称'], '类别没按 `_category` 拆开');
+  assert.ok(/W-1\.18/.test(it.kb.basisLine) && /recvuJYdOb1Rm1/.test(it.kb.basisLine),
+    `依据行丢了条款号或飞书直链：${it.kb.basisLine}`);
+  assert.ok(/boosts milk/.test(it.description || ''), '问题描述没取到逐字命中');
+  // 分级出自**模式表**（P0 快路），不是从 severity 反推
+  assert.strictEqual(T.priorityOf(it).level, 'P0', 'P0 快路命中没落进 P0 级');
+  assert.strictEqual(T.dimensionOf(it).dimension, '合规',
+    '维度没按 risk-category-policy 映射（功效宣称 ⇒ 合规）');
+  // 与模型侧合并后：P0 组必须在、BLOCK 必须有出处、总数必须是 4（1 P0 ＋ 3 模型侧）
+  const modelItems = [1, 2, 3].map((n) => ({ location: `段 ${n}`, category: '合规', severity: 'REVIEW',
+    source: 'model', reason: 'r', suggestion: 's', description: 'd' }));
+  const merged = T.mergeFindings(kb.findings, modelItems);
+  const md = M.renderMergedReportMd({ merged: merged.items, total: merged.items.length,
+    state: 'BLOCK', line: '【审查结论：BLOCK】共发现 4 处必须修改。',
+    question: 'q', contentId: 'C', at: 'x' });
+  assert.ok(/^### (?:\*\*)?P0 红线/m.test(md), '报告里没有 P0 组 —— BLOCK 又变得没有出处了');
+  assert.ok(!/本清单里没有一条 P0 红线/.test(md), '兜底告警被误触发（P0 明明在清单里）');
+  // ⑦ 反向对照：**账不平时必须出声**（结论行 9 > 清单 4）
+  const md2 = M.renderMergedReportMd({ merged: merged.items, total: 9,
+    state: 'BLOCK', line: '【审查结论：BLOCK】共发现 9 处必须修改。',
+    question: 'q', contentId: 'C', at: 'x' });
+  assert.ok(/本清单列了 \*\*4\*\* 条，结论行那个数是 \*\*9\*\*/.test(md2),
+    '账不平（9 vs 4）却没有一句解释 —— 这正是 Owner 第 1 条抱怨的形状');
+  // ⑧ 反向对照：**结论悬空必须点破**（BLOCK 但清单里没有任何 P0/BLOCK）
+  const md3 = M.renderMergedReportMd({ merged: modelItems, total: 3,
+    state: 'BLOCK', line: '【审查结论：BLOCK】共发现 3 处必须修改。',
+    question: 'q', contentId: 'C', at: 'x' });
+  assert.ok(/本清单里没有一条 P0 红线/.test(md3),
+    'BLOCK 却一条 P0/BLOCK 都没有，报告没点破 —— 读者会找不到是谁把它拦下来的');
+});
+
+await t('Z48c ★★ 版式切分：**卡片停在三格、报告才是八格**（Owner：卡片格式不要动）', async () => {
+  // ★★ 2026-10-17（Owner 原话）：「**守衡输出的卡片格式不要动，你只是优化报告**」。
+  //   病灶（我这版第一稿就犯的）：`renderMergedItem` 是卡片与报告**共用**的渲染函数，
+  //   我直接把八格加在它身上 ⇒ 卡片每一条从 3 行变 8 行，Owner 当场叫停。
+  //   ⇒ 现在同一函数两个分支（`layout: 'report'` / 默认卡片），**卡片那支与改动前逐字一致**。
+  //   这一条钉的就是「别再合并回去」——谁把八格无条件印出来，它就红。
+  const T = await import('./agent/dual_track.mjs');
+  const f = { location: 'X', category: '合规', severity: 'REVIEW', source: 'model',
+    reason: 'r', suggestion: 's', description: 'd',
+    kb: { article_no: 'W-1.54', priorityTier: 'P1', riskCategory: '合规',
+          basisLine: '《措辞表达库 v0》第 W-1.54 条 ← 命中「最」', suggestionLine: '改' } };
+  const card = T.renderMergedItem(f, 0, { must: false });
+  const rep = T.renderMergedItem(f, 0, { must: false, layout: 'report', owner: '法务（未配置）' });
+  // ① 卡片：PRD §5.3 的三格 + 第一行，**多一格都不许有**
+  for (const k of ['**优先级**', '**维度**', '**位置**', '**问题描述**', '**承办**']) {
+    assert.ok(!card.includes(k), `卡片上出现了「${k}」—— 卡片格式被改了（Owner：卡片不要动）`);
+  }
+  for (const k of ['**原因**', '**依据**', '**建议**']) {
+    assert.ok(card.includes(k), `卡片丢了「${k}」—— 三格是 PRD §5.3 的逐条契约`);
+  }
+  assert.strictEqual(card.split('\n').filter(Boolean).length, 4,
+    `卡片每条必须恰好 4 行（第一行 + 原因/依据/建议），实际：\n${card}`);
+  // ② 报告：七格（承办已按 Owner 要求从逐条块撤下，只留总览表与执行段）
+  // ★ 第十八轮：报告那一支的字段名 = Owner 定的六个（卡片仍是三格，一个字没动）
+  for (const k of ['**维度**', '**位置**', '**问题描述**', '**原因**', '**依据文档链接**', '**修改建议**']) {
+    assert.ok(rep.includes(k), `报告缺「${k}」这一格`);
+  }
+  for (const bad of ['**定位**', '**原文**', '**证据指纹**', '**处置**']) {
+    assert.ok(!rep.includes(bad), `报告又用了样张的字段名「${bad}」`);
+  }
+  assert.ok(!/\*\*承办\*\*/.test(rep), '报告逐条块又印了「承办」—— 承办只留表与执行段');
+  assert.ok(/\*\*F-01 ｜ /.test(rep) || /F-0\d ｜ /.test(rep), '报告条目没有 F-0N 标题行');
+  // ③ 反向对照：把 `layout` 判据拆掉（让卡片也走八格）⇒ 上面①必须精确变红
+  const mutated = String(T.renderMergedItem.toString())
+    .replace("if (layout !== 'report') return head;", '');
+  assert.ok(!/if \(layout !== 'report'\) return head;/.test(mutated),
+    '反向对照失效：把两个版式的分叉拆掉后，判据的输入没有变化');
+  assert.ok(/if \(layout !== 'report'\) return head;/.test(String(T.renderMergedItem.toString())),
+    '两个版式的分叉不见了 —— 卡片会重新变成八格（Owner 2026-10-17 叫停过）');
+});
+
+await t('Z48b ★★ 反向对照：问题数 <3 ⇒ **不建报告**（PRD §5.3.4），明细靠卡片逐条平铺', async () => {
+  // ★★ 2026-10-17（Owner 裁定，推翻 2026-10-14「<3 也出报告」）：闸回到 ≥3。
+  //   这一条必须**行为级**地钉住 —— 只查源码里有没有那个比较式（Z17）挡不住
+  //   「比较式写了但接错了变量」这类错。
+  const { runSubmissionGate } = await import('./agent/agent.mjs');
+  // 夹具与 Z15 同一形状（**必须长得像真产出**，否则测的是别的形状）
+  const KB_ANSWER = ['【审查结论：REVIEW】共发现 1 处需人工确认。', '',
+    '1.【本地化】图 1，逐字命中「图」',
+    '  **原因**：逐字命中',
+    '  **依据**：《措辞表达库 v0》第 W-1.48 条 ← 命中「图」'
+      + '｜原始出处：https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJP2jyHizA',
+    '  **锚点**：#广告文案明细/recvuJP2jyHizA/命中片段｜source_sha256：' + 'a'.repeat(16),
+    '  **建议**：按模板改',
+    '', '建议转 李倩怡 复核。'].join('\n');
+  let called = 0;
+  const g = await runSubmissionGate({
+    adviceRunner: async ({ items }) => ({ ok: true, ms: 1,
+      advice: Object.fromEntries((items || []).map((_, i) => [i, `自证桩给的改法 ${i}`])) }),
+    inbound: { text: '审核下这张图', imageCount: 1, videoCount: 0 },
+    question: '审核下这张图', notify: null,
+    // 库侧只判 1 条 ⇒ 卡内总数 = 1（<3）
+    chainRunner: async () => ({ answer: KB_ANSWER, review: { state: 'REVIEW', issue_count: 1 } }),
+    publishRunner: async () => ({ ok: true, record_id: 'recX' }),
+    modelSideRunner: async () => ({ ok: true, ms: 1, findings: [] }),
+    mergedReportRunner: async () => { called++; return { ok: true, url: 'https://example.invalid/docx/NOPE' }; },
+  });
+  assert.strictEqual(called, 0,
+    '卡内 <3 却建了报告 —— 违反 PRD §5.3.4（报告链接门槛），且 <3 的明细本来就在卡上');
+  const blk = String(g.verdict53?.block ?? '');
+  // 反向对照的另一半：**明细不许因此消失** —— <3 时卡片必须逐条平铺
+  assert.ok(/1\.【本地化】/.test(blk), `<3 时卡片没有逐条平铺，明细真的丢了：${blk.slice(0, 160)}`);
+  assert.ok(!/→ 查看完整问题清单与修改建议/.test(blk), '<3 却印了报告链接那一行');
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// 第 49 组 · 报告三件事（2026-10-17 第二十二轮，Owner 三条原话）
+//
+//   ① 「**审查对象，要加进来**，比如**图片就放点击可打开的链接**，**文案**」
+//   ② 「每个细分，**原因就说原因，别建议**，少做少错」
+//   ③ 「**禁止用任何后台词**（recvuJYdOb1Rm1/），**别人听不懂的字符编码**」
+//
+// 每条都配**反向对照**：把净化拆掉 ⇒ 判据必须精确变红（否则它只是注释）。
+// ════════════════════════════════════════════════════════════════════════════
+await t('Z50 ★★ 链接送审的判据：贴的链接就是素材（正文去掉链接后要短）', async () => {
+  // Owner 2026-10-17 拿着报告来问：「**为什么文字类的还加个错误的链接**」。
+  // 真单：900 字广告文案里粘着 `http://production.it/`（粘贴时编辑器自动加的链接，`.It` 被当域名后缀）
+  // ⇒ 旧的「有链接 ⇒ kind=link」把这条**文字送审**判成链接送审 ⇒ 报告多出一行
+  //    `链接：[点开](http://production.it/)` —— 一个与素材毫无关系的域名。
+  const g = await import('./agent/review_gate.mjs');
+  const withUrl = (body) => `${body} [production.It](http://production.it/)`;
+
+  // ① 正常「贴个链接让我看」⇒ 仍然是 link 送审（短正文）
+  for (const t of ['审一下这个落地页 https://example.com/p?id=1',
+                   '这条视频的落地页能发吗 https://example.com/x']) {
+    const r = g.isSubmission({ text: t });
+    assert.strictEqual(r.kind, 'link', `该判成链接送审的没判成：${t}｜${r.why}`);
+  }
+  // ② 长正文里带一个链接 ⇒ **纯文字送审**（链接只是正文的一部分）
+  const longCopy = withUrl('Momcozy Breast Pump Hands-Free Mobile Style Wearable M6 24mm. '.repeat(8)
+    + 'effectively increasing milk production.It supports everyday baby essentials needs. ');
+  const r2 = g.isSubmission({ text: longCopy });
+  assert.strictEqual(r2.kind, 'text',
+    `长文案里带一个链接就被判成链接送审了（报告会因此多印一行「链接：点开」）：${r2.kind}｜${r2.why}`);
+  // ③ 但**链接不许丢**：判成文字之后，`links` 仍要带出来（链该读还是会读）
+  assert.ok((r2.links || []).length === 1, `判成文字之后把链接丢了：${JSON.stringify(r2.links)}`);
+  // ④ 反向对照：把阈值门槛拆掉（当作任何链接都算链接送审）⇒ ② 必须挂
+  assert.ok(g.linkOnly(longCopy).body.length > g.LINK_ONLY_MAX_BODY,
+    '反向对照失效：这段正文本来就该超过阈值');
+});
+
+await t('Z50b ★ 报告侧同口径：文字送审即使正文里有 URL，也不许出现「链接」行', async () => {
+  const g = await import('./agent/review_gate.mjs');
+  const M = await import('./agent/merged_report.mjs');
+  const copy = 'Momcozy M6 广告原文：effectively increasing milk [production.It](http://production.it/) supports needs.';
+  // 报告拿到的 links 来自 agent 的 `reviewGate.linkOnly(...).isLinkOnly` —— 这里照同一口径算
+  const lo = g.linkOnly(copy);
+  const md = M.materialBlock({ text: copy, media: [], links: lo.isLinkOnly ? lo.links : [] }).join('\n');
+  assert.ok(!/链接/.test(md), `文字送审的报告里还是印了链接行：${md}`);
+  assert.ok(!/production\.it\//.test(md.replace('production.It', '')), `那串 URL 还在：${md}`);
+  // 反向对照：**真的**链接送审（短正文）⇒ 必须有链接行
+  const lo2 = g.linkOnly('审一下这个落地页 https://example.com/p?id=1');
+  const md2 = M.materialBlock({ text: '审一下这个落地页 https://example.com/p?id=1', media: [],
+    links: lo2.isLinkOnly ? lo2.links : [] }).join('\n');
+  assert.ok(/\[点开\]\(https:\/\/example\.com\/p\?id=1\)/.test(md2), `真·链接送审没给链接：${md2}`);
+});
+
+await t('Z49 ★★ 审查对象上报告：文案原文 ＋ 图/视频的可点链接（拿不到就照实说）', async () => {
+  const M = await import('./agent/merged_report.mjs');
+  const mk = () => ({
+    location: '全文', category: '合规', severity: 'BLOCK', source: 'kb',
+    reason: '原因句', description: '描述句',
+    kb: { article_no: 'W-1.18', priorityTier: 'P0', riskCategory: '合规',
+          basisLine: '《措辞表达库 v0》第 W-1.18 条 ← 命中「boosts milk」'
+            + '｜锚点：#广告文案明细/recvuJYdOb1Rm1/命中片段'
+            + '｜原始出处：https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJYdOb1Rm1',
+          reasonLine: 'H02 催乳/增产/奶量产出承诺（无 FDA/临床证据）；M01 静音程度夸大（建议改为 low noise）',
+          suggestionLine: '删掉「Boosts Milk Supply」' } });
+  const longText = `Momcozy M6 吸奶器广告原文。${'这是一段很长的正文。'.repeat(40)}`;
+  const md = M.renderMergedReportMd({
+    merged: [mk()], total: 1, state: 'BLOCK', line: '【审查结论：BLOCK】共发现 1 处必须修改。',
+    question: '审一下这段文案', contentId: 'C', at: 'x',
+    // ⚠️ 夹具必须长得像真产出：`question` 里**故意夹着我们的探针**（那是内部指令），
+    //   `material.text` 才是对方真写的那段原文。
+    material: { text: longText, media: [
+      { kind: 'image', index: 1, ok: true, url: 'https://momcozy-in.feishu.cn/file/xxxx' },
+      { kind: 'image', index: 2, ok: false, detail: '取字节没成：403' },
+    ] },
+  });
+  // ① 有这一节、且在「一、问题总览」之前
+  const iMat = md.indexOf('## 审查对象');
+  const iTable = md.indexOf('## **一、问题总览**');
+  assert.ok(iMat > 0, `没有「审查对象」这一节：${md.slice(0, 200)}`);
+  assert.ok(iMat < iTable, '「审查对象」跑到问题总览后面去了（第一屏该先说在审什么）');
+  // ② 文案原文在（长文截断且写明总字数），探针**一个字都不许出现**
+  assert.ok(md.includes('Momcozy M6 吸奶器广告原文'), '审查对象里没有文案原文');
+  // ★ 2026-10-17 第二十四轮（Owner：「这里你写全了吗？…建议都写全」）——
+  //   从「截断并标全文 N 字」改成「**一字不少地全写**」：审查对象是判定对象的原文，
+  //   缺一段就没法核。反向对照：把它截回 400 字 ⇒ 下面这条必须挂。
+  assert.ok(md.includes(longText.trim()), '文案被截断了（审查对象必须全写出来）');
+  assert.ok(!/全文 \d+ 字/.test(md), '还在用「（全文 N 字）」交代截断 —— 已经不截断了');
+  assert.ok(!/【对方这条消息/.test(md), '审查对象把我们的探针当素材印出去了');
+  // ③ 图有可点链接；没链接的那张**照实说**，不许编
+  assert.ok(/\[点开查看\]\(https:\/\/momcozy-in\.feishu\.cn\/file\/xxxx\)/.test(md),
+    '图片没给可点开的链接');
+  assert.ok(/图片 2\*\*：链接未生成/.test(md), '拿不到链接时没有照实说（一个点不开的链接比空格更坏）');
+});
+
+await t('Z49b ★★ 原因只说原因：规则码与建议子句都不上报告；反向对照缺一不可', async () => {
+  const T = await import('./agent/dual_track.mjs');
+  const RAW = 'H02 催乳/增产/奶量产出承诺（含裸 more milk、催产素，无 FDA/临床证据）'
+    + '；放松叙事+限定语走 M07 语境守卫；M01 静音程度夸大（建议改为 low noise / quiet mode）';
+  const got = T.businessReason(RAW);
+  assert.ok(!/\b[A-Z]\d{2}\b/.test(got), `原因里还留着规则码：${got}`);
+  assert.ok(!/建议|改为/.test(got), `原因里还混着改法（Owner：原因就说原因，别建议）：${got}`);
+  assert.ok(got.includes('无 FDA/临床证据'), `把真原因一起删掉了：${got}`);
+  assert.ok(!/语境守卫/.test(got), `把别的规则的编排（走 M07 语境守卫）也印进去了：${got}`);
+  // 反向对照：不净化 ⇒ 上面三条必然挂（证明判据量的是净化本身，不是我写死的句子）
+  assert.ok(/\b[A-Z]\d{2}\b/.test(RAW) && /建议/.test(RAW), '反向对照失效：原句里本该有规则码与建议');
+  // ★ 两条**当天真踩到**的反向对照（改完第一版立刻翻车，必须钉住）：
+  //   ① `best/#1/No.1/最佳` 里的 `#1/No.1` 被当成内部坐标删成 `best/.1`
+  //      ⇒ 内部坐标判据必须要求第一段含中文表名；
+  //   ② 句末的 `。` 被当残渣剃掉（`。` 是正常标点，只有被删分句留下的 `；` 才该清）。
+  assert.strictEqual(T.businessReason('H05 虚假安全承诺（best/#1/No.1/最佳/最好等排名最前）'),
+    '虚假安全承诺（best/#1/No.1/最佳/最好等排名最前）', '把正文里的 `#1/No.1` 当成内部坐标删掉了');
+  assert.ok(T.businessReason('这是一句正常的原因。').endsWith('。'),
+    '原因结尾的句号被剃掉了（那是正常标点，不是残渣）');
+});
+
+await t('Z49e ★★ 链接只来自两处：正文里的 URL 一个都不挖（Owner：这链接跳转是哪里？）', async () => {
+  // 2026-10-17 第二十三轮：上一版把**文案正文里粘着的 URL**挖出来单印成「链接：点开」，
+  // 那一单的 URL 是粘贴时被编辑器自动加的（http://production.it/，别人的 .it 域名），
+  // 而同一份报告第 5 条问题恰好写着「这里粘着 markdown 链接残留」—— 一边说是缺陷、
+  // 一边给它可点入口。Owner 当场问住了：「这链接跳转是哪里？」
+  const M = await import('./agent/merged_report.mjs');
+  const t = 'increasing milk [production.It](http://production.it/) supports everyday needs.';
+  // ① 文案里的 markdown 链接语法**降成纯文字**（不许保留可点入口）
+  const plain = M.materialBlock({ text: t, media: [], });
+  const plainTxt = plain.join('\n');
+  assert.ok(!plainTxt.includes('](http'), `文案里还留着可点的 markdown 链接：${plainTxt}`);
+  assert.ok(plainTxt.includes('production.It supports'), `链接降级时把文字也吃掉了：${plainTxt}`);
+  // ② 非链接送审 ⇒ **没有链接行**（哪怕正文里就有 URL）
+  assert.ok(!/> \*\*链接\*\*/.test(plainTxt), `非链接送审却印了链接行：${plainTxt}`);
+  // ③ 文案里的裸 URL 包成行内代码（飞书会把裸 URL 自动变超链接）
+  const bare = M.materialBlock({ text: '看这页 https://someone-else.it/x 有没有问题' }).join('\n');
+  assert.ok(/\`https:\/\/someone-else\.it\/x\`/.test(bare), `裸 URL 没包成行内代码（会被飞书变超链接）：${bare}`);
+  assert.ok(!/\]\(https:\/\/someone-else/.test(bare), '裸 URL 还是被做成了链接');
+  // ④ 反向对照：**真的是链接送审**时必须给可点链接（否则上面那条只是「什么都不做」）
+  const linkCase = M.materialBlock({ text: '帮我审这个落地页 https://example.com/p?id=1',
+    links: ['https://example.com/p?id=1'] }).join('\n');
+  assert.ok(/\[点开\]\(https:\/\/example\.com\/p\?id=1\)/.test(linkCase),
+    `链接送审却没给可点链接：${linkCase}`);
+  // ⑤ 只认调用方**显式**传的链接，正文挖掘哪怕是 http(s) 也不认
+  const mined = M.materialBlock({ text: '正文里有 https://evil.example/x',
+    links: ['javascript:alert(1)', 'ftp://x/y'] }).join('\n');
+  // ⚠️ 判据是「**不许出现链接标记**」，不是「不许出现那个字符串」——
+  //    裸 URL 留在引用的文案里是对的（包成行内代码），错的是把它做成可点入口。
+  assert.ok(!/\]\(/.test(mined), `把非 http(s) 或未显式声明的地址做成了可点链接：${mined}`);
+});
+
+await t('Z49f ★ 修改建议全写：不许再截 120 字、也不许挂「完整改法见…」', async () => {
+  // Owner 2026-10-17：「建议都写全」。改前每条建议只印前 120 字、尾巴写
+  // 「…（完整改法见「依据文档链接」条款原文）」—— 而那一格是**条款原文**，本来就不含改法，
+  // 读的人于是**两头都拿不到完整改法**。
+  const T = await import('./agent/dual_track.mjs');
+  const M = await import('./agent/merged_report.mjs');
+  const sug = '改法首选：把标题改为 Ideal Rhythm for Comfortable Pumping，并把正文首句改成一句'
+    + '完整英文；次选：删掉 Boosts Milk Supply 这一整句，在正文首句补一句本品适用场景的说明，'
+    + '避免读者以为它能替代日常喂养；若两条同时做，注意标题与正文不要重复同一卖点，'
+    + '否则读者会觉得这段文案在自我夸大。';
+  assert.ok(sug.length > 120, '夹具太短，量不出截断（必须长于 120 字）');
+  const md = M.renderMergedReportMd({
+    merged: [{ location: '全文', category: '合规', severity: 'BLOCK', source: 'kb', reason: 'r', description: 'd',
+      kb: { article_no: 'W-1.18', priorityTier: 'P0', riskCategory: '合规',
+            basisLine: '《措辞表达库 v0》第 W-1.18 条 ← 命中「x」', suggestionLine: sug } }],
+    total: 1, state: 'BLOCK', line: '【审查结论：BLOCK】共发现 1 处必须修改。', question: 'q', at: 'x' });
+  assert.ok(md.includes(sug), `建议被截断了（必须全写）：${(md.match(/修改建议\*\*：.*/) || [''])[0]}`);
+  assert.ok(!/完整改法见/.test(md), '又出现了「完整改法见…」这个指路尾巴');
+  // 反向对照：把**改前那套截断**照着写一遍，它产出的那句**不许**出现在报告里
+  //   （截断逻辑要是被改回来，上面第一条必然挂；这里再钉一次「那句尾巴也不许有」）
+  const TRUNC = `${sug.slice(0, 120).replace(/[，、；\s]+$/, '')}…（完整改法见「依据文档链接」条款原文）`;
+  assert.ok(!md.includes(TRUNC), '改前那套截断后的句子又出现在报告里了');
+});
+
+await t('Z49c ★★ 报告里不许有后台词（记录主键/锚点/模式 id/sha）；直链必须仍然可点', async () => {
+  const T = await import('./agent/dual_track.mjs');
+  const BAC = '｜锚点：#广告文案明细/recvuJYdOb1Rm1/命中片段'
+    + '｜原始出处：https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJYdOb1Rm1';
+  const basis = T.businessBasis(`《措辞表达库 v0》第 W-1.18 条 ← 命中「boosts milk」${BAC}`);
+  // ⚠️ 查的是**正文**：URL 里的 query 必须原样留着（下面那条专门钉它）
+  const basisNoUrl = basis.replace(/https?:\/\/\S+/g, '[链接]');
+  assert.ok(!/recvuJYdOb1Rm1|#广告文案明细|锚点/.test(basisNoUrl), `依据里还有后台词：${basis}`);
+  assert.ok(basis.includes('W-1.18'), '把条款号也洗掉了（那是业务侧要看的）');
+  // ★★ 直链必须**一个字符都不变** —— 第一版对整段做替换，把 URL 的
+  //    `?table=tbl…&record=rec…` 打成 `?table=&record=`，链接当场失效（当天真踩过）
+  assert.ok(/原始出处：https:\/\/momcozy-in\.feishu\.cn\/base\/Lk3Qb8y2QaVyZns6gprcVNE9nA0\?table=tblcbk4XiW6471YN&record=recvuJYdOb1Rm1$/
+    .test(basis), `直链被打坏了（后台词该消失在正文里，不该消失在 URL 里）：${basis}`);
+  // 反向对照：整条报告渲染出来的正文里，**任何一格**都不许出现后台词
+  const M = await import('./agent/merged_report.mjs');
+  const md = M.renderMergedReportMd({
+    merged: [{ location: '全文 recvuJYdOb1Rm1', category: '合规', severity: 'BLOCK', source: 'kb',
+      reason: '原因句', description: '描述句',
+      kb: { article_no: 'W-1.18', priorityTier: 'P0', riskCategory: '合规',
+            basisLine: `《措辞表达库 v0》第 W-1.18 条${BAC}`, suggestionLine: '删掉' } }],
+    total: 1, state: 'BLOCK', line: '【审查结论：BLOCK】共发现 1 处必须修改。', question: 'q', at: 'x',
+  });
+  const noLink = md.replace(/\[([^\]]*)\]\((https?:[^)]+)\)/g, '[$1]');   // 去掉链接目标再查
+  assert.ok(!/recvuJYdOb1Rm1|p-[0-9a-f]{8,}|[a-f0-9]{32,}/.test(noLink),
+    `报告正文里还有后台词：${(noLink.match(/recv\w+|p-[0-9a-f]+|[a-f0-9]{32,}/g) || []).join(' ')}`);
+});
+
+await t('Z49d ★★ 清扫不许把正常短值一起删掉（P0 / 合规 / 全文 这类）', async () => {
+  // 2026-10-17 当天真踩到：第一版「≤3 字的分段一律丢」把表格六列与清单的
+  // 维度/位置一起删空了 —— 判定「后台词」的尺子**不许顺手删正常值**。
+  const T = await import('./agent/dual_track.mjs');
+  for (const v of ['合规', '全文', 'P0', '正文第2段第1句', '《措辞表达库 v0》第 W-1.18 条']) {
+    assert.strictEqual(T.stripBackendTokens(v), v, `正常值被洗掉了：${v}`);
+  }
+  // 反向对照：真后台词必须被挖掉（否则上面那条只是「什么都没做」）
+  assert.strictEqual(T.stripBackendTokens('recvuJYdOb1Rm1'), '', '记录主键没被挖掉');
+  assert.ok(!/p-[0-9a-f]{8,}/.test(T.stripBackendTokens('模式 p-755f9ff377c3052c')), '模式 id 没被挖掉');
+  // 清单里的六格必须**有值**（清扫之后）
+  const M = await import('./agent/merged_report.mjs');
+  const md = M.renderMergedReportMd({
+    merged: [{ location: '全文', category: '合规', severity: 'BLOCK', source: 'kb',
+      reason: '命中药量承诺（无 FDA 证据）；建议改为低噪说法', description: '逐字命中「boosts milk」',
+      kb: { article_no: 'W-1.18', priorityTier: 'P0', riskCategory: '合规',
+            basisLine: '《措辞表达库 v0》第 W-1.18 条 ← 命中「boosts milk」',
+            suggestionLine: '删掉「Boosts Milk Supply」' } }],
+    total: 1, state: 'BLOCK', line: '【审查结论：BLOCK】共发现 1 处必须修改。', question: 'q', at: 'x' });
+  for (const k of ['维度', '位置', '问题描述', '原因', '依据文档链接', '修改建议']) {
+    const m = new RegExp(`> \\*\\*${k}\\\*\\*：(.+)`).exec(md);
+    assert.ok(m && m[1].trim().length >= 2, `「${k}」这一格被清扫洗空了`);
+  }
 });
 
 // 汇总必须放在**所有**分组之后（2026-10-09 修：中间那两块重复的汇总+exit

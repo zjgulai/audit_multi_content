@@ -24,10 +24,11 @@
   },
   "rule_code_uniqueness": "rule_code 在全套规则里不唯一（品线内容边界规则库复用 H01-H09/M01-M07/U01-U04 码，authority=inferred 已按门槛排除）；入选集合内部已校验无重码，变体表按 rule_code 查表安全",
   "excluded": {
-    "non_P0": 610,
+    "non_P0": 593,
     "P0_but_authority_insufficient": 5,
     "P0_admitted_by_allowlist": 10,
-    "P0_but_inductive": 6
+    "P0_but_inductive": 6,
+    "P0_but_no_enrich": 17
   },
   "p0_disposition": [
     {
@@ -134,6 +135,125 @@
       "disposition": "excluded",
       "reason": "P0_but_inductive",
       "why": "rule_kind=inductive（非 atomic）—— 由多条证据归纳出的模式，不进「命中即 BLOCK」的确定性匹配器"
+    },
+    {
+      "rule_id": "r-03ec44de7eb8fb64",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-0d1e46b923cbf9f8",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-12fe094401654cb2",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-29bf2758f44d19de",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-659431b7cda22110",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-6e212146ea9a1bcf",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-7c0d541cb506ce30",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-8334d7fba8f6d436",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-a05639d323f9cd51",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-a16f7c8d40677bbb",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-a37db2c994b08fbe",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-ad80c02af1e44287",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-b4c492f9a4b00b33",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-e36cb8bd701d99d7",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-e61c58d5be723832",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-f28af88b8656e01c",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-f86b6172f13eb9da",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
     },
     {
       "rule_id": "r-1bd7d4b564bb8663",

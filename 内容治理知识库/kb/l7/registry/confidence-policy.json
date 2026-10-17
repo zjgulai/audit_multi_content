@@ -4,36 +4,44 @@
  "layer": "L7 跨层 · 置信度分流（PRD §6.6）",
  "status": "active",
  "owner": "法务 + 内容治理（角色位）",
- "scope": "所有出三态结论的评审单（P0 命中与拒答态不适用）",
+ "scope": "所有出最终结论的评审单（P0 命中与拒答态不适用）。★ PRD v1.3 的四态里 SUGGEST 尚未落地，本库当前仍出 PASS/REVIEW/BLOCK —— 见 prd-v1.3-alignment.yaml",
  "prd_ref": {
-  "doc": "内容审查 Agent PRD v1.2",
+  "doc": "内容审查 Agent PRD v1.3",
+  "revision_id": 223,
+  "read_at": "2026-10-17",
   "section": "§6.6 置信度与分流策略",
-  "quote": "| 置信度区间 | 处理策略 |\n|-|-|\n| ≥ 0.90 | 直接输出结论（PASS / BLOCK） |\n| 0.70 - 0.89 | 输出 REVIEW，标注\"建议人工确认\" |\n| < 0.70 | 输出 REVIEW，标注\"不确定，建议人工重点看\" |\n\nP0 层级规则不适用置信度分流，命中即 BLOCK。",
-  "acceptance_ref": "§15「准确率｜整体 ≥ 90%，BLOCK 精确率 ≥ 95%，PASS 误放率 ≤ 5%，P0 层漏报率 = 0」"
+  "quote": "| 置信度区间 | 处理策略 |\n|-|-|\n| ≥ 0.85 | 直接输出结论（BLOCK / SUGGEST / PASS） |\n| 0.60 - 0.84 | 输出 REVIEW，标注“建议人工确认” |\n| < 0.60 | 若未命中 P0，输出 PASS（避免低置信度干扰人工）；若命中 P0，强制 BLOCK |\n\nP0 层级规则不适用置信度分流，命中即 BLOCK。",
+  "quote_source": "§6.6 正文在**内嵌飞书表格**里（sheet `phfjQo`，spreadsheet `B1aUs2Vuah8YwjtwWO6cr5MFnUd`）；`docs +fetch` 只返回占位符，须 `lark-cli sheets +csv-get` 另拉 —— 本表逐字取自该 sheet。",
+  "acceptance_ref": "§15 验收标准（v1.3）：准确率｜整体 ≥ 90%，BLOCK 精确率 ≥ 95%，P0 漏报率 = 0。★ v1.3 删掉了 v1.2 的「PASS 误放率 ≤ 5%」与「REVIEW 召回率 ≥ 95%」两项 —— 本库侧**仍保留这两项读数**（判断：它们是唯一管定向漏放的指标），但不再声称是 PRD 要求。",
+  "applied_at": "2026-10-17（Owner：「置信度问题按照 prd 来做」）",
+  "prev_policy": "v1.2：≥0.90 直接出结论 ｜ 0.70-0.89 REVIEW+「建议人工确认」 ｜ <0.70 REVIEW+「不确定，建议人工重点看」。2026-10-10 起生效，2026-10-17 作废。"
  },
  "thresholds": {
-  "direct": 0.9,
-  "confirm": 0.7
+  "direct": 0.85,
+  "confirm": 0.6
  },
- "thresholds_note": "★ 这两个数是 **PRD §6.6 的政策值**，不是从数据标定出来的。改这里 = 改政策；改代码是错的地方（派生实现只有一份：`kb/l7/review-engine/core/confidence_flow.py`）。",
+ "thresholds_note": "★ 这两个数是 **PRD v1.3 §6.6 的政策值**（2026-10-17 由 0.90/0.70 改来），不是从数据标定出来的。改这里 = 改政策；改代码是错的地方（派生实现只有一份：`kb/l7/review-engine/core/confidence_flow.py`）。",
  "bands": {
   "direct": {
-   "range": ">= 0.90",
+   "range": ">= 0.85",
    "effect": "keep",
    "annotate": null,
-   "why": "PRD §6.6：≥0.90 直接输出结论（PASS / BLOCK）"
+   "why": "PRD v1.3 §6.6：≥0.85 直接输出结论（BLOCK / SUGGEST / PASS）"
   },
   "confirm": {
-   "range": "0.70 - 0.89",
+   "range": "0.60 - 0.84",
    "effect": "force_review",
    "annotate": "建议人工确认",
-   "why": "PRD §6.6：0.70-0.89 输出 REVIEW，标注「建议人工确认」"
+   "why": "PRD v1.3 §6.6：0.60-0.84 输出 REVIEW，标注「建议人工确认」"
   },
   "focus": {
-   "range": "< 0.70",
-   "effect": "force_review",
-   "annotate": "不确定，建议人工重点看",
-   "why": "PRD §6.6：<0.70 输出 REVIEW，标注「不确定，建议人工重点看」"
+   "range": "< 0.60",
+   "effect": "pass",
+   "annotate": null,
+   "fail_open": true,
+   "why": "PRD v1.3 §6.6：<0.60 若未命中 P0，输出 PASS（避免低置信度干扰人工）；若命中 P0，强制 BLOCK。",
+   "what_changed": "v1.2 这一档是 force_review（转人工）；v1.3 改成 **pass（放过）** —— 方向相反。",
+   "danger": "★ 这是 **fail-open**：一条**非 P0 的 BLOCK** 若置信度掉到 0.60 以下，会被本档**改写成 PASS**。route() 会留 machine-readable `warning`（不上屏、不进摘要）以便事后审计，但**不会阻断**。要不要接受这个后果，是 PRD 的产品决策 —— 本库照 PRD 落地，不自行收紧。"
   }
  },
  "not_applicable": {
@@ -199,7 +207,11 @@
    "measured": "confirm 正确率 69.6% → 76.2%；direct 8 → 1 条；15 条回到「无读数」（fail-closed）",
    "does_not_fix": "同序仍为 False ⇒ 它只让这个数不再骗人，不能让它可分流"
   },
-  "real_misses_found": ["RC-f284bdb04abe", "RC-c768ef800bc4", "RC-3d090492af3b"],
+  "real_misses_found": [
+   "RC-f284bdb04abe",
+   "RC-c768ef800bc4",
+   "RC-3d090492af3b"
+  ],
   "judge": "交付-置信度双轨回归标定-A-20261015.md 第八节（含复算口径与数据路径）"
  },
  "fix_20261015_F1": {
@@ -222,5 +234,19 @@
   "does_not_fix": "**同序仍为 False（反向）** ⇒ 这个数**仍然不可用于分流**，继续只作标签 ＋「未标定」声明",
   "residual": "另一会话 17:44 起的批跑（10 条尾单）在进程启动时已加载旧代码 ⇒ 那批行仍是旧口径；下次重审自然带新口径",
   "judge": "交付-置信度双轨回归标定-A-20261015.md 第九节"
+ },
+ "applied_20261017_prd13": {
+  "_why": "PRD 升 v1.3 时先登记「本轮不跟」（见 prd-v1.3-alignment.yaml 首次登记），2026-10-17 Owner 指令「置信度问题按照 prd 来做」⇒ 已跟。此块取代原 prd_v13_delta。",
+  "what_changed": [
+   "阈值 0.90/0.70 → **0.85/0.60**",
+   "<0.60 一档由 force_review（REVIEW）→ **pass（PASS）**"
+  ],
+  "engine_delta_measured": {
+   "review_0.85_0.89": "不再被标注「建议人工确认」（结论仍是 REVIEW，只是少一句标注）—— 这是本改动**唯一**会在现网改变输出的地方",
+   "focus_band": "**当前不可达**：review_engine 对置信度按结论截断（BLOCK/PASS→[0.90,0.99]、REVIEW→[0.70,0.89]）⇒ 最低 0.70，掉不进 <0.60",
+   "p0": "不受影响（P0 override 在上游先判，不分流）"
+  },
+  "to_make_focus_reachable": "要放开 review_engine 的按结论截断。**不建议顺手做** —— 那会让低置信度 REVIEW 降级成 PASS，比本改动危险一档。须单独裁定，登记在 prd-v1.3-alignment.yaml::next_batches",
+  "validation": "confidence_flow --selftest 20/20（含 ③b2 钉住「focus 会把非 P0 的 BLOCK 改成 PASS」这个后果、①g 钉住旧边界已失效）"
  }
 }

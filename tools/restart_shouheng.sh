@@ -59,7 +59,7 @@ EXIT_REFUSED=3
 CONSENT="${SHOUHENG_RESTART_CONSENT:-$ROOT/PMO/shouheng-state/restart-consent}"
 CONSENT_MAX_AGE=300          # 5 分钟。够人念完再决定，不够跨过一次别人的重启。
 
-YES=0; CHECK=0; WHY=""; SINCE=""; NO_KICK=0
+YES=0; CHECK=0; WHY=""; SINCE=""; NO_KICK=0; FORCE_INFLIGHT=0
 for a in "$@"; do
   case "$a" in
     --yes)   YES=1 ;;
@@ -70,6 +70,11 @@ for a in "$@"; do
     # 一个会误报的检查器比没有检查器更糟）。它**不会**消耗凭证，也**不动进程** ——
     # 所以它不构成绕过：它一次 kickstart 都不发。
     --no-kick) NO_KICK=1 ;;
+    # ★★ 2026-10-17：**正在处理中的消息会被 kickstart 掐断**（当天真事故：14:22 那条
+    #   评审跑到「建议生成」被重启掐掉，回执发出去了、正式答案永远没来；
+    #   日志逐字 `本次统计：事件 2 / 已回答 0 / 已发送 0`）。
+    #   所以「有消息正在处理」时**默认拒绝**；确实要硬重启的，必须显式加这个旗子。
+    --force-inflight) FORCE_INFLIGHT=1 ;;
     # --since 只改「重启会生效」那块读数的参照时间，不参与要不要重启的决定。
     # 存在的理由：不加它，那块读数在最常见的时刻恒为「无」—— 恒真的读数等于没读。
     # 自证拿它做反向对照：--since=0 必须列出整个 import 图，--since=<未来> 必须为空。
@@ -337,11 +342,42 @@ if [ -z "${PID:-}" ]; then
   MODE="rescue"
 else
   # ── 在跑：这是重启，默认拒绝 ──────────────────────────────
+  # ── 正在处理中？（真事故 2026-10-17 的判据）────────────────────────────
+  #   `daemon-run.json` 的计数：收到的事件数 **大于**（已回答＋已跳过＋失败＋未捕获）
+  #   ⇒ 至少有一条**还没走完** —— 此刻 kickstart 就是把它掐断。
+  #   为什么这个式子可靠：正常跑完时两边相等；重复消息记 `skipped`、异常记 `failed/uncaught`，
+  #   都不会让它长期为真（重启后计数器归零，不会留下陈旧状态）。
+  INFLIGHT="$(python3 - "$ROOT" <<'PY' 2>/dev/null
+import json, os, sys
+root = sys.argv[1]
+try:
+    d = json.load(open(os.path.join(root, 'PMO/shouheng-state/daemon-run.json'), encoding='utf-8'))
+except Exception:
+    print('untested|0|0'); raise SystemExit
+ev = int(d.get('events') or 0)
+done = sum(int(d.get(k) or 0) for k in ('handled', 'skipped', 'failed', 'uncaught'))
+print(('inflight|%d|%d' if ev > done else 'idle|%d|%d') % (ev, done))
+PY
+)"
+  _ist="${INFLIGHT%%|*}"; _rest="${INFLIGHT#*|}"
+  _ev="${_rest%%|*}"; _done="${_rest#*|}"
+  case "$_ist" in
+    inflight) echo "  正在处理中    ⚠ **有 1 条及以上还没走完**（收到 ${_ev} ／ 走完 ${_done}）—— 现在重启会把它掐断" ;;
+    idle)     echo "  正在处理中    无（收到 ${_ev} ／ 走完 ${_done}）" ;;
+    *)        echo "  正在处理中    ⚠ 未测（读不到 run-state 的计数）" ;;
+  esac
   echo "──────────────────────────────────────────────────────"
   if [ "$CHECK" = "1" ] && [ "$YES" = "0" ]; then echo "  （--check：以上为查看，未做任何动作）"; exit 0; fi
   if [ "$YES" = "0" ]; then
     echo "  ✗ 拒绝重启：守衡正在对外说话，重启窗口内群里的消息不会被回答。"
     echo "    同意之后再执行：bash tools/restart_shouheng.sh --yes --why=\"<重启的理由>\""
+    exit "$EXIT_REFUSED"
+  fi
+  if [ "$_ist" = "inflight" ] && [ "$FORCE_INFLIGHT" != "1" ]; then
+    echo "  ✗ 拒绝重启：**有一条消息正在处理中**（收到 ${_ev} ／ 走完 ${_done}）。"
+    echo "    现在 kickstart，它已经发出去的回执就再也等不到答案了 ——"
+    echo "    2026-10-17 14:22 真发生过：'本次统计：事件 2 / 已回答 0 / 已发送 0'。"
+    echo "    等它回完再重启；确需硬重启就加 --force-inflight。"
     exit "$EXIT_REFUSED"
   fi
   if [ -z "$WHY" ]; then

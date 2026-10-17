@@ -1,24 +1,36 @@
 #!/usr/bin/env python3
 """置信度分流（PRD §6.6）—— 三档处理策略的**唯一实现**。
 
-## PRD §6.6 原文
+## PRD §6.6 原文（**v1.3**，revision 223，2026-10-17 升版）
 
 | 置信度区间 | 处理策略 |
 |---|---|
-| ≥ 0.90 | 直接输出结论（PASS / BLOCK） |
-| 0.70 - 0.89 | 输出 REVIEW，标注"建议人工确认" |
-| < 0.70 | 输出 REVIEW，标注"不确定，建议人工重点看" |
+| ≥ 0.85 | 直接输出结论（BLOCK / SUGGEST / PASS） |
+| 0.60 - 0.84 | 输出 REVIEW，标注"建议人工确认" |
+| < 0.60 | 若未命中 P0，输出 PASS（避免低置信度干扰人工）；若命中 P0，强制 BLOCK |
 
 > **P0 层级规则不适用置信度分流，命中即 BLOCK。**
 
-任务拆解 目标 11 的现状原文：「**无**（PRD §6.6 三档；P0 不适用分流、命中即 BLOCK）」。
+★ 2026-10-17（Owner 指令「置信度问题按照 prd 来做」）：阈值由 v1.2 的 **0.90 / 0.70** 改为
+v1.3 的 **0.85 / 0.60**，并把 `< 0.60` 一档由「输出 REVIEW」改为「**未命中 P0 ⇒ 输出 PASS**」。
+v1.2 原文（历史，只作对照）：
+
+    历史：| ≥ 0.90 直接出结论 | 0.70-0.89 REVIEW「建议人工确认」 | < 0.70 REVIEW「不确定，建议人工重点看」 |
+
+★★ **`< 0.60 ⇒ PASS` 是 fail-open，这一点必须写在代码里而不是只写在报告里**：
+它意味着「置信度很低的一条非 P0 结论，**不再转人工，而是直接放过**」。
+本模块照 PRD 落地（下方 `BAND_POLICY["focus"]["effect"] = "pass"`），
+但**在 route() 的返回里额外记一条 `warning`**（机器可读、不上屏、不进摘要）——
+这样它既能按 PRD 出 PASS，又不会变成"看不见的放行"。
+本库 2026-10-07 定过「库侧没有读数不许落 PASS」（fail-open 方向最坏的一类），
+那条管的是**没有读数**，与本条（有读数但低）不是同一件事；此处不推翻它。
 
 ## 本模块做什么、不做什么（**这条必须说清**）
 
 **做**：把 §6.6 的**策略层**落成代码 —— 给定 `(置信度, 命中的层级)`，输出该走哪一档、
 该标注什么话、以及**这个档位是不是真的生效了**。
 
-**不做**：**标定阈值**。§6.6 的 0.90 / 0.70 是**政策值**，不是从数据算出来的。
+**不做**：**标定阈值**。§6.6 的 0.85 / 0.60 是**政策值**，不是从数据算出来的。
 引擎当前的置信度仍是启发式（`decision_trace.confidence_status = heuristic_not_calibrated`）。
 把未标定的数按三档切开，切得再准也只是**把猜测分了类** ——
 所以本模块**不声称分流是「准的」**，只声称「策略按 PRD 落地说得清了」。
@@ -30,9 +42,20 @@
      （回归集 100 条 `expected`）已可用于标定；读数器 `kb/l8/calibrate_confidence.py`。
      外部金标集仍是**误报／漏报**那一项的前置，与置信度标定**不是同一件事**。
   ② 引擎的置信度**已由分支常量改成派生量**（同一分支内会随独立类目数 / 证据完整度变化）
-     ⇒ 它**有分布**了，0.90 / 0.70 才谈得上标定。改前的实测：3~4 个取值、
+     ⇒ 它**有分布**了，阈值才谈得上标定。改前的实测：3~4 个取值、
      **与正确率不同序**（0.99→67% ＜ 0.78→80% ＜ 0.97→83%）⇒ 那个数不携带信息
      （见政策件 `measured_20261012_selfcalib`）。
+
+★★ **2026-10-17 实测边界（改阈值前必须知道）**：引擎在 `review_engine.py` 里对置信度做了
+**按结论截断**（`BLOCK/PASS → [0.90, 0.99]`、`REVIEW → [0.70, 0.89]`，
+理由见该文件「本步只让值有分布、不改结论」那一段）。⇒ 在当前引擎下：
+
+  · `direct`(≥0.85)：BLOCK/PASS 本来就 ≥0.90 ⇒ 行为不变；
+    **REVIEW 单里 0.85–0.89 那一段不再被标注「建议人工确认」**（结论仍是 REVIEW，只是少一句标注）；
+  · `focus`(<0.60)：**当前不可达**（截断把最低压到 0.70）。规则照 PRD 落好，
+    但**不许把「规则已落」说成「这条规则在生效」**；
+  · 要让 `focus` 真正可达，得放开那个截断 —— 那会让低置信度 REVIEW **降级成 PASS**，
+    是另一件事，须单独裁定（见 `kb/l7/registry/prd-v1.3-alignment.yaml` 的 `next_batches`）。
 
 ## 用法
 
@@ -47,27 +70,30 @@ import os
 import sys
 
 # ── 阈值：PRD §6.6 的政策值。**可从政策文件覆盖，不在别处再写第二份。** ──────────
-DEFAULT_THRESHOLDS = {"direct": 0.90, "confirm": 0.70}
+#: 2026-10-17：随 PRD v1.3 由 0.90 / 0.70 改为 0.85 / 0.60（Owner：「置信度问题按照 prd 来做」）。
+DEFAULT_THRESHOLDS = {"direct": 0.85, "confirm": 0.60}
 
 #: 三档。顺序即从严到宽；`band_of()` 按这个顺序判。
 BAND_POLICY = {
     "direct": {
-        "range": ">= 0.90",
+        "range": ">= 0.85",
         "annotate": None,
         "effect": "keep",
-        "why": "PRD §6.6：≥0.90 直接输出结论（PASS / BLOCK）",
+        "why": "PRD v1.3 §6.6：≥0.85 直接输出结论（BLOCK / SUGGEST / PASS）",
     },
     "confirm": {
-        "range": "0.70 - 0.89",
+        "range": "0.60 - 0.84",
         "annotate": "建议人工确认",
         "effect": "force_review",
-        "why": "PRD §6.6：0.70-0.89 输出 REVIEW，标注「建议人工确认」",
+        "why": "PRD v1.3 §6.6：0.60-0.84 输出 REVIEW，标注「建议人工确认」",
     },
     "focus": {
-        "range": "< 0.70",
-        "annotate": "不确定，建议人工重点看",
-        "effect": "force_review",
-        "why": "PRD §6.6：<0.70 输出 REVIEW，标注「不确定，建议人工重点看」",
+        "range": "< 0.60",
+        "annotate": None,          # ★ v1.3 这一档**不再要求标注**（「避免低置信度干扰人工」）
+        "effect": "pass",          # ★ v1.3 由 force_review 改为 **未命中 P0 ⇒ 输出 PASS**
+        "why": ("PRD v1.3 §6.6：<0.60 若未命中 P0，输出 PASS（避免低置信度干扰人工）；"
+                "若命中 P0，强制 BLOCK（P0 override 在上游已先判）"),
+        "fail_open": True,         # ★ 这一档是**放宽**（低置信度 ⇒ 放过），不是收紧
     },
 }
 
@@ -130,8 +156,9 @@ def route(decision: str, confidence, tiers=None, thresholds: dict | None = None)
 
     * `applies=False` 的三种情形见 `NO_FLOW` —— 此时 `band=None`，
       **不许**硬塞一个档位（那会让「P0 不分流」这句 PRD 在报告里看不出来）。
-    * `effect="force_review"` 表示**该档位要把结论压成 REVIEW**（§6.6 的 0.70-0.89 与 <0.70
-      两档，PRD 原文都写「输出 REVIEW」）。`decision` 给的是**分流后**的结论。
+    * `effect="force_review"` 表示**该档位要把结论压成 REVIEW**（v1.3 只剩 0.60-0.84 一档这样）。
+    * `effect="pass"` 表示**该档位把结论改写成 PASS**（v1.3 的 `<0.60` 档：未命中 P0 ⇒ 放过），
+      并额外给一条 `warning`（机器可读，**不进摘要**）。`decision` 一律是**分流后**的结论。
     """
     t = thresholds or DEFAULT_THRESHOLDS
     tiers = [x for x in (tiers or []) if x]
@@ -162,8 +189,18 @@ def route(decision: str, confidence, tiers=None, thresholds: dict | None = None)
     band = band_of(float(confidence), t)
     pol = BAND_POLICY[band]
     out_decision = decision
+    warning = None
     if pol["effect"] == "force_review":
         out_decision = "REVIEW"
+    elif pol["effect"] == "pass":
+        # ★ PRD v1.3 §6.6：<0.60 且**未命中 P0** ⇒ 输出 PASS。
+        #   P0 命中在上游 ① 已提前返回（不分流、强制 BLOCK），所以走到这里的一定不是 P0 单。
+        out_decision = "PASS"
+        # ★ 机器可读的留痕（**不上屏、不进摘要** —— PRD 要的是「避免干扰人工」）：
+        #   它把「这一单是被低置信度放过去的」记在结论里，事后审计查得到。
+        warning = ("低置信度放行：confidence=%s < %.2f ⇒ 按 PRD v1.3 §6.6 输出 PASS"
+                   "（未命中 P0）；原结论=%s 已被本档改写。这是 fail-open 档，不是「没问题」。"
+                   % (confidence, t["confirm"], decision))
     return {
         "applies": True,
         "band": band,
@@ -174,6 +211,8 @@ def route(decision: str, confidence, tiers=None, thresholds: dict | None = None)
         "decision": out_decision,
         "why": pol["why"],
         "p0_override": False,
+        "fail_open": bool(pol.get("fail_open")),
+        "warning": warning,
         "thresholds": dict(t),
         "calibrated": False,      # ★ 阈值是政策值，不是标定值 —— 这一格永远如实
     }
@@ -207,13 +246,17 @@ def _selftest() -> int:
 
     T = dict(DEFAULT_THRESHOLDS)
 
-    # ①a–c 三档边界（**边界值本身要判对**：0.90 属 direct，0.70 属 confirm）
-    ck("①a 0.90→direct", band_of(0.90, T) == "direct", band_of(0.90, T))
-    ck("①b 0.89→confirm", band_of(0.89, T) == "confirm", band_of(0.89, T))
-    ck("①c 0.70→confirm", band_of(0.70, T) == "confirm", band_of(0.70, T))
-    ck("①d 0.69→focus", band_of(0.69, T) == "focus", band_of(0.69, T))
+    # ①a–f 三档边界（**边界值本身要判对**：0.85 属 direct，0.60 属 confirm）
+    ck("①a 0.85→direct", band_of(0.85, T) == "direct", band_of(0.85, T))
+    ck("①b 0.84→confirm", band_of(0.84, T) == "confirm", band_of(0.84, T))
+    ck("①c 0.60→confirm", band_of(0.60, T) == "confirm", band_of(0.60, T))
+    ck("①d 0.59→focus", band_of(0.59, T) == "focus", band_of(0.59, T))
     ck("①e 0.99→direct", band_of(0.99, T) == "direct", band_of(0.99, T))
     ck("①f 0.0→focus", band_of(0.0, T) == "focus", band_of(0.0, T))
+    # ★ ①g 旧边界必须**已经不再是边界**（防止阈值没真改、只改了注释）
+    ck("①g 0.90 不再是 direct 的下界（旧政策残留检测）",
+       band_of(0.88, T) == "direct" and band_of(0.70, T) == "confirm",
+       "0.88→%s 0.70→%s" % (band_of(0.88, T), band_of(0.70, T)))
 
     # ②a ★ P0 命中 ⇒ 不分流（PRD §6.6 明文），且**不许塞档位**
     r = route("BLOCK", 0.60, tiers=["P0"])
@@ -224,17 +267,41 @@ def _selftest() -> int:
     r = route("BLOCK", 0.10, tiers=["P0", "P3"])
     ck("②b P0 压不住", r["decision"] == "BLOCK" and r["effect"] == "keep", "得到 %r" % r)
 
-    # ③a–b 两档 force_review
+    # ③a confirm 档仍 force_review（v1.3 只剩这一档收紧）
     r = route("BLOCK", 0.80, tiers=["P1"])
     ck("③a confirm 压 REVIEW", r["decision"] == "REVIEW" and r["effect"] == "force_review"
        and r["annotate"] == "建议人工确认", "得到 %r" % r)
-    r = route("PASS", 0.50, tiers=["P2"])
-    ck("③b focus 压 REVIEW", r["decision"] == "REVIEW"
-       and r["annotate"] == "不确定，建议人工重点看", "得到 %r" % r)
+    # ③b ★ **v1.3 改动核心**：<0.60 且未命中 P0 ⇒ 输出 **PASS**（不再是 REVIEW）
+    r = route("REVIEW", 0.50, tiers=["P2"])
+    ck("③b focus（<0.60，非 P0）⇒ PASS（v1.3）",
+       r["decision"] == "PASS" and r["effect"] == "pass" and r["band"] == "focus",
+       "得到 %r" % r)
+    # ③b2 ★ **这是放宽不是收紧** —— 一条非 P0 的 BLOCK 掉到 <0.60 也会被改成 PASS。
+    #      这条判据**故意钉住这个后果**：它是 PRD v1.3 明文，不是 bug；
+    #      哪天有人想偷偷收紧，这条会红，逼他先去改 PRD 或先走裁定。
+    r = route("BLOCK", 0.55, tiers=["P1"])
+    ck("③b2 focus 会把非 P0 的 BLOCK 改成 PASS（PRD v1.3 明文，fail-open）",
+       r["decision"] == "PASS" and r["decision_before"] == "BLOCK", "得到 %r" % r)
+    ck("③b3 放行**必须留痕**（machine-readable warning，不上屏）",
+       bool(r.get("warning")) and "低置信度放行" in r["warning"]
+       and r["annotate"] is None, "得到 %r" % r.get("warning"))
+    ck("③b4 fail_open 标记如实", r.get("fail_open") is True, "得到 %r" % r.get("fail_open"))
+    # ③b5 ★ focus 档**压不住 P0**：P0 命中在上游就返回了，走不到这里
+    r = route("BLOCK", 0.20, tiers=["P0"])
+    ck("③b5 focus 也压不住 P0（P0 override 优先）",
+       r["decision"] == "BLOCK" and r["p0_override"] is True, "得到 %r" % r)
     # ③c direct 不压
     r = route("BLOCK", 0.97, tiers=["P1"])
     ck("③c direct 不动", r["decision"] == "BLOCK" and r["effect"] == "keep"
        and r["annotate"] is None, "得到 %r" % r)
+    # ③d ★ 0.85–0.89 这一段：v1.2 是 confirm（加标注），v1.3 是 direct（不加标注）
+    r = route("REVIEW", 0.88, tiers=["P1"])
+    ck("③d 0.88 落在 direct ⇒ **不加「建议人工确认」标注**（v1.3 行为变化点）",
+       r["band"] == "direct" and r["annotate"] is None and r["decision"] == "REVIEW",
+       "得到 %r" % r)
+    r2 = route("REVIEW", 0.83, tiers=["P1"])
+    ck("③d2 0.83 仍落 confirm ⇒ 加标注（分界确实在 0.85）",
+       r2["band"] == "confirm" and r2["annotate"] == "建议人工确认", "得到 %r" % r2)
 
     # ④a–b 不适用分流另两种情形
     r = route("NEEDS_INPUT", 0.95, tiers=["P1"])
@@ -279,7 +346,7 @@ def _selftest() -> int:
        "读不到：%s" % lp.get("note"))
     ck("⑨b 路径指向 kb/l7/registry", policy_path().endswith("kb/l7/registry/confidence-policy.json"),
        policy_path())
-    ck("⑨c 阈值与 PRD §6.6 一致", lp["thresholds"] == {"direct": 0.90, "confirm": 0.70},
+    ck("⑨c 阈值与 PRD **v1.3** §6.6 一致", lp["thresholds"] == {"direct": 0.85, "confirm": 0.60},
        "得到 %r" % lp["thresholds"])
 
     # ⑧ 读不到政策文件 ⇒ 用默认值**并声明**

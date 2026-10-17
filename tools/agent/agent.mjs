@@ -1222,12 +1222,47 @@ export async function runSubmissionGate({
       //     等于拿一个空文档换掉了一份有内容的。
       //     ⇒ 改成「**有真条目才建**」：没有条目 ⇒ `reportUrlOverride` 保持 null ⇒
       //       链接回落库侧那份（有明细），卡上照旧「另有 N 条未并进本卡：明细在报告里」。
-      if (rendered0 && itemsWithAdvice.length > 0) {
+      // ★★ 2026-10-17（Owner 裁定，**推翻 2026-10-14 那条本地要求**）：
+      //   「逻辑不变，按照 PRD 问题数量 ≥3 个时才输出审查报告」。
+      //   两道条件**同时**要满足，缺一条都会造出坏链接：
+      //     · `itemsWithAdvice.length > 0` —— 没有真条目 ⇒ 报告里只有结论行
+      //       （「一个点开没内容的链接比空格更坏」，2026-10-15/16 两次定过）；
+      //     · `rendered0.total >= REPORT_LINK_MIN_ISSUES` —— 回到 PRD §5.3.4 的门槛。
+      //       <3 时**卡片本来就逐条平铺**（`renderMerged` 的 `summarized` 分支），
+      //       明细一个字都不在报告里丢 —— 这也是 <3 不需要报告的**理由**，不是妥协。
+      //   ⚠️ 与库侧 `feishu_publish.py::REPORT_LINK_MIN_ISSUES`、`dual_track` 的同名常数
+      //      **同一个数、同一个口径**（PRD §5.3.4 / §8.3 / §17 三处一致）。
+      //   ⚠️ 2026-10-14 的「<3 也出」当时是**为那批 80 行落表**要的；那一批已经跑完，
+      //      如将来再需要，走 `--force-report` 之类的显式开关，**不许把门槛再改回去**。
+      if (rendered0 && itemsWithAdvice.length > 0
+          && rendered0.total >= REPORT_LINK_MIN_ISSUES) {
         try {
           const at = new Date().toISOString();
           // ★★ 2026-10-13（Owner 第四条）：**渲染两份** ——
           //   投出去的（`mdDoc`）只含 PRD 字段；留底的（`mdFull`）附录照旧完整。
           //   两份的**条目逐字同源**（同一次 `renderMergedReportMd`，只差 `withAppendix`）。
+          // ★★ 2026-10-17 第二十二轮（Owner）：「**审查对象，要加进来**，比如图片就放
+          //   点击可打开的链接，文案」。
+          //   · 文案 = **对方真写的那句话 / 那段广告原文**（`userText`）；
+          //     不传时退回 `question`，但**必须过 `stripInternal`** —— 那是拼给模型看的一轮，
+          //     里面夹着我们的探针与 OCR 全文（`media_link.mjs` 头注那次事故）。
+          //   · 图/视频 = `media_link` 上传后拿到的**组织内可阅读**链接。
+          //     这里**有界等待**（上传在回执之后就起了，等到报告这一跳大概率已经好了）：
+          //     等不到就照实说「链接未生成」，**绝不编一个点不开的链接**。
+          const { media: materialMedia } = await mediaLink.awaitLinks(linksP, {
+            ms: 8000, log: (s) => console.log(`[agent] ${s}`) });
+          const materialText = String(userText ?? mediaLink.stripInternal(question) ?? '').trim();
+          // ★★ 2026-10-17 第二十三轮（Owner：「你送的文案，为什么给『链接：点开』？这链接跳转是哪里？」）
+          //   **只有这一单本身就是「链接送审」时**，URL 才算送审对象、才列成可点链接。
+          //   普通文案里粘着的 URL 一个都不挖 —— 那一单的 `production.It` 就是粘贴时被编辑器
+          //   自动加的链接（域名是别人的 .it），把它印成「链接：点开」等于给陌生域名发通行证。
+          // ⚠️ 2026-10-17 第二十七轮：判据从「闸门说这是链接送审」改成
+          //   **「贴的链接就是素材」**（正文去掉链接后很短，见 `reviewGate.linkOnly`）——
+          //   闸门把一条 900 字广告文案里粘贴残留的 URL 判成了链接送审，报告于是多印了一行
+          //   「链接：[点开](http://production.it/)」。现在文字送审里带的 URL **一个都不列**。
+          const submitLinks = reviewGate.linkOnly(materialText).isLinkOnly
+            ? reviewGate.findLinks(materialText)
+            : [];
           const _args = {
             // ★ 同一批条目 —— 报告与卡片必须逐字同源（今天已因「两处各写一遍」栽过两次）
             merged: itemsWithAdvice, total: rendered0.total, state, line: rendered0.line,
@@ -1236,6 +1271,8 @@ export async function runSubmissionGate({
             // ★★ 2026-10-09 晚：卡上撤下来的**媒材读数全文**（Owner 点头「放到附录」）
             mediaAppendix: mediaReadAppendix(inbound),
             question, contentId: kbSide?.contentId ?? '', at,
+            // ★ 2026-10-17 第二十二轮：审查对象（文案原文 ＋ 图/视频的可点链接）
+            material: { text: materialText, media: materialMedia, links: submitLinks },
             kbGap: rendered0.kbGap, kbTextCount: kb.findings.length,
             modelCount: model?.findings?.length ?? 0,
           };
@@ -1264,7 +1301,10 @@ export async function runSubmissionGate({
         //            闸只剩「有没有可并的条目」。留此行是为了让下一个人知道它**曾经**是原因。
         const _ru = kbSide?.reportUrl ?? null;
         const _why = !rendered0 ? 'renderMerged 返回 null（没有可并的条目）'
-          : `卡内总数 ${rendered0.total} ⇒ 本应已建（走到这里说明上面那一支没进，属异常）`;
+          : (itemsWithAdvice.length === 0
+            ? '没有真条目可并（库侧报了几条但明细抠不出来）⇒ 建出来会是空文档'
+            : `卡内总数 ${rendered0.total} < ${REPORT_LINK_MIN_ISSUES} ⇒ 按 PRD §5.3.4 本就不出报告`
+              + '（卡片已逐条平铺，明细不缺）');
         console.log(`[agent] 📄 合并报告：**未建**（${_why}）`
           + `｜卡内总数=${rendered0?.total ?? '—'}｜库侧链接=${_ru ?? '(无)'}`
           + `（kind=${kbSide?.reportUrlKind ?? '—'}）`);

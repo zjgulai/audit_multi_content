@@ -212,22 +212,30 @@ class ConfidenceFlowTests(unittest.TestCase):
         self.assertIn("建议人工确认", r["summary"])
 
     def test_focus_band_rule_is_correct_at_module_level(self):
-        """§6.6 <0.70 ⇒ REVIEW +「不确定，建议人工重点看」——**在模块层直接判**。
+        """PRD **v1.3** §6.6「<0.60 且未命中 P0 ⇒ 输出 PASS」——**在模块层直接判**。
 
-        ★ 为什么不在 `decide()` 层造这条：**当前启发式造不出来**。
-        引擎给非 P0 单的置信度只有 0.78（REVIEW 基线）与 0.73（再扣证据分），
-        **都 ≥ 0.70** ⇒ `focus` 档在现有启发式下**不可达**。
-        这是**实情**，判据要照实写 —— 不为了「三档都测到」去编一个到不了的输入。
-        到不到得了是**标定问题**（金标集那步），策略对不对是**本模块的事**。
+        ★ 为什么不在 `decide()` 层造这条：**当前引擎造不出来**。
+        引擎把 REVIEW 单的置信度截断到 [0.70, 0.89] ⇒ **最低 0.70，都 ≥ 0.60**
+        ⇒ `focus` 档在现有引擎下**不可达**。
+        这是**实情**，判据照实写 —— 不为了「三档都测到」去编一个到不了的输入。
+        到不到得了是**引擎截断/标定**的事，策略对不对是**本模块的事**。
+
+        ⚠️ v1.2 时这一档是「REVIEW + 不确定，建议人工重点看」；**v1.3 改成 PASS**
+        —— 方向相反（fail-open）。所以这条用例同时钉住两件事：
+        ① 结论确实变成 PASS；② **放行必须留 machine-readable 痕迹**（`warning`）。
         """
         import sys as _s
         _s.path.insert(0, str(ROOT))
         from core import confidence_flow as CF
-        for c in (0.69, 0.5, 0.0):
+        for c in (0.59, 0.5, 0.0):
             rr = CF.route("REVIEW", c, tiers=["P1"])
             self.assertEqual(rr["band"], "focus", c)
-            self.assertEqual(rr["decision"], "REVIEW")
-            self.assertEqual(rr["annotate"], "不确定，建议人工重点看")
+            self.assertEqual(rr["decision"], "PASS", c)          # ★ v1.3
+            self.assertIsNone(rr["annotate"])                    # 不再写那句提示
+            self.assertIn("低置信度放行", rr["warning"] or "", c)
+        # ★ 边界：0.60 属 confirm（仍 REVIEW），0.59 才是 focus
+        self.assertEqual(CF.route("REVIEW", 0.60, tiers=["P1"])["band"], "confirm")
+        self.assertEqual(CF.route("REVIEW", 0.60, tiers=["P1"])["decision"], "REVIEW")
 
     def test_engine_non_p0_confidence_never_reaches_focus_band(self):
         """★ 反向登记：把「focus 档当前不可达」这件事**钉成判据**。
@@ -248,8 +256,11 @@ class ConfidenceFlowTests(unittest.TestCase):
             if r["decision"] == "REVIEW":
                 lows.append(r["confidence"])
         self.assertTrue(lows, "一个 REVIEW 单都没造出来，判据失去意义")
-        self.assertGreaterEqual(min(lows), 0.70,
-                                "非 P0 单掉进了 <0.70 —— 启发式变了，该回来看标定（PRD §6.6）")
+        # ★ PRD v1.3 的 focus 边界是 **0.60**（v1.2 是 0.70）——
+        #   守卫的线必须跟着政策走，否则"守着一个已经不存在的边界"。
+        self.assertGreaterEqual(min(lows), 0.60,
+                                "非 P0 单掉进了 <0.60（v1.3 的 focus 档）—— 引擎变了，"
+                                "该回来看标定与截断（PRD v1.3 §6.6）")
 
     def test_downgrade_is_recorded_so_it_can_be_audited(self):
         """★ 分流把结论压过时，**原结论必须看得见** —— 否则事后分不清

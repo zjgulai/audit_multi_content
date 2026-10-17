@@ -254,6 +254,49 @@ export async function ensureMonthFolder(ym, { deps = {} } = {}) {
  * ⚠️ `cwd` 设成文件所在目录：`lark-cli` 的路径解析有"只认 cwd 之下或 /tmp"的既有坑
  *   （见 `review_publish.mjs::publishReportDoc` 的实测记录）。
  */
+/**
+ * 从**字节**认文件类型（只认前 16 字节的魔数）。
+ *
+ * ★★ 2026-10-17 第二十五轮（Owner：「图片 1：点开查看 —— **点击后无法查看**，修复下」）——
+ *   真因：上传到云空间的文件**没有扩展名**（`守衡送审素材-image-1`），飞书把它当未知二进制，
+ *   `drive +preview` 直接回 `1060006 file type does not support preview` ⇒ 点开就是个死页。
+ *   实测同一条文件**只改名加 `.jpg`**（token 不变）之后预览立刻通过 —— 字节一直是好的，
+ *   坏的是**名字**。而取图那一跳故意存成 `.img`（不让字节在临时目录里伪装成图片），
+ *   所以扩展名只能从**魔数**认，不能从路径猜。
+ *   认不出就**不加**（宁可让维护者看到「没扩展名」，也不编一个假的）。
+ */
+export function magicExt(filePath) {
+  let b = null;
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    b = Buffer.alloc(16);
+    fs.readSync(fd, b, 0, 16, 0);
+    fs.closeSync(fd);
+  } catch { return ''; }
+  if (!b || b.length < 12) return '';
+  const ascii = (a, z) => b.slice(a, z).toString('latin1');
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return '.jpg';
+  if (b[0] === 0x89 && ascii(1, 4) === 'PNG') return '.png';
+  if (ascii(0, 3) === 'GIF') return '.gif';
+  if (ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') return '.webp';
+  if (ascii(0, 2) === 'BM') return '.bmp';
+  if (ascii(4, 8) === 'ftyp') {
+    const brand = ascii(8, 12);
+    if (/^(heic|heix|hevc|mif1|msf1)$/.test(brand)) return '.heic';
+    return '.mp4';                      // isom / mp42 / avc1 / qt…
+  }
+  return '';
+}
+
+/** 名字没有扩展名时，用魔数补上；**已经有扩展名的一个字不动**。 */
+export function withMagicExt(name, filePath) {
+  const n = String(name ?? '').trim();
+  if (!n) return n;
+  if (/\.[A-Za-z0-9]{2,5}$/.test(n)) return n;
+  const ext = magicExt(filePath);
+  return ext ? n + ext : n;
+}
+
 export async function uploadForLink(localPath, { name = null, ym = null, deps = {} } = {}) {
   if (!mediaLinkEnabled()) return { ok: false, url: null, token: null, detail: '媒材链接被拉闸（SHOUHENG_MEDIA_LINK=off）' };
   const f = String(localPath ?? '').trim();
@@ -270,7 +313,8 @@ export async function uploadForLink(localPath, { name = null, ym = null, deps = 
   let token = ''; let url = '';
   try {
     const { stdout } = await run([...base, 'drive', '+upload', '--file', f,
-      ...(name ? ['--name', String(name)] : []),
+      // ★ 第二十五轮：名字没有扩展名 ⇒ 用**魔数**补一个（飞书靠扩展名决定能不能预览）
+      ...(name ? ['--name', withMagicExt(name, f)] : []),
       '--folder-token', mf.token, '--as', 'bot'], opts);
     const j = jsonOf(stdout);
     token = j?.data?.file_token ?? '';
@@ -353,7 +397,8 @@ export async function collectMediaLinks({
                    detail: `取字节没成：${got?.error ?? '没有回路径'}` });
         continue;
       }
-      const name = it.fileName || `守衡送审素材-${it.kind}-${it.index}`;
+      // ★ 第二十五轮：中文标签（这一串是**用户在云空间里看到的文件名**）+ 扩展名由 `uploadForLink` 按魔数补
+      const name = it.fileName || `守衡送审素材-${it.kind === 'video' ? '视频' : '图片'}-${it.index}`;
       const up = await upload(got.path, { name, ym: ym ?? monthFolderName() });
       out.push({ kind: it.kind, fileName: it.fileName, ...up });
       log(`🖼 ${it.kind === 'video' ? '视频' : '图片'} ${it.index} 链接：${up.ok ? up.url : `未成 —— ${up.detail}`}`);
