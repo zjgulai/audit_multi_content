@@ -4091,7 +4091,7 @@ await t('Z14 ★ 行为级：卡片抬头那个数必须 == 卡里那个数（`r
   const KB_ANSWER = [
     '【审查结论：REVIEW】共发现 5 处需人工确认。',
     '',
-    '· 平台与促销类问题：5 个',
+    '· 措辞表达类问题：5 个',   // 2026-10-19：每类一行、`· <维度>类问题：N 个`
     '',
     '建议转 李倩怡 复核。',
   ].join('\n');
@@ -4669,7 +4669,12 @@ await t('Z27 ★ 行为级：≥3 ⇒ 只出分类汇总 + 链接（**零条逐�
   assert.strictEqual(big.summarized, true, 'total=7 应当走汇总');
   assert.strictEqual(T.countRenderedItems(b7), 0,
     '≥3 时**不许**在卡上逐条平铺（这正是 Owner 反复看到的那件事）');
-  assert.ok(/· .*类问题：\d+ 个/.test(b7), '缺 PRD 要的分类汇总行');
+  // ★★ 2026-10-19 第三次（Owner：「按照下面的格式优化，目前是写的一行」）：**每类一行**、
+  //   `· <维度>类问题：N 个`、行间不空行。
+  const sum7 = String(b7).split('\n').filter((l) => /^· /.test(l));
+  assert.ok(sum7.length >= 1 && sum7.every((l) => /^· [^·\n，]+类问题：\d+ 个$/.test(l)),
+    `分类汇总行形状不对（应每类一行）：${JSON.stringify(sum7.slice(0, 3))}`);
+  assert.ok(!/个 · [^\n]*类问题：/.test(b7), '汇总又被缩成一行了（应每类一行）');
   assert.ok(/查看完整问题清单与修改建议/.test(b7), '缺报告链接');
   // ★★ 2026-10-13（Owner 裁定）：卡上**不再**有「（问题数 N ≥ 3 ⇒ 按 PRD §5.3.3 只出分类汇总…）」
   //   那句页脚 —— 它讲的是我们的口径规矩，业务同事读不懂，Owner 把它列进了「都去掉」。
@@ -4698,13 +4703,24 @@ await t('Z28 接线：汇总那一段必须与报告链接**同时出现**（少
   const withUrl = T.renderMerged(m.items, { state: 'REVIEW',
     kb: T.kbSideOf({ review: { state: 'REVIEW', issue_count: 0 } }), kbTextCount: 0,
     model: { ok: true, findings: [] }, reportUrlOverride: 'https://x/docx/Y' });
-  // ★ 2026-10-17（Owner：「把卡片的分类汇总行改成 11 类」）：
-  //   这 5 条是**模型侧**条目（没有 11 类）⇒ 汇总行如实落「未归 11 类问题」一桶。
-  //   断言只钉**形状 + 计数**，不钉桶名（桶名会随口径变，钉死就会误红）。
-  assert.ok(/· .+：5 个/.test(String(withUrl.block)), '汇总没出');
-  assert.ok(/未归 11 类/.test(String(withUrl.block)),
-    '没有 11 类的条目必须落「未归 11 类」这一桶（不许藏、也不许硬塞进某个 11 类）');
+  // ★★ 2026-10-19（Owner：「问题数量≥3 时要有分类汇总 `· 合规类：X 个 · 消费者安全类：X 个
+  //   · 措辞类：X 个`……卡片所有的回复必须跟 PRD 5.3 对齐」）——
+  //   汇总行的轴从「11 类」**回退到 PRD 四维**（11 类在模型侧条目上盖不上章，
+  //   实测真单 4 条全落一个「未归 11 类」桶 ⇒ 分类汇总退化成常数）。
+  //   这 5 条模型侧条目的 `category` 本身就是维度口径（`dimensionOf`）⇒ 应落「合规类」。
+  assert.ok(/· .+类问题：5 个/.test(String(withUrl.block)), '汇总没出');
+  assert.ok(/· 合规类问题：5 个/.test(String(withUrl.block)),
+    '模型侧类目本身就是维度口径 ⇒ 必须落「合规类」（PRD §5.3.4 形状）');
+  assert.ok(!/未归 11 类/.test(String(withUrl.block)), '汇总行不许再按 11 类出（Owner 2026-10-19）');
   assert.ok(/https:\/\/x\/docx\/Y/.test(String(withUrl.block)), '链接没出');
+  // ★ 反向对照：**不是四维的类目**必须如实落「未标注维度」桶（不硬塞、也不藏）
+  const off = T.mergeFindings([], Array.from({ length: 3 }, (_, i) => ({ location: `q${i}`,
+    category: '品牌一致性', severity: 'REVIEW', source: 'model', reason: 'r' })));
+  const offBlock = String(T.renderMerged(off.items, { state: 'REVIEW',
+    kb: T.kbSideOf({ review: { state: 'REVIEW', issue_count: 0 } }), kbTextCount: 0,
+    model: { ok: true, findings: [] }, reportUrlOverride: 'https://x/docx/Z' }).block);
+  assert.ok(/· 未标注维度类问题：3 个/.test(offBlock),
+    '非四维的类目必须落「未标注维度」桶（**不编**一个维度出来）');
 });
 // ═══ 第 32 组 · 截断要如实报成截断，且要重试（Owner 那张夜间图的真因）═══
 //
@@ -4817,7 +4833,7 @@ await t('Z32 ★★ 库侧的真文档在 publish.docx 里，不在 report_url �
   const KBURL = 'https://momcozy-in.feishu.cn/docx/KBSIDE5';   // 库侧自己那份（5 条 ≥3）
   const MERGED = 'https://momcozy-in.feishu.cn/docx/MERGED7';  // 本仓合并那份（卡内 7）
   const KBANS = ['【审查结论：REVIEW】共发现 5 处需人工确认。', '',
-    '· 品牌一致性类问题：3 个', '',
+    '· 措辞表达类问题：3 个', '',   // 2026-10-19：同上，每类一行
     // ★ 2026-10-14：这一行随**问题方向**变（原先写死「内容治理负责人」）。
     //   品牌一致性类在路由表里没有对应词 ⇒ 落 `fallback_review_owners`（法务 + 北美同事）。
     '建议转 @法务（未配置） @北美同事（未配置） 复核。'].join('\n');
@@ -5234,7 +5250,7 @@ await t('V6 ★ 行为级：「问题数量」列必须与卡里那个数**同�
   //   拿它当「走了汇总」会误判（本次现场：判据比口径宽 ⇒ 假红）。
   if (/查看完整问题清单与修改建议：\s*https?:\/\//.test(summ)) {
     assert.ok(summ.includes('逐条问题'), '走汇总那一路时：分类汇总前必须有「逐条问题」这一行（Owner 逐字格式）');
-    assert.ok(/·\s*[^·\n]{1,18}类问题：\s*\d+\s*个/.test(summ), '要有「· XX类问题：N 个」分类汇总行');
+    assert.ok(/·\s*[^·\n]{1,18}类问题：\s*\d+\s*个/.test(summ), '要有「· XX类问题：N 个」分类汇总行（每类一行）');
   } else {
     assert.ok(/\d+[.、]\s*【/.test(summ), '没有报告链接时按逐条回落：正文里必须有逐条条目');
   }
@@ -5419,7 +5435,8 @@ await t('V7 ★ 行为级：本仓建的合并报告，URL 必须**同时**进�
     for (const [kb, txt, moN, label] of [[5, 2, 6, '库侧 5 读数/并进 2/模型 6'],
       [5, 5, 6, '库侧 5/5/6'], [0, 0, 8, '库侧 0'], [3, 3, 0, '只有库侧 3']]) {
       const { head, r } = probe(kb, txt, moN);
-      const cats = [...r.block.matchAll(/^· .*类问题：(\d+) 个$/gm)].map((x) => Number(x[1]));
+      // ★★ 2026-10-19 第三次：汇总行是**每类一行** ⇒ 逐行取数（`· <维度>类问题：N 个`）。
+      const cats = [...String(r.block).matchAll(/^· .+?类问题：(\d+) 个$/gm)].map((x) => Number(x[1]));
       // ★ 2026-10-15 Owner 逐字格式里这一行**不加粗**（`· 另有 3 条（明细在报告里）`）——
       //   判据跟着改；同时兼容历史加粗形态，免得旧报告一读就红。
       const extra = Number((r.block.match(/^· 另有 \*{0,2}(\d+) 条/m) || [])[1] || 0);
