@@ -29,6 +29,7 @@ import { stripOcrWatermark } from './ocr_watermark.mjs';
 import * as video from './video.mjs';
 import { TOOL_SCHEMAS, executeTool, runtimeContext, toolNames, claimStatus, facetsFromMaterial,
          beginChainTurn, chainMemoStats, beginP0Turn, p0MemoRead,
+         beginChainAnswerTurn, chainAnswerRead,
          runP0Preflight } from './tools.mjs';
 import { detectTruncation, annotateTruncation, tailOf, collapseToolMessages, clipToolOutput,
          TOOL_OUTPUT_MAX_CHARS } from './truncate.mjs';
@@ -37,7 +38,11 @@ import * as reviewGate from './review_gate.mjs';
 import { mergeFindings, mergedState, kbFindingsOf, kbCoveredOf, renderMerged, mergeSummary, kbSideOf,
          mergedConfidence, kbNoReadingOf, REPORT_LINK_MIN_ISSUES, evidenceBlock,
          p0HitOf } from './dual_track.mjs';
-import { renderMergedReportMd, publishMergedReport } from './merged_report.mjs';
+import { renderMergedReportMd, publishMergedReport, writeMergedRecord } from './merged_report.mjs';
+// ★ 2026-10-19（Owner 裁定「1→2→3 全做」的第 1 步）：逐条结构化记录的**唯一生产者**。
+//   它把「这一条是模型侧还是库侧 / 回不回得了源 / 哪一格被截了几字」落盘 ——
+//   卡面随后就能把那句「无库内依据 · 建议转人工」摘掉，而**问的时候仍然答得出来**。
+import { buildMergedRecord } from './merged_record.mjs';
 import { reviewModelSide, readingsForModelSide } from './model_side.mjs';
 import * as ocrGate from './ocr_claim_gate.mjs';
 import { generateAdvice } from './advice.mjs';
@@ -852,7 +857,16 @@ export async function runSubmissionGate({
   fetchVideoForLink = feishu.fetchMessageVideo,
   // ★ 目标 19（2026-10-10）：消息到达时刻（ms epoch）。PRD §12「飞书群 @Agent 响应时间 ≤5 秒」
   //   量的就是 **tIngress → 回执卡发送完成** 这一段。null ⇒ 不打这条指标（不编数）。
+  //   ★★ 2026-10-20（Owner 批准 ②）：**这个值必须来自"消息到达"**，不许再缺省成
+  //   「进闸门那一刻」—— 后者已经在读图之后，会把这条指标量成恒过（实测 1.4s/0.383s，
+  //   而同期飞书侧真值是 60/120/180 秒）。由 `ws_daemon.onMessage` 的 `ingressMsOf()` 打。
   tIngress = null,
+  // 这个时刻是**谁给的**：`create_time`（飞书服务端）｜`local`（本机此刻）｜空（缺省兜底）。
+  // 写进指标行，避免把两个来源的数混着说。
+  tIngressOrigin = null,
+  // ★★ 2026-10-20（Owner 批准 ①）：回执**已经发过**的时刻（ms）。非空 ⇒ 这里不再发第二张。
+  // 见下面回执块的头注。
+  ackSentAt = null,
   chainRunner = defaultChainRunner,
   // ★ 模型侧那一遍**必须可注入**（2026-10-06）：它默认会真调 LLM。
   //   不注入的话，将来任何一条「带媒材 + 链跑成」的自证用例都会**真打网络** ——
@@ -888,17 +902,39 @@ export async function runSubmissionGate({
   }
 
   const input = reviewGate.chainInput({ question, inbound });
+  // ★★ 2026-10-20：**素材模态**（位置那一格要按模态断言；见 `renderMerged` 的 `modality`）。
+  //   口径：有视频 ⇒ video；否则有图 ⇒ image；否则 text（与 PRD §5.3.3 的三种位置形态一一对应）。
+  const _modality = (Array.isArray(inbound?.videos) && inbound.videos.length) ? 'video'
+    : ((Array.isArray(inbound?.images) && inbound.images.length) ? 'image' : 'text');
   // ★ 2026-10-12（Owner）：「这一步要 6~30 分钟」**是优化前的旧估计，删掉**。
   //   库里早有同一条裁定（`agent/review_gate.mjs:308`：「去掉时长估计」，
   //   依据是实测一条图 3 分 32 秒、而回执写 6~30 分钟）—— 回执卡那侧已改，
   //   但**这行 console 日志漏改**，于是它还在日志里以「守衡自己提示」的样子出现。
   //   判据：`tools/test_agent.mjs` 的「不许再给时长估计」一条（卡片正文口径）。
+  const _tGate = Date.now();     // 闸门入口（量「闸门内置办回执」与「读素材那一段」两个读数）
   console.log(`[agent] 🧭 送审闸门：${gate.kind} —— ${gate.why}｜起链`);
-  if (typeof notify === 'function') {
+  // ★★ 2026-10-20（Owner 批准 ①+②）：「回执前置」＋「指标换成真 ingress」。
+  //
+  //   ① 一条消息**只许有一张回执**。调用方（`handleMessage`）若已在**读素材之前**发过，
+  //      `ackSentAt` 非空 ⇒ 这里**一个字都不发**，只把那一张的时刻交给指标。
+  //      为什么不由闸门自己判断「发没发过」：按 `inbound` 有没有读数去猜，会在**读图失败**时
+  //      再补发一张，用户就收到两个「处理中」。
+  //      ⚠️ 闸门这条路**故意保留**：引用某条带图的消息时，正文/张数要到读入阶段才知道，
+  //      前置那一支判不出来 —— 那时仍由这里发（早发一次、晚发一次，二选一，不会都发）。
+  //
+  //   ② 指标口径同步改了（这才是「3 分钟没人报」的根治）：
+  //      旧版 `tIngress` 在守护进程这条路上**从没被传过**，缺省成「进闸门那一刻」——
+  //      那已经在读图之后 ⇒ PRD §12 的 ≤5 秒**结构上不可能变红**。实测：日志读数
+  //      1401ms / 383ms，而同一时刻飞书侧真值是 60 / 120 / 180 秒。
+  //      现在 `ws_daemon.onMessage` 用**消息 `create_time`** 打 tIngress（`ingressMsOf`），
+  //      `group_response_ms` 第一次量到「用户等的那一段」，并另记 `prep_ms`（读素材那段）。
+  //    ⚠️ 计时器**不参与任何判定**（与 `review.py` 的 `trace.perf` 同一种做法）。
+  let ackAt = ackSentAt ?? null;
+  let queued = false;
+  if (!ackAt && typeof notify === 'function') {
     // ★ 回执要**分开说**「常态 5 分钟」与「在排队」—— 用一个悲观的大区间把两件事糊在一起，
     //   人会以为每条都要半小时（Owner 2026-10-05 当场就是这么读的：「太长了，不正常」）。
     //   排不排队是**读得出来的**：知识库那条循环的认领（`kb_loop_claim`）现在有没有人在持。
-    let queued = false;
     try {
       const cs = await claimStatus();
       queued = !!cs && cs.free === false && cs.stale === false && cs.unknown !== true;
@@ -909,19 +945,25 @@ export async function runSubmissionGate({
     //    为什么是这里：按已定口径（`review_publish.mjs:47`）「P0 问题可先在飞书侧响应」——
     //    回执卡**在跑链之前**发，它就是用户感知到的"响应"；P0 判定在其之后（实测 9.8~27 ms），
     //    不计入这条预算。所以量 `tIngress → 回执卡发送完成` 才是这条指标，不是量整链。
-    //    ⚠️ 只记时间、**不参与任何判定**（与 `review.py` 的 `trace.perf` 同一种做法）——
-    //    计时器不许改变行为，否则就成了"观测影响被测对象"。
-    const _tAck0 = Date.now();
-    try { await notify(reviewGate.ackMessage(gate, { queued }).block); }
+    try { await notify(reviewGate.ackMessage(gate, { queued }).block); ackAt = Date.now(); }
     catch (e) { console.log(`[agent] · 送审回执没发出去（不影响链）：${e?.message ?? e}`); }
-    if (tIngress) {
-      const groupResponseMs = Date.now() - tIngress;
-      const ackSendMs = _tAck0 - tIngress;
-      // 结构化一行，供 `kb/l8/measure_group_response.py` 汇总（**别改字段名**，汇总端按它解析）。
-      console.log(`[metric] group_response_ms=${groupResponseMs} ack_decision_ms=${ackSendMs}` +
-                  ` prd_limit_ms=5000 verdict=${groupResponseMs <= 5000 ? 'pass' : 'FAIL'}` +
-                  ` chat=${gate?.chatId ?? inbound?.chatId ?? '-'}`);
-    }
+  }
+  // ★★ 2026-10-20：`ackAt >= tIngress` 这个括号是**判据的一部分**，不是防御性代码。
+  //   没有真 ingress 时（批量工具 / 自证），tIngress 被兜底成「进闸门那一刻」；
+  //   而回执已经**在读素材之前**发过了 ⇒ ackAt < tIngress，算出来是**负数**（实测 -842ms）。
+  //   负数不是"很快"，是「这两个时刻量的不是同一段」⇒ **宁可不打这一行，也不编一个数**
+  //   （与 `measure_group_response.py` 的「无观测 ⇒ no_reading，不许当达标」同一条纪律）。
+  if (tIngress && ackAt && ackAt >= tIngress) {
+    const groupResponseMs = ackAt - tIngress;
+    const ackDecisionMs = Math.max(0, ackAt - _tGate);
+    const prepMs = Math.max(0, _tGate - tIngress);
+    // 结构化一行，供 `kb/l8/measure_group_response.py` 汇总（**别改字段名**，汇总端按它解析）。
+    console.log(`[metric] group_response_ms=${groupResponseMs} ack_decision_ms=${ackDecisionMs}`
+                + ` prep_ms=${prepMs} prd_limit_ms=5000`
+                + ` verdict=${groupResponseMs <= 5000 ? 'pass' : 'FAIL'}`
+                + ` stage=${ackSentAt ? 'early' : 'gate'}`
+                + ` ingress=${tIngressOrigin ?? 'handle_entry'}`
+                + ` chat=${gate?.chatId ?? inbound?.chatId ?? '-'}`);
   }
   // ── ★★ 2026-10-16：媒材链接 —— **回执之后才起，且不 await** ────────────────────
   //
@@ -994,7 +1036,8 @@ export async function runSubmissionGate({
       //   恒判「无从比」⇒ 方案 §④「同一个问题 → 取交集」**一次都不成立**
       //   （实测 123 次双轨：`双轨确认`＋`冲突降 REVIEW` 全为 0）。
       //   链那条来路不吃这一格（它走 `res.engine.risk_items`，见 `_kbFromEngineJson`）。
-      const kb = kbFindingsOf(res?.answer, res?.engine, res?.p0_findings);
+      // ★★ 2026-10-20：把**素材原文**一起交给库侧条目构造 —— P0 条目的位置要按块给形态。
+      const kb = kbFindingsOf(res?.answer, res?.engine, res?.p0_findings, { text: input?.text ?? '' });
       // ★ 库侧的**结构化读数**（2026-10-07）：结论与条数从这里取 —— 不再只靠正则抠中文答案。
       //   病灶（当天实测，已复现）：PRD §5.3.3 规定问题数 ≥3 时库侧只出分类汇总 ⇒
       //   逐条正则抠不到 ⇒ 库侧被读成「0 条」⇒ 合并把**库侧的 BLOCK 降级成 REVIEW**。
@@ -1159,7 +1202,8 @@ export async function runSubmissionGate({
       }));
       const rendered0 = renderMerged(itemsWithAdvice, { state, kb: kbSide, kbTextCount: kb.findings.length, model,
                                                      kbHitsBlock: kb.kbHitsBlock ?? null,
-                                                     mergedStats: merged.stats });
+                                                     mergedStats: merged.stats,
+                                                     modality: _modality });
 
       // ── ★ 2026-10-09：**问题数 ≥3 ⇒ 飞书文档要带报告**（Owner 的原话）──────────
       //
@@ -1234,8 +1278,20 @@ export async function runSubmissionGate({
       //      **同一个数、同一个口径**（PRD §5.3.4 / §8.3 / §17 三处一致）。
       //   ⚠️ 2026-10-14 的「<3 也出」当时是**为那批 80 行落表**要的；那一批已经跑完，
       //      如将来再需要，走 `--force-report` 之类的显式开关，**不许把门槛再改回去**。
+      // ★★ 2026-10-19（Owner：「问题数量<3个的，也输出报告链接（不要落库，只限本次任务优化）」）：
+      //   ⇒ 就照上一行说的那件事办：加一个**显式开关** `SH_FORCE_REPORT=1`，**默认关**。
+      //   · 门槛那两行**一个字没动** —— 不传开关时行为与改动前逐字相同；
+      //   · 传了也只放开「条数」这一道，`itemsWithAdvice.length > 0` **照旧要满足**
+      //     （没有真条目 ⇒ 建出来是空文档，2026-10-15/16 两次定过"点开没内容的链接比空格更坏"）；
+      //   · PRD §5.3.4 / §8.3 与库侧 `REPORT_LINK_MIN_ISSUES = 3` **不因这个开关而改**：
+      //     它是**这一次任务**的出数开关，不是新口径。
+      const FORCE_REPORT = /^(1|true|yes|on)$/i.test(String(process.env.SH_FORCE_REPORT ?? '').trim());
       if (rendered0 && itemsWithAdvice.length > 0
-          && rendered0.total >= REPORT_LINK_MIN_ISSUES) {
+          && (rendered0.total >= REPORT_LINK_MIN_ISSUES || FORCE_REPORT)) {
+        if (FORCE_REPORT && rendered0.total < REPORT_LINK_MIN_ISSUES) {
+          console.log(`[agent] 📄 SH_FORCE_REPORT=1 ⇒ 本条只有 ${rendered0.total} 条也建报告`
+            + '（一次性开关，PRD §5.3.4 的 ≥3 门槛没改）');
+        }
         try {
           const at = new Date().toISOString();
           // ★★ 2026-10-13（Owner 第四条）：**渲染两份** ——
@@ -1320,9 +1376,38 @@ export async function runSubmissionGate({
         // ★ 必须用 itemsWithAdvice —— 有报告链接时走的是这一支，用 merged.items 会把建议丢掉
         ? renderMerged(itemsWithAdvice, { state, kb: kbSide, kbTextCount: kb.findings.length, model,
                                        reportUrlOverride, kbHitsBlock: kb.kbHitsBlock ?? null,
-                                       mergedStats: merged.stats })
+                                       mergedStats: merged.stats, modality: _modality })
         : rendered0;
       dual = { model, kb, merged, state, rendered, kbSide, mergedConf, reportUrl: reportUrlOverride };
+      // ★★ 2026-10-19（Owner 裁定「1→2→3 全做」的第 1 步）——
+      //   **逐条结构化记录**：不管这一单出不出报告，都要落盘。
+      //   放在这里（`reportUrlOverride` 已定、`rendered` 已定）是为了让记录里的
+      //   `has_report` 与「卡上到底有没有那个链接」说的是同一件事。
+      //   ⚠️ 用 `rendered.itemsMeta`（最终那张卡的那一趟），不是 `rendered0` ——
+      //     `rendered0` 是在知道报告链接**之前**渲的，用它会把「被截断」记成另一个版本。
+      //   ⚠️ 失败不许带崩结论：留痕是**记录**，不是判定。
+      try {
+        const recAt = new Date().toISOString();
+        const record = buildMergedRecord({
+          items: itemsWithAdvice,
+          itemsMeta: rendered?.itemsMeta ?? rendered0?.itemsMeta ?? [],
+          state,
+          line: rendered?.line ?? rendered0?.line ?? null,
+          total: rendered?.total ?? rendered0?.total ?? itemsWithAdvice.length,
+          kb: kbSide, model, question, contentId: kbSide?.contentId ?? '', at: recAt,
+          // 出厂闸读数（空 = 四条口径全合规）—— 卡上要不要出声由 `dual_track` 管，
+          // 这里只把它**原样存下来**，事后查得到「那一单当时判过什么」。
+          cardConformance: rendered?.cardConformance ?? [],
+          hasReport: /^https?:\/\//i.test(String(reportUrlOverride ?? '')),
+        });
+        const recPath = writeMergedRecord(record, { contentId: kbSide?.contentId ?? '', at: recAt });
+        console.log(recPath
+          ? `[agent] 🗂 逐条记录已落盘：${recPath}（${record.items.length} 条｜`
+            + `分侧=${JSON.stringify(record.sides)}）`
+          : '[agent] ⚠️ 逐条记录**没落成**（目录不可写？）—— 卡面来源标记即将可摘，这条要有');
+      } catch (e) {
+        console.log(`[agent] ⚠️ 逐条记录生成异常（**不阻断结论**）：${e?.message ?? e}`);
+      }
       // ★ 2026-10-08：**模型侧没跑成时要把 raw 打出来**。
       //   原先只打 `model.error`，而「没跑成」的两种成因——「额度被 reasoning 烧光 ⇒ 正文 0 字」
       //   与「写了散文没写 JSON」——**报的是同一句话**（`输出里没有 JSON 数组`）。
@@ -2135,7 +2220,10 @@ export async function handleMessage(event, {
   // ★ 目标 19（2026-10-10）：**消息到达时刻**（ms epoch）。由 `ws_daemon.onMessage` 在收到
   //   事件那一刻打；不给就退回"进 handleMessage 的这一刻"（会少算排队/调度那几毫秒，
   //   ⇒ **报告里必须写明取的是哪一个**，不许把两个数混着说）。
+  //   ★★ 2026-10-20（Owner 批准 ②）：守护进程这条路上**现在真的传了**（`ingressMsOf`），
+  //   来源写进 `tIngressOrigin` 并带进指标行 —— 不许再靠缺省值把这条指标量成恒过。
   tIngress = null,
+  tIngressOrigin = null,
   // ★ 链要跑 10~30 分钟：一开始就回一句，否则对方以为它没动（09:22 那次就是这样）。
   notify = null,
   // 跑链那一步的注入点（测试必须注入桩 —— 不注入就会真起一条 30 分钟的链并写飞书）。
@@ -2213,6 +2301,49 @@ export async function handleMessage(event, {
     }
     return _senderNameForWm;
   };
+  // ── ★★ 2026-10-20（Owner 批准 ①）：「**回执前置**」──────────────────────────────
+  //   病灶（实测 2026-10-20）：回执卡原先要等下面那句 `readInboundContent` 跑完才发 ——
+  //   它里面**串着**「下载图 → 画面读数（模型）→ 本机 OCR → 摘水印」，同一步骤本机实测 5.8 s，
+  //   线上抖动到 **27.8 s**（`scene` 那条读数）；再叠上「上一轮没跑完、这一轮只能等」，
+  //   飞书侧真值是 **60 / 120 / 180 秒**（当天三单，服务端时间戳）。
+  //   ⇒ 只要**光看消息**就能判这是送审，就先回一句「处理中」，再去读素材。
+  //
+  //   三条边界（每条都能核）：
+  //     · **同一把尺子**：这里与闸门里调的是同一个 `reviewGate.isSubmission`，输入也同一份
+  //       （正文 `bodyToText`、张数 `imageKeysOf/videoKeysOf`）—— 不许在这里另写一套判据；
+  //     · **只发一次**：发过的时刻交给闸门（`ackSentAt`），闸门据此不再发第二张；
+  //       闸门那条路**故意保留**（引用的那条带图时，张数要到读入阶段才知道）；
+  //     · **不许为了排队提示把回执拖慢**：`claimStatus()` 是外部子进程，这里给 700 ms 封顶，
+  //       取不到就按「不排队」说（与闸门里那条 catch 同口径：不谎报）。
+  let earlyAckAt = null;
+  if (!force && typeof notify === 'function') {
+    let gateEarly = null;
+    try {
+      const parsedEarly = feishu.bodyToText(msg.message_type, msg.content ?? '{}');
+      gateEarly = reviewGate.isSubmission({
+        text: parsedEarly.text ?? '',
+        imageCount: feishu.imageKeysOf(msg.message_type, msg.content ?? '{}').length,
+        videoCount: feishu.videoKeysOf(msg.message_type, msg.content ?? '{}').length,
+      });
+    } catch { gateEarly = null; }
+    if (gateEarly?.yes) {
+      let queued = false;
+      try {
+        const cs = await Promise.race([
+          claimStatus(),
+          new Promise((r) => setTimeout(() => r(null), 700)),
+        ]);
+        queued = !!cs && cs.free === false && cs.stale === false && cs.unknown !== true;
+      } catch { /* 取不到就不说排队（不谎报） */ }
+      try {
+        await notify(reviewGate.ackMessage({ ...gateEarly, chatId }, { queued }).block);
+        earlyAckAt = Date.now();
+        console.log(`[agent] 🧭 回执前置：${gateEarly.kind} —— ${gateEarly.why}｜先回一句，再读素材`);
+      } catch (e) {
+        console.log(`[agent] · 回执前置没发出去（不影响后续）：${e?.message ?? e}`);
+      }
+    }
+  }
   const inbound = await readInboundContent(msg,
     deps ? { ...deps, senderNameForWatermark } : { senderNameForWatermark });
   // 日志留一行读数：**「守衡有没有真的读到图」不该只能靠群里看回复来判断**。
@@ -2446,7 +2577,15 @@ export async function handleMessage(event, {
     //        守衡会拿**一张没审过的图**的结论去答话 —— 方向不对称：
     //        漏跑只是慢，串轮是答错。
     //   另一条绕过这里的路径由 `tools.mjs` 的 TTL 兜（两道独立护栏）。
-    const chainMemoPrevHits = beginChainTurn();
+    // ★★ 2026-10-20（Owner 逐字：「用户送审图片时，content_type 必须要标注下是图片」）：
+    //   同一处把**本轮素材模态**交给链 —— 由 `inbound` 的**实际入站内容**算出，
+    //   不再由 headless 里的模型按模板「三选一」自己猜。
+    //   实测（同日、同一份图 OCR，只差这一个词）：text → PASS/0 条；image → REVIEW/5 条。
+    //   ⚠️ 视频这一档**不传**（保持原样）：视频要 5 个模态的 provider 佐证，本单没有那些读数，
+    //     硬填会让视频单被 fail-closed 压成拒答 —— 那是另一件事，不混进这一改。
+    const _chainModality = (inbound?.videoCount ? null
+      : (inbound?.imageCount ? 'image' : 'text'));
+    const chainMemoPrevHits = beginChainTurn({ modality: _chainModality });
     if (chainMemoPrevHits > 0) {
       console.log(`[agent] · 上一轮链缓存命中 ${chainMemoPrevHits} 次（这一轮已复位）`);
     }
@@ -2454,11 +2593,18 @@ export async function handleMessage(event, {
     //   不清的后果比链缓存那条更直接：上一轮命中的那份 PRD §5.3.3 块会被当成
     //   **这一轮**的结论上卡（`g.verdict53` 为空时兜底要读它）。
     beginP0Turn();
+    // ★★ 2026-10-19：链回执**同一处清零**（同一条理由：上一轮的结论不许漏到这一轮）。
+    //   不清的后果与时 P0 读数那条一模一样 —— 上一单的 `answer` 会被当成这一轮的结论行。
+    beginChainAnswerTurn();
     const g = await runSubmissionGate({ inbound, question, userText, notify, chainRunner, publishRunner, modelSideRunner,
                                     mergedReportRunner, adviceRunner, force,
                                     // ★ 目标 19：把「消息到达时刻」带进闸门，好量「@ → 回执卡」那一段。
                                     //   没给就退回此刻（并会被标成 origin=handle_entry，不许当 ingress 报）。
-                                    tIngress: tIngress ?? Date.now() });
+                                    tIngress: tIngress ?? Date.now(),
+                                    // ★★ 2026-10-20（Owner 批准 ①+②）：回执**已经**在读素材之前发过 ⇒
+                                    //   闸门不许再发第二张；来源跟着传，指标行里能看出用的是哪个时刻。
+                                    ackSentAt: earlyAckAt,
+                                    tIngressOrigin });
     const gate = g.gate;
     const chainRan = g.chainRan;
 
@@ -2824,16 +2970,31 @@ export async function handleMessage(event, {
       ?? (p0Preflight
             ? { answer: p0Preflight.answer, p0Fastpath: p0Preflight.p0_fastpath }
             : null);
+    // ★★ 2026-10-19（Owner：「守衡输出的卡片内容怎么又改了？赶紧改回去」）——
+    //   兜底那一支**必须带上链自己的回执**，不能只带 P0 快路那半份。
+    //   真单（`om_x100b6269bad188e8cf248ad8931a610`，27 字）：闸门没判送审、模型自己调了链、
+    //   链回执里逐字带着合 §5.3 的 PASS 行；而 `p0_fastpath` 0 命中 ⇒ `p0Payload=null`
+    //   ⇒ 这一支只拿得到 `replyText` ⇒ 结论行全看模型抄没抄 ⇒ `conforms()` 不过 ⇒ `null`
+    //   ⇒ 卡面退回模型那张 `query-answer`（后台词一并上卡）。
+    //   ⇒ 现在把 `chainAnswerRead()` 的 `answer` 一起喂进去（与 `p0Memo` 并存、不合并）。
+    const chainAnswer = chainAnswerRead();
     const verdict53Final = g?.verdict53
       ?? (p0Payload
            ? deriveVerdictLine({ replyText: reply ?? '', reviewedByTool: true,
                                  answer: p0Payload.answer, p0Fastpath: p0Payload.p0Fastpath })
            : ((toolTrace ?? []).some((x) => x.tool === 'kb_review_chain' && x.ok)
-                ? deriveVerdictLine({ replyText: reply ?? '', reviewedByTool: true })
+                ? deriveVerdictLine({ replyText: reply ?? '', reviewedByTool: true,
+                                      answer: chainAnswer?.answer ?? '',
+                                      p0Fastpath: chainAnswer?.p0Fastpath ?? null })
                 : null));
     if (!g?.verdict53 && verdict53Final) {
-      console.log(`[agent] 🧭 闸门没判送审、但 P0 快路命中了`
-        + `（来源=${p0Preflight ? '内核前置' : '模型自调链'}）—— 结论行与逐条块按 §5.3 派生`
+      // ★ 2026-10-19：这一行原来恒写「P0 快路命中了」—— 而上面新接的那一支根本没有 P0
+      //   （0 命中也会走到这里）。**读数说假话比没有读数更坏**（§2.4.2），按真实来源分三档。
+      const src = p0Payload
+        ? (p0Preflight ? '内核前置' : '模型自调链·P0 快路')
+        : (chainAnswer ? '模型自调链·链回执' : '模型自调链·仅回复文本');
+      console.log(`[agent] 🧭 闸门没判送审，但拿到了权威结论行（来源=${src}）`
+        + `，取数自 ${verdict53Final.from} —— 结论行与逐条块按 §5.3 派生`
         + `（**不靠模型有没有抄、也不靠模型肯不肯调**）：${verdict53Final.line}`
         + `｜逐条块=${verdict53Final.block ? '有' : '**没有**'}`);
     }

@@ -385,7 +385,12 @@ t('`agent.mjs` 的闸门里必须**恰好一处**落表调用，且它是**可�
   ok_(inj.length >= 2, '`publishRunner` 的默认值要在 handleMessage 与 runSubmissionGate 两处都留着（实际 ' + inj.length + ' 处）');
 });
 
-t('送审任务里必须带那两条硬规矩（自命中=反面依据 / 必须落表）', async () => {
+// ★ 2026-10-19：这条原来是 `t(...)` **接一个 async 函数** —— 同步harness 立刻记 ✅，
+//   而真正的断言在微任务里 reject ⇒ **假绿**（进程赶在 unhandled rejection 被报出来之前
+//   `process.exit` 了，所以一直是 ✅）。加一条 `setTimeout` 之后它才浮出来。
+//   ⇒ harness 换成 `await ta(...)`；同时把「被拼进任务」的判据改成认**数组字面量**
+//   （现形是 `[..., REVIEW_HARD_RULES, REVIEW_PLAYBOOK]`，旧正则只认 `REVIEW_HARD_RULES]`）。
+await ta('送审任务里必须带那两条硬规矩（自命中=反面依据 / 必须落表）', async () => {
   const tools = await import('./tools.mjs');
   const r = tools.REVIEW_HARD_RULES;
   ok_(/自命中/.test(r) && /反面依据/.test(r), '缺「自命中是反面依据」那一条');
@@ -394,8 +399,9 @@ t('送审任务里必须带那两条硬规矩（自命中=反面依据 / 必须�
   ok_(/tblCXPQVzfFWWCon/.test(r), '得把表的坐标写出来，否则执行者不知道往哪写');
   // 反向对照：这段文本必须真的被拼进任务里（否则它只是仓库里的一段死字符串）
   const src = fs.readFileSync(new URL('./tools.mjs', import.meta.url), 'utf8');
-  ok_(/REVIEW_HARD_RULES\]/.test(src) || /REVIEW_HARD_RULES\)/.test(src),
-    'REVIEW_HARD_RULES 没有出现在任何拼接里 —— 那就等于没写');
+  const hits = (src.match(/\bREVIEW_HARD_RULES\b/g) ?? []).length;
+  ok_(hits >= 2,
+    `REVIEW_HARD_RULES 只出现 ${hits} 次（定义处 1 次）⇒ 没有出现在任何拼接里 —— 那就等于没写`);
 });
 
 /* ─────────── 3.5 落库正文不许带 markdown 星号（Owner 2026-10-14） ───────────
@@ -573,6 +579,83 @@ await ta('E1c ★ patch 抛错 ⇒ 必须判失败并把 CLI 原话带出来', a
 await ta('E1d 没给 document_id ⇒ 失败（不许静默跳过权限）', async () => {
   const r = await rp.ensureTenantReadable('', { run: _fakeRun(false, 'tenant_readable') });
   eq(r.ok, false, '没 token 就没法设权限 ⇒ 必须失败');
+});
+
+/* ── 4f. 投递**偶发失败要补一次**（Owner 2026-10-19：「输出的报告模版怎么改了？」）────
+ * 病灶（真单，17:22 那一单）：合并报告（**原模版**）投递偶发失败 —— 报错全文只有
+ *   `Command failed: <命令>`（`stderr` 空、也没带 killed/signal）⇒ 卡上链接**回落成库侧
+ *   P0 那份**（另一套模版、只装 1 条，卡上说 6 条）⇒ 人点开发现「报告模版变了」。
+ *   ⇒ 偶发（超时/被杀/两路都没吐字/网络类）**补一次**；确定性（CLI 判校验不过）**不许**补。
+ * ★ 变异自证：把 `_transientFailureOf` 改成恒 `false`（永不重试）⇒ **F1/F1c 精确变红**；
+ *   改成恒 `true`（连确定性错也重试）⇒ **F1b 精确变红**；把次数写死 1 ⇒ **F1 精确变红**。 */
+console.log('\n═══ 4f. 投递偶发失败要补一次（不许把模版换掉）═══');
+
+const MD_TMP = path.join(os.tmpdir(), `rp-pub-${process.pid}.md`);
+fs.writeFileSync(MD_TMP, '# 内容审查报告\n\n【审查结论：BLOCK】\n', 'utf8');
+
+/** 桩：`docs +create` 按剧本回放；权限两步永远成功（被测的不是它）。 */
+const stubCreate = (script) => {
+  const calls = { create: 0 };
+  const run = async (_bin, args) => {
+    if (args.includes('+create')) {
+      const step = script[calls.create] ?? { ok: true };
+      calls.create += 1;
+      if (step.throws) {
+        throw Object.assign(new Error('Command failed: lark-cli docs +create'),
+          { stderr: step.stderr, stdout: step.stdout, killed: !!step.killed, signal: step.signal });
+      }
+      return { stdout: JSON.stringify({ ok: true, data: { document: {
+        document_id: `DocRetry${calls.create}`,
+        url: `https://example.invalid/docx/DocRetry${calls.create}` } } }) };
+    }
+    if (args.includes('+permission-get-setting')) {
+      return { stdout: JSON.stringify({ data: { permission_public: { link_share_entity: 'tenant_readable' } } }) };
+    }
+    return { stdout: '{"ok":true}' };
+  };
+  return { run, calls };
+};
+
+await ta('F1 ★ 第 1 次偶发失败（stderr 空）⇒ 补第 2 次成 ⇒ 拿到**原模版**那份的链接', async () => {
+  const { run, calls } = stubCreate([{ throws: true, stderr: '' }, { ok: true }]);
+  const r = await rp.publishReportDoc(MD_TMP, { run });
+  eq(r.ok, true, '补一次就该成');
+  eq(calls.create, 2, '必须真的补了第 2 次');
+  ok_(/DocRetry2/.test(r.url), '链接要是**第 2 次**建出来的那份');
+  ok_(/补第 2 次才成/.test(r.detail), 'detail 要写清「这次是补出来的」，不许假装一次就成');
+});
+await ta('F1b ★ 反向对照：确定性失败（CLI 判校验不过）⇒ **不许**补第二次', async () => {
+  const { run, calls } = stubCreate([
+    { throws: true, stderr: '{"ok":false,"error":{"type":"validation","message":"invalid <img>"}}' },
+  ]);
+  const r = await rp.publishReportDoc(MD_TMP, { run });
+  eq(r.ok, false, '确定性错不许当成功');
+  eq(calls.create, 1, '重试对确定性错没有意义 ⇒ 只许调 1 次（否则把「报告 ≤30s」拖成两倍）');
+  ok_(/invalid <img>/.test(r.detail), '要把 CLI 的原话带出来');
+});
+await ta('F1c 两次都偶发失败 ⇒ 判失败，且把**超时/被杀**写进 detail', async () => {
+  const { run, calls } = stubCreate([
+    { throws: true, stderr: '', killed: true, signal: 'SIGTERM' },
+    { throws: true, stderr: '', killed: true, signal: 'SIGTERM' },
+  ]);
+  const r = await rp.publishReportDoc(MD_TMP, { run });
+  eq(r.ok, false, '两次都失败 ⇒ 判失败（回落谁由调用方决定）');
+  eq(calls.create, 2, '默认补一次 ⇒ 共 2 次');
+  ok_(/超时\/被杀/.test(r.detail) && /signal=SIGTERM/.test(r.detail),
+    'detail 必须能区分「超时/被杀」与「命令写错」—— 17:23 那条就是**什么都没写**才查不出来');
+});
+await ta('F1d `SHOUHENG_P0_DOC_ATTEMPTS=1` ⇒ 不补（紧急回滚口子）', async () => {
+  const old = process.env.SHOUHENG_P0_DOC_ATTEMPTS;
+  process.env.SHOUHENG_P0_DOC_ATTEMPTS = '1';
+  try {
+    const { run, calls } = stubCreate([{ throws: true, stderr: '' }, { ok: true }]);
+    const r = await rp.publishReportDoc(MD_TMP, { run });
+    eq(r.ok, false, '只准一次 ⇒ 这次失败就是失败');
+    eq(calls.create, 1, '不许偷偷补');
+  } finally {
+    if (old === undefined) delete process.env.SHOUHENG_P0_DOC_ATTEMPTS;
+    else process.env.SHOUHENG_P0_DOC_ATTEMPTS = old;
+  }
 });
 
 /* ─────────────────────────── 5. 自证自身无副作用 ─────────────────────────── */

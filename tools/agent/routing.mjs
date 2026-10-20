@@ -156,7 +156,10 @@ export function loadRoutingPolicy(p = routingPolicyPath()) {
 /** 一条 finding 的**方向字段**拼串（不含 `reason` —— 见文件头边界第 2 条）。 */
 export function directionOf(finding) {
   const f = finding && typeof finding === 'object' ? finding : {};
-  return [f.category, f.risk_type, f.risk_category, f.dimension]
+  // ★ 2026-10-19（A3 12 类）：卡面首行改印 A3 后，**逐行解析那条来路的 `category` 就是 A3**
+  //   ⇒ 方向词也要认 `taxonomy_category`（否则「背书与披露透明」「平台与渠道政策」这类
+  //   本来命中的词会漏，路由静默落 fallback）。多认一格只会**增加**可命中的词，不改规则次序。
+  return [f.category, f.risk_type, f.risk_category, f.dimension, f.taxonomy_category]
     .map((x) => (typeof x === 'string' ? x : ''))
     .filter(Boolean)
     .join(' ');
@@ -251,16 +254,104 @@ export function loadRoleHandles(p = approversPath()) {
  * @returns {string}
  */
 export function renderReviewAction(owners, handles = new Map(), meta = {}) {
+  const compact = meta.compact !== false;   // 卡面默认紧凑；报告传 compact:false
+  // ★★ 2026-10-19（Owner：REVIEW ≥3 整卡要 ≤100 字，实测 117）——
+  //   卡上这一行压掉两处**内部读数**：`（未配置）` 与 `（n/m 条未匹配方向）`。
+  //   它们不是给业务侧的行动信息：前者是**我们的句柄配置状态**，后者是**分派质量读数**；
+  //   两者都**没有丢** —— 报告与查证笔记里照旧印（`verbose=true` 时也在卡上印）。
+  const pad = (v) => (compact ? '' : '（未配置）');
   const at = (role) => {
     const h = handles instanceof Map ? handles.get(role) : (handles?.[role] ?? null);
-    return h ? `@${h}` : `@${role}（未配置）`;
+    return h ? `@${h}` : `@${role}${pad()}`;
   };
   let who = (Array.isArray(owners) ? owners : []).filter((x) => typeof x === 'string' && x.trim());
   if (!who.length) who = (Array.isArray(meta.fallback) && meta.fallback.length
     ? meta.fallback : PRD_DEFAULT_OWNERS);
   const { unmatched = 0, total = 0 } = meta;
-  const gap = (total > 0 && unmatched > 0)
-    ? `（其中 ${unmatched}/${total} 条未匹配到方向：该转谁需要人确认）`
+  // ★★ 2026-10-19（PRD §17 字数限制）：这一串原为
+  //   `（其中 3/6 条未匹配到方向：该转谁需要人确认）`（26 字），占的是**卡上限额区**。
+  //   事实（有几条没匹配到方向）留着，解释性从句去掉 ⇒ `（3/6 条未匹配方向）`（12 字）。
+  //   ⚠️ 不是删信息：比例还在，只是不再解释一遍「该转谁需要人确认」（那半句是结论本身）。
+  const gap = (total > 0 && unmatched > 0 && !compact)
+    ? `（${unmatched}/${total} 条未匹配方向）`
     : '';
   return `建议转 ${who.map(at).join(' ')} 复核。${gap}`;
+}
+
+
+/**
+ * **A3 派生表位置与加载器**（`kb/l7/registry/taxonomy-derive.json`）。
+ *
+ * ★★ 2026-10-19（Owner：「问题总览里有优先级和维度为空……这里不允许为空，模型侧输出的
+ *   可以参照知识库侧的分类和优先级来定」）：
+ *   - `class_to_dimension`：A3 12 类 → PRD 四维（报告「维度」那一格的默认值）；
+ *   - `subclass_priority`：A3 子类 → p_level 众数（报告「优先级」那一格的默认值）。
+ *   **只有一份真源**（kb 注册表里），本模块只读不抄 —— 两边各写一份必然漂移。
+ */
+export function taxonomyDerivePath() {
+  return process.env.SHOUHENG_TAXONOMY_DERIVE
+    || path.join(kbRoot(), 'l7', 'registry', 'taxonomy-derive.json');
+}
+
+export function loadTaxonomyDerive(p = taxonomyDerivePath()) {
+  try {
+    const raw = readFileSync(p, 'utf8');
+    const d = JSON.parse(raw);
+    if (!d || typeof d !== 'object') throw new Error('不是对象');
+    return { ...d, from_file: p };
+  } catch (e) {
+    // 读不到就 `null` —— 调用方据此**不代定**（并留 basis 说明），绝不编一份映射出来
+    return null;
+  }
+}
+
+/**
+ * 按 A3 类别取**默认维度**（PRD 四维）；取不到返回 `null`（调用方留空并说明）。
+ * @param {string} taxCategory `taxonomyCategory`（12 类之一）
+ */
+export function dimensionForTaxonomy(taxCategory, derive = null) {
+  const d = derive || loadTaxonomyDerive();
+  const k = String(taxCategory || '').trim();
+  if (!d || !k) return null;
+  const v = (d.class_to_dimension || {})[k];
+  return v && v.dimension ? { dimension: v.dimension, basis: v.basis, source: d.from_file } : null;
+}
+
+/**
+ * 按 A3 子类取**默认优先级**（p_level 众数）；模型侧**封顶 P1**（P0 只由规则红线给）。
+ *
+ * @param {string} taxCategory
+ * @param {string} taxSubcategory
+ * @param {{cap?:string}} [opt] `cap` 默认 `'P1'`
+ * @returns {{level:string, basis:string, derived_from:string}|null}
+ */
+export function priorityForTaxonomy(taxCategory, taxSubcategory, { cap = 'P1' } = {}) {
+  const d = loadTaxonomyDerive();
+  const key = `${String(taxCategory || '').trim()} / ${String(taxSubcategory || '').trim()}`;
+  if (!d || !taxSubcategory) return null;
+  const v = (d.subclass_priority || {})[key];
+  if (!v || !v.p_level) return null;
+  const order = ['P0', 'P1', 'P2', 'P3'];
+  let lvl = String(v.p_level).toUpperCase();
+  let capped = false;
+  if (cap && order.indexOf(lvl) < order.indexOf(cap)) { lvl = cap; capped = true; }
+  return { level: lvl,
+           basis: `${v.basis}${capped ? `；模型侧**不判 P0**（P0 只由规则红线给）⇒ 按 ${cap} 用` : ''}`,
+           derived_from: d.from_file };
+}
+
+
+/**
+ * 按**模型侧类目**（7 个闭集：合规/消费者安全/措辞表达/产品描述/隐私/AI 披露/本地化）
+ * 取 PRD 四维的兜底映射。
+ *
+ * ★★ 2026-10-19（Owner：「这里不允许为空」）：只在该条既无 `risk_category`、
+ *   也拿不到可用 A3 类别时才用（真源 `kb/l7/registry/taxonomy-derive.json::category_to_dimension`）。
+ */
+export function dimensionForModelCategory(category, derive = null) {
+  const d = derive || loadTaxonomyDerive();
+  const k = String(category || '').trim();
+  if (!d || !k) return null;
+  const v = (d.category_to_dimension || {})[k];
+  return v && v.dimension ? { dimension: v.dimension, basis: v.basis } : null;
 }

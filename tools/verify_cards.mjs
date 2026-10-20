@@ -1660,34 +1660,54 @@ head('J15 报告链接 · 一张卡上只许出现一次，且位置在「动作
 {
   const { toCardOrText: T } = await import(path.join(CARDS_DIR, 'envelope.mjs'));
   const URL = 'https://momcozy-in.feishu.cn/docx/J15';
-  const LINE = `→ 查看完整问题清单与修改建议：${URL}`;
+  // ★★ 2026-10-19：**两种措辞**都要有夹具（这就是本轮那个真缺陷的形状）——
+  //   卡面自 2026-10-19 起为 PRD §17 字数改用短措辞 `→ 完整清单：`，而信封层的
+  //   去重判断当时只认长的那句 ⇒ 块里已有的短措辞认不出 ⇒ 又补一条长的 ⇒ **一张卡两条链接**
+  //   （Owner：「卡片上的清单链接有两个，去掉上面的，保留下面的」）。
+  //   ⚠️ 判据必须**同时**认两种：长的是库侧（`p0_fastpath.py` / `feishu_publish.py`）仍在用的，
+  //     短的是我们自己卡面的 —— 只认一种，另一种就变成「看不见的重复」。
+  const LINE_LONG = `→ 查看完整问题清单与修改建议：${URL}`;   // 库侧措辞（历史，仍在用）
+  const LINE_SHORT = `→ 完整清单：${URL}`;                     // 卡面措辞（2026-10-19 起）
+  const LINE = LINE_LONG;                                      // 下面 J15e/f/g 的既有夹具沿用它
+  /** 数「链接行」出现几次 —— **按形状数**，不绑某一句话（措辞再改也不会失效）。 */
+  const linksIn = (o) => (JSON.stringify(o ?? {})
+    .match(/(?:→|->)\s*(?:完整清单|查看完整问题清单与修改建议)\s*[：:]/g) || []).length;
   const WITH_LINK = { state: 'REVIEW', line: '【审查结论：REVIEW】共发现 3 处需人工确认。',
                       from: 'dual-track-merged',
-                      block: `【审查结论：REVIEW】共发现 3 处需人工确认。\n${LINE}\n1.【合规】x\n请修改后重新提交。` };
+                      block: `【审查结论：REVIEW】共发现 3 处需人工确认。\n${LINE_LONG}\n1.【合规】x\n请修改后重新提交。` };
+  const WITH_LINK_SHORT = { ...WITH_LINK,
+    block: `【审查结论：REVIEW】共发现 3 处需人工确认。\n${LINE_SHORT}\n1.【合规】x\n请修改后重新提交。` };
   const NO_LINK = { state: 'REVIEW', line: '【审查结论：REVIEW】共发现 3 处需人工确认。',
                     from: 'dual-track-merged',
                     block: '【审查结论：REVIEW】共发现 3 处需人工确认。\n1.【合规】x\n请修改后重新提交。' };
 
-  // J15a 块里已经有 ⇒ 全卡只许出现一次
+  // J15a 块里已经有（**短措辞，今天的真形状**）⇒ 全卡只许出现一次
+  {
+    const r = T('模型原话', { verdict53: WITH_LINK_SHORT, reportLink: URL });
+    const n = linksIn(r.card);
+    if (n !== 1) no('J15a 块里已有短措辞链接（→ 完整清单：）⇒ 全卡只许出现一次', `实际出现 ${n} 次`);
+    else ok('J15a 块里已有「→ 完整清单：」⇒ 全卡只出现一次（不重复）');
+  }
+  // J15a2 同一把尺喂**长措辞**（库侧那条）—— 两种都要绿，缺一种就是假绿
   {
     const r = T('模型原话', { verdict53: WITH_LINK, reportLink: URL });
-    const n = (JSON.stringify(r.card ?? {}).match(/查看完整问题清单与修改建议/g) || []).length;
-    if (n !== 1) no('J15a 块里已有链接 ⇒ 全卡只许出现一次', `实际出现 ${n} 次`);
-    else ok('J15a 块里已有链接 ⇒ 全卡只出现一次（不重复）');
+    const n = linksIn(r.card);
+    if (n !== 1) no('J15a2 块里已有长措辞链接 ⇒ 全卡只许出现一次', `实际出现 ${n} 次`);
+    else ok('J15a2 块里已有「→ 查看完整问题清单与修改建议：」⇒ 只出现一次（不重复）');
   }
   // J15b 反向对照：块里**没有**链接 ⇒ 必须补进来，一个都不许丢。
   //   ★ 2026-10-15：落点从「可见格」改成「块内、动作行之上」（见 J15d）。
   //     这条判据**只数出现次数**，不绑落点 —— 绑了就与 J15d 抢同一格。
   {
     const r = T('模型原话', { verdict53: NO_LINK, reportLink: URL });
-    const n = (JSON.stringify(r.card ?? {}).match(/查看完整问题清单与修改建议/g) || []).length;
+    const n = linksIn(r.card);
     if (n !== 1) no('J15b 反向对照：块里没有 ⇒ 必须补进来（链接不许丢）', `实际出现 ${n} 次`);
     else ok('J15b 反向对照：块里没有 ⇒ 补进来（链接不会丢）');
   }
   // J15c 反向对照：**没给链接**时一个字符都不许加
   {
     const r = T('模型原话', { verdict53: NO_LINK });
-    if (/查看完整问题清单/.test(JSON.stringify(r.card ?? {}))) {
+    if (linksIn(r.card) !== 0) {
       no('J15c 反向对照：没给链接不许凭空造一行', '冒出了链接行');
     } else ok('J15c 反向对照：没给链接就不印（不编）');
   }
@@ -1723,7 +1743,8 @@ head('J15 报告链接 · 一张卡上只许出现一次，且位置在「动作
     };
     walk(card?.body?.elements);
     const L = lines.join('\n').split('\n');
-    const iLink = L.findIndex((l) => /查看完整问题清单/.test(l));
+    // ★★ 2026-10-19：**两种措辞都认**（`→ 完整清单：` 短 / `→ 查看完整问题清单与修改建议：` 长）
+    const iLink = L.findIndex((l) => /(?:完整清单|查看完整问题清单与修改建议)\s*[：:]/i.test(l));
     const iAct = L.findIndex((l) => /^(建议转|请修改后重新提交)/.test(l));
     const iItem = L.map((l, i) => (/^\s*\d+\.【/.test(l) ? i : -1)).filter((i) => i >= 0).pop() ?? -1;
     return { iItem, iLink, iAct, ok: iLink > iItem && iAct > iLink };
@@ -1746,7 +1767,7 @@ head('J15 报告链接 · 一张卡上只许出现一次，且位置在「动作
   {
     const { publicTextOf: pub } = await import(path.join(CARDS_DIR, 'envelope.mjs'));
     const pubText = pub(r2.card ?? {});
-    if (/查看完整问题清单/.test(pubText)) {
+    if (/(?:完整清单|查看完整问题清单与修改建议)\s*[：:]/.test(pubText)) {
       no('J15d2 反向对照：链接不许落在公开格（＝抬头正下方）',
          `公开格 = ${JSON.stringify(pubText.slice(0, 80))}`);
     } else ok('J15d2 反向对照：链接不在公开格（不落在审查结论下面）');
@@ -1762,7 +1783,7 @@ head('J15 报告链接 · 一张卡上只许出现一次，且位置在「动作
   // J15e 分段：正文 ␤ 链接 ␤ 动作行（恰好一个空行，且全篇不出现连续两个空行）
   {
     const L = JSON.stringify(r2.data?.groups ?? '').split('\\n');
-    const iLink = L.findIndex((l) => /查看完整问题清单/.test(l));
+    const iLink = L.findIndex((l) => /(?:完整清单|查看完整问题清单与修改建议)\s*[：:]/.test(l));
     const one = iLink > 0 && L[iLink - 1] === '' && L[iLink + 1] === '' && L[iLink + 2] !== '';
     if (!one) no('J15e 链接的上下各恰好一个空行', JSON.stringify(L.slice(Math.max(0, iLink - 1), iLink + 2)));
     else ok('J15e 链接上下各恰好一个空行（正文 ␤ 链接 ␤ 动作行）');
@@ -1774,11 +1795,11 @@ head('J15 报告链接 · 一张卡上只许出现一次，且位置在「动作
     const NO_ACTION = { ...TWO_ITEMS,
       block: '【审查结论：REVIEW】共发现 2 处需人工确认。\n\n1.【产品描述】x\n\n2.【消费者安全】y' };
     const r = T('模型原话', { verdict53: NO_ACTION, reportLink: URL });
-    const n = (JSON.stringify(r.card ?? {}).match(/查看完整问题清单与修改建议/g) || []).length;
+    const n = linksIn(r.card);
     const { publicTextOf: pub } = await import(path.join(CARDS_DIR, 'envelope.mjs'));
-    if (n !== 1 || !/查看完整问题清单/.test(pub(r.card ?? {}))) {
+    if (n !== 1 || !/(?:完整清单|查看完整问题清单与修改建议)\s*[：:]/.test(pub(r.card ?? {}))) {
       no('J15f 反向对照：认不出动作行 ⇒ 退回可见格（链接不许丢）',
-         `出现 ${n} 次；公开格里有=${/查看完整问题清单/.test(pub(r.card ?? {}))}`);
+         `出现 ${n} 次；公开格里有=${/(?:完整清单|查看完整问题清单与修改建议)\s*[：:]/.test(pub(r.card ?? {}))}`);
     } else ok('J15f 反向对照：认不出动作行时退回可见格（链接不丢、不瞎插）');
   }
   // J15g 纯函数层：认不出动作行 ⇒ `null`（**不猜位置**）；块里已有 ⇒ 原样返回

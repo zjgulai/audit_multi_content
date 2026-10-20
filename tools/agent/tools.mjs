@@ -1923,21 +1923,48 @@ export async function facetsFromMaterial(text) {
  *   · 与 `kb/l8/review_playbook.md` 第 3 步的**旗标集合必须一致**（同一事实两处 ⇒ 用判据钉住）：
  *     由 `kb/l8/workflow_smoke.py` 的 **S8** 三方对账（本模板 ／ 手册 ／ `review_run.sh` 的 `case` 解析器）。
  */
-export function reviewCmdTemplate(materialPath) {
+export function reviewCmdTemplate(materialPath, ctype) {
   const mf = String(materialPath ?? '').trim();
   if (!mf) return '';                       // 没落盘（写失败）⇒ 不发模板，退回老路（不阻断送审）
   const sha = '$(shasum -a 256 ' + mf + " | awk '{print $1}')";
   // ⚠️ 续行符只加在**前一行**上：最后一行带 `\` 会把后续内容接上去（实测验过注释行无碍，
   //    但取消注释后就成了一条悬空续行）—— 这种细节正是"照抄模板"最容易踩的坑。
-  const cov = (m, cont) => '#   --coverage "' + m + ':macos-vision:$(sw_vers -productVersion):' + sha + ':ok"'
+  const cov = (m, cont) => '  --coverage "' + m + ':macos-vision:$(sw_vers -productVersion):' + sha + ':ok"'
     + (cont ? ' \\' : '');
+  const covOff = (m, cont) => '#   --coverage "' + m + ':macos-vision:$(sw_vers -productVersion):' + sha + ':ok"'
+    + (cont ? ' \\' : '');
+  // ★★ 2026-10-20（Owner 逐字：「用户送审图片时，content_type 必须要标注下是图片」）：
+  //   模态**由入站内容定死，不交给模型三选一**。它由 `agent.mjs` 在每轮起点按
+  //   `inbound.imageCount / videoCount` 算好、经 `beginChainTurn({modality})` 传进来。
+  //   为什么非改不可（同日实测、同一份图 OCR，只差这一个词）：
+  //     10:06:48 `--content-type text`  → PASS / 0 条（负面样本规则层**根本没跑**）
+  //     11:10:00 `--content-type image` → REVIEW / 5 条
+  //   为什么 image 必须**连 coverage 一起申报**（同一轮实测，不申报会更坏）：
+  //     只给 `--content-type image`、不给 `--coverage` ⇒ 引擎判 image/ocr 覆盖不完整
+  //     ⇒ 整单被 fail-closed 压成 `NEEDS_INPUT`（拒答）。两行申报一起给 ⇒ `REVIEW`、覆盖 complete。
+  //     provider 名与取值方法就是库规里那条固定写法（`macos-vision` ＋ `sw_vers` ＋ 素材文件 sha）。
+  //   ⚠️ `video` 这一档**不动**（仍留占位符）：视频要五个模态的佐证，本单没有那五个 provider
+  //      的读数 ⇒ 硬填会把视频单压成拒答。那是另一件事，不混进这一改。
+  const m2 = String(ctype ?? '').trim().toLowerCase();
+  const isImage = m2 === 'image';
+  const isText = m2 === 'text';
+  const ctLine = isImage ? '  --content-type image \\'
+    : (isText ? '  --content-type text' : '  --content-type <text|image|video>');
+  const covLines = isImage ? [cov('image', true), cov('ocr', false)]
+    : ['# 素材是「读图 / 读视频」得来时，末尾**再加**这两行：', covOff('image', true), covOff('ocr', false)];
+  const ctNote = isImage
+    ? '  · `--content-type image` 与那两行 `--coverage` 是**按本单入站内容定死的**（本单带图）——'
+      + '**逐字照抄，不要改成 text**：改成 text 会让「负面样本规则」那一层整层不跑。'
+    : (isText
+      ? '  · `--content-type text` 是**按本单入站内容定死的**（本单没有图/视频）——**逐字照抄**。'
+      : '  · `--content-type` = `text` / `image` / `video` 三选一（按素材实际模态）。');
   return [
     '【★ 第 0 条之二 —— 本单的完整命令：逐字照抄，不要探索】',
     '下面这条**就是全部**。`--base` / `--session` / `--material-file` / `--token` / `--coverage`',
     '的取值**都写在命令里**（`$(…)` 就地展开、素材路径已内联），**没有一个需要你先去查、去算、去翻源码**。',
     '整条命令里只有**两个值要你自己定，且都是"选"不是"查"**：',
     '  · `--decision-owner` = 第 2 步你**真的用 skill 工具加载过**的那个 skill 的装载目录名（`--loaded-skill` 填同一个）；',
-    '  · `--content-type` = `text` / `image` / `video` 三选一（按素材实际模态）。',
+    ctNote,
     '',
     '```bash',
     'bash kb/l8/review_run.sh \\',
@@ -1948,10 +1975,8 @@ export function reviewCmdTemplate(materialPath) {
     '  --material-file ' + mf + ' \\',
     '  --token         ' + mf + ' \\',
     '  --question "<提问原文，逐字>" \\',
-    '  --content-type <text|image|video>',
-    '# 素材是「读图 / 读视频」得来时，末尾**再加**这两行：',
-    cov('image', true),
-    cov('ocr', false),
+    ctLine,
+    ...covLines,
     '```',
     '',
     '★★ **禁止探索**（命令已给全；下面每个秒数都是 2026-10-16 实测的浪费）：',
@@ -2001,7 +2026,7 @@ export const REVIEW_PLAYBOOK = (() => {
  * ── 边界 ─────────────────────────────────────────────────────────────────
  *   没有 `materialPath`（素材没落盘）⇒ 前两块自动消失，行为退回改动前（**不阻断送审**）。
  */
-export function reviewTaskFor({ question = '', text = '', materialPath = '' } = {}) {
+export function reviewTaskFor({ question = '', text = '', materialPath = '', ctype = null } = {}) {
   const mf = String(materialPath ?? '').trim();
   const materialRule = mf
     ? `【★ 第 0 条（先读这一条，再读下面所有内容）—— 本单素材已落盘，路径如下】\n`
@@ -2015,7 +2040,7 @@ export function reviewTaskFor({ question = '', text = '', materialPath = '' } = 
       + `\`逐字命中「ibclc」\` 被当成你的素材判的，并随报告发进了群）—— `
       + `宁可这一单回落成「库侧没读数」，也不许把别人的结论贴到你的素材上。\n`
     : '';
-  return [materialRule, reviewCmdTemplate(mf), String(question ?? ''), String(text ?? ''),
+  return [materialRule, reviewCmdTemplate(mf, ctype), String(question ?? ''), String(text ?? ''),
           REVIEW_HARD_RULES, REVIEW_PLAYBOOK]
     .map((s) => s.trim()).filter(Boolean).join('\n');
 }
@@ -2095,7 +2120,10 @@ register('kb_review_chain', {
     //   把 `reviewCmdTemplate(...)` 从数组里删掉，盘上不会有任何东西变红。
     //   ⇒ 现在整块搬进纯函数 `reviewTaskFor()`（见文件上方），顺序与理由都在它的头注里。
     //   执行点：`tools/test_agent.mjs` 的 **N3 组**（含反向对照：删掉模板必须被抓住）。
-    const task = reviewTaskFor({ question, text, materialPath });
+    // ★★ 2026-10-20（Owner：「用户送审图片时，content_type 必须要标注下是图片」）：
+    //   模态**取自本轮起点由入站内容算好的那一格**（`chainTurnModalityOf()`），
+    //   不再交给模型三选一 —— 实测选成 text 时「负面样本规则」整层不跑（PASS/0 条）。
+    const task = reviewTaskFor({ question, text, materialPath, ctype: chainTurnModalityOf() });
     // ── 素材文件用后即删（不留在盘上）────────────────────────────────────────
     //   删在 `finally` 里：链**跑成 / 跑败 / 超时**三种结局都要删，
     //   否则 `/tmp` 会攒下一堆送审素材（而它们是可以拼出客户内容的）。
@@ -2355,13 +2383,36 @@ const CHAIN_MEMO_TTL_MS = 30 * 60 * 1000;
 let chainMemo = null;      // { at:number, envelope:{tool,ok,result} } —— 只装**跑成**的结果
 let chainMemoHits = 0;
 
-/** 一轮的边界：清空上一次的记忆并结算命中数。返回**上一轮**命中了几次。 */
-export function beginChainTurn() {
+/* ★★ 2026-10-20（Owner 逐字：「用户送审图片时，content_type 必须要标注下是图片」）
+ *
+ * **这一格是「素材模态」的唯一来源** —— 由 `agent.mjs` 在每轮起点按 `inbound` 算好传进来，
+ * 再由 `kb_review_chain` 拼进 `reviewCmdTemplate(materialPath, ctype)`。
+ *
+ * 为什么不能继续让模型自己填（同一天两次实测，同一份图 OCR，只差这一个词）：
+ *   10:06:48 `--content-type text`  → PASS / 0 条（负面样本规则层**根本没跑**）
+ *   11:10:00 `--content-type image` → REVIEW / 5 条
+ * 病根不在判据、在**取值来源**：模板只写「三选一（按素材实际模态）」，而"实际模态"是
+ * headless 里的模型看一眼正文自己猜的 —— 它猜 text，图就按文本审了。
+ * ⇒ 把取值从「模型自选」改成「入站内容算出来的」，这一层才**可能失败**（散文没有失败信号）。
+ *
+ * 边界：`null` = 调用方没给 ⇒ 模板保留 `--content-type <text|image|video>` 占位符
+ *      ⇒ 行为与改动前**逐字相同**（老路径、老测试不受影响）。
+ */
+let chainTurnModality = null;   // 'text' | 'image' | 'video' | null
+
+/** 一轮的边界：清空上一次的记忆并结算命中数。返回**上一轮**命中了几次。
+ *  `opts.modality`（可选）= 本轮的素材模态，由入站内容算出（见上面 `chainTurnModality`）。 */
+export function beginChainTurn(opts = {}) {
   const prevHits = chainMemoHits;
   chainMemo = null;
   chainMemoHits = 0;
+  const m = String((opts && opts.modality) ?? '').trim().toLowerCase();
+  chainTurnModality = (m === 'text' || m === 'image' || m === 'video') ? m : null;
   return prevHits;
 }
+
+/** 本轮素材模态（'text' / 'image' / 'video' / null）。给 `kb_review_chain` 拼模板用。 */
+export function chainTurnModalityOf() { return chainTurnModality; }
 
 /* ══════════════ ★★ P0 快路读数（2026-10-16，FIX-043）══════════════════════
  *
@@ -2425,6 +2476,69 @@ export function p0MemoRead() { return p0Memo?.payload ?? null; }
 /** 只给自证用 —— 从干净状态起跑，或构造一个「这一轮命中了快路」的现场。 */
 export function _resetP0MemoForTest() { p0Memo = null; }
 export function _armP0MemoForTest(payload, at = Date.now()) { p0Memo = { at, payload }; }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+ * ★★ 2026-10-19（Owner：「**守衡输出的卡片内容怎么又改了？赶紧改回去**」）
+ *
+ * 病灶（真单 `om_x100b6269bad188e8cf248ad8931a610`：「喇叭罩贴合乳房后通过吸吮形成负压，
+ *   乳头罩可替换为软边款。」27 字）——
+ *   · 27 字 < `review_gate.MIN_REVIEW_CHARS`(30) 且不含送审词 ⇒ **送审闸门判「不是送审」**
+ *     （日志里那条消息**没有**「🧭 送审闸门」那一行）⇒ `g.verdict53 = null`；
+ *   · 模型**自己**调了链（`🔧 工具: kb_review_chain(271405ms)`），链跑成了，回执里
+ *     **逐字带着**合 §5.3 的那一行（`摘要：【审查结论：PASS】未发现已知底线风险，可转交…`）；
+ *   · 而内核兜底那一支只把 **P0 快路那半份**（`p0MemoRead()`）喂给 `deriveVerdictLine`：
+ *     这一单 `p0_fastpath` 没落 memo（0 命中）⇒ `p0Payload = null` ⇒ 只剩 `replyText`
+ *     ⇒ 结论行变成「**模型有没有照抄那一行**」的函数。模型写的是
+ *     「结论：PASS —— 未发现已知底线风险，**0 处阻断**。可转 @sign-off 责任人（未配置）过门。」
+ *     ⇒ `conforms()` 不过 ⇒ `null` ⇒ 信封层 `reviewShape=false`
+ *     ⇒ **模型那张 `query-answer` 卡原样发出**，后台词（`covered=true/covered_by=rule`、
+ *     `扫 509 条规则`）随之上卡 —— 这就是 Owner 说的「卡片内容又改了」。
+ *
+ * 与 FIX-043/044 **同一个形状**（「判据早就写好了，缺的是把它接上」）：`deriveVerdictLine`
+ *   的 `answer` 这一支一直在，喂进去就回 `from='chain'`；缺的是**把链的回执记住**。
+ * 反向对照（真数据，改前/改后各一次）：
+ *   只喂 `replyText` ＋ `reviewedByTool` ⇒ `null`；再喂链的 `answer` ⇒
+ *   `{state:'PASS', from:'chain', line:'【审查结论：PASS】未发现已知底线风险，可转交 …'}`
+ *   （`conforms().ok === true`，why「与 §5.3.1 逐字一致」）。
+ *
+ * ⚠️ 与 `p0Memo` **并存、不合并**：那个判据要求 `p0_fastpath` 存在，装的是「P0 快路的读数」；
+ *    这个装的是「链跑成了」这件事的回执。合并会让「有没有命中 P0」被一个通用回执污染。
+ * ⚠️ 与 `chainMemo`（链缓存）也**不是一回事**：那个是「同一轮别重跑」的护栏、由判据决定
+ *    要不要 arm；这个是**只读留痕**，不改任何分支。
+ * ══════════════════════════════════════════════════════════════════════════════ */
+let chainAnswerMemo = null;   // { at:number, payload:{ answer:string, p0Fastpath:object|null } }
+
+/** 一轮的边界：清掉上一轮的链回执（与 `beginP0Turn()` / `beginChainTurn()` 同一处调用）。 */
+export function beginChainAnswerTurn() { chainAnswerMemo = null; }
+
+/**
+ * 这一轮 `kb_review_chain` **跑成了**时要留下来的那份回执。**纯函数**（§2.4：判据要能被调用）。
+ *
+ * 只装**跑成的**（与 `p0Memo` / 链缓存同一条纪律）：`{error}` 是「结论未知」，
+ *   拿它派生结论行等于把未测说成已判 —— §2.4.2 未测不许与通过长得一样。
+ * `answer` 为空 ⇒ 回 `null`：没有正文就没有可派的结论行；留个空壳只会让下游
+ *   把「没有读数」当成「有读数」（`kbNoReadingOf` 那条口径反过来用同一条道理）。
+ *
+ * @param {object} result `kb_review_chain` 的 `result`（不是信封）
+ * @returns {{answer:string, p0Fastpath:object|null}|null}
+ */
+export function chainAnswerPayloadOf(result) {
+  if (!result || typeof result !== 'object') return null;
+  if (result.ok === false || result.error) return null;
+  const answer = String(result.answer ?? '');
+  if (!answer.trim()) return null;
+  const fast = result.p0_fastpath;
+  return { answer, p0Fastpath: (fast && typeof fast === 'object') ? fast : null };
+}
+
+/** 这一轮链跑成的回执（没跑成 / 这一轮没调过 ⇒ `null`）。 */
+export function chainAnswerRead() { return chainAnswerMemo?.payload ?? null; }
+
+/** 只给自证用 —— 从干净状态起跑，或构造一个「这一轮链跑成了」的现场。 */
+export function _resetChainAnswerMemoForTest() { chainAnswerMemo = null; }
+export function _armChainAnswerMemoForTest(payload, at = Date.now()) {
+  chainAnswerMemo = { at, payload };
+}
 
 /** 给日志/`meta` 用的读数：这一轮命中过几次、现在有没有装着缓存。 */
 export function chainMemoStats() {
@@ -2491,6 +2605,11 @@ export async function executeTool(name, argsJson) {
     //   内核兜底只拿得到 `replyText` ⇒ 结论行取决于**模型有没有抄**（见本文件那段头注）。
     const p0p = p0PayloadOf(result);
     if (p0p) p0Memo = { at: Date.now(), payload: p0p };
+    // ★★ 2026-10-19：**链跑成了就把回执留下来**（与上面 P0 读数同一个漏斗、同一条纪律）。
+    //   这一格治的是「闸门没判送审、模型自己调链」那一支：没有它，内核兜底只拿得到
+    //   `replyText` ⇒ 结论行取决于模型有没有照抄 ⇒ 卡面退回 `query-answer` 形状。
+    const ca = chainAnswerPayloadOf(result);
+    if (ca) chainAnswerMemo = { at: Date.now(), payload: ca };
     return envelope;
   } catch (e) {
     return { tool: name, ok: false, error: `${e?.name ?? 'Error'}: ${e?.message ?? e}` };

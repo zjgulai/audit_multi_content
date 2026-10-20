@@ -134,12 +134,62 @@ export const P0_DOC = Object.freeze({
  *   而它当时的表现只是「报告：未生成」，看起来像权限问题。
  *   把 cwd 设成**报告自己所在的目录**就有了不依赖任何外部约定的保证：文件必在其 cwd 之下。
  */
-export async function publishReportDoc(mdPath) {
+export async function publishReportDoc(mdPath, opts = {}) {
   const f = String(mdPath ?? '').trim();
   if (!f) return { ok: false, url: null, detail: '没给报告文件路径' };
   if (!fs.existsSync(f)) return { ok: false, url: null, detail: `报告文件不存在：${f}` };
+  // ★★ 2026-10-19（Owner 当场报「输出的报告模版怎么改了」）—— **一次偶发把模版换掉了**：
+  //   17:23 那一单，合并报告（原模版）投递**偶发失败**（CLI 非零退出、两路都没吐字，
+  //   详见 `_transientFailureOf`），于是卡上的链接**回落成库侧 P0 那份**（另一套模版、只装
+  //   库侧 1 条，卡上说 6 条）⇒ 人点开看到的报告跟十分钟前那份**长得不一样**。
+  //   病灶不是模版被改，是**偶发失败没有被补一次**。
+  //   ⇒ 偶发失败补一次（默认 2 次＝原始那次 ＋ 补一次；`SHOUHENG_P0_DOC_ATTEMPTS` 可调）。
+  //   ⚠️ 确定性失败（校验不过、路径读不到、`invalid <img>` 那类）**不重试** ——
+  //      重试只会把「报告 ≤30s」这条指标拖成两倍，还照样失败。
+  //   ⚠️ 残留（已知、照实说）：**超时**这一类分不清「服务端没建」与「建了但回执丢了」，
+  //      补的那一次可能多出一份**孤儿云文档**。取舍：多一份没人链接的文档，
+  //      好过卡上挂一份**另一个模版**的报告（2026-10-19 那次就是后者）。
+  const attempts = Math.max(1, Math.floor(Number(process.env.SHOUHENG_P0_DOC_ATTEMPTS ?? 2) || 2));
+  let last = null;
+  for (let n = 1; n <= attempts; n += 1) {
+    last = await publishReportDocOnce(f, opts);
+    if (last.ok) {
+      return (n === 1
+        ? last
+        : { ok: true, url: last.url,
+            detail: `${last.detail}｜补第 ${n} 次才成（前 ${n - 1} 次是偶发失败）` });
+    }
+    if (!last.transient || n === attempts) break;
+    await new Promise((r) => { setTimeout(r, 1200 * n); });
+  }
+  // 对外形状不变（`ok / url / detail` 三件）—— 调用方（卡片、日志、Z34b 判据）都不认识 `transient`
+  return { ok: false, url: null, detail: last?.detail ?? '（没跑）' };
+}
+
+/**
+ * 这一次失败是**偶发**（值得补一次）还是**确定性**（补也没用）？
+ *
+ * 判据来自 2026-10-19 那次实测：`promisify(execFile)` 的异常里
+ *   · 超时/被信号杀 ⇒ `e.killed === true` / `e.signal` 有值，而 `stderr` 可能是**空的**；
+ *     （同一天那条报错全文就是 `Command failed: <命令>`，**一个字原因都没有** ——
+ *      不是 CLI 没报，是它根本没走到报错那一步）
+ *   · CLI 自己的校验错 ⇒ **stderr 里有 JSON**（实测：`--content` 读不到文件时
+ *     错误对象打的是 stderr，`type: validation`）⇒ 这一类**重试必然同样失败**。
+ */
+function _transientFailureOf(e, errText) {
+  if (e?.killed || e?.signal) return true;
+  const t = String(errText ?? '').trim();
+  if (!t) return true;                                   // 两路都没吐字 ⇒ 说不清，按偶发处理
+  if (/"type"\s*:\s*"validation"/.test(t)) return false;  // CLI 判参数/内容不合法 ⇒ 确定性
+  return /ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up|timed out|rate.?limit|429/i.test(t);
+}
+
+/** 单次投递（`publishReportDoc` 的第 n 次；**不重试、不吞错**）。 */
+async function publishReportDocOnce(f, opts = {}) {
+  // `opts.run` 可注入 —— 自证时不碰真库（与 `ensureTenantReadable` 同一个口子）。
+  const run = opts.run ?? ((bin, args, o) => execFileP(bin, args, o));
   try {
-    const { stdout } = await execFileP(P0_DOC.bin, [
+    const { stdout } = await run(P0_DOC.bin, [
       '--profile', P0_DOC.profile, 'docs', '+create',
       '--content', `@${f}`, '--doc-format', 'markdown', '--as', 'bot',
     ], { timeout: P0_DOC.timeoutMs, maxBuffer: 8 << 20, cwd: path.dirname(f) });
@@ -155,7 +205,7 @@ export async function publishReportDoc(mdPath) {
     //   回读不过 ⇒ **不给 url**（宁可空着，也不给一个点不开的链接）——
     //   这一条与「报告出不来就照实说原因」同一条纪律。
     const docId = j?.data?.document?.document_id ?? '';
-    const perm = await ensureTenantReadable(docId);
+    const perm = await ensureTenantReadable(docId, { run });
     if (!perm.ok) {
       return { ok: false, url: null,
         detail: `云文档已建但**权限没设成组织内可阅读** ⇒ 链接不写进表：${perm.detail}` };
@@ -164,8 +214,18 @@ export async function publishReportDoc(mdPath) {
   } catch (e) {
     // ★ 把 CLI 的原话带出来 —— 库规「有权限不许说没权限」的反面同样成立：
     //   报错要能区分「没建权限」与「命令写错」，糊成一句「失败了」等于把排查成本转给人。
-    const err = String(e?.stderr ?? '').trim() || String(e?.message ?? e);
-    return { ok: false, url: null, detail: `建云文档失败：${err.slice(0, 300)}` };
+    // ★★ 2026-10-19：`stderr` 空的时候要把 **stdout** 与**被杀/超时**也带出来 ——
+    //   17:23 那条报错全文只有 `Command failed: <命令>`，事后没人能判断是超时还是 CLI 崩了。
+    // ⚠️ 「有没有吐字」看的是 **stderr/stdout**，不是 `e.message` —— node 的
+    //   `Command failed: <cmd>` 那句**恒非空**，拿它判「有输出」的话，
+    //   2026-10-19 那种「两路全空」的偶发失败会被误判成确定性失败、**一次都不补**（实测踩到）。
+    const rawErr = String(e?.stderr ?? '').trim() || String(e?.stdout ?? '').trim();
+    const shown = rawErr || String(e?.message ?? e);
+    const why = (e?.killed || e?.signal)
+      ? `[超时/被杀 timeout=${P0_DOC.timeoutMs}ms signal=${e?.signal ?? '?'}] `
+      : '';
+    return { ok: false, url: null, transient: _transientFailureOf(e, rawErr),
+             detail: `建云文档失败：${why}${String(shown).slice(0, 300)}` };
   }
 }
 

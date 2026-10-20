@@ -182,12 +182,42 @@ function writeRunState(note = null) {
 
 /* ─────────────────────── 事件处理 ─────────────────────── */
 
+/**
+ * 这条消息的**真实到达时刻**（ms epoch）—— PRD §12「@Agent 响应 ≤5 秒」的唯一计时起点。
+ *
+ * ★★ 2026-10-20（Owner 批准 ②）为什么现在才加：
+ *   旧的 `group_response_ms` 在**这条路上一词从未拿到过** tIngress —— `handleMessage` 的默认值
+ *   是 `null`，闸门里再 `?? Date.now()` 兜底，而那一刻**已经在读图之后**。
+ *   ⇒ 这条指标量的是「回执自己发出去花了多久」（实测 1401ms / 383ms），**结构上不可能变红**，
+ *   而同期飞书侧真值是 **60 / 120 / 180 秒**。这条尺子要能红，起点就必须是"消息到达"。
+ *
+ * 取值优先级：消息 `create_time`（飞书服务端盖的，最接近"她按下发送"）→ 本机此刻。
+ * ⚠️ `create_time` 只认**落在合理区间**的（不早于 1 分钟前＝允许服务端时钟略快；
+ *    不超过 24 小时的迟投/补发）；离谱值一律退回本机此刻，并把来源写进指标行 ——
+ *    **不许把两个来源的数混着说**。
+ *
+ * @returns {{at:number, origin:'create_time'|'local'}}
+ */
+function ingressMsOf(msg) {
+  const now = Date.now();
+  const raw = String(msg?.create_time ?? '').trim();
+  const n = Number(raw);
+  if (raw && Number.isFinite(n) && n > 0) {
+    const at = n > 1e12 ? n : n * 1000;      // 飞书给的是毫秒串；万一给了秒串也认
+    const ageMs = now - at;
+    if (ageMs > -60_000 && ageMs < 24 * 3600_000) return { at, origin: 'create_time' };
+  }
+  return { at: now, origin: 'local' };
+}
+
 async function onMessage(data) {
   counters.events++;
   dumpRaw('im.message.receive_v1', data);
 
   const msg = data?.message ?? {};
   const chatId = msg.chat_id;
+  // ★ 必须在这里取：再晚几行就把「本机收到」当成了「她发出」。
+  const ingress = ingressMsOf(msg);
 
   // 先落一行「收到了」，保证即使后面崩了，日志也能看出事件确实到了。
   //
@@ -239,6 +269,11 @@ async function onMessage(data) {
       //     ② 截图那张「⏳ 处理中…」是**引用她消息**的一条卡片 —— 回执属于「回答某一条」，
       //        不是主动喊话，`replyTo` 正是那一条路径（它还负责降级与台账）。
       notify: (text) => replyTo(chatId, msg.message_id, text, msg.chat_type, 'chain-ack'),
+      // ★★ 2026-10-20（Owner 批准 ②）：**PRD §12 的计时起点在这里交出去**。
+      //   以前这条路不传（`handleMessage` 默认 `null`，闸门里退化成"进闸门那一刻"），
+      //   于是那条 ≤5 秒的指标结构上不可能红 —— 详见 `ingressMsOf` 的头注。
+      tIngress: ingress.at,
+      tIngressOrigin: ingress.origin,
     });
   } catch (e) {
     counters.failed++;

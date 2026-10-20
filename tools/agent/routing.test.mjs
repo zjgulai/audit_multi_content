@@ -47,8 +47,14 @@ const HANDLES = loadRoleHandles();
 const F = (category, extra = {}) => ({ location: '全文', category, severity: 'REVIEW', ...extra });
 const line = (items, policy = POLICY, handles = HANDLES) => {
   const r = reviewOwnersFor(items, policy);
-  return { ...r, text: renderReviewAction(r.owners, handles,
-    { unmatched: r.unmatched, total: items.length, fallback: policy?.fallback }) };
+  const meta = { unmatched: r.unmatched, total: items.length, fallback: policy?.fallback };
+  return {
+    ...r,
+    // 卡面（紧凑）：不印「（未配置）」「（n/m 条未匹配方向）」—— PRD §17 的字数让位
+    text: renderReviewAction(r.owners, handles, meta),
+    // 报告那一支（compact:false）：两串读数照旧印，保证「没有丢」
+    textVerbose: renderReviewAction(r.owners, handles, { ...meta, compact: false }),
+  };
 };
 
 /* ─────────────── ① 路由表真的读到了（不是靠默认值蒙对） ─────────────── */
@@ -118,17 +124,21 @@ head('④ 不知道就说不知道 · 三种情形都不许编一个收件人');
   const unknown = line([F('某个没登记过的方向')]);
   eq('④b 未命中方向 ⇒ 走路由表的 fallback（次序照 PRD）',
      unknown.owners, ['法务', '北美同事']);
-  if (!/未匹配到方向/.test(unknown.text)) no('④b2 未命中要出声', unknown.text);
-  else ok('④b2 未命中方向时如实标出（不静默当成路由过了）');
+  // ★★ 2026-10-19（Owner：REVIEW ≥3 整卡要 ≤100 字）：卡面**紧凑**（不印这一串），
+  //   但它**没有丢** —— 报告那一支（`compact:false`）照印。⇒ 断言按介质分开。
+  if (!/未匹配方向/.test(unknown.textVerbose)) no('④b2 未命中要出声（报告那一支）', unknown.textVerbose);
+  else ok('④b2 报告里如实标出「未匹配方向」（不静默当成路由过了）');
+  if (/未匹配方向/.test(unknown.text)) no('④b3 卡面必须紧凑（这串属分派质量读数）', unknown.text);
+  else ok('④b3 卡面紧凑：不印「未匹配方向」');
 
   // ④c **部分**未命中也要出声 —— 否则整行看起来像全都路由过了
   const part = line([F('合规-医疗宣称'), F('某个没登记过的方向')]);
-  if (!/1\/2 条未匹配到方向/.test(part.text)) no('④c 部分未命中要给出比例', part.text);
-  else ok('④c 部分未命中给出比例（1/2）');
+  if (!/1\/2 条未匹配方向/.test(part.textVerbose)) no('④c 部分未命中要给出比例（报告）', part.textVerbose);
+  else ok('④c 报告里给出比例（1/2）');
 
   // ④d 句柄没配 ⇒ 「角色名（未配置）」，不写死一个人名
-  if (!/（未配置）/.test(line([F('合规-医疗宣称')]).text)) {
-    no('④d 句柄没配要说「未配置」', line([F('合规-医疗宣称')]).text);
+  if (!/（未配置）/.test(line([F('合规-医疗宣称')]).textVerbose)) {
+    no('④d 句柄没配要在报告里说「未配置」', line([F('合规-医疗宣称')]).textVerbose);
   } else ok('④d 句柄没配 ⇒ 输出「角色名（未配置）」，不写死人名');
 
   // ④e 空清单 ⇒ 不抛、不编

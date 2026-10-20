@@ -48,7 +48,8 @@ import * as lw from './agent/lark_write.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.dirname(HERE);
 const LARK = path.posix.join(process.env.HOME ?? '', '.dsh/bin/lark-cli');
-const STATE = path.join(ROOT, 'PMO/shouheng-state/batch-review.json');
+// ★ 2026-10-19：`let` —— `--state` 可把它指到本轮独立台账（不传则与改动前逐字相同）。
+let STATE = path.join(ROOT, 'PMO/shouheng-state/batch-review.json');
 
 // ── 默认值只写在这一个地方 ───────────────────────────────────────────────────
 const BASE = 'RY2UbCRjXaeeWwscUPScVN5AnQc';        // 「内容治理问题描述」那个 Base
@@ -76,6 +77,22 @@ const val = (f, d) => {
 };
 const LIMIT = Number(val('--limit', '5'));
 const DRY = has('--dry-run');
+// ★★ 2026-10-19（Owner：「问题数量<3个的，也输出报告链接（**不要落库**，只限本次任务优化）」）：
+//   `--report-only` = **只出报告、不落表、不发卡**：
+//     · 不发消息（回执卡与结论卡都不发 —— 这一轮是补数据，不是跟人说话）；
+//     · 不调 `writeBack()`（采集表一个字不写）；
+//     · 配合环境变量 `SHOUHENG_REVIEW_TABLE=off` ⇒ 结论表也不写（那条闸在 `review_publish`）。
+//   ⚠️ 它是**补数通道**，不是新的常规跑法：`--report-only` 缺省关，常规批跑行为一个字没变。
+const REPORT_ONLY = has('--report-only');
+// ★★ 2026-10-19（PRD 字数限制更新后重跑 80 条）：**链接写到指定那一列**，不覆盖历史列。
+//   起因：采集表现在**同时有** `报告链接`（历史轮次）与 `10/19 报告链接`（本轮）两列，
+//   而 `linkColumn()` 的默认判据取「叫 `报告链接` 的那一列」⇒ 重跑会把**上一轮的链接整列覆盖**。
+//   ⇒ 加显式旗标；**不传就是原来的行为**（一个字节都不变），所以既有调用方不受影响。
+const LINK_COL_ARG = String(val('--link-col', '') ?? '').trim();
+// ★ 台账另存：本轮不改写 `batch-review.json`（那份是 10/13–10/16 的台账，
+//   `采集-20261013/align_link_column_to_latest.py` 等脚本还在读它）。
+const STATE_ARG = String(val('--state', '') ?? '').trim();
+if (STATE_ARG) STATE = path.resolve(ROOT, STATE_ARG);
 
 function loadState() {
   try { return JSON.parse(fs.readFileSync(STATE, 'utf8')); } catch { return { items: {} }; }
@@ -124,9 +141,65 @@ function readTable(table, { sortDesc = false } = {}) {
  */
 function linkColumn() {
   if (!KNOWN_FIELDS) return null;
+  // ★★ 2026-10-19：显式指定优先（`--link-col '10/19 报告链接'`）。
+  //   为什么需要它：表里**同时存在** `报告链接`（历史轮次）与 `10/19 报告链接`（本轮）⇒
+  //   默认判据「叫 `报告链接` 的那一列」会把上一轮那一列**整列覆盖**。
+  //   指名的列**不存在就返回 null 并出声**（`SKIPPED_FIELDS`）—— 绝不退回去猜另一列。
+  if (LINK_COL_ARG) {
+    if (KNOWN_FIELDS.includes(LINK_COL_ARG)) return LINK_COL_ARG;
+    SKIPPED_FIELDS.add(`链接列「${LINK_COL_ARG}」（表里没有这一列，本轮链接不写）`);
+    return null;
+  }
   return KNOWN_FIELDS.includes('报告链接')
     ? '报告链接'
     : (KNOWN_FIELDS.find((f) => /报告链接/.test(f)) ?? null);
+}
+
+/**
+ * 采集表各字段的**数值类型**（`{字段名: type号}`）—— 唯一取法：**raw API**。
+ *
+ * ★★ 为什么不能按 `lark-cli base +field-list` 认（2026-10-19 实测，代价是整批回填被拒）：
+ *   shortcut 把 **Url(15)** 与 **Text(1)** 都显示成字符串 `text`
+ *   ⇒ 按它写「统一用对象式 `{link,text}`」在**文本**列上必炸：
+ *   `1254060 TextFieldConvFail`，而且**整批 batchUpdate 被拒**
+ *   （同一批里的 结论/状态/问题数量/置信度/汇总 **一个都没落下来**，看着像"回填静默失败"，
+ *    根因完全不同）。实测那一次的日志逐字：
+ *   `↳ 回填你的表：❌ TextFieldConvFail ｜ code=1254060`。
+ *   raw API 才分得出：本表 `报告链接`=**15(Url)**、`10/19 报告链接`=**1(Text)**。
+ */
+let FIELD_TYPES = null;
+function fieldTypes() {
+  if (FIELD_TYPES) return FIELD_TYPES;
+  const out = execFileSync(LARK, ['--profile', 'dsh-kb', 'api', 'GET',
+    `/open-apis/bitable/v1/apps/${BASE}/tables/${TABLE}/fields`,
+    '--params', '{"page_size":100}', '--as', 'bot', '--format', 'json'],
+  { cwd: ROOT, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  const d = JSON.parse(out);
+  if (d.ok === false) throw new Error(`读字段类型失败：${JSON.stringify(d.error).slice(0, 200)}`);
+  const items = (d.data?.items ?? d.data?.data?.items ?? []);
+  FIELD_TYPES = {};
+  for (const f of items) FIELD_TYPES[f.field_name] = f.type;
+  return FIELD_TYPES;
+}
+
+/**
+ * 链接列该写**什么形状** —— 由 raw API 的 type 号决定，不靠名字猜。
+ *   · type 15（超链接）⇒ **对象式** `{link, text}`（字符串会被拒 `1254068 URLFieldConvFail`）；
+ *   · type 1（文本）  ⇒ **裸 URL 字符串**（对象式会被拒 `1254060 TextFieldConvFail`）。
+ *     文本列里写 markdown `[x](y)` 会被当纯文本显示（黑字、点不开）⇒ **不许写 markdown**；
+ *     裸 URL 由飞书客户端自行识别成可点链接。
+ * 类型读不到 ⇒ **按对象式写**（与历史那一列一致），并把这件事记进"跳过"清单，**不静默**。
+ */
+function linkCell(url) {
+  const col = linkColumn();
+  let t = null;
+  try { t = col ? fieldTypes()[col] ?? null : null; } catch { t = null; }
+  if (t === 1) {
+    SKIPPED_FIELDS.add(`链接列「${col}」是**文本**字段 ⇒ 写裸 URL（不是「内容审查报告」超链接样式）`);
+    return String(url);
+  }
+  if (t == null) SKIPPED_FIELDS.add(`链接列「${col}」类型读不到 ⇒ 按超链接对象式写`);
+  return { link: String(url), text: '内容审查报告' };
 }
 
 /** 把结论表里这一条的结果字段搬进采集表（**读回来再写**，不猜字段、不编值）。 */
@@ -234,7 +307,12 @@ async function writeBack(contentId, recordId, sinceMs, materialText = '', publis
     //     · 字段被改成「文本」时，字符串能写进去，但飞书按**纯文本**渲染 ⇒ **黑字、点不开**
     //       —— 实测 2026-10-16 那 7 格就是这么来的（65 格历史数据是 URL 段，所以是蓝的）。
     //   ⇒ 统一写成**对象式** `{link, text}`（与那一列的历史形态、以及 `fieldsFrom()` 那条路一致）。
-    if (/^https?:\/\//.test(u)) fields[LINK_COL] = { link: u, text: '内容审查报告' };
+    // ★★ 2026-10-19 更正（本轮重跑实测，**上面那条只对「超链接」列成立**）：
+    //   新列 `10/19 报告链接` 是**文本**字段（raw API `type=1`），写对象式 ⇒
+    //   `1254060 TextFieldConvFail`，而且**整批 batchUpdate 被拒**（结论/状态/数量/汇总一个都没落）。
+    //   根因：`lark-cli base +field-list` 把 Url(type 15) 与 Text(type 1) **都显示成 `text`**
+    //   ⇒ 按 shortcut 的读法分不出这两种列。⇒ 形状改由 **raw API 的 type 号**决定（`linkCell`）。
+    if (/^https?:\/\//.test(u)) fields[LINK_COL] = linkCell(u);
     else if (String(verdict ?? '').toUpperCase() === 'PASS') fields[LINK_COL] = '';
   }
   return writeFields(recordId, fields);
@@ -299,6 +377,14 @@ function fieldsFrom(hit) {
       fields[target] = { link: mm ? mm[1] : String(v0), text: '内容审查报告' };
       continue;
     }
+    // ★★ 2026-10-19：**历史链接列一律不碰**。
+    //   本轮用 `--link-col '10/19 报告链接'` 指定了日期列，旧的 `报告链接`(type 15) 要**原样保留**。
+    //   不拦的话 `RESULT_FIELDS` 里的 `报告链接` 会把**结论表那一格的旧链接**搬下来：
+    //   ① 语义错（本轮报告被旧链接顶替）；② 形状错（markdown 串塞进 URL 列 ⇒ `1254068` 整批被拒）。
+    if (/报告链接/.test(name) && linkColumn() && name !== linkColumn()) {
+      SKIPPED_FIELDS.add(`历史链接列「${name}」（本轮写「${linkColumn()}」⇒ 这一列不碰）`);
+      continue;
+    }
     const v = hit.cell(name);
     if (v === '' || v == null) continue;                       // 空的不写（不许把空值刷上去）
     let val = Array.isArray(v) && v.length === 1 && typeof v[0] === 'string' ? v[0]
@@ -320,7 +406,9 @@ function fieldsFrom(hit) {
       // ★ 而且它要**对象式** `{link, text}` —— 裸字符串也是 `1254068 URLFieldConvFail`（实测三种形状：
       //   裸 URL ✗、带尾斜杠 ✗、`{link,text}` ✓）。这两层是同一个字段的两种坑，一起写在这儿。
       //   ⚠️ 文本统一成 `内容审查报告`（与历史那 65 格一致）—— 原先这里写的 `审查报告` 会让同一列两种文字。
-      val = { link: m ? m[1] : String(val), text: '内容审查报告' };
+      // ★★ 2026-10-19：上面那段只对**超链接(type 15)** 列成立；**文本(type 1)** 列写对象必炸
+      //   `1254060 TextFieldConvFail`（整批被拒）。形状改由 raw API 的 type 号决定，见 `linkCell()`。
+      val = linkCell(m ? m[1] : String(val));
     }
     fields[name] = val;
   }
@@ -647,11 +735,16 @@ async function runOne(row, tag) {
     sender: { sender_id: { open_id: 'ou_batch_runner' }, sender_type: 'user' },
   };
   const res = await handleMessage(ev, {
-    notify: async (text) => { await sendShaped(text, { progress: { row: row.content_id, kind: 'ack' } }); },
+    notify: async (text) => {
+      if (REPORT_ONLY) return;                       // ★ 补数轮：回执卡不发
+      await sendShaped(text, { progress: { row: row.content_id, kind: 'ack' } });
+    },
     tIngress: Date.now(),
   });
   const meta = res?.meta ?? {};
-  const sent = await sendShaped(res?.reply ?? '', {
+  const sent = REPORT_ONLY
+    ? { ok: true, mode: 'skipped(report-only)', messageIds: [] }
+    : await sendShaped(res?.reply ?? '', {
     verdict53: meta.verdict53 ?? null, reportLink: meta.reportLink ?? null,
     progress: { row: row.content_id, kind: 'final' },
   });
@@ -784,7 +877,10 @@ async function main() {
     };
     saveState(st);
     // ── 回填采集表：从结论表把这一条的结果搬过来（守衡的链刚刚自己写进去的那一行）
-    const wb = await writeBack(row.content_id, row.record_id, t, row.text,
+    // ★ 2026-10-19：`--report-only`（补数轮）**不落表** —— Owner 原话「不要落库」。
+    const wb = REPORT_ONLY
+      ? { ok: true, readback: '(skipped)', detail: 'report-only：不写表', fields: {}, why: null }
+      : await writeBack(row.content_id, row.record_id, t, row.text,
                                out.meta?.chain?.publish?.record_id ?? null, row.state,
                                // ★ 2026-10-16：本轮的**报告 URL** 与三态一起传进去 ——
                                //   链接列要以本轮那份为准（PASS 本轮没报告 ⇒ 清掉），见 writeBack 里那段。

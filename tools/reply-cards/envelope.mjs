@@ -799,16 +799,46 @@ const ACTION_LINE_RE = /^(?:请修改后重新提交。|建议转[^\n]*复核。
  *   `null` = **这段文本里认不出动作行** ⇒ 调用方走旧路（宁可放可见格，也不瞎插）。
  *   认不出就不猜，是因为「随便找个位置插进去」会让读者以为那一行属于它上面的那条问题。
  */
+/* ══════════════════════════════════════════════════════════════════════════
+ * ★★ 2026-10-19（Owner：「卡片上的清单链接有两个，**去掉上面的，保留下面的**」）
+ *
+ * 病灶（**真因不在 `dual_track`，在这里** —— 先前判错了层，所以修了没生效）：
+ *   同日为了 PRD §17 的字数（BLOCK/REVIEW ≥3 那一档 ≤100 字），卡面措辞从
+ *   `→ 查看完整问题清单与修改建议：`（16 字）压成 `→ 完整清单：`（7 字），
+ *   而本文件里两处「块里已经有了吗」的判断写的是**旧字面量**：
+ *     · `insertLinkAboveAction` 的 `src.includes('查看完整问题清单与修改建议')`
+ *     · `applyReportLink`  的 `JSON.stringify(data).includes('查看完整问题清单与修改建议')`
+ *   ⇒ 两块**都认不出**块里已经有的 `→ 完整清单：<url>` ⇒ 走到 `in-block`，
+ *   在动作行之上**再插一条**（而且用的是更长的旧措辞）⇒ 一张卡上下两条同指一份报告的链接。
+ *   `dual_track.dedupeReportLinkLines()` 早在 `renderMerged` 内部就跑完了，信封这一条是
+ *   **它之后**才加进去的 ⇒ 那道去重看不见它（判据盯错了层，是本条的教训）。
+ *
+ * 修法：**判据认形状、不认某一句措辞** —— 「→」＋「完整清单 / 查看完整问题清单与修改建议」
+ *   ＋ 冒号。今后谁再改措辞，去重仍然生效。
+ *   ⚠️ 这里**不许**写 `^` 行首锚：`applyReportLink` 那条是在 `JSON.stringify(data)` 上判的，
+ *     换行被转义成字面量 `\n`，行首锚永远不命中。
+ *   ⚠️ 两种措辞**都要认**：库侧（`p0_fastpath.py` / `feishu_publish.py`）产出的仍是长的那一条。
+ */
+export const REPORT_LINK_LINE_RE = /(?:→|->)\s*(?:完整清单|查看完整问题清单与修改建议)\s*[：:]/;
+/** 这一格 / 这张卡里**已经有**清单链接行了吗（长短两种措辞都算）。 */
+export const hasReportLinkLine = (v) => REPORT_LINK_LINE_RE.test(String(v ?? ''));
+/**
+ * 我们自己补链接时用的措辞 —— **短的**那一条（7 字）。
+ * 理由：它进的是 PRD §17 有字数上限的那张卡（≥3 档 ≤100 字），16 字的写法白吃 9 个字；
+ * 且与 `dual_track.renderMerged` 的 `reportNote` **同一措辞**，一张卡不会两种说法。
+ */
+const REPORT_LINK_PREFIX = '→ 完整清单：';
+
 export function insertLinkAboveAction(text, url) {
   const src = String(text ?? '');
   if (!src.trim()) return null;
   // 块里已经有了 ⇒ 一个字都不动（J15a 那条口径：一张卡上只许出现一次）
-  if (src.includes('查看完整问题清单与修改建议')) return { text: src, action: 'already' };
+  if (hasReportLinkLine(src)) return { text: src, action: 'already' };
   const m = ACTION_LINE_RE.exec(src);
   if (!m) return null;
   const head = src.slice(0, m.index).replace(/\s+$/, '');
   const tail = src.slice(m.index).replace(/^\s+/, '');
-  const parts = [head, `→ 查看完整问题清单与修改建议：${url}`, tail].filter(Boolean);
+  const parts = [head, `${REPORT_LINK_PREFIX}${url}`, tail].filter(Boolean);
   return { text: parts.join('\n\n'), action: 'inserted' };
 }
 
@@ -843,7 +873,7 @@ function insertLinkIntoBlock(kind, data, url) {
 export function applyReportLink(kind, data, reportLink) {
   const url = String(reportLink ?? '').trim();
   if (!url) return { data, action: 'none', slot: null, why: '这一轮没有报告链接' };
-  const line = `→ 查看完整问题清单与修改建议：${url}`;
+  const line = `${REPORT_LINK_PREFIX}${url}`;
   // ══════════════════════════════════════════════════════════════════════════
   // ★★ 2026-10-13（Owner：「这里多余的回复也去掉」）：**先在整张卡里找一遍**。
   // ══════════════════════════════════════════════════════════════════════════
@@ -855,7 +885,11 @@ export function applyReportLink(kind, data, reportLink) {
   //   ⚠️ 与上面「为什么必须有它」不冲突：那一条治的是「链接落在**块的最末尾**、
   //     被 8 条逐条顶到看不见的地方」。现在的口径是「**块里已有就不再补**」——
   //     块里没有（非评审单 / 块没搬进来）时**照旧补进可见格**，一个都不许少。
-  if (JSON.stringify(data).includes('查看完整问题清单与修改建议')) {
+  //   ★★ 2026-10-19（Owner：「卡片上的清单链接有两个…」）：这一句原先写的是
+  //     `JSON.stringify(data).includes('查看完整问题清单与修改建议')` —— **绑死旧措辞**，
+  //     卡面改成 `→ 完整清单：` 之后它就永远判「没有」⇒ 又补一条 ⇒ 两条链接。
+  //     ⇒ 改走 `hasReportLinkLine()`（认形状）。这是本轮的**真因**，别改回去。
+  if (hasReportLinkLine(JSON.stringify(data))) {
     return { data, action: 'already', slot: null,
              why: '§5.3 块里已经有这一行（块默认展开）⇒ 不重复' };
   }

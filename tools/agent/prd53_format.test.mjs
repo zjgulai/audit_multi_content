@@ -29,7 +29,7 @@
  *       · 消费者安全类问题：1 个             ← **紧挨着**
  *       · 措辞表达类问题：1 个              ← 中间**没有**空行
  *       ␤
- *       → 查看完整问题清单与修改建议：…
+ *       → 完整清单：…（2026-10-19 起为此文案，为 PRD §17 字数让路）
  *       ␤
  *       建议转 @法务 @医学顾问 复核。
  *
@@ -54,16 +54,20 @@ const ok = (m) => { pass++; console.log(`  ✅ ${m}`); };
 const no = (m, w) => { fail++; bad.push(`${m} —— ${w}`); console.log(`  ❌ ${m}\n       ${w}`); };
 const head = (t) => console.log(`\n${t}`);
 
-const F = (category, location, riskCategory = null) => ({
+const F = (category, location, taxonomyCategory = null) => ({
   location, category, severity: 'REVIEW', source: 'kb', kb: { basisLine: '《库》第 1 条' },
+  // ★★ 2026-10-19（Owner：「所属类别/所属子类」统一到 A3 12 类）：汇总轴 = A3
+  //   （`taxonomyCategory`）⇒ 夹具第三格传 **A3 类名**（不带就全落「未归类」一桶，
+  //   量不到「每类一行」，实测 ②b/③b 当场变红 —— 那不是判据错，是夹具没跟上口径）。
+  ...(taxonomyCategory ? { taxonomyCategory } : {}),
   // ★★ 2026-10-19（Owner：「问题数量≥3 时要有分类汇总 `· 合规类：X 个 · 消费者安全类：X 个
   //   · 措辞类：X 个`……卡片所有的回复必须跟 PRD 5.3 对齐」）：
   //   **汇总行的轴从 11 类回退到 PRD 四维**（11 类在模型侧条目上盖不上章，实测真单退化成常数桶）。
   //   夹具因此带 `riskCategory`（= 引擎盖过章的 `risk_category`；真 `risk_items` 都带这一格）。
   //   不带也能跑 —— `category` 落在四维里就按它算，落在四维外则如实进「未标注维度」桶。
-  ...(riskCategory ? { riskCategory } : {}),
+  ...(taxonomyCategory ? { taxonomyCategory } : {}),
 });
-// ★ 第三格是**维度**（2026-10-19 起；10-17～10-19 那两天是 11 类）—— 夹具别漏解构。
+// ★ 第三格是 **A3 所属类别**（2026-10-19 起；之前是 11 类 / 四维）—— 夹具别漏解构。
 const mk = (...pairs) => mergeFindings(pairs.map(([c, l, t]) => F(c, l, t)), []).items;
 
 /** 两个锚点之间的**空行数**：1 = 恰好一个空行；0 = 紧挨着。`-1` = 没匹配上（本身就是缺陷）。 */
@@ -76,9 +80,9 @@ const blanks = (text, re) => {
 // ★ 2026-10-19：第三格是**维度**（`risk_category` 的受控取值），不是 11 类名 ——
 //   11 类名不是四维 ⇒ `dimensionOf()` 返回 null ⇒ 5 条会全落「未标注维度」一桶，
 //   那样 ②b/②b3 就量不到「一行多段」这条形状（实测当场变红，是夹具没跟上口径）。
-const FIVE = () => mk(['合规', 'a', '合规'], ['合规', 'b', '合规'],
-  ['合规', 'c', '合规'], ['消费者安全', 'd', '消费者安全'],
-  ['措辞表达', 'e', '措辞表达']);
+const FIVE = () => mk(['合规', 'a', '合规与受监管宣称'], ['合规', 'b', '合规与受监管宣称'],
+  ['合规', 'c', '合规与受监管宣称'], ['消费者安全', 'd', '产品安全与高危使用场景'],
+  ['措辞表达', 'e', '母婴知识内容准确性']);
 const TWO = () => mk(['合规-医疗宣称', '第1行'], ['消费者安全', '第2行']);
 
 /* ─────────── ① <3 逐条：**每条之间空一行** ─────────── */
@@ -87,7 +91,10 @@ head('① <3 逐条 · 结论行 ␤ 每条 ␤ 动作行（条目之间**空一
   const b = renderMerged(TWO(), { state: 'REVIEW' }).block;
   const a = blanks(b, /。\n+1\.【/);
   if (a !== 1) no('①a 结论行后恰好一个空行', `实际 ${a} 个`); else ok('①a 结论行后恰好一个空行');
-  const c = blanks(b, /行\n+2\.【|）\n+2\.【|。\n+2\.【/);
+  // ★ 2026-10-19：原来按「上一条的结尾字符」匹配（`行\n+2.【|）\n+2.【|。\n+2.【`），
+  //   而卡面「建议」压到 ≤30 字后结尾变成 `…` ⇒ 判据假红（结构其实没变）。
+  //   改成**只看条与条之间的空行**，不依赖上一格的末字符。
+  const c = blanks(b, /\n+2\.【/);
   if (c !== 1) no('①b **条目之间空一行**（<3 的规则）', `实际 ${c} 个`); else ok('①b 条目之间恰好一个空行');
   const d = blanks(b, /\n+建议转/);
   if (d !== 1) no('①c 动作行前恰好一个空行', `实际 ${d} 个`); else ok('①c 动作行前恰好一个空行');
@@ -118,7 +125,7 @@ head('② ≥3 汇总 · 汇总行**紧挨着**（card 上那一组「逐条问�
   const sumLines = (t) => String(t).split('\n').filter((l) => /^· /.test(l));
   // ★★ 2026-10-19 第三次（Owner 逐字：「按照下面的格式优化，**目前是写的一行**」）：
   //   **每类一行**、写法 `· <维度>类问题：N 个`；行间**不空行**。
-  const sumShape = /^· [^·\n，]+类问题：\d+ 个$/;
+  const sumShape = /^· (?:[^·\n，]+类问题|未归类问题)：\d+ 个$/;
   const sl = sumLines(b);
   if (sl.length < 3) no('②b 汇总行**每类一行**（3 桶 ⇒ 3 行）', JSON.stringify(sl));
   else if (!sl.every((l) => sumShape.test(l))) no('②b 每行形状 = `· <维度>类问题：N 个`', JSON.stringify(sl));
@@ -131,10 +138,10 @@ head('② ≥3 汇总 · 汇总行**紧挨着**（card 上那一组「逐条问�
   if (spaced !== 0) no('②b2b 汇总行之间不许空行', `发现 ${spaced} 处`);
   else ok('②b2b 汇总行之间不空行（紧挨着）');
   // 反向对照：缩成一行 ⇒ ②b 必须红（那个版本就是 Owner 说的「目前是写的一行」）
-  const ONE = '· 合规类问题：1 个 · 消费者安全类问题：1 个';
+  const ONE = '· 合规与受监管宣称类问题：1 个 · 母婴知识内容准确性类问题：1 个';
   if (sumShape.test(ONE)) no('②b3 反向对照：缩成一行必须判得出', '一行多段竟被当成合规形状');
   else ok('②b3 反向对照：缩成一行判得出来（②b 咬得住上一版）');
-  const d = blanks(b, /个\n+→ 查看/);
+  const d = blanks(b, /个\n+→ 完整清单：/);
   if (d !== 1) no('②c 链接前恰好一个空行', `实际 ${d} 个`); else ok('②c 链接前恰好一个空行');
   const e = blanks(b, /\n+建议转/);
   if (e !== 1) no('②d 动作行前恰好一个空行', `实际 ${e} 个`); else ok('②d 动作行前恰好一个空行');
@@ -201,12 +208,13 @@ head('③ 整跳 · 形状过信封后落到卡面上仍对（卡片上那一组
   //     `1.【合规-医疗宣称】第1行  —— **非权威候选线索 · 不构成依据**（无条款号，回不了源）`
   //   ⇒ 行尾是 `）`，**不是** `。`、也不是 `】`。第一版两种都写过，各得 -1（红得没道理）。
   const a = blanks(body2, /。\n+1\.【/);
-  const b2 = blanks(body2, /）\n+2\.【/);
+  // ★ 2026-10-19：建议压到 ≤30 字后行尾是 `…` ⇒ 不再按末字符匹配，只看条间空行
+  const b2 = blanks(body2, /\n+2\.【/);
   if (a !== 1 || b2 !== 1) no('③c <3：卡片正文里条目之间仍空一行', `结论后 ${a} 个、条目间 ${b2} 个`);
   else ok('③c <3：卡片正文里条目之间仍空一行');
   // 卡面渲染出来也是同一份（渲染器不改换行）
   const card2 = renderText(build('query-answer', r2.data));
-  if (blanks(card2, /）\n+2\.【/) !== 1) no('③d 渲染出来的卡面同样保留空行', card2.slice(0, 300));
+  if (blanks(card2, /\n+2\.【/) !== 1) no('③d 渲染出来的卡面同样保留空行', card2.slice(0, 300));
   else ok('③d 渲染出来的卡面同样保留空行');
 }
 
@@ -239,6 +247,34 @@ head('⑤ 反向对照 · 喂坏形状必须红（证明上面不是恒绿）');
   const c = blanks(SUMMARY_SPACED, /个\n+·/);
   if (c === 0) no('⑤b 汇总行被空开必须判得出', '空开了却算作 0');
   else ok(`⑤b 汇总行被空开判得出来（${c} 个 ≠ 0）—— ②b 咬得住我第一版那个错`);
+}
+
+
+// ═══ PRD §5.3.2 四态（2026-10-19 Owner 同步 §5.3.2/§17）：SUGGEST 必须被认，非法态仍拒 ═══
+//
+// 为什么要这条：四态落地前，守衡 `prd53.mjs` 的 `LINE_RE` 只认三态 ——
+// 知识库一旦输出 `【SUGGEST】…`，这里就判「没拿到结论」⇒ 进补发队列重跑、表行记「未判」。
+// 这是 `prd-v1.3-alignment.yaml::changes[A]` 当初「不做四态」的第一条理由，现在先把它拆掉。
+{
+  const P = await import('./prd53.mjs');
+  const sugLine = '【审查结论：SUGGEST】发现 1 处建议优化，不阻断发布：1.【措辞表达】正文第 2 段「超级好用」偏口语。建议：改为「高效便捷」。';
+  const res = P.conforms(sugLine);
+  if (!res.ok) no('②g SUGGEST 行没被认（PRD §5.3.2 四态）', res.why);
+  else ok('②g SUGGEST 行按 §5.3.4 样张被认');
+  // ★ 卡面那种写法（句号收尾、逐条在下一行）也必须认 —— 否则「自家产出不合自家判据」
+  const cardForm = '【审查结论：SUGGEST】发现 3 处建议优化，不阻断发布。';
+  if (!P.conforms(cardForm).ok) no('②g5 卡面那种 SUGGEST 行（句号收尾）没被认', P.conforms(cardForm).why);
+  else ok('②g5 卡面那种 SUGGEST 行（句号收尾）也认');
+  // 反向对照 ①：去掉「不阻断发布」⇒ 必须红（那句是 SUGGEST 与 REVIEW 的分界）
+  const noHint = '【审查结论：SUGGEST】发现 1 处建议优化：1.【措辞表达】…';
+  if (P.conforms(noHint).ok) no('②g2 反向对照：SUGGEST 少了「不阻断发布」仍判合规', noHint);
+  else ok('②g2 反向对照：SUGGEST 少了「不阻断发布」判得出');
+  // 反向对照 ②：自造态必须仍拒 —— 四态是**闭集**，不是"什么都认"
+  if (P.conforms('【审查结论：FOO】发现 1 处…').ok) no('②g3 反向对照：自造态 FOO 竟通过');
+  else ok('②g3 反向对照：自造态仍拒');
+  // 反向对照 ③：`STATES` 里必须真的是四态（漏一个就回到三态）
+  if (P.STATES.join('/') !== 'PASS/SUGGEST/REVIEW/BLOCK') no('②g4 STATES 不是四态', P.STATES.join('/'));
+  else ok('②g4 STATES = PASS/SUGGEST/REVIEW/BLOCK');
 }
 
 /* ─────────── 汇总 ─────────── */

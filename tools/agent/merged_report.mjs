@@ -37,15 +37,21 @@ import path from 'node:path';
 //   我们自己的门槛），而这个常数在报告这一层就没有第二个用处。门槛仍在**两处**起着作用：
 //   `dual_track.renderMerged`（卡上要不要只出分类汇总）与 `agent.mjs`（要不要建这份报告）。
 import {
-  renderMergedItem, groupByPriorityAndDimension, ownersByItem, orderActionLine,
-  taxonomyReportLines,
-  priorityHeading, dimensionHeading, priorityOf, pointOf, roleTag,
-  discoveryLine, autoSummaryLine, handlesConfigured, verbatimOf, PRIORITY_SHORT,
-  stableIdsOf, dimensionOf, descriptionOf,
+  renderMergedItem, groupByPriorityAndCategory, ownersByItem, orderActionLine,
+  priorityHeading, categoryHeading, priorityOf, pointOf, roleTag, taxonomyCategoryOf,
+  autoSummaryLine, handlesConfigured, verbatimOf,
+  stableIdsOf, descriptionOf,
   // ★ 2026-10-17 第二十二轮（Owner：「禁止用任何后台词」）：表格格子也要清扫
   stripBackendTokens,
   // ★ 第二十三轮：除依据那一格外，其余格子的 markdown 链接一律降成文字
   demoteLinks,
+  // ★★ 2026-10-19（Owner：「问题总览中有优先级和维度为空……**这里不允许为空**」）：
+  //   取不到真值时印**有名字的桶**，不留一条破折号 —— 破折号会被读成「没有这项」。
+  PRIORITY_UNSET,
+  // ★★ 2026-10-19（Owner：「守衡回复逐条问题类别跟审核报告中的问题类别对不上」）：
+  //   报告要印**与卡面逐字相同**的一级分类汇总 ⇒ 直接调卡面那个函数、那份门槛
+  //   （**不许照着卡面再写一遍**：抄一份出去，迟早两边各说各话）。
+  categorySummary, REPORT_LINK_MIN_ISSUES,
 } from './dual_track.mjs';
 
 import { publishReportDoc } from './review_publish.mjs';
@@ -341,6 +347,24 @@ export function renderMergedReportMd({
   //   · `- 结论：REVIEW ｜ 问题数量：10` —— 与下面 §5.3 结论行**同一件事说两遍**。
   //   结论与条数仍在（就在下面那一行，PRD §5.3 的原文），一条信息都没少。
   if (line) { L.push(line); L.push(''); }
+  // ── ★★ 2026-10-19（Owner：「**守衡回复逐条问题类别跟审核报告中的问题类别对不上**」）──
+  //   实测那一单：卡上三行 `· 合规与受监管宣称类问题：4 个` …（A3 **一级**分类），
+  //   报告逐条首行是 `合规与受监管宣称·生理功效与效果承诺`（**一级·二级**）；
+  //   **条数完全对得上**（4 = 生理功效1＋无痛安全2＋绝对化1，另 1＋1），
+  //   但报告里那三个类名**逐字出现不了一次**（都被二级切开了）⇒ 人没法核对。
+  //   Owner 选定：「报告里加一行与卡逐字相同的一级汇总」。
+  //   ⇒ 这里调用的是**卡面同一个函数、同一份输入**（`categorySummary(merged, total)`），
+  //     门槛也同一把（`total >= REPORT_LINK_MIN_ISSUES`，即卡面会走汇总的那一档）。
+  //   ⚠️ 位置紧贴结论行 —— 与卡面的阅读顺序一致（结论 → 分类汇总 → 明细）。
+  {
+    const _declared = Number.isFinite(total) ? total : merged.length;
+    if (_declared >= REPORT_LINK_MIN_ISSUES) {
+      for (const ln of String(categorySummary(merged, _declared) || '').split('\n')) {
+        if (ln.trim()) L.push(ln);
+      }
+      L.push('');
+    }
+  }
   // ── ★★ 2026-10-17 第二次（Owner 拿着真报告 `XzNxdvaE1o3KuJxSuAqcftRdnqd` 来的四条）──
   //   「2. 总结论是 block，但是分论点是 review」——**根因在数据，不在版式**：
   //   库侧走 P0 快路命中 3 条（那也是 BLOCK 的出处），而那 3 条**从来没变成条目**
@@ -358,7 +382,11 @@ export function renderMergedReportMd({
   //      ⇒ 往结论行尾巴上接任何东西都会**直接违约**。
   //   ⇒ 分布与一句话**各占下一行**，视觉上几乎一样，契约零风险。
   if (ordered.length) {
-    L.push(discoveryLine(ordered));
+    // ★★ 2026-10-19（Owner：「报告要同步 卡上 12 类呀，整个知识库都要同步」）——
+    //   `发现 N（合规 x｜安全 y｜…）` 这一行算的是 **PRD 四维**，与上面那段 12 类汇总**并排两个总数**
+    //   （实测 6 条单：12 类给出 4/1/1，四维给出 3/1/2）⇒ 读者会觉得算不平。
+    //   一个轴就够了：12 类计数由**卡面同一个函数**给出（结论行下面那一段，逐字相同），
+    //   这里不再印第二套。⚠️ 不是「删信息」：四维只在我们的数据里留着，报告与卡都只讲 12 类。
     const sum = autoSummaryLine(ordered, { state });
     if (sum) L.push(sum);
     L.push('');
@@ -395,7 +423,7 @@ export function renderMergedReportMd({
     //      **哪些格没取到**，集中一处说完，不散在条目里打断阅读。
     //
     // 编号一次算好：`flat` 是**显示次序**（P0→P3，再按维度），表与逐条共用同一个号。
-    const grouped = groupByPriorityAndDimension(ordered);
+    const grouped = groupByPriorityAndCategory(ordered);
     const flat = [];
     for (const g of grouped) for (const dg of g.groups) for (const f of dg.items) flat.push(f);
     const numOf = new Map(flat.map((f, n0) => [f, n0 + 1]));
@@ -421,12 +449,16 @@ export function renderMergedReportMd({
     //   ① 位置那一列不再重复命中片段（`p0FindingsToItems` 已把位置改回「全文」）；
     //   ② 「命中描述」在表里**截到 16 字**（完整内容在问题清单里，表只用来扫）；
     //   ③ 表前一句话说明它是什么，免得业务侧把表当结论。
-    L.push('> 下表按「优先级 → 维度」排列，只用来扫读；完整的问题、依据与改法在第二节。');
+    L.push('> 下表按「优先级 → 所属类别」排列，只用来扫读；完整的问题、依据与改法在第二节。');
     L.push('');
-    L.push('| # | 优先级 | 维度 | 位置 | 命中描述 | 承办 |');
+    // ★★ 2026-10-19（Owner：「报告要同步卡上 12 类呀」）：这一列原先是 PRD 四维，现改 **A3 12 类**，
+    //   列名一并改（值换了还叫「维度」就是骗人）。
+    L.push('| # | 优先级 | 所属类别 | 位置 | 命中描述 | 承办 |');
     L.push('|---|---|---|---|---|---|');
     for (const f of flat) {
-      const dim = dimensionOf(f).dimension || '—';
+      // ★★ 2026-10-19（Owner：「**这里不允许为空**」）：维度取不到真值 ⇒ 印 `未标注维度`
+      //   （与库侧 `risk_category.UNMAPPED_BUCKET` 同一个词），不再留 `—`。
+      const dim = taxonomyCategoryOf(f);
       // ★ 2026-10-17 第十一轮（Owner：「命中描述 写实际的原文」）——
       //   这一格**只印原文**（`verbatimOf`：excerpt → location 里的「…」），
       //   **不许拿模型写的描述冒充**（那是「问题描述」，在第二节逐条里有）。
@@ -436,7 +468,8 @@ export function renderMergedReportMd({
         ? (rawV.length > 28 ? `${rawV.slice(0, 28)}…` : rawV)
         : '—';
       const who = (itemOwners.get(f)?.owners ?? []).join('、') || '—';
-      L.push(`| ${numOf.get(f)} | ${priorityOf(f).level || '—'} | ${cell(dim)} `
+      // ★★ 2026-10-19 同一条：优先级取不到档位 ⇒ 印 `未分级`（**不代定 P 级**，也不留空）
+      L.push(`| ${numOf.get(f)} | ${priorityOf(f).level || PRIORITY_UNSET} | ${cell(dim)} `
         + `| ${cell(f?.location)} | ${cell(exc)} | ${cell(who)} |`);
     }
     L.push('');
@@ -470,8 +503,15 @@ export function renderMergedReportMd({
       //   条目正文前面现在只剩两级：`## 二、问题清单…` ＋ 这一行（原先还多一行 `#### 维度`、
       //   以及一行处置口径，五行压在一起）。
       for (const dg of g.groups) {
-        const pName = PRIORITY_SHORT[g.level] || priorityHeading(g.level);
-        L.push(`### **${pName} · ${dimensionHeading(dg.dimension)} ｜ ${dg.items.length} 条**`);
+        // ★★ 2026-10-19（Owner：「报告里面写的『**安全与准确性**』是什么分类？我的理解，
+        //   报告中你可以写：**一级分类+二级分类**」）——
+        //   「安全与准确性」**不是分类**，是 PRD §6.3 第二层（P1）的**层名**
+        //   （登记件逐字：`§6.3 第二层: P1 安全与准确性：大模型语义理解…`；12 类里没有这个名字）。
+        //   改前标题是 `<P 级层名> · <一级分类>` —— **两个格子长得一样**，读者把层名当成了分类。
+        //   ⇒ 标题里 P 级**只写级别**（`P1`），分类那格写**一级分类**；
+        //     一级+二级按 Owner 的意思留在**每条首行**（`**F-01 ｜ 一级·二级 ｜ P1**`）。
+        const pName = g.level === 'UNRANKED' ? '未分级' : g.level;
+        L.push(`### **${pName} · ${categoryHeading(dg.category)} ｜ ${dg.items.length} 条**`);
         L.push('');
         for (const f of dg.items) {
           // `layout: 'report'` = PRD §8.3 的八格版；**卡片不传这个参数**（Owner：卡片不要动）
@@ -541,7 +581,8 @@ export function renderMergedReportMd({
     }
     // ⚠️ 这一行是 PRD 的收尾，**句式不许改**（`renderReviewAction` 的产出）：
     //   BLOCK ⇒ `请修改后重新提交。`｜REVIEW ⇒ `建议转 @… 复核。`
-    L.push(orderActionLine(ordered, { must }));
+    // ★ 2026-10-19：**报告不压缩** —— 卡面上被省掉的「（未配置）」「（n/m 条未匹配方向）」在这里照印
+    L.push(orderActionLine(ordered, { must, compactForCard: false }));
     L.push('');
 
     // ── ★ 2026-10-17 第四轮（Owner：「去掉 四、本次未覆盖、未能取证」）──────────
@@ -564,11 +605,11 @@ export function renderMergedReportMd({
     L.push('');
   }
 
-  // ── ★ 2026-10-17（Owner：「既然分了11类，就要按照11类的出结果」）──────────────
-  //   「按 11 类汇总」这一段**投云文档那一份也要印**（不受 `withAppendix` 管）：
-  //   它和附录里那些检索读数/OCR 全文不同 —— 它是**结论的另一个分类视角**，
-  //   业务侧要在报告里按 11 类扫一遍。计数与卡片那一行同一份实现（`taxonomyReportLines`）。
-  L.push(...taxonomyReportLines(ordered));
+  // ── ★★ 2026-10-19（Owner：「**执行里面去掉附录，不要自己加东西**」）─────────────
+  //   「附录 · 按所属类别汇总（12 类）」这一段**撤掉**。
+  //   为什么现在可以撤：所属类别已经**上了每一行**（逐条标签 `**F-0x ｜ <类>·<子类> ｜ …**`
+  //   与总览表），再加一张汇总表就是同一件事说两遍 —— 而 Owner 要的是「不要自己加东西」。
+  //   ⇒ 渲染函数与 `dual_track` 侧那两个同类函数**一并删掉**（不留死代码、不留无人调的判据）。
 
   // ── 附录（**投云文档那一份不印** —— Owner 2026-10-13；留底那一份照印）──────────
   if (!withAppendix) return L.join('\n');
@@ -682,4 +723,43 @@ export async function publishMergedReport(md, { contentId = '', at = '', archive
   }
   const r = await publishDoc(mdPath);
   return { ...r, mdPath, archivePath };
+}
+
+/**
+ * 把**逐条结构化记录**落盘 —— 与报告**解耦**，所以它自己的入口。
+ *
+ * ★★ 2026-10-19（Owner 裁定「1→2→3 全做」的第 1 步）：**先落盘，再摘字眼**。
+ *
+ *   病灶（实测）：`source`（这一条是模型侧还是库侧）、`basis_missing`（回不回得了源）、
+ *   「哪一格被截了几字」这些字段**只活在内存里** —— `merged-reports/` 下 362 个文件
+ *   **全是 `.md`，一个 json 都没有**。日志里只剩一行**整单**汇总
+ *   （`仅模型侧 2 条`），答得了「这一单」，答不了「第 1 条」。
+ *   ⇒ 于是「把『无库内依据 · 建议转人工』从卡上摘掉」这件事一直没人敢做：
+ *     摘掉之后，逐条层面那半句信息**在所有持久产物里都不存在了**。
+ *
+ *   ⚠️ **为什么不做成 `publishMergedReport` 的一个参数**（第一版就是那么写的，已撤回）：
+ *      报告只在 `total >= 3` 时建（PRD §5.3.4）；而**恰恰是 <3 的那些单子最需要它**
+ *      （卡上逐条平铺、没有报告可点，Owner 那张 2 条的单子就是这种）。
+ *      绑在报告上 = 记录只在有报告时才有 ⇒ **最需要的那一档全丢**。
+ *
+ * @returns {string|null} 落盘路径；失败返回 null（**不抛** —— 留痕失败不许带崩结论）
+ */
+export function writeMergedRecord(record, { contentId = '', at = '' } = {}) {
+  if (!record || typeof record !== 'object') return null;
+  // ★★ 2026-10-19（§2.4.4：**跑一次自证，改掉了它要保护的东西**）——
+  //   `test_agent.mjs` 会真的走到这一段（它注入的是**报告** runner，而记录写入是
+  //   本模块**直接 import** 的）⇒ 实测已经往 Owner 的真实状态目录写了 **6 个 json**
+  //   （夹具件 `question: '审核下这个视频'`）。已清掉，闸补在这里。
+  //   ⚠️ 闸放在**写盘这一点上**，而不是靠每个调用方记得传开关 ——
+  //      「记得传」不是一个判据（本仓反复栽在这句话上）。
+  if (String(process.env.SHOUHENG_MERGED_RECORD ?? '').toLowerCase() === 'off') return null;
+  const safe = String(contentId || at || 'report').replace(/[^\w.-]+/g, '_').slice(0, 80);
+  const stamp = Date.now();
+  try {
+    const p = path.join(reportDir(), `merged-${safe}-${stamp}.json`);
+    fs.writeFileSync(p, JSON.stringify(record, null, 1));   // Node 写，不进 +4096 填充态
+    return p;
+  } catch {
+    return null;
+  }
 }

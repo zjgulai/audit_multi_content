@@ -32,11 +32,21 @@
  *     「共发现」为止，于是**跑了半个月没人发现**（`AGENTS.md` §2.4）。
  */
 
-/** 三态标记。**顺序有意义**：`BLOCK` 要排在 `PASS` 前面做前缀匹配时不会互相吃掉，但读起来清楚。 */
-export const STATES = ['PASS', 'REVIEW', 'BLOCK'];
+/**
+ * 结论行的**状态标记**（PRD §5.3.2 四态：`PASS / SUGGEST / REVIEW / BLOCK`）。
+ *
+ * ★★ 2026-10-19（Owner 给了 §5.3.2 四态定义与边界，要求同步）：**加上 `SUGGEST`**。
+ *   在此之前这里只有三态，而知识库一旦输出 `【SUGGEST】…`，本解析器就认不出来 ⇒
+ *   判成「没拿到结论」⇒ 进补发队列重跑、表行记「未判」（`prd-v1.3-alignment.yaml::changes[A]`
+ *   当初就是拿这条当「不做四态」的理由之一）。
+ *   ⇒ 现在**格式层先通**（两种读法都要这一步）；「SUGGEST 能不能作为最终态」的定义级冲突
+ *   见 `kb/l7/registry/prd532-states.yaml::conflict_decision`，待 Owner 裁定。
+ * ⚠️ 顺序：`BLOCK` 在 `PASS` 前面，前缀匹配时不会互相吃掉。
+ */
+export const STATES = ['PASS', 'SUGGEST', 'REVIEW', 'BLOCK'];
 
 /** 结论行：从 `【审查结论：` 起到本行结尾。行内不许有换行（它是「一行结论」）。 */
-const LINE_RE = /【审查结论：(PASS|REVIEW|BLOCK)】[^\n]*/;
+const LINE_RE = /【审查结论：(PASS|SUGGEST|REVIEW|BLOCK)】[^\n]*/;
 
 /**
  * 从一段文本里取出**第一行** `【审查结论：…】…`。
@@ -74,6 +84,17 @@ export function conforms(line) {
     //    同一条已经在这套改动里踩过两次了（KB 侧 `l7_integrity.py` 两处）。
     const ok = /^【审查结论：PASS】未发现已知底线风险，可转交 @\S[^\n]*进行 sign-off/.test(s);
     return { ok, state, why: ok ? '与 §5.3.1 逐字一致' : 'PASS 行必须含「未发现已知底线风险，可转交 @…进行 sign-off」' };
+  }
+  if (state === 'SUGGEST') {
+    // ★★ 2026-10-19（Owner 同步 PRD §5.3.2 四态）：SUGGEST 那一行的**逐字措辞**取自
+    //   §5.3.4 样张：`【SUGGEST】发现 1 处建议优化，不阻断发布：…`
+    //   ⇒ 判据 = 「发现 N 处建议优化，不阻断发布」，**必须带「不阻断发布」**（那是它与 REVIEW 的分界）。
+    //   ⚠️ 两种收尾都认：PRD 样张是**行内**列建议（`不阻断发布：1.【…】…`）；
+    //      我们卡面是「结论行 ＋ 之下逐条」，于是收尾是句号（`不阻断发布。`）。
+    //      统一要求只有一条：**必须写「不阻断发布」**（那是与 REVIEW 的分界）。
+    const ok = /^【审查结论：SUGGEST】发现 \d+ 处建议优化，不阻断发布(?:[：:].*|。)?$/.test(s);
+    return { ok, state, why: ok ? '与 §5.3.4 样张逐字一致'
+      : 'SUGGEST 行必须是「发现 N 处建议优化，不阻断发布：…」（「不阻断发布」是它与 REVIEW 的分界，不许省）' };
   }
   if (state === 'REVIEW') {
     const ok = /^【审查结论：REVIEW】共发现 \d+ 处需人工确认。$/.test(s);

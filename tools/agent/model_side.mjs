@@ -28,6 +28,9 @@
 import * as video from './video.mjs';
 import { sceneBlock } from './scene.mjs';
 import { sourceMenuLines, resolveSourceId, probeUrl, probeLabel } from './ext_basis.mjs';
+// ★ 2026-10-19（Owner：「按 prd 要求的字数限制梳理重点输出，不能出现截断的场景」）：
+//   字数判据**只有一个来源**（PRD 真源 `prd533-constraints.yaml`）—— 这里不自己写 50/30。
+import { checkFields as prd533Fields } from './prd533.mjs';
 
 /** 每次最多探几条依据链接（防 10 条 finding 拖出 10 次网络往返）。 */
 export const MAX_PROBE = 3;
@@ -35,6 +38,37 @@ export const MAX_PROBE = 3;
 /** 类目闭集（与 PRD §5.3 的「维度标注」同一套词）。不在闭集里的一律丢掉。 */
 export const CATEGORIES = Object.freeze([
   '合规', '消费者安全', '措辞表达', '产品描述', '隐私', 'AI 披露', '本地化',
+]);
+
+/**
+ * **A3 所属类别（12 类）** —— 模型侧也要归类，否则卡上永远是「未归类」。
+ *
+ * ★★ 2026-10-19（Owner：「守衡回复未归类问题 5 个，为什么没有归类，实际打开审查报告，里面都归类了」）：
+ *   病灶不是渲染，是**模型侧根本没有 A3 这一格**（12 类体系是规则层的分类；模型侧条目不是规则）。
+ *   而 12 类的「含义」列本来就是给人读的 ⇒ 让模型**从这 12 个里选一个**，并**校验**（不在枚举里就置空，
+ *   渲染层落 `未归类`）。子类**不逼模型猜**（58 个子类是规则侧的细分类，模型给不出来就留空）。
+ *   真源：`kb/l3/registry/rule-taxonomy.json`（← 桌面 `规则清单-P0-P3-按等级-20261016.xlsx`）。
+ */
+/** 12 类 → 实有子类（58 个；`未归类` 无子类）。**只读真源，不改口径**。 */
+export const TAXONOMY_SUBCLASSES = Object.freeze({
+  "合规与受监管宣称": Object.freeze(["临床与科学背书宣称", "保险与报销资格宣称", "医疗与疾病功效宣称", "无痛、安全与零风险承诺", "智能与仿生宣称", "法定认证与注册表述", "生理功效与效果承诺", "等级与资质背书用语", "结构功能宣称与免责声明", "绝对化与最高级用语"]),
+  "产品安全与高危使用场景": Object.freeze(["儿童乘车与居家防护", "危险行为示范与模仿风险"]),
+  "商品信息与Listing准确性": Object.freeze(["产品体验与设计方向表述", "功能与部件描述准确性", "规格与参数表述", "适配与尺码宣称", "防漏与密封宣称"]),
+  "证据与实质证明": Object.freeze(["临床与科学证据要求", "效果数据与销量排名宣称", "研究方法与统计口径", "证据不足与待验证宣称", "证据局限、限定语与整体印象"]),
+  "推广与价格透明": Object.freeze(["促销紧迫感与压力话术", "折扣与会员活动表述"]),
+  "背书与披露透明": Object.freeze(["专家与专业人士背书", "利益关系与资质披露", "安全信息与风险披露", "视听披露形式要求", "达人合作与付费推广披露", "限定信息与免责声明（清晰显著）"]),
+  "品牌信任与声誉": Object.freeze(["品牌口号与价值主张", "竞品对比与贬低"]),
+  "权利、肖像、隐私与AI": Object.freeze(["AI 生成内容标识", "未成年人出镜与隐私保护"]),
+  "平台与渠道政策": Object.freeze(["分地区投放禁令", "平台政策总体合规", "平台标识与授权素材使用", "投放形式与版位限制", "禁止投放品类与场景", "素材提交与形式规范"]),
+  "北美本地化与标签要求": Object.freeze(["标签与包装法定要求"]),
+  "母婴知识内容准确性": Object.freeze(["产后恢复", "儿童安全与居家防护", "内容形式与表达规范", "分娩与待产", "吸奶器使用与母乳储存", "哺乳与泌乳", "喂养与辅食营养", "备孕与受孕", "妈妈心理与情绪", "婴幼儿睡眠", "孕期与产检", "新生儿护理与就医指征", "母乳喂养通用建议", "母乳成分与过敏", "生长发育与里程碑", "用药与成分安全", "离乳与夜奶"]),
+  '未归类': Object.freeze([]),
+});
+
+export const TAXONOMY_CLASSES = Object.freeze([
+  '合规与受监管宣称', '产品安全与高危使用场景', '商品信息与Listing准确性', '证据与实质证明',
+  '推广与价格透明', '背书与披露透明', '品牌信任与声誉', '权利、肖像、隐私与AI',
+  '平台与渠道政策', '北美本地化与标签要求', '母婴知识内容准确性', '未归类',
 ]);
 
 /** 模型侧看得到「文字层 + 画面读数」两样，但**看不到原图**。这条要说在前面。 */
@@ -46,6 +80,27 @@ export const SYSTEM = [
   '',
   '硬约束（违反的条目会被丢弃）：',
   '1. **没有发现就返回空数组 `[]`。** 不许为了「有产出」而编 —— 空的清单是有效结论。',
+  // ★★ 2026-10-19（Owner：「最终输出的卡片态，必须是 4 态」；PRD §5.3.2 SUGGEST 定义）——
+  //   病灶（实测）：给五段**只是措辞别扭、没有任何违规**的文案，模型侧**五次都回 `[]`** ——
+  //   因为提示词只讲「列出你发现的问题」，没讲「**非强制项也要报**」。
+  //   ⇒ SUGGEST（第四态）在生产里永远出不来，那条 PRD 状态等于死代码。
+  //   现在明确：**强制项之外，非强制项也要报**，并标 `nature:"非强制"`。
+  //   ⚠️ 「不编」这条一个字没松：**没有可提的点就仍然回 `[]`**；
+  //      这里要的是「**有就报、别嫌小**」，不是「必须凑一条」。
+  // ★★ 2026-10-19（Owner：「**依据：必须要提供依据，为问题做支撑**」）——
+  //   病灶：实测卡上出现「依据：独立语义复核（非条款依据，需人工核对）」——
+  //   一条**没有依据**的判定，读者凭什么信它？PRD §5.3.3 也写明依据必须可引。
+  //   ⇒ 规则前置：**每条都必须给得出依据**（外部标准 id 或可核 URL）；给不出就**不要报这条**。
+  '1c. **每条都必须给得出依据**（`source` 取 S1–S17 之一，或 `source_url` 给可核链接）；',
+  '   给不出依据的判断**不要写进结果** —— 一条没有依据的"问题"读者无法核对，反而稀释真问题。',
+  '   ⚠️ 这是「**有依据才报**」，不是「为了有依据而编一个来源」：编来源比不报坏得多。',
+  '1b. **非强制项也要报**（这关系到最终结论能不能落 SUGGEST 这一态）：',
+  '   除了「不改就不能发」的强制项，**如果这段文案存在下面三类之一，就必须报出来**并标 `nature:"非强制"`：',
+  '     · **措辞优化**：表达啰嗦、堆砌形容词、口语/网红腔、句式重复、术语不统一；',
+  '     · **轻微常识瑕疵**：常识上不准确或含糊，但不构成健康/安全宣称；',
+  '     · **非核心卖点描述**：颜色、包装、手感、外观一类的描述含糊或不到位。',
+  '   判定问题：**这条不改也能发** ⇒ 非强制（报出来，标 `非强制`）；**不改就不能发** ⇒ 强制（标 `强制`）。',
+  '   ⚠️ 但**没有可提的点就仍然回 `[]`** —— 这条要求是「有就报、别嫌小」，不是「必须凑一条」。',
   // ★★ 2026-10-15：这一条改了 —— 原先写「不许把『我看不到画面』写成问题」，因为当时
   //   **画面层根本不在输入里**（两侧吃的都是同一份 OCR 文字）。现在 `【图 N 的画面读数】`
   //   真的进来了（PRD §5.1 的「基础视觉识别」那一半），于是边界从「不许评价画面」
@@ -69,17 +124,26 @@ export const SYSTEM = [
     //   这一句原先教的是「行首 `[12.34s]`，直接抄那个数」—— 而 `video.frameLine` 现在
     //   印的是 `[00:12]`（`MM:SS`，按整秒截断）。**两边必须同口径**：
     //   提示词里留着旧形状，模型就会照着旧形状"抄"一个 `[12.34s]` 回去。
-    + '视频关键帧上的字 ⇒ **给该帧的时间码**（行首 `[00:12]` 那种 `分:秒`，直接抄那个数）；'
-    + '音轨转写 ⇒ 给**转写里的第几段 / 原句**（转写**没有**时间戳，**不许编一个秒数**）；'
-    + '图上的字 ⇒ 给图上位置（如「主标题」「右下角贴片」）；素材正文 ⇒ 给所在句子；'
+    // ★★ 2026-10-20（Owner 选「先修位置再验证」）：位置一律落 PRD §5.3.3 的**三形态之一**，
+    //   写法**逐字照抄、不许加括号补充**（2026-10-20 实测出现过 `图 1 正文末段` 这种形状）。
+    + '图片 ⇒ `图 N 第 X 处`（N=第几张图、X=该图上的第几处，从 1 数）；'
+    + '视频 ⇒ `视频 MM:SS`（抄行首 `[00:12]` 那种时间码的 `分:秒`，**不要带方括号**）；'
+    + '文字 ⇒ `正文第 X 段`；'
+    + '音轨转写**没有**时间戳 ⇒ **不许编一个秒数**：那句话若也出现在带时间码的帧读数里就用那个时间码，'
+    + '否则这一条的 `location` 写 `null`（报告会印 `—`，那是诚实的）；'
     // ★ 2026-10-16：新增的那一节（带媒材时它叫「对方这条消息里写的字」）也要能定位 ——
     //   而且**它本身不是素材**：只在"对方的话与素材冲突/说明改哪里"时才引它。
     + '「对方这条消息里写的字」⇒ 给所在句子（**那不是素材本身**，是对方的提问/说明，'
     + '不要把它当成待审内容去挑毛病）。',
   '4b. ★ **每条都要给 suggestion：具体怎么改** —— 改哪个词、换成什么、删哪一句、补什么。',
+  // ★★ 2026-10-19（Owner：「**审查报告中**，修改建议你写了200多字，修改建议 ≤30 字」；
+  //   PRD §5.3.3「单条问题：…修改建议 ≤30 字」）——
+  //   这一格是**报告**「修改建议」的上游来源（`sugModel`），上限必须在源头说清：
+  //   渲染层 `_clip` 只是硬兜底 —— 源头写成 300 字，截出来的是半句诊断，不是动作。
+  '    **≤30 字**（PRD §5.3.3 硬约束，卡面与报告同一把尺）：一句可执行动作，不解释、不列 ①②③。',
   '    不许写「转对应负责人复核」「请人工确认」「建议修改」这类**没有动作**的话：',
   '    收到它的人还是不知道改什么。写不出具体改法时，就写清**缺什么信息才能定**（例如',
-  '    「需要知道投放的是哪个平台才能定这句话合不合规」）—— 那也是可执行的下一步。',
+  '    「需要知道投放的是哪个平台才能定这句话合不合规」）—— 那也是可执行的下一步，同样 ≤30 字。',
   // ★★ 2026-10-17（Owner 裁定：报告的「问题描述」与「原因」必须分两格）———————
   //   PRD §8.3 的完整清单每条要 `维度 / 位置 / **问题描述** / **原因** / 依据文档链接 / 修改建议`，
   //   而我们此前只出一格 `reason` —— 现象、判据、后果全挤在那一句里，
@@ -91,6 +155,18 @@ export const SYSTEM = [
   '    · `reason`：**为什么这是问题** —— 判据 / 危害 / 美国消费者会怎么误解；**不重复现象**。',
   '    ✗ 反例（两格写成一格）：reason 写「正文只有中文账号名、图上是 momcozY，两者对不上，',
   '      美国消费者读不懂也无法识别广告主」⇒ 现象与判据黏在一起，报告两格只能印同一句。',
+  // ★★ 2026-10-19（Owner：「原因是不是没讲完？按 prd 要求的字数限制梳理重点输出，
+  //   不能出现截断的场景」）——**这一格原先根本没写上限**。
+  //   提示词只约束了「建议 ≤30」，于是模型写 65–80 字的原因，渲染层按 50 字硬切
+  //   ⇒ Owner 在卡上看到「…而实际想表达的应是「只…」，读起来**像内容没写完**。
+  //   源头写超，后面怎么切都是残句 —— 上限必须在**源头**说清，而不是靠渲染层补。
+  //   ⚠️ 别写「写不下就用省略号」：那等于把截断合法化；写不下就**删枝节**。
+  '4c2. ★ **`description` 与 `reason` 各自 ≤50 字**（PRD §5.3.3 硬约束，与建议 ≤30 同源）。',
+  '    超了就会被按上限压，读者看到的是一个**被砍断的句子** ——「意思没讲完」比「少写一点」糟得多。',
+  '    压法：一句只留**一层**意思（描述只说「在哪、什么现象」，原因只说「为什么算问题」），',
+  '    不要把「现象＋判据＋后果」三层挤进一句。**不许用「…」自己截**，写不下就删枝节。',
+  '    合格示例（描述 24 字 / 原因 27 字）：「功能标签「24H」未说明所指时长」／',
+  '    「消费者会读成 24 小时持续灭菌，属无依据的功效承诺」。',
   // ★★ 2026-10-17 第十二轮（Owner 同意）：**`excerpt` 必须逐字引用原文**。
   //   病灶（真件 `merged-2026-10-17T03_47_40`）：报告总览表有一列「命中描述」专门印原文，
   //   而模型侧**整批都没给 `excerpt`**（把原文塞进了 `location` 的「…」里，或者干脆没写）
@@ -162,12 +238,36 @@ export const SYSTEM = [
   '     **「不符合英国 CAP Code」＝ 不该提**。',
   '',
   '输出：**只输出一个 JSON 数组**，不要解释、不要 markdown 代码块。每项形如',
-  '{"location":"帧 3","category":"消费者安全","severity":"REVIEW",',
+  '{"location":"帧 3","category":"消费者安全","severity":"REVIEW","nature":"强制",',
   ' "description":"问题描述：哪里 + 什么现象（一句话，不写判据）",',
   ' "reason":"原因：为什么这是问题（判据/危害）",',
   ' "excerpt":"逐字引用的原文","suggestion":"具体怎么改（改哪个词/换成什么/删哪句/补什么）",',
+  ' "taxonomy_category":"所属类别（只能取下面 12 类之一；拿不准就写「未归类」）",',
+  ' "taxonomy_subcategory":"所属子类（只能取该类子类清单里的一个；对不上写 null）",',
   ' "source":"S11 或 null","source_url":"https://… 或 null","source_name":"来源名 或 null"}',
   `category 只能取：${CATEGORIES.join(' / ')}。`,
+  // ★★ 2026-10-19（Owner：「最终输出的卡片态，**必须是 4 态**」）——
+  //   PRD §5.3.2 的 SUGGEST 定义是「**存在非强制性问题**（措辞优化、轻微常识瑕疵、非核心卖点描述）」。
+  //   而模型侧只给 `severity: BLOCK|REVIEW`，交给刚性合并时一律归 P1 ⇒ **SUGGEST 在生产里永远不可达**（卡片变不出第四态）。
+  //   ⇒ 要它自己标一下这条到底是强制还是建议；**拿不准就写「强制」**（不把强制降级成建议，那是失真的方向）。
+  '★ `nature` 只能取两个值：',
+  ' · `"强制"` —— 不改就不能发（红线/违规/证据确凿的话术）；',
+  ' · `"非强制"` —— **措辞优化、轻微常识瑕疵、非核心卖点描述**（PRD §5.3.2 的 SUGGEST 定义）；',
+  '   这一类**不阻断发布**，只提示内容方优化。',
+  ' ⚠️ 只有**一律非强制**、且没有任何强制项时，整单才会落 SUGGEST；',
+  '   混进一条强制项，结论就会升到 REVIEW/BLOCK（单调性）。拿不准就写 `"强制"`。',
+  // ★★ 2026-10-19（Owner：「报告里都归类了，卡上却说未归类」）：**两条轴各司其职** —
+  //   `category` 是方向词（决定转谁），`taxonomy_category` 是**所属类别（12 类）**（决定卡面归类与汇总）。
+  //   两个都要写；`taxonomy_category` 只能从这 12 个里选，拿不准写 `未归类`（**不许自造类名**）。
+  `taxonomy_category 只能取这 12 个之一：${TAXONOMY_CLASSES.join(' / ')}。`,
+  // ★★ 2026-10-19 第二次（Owner：「模型侧也需要归类，**跟知识库侧一样**」）：
+  //   知识库侧的标签是 `所属类别-所属子类`；模型侧只给类别 ⇒ 卡面两种形状混着。
+  //   ⇒ 子类也从固定清单里选（按类列出）；给不出就 null（卡面只印类别）。
+  '`taxonomy_subcategory` 必须取自**你选的类别**的子类清单（下面按类列出）；对不上就写 null：',
+  ...TAXONOMY_CLASSES.filter((c) => c !== '未归类').map(
+    (c) => ` · ${c} → ${(TAXONOMY_SUBCLASSES[c] || []).join(' / ')}`),
+  '⚠️ 两格必须自洽：`taxonomy_subcategory` 属于你选的 `taxonomy_category`；对不上就整格 null',
+  '   （**不许自造子类名**，也不许跨类乱填）。',
 ].join('\n');
 
 /**
@@ -175,13 +275,17 @@ export const SYSTEM = [
  * @param {{readings?:string, question?:string}} a
  * @returns {string}
  */
-export function buildPrompt({ readings = '', question = '' } = {}) {
+export function buildPrompt({ readings = '', question = '', fixNote = '' } = {}) {
   const q = String(question ?? '').trim();
   const r = String(readings ?? '').trim();
   return [
     q ? `【对方的话】${q}` : '',
     '【素材的文字层读数】',
     r || '（没有读到任何文字 —— 这种情况下应当返回空数组）',
+    // ★ 2026-10-19：超字数重试时的**定向纠正**（每单最多追加一次，见 `reviewModelSide`）。
+    //   为什么把纠正放在**输入末尾**而不是改系统提示词：系统提示词是稳定前缀（缓存友好），
+    //   而这一句是**这一次**的问题（第几条、哪一格、超几字），换了单子就得换。
+    String(fixNote ?? '').trim(),
   ].filter(Boolean).join('\n');
 }
 
@@ -199,6 +303,31 @@ export function sanitizeUrl(v) {
   const u = String(v ?? '').trim().replace(/[\u0000-\u001f\u007f\s]+/g, '');
   if (!/^https?:\/\//i.test(u) || u.length > 500) return null;
   return u;
+}
+
+
+/**
+ * **位置归一化**（2026-10-20 加）：把模型写法收成 PRD §5.3.3 的三形态之一。
+ *
+ * 真单读到的三种漂移（同一张图单里同时出现）：
+ *   `图 1 第 2–3 处（主标题）`  ← 范围 + 括号补语
+ *   `图 1 第 4 处（奖品说明句）` ← 括号补语
+ *   `图片 1（#img.1）`          ← `图片` 前缀 + 内部坐标（kb 侧旧写法，模型偶尔照抄）
+ * 这里**只做可证明不丢信息的三件事**：去括号补语、范围取首个、`图片 N`→`图 N`。
+ * ⚠️ **不补** `第 X 处`：给不出处的就不许编一个（`图 1` 会被出口闸
+ *   `kb/l8/material_evidence_gate.py` 判红，那正是要它响的场合）。
+ */
+export function normalizeLocation(v) {
+  let s = String(v ?? '').trim();
+  if (!s) return '';
+  s = s.replace(/[（(][^（）()]*[）)]/g, '').trim();          // 去括号补语（可多段）
+  s = s.replace(/第\s*(\d+)\s*[–—\-~～至]\s*\d+\s*处/g, '第 $1 处');  // 范围取首个
+  s = s.replace(/^图片\s*(\d+)/, '图 $1');                   // 图片 N → 图 N
+  // 视频帧时间码：`[00:12]` / `00:12` ⇒ `视频 00:12`（PRD 三形态里没有方括号那一版）
+  s = s.replace(/^\[?(\d{1,2}):(\d{2})\]?$/, '视频 $1:$2');
+  s = s.replace(/^视频\s*\[?(\d{1,2}):(\d{2})\]?$/, '视频 $1:$2');
+  s = s.replace(/\s+/g, ' ').trim();
+  return s;
 }
 
 export function parseFindings(text) {
@@ -225,22 +354,85 @@ export function parseFindings(text) {
   const findings = []; const dropped = [];
   for (const [i, raw] of arr.entries()) {
     const reason = String(raw?.reason ?? '').trim();
-    const category = String(raw?.category ?? '').trim();
+    // ★★ 2026-10-20（真单：那单图片报告里 `⚠ 解析丢掉 1 条：类目不在闭集："AI披露"`）——
+    //   闭集里写的是 `'AI 披露'`（**带空格**），模型给的是 `'AI披露'`（无空格）⇒ `includes` 判假
+    //   ⇒ **整条被丢**；而那张图的画面读数里正写着「画面有合成痕迹」，AI 披露恰恰是最该报的一条。
+    //   丢的是**空格**，不是问题本身 ⇒ 进闭集前统一归一化（去所有空白，含全角；拉丁不分大小写）。
+    //   ⚠️ 归一化只做「空格/大小写」这一类**零语义差别**的收口，**不**做同义词映射：
+    //     把 `合规` 收成 `消费者安全` 那种才是真改判定。
+    const _canonCat = (s) => String(s ?? '').replace(/[\s\u3000]+/g, '').toLowerCase();
+    const category = (() => {
+      const rawCat = String(raw?.category ?? '').trim();
+      const hitCat = CATEGORIES.find((c) => _canonCat(c) === _canonCat(rawCat));
+      return hitCat ?? rawCat;
+    })();
     if (!reason) { dropped.push({ i, why: '理由为空' }); continue; }
     if (!CATEGORIES.includes(category)) { dropped.push({ i, why: `类目不在闭集：${JSON.stringify(category)}` }); continue; }
+    // ★★ 2026-10-19（Owner：「依据：必须要提供依据，为问题做支撑」）：
+    //   既没有外部标准 id、也没有可核 URL ⇒ 打 `basis_missing` 标记，**由展示层决定不上卡**
+    //   （不在这里丢：解析层丢会让「模型报了什么」这个读数消失，也把判据一起打穿 ——
+    //    第一版就丢在这，`model_side_taxonomy` 的 4 条夹具当场全红）。
+    const _hasBasis = !!(String(raw?.source ?? '').trim()
+      || /^https?:\/\//i.test(String(raw?.source_url ?? '')));
     const sev = String(raw?.severity ?? '').trim().toUpperCase();
     findings.push({
-      location: String(raw?.location ?? '').trim() || '（未给位置）',
+      // ★★ 2026-10-20：位置先归一化（去括号/范围取首个）——模型侧三种漂移在真单里同时出现过。
+      location: normalizeLocation(raw?.location) || '（未给位置）',
       category,
       // 「不由它单独定 BLOCK」在**合并**那一步执行（`dual_track.mergeFindings`）；
       // 这里如实记下它原本要的严重度 —— 不假装它没说过（§2.4.1：读数不许比输入小）。
       severity: sev === 'BLOCK' ? 'BLOCK' : 'REVIEW',
+      // ★★ 2026-10-19（Owner：「卡片态必须是 4 态」）：`advisory` = PRD §5.3.2 的**非强制**
+      //   （措辞优化 / 轻微常识瑕疵 / 非核心卖点描述）。
+      //   它决定这条有没有资格去 P3（⇒ 整单可能落 SUGGEST）。
+      //   ⚠️ 缺省 / 写错 / 不认识 ⇒ **mandatory**（不把强制降级成建议，那是失真方向）。
+      // ★★ 2026-10-19（Owner：「这句判断是 review，不是 suggest」——
+      //   真单：模型自己写的原因里明说「**它不构成健康或安全宣称，不改也能发布**，但表达效果较弱」，
+      //   而 `nature` 却标了「强制」⇒ 整单落 REVIEW。**自述与自报打架时，以内容为准**：
+      //   reason/description 里出现「不改也能发布 / 不影响发布 / 不阻断 / 非强制 / 表达效果较弱」
+      //   这类**非强制信号** ⇒ 判 advisory，并把「自报了什么」留在 `nature_overridden`（不静默改）。
+      //   ⚠️ 方向是单向的：只把**自述为非强制**的改成 advisory；**绝不**把自述「强制」的降级。
+      // 依据缺失标记：卡面据此不列这一条（PRD §5.3.3 要求每条可引）
+      basis_missing: !_hasBasis,
+      nature: (() => {
+        const selfN = String(raw?.nature ?? '').trim() === '非强制' ? 'advisory' : 'mandatory';
+        const text = `${reason} ${String(raw?.description ?? '')}`;
+        const selfAdvisory = /不改(?:也|都)?能(?:发布|发|上线)|不影响(?:发布|上线)|不阻断|非强制|表达效果(?:较|偏)弱|属于建议优化/.test(text);
+        if (selfN === 'mandatory' && selfAdvisory) return 'advisory';
+        return selfN;
+      })(),
+      nature_asked: raw?.nature == null ? null : String(raw.nature).slice(0, 20),
+      // 自报与内容不一致时留痕（给了什么、被怎么判），事后查得到
+      nature_overridden: (() => {
+        const selfN = String(raw?.nature ?? '').trim() === '非强制' ? 'advisory' : 'mandatory';
+        const text = `${reason} ${String(raw?.description ?? '')}`;
+        const selfAdvisory = /不改(?:也|都)?能(?:发布|发|上线)|不影响(?:发布|上线)|不阻断|非强制|表达效果(?:较|偏)弱|属于建议优化/.test(text);
+        return (selfN === 'mandatory' && selfAdvisory)
+          ? '自报强制，但原文明说「不改也能发布」⇒ 按非强制处理' : null;
+      })(),
       reason,
       // ★★ 2026-10-17：**问题描述单列一格**（与 `reason` 分开，见上面提示词 4c）。
       //   缺了**不丢整条**（它是报告的一格，不是判定依据）⇒ 置 null，
       //   由渲染层如实说「未给问题描述」。⚠️ **不把 `reason` 搬过来顶上** ——
       //   那等于自己又把两格合成一格，而且是在源头上造假。
       description: String(raw?.description ?? '').trim() || null,
+      // ★★ 2026-10-19（A3 12 类）：**只认枚举里的**；不在枚举里 ⇒ null（渲染层落「未归类」）。
+      //   落 null 时把模型原话留在 `taxonomy_asked`（查得到它写了什么，不静默吞掉）。
+      taxonomyCategory: (() => {
+        const t = String(raw?.taxonomy_category ?? '').trim();
+        return TAXONOMY_CLASSES.includes(t) ? t : null;
+      })(),
+      taxonomy_asked: raw?.taxonomy_category == null ? null
+        : String(raw.taxonomy_category).slice(0, 40),
+      // ★★ 2026-10-19 第二次：子类**必须属于已校验通过的类别**；否则 null（不跨类、不自造）。
+      taxonomySubcategory: (() => {
+        const t = String(raw?.taxonomy_category ?? '').trim();
+        const sub = String(raw?.taxonomy_subcategory ?? '').trim();
+        if (!TAXONOMY_CLASSES.includes(t) || !sub) return null;
+        return (TAXONOMY_SUBCLASSES[t] || []).includes(sub) ? sub : null;
+      })(),
+      taxonomy_sub_asked: raw?.taxonomy_subcategory == null ? null
+        : String(raw.taxonomy_subcategory).slice(0, 40),
       excerpt: String(raw?.excerpt ?? '').trim() || null,
       // ★ 2026-10-09：模型侧的**可执行改法**（Owner：「不要甩给人」）。
       //   缺了不丢整条（它是补充信息，不是判定依据）；但为空时置 null，
@@ -265,6 +457,59 @@ export function parseFindings(text) {
 }
 
 /**
+ * 哪几条超了 PRD §5.3.3 的字数上限（描述/原因 ≤50、建议 ≤30）。
+ *
+ * ★ 2026-10-19（Owner 裁定第 2 步）：判据**只从 `prd533-constraints.yaml` 读**，
+ *   这里不写死 50/30 —— 写死就成了第四个「数法」（本文件已经因为三套数法栽过）。
+ *   ⚠️ 字段名映射：提示词里改法那一格叫 `suggestion`，PRD 口径里叫「修改建议」。
+ */
+export function overLimitOf(findings = []) {
+  const rows = [];
+  const list = Array.isArray(findings) ? findings : [];
+  list.forEach((f, i) => {
+    const r = prd533Fields({
+      description: f?.description,
+      reason: f?.reason,
+      advice: f?.suggestion,
+    });
+    const bad = r.rows.filter((x) => !x.ok);
+    if (bad.length) rows.push({ index: i + 1, bad });
+  });
+  return rows;
+}
+
+/** 超这么多字以上才值得重试一次（1–2 字是数法边界，为它白烧一次调用不值）。 */
+const OVER_LIMIT_SLACK = 3;
+
+/**
+ * 超字数重试的**时间预算**（毫秒）。
+ *
+ * ★★ 2026-10-19（Owner 的硬约束：「**你的所有修复，不能影响工作流**」）——
+ *   这一条就是为它加的。重试 = **再一次完整 LLM 调用**，实测一次 7–10 s。
+ *   模型侧是**与送审链并行**跑的那一路，它晚到 10 s 不会让链本身变慢，
+ *   但会**拖后落表与发卡** —— 那就是在影响工作流了。
+ *
+ *   所以：第一轮已经花掉超过这个预算 ⇒ **不重试**。宁可让卡面那一处被压，
+ *   也不拿业务正在等的时间去换一句更完整的原因。
+ *   （判据 `model_side_limit.test.mjs` ⑨ 钉着：超预算 ⇒ 一次都不多调。）
+ */
+const OVER_LIMIT_RETRY_BUDGET_MS = Number(
+  process.env.SHOUHENG_OVERLIMIT_RETRY_BUDGET_MS ?? 25000);
+
+/**
+ * `overLimitOf` 的**生产用包装**：fail-open。
+ * `prd533` 的 yaml 读不到时 `checkFields` 会抛 —— 那是**辅助判据**，
+ * 绝不许因为这个把模型侧整条丢掉（`try/catch` 之后返回空 = 不重试，照原样往下走）。
+ */
+function overLimitSafe(findings) {
+  let rows;
+  try { rows = overLimitOf(findings); } catch { return []; }
+  return rows
+    .map((r) => ({ ...r, bad: r.bad.filter((b) => (b.over ?? 0) > OVER_LIMIT_SLACK) }))
+    .filter((r) => r.bad.length);
+}
+
+/**
  * 跑模型侧那一遍。
  *
  * @param {{readings:string, question?:string, ask:Function, maxTokens?:number}} a
@@ -278,7 +523,10 @@ export function parseFindings(text) {
 //   所以这里默认给 4000 并**在日志里报 raw 长度** —— 空正文与「没报问题」必须长得不一样。
 // ★ 2026-10-09 实测：`maxTokens=4000` 时输出被**腰斩**（`raw=1545 字`、有 `[` 无 `]`）
 //   ⇒ 从 4000 提到 8000，并在下面加了「截断就重试一次」。
-export async function reviewModelSide({ readings, question = '', ask, maxTokens = 8000 } = {}) {
+export async function reviewModelSide({ readings, question = '', ask, maxTokens = 8000,
+                                        // ★ 2026-10-19：时间预算可注入（判据要在**不睡 25 秒**的前提下验它）。
+                                        //   生产不传 ⇒ 用 `OVER_LIMIT_RETRY_BUDGET_MS`。
+                                        retryBudgetMs = OVER_LIMIT_RETRY_BUDGET_MS } = {}) {
   const t0 = Date.now();
   const noRead = !String(readings ?? '').trim();
   // 「没读到任何文字」时**不调模型**：那是确定性的事实，问一次模型只会换来编造。
@@ -289,6 +537,10 @@ export async function reviewModelSide({ readings, question = '', ask, maxTokens 
     //   实测同一条素材两次跑出的问题零重合）。见 `llm.mjs::ask` 那段注释。
     let raw = await ask(buildPrompt({ readings, question }), { system: SYSTEM, maxTokens, temperature: 0 });
     let p = parseFindings(raw);
+    // ★ 2026-10-19：**重试预算只有一个**（截断 / 坏 JSON / 超字数 共用）。
+    //   为什么：每多一次重试就多一整轮 LLM 调用，而 PRD §12 在给响应时间计时 ——
+    //   一次超时被救回来、却把另一次拖成超时，等于把问题挪到别处。
+    let retried = false;
     // ★★ 2026-10-09：**截断就重试一次**（额度翻倍）。不重试的话，一次腰斩就把模型侧整条丢掉，
     //   用户拿到的卡里只剩库侧条目 —— 实测那张夜间图就是这样（`raw=1545 字`、无结尾）。
     //   只对「截断」重试：真没写数组（散文）重试也没用，那是提示词问题，不该白烧一次。
@@ -305,6 +557,58 @@ export async function reviewModelSide({ readings, question = '', ask, maxTokens 
       console.log(`[agent] ↻ 模型侧输出被截断，重试一次（额度 ${maxTokens} → ${maxTokens * 2}）`);
       raw = await ask(buildPrompt({ readings, question }), { system: SYSTEM, maxTokens: maxTokens * 2, temperature: 0 });
       p = parseFindings(raw);
+      retried = true;
+    }
+    // ★★ 2026-10-19（Owner：「原因是不是没讲完？按 prd 要求的字数限制梳理重点输出，
+    //   **不能出现截断的场景**」）—— **超字数也要重试一次**。
+    //
+    //   为什么必须在这里拦：渲染层按 50/30 字压，压出来的是**残句**
+    //   （实测那张卡：「…而实际想表达的应是「只…」）。而「写超了」在源头**完全可修** ——
+    //   把「第几条、哪一格、超了几字」告诉它，重写一遍就好，代价是一次调用；
+    //   不修就是把一个可修的残句直接送到业务眼前。
+    //
+    //   三条边界（缺一条都会变坏）：
+    //     ① 与截断/坏 JSON **共用同一次预算**（`retried`）—— 不许一单重试两次；
+    //     ② 只在**超得明显**时重试（`OVER_LIMIT_SLACK`）—— 超 1–2 字是数法边界，
+    //        为它白烧一次调用不值（PRD 只说 ≤N 字，没说「差一个字就重写」）；
+    //     ③ **fail-open** —— 判据读不到就不重试，不许因为辅助判据丢掉整条模型侧。
+    //     ④ ★ 2026-10-19（Owner：「**你的所有修复，不能影响工作流**」）：
+    //        **第一轮已经超时预算就不重试**（`OVER_LIMIT_RETRY_BUDGET_MS`）。
+    //        重试是又一轮 7–10 s 的调用，它拖的是**落表与发卡**的时间。
+    //        「原因更完整」不值得让业务多等 —— 那是拿工作流的时延换文案质量。
+    const _elapsed = Date.now() - t0;
+    if (p.ok && !retried && _elapsed <= retryBudgetMs) {
+      const over = overLimitSafe(p.findings);
+      if (over.length) {
+        const why = over.map((o) => `第 ${o.index} 条 `
+          + o.bad.map((b) => `${b.label} ${b.chars} 字（上限 ${b.limit}）`).join('、')).join('；');
+        console.log(`[agent] ↻ 模型侧超出 PRD §5.3.3 字数，重试一次：${why}`);
+        const note = [
+          '【上一版有格子超字数了 —— 只改这几格，其余一个字都不要动】',
+          why,
+          '请把它们压到上限以内：一句只留一层意思（描述只说现象、原因只说为什么），',
+          '**不许**用「…」自己截断，写不下就删枝节。',
+          '仍然返回**同样的 JSON 数组**：字段不变、条数不变、顺序不变、位置不变。',
+        ].join('\n');
+        raw = await ask(buildPrompt({ readings, question, fixNote: note }),
+                        { system: SYSTEM, maxTokens, temperature: 0 });
+        const p2 = parseFindings(raw);
+        // ⚠️ 只有**重试确实成功**才用它；重试反而写坏了（坏 JSON / 被截断）就**保留第一版** ——
+        //   否则「修字数」会把一条本来合格的模型侧结果换成坏的（这就是越修越坏的形状）。
+        if (p2.ok) p = p2;
+        else console.log(`[agent] ⚠️ 超字数重试的输出不可用（${p2.error ?? '未知'}）⇒ 保留第一版`);
+        retried = true;
+      }
+    }
+    // ★ 2026-10-19：超预算而**没**重试也要看得出来 ——
+    //   否则「这一条为什么没被压好」事后无从查（本仓的规矩：静默跳过比报错更坏）。
+    if (p.ok && !retried && _elapsed > retryBudgetMs) {
+      const overSkipped = overLimitSafe(p.findings);
+      if (overSkipped.length) {
+        console.log(`[agent] ⏱ 模型侧有超字数条目，但已耗时 ${_elapsed}ms > 预算 `
+          + `${retryBudgetMs}ms ⇒ **不重试**（Owner：修复不能影响工作流）；`
+          + '卡面会按上限压缩，逐条记录里 `truncated` 会如实标出来');
+      }
     }
     // ★ 2026-10-13：模型自己写了 URL ⇒ 就地**探一次**（标出核验状态；不判「信不信」）。
     //   三条纪律：① **不阻塞结论**（探测失败只是标「未核」，不丢条目）；
