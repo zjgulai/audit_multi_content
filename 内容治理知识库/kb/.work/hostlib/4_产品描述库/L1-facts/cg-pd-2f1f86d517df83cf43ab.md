@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 90
-created_at: 2026-10-16
-valid_until: 2027-01-14
+created_at: 2026-10-22
+valid_until: 2027-01-20
 asks:
   - MOMCOZY婴幼儿品线产品信息内容汇总 婴幼儿品线目前有9个类目、24款产品，主要围绕宝宝看护、健康观察、日常护理和睡 里有哪些品线/类目/型号
   - 这个品线的卖点与描述边界是什么
@@ -29,7 +29,7 @@ source:
   kind: feishu-wiki
   ref: "https://momcozy-in.feishu.cn/wiki/EL1nw9zdyinX2iklXfLco216niM"
   fingerprint: 6a52e6f2e235bdab1cda637f18060c6bbf3bfd7db0c4351bec82f91afc7c2afe
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l2/units.jsonl#2f1f86d517df83cf43ab"
   confidence: 确定

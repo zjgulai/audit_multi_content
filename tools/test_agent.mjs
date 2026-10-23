@@ -17,6 +17,8 @@ import assert from 'node:assert';
 //     ① 这里拉闸（就算谁漏传了桩，也写不进真表）；
 //     ② 单测/子进程一律显式传 `publishRunner` / `chainRunner` 桩。
 process.env.SHOUHENG_REVIEW_TABLE = 'off';
+const IMAGE_ENGINE_OK = Object.freeze({ state: 'REVIEW',
+  image_skill_gate: { ok: true, load: { verdict: 'loaded' } } });
 // ★ 2026-10-15（F1）：**置信度台账同理** —— `PMO/shouheng-state/confidence-merged.ndjson` 是
 //   校准器要读的**真机读件**，跑自证往里追加行 = 往真数据里掺测试单（§2.4.4 同一个形状）。
 //   `KB_CONF_LEDGER` 这个开关本来就是为这件事留的（见 `agent.mjs` 落台账那段注释）
@@ -49,6 +51,20 @@ let pass = 0, fail = 0;
 const ok  = (name, extra = '') => { pass++; console.log(`  ✅ ${name}${extra ? '  ' + extra : ''}`); };
 const bad = (name, e) => { fail++; console.log(`  ❌ ${name}\n       ${e}`); };
 const t = async (name, fn) => { try { await fn(); ok(name); } catch (e) { bad(name, e.message); } };
+
+// Downstream card/report tests that use image input must model a completed image skill
+// receipt. Incomplete image answers belong in the dedicated fail-closed tests below;
+// otherwise these fixtures stop before reaching the behavior each case intends to test.
+const withImageSkillReceipt = (answer) => [
+  '审核对象与范围：测试图片全图，核查图中文字、事实、安全与图文一致性。',
+  '视觉分析与 OCR：已逐图完成视觉分析与 OCR；图中没有婴儿睡眠场景。',
+  '主张拆分与核查清单：已拆分并逐项核查本图主张。',
+  '4A 规则符合性：已运行知识库规则链并记录命中边界。',
+  '4B 事实准确性核查：AAP 安全睡眠政策作为婴儿安全核对来源 https://publications.aap.org/pediatrics/article/doi/10.1542/peds.2022-057990/188304/Sleep-Related-Infant-Deaths-Updated-2022',
+  '图文一致性：已逐项对照图中文字与画面。',
+  '视觉核对：婴幼儿姿势=无；婴儿睡眠位置=无（画面没有婴儿睡眠场景）；产品状态=无；场景关系=无；隐私=无',
+  String(answer ?? ''),
+].join('\n');
 
 /**
  * 数一个模板字符串常量里**未转义**的反引号个数（开头的定界符不算）。
@@ -394,7 +410,7 @@ await t('★ 卡片：发出去的卡里一个星号都没有，而正文一个�
 
   // ① 模版自己写进去的 `**` 也要摘 —— 回执卡那句是**代码**写死的（不是模型写的）
   const receipt = cards.build('receipt', {
-    title: '⏳ 处理中…', verdict: '正在处理，请稍等，马上给你结果。',
+    title: '⏳ 处理中…', verdict: '完整审核正在运行，完成后会在此回复；遇到故障会明确提示。',
     note: '本次按**美国市场**口径审查（PRD 第一阶段范围）。',
   });
   assert.ok(!JSON.stringify(receipt).includes('*'),
@@ -2557,6 +2573,7 @@ await t('默认跑法必须**拆掉 executeTool 的信封**（否则成功的链
 
 await t('行为级·闸门：该走链的走一次、回执先发、结论排在那一轮最前面', async () => {
   const { runSubmissionGate } = await import('./agent/agent.mjs');
+  const { reviewTaskFor } = await import('./agent/tools.mjs');
   const calls = { chain: [], acks: [] };
   const inbound = { text: '审核下这个视频', imageCount: 0, videoCount: 1,
     videos: [{ index: 1, fileName: 'hero.mp4', meta: { duration_s: 15 }, framesRead: 8,
@@ -2639,14 +2656,14 @@ await t('回执：**一张「处理中」卡片**，不许带时长估计（Owne
   assert.strictEqual(shaped.dropped, false, `回执卡片被拦下了：${shaped.reason}`);
   const json = JSON.stringify(shaped.card);
   assert.ok(json.includes('处理中'), `卡片标题/正文要有「处理中」：${json.slice(0, 200)}`);
-  assert.ok(json.includes('正在处理，请稍等，马上给你结果。'), `正文要照截图那句话：${json.slice(0, 200)}`);
+  assert.ok(json.includes('完整审核正在运行，完成后会在此回复；遇到故障会明确提示。'), `回执要承诺完成回帖且故障可见：${json.slice(0, 200)}`);
   assert.strictEqual(shaped.kind, 'receipt', '用回执那一种卡片（灰头、只确认不解释）');
   // ③ 排队时才多一句，且两种**必须真的不一样**（否则 queued 是死参数）
   assert.notStrictEqual(normal.block, queued.block, 'queued 参数没起作用');
   assert.ok(/排队/.test(queued.plain) && !/排队/.test(normal.plain),
     '没在排队时不许说排队（谎报会让人以为库很忙）');
   // ④ 反向对照：**纯文本**绝不许被当成卡片（证明上面 ② 不是恒真）
-  const asText = env.toCardOrText('正在处理，请稍等，马上给你结果。');
+  const asText = env.toCardOrText('完整审核正在运行，完成后会在此回复；遇到故障会明确提示。');
   assert.strictEqual(asText.mode, 'text', '不带卡片标记的纯文本就该走文本 —— 否则 ② 那条判据是恒真的');
 });
 
@@ -2679,8 +2696,8 @@ await t('接线·**不许「先用后声明」**（实测崩溃：`chainUnmeasur
   //   只查这张具名清单，要加就往 `WATCH` 里加一行；先剥行尾注释再找（本文件到处在解释这些变量）。
   const src = fs.readFileSync(new URL('./agent/agent.mjs', import.meta.url), 'utf8');
   const lines = src.split('\n').map((l) => l.replace(/\/\/.*$/, ''));
-  const start = lines.findIndex((l) => /^export async function handleMessage/.test(l));
-  assert.ok(start >= 0, '找不到 handleMessage —— 判据的前提没了，先修判据');
+  const start = lines.findIndex((l) => /^async function handleMessageInTurn\(/.test(l));
+  assert.ok(start >= 0, '找不到 handleMessageInTurn —— 判据的前提没了，先修判据');
   let end = lines.findIndex((l, i) => i > start && /^export /.test(l));
   if (end < 0) end = lines.length;
   const WATCH = ['chainUnmeasured', 'verdict53Final', 'gate', 'chainRan', 'chainBlock', 'chainMs'];
@@ -2761,7 +2778,8 @@ await t('子进程端到端·跑完整条 handleMessage（LLM 指死地址、KB 
   // ④ 回执先发（人得知道它在跑）
   // 回执现在递的是**卡片块**（`[[card:receipt]]` + JSON），所以这里判的是「先回了、且是卡片块」
   assert.ok(/ACK \[\[card:receipt\]\]/.test(out), `链启动前必须先回一条「处理中」卡片：${out.slice(-300)}`);
-  assert.ok(/正在处理，请稍等/.test(out), '卡片正文要照截图那句话');
+  assert.ok(/完整审核正在运行，完成后会在此回复；遇到故障会明确提示/.test(out),
+    '送审回执要承诺最终回帖，不能误报「马上」');
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2792,7 +2810,7 @@ await t('子进程端到端·跑完整条 handleMessage（LLM 指死地址、KB 
 //   前两条断言**蒙对了**，只有「重写带没带关思考」把它揭穿（实测 `thinking=undefined`）。
 //   ⇒ 判据改成**按角色识别**：`messages[0].content` 含「你是「守衡」」的那次才是内核；
 //     非内核的调用一律回一个合法空数组（模型侧就吃这个）。这样与调用顺序解耦。
-async function runEmptyReplyCase({ firstContent, firstFinish }) {
+async function runEmptyReplyCase({ firstContent, firstFinish, env = {} }) {
   const http = await import('node:http');
   const { spawn } = await import('node:child_process');
   const os = await import('node:os');
@@ -2809,7 +2827,9 @@ async function runEmptyReplyCase({ firstContent, firstFinish }) {
       const isKernel = sys.includes('你是「守衡」');
       let content; let finish;
       if (isKernel) {
-        kernelBodies.push(b);
+        // ★ 2026-10-22：连 Authorization 一起记 —— 「哪把 key 被用上了」只能在这一层验，
+        //   读源码只能证明有 `||` 一行（§2.4：名字出现过 ≠ 生效）。
+        kernelBodies.push({ ...b, __auth: req.headers.authorization });
         const first = kernelBodies.length === 1;
         content = first ? firstContent : '重写后的结论：这条文案可以发。';
         finish = first ? firstFinish : 'stop';
@@ -2844,7 +2864,8 @@ async function runEmptyReplyCase({ firstContent, firstFinish }) {
     env: { ...process.env,
            SHOUHENG_STATE_DIR: tmp,
            SHOUHENG_KB_ROOT: '/tmp/shouheng-绝不存在-的知识库',
-           SHOUHENG_LLM_BASE_URL: `http://127.0.0.1:${port}` },
+           SHOUHENG_LLM_BASE_URL: `http://127.0.0.1:${port}`,
+           ...env },
   });
   let out = '';
   child.stdout.on('data', (d) => { out += d; });
@@ -2873,9 +2894,43 @@ await t('额度耗尽＋正文 0 字＋没调工具 ⇒ 必须关思考重写一
   // ③ 重写那一次必须**关掉思考** —— 额度就是被推理吃光的
   assert.strictEqual(bodies[1]?.thinking?.type, 'disabled',
     `重写没带 thinking:{type:'disabled'} ⇒ 额度还会被推理吃光：${JSON.stringify(bodies[1]?.thinking)}`);
-  // ④ 反向对照：**第一次不许自带关思考**（否则上面那条恒真，等于没测）
+  // ④ 反向对照（★ 2026-10-20 改口径）：默认首次**就是关思考**（实测 5.9 倍，见第 35 组），
+  //   所以这里改验「开关还通」—— `SHOUHENG_REPLY_THINK=on` 时首次必须**不带** thinking、
+  //   而重写那一次仍**显式**带 disabled（③ 因此不是恒真：同一份断言在两种配置下取值相反）。
+  const on = await runEmptyReplyCase({ firstContent: '', firstFinish: 'length',
+                                       env: { SHOUHENG_REPLY_THINK: 'on' } });
+  assert.ok(on.res, `开关=on 那一路没拿到 RESULT：\n${on.out.slice(-300)}`);
+  assert.strictEqual(on.bodies.length, 2, `开关=on 时仍该重写一次，实际 ${on.bodies.length} 次`);
+  assert.strictEqual(on.bodies[0]?.thinking, undefined,
+    `SHOUHENG_REPLY_THINK=on 时首次不该带 thinking：${JSON.stringify(on.bodies[0]?.thinking)}`);
+  assert.strictEqual(on.bodies[1]?.thinking?.type, 'disabled',
+    `重写那一次必须显式关思考（与开关无关）：${JSON.stringify(on.bodies[1]?.thinking)}`);
+  // ⑤ 默认（开关未设）⇒ **首次不带思考开关**（= 保持原行为，Owner：「不要影响现有工作流」）
   assert.strictEqual(bodies[0]?.thinking, undefined,
-    `首次调用就带着关思考 ⇒ 上面那条断言恒真：${JSON.stringify(bodies[0]?.thinking)}`);
+    `默认必须保持原行为（带思考）：${JSON.stringify(bodies[0]?.thinking)}`);
+});
+
+await t('★ 端点与密钥可以一起切：SHOUHENG_LLM_API_KEY 必须胜过 DEEPSEEK_API_KEY（2026-10-22 换中转站）', async () => {
+  // 背景：DeepSeek 官方额度耗尽（llm_failures.jsonl 67 条 402），Owner 同意改走中转站。
+  // 为什么要有这条断言：地址与密钥是**两件独立的配置**，错配只表现为 401，
+  // 而 401 在日志里跟「端点挂了」长得一样。所以「哪把 key 真的被发出去了」必须在协议层验。
+  // ⚠️ 只能是 ASCII：HTTP 头是 ByteString，中文会让 fetch 直接抛 TypeError
+  //   （第一版写成中文密钥，表现是「0 次请求 + 一条网络错误」，指向完全无关的方向）。
+  const relayKey = 'sk-relay-test-key';
+  const deepKey = 'sk-deepseek-should-not-be-used';
+  const r1 = await runEmptyReplyCase({ firstContent: '正常回答。', firstFinish: 'stop',
+                                       env: { SHOUHENG_LLM_API_KEY: relayKey, DEEPSEEK_API_KEY: deepKey } });
+  assert.ok(r1.res, `没拿到 RESULT：\n${r1.out.slice(-300)}`);
+  const r1diag = JSON.stringify({ n: r1.bodies.length, keys: Object.keys(r1.bodies[0] ?? {}),
+                                  head: String(r1.out).slice(-200) });
+  assert.strictEqual(r1.bodies[0]?.__auth, `Bearer ${relayKey}`,
+    `设了 SHOUHENG_LLM_API_KEY 却仍用 DEEPSEEK 那把（端点与密钥错配 ⇒ 只会 401）：`
+    + `${r1.bodies[0]?.__auth}｜诊断 ${r1diag}`);
+  // 反向对照：不设新变量时，必须仍用 DEEPSEEK_API_KEY（既有行为没被改坏）
+  const r2 = await runEmptyReplyCase({ firstContent: '正常回答。', firstFinish: 'stop',
+                                       env: { SHOUHENG_LLM_API_KEY: '', DEEPSEEK_API_KEY: deepKey } });
+  assert.strictEqual(r2.bodies[0]?.__auth, `Bearer ${deepKey}`,
+    `没设 SHOUHENG_LLM_API_KEY 时没退回 DEEPSEEK_API_KEY：${r2.bodies[0]?.__auth}`);
 });
 
 await t('反向对照·正文正常时不许重写（只调一次、回复原样）', async () => {
@@ -2883,6 +2938,24 @@ await t('反向对照·正文正常时不许重写（只调一次、回复原样
   assert.ok(res, '没拿到 RESULT');
   assert.strictEqual(bodies.length, 1, `正文正常却多调了模型（${bodies.length} 次）—— 重写分支越界了`);
   assert.ok(/正常的回答/.test(res.reply), `正文被改动了：${JSON.stringify(res.reply.slice(0, 80))}`);
+});
+
+await t('★ 飞书链接分流真的接上了（默认 reader = readLink，不再是只读公网页面那个）', async () => {
+  // 2026-10-22：飞书链接一律 302 到登录页，只读公网页那一条路**永远读不到**，
+  // 而旧默认值让「任何飞书链接都读不了」。这里断的是**接线**（名字出现过 ≠ 接上了）。
+  const agentSrc = fs.readFileSync(new URL('./agent/agent.mjs', import.meta.url), 'utf8');
+  const gateSrc = fs.readFileSync(new URL('./agent/review_gate.mjs', import.meta.url), 'utf8');
+  const n = (agentSrc.match(/linkReader = reviewGate\.readLink/g) ?? []).length;
+  assert.strictEqual(n, 2, `handleMessage 与 runSubmissionGate 两处默认值都要是 readLink（实际 ${n} 处）`);
+  assert.ok(!/linkReader = reviewGate\.readPublicPage/.test(agentSrc),
+    '默认值不许还停在「只读公网页面」—— 那正是这次事故的那条路');
+  assert.ok(/reader = readLink\s*\}/.test(gateSrc), 'prepareLinkReview 的默认 reader 必须是分流器');
+  assert.ok(/error\?\.shouhengReply/.test(gateSrc),
+    '分形态的话术（红线 / 没接口 / 权限）必须被**原样**发出，不许在闸门里改写成一句泛泛的「读取失败」');
+  const gate = await import('./agent/review_gate.mjs');
+  const feishu = await import('./agent/feishu_link.mjs');
+  assert.strictEqual(gate.readLink, feishu.readLink,
+    'review_gate 必须 re-export **同一个**分流器（两份实现 = 两把尺子）');
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3245,7 +3318,8 @@ await t('W8b 接线：逐条依据**走报告**、不许再进表列（Owner 202
   assert.ok(!/summary:\s*summaryCellText/.test(body) && !/evidenceBlock\(/.test(body),
     '依据块又回到表列那一格了（Owner 2026-10-15：这一格只出 PRD 结论）');
   assert.ok(/renderMergedReportMd\(/.test(body), '报告渲染那一跳不见了');
-  assert.ok(/merged:\s*itemsWithAdvice/.test(body) || /merged:\s*dual\??\.merged\??\.items/.test(body),
+  assert.ok(/merged:\s*reportItems/.test(body)
+      && /const reportItems\s*=\s*Array\.isArray\(rendered0\?\.displayItems\)/.test(body),
     '报告渲染的入参不是真条目数组 —— 依据会在报告里静默消失（与 10-13 那次同一个形状）');
   // 反向对照：把报告入参改成 undefined ⇒ 上面那条必须红（内存里做，不碰盘）
   const mutated = body.replace(/merged:\s*(itemsWithAdvice|dual\??\.merged\??\.items)/, 'merged: undefined');
@@ -3427,7 +3501,9 @@ await t('X3 收尾 reason：**没拿到三态结论**就必须是 chain_not_run�
   assert.ok(!/\(gate\?\.yes && !chainRan\) \? 'chain_not_run'/.test(src),
     '退回旧判据了 —— 库忙那一类会重新变成「永远不补跑」');
   // 反向对照②：verdict53 只可能由三态结论行（或 P0 派生）产生 ⇒ 这个判据不靠字符串猜。
-  assert.ok(/verdict53Final = g\?\.verdict53/.test(src), 'verdict53Final 没有以闸门的结论行为源');
+  assert.ok(/const verdict53Final = finalVerdict53ForTurn\(/.test(src)
+    && /if \(gateResult\?\.imageReviewIncomplete\) return null/.test(src),
+  'verdict53Final 必须以闸门为源，且图片审查未完成时不能从旧链路回落复活');
   const n = (src.match(/chain_not_run: true/g) ?? []).length;
   assert.ok(n >= 3, `写到会话记忆里的 chain_not_run 标记只有 ${n} 处，应当 ≥3（三条收尾路径）`);
 });
@@ -3663,8 +3739,9 @@ await t('Y7 ★★★ 行为级：钩子取出的载荷 → 上游结论行 → 
 //   （不落报告文件、不建云文档、不写飞书）—— 否则等于顺手改了别人的工作流。
 await t('Y8 ★★★ 行为级：P0 命中 ⇒ 内核**自己**拿得到 §5.3.3 块（不靠模型调不调工具）', async () => {
   const { runP0Preflight } = toolsMod;
-  const Q = 'm5 pro是最好的吸奶器，这句话能过审吗？';
-  const out = await runP0Preflight({ text: 'm5 pro是最好的吸奶器', question: Q });
+  // ★ 当前外部规则真源已将「最好/best」按现行口径放开；这里改用仍生效的医疗宣称 P0。
+  const Q = '这台吸奶器治疗乳腺炎';
+  const out = await runP0Preflight({ text: Q, question: Q });
   assert.ok(out, '快路没命中那一句 —— 下面所有断言都会退化成恒真，先看知识库在不在');
   assert.strictEqual(out.p0_fastpath.matched_patterns, 1, `命中条数不对：${out.p0_fastpath?.matched_patterns}`);
   assert.ok(String(out.answer).includes('【审查结论：BLOCK】'),
@@ -3680,8 +3757,8 @@ await t('Y8 ★★★ 行为级：P0 命中 ⇒ 内核**自己**拿得到 §5.3.
   assert.ok(v.block && v.block.endsWith('请修改后重新提交。'), '逐条块必须到动作行止');
   // 卡面：模型这一轮**没调链、也没抄结论行**，四要素照样得在
   const REPLY = '**这句我上一轮刚判过，结论没变：BLOCK。** 我没有重跑。\n\n[[card:query-answer]]\n'
-    + JSON.stringify({ title: 'm5 pro 是最好的吸奶器 —— BLOCK（同上轮，未重跑）',
-                       verdict: 'BLOCK：命中「最好」，E-2.124', evidence: ['证据 · 1 条'] });
+    + JSON.stringify({ title: '这台吸奶器治疗乳腺炎 —— BLOCK（同上轮，未重跑）',
+                       verdict: 'BLOCK：命中医疗宣称规则', evidence: ['证据 · 1 条'] });
   const r = toCardOrText(REPLY, { verdict53: v });
   assert.strictEqual(r.kind, 'evidence', `评审单必须收敛到 evidence，实际 ${r.kind}`);
   const body = String(r.data?.groups?.[0]?.content ?? '');
@@ -4123,7 +4200,8 @@ await t('Z14 ★ 行为级：卡片抬头那个数必须 == 卡里那个数（`r
     adviceRunner: async ({ items }) => ({ ok: true, ms: 1,
       advice: Object.fromEntries((items || []).map((_, i) => [i, `自证桩给的改法 ${i}`])) }),
     chainRunner: async () => ({
-      answer: KB_ANSWER,
+      answer: withImageSkillReceipt(KB_ANSWER),
+      engine: IMAGE_ENGINE_OK,
       // 机读旁挂：库侧的**结构化条数**（逐条明细抠不出来时才靠它）
       review: { state: 'REVIEW', issue_count: 5 },
       report: 'https://momcozy-in.feishu.cn/docx/AAA',
@@ -4201,7 +4279,8 @@ await t('Z15 ★ 行为级：问题数 ≥3 且库侧没给链接 ⇒ 本仓建�
       advice: Object.fromEntries((items || []).map((_, i) => [i, `自证桩给的改法 ${i}`])) }),
     inbound: { text: '审核下这张图', imageCount: 1, videoCount: 0 },
     question: '审核下这张图', notify: null,
-    chainRunner: async () => ({ answer: KB_ANSWER, review: { state: 'REVIEW', issue_count: 1 } }),
+    chainRunner: async () => ({ answer: withImageSkillReceipt(KB_ANSWER), engine: IMAGE_ENGINE_OK,
+      review: { state: 'REVIEW', issue_count: 1 } }),
     publishRunner: async () => ({ ok: true, record_id: 'recX' }),
     modelSideRunner: async () => ({ ok: true, ms: 1,
       findings: [1, 2, 3, 4, 5].map((n) => ({ category: '本地化', location: `画面 ${n}`, severity: 'REVIEW', reason: 'x' })) }),
@@ -4265,7 +4344,8 @@ await t('Z16 ★ 反向对照：建报告**失败**时不许说成已出报告�
       advice: Object.fromEntries((items || []).map((_, i) => [i, `自证桩给的改法 ${i}`])) }),
     inbound: { text: '审核下这张图', imageCount: 1, videoCount: 0 },
     question: '审核下这张图', notify: null,
-    chainRunner: async () => ({ answer: KB_ANSWER, review: { state: 'REVIEW', issue_count: 1 } }),
+    chainRunner: async () => ({ answer: withImageSkillReceipt(KB_ANSWER), engine: IMAGE_ENGINE_OK,
+      review: { state: 'REVIEW', issue_count: 1 } }),
     publishRunner: async () => ({ ok: true, record_id: 'recX' }),
     modelSideRunner: async () => ({ ok: true, ms: 1,
       findings: [1, 2, 3, 4, 5].map((n) => ({ category: '本地化', location: `画面 ${n}`, severity: 'REVIEW', reason: 'x' })) }),
@@ -4288,7 +4368,7 @@ await t('Z16 ★ 反向对照：建报告**失败**时不许说成已出报告�
     '报告链接那一行没说清「未拿到」—— 会让人以为没有报告这回事');
 });
 
-await t('Z17 ★ 接线：建报告那一步**必须可注入**，且默认走本仓的 publishReportDoc', () => {
+await t('Z17 ★ 接线：报告经注入发布；完整图片审查可越过普通 ≥3 门槛', async () => {
   const src = fs.readFileSync(new URL('./agent/agent.mjs', import.meta.url), 'utf8');
   assert.ok(/mergedReportRunner\s*=\s*publishMergedReport/.test(src),
     '闸门没有可注入的 mergedReportRunner —— 自证会真的往飞书建文档（§2.4.4）');
@@ -4298,38 +4378,22 @@ await t('Z17 ★ 接线：建报告那一步**必须可注入**，且默认走�
   // ★ 反向对照：**不许**绕过注入点去直接调真函数 —— 那会让上面两条恒真
   assert.ok(!/await publishMergedReport\(md/.test(src),
     '接线里直接调了真函数 —— 注入点形同虚设，自证又会建真文档');
-  // ★★ 2026-10-14（Owner 本地要求）：闸从「卡内 ≥3」改成「**有可并的条目就建**」——
-  //   「问题数少于 3 个的，也输出审查报告，格式跟大于 3 个问题数量的审查报告一致」。
-  //   ⇒ 断言跟着改成两条（旧断言查的那个条件已按设计消失）：
-  //     ① 闸存在且**只看 `rendered0`**（不许有人把 `>= 3` 加回来 —— 那会退回本次要求之前的行为）；
-  //     ② 报告正文用的仍是**卡里那个数**（不是「并进来几条」）—— 旧断言的本意，保留。
-  // ★★ 2026-10-15（Owner 报「链接是空的」）：闸补了一项 —— **一条条目都没有 ⇒ 不建报告**。
-  //   病灶：两侧都没命中那一档也建了 docx，里面只有「（本单没有并进任何条目。）」
-  //   ⇒ 卡上挂着一个**点开没内容**的链接。
-  // ★★ 2026-10-16（Owner 追问「重新发图还会出空链接吗」时核出的**第二种形状**）：
-  //   闸**必须挂在「条目」上**，不能挂在那个计数上 —— 库侧报 3 条、明细抠不出来（`kbGap=3`）
-  //   ＋ 模型侧 0 条时 `total=3`，而 `itemsWithAdvice` 是**空的** ⇒ 又建出一份空报告，
-  //   还**顶掉了库侧那份有明细的**（`reportUrlOverride` 优先于 `kbSide.reportUrl`）。
-  // ★★ 2026-10-17（Owner 裁定，**推翻 2026-10-14 那条本地要求**）：
-  //   「逻辑不变，按照 PRD 问题数量 ≥3 个时才输出审查报告」⇒ 闸回到**两道条件**。
-  //   ① 必须有**真条目**（否则建出来是空文档，2026-10-15/16 两次定过）；
-  //   ② 卡内那个数必须 **≥ REPORT_LINK_MIN_ISSUES**（PRD §5.3.4）。
-  assert.ok(/itemsWithAdvice\.length > 0/.test(src),
-    '报告闸丢了「必须有真条目」这一半 —— 会重建空报告（Owner 2026-10-15/16）');
-  assert.ok(/rendered0\.total >= REPORT_LINK_MIN_ISSUES/.test(src),
-    '报告闸丢了 `>= REPORT_LINK_MIN_ISSUES` 这一半 —— 1–2 条的单子又会建报告（违反 PRD §5.3.4）');
-  // ★ 反向对照：把门槛改成 `> 0`（= 只要有条目就建）⇒ 上面那条必须精确变红。
-  //   变异体只在内存里做，不碰盘。
-  {
-    const body = src.match(/if \(rendered0 && itemsWithAdvice\.length > 0[\s\S]*?\) \{/)?.[0] ?? '';
-    const mutated = body.replace(/rendered0\.total >= REPORT_LINK_MIN_ISSUES/, 'rendered0.total > 0');
-    assert.ok(body && !/rendered0\.total >= REPORT_LINK_MIN_ISSUES/.test(mutated),
-      '反向对照失效：把 ≥3 改成 >0 之后，判据的输入没有变化');
-    assert.ok(!/rendered0\.total >= REPORT_LINK_MIN_ISSUES/.test(mutated),
-      '反向对照失效：门槛真的被改掉了却没反映出来');
-  }
-  assert.ok(/total: rendered0\.total/.test(src),
-    '报告正文没读 `rendered0.total` —— 会退回「并进来几条」，把库侧未并进的那部分丢掉');
+  const reportSrc = fs.readFileSync(new URL('./agent/merged_report.mjs', import.meta.url), 'utf8');
+  const { shouldPublishMergedReport } = await import('./agent/merged_report.mjs');
+  // ★ 2026-10-22（Owner：「报告不展示 图片安全审查 skill 全流程结果」）：
+  //   正文撤了，接线也要撤干净 —— 报告闸不再接 skill 正文这个参数。
+  assert.ok(!/shouldPublishMergedReport\(\{ total: reportTotal,[\s\S]*?imageSkillReview/.test(src),
+    '报告接线还在把 skill 正文交给发布闸 —— 正文已撤，参数也要撤（§2.4.4）');
+  assert.ok(/hasContent && \(Number\(total\) >= REPORT_LINK_MIN_ISSUES \|\| !!force\)/.test(reportSrc),
+    '发布闸必须保留 PRD §5.3.4 的 ≥3 门槛（不再有「完整图片审查单独发布」那一条）');
+  assert.ok(!shouldPublishMergedReport({ total: 1, itemCount: 1 }),
+    '普通单 1 条仍须服从 PRD 的 ≥3 门槛');
+  assert.ok(!shouldPublishMergedReport({ total: 1, itemCount: 1, imageSkillReview: '完整图片审查' }),
+    'skill 正文已撤，1 条也不例外 —— 否则建出来是只有一句结论的空文档');
+  assert.ok(shouldPublishMergedReport({ total: 3, itemCount: 3 }),
+    '≥3 条必须照旧出报告（门槛没被顺手改坏）');
+  assert.ok(/total: reportTotal/.test(src),
+    '报告正文没读原始卡面总数 —— 会退回「并进来几条」，把库侧未并进的那部分丢掉');
 });
 
 // ═══ 第 28 组 · 报告链接必须在**收起区之外**（Owner 2026-10-09 第三次反馈）═══
@@ -4393,10 +4457,21 @@ await t('Z20b ★ 行为级：传下去的读数**必须真被用上**（Z20 那
   const r = toCardOrText('模型原话', { verdict53: V, reportLink: DOCX });
   const card = JSON.stringify(r.card ?? {});
   assert.ok(card.includes(DOCX), '报告链接没落到卡上 —— 那就是被某一跳丢了');
+  // ★ 2026-10-22（Owner：「输出的卡片不展示 视觉分析与 OCR」）：
+  //   这条从「必须落卡」翻成**「给了也不许落卡」**，并补反向对照 ——
+  //   判据要证明的是「卡面对这个入参彻底不认」，而不是「没给时不印」。
+  const IMAGE_READ = '图 1｜OCR 3 行；视觉模型读数：卧室场景；婴儿睡姿：侧卧';
+  const ri = toCardOrText('模型原话', { verdict53: V, imageAnalysis: IMAGE_READ });
+  assert.ok(!JSON.stringify(ri.card ?? {}).includes(IMAGE_READ),
+    '视觉分析与 OCR 读数又回到卡面上了（Owner 2026-10-22 要求不展示）');
+  assert.ok(!JSON.stringify(ri.card ?? {}).includes('视觉分析与 OCR'),
+    '卡面上出现了「视觉分析与 OCR」这一块');
+  const ri0 = toCardOrText('模型原话', { verdict53: V });
+  assert.ok(!JSON.stringify(ri0.card ?? {}).includes('视觉分析与 OCR'), '没有图片视觉分析读数时不许伪造该区块');
   // 反向对照：不给就一个都不许有（否则上面两条可能是「恒印一句」）
   const r0 = toCardOrText('模型原话', { verdict53: V });
   assert.ok(!JSON.stringify(r0.card ?? {}).includes(DOCX), '没给链接却印了链接');
-  // 接线（源码级，与 Z20 同一层）：签名里必须真的接住这两个读数
+  // 接线（源码级，与 Z20 同一层）：签名里必须真的接住报告链接，且**不再**接 imageAnalysis
   const d = fs.readFileSync(new URL('./ws_daemon.mjs', import.meta.url), 'utf8');
   // ⚠️ 「注释不算代码」—— 统一一条读法（§2.4.4 记过三次的坑：判据被自己的解释文字绊倒）
   const codeOnly = (x) => x.split('\n').filter((l) => {
@@ -4406,7 +4481,11 @@ await t('Z20b ★ 行为级：传下去的读数**必须真被用上**（Z20 那
   const sig = (d.match(/async function replyTo\([^)]*\)[^{]*\{/) || [''])[0];
   assert.ok(/reportLink = null/.test(sig), `replyTo 的签名里没有 reportLink：${sig.slice(0, 120)}`);
   assert.ok(/toCardOrText\(rawReply, \{ verdict53: v53, reportLink \}\)/.test(d),
-    'replyTo 没有把这个读数交给 toCardOrText');
+    'replyTo 没有把报告链接交给 toCardOrText');
+  // ★ 2026-10-22：`imageAnalysis` 从这条链上**整个撤掉了**（读数不上卡）——
+  //   撤了就要撤干净，否则就是「传了但没人接」那个病。
+  assert.ok(!/imageAnalysis/.test(sig), `replyTo 的签名里还留着没人读的 imageAnalysis：${sig.slice(0, 120)}`);
+  assert.ok(!/imageAnalysis/.test(codeOnly(d)), 'ws_daemon 里还有 imageAnalysis 的搬运（那一格已整格作废）');
   // ⚠️ 2026-10-13：`boundary` 从这条链上**整个撤了**（卡脚那一格作废）——
   //   撤了就要撤干净：留一个没人读的入参就是「传了但没人接」那个病。
   assert.ok(!/boundary/.test(codeOnly(d)),
@@ -4611,7 +4690,7 @@ await t('Z23 ★ 有 advice 就用它，且标注说的是「**参考了什么**
                         advice: '删掉「最」字，改为「更」', adviceReferencedKb: true };
   const withRef = cardOf(withRefItem);
   assert.ok(/删掉「最」字/.test(withRef), '卡面没采用 advice —— 唯一产出者没生效');
-  assert.ok(withRef.replace(/[*]/g, '').length <= 30, `卡面建议超 30 字：${withRef}`);
+  assert.ok(T.countAdviceChars(withRef) <= T.ADVICE_MAX, `卡面建议超 ${T.ADVICE_MAX} 字：${withRef}`);
   const withRefRep = repOf(withRefItem);
   // ★★ 2026-10-19：报告的 `**修改建议**` 那一格现在压到 ≤30 字（Owner 后令），
   //   标注**挪到标题行末尾**（`· 改法参考库内反例（非库规原文）`）—— 防护意图一个字没松：
@@ -4619,7 +4698,8 @@ await t('Z23 ★ 有 advice 就用它，且标注说的是「**参考了什么**
   const fullRep = T.renderMergedItem(withRefItem, 0, { must: false, layout: 'report' });
   assert.ok(/改法参考库内反例/.test(fullRep), '报告没标「参考了什么」（溯源不许丢）');
   assert.ok(/非库规原文/.test(fullRep), '改法由模型写的，报告里必须说清它不是库规原文');
-  assert.ok(withRefRep.replace(/[*]/g, '').length <= 30, `报告修改建议超 30 字：${withRefRep}`);
+  assert.ok(T.countAdviceChars(withRefRep) <= T.ADVICE_MAX,
+    `报告修改建议超 ${T.ADVICE_MAX} 字：${withRefRep}`);
   // ★ 反向对照 + 一致性：**没参考库内反例时，绝不许说参考了**
   //   （比原来的「必须印『库内无可参考建议』」更强 —— 那句正是 Owner 2026-10-19 点名去掉的说法）
   const noRefItem = { category: 'a', location: 'body', source: 'model', reason: 'r',
@@ -4673,7 +4753,8 @@ await t('Z26 ★ 行为级：库侧条目走生成（参考库侧建议），**�
   const g = await runSubmissionGate({
     inbound: { text: '审核下这张图', imageCount: 1, videoCount: 0 },
     question: '审核下这张图', notify: null,
-    chainRunner: async () => ({ answer: KB, review: { state: 'REVIEW', issue_count: 1 } }),
+    chainRunner: async () => ({ answer: withImageSkillReceipt(KB), engine: IMAGE_ENGINE_OK,
+      review: { state: 'REVIEW', issue_count: 1 } }),
     publishRunner: async () => ({ ok: true, record_id: 'r' }),
     modelSideRunner: async () => ({ ok: true, ms: 1, findings: [{ category: '本地化', location: '画面 1',
       severity: 'REVIEW', reason: '英文', suggestion: '模型侧自己写的：译成中文' }] }),
@@ -4692,8 +4773,8 @@ await t('Z26 ★ 行为级：库侧条目走生成（参考库侧建议），**�
   //   而「参考了库内反例的建议 / 无库内依据的改法建议」这些**标注在报告里**。
   //   ⇒ 这条用例的防护意图（库侧走生成、模型侧沿用、不许互换）**一个字没松**，
   //     只是把「标注」那半段的断言搬到报告介质上（卡面放不下 30 字以上的标注）。
-  assert.ok(lines.every((l) => l.replace(/[*]/g, '').length <= 34),
-    `卡面建议超长（应 ≤30 字＋标点）：${JSON.stringify(lines)}`);
+  assert.ok(lines.every((l) => T2.countAdviceChars(l) <= T2.ADVICE_MAX),
+    `卡面建议超 ${T2.ADVICE_MAX} 字（标点不计）：${JSON.stringify(lines)}`);
   // 库侧那条：走了生成器（卡面能看到生成结果的首句）
   assert.ok(lines.some((l) => /生成器给的改法/.test(l)),
     '库侧条目没走生成器：' + JSON.stringify(lines));
@@ -4714,7 +4795,8 @@ await t('Z26 ★ 行为级：库侧条目走生成（参考库侧建议），**�
   {
     const repAdv = (repItemKb.match(/\*\*修改建议\*\*：(.*)/) || [])[1] || '';
     const n = repAdv.replace(/\s+/g, '').length;
-    assert.ok(n > 0 && n <= 30, `报告里「修改建议」超 30 字：${n} 字 ⇒ ${JSON.stringify(repAdv)}`);
+    assert.ok(n > 0 && T2.countAdviceChars(repAdv) <= T2.ADVICE_MAX,
+      `报告里「修改建议」超 ${T2.ADVICE_MAX} 字：${n} 字 ⇒ ${JSON.stringify(repAdv)}`);
   }
   // ⚠️ 模型侧建议走的是 `suggestion` 字段（不是 `advice`）—— 第一版放错字段，断言假红。
   // ★ 2026-10-19（Owner 点名去掉那句尾巴）：报告里也**不再**印「无库内依据的改法建议」，
@@ -4922,18 +5004,18 @@ await t('Z32 ★★ 库侧的真文档在 publish.docx 里，不在 report_url �
   const { runSubmissionGate } = await import('./agent/agent.mjs');
   const KBURL = 'https://momcozy-in.feishu.cn/docx/KBSIDE5';   // 库侧自己那份（5 条 ≥3）
   const MERGED = 'https://momcozy-in.feishu.cn/docx/MERGED7';  // 本仓合并那份（卡内 7）
-  const KBANS = ['【审查结论：REVIEW】共发现 5 处需人工确认。', '',
+  const KBANS = withImageSkillReceipt(['【审查结论：REVIEW】共发现 5 处需人工确认。', '',
     '· 措辞表达类问题：3 个', '',   // 2026-10-19：同上，每类一行
     // ★ 2026-10-14：这一行随**问题方向**变（原先写死「内容治理负责人」）。
     //   品牌一致性类在路由表里没有对应词 ⇒ 落 `fallback_review_owners`（法务 + 北美同事）。
-    '建议转 @法务（未配置） @北美同事（未配置） 复核。'].join('\n');
+    '建议转 @法务（未配置） @北美同事（未配置） 复核。'].join('\n'));
   const mkGate = async (runner) => runSubmissionGate({
     adviceRunner: async ({ items }) => ({ ok: true, ms: 1,
       advice: Object.fromEntries((items || []).map((_, i) => [i, `改法 ${i}`])) }),
     inbound: { text: '审一下这张图', imageCount: 1, videoCount: 0 },
     question: '审一下这张图', notify: null,
     // ★ 库侧**给了**链接 —— 这就是图片/视频单的形状（原先在这里被跳过）
-    chainRunner: async () => ({ answer: KBANS, review: { state: 'REVIEW', issue_count: 5,
+    chainRunner: async () => ({ answer: KBANS, engine: IMAGE_ENGINE_OK, review: { state: 'REVIEW', issue_count: 5,
       publish: { published: true, docx: KBURL, record_id: 'recX' },
       report_url: KBURL, report_url_kind: 'feishu_docx' } }),
     publishRunner: async () => ({ ok: true, record_id: 'recX' }),
@@ -5067,7 +5149,8 @@ await t('Z15 ★ 行为级：问题数 ≥3 且库侧没给链接 ⇒ 本仓建�
       advice: Object.fromEntries((items || []).map((_, i) => [i, `自证桩给的改法 ${i}`])) }),
     inbound: { text: '审核下这张图', imageCount: 1, videoCount: 0 },
     question: '审核下这张图', notify: null,
-    chainRunner: async () => ({ answer: KB_ANSWER, review: { state: 'REVIEW', issue_count: 1 } }),
+    chainRunner: async () => ({ answer: withImageSkillReceipt(KB_ANSWER), engine: IMAGE_ENGINE_OK,
+      review: { state: 'REVIEW', issue_count: 1 } }),
     publishRunner: async () => ({ ok: true, record_id: 'recX' }),
     modelSideRunner: async () => ({ ok: true, ms: 1,
       findings: [1, 2, 3, 4, 5].map((n) => ({ category: '本地化', location: `画面 ${n}`, severity: 'REVIEW', reason: 'x' })) }),
@@ -5131,7 +5214,8 @@ await t('Z16 ★ 反向对照：建报告**失败**时不许说成已出报告�
       advice: Object.fromEntries((items || []).map((_, i) => [i, `自证桩给的改法 ${i}`])) }),
     inbound: { text: '审核下这张图', imageCount: 1, videoCount: 0 },
     question: '审核下这张图', notify: null,
-    chainRunner: async () => ({ answer: KB_ANSWER, review: { state: 'REVIEW', issue_count: 1 } }),
+    chainRunner: async () => ({ answer: withImageSkillReceipt(KB_ANSWER), engine: IMAGE_ENGINE_OK,
+      review: { state: 'REVIEW', issue_count: 1 } }),
     publishRunner: async () => ({ ok: true, record_id: 'recX' }),
     modelSideRunner: async () => ({ ok: true, ms: 1,
       findings: [1, 2, 3, 4, 5].map((n) => ({ category: '本地化', location: `画面 ${n}`, severity: 'REVIEW', reason: 'x' })) }),
@@ -5154,7 +5238,7 @@ await t('Z16 ★ 反向对照：建报告**失败**时不许说成已出报告�
     '报告链接那一行没说清「未拿到」—— 会让人以为没有报告这回事');
 });
 
-await t('Z17 ★ 接线：建报告那一步**必须可注入**，且默认走本仓的 publishReportDoc', () => {
+await t('Z17 ★ 接线：报告经注入发布；完整图片审查可越过普通 ≥3 门槛', async () => {
   const src = fs.readFileSync(new URL('./agent/agent.mjs', import.meta.url), 'utf8');
   assert.ok(/mergedReportRunner\s*=\s*publishMergedReport/.test(src),
     '闸门没有可注入的 mergedReportRunner —— 自证会真的往飞书建文档（§2.4.4）');
@@ -5164,38 +5248,22 @@ await t('Z17 ★ 接线：建报告那一步**必须可注入**，且默认走�
   // ★ 反向对照：**不许**绕过注入点去直接调真函数 —— 那会让上面两条恒真
   assert.ok(!/await publishMergedReport\(md/.test(src),
     '接线里直接调了真函数 —— 注入点形同虚设，自证又会建真文档');
-  // ★★ 2026-10-14（Owner 本地要求）：闸从「卡内 ≥3」改成「**有可并的条目就建**」——
-  //   「问题数少于 3 个的，也输出审查报告，格式跟大于 3 个问题数量的审查报告一致」。
-  //   ⇒ 断言跟着改成两条（旧断言查的那个条件已按设计消失）：
-  //     ① 闸存在且**只看 `rendered0`**（不许有人把 `>= 3` 加回来 —— 那会退回本次要求之前的行为）；
-  //     ② 报告正文用的仍是**卡里那个数**（不是「并进来几条」）—— 旧断言的本意，保留。
-  // ★★ 2026-10-15（Owner 报「链接是空的」）：闸补了一项 —— **一条条目都没有 ⇒ 不建报告**。
-  //   病灶：两侧都没命中那一档也建了 docx，里面只有「（本单没有并进任何条目。）」
-  //   ⇒ 卡上挂着一个**点开没内容**的链接。
-  // ★★ 2026-10-16（Owner 追问「重新发图还会出空链接吗」时核出的**第二种形状**）：
-  //   闸**必须挂在「条目」上**，不能挂在那个计数上 —— 库侧报 3 条、明细抠不出来（`kbGap=3`）
-  //   ＋ 模型侧 0 条时 `total=3`，而 `itemsWithAdvice` 是**空的** ⇒ 又建出一份空报告，
-  //   还**顶掉了库侧那份有明细的**（`reportUrlOverride` 优先于 `kbSide.reportUrl`）。
-  // ★★ 2026-10-17（Owner 裁定，**推翻 2026-10-14 那条本地要求**）：
-  //   「逻辑不变，按照 PRD 问题数量 ≥3 个时才输出审查报告」⇒ 闸回到**两道条件**。
-  //   ① 必须有**真条目**（否则建出来是空文档，2026-10-15/16 两次定过）；
-  //   ② 卡内那个数必须 **≥ REPORT_LINK_MIN_ISSUES**（PRD §5.3.4）。
-  assert.ok(/itemsWithAdvice\.length > 0/.test(src),
-    '报告闸丢了「必须有真条目」这一半 —— 会重建空报告（Owner 2026-10-15/16）');
-  assert.ok(/rendered0\.total >= REPORT_LINK_MIN_ISSUES/.test(src),
-    '报告闸丢了 `>= REPORT_LINK_MIN_ISSUES` 这一半 —— 1–2 条的单子又会建报告（违反 PRD §5.3.4）');
-  // ★ 反向对照：把门槛改成 `> 0`（= 只要有条目就建）⇒ 上面那条必须精确变红。
-  //   变异体只在内存里做，不碰盘。
-  {
-    const body = src.match(/if \(rendered0 && itemsWithAdvice\.length > 0[\s\S]*?\) \{/)?.[0] ?? '';
-    const mutated = body.replace(/rendered0\.total >= REPORT_LINK_MIN_ISSUES/, 'rendered0.total > 0');
-    assert.ok(body && !/rendered0\.total >= REPORT_LINK_MIN_ISSUES/.test(mutated),
-      '反向对照失效：把 ≥3 改成 >0 之后，判据的输入没有变化');
-    assert.ok(!/rendered0\.total >= REPORT_LINK_MIN_ISSUES/.test(mutated),
-      '反向对照失效：门槛真的被改掉了却没反映出来');
-  }
-  assert.ok(/total: rendered0\.total/.test(src),
-    '报告正文没读 `rendered0.total` —— 会退回「并进来几条」，把库侧未并进的那部分丢掉');
+  const reportSrc = fs.readFileSync(new URL('./agent/merged_report.mjs', import.meta.url), 'utf8');
+  const { shouldPublishMergedReport } = await import('./agent/merged_report.mjs');
+  // ★ 2026-10-22（Owner：「报告不展示 图片安全审查 skill 全流程结果」）：
+  //   正文撤了，接线也要撤干净 —— 报告闸不再接 skill 正文这个参数。
+  assert.ok(!/shouldPublishMergedReport\(\{ total: reportTotal,[\s\S]*?imageSkillReview/.test(src),
+    '报告接线还在把 skill 正文交给发布闸 —— 正文已撤，参数也要撤（§2.4.4）');
+  assert.ok(/hasContent && \(Number\(total\) >= REPORT_LINK_MIN_ISSUES \|\| !!force\)/.test(reportSrc),
+    '发布闸必须保留 PRD §5.3.4 的 ≥3 门槛（不再有「完整图片审查单独发布」那一条）');
+  assert.ok(!shouldPublishMergedReport({ total: 1, itemCount: 1 }),
+    '普通单 1 条仍须服从 PRD 的 ≥3 门槛');
+  assert.ok(!shouldPublishMergedReport({ total: 1, itemCount: 1, imageSkillReview: '完整图片审查' }),
+    'skill 正文已撤，1 条也不例外 —— 否则建出来是只有一句结论的空文档');
+  assert.ok(shouldPublishMergedReport({ total: 3, itemCount: 3 }),
+    '≥3 条必须照旧出报告（门槛没被顺手改坏）');
+  assert.ok(/total: reportTotal/.test(src),
+    '报告正文没读原始卡面总数 —— 会退回「并进来几条」，把库侧未并进的那部分丢掉');
 });
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -5348,7 +5416,12 @@ await t('V6 ★ 行为级：「问题数量」列必须与卡里那个数**同�
   // ★★ 2026-10-19：两种措辞都认（卡面自 2026-10-19 起用 `→ 完整清单：`，为 PRD §17 让路）。
   //   只认长的那句 ⇒ 这条 `if` 恒假 ⇒ 汇总路数**从来没被判过**（判据假宽，等于没守）。
   if (/(?:→|->)\s*(?:完整清单|查看完整问题清单与修改建议)\s*[：:]\s*https?:\/\//.test(summ)) {
-    assert.ok(summ.includes('逐条问题'), '走汇总那一路时：分类汇总前必须有「逐条问题」这一行（Owner 逐字格式）');
+    // ★★ 2026-10-21（Owner 给了正确模版 `docx/CvIldNhUSoxv7DxpzwdcKUcjnfr`）：**翻面** ——
+    //   这一格是 `dual.rendered.block`（卡面与表行逐字同源），而模版与 PRD §5.3.2 的 ≥3 形状是
+    //   「结论行 → `· …类问题：N 个` → 链接 → 动作行」，中间**没有** `逐条问题` 这一行
+    //   （它是 2026-10-15 给**表行**样例时带进来的，已撤；三条证据见
+    //    `PMO/守衡-审查报告对齐正确模版-20261021.md`）。
+    assert.ok(!summ.includes('逐条问题'), '走汇总那一路时：分类汇总前不许有「逐条问题」这一行（模版没有）');
     assert.ok(/·\s*[^·\n]{1,18}类问题：\s*\d+\s*个/.test(summ), '要有「· XX类问题：N 个」分类汇总行（每类一行）');
   } else {
     assert.ok(/\d+[.、]\s*【/.test(summ), '没有报告链接时按逐条回落：正文里必须有逐条条目');
@@ -5938,6 +6011,9 @@ await t('V7 ★ 行为级：本仓建的合并报告，URL 必须**同时**进�
     assert.ok(md.includes('Winners') && md.includes('MOMCOZY'), '附录被截断了 —— 那就不是「搬」是「砍」');
     // 关键：附录里**必须说明它是碎片**，否则下一个人又会拿它当正文去排版
     assert.ok(/碎片|逐行|不要把它当/.test(md), '附录没说明这是 OCR 逐行碎片');
+    assert.ok(md.includes('截图层水印') && md.includes('不计为素材问题，不据此判 REVIEW'),
+      '附录没有声明截图层水印不构成素材问题');
+    assert.ok(md.includes('局部识读受限'), '附录没有把水印遮挡限定为局部识读受限');
   });
 
   await t('Z41c ★ 视频那一侧**刻意不同**：帧文字保留带时间码的压缩预览（Owner 点名要 00:12）', async () => {
@@ -6416,7 +6492,11 @@ await t('N3 命令模板必须真被拼进 task，且三处"要自己查"的空�
   const block = task.slice(iTpl, iQ);
   assert.ok(!/\$BASE\b/.test(block),
     '模板里还引用 $BASE —— 它从没定义过，agent 只能自己发明（10-16 实测它就为这个去 grep 全仓）');
-  assert.ok(block.includes('$(date +%Y%m%d-%H%M)'), '模板没直接给出 --base 的取值方法');
+  assert.ok(block.includes('$(date +%Y%m%d-%H%M%S)'),
+    '模板没直接给出 --base 的取值方法（2026-10-22 起是**秒级**：分钟级会让同分钟两单撞同一个 BASE，'
+    + '而 rerun_ledger 判「同一个 BASE 跑过就硬拒」⇒ 那单直接失败）');
+  // ★ 反向对照（2026-10-22）：不许退回分钟级 —— 少了 `%S` 就是那场撞车的形状
+  assert.ok(!/%H%M(?!%S)/.test(block), '模板里的 --base 又退回分钟级（同一分钟两单会撞 BASE）');
   assert.ok(/\$\(sw_vers -productVersion\)/.test(block) && /\$\(shasum -a 256 /.test(block),
     '模板没给出 --coverage 的版本/哈希取值方法 —— agent 会去 grep `macos-vision`（实测 47.6 秒）');
   assert.ok(block.includes('macos-vision'), '模板没写死 provider 名');
@@ -6448,7 +6528,8 @@ await t('N4 ★★ 图片送审的 content_type 必须由图定死，且**连 co
   //   ⇒ 但**只给 image 不给 coverage 会更坏**：引擎判 image/ocr 覆盖不完整 ⇒ 整单被
   //      fail-closed 压成 `NEEDS_INPUT`（同轮实测）。所以这两件事必须**成对**出现，
   //      本判据钉的就是这个"成对"。
-  const { reviewTaskFor, beginChainTurn, chainTurnModalityOf } = await import('./agent/tools.mjs');
+  const { reviewTaskFor, beginChainTurn, chainTurnModalityOf,
+          setChainTurnImagePaths, chainTurnImagePathsOf } = await import('./agent/tools.mjs');
   const mp = '/tmp/shouheng-material-8381eb63-probe.txt';
   const q = '【提问原文探针】';
   const tx = '【图片 1 的图内文字（本机 OCR）】\nmomcozY';
@@ -6497,7 +6578,524 @@ await t('N4 ★★ 图片送审的 content_type 必须由图定死，且**连 co
     '不给 modality 时必须回落 null（否则老调用方会被静默改成某个写死的模态）');
   beginChainTurn({ modality: 'video' });
   assert.strictEqual(chainTurnModalityOf(), 'video', '视频模态认不出来');
+  // ⑦ 内核取到的图片路径必须自动进入任务，不能依赖 DSH 模型记得填可选参数。
+  const kernelImage = '/tmp/shouheng-chain-img-probe/original.png';
+  beginChainTurn({ modality: 'image' });
+  setChainTurnImagePaths([kernelImage]);
+  const injected = reviewTaskFor({ question: q, text: tx, materialPath: mp, ctype: 'image' });
+  assert.ok(realLines(injected).includes(`--image ${kernelImage} \\`),
+    '本轮内核原图没有自动注入 --image；模型漏传可选字段会让图身份层静默跳过');
+  assert.deepStrictEqual(chainTurnImagePathsOf(), [kernelImage], '本轮原图上下文未留在 turn-local 状态');
+  beginChainTurn({ modality: 'text' });
+  assert.deepStrictEqual(chainTurnImagePathsOf(), [], '新文字轮次继承了上一轮图片路径（串图）');
   beginChainTurn();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+await t('N4c ★★ 图单判定主体必须写死「图片安全审查」；text/video 必须仍留占位符（Owner 2026-10-21）', async () => {
+  // ── 为什么有这一条
+  //   Owner 2026-10-21：「我需要的是，每次图片审核都必须跑这个skill」。
+  //   病灶：模板原文让模型自己填 `--decision-owner`（"第 2 步你选中的那个 skill 的装载目录名"）
+  //   ⇒ 同一张婴幼儿安全睡眠科普图，选 `内容审查总控` / `文案合规审查` 一样能出 REVIEW ——
+  //   而「图片 / 主图 / 图上文字 → 图片安全审查」是 kb-review 让位表**写死**的，不是模型的自由度。
+  //   两道闸门各管一段：引擎侧 `with_kb_evidence.py::image_skill_gate` 对 `--content-type image`
+  //   强制这一条（填别的 ⇒ NEEDS_INPUT）；这里钉**模板侧** —— 把"填错被拒"变成"根本不会填错"。
+  //   边界：只钉图单。text 的归属不唯一（文案/本地化/宣称都可能接）、video 那一档另有未解缺口
+  //   ⇒ 这两个模态**必须仍留占位符**，改它们等于把一个未决问题悄悄定死。
+  const { reviewTaskFor } = await import('./agent/tools.mjs');
+  const mp = '/tmp/shouheng-material-8381eb63-probe.txt';
+  const q = '【提问原文探针】';
+  const tx = '【图片 1 的图内文字（本机 OCR）】\nmomcozY';
+  const block = (ctype) => reviewTaskFor({ question: q, text: tx, materialPath: mp, ctype })
+    .split('```bash')[1].split('```')[0];
+
+  // ① 图单：判定主体与加载申报都写死，且不再留占位符
+  const img = block('image');
+  assert.ok(img.includes('--decision-owner 图片安全审查'), '图单没写死 --decision-owner 图片安全审查');
+  assert.ok(img.includes('--loaded-skill  图片安全审查'), '图单没把 --loaded-skill 同步写死（两处必须同名）');
+  assert.ok(!img.includes('第 2 步选中的那个 skill'),
+    '图单仍留着判定主体占位符 —— 模型还会自己选（这就是"选错也能过"的老路）');
+
+  // ④ ★ 不能把 CLI 里的 --loaded-skill 自述当成真实调用：图片任务的前置任务文本
+  //    必须要求 DSH 真加载 skill，并执行整个技能工作流；不能只做视觉/OCR 或只跑规则链。
+  //    否则模型能照抄 --loaded-skill，却跳过图片安全审查本身或其中的事实核查等步骤。
+  const imgTask = reviewTaskFor({ question: q, text: tx, materialPath: mp, ctype: 'image',
+                                  imagePaths: ['/tmp/shouheng-image-probe.png'] });
+  const skillLoadInstruction = imgTask.indexOf('先用 DSH 的 `skill` 工具真实加载 `图片安全审查`');
+  assert.ok(skillLoadInstruction >= 0,
+    '图单任务没有显式要求调用 DSH skill 工具；--loaded-skill 只是 agent 自述，不能证明真加载');
+  assert.ok(skillLoadInstruction < imgTask.indexOf('第 0 条之二'),
+    '图片 skill 加载要求排在命令模板之后，优先级不足');
+  assert.ok(imgTask.includes('对原图文件 `/tmp/shouheng-image-probe.png` 完整执行 skill'),
+    '没有要求图片 skill 直接分析本单原图并完整执行（仅靠守衡侧摘要不算执行图片 skill）');
+  assert.ok(imgTask.includes('完整执行 skill：界定审核对象与范围'),
+    '没有要求从审核对象与范围开始执行整份图片审查 skill');
+  for (const stage of ['拆分主张并建立核查清单', '4A 规则符合性', '4B 事实准确性核查',
+                       '检查图文一致性与信息完整性', '按 skill 的分级结论输出完整审查结果']) {
+    assert.ok(imgTask.includes(stage), `图片任务缺少完整 skill 步骤：${stage}`);
+  }
+  assert.ok(imgTask.includes('不能只复用守衡侧场景摘要或 OCR 文本，也不能只做视觉分析代替完整流程'),
+    '没有禁止以本地视觉/OCR 摘要替代完整 skill 执行');
+  assert.ok(imgTask.includes('该命令属于 skill 流程的一部分，不得重复起链，也不能替代 skill 的其他步骤'),
+    '没有声明知识库命令在 skill 全流程中的唯一位置/去重规则');
+  assert.ok(imgTask.includes('4A 知识库审查与 4B 权威事实核查是独立工作'),
+    '没有说明 4A / 4B 是彼此独立的两段工作');
+  // ★★ 2026-10-23：**4B 禁止调 `web_search`**。
+  //   真事故：`web_search` 的后端（`api.deepseek.com`）额度耗尽，在链里的表现是
+  //   **请求发出去就不回来**（不是报错）⇒ 整单静默 9 分 9 秒，群里只有「⏳ 处理中…」。
+  //   所以任务书必须**明确禁掉**这条路，并给一条能走完的替代（本机核验链接 + 直判），
+  //   且要求 4B 段**如实写明未联网** —— 少了任何一句，模型两条路都可能走回老样子。
+  assert.ok(imgTask.includes('4B 这一段禁止调用 `web_search`'),
+    '4B 没有被禁止调用当前不可用的 web_search（调用就会把整单拖死）');
+  assert.ok(imgTask.includes('本轮未做联网检索'),
+    '没有要求 4B 如实写明「本轮未做联网检索」（不写就等于把模型知识伪装成已核证据）');
+  assert.ok(imgTask.includes('不许编造未核验的来源'),
+    '没联网却仍要求给权威链接时，缺少「不许编造来源」这条约束');
+  assert.ok(imgTask.includes('不得为提速省略检查'),
+    '提速要求没有明确禁止省略审查步骤');
+  assert.ok(imgTask.includes('图片安全审查 skill 未加载或完整流程未完成时立即停止并返回 NEEDS_INPUT'),
+    '图片 skill 未加载/全流程未完成时没有 fail-closed 约束');
+
+  // ② 反向对照：text / video **不许**被顺手写死
+  const txt = block('text');
+  assert.ok(txt.includes('<第 2 步选中的那个 skill 的装载目录名>'),
+    '文本单的判定主体被写死了 —— 超出本次范围（文本归属不唯一，让位表里有多个去处）');
+  assert.ok(!txt.includes('图片安全审查'), '文本单里出现了「图片安全审查」—— 写死分支串档了');
+  const vid = block('video');
+  assert.ok(vid.includes('<第 2 步选中的那个 skill 的装载目录名>') && !vid.includes('图片安全审查'),
+    '视频单的判定主体被改动了 —— 视频那一档另有未解缺口，不许顺手定死');
+  const none = block(null);
+  assert.ok(none.includes('<第 2 步选中的那个 skill 的装载目录名>'),
+    '不给 ctype 时占位符没保留 —— 老路径行为被改了');
+
+  // ③ 反向对照（判据本身不许恒真）：把写死那行换回占位符，①的判据必须变假
+  const pinned = (s) => s.includes('--decision-owner 图片安全审查');
+  assert.strictEqual(pinned(img), true, '正向：图单应判为已写死');
+  assert.strictEqual(
+    pinned(img.replace('--decision-owner 图片安全审查', '--decision-owner <第 2 步选中的那个 skill 的装载目录名>')),
+    false, '反向对照失效：换回占位符后判据仍为真 ⇒ 这条判据是恒真的');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+await t('N4d ★★ 图单必须交「视觉核对清单」（五类，含独立婴儿睡眠位置），缺项**不收**（Owner 2026-10-21）', async () => {
+  // ── 为什么有这一条（病灶，实测 2026-10-21）
+  //   那张母婴插画里「奶瓶倒着放」没被抓到。查下来：skill **真的加载了**
+  //   （`image_skill_gate.load.verdict=loaded`），判定主体也出了两条意见 ——
+  //   但画面事实（婴幼儿姿势／产品状态／场景关系／隐私）**一条都没写**；
+  //   而一般「婴幼儿姿势」字段也不够精确，侧卧曾被误报成仰卧，故新增独立睡眠位置项。
+  //   ⇒ 「加载了 skill」≠「执行了它那道视觉核对」，而流程上没有任何东西会红。
+  //   本组钉两件事：① 判据本身（含反向对照：光提名字不给结论不算覆盖）；
+  //              ② 闸门真的接上（图单缺项 ⇒ 表行结论被压成 NEEDS_INPUT；文字单不触发）。
+  const { checkVisualChecklist, checkImageSkillWorkflow } = await import('./agent/visual_checklist.mjs');
+  const { runSubmissionGate, finalVerdict53ForTurn } = await import('./agent/agent.mjs');
+
+  const FULL = '【审查结论：REVIEW】共发现 2 处需人工确认。\n'
+    + '视觉核对：婴幼儿姿势=无；婴儿睡眠位置=无（图 1 顶部面板仰卧；图 1 底部面板仰卧）；产品状态=有（床头柜上的奶瓶倒置）；场景关系=无；隐私=无';
+  const FULL_WORKFLOW = [
+    '审核对象与范围：图 1 全图，检查安全、事实、图文一致性。',
+    '视觉分析与 OCR：逐面板完成视觉分析与 OCR；错误面板婴儿侧卧，安全建议面板婴儿仰卧。',
+    '主张拆分与核查清单：分别核对同床风险、睡姿建议和分房要求。',
+    '4A 规则符合性：运行知识库规则链，命中历史记录级参考，未命中当前图精确身份。',
+    '4B 事实准确性核查：AAP 安全睡眠政策指出每次睡眠应仰卧，侧卧同样危险。https://publications.aap.org/pediatrics/article/doi/10.1542/peds.2022-057990/188304/Sleep-Related-Infant-Deaths-Updated-2022',
+    '图文一致性：上方面板睡姿事实与“仅避免同床”的风险说明未完全对应。',
+    FULL,
+  ].join('\n');
+  const NO_PRIVACY = '【审查结论：REVIEW】共发现 2 处需人工确认。\n'
+    + '视觉核对：婴幼儿姿势=无；婴儿睡眠位置=无（画面没有婴儿睡眠场景）；产品状态=有（床头柜上的奶瓶倒置）；场景关系=无';
+  const NAME_ONLY = '【审查结论：REVIEW】共发现 2 处需人工确认。\n'
+    + '视觉核对：婴幼儿姿势、产品状态、场景关系、隐私 这几类都看了一下。';
+
+  // ① 判据：五类齐 ⇒ 过；睡眠姿势必须与泛化的婴幼儿姿势分开
+  assert.strictEqual(checkVisualChecklist(FULL).ok, true, '五类齐却没判过');
+  assert.strictEqual(checkImageSkillWorkflow(FULL_WORKFLOW).ok, true,
+    '完整 skill 六阶段和权威事实来源都齐，却被判成未完成');
+  assert.strictEqual(checkImageSkillWorkflow(FULL).ok, false,
+    '只交视觉清单、没交 4A/4B 等完整流程阶段，仍被当作完整 skill 执行');
+  assert.strictEqual(checkVisualChecklist(
+    FULL.replace('婴儿睡眠位置=无（图 1 顶部面板仰卧；图 1 底部面板仰卧）；', '')).ok, false,
+  '只交宽泛的「婴幼儿姿势」却漏掉独立的「婴儿睡眠位置」，仍被放行');
+  assert.strictEqual(checkVisualChecklist(
+    '婴幼儿姿势=无；婴儿睡眠位置=有（错误示范面板的婴儿侧卧；安全建议面板婴儿仰卧）；产品状态=无；场景关系=无；隐私=无').ok, true,
+  '明确报告侧卧与仰卧的双面板睡姿却被拒');
+  assert.strictEqual(checkVisualChecklist(
+    '婴幼儿姿势=无；婴儿睡眠位置=无（画面没有婴儿睡眠场景）；产品状态=无；场景关系=无；隐私=无',
+    { sleepPositions: [{ image: '图 1', position: '侧卧' }] }).ok, false,
+  '画面读数标了侧卧，独立睡眠位置项却写「无睡眠场景」，仍被放过');
+  assert.strictEqual(checkVisualChecklist(
+    '婴幼儿姿势=无；婴儿睡眠位置=有（错误示范面板侧卧）；产品状态=无；场景关系=无；隐私=无',
+    { sleepPositions: [{ image: '图 1', position: '侧卧' }] }).ok, true,
+  '视觉清单复述画面读数中的侧卧仍被判红');
+  assert.strictEqual(checkVisualChecklist(
+    '婴幼儿姿势=无；婴儿睡眠位置=无（侧卧但问题是同床）；产品状态=无；场景关系=无；隐私=无',
+    { sleepPositions: [{ image: '图 1', position: '侧卧' }] }).ok, false,
+  '虽然提到侧卧，但把睡姿判为无问题仍被放过');
+  assert.strictEqual(checkVisualChecklist(
+    '婴幼儿姿势=无；婴儿睡眠位置=未测（婴儿面部和躯干被被褥遮挡，无法确认睡姿）；产品状态=无；场景关系=无；隐私=无',
+    { sleepPositions: [{ image: '图 1', position: '看不清' }] }).ok, true,
+  '姿势无法确认且明确未测时被错误拒绝');
+  const NESTED_SLEEP = [
+    '- **婴幼儿姿势：无。** 两处均仰卧。',
+    '- **婴儿睡眠位置：无。** 依据（逐场景）：',
+    '  - **场景组①（大床同床）**：婴幼儿**仰卧**；',
+    '  - **场景组②（婴儿床）**：婴幼儿**仰卧**。',
+    '- **产品状态：无。**',
+    '- **场景关系：有。** 两个场景并置。',
+    '- **隐私：无。**',
+  ].join('\n');
+  assert.strictEqual(checkVisualChecklist(NESTED_SLEEP, {
+    sleepPositions: [{ image: '图 1', position: '仰卧' }, { image: '图 1', position: '仰卧' }],
+  }).ok, true, '睡姿父项下逐场景列出的缩进子项被误判为未复述（本次图片回归）');
+  assert.strictEqual(checkVisualChecklist(NESTED_SLEEP.replace('场景组②（婴儿床）**：婴幼儿**仰卧', '场景组②（婴儿床）**：婴幼儿**睡姿未写'), {
+    sleepPositions: [{ image: '图 1', position: '仰卧' }, { image: '图 1', position: '仰卧' }],
+  }).ok, false, '两个场景读数只复述一处仰卧时仍被放行');
+  assert.strictEqual(checkVisualChecklist([
+    '婴幼儿姿势=无；婴儿睡眠位置=无（画面没有婴儿睡眠场景）；产品状态=无；场景关系=无；隐私=无',
+    '正文其他位置：场景组①仰卧，场景组②仰卧。',
+  ].join('\n'), {
+    sleepPositions: [{ image: '图 1', position: '仰卧' }, { image: '图 1', position: '仰卧' }],
+  }).ok, false, '类别结论之外的正文睡姿被误当作视觉清单证据');
+
+  // ①b ★ 模型**真实的交法**是 Markdown 表格（2026-10-21 11:10 那一单）。旧实现优先取第一个括号
+  //    ⇒ 依据被读成「正在被使用」（5 字）⇒ **假阳性**判成"没给依据"。这一格钉死它别再回来。
+  const TABLE = [
+    '| 类别 | 结论 | 依据 |',
+    '|---|---|---|',
+    '| **婴幼儿姿势** | **无** | 画面读数为「婴幼儿 · 仰躺闭眼睡觉」，两处均为仰躺 |',
+    '| **婴儿睡眠位置** | **有** | 逐面板核对：错误示范图为侧卧；安全建议图为仰卧 |',
+    '| **产品状态** | **有** | 画面读数为「床铺、枕头、被子（正在被使用）」，而同一张床上同时有婴幼儿 ⇒ 松软寝具与婴幼儿同处使用，覆盖风险 |',
+    '| **场景关系** | **有** | 画面读数为「婴幼儿与成人同床出镜」，同时「婴幼儿单独躺在婴儿床内」⇒ 同床与同房不同床并置 |',
+    '| **隐私** | **无** | 画面读数为「画面为插画风格，非实拍」，未记载可识别真实人物身份 |',
+  ].join('\n');
+  assert.strictEqual(checkVisualChecklist(TABLE).ok, true,
+    '表格写法（模型的真实交法）被误判成"没给依据" —— 这是假阳性，会把正常单压成 NEEDS_INPUT');
+  // ①c 反向对照：表格里判「有」但依据列空着 ⇒ 仍必须红（别为了修假阳性把判据放成恒绿）
+  assert.strictEqual(checkVisualChecklist([
+    '| 类别 | 结论 | 依据 |', '|---|---|---|',
+    '| **婴幼儿姿势** | **无** | — |',
+    '| **产品状态** | **有** |  |',
+    '| **场景关系** | **无** | — |',
+    '| **隐私** | **无** | — |',
+  ].join('\n')).ok, false, '表格里「有」+ 空依据也被放过 ⇒ 判据被改松了');
+  // ② 反向对照：缺一类 ⇒ 红，且点名缺的是哪一类
+  const miss = checkVisualChecklist(NO_PRIVACY);
+  assert.strictEqual(miss.ok, false, '缺「隐私」却没判红');
+  assert.ok(miss.missing.includes('隐私'), `缺项点名里没有「隐私」：${miss.missing.join('、')}`);
+  // ③ 反向对照：**光提名字不给结论**不算覆盖（否则这条判据等于恒真）
+  assert.strictEqual(checkVisualChecklist(NAME_ONLY).ok, false,
+    '只提类别名、不给结论也被判过 ⇒ 判据恒真（真人就是这么敷衍过去的）');
+  // ④ 反向对照：「有」不给依据 ⇒ 红；「未测」不给原因 ⇒ 红
+  assert.strictEqual(checkVisualChecklist(
+    '婴幼儿姿势=无；产品状态=有；场景关系=无；隐私=无').ok, false,
+  '判「有」却没给依据也被放过');
+  assert.strictEqual(checkVisualChecklist(
+    '婴幼儿姿势=无；产品状态=未测；场景关系=无；隐私=无').ok, false,
+  '判「未测」却没给原因也被放过');
+
+  // ⑤ 闸门：图单缺项 ⇒ 表行结论压成 NEEDS_INPUT
+  const run = async (inbound, answer, engine = inbound.imageCount > 0 ? {
+    state: 'REVIEW', image_skill_gate: { ok: true, load: { verdict: 'loaded' } },
+  } : null) => {
+    let captured = null;
+    let capturedReport = null;
+    const result = await runSubmissionGate({
+      inbound, question: inbound.text, notify: async () => {},
+      chainRunner: async () => ({ answer, ...(engine ? { engine } : {}) }),
+      modelSideRunner: async () => ({ ok: true, findings: [], dropped: [] }),
+      publishRunner: async (row) => { captured = row; return { ok: true, action: 'skipped', detail: '自证桩' }; },
+      mergedReportRunner: async (md) => { capturedReport = md; return { ok: true, url: 'https://example.invalid/docx/STUB', detail: '自证桩' }; },
+      adviceRunner: async () => ({ ok: true, ms: 1, advice: {} }),
+      // 媒材链接这一步会**真上传**到云空间（§2.4.4 那个形状）⇒ 自证里必须全部注桩
+      mediaLinksRunner: async () => [],   // collectMediaLinks 回**数组**，不是 {media}
+      mediaUpload: async () => ({ ok: false, reason: '自证桩：不真上传' }),
+      fetchImageForLink: async () => null,
+      fetchVideoForLink: async () => null,
+    });
+    return { row: captured, result, report: capturedReport };
+  };
+  const { parseScene } = await import('./agent/scene.mjs');
+  const imgInbound = { text: '审一下这张图', imageCount: 1, videoCount: 0, images: [{
+    index: 1, wlText: 'AAP Recommendation', lines: 1,
+    scene: { ok: true, scene: parseScene(JSON.stringify({
+      people: [
+        { kind: '婴幼儿', panel: '右上', doing: '仰卧', sleep_scene: true, sleep_posture: '仰卧' },
+        { kind: '婴幼儿', panel: '右下', doing: '仰卧', sleep_scene: true, sleep_posture: '仰卧' },
+      ],
+    })).scene },
+  }] };
+  const bad = await run(imgInbound, FULL_WORKFLOW.replace('隐私=无', ''));
+  const badRow = bad.row;
+  assert.ok(badRow, '图单缺视觉核对时**没有落表**（连留痕都没有）');
+  assert.strictEqual(badRow.conclusion, 'NEEDS_INPUT',
+    `图单缺「隐私」却落了 ${badRow.conclusion} —— 缺项必须不收（压成 NEEDS_INPUT）`);
+  assert.ok(bad.result.forcedReply?.includes('暂不出 PASS / REVIEW / BLOCK'),
+    '图单视觉核对缺项只改了表结论，未强制替换用户将收到的旧三态回复');
+  assert.strictEqual(bad.result.imageReviewIncomplete, true,
+    '缺项拒收没有把「图片审查未完成」状态带到最终回复层');
+  assert.strictEqual(bad.result.verdict53, null,
+    '图单拒收态仍导出了 REVIEW/BLOCK/PASS 结论行，后续卡片会继续发旧结论');
+  const staleReview = '【审查结论：REVIEW】共发现 1 处需人工确认。\n逐条问题\n1.【未归类】历史记录匹配';
+  assert.strictEqual(finalVerdict53ForTurn({
+    gateResult: bad.result,
+    p0Payload: { answer: staleReview, p0Fastpath: { state: 'REVIEW', n: 1 } },
+    toolTrace: [{ tool: 'kb_review_chain', ok: true }],
+    chainAnswer: { answer: staleReview }, reply: staleReview,
+  }), null,
+  '图片审查未完成时，最终结论回落仍从 P0/历史链/回复文本复活了旧 REVIEW');
+  const good = await run(imgInbound, FULL_WORKFLOW);
+  const goodRow = good.row;
+  assert.ok(goodRow && goodRow.conclusion === 'REVIEW',
+    `图单四类齐却被压成了 ${goodRow && goodRow.conclusion}（闸门把正常单也拦了）`);
+  assert.strictEqual(good.result.forcedReply, null,
+    '完整视觉核对通过时错误触发拒收回复');
+  assert.ok(finalVerdict53ForTurn({ gateResult: good.result }),
+    '完整图片审查通过后被误删了合法的 §5.3 结论行');
+  // ★ 2026-10-22（Owner：「报告不展示 图片安全审查 skill 全流程结果」「卡片不展示 视觉分析与 OCR」）：
+  //   这一组从「必须收到全流程正文」翻成**「一个字都不许收到」**。
+  assert.ok(!good.report?.includes('视觉分析与 OCR') && !good.report?.includes('4B 事实准确性核查')
+    && !good.report?.includes('图片安全审查 skill 全流程结果'),
+  '合并报告里又出现了 skill 全流程正文（Owner 2026-10-22 要求不展示）');
+  assert.strictEqual(good.result.imageAnalysis, undefined,
+    'imageAnalysis 这一格已整格撤掉（卡面不展示 视觉分析与 OCR）');
+
+  // ⑤c ★★ 2026-10-22（Owner 把守衡的回话截图甩回来的那一单）：**话术本身也要有判据**。
+  //   真实回话：「……视觉核对的结论没写清：场景关系（判"未测"但没给原因）。**请重新发送原图**，…」
+  //   三处不对：① 判据原话进群；② 卡点在我们这侧（画面模型 HTTP 402），却让对方重发原图
+  //   （他重发四次、四次同一句）；③ 没写清「没测完 ≠ 没问题」。
+  //   ⇒ 判据错杀修在 `visual_checklist.mjs` 的 `resolveAnaphora`（见 S5m）；
+  //     **话术**这一半修在 `imageWithholdReply`，本组钉它 —— 纯函数喂样本就能证。
+  const { imageWithholdReply, humanizeSceneError, sceneFaultsOf } = await import('./agent/agent.mjs');
+  const gapReply = imageWithholdReply({
+    visualGate: { ok: false, missing: ['隐私'], weakItems: [{ label: '场景关系', verdict: '未测' }] },
+    imageWorkflowGate: { ok: false, missing: ['图文一致性'] },
+  });
+  assert.ok(gapReply.includes('暂不出 PASS / REVIEW / BLOCK'),
+    '话术里没了三态口径 —— 这句话必须让人知道「这次没有结论」');
+  assert.ok(/没测完/.test(gapReply) && /不是「没问题」/.test(gapReply),
+    `话术没写清「没测完 ≠ 没问题」（读起来像一次放行）：${gapReply}`);
+  assert.ok(!gapReply.includes('请重新发送原图'),
+    `话术还在让对方重发原图 —— 缺的是我们这份判定报告，不是他的素材：${gapReply}`);
+  assert.ok(/不用重发图/.test(gapReply), '话术没说「不用重发」—— 对方会继续白折腾');
+  assert.ok(!/判"未测"|判"有"|逐面板|判据|4A|4B/.test(gapReply),
+    `判据术语/内部阶段名进了群：${gapReply}`);
+
+  const sceneReply = imageWithholdReply({
+    sceneFaults: [{ index: 1, why: '画面模型 HTTP 402：{"error":{"message":"Insufficient Balance"}}',
+                    human: 'HTTP 402 · 额度不足' }],
+  });
+  assert.ok(/画面这一层我没读到/.test(sceneReply),
+    `画面读数没读到时，话术没说清卡在哪：${sceneReply}`);
+  assert.ok(/现在重发同一张图结果一样/.test(sceneReply),
+    '画面读数没读到却说「请重发」—— 对方会一直重发（实测重发了四次）');
+  assert.strictEqual(
+    humanizeSceneError('画面模型 HTTP 402：{"error":{"message":"Insufficient Balance (request_id: 1237917b)"}}'),
+    'HTTP 402 · 额度不足',
+    '画面层报错没有压成一句人话（整段 JSON 不许甩进群）');
+  // 反向对照：读数**跑到**了就不是缺口；`skipped`（按设计不跑）也不算 —— 否则这道闸恒红
+  assert.deepStrictEqual(sceneFaultsOf({ images: [{ index: 1, scene: { ok: true, scene: {} } }] }), [],
+    '画面读数正常时被当成缺口（这道闸会变成砖头）');
+  assert.deepStrictEqual(sceneFaultsOf({ images: [{ index: 1, scene: { skipped: true } }] }), [],
+    '按设计没跑画面层的单被当成缺口');
+  assert.strictEqual(sceneFaultsOf({ images: [{ index: 1, scene: { ok: false, error: 'HTTP 500' } }] }).length, 1,
+    '画面读数失败没有被认出来 —— 这一闸等于没接');
+
+  // ⑤d ★★ 画面读数没读到 ⇒ 这一单**也不出三态结论**（与「图没解析出来」同一条单向闸）。
+  //   为什么：PRD §5.1 把图片输入写成两半，画面那一半没跑成时，「图片安全审查」里的视觉分析
+  //   无从执行；而判定主体照样能交出一份五类全「未测」的清单 ⇒ 结论看起来像「审过了」。
+  const sceneDown = await run({
+    ...imgInbound,
+    images: [{ index: 1, wlText: 'AAP Recommendation', lines: 1,
+               scene: { ok: false, ms: 12, error: '画面模型 HTTP 402：{"error":{"message":"Insufficient Balance"}}' } }],
+  }, FULL_WORKFLOW);
+  assert.strictEqual(sceneDown.row?.conclusion, 'NEEDS_INPUT',
+    `画面读数没读到却落了 ${sceneDown.row?.conclusion} —— 等于说「贴图画面的这一类已审过」`);
+  assert.ok(sceneDown.result.forcedReply?.includes('画面这一层我没读到'),
+    '画面读数缺口没有进回话 —— 群里只会看到一句结论不明的拒答');
+  assert.ok(!sceneDown.result.forcedReply?.includes('请重新发送原图'),
+    '画面读数缺口又把责任推给对方的图');
+  assert.strictEqual(sceneDown.result.imageReviewIncomplete, true,
+    '画面读数缺口的「审查未完成」状态没带到最终回复层（旧三态可能从下游复活）');
+  // 反向对照：同一份回答、画面读数正常 ⇒ 不触发（证明拦的是「没读到」，不是「有图」）
+  assert.strictEqual(good.result.forcedReply, null,
+    '画面读数正常时也被这道闸拦了（恒红 = 这道闸坏了）');
+
+  // ⑤b 引擎图片专属闸拒收时，即使模型答案写全流程、带旧 REVIEW，也必须压到 NEEDS_INPUT。
+  const refused = await run(imgInbound, FULL_WORKFLOW, {
+    state: 'NEEDS_INPUT', summary: '图片原图未进入图身份层',
+    image_skill_gate: { ok: false, reason_code: 'image_source_missing',
+      checks: ['没有 --image 原图路径'], load: null },
+  });
+  assert.strictEqual(refused.row?.conclusion, 'NEEDS_INPUT',
+    '知识库图片闸拒收仍被模型侧 REVIEW 覆盖');
+  assert.ok(refused.result.forcedReply?.includes('没有 --image 原图路径'),
+    '图片闸拒收原因没有进入强制回复');
+  assert.strictEqual(finalVerdict53ForTurn({ gateResult: refused.result,
+    p0Payload: { answer: staleReview }, toolTrace: [{ tool: 'kb_review_chain', ok: true }],
+    chainAnswer: { answer: staleReview }, reply: staleReview }), null,
+  '图片引擎拒收后，旧 REVIEW 仍能从下游回落复活');
+  const { imageEvidenceFailure } = await import('./agent/agent.mjs');
+  assert.ok(imageEvidenceFailure({ answer: staleReview }, 1),
+    '没有引擎图片闸读数却被当作已完整审查');
+  const imageEngine = { engine: IMAGE_ENGINE_OK };
+  assert.match(imageEvidenceFailure(imageEngine, 1, { ok: false, error: '模型返回空正文' }),
+    /模型侧原图视觉\/语义审查未完成/, '模型侧失败仍允许只凭知识库输出完整图片结论');
+  assert.equal(imageEvidenceFailure(imageEngine, 1, { ok: true, findings: [] }), null,
+    '模型侧正常返回空问题清单时被误判成失败');
+  assert.strictEqual(imageEvidenceFailure({ answer: staleReview }, 0), null,
+    '文字单被图片专用闸门越界拦截');
+
+  // ⑥ 反向对照：**文字单不触发**（它没有这四类）—— 不许把文本单一起拦掉
+  const txt = await run({ text: '这段文案能不能发：x', imageCount: 0, videoCount: 0 }, NO_PRIVACY);
+  const txtRow = txt.row;
+  assert.ok(txtRow && txtRow.conclusion !== 'NEEDS_INPUT',
+    '文字单被视觉核对闸门拦了 —— 越界（文本单没有这四类）');
+  assert.strictEqual(txt.result.forcedReply, null, '文字单触发了图单专用拒收回复');
+
+  // ⑦ 提示词：图单任务里必须有这五类；文字单**不许**有（否则模型会对文本单瞎写画面事实）
+  const { reviewTaskFor } = await import('./agent/tools.mjs');
+  const imgTask = reviewTaskFor({ question: 'q', text: 't', materialPath: '/tmp/m.txt', ctype: 'image' });
+  assert.ok(imgTask.includes('第 0 条之三') && ['婴幼儿姿势', '婴儿睡眠位置', '仰卧/侧卧/俯卧', '侧卧/俯卧时该项必须判「有」', '床共享风险与睡姿是两个独立问题', '产品状态', '场景关系', '隐私'].every((x) => imgTask.includes(x)),
+    '图单任务里没有「视觉核对清单」那一段 —— 模型不知道要交，闸门只会把每一单都压成 NEEDS_INPUT');
+  const txtTask = reviewTaskFor({ question: 'q', text: 't', materialPath: '/tmp/m.txt', ctype: 'text' });
+  assert.ok(!txtTask.includes('第 0 条之三'), '文字单任务里也塞了视觉核对块 —— 越界');
+
+  // ⑧ ★★ 读数边界（2026-10-21「奶瓶倒着放」）：读数里明明有倒置容器，清单却一个字没提 ⇒ 红。
+  //   这是本轮唯一能咬到「看见了却装没看见」的判据；读数没看见时不咬（那是读数的账）。
+  const { abnormalContainers } = await import('./agent/scene.mjs');
+  const sc = parseScene(JSON.stringify({ products: [{ what: '白色小奶瓶', orientation: '口朝下' }] })).scene;
+  const abnormal = abnormalContainers(sc);
+  assert.strictEqual(abnormal.length, 1, '夹具没造出「姿态异常的容器」');
+  // ⚠️ 夹具必须**不点名**那个倒置奶瓶（FULL 里写了「奶瓶」⇒ 它当然算点名了；第一版就是这里写错）
+  const NO_BOTTLE = '【审查结论：REVIEW】共发现 2 处需人工确认。\n'
+    + '视觉核对：婴幼儿姿势=无；产品状态=有（床头柜上的物品摆放正常）；场景关系=无；隐私=无';
+  assert.strictEqual(checkVisualChecklist(NO_BOTTLE, { abnormal }).ok, false,
+    '读数里有倒置奶瓶，清单里一个「瓶/杯/罐/盒/壶」都没有，却被放行 —— 那就是这次漏检的形状');
+  assert.strictEqual(checkVisualChecklist(
+    FULL.replace('产品状态=有（床头柜上的奶瓶倒置）', '产品状态=有（床头柜上的奶瓶口朝下，见读数物品栏）'),
+    { abnormal }).ok, true,
+  '清单里点了那个倒置奶瓶，却被判红 —— 假阳性（这条判据不许咬到正常单）');
+});
+
+await t('N4d2a ★★ 图单没审完时群里那句话：不许出现内部字段名、不许让对方做他做不到的事（Owner 2026-10-23 甩回来的原话）', async () => {
+  // 被甩回来的原话（生产实测，`om_x100b62984d0ad4e4c432d13cb478ec3`）：
+  //   句子 A：「本轮图片审查证据未通过：本轮没有可核对的知识库引擎 JSON；图片审查状态未验证。」
+  //   句子 B：「暂不出 PASS / REVIEW / BLOCK；请在原图和图片安全审查 skill 的本会话执行证据齐全后重新审核。」
+  //   （故意拆成两句写，别整段粘 —— 判据是「代码路径里有没有它」，不是「注释里能不能引」）
+  // 三处都错：① 内部字段名当理由 ② 让对方去做只有我这侧能产生的事 ③ 没说停在哪、还等不等。
+  const { imageUnfinishedReply } = await import('./agent/agent.mjs');
+  const chainDead = imageUnfinishedReply({ chainRan: false, chainMs: 549_858, reason: '' });
+  // ① 必须说清「没审完 ≠ 没问题」，且四个字不能丢（下游断言与 PRD 都认它）
+  assert.ok(chainDead.includes('暂不出 PASS / REVIEW / BLOCK'), `三态留白那句丢了：${chainDead}`);
+  assert.ok(/没测完/.test(chainDead) && !/没问题。/.test(chainDead.replace('不是「没问题」', '')),
+    `没说清「没测完 ≠ 没问题」：${chainDead}`);
+  // ② 真实耗时（9 分 9 秒 ⇒ 9 分钟）要写进去，不许写死一个数
+  assert.ok(chainDead.includes('9 分钟'), `没有按真实耗时说卡了多久：${chainDead}`);
+  // ③ 我方动作 + 对方动作分开写，且**不许**让对方重做
+  assert.ok(chainDead.includes('补发队列'), '没写我方做了什么（补发队列是真有的，才能说）');
+  assert.ok(chainDead.includes('不用重发这张图'), '没说「不用重发这张图」');
+  // ④ 内部字段名 / 术语一个都不许出现（这就是被甩回来的直接原因）
+  for (const bad of ['引擎 JSON', '知识库引擎', 'skill', '旁挂', '读数', '证据未通过', '执行证据']) {
+    assert.ok(!chainDead.includes(bad), `群消息里出现了内部术语「${bad}」：${chainDead}`);
+  }
+  assert.ok(!/请在原图.*重新审核/.test(chainDead), `又在让对方去补证据后重新审核：${chainDead}`);
+  // ⑤ 反向对照：画面那一半没做成时，措辞必须换（不然两种卡点长同一张脸）
+  const sceneDead = imageUnfinishedReply({ modelSideFailed: true, reason: '画面模型 HTTP 402：{"error":{"message":"Insufficient Balance"}}' });
+  assert.ok(sceneDead.includes('画面这一半'), `模型侧失败没说成画面这一半：${sceneDead}`);
+  assert.ok(!sceneDead.includes('4B'), `画面失败却谈 4B（方向错了）：${sceneDead}`);
+  assert.ok(sceneDead.includes('额度不足'), `画面失败的原始原因没翻成人话：${sceneDead}`);
+  assert.ok(sceneDead.includes('不用重发这张图'), '画面失败时又说要重发图了');
+  // ⑥ 接线：那条分支必须真的走这个函数（名字出现过 ≠ 接上了）
+  const src = fs.readFileSync(new URL('./agent/agent.mjs', import.meta.url), 'utf8');
+  assert.ok(/visualGateRefusal = imageUnfinishedReply\(/.test(src),
+    'imageUnfinishedReply 没有被接到 visualGateRefusal 上 —— 群里还会读到旧句子');
+  // ⚠️ 先剥掉注释再查：那句话**允许**留在注释里（我给新函数写的头注就逐字引了它当反例），
+  //   但**不许**再出现在任何代码路径上。第一版就是这么假红的（判据咬到了自己的注释）。
+  const codeOnly = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(!codeOnly.includes('请在原图和图片安全审查 skill 的本会话执行证据齐全后重新审核'),
+    '旧句子还活在某条代码路径上（群里还会读到它）');
+});
+
+await t('N4d2 ★★ P0 确定性命中＋带图 ⇒ 图单两道闸门不适用，BLOCK 必须照发（Owner 2026-10-22 那张被拒答的图）', async () => {
+  // ── 病灶（生产实测，`om_x100b62aff6a2c22ccfd45eeca787bff`，2026-10-22 15:30）
+  //   刘华丽 发了一张 momcozy 产品图 ＋ @守衡（正文为空，只有 OCR 与画面读数）。
+  //   库侧 P0 快路命中 V02／E-2.124 ⇒ 双轨合并态 BLOCK、`p0DirectReply` 已备好；
+  //   而 `imageEvidenceFailure`（要引擎 JSON）＋ 图单两道闸门（要五类视觉核对、skill 全流程节）
+  //   都挂在**只有模型侧才产出**的东西上，而 PRD §6.3 说 P0 命中即停后续审查、模型侧不该跑。
+  //   ⇒ 必然缺项 ⇒ 表里落 NEEDS_INPUT、群里收到「本轮图片审查证据未通过……请重新发送原图」，
+  //   **BLOCK 被自己的闸门藏掉**（§2.4.5 的接缝撞车）。
+  //   本组钉两件：① P0＋图 ⇒ 不拒答、结论仍是 BLOCK、§5.3 结论行在；
+  //              ② 反向对照：把 P0 摘掉，同一张图**必须**仍被拒（否则就是「把闸门整个关掉」）。
+  const { runSubmissionGate, imageEvidenceFailure, finalVerdict53ForTurn } = await import('./agent/agent.mjs');
+  // ★ 2026-10-22（裁定 B）：夹具里的 P0 命中词从「100%」改成「纯天然」——
+  //   裸 100% 已出列 P0（V02 只剩 纯天然/最安全/绝对化用语），若还拿它当 E-2.124 的正例，
+  //   这条用例就在**教下一个人一个已经废掉的口径**。
+  const P0_RENDERED = '【审查结论：BLOCK】共发现 1 处必须修改。\n逐条问题\n· 绝对化用语（E-2.124）：「纯天然」无证据支撑。';
+  const P0_CHAIN = {
+    ok: true,
+    answer: P0_RENDERED,
+    p0_fastpath: { mode: 'p0_fastpath', elapsed_ms: 115, matched_patterns: 1, rule_codes: ['V02'],
+                   layer_preflight: { mode: 'p0_fastpath', enforced: false, is_pass_basis: false } },
+    p0_findings: [{ rule_code: 'V02', level: 'P0', verdict: 'BLOCK', article_no: 'E-2.124',
+                    matched: [{ line_text: '纯天然', span: [0, 3] }], matched_count: 1 }],
+    advisories: [], issue_count: 1, confidence: 1.0,
+    report: 'https://example.invalid/docx/P0STUB', report_path: null, report_detail: '自证桩',
+    product_line: '', channel: '',
+  };
+  const imgInbound = { text: '', imageCount: 1, videoCount: 0,
+                       images: [{ index: 1, wlText: '成分纯天然', lines: 17 }] };
+  const modelFindings = [{
+    location: '图 1 主视觉', category: '推广与价格透明', severity: 'REVIEW',
+    reason: '组合价适用范围含糊', excerpt: 'Choose Any 3 Pay Less than $99',
+    suggestion: '写明适用品类', source: 'none',
+  }];
+  const runWith = async (chainRes) => {
+    let row = null;
+    const result = await runSubmissionGate({
+      inbound: imgInbound, question: imgInbound.text, notify: async () => {},
+      chainRunner: async () => chainRes,
+      modelSideRunner: async () => ({ ok: true, findings: modelFindings, dropped: [] }),
+      publishRunner: async (r) => { row = r; return { ok: true, action: 'skipped', detail: '自证桩' }; },
+      mergedReportRunner: async () => ({ ok: true, url: 'https://example.invalid/docx/STUB', detail: '自证桩' }),
+      adviceRunner: async () => ({ ok: true, ms: 1, advice: {} }),
+      mediaLinksRunner: async () => [],
+      mediaUpload: async () => ({ ok: false, reason: '自证桩：不真上传' }),
+      fetchImageForLink: async () => null,
+      fetchVideoForLink: async () => null,
+    });
+    return { row, result };
+  };
+
+  // ① 正向：P0 命中 ⇒ 不拒答、结论 BLOCK、§5.3 结论行在
+  const hit = await runWith(P0_CHAIN);
+  assert.ok(hit.row, 'P0＋图单没有落表（连留痕都没有）');
+  assert.strictEqual(hit.row.conclusion, 'BLOCK',
+    `P0 命中的图单被压成了 ${hit.row.conclusion} —— 已确定的 BLOCK 被图单闸门藏掉`);
+  assert.strictEqual(hit.result.forcedReply, null,
+    'P0 确定性命中的图单仍被强制替换成「证据未通过」拒答话术');
+  assert.strictEqual(hit.result.imageReviewIncomplete, false,
+    'P0 命中的图单被标成「图片审查未完成」，下游据此丢掉整份结论');
+  assert.ok(String(hit.result.verdict53?.line ?? '').includes('BLOCK'),
+    `P0＋图单拿不到 §5.3 结论行：${JSON.stringify(hit.result.verdict53)}`);
+  assert.ok(finalVerdict53ForTurn({ gateResult: hit.result }),
+    'P0＋图单的最终结论行被 imageReviewIncomplete 抹掉');
+  assert.ok(String(hit.result.p0DirectReply ?? '').includes('【审查结论：BLOCK】'),
+    'P0 直达回复不是那张 BLOCK 卡（群里会没有三态结论）');
+  // ② 判据本身：P0 读数在 ⇒ 不需要引擎 JSON；模型侧整轮没跑也不拦（PRD §6.3 主动停审）
+  assert.strictEqual(imageEvidenceFailure(P0_CHAIN, 1, { ok: true, findings: [] }), null,
+    'P0 命中仍被要「知识库引擎 JSON」—— P0 快路按 PRD §6.3 根本不跑那一段');
+  assert.strictEqual(imageEvidenceFailure(P0_CHAIN, 1, { ok: false, error: '自证桩：模型侧未跑' }), null,
+    'P0 命中的图单仍被要「模型侧原图审查」—— 而命中即停，模型侧本来就不该跑');
+  // ③ 反向对照：摘掉 P0 读数（同一张图、同一份模型侧）⇒ 仍必须拒（闸门没被整体关掉）
+  const plain = await runWith({ ok: true,
+    answer: '【审查结论：REVIEW】共发现 1 处需人工确认。\n逐条问题\n· 价格表述含糊' });
+  assert.strictEqual(plain.row?.conclusion, 'NEEDS_INPUT',
+    `没有 P0 的图单缺视觉核对 / 引擎读数时落了 ${plain.row?.conclusion} —— 闸门被改松了`);
+  assert.ok(String(plain.result.forcedReply ?? '').includes('暂不出 PASS / REVIEW / BLOCK'),
+    '没有 P0 的图单缺项时不再强制拒收');
+  assert.ok(imageEvidenceFailure({ ok: true, answer: 'x' }, 1, { ok: true, findings: [] }),
+    '没有 P0 读数、也没有引擎 JSON 的图单被当成证据齐全');
+  // ④ 边界：这条闸本来就只管图单 —— imageCount=0 时连 P0 都不必看
+  assert.strictEqual(imageEvidenceFailure(P0_CHAIN, 0, null), null,
+    '文字单被这条闸门越界拦截');
 });
 
 await t('Z45 ★★ P0 命中 ⇒ 置信度**两侧同档 1.0**（Owner 2026-10-16：「模型侧应该也是 1，最终出 1」）', async () => {
@@ -6573,6 +7171,152 @@ await t('Z46 ★★ PASS 行（没有可合并条目）格内必须是 **PRD §5
     '不许回落成占位话术（那不是 PRD 块）');
   assert.strictEqual(cap.conclusion, 'PASS');
   assert.strictEqual(cap.issueCount, 0);
+});
+
+await t('Z46b ★★ 引擎读 PASS、最终结论 REVIEW ⇒ 表行必须写出「两者不一致」，不许只写占位话术', async () => {
+  // ── 真单（BM04/BM01 婴儿监视器对比图，2026-10-22）：
+  //   链的引擎给 `PASS / 0 处 / 0.93`，链自己按图片安全审查 skill 的覆盖判据合并成 REVIEW；
+  //   表行原先只写「结论原文见对话与报告」—— 读表的人看到「0 处 + REVIEW」，
+  //   没有任何东西告诉他这两个数为什么不一样。这一格必须自己说出来（只搬读数，不解释原因）。
+  const { runSubmissionGate } = await import('./agent/agent.mjs');
+  const run = async (chainAnswer, reviewState, contentId = null) => {
+    let cap = null;
+    let optsCap = null;
+    await runSubmissionGate({
+      inbound: { text: '审一下这张图能过吗？', imageCount: 0, videoCount: 0 },
+      question: 'x', notify: async () => {},
+      chainRunner: async () => ({ answer: chainAnswer,
+        review: { state: reviewState, issue_count: 0, confidence: 0.93,
+                  ...(contentId ? { content_id: contentId } : {}) } }),
+      modelSideRunner: async () => ({ ok: true, findings: [], dropped: [] }),
+      publishRunner: async (row, opts) => {
+        cap = row; optsCap = opts; return { ok: true, action: 'skipped', detail: '自证桩' };
+      },
+      mergedReportRunner: async () => ({ ok: true, url: null, detail: '桩' }),
+      adviceRunner: async () => ({ ok: true, ms: 1, advice: {} }),
+    });
+    return { cap, opts: optsCap };
+  };
+  // ★ 正向：引擎 PASS / 最终 REVIEW（真单那一份形状）
+  const { cap: mism, opts: mismOpts } =
+    await run('合并结论：REVIEW（库侧无覆盖，结论应为 REVIEW 并注明）', 'PASS', 'AD-20261022-021');
+  assert.ok(mism, '捕获桩没被调用 —— 这一条会退化成空断言');
+  const cell = String(mism.summary ?? '');
+  assert.ok(/引擎读数 PASS/.test(cell), `格内必须写出引擎读数，实得：${cell.slice(0, 120)}`);
+  assert.ok(/最终合并结论 REVIEW/.test(cell), `格内必须写出最终结论，实得：${cell.slice(0, 120)}`);
+  assert.ok(/两者不一致/.test(cell), `格内必须点明两者不一致，实得：${cell.slice(0, 120)}`);
+  assert.strictEqual(mism.conclusion, 'REVIEW', '表行结论以最终结论为准');
+  // ★ 接线：链的内容 ID 必须**真的**交给落表（否则第三把锁是空谈，两行照旧会出现）
+  assert.strictEqual(mismOpts?.chainContentId, 'AD-20261022-021',
+    `落表没拿到链的内容 ID（实得 ${mismOpts?.chainContentId}）—— 同一单会再建第二行`);
+  // ★ 反向对照：引擎与最终一致（都 PASS）⇒ **不许**出现「两者不一致」
+  //   （否则那句话会覆盖掉正常的 PRD 结论行；这是本组最容易写成恒真的地方）
+  const { cap: same, opts: sameOpts } =
+    await run('【审查结论：PASS】未发现已知底线风险，可转交 @sign-off 责任人（未配置） 进行 sign-off。', 'PASS');
+  const okCell = String(same?.summary ?? '');
+  assert.ok(!/两者不一致/.test(okCell), `一致时不许写「两者不一致」，实得：${okCell.slice(0, 120)}`);
+  // 反向对照（接线）：链没给内容 ID ⇒ 不许凭空编一个
+  assert.strictEqual(sameOpts?.chainContentId, null,
+    `链没给内容 ID 时不许编（实得 ${sameOpts?.chainContentId}）`);
+});
+
+await t('Z46c ★★ 判定主体的 F 型条目必须进双轨（问题数 ≥3、回建报告）—— BM04/01 真单形状', async () => {
+  // ── 病灶（2026-10-22 真单）：链的回答用 `**F1（优先 2｜…）**` + `- 位置/为什么/建议`
+  //   交付 5 条实质问题，而抽取器只认 `1.` 编号行 ⇒ 抽出 0 条 ⇒ 表里问题数 0、
+  //   不建报告、卡片结论全靠模型自拟。修在 `skill_findings.mjs`（F 型 + 标题级锚点）；
+  //   这一条钉的是**它真的接进了双轨**（不是只在自证里过）。
+  const { runSubmissionGate } = await import('./agent/agent.mjs');
+  const answer = [
+    '## 七、视觉核对清单与分级结论',
+    '',
+    '### 问题清单（按 skill 优先级排序）',
+    '',
+    '**F1（优先 2｜安全信息不完整 + 潜在误读）**',
+    '- 位置：右侧，图 1 第 6 处（BM01 屏内）',
+    '- 为什么：屏内婴儿颏/颊紧贴蓝布与灰蓝软物，整图无安全提示。',
+    '- 建议：换图或在图内加安全提示。',
+    '',
+    '**F2（优先 3｜图文一致性/潜在误读）**',
+    '- 位置：顶部，图 1 第 1 处（标题 Keep an Eye on Every Room）',
+    '- 为什么：监护类标题与婴儿影像并列，易被读成替代看护。',
+    '- 建议：加免责提示。',
+    '',
+    '**F3（优先 2｜事实无法确认）**',
+    '- 位置：中部，图 1 第 10 处（$259.99 USD）',
+    '- 为什么：无 SKU 事实基线。',
+    '- 建议：补数值与口径。',
+    '',
+    '**F5（优先 4｜呈现质量，降权）**',
+    '- 位置：右侧，图 1 第 6 处（5″ HD 角标）',
+    '- 为什么：角标遮挡画面。',
+    '- 建议：移出主体。',
+    '',
+    '合并结论：REVIEW（本 skill 定级）。',
+  ].join('\n');
+  let cap = null; let repCalled = false;
+  await runSubmissionGate({
+    inbound: { text: '审一下这张图能过吗？', imageCount: 0, videoCount: 0 },
+    question: 'x', notify: async () => {},
+    chainRunner: async () => ({ answer,
+      review: { state: 'PASS', issue_count: 0, confidence: 0.93 } }),
+    modelSideRunner: async () => ({ ok: true, findings: [], dropped: [] }),
+    publishRunner: async (row) => { cap = row; return { ok: true, action: 'skipped', detail: '自证桩' }; },
+    mergedReportRunner: async () => { repCalled = true; return { ok: true, url: null, detail: '桩' }; },
+    adviceRunner: async () => ({ ok: true, ms: 1, advice: {} }),
+  });
+  assert.ok(cap, '捕获桩没被调用');
+  assert.strictEqual(cap.conclusion, 'REVIEW', '合并结论仍以链的最终结论为准');
+  assert.ok(Number(cap.issueCount) >= 3,
+    `F 型条目没进双轨：问题数 ${cap.issueCount}（F1–F3 应计 3 条，F5 降权不上卡）`);
+  assert.ok(/【审查结论：REVIEW】共发现 \d+ 处需人工确认/.test(String(cap.summary ?? '')),
+    `表行必须是 PRD 结论块，实得：${String(cap.summary ?? '').slice(0, 80)}`);
+  assert.ok(repCalled, '≥3 条必须回建合并报告（否则逐条只能回对话里翻）');
+});
+
+await t('Z46d ★★ 链跑成但结论行解析不出 ⇒ 表行必须是 NEEDS_INPUT，不许停在 PASS', async () => {
+  // ── 真单（Paruu CM100，2026-10-22）：链写
+  //   `**本 skill 分级结论（4A＋4B＋图文一致性合并，取更保守一侧）**：**REVIEW**`
+  //   而当时的 `conclusionOf` 认不出（括号夹在「结论」与「：」之间）⇒ `Agent 结论` 没写
+  //   ⇒ 表行停在链自己写的 PASS，卡片却是 REVIEW。
+  //   这里钉两件：① 能解析时要拿到 REVIEW（同一句真实写法）；
+  //   ② 解析不出时**落 NEEDS_INPUT**并在汇总里说明 —— 不许回落成 PASS 或沉默。
+  const { runSubmissionGate } = await import('./agent/agent.mjs');
+  const run = async (answer) => {
+    let cap = null;
+    await runSubmissionGate({
+      inbound: { text: '审一下这张图能过吗？', imageCount: 0, videoCount: 0 },
+      question: 'x', notify: async () => {},
+      chainRunner: async () => ({ answer,
+        review: { state: 'PASS', issue_count: 0, confidence: 0.93 } }),
+      modelSideRunner: async () => ({ ok: true, findings: [], dropped: [] }),
+      publishRunner: async (row) => { cap = row; return { ok: true, action: 'skipped', detail: '自证桩' }; },
+      mergedReportRunner: async () => ({ ok: true, url: null, detail: '桩' }),
+      adviceRunner: async () => ({ ok: true, ms: 1, advice: {} }),
+    });
+    return cap;
+  };
+  // ① 真单那句写法必须解析成 REVIEW
+  const good = await run('**本 skill 分级结论（4A＋4B＋图文一致性合并，取更保守一侧）**：**REVIEW**');
+  assert.ok(good, '捕获桩没被调用');
+  assert.strictEqual(good.conclusion, 'REVIEW',
+    `带括号的分级结论行没认出来（实得 ${good.conclusion}）—— 表行会停在链的 PASS`);
+  // ② 解析不出 ⇒ NEEDS_INPUT，且汇总必须说明原因
+  const bad = await run('链给出的结论是 REVIEW，但这句没有冒号。');
+  assert.ok(bad, '捕获桩没被调用');
+  assert.strictEqual(bad.conclusion, 'NEEDS_INPUT',
+    `解析不出时不许停在 PASS（实得 ${bad.conclusion}）`);
+  assert.ok(/结论行解析不出/.test(String(bad.summary ?? '')),
+    `汇总必须说明「解析不出」，实得：${String(bad.summary ?? '').slice(0, 80)}`);
+  // ★ 回滚开关：`SHOUHENG_CONCLUSION_STRICT=0` ⇒ 这条 fail-closed 关掉（应急回滚用）
+  const oldStrict = process.env.SHOUHENG_CONCLUSION_STRICT;
+  try {
+    process.env.SHOUHENG_CONCLUSION_STRICT = '0';
+    const off = await run('链给出的结论是 REVIEW，但这句没有冒号。');
+    assert.ok(!off.conclusion, `开关关掉后不该再强制 NEEDS_INPUT（实得 ${off.conclusion}）`);
+  } finally {
+    if (oldStrict === undefined) delete process.env.SHOUHENG_CONCLUSION_STRICT;
+    else process.env.SHOUHENG_CONCLUSION_STRICT = oldStrict;
+  }
 });
 
 await t('Z47 ★★ 批跑器回填**只认本轮那一行**（猜行的代价：把另一遍/上一轮的字段搬进你的表）', async () => {
@@ -6968,7 +7712,7 @@ await t('Z48c ★★ 版式切分：**卡片停在三格、报告才是八格**�
     '两个版式的分叉不见了 —— 卡片会重新变成八格（Owner 2026-10-17 叫停过）');
 });
 
-await t('Z48b ★★ 反向对照：问题数 <3 ⇒ **不建报告**（PRD §5.3.4），明细靠卡片逐条平铺', async () => {
+await t('Z48b ★★ 反向对照：图片 skill 未完整执行时不发布合格报告', async () => {
   // ★★ 2026-10-17（Owner 裁定，推翻 2026-10-14「<3 也出报告」）：闸回到 ≥3。
   //   这一条必须**行为级**地钉住 —— 只查源码里有没有那个比较式（Z17）挡不住
   //   「比较式写了但接错了变量」这类错。
@@ -6990,18 +7734,17 @@ await t('Z48b ★★ 反向对照：问题数 <3 ⇒ **不建报告**（PRD §5.
     inbound: { text: '审核下这张图', imageCount: 1, videoCount: 0 },
     question: '审核下这张图', notify: null,
     // 库侧只判 1 条 ⇒ 卡内总数 = 1（<3）
-    chainRunner: async () => ({ answer: KB_ANSWER, review: { state: 'REVIEW', issue_count: 1 } }),
+    chainRunner: async () => ({ answer: KB_ANSWER, engine: IMAGE_ENGINE_OK,
+      review: { state: 'REVIEW', issue_count: 1 } }),
     publishRunner: async () => ({ ok: true, record_id: 'recX' }),
     modelSideRunner: async () => ({ ok: true, ms: 1, findings: [] }),
     mergedReportRunner: async () => { called++; return { ok: true, url: 'https://example.invalid/docx/NOPE' }; },
   });
-  assert.strictEqual(called, 0,
-    '卡内 <3 却建了报告 —— 违反 PRD §5.3.4（报告链接门槛），且 <3 的明细本来就在卡上');
-  const blk = String(g.verdict53?.block ?? '');
-  // 反向对照的另一半：**明细不许因此消失** —— <3 时卡片必须逐条平铺
-  assert.ok(/1\.【北美本地化与标签要求/.test(blk),
-    `<3 时卡片没有逐条平铺，明细真的丢了：${blk.slice(0, 200)}`);
-  assert.ok(!/→ 查看完整问题清单与修改建议/.test(blk), '<3 却印了报告链接那一行');
+  assert.strictEqual(called, 0, '图片 skill 未完整执行时不许发布“完整审查”报告');
+  assert.strictEqual(g.imageReviewIncomplete, true,
+    '缺少图片 skill 全流程凭证时必须显式标记未完成，不能放行旧的 REVIEW 三态');
+  assert.strictEqual(g.verdict53, null,
+    '图片审查未完整执行时不许产出 PASS / REVIEW / BLOCK 结论');
 });
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -7091,11 +7834,12 @@ await t('Z60 ★★ 自述「不改也能发布」⇒ 必须判非强制（SUGGE
   assert.strictEqual(r2.findings[0].nature, 'mandatory',
     '真强制项被降成了 advisory —— 那是漏放方向，最坏的一种');
   assert.strictEqual(r2.findings[0].nature_overridden, null, '真强制项不该有「被改写」留痕');
-  // ② 整单结论跟着走：advisory ⇒ SUGGEST
+  // ② 整单结论跟着走：advisory ⇒ 四态第 2 态 `PASS+SUGGEST`
+  //    （PRD rev 105 §5.3.2：SUGGEST 是 PASS 的附属信息；态名 2026-10-21 由 Owner 定）
   const merged = T.mergeFindings([], r1.findings).items;
   assert.strictEqual(T.mergedState({ kbCovered: true, merged,
-    kb: { hasSidecar: true, state: 'PASS', issueCount: 0 } }), 'SUGGEST',
-    '自述非强制的那一单没落 SUGGEST');
+    kb: { hasSidecar: true, state: 'PASS', issueCount: 0 } }), 'PASS+SUGGEST',
+    '自述非强制的那一单没落 PASS+SUGGEST');
   // ③ 两句自我否定的长句在卡面与报告里都不许再出现
   const item = { location: '素材正文', category: '措辞表达', source: 'model', reason: '空泛',
     suggestion: '换成具体可感知的表述' };
@@ -7107,6 +7851,54 @@ await t('Z60 ★★ 自述「不改也能发布」⇒ 必须判非强制（SUGGE
   }
   // 但「判断不是证据」这件事**必须还在**（本库硬纪律：模型侧结论是判断）
   assert.ok(/非条款依据/.test(rep), '依据格不再说明「这不是条款依据」—— 读者会把判断当证据');
+});
+
+await t('Z61 ★★ 「有依据」= 能解析出登记来源（占位词不算）；URL 写错格要归一化', async () => {
+  // Owner 2026-10-20 拿真卡（AD-20261020-006）来问的那一单：两条都印着
+  // 「依据：独立语义复核（非条款依据，需人工核对）」，而 2026-10-19 已明令不许这句出现。
+  // 根因在解析边界：提示词教模型「找不到依据就写 source:"none"」，
+  // 而 `_hasBasis` 只看「source 是不是非空字符串」⇒ 占位词也算有依据 ⇒ 放上卡。
+  const M = await import('./agent/model_side.mjs');
+  const T = await import('./agent/dual_track.mjs');
+  // ⚠️ `category` 走的是**旧 7 类轴**（合规/消费者安全/措辞表达/产品描述/隐私/AI 披露/本地化），
+  //   A3 12 类进 `taxonomy_category`（2026-10-19 统一到 A3 之后两轴并存）——
+  //   第一版这里写成 `category:'品牌信任与声誉'` ⇒ 解析层按「类目不在闭集」整条丢掉，
+  //   Z61 当场假红（夹具错，不是判据错）。
+  const base = { location: '图 1 第 2 处', category: '措辞表达',
+                 taxonomy_category: '品牌信任与声誉', severity: 'REVIEW',
+                 reason: '美式英语无此搭配，美国消费者读不懂品牌主张',
+                 suggestion: '改为通顺的英文标语' };
+
+  // ① 占位值 / 不在闭集里的假 id ⇒ 必须判「没依据」，且**不上卡**（并如实说明滤掉了几条）
+  for (const ph of ['none', 'null', 'n/a', 'S99']) {
+    const p = M.parseFindings(JSON.stringify([{ ...base, source: ph }]));
+    assert.strictEqual(p.findings[0] && p.findings[0].basis_missing, true,
+      `source:"${ph}" 被当成了「有依据」—— 卡上会再印出那句「非条款依据」`);
+    const card = T.renderMerged(T.mergeFindings([], p.findings).items,
+      { state: 'REVIEW', reportUrlOverride: null });
+    assert.ok(!/非条款依据/.test(String(card.block)),
+      `source:"${ph}" 的条目仍上了卡（卡面印了「非条款依据」）`);
+    assert.ok(/未给出依据/.test(String(card.block)), '滤掉之后没有如实说明（静默丢条目）');
+  }
+
+  // ② 真登记来源 ⇒ 有依据（别把正常条目一起判死）
+  const okS = M.parseFindings(JSON.stringify([{ ...base, source: 'S14' }]));
+  assert.strictEqual(okS.findings[0].basis_missing, false, '真登记来源 S14 被判成没依据');
+
+  // ③ 闭集之外的公开规则 ⇒ 给 URL 就算有依据
+  const okU = M.parseFindings(JSON.stringify([{ ...base,
+    source_url: 'https://www.ftc.gov/business-guidance/resources/x', source_name: 'FTC' }]));
+  assert.strictEqual(okU.findings[0].basis_missing, false, '给了可核 URL 却被判没依据');
+
+  // ④ ★ 反向对照：URL 写错格（写进 `source`）⇒ 归一化到 `source_url`，不算发明、也不白丢
+  const mis = M.parseFindings(JSON.stringify([{ ...base,
+    source: 'https://www.ftc.gov/business-guidance/resources/y' }]));
+  assert.strictEqual(mis.findings[0].basis_missing, false, 'URL 写进 source 被判成没依据（会白丢一条）');
+  assert.ok(/ftc\.gov/.test(String(mis.findings[0].source_url)), 'URL 写进 source 没被归一化');
+
+  // ⑤ ★ 反向对照（安全方向）：缺 source 与 source_url **两者皆空** ⇒ 仍然判没依据
+  const none = M.parseFindings(JSON.stringify([{ ...base }]));
+  assert.strictEqual(none.findings[0].basis_missing, true, '两格都空却被判有依据（那是漏放方向）');
 });
 
 await t('Z59 ★★ 卡面三处收口：链接只留一条（保留下面的）、原因不许是内部口径、修改建议 ≤30 字', async () => {
@@ -7156,7 +7948,8 @@ await t('Z59 ★★ 卡面三处收口：链接只留一条（保留下面的）
   // ★ 2026-10-19 后令（Owner：「修改建议是可以 30 字的，**不带标点这些**，可以多写一些」）：
   //   这一格量的是**实词字数**（标点不计）—— 与 `prd533.countAdviceChars` 同一把尺。
   const visN = T.countAdviceChars(vis);
-  assert.ok(visN <= 30, `卡面修改建议 ${visN} 字（标点不计），超 PRD §5.3.3 的 30 字上限：${vis}`);
+  assert.ok(visN <= T.ADVICE_MAX,
+    `卡面修改建议 ${visN} 字（标点不计），超 PRD §5.3.3 的 ${T.ADVICE_MAX} 字上限：${vis}`);
   // ★★ 2026-10-19（Owner：「『（全文见报告）』这里**都没有报告**，没有的东西不要说」）：
   //   1-2 条**不出报告**（PRD §5.3.4）⇒ 卡面压字后**不许**加这个指针。
   assert.ok(!/全文见报告/.test(vis), `没有报告却写了「全文见报告」：${vis}`);
@@ -7167,8 +7960,8 @@ await t('Z59 ★★ 卡面三处收口：链接只留一条（保留下面的）
     .replace(/^.*\*\*建议\*\*：/, '').replace(/[*]/g, '').trim();
   assert.ok(/全文见报告/.test(vis2), `真有报告时却没给指针：${vis2}`);
   // ★ 2026-10-19：同一把尺（标点不计）—— 指针里的 `…（）` 也不再白吃额度。
-  assert.ok(T.countAdviceChars(vis2) <= 30,
-    `有指针时也超 30 字（标点不计）：${T.countAdviceChars(vis2)}`);
+  assert.ok(T.countAdviceChars(vis2) <= T.ADVICE_MAX,
+    `有指针时也超 ${T.ADVICE_MAX} 字（标点不计）：${T.countAdviceChars(vis2)}`);
   const md = M.renderMergedReportMd({ merged: [mk(longAdvice)], total: 1, state: 'BLOCK',
     line: '【审查结论：BLOCK】共发现 1 处必须修改。', question: 'q', at: 'x' });
   const repAdv = (md.split('\n').find((l) => /\*\*修改建议\*\*/.test(l)) || '')
@@ -7182,12 +7975,13 @@ await t('Z59 ★★ 卡面三处收口：链接只留一条（保留下面的）
   //   报告这一格不再要求 ≤30 字（那条挪到**产出侧**：`advice.mjs` 超了再压一次），
   //   改为要求**完整**：不许 `…`、不许只剩半句。卡面 ①②③ 三条一个字没动。
   assert.ok(repN > 0, '报告逐条里没有「修改建议」这一格');
-  assert.ok(!/…/.test(repAdv), `报告修改建议被截断了：${JSON.stringify(repAdv)}`);
-  assert.ok(repAdv.includes(longAdvice), '报告里只剩半句 —— 原句没被完整印出');
+  assert.ok(T.countAdviceChars(repAdv) <= T.ADVICE_MAX,
+    `报告修改建议超过 ${T.ADVICE_MAX} 字：${JSON.stringify(repAdv)}`);
   // 反向对照（已按 2026-10-19 第三令翻转）：**尾部那句也必须印出来** ——
   //   改回「按字数切」时，这里会精确变红（切掉的正是这一段）。
-  assert.ok(repAdv.includes('绝对安全'),
-    `报告里的修改建议缺了尾部（又被切了）：${repAdv.slice(0, 60)}`);
+  const MR = await import('./agent/merged_record.mjs');
+  assert.strictEqual(MR.buildMergedRecord({ items: [mk(longAdvice)] }).items[0].advice, longAdvice,
+    '可见字段压到 60 字后，结构化记录仍须保留原建议全文');
 });
 
 await t('Z61 ★★ 卡面出厂闸：Owner 贴回来的那张卡，四条口径必须逐条抓得住（反向对照）', async () => {
@@ -7222,11 +8016,11 @@ await t('Z61 ★★ 卡面出厂闸：Owner 贴回来的那张卡，四条口径
   const BAD = ['【审查结论：REVIEW】共发现 1 处需人工确认。', '1.【X】y',
     `   **原因**：${OWNER_REASON}`,
     '   **依据**：独立语义复核（**非条款依据**，需人工核对）',
-    `   **建议**：${OWNER_SUG}…（全文见报告）`,
+    `   **建议**：${'改'.repeat(T.ADVICE_MAX + 1)}…（全文见报告）`,
     '→ 完整清单：https://a.b/c', '→ 查看完整问题清单与修改建议：https://a.b/c'].join('\n');
   const caught = T.cardConformance(BAD, { hasReport: false }).join('｜');
   for (const [what, pat] of [['原因超 50', /原因」\d+ 字/], ['假依据', /那不是依据/],
-                             ['建议超 30', /建议」\d+ 字/], ['无报告却说全文见报告', /没有报告/],
+                             [`建议超 ${T.ADVICE_MAX}`, /建议」\d+ 字/], ['无报告却说全文见报告', /没有报告/],
                              ['两条链接', /链接行 2 条/]]) {
     assert.ok(pat.test(caught), `出厂闸漏了「${what}」：${caught}`);
   }
@@ -7235,7 +8029,7 @@ await t('Z61 ★★ 卡面出厂闸：Owner 贴回来的那张卡，四条口径
     '有报告时仍把指针判成违规 —— 闸比口径宽，会天天误报');
 });
 
-await t('Z58 ★★ 卡片最终态必须是 **4 态可达**（PASS/SUGGEST/REVIEW/BLOCK），且非强制信号不许丢', async () => {
+await t('Z58 ★★ 卡片最终态必须是 **4 态可达**（PASS/PASS+SUGGEST/REVIEW/BLOCK），且非强制信号不许丢', async () => {
   // Owner 2026-10-19 逐字：「知识库决策集／守衡结论行解析 ⇒ **最终输出的卡片态，必须是 4 态**」。
   // 这条钉的是**可达性**，不是「解析器认得」：
   // 改前模型侧只给 `severity: BLOCK|REVIEW`，`priorityOf` 把模型侧一律封顶 **P1**
@@ -7248,7 +8042,7 @@ await t('Z58 ★★ 卡片最终态必须是 **4 态可达**（PASS/SUGGEST/REVI
   const kbPass = { hasSidecar: true, state: 'PASS', issueCount: 0 };
   const cases = [
     ['PASS', { kbCovered: true, merged: [], kb: kbPass }],
-    ['SUGGEST', { kbCovered: true, merged: [adv('正文第 2 段'), adv('正文第 3 段')], kb: kbPass }],
+    ['PASS+SUGGEST', { kbCovered: true, merged: [adv('正文第 2 段'), adv('正文第 3 段')], kb: kbPass }],
     ['REVIEW', { kbCovered: true, merged: [adv('正文第 2 段')],
       kb: { hasSidecar: true, state: 'REVIEW', issueCount: 1 } }],
     ['BLOCK', { kbCovered: true, merged: [{ location: '全文', category: '合规', severity: 'BLOCK',
@@ -7295,10 +8089,12 @@ await t('Z58 ★★ 卡片最终态必须是 **4 态可达**（PASS/SUGGEST/REVI
     '缺省 nature 竟被当成 advisory —— 那会把强制问题静默降级成「建议」');
 });
 
-await t('Z57 ★★ 四态：只有 P3 ⇒ SUGGEST（不阻断、不汇总、不派单）；P3+P1 必须仍 REVIEW', async () => {
-  // Owner 2026-10-19 裁定「冲突 K 取 ①」：`decision` 可取 `SUGGEST`（四态）。
-  // 依据 PRD §5.3.2（状态列 + 动作「提示内容方，不阻断流程，随 PASS 一起进入下一步」）
-  // 与 §6.2 输出映射（P3 → 强制 SUGGEST 不阻断）、§5.3.4 样张（结论行 `【SUGGEST】…`）。
+await t('Z57 ★★ 四态：只有 P3 ⇒ PASS+SUGGEST（不阻断、不汇总、不派单）；P3+P1 必须仍 REVIEW', async () => {
+  // Owner 2026-10-21：「总共 4 态 pass / pass+suggest / block / review」——
+  // 第 2 态的名字是 **`PASS+SUGGEST`**（PRD rev 105 §5.3.2 把 SUGGEST 列为 PASS 的**附属信息**、
+  // §6.3 规则 4 的 decision 仍记 PASS）。2026-10-19 那版让它独立成态，真单上印成
+  // `【审查结论：SUGGEST】…`，Owner 拿那张卡问的正是这条。
+  // 措辞仍取 §5.3.4 样张（「发现 N 处建议优化，不阻断发布」）。
   const T = await import('./agent/dual_track.mjs');
   const P = await import('./agent/prd53.mjs');
   const mk = (pri) => ({ location: '正文第 2 段', category: '措辞表达', severity: 'REVIEW', source: 'kb',
@@ -7308,33 +8104,42 @@ await t('Z57 ★★ 四态：只有 P3 ⇒ SUGGEST（不阻断、不汇总、不
           suggestionLine: '改为「高效便捷」。',
           entry_url: 'https://momcozy-in.feishu.cn/base/Lk3Q?table=tblcbk4XiW6471YN&record=recA' } });
 
-  // ① 状态：只有 P3 ⇒ SUGGEST；**混入 P1 ⇒ 必须仍 REVIEW**（单调性：只许保持或升级）
+  // ① 状态：只有 P3 ⇒ PASS+SUGGEST；**混入 P1 ⇒ 必须仍 REVIEW**（单调性：只许保持或升级）
   assert.strictEqual(T.mergedState({ kbCovered: true, merged: [mk('P3'), mk('P3')],
-    kb: { state: 'SUGGEST', issueCount: 2 } }), 'SUGGEST', '只有 P3 时应落 SUGGEST');
+    kb: { state: 'SUGGEST', issueCount: 2 } }), 'PASS+SUGGEST', '只有 P3 时应落 PASS+SUGGEST');
   assert.strictEqual(T.mergedState({ kbCovered: true, merged: [mk('P3'), mk('P1')],
     kb: { state: 'SUGGEST', issueCount: 2 } }), 'REVIEW',
-    'P3 + P1 竟被降成 SUGGEST —— 单调性被破坏（最坏的一种）');
-  // 库侧只有建议、模型侧一条都没并进来 ⇒ 仍是 SUGGEST（不许因为"合并后空"掉回 REVIEW）
+    'P3 + P1 竟被降成 PASS+SUGGEST —— 单调性被破坏（最坏的一种）');
+  // 库侧只有建议、模型侧一条都没并进来 ⇒ 仍是 PASS+SUGGEST（不许因为"合并后空"掉回 REVIEW）
   assert.strictEqual(T.mergedState({ kbCovered: true, merged: [],
-    kb: { state: 'SUGGEST', issueCount: 3 } }), 'SUGGEST', '库侧 SUGGEST 无条目时应保持 SUGGEST');
+    kb: { state: 'SUGGEST', issueCount: 3 } }), 'PASS+SUGGEST',
+    '库侧 SUGGEST（旧名）无条目时应保持 PASS+SUGGEST');
 
-  // ② 结论行按 §5.3.4：必须含「不阻断发布」，且被 `conforms` 认
-  const r = T.renderMerged([mk('P3'), mk('P3'), mk('P3')], { state: 'SUGGEST',
+  // ② 结论行：态名写四态第 2 态 `PASS+SUGGEST`，措辞取 §5.3.4（含「不阻断发布」），且被 `conforms` 认
+  const r = T.renderMerged([mk('P3'), mk('P3'), mk('P3')], { state: 'PASS+SUGGEST',
     reportUrlOverride: 'https://x/docx/abc' });
   const line = String(r.line || '');
-  assert.strictEqual(line, '【审查结论：SUGGEST】发现 3 处建议优化，不阻断发布。',
-    `SUGGEST 结论行不合 §5.3.4：${line}`);
-  assert.strictEqual(P.conforms(line).ok, true, `conforms 不认自家产出的 SUGGEST 行：${P.conforms(line).why}`);
+  assert.strictEqual(line, '【审查结论：PASS+SUGGEST】发现 3 处建议优化，不阻断发布。',
+    `四态第 2 态的结论行不合 §5.3.4：${line}`);
+  assert.strictEqual(P.conforms(line).ok, true,
+    `conforms 不认自家产出的 PASS+SUGGEST 行：${P.conforms(line).why}`);
+  // ★ 反向对照（2026-10-21）：**旧态名 `SUGGEST` 不许再被当作四态** ——
+  //   只认新名，否则「一单既不是 PASS 也不是 REVIEW」那个形状会悄悄回来。
+  const legacyLine = '【审查结论：SUGGEST】发现 3 处建议优化，不阻断发布。';
+  assert.strictEqual(P.conforms(legacyLine).ok, false, '旧态名 SUGGEST 竟仍被判合规');
+  assert.strictEqual(T.renderMerged([mk('P3')], { state: 'SUGGEST' }).line,
+    '【审查结论：PASS+SUGGEST】发现 1 处建议优化，不阻断发布。',
+    '传入旧态名 SUGGEST 时没有归一到 PASS+SUGGEST');
 
-  // ③ **≥3 条也不做分类汇总**（§17：SUGGEST 的输出格式是「逐条列建议 + 不阻断说明」）
-  assert.strictEqual(r.summarized, false, 'SUGGEST 竟走了分类汇总（PRD §17 要逐条列建议）');
-  assert.ok(!/^· .+类问题：\d+ 个$/m.test(String(r.block)), 'SUGGEST 卡上出现了分类汇总行');
+  // ③ **≥3 条也不做分类汇总**（§17：这一档的输出格式是「逐条列建议 + 不阻断说明」）
+  assert.strictEqual(r.summarized, false, 'PASS+SUGGEST 竟走了分类汇总（PRD §17 要逐条列建议）');
+  assert.ok(!/^· .+类问题：\d+ 个$/m.test(String(r.block)), 'PASS+SUGGEST 卡上出现了分类汇总行');
   assert.ok(/^1\.【/m.test(String(r.block)) && /^3\.【/m.test(String(r.block)),
-    `SUGGEST 卡上应逐条列出 3 条：${String(r.block).slice(0, 160)}`);
+    `PASS+SUGGEST 卡上应逐条列出 3 条：${String(r.block).slice(0, 160)}`);
 
   // ④ 收尾：**不派单**（不写「建议转 @… 复核。」），且写明不阻断
-  assert.ok(/不阻断发布/.test(String(r.block)), 'SUGGEST 卡上没写「不阻断发布」');
-  assert.ok(!/建议转\s*@/.test(String(r.block)), 'SUGGEST 卡上出现了转派话术（它不阻断、不派单）');
+  assert.ok(/不阻断发布/.test(String(r.block)), 'PASS+SUGGEST 卡上没写「不阻断发布」');
+  assert.ok(!/建议转\s*@/.test(String(r.block)), 'PASS+SUGGEST 卡上出现了转派话术（它不阻断、不派单）');
   // ★ 反向对照：同一批条目换成 REVIEW ⇒ **必须**出现转派话术（证明上面那条不是恒真）
   const rev = T.renderMerged([mk('P3'), mk('P3'), mk('P3')], { state: 'REVIEW',
     reportUrlOverride: 'https://x/docx/abc' });
@@ -7353,8 +8158,8 @@ await t('Z56 ★★ PRD §5.3.3 硬约束：描述≤50/原因≤50/建议≤30�
   const T = await import('./agent/dual_track.mjs');
   // ① 三个字段上限逐字对上 PRD（50/50/30），且**逐字段**各自判
   assert.deepStrictEqual(P5.loadConstraints().fields.map((f) => `${f.key}=${f.limit}`),
-    ['description=50', 'reason=50', 'advice=30'], '字段上限与 PRD §5.3.3 不一致');
-  assert.strictEqual(P5.checkFields({ advice: '字'.repeat(31) }).rows[2].over, 1, '建议上限不是 30');
+    ['description=50', 'reason=50', 'advice=60'], '字段上限与当前约束登记不一致');
+  assert.strictEqual(P5.checkFields({ advice: '字'.repeat(61) }).rows[2].over, 1, '建议上限不是 60');
   assert.strictEqual(P5.checkFields({ reason: '字'.repeat(31) }).rows[1].ok, true,
     '同 31 字放进「原因」应合规（上限 50）—— 说明没逐字段判');
   // ② 位置三模式 + 反向对照（真出现过的四种形状必须红）
@@ -7414,11 +8219,16 @@ await t('Z55 ★★ 卡面必须量 PRD §17 的字数（≥3 那档要真进线
     '格式列含「逐条」的那个才该按条量');
   // ★ Owner 2026-10-19 补充：「逐条的还有 SUGGEST（≤150 字/条）」——
   //   SUGGEST 那一行的 format 写着「逐条列建议」，规则自动把它判成按条，**不需要额外写死**。
-  const sug = P17.checkItems('SUGGEST', 2, ['建议把「最好」改为具体表述。'.repeat(3), '建议补上数据来源与统计口径。']);
+  // ★★ 2026-10-21：守衡四态第 2 态叫 `PASS+SUGGEST`，而真源 registry 那一行叫 `SUGGEST`
+  //   （PRD §17 内嵌表自带的档位名）⇒ `prd17.registryState()` 做**一次**映射，两边都能量到。
+  //   反向对照：映射要是没接上，`PASS+SUGGEST` 会 `limitOf → null`（=「不判」）而不报错。
+  assert.deepStrictEqual([P17.scopeOf('PASS+SUGGEST', 2), P17.limitOf('PASS+SUGGEST', 2)],
+    ['per_item', 150], 'PASS+SUGGEST 没映射到真源那一档（会静默变成「不判」）');
+  const sug = P17.checkItems('PASS+SUGGEST', 2, ['建议把「最好」改为具体表述。'.repeat(3), '建议补上数据来源与统计口径。']);
   assert.deepStrictEqual([sug.scope, sug.limit, sug.overCount], ['item', 150, 0],
-    `SUGGEST 该按条量、上限 150：${JSON.stringify(sug.perItem)}`);
+    `PASS+SUGGEST 该按条量、上限 150：${JSON.stringify(sug.perItem)}`);
   // 反向对照：把第一条加长越过 150 ⇒ 只报那一条（另一条仍合规）
-  const sug2 = P17.checkItems('SUGGEST', 2, ['建议把「最好」改为具体表述。'.repeat(12), '建议补上数据来源与统计口径。']);
+  const sug2 = P17.checkItems('PASS+SUGGEST', 2, ['建议把「最好」改为具体表述。'.repeat(12), '建议补上数据来源与统计口径。']);
   assert.deepStrictEqual([sug2.overCount, sug2.ok, sug2.perItem[1].ok], [1, false, true],
     `加长第一条后应只报一条：${JSON.stringify(sug2.perItem.map((r) => [r.chars, r.ok]))}`);
   // ② 1-2 条那档必须**逐条**量：
@@ -7457,8 +8267,9 @@ await t('Z55 ★★ 卡面必须量 PRD §17 的字数（≥3 那档要真进线
   assert.notStrictEqual(P17.check('BLOCK', 6, longText).limit, P17.check('BLOCK', 2, longText).limit,
     '两个档位取到了同一个上限 —— 档位判定没生效');
   // ⑤ 链接**不许**计入字数（一条 docx 链接 ≈55 字，算进去这条上限就永远不可能满足）
-  assert.strictEqual(P17.countChars('完整清单：https://x.y/' + 'a'.repeat(50)),
-    P17.countChars('完整清单：'), '链接被算进字数了');
+  const urlPrefix = '说明'.repeat(20);
+  assert.strictEqual(P17.countChars(`${urlPrefix} https://x.y/${'a'.repeat(50)}`),
+    P17.countChars(urlPrefix), '链接被算进字数了');
 });
 
 await t('Z54 ★★ 报告里只许有一个轴：**A3 12 类**，四维口径一个词都不许出现', async () => {
@@ -7570,15 +8381,21 @@ await t('Z52 ★★ 依据行必须带飞书源侧直链（手里有 URL 就必�
       line: '【审查结论：BLOCK】共发现 1 处必须修改。', question: 'q', at: 'x' });
     return (md.split('\n').find((l) => /依据文档链接/.test(l)) || '').trim();
   };
-  // ① 有 URL ⇒ 必须可点，且**文字里那句话一个字不少**
+  // ① 有 URL ⇒ 必须可点；形状按 Owner 2026-10-22 的新口径：
+  //   「依据文档链接…**表格名称+飞书链接就好**」—— 与 PRD §5.3.3 的
+  //   `依据：《广告法禁用语》第 1 条（链接：https://…）` 同一句式。
+  //   ⚠️ 原先这里还断言要保留「← 命中「100%」」那句：那是 2026-10-19 的口径；
+  //     2026-10-22 收成一句话后，命中原文的落点是**总览表的「命中描述」列**
+  //     （`pointOf` 读 excerpt，不由这一格承担）。两条口径不能同时成立，以最新为准。
   const withUrl = basisOf(url);
   assert.ok(withUrl.includes(url), `有 entry_url 却没印链接：${withUrl}`);
   assert.ok(/\[点开核对\]\(/.test(withUrl), `链接不是可点形式：${withUrl}`);
-  assert.ok(/第 E-2\.124 条 ← 命中「100%」/.test(withUrl), `依据原话被改坏了：${withUrl}`);
+  assert.ok(/《知识库》第 E-2\.124 条/.test(withUrl), `依据原话（表格名+条款号）被改坏了：${withUrl}`);
+  assert.ok(/（链接：\[点开核对\]\(/.test(withUrl), `链接没有收进 PRD 的「（链接：…）」括号：${withUrl}`);
   // ② **反向对照**：没有 URL ⇒ 一个链接都不许出现（不许拿别处的 URL 凑、不许造）
   const noUrl = basisOf(null);
   assert.ok(!/https?:\/\//.test(noUrl), `没有 entry_url 却印出了链接：${noUrl}`);
-  assert.ok(/第 E-2\.124 条 ← 命中「100%」/.test(noUrl), `无链接时依据原话也要在：${noUrl}`);
+  assert.ok(/《知识库》第 E-2\.124 条/.test(noUrl), `无链接时依据原话也要在：${noUrl}`);
   // ③ 幂等：文字里**已经有**这个 URL ⇒ 不许再补第二遍
   const twice = M.renderMergedReportMd({
     merged: [{ ...mk(url), kb: { ...mk(url).kb, basisLine: `《知识库》第 E-2.124 条 ← 命中「100%」｜原始出处：${url}` } }],
@@ -7760,9 +8577,13 @@ await t('Z49f ★★ 修改建议 ≤30 字（Owner 2026-10-19 后令，推翻 2
   //       最狠一条只剩「改为…」，拿到的人反而不知道该改什么）。
   //   ⇒ 本判据现在钉的是：**这一格必须存在、且是完整原句（不许 `…`、不许比原文短）**。
   assert.ok(n > 0, '报告逐条里没有「修改建议」这一格（没写 ≠ 合规）');
-  assert.ok(!/…|\.\.\./.test(cell), `修改建议被截断了：${JSON.stringify(cell)}`);
-  // ② 反向对照：**整段原句必须都在**（把渲染层改回 `_clip` ⇒ 这条与上一条一起精确变红）
-  assert.ok(md.includes(sug.replace(/\s+/g, ' ')), '报告里只剩半句 —— 原句没被完整印出');
+  assert.ok(T.countAdviceChars(cell) <= T.ADVICE_MAX,
+    `修改建议超过 ${T.ADVICE_MAX} 字：${JSON.stringify(cell)}`);
+  // 原始建议必须完整保存在结构化记录中，即使可见字段遵守 60 字上限。
+  const MR = await import('./agent/merged_record.mjs');
+  const saved = MR.buildMergedRecord({ items: [{ location: '全文', category: '合规', severity: 'BLOCK',
+    source: 'kb', reason: 'r', description: 'd', advice: sug }] });
+  assert.strictEqual(saved.items[0].advice, sug, '可见字段压到 60 字后，记录仍须保留原建议全文');
   // ③ 也不许退回到「指路尾巴」那种改前错法（2026-10-17 那条裁定治的就是它）
   assert.ok(!/完整改法见/.test(md), '又出现了「完整改法见…」这个指路尾巴');
   // ④ 全文没丢：结构化那一侧仍然是原文（搬是搬、砍是砍）
@@ -7886,7 +8707,7 @@ await t('34b 反向对照：不是送审（短文本、无媒材）⇒ 一张回
 await t('34c 一条消息只发一张：早发过 ⇒ 闸门里**不再**补发（拆掉 ackSentAt 会变 2）', async () => {
   const { handleMessage } = await import('./agent/agent.mjs');
   const acks = [];
-  const long = '这段 listing 文案帮我审一下：M5 吸奶器是最好的，宝宝一觉到天亮，绝对安全。';
+  const long = '这段 listing 文案帮我审一下：M5 吸奶器的静音设计很安静，夜里泵奶不打扰家人。';
   assert.ok([...long].length >= 30, '夹具必须够长，才会被判成 text 送审');
   const r = await handleMessage({
     message: { message_id: `om_once_${Date.now()}`, chat_id: 'oc_once', chat_type: 'p2p',
@@ -7909,7 +8730,7 @@ await t('34d 指标：真 ingress 进日志（stage=early / prep_ms / ingress �
   console.log = (...a) => { logs.push(a.map(String).join(' ')); };
   try {
     const tIngress = Date.now() - 3000;      // 假装消息 3 秒前就进来了
-    const long = '这段 listing 文案帮我审一下：M5 吸奶器是最好的，宝宝一觉到天亮，绝对安全。';
+    const long = '这段 listing 文案帮我审一下：M5 吸奶器的静音设计很安静，夜里泵奶不打扰家人。';
     await handleMessage({
       message: { message_id: `om_metric_${Date.now()}`, chat_id: 'oc_metric', chat_type: 'p2p',
                  message_type: 'text', content: JSON.stringify({ text: long }) },
@@ -7932,7 +8753,7 @@ await t('34d 指标：真 ingress 进日志（stage=early / prep_ms / ingress �
   const orig2 = console.log;
   console.log = (...a) => { logs2.push(a.map(String).join(' ')); };
   try {
-    const long = '这段 listing 文案帮我审一下：M5 吸奶器是最好的，宝宝一觉到天亮，绝对安全。';
+    const long = '这段 listing 文案帮我审一下：M5 吸奶器的静音设计很安静，夜里泵奶不打扰家人。';
     await handleMessage({
       message: { message_id: `om_metric2_${Date.now()}`, chat_id: 'oc_metric2', chat_type: 'p2p',
                  message_type: 'text', content: JSON.stringify({ text: long }) },
@@ -7950,7 +8771,7 @@ await t('34d 指标：真 ingress 进日志（stage=early / prep_ms / ingress �
   const orig3 = console.log;
   console.log = (...a) => { logs3.push(a.map(String).join(' ')); };
   try {
-    const long = '这段 listing 文案帮我审一下：M5 吸奶器是最好的，宝宝一觉到天亮，绝对安全。';
+    const long = '这段 listing 文案帮我审一下：M5 吸奶器的静音设计很安静，夜里泵奶不打扰家人。';
     await runSubmissionGate({
       inbound: { text: long, imageCount: 0, videoCount: 0, images: [], videos: [] },
       question: long,
@@ -7972,6 +8793,535 @@ await t('34d 指标：真 ingress 进日志（stage=early / prep_ms / ingress �
   const ms2 = Number((/group_response_ms=(\d+)/.exec(legacy) || [])[1]);
   assert.ok(Number.isFinite(ms2) && ms2 >= 0 && ms2 < 5000,
     `这条路上 group_response_ms 应是 0 附近的小数、且不许为负，实际 ${ms2}`);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 34e/34f（2026-10-22）：**回执前置必须先过「这条是不是在对我说话」**
+//
+// 真事故（生产，群 `oc_49a7…`，消息 `om_x100b62a37c9fc8b4dc0ba2a61cc3e7d`，10:21）：
+//   群里一条**没 @ 守衡**的消息（正文「不应该出现历史审核意见作为依据」）命中了送审词 ⇒
+//   回执前置先回了「⏳ 处理中…完整审核正在运行，**完成后会在此回复**」；
+//   随后 §4 判 `not_mentioned` 直接不回复 —— 承诺发出去了、链一次都没起。
+//   判据要求：**先过「对我说话」这道门，再决定发不发回执**，两处共用 `addressedToMe()`。
+//   反向对照（34f）：@ 了我的同一句话，回执照旧要发 —— 否则这一条只是在教它闭嘴。
+// ─────────────────────────────────────────────────────────────────────────────
+const _BOT_MENTION = { key: '@_user_1', name: '守衡', id: { open_id: 'cli_aa2243de0438dcd7' } };
+const _SENDER_MENTION = { key: '@_user_2', name: '刘华丽', id: { open_id: 'ou_lihuali' } };
+
+await t('34e ★ 群里没 @ 我、正文命中送审词 ⇒ 一张回执都不发，且结局是 not_mentioned', async () => {
+  const { handleMessage } = await import('./agent/agent.mjs');
+  const acks = [];
+  const r = await handleMessage({
+    message: { message_id: `om_grp_quiet_${Date.now()}`, chat_id: 'oc_grp_quiet', chat_type: 'group',
+               message_type: 'text',
+               content: JSON.stringify({ text: '@_user_2 不应该出现历史审核意见作为依据' }),
+               mentions: [_SENDER_MENTION] },
+    sender: { sender_id: { open_id: 'ou_lihuali' } },
+  }, { notify: async (text) => { acks.push(text); }, ..._stubRunners() });
+  assert.strictEqual(acks.length, 0,
+    `没 @ 我就不许先许一个诺（这条会回「处理中」，而 §4 随后不回复）：实际发了 ${acks.length} 张`);
+  assert.strictEqual(r.reason, 'not_mentioned',
+    `结局必须是 not_mentioned，实际 ${r.reason}（回执与 §4 必须是同一个判据）`);
+});
+
+await t('34f 反向对照·群里 @ 了我、同样的正文 ⇒ 回执照旧要发一张（不许被 34e 误伤）', async () => {
+  const { handleMessage } = await import('./agent/agent.mjs');
+  const acks = [];
+  const long = '@_user_1 @_user_2 这段 listing 文案帮我审一下：M5 吸奶器的静音设计很安静，夜里泵奶不打扰家人。';
+  await handleMessage({
+    message: { message_id: `om_grp_ack_${Date.now()}`, chat_id: 'oc_grp_ack', chat_type: 'group',
+               message_type: 'text', content: JSON.stringify({ text: long }),
+               mentions: [_BOT_MENTION, _SENDER_MENTION] },
+    sender: { sender_id: { open_id: 'ou_lihuali' } },
+  }, { notify: async (text) => { acks.push(text); }, ..._stubRunners() });
+  assert.strictEqual(acks.length, 1, `@ 了我就是送审，回执必须发（恰好一张）：${acks.length}`);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+console.log('\n═══ 36. P0 确定性命中 ⇒ 直接出结论卡（2026-10-21，Owner「必须 10 秒内回」）═══');
+// 病灶（实测，`PMO/logs/ws_daemon.log` 365 轮）：
+//   P0 命中单 70 条 —— 判定 p50 **3.3 s** 就完成，而用户实际等到卡 **p50 62.1 s**。
+//   差额全在「判定之后还在做的三件事」，而 PRD §6.3 明写「P0 命中即**停止后续审查**」：
+//     · 模型写正文 p50 ~42 s（p50 2986 字）—— **一个字都不上卡**（评审单卡面由代码定）；
+//     · 模型侧双轨 p50 11.8 s（p90 29.7 s）；
+//     · 建议生成 p50 5.4 s。
+//   ⇒ 三件事全部停掉。
+//
+// ★★ 2026-10-21 Owner 当场纠正一次（这一组因此改过一版）：
+//   「**为什么p0对问题，不回复处理中的卡片状态了？必须先回复处理中，再回复block**」
+//   ⇒ 「处理中」**不是结论**，两张消息不冲突；「一条消息只回一条结论」管的是
+//     「不许同一单给出两个三态」。所以顺序钉成：**先回执（receipt），后结论（§5.3 块）**。
+//
+// 这一组钉的就是「停没停、顺序对不对」——每一条都配**反向对照**（非 P0 的单子必须照旧起跑），
+// 否则「停掉」与「本来就没这套东西」在报告里长得一样。
+const _p0ChainStub = async () => ({
+  // 形状取自 `kb/l5/p0_fastpath.py --json` 的真输出（首行是 PRD §5.3.3 结论行）
+  answer: '【审查结论：BLOCK】共发现 1 处必须修改。\n\n'
+    + '1.【合规与受监管宣称-无痛、安全与零风险承诺】正文第 1 段，逐字命中 `最好` —— 有库内条款依据\n'
+    + '   原因：排名最高级表述（PRD 2026-09-09 口径）\n'
+    + '   依据：《措辞表达库 v0》第 W-1.33 条｜原始出处：https://example.invalid/base?table=tblX&record=recX\n'
+    + '   建议：把「最好」删掉，改成不带排名的说法。\n\n'
+    + '请修改后重新提交。',
+  p0_fastpath: { mode: 'p0_fastpath', elapsed_ms: 42, matched_patterns: 1, rule_codes: ['H05'],
+                 layer_preflight: 'not_run' },
+  p0_findings: [{ rule_code: 'H05', rule_title: '虚假安全承诺', line_text: '最好', span: 19,
+                  article_no: 'W-1.33' }],
+  issue_count: 1, confidence: 1.0, report: '', product_line: '吸奶器', channel: 'Google',
+});
+
+await t('36a P0 命中 ⇒ **先回「处理中」、再回结论**（两张消息，但结论只有一条）', async () => {
+  const { handleMessage } = await import('./agent/agent.mjs');
+  const acks = [];
+  const r = await handleMessage({
+    message: { message_id: `om_p0ack_${Date.now()}`, chat_id: 'oc_p0ack', chat_type: 'p2p',
+               message_type: 'text',
+               content: JSON.stringify({ text: '这句能不能发：M5 吸奶器绝对安全，宝宝一觉到天亮。' }) },
+    sender: { sender_id: { open_id: 'ou_p0ack' } },
+  }, { notify: async (text) => { acks.push(text); }, chainRunner: _p0ChainStub });
+  // ★ Owner 2026-10-21 当场纠正：「必须先回复处理中，再回复block」
+  //   ⇒ 回执**必须发**（一张，且是 receipt 卡），不是 0 张。
+  assert.strictEqual(acks.length, 1,
+    `P0 命中也必须先回一张「处理中」（实际 ${acks.length} 张）`);
+  assert.ok(/\[\[card:receipt\]\]/.test(String(acks[0])),
+    `「处理中」要递 receipt 卡片块（与其它送审单同一个形状）：${String(acks[0]).slice(0, 60)}`);
+  // ★ 结论仍然**只有一条**（回复那一份），且形状是 §5.3 块 —— 卡面由
+  //   `ws_daemon.replyTo → envelope` 按 `verdict53` 拼（形态决策仍然只有一处，§2.5）。
+  assert.ok(/【审查结论：BLOCK】/.test(String(r.reply ?? '')),
+    `回复里必须有 §5.3 结论行：${String(r.reply).slice(0, 80)}`);
+  assert.ok(/请修改后重新提交。/.test(String(r.reply ?? '')),
+    '§5.3 块要把动作行带上（否则读者不知道下一步做什么）');
+  assert.ok([...String(r.reply ?? '')].length < 800,
+    `P0 直达的回复就是那张卡本身，不该再有几千字叙述：实际 ${[...String(r.reply ?? '')].length} 字`);
+});
+
+await t('36b P0 命中 ⇒ 模型侧双轨**一次都不许起跑**（反向对照：非 P0 必须起跑）', async () => {
+  const { handleMessage } = await import('./agent/agent.mjs');
+  const calls = { model: 0, advice: 0 };
+  const runners = {
+    publishRunner: async () => ({ ok: true, action: 'skipped', detail: '自证桩：不碰真表' }),
+    modelSideRunner: async () => { calls.model += 1; return { ok: true, findings: [], dropped: [], ms: 1 }; },
+    mergedReportRunner: async () => ({ ok: true, url: 'https://example.invalid/docx/STUB', detail: '自证桩' }),
+    adviceRunner: async ({ items }) => {
+      calls.advice += 1;
+      return { ok: true, ms: 1, advice: Object.fromEntries((items || []).map((_, i) => [i, `桩 ${i}`])) };
+    },
+  };
+  await handleMessage({
+    message: { message_id: `om_p0model_${Date.now()}`, chat_id: 'oc_p0model', chat_type: 'p2p',
+               message_type: 'text',
+               content: JSON.stringify({ text: '这句能不能发：M5 吸奶器绝对安全，宝宝一觉到天亮。' }) },
+    sender: { sender_id: { open_id: 'ou_p0model' } },
+  }, { notify: async () => {}, chainRunner: _p0ChainStub, ...runners });
+  assert.strictEqual(calls.model, 0, `P0 命中后不许再起模型侧（实际 ${calls.model} 次）`);
+  assert.strictEqual(calls.advice, 0, `P0 命中后不许再调建议生成（实际 ${calls.advice} 次）`);
+
+  // 反向对照：**同一条链桩换成非 P0 的答案** ⇒ 两件事都必须照旧发生
+  // （没有这一半，上面两条对「压根没接线」也成立 —— 那正是 §2.4 说的假执行点）。
+  const calls2 = { model: 0, advice: 0 };
+  await handleMessage({
+    message: { message_id: `om_p0ctl_${Date.now()}`, chat_id: 'om_p0ctl', chat_type: 'p2p',
+               message_type: 'text',
+               content: JSON.stringify({ text: '这段 listing 帮我审一下：M5 的静音设计很安静，夜里泵奶不打扰家人。' }) },
+    sender: { sender_id: { open_id: 'ou_p0ctl' } },
+  }, { notify: async () => {},
+       chainRunner: async () => ({ answer: '【审查结论：REVIEW】共发现 1 处需人工确认。\n\n'
+         + '1.【措辞表达】正文第 1 段\n   原因：证据不足\n   依据：第 W-1.54 条\n   建议：补证据\n\n'
+         + '请修改后重新提交。' }),
+       modelSideRunner: async () => { calls2.model += 1; return { ok: true, findings: [], dropped: [], ms: 1 }; },
+       publishRunner: async () => ({ ok: true, action: 'skipped', detail: '自证桩：不碰真表' }),
+       mergedReportRunner: async () => ({ ok: true, url: 'https://example.invalid/docx/STUB', detail: '自证桩' }),
+       adviceRunner: async ({ items }) => {
+         calls2.advice += 1;
+         return { ok: true, ms: 1, advice: Object.fromEntries((items || []).map((_, i) => [i, `桩 ${i}`])) };
+       } });
+  assert.strictEqual(calls2.model, 1, `非 P0 的单子必须照旧起模型侧（实际 ${calls2.model} 次）`);
+});
+
+await t('36c P0 命中 ⇒ **不调模型写正文**：回复＝§5.3 块，元信息带 `p0Direct`', async () => {
+  const { handleMessage } = await import('./agent/agent.mjs');
+  const r = await handleMessage({
+    message: { message_id: `om_p0dir_${Date.now()}`, chat_id: 'oc_p0dir', chat_type: 'p2p',
+               message_type: 'text',
+               content: JSON.stringify({ text: '这句能不能发：M5 吸奶器绝对安全，宝宝一觉到天亮。' }) },
+    sender: { sender_id: { open_id: 'ou_p0dir' } },
+  }, { notify: async () => {}, chainRunner: _p0ChainStub,
+       publishRunner: async () => ({ ok: true, action: 'skipped', detail: '自证桩：不碰真表' }),
+       modelSideRunner: async () => { throw new Error('P0 命中时不该被调用'); },
+       mergedReportRunner: async () => ({ ok: true, url: 'https://example.invalid/docx/STUB', detail: '自证桩' }),
+       adviceRunner: async () => { throw new Error('P0 命中时不该被调用'); } });
+  assert.strictEqual(r.meta?.p0Direct, true, '元信息必须标出「这一单是 P0 直达」（10 秒 SLA 的读数靠它）');
+  assert.ok(/【审查结论：BLOCK】/.test(String(r.reply ?? '')), `回复里必须有 §5.3 结论行：${String(r.reply).slice(0, 80)}`);
+  // ★ 反向对照：非 P0 时这个标记必须是 false（否则「直达」这个读数恒真，量不了任何东西）
+  const r2 = await handleMessage({
+    message: { message_id: `om_p0dir2_${Date.now()}`, chat_id: 'oc_p0dir2', chat_type: 'p2p',
+               message_type: 'text',
+               content: JSON.stringify({ text: '这段 listing 帮我审一下：M5 的静音设计很安静，夜里泵奶不打扰家人。' }) },
+    sender: { sender_id: { open_id: 'ou_p0dir2' } },
+  }, { notify: async () => {},
+       chainRunner: async () => ({ answer: '【审查结论：REVIEW】共发现 1 处需人工确认。\n\n'
+         + '1.【措辞表达】正文第 1 段\n   原因：证据不足\n   依据：第 W-1.54 条\n   建议：补证据\n\n'
+         + '请修改后重新提交。' }),
+       publishRunner: async () => ({ ok: true, action: 'skipped', detail: '自证桩：不碰真表' }),
+       modelSideRunner: async () => ({ ok: true, findings: [], dropped: [], ms: 1 }),
+       mergedReportRunner: async () => ({ ok: true, url: 'https://example.invalid/docx/STUB', detail: '自证桩' }),
+       adviceRunner: async ({ items }) => ({ ok: true, ms: 1,
+         advice: Object.fromEntries((items || []).map((_, i) => [i, `桩 ${i}`])) }) });
+  assert.notStrictEqual(r2.meta?.p0Direct, true, '非 P0 的单子**不许**标成直达（否则那个读数是恒真的）');
+});
+
+await t('36d P0 命中 ⇒ **回合末尾的历史压缩顺延**（那一步会调 LLM，实测 27.7 s）', async () => {
+  // 真读数（上线后第一单）：`[metric] direct_answer_ms=32864 … verdict=FAIL` ——
+  // 判定只 3.3 s，卡走了 32 s；差的正是 `mem.compact(sess, llm.summarize)` 那次
+  // 「把上千条旧消息写成纪要」的 LLM 调用。P0 直达这一轮**不调模型**（没有上下文要用）
+  // ⇒ 压缩在这一轮是纯亏，必须顺延到下一次真要模型的回合。
+  //
+  // ⚠️ 判据只能落在**日志**上：`mem` 是 ESM 命名空间（只读），打不了桩；
+  //    真正的验收是生产里那行 `direct_answer_ms` —— 这里钉的是「那一跳没有被走到」。
+  const { handleMessage } = await import('./agent/agent.mjs');
+  const logs = [];
+  const orig = console.log;
+  console.log = (...a) => { logs.push(a.map(String).join(' ')); };
+  try {
+    await handleMessage({
+      message: { message_id: `om_p0compact_${Date.now()}`, chat_id: 'oc_p0compact', chat_type: 'p2p',
+                 message_type: 'text',
+                 content: JSON.stringify({ text: '这句能不能发：M5 吸奶器绝对安全，宝宝一觉到天亮。' }) },
+      sender: { sender_id: { open_id: 'ou_p0compact' } },
+    }, { notify: async () => {}, chainRunner: _p0ChainStub,
+         publishRunner: async () => ({ ok: true, action: 'skipped', detail: '自证桩：不碰真表' }),
+         modelSideRunner: async () => ({ ok: true, findings: [], dropped: [], ms: 1 }),
+         mergedReportRunner: async () => ({ ok: true, url: 'https://example.invalid/docx/STUB', detail: '自证桩' }),
+         adviceRunner: async () => ({ ok: true, ms: 1, advice: {} }) });
+  } finally { console.log = orig; }
+  assert.ok(logs.some((l) => l.includes('历史压缩顺延')),
+    'P0 直达这一轮必须把压缩顺延，并留一行读数（不出声就等于没人知道它没压）');
+  assert.ok(!logs.some((l) => l.includes('🗜 历史已压缩')),
+    'P0 直达这一轮**不许**走到压缩（那一步会调 LLM，实测 27.7 s）');
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+console.log('\n═══ 35. 主回复关思考（2026-10-20：Owner「这个慢的问题必须做优化」）═══');
+// 实测（同输入/同 max_tokens，2026-10-20 12:51）：开思考 11738ms ｜ 关思考 1978ms ⇒ **5.9 倍**，
+// 正文 496 vs 493 字。这一轮是"组装与转述"（判据在引擎那边），所以默认关。
+
+await t('35a **默认不许改行为**（带思考）；只有 `SHOUHENG_REPLY_THINK=off` 才关', async () => {
+  const { replyThinking } = await import('./agent/agent.mjs');
+  const keep = process.env.SHOUHENG_REPLY_THINK;
+  try {
+    delete process.env.SHOUHENG_REPLY_THINK;
+    assert.strictEqual(replyThinking(), null, '默认必须保持原行为（带思考）—— Owner：「不要影响现有工作流」');
+    process.env.SHOUHENG_REPLY_THINK = 'off';
+    assert.deepStrictEqual(replyThinking(), { type: 'disabled' }, 'off ⇒ 关思考（A/B 对照用）');
+    process.env.SHOUHENG_REPLY_THINK = 'on';
+    assert.strictEqual(replyThinking(), null, 'on ⇒ 仍带思考');
+  } finally {
+    if (keep === undefined) delete process.env.SHOUHENG_REPLY_THINK; else process.env.SHOUHENG_REPLY_THINK = keep;
+  }
+});
+
+await t('35b 接线：主工具循环那次调用**真的**把开关传下去了', () => {
+  const src = fs.readFileSync(new URL('./agent/agent.mjs', import.meta.url), 'utf8');
+  assert.ok(/llm\.chat\(messages,\s*\{\s*tools:\s*TOOL_SCHEMAS,\s*thinking:\s*replyThinking\(\)\s*\}\)/.test(src),
+    '主回复那一次必须带 `thinking: replyThinking()` —— 否则这条优化根本没接上（名字出现过 ≠ 生效）');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+await t('N4e ★★ 带图但一张都没解析出来 ⇒ **不许 PASS**（P0 · Owner 2026-10-21 批准）', async () => {
+  // ── 病灶（实测，不是假设）
+  //   模态是**猜**的：`agent.mjs` 用 `inbound.imageCount`（解析成功的图数）推 `--content-type`。
+  //   图一旦没被解析成图片 —— **飞书里以文件方式发的图**（`msgType='file'`，
+  //   `feishu.imageKeysOf` 对 file 恒返回 []）、图消息缺 image_key、富文本图节点解析不到、
+  //   引用那条回读失败 —— 就退化成 `text` ⇒ **「负面样本规则」整层不跑** ⇒ `PASS / 0 条`。
+  //   代码里自己记着实测（`tools.mjs` 约 1944 行）：`10:06:48 text → PASS / 0 条`；
+  //   `11:10:00 image → REVIEW / 5 条` —— 同一份图，只差这一个词。
+  //   本组钉四件事：① 意图判据（含反向对照：pdf/纯文字不许被误判）；
+  //                ② 闸门真的接上（有意图+0 张 ⇒ 表行压成 NEEDS_INPUT）；
+  //                ③ 反向对照（同一份 PASS 答案，去掉「带图未解析」⇒ PASS 必须保留，判据不许恒红）；
+  //                ④ 接线断言（源码里那条闸不许被静默删掉）。
+  const { detectImageIntent, imageIntentVerdict } = await import('./agent/image_intent_gate.mjs');
+  const { runSubmissionGate } = await import('./agent/agent.mjs');
+
+  // ① 意图判据：四种「看到了图」都要认
+  assert.strictEqual(detectImageIntent({ msgType: 'image', content: '{}' }).hasIntent, true,
+    '图消息（即便缺 image_key）必须判有意图 —— 那正是「看到了图、取不到」要拒的一档');
+  assert.strictEqual(detectImageIntent({ msgType: 'file', content: '{"file_name":"a.JPG"}' }).hasIntent, true,
+    '**以文件方式发送的图片**必须判有意图（这是最容易踩的一档：imageKeysOf 对 file 恒 []）');
+  assert.strictEqual(detectImageIntent({ msgType: 'post', content: { content: [[{ tag: 'img' }]] } }).hasIntent, true,
+    '富文本里有 img 节点必须判有意图');
+  assert.strictEqual(detectImageIntent({ msgType: 'text', parentNote: { kind: 'parent_unreadable' } }).hasIntent, true,
+    '引用那条回读失败（未测）必须判有意图 —— 未测 ≠ 没有图');
+
+  // ①b 反向对照：不许把 pdf / 纯文字判成带图（否则这条判据把文字单全拦了）
+  assert.strictEqual(detectImageIntent({ msgType: 'file', content: '{"file_name":"a.pdf"}' }).hasIntent, false,
+    'pdf 被误判成图 ⇒ 越界');
+  assert.strictEqual(detectImageIntent({ msgType: 'post', content: { content: [[{ tag: 'text', text: '这张图审一下' }]] } }).hasIntent, false,
+    '正文里出现「图」字就被判成带图 ⇒ 判据过宽（大量文字单会被拦）');
+
+  // ② 裁决：有意图 + 0 张 ⇒ 必须拒；有意图 + 1 张 ⇒ 不拒（反向对照）
+  assert.strictEqual(imageIntentVerdict({ imageIntent: { hasIntent: true, why: 'x' }, imageCount: 0 }).needInput, true,
+    '带图但 0 张却没判拒答');
+  assert.strictEqual(imageIntentVerdict({ imageIntent: { hasIntent: true, why: 'x' }, imageCount: 1 }).needInput, false,
+    '有图正常解析也被拦 ⇒ 判据恒红');
+
+  // ③ 闸门接线：同一份「PASS」答案，只改 inbound 里那一位
+  const run = async (inbound) => {
+    let captured = null;
+    await runSubmissionGate({
+      inbound, question: inbound.text, notify: async () => {},
+      // 链给一个**本来会出 PASS** 的答案 ＋ 机读旁挂（否则会被「库侧没读数不许 PASS」那条挡掉，
+      // 那样本组就测不到这条闸了 —— 必须让 PASS 在被本闸拦截前是**合法可出**的）
+      chainRunner: async () => ({ answer: '【审查结论：PASS】未发现已知违规表述。', review: { state: 'PASS', issue_count: 0 } }),
+      modelSideRunner: async () => ({ ok: true, findings: [], dropped: [] }),
+      publishRunner: async (row) => { captured = row; return { ok: true, action: 'skipped', detail: '自证桩' }; },
+      mergedReportRunner: async () => ({ ok: true, url: 'https://example.invalid/docx/STUB', detail: '自证桩' }),
+      adviceRunner: async () => ({ ok: true, ms: 1, advice: {} }),
+      mediaLinksRunner: async () => [],
+      mediaUpload: async () => ({ ok: false, reason: '自证桩：不真上传' }),
+      fetchImageForLink: async () => null,
+      fetchVideoForLink: async () => null,
+    });
+    return captured;
+  };
+
+  const unresolved = await run({
+    text: '审一下这张图', imageCount: 0, videoCount: 0,
+    imageIntent: { hasIntent: true, why: '以文件形式发送的图片（file_name=a.jpg）' },
+    imageUnresolved: true,
+  });
+  assert.ok(unresolved, '带图未解析时**没有落表**（连留痕都没有）');
+  assert.strictEqual(unresolved.conclusion, 'NEEDS_INPUT',
+    `带图但一张都没解析出来，却落了 ${unresolved.conclusion} —— 这就是那个 fail-open：零条被当成没问题`);
+
+  // ③b ★ 反向对照：同一份答案，只去掉「带图未解析」⇒ PASS 必须还在（证明是本闸拦的，不是别处恒拦）
+  const resolved = await run({ text: '审一下', imageCount: 0, videoCount: 0 });
+  assert.ok(resolved, '反向对照那单没落表');
+  assert.strictEqual(resolved.conclusion, 'PASS',
+    `去掉「带图未解析」后结论是 ${resolved.conclusion} ⇒ 说明本组拦不拦都不影响结果，判据没被真正测到`);
+});
+
+await t('N4f 接线：`image_intent_gate` 真的接进了入站与出结论两处（不是只存在于文件里）', () => {
+  const src = fs.readFileSync(new URL('./agent/agent.mjs', import.meta.url), 'utf8');
+  assert.ok(/detectImageIntent\(\{\s*msgType,\s*content,\s*parentNote\s*\}\)/.test(src),
+    '入站阶段必须真的调 `detectImageIntent(...)` —— 名字出现过 ≠ 接上了');
+  assert.ok(/imageUnresolved:\s*imageIntentVerdict\(/.test(src),
+    '`inbound.imageUnresolved` 必须由裁决函数算出来（手写布尔会绕过判据）');
+  assert.ok(/if \(inbound\?\.imageUnresolved\) \{\s*\n\s*console\.log\([^)]*带图但一张都没解析出来[\s\S]{0,400}?conclusion = 'NEEDS_INPUT';/.test(src),
+    '出结论那一段必须真的把结论压成 NEEDS_INPUT —— 只打日志不改结论 = 没接线');
+});
+
+await t('N4g ★ 并发图片任务的上下文、模态与链缓存必须按消息隔离（防串图）', async () => {
+  const tools = await import('./agent/tools.mjs');
+  const { reviewTaskFor } = tools;
+  const ready = [];
+  let release;
+  const bothReady = new Promise((resolve) => { release = resolve; });
+  const run = (id, modality) => tools.withAgentTurnContext(async () => {
+    tools.beginChainTurn({ modality });
+    tools.setAgentTurnContext({ imageBlock: `IMAGE_CONTEXT_${id}` });
+    const envelope = { tool: 'kb_review_chain', ok: true, result: { answer: `VERDICT_${id}` } };
+    tools._armChainMemoForTest(envelope);
+    tools._armChainAnswerMemoForTest({ answer: `VERDICT_${id}` });
+    ready.push(id);
+    if (ready.length === 2) release();
+    await bothReady;
+    const state = tools.agentTurnContextSnapshot();
+    const answer = tools.chainAnswerRead();
+    const stats = tools.chainMemoStats();
+    assert.strictEqual(state.imageBlock, `IMAGE_CONTEXT_${id}`, `任务 ${id} 读到了另一条图片上下文`);
+    assert.strictEqual(state.chainTurnModality, modality, `任务 ${id} 读到了另一条素材模态`);
+    assert.strictEqual(answer?.answer, `VERDICT_${id}`, `任务 ${id} 读到了另一条链结论`);
+    assert.strictEqual(stats.armed, true, `任务 ${id} 的链缓存被另一任务清空`);
+    return state;
+  });
+  const [a, b] = await Promise.all([run('A', 'image'), run('B', 'text')]);
+  assert.strictEqual(a.imageBlock, 'IMAGE_CONTEXT_A');
+  assert.strictEqual(b.imageBlock, 'IMAGE_CONTEXT_B');
+
+  const { runSubmissionGate } = await import('./agent/agent.mjs');
+  let sentToChain = null;
+  let sentToModel = null;
+  await tools.withAgentTurnContext(async () => {
+    await runSubmissionGate({
+      inbound: { text: '审查下这张图片', imageCount: 1, videoCount: 0, images: [{ index: 1,
+        msgId: 'om_test_image', imageKey: 'img_test_image',
+        text: 'OCR exact line', wlText: 'OCR exact line', sha256: 'a'.repeat(64),
+        scene: { ok: true, scene: { scene: 'crib', people: [], objects: [], visible_text: [], clues: [] } } }] },
+      question: '审查下这张图片', userText: '审查下这张图片', notify: async () => {}, chainRunner: async (input) => {
+        sentToChain = input;
+        return { answer: '【审查结论：NEEDS_INPUT】测试桩', review: { state: 'NEEDS_INPUT', issue_count: 0 } };
+      },
+      modelSideRunner: async (input) => { sentToModel = input; return { ok: true, findings: [], dropped: [] }; },
+      publishRunner: async () => ({ ok: true, action: 'skipped', detail: '自证桩' }),
+      mergedReportRunner: async () => ({ ok: true, url: '', detail: '自证桩' }),
+      adviceRunner: async () => ({ ok: true, ms: 1, advice: {} }),
+      mediaLinksRunner: async () => [], fetchImageForLink: async () => ({ path: '/tmp/test-image-original.png' }),
+      mediaUpload: async () => ({ ok: false, reason: '自证桩' }),
+    });
+  });
+  assert.strictEqual(sentToChain?.contentType, 'image', '图单模态没有随本次链调用传递');
+  assert.strictEqual(sentToChain?.question,
+    '请按图片安全审查 skill 对本次附图执行完整审查，逐项完成全部检查。',
+    '图片链审查输入必须固定，不能因私聊/群聊的问题包装不同而漂移');
+  assert.deepStrictEqual(sentToChain?.imagePaths, ['/tmp/test-image-original.png'],
+    '送审图原件路径没有随本次链调用传递，图身份层就不会跑');
+  assert.ok(sentToChain?.imageContext?.includes('a'.repeat(64)), '本单图片 SHA 没随链调用传递');
+  assert.ok(sentToChain?.imageContext?.includes('OCR exact line'), '本单 OCR 没随链调用传递');
+  assert.strictEqual(sentToModel?.question, '',
+    '图片模型侧审查提示不能因私聊/群聊的泛化问法不同而变化');
+  assert.ok(sentToModel?.readings?.includes('OCR exact line'), 'OCR 辅助读数仍须进入图片模型侧');
+  assert.ok(!sentToModel?.readings?.includes('审查下这张图片'),
+    '泛化聊天文字不得扰动图片模型侧审查输入');
+  assert.deepStrictEqual(sentToModel?.imagePaths, ['/tmp/test-image-original.png'],
+    '模型侧必须直接收到原图路径');
+  const imageTask = reviewTaskFor({ question: '审图', text: 'OCR text', ctype: sentToChain?.contentType,
+    imagePaths: sentToChain?.imagePaths });
+  assert.ok(imageTask.includes('真实加载 `图片安全审查`'), '图片审核 task 没要求真实加载专项 skill');
+  assert.ok(imageTask.includes('完整执行 skill') && imageTask.includes('4A 规则符合性')
+    && imageTask.includes('4B 事实准确性核查'), '图片审核 task 没要求执行完整 skill 工作流');
+  assert.ok(imageTask.includes('--image <路径>') && imageTask.includes('/tmp/test-image-original.png'),
+    '图片原件路径没有进入知识库 --image 命令模板');
+
+  const src = fs.readFileSync(new URL('./agent/agent.mjs', import.meta.url), 'utf8');
+  assert.ok(/export function handleMessage\(event, opts = \{\}\)\s*\{\s*return withAgentTurnContext\(/.test(src),
+    '每条 handleMessage 必须建立独立异步上下文');
+  assert.ok(!src.includes('__SH_LAST_IMAGE_BLOCK'), '不能再用进程级全局变量传图片上下文');
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+await t('Z70 ★★ P0 快路的回执**不是第二个来源**：同一句不许被数两遍', async () => {
+  // 病灶（2026-10-21 真单 `merged-2026-10-21T08_37_38.json`）：一句送审判成 4 处，
+  //   而记录里 `kb.issue_count = 2` —— F-01/F-02 来自 `p0_findings`，
+  //   F-03/F-04 是把**同一张回执**用逐行正则又解析了一遍。
+  const T = await import('./agent/dual_track.mjs');
+  const receipt = [
+    '【审查结论：BLOCK】共发现 2 处必须修改。', '',
+    '1.【合规与受监管宣称-无痛、安全与零风险承诺】正文第 1 段，逐字命中 100% safe',
+    '  **原因**：虚假安全承诺',
+    '  **依据**：《措辞表达库 v0（试用版，未发布）》第 W-1.33 条（链接：https://x.invalid/a）',
+    '  **建议**：删掉 100% safe', '',
+    '请修改后重新提交。',
+  ].join('\n');
+  const p0Findings = [
+    { rule_code: 'H05', article_no: 'W-1.33', anchor: '#a/recX/命中片段',
+      matched: [{ kind: 'keyword', pattern: '100% safe', text: '100% safe', line: 1, line_text: '100% safe' }],
+      _l3: { reason: 'H05 虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按2026-09-09口径放开，'
+        + '海外广告允许，不再判险）', article_no: 'W-1.33', kb_type: 'wording' } },
+    { rule_code: 'V03', article_no: 'E-2.126', anchor: '#b/recY/命中片段',
+      matched: [{ kind: 'regex', pattern: '(?:\\bno\\.?\\s*1)', text: '#1', line: 1, line_text: '100% safe #1' }],
+      _l3: { reason: '销量或排名宣称没有可核验依据', article_no: 'E-2.126', kb_type: 'external_standard' } },
+  ];
+  // 链没跑（`engine=null`）＋ 有 p0_findings ⇒ P0 快路单
+  const kb = T.kbFindingsOf(receipt, null, p0Findings, { text: '100% safe #1' });
+  assert.strictEqual(kb.findings.length, p0Findings.length,
+    `P0 快路单的条目数必须等于 p0_findings 数（实得 ${kb.findings.length}，回执被二次解析了）`);
+  // 反向对照：**去掉** p0_findings ⇒ 回执照旧能被解析（证明上面那条不是「永远 0 条」）
+  const kb2 = T.kbFindingsOf(receipt, null, null, { text: '100% safe #1' });
+  assert.ok(kb2.findings.length >= 1, '没有 p0_findings 时回执仍应能解析成条目（不然是静默吞）');
+  // 原因里不许带规则自己的**口径说明**（那是一句「已放开」，印在 P0 的原因里自相矛盾）
+  const reason = String(kb.findings[0].reason ?? '');
+  assert.ok(!/不再判险|口径放开/.test(reason), `原因里还带着口径说明：${reason}`);
+  assert.ok(!/^H0\d\s/.test(reason), `原因里还带着规则码：${reason}`);
+});
+
+await t('Z71 ★★ 后台语言清扫：正则源码与库内路径必须挖掉，条款号与纯文字反引号必须留', async () => {
+  const T = await import('./agent/dual_track.mjs');
+  const src = '正文第 1 段，逐字命中 `最\\s*(安全|低价)`、`(?:\bno\.?\s*1|#`、`最好`';
+  const cleared = T.stripBackendTokens(src);
+  assert.ok(!/\\[bBsSwWdD]|\|低价\)/.test(cleared), `正则源码没挖干净：${cleared}`);
+  assert.ok(cleared.includes('最好'), `纯文字反引号被一起挖掉了：${cleared}`);
+  assert.ok(cleared.includes('正文第 1 段'), `正常文字被挖掉了：${cleared}`);
+  const sug = '删去销量/排名宣称（本码共 12 组修订建议，此处按首组给出；'
+    + '全量见 kb/l3/candidates/rules.jsonl#W-1.33）';
+  const s2 = T.stripBackendTokens(sug);
+  assert.ok(!/kb\/|本码/.test(s2), `库内路径/「本码」没挖掉：${s2}`);
+  assert.ok(s2.includes('删去销量/排名宣称'), `正文被一起挖掉了：${s2}`);
+  // 反向对照：条款号 W-1.33 是业务侧要看的，**不许**被当后台词挖掉
+  assert.ok(T.stripBackendTokens('《措辞表达库 v0》第 W-1.33 条').includes('W-1.33'),
+    '条款号被当成后台词挖掉了（那是依据的锚点）');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Z72 ★★ 起链前的前置：profile 目录写不进 ⇒ 结构化返回、**绝不起链**
+// ═══════════════════════════════════════════════════════════════════════════
+// 为什么要有这一组（2026-10-23 当天）：`dsh --profile headless` 在 `prepareProfile()`
+// 里**无条件**重写 `~/.dsh/profiles/headless/cordis.yml`；调用方若被 workspace-write
+// 沙箱限制（工作区之外一律拒写），链在**第一秒**就 EPERM 退出。而 daemon 日志里
+// 只剩 `Command failed: node …`（EPERM 在下一行、被截掉），于是下游只能猜根因——
+// 当天它猜成「本机权限故障，让运维把 profile 目录写权限给到运行账号」，**猜错了**
+// （该路径实测可写：属主/权限/flag 均正常，无沙箱进程一写就成）。
+// ⇒ 判据三条，缺一条都不算守住：
+//   ① 写不进时必须给出 `reason_code=profile_unwritable`，并**明说不是本机权限故障**；
+//   ② 写不进时**一个进程都不许被拉起**（这一条只能看副作用，不能看返回值）；
+//   ③ **反向对照**：同样的输入换成可写目录 ⇒ 链必须真的被拉起（否则②可能只是「恒不 spawn」）。
+await t('Z72 ★★ 起链前前置：profile 目录写不进 ⇒ 结构化返回且绝不起链（带反向对照）', async () => {
+  const pathMod = await import('node:path');
+  const { spawnSync } = await import('node:child_process');
+  const tmp = fs.mkdtempSync(pathMod.join('/tmp', 'shouheng-profprobe-'));
+  const kbRoot = pathMod.join(tmp, 'kbtree');
+  fs.mkdirSync(pathMod.join(kbRoot, 'kb', 'l8'), { recursive: true });
+  fs.writeFileSync(pathMod.join(kbRoot, 'kb', 'l8', 'review_playbook.md'), 'PLAYBOOK-SENTINEL\n');
+
+  // 桩 dsh：**只做一件事** —— 被真的 spawn 了就落一个标记文件。
+  //   「有没有真的起链」只能看这个副作用：返回值说「没起」而进程确实起来了，照样是失败。
+  const marker = pathMod.join(tmp, 'spawned.marker');
+  const stub = pathMod.join(tmp, 'stub-dsh.mjs');
+  fs.writeFileSync(stub,
+    "import fs from 'node:fs';\n"
+    + 'fs.writeFileSync(process.env.STUB_SPAWN_MARKER, "spawned");\n'
+    + "console.log('状态：PASS ｜ 问题数：0');\n");
+
+  const denied = pathMod.join(tmp, 'prof-denied');
+  fs.mkdirSync(denied);
+  fs.chmodSync(denied, 0o500);          // 只读目录：在里面建文件必被拒（非 root）
+  const writable = pathMod.join(tmp, 'prof-ok');
+  fs.mkdirSync(writable);
+
+  const run = (profileDir) => {
+    try { fs.unlinkSync(marker); } catch { /* 本来就没有 */ }
+    const script = `
+      const { executeTool } = await import(${JSON.stringify(new URL('./agent/tools.mjs', import.meta.url).href)});
+      const r = await executeTool('kb_review_chain', ${JSON.stringify({
+        question: '审一下这条文案',
+        text: '这是一条用于验证起链前置的普通测试文案。',
+      })});
+      const res = r.result ?? {};
+      console.log('RESULT ' + JSON.stringify({ ok: r.ok, err: res.error ?? null,
+        reason_code: res.reason_code ?? null, answer: res.answer ?? null }));
+    `;
+    const t0 = Date.now();
+    const r = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+      encoding: 'utf8', timeout: 60_000,
+      env: { ...process.env, SHOUHENG_STATE_DIR: tmp, SHOUHENG_KB_ROOT: kbRoot,
+             SHOUHENG_DSH_BIN: stub, STUB_SPAWN_MARKER: marker,
+             SHOUHENG_PROFILE_DIR: profileDir, SHOUHENG_REVIEW_TABLE: 'off' },
+    });
+    const out = `${r.stdout ?? ''}\n${r.stderr ?? ''}`;
+    const m = out.match(/RESULT (\{.*\})/);
+    assert.ok(m, `没拿到 RESULT —— 子进程没跑到底：\n${out.slice(-600)}`);
+    return { res: JSON.parse(m[1]), spawned: fs.existsSync(marker), ms: Date.now() - t0 };
+  };
+
+  try {
+    // ① 写不进的 profile 目录 ⇒ 结构化原因 + 明说「不是本机权限故障」
+    const d = run(denied);
+    assert.strictEqual(d.res.reason_code, 'profile_unwritable',
+      `没给出结构化原因（reason_code=${d.res.reason_code}，err=${d.res.err}）`);
+    assert.ok(/没有起/.test(String(d.res.err)), `错误文本没说清「链没起」：${d.res.err}`);
+    assert.ok(/不是本机权限故障/.test(String(d.res.err)),
+      '必须点明这是调用方环境受限、不是本机权限故障（当天那张卡就是这么猜错的）');
+    // ② 写不进时**一个进程都不许被拉起**
+    assert.strictEqual(d.spawned, false, '★ 写不进却仍起了链 —— 前置没拦住');
+    assert.ok(d.ms < 20_000, `写不进时不该耗这么久（${d.ms}ms）—— 说明它还是去 spawn 了`);
+
+    // ③ 反向对照：同一份输入、换成可写目录 ⇒ 链必须真的被拉起
+    const w = run(writable);
+    assert.strictEqual(w.spawned, true, '可写目录下没起链 —— 前置把正常路径也拦了（恒真判据）');
+    assert.notStrictEqual(w.res.reason_code, 'profile_unwritable',
+      '可写目录下仍报 profile_unwritable —— 判据不是在探盘，是在瞎报');
+  } finally {
+    try { fs.chmodSync(denied, 0o700); } catch { /* 已删 */ }
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 });
 
 // 汇总必须放在**所有**分组之后（2026-10-09 修：中间那两块重复的汇总+exit

@@ -1,0 +1,69 @@
+{
+ "run_id": "20261021-1124-L5",
+ "at": "2026-10-21T11:25:05",
+ "source": "pipeline_sync",
+ "trigger": "--sync --via-skill L5",
+ "skills": [
+  "kb-pipeline",
+  "kb-p0-check"
+ ],
+ "commands": [
+  "kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L5 --run 20261021-1124-L5 --invoked kb-p0-check --skill-session L5=session-ed726a3e-dbc9-4023-ab87-1eab0a74f6b7"
+ ],
+ "products": [
+  "kb/l5/p0_patterns.jsonl",
+  "kb/l5/index/l5.jsonl",
+  "kb/l5/registry/l5.json",
+  "kb/l5/registry/l5_no_pattern.json",
+  "kb/l5/matcher.py",
+  "kb/l5/benchmark.json",
+  "kb/l5/runs/20261021-1124-L5.p0_patterns.superseded.jsonl"
+ ],
+ "verdict": "全走完（预演 · 未落盘 · 非执行证据）",
+ "human_involved": true,
+ "extra": {
+  "via_skill": true,
+  "skill_invoked_by": "agent",
+  "skill_evidence": "agent_reported",
+  "skill_evidence_note": "该 RUN 在 kb/<层>/runs/ 里**读不到任何非预演落章**⇒ 无观测值，退回注册表声明（skill_evidence=registry_echo）",
+  "observed_skills": [],
+  "observed_skills_sources": [],
+  "layers": [
+   "L5"
+  ],
+  "layer_skills": [
+   "kb-p0-check"
+  ],
+  "declared_layer_skills": {
+   "L5": [
+    "kb-p0-check"
+   ]
+  },
+  "layer_skills_uniq": [
+   "kb-p0-check"
+  ],
+  "invoked_reported": [
+   "kb-p0-check"
+  ],
+  "skill_sessions": {
+   "L5": "session-ed726a3e-dbc9-4023-ab87-1eab0a74f6b7"
+  },
+  "human_involved_basis": "--invoked 已上报（agent 按层 skill 走过）",
+  "verdict_basis": "层侧落章全是预演台账 → 未落盘",
+  "layer_stamps_applied": [],
+  "layer_stamps_dry": [
+   "L5:kb/l5/runs/20261021-1124-L5-dryrun.json"
+  ],
+  "layer_stamps_unknown": [],
+  "write_gate": {
+   "id": null,
+   "resolved": false,
+   "layers_authorized": null,
+   "unauthorized_layers": [
+    "L5"
+   ],
+   "readonly_declared": [],
+   "msg": "**未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml"
+  }
+ }
+}

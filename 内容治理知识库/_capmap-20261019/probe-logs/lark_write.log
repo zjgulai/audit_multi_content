@@ -1,0 +1,57 @@
+
+═══ 0. 假客户端的契约守卫（§2.4.1：假接口不许比真接口松）═══
+  ✅ 0a 反向对照：record_ids 放进 params（就是 10-05 那个真缺陷）必须被拒
+  ✅ 0b 正向对照：放进 data 必须放行（否则守卫就是块砖头）
+  ✅ 0c 空 ids 也要拒（真接口同样拒）
+
+═══ A. 纯函数 ═══
+  ✅ A1 fieldTypeOf 认数字与中文名
+  ✅ A2 ★ 类型不认识时返回 null —— 不默认成「文本」
+  ✅ A3 flat 把富文本数组压成字符串
+  ✅ A4 ★ verifyReadback 不误报：写入是字符串、回读是富文本数组，必须算一致
+  ✅ A5 verifyReadback 真不一致时要红
+  ✅ A6 verifyReadback 只比「我设过的键」—— 飞书补的默认值不算失配
+  ✅ A7 verifyReadback 读回来不是对象 → untested（不是 consistent）
+  ✅ A8 shouldRefuseCreateTable 同名拒绝
+  ✅ A9 tooManyRecords 上限是 500
+  ✅ A10 snapshotBefore 缺件时判不合格
+  ✅ A11 ★★ 没读到旧值（readable 不为 true）一律不许删 —— 「读不到 ≠ 没有」
+
+═══ B. 行为（假客户端真调）═══
+  ✅ B1 createRecords 正常：回读 consistent + 留痕落了一行 + 带 record_ids
+  ✅ B2 ★ 留痕里有「谁」—— 谁在群里让它改的，事后查得到
+  ✅ B3 回读值不对 → mismatch（不许说成成功）
+  ✅ B4 回读接口失败 → untested（不是 ok、也不是 mismatch）
+  ✅ B5 ★ 501 条被拒绝，且 batchCreate 一次都没调（不静默截断）
+  ✅ B6 ★★ 删记录：快照读不回旧值 → 拒绝，且 batchDelete 一次都没调
+  ✅ B7 ★★ 删记录：要删 3 条只读回 2 条 → 拒绝，且 batchDelete 一次都没调
+  ✅ B8 ★★ 正向对照：条件齐全时 batchDelete 必须真的被调用（否则 B6/B7 是恒真）
+  ✅ B6b ★★ 删表：字段读不到 → 拒绝，且 appTable.delete 一次都没调
+  ✅ B6c ★★ 改记录：读不到旧值 → 拒绝，且 batchUpdate 一次都没调
+  ✅ B8b ★★ 正向对照：删表条件齐全时 appTable.delete 必须真的被调用
+  ✅ B9 建表同名 → 拒绝，且 create 一次都没调
+  ✅ B10 ★ 正向对照：表名不冲突时 create 必须真的被调用
+  ✅ B11 建字段类型不认识 → 拒绝，且 create 一次都没调
+  ✅ B12 表名找不到 → 报出该 Base 实际有哪些表（不是干说「没找到」）
+
+═══ D. 两段式：破坏性操作不许一步做完（§2.4 的执行点）═══
+  ✅ D1 没有待确认的 → no_pending
+  ✅ D2 过期 → expired
+  ✅ D3 ★★ 同一条消息自我确认 → same_message（这条是两段式的全部意义）
+  ✅ D4 ★★ 采不到 messageId → cannot_verify，**不许放行**（未测 ≠ 通过）
+  ✅ D5 另一条消息 + 未过期 → 通过（否则上面四条可能只是恒真的「永远拒绝」）
+  ✅ D6 ★ describeDelete 数不出来时写「未测」，**不许写成 0**
+  ✅ D7 ★★ deleteRecords 不带 confirmed → 只提议，batchDelete 一次都没调
+  ✅ D8 ★★ deleteField / deleteTable 不带 confirmed → 只提议
+  ✅ D9 ★★ confirmDelete 在「同一条消息」里 → 拒绝，且 batchDelete 一次都没调
+  ✅ D10 ★★ 正向对照：另一条消息确认 → batchDelete 真的被调用，且 pending 被清掉
+  ✅ D11 ★ 取消：pending 清掉，且一个删除请求都没发
+
+═══ C. 自证自身的副作用（§2.4.4）═══
+  ✅ C1 ★ 真留痕文件在这次自证前后没被动过
+  ✅ C4 ★ 真 pending 文件在这次自证前后也没被动过
+  ✅ C2 自证的留痕落在临时文件上，且确实有内容
+  ✅ C3 自证没有真连飞书（没有 client 被替换时的真实调用记录）
+
+✅ 44/44 全过
+   留痕 / 回读 / 删除前快照 / 破坏性操作两段式 —— 四条纪律各由「假客户端真调 + 正向对照」证过。

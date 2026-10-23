@@ -1,0 +1,42 @@
+### extract :: kb/kbpy l8/extract_l1_new_resources.py daily-20261020-1255-L1 --apply
+[计划] L0 活跃 ⊖ L1 = 1  {'feishu_doc': 1}
+[计划] L1 需失效（L0 已 gone）= 0
+[基准] artifact 键 22 个 | manifest 键 13 个
+  [跳过] 未处理 source_kind: feishu_doc docx:PXfBdjTwFokEQixtmTscqm7knNh
+[去重] @extract_l1_new_resources.py/manifest_l1 候选 0 行 → 追加 0 行（新增 0 / 变更 0 / **跳过同内容重复 0**）
+[去重] @extract_l1_new_resources.py/index_l1 候选 0 行 → 追加 0 行（新增 0 / 变更 0 / **跳过同内容重复 0**）
+[写入] 抽取 1（产物 0）| manifest +0 | index +0 | 失效 +0
+        segments 合计 0 | 字符合计 0 | pending_ocr 0
+        run 记录 kb/l1/runs/daily-20261020-1255-L1.json
+### extract EXIT=0
+### ocr :: kb/kbpy l8/ocr_attachments.py daily-20261020-1255-L1 --apply
+[OCR] 记录 184 条（来源 kb/l0/records/负面样本）；字段 图片素材(fldnvxjaSr) / 视频素材(fld87JUpEn)
+[OCR] 图片附件 339 张
+[OCR] 下载完成 339/339（身份 bot/dsh-kb；视频 0 个不做 OCR）
+[OCR] 待 OCR 0 张（缓存命中并过闸门 339，闸门拒绝 0）
+[OCR] 完成：记录 127 条 / 图片 339 / OCR 出文本 339 段 / 字符 165348 → kb/l1/media/daily-20261020-1255-L1.manifest.json（L0 未改动）
+[接线] 已使 .publish.stamp 失效 ⇒ 下次 publish 会重出派生视图（守衡才看得到）
+### ocr EXIT=0
+### applyocr :: kb/kbpy l8/apply_ocr_to_l1.py daily-20261020-1255-L1 daily-20261020-1255-L1 --apply
+OCR 运行统计: {"images": 339, "downloaded": 339, "download_failed": 0, "ocr_batches": 0, "ocr_ok": 339, "ocr_empty": 0, "gate_rejected": 0, "videos_skipped": 0}
+OCR 出文本段落: 339 | 字符: 165348
+读到媒体产物 127 条（记录级），附件明细 339 条
+将追加 466 行（附件级 339，媒体容器 127）
+对账：容器级 segments=339 chars=165348 | OCR manifest segments=339 chars=165348
+自洽: ✓
+[去重] @apply_ocr_to_l1.py 候选 466 行 → 追加 5 行（新增 0 / 变更 5 / **跳过同内容重复 461**）；last_seen 刷新 461
+已写入 L1 manifest +5 行（去重跳过同内容重复 461）；运行记录 kb/l1/runs/daily-20261020-1255-L1.json
+### applyocr EXIT=0
+### align :: kb/kbpy l8/align_l1_manifest.py daily-20261020-1255-L1 --apply --skill kb-ingest-extractor --skill kb-media-extractor
+[daily-20261020-1255-L1] L1 层账对齐【落盘】
+  一致                                 1981
+  故意作废(不动)                           77
+  要补记 0 条 / 补记 0 字
+  故意作废、产物留档 77 条（共 7600 字）——状态即事实，不补 status=ok，否则会把这批资源复活成「可用」
+  待补记的旧状态分布: {}
+
+  [写入] kb/l1/manifest_l1.jsonl +0 行（行数 6682 → 6682）
+  [apply] 台账 → kb/l1/runs/daily-20261020-1255-L1-manifest-reconcile.json（顶层 skill=['kb-ingest-extractor', 'kb-media-extractor']）
+  [报告] kb/l1/runs/daily-20261020-1255-L1-manifest-reconcile.json
+### align EXIT=0
+L1 DONE

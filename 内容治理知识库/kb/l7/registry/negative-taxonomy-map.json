@@ -1,0 +1,133 @@
+{
+  "meta": {
+    "file": "kb/l7/registry/negative-taxonomy-map.json",
+    "what_it_is": "负面样本规则（L3 `l3/candidates/negative_rules.jsonl` 与 L4 `l4/canonical/negative_rule.jsonl`）的「原因分类」→ A3 12 类 的映射表。读取方：`kb/l7/skills/kb-content-review/scripts/review.py::negative_taxonomy()`（报告逐条与卡面同一套标签）。12 类真源仍是 `kb/l3/registry/rule-taxonomy.json`。",
+    "why": "实测（2026-10-21）：图片类审查报告 22 份 / 92 条里 **87 条落 `未归类`（95%）**，其中 17 份整篇全未归类；文字类报告 1023 条里只有 20 条（2%）。根因不是图片格式，而是**负面样本这一层从来没被盖过 A3**：`negative_rule.jsonl` 437/437 条没有 `taxonomy_category` 字段，`rule-taxonomy.json` 的 638 条（rules 509 ＋ external_standard 129）与它们 **rule_id 交集 0**，且 `review.py::taxonomy_index()` 只读那两个文件 ⇒ 盖了也读不到。",
+    "source": "`kb/l0/records/负面样本/*.json` 的 `原因分类` select 字段（184 条）＋「具体原因/分析」正文首行 `【…】` 标签。实测：正文标签 **184/184 全有**；字段有值 133/184、与正文标签 **133/133 一致（不一致 0）**；字段为空的 51 条，正文标签全是 **【审核问题】** —— 是飞书 select **缺这个选项**，不是源侧没分类。",
+    "authority": "Owner-directed（2026-10-21 Owner 逐字：「能跟飞书表中“原因分类”来对齐吗？归属于12类别」）。12 类的落点口径沿用 `kb/l7/registry/case-taxonomy-map.json`（Owner 2026-10-20 采用）与 A3 `classes[].meaning`，**不新造类目**。",
+    "boundary": "本表只回答「一条负面样本规则属于 12 类里的哪一类」。**不回答**「这条意见是不是本单这张图的问题」—— 后者由 `attribution` / `evidence_class` 管（记录级相似参考不得冒称本图判定）。",
+    "field_note": "源侧可选项缺口（建议在飞书表补）：`原因分类` select 只有 5 个选项（品牌一致性 / 原则性错误 / 措辞表达 / 文化禁忌 / 合规红线），缺「审核问题」⇒ 51/184 条记录只能把标签写进正文首行。",
+    "created_at": "2026-10-21",
+    "status": "provisional"
+  },
+  "by_code": {
+    "N-01": {
+      "tag": "品牌一致性",
+      "taxonomy_category": "品牌信任与声誉",
+      "basis": "标签同名语义；A3 该类含子类「品牌口号与价值主张」。与 case-taxonomy-map.json 同标签口径一致。"
+    },
+    "N-00": {
+      "tag": "审核问题",
+      "taxonomy_category": "平台与渠道政策",
+      "basis": "源正文首行标签【审核问题】实测 51 条，内容为「提交/审核环节的形式与流程意见」（如「发出来之前自己先检查一遍」）；A3 该类含子类「素材提交与形式规范」。case-taxonomy-map.json 已对同标签给出同一落点。",
+      "note": "该码在 `CODE_LABEL` 里叫「未分类」，是**字段缺选项**的产物，不是真的没分类 —— 见 meta.field_note。"
+    },
+    "N-03": {
+      "tag": "措辞表达",
+      "taxonomy_category": "北美本地化与标签要求",
+      "basis": "A3 没有独立的「措辞」类；该类 meaning 含「美国市场表达」，是措辞类意见在 A3 的唯一落点（同 case-taxonomy-map.json）。"
+    },
+    "N-04": {
+      "tag": "文化禁忌",
+      "taxonomy_category": "北美本地化与标签要求",
+      "basis": "文化语境与本地化是同一件事的两面；A3 该类 meaning 覆盖「美国市场表达/育儿语境」（同 case-taxonomy-map.json）。"
+    },
+    "N-05": {
+      "tag": "合规红线",
+      "taxonomy_category": "合规与受监管宣称",
+      "basis": "类别名即语义；A3 该类即「法律法规与法定要求 ＋ 受监管宣称」。"
+    }
+  },
+  "overrides_n02": {
+    "_why": "N-02（原则性错误）64 条**横跨多个 12 类**，不能按码一刀切。下列条目已逐条读正文定类；未列出的走 default。",
+    "N-1.307": {
+      "taxonomy_category": "产品安全与高危使用场景",
+      "confidence": "high",
+      "basis": "正文逐字：「画面是宝宝跟爸爸同床，并且睡在柔软的枕头上（画面是新手爸爸带婴儿错误睡觉，呈现危险的错误场景）」。A3 该类 meaning 逐字含「趴睡」「怀抱乘车」。"
+    },
+    "N-1.312": {
+      "taxonomy_category": "产品安全与高危使用场景",
+      "confidence": "high",
+      "basis": "正文逐字：「左侧标注错误项：婴儿侧睡」。婴儿睡姿属该类的危险场景示范。"
+    },
+    "N-1.324": {
+      "taxonomy_category": "产品安全与高危使用场景",
+      "confidence": "high",
+      "basis": "正文逐字：「右侧 AAP 正确建议：仰睡」—— 与 N-1.312 同一条记录的睡姿对照项。"
+    },
+    "N-1.364": {
+      "taxonomy_category": "产品安全与高危使用场景",
+      "confidence": "high",
+      "basis": "正文逐字：「建议：同房不同床，宝宝睡独立婴儿床」。同睡场景属该类高危使用场景。"
+    },
+    "N-1.365": {
+      "taxonomy_category": "产品安全与高危使用场景",
+      "confidence": "high",
+      "basis": "正文逐字：「推荐方案：硬质平整干净婴儿床，宝宝睡在婴儿床，无枕头、松散毯子等杂物」—— 婴儿睡眠环境安全。"
+    },
+    "N-1.349": {
+      "taxonomy_category": "产品安全与高危使用场景",
+      "confidence": "medium",
+      "basis": "正文逐字：「奶瓶不建议倒着放，对于宝宝和妈妈来说，奶瓶的卫生重要至极」—— 产品用法带来的健康风险，属该类「产品安全」面。"
+    },
+    "N-1.359": {
+      "taxonomy_category": "产品安全与高危使用场景",
+      "confidence": "medium",
+      "basis": "正文逐字：「不要倒着放…喝完奶、喝之前都要消毒杀菌」—— 与 N-1.349 同一条记录的建议项。"
+    },
+    "N-1.369": {
+      "taxonomy_category": "权利、肖像、隐私与AI",
+      "confidence": "medium",
+      "basis": "正文逐字：「可以露出侧脸或者宝宝不露脸」—— 指向未成年人出镜的面部可识别性，属该类「隐私：未成年人出镜与隐私保护」。"
+    },
+    "N-1.308": {
+      "taxonomy_category": "母婴知识内容准确性",
+      "confidence": "medium",
+      "basis": "正文逐字：「大段的文字不要用衬线体」。A3 该类 meaning 明确「兼收措辞表达类问题＝文字表达、排版、大小写、语法、术语」。"
+    },
+    "N-1.366": {
+      "taxonomy_category": "母婴知识内容准确性",
+      "confidence": "medium",
+      "basis": "正文逐字：「不要用衬线体」—— 与 N-1.308 同一排版意见的建议项。"
+    },
+    "N-1.313": {
+      "taxonomy_category": "母婴知识内容准确性",
+      "confidence": "medium",
+      "basis": "正文逐字：「标题和需求方确认一下 to 和 a 是不是不应该大写」—— 大小写属该类「措辞表达」面。"
+    },
+    "N-1.310": {
+      "taxonomy_category": "母婴知识内容准确性",
+      "confidence": "low",
+      "basis": "正文逐字：「版头又错咯」—— 版式错误，按该类「排版」面落；但原文没说错在哪，需人工补依据。"
+    },
+    "N-1.363": {
+      "taxonomy_category": "母婴知识内容准确性",
+      "confidence": "low",
+      "basis": "正文逐字：「应该用品牌日的活动主题字体」—— 字体/版式，按该类「排版」面落。"
+    },
+    "N-1.326": {
+      "taxonomy_category": "母婴知识内容准确性",
+      "confidence": "low",
+      "basis": "正文逐字：「看看是不是应该用品牌日的活动主题字体」—— 与 N-1.363 同族。"
+    }
+  },
+  "default_n02": {
+    "taxonomy_category": "品牌信任与声誉",
+    "confidence": "low",
+    "basis": "N-02 里未逐条定类的条目，正文形态是**设计/创意方向的需求描述与评审反馈**（如「图1：妈妈抱着哭泣的宝宝」「营造柔和、亲密、轻松的氛围」）。按 case-taxonomy-map.json 对「设计/创意方向 ⇒ 品牌信任与声誉（调性/一致性）」的同一条先例落，**逐条入队复核**。",
+    "queue": "kb/l7/registry/negative-taxonomy-review-queue.json（由本表派生：N-02 中未出现在 overrides_n02 里的全部条目）"
+  },
+  "fallback": {
+    "taxonomy_category": "未归类",
+    "why": "码/标签都认不出（例如未来新增的码）⇒ 落 12 类的兜底类，**不编**。"
+  },
+  "measured_20261021": {
+    "l4_negative_rule_rows": 437,
+    "by_code": {"N-01": 185, "N-00": 96, "N-03": 66, "N-02": 64, "N-04": 17, "N-05": 9},
+    "n02_overridden": 14,
+    "n02_default": 50,
+    "expected_unclassified_after": 0,
+    "image_report_baseline": "22 份图片类报告 / 92 条 / 87 条未归类（95%）；其中 N-02 引用占 65/85 次"
+  },
+  "reverse_control": "把 `review.py::negative_taxonomy()` 的接线摘掉 ⇒ 重跑任一图片单，报告逐条必须**重新落 `未归类`**；把本表删掉 ⇒ `negative_taxonomy()` 必须走兜底（返回 null）而不是崩链。两条成对：只验「会变红」不验「能恢复」等于没验。"
+}

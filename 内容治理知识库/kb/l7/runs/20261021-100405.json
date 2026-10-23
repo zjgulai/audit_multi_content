@@ -1,0 +1,42 @@
+{
+ "run_id": "20261021-100405",
+ "at": "2026-10-21T10:04:08",
+ "source": "review_machine",
+ "trigger": "素材：[图片] 婴幼儿安全睡眠科普图（图片文件 sha256 = 67574427213d21979a628c46b30…",
+ "skills": [
+  "kb-content-review",
+  "审查裁决"
+ ],
+ "commands": [
+  "kb-content-review/scripts/review.py --text …",
+  "l7/review-engine/core/review_engine.py decide()"
+ ],
+ "products": [
+  "kb/l7/reports/20261021-100401.review.md"
+ ],
+ "verdict": "REVIEW ｜ issue_count=5",
+ "human_involved": false,
+ "content_id": "AD-20261021-005",
+ "confidence": 0.83,
+ "extra": {
+  "decision_owner": {
+   "skill": "图片安全审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "图片安全审查",
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check"
+   ]
+  },
+  "loaded_skills": [
+   "图片安全审查",
+   "kb-canonical-lookup",
+   "kb-p0-check",
+   "kb-recall",
+   "kb-check"
+  ]
+ }
+}

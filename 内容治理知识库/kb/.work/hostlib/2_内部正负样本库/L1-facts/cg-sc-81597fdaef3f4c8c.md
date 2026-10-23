@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.100 是正例还是反例
   - S-1.100 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-81597fdaef3f4c8c"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 其他
 reason_category: 品牌一致性
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2vgYXVLIn/原文反馈"
-source_sha256: 886ccd88bc743b3aed93d5da3e1510f5197cf8277fb4a8952a63e879e7059d94
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXVLIn
+anchor: "#负面样本/recvw7XJiSw14s/具体原因/分析"
+source_sha256: 23e382522261ef4e165e01d238881aa9d260784b9a87587371a77c708f1a7a88
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XJiSw14s
 sample_body: "【审核 · 2026-09-11 23:28 · 蓝涵】【终审-@[已脱敏] 】辛苦看看这个呀:YouAreTheBest: **项目名：中东品牌日共鸣插画3** **设计需求：**底色采用：#FCE4E2 不要画完整人物。只画妈妈的手和宝宝的小手：宝宝躺着，伸出一只小手抓住妈妈的手指。旁边可以有一条小毯子。（2个配色2选1） **设计稿件：** ![Image](img_v3_0215e_7704f085-6448-44c0-8e8e-c2f5f71e0fdg) ![Image](img_v3_0215e_76762d0d-94d9-4794-b590-3e4db155a5bg)"
 reason_analysis: "【品牌一致性】图片 设计需求：底色采用：#FCE4E2 不要画完整人物。 【问题要点】 1. 设计需求：底色采用：#FCE4E2 不要画完整人物 2. 【终审-@[已脱敏] 】辛苦看看这个呀 3. 只画妈妈的手和宝宝的小手：宝宝躺着，伸出一只小手抓住妈妈的手指 4. 旁边可以有一条小毯子 5. （2个配色2选1）"
 advice: 可以有一条小毯子
@@ -85,8 +85,8 @@ advice: 可以有一条小毯子
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2vgYXVLIn/原文反馈`
-- 指纹：`886ccd88bc743b3aed93d5da3e1510f5197cf8277fb4a8952a63e879e7059d94`
+- 锚点：`#负面样本/recvw7XJiSw14s/具体原因/分析`
+- 指纹：`23e382522261ef4e165e01d238881aa9d260784b9a87587371a77c708f1a7a88`
 - 原因归类：品牌一致性　|　素材类型：图片
 
 > 案例只作参照，不构成规则。

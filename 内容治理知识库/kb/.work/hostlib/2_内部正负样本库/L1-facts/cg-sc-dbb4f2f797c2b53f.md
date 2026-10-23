@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.166 是正例还是反例
   - S-1.166 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-dbb4f2f797c2b53f"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 展会
 reason_category: 品牌一致性
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2wE9MpQbj/原文反馈"
-source_sha256: 201d121939554fa7233a5a5c6098bb4f10872c85605b431cc5729a96be09b3e1
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MpQbj
+anchor: "#负面样本/recvw7XIUgNR66/具体原因/分析"
+source_sha256: 84e5f926ed61a3a4a100d26f4046556355170858bad0e19026469a21f53ce51e
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XIUgNR66
 sample_body: "【项目方 · 2026-08-10 21:50】初审-@[已脱敏] 】麻烦看看呀:YouAreTheBest: **项目名：**Paruu泰国母亲节海报 **设计要求：** ![Image](img_v3_0214e_b2e9212e-448d-44e1-9528-451c74c3f4fg) **设计稿件:** ![Image](img_v3_0214e_2fd3dd06-b0cb-4825-83b5-1450d860720g)  【审核 · 2026-08-10 21:50 · 吴礼芳】@[已脱敏] 这是momcozy 的插画风格，Parru 的不要用同风格，不然看起来是momcozy 的山寨  主色调： 蓝色和白色 建议以蓝色为背景，融入白色 元素： 海报中可以以母亲怀抱婴儿的简笔画剪 影为主 融入泰国白色茉莉花和茉莉花环的元素 海报底部需要插入Paruu的logo 图片参考右图 พลังของแม่...ไม่มีวันหยุด momcozy  รักที่ บริสุทธิ์ยิ่งกว่าสิ่งใด คือรักจากแม่ มอบความผ่อนคลายและงดงาม ให้คุณแม่ในวันแม่ปีนี้ สุขสันต์วันแม่แห่งชาติ Paruu ขอร่วมดูแลทุกหยดน้ำนมและความสุขของคุณแม่ Paruu"
 reason_analysis: 【品牌一致性】文案 这是momcozy 的插画风格，Parru 的不要用同风格。
 advice: ""
@@ -97,8 +97,8 @@ Paruu
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2wE9MpQbj/原文反馈`
-- 指纹：`201d121939554fa7233a5a5c6098bb4f10872c85605b431cc5729a96be09b3e1`
+- 锚点：`#负面样本/recvw7XIUgNR66/具体原因/分析`
+- 指纹：`84e5f926ed61a3a4a100d26f4046556355170858bad0e19026469a21f53ce51e`
 - 原因归类：品牌一致性　|　素材类型：文字
 
 > 案例只作参照，不构成规则。

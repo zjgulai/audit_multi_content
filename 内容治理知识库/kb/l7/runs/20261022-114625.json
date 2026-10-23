@@ -1,0 +1,42 @@
+{
+ "run_id": "20261022-114625",
+ "at": "2026-10-22T11:46:28",
+ "source": "review_machine",
+ "trigger": "【对方**这条消息没带图**；下面是**它引用的那条消息**里附的图，共 1 张。下面每一格是**两条读数**：① **…",
+ "skills": [
+  "kb-content-review",
+  "审查裁决"
+ ],
+ "commands": [
+  "kb-content-review/scripts/review.py --text …",
+  "l7/review-engine/core/review_engine.py decide()"
+ ],
+ "products": [
+  "kb/l7/reports/20261022-114514.review.md"
+ ],
+ "verdict": "REVIEW ｜ issue_count=4",
+ "human_involved": false,
+ "content_id": "AD-20261022-011",
+ "confidence": 0.75,
+ "extra": {
+  "decision_owner": {
+   "skill": "图片安全审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check",
+    "图片安全审查"
+   ]
+  },
+  "loaded_skills": [
+   "kb-canonical-lookup",
+   "kb-p0-check",
+   "kb-recall",
+   "kb-check",
+   "图片安全审查"
+  ]
+ }
+}

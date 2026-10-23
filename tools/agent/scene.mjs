@@ -122,13 +122,30 @@ export const SCENE_SYSTEM = [
   '   宁可写「无法辨认」，也不许把看不清的东西说成某种文字。',
   '5. 画面里出现婴幼儿、儿童、可识别人物、产品正在被使用（或贴近人体）时，',
   '   **必须**如实写进 `risk_cues` —— 只陈述「我看到了什么」，不要解释它为什么重要。',
+  '5b. 多面板/拼图里每个独立人物都单独列出，不能把不同面板的人合并或重复；用 `panel` 标明位置（如左上/右下/中部）。',
+  '5c. 对每个婴幼儿必须单独判断 `sleep_scene`。若是睡眠场景，必须逐个判睡姿「仰卧/侧卧/俯卧/看不清」，并给出 `sleep_posture_basis`（只写可见身体朝向线索）与面板位置。',
+  '   判姿势只看婴儿自身躯干/脸部/肩髋朝向：侧身朝向床面或身体侧面着地才记「侧卧」；不可把成人侧躺、同床、图片文字或安全建议当作婴儿睡姿证据。',
+  '   不是睡眠场景写 `sleep_posture=不适用`；睡眠状态或姿势被遮挡、看不清、证据不足时写 `看不清`，绝不能默认仰卧。',
+  '   如果有多个婴儿/多个面板，逐个给出记录；不能因数组长度或篇幅限制漏项。',
+  // ★★ 2026-10-21（Owner：「奶瓶倒着放为什么没有审到」）：
+  //   实测同一张图两次读数，容器**时有时无**（10:46 有「白色小瓶」，11:18 整个床头柜的小物件都没了），
+  //   而且 schema 里**没有"朝向"这一维** ⇒ "倒着放"永远读不出来，下游只能写「读不到」。
+  //   两条硬规矩：① 容器类**必列**（不许因为认不出牌子/很小就整条不写）；② 容器必须给朝向。
+  '6. **台面/柜面上的容器类物件**（瓶、杯、罐、盒、壶、奶瓶、水杯等）必须逐个写进 `products`，',
+  '   即使很小、即使看不清上面的字、即使不是画面主体 —— **不许因为"认不出牌子"就整条不写**。',
+  '7. 容器/器皿的 `orientation` **必填**，只许这几值：',
+  '   `正放`（口朝上正常放着）｜`倒置`（口朝下/底朝上）｜`侧放`｜`悬空`（底下没有支撑面）｜',
+  '   `贴边`（紧贴桌沿或柜边）｜`看不清`。**看不清就写「看不清」，不许猜**（猜出来的朝向比漏掉更坏）。',
+  '8. 看到「倒置、翻倒、液体外溢、悬空、贴边」这类**姿态异常**时，必须在 `risk_cues` 里逐条写出来',
+  '   （只写看到什么，不解释为什么重要）。',
   '',
-  '只输出一个 JSON 对象，不要任何解释文字。**每个数组最多 4 项，每项不超过 25 个字**（写要点，不写长句）。',
+  '只输出一个 JSON 对象，不要任何解释文字。people 最多 8 项以覆盖多面板人物；其他数组最多 4 项，每项不超过 25 个字。',
   '字段：',
   '{',
   '  "setting": "厨房 / 浴室 / 卧室 / 客厅 / 户外 / 影棚 / 其他（或：看不清）",',
-  '  "people": [{"kind":"婴幼儿|儿童|成人|分不清","doing":"在做什么（看得见的动作）"}],',
-  '  "products": [{"what":"看得见的物品（逐字描述外形即可，认不出牌子就只说外形）","in_use":true}],',
+  '  "people": [{"panel":"左上/右上/中部/右下等可见区域","kind":"婴幼儿|儿童|成人|分不清","doing":"在做什么（看得见的动作）", "sleep_scene":true, "sleep_posture":"仰卧|侧卧|俯卧|看不清|不适用", "sleep_posture_basis":"只写婴儿自身可见朝向线索；看不清时写原因"}],',
+  '  "products": [{"what":"看得见的物品（逐字描述外形即可，认不出牌子就只说外形）","in_use":true,',
+  '                "orientation":"正放|倒置|侧放|悬空|贴边|看不清（容器类必填）"}],',
   '  "visible_marks": ["图上真有的商标或文字标识（逐字）"],',
   '  "text_script": "英文 / 中文 / 中英混排 / 其他文字 / 无文字 / 无法辨认",',
   '  "risk_cues": ["看得见、且与内容审查有关的事实（婴幼儿出镜、产品贴近人体、疑似合成痕迹…）"],',
@@ -148,6 +165,53 @@ export function assertTempPath(p) {
 
 /** `text_script` 的闭集（解析侧只认这几个值；见 `parseScene` 里那段理由）。 */
 export const TEXT_SCRIPTS = Object.freeze(['英文', '中文', '中英混排', '其他文字', '无文字', '无法辨认']);
+
+/** 容器朝向的闭集（2026-10-21 加）。**看不清就写「看不清」，不许猜**。 */
+export const ORIENTATIONS = Object.freeze(['正放', '倒置', '侧放', '悬空', '贴边', '看不清']);
+
+/** 朝向的同义写法 → 闭集（**只做确定的归一，不做猜测**）。闭集外一律落「未给」。 */
+export const ORIENTATION_SYNONYMS = Object.freeze({
+  朝下: '倒置', 口朝下: '倒置', 底朝上: '倒置', 翻倒: '倒置', 倒扣: '倒置', 倒放: '倒置',
+  侧躺: '侧放', 平放侧着: '侧放', 侧着放: '侧放',
+  没支撑: '悬空', 没放稳: '悬空',
+  贴桌沿: '贴边', 贴柜边: '贴边', 靠边: '贴边',
+  立着: '正放', 正常放着: '正放', 口朝上: '正放',
+});
+
+/** 姿态异常的朝向（「倒着放」属于这一类）。 */
+export const ORIENTATION_ABNORMAL = Object.freeze(['倒置', '侧放', '悬空', '贴边']);
+
+/** 容器类物件的判据（口径：外形像瓶/杯/罐/盒/壶 —— 只看读数里 `what` 的字面）。 */
+export const CONTAINER_RE = /瓶|杯|罐|盒|壶|奶瓶|水壶|容器|器皿/;
+
+/**
+ * 从读数里挑出「**容器 + 姿态异常**」的那些物品（倒置/侧放/悬空/贴边）。
+ * 纯函数，给下游闸门用：读数里明明有倒置容器，清单却一个字没提 ⇒ 判红。
+ * @param {object} scene - `parseScene().scene`
+ * @returns {Array<{what:string, orientation:string}>}
+ */
+export function abnormalContainers(scene) {
+  const products = Array.isArray(scene?.products) ? scene.products : [];
+  return products.filter((p) => p && p.what && CONTAINER_RE.test(String(p.what))
+    && ORIENTATION_ABNORMAL.includes(p.orientation));
+}
+
+/** 每个婴儿/面板独立投给睡姿核对闸；状态不明时按未确认处理，不默认排除。 */
+export function infantSleepReadings(scenes = []) {
+  return scenes.flatMap((scene, i) => (scene?.people ?? [])
+    .filter((p) => /婴幼儿|婴儿/.test(String(p?.kind ?? ''))
+      && !(p.sleep_scene === false || (p.sleep_scene === true && p.sleep_posture === '不适用')))
+    .map((p) => ({
+      image: `图 ${i + 1}`,
+      panel: String(p.panel ?? '').trim(),
+      sleep_scene: p.sleep_scene,
+      position: p.sleep_scene === false || (p.sleep_scene === true && p.sleep_posture === '不适用')
+        ? '不适用' : p.sleep_scene !== true && (p.sleep_posture === '不适用' || p.sleep_posture === '未给')
+          ? '看不清' : p.sleep_scene === true && p.sleep_posture === '未给'
+        ? '看不清' : (p.sleep_posture || '看不清'),
+      basis: String(p.sleep_posture_basis ?? '').trim(),
+    })));
+}
 
 /**
  * 把模型回来的文本读成**读数**（纯函数 —— 判据只有这一处，喂样本就能证）。
@@ -173,14 +237,27 @@ export function parseScene(raw) {
     ok: true,
     scene: {
       setting: String(o.setting ?? '').trim() || '未给',
-      people: arr(o.people).map((p) => (typeof p === 'string' ? { kind: p, doing: '' } : {
+      people: arr(o.people).map((p) => (typeof p === 'string' ? { kind: p, doing: '', panel: '', sleep_scene: null,
+        sleep_posture: '未给', sleep_posture_basis: '' } : {
         kind: String(p?.kind ?? '').trim() || '分不清',
         doing: String(p?.doing ?? '').trim(),
+        panel: String(p?.panel ?? '').trim(),
+        sleep_scene: typeof p?.sleep_scene === 'boolean' ? p.sleep_scene : null,
+        sleep_posture: ['仰卧', '侧卧', '俯卧', '看不清', '不适用'].includes(String(p?.sleep_posture ?? '').trim())
+          ? String(p.sleep_posture).trim() : '未给',
+        sleep_posture_basis: String(p?.sleep_posture_basis ?? '').trim(),
       })).filter((p) => p.kind !== '分不清' || p.doing),
-      products: arr(o.products).map((p) => (typeof p === 'string' ? { what: p, in_use: null } : {
-        what: String(p?.what ?? '').trim(),
-        in_use: typeof p?.in_use === 'boolean' ? p.in_use : null,
-      })).filter((p) => p.what),
+      products: arr(o.products).map((p) => {
+        const base = typeof p === 'string' ? { what: p, in_use: null } : {
+          what: String(p?.what ?? '').trim(),
+          in_use: typeof p?.in_use === 'boolean' ? p.in_use : null,
+        };
+        // ★ 2026-10-21：朝向归一。同义写法收下（`朝下/口朝下/底朝上` → 倒置），
+        //   闭集外的模糊说法一律**不猜**（→ '未给'，下游据此判「读不到」）。
+        const raw = (p && typeof p === 'object') ? String(p.orientation ?? '').trim() : '';
+        const norm = ORIENTATION_SYNONYMS[raw] ?? (ORIENTATIONS.includes(raw) ? raw : '未给');
+        return { ...base, orientation: norm };
+      }).filter((p) => p.what),
       visible_marks: arr(o.visible_marks).map((x) => String(x).trim()).filter(Boolean),
       // ★ 2026-10-16：**只有出现在闭集里的值才收** —— 模型爱自由发挥（写「中文和英文混着」），
       //   而那会让下游的「声称闸」把确认判据变成模糊匹配。不在闭集 ⇒ 落「未给」，
@@ -208,8 +285,12 @@ export function sceneBlock(scene) {
   const L = [];
   const line = (k, v, empty) => L.push(`- ${k}：${v && String(v).trim() ? v : (empty ?? '（读数里没有）')}`);
   line('场景', s.setting && s.setting !== '未给' ? s.setting : '');
-  line('人物', (s.people ?? []).map((p) => [p.kind, p.doing].filter(Boolean).join(' · ')).join('；'));
-  line('物品', (s.products ?? []).map((p) => p.what + (p.in_use === true ? '（正在被使用）' : '')).join('；'));
+  line('人物', (s.people ?? []).map((p) => [p.panel, p.kind, p.doing,
+    p.kind === '婴幼儿' ? `睡眠场景：${p.sleep_scene === true ? '是' : p.sleep_scene === false ? '否' : '未确认'}；睡姿：${p.sleep_posture || '未给'}` : '',
+    p.kind === '婴幼儿' && p.sleep_scene === true ? `姿势依据：${p.sleep_posture_basis || '未给'}` : '']
+    .filter(Boolean).join(' · ')).join('；'));
+  line('物品', (s.products ?? []).map((p) => p.what + (p.in_use === true ? '（正在被使用）' : '')
+    + (p.orientation && p.orientation !== '未给' ? `（朝向：${p.orientation}）` : '')).join('；'));
   line('可见标识', (s.visible_marks ?? []).join('；'));
   // ★ 2026-10-16：文字**脚本**（英文/中文/中英混排…）—— 汉字声称闸的确认依据。
   line('图上文字用的是什么文字', s.text_script && s.text_script !== '未给' ? s.text_script : '');
@@ -267,7 +348,7 @@ export async function shrinkForModel(p, { maxEdge = SCENE_MAX_EDGE, overBytes = 
  *   ⚠️ `ok:false` 的语义是**「这一张我没读到画面」**，不是「这张图没有画面」。
  */
 export async function sceneRead(imagePath, { model = config.llm.model, timeoutMs = SCENE_TIMEOUT_MS,
-                                         maxTokens = 1200, fetchImpl = fetch } = {}) {
+                                         maxTokens = 4000, fetchImpl = fetch } = {}) {
   const t0 = Date.now();
   // ★ 关掉时是 **`skipped`**（这一单没跑），不是 `ok:false` 的失败 ——
   //   三种结局必须分得开：**没跑**（skipped）／**没读到**（未测）／**读到了**。
@@ -324,9 +405,23 @@ export async function sceneRead(imagePath, { model = config.llm.model, timeoutMs
       const t = await r.text().catch(() => '');
       return { ok: false, ms: Date.now() - t0, sent: sentNote(small), error: `画面模型 HTTP ${r.status}：${t.slice(0, 200)}` };
     }
-    const j = await r.json();
-    const choice = j?.choices?.[0] ?? {};
-    const raw = choice?.message?.content ?? '';
+    let j = await r.json();
+    let choice = j?.choices?.[0] ?? {};
+    let raw = choice?.message?.content ?? '';
+    // A partial scene description is not useful evidence. Retry once with
+    // twice the output budget; the original total timeout remains in force.
+    if (choice?.finish_reason === 'length') {
+      console.log(`[scene] ⚠️ 画面读数被截断 ⇒ 有界重试一次（max_tokens ${maxTokens} → ${maxTokens * 2}）`);
+      r = await callOnce({ ...body, max_tokens: maxTokens * 2 });
+      if (!r.ok) {
+        const t = await r.text().catch(() => '');
+        return { ok: false, ms: Date.now() - t0, sent: sentNote(small),
+          error: `画面模型重试 HTTP ${r.status}：${t.slice(0, 200)}` };
+      }
+      j = await r.json();
+      choice = j?.choices?.[0] ?? {};
+      raw = choice?.message?.content ?? '';
+    }
     // ★★ 2026-10-15 当场踩到并修掉：**`finish_reason: 'length'` 的 JSON 是被切开的**，
     //   而 `JSON.parse` 只会报一句「position 518 处少了 `,`」—— **指向完全无关的方向**
     //   （我第一版就是先怀疑模型写坏了 JSON，其实是我给 700 tokens 不够）。

@@ -34,6 +34,8 @@ import * as feishu from './feishu.mjs';
 import * as lw from './lark_write.mjs';
 import * as kb from './kb_client.mjs';
 import * as reviewPublish from './review_publish.mjs';
+import { visualChecklistInstructions } from './visual_checklist.mjs';
+import { AsyncLocalStorage } from 'node:async_hooks';
 
 const execFileP = promisify(execFile);
 
@@ -1209,12 +1211,44 @@ register('kb_status', {
  * （按本文件顶部那段：`scope` 只是标注、不是闸门 —— 但标错方向会骗下一个读代码的人，
  *   所以这里按真实副作用标。真正拦不拦，看调用方要不要给。）
  */
-const KB_ROOT = process.env.SHOUHENG_KB_ROOT
+export const KB_ROOT = process.env.SHOUHENG_KB_ROOT
   || '/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理';
 const DSH_BIN = process.env.SHOUHENG_DSH_BIN
   || '/Applications/DSH Desktop.app.pre-lute-20260907-111753/Contents/Resources/app.asar.unpacked'
      + '/node_modules/@deepseek-ai/dsh/lib/bin.js';
-const KB_REVIEW_TIMEOUT_MS = Number(process.env.SHOUHENG_KB_REVIEW_TIMEOUT_MS || 30 * 60_000);
+// ★ 2026-10-23（图单静默 9 分 9 秒那一单）：**30 分钟 → 20 分钟** —— 比最长正常链多 2 分钟，
+//   静默的窗口因此从「半小时」压到「二十分钟」。`SHOUHENG_KB_REVIEW_TIMEOUT_MS` 仍可覆盖。
+//   它还 export 出去当**唯一出处**：回执/心跳/自证都读这一格，不许各写一份。
+export const KB_REVIEW_TIMEOUT_MS = Number(process.env.SHOUHENG_KB_REVIEW_TIMEOUT_MS || 20 * 60_000);
+
+/* ══════════ ★★ 同时起几条链（同群并行 · 2026-10-22）═══════════════════════
+ * 为什么要有这个读数：并行起链时 `/tmp` 素材、旁挂副本、BASE、认领槽都是**按单**的，
+ * 出问题时要能一眼看出「当时是不是两条在跑」。计数必须与**唯一的 spawn 点**同源
+ * （`spawnChain` 里 ++、`finally` 里 --），否则超时/异常路径会漏减、计数只涨不落。
+ */
+let _chainsInFlight = 0;
+
+/** 当前同时在跑的链数（进程内）。 */
+export function chainInFlight() { return _chainsInFlight; }
+
+/** 给日志/卡片用的一句话（不改变计数）。 */
+export function describeChainInFlight(n) { return `同时在跑 ${Number(n ?? 0)} 条链`; }
+
+/**
+ * **唯一的起链点**。所有 `dsh --profile headless` 都从这里走 ——
+ * 计数与 spawn 同源、`--` 落在 `finally` 里（超时 / 抛异常 / 正常结束三条路都减）。
+ */
+async function spawnChain(task) {
+  _chainsInFlight++;
+  try {
+    console.log(`[review] 🚀 起链（${describeChainInFlight(_chainsInFlight)}）`);
+    return await execFileP('node', [DSH_BIN, '--profile', 'headless', task], {
+      cwd: KB_ROOT, timeout: KB_REVIEW_TIMEOUT_MS, maxBuffer: 8 << 20,
+    });
+  } finally {
+    _chainsInFlight--;
+  }
+}
 
 /**
  * 跑批前把「认领」这道门清干净 —— 2026-10-05 事故驱动（用户实测：10-04 22:18 那次
@@ -1537,6 +1571,28 @@ export async function runP0Preflight({ text = '', question = '', reportOut = '',
 }
 
 /**
+ * ★★ P0 **预判**（2026-10-21 Owner：「为什么 p0 对了，不回复处理中，直接回 BLOCK」那一改的配套）：
+ *   送审闸门判「是送审」之后、**起链之前**先跑一次只读远快路，只用来决定
+ *   「模型侧这一单还要不要跑」。它与实判吃**同一份正文 + 同一份模式表**（`p0_fastpath.py`），
+ *   实判仍以链的返回为准；这里**只回布尔** —— 不起链、不落报告、不写飞书、不改任何结论。
+ *
+ * 边界：预判失败 / 超时 / 报错一律回 `false`（按未命中走原路）。
+ *   预判是**省时间**的优化，方向是单向的：漏判只会多跑一次模型侧，误判才会把单子停错 ——
+ *   所以任何异常都往「未命中」落，不往「命中」落。
+ */
+export async function p0Precheck(text) {
+  const t = String(text ?? '').trim();
+  if (!t) return false;
+  try {
+    const p0 = await runP0FastPath(t);
+    return !!(p0 && p0.hit);
+  } catch (e) {
+    console.log(`[p0] ⚠️ 预判没跑成（按未命中算，不影响结论）：${e?.message ?? e}`);
+    return false;
+  }
+}
+
+/**
  * P0 **命中之后**那一整块：报告复用/生成 → 回执重渲染 → 两端对齐核对 → 组装返回体。
  *
  * ⚠️ 它**只搬不算**：所有值来自 `kb/l5/p0_fastpath.py` 的输出与 `review_publish` 的读回，
@@ -1545,58 +1601,108 @@ export async function runP0Preflight({ text = '', question = '', reportOut = '',
  * @param {{p0:object, p0Target:string, text:string, p0ReportPath:string, allowPublish:boolean}} o
  * @returns {Promise<object>} 与工具返回体同形（`answer` / `p0_fastpath` / `p0_findings` / 报告…）
  */
-async function p0HitPayload({ p0, text, p0ReportPath, allowPublish }) {
-  // ── ★ P0 报告（2026-10-06，Owner 三条口径）─────────────────────────────
+/**
+ * 「报告链接」这一格该放哪一份 —— **纯函数**（§2.4：判据要能被调用）。
+ *
+ * Owner 2026-10-21 逐字：「我要的是重审重跑，**不允许复用上次结论**」。
+ * 改之前的形状是 `prevReport ? 用旧的 : …` ⇒ 同一内容第二次送审时，
+ * 结论按本单重判，而「报告链接」指向**第一次**那份，人点开读到上一次的结论。
+ *
+ * 五种输入 → 五种结果（每一种都写清「这份是不是本单的」，不许含糊）：
+ *   · 只读前置（`allowPublish=false`）⇒ 不建文档；有旧链接就给旧的，**并说明不是本单的**；
+ *   · 没有 `report_path` ⇒ 本单压根没有报告，**不拿旧链接顶**（`no_path`）；
+ *   · 送审 + 本单出成了 ⇒ **用本单的**（哪怕以前出过）；
+ *   · 送审 + 本单没出成 + 有旧链接 ⇒ 回落旧链接，detail **必须写明不是本单的**（`fallback`）；
+ *   · 送审 + 本单没出成 + 没旧链接 ⇒ 空（`none`）—— 一个点不开的链接比空格更坏。
+ *
+ * @param {{allowPublish:boolean, hasReportPath:boolean, prevReport?:string|null,
+ *          published?:{ok:boolean, url?:string, detail?:string}|null}} o
+ * @returns {{url:string|null, mode:string, detail:string}}
+ */
+export function p0ReportOutcome({ allowPublish = false, hasReportPath = false,
+                                 prevReport = null, published = null } = {}) {
+  if (!allowPublish) {
+    return {
+      url: prevReport || null,
+      mode: 'readonly',
+      detail: prevReport
+        ? '这一遍是**只读前置**（闸门没判送审）⇒ 不新建报告；给的是同一内容**已有的那份**'
+          + '（**不是本单的**新报告），报告仍可由送审那条路生成'
+        : '这一遍是**只读前置**（闸门没判送审）⇒ 不新建报告、不写飞书；报告仍可由送审那条路生成',
+    };
+  }
+  if (!hasReportPath) {
+    return {
+      url: null,
+      mode: 'no_path',
+      detail: '快路没给出 report_path（未落报告文件）⇒ 本单**没有自己的报告**，'
+        + '也不拿旧链接顶上（那是复用上一次的结论）',
+    };
+  }
+  const pub = published || {};
+  if (pub.ok && pub.url) {
+    return { url: pub.url, mode: 'published', detail: String(pub.detail ?? '') || '本单报告已出' };
+  }
+  const why = String(pub.detail ?? '').trim() || '原因缺失';
+  if (prevReport) {
+    return {
+      url: prevReport,
+      mode: 'fallback',
+      detail: `本单报告没出成（${why}）⇒ 这一格回落显示同一内容**以前那份**，`
+        + '**不是本单的**报告（点开会看到上一次的结论）',
+    };
+  }
+  return {
+    url: null,
+    mode: 'none',
+    detail: `本单报告没出成（${why}）⇒ 不编链接（一个点不开的链接比空格更坏）`,
+  };
+}
+
+export async function p0HitPayload({ p0, text, p0Target, p0ReportPath, allowPublish,
+                              prevLinkOf = reviewPublish.previousReportLink,
+                              publishDoc = reviewPublish.publishReportDoc,
+                              fastpath = runP0FastPath } = {}) {
+  // ── ★ P0 报告（2026-10-06，Owner 三条口径；2026-10-21 改成「不复用上次结论」）──────
   //   ① 「P0 问题可先在飞书侧响应」 ⇒ 回执卡在 `runSubmissionGate` 里**已经先发过了**
   //      （`notify(ackMessage(...))` 在调本工具之前），所以这一步**不占任何响应预算**；
   //   ② 「写入云文档报告的时间不统计在 ≤1 秒内」 ⇒ PRD §12 的「P0 层响应 ≤1s」
   //      量的是**判定**（`p0.elapsed_ms`，实测 9.8 ms），「报告生成」是另一条 ≤30s 的指标；
   //   ③ 「补充报告」 ⇒ 报告**必须**跑，跑成了把链接填进回执（PRD §5.3.3 要求 ≥3 条时出报告链接），
   //      跑不成要**看得见**（`report_detail` 带出 CLI 原话），**不许静默留空、更不许编链接**。
-  let reportUrl = null;
-  let reportDetail = '';
-  // ── ★ **同一内容已有报告就复用，不新建**（Owner 2026-10-06 选定方案 (c)）──────────
-  //   实测的病：同一份素材**复跑**时，`ensureReviewRow` 会按「内容 ID」找到**旧行**，
-  //   而它的「报告链接」被「非空不覆盖」挡住了 ⇒ 这里新建的那一份**没人能点到**（孤儿文档）。
-  //   (a) 改成新建一行 ⇒ 会多出**重复行**（比缺行更难发现）；
-  //   (b) 改成覆盖旧链接 ⇒ 行内**自相矛盾**（汇总写旧审查、链接指新报告）；
-  //   (c) **复用旧链接、不新建** ← 选它：不产孤儿、不产重复行、行与报告始终一致。
-  //   为什么复用是对的：**内容 ID 是送审文本的 sha256** ⇒ 同一 ID 就是**同一份素材**，
-  //   报告逐字相同。代价：多一次查表（实测 15 行 **~1.0 s**），发生在**回执卡之后**，
-  //   不占 PRD §12 任何一条预算（「P0 层响应 ≤1s」量的是判定，仍 ~12 ms）。
-  //   ★ FIX-044：内核那条前置路**只查不改**（`allowPublish=false`）——
-  //     它跑在「闸门判不是送审」的消息上，那条路**以前从不建文档**；
-  //     在这儿开始建，等于顺手改了别人的工作流（Owner 2026-10-16 明说过不许）。
-  //     所以：**只在已有报告时复用链接**，没有就如实留空（`report: ''`，不编）。
+  //   ★ 2026-10-21 口径变更：以前「同一内容已有报告就复用、不新建」——**废掉**。
+  //     重审就要重跑；链接必须指本单那份。旧链接只在**本单没出成**时回落，
+  //     且 detail 必须写明「不是本单的」（判据在 `p0ReportOutcome`，纯函数可断言）。
   const p0ContentId = reviewPublish.contentIdOf(String(text ?? ''));
-  const prevReport = await reviewPublish.previousReportLink(p0ContentId);
-  if (prevReport) {
-    reportUrl = prevReport;
-    reportDetail = `复用同一内容已有的报告（内容 ID ${p0ContentId}）：${prevReport}`;
-    console.log(`[p0] ♻️ 同一内容已有报告，复用不新建：${prevReport}`);
-  } else if (!allowPublish) {
-    reportDetail = '这一遍是**只读前置**（闸门没判送审）⇒ 不新建报告、不写飞书；'
-      + '报告仍可由送审那条路生成';
-    console.log(`[p0] · 只读前置：命中但**不建文档**（闸门判「不是送审」那条路以前也不建）`);
-  } else if (p0.report_path) {
-    const pub = await reviewPublish.publishReportDoc(p0.report_path);
-    reportDetail = pub.detail;
-    if (pub.ok) {
-      reportUrl = pub.url;
-      console.log(`[p0] 📄 报告已出：${pub.url}`);
-    } else {
-      console.log(`[p0] ⚠️ 报告没出（结论不受影响）：${pub.detail}`);
+  let prevReport = null;
+  try { prevReport = await prevLinkOf(p0ContentId); } catch (e) {
+    console.log(`[p0] ⚠️ 查同一内容的历史报告失败（不影响本单出报告）：${e?.message ?? e}`);
+  }
+  const reportPath = p0ReportPath || p0?.report_path || null;
+  const hasReportPath = !!reportPath;
+  let published = null;
+  if (allowPublish && hasReportPath) {
+    try {
+      const pub = await publishDoc(reportPath);
+      published = { ok: !!pub?.ok, url: String(pub?.url ?? ''), detail: String(pub?.detail ?? '') };
+      if (published.ok) console.log(`[p0] 📄 本单报告已出：${published.url}`);
+      else console.log(`[p0] ⚠️ 本单报告没出（结论不受影响）：${published.detail}`);
+    } catch (e) {
+      published = { ok: false, detail: `${e?.name ?? 'Error'}: ${e?.message ?? e}` };
     }
-  } else {
-    reportDetail = '快路没给出 report_path（未落报告文件）';
+  }
+  const outcome = p0ReportOutcome({ allowPublish, hasReportPath, prevReport, published });
+  const reportUrl = outcome.url;
+  let reportDetail = outcome.detail;
+  if (outcome.mode === 'fallback') {
     console.log(`[p0] ⚠️ ${reportDetail}`);
   }
-  // ★ 拿到真链接就**重渲染一次回执**，把「报告链接」那一格填上（PRD §5.3.3）。
+  // ★ 拿到链接就**重渲染一次回执**，把「报告链接」那一格填上（PRD §5.3.3）。
   //   没拿到就保留原文那句「报告在回执之后补」——那是实话，改掉它才是撒谎。
   let rendered = String(p0.rendered ?? '');
   if (reportUrl) {
     try {
-      const again = await runP0FastPath(String(text ?? ''), { reportRef: reportUrl });
+      const again = await fastpath(String(text ?? ''), { reportRef: reportUrl });
       if (again?.rendered) rendered = String(again.rendered);
     } catch (e) {
       console.log(`[p0] ⚠️ 回执重渲染失败（保留原回执，报告链接改由表行与落表摘要带出）：${e?.message ?? e}`);
@@ -1604,20 +1710,15 @@ async function p0HitPayload({ p0, text, p0ReportPath, allowPublish }) {
   }
   // ── ★ 两端对齐的运行期核对（Owner 2026-10-06：「后续两端数据必须对齐」）────────
   //   当天的事故形状：**回执说 3 条、云文档里读出来像 1 条**。
-  //   根因是版式（已修），但那件事暴露了一个更根本的问题：
-  //   「回执说的条数」与「报告里的条目数」**没有任何东西在运行时对照过**。
-  //   所以这里加一道**生产期**核对（不能只写在自检里 —— 自检跑不到真实素材）：
-  //     ① 回执正文里 `共发现 N 处` 的 N（**重渲染之后**的最终文本）
-  //     ② 结构化字段 `p0.issue_count`（= findings 长度，落表「问题数量」用的就是它）
-  //     ③ 报告文件里 `### 问题 N ｜` 的条数
+  //   所以这里加一道**生产期**核对：① 回执正文里 `共发现 N 处` 的 N（取重渲染后的最终文本）
+  //   ② 结构化字段 `p0.issue_count` ③ 报告文件里 `### 问题 N ｜` 的条数。
   //   三处不一致 ⇒ **必须看得见**（日志 + 落进 report_detail，汇总格里会带出来）。
-  //   **不许静默**：数量对不上时，看表的人只会觉得"怪"，说不出哪里错。
   let alignNote = '';
   try {
     const stated = Number((rendered.match(/共发现\s*(\d+)\s*处/) || [])[1]);
     let items = null;
-    if (p0.report_path && fs.existsSync(p0.report_path)) {
-      items = (fs.readFileSync(p0.report_path, 'utf8').match(/^### 问题 \d+ ｜ /gm) || []).length;
+    if (reportPath && fs.existsSync(reportPath)) {
+      items = (fs.readFileSync(reportPath, 'utf8').match(/^### 问题 \d+ ｜ /gm) || []).length;
     }
     const expect = p0.issue_count;
     const bad = [];
@@ -1634,10 +1735,6 @@ async function p0HitPayload({ p0, text, p0ReportPath, allowPublish }) {
     alignNote = `（两端对齐核对没跑成：${e?.message ?? e}）`;
     console.log(`[p0] ⚠️ ${alignNote}`);
   }
-  // ★ 2026-10-06：这里原先**又写了一遍**「本单走的是 P0 快路…未跑层前置…不是专项审查结论」。
-  //   而 `kb/l5/p0_fastpath.py` 的 `_render()` 现在自己带一整节「来路与边界」——
-  //   两处一说，模型就会当成两句不同的话分别转述（实测卡片里就是两段重复）。
-  //   所以这一段**只留渲染器没有的那两个读数**（耗时 / 命中条数），边界不再重说。
   const answer = rendered.trim()
     + `\n\n（本单走 P0 快路：确定性匹配 ${p0.elapsed_ms} ms ｜ 命中 ${p0.matched_patterns} 条 P0 模式。）`;
   console.log(`[p0] 🚦 P0 命中 ⇒ 直接 BLOCK，不起链：${(p0.findings ?? []).map((f) => f.rule_code).join(',')}`
@@ -1653,36 +1750,19 @@ async function p0HitPayload({ p0, text, p0ReportPath, allowPublish }) {
       layer_preflight: p0.layer_preflight,
     },
     // ★★ 2026-10-14：「同问题取交集」缺的那一格 —— P0 的**结构化逐条**原样带出去。
-    //   病灶：双轨的对齐判据比的是两侧的**逐字命中片段**，而库侧条目一直只有
-    //   「命中正则」（实测 `最\s*(好|佳|…)`）；模型侧给的是**逐字引用的原句**
-    //   ⇒ 两者永远不重叠 ⇒ **交集在实测 123 次双轨里一次都没成立过**。
-    //   这一格**只搬不算**（值来自 CLI 自己的 `matched[].{line_text, span}`），
-    //   不新增判据、不改任何结论、不改任何版式。
     p0_findings: Array.isArray(p0.findings) ? p0.findings : [],
-    // ★ 2026-10-05（Owner 指出 BLOCK 却问题数量空 = 自相矛盾）：把引擎**已经给出**的
-    //   结构化字段带出去。原先只带 mode/elapsed/patterns，落表侧取不到 ⇒ 表里恒空。
-    //   **值来自 `kb/l5/p0_fastpath.py` 自己的输出，这里只搬不算。**
     issue_count: p0.issue_count,
-    // P0 是**确定性匹配**（正则/关键词命中），PRD §6.6 明写「P0 层级规则**不适用置信度分流**，
-    //   命中即 BLOCK」⇒ 不参与分流，但 **§8.2 要求该字段必须记录** ⇒ 记 1.0 = 「确定性命中」。
-    //   这是**取值口径**，不是算出来的概率 —— 汇总列里会写明。
     confidence: 1.0,
     // ★ 报告（2026-10-06）：`report` 是**云文档链接**（没建成就是空串，**不是**"待生成"的占位）；
     //   `report_path` 是本地 .md；`report_detail` 是「成没成、为什么」的原话。
-    //   `review_gate.formatChainBlock` 读 `report` 那一格 —— 空就什么都不显示（不许编）。
     report: reportUrl ?? '',
-    report_path: p0.report_path ?? null,
-    // ★ `align_note`（2026-10-06）：非空 = **两端条数对不上**，它是**给落表用的**——
-    //   `agent.mjs` 会把它拼进「问题分类汇总」，于是**在表里看得见**。
-    //   空串 = 三处一致（回执 / 结构化 / 报告条目数），正常情形。
+    report_path: reportPath ?? null,
     report_detail: reportDetail + alignNote,
+    // 这一格给自证与排查用：本单报告的来路（published / fallback / readonly / no_path / none）
+    report_mode: outcome.mode,
     align_note: alignNote,
-    // ★ 产品线 / 渠道（2026-10-06）：值来自 `kb/l5/p0_fastpath.py` 的 `facets`
-    //   —— 它从**命中的 L0 记录**里取（`品线`/`适用产品`、`渠道/市场`/`渠道`/`平台`）。
-    //   取不到就是空串 ⇒ 落表侧**不写这一格**（不许写「未指定」充数，更不许从素材正文猜）。
     product_line: p0.product_line ?? '',
     channel: p0.channel ?? '',
-    // ★ FIX-044：报告落点也带出去 —— 预检那条路要把它填进 `reportLink`（与闸门那条同口径）。
     _report_path_used: p0ReportPath,
   };
 }
@@ -1816,6 +1896,72 @@ export function noteIdentityReject(where, detail = {}) {
   } catch { /* 记不上不该让这一单失败 */ }
 }
 
+/* ══════════ ★★ 旁挂「按单挑」（同群并行 · 第 1 批，2026-10-22）══════════════
+ *
+ * 知识库那条链的输出是**两个固定单文件**（`last_review_result.json` / `last_engine_out.json`），
+ * 每次跑完整份覆盖。两条链并行时后写的盖掉先写的 ⇒ 守衡读到**别人的**读数
+ * ⇒ 四把锁拒收 ⇒ 本单降级（图片单直接 NEEDS_INPUT）。
+ *
+ * 第 1 批的修法分两半：写侧（`review_run.sh` 的 `mirror_sidecar`）另存一份
+ * `kb/.work/sidecars/<标签>-<BASE>-<pid>.json`；**读侧就是这里** ——
+ * 先扫副本、固定文件兜底，判据仍然是同一个 `identityVerdict`（**不放宽**）。
+ * 单条跑时读到的内容与改动前逐字相同（副本就是固定文件的字节副本）。
+ */
+/** 单次最多扫几份副本（防止目录长期累积把一单拖慢；`SIDECAR_KEEP` 在写侧管清理）。 */
+export const SIDECAR_SCAN_LIMIT = 12;
+
+/**
+ * 扫副本目录：只取 `<prefix>-*.json`，按 mtime **倒序**，`limit` 生效。
+ * 目录不存在 / 读不了 ⇒ `[]`（旧库没有这个目录时行为必须与改动前一致）。
+ */
+export function listSidecarFiles(dir, prefix, limit = SIDECAR_SCAN_LIMIT) {
+  const lim = (Number.isInteger(limit) && limit > 0) ? limit : SIDECAR_SCAN_LIMIT;
+  try {
+    const out = [];
+    for (const name of fs.readdirSync(dir)) {
+      if (!name.startsWith(`${prefix}-`) || !name.endsWith('.json')) continue;
+      const pp = path.join(dir, name);
+      try { out.push({ name, path: pp, mtimeMs: fs.statSync(pp).mtimeMs }); } catch { /* 读不到就跳过 */ }
+    }
+    out.sort((a, b) => b.mtimeMs - a.mtimeMs);
+    return out.slice(0, lim);
+  } catch { return []; }
+}
+
+/**
+ * 从一批候选里挑出**本单那份**。**纯函数**（§2.4：判据要能被调用）——
+ * 一次真链、一次真盘都不用碰。
+ *
+ * @param {Array<{source:string, j:object, mtimeMs?:number}>} candidates
+ * @param {{sinceMs:number, token?:string, sha8?:string, full?:string, cid?:string,
+ *          gotOf?:Function}} want
+ * @returns {{hit:{source:string,j:object}|null, level:string|null, why:string,
+ *            rejects:Array<{source:string, why:string}>}}
+ */
+export function pickOwnSidecar(candidates, want = {}) {
+  const list = Array.isArray(candidates) ? candidates : [];
+  const gotOf = (typeof want?.gotOf === 'function') ? want.gotOf : null;
+  const rejects = [];
+  for (const c of list) {
+    const j = c?.j;
+    if (!j || typeof j !== 'object') continue;      // 坏副本：跳过（它既不是本单、也谈不上拒收原因）
+    const got = gotOf
+      ? gotOf(j)
+      : { token: j.review_token, sha8: j.text_sha8, cid: j.content_id };
+    // 新鲜度：优先用文件自报的 `at`，没有就退回文件 mtime（引擎 JSON 没有 `at`，与改动前同一口径）。
+    const atRaw = j.at ?? (Number.isFinite(c?.mtimeMs) ? new Date(c.mtimeMs).toISOString() : '');
+    const v = identityVerdict({
+      sinceMs: want?.sinceMs,
+      at: atRaw,
+      want: { token: want?.token, sha8: want?.sha8, full: want?.full, cid: want?.cid },
+      got,
+    });
+    if (v.accept) return { hit: { source: c.source, j }, level: v.level, why: v.why, rejects };
+    rejects.push({ source: c.source, why: v.why });
+  }
+  return { hit: null, level: null, why: rejects.length ? rejects[0].why : '没有候选读数', rejects };
+}
+
 export function identityVerdict({ sinceMs, at, want = {}, got = {} } = {}) {
   const atMs = Date.parse(String(at ?? ''));
   if (!Number.isFinite(atMs) || !Number.isFinite(sinceMs) || atMs < sinceMs - 2000) {
@@ -1839,36 +1985,47 @@ export function identityVerdict({ sinceMs, at, want = {}, got = {} } = {}) {
 
 function readReviewSidecar(sinceMs, textSha8, contentId, reviewToken = '', textFullSha = '') {
   try {
-    const p = path.join(KB_ROOT, 'kb/.work/last_review_result.json');
-    const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+    // ★ 2026-10-22：先扫**按单存的副本**（并行时各单各一份），固定文件兜底。
+    //   判据仍是同一个 `identityVerdict` —— 「扫到副本」**不许**变成「放宽判据」。
+    const workDir = path.join(KB_ROOT, 'kb/.work');
+    const candidates = [];
+    for (const f of listSidecarFiles(path.join(workDir, 'sidecars'), 'review')) {
+      try {
+        candidates.push({ source: `sidecars/${f.name}`, j: JSON.parse(fs.readFileSync(f.path, 'utf8')),
+                          mtimeMs: f.mtimeMs });
+      } catch { /* 半个 JSON 当没有 */ }
+    }
+    const fixedPath = path.join(workDir, 'last_review_result.json');
+    let fixedJ = null;
+    let fixedMtime = null;
+    try {
+      fixedJ = JSON.parse(fs.readFileSync(fixedPath, 'utf8'));
+      fixedMtime = fs.statSync(fixedPath).mtimeMs;
+    } catch { /* 固定文件不在：只靠副本 */ }
+    if (fixedJ) candidates.push({ source: 'last_review_result.json', j: fixedJ, mtimeMs: fixedMtime });
+    const pick = pickOwnSidecar(candidates, {
+      sinceMs, token: reviewToken, sha8: textSha8, full: textFullSha, cid: contentId,
+    });
+    const j = pick.hit?.j;
+    if (!j) {
+      // 一份都没收到：把**每份**的原因与四个读数打出来（否则下一单还得倒推）
+      const reasons = pick.rejects.map((r) => `${r.source}: ${r.why}`).join('；') || '没有候选读数';
+      console.log('[review] ⛔ 机读旁挂**没有一份是本单的 ⇒ 拒收**'
+        + `｜${reasons}`
+        + `｜令牌=${reviewToken || '（无）'}｜文本指纹=${textSha8 || '（无）'}｜内容ID=${contentId || '（无）'}`
+        + '｜⇒ 本单按「库侧没读数」走（**不是**「库里说没问题」）');
+      for (const r of pick.rejects) {
+        noteIdentityReject('旁挂', { why: r.why, source: r.source });
+      }
+      return null;
+    }
     // ── 身份判定走上面那个纯函数（判据只有一处，别在这里再写一遍）──────────────
     //   历史记着（别再退回旧行为）：2026-10-08 曾把「拒收」降级成「只告警」，
     //   理由是当时两把文本锁**实测 6/6 全不成立**（链把身份算在它自己组装的那段
     //   文本上）。那件事后来修掉了（令牌锁 + 算式对齐），2026-10-09 16:21 起
     //   文本指纹**连续 34 次对齐**；而「只告警」留下的口子正是 10-15 那次串单。
-    const v = identityVerdict({
-      sinceMs, at: j?.at,
-      want: { token: reviewToken, sha8: textSha8, full: textFullSha, cid: contentId },
-      got: { token: j?.review_token, sha8: j?.text_sha8, cid: j?.content_id },
-    });
-    if (!v.accept) {
-      // ★ 拒收必须**看得见**（否则下一单还得倒推）：四个读数与旁挂自报的 base 一起打出来
-      console.log('[review] ⛔ 机读旁挂**不是本单的 ⇒ 拒收**'
-        + `｜${v.why}`
-        + `｜令牌 旁挂=${String(j?.review_token ?? '').trim() || '（空）'}（本单=${reviewToken || '（无）'}）`
-        + `｜文本指纹 旁挂=${String(j?.text_sha8 ?? '').trim() || '（缺）'}（本单=${textSha8 || '（无）'}）`
-        + `｜内容ID 旁挂=${String(j?.content_id ?? '').trim() || '（缺）'}（本单=${contentId || '（无）'}）`
-        + `｜旁挂自报 base=${j?.base ?? '?'}｜at=${j?.at ?? '?'}`
-        + '｜⇒ 本单按「库侧没读数」走（**不是**「库里说没问题」）');
-      noteIdentityReject('旁挂', {
-        why: v.why, base: j?.base ?? null,
-        want: { token: reviewToken || null, sha8: textSha8 || null, cid: contentId || null },
-        got: { token: j?.review_token ?? null, sha8: j?.text_sha8 ?? null, cid: j?.content_id ?? null },
-      });
-      return null;
-    }
     // ★ 成功也要出声（一行）：否则"这一单到底靠哪把锁认下来的"无从统计
-    console.log(`[review] ✅ 旁挂身份对齐（${v.level}）｜base=${j?.base ?? '?'}`);
+    console.log(`[review] ✅ 旁挂身份对齐（${pick.level}）｜来源=${pick.hit.source}｜base=${j?.base ?? '?'}`);
     return j;
   } catch {
     return null;   // 文件不在 / 不是 JSON ⇒ 当作没有（**不是**「结论为空」）
@@ -1923,16 +2080,16 @@ export async function facetsFromMaterial(text) {
  *   · 与 `kb/l8/review_playbook.md` 第 3 步的**旗标集合必须一致**（同一事实两处 ⇒ 用判据钉住）：
  *     由 `kb/l8/workflow_smoke.py` 的 **S8** 三方对账（本模板 ／ 手册 ／ `review_run.sh` 的 `case` 解析器）。
  */
-export function reviewCmdTemplate(materialPath, ctype) {
+export function reviewCmdTemplate(materialPath, ctype, imagePaths = []) {
   const mf = String(materialPath ?? '').trim();
   if (!mf) return '';                       // 没落盘（写失败）⇒ 不发模板，退回老路（不阻断送审）
   const sha = '$(shasum -a 256 ' + mf + " | awk '{print $1}')";
+  const imgs = (Array.isArray(imagePaths) ? imagePaths : [])
+    .map((x) => String(x ?? '').trim()).filter(Boolean);
   // ⚠️ 续行符只加在**前一行**上：最后一行带 `\` 会把后续内容接上去（实测验过注释行无碍，
   //    但取消注释后就成了一条悬空续行）—— 这种细节正是"照抄模板"最容易踩的坑。
-  const cov = (m, cont) => '  --coverage "' + m + ':macos-vision:$(sw_vers -productVersion):' + sha + ':ok"'
-    + (cont ? ' \\' : '');
-  const covOff = (m, cont) => '#   --coverage "' + m + ':macos-vision:$(sw_vers -productVersion):' + sha + ':ok"'
-    + (cont ? ' \\' : '');
+  const cov = (m) => '  --coverage "' + m + ':macos-vision:$(sw_vers -productVersion):' + sha + ':ok"';
+  const covOff = (m) => '#   --coverage "' + m + ':macos-vision:$(sw_vers -productVersion):' + sha + ':ok"';
   // ★★ 2026-10-20（Owner 逐字：「用户送审图片时，content_type 必须要标注下是图片」）：
   //   模态**由入站内容定死，不交给模型三选一**。它由 `agent.mjs` 在每轮起点按
   //   `inbound.imageCount / videoCount` 算好、经 `beginChainTurn({modality})` 传进来。
@@ -1945,38 +2102,66 @@ export function reviewCmdTemplate(materialPath, ctype) {
   //     provider 名与取值方法就是库规里那条固定写法（`macos-vision` ＋ `sw_vers` ＋ 素材文件 sha）。
   //   ⚠️ `video` 这一档**不动**（仍留占位符）：视频要五个模态的佐证，本单没有那五个 provider
   //      的读数 ⇒ 硬填会把视频单压成拒答。那是另一件事，不混进这一改。
+  // ★★ 2026-10-21（图身份层）：图单的**判定主体**写死 `图片安全审查`。
+  //   让位表（`kb/l7/registry/routes.yaml`）本来就写死「图片 / 主图 / 图上文字 → 图片安全审查」，
+  //   而模板原先让模型自己填 `--decision-owner` ⇒ 同一张婴幼儿安全睡眠图，选谁都能出 REVIEW。
+  //   边界：**只钉图单** —— text 的归属不唯一、video 还有未解缺口，这两档**必须仍留占位符**。
   const m2 = String(ctype ?? '').trim().toLowerCase();
   const isImage = m2 === 'image';
   const isText = m2 === 'text';
-  const ctLine = isImage ? '  --content-type image \\'
+  const ctLine = isImage ? '  --content-type image'
     : (isText ? '  --content-type text' : '  --content-type <text|image|video>');
-  const covLines = isImage ? [cov('image', true), cov('ocr', false)]
-    : ['# 素材是「读图 / 读视频」得来时，末尾**再加**这两行：', covOff('image', true), covOff('ocr', false)];
+  const covLines = isImage ? [cov('image'), cov('ocr')] : [];
   const ctNote = isImage
     ? '  · `--content-type image` 与那两行 `--coverage` 是**按本单入站内容定死的**（本单带图）——'
       + '**逐字照抄，不要改成 text**：改成 text 会让「负面样本规则」那一层整层不跑。'
     : (isText
       ? '  · `--content-type text` 是**按本单入站内容定死的**（本单没有图/视频）——**逐字照抄**。'
       : '  · `--content-type` = `text` / `image` / `video` 三选一（按素材实际模态）。');
+  const ownerLine = isImage
+    ? '  --decision-owner 图片安全审查'
+    : '  --decision-owner <第 2 步选中的那个 skill 的装载目录名>';
+  const loadedLine = isImage
+    ? '  --loaded-skill  图片安全审查'
+    : '  --loaded-skill  <同一个名字>';
+  const ownerNote = isImage
+    ? '  · `--decision-owner` / `--loaded-skill` 已按让位表写死 `图片安全审查` —— **逐字照抄**，'
+      + '不要改成别的 skill（改错会让「图身份层」对不上人）。'
+    : '  · `--decision-owner` = 第 2 步你**真的用 skill 工具加载过**的那个 skill 的装载目录名（`--loaded-skill` 填同一个）；';
+  // 命令体：除最后一行外，每一行都由下面统一补续行符 `\`。
+  const covNotes = isImage ? [] : ['# 素材是「读图 / 读视频」得来时，末尾**再加**这两行：',
+    covOff('image'), covOff('ocr')];
+  const body = [
+    'bash kb/l8/review_run.sh',
+    // ★ 2026-10-22：**秒级**。分钟级会让同分钟两单撞同一个 BASE，而 rerun_ledger
+    //   判「同一个 BASE 跑过就硬拒」⇒ 后到那单直接失败。
+    '  --base "$(date +%Y%m%d-%H%M%S)"',
+    '  --session "${DSH_SESSION_ID:-shouheng-chain-$(date +%s)}"',
+    ownerLine,
+    loadedLine,
+    '  --material-file ' + mf,
+    '  --token         ' + mf,
+    // ★ 2026-10-21：本单原图**一行一张**写进 `--image` —— 图身份层靠它拿到真图。
+    ...imgs.map((x) => '  --image ' + x),
+    '  --question "<提问原文，逐字>"',
+    ctLine,
+    ...covLines,
+  ];
+  // 续行符只加在**命令行**上：注释行不参与续行（否则最后一条实命令会被挂上 `\`）。
+  const cmdBlock = body.map((line, i) => (i === body.length - 1 ? line : line + ' \\')).join('\n')
+    + (covNotes.length ? '\n' + covNotes.join('\n') : '');
   return [
     '【★ 第 0 条之二 —— 本单的完整命令：逐字照抄，不要探索】',
     '下面这条**就是全部**。`--base` / `--session` / `--material-file` / `--token` / `--coverage`',
     '的取值**都写在命令里**（`$(…)` 就地展开、素材路径已内联），**没有一个需要你先去查、去算、去翻源码**。',
-    '整条命令里只有**两个值要你自己定，且都是"选"不是"查"**：',
-    '  · `--decision-owner` = 第 2 步你**真的用 skill 工具加载过**的那个 skill 的装载目录名（`--loaded-skill` 填同一个）；',
+    isImage
+      ? '整条命令里**没有一个值要你自己定**（判定主体与素材路径都已写死）——逐字照抄即可。'
+      : '整条命令里只有**两个值要你自己定，且都是"选"不是"查"**：',
+    ownerNote,
     ctNote,
     '',
     '```bash',
-    'bash kb/l8/review_run.sh \\',
-    '  --base "$(date +%Y%m%d-%H%M)" \\',
-    '  --session "${DSH_SESSION_ID:-shouheng-chain-$(date +%s)}" \\',
-    '  --decision-owner <第 2 步选中的那个 skill 的装载目录名> \\',
-    '  --loaded-skill  <同一个名字> \\',
-    '  --material-file ' + mf + ' \\',
-    '  --token         ' + mf + ' \\',
-    '  --question "<提问原文，逐字>" \\',
-    ctLine,
-    ...covLines,
+    cmdBlock,
     '```',
     '',
     '★★ **禁止探索**（命令已给全；下面每个秒数都是 2026-10-16 实测的浪费）：',
@@ -1985,6 +2170,37 @@ export function reviewCmdTemplate(materialPath, ctype) {
     '  · 不许读 `kb/l8/review_run.sh` 的源码找参数 —— 要看就看 `kb/l8/review_run.sh --help`，它给的就是真用法；',
     '  · 不许去查 `macos-vision` 是什么 —— 它是**固定的 provider 名**，逐字照抄。',
     '  那一单的账：**探索 107.6 秒 ＞ 真正的链 101.9 秒**。',
+  ].join('\n');
+}
+
+/**
+ * 图单的**执行前置**（2026-10-21/10-23 定，`test_agent` N4c 逐字钉着）。
+ *
+ * 病：headless 能照抄 `--loaded-skill 图片安全审查`（那只是**自述**），
+ *   却跳过图片 skill 本身 —— 真事故里「奶瓶倒着放」没被抓到，`load.verdict=loaded`
+ *   而画面事实一条都没写。⇒ 任务文本里必须**先要求真加载、再要求整份流程跑完**，
+ *   且排在命令模板**前面**（排在几万字后面 = 等于没说）。
+ *
+ * 2026-10-23 加第 6 条：4B **禁调 `web_search`** —— `api.deepseek.com` 额度耗尽时，
+ *   它在链里的表现不是报错而是**请求发出去就不回来**（整单静默 9 分 9 秒）。
+ */
+function imageSkillTaskBlock(imgList) {
+  const first = imgList[0] ?? '<原图路径>';
+  return [
+    '【★ 本单是图片单 —— 执行前置（优先级最高，先做这一步，再读下面所有内容）】',
+    '1. 先用 DSH 的 `skill` 工具真实加载 `图片安全审查`（加载是上下文动作；'
+      + '`--loaded-skill` 只是**自述**，不能证明真的加载过）。',
+    '2. 然后对原图文件 `' + first + '` 完整执行 skill：界定审核对象与范围 → 视觉分析与 OCR →'
+      + ' 拆分主张并建立核查清单 → 4A 规则符合性 → 4B 事实准确性核查 →'
+      + ' 检查图文一致性与信息完整性 → 按 skill 的分级结论输出完整审查结果。',
+    '3. 不能只复用守衡侧场景摘要或 OCR 文本，也不能只做视觉分析代替完整流程。',
+    '4. 本单原图路径已由守衡落盘并自动写进下面那条命令（`--image <路径>`，一行一张）——'
+      + '**不要改路径、不要自己另找图**。',
+    '5. 该命令属于 skill 流程的一部分，不得重复起链，也不能替代 skill 的其他步骤；'
+      + '4A 知识库审查与 4B 权威事实核查是独立工作，两边都做完再合并结论。',
+    '6. 4B 这一段禁止调用 `web_search`（后端额度耗尽时它**请求发出去就不回来**，整单会静默卡死）——'
+      + '改用本机核验链接 + 直判，并**如实写明「本轮未做联网检索」**；不许编造未核验的来源。',
+    '7. 不得为提速省略检查；图片安全审查 skill 未加载或完整流程未完成时立即停止并返回 NEEDS_INPUT。',
   ].join('\n');
 }
 
@@ -2026,8 +2242,19 @@ export const REVIEW_PLAYBOOK = (() => {
  * ── 边界 ─────────────────────────────────────────────────────────────────
  *   没有 `materialPath`（素材没落盘）⇒ 前两块自动消失，行为退回改动前（**不阻断送审**）。
  */
-export function reviewTaskFor({ question = '', text = '', materialPath = '', ctype = null } = {}) {
+export function reviewTaskFor({ question = '', text = '', materialPath = '', ctype = null,
+                                imagePaths = null } = {}) {
   const mf = String(materialPath ?? '').trim();
+  const m2 = String(ctype ?? '').trim().toLowerCase();
+  // 原图路径：显式给了且非空就用它，否则读本轮上下文（`setChainTurnImagePaths` 落的那格）。
+  const given = _normPaths(imagePaths);
+  const imgs = given.length ? given : chainTurnImagePathsOf();
+  // ★ 图单要在最前面加「先真加载 skill、再把整份流程跑完」的执行前置（见 imageSkillTaskBlock）。
+  // 图单要两张前置：① 先真加载 skill 并跑完整流程 ② 交「视觉核对清单」（第 0 条之三）。
+  // 清单说明与引擎侧闸门共用 `visual_checklist.mjs` 的那一份 —— 两处各抄一遍必然走样。
+  const imgBlock = m2 === 'image'
+    ? [imageSkillTaskBlock(imgs), visualChecklistInstructions()].join('\n\n')
+    : '';
   const materialRule = mf
     ? `【★ 第 0 条（先读这一条，再读下面所有内容）—— 本单素材已落盘，路径如下】\n`
       + `${mf}\n`
@@ -2040,8 +2267,8 @@ export function reviewTaskFor({ question = '', text = '', materialPath = '', cty
       + `\`逐字命中「ibclc」\` 被当成你的素材判的，并随报告发进了群）—— `
       + `宁可这一单回落成「库侧没读数」，也不许把别人的结论贴到你的素材上。\n`
     : '';
-  return [materialRule, reviewCmdTemplate(mf, ctype), String(question ?? ''), String(text ?? ''),
-          REVIEW_HARD_RULES, REVIEW_PLAYBOOK]
+  return [imgBlock, materialRule, reviewCmdTemplate(mf, ctype, imgs), String(question ?? ''),
+          String(text ?? ''), REVIEW_HARD_RULES, REVIEW_PLAYBOOK]
     .map((s) => s.trim()).filter(Boolean).join('\n');
 }
 
@@ -2123,7 +2350,8 @@ register('kb_review_chain', {
     // ★★ 2026-10-20（Owner：「用户送审图片时，content_type 必须要标注下是图片」）：
     //   模态**取自本轮起点由入站内容算好的那一格**（`chainTurnModalityOf()`），
     //   不再交给模型三选一 —— 实测选成 text 时「负面样本规则」整层不跑（PASS/0 条）。
-    const task = reviewTaskFor({ question, text, materialPath, ctype: chainTurnModalityOf() });
+    const task = reviewTaskFor({ question, text, materialPath, ctype: chainTurnModalityOf(),
+                                 imagePaths: chainTurnImagePathsOf() });
     // ── 素材文件用后即删（不留在盘上）────────────────────────────────────────
     //   删在 `finally` 里：链**跑成 / 跑败 / 超时**三种结局都要删，
     //   否则 `/tmp` 会攒下一堆送审素材（而它们是可以拼出客户内容的）。
@@ -2135,6 +2363,40 @@ register('kb_review_chain', {
     }
     if (!fs.existsSync(KB_ROOT)) {
       return { error: `找不到知识库工作区：${KB_ROOT}（可用环境变量 SHOUHENG_KB_ROOT 覆盖）` };
+    }
+
+    // ── ★★ 起链前的 profile 目录预检（2026-10-23）────────────────────────────
+    //   `dsh --profile headless` 在 `prepareProfile()` 里**无条件**重写
+    //   `~/.dsh/profiles/headless/cordis.yml`。调用方若被 workspace-write 沙箱限制
+    //   （工作区之外一律拒写），链在**第一秒**就 EPERM 退出，而日志只剩
+    //   `Command failed: node …`（EPERM 在下一行、被截掉）⇒ 下游只能**猜**根因。
+    //   当天那张卡就猜成「本机权限故障，让运维把 profile 目录写权限给到运行账号」——
+    //   **猜错了**（该路径实测可写）。⇒ 这里在 spawn **之前**探一次盘：
+    //   写不进就**不起链**、给结构化原因，并明说这是**调用方环境受限**、不是本机权限故障。
+    //   `SHOUHENG_PROFILE_DIR` 可覆盖（自证就是那么喂的）。
+    const profileDir = process.env.SHOUHENG_PROFILE_DIR
+      || path.join(os.homedir(), '.dsh', 'profiles', 'headless');
+    let profileProbe = { ok: true, detail: '' };
+    try {
+      if (fs.existsSync(profileDir)) {
+        const probe = path.join(profileDir, `.shouheng-write-probe-${process.pid}-${Date.now()}`);
+        fs.writeFileSync(probe, 'x');
+        fs.unlinkSync(probe);
+      }
+    } catch (e) {
+      profileProbe = { ok: false, detail: `${e?.code ?? ''} ${e?.message ?? e}`.trim() };
+    }
+    if (!profileProbe.ok) {
+      return {
+        ok: false,
+        reason_code: 'profile_unwritable',
+        error: `DSH 的 profile 目录写不进（${profileDir}：${profileProbe.detail}）⇒ **链没有起**，`
+          + '本单**未送审**、结论未知（不是"审过了"，也不是"通过"）。'
+          + '这是**调用方环境受限**（典型：被 workspace-write 沙箱挡在工作区之外），'
+          + '**不是本机权限故障** —— 别让人去改属主 / 权限 / flag。'
+          + '把该目录挪到可写位置（或设 `SHOUHENG_PROFILE_DIR` 指向可写目录）后重送即可。',
+        profile_dir: profileDir,
+      };
     }
 
     // ── ★ P0 快路（2026-10-05）：PRD §6.3 第一层 / §12「P0 层响应 ≤ 1 秒」 ──────
@@ -2218,9 +2480,7 @@ register('kb_review_chain', {
     try {
       // cwd 必须是知识库工作区：链上每一步都按 `kb/...` 相对路径找脚本，
       // 而且 AGENTS.md 的工作区指令由 cwd 决定 —— cwd 不对，跑出来的就不是那条链。
-      const { stdout } = await execFileP('node', [DSH_BIN, '--profile', 'headless', task], {
-        cwd: KB_ROOT, timeout: KB_REVIEW_TIMEOUT_MS, maxBuffer: 8 << 20,
-      });
+      const { stdout } = await spawnChain(task);
       const answer = String(stdout ?? '').trim();
       if (!answer) {
         return {
@@ -2264,18 +2524,36 @@ register('kb_review_chain', {
       //   （抽查最近 44 份评审报告，44/44 相符、0 例外）。
       let engineJson = null;
       try {
-        const ep = path.join(KB_ROOT, 'kb/.work/last_engine_out.json');
-        const raw = fs.readFileSync(ep, 'utf8');
-        const at = fs.statSync(ep).mtimeMs;
-        const jj = JSON.parse(raw);
+        // ★ 2026-10-22：与旁挂同一个形状 —— 先扫副本（`sidecars/engine-*.json`），固定文件兜底。
+        const workDir = path.join(KB_ROOT, 'kb/.work');
+        const engCands = [];
+        for (const f of listSidecarFiles(path.join(workDir, 'sidecars'), 'engine')) {
+          try {
+            engCands.push({ source: `sidecars/${f.name}`, j: JSON.parse(fs.readFileSync(f.path, 'utf8')),
+                            mtimeMs: f.mtimeMs });
+          } catch { /* 半个 JSON 当没有 */ }
+        }
+        const fixedEng = path.join(workDir, 'last_engine_out.json');
+        try {
+          engCands.push({ source: 'last_engine_out.json', j: JSON.parse(fs.readFileSync(fixedEng, 'utf8')),
+                          mtimeMs: fs.statSync(fixedEng).mtimeMs });
+        } catch { /* 固定文件不在 */ }
+        const engPick = pickOwnSidecar(engCands, {
+          sinceMs: t0, full: textFullSha, cid: contentId,
+          // 引擎 JSON 的身份在 `decision.content_version`（全值）与 `content_id` —— 与旁挂不同形。
+          gotOf: (jj) => {
+            const d = (jj && typeof jj.decision === 'object' && jj.decision) ? jj.decision : {};
+            return {
+              full: d?.content_version ?? jj?.content_version ?? (jj?.input_manifest?.sha256) ?? '',
+              cid: d?.content_id ?? jj?.content_id,
+            };
+          },
+        });
+        const jj = engPick.hit?.j;
         const dec = (jj && typeof jj.decision === 'object') ? jj.decision : {};
         const gotFull = dec?.content_version ?? jj?.content_version
           ?? (jj?.input_manifest?.sha256) ?? '';
-        const v = identityVerdict({
-          sinceMs: t0, at: new Date(at).toISOString(),
-          want: { full: textFullSha, cid: contentId },
-          got: { full: gotFull, cid: dec?.content_id ?? jj?.content_id },
-        });
+        const v = engPick.hit ? { accept: true } : { accept: false, why: engPick.why };
         if (v.accept) {
           engineJson = jj;
         } else {
@@ -2380,8 +2658,67 @@ export function toolNames() { return defs.map((d) => `${d.name}(${d.scope})`); }
 const CHAIN_MEMO_TOOL = 'kb_review_chain';
 const CHAIN_MEMO_TTL_MS = 30 * 60 * 1000;
 
-let chainMemo = null;      // { at:number, envelope:{tool,ok,result} } —— 只装**跑成**的结果
-let chainMemoHits = 0;
+/* ══════════ ★★ 每轮上下文（2026-10-22 并发隔离；test_agent N4g 钉着）═══════════
+ *
+ * 病（并行两条消息**串档**）：素材模态 / 链缓存 / 链回执 / P0 读数 / 图片上下文原先都是
+ *   **模块级变量** ⇒ 后一条消息把它们覆盖掉，先跑的那条读到**别人的**值
+ *   （真事故：一条文字单拿到图片单的 `--content-type image`；两条单互相回对方的链结论）。
+ * 改法：`agent.mjs` 每处理一条消息就 `withAgentTurnContext(...)` 开一格，
+ *   其内所有读数都落这一格（AsyncLocalStorage 跟着 async 链走到哪跟到哪）。
+ * 兜底：没有上下文时（自证 / 老调用点）用进程级兜底格 —— 行为与改动前一致。
+ */
+const _agentTurnAls = new AsyncLocalStorage();
+let _turnFallback = null;
+function _newTurnState() {
+  return {
+    imageBlock: '',
+    chainTurnModality: null,
+    chainTurnImagePaths: [],
+    chainMemo: null,
+    chainMemoHits: 0,
+    p0Memo: null,
+    chainAnswerMemo: null,
+  };
+}
+function _turnState() {
+  const st = _agentTurnAls.getStore();
+  if (st) return st;
+  if (!_turnFallback) _turnFallback = _newTurnState();
+  return _turnFallback;
+}
+function _normModality(m) {
+  const v = String(m ?? '').trim().toLowerCase();
+  return (v === 'text' || v === 'image' || v === 'video') ? v : null;
+}
+function _normPaths(ps) {
+  return (Array.isArray(ps) ? ps : []).map((x) => String(x ?? '').trim()).filter(Boolean);
+}
+
+/** 每条消息的入口：开一格独立上下文（这一格里读到的都是**本条**的）。 */
+export function withAgentTurnContext(fn) {
+  return _agentTurnAls.run(_newTurnState(), fn);
+}
+
+/** 写本条的上下文（`imageBlock` / `chainTurnModality` / `chainTurnImagePaths`）。 */
+export function setAgentTurnContext(patch = {}) {
+  const st = _turnState();
+  if (patch && typeof patch === 'object') {
+    if ('imageBlock' in patch) st.imageBlock = String(patch.imageBlock ?? '');
+    if ('chainTurnModality' in patch) st.chainTurnModality = _normModality(patch.chainTurnModality);
+    if ('chainTurnImagePaths' in patch) st.chainTurnImagePaths = _normPaths(patch.chainTurnImagePaths);
+  }
+  return agentTurnContextSnapshot();
+}
+
+/** 本条上下文的只读快照（给日志 / 自证看，不是写入口）。 */
+export function agentTurnContextSnapshot() {
+  const st = _turnState();
+  return {
+    imageBlock: st.imageBlock,
+    chainTurnModality: st.chainTurnModality,
+    chainTurnImagePaths: [...st.chainTurnImagePaths],
+  };
+}
 
 /* ★★ 2026-10-20（Owner 逐字：「用户送审图片时，content_type 必须要标注下是图片」）
  *
@@ -2398,21 +2735,35 @@ let chainMemoHits = 0;
  * 边界：`null` = 调用方没给 ⇒ 模板保留 `--content-type <text|image|video>` 占位符
  *      ⇒ 行为与改动前**逐字相同**（老路径、老测试不受影响）。
  */
-let chainTurnModality = null;   // 'text' | 'image' | 'video' | null
+/* ★★ 2026-10-21（图身份层）：本轮的**原图路径**（落盘后的送审图）。
+ *   由 `agent.mjs` 把送审图重新落盘后经 `setChainTurnImagePaths()` 交进来，
+ *   模板据此往命令里注入 `--image <路径>`（一行一张）—— 少了它，链只会看到 OCR 文本，
+ *   小语种图 / 带水印行的图在负面样本层 0 命中 ⇒ 被读成 PASS（真事故，见 PMO 2026-10-21）。
+ *   `beginChainTurn()` 会把它清空 ⇒ 文字轮次**不继承**上一轮的图（防串图）。 */
 
 /** 一轮的边界：清空上一次的记忆并结算命中数。返回**上一轮**命中了几次。
- *  `opts.modality`（可选）= 本轮的素材模态，由入站内容算出（见上面 `chainTurnModality`）。 */
+ *  `opts.modality`（可选）= 本轮的素材模态，由入站内容算出。 */
 export function beginChainTurn(opts = {}) {
-  const prevHits = chainMemoHits;
-  chainMemo = null;
-  chainMemoHits = 0;
-  const m = String((opts && opts.modality) ?? '').trim().toLowerCase();
-  chainTurnModality = (m === 'text' || m === 'image' || m === 'video') ? m : null;
+  const st = _turnState();
+  const prevHits = st.chainMemoHits;
+  st.chainMemo = null;
+  st.chainMemoHits = 0;
+  st.chainTurnImagePaths = [];
+  st.chainTurnModality = _normModality(opts && opts.modality);
   return prevHits;
 }
 
 /** 本轮素材模态（'text' / 'image' / 'video' / null）。给 `kb_review_chain` 拼模板用。 */
-export function chainTurnModalityOf() { return chainTurnModality; }
+export function chainTurnModalityOf() { return _turnState().chainTurnModality; }
+
+/** 本轮的送审原图路径（一行一张写进 `--image`）。 */
+export function setChainTurnImagePaths(ps) {
+  _turnState().chainTurnImagePaths = _normPaths(ps);
+  return chainTurnImagePathsOf();
+}
+
+/** 本轮送审原图路径的只读副本（新轮次 / 没给 ⇒ `[]`）。 */
+export function chainTurnImagePathsOf() { return [..._turnState().chainTurnImagePaths]; }
 
 /* ══════════════ ★★ P0 快路读数（2026-10-16，FIX-043）══════════════════════
  *
@@ -2442,10 +2793,10 @@ export function chainTurnModalityOf() { return chainTurnModality; }
  * ⚠️ **同一轮重复命中取最后一次** —— 同一份素材重跑结论一样（`p0_fastpath.py` 是纯函数），
  *    所以这个方向不会产生假结论。
  */
-let p0Memo = null;         // { at:number, payload:{ p0Fastpath, answer, p0Findings } }
+// 这一格在每轮上下文里（`_turnState().p0Memo`，{ at, payload }）
 
 /** 一轮的边界：清掉上一轮的 P0 读数（与 `beginChainTurn()` 同一处调用、同一套理由）。 */
-export function beginP0Turn() { p0Memo = null; }
+export function beginP0Turn() { _turnState().p0Memo = null; }
 
 /**
  * 这一轮 `kb_review_chain` **真的命中了 P0 快路**时，要留下来的那几格结构化读数。
@@ -2471,11 +2822,11 @@ export function p0PayloadOf(result) {
 }
 
 /** 这一轮命中的 P0 读数（没命中回 `null`）。 */
-export function p0MemoRead() { return p0Memo?.payload ?? null; }
+export function p0MemoRead() { return _turnState().p0Memo?.payload ?? null; }
 
 /** 只给自证用 —— 从干净状态起跑，或构造一个「这一轮命中了快路」的现场。 */
-export function _resetP0MemoForTest() { p0Memo = null; }
-export function _armP0MemoForTest(payload, at = Date.now()) { p0Memo = { at, payload }; }
+export function _resetP0MemoForTest() { _turnState().p0Memo = null; }
+export function _armP0MemoForTest(payload, at = Date.now()) { _turnState().p0Memo = { at, payload }; }
 
 /* ══════════════════════════════════════════════════════════════════════════════
  * ★★ 2026-10-19（Owner：「**守衡输出的卡片内容怎么又改了？赶紧改回去**」）
@@ -2506,10 +2857,10 @@ export function _armP0MemoForTest(payload, at = Date.now()) { p0Memo = { at, pay
  * ⚠️ 与 `chainMemo`（链缓存）也**不是一回事**：那个是「同一轮别重跑」的护栏、由判据决定
  *    要不要 arm；这个是**只读留痕**，不改任何分支。
  * ══════════════════════════════════════════════════════════════════════════════ */
-let chainAnswerMemo = null;   // { at:number, payload:{ answer:string, p0Fastpath:object|null } }
+// 这一格在每轮上下文里（`_turnState().chainAnswerMemo`，{ at, payload }）
 
 /** 一轮的边界：清掉上一轮的链回执（与 `beginP0Turn()` / `beginChainTurn()` 同一处调用）。 */
-export function beginChainAnswerTurn() { chainAnswerMemo = null; }
+export function beginChainAnswerTurn() { _turnState().chainAnswerMemo = null; }
 
 /**
  * 这一轮 `kb_review_chain` **跑成了**时要留下来的那份回执。**纯函数**（§2.4：判据要能被调用）。
@@ -2532,17 +2883,18 @@ export function chainAnswerPayloadOf(result) {
 }
 
 /** 这一轮链跑成的回执（没跑成 / 这一轮没调过 ⇒ `null`）。 */
-export function chainAnswerRead() { return chainAnswerMemo?.payload ?? null; }
+export function chainAnswerRead() { return _turnState().chainAnswerMemo?.payload ?? null; }
 
 /** 只给自证用 —— 从干净状态起跑，或构造一个「这一轮链跑成了」的现场。 */
-export function _resetChainAnswerMemoForTest() { chainAnswerMemo = null; }
+export function _resetChainAnswerMemoForTest() { _turnState().chainAnswerMemo = null; }
 export function _armChainAnswerMemoForTest(payload, at = Date.now()) {
-  chainAnswerMemo = { at, payload };
+  _turnState().chainAnswerMemo = { at, payload };
 }
 
 /** 给日志/`meta` 用的读数：这一轮命中过几次、现在有没有装着缓存。 */
 export function chainMemoStats() {
-  return { hit: chainMemoHits, armed: !!chainMemo };
+  const st = _turnState();
+  return { hit: st.chainMemoHits, armed: !!st.chainMemo };
 }
 
 /* ── 两条**纯**判据。为什么要单独抽出来（§2.4：判据要能被调用）───────────────
@@ -2571,8 +2923,12 @@ export function chainMemoShouldArm({ name, result } = {}) {
 }
 
 /** 只给自证用 —— 让断言能从干净状态起跑、并能构造一个「已经跑过链」的现场。 */
-export function _resetChainMemoForTest() { chainMemo = null; chainMemoHits = 0; }
-export function _armChainMemoForTest(envelope, at = Date.now()) { chainMemo = { at, envelope }; }
+export function _resetChainMemoForTest() {
+  const st = _turnState();
+  st.chainMemo = null;
+  st.chainMemoHits = 0;
+}
+export function _armChainMemoForTest(envelope, at = Date.now()) { _turnState().chainMemo = { at, envelope }; }
 
 export async function executeTool(name, argsJson) {
   const def = byName.get(name);
@@ -2582,9 +2938,10 @@ export async function executeTool(name, argsJson) {
   //   放在 `byName` 判定**之后**：未知工具仍照旧报错，缓存不改错误语义。
   //   放在解析参数**之前**：参数坏不坏都不影响「这一轮已经跑过了」这个事实，
   //   而缓存可用时无须为一个注定不执行的调用先解析 JSON。
-  const hit = chainMemoLookup({ name, memo: chainMemo });
+  const turn = _turnState();
+  const hit = chainMemoLookup({ name, memo: turn.chainMemo });
   if (hit) {
-    chainMemoHits++;
+    turn.chainMemoHits++;
     console.log(`[agent] ♻️ 这一轮**已经跑过链** —— ${name} 再调一次**回缓存、不重跑**`
       + `（省掉一次真发布动作：不重复写飞书、不再等十几分钟）`);
     return hit;
@@ -2599,17 +2956,17 @@ export async function executeTool(name, argsJson) {
   try {
     const result = await def.run(args);
     const envelope = { tool: name, ok: true, result };
-    if (chainMemoShouldArm({ name, result })) chainMemo = { at: Date.now(), envelope };
+    if (chainMemoShouldArm({ name, result })) turn.chainMemo = { at: Date.now(), envelope };
     // ★★ 2026-10-16（FIX-043）：命中 P0 快路时**把那份渲染好的 PRD §5.3.3 块留下来**。
     //   没有这一格，送审闸门判「不是送审」而模型自己调了链的那一单，
     //   内核兜底只拿得到 `replyText` ⇒ 结论行取决于**模型有没有抄**（见本文件那段头注）。
     const p0p = p0PayloadOf(result);
-    if (p0p) p0Memo = { at: Date.now(), payload: p0p };
+    if (p0p) turn.p0Memo = { at: Date.now(), payload: p0p };
     // ★★ 2026-10-19：**链跑成了就把回执留下来**（与上面 P0 读数同一个漏斗、同一条纪律）。
     //   这一格治的是「闸门没判送审、模型自己调链」那一支：没有它，内核兜底只拿得到
     //   `replyText` ⇒ 结论行取决于模型有没有照抄 ⇒ 卡面退回 `query-answer` 形状。
     const ca = chainAnswerPayloadOf(result);
-    if (ca) chainAnswerMemo = { at: Date.now(), payload: ca };
+    if (ca) turn.chainAnswerMemo = { at: Date.now(), payload: ca };
     return envelope;
   } catch (e) {
     return { tool: name, ok: false, error: `${e?.name ?? 'Error'}: ${e?.message ?? e}` };

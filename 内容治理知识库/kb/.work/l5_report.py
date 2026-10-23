@@ -132,15 +132,21 @@ print(f"[富化] 生行 {_enrich_stats['read']} 行 / {_enrich_stats['uniq']} �
       f"从 manifest_l3 补齐 {_enrich_stats['backfilled']} 条 ｜ "
       f"无富化 {_enrich_stats['no_enrich']} ｜ 陈旧 {_enrich_stats['stale']}")
 
-# ★ 缺键**不许静默**（判据抄 `l5_export.py:74`：静默变 0 比抛错更坏）：
-#   富化键齐不齐，决定下面 P0 的**排除口径**。缺了就停下来报出来，
-#   不许用 `.get()` 默认值把「读不到」折成「没有这条」。
+# ★ 缺键**不许静默**（判据抄 `l5_export.py:74`：静默变 0 比抛错更坏）。
+# ★★ 2026-10-17 修：**不再 sys.exit** —— 与本文件同批的 `l5_export.py:539` 当天已定下口径：
+#   「没有富化的行**进不了 P0 快路**（它连 atomic/authority 都判不了），但必须被计数、被列出来，
+#    不许静默消失」。而这里原先写的是「停下来报出来」⇒ **同一条口径在两个引擎里不一致**：
+#   export 容忍、report 硬拒 ⇒ L5 无落章 ⇒ 层前置 exit=5（2026-10-17 17:50 实测，L5 卡死）。
+#   现在照 export 的做法**分流**：这批**不进快路**，但逐条落进 run 产物（`p0_no_enrich`），
+#   **既不进快路、也不静默**。判据一个字没放宽 —— 下面仍不许用 `.get()` 默认值把「读不到」折成 0。
 _missing = [rid for rid, _r in latest.items()
             if _r.get("p_level") == "P0" and not all(kk in _r for kk in ("rule_kind", "authority"))]
+_MISSING_SET = set(_missing)
 if _missing:
-    sys.exit(f"⛔ P0 规则缺富化字段（rule_kind/authority）共 {len(_missing)} 条：{_missing[:8]}\n"
-             f"   这两列是 P0 排除口径的判据；缺了会把「读不到」静默折成 0 条 —— 比抛错更坏。\n"
-             f"   修数据（manifest_l3 补富化行）或修读取口径，不许改成 .get() 默认值。")
+    print(f"⚠️ P0 规则缺富化字段（rule_kind/authority）共 {len(_missing)} 条："
+          f"{sorted(_missing)[:8]}{' …' if len(_missing) > 8 else ''}")
+    print("   ⇒ 按 `l5_export.py:539` 同一口径：**进不了 P0 快路**（判不了 atomic/authority），"
+          "但逐条列进 run 产物 `p0_no_enrich`，**不静默消失**。")
 
 # P0 入选白名单：算法唯一真源 = `l5_export.py::P0_CODE_ALLOWLIST`（含 Owner 裁定的依据与回退说明）。
 #   本脚本只**读**同一套准入结果用于出报告，不改判据。两边不一致 ⇒ 报告与 registry 对不上账。
@@ -150,6 +156,13 @@ excluded = []
 _admitted_by_allowlist = []
 for rid, r in sorted(latest.items(), key=lambda kv: str(kv[1].get("rule_code"))):
     if r["p_level"] != "P0":
+        continue
+    if rid in _MISSING_SET:
+        # ★ 缺富化 ⇒ 连 atomic/authority 都判不了 ⇒ **进不了快路**；记进 excluded（可查），
+        #   不是"静默跳过"：它的 rule_id 会出现在 sumlary 表与 run 产物 `p0_no_enrich` 里。
+        excluded.append({"rule_id": rid, "rule_code": r.get("rule_code"), "form": r.get("form"),
+                         "rule_kind": None, "authority": None,
+                         "anchor": r.get("anchor"), "reason": "P0_but_no_enrich"})
         continue
     if r["rule_kind"] == "atomic" and r["authority"] in ("expert", "legal"):
         continue
@@ -181,7 +194,9 @@ for p in pats:
         "anchor": p["anchor"], "source_sha256": p["source_sha256"],
         "term_basis": {m["term"]: m["basis"] for m in p["match_terms"]},
     })
-excl_reason = {"P0_but_authority_insufficient": "来源是内部品线边界规则（authority=inferred），"
+excl_reason = {"P0_but_no_enrich": "外部标准候选件没有 manifest_l3 富化行 ⇒ 判不了 atomic/authority "
+                                    "⇒ 进不了 P0 快路（与 `l5_export.py:539` 同一口径）；仍由评审链规则层判",
+               "P0_but_authority_insufficient": "来源是内部品线边界规则（authority=inferred），"
                                                "不在 expert/legal 门槛内",
                "P0_but_inductive": "由多条证据归纳出的模式（rule_kind=inductive），不是一对一原子映射",
                "P0_admitted_by_allowlist": "authority 低于门槛，但码在 `l5_export.py::P0_CODE_ALLOWLIST` "
@@ -288,6 +303,13 @@ if SKILL:
     run["skill"] = SKILL
     run["skill_source"] = ("--skill 参数（调用者读 layers.yaml 本层 skill: 后传入；"
                            "本脚本不硬编码）")
+# ★ 缺富化的 P0 **逐条落进产物**（不进快路，但不静默）—— 与 `l5_export.py:539` 同一口径。
+run["p0_no_enrich"] = {
+    "count": len(_missing),
+    "rule_ids": sorted(_missing),
+    "why": "缺 rule_kind/authority ⇒ 判不了 atomic/authority ⇒ 进不了 P0 快路"
+           "（l5_export.py:539 同日口径）；仍由评审链规则层命中并判 BLOCK。",
+}
 STAMP = ("kb/l5/runs/%s.json" % RUN) if APPLY else ("kb/l5/runs/%s-dryrun.json" % RUN)
 
 # ── 批次21 · 第1块：落章写 `pipeline_run_id`（编排归属）──────────────────────

@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.78 是正例还是反例
   - S-1.78 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-6c6f49cf66e6dd2a"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 亚马逊
 reason_category: unknown
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2vgYX7sc0/原文反馈"
-source_sha256: 271f641d8612e928b45e23f9540c548d9f47023c8a31fdc5e638fbe6bfb61bf2
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYX7sc0
+anchor: "#负面样本/recvw7XJiSzmOO/具体原因/分析"
+source_sha256: 69123726789d649fdc8204e2f5fd9caca3ed39dd67042098f3d0e3176f91e62c
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XJiSzmOO
 sample_body: "【审核 · 2026-09-15 23:34 · 董希】【终审-@[已脱敏]  】麻烦看一下 **项目名：亚马逊秋促活动** **设计需求：秋促活动专区信息流投放素材，沿用独立站组合图调整**  ![Image](img_v3_0215i_691c8b2e-2518-48ac-948b-9185fa74ad7g)"
 reason_analysis: "【审核问题】图片 【终审-@[已脱敏]  】麻烦看一下。"
 advice: ""
@@ -74,8 +74,8 @@ advice: ""
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2vgYX7sc0/原文反馈`
-- 指纹：`271f641d8612e928b45e23f9540c548d9f47023c8a31fdc5e638fbe6bfb61bf2`
+- 锚点：`#负面样本/recvw7XJiSzmOO/具体原因/分析`
+- 指纹：`69123726789d649fdc8204e2f5fd9caca3ed39dd67042098f3d0e3176f91e62c`
 - 原因归类：unknown　|　素材类型：图片
 
 > 案例只作参照，不构成规则。

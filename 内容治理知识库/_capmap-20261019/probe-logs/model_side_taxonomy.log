@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: ① 合法类别 + 该类的合法子类 ⇒ 两格都落下来
+ok 1 - ① 合法类别 + 该类的合法子类 ⇒ 两格都落下来
+  ---
+  duration_ms: 0.528333
+  type: 'test'
+  ...
+# Subtest: ② 反向对照：自造类名 ⇒ 类置 null，且原话留在 taxonomy_asked
+ok 2 - ② 反向对照：自造类名 ⇒ 类置 null，且原话留在 taxonomy_asked
+  ---
+  duration_ms: 0.105625
+  type: 'test'
+  ...
+# Subtest: ③ 反向对照：跨类子类 ⇒ 子类置 null（类别照留）
+ok 3 - ③ 反向对照：跨类子类 ⇒ 子类置 null（类别照留）
+  ---
+  duration_ms: 0.087042
+  type: 'test'
+  ...
+# Subtest: ④ 反向对照：兜底类 `未归类` 不带子类
+ok 4 - ④ 反向对照：兜底类 `未归类` 不带子类
+  ---
+  duration_ms: 0.046875
+  type: 'test'
+  ...
+# Subtest: ⑤ 闭集自洽：58 个子类全部挂在 11 个实有类下（`未归类` 无子类）
+ok 5 - ⑤ 闭集自洽：58 个子类全部挂在 11 个实有类下（`未归类` 无子类）
+  ---
+  duration_ms: 0.288958
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5.02875

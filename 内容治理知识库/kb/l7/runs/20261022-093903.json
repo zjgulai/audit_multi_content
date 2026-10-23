@@ -1,0 +1,42 @@
+{
+ "run_id": "20261022-093903",
+ "at": "2026-10-22T09:39:07",
+ "source": "review_machine",
+ "trigger": "【对方这条消息里附了图，共 1 张。下面每一格是**两条读数**：① **本机 OCR 读出的图内文字**（逐字，可能有…",
+ "skills": [
+  "kb-content-review",
+  "审查裁决"
+ ],
+ "commands": [
+  "kb-content-review/scripts/review.py --text …",
+  "l7/review-engine/core/review_engine.py decide()"
+ ],
+ "products": [
+  "kb/l7/reports/20261022-093847.review.md"
+ ],
+ "verdict": "REVIEW ｜ issue_count=4",
+ "human_involved": false,
+ "content_id": "AD-20261022-001",
+ "confidence": 0.75,
+ "extra": {
+  "decision_owner": {
+   "skill": "图片安全审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check",
+    "图片安全审查"
+   ]
+  },
+  "loaded_skills": [
+   "kb-canonical-lookup",
+   "kb-p0-check",
+   "kb-recall",
+   "kb-check",
+   "图片安全审查"
+  ]
+ }
+}

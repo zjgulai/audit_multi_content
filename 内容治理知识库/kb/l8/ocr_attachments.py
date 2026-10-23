@@ -85,8 +85,43 @@ os.makedirs(f"{L1}/media", exist_ok=True)
 os.makedirs(f"{L1}/2_内部正负样本库", exist_ok=True)
 sha = lambda b: hashlib.sha256(b).hexdigest()
 
-records = [json.loads(l) for l in open("kb/l8/_stage/feishu-compare/feishu-负面样本.ndjson", encoding="utf-8") if l.strip()]
-print(f"[OCR] 记录 {len(records)} 条；字段 {FIELD_IMG}({FID_IMG}) / {FIELD_VID}({FID_VID})")
+# ── 输入源（2026-10-20 修）：读 **L0 记录**，不读冻结暂存件 ──────────────────
+# 病灶（实测，2026-10-20）：原先读 `kb/l8/_stage/feishu-compare/feishu-负面样本.ndjson`，
+#   而**全库没有任何生产者写它**（唯一写入是 09-29 手工遗留副本，见 materialize_l0_compare.py:9），
+#   mtime 冻在 **2026-10-12 03:32**：170 条 / 304 张。
+#   源表已到 **184 条 / 339 张**（2026-10-20 实拉）⇒ 35 张图**永远不会被 OCR**，
+#   且每轮都以新 RUN 名落一份"看起来新鲜"的产物（读旧件、打新时间 —— 本库栽过的坑）。
+# 为什么改读 L0 记录：L0 是源侧对齐后的权威本地副本（`reconcile_l0_feishu.py` 每轮更新），
+#   图片 token 就在 `fields['图片素材'].value` / `fields['视频素材'].value` 里
+#   ⇒ 不需要第二份转抄件，也就没有第二份会腐烂的副本。
+# 边界：暂存件**不再参与**；L0 目录缺失 ⇒ 退出码 2（**不回落**到暂存件——那正是病灶）。
+#   `L0_RECORDS_DIR` 只给副本/测试用（默认 kb/l0/records/负面样本）。
+_L0_REC_DIR = os.environ.get("L0_RECORDS_DIR") or "kb/l0/records/负面样本"
+if not os.path.isdir(_L0_REC_DIR):
+    print(f"[OCR] L0 记录目录不存在：{_L0_REC_DIR} —— 拒绝回落到暂存件（那正是「读旧件」的病灶）")
+    sys.exit(2)
+
+
+def _load_l0_records(d):
+    """把 L0 记录文件读成「字段名 → value」的扁平记录（与旧 ndjson 形状对齐）。"""
+    out = []
+    for fn in sorted(os.listdir(d)):
+        if not fn.endswith(".json"):
+            continue
+        doc = json.load(open(os.path.join(d, fn), encoding="utf-8"))
+        rid = doc.get("record_id")
+        if not rid:
+            continue
+        rec = {"record_id": rid}
+        for name, fv in (doc.get("fields") or {}).items():
+            if isinstance(fv, dict):
+                rec[name] = fv.get("value")
+        out.append(rec)
+    return out
+
+
+records = _load_l0_records(_L0_REC_DIR)
+print(f"[OCR] 记录 {len(records)} 条（来源 {_L0_REC_DIR}）；字段 {FIELD_IMG}({FID_IMG}) / {FIELD_VID}({FID_VID})")
 
 # 1) 下载全部图片
 todo = []           # (rid, seq, token, name, out)

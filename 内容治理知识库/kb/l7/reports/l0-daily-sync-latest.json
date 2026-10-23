@@ -1,22 +1,22 @@
 {
- "run_id": "daily-20261016-0330-L0",
- "at": "2026-10-16T03:33:09",
+ "run_id": "daily-20261020-1255-L0",
+ "at": "2026-10-20T13:01:09",
  "mode": "落盘",
  "applied": true,
  "health": "GREEN",
  "root": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理",
  "align_summary": {
-  "same": 1022,
-  "only_feishu": 13,
+  "same": 1028,
+  "only_feishu": 11,
   "only_l0": 0,
   "changed": 0,
   "pull_failed": null
  },
- "align_report": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l8/runs/daily-20261016-0330-L0-l0-align.json",
- "ingest_report": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l8/runs/daily-20261016-0330-L0-l0-ingest.json",
+ "align_report": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l8/runs/daily-20261020-1255-L0-l0-align.json",
+ "ingest_report": "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l8/runs/daily-20261020-1255-L0-l0-ingest.json",
  "ingest_summary": {
-  "written": 3,
-  "skipped": 10,
+  "written": 0,
+  "skipped": 11,
   "archived": 0
  },
  "removed_candidates": [],
@@ -33,23 +33,48 @@
    "argv": [
     "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/kbpy",
     "l8/align_l0_feishu.py",
-    "daily-20261016-0330-L0"
+    "daily-20261020-1255-L0"
    ],
    "exit": 0,
-   "tail": "[内容公式（仅供参考）] 飞书=7 L0=7 一致=7 飞书多=0 L0多=0 值变=0\n\n=== 汇总 ===\n  一致 1022 | 飞书多 13 | L0多 0 | 值变 0 | 拉取失败 0 | 身份回落 0\n  manifest 未登记的 L0 记录文件: 0 {}\n  报告: kb/l8/runs/daily-20261016-0330-L0-l0-align.json",
-   "elapsed_s": 12.8
+   "tail": "[only-feishu-ids] {\"table\": \"\\u5185\\u5bb9\\u516c\\u5f0f\\uff08\\u4ec5\\u4f9b\\u53c2\\u8003\\uff09\", \"tid\": \"tblVdl0jdK9G4ld3\", \"snap\": \"kb/l8/_stage/feishu-align/daily-20261020-1255-L0/tblVdl0jdK9G4ld3.ndjson\", \"ids\": []}\n\n=== 汇总 ===\n  一致 1028 | 飞书多 11 | L0多 0 | 值变 0 | 拉取失败 0 | 身份回落 0\n  manifest 未登记的 L0 记录文件: 0 {}\n  报告: kb/l8/runs/daily-20261020-1255-L0-l0-align.json",
+   "elapsed_s": 27.8
   },
   {
    "step": "ingest_l0_new_records",
    "argv": [
     "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/kbpy",
     "l8/ingest_l0_new_records.py",
-    "daily-20261016-0330-L0",
+    "daily-20261020-1255-L0",
     "--apply"
    ],
    "exit": 0,
-   "tail": "   跳过 材料收集/recvvlGAKpUVF9：准入未过：材料审核状态=[] != [\"通过\"]\n   跳过 材料收集/recvvlGUajvYY0：准入未过：材料审核状态=[] != [\"通过\"]\n   跳过 材料收集/recvvlO5gFdyzx：准入未过：材料审核状态=[] != [\"通过\"]\n   跳过 材料收集/recvvlspM5RDoj：准入未过：材料审核状态=[] != [\"通过\"]\n   跳过 材料收集/recvvltvfBsoDP：准入未过：材料审核状态=[] != [\"通过\"]\n[报告] kb/l8/runs/daily-20261016-0330-L0-l0-ingest.json",
-   "elapsed_s": 2.7
+   "tail": "   跳过 材料收集/recvvlGUajvYY0：准入未过：材料审核状态=[] != [\"通过\"]\n   跳过 材料收集/recvvlO5gFdyzx：准入未过：材料审核状态=[] != [\"通过\"]\n   跳过 材料收集/recvvlspM5RDoj：准入未过：材料审核状态=[] != [\"通过\"]\n   跳过 材料收集/recvvltvfBsoDP：准入未过：材料审核状态=[] != [\"通过\"]\n   跳过 材料收集/reczz28OIQJHQ6jH：准入未过：材料审核状态=[] != [\"通过\"]\n[报告] kb/l8/runs/daily-20261020-1255-L0-l0-ingest.json",
+   "elapsed_s": 3.2
+  },
+  {
+   "step": "ingest_l0_new_attachments",
+   "argv": [
+    "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/kbpy",
+    "l8/ingest_l0_new_records.py",
+    "daily-20261020-1255-L0",
+    "--attachments",
+    "--apply"
+   ],
+   "exit": 0,
+   "tail": "[daily-20261020-1255-L0] 新增记录入库【落盘】｜快照目录 kb/l8/_stage/feishu-align/daily-20261020-1255-L0\n[附件] 台账 +0 metadata 行 +0 file_bytes 行｜下载失败 0",
+   "elapsed_s": 0.7
+  },
+  {
+   "step": "store_l0_attachments",
+   "argv": [
+    "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/kbpy",
+    "l8/store_l0_attachments.py",
+    "daily-20261020-1255-L0",
+    "--apply"
+   ],
+   "exit": 0,
+   "tail": "待落盘附件行：339\n下载成功 339/339\n  [l0_ledger] 追加 0 行（有变化）；跳过 339 行（未变，已记 last_seen）\n  台账：追加 0 行；跳过 339 行（字节与上次相同）\n已写 _MANIFEST.json / README.md / 台账 +339 行 / registry.attachment_store",
+   "elapsed_s": 3.2
   }
  ],
  "lock": null

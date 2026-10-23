@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.68 是正例还是反例
   - S-1.68 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-5cab578b0729c4eb"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 社媒
 reason_category: unknown
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2vgYXjbuw/原文反馈"
-source_sha256: 79da2a361ff6646852e9dac8bce7fbb09ad9ce763bcce17f94bb69a2bff1212a
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXjbuw
+anchor: "#负面样本/recvw7XJiSVV5X/具体原因/分析"
+source_sha256: 83298d670d5b229ebe69bf78c1710b05cbace767b2ad59d89155b5bb4d9b5a2f
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XJiSVV5X
 sample_body: "【审核 · 2026-08-18 23:55 · 蓝涵】初审@[已脱敏]   看看呀 项目：婴幼儿品线社媒-修改     两个方案2选1 BM08监视器 产品展示卖点图 ![Image](img_v3_0214m_8c05ecea-0621-4d6b-8f28-8fc61ef9d65g) ![Image](img_v3_0214m_8266c43f-a62d-4e4b-834b-c26e44df88cg)"
 reason_analysis: "【审核问题】图片 初审@[已脱敏]   看看呀。 【问题要点】 1. 初审@[已脱敏]   看看呀 2. 项目：婴幼儿品线社媒-修改 3. BM08监视器 产品展示卖点图"
 advice: ""
@@ -79,8 +79,8 @@ BM08监视器 产品展示卖点图
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2vgYXjbuw/原文反馈`
-- 指纹：`79da2a361ff6646852e9dac8bce7fbb09ad9ce763bcce17f94bb69a2bff1212a`
+- 锚点：`#负面样本/recvw7XJiSVV5X/具体原因/分析`
+- 指纹：`83298d670d5b229ebe69bf78c1710b05cbace767b2ad59d89155b5bb4d9b5a2f`
 - 原因归类：unknown　|　素材类型：图片
 
 > 案例只作参照，不构成规则。

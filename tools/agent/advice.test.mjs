@@ -6,12 +6,12 @@
  * ★ 为什么要有它（Owner 2026-10-19 逐字）：
  *   「这里的 修复建议都没讲完，**被截断了**，不能出现这种情况」
  *   真报告里 6 条建议有 3 条被 `…` 切在半句上（最狠一条只剩「改为…」）。
- *   病灶在**产出侧**：提示词要 ≤30，模型不照做 ⇒ 渲染层就切 ⇒ 拿到的是半句。
+ *   病灶在**产出侧**：提示词要 ≤60，模型不照做 ⇒ 渲染层就切 ⇒ 拿到的是半句。
  *   ⇒ 这里钉的是：**超了就再问一次让它自己压**；压不成 ⇒ **原样留着**（完整 > 半句）。
  *   渲染层不切那一半在 `dual_track --selftest` 的 ㉖（含反向对照 ㉖d）。
  */
 import assert from 'node:assert/strict';
-import { generateAdvice, adviceChars, ADVICE_MAX } from './advice.mjs';
+import { generateAdvice, adviceChars, ADVICE_MAX, rejectUnsupportedHistoricalDisposition } from './advice.mjs';
 
 let pass = 0; const bad = [];
 const t = async (name, fn) => {
@@ -33,7 +33,7 @@ const askScripted = (first, second) => {
   return { ask, calls };
 };
 
-await t('A1 模型第一次写超了 ⇒ **再问一次压**，最终 ≤30 字且是完整句', async () => {
+await t(`A1 模型第一次写超了 ⇒ **再问一次压**，最终 ≤${ADVICE_MAX} 字且是完整句`, async () => {
   const { ask, calls } = askScripted(
     JSON.stringify([{ i: 0, advice: LONG }]),
     JSON.stringify([{ i: 0, advice: '标题改讲体温计套装，吸奶器排名句移出本页' }]));
@@ -46,7 +46,7 @@ await t('A1 模型第一次写超了 ⇒ **再问一次压**，最终 ≤30 字�
   assert.deepEqual(r.over_length, [], '压成功后不该再有超长项');
 });
 
-await t('A2 反向对照：本来就 ≤30 字 ⇒ **不许**再问第二次（别为了凑数多花一次调用）', async () => {
+await t(`A2 反向对照：本来就 ≤${ADVICE_MAX} 字 ⇒ **不许**再问第二次（别为了凑数多花一次调用）`, async () => {
   const { ask, calls } = askScripted(JSON.stringify([{ i: 0, advice: SHORT }]), '[]');
   const r = await generateAdvice({ items: [ITEM], ask });
   assert.equal(r.ok, true);
@@ -71,10 +71,10 @@ await t('A4 压缩调用抛错 ⇒ 照样留原句（建议不能因为压缩失
   assert.equal(r.advice[0], LONG);
 });
 
-await t('A5 system 提示词里必须写着 ≤30（判据钉住"写短"这件事本身，不是钉渲染层）', async () => {
+await t(`A5 system 提示词里必须写着 ≤${ADVICE_MAX}（判据钉住"写短"这件事本身，不是钉渲染层）`, async () => {
   const { ask, calls } = askScripted(JSON.stringify([{ i: 0, advice: SHORT }]), '[]');
   await generateAdvice({ items: [ITEM], ask });
-  assert.ok(/≤30 字/.test(calls[0].system), '给模型的 system 里没有 ≤30 字的要求');
+  assert.ok(new RegExp(`≤${ADVICE_MAX} 字`).test(calls[0].system), `给模型的 system 里没有 ≤${ADVICE_MAX} 字的要求`);
   // 反向对照：用户提示词里也得带上条目本体（证明它传的是这一条，不是空跑）
   assert.ok(/全文/.test(calls[0].prompt), '用户提示词里没有条目正文');
 });
@@ -87,6 +87,24 @@ await t('A6 标点不计：字符数 >30、实词 ≤30 ⇒ **不该**触发压�
   const r = await generateAdvice({ items: [ITEM], ask });
   assert.equal(calls.length, 1, '标点不计后没超 ⇒ 不许再问一次');
   assert.equal(r.advice[0], PUNCT, '原句必须逐字保留（该断句就断句）');
+});
+
+await t('A7 历史源记录没给改法时，禁止模型把缺失信息推成禁止/打回', async () => {
+  const unsafe = '源记录未给改法 ⇒ 按禁止/打回处理';
+  assert.equal(rejectUnsupportedHistoricalDisposition(unsafe), true,
+    '这次真实回复的无依据升级形状没有被识别');
+  assert.equal(rejectUnsupportedHistoricalDisposition('删去该机构署名'), false,
+    '具体编辑建议不应被误拦');
+  assert.equal(rejectUnsupportedHistoricalDisposition('将这条意见按禁止/打回处理', {
+    source: 'kb', kb: { reasonLine: '相似历史审核意见（point·参考）', suggestionLine: null },
+  }), true, '即使模型删掉「源记录没给建议」这半句，也不能对无建议历史意见作处置升级');
+  const { ask, calls } = askScripted(JSON.stringify([{ i: 0, advice: unsafe }]), '[]');
+  const r = await generateAdvice({ items: [{ ...ITEM, source: 'kb', kb: { reasonLine: '相似历史记录；源记录未给改法' } }], ask });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.advice, {}, '无依据的禁止/打回建议必须在生成后闸门中删除');
+  assert.deepEqual(r.rejected_unsupported, [0], '被拦建议必须留可观察读数');
+  assert.ok(/不能把「没有建议」推成「禁止、打回、拒绝发布」/.test(calls[0].system),
+    '建议模型提示词没写禁止这一推断');
 });
 
 console.log(`\n═══ 合计：通过 ${pass} / 失败 ${bad.length} ═══`);

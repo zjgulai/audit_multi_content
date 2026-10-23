@@ -1,0 +1,14 @@
+  ✅ A1 exit 3 = **被占** ⇒ 必须解析成 busy（★ 第 1 轮里这条路被 execFile 的 reject 吞掉了）
+  ✅ A2 exit 0 + 「无认领」⇒ free
+  ✅ A3 exit 0 + 「陈旧」⇒ stale
+  ✅ A4 exit 3 + 「读不出」⇒ **当 busy**（脚本自己的保守口径）
+  ✅ A5 反向对照：exit 1（非契约码）⇒ **必须抛**，不许拿 stdout 当答案
+  ✅ A6 反向对照：exit 2（用法错）⇒ 抛，且把 stderr 带进错误里
+  ✅ B1 空闲 ⇒ 不 blocked、无 action
+  ✅ B2 ★ 别的 RUN 在跑 ⇒ **不 blocked**、记为 foreign_run_running（① 之后它挡不住本单）
+  ✅ B2b 反向对照：一直忙也只探 **1 次**（不许把等待循环加回来）
+  ✅ B3 陈旧认领 ⇒ 释放、不 blocked、只探一次
+  ✅ B4 探测抛异常 ⇒ **不 blocked**（fail-open）且 detail 说得出「跳过」
+  ✅ B5 不拦 ≠ 不看：占用的原话必须带出去（ran_by），否则事后查不到谁在跑
+
+✅ claim_preflight 12/12 项通过（A 组 = 逐字真实样本；B 组 = 注入桩；**一台真库都没碰、一个槽都没占**）

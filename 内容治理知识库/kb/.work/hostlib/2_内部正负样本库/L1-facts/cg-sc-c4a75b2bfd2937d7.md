@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.155 是正例还是反例
   - S-1.155 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-c4a75b2bfd2937d7"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 社媒
 reason_category: 原则性错误
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2vgYXNEMV/原文反馈"
-source_sha256: d1b0d4d6fd15290de1ac75f7cd3530ffb8b213a07baa0cc9ea842635e586bd1f
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXNEMV
+anchor: "#负面样本/recvw7XIUgZO5T/具体原因/分析"
+source_sha256: 6d34444482b915dce06d3e0158c5d24a2e4e1d27a92039d3c20ffb858dd32c76
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XIUgZO5T
 sample_body: "【审核 · 2026-09-16 19:28 · 赵乐萱】【终审-@[已脱敏]  】麻烦看看呀:YouAreTheBest: **项目名：婴幼儿社媒—光线对婴儿睡眠的影响** **设计需求：** 图1：配图熟睡的宝宝 图2:  简单插画流程图 图3:  配图宝宝脸部特写，睁着大眼睛 图4:  常见光源展示：白炽灯、电视、电脑、手机 图5：妈妈抱着宝宝在太阳底下 图6:  宝宝熟睡后，妈妈准备关掉暖色调的灯光 **设计稿件：** ![Image](img_v3_0215j_80ee37b3-4b4a-44c1-babf-2326e790c93g) ![Image](img_v3_0215j_b4adf381-62ac-46b9-8840-2722dd334b8g) ![Image](img_v3_0215j_f7cb7617-d27b-4cee-bf3f-d9758c4843bg) ![Image](img_v3_0215j_b7597577-5227-4535-8597-bb388eba63dg) ![Image](img_v3_0215j_6e55bf0d-eed1-4b8f-b19d-dfdd0365f12g) ![Image](img_v3_0215j_e74496dd-9cff-436d-bef9-b11e7715e1eg)"
 reason_analysis: "【原则性错误】图片 图1 【终审-@[已脱敏]  】麻烦看看呀。 【问题要点】 1. 【终审-@[已脱敏]  】麻烦看看呀 2. 图1：配图熟睡的宝宝 3. 图2:  简单插画流程图 4. 图3:  配图宝宝脸部特写，睁着大眼睛 5. 图4:  常见光源展示：白炽灯、电视、电脑、手机"
 advice: ""
@@ -91,8 +91,8 @@ advice: ""
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2vgYXNEMV/原文反馈`
-- 指纹：`d1b0d4d6fd15290de1ac75f7cd3530ffb8b213a07baa0cc9ea842635e586bd1f`
+- 锚点：`#负面样本/recvw7XIUgZO5T/具体原因/分析`
+- 指纹：`6d34444482b915dce06d3e0158c5d24a2e4e1d27a92039d3c20ffb858dd32c76`
 - 原因归类：原则性错误　|　素材类型：图片
 
 > 案例只作参照，不构成规则。

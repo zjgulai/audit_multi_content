@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.130 是正例还是反例
   - S-1.130 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-a943db5cae1f852d"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 展会
 reason_category: 品牌一致性
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2wE9MzRie/原文反馈"
-source_sha256: 1aa6792f04dd028f2d4b661e1c2b5e13926ef3a4ef271ab9524e313f3e0157c2
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MzRie
+anchor: "#负面样本/recvw7XIUgFaLV/具体原因/分析"
+source_sha256: eca72044f11e7a865fbf24e2149180a8a5c61d28fef67bb75440c00570d709dc
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XIUgFaLV
 sample_body: '【审核 · 2026-09-11 19:24 · 韦化】【终审-@[已脱敏]】辛苦再看看这个呀:YouAreTheBest: **项目名：沙特banner ** **设计需求：**两个品牌向：修改尺寸，删除5million，logo下文案修改为slogan，Evolving for mom and cozy. 三个产品向：吸奶器kv保留 ，清洗机更换为bottle washer BW05，文案使用Bring true comfort to moms and their families worldwide 再另外制作一张护理的 布艺展板折叠双面门型立屏落地海报广告牌 ![Image](img_v3_0215e_2960a168-7f5c-4911-b624-b49e9f9041eg) **设计稿件：** ![Image](img_v3_0215e_cb111f24-7ab7-42c5-b3f0-95109836b53g) ![Image](img_v3_0215e_9c77bd9b-0d2e-4943-8b3e-92f885a6ca7g) ![Image](img_v3_0215e_a39aefe0-6a69-46d9-b69d-4ac70aa4801g) ![Image](img_v3_0215e_406d8bc2-bc45-4e9c-a5fe-10f36ff1cd1g) ![Image](img_v3_0215e_f21bd7a6-9ee8-494b-b324-38c20030deag)  momcozy لعكِ في كل خطوة من رحلة الأمومة " ()SS moMCOZY ComfortNip™ TOICOLY Pro-Collagen Bellv momcoz  momcozy Evolving for mom and cozy  momcozy عالمياً الأول *مضخة ثدي قابلة للارتداء 1omcozy 1ZO3WOw استناداً إلى حصة السوق العالمية لمضخات الثدي القابلة للارتداء، أبواث* "Grand View Research" 2024 العام'
 reason_analysis: "【品牌一致性】文案 三个产品向：吸奶器kv保留 ，清洗机更换为bottle wa。 【问题要点】 1. 三个产品向：吸奶器kv保留 ，清洗机更换为bottle washer BW05，文案使用Bring true comfort to moms and their families worldwide 2. 【终审-@[已脱敏]】辛苦再看看这个呀 3. 再另外制作一张护理的 4. 布艺展板折叠双面门型立屏落地海报广告牌"
 advice: 改为slogan，Evolving for mom and cozy.；删除5million，logo下文案修改为slogan，Evolving for mom and cozy.
@@ -113,8 +113,8 @@ momcozy
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2wE9MzRie/原文反馈`
-- 指纹：`1aa6792f04dd028f2d4b661e1c2b5e13926ef3a4ef271ab9524e313f3e0157c2`
+- 锚点：`#负面样本/recvw7XIUgFaLV/具体原因/分析`
+- 指纹：`eca72044f11e7a865fbf24e2149180a8a5c61d28fef67bb75440c00570d709dc`
 - 原因归类：品牌一致性　|　素材类型：文字
 
 > 案例只作参照，不构成规则。

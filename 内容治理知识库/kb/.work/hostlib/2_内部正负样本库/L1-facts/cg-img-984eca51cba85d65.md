@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - 这条素材（负面样本 recvwC9IMVtAza）图里写了什么文字
   - "某张图上的文字是什么（按 #img.N 定位）"
@@ -28,7 +28,7 @@ forbidden: 不许把 OCR 文本当成画面合规结论（未命中≠合规）�
 - L0 记录直链（点开核对逐字原文）：https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvwC9IMVtAza
 - 表 / 字段：`负面样本` / `图片素材`
 - 图片数 4 ｜ 图上文字 1486 字 ｜ OCR `vision-jxa-2.0`
-- 观察时间：`daily-20261016-0330-L1`
+- 观察时间：`daily-20261020-1255-L1`
 
 ## 图上文字（逐图，锚点可回源）
 

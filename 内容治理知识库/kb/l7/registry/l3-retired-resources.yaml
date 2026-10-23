@@ -1,0 +1,1463 @@
+# l3-retired-resources.yaml —— 拒绝台账里**已下线**的旧资源（C2 据此转说明项，不转就会红）
+#
+# 为什么有这份文件（别删）：飞书「负面样本」表 2026-10-14 **整表重建、记录 ID 全部换代**；
+# 那批旧记录对应的 L2 单元于 **2026-10-20T16:17:26** 被 `kb/l8/prune_gone_units.py` 退役
+# （run=`prune-20261020-161725`）。而 2026-10-20 12:55 那轮重建的 `kb/l3/rejected.jsonl`
+# 仍指着旧资源 ⇒ `l3_gate.py` 的 C2「拒绝项能回指到 L2」红 240 行。
+#
+# 纪律：**只登记有退役台账做证据的**。没有 `retired_units.jsonl` 行的资源**一律不登记**，
+# 该红就红（`l3_gate --selftest` 的 T7/T8 钉着这条：登记 ⇒ 不红；登记错了 ⇒ 精确变红）。
+
+meta:
+  created_at: 2026-10-20T17:05:11+0800
+  owner: 刘华丽
+  reason_code: source_records_rebuilt
+  prune_run: prune-20261020-161725
+  prune_at: 2026-10-20T16:17:26
+  evidence: kb/l2/retired_units.jsonl（逐行有 retired_by / run / reason）
+  read_by: kb/l7/scripts/l3_gate.py::C2（已登记 ⇒ 说明项；未登记 ⇒ 红）
+  counts:
+    ledger_rows: 240
+    resources: 240
+    not_registered_prefix: 无退役台账的资源一个都没登记
+retired:
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYX1pJ8_fldnvxjaSr_GHxpbjHAToDGiaxX4nnccELhn3c
+    old_record: recvw2vgYX1pJ8
+    ledger_rows: 1
+    retired_unit_id: e7920fa8f645f8f1c1d5
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYX1pJ8_fldnvxjaSr_KNYTbD1kco92dOxblOWc1DhNn2c
+    old_record: recvw2vgYX1pJ8
+    ledger_rows: 1
+    retired_unit_id: 5c334560f838d76fd2f9
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYX1pJ8_fldnvxjaSr_St4zbKudCoVw50x8aPQcu8nUnIb
+    old_record: recvw2vgYX1pJ8
+    ledger_rows: 1
+    retired_unit_id: dd4cdcc7376ea0fca40e
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYX1pJ8_fldnvxjaSr_YgvHbuOkfoajXJxnrPXcSSDrnSf
+    old_record: recvw2vgYX1pJ8
+    ledger_rows: 1
+    retired_unit_id: b6ce6b90c794e2b60d71
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYX1vS4_fldnvxjaSr_C6rxbq2w7oGUBOxrHKTcTtm3nze
+    old_record: recvw2vgYX1vS4
+    ledger_rows: 1
+    retired_unit_id: 650e28dd966b340e9a96
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYX2HC9_fldnvxjaSr_OUY3bxxQToO9vRxX3byc49xvnIh
+    old_record: recvw2vgYX2HC9
+    ledger_rows: 1
+    retired_unit_id: 80f17f1af43c303960eb
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYX2HC9_fldnvxjaSr_WmFgb0P88owIjjxK6msc24ftnod
+    old_record: recvw2vgYX2HC9
+    ledger_rows: 1
+    retired_unit_id: b9a70dd7ca3544dfd1ef
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYX4Zg3_fldnvxjaSr_UVfJbiclqofFPUxStBqcGGk7ncg
+    old_record: recvw2vgYX4Zg3
+    ledger_rows: 1
+    retired_unit_id: 11f2527f1b43aadfbc21
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYX5cfF_fldnvxjaSr_Fl4XbpEcYoOk4cxYy4YcU13UnEc
+    old_record: recvw2vgYX5cfF
+    ledger_rows: 1
+    retired_unit_id: 11fabd9bc25cc511507d
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYX5cfF_fldnvxjaSr_GXDfbYTrNowY22x7qxpcXLaQnDg
+    old_record: recvw2vgYX5cfF
+    ledger_rows: 1
+    retired_unit_id: 3ef2cefe9ca467ddaf91
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYX5cfF_fldnvxjaSr_LtZ8bussEou2yyxVCEtcdFVqnWd
+    old_record: recvw2vgYX5cfF
+    ledger_rows: 1
+    retired_unit_id: def04cdf101463e15279
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYX5cfF_fldnvxjaSr_PAjRb1orvoyIHQxkqZ9c2lnMnbc
+    old_record: recvw2vgYX5cfF
+    ledger_rows: 1
+    retired_unit_id: ec8cfe4d083c72982c29
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYX65Xf_fldnvxjaSr_CmYsbNOxsotDPqxctqgctdGmnfe
+    old_record: recvw2vgYX65Xf
+    ledger_rows: 1
+    retired_unit_id: e4cf9d71a511a9dec298
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYX65Xf_fldnvxjaSr_H5XBbghDqoWeKjx7eNpcKZrynlc
+    old_record: recvw2vgYX65Xf
+    ledger_rows: 1
+    retired_unit_id: e417feffc87a50712a5a
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYX65Xf_fldnvxjaSr_JlGob5deCoYLOpxI4jQcKOO4n6g
+    old_record: recvw2vgYX65Xf
+    ledger_rows: 1
+    retired_unit_id: 08d176ea8e24224f83ec
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYX72cg_fldnvxjaSr_N87Zb8MPcoqHNWxdmPZcNCHHnHV
+    old_record: recvw2vgYX72cg
+    ledger_rows: 1
+    retired_unit_id: feb2387cfd79879f80b3
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYX72cg_fldnvxjaSr_OLLvbg0Icoo7DexaaNBcJaF6nyf
+    old_record: recvw2vgYX72cg
+    ledger_rows: 1
+    retired_unit_id: 63981fb0c078ac74e44a
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYX72cg_fldnvxjaSr_PEpnbGc8poKH3ix4ty0c5bC2nx6
+    old_record: recvw2vgYX72cg
+    ledger_rows: 1
+    retired_unit_id: 3935ae8ff3b51ab5c64c
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYX72cg_fldnvxjaSr_Q1kob0iDgo7oyjxHHddcbjjWneh
+    old_record: recvw2vgYX72cg
+    ledger_rows: 1
+    retired_unit_id: b1959452a4a4d224e1dc
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXD14j_fldnvxjaSr_DWUcbv4amo6WpaxhXjAcsyUVneg
+    old_record: recvw2vgYXD14j
+    ledger_rows: 1
+    retired_unit_id: c195a0fb3949d9289a2f
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXD14j_fldnvxjaSr_OUGDbgB3HoVZyLxvTHcc1c46nvh
+    old_record: recvw2vgYXD14j
+    ledger_rows: 1
+    retired_unit_id: f9545bf00b62027aa2d4
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXD14j_fldnvxjaSr_QF9hb0oeZoD6khxIbG0cyytPnNb
+    old_record: recvw2vgYXD14j
+    ledger_rows: 1
+    retired_unit_id: 17425ccd44daeb3f4726
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXGd0U_fldnvxjaSr_DivCbg0nXo3DoYxxN2Lcw4zBnIc
+    old_record: recvw2vgYXGd0U
+    ledger_rows: 1
+    retired_unit_id: c6968acfc6f8aa57f463
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXGd0U_fldnvxjaSr_Exk9b0AkTolNIyxhbjvcjrlanpc
+    old_record: recvw2vgYXGd0U
+    ledger_rows: 1
+    retired_unit_id: 17d6cdf540318a783ba0
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXGd0U_fldnvxjaSr_Nv7RbPbS5oLH0SxLL0HcAweNnWg
+    old_record: recvw2vgYXGd0U
+    ledger_rows: 1
+    retired_unit_id: eda916baa669b891bfda
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXGd0U_fldnvxjaSr_VyzFbpruAoDJyjxJRr5cx4y6n8g
+    old_record: recvw2vgYXGd0U
+    ledger_rows: 1
+    retired_unit_id: f6298e424c257613548a
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXHKgM_fldnvxjaSr_HVTxbd5lPoLgnfxlCCyc60g2nHc
+    old_record: recvw2vgYXHKgM
+    ledger_rows: 1
+    retired_unit_id: e60f2f07150548c334ba
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXHKgM_fldnvxjaSr_QMp6b7TuooQ6FjxyKCscsFi0n3d
+    old_record: recvw2vgYXHKgM
+    ledger_rows: 1
+    retired_unit_id: c6c39657e142f409801e
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXMvP5_fldnvxjaSr_TNuobcVMxoYTpWxFFLFcZk2cnOd
+    old_record: recvw2vgYXMvP5
+    ledger_rows: 1
+    retired_unit_id: d9400072fbaa573a647d
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXPvbK_fldnvxjaSr_W2BnbhUrfos9OTx4tH2cPO8jntc
+    old_record: recvw2vgYXPvbK
+    ledger_rows: 1
+    retired_unit_id: bc2ba8b92f055e5c1f6c
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXPvbK_fldnvxjaSr_ZqclbMr4torNnTxXCq6cHZhmnNc
+    old_record: recvw2vgYXPvbK
+    ledger_rows: 1
+    retired_unit_id: 5c0d541bb1781d837176
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXPvdT_fldnvxjaSr_KIUcbAYTRoqI6Nx1O9ccVk1RnzS
+    old_record: recvw2vgYXPvdT
+    ledger_rows: 1
+    retired_unit_id: 67c6b17f5741093e93ea
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXS3Xc_fldnvxjaSr_AuMwbFFUWoEkznxGTplcGPirnjf
+    old_record: recvw2vgYXS3Xc
+    ledger_rows: 1
+    retired_unit_id: 6e06268d7deb4b707ef1
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXS3Xc_fldnvxjaSr_FOKbbD3weoZbw5xwHlRchu6Pnrd
+    old_record: recvw2vgYXS3Xc
+    ledger_rows: 1
+    retired_unit_id: e4b5acd4414aeb9ea87b
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXS3Xc_fldnvxjaSr_IfdFbvJYKo7msCxdorecAg2Dn6r
+    old_record: recvw2vgYXS3Xc
+    ledger_rows: 1
+    retired_unit_id: 2daaca2f265a2ef3a1c4
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXS3Xc_fldnvxjaSr_Rd3obhiJhosaukxgINKcnnQbnQc
+    old_record: recvw2vgYXS3Xc
+    ledger_rows: 1
+    retired_unit_id: 0708ad4695db193758ef
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXUeTN_fldnvxjaSr_D4z7bCTXMogVepxWjREcNaD4ndg
+    old_record: recvw2vgYXUeTN
+    ledger_rows: 1
+    retired_unit_id: bee577fc37807a827b1b
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXUeTN_fldnvxjaSr_HktPbM5vdovwMHxXebicoW6lnQg
+    old_record: recvw2vgYXUeTN
+    ledger_rows: 1
+    retired_unit_id: 077ba079bd40077c08e7
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXUeTN_fldnvxjaSr_WCtybyv9WoIIqfxk4vqcsDCtn5g
+    old_record: recvw2vgYXUeTN
+    ledger_rows: 1
+    retired_unit_id: 0a88d670e4deb8c19172
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXUeTN_fldnvxjaSr_WIk9bZScNoTFFsxb8mBcaHXhnrh
+    old_record: recvw2vgYXUeTN
+    ledger_rows: 1
+    retired_unit_id: 7a2f804207233b1d308d
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXWvvs_fldnvxjaSr_EFtcbvYu4oiRRnx8sFkczj6Tnnh
+    old_record: recvw2vgYXWvvs
+    ledger_rows: 1
+    retired_unit_id: 1ee5a312b5b471b3e2f4
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXYprL_fldnvxjaSr_HQ60bMUk2oGHqBxMnRCcAKqKn5b
+    old_record: recvw2vgYXYprL
+    ledger_rows: 1
+    retired_unit_id: d0611e9ac54ca4e4a78b
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXbG01_fldnvxjaSr_YraubHUe3o7MtUxS3Zfc0iydnFb
+    old_record: recvw2vgYXbG01
+    ledger_rows: 1
+    retired_unit_id: a0196fcd73d3e6663477
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXcYl6_fldnvxjaSr_A4QsbxrGzo20L5xG0ZVcQsqYnSh
+    old_record: recvw2vgYXcYl6
+    ledger_rows: 1
+    retired_unit_id: 7c27c541cc3b4c55cf94
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXcYl6_fldnvxjaSr_NEq3bRwMLo5g1mxDOVRckI3Bnae
+    old_record: recvw2vgYXcYl6
+    ledger_rows: 1
+    retired_unit_id: 45562d3a05056a0cc3c3
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXdblZ_fldnvxjaSr_NMiybPZJTovkUuxZB93clMlPnjd
+    old_record: recvw2vgYXdblZ
+    ledger_rows: 1
+    retired_unit_id: 499c039d1ad2b535ef8d
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXdblZ_fldnvxjaSr_NUZ7bvMMxoneiJxLl2YcpcJ0nmh
+    old_record: recvw2vgYXdblZ
+    ledger_rows: 1
+    retired_unit_id: a7444fd241d600510236
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXdblZ_fldnvxjaSr_ZHTLbr2tGo0t3xxN79KctOvinq9
+    old_record: recvw2vgYXdblZ
+    ledger_rows: 1
+    retired_unit_id: 08018c2dd7890a87d737
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXfHpO_fldnvxjaSr_EK0cbCr5BoaCTKxlhjucymGonDf
+    old_record: recvw2vgYXfHpO
+    ledger_rows: 1
+    retired_unit_id: 617a5e19926ea02c2ec3
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXfHpO_fldnvxjaSr_G4dGbkfTMofGKQxbkiVcJUfan1e
+    old_record: recvw2vgYXfHpO
+    ledger_rows: 1
+    retired_unit_id: cfbec2917e98b319eeb8
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXfHpO_fldnvxjaSr_GGD0bP3NpoNhV2xVDCDccyDUnxf
+    old_record: recvw2vgYXfHpO
+    ledger_rows: 1
+    retired_unit_id: 1e189787b47a0130eb77
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXfHpO_fldnvxjaSr_PWABbWcQoo7Wupxcp7xcyJQynEh
+    old_record: recvw2vgYXfHpO
+    ledger_rows: 1
+    retired_unit_id: e7e240826a788519ca63
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXfHpO_fldnvxjaSr_PuDib5yl5o85U8xFlhTcXobonmc
+    old_record: recvw2vgYXfHpO
+    ledger_rows: 1
+    retired_unit_id: 5fd0d83080d91f42cc32
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXjM74_fldnvxjaSr_CgjxbJizpon6TrxUrt8cGvNEnub
+    old_record: recvw2vgYXjM74
+    ledger_rows: 1
+    retired_unit_id: 2aa7c2be3e8be6ac7caf
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXjM74_fldnvxjaSr_G3iMbOexCoP9igxxIHkcXwovneb
+    old_record: recvw2vgYXjM74
+    ledger_rows: 1
+    retired_unit_id: ed945fc818a8df8fa6db
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXjM74_fldnvxjaSr_QFMibb8IaoAIrbx5nfEcxpw1n0f
+    old_record: recvw2vgYXjM74
+    ledger_rows: 1
+    retired_unit_id: ac028dfe6c493436693b
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXmEKH_fldnvxjaSr_NClbbJnqzoXtAUxvzgacCU3Pnec
+    old_record: recvw2vgYXmEKH
+    ledger_rows: 1
+    retired_unit_id: 8773da79696435301576
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXnmKz_fldnvxjaSr_D5IYbHPJXoEXUbx8kPccZgronZd
+    old_record: recvw2vgYXnmKz
+    ledger_rows: 1
+    retired_unit_id: 5cc7fb1b581331368daa
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXnmKz_fldnvxjaSr_KRwrbXWSCoY8wpx2G0jc2dcOnZg
+    old_record: recvw2vgYXnmKz
+    ledger_rows: 1
+    retired_unit_id: 19d1688df0bddcf23bae
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXnmKz_fldnvxjaSr_Nc5VbCAsfoFcNjxK5iQcqEjBnqb
+    old_record: recvw2vgYXnmKz
+    ledger_rows: 1
+    retired_unit_id: 6718487faea1c79e6275
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXnmKz_fldnvxjaSr_Oj7ObHkg5oFaChxs0pHch7mxnfh
+    old_record: recvw2vgYXnmKz
+    ledger_rows: 1
+    retired_unit_id: 2efe381369a0069761b1
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXnmKz_fldnvxjaSr_P94Bbw0wUobgfgxLYaWcOjnRnsh
+    old_record: recvw2vgYXnmKz
+    ledger_rows: 1
+    retired_unit_id: abb1117238d6afcc3e6d
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXpLHu_fldnvxjaSr_HnFNbyQpAoTtfhx9Hz7crzmYntf
+    old_record: recvw2vgYXpLHu
+    ledger_rows: 1
+    retired_unit_id: 7f9c494b2edd234f2c87
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXpLHu_fldnvxjaSr_JD17bU5RmoAInRxs6qwcOy7An0k
+    old_record: recvw2vgYXpLHu
+    ledger_rows: 1
+    retired_unit_id: 8ee2292ae6931a6d997c
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXpLHu_fldnvxjaSr_Qa6RbMWj3oTyPxxLw9ycZgLNnUR
+    old_record: recvw2vgYXpLHu
+    ledger_rows: 1
+    retired_unit_id: d5227bd022dbec57a2c4
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXpLHu_fldnvxjaSr_TMY7bb89bo8CiRxWkEkcNDVknIe
+    old_record: recvw2vgYXpLHu
+    ledger_rows: 1
+    retired_unit_id: bc25dc992cfe2fc91e65
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXpLHu_fldnvxjaSr_VYxrb5sKaoTSSox0zVYcHOUhnXt
+    old_record: recvw2vgYXpLHu
+    ledger_rows: 1
+    retired_unit_id: 6776643248cb7c3e94f9
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXqkPA_fldnvxjaSr_AIOxbvROloTfvYx9BcWcHZpknPb
+    old_record: recvw2vgYXqkPA
+    ledger_rows: 1
+    retired_unit_id: 433df71e4a08de8cec39
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXqkPA_fldnvxjaSr_CED8bi5b6odBeGxvEqgcSVEnnNb
+    old_record: recvw2vgYXqkPA
+    ledger_rows: 1
+    retired_unit_id: 7d28030ec34b0dbf5886
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXqkPA_fldnvxjaSr_VYs3bG8Tzo2EL2x6LnPcQW81nsb
+    old_record: recvw2vgYXqkPA
+    ledger_rows: 1
+    retired_unit_id: d47b4b78b6bb4707c44e
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXqkPA_fldnvxjaSr_XbiUbHJgnoCAFUxiEmJcTAjHnTe
+    old_record: recvw2vgYXqkPA
+    ledger_rows: 1
+    retired_unit_id: 4141dcabbb66413224ba
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXsoa3_fldnvxjaSr_TU2YbkSZsoibUjxcFjwcLInqnHh
+    old_record: recvw2vgYXsoa3
+    ledger_rows: 1
+    retired_unit_id: a813763f0f892732fc46
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXzrya_fldnvxjaSr_RfNmb7a1jooHqaxRDCQc8INNnRe
+    old_record: recvw2vgYXzrya
+    ledger_rows: 1
+    retired_unit_id: 72e0eda01256ab491a4e
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M0AU9_fldnvxjaSr_D36RbvzCAozKWpx0DNlcNZVWnBg
+    old_record: recvw2wE9M0AU9
+    ledger_rows: 1
+    retired_unit_id: 3d921bfa00fcd69812a3
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M0AU9_fldnvxjaSr_R7ILbestLoEJExxsdT7cuzIknO9
+    old_record: recvw2wE9M0AU9
+    ledger_rows: 1
+    retired_unit_id: 542914ad7cfbfde77d2c
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M0jhy_fldnvxjaSr_ABcAboaSSoclyLxPFm1cHWjsnjb
+    old_record: recvw2wE9M0jhy
+    ledger_rows: 1
+    retired_unit_id: b0f8646106d844984838
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M0jhy_fldnvxjaSr_DGrWbGBScoOGo4xLoaucmbmpnVd
+    old_record: recvw2wE9M0jhy
+    ledger_rows: 1
+    retired_unit_id: 49443c501f56e34f931a
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M0jhy_fldnvxjaSr_Iizlblr4po0U5mxkzFNcvyJ5nQd
+    old_record: recvw2wE9M0jhy
+    ledger_rows: 1
+    retired_unit_id: 19a786891441c4026b64
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M0jhy_fldnvxjaSr_M9kUbkIamo0HQ2xefFmcKkhPnfh
+    old_record: recvw2wE9M0jhy
+    ledger_rows: 1
+    retired_unit_id: c9f8ad168d5be29de733
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M0tak_fldnvxjaSr_JWcfb43xSoYCGUxJ20wc9KQvnqd
+    old_record: recvw2wE9M0tak
+    ledger_rows: 1
+    retired_unit_id: 0fc9231c99b7690aa6c5
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M1dlp_fldnvxjaSr_HSVFbGT8ioJ41YxqbsrcAeWHnMd
+    old_record: recvw2wE9M1dlp
+    ledger_rows: 1
+    retired_unit_id: 3395bd1f5756ce7db59e
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M1dlp_fldnvxjaSr_NapNb0XGHoRySTxc1vPc9I4mnuc
+    old_record: recvw2wE9M1dlp
+    ledger_rows: 1
+    retired_unit_id: a421483df5e9c1d3cc95
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M1rCu_fldnvxjaSr_DSmLbWcMhoOzhHx6pnUcAfh5noe
+    old_record: recvw2wE9M1rCu
+    ledger_rows: 1
+    retired_unit_id: 79945da6945493ae199f
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M1rCu_fldnvxjaSr_YWkhbJfkYopxinx8daOc3NwlnHS
+    old_record: recvw2wE9M1rCu
+    ledger_rows: 1
+    retired_unit_id: 068010919af9f0315fab
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M24gT_fldnvxjaSr_Ayk3b7qAGoigRixjUWdcXeLcnce
+    old_record: recvw2wE9M24gT
+    ledger_rows: 1
+    retired_unit_id: ffc6bfaacafe59f17527
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M3Dw8_fldnvxjaSr_EWGbbUVKNoopDJxs0a5cA9WCnoe
+    old_record: recvw2wE9M3Dw8
+    ledger_rows: 1
+    retired_unit_id: 7e1ff072a8d9514bcf42
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M450H_fldnvxjaSr_AvmjblbG8o970NxMEGdcdJw3n4g
+    old_record: recvw2wE9M450H
+    ledger_rows: 1
+    retired_unit_id: e038909ea799b23a22cd
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M450H_fldnvxjaSr_DWkibFU25o32fnxOUoocz4WnnUc
+    old_record: recvw2wE9M450H
+    ledger_rows: 1
+    retired_unit_id: 9fca30fabb1f08b4992c
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M450H_fldnvxjaSr_XXZobFcqSo8PPuxlAvtcos80nxc
+    old_record: recvw2wE9M450H
+    ledger_rows: 1
+    retired_unit_id: 8ed1feb23ad9f9b80215
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M6R8O_fldnvxjaSr_AymfbG61voH8JoxO3ZScE0Rln1f
+    old_record: recvw2wE9M6R8O
+    ledger_rows: 1
+    retired_unit_id: 666772ce88c1ea733864
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M7mNq_fldnvxjaSr_JsOZbICEToMBUhxia6fcABKRn5c
+    old_record: recvw2wE9M7mNq
+    ledger_rows: 1
+    retired_unit_id: e8f4ff9ae310b3663b3e
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M80nl_fldnvxjaSr_KUVEbrEwIoQXPExxJpkc5Ak7nEe
+    old_record: recvw2wE9M80nl
+    ledger_rows: 1
+    retired_unit_id: f08dcc6c4bc9c8d2cf0b
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M82rT_fldnvxjaSr_IY3rbAwDNoRknuxuVjFcnBMAnIh
+    old_record: recvw2wE9M82rT
+    ledger_rows: 1
+    retired_unit_id: 4b3b002c10e8a81c6ffa
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M99O7_fldnvxjaSr_FIcSbyd2jo3ev3xiSazcbxi0ndh
+    old_record: recvw2wE9M99O7
+    ledger_rows: 1
+    retired_unit_id: 37593039a49027e90a95
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M99O7_fldnvxjaSr_FplabmxqqoQBXGxfPfXc99OOnhc
+    old_record: recvw2wE9M99O7
+    ledger_rows: 1
+    retired_unit_id: f0cc95213a9e3612a2c4
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M9gej_fldnvxjaSr_K4sRbZTSsoPBD2xRudTcXYrcnvh
+    old_record: recvw2wE9M9gej
+    ledger_rows: 1
+    retired_unit_id: a4149a10e025b6e3d7eb
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9M9gej_fldnvxjaSr_OjrSbOZYZoAs6uxM9iUcb3Nyn4f
+    old_record: recvw2wE9M9gej
+    ledger_rows: 1
+    retired_unit_id: 84332aa052fa0bda0978
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MA4rS_fldnvxjaSr_LYdDbKKudokM57xw9YXcGnjWnsE
+    old_record: recvw2wE9MA4rS
+    ledger_rows: 1
+    retired_unit_id: 4d2c5897ef5021835c0c
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MASWZ_fldnvxjaSr_MywSbk1S5oW2bgxMpDHcubCGnsh
+    old_record: recvw2wE9MASWZ
+    ledger_rows: 1
+    retired_unit_id: ce14269cb177a3b098de
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MAfXg_fldnvxjaSr_Qq5JbytnnosF2gxeqCPch112nZ6
+    old_record: recvw2wE9MAfXg
+    ledger_rows: 1
+    retired_unit_id: b5dd991375ff3424dba6
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MCEo2_fldnvxjaSr_ELPSbcImHoyYCzxhzTFcsJ2AnZc
+    old_record: recvw2wE9MCEo2
+    ledger_rows: 1
+    retired_unit_id: 53c77c8755a02997d795
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MCEo2_fldnvxjaSr_EsrnbkRg9o9OI9xj3aCc0qj9ngf
+    old_record: recvw2wE9MCEo2
+    ledger_rows: 1
+    retired_unit_id: 9431b5cb468b0a77f9ab
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MCEo2_fldnvxjaSr_VFyVbM4HtoNFJUxYRsfcnkyDnzb
+    old_record: recvw2wE9MCEo2
+    ledger_rows: 1
+    retired_unit_id: 5156939c9f8d017ae6a8
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MCaay_fldnvxjaSr_RKVqbTFs2oM8KZxgRM6cykoGnDV
+    old_record: recvw2wE9MCaay
+    ledger_rows: 1
+    retired_unit_id: acec90536b52470b5957
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MCaay_fldnvxjaSr_YY5PblwploXFSaxxeolcvcLZnVh
+    old_record: recvw2wE9MCaay
+    ledger_rows: 1
+    retired_unit_id: 65ff82eada9cdd827d60
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MCaay_fldnvxjaSr_Zm44bVQ4Ao6CkVxZBy9c1QA1n7c
+    old_record: recvw2wE9MCaay
+    ledger_rows: 1
+    retired_unit_id: 0673dbaef3ba79cc4e18
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MCdNt_fldnvxjaSr_IDbEbPXudoSn03xXR5YcikasnRh
+    old_record: recvw2wE9MCdNt
+    ledger_rows: 1
+    retired_unit_id: 16b14b8bc82eabbd26cd
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MESWo_fldnvxjaSr_E2x4bnKH5out8NxsF81ciXDmnng
+    old_record: recvw2wE9MESWo
+    ledger_rows: 1
+    retired_unit_id: 5d2475a41c42f15f5388
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MESWo_fldnvxjaSr_FU6cb3odDo4OTIxZCLLcC7GKn7g
+    old_record: recvw2wE9MESWo
+    ledger_rows: 1
+    retired_unit_id: 63940c6dedecf43c1010
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MEpQK_fldnvxjaSr_K0DTbxsFwoqEXQxsBD7cA5lYn40
+    old_record: recvw2wE9MEpQK
+    ledger_rows: 1
+    retired_unit_id: 69efecfbfcbc686d6b61
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MFcbM_fldnvxjaSr_Us72bfVBWo2x87xYwdvcIFtJnOd
+    old_record: recvw2wE9MFcbM
+    ledger_rows: 1
+    retired_unit_id: b69f82842d7f24f151e0
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MFflB_fldnvxjaSr_TFf5bDEG1o85cXxuykIcWaEpnIe
+    old_record: recvw2wE9MFflB
+    ledger_rows: 1
+    retired_unit_id: 2adc6bba0730d149acad
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MFrv8_fldnvxjaSr_CQfHb3mYnoKlWXxIG0YcSqxlnEd
+    old_record: recvw2wE9MFrv8
+    ledger_rows: 1
+    retired_unit_id: 096dd7ebe62f9ff16d49
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MGMfm_fldnvxjaSr_M7F0bj2aYoJdPbxpNSNcidezngg
+    old_record: recvw2wE9MGMfm
+    ledger_rows: 1
+    retired_unit_id: f2b2f9e0191fd517eb12
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MGMfm_fldnvxjaSr_Ohk3bVRVho3HYJxuWHocwL94nfg
+    old_record: recvw2wE9MGMfm
+    ledger_rows: 1
+    retired_unit_id: 4e24807f13187755f3b3
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MGn14_fldnvxjaSr_Kdt6b4NlsondkdxDXoacYkJmnWd
+    old_record: recvw2wE9MGn14
+    ledger_rows: 1
+    retired_unit_id: 874e3e7b3f818bcf0f69
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MGn14_fldnvxjaSr_MCinbMcWEoAQAQxo3bVcoGexndc
+    old_record: recvw2wE9MGn14
+    ledger_rows: 1
+    retired_unit_id: b9103e80f56957d990f1
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MHgxV_fldnvxjaSr_RRO7blw94otsIkxriO4c6z2qnxg
+    old_record: recvw2wE9MHgxV
+    ledger_rows: 1
+    retired_unit_id: 35dda5f2f70faf0a91d0
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MHgxV_fldnvxjaSr_XlewbxAM3o43YfxTSX0c5xDHnPb
+    old_record: recvw2wE9MHgxV
+    ledger_rows: 1
+    retired_unit_id: 98f90400ff63558dd2d3
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MHr0h_fldnvxjaSr_Db6Cbdve2ot5YJxE1RSc1v9gnre
+    old_record: recvw2wE9MHr0h
+    ledger_rows: 1
+    retired_unit_id: 01813b5017358c80cbfb
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MIGWA_fldnvxjaSr_IeckbYfNTokW7YxEe6wc2QF8nrd
+    old_record: recvw2wE9MIGWA
+    ledger_rows: 1
+    retired_unit_id: d6fa2b1e1bd76eb124bc
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MIGWA_fldnvxjaSr_XaJYboL5dot7PexrvEmcDhY4nRz
+    old_record: recvw2wE9MIGWA
+    ledger_rows: 1
+    retired_unit_id: 050d8abc656730576bd1
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MIhBG_fldnvxjaSr_Hfr8bbtMVocIpExnwWOcu2YqnHg
+    old_record: recvw2wE9MIhBG
+    ledger_rows: 1
+    retired_unit_id: 4868e46fcacccff5aa27
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MIhBG_fldnvxjaSr_RO15bkqgzoyPE7x0ysQcmIWunwd
+    old_record: recvw2wE9MIhBG
+    ledger_rows: 1
+    retired_unit_id: cb3a9340b988ee1382f4
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MJBZU_fldnvxjaSr_XOvNbgNdDoeX9rxzkF5clrSqn7f
+    old_record: recvw2wE9MJBZU
+    ledger_rows: 1
+    retired_unit_id: ffd2b3ab2e4ecbac8861
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MJFd4_fldnvxjaSr_Cd6dbVi9goIQT8xLwmgcuHEtn4d
+    old_record: recvw2wE9MJFd4
+    ledger_rows: 1
+    retired_unit_id: c1b1fb438f88a7ec4bf4
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MJFd4_fldnvxjaSr_ZFZ7b1DCloYtAmxxgoXc6Qchned
+    old_record: recvw2wE9MJFd4
+    ledger_rows: 1
+    retired_unit_id: 23fc729884e83afda85f
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MJl8j_fldnvxjaSr_BApIbxYDvo6SI6xRwxycdtGunfh
+    old_record: recvw2wE9MJl8j
+    ledger_rows: 1
+    retired_unit_id: 8d520cf878c05dd5788d
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MJvkb_fldnvxjaSr_Yp0QbASAnoh1R2xBomEcj8YHnTg
+    old_record: recvw2wE9MJvkb
+    ledger_rows: 1
+    retired_unit_id: 6ac19f3f020cb79bbbf9
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MKJPT_fldnvxjaSr_AxY9bwdJ5oykv9xjCzxckGrznue
+    old_record: recvw2wE9MKJPT
+    ledger_rows: 1
+    retired_unit_id: ab7a441f95116f4ddeb2
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MKPF3_fldnvxjaSr_Ikt3be8T2oUY1ixXHAKcnTqQnUf
+    old_record: recvw2wE9MKPF3
+    ledger_rows: 1
+    retired_unit_id: 7f31414e7fd818decbad
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MNFgw_fldnvxjaSr_LRSFbp2H3ocpHVxTqRyca63Mnwd
+    old_record: recvw2wE9MNFgw
+    ledger_rows: 1
+    retired_unit_id: d9da88f8318fb5c23e04
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MNFgw_fldnvxjaSr_LUbWbW4GzoZ0kpxCUXWcgzEBnch
+    old_record: recvw2wE9MNFgw
+    ledger_rows: 1
+    retired_unit_id: 5c9ae790ccb453b59269
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MO7nE_fldnvxjaSr_DtMubWk84oxZovxa7vIc5rUJntg
+    old_record: recvw2wE9MO7nE
+    ledger_rows: 1
+    retired_unit_id: d3ac6cbc831d3c022704
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MO7nE_fldnvxjaSr_Ft3TbUsO6oJQxEx8dZ6cGqupnvb
+    old_record: recvw2wE9MO7nE
+    ledger_rows: 1
+    retired_unit_id: 001366e0259a46f59295
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MOjyt_fldnvxjaSr_Byd2bNBaboOOiZxcvX3c9VeJnJP
+    old_record: recvw2wE9MOjyt
+    ledger_rows: 1
+    retired_unit_id: 3dc70589e8bd39d23d68
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MP5RD_fldnvxjaSr_CoH9b29yKozm5axOBUEcIOxYnSw
+    old_record: recvw2wE9MP5RD
+    ledger_rows: 1
+    retired_unit_id: 75d8fae322369edd03ec
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MPxKn_fldnvxjaSr_TSybbcbZjohEb2xzz3uc9PmUnHd
+    old_record: recvw2wE9MPxKn
+    ledger_rows: 1
+    retired_unit_id: c08d0c7f5ec7061762f1
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MPxKn_fldnvxjaSr_WEBgbqVOooQtGNx9dm4cdNbOn0d
+    old_record: recvw2wE9MPxKn
+    ledger_rows: 1
+    retired_unit_id: 73907a08b9ee115263a1
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MQAaa_fldnvxjaSr_KCLMbgg8LoC7gJxQM1tc9ImwnIg
+    old_record: recvw2wE9MQAaa
+    ledger_rows: 1
+    retired_unit_id: 35553a77a8f0cdadb041
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MQAaa_fldnvxjaSr_NXcxbUyjJoA8mCxg2PkcJ0gNnLd
+    old_record: recvw2wE9MQAaa
+    ledger_rows: 1
+    retired_unit_id: f45fa694861dad096a5a
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MQAaa_fldnvxjaSr_XD0UbMwRuoY1JNxjft6cnxKJnlb
+    old_record: recvw2wE9MQAaa
+    ledger_rows: 1
+    retired_unit_id: b56ee51015f1fe4c65dc
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MQWOl_fldnvxjaSr_DeETbtoHBovuWRxs92ycNUWqnrb
+    old_record: recvw2wE9MQWOl
+    ledger_rows: 1
+    retired_unit_id: d1287c7c038fd304a2c5
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MQpav_fldnvxjaSr_A6U3bb2dBooCt6xXu11ckx2Ynnc
+    old_record: recvw2wE9MQpav
+    ledger_rows: 1
+    retired_unit_id: dbb4fe1473fd8cf7993f
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MQpav_fldnvxjaSr_TY8vbQhwBokWYCxb3vpcUNbLnmg
+    old_record: recvw2wE9MQpav
+    ledger_rows: 1
+    retired_unit_id: b5898575f7ecd3a5e206
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MT1o8_fldnvxjaSr_WLGXbfDreo1wOFxRQvbcA5C9ndf
+    old_record: recvw2wE9MT1o8
+    ledger_rows: 1
+    retired_unit_id: 291a1853127d64c71471
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MUu6Y_fldnvxjaSr_DX6ZbkD6Lomj49xuf8pcIKHWnae
+    old_record: recvw2wE9MUu6Y
+    ledger_rows: 1
+    retired_unit_id: d58dfc19b1cca5f53540
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MUu6Y_fldnvxjaSr_QFe7bzl03oQpqWxjr3ecaPZlnmJ
+    old_record: recvw2wE9MUu6Y
+    ledger_rows: 1
+    retired_unit_id: 7a8c563e6ac5492b0c6c
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MVHJr_fldnvxjaSr_Biv7b5elsoXGUuxmWZPcguxJncf
+    old_record: recvw2wE9MVHJr
+    ledger_rows: 1
+    retired_unit_id: 4ffa64a6285fb2f1a025
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MVHJr_fldnvxjaSr_E2HMbdXWSoWycyxqR5rcgyAvn8d
+    old_record: recvw2wE9MVHJr
+    ledger_rows: 1
+    retired_unit_id: 673a555eca0e402413ba
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MVLwK_fldnvxjaSr_GkngbZaOnoJ1NixVoxecSpCGnmf
+    old_record: recvw2wE9MVLwK
+    ledger_rows: 1
+    retired_unit_id: 21c1bca145bfe315e124
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MVbHu_fldnvxjaSr_M2dLbmw3poPjDFxwyQIcHHOWnIb
+    old_record: recvw2wE9MVbHu
+    ledger_rows: 1
+    retired_unit_id: bd764f07e37b8bf36ac7
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MVbHu_fldnvxjaSr_UgOCbYpFdozQxIxovvFcJ7CGnUe
+    old_record: recvw2wE9MVbHu
+    ledger_rows: 1
+    retired_unit_id: 9860f4ed671a63155ecd
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MWA0G_fldnvxjaSr_Eue7bTy5TouT1pxMLSEcfbIinHd
+    old_record: recvw2wE9MWA0G
+    ledger_rows: 1
+    retired_unit_id: 8092566b4831f1e7315a
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MWA0G_fldnvxjaSr_GDpBbpV8qorCilx4XwKcypI4nFc
+    old_record: recvw2wE9MWA0G
+    ledger_rows: 1
+    retired_unit_id: e68d4c197883ded2fa39
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MXPwf_fldnvxjaSr_V1zQbV1y3oce5wxNsdgcsGuin6b
+    old_record: recvw2wE9MXPwf
+    ledger_rows: 1
+    retired_unit_id: 532b97732f79bb6bfec6
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MXvZi_fldnvxjaSr_LEjebzoPPoopw6xsge8ceRffnjf
+    old_record: recvw2wE9MXvZi
+    ledger_rows: 1
+    retired_unit_id: 9612047defecb26e8492
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MZAyB_fldnvxjaSr_BL32bqKfxogHKCxsZltcyABgnxc
+    old_record: recvw2wE9MZAyB
+    ledger_rows: 1
+    retired_unit_id: 63ea36ddba0ca4ae4159
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9Mat0C_fldnvxjaSr_GK4ObGCnvo36cZxeeXecl1WPnWb
+    old_record: recvw2wE9Mat0C
+    ledger_rows: 1
+    retired_unit_id: 746df621deeb8c39f68b
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9Mat0C_fldnvxjaSr_XQN5b0Xepoejj7xJ5yuckLNVn2f
+    old_record: recvw2wE9Mat0C
+    ledger_rows: 1
+    retired_unit_id: cebfba2b16ffdd3ea2b4
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MbZ72_fldnvxjaSr_P5lkbGcqjol06cxnKLWcDGeQnjh
+    old_record: recvw2wE9MbZ72
+    ledger_rows: 1
+    retired_unit_id: 468353967892cc408e5c
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MbZdr_fldnvxjaSr_CALLboi8ZoczddxJlBocEn2TnSg
+    old_record: recvw2wE9MbZdr
+    ledger_rows: 1
+    retired_unit_id: fc171244ddc1a5afbc0d
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MbhbN_fldnvxjaSr_ImZTbDCJtoUKkqxvBPyc0M0Inyd
+    old_record: recvw2wE9MbhbN
+    ledger_rows: 1
+    retired_unit_id: bdfc2acc2214d0f015c7
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MdgfS_fldnvxjaSr_EzXkbR0UJogHOKxMafxcT2J7n6f
+    old_record: recvw2wE9MdgfS
+    ledger_rows: 1
+    retired_unit_id: fbe963d5ecb532bb79f6
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MdgfS_fldnvxjaSr_WjAqbGwGeooyOmxuB7fclKCdn4f
+    old_record: recvw2wE9MdgfS
+    ledger_rows: 1
+    retired_unit_id: 620820b060a09f97c8aa
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MeSkh_fldnvxjaSr_JvZObBuaaowQOvxZuABc07zznte
+    old_record: recvw2wE9MeSkh
+    ledger_rows: 1
+    retired_unit_id: 63c1ef24f4b7aa4c4e65
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MeSkh_fldnvxjaSr_TJDfb8hcKocN0ix1pYPcUCz2nDc
+    old_record: recvw2wE9MeSkh
+    ledger_rows: 1
+    retired_unit_id: dbc13b7251271a993ae8
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MfbYN_fldnvxjaSr_QYZSb2oYzoKKyixDSn4cbIo5ndf
+    old_record: recvw2wE9MfbYN
+    ledger_rows: 1
+    retired_unit_id: 5067af3b87c06926f428
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MfjVU_fldnvxjaSr_FF8lb18q1oGbItxm5DccMsc5nJc
+    old_record: recvw2wE9MfjVU
+    ledger_rows: 1
+    retired_unit_id: 892272def46ba2aa996b
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9Mh72d_fldnvxjaSr_YHWCbdGP6orKzsxMHHscQDzOnef
+    old_record: recvw2wE9Mh72d
+    ledger_rows: 1
+    retired_unit_id: fd892c61e8800f711589
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MhFeS_fldnvxjaSr_FlfgbUsWBoRc1MxldCUcMeFtnac
+    old_record: recvw2wE9MhFeS
+    ledger_rows: 1
+    retired_unit_id: bd820a7d674b36de75d6
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MhM8b_fldnvxjaSr_LQJibvc0VokPZDxujxrckogwnlh
+    old_record: recvw2wE9MhM8b
+    ledger_rows: 1
+    retired_unit_id: 4a00744973c81321443b
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MhM8b_fldnvxjaSr_UgzNbdy4eo2rGQxgxIgcyvWVnEe
+    old_record: recvw2wE9MhM8b
+    ledger_rows: 1
+    retired_unit_id: 8745bf85fb9b27dfea6c
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9Mi3sE_fldnvxjaSr_IQMIb4oWyoDtHVx3vg6cds6snCO
+    old_record: recvw2wE9Mi3sE
+    ledger_rows: 1
+    retired_unit_id: fa0ba404a259b19f6b2f
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9Mi3sE_fldnvxjaSr_NbdUbgg29oYHCvxGqXLcRs0wnfg
+    old_record: recvw2wE9Mi3sE
+    ledger_rows: 1
+    retired_unit_id: 343560fde09973cf712d
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9Mi3sE_fldnvxjaSr_W1dsbicveo45h0x4qvrcaPTEnxc
+    old_record: recvw2wE9Mi3sE
+    ledger_rows: 1
+    retired_unit_id: 1c8dc7c8c819457b90b0
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MiAec_fldnvxjaSr_L8N7bKqG8oKf87xmwXEcLtjenTc
+    old_record: recvw2wE9MiAec
+    ledger_rows: 1
+    retired_unit_id: 087ae509591625174f87
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MiUBU_fldnvxjaSr_F0AHb2GWSoZyPPxADYucieO0nvR
+    old_record: recvw2wE9MiUBU
+    ledger_rows: 1
+    retired_unit_id: 492f876f30184f1d5026
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MiVc6_fldnvxjaSr_XDSNbqLyGoFqVkxFrMUcFDsDnff
+    old_record: recvw2wE9MiVc6
+    ledger_rows: 1
+    retired_unit_id: 157c2c1ddbe062957e39
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MiVc6_fldnvxjaSr_ZJ9wbGXEOoHdsYxXFyQcz6ZpnNh
+    old_record: recvw2wE9MiVc6
+    ledger_rows: 1
+    retired_unit_id: a19063ab9f54c5bc0168
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9Mivgz_fldnvxjaSr_FsO7bJR6xoWf3hxXZJhcE9w5nTh
+    old_record: recvw2wE9Mivgz
+    ledger_rows: 1
+    retired_unit_id: 6bf4a413536b0b36f3db
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9Mivgz_fldnvxjaSr_PpOCb6QGTodAl4xQBSYc5HzNnkk
+    old_record: recvw2wE9Mivgz
+    ledger_rows: 1
+    retired_unit_id: 4bc367b13c12c91efd4f
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9Mj58Z_fldnvxjaSr_H4FebeLeAo7lU1xc082cWf2Qnf7
+    old_record: recvw2wE9Mj58Z
+    ledger_rows: 1
+    retired_unit_id: 5c0137e05044e7a3e061
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9Mj58Z_fldnvxjaSr_PjnubdXKcob2CpxM2prcFPpqnyb
+    old_record: recvw2wE9Mj58Z
+    ledger_rows: 1
+    retired_unit_id: 692f79a20f609aae01b1
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MjmIp_fldnvxjaSr_Lg5qbC9TcolO73x4DFFcTpwcn4z
+    old_record: recvw2wE9MjmIp
+    ledger_rows: 1
+    retired_unit_id: 2f750e50a6c29a2db759
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MjmIp_fldnvxjaSr_XyFObJpWzoFhokx0D7WcimIhnRg
+    old_record: recvw2wE9MjmIp
+    ledger_rows: 1
+    retired_unit_id: 2f860016a45ff98e2159
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9Mk90t_fldnvxjaSr_KX19bktBbos8Rpx388UcpNbznRf
+    old_record: recvw2wE9Mk90t
+    ledger_rows: 1
+    retired_unit_id: ea10e0e38fa0a3acc689
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9Mk9q9_fldnvxjaSr_NBpVbp1R7oZmjqxHgeicH3O3nYd
+    old_record: recvw2wE9Mk9q9
+    ledger_rows: 1
+    retired_unit_id: 0aae1c8be707ef9fb080
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MkkjU_fldnvxjaSr_CE46biHrVodtZWxGfAVcGNujn5b
+    old_record: recvw2wE9MkkjU
+    ledger_rows: 1
+    retired_unit_id: 541136f62ae2e7f70e8a
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MkuSv_fldnvxjaSr_A7ibbyI67ouzimxj2Mqc1hjknnb
+    old_record: recvw2wE9MkuSv
+    ledger_rows: 1
+    retired_unit_id: 7773b2dd12aeb14c6945
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MkuSv_fldnvxjaSr_K5DwbH0uRoyuDBxFWEGcNIDQnh0
+    old_record: recvw2wE9MkuSv
+    ledger_rows: 1
+    retired_unit_id: 970d9d07d9068424bd4a
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MkuSv_fldnvxjaSr_RiTIbUAuGoQwzIxAHdIciSxmnH9
+    old_record: recvw2wE9MkuSv
+    ledger_rows: 1
+    retired_unit_id: 46af9607c004f3ba48fb
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MkuSv_fldnvxjaSr_WL5qbBp11ohVtHxs6rGcSR60n6e
+    old_record: recvw2wE9MkuSv
+    ledger_rows: 1
+    retired_unit_id: e6ee8343209c05f11c11
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MlEfY_fldnvxjaSr_HSO0bku0foRXn7xSbzFcooJsnJd
+    old_record: recvw2wE9MlEfY
+    ledger_rows: 1
+    retired_unit_id: e6384644837384a7f7fe
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MliUZ_fldnvxjaSr_Lvr9b6g5AoC9H0xaFeWcthe8npc
+    old_record: recvw2wE9MliUZ
+    ledger_rows: 1
+    retired_unit_id: bcf3e290e37a521fed8e
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MliUZ_fldnvxjaSr_MjrkbMoxQoIOQixg8ewcAgiznce
+    old_record: recvw2wE9MliUZ
+    ledger_rows: 1
+    retired_unit_id: 4073087fe50884a59724
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MliUZ_fldnvxjaSr_NVWabOAO7oCfo0xgJwsc4sFLngb
+    old_record: recvw2wE9MliUZ
+    ledger_rows: 1
+    retired_unit_id: 2076a1b96f7e9d507a68
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MmAJ2_fldnvxjaSr_UlvNbqgOFoV8CzxbEJIcqEYwnqc
+    old_record: recvw2wE9MmAJ2
+    ledger_rows: 1
+    retired_unit_id: 41c6cb26c5f54219ee75
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MmvI2_fldnvxjaSr_KuCHbxaUBoPQ5ux2A1KcoZu5nod
+    old_record: recvw2wE9MmvI2
+    ledger_rows: 1
+    retired_unit_id: 116e1b11781b82df8e62
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MnpNS_fldnvxjaSr_XzjNb323KoEoWFxzWQ4ct9zRn8f
+    old_record: recvw2wE9MnpNS
+    ledger_rows: 1
+    retired_unit_id: a4dad33788cf72c0951a
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MoDpM_fldnvxjaSr_Bedebpj3zoFnVSxKgKEcFU3jnod
+    old_record: recvw2wE9MoDpM
+    ledger_rows: 1
+    retired_unit_id: 12b472b3e8018e9a091d
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MoDpM_fldnvxjaSr_DmUwbNGEkovKsPxkpzbc6GVbnzc
+    old_record: recvw2wE9MoDpM
+    ledger_rows: 1
+    retired_unit_id: 252f8cea381135f522c9
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MocUo_fldnvxjaSr_Jm02b6gVwoJdaax7Kbfcne1unkd
+    old_record: recvw2wE9MocUo
+    ledger_rows: 1
+    retired_unit_id: 992b0cee1a2018040a8f
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MocUo_fldnvxjaSr_T0tkbnV17otd0WxjcKecUVEEnMd
+    old_record: recvw2wE9MocUo
+    ledger_rows: 1
+    retired_unit_id: b6a44013885482952c1d
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MpQbj_fldnvxjaSr_BPhjboKbwoywylxF4AHcTyXvnPg
+    old_record: recvw2wE9MpQbj
+    ledger_rows: 1
+    retired_unit_id: f3191b8b19d66c27ee4a
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MpQbj_fldnvxjaSr_XuFabmTnroRTXxxuycSclxznnLh
+    old_record: recvw2wE9MpQbj
+    ledger_rows: 1
+    retired_unit_id: cefb223135743cf1a7ec
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MqC57_fldnvxjaSr_GbSVbXahGosm8bxqMs7cOyvFnpc
+    old_record: recvw2wE9MqC57
+    ledger_rows: 1
+    retired_unit_id: 7b99fa15d70738737e98
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MqC57_fldnvxjaSr_VovhbiAzNotIjdxZqKdcpYqLnKh
+    old_record: recvw2wE9MqC57
+    ledger_rows: 1
+    retired_unit_id: 4ca9d5fc651318e650ed
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MqOkU_fldnvxjaSr_FHokbQLr4oz8YwxRf3JcBgl5nQf
+    old_record: recvw2wE9MqOkU
+    ledger_rows: 1
+    retired_unit_id: dec42a893ec5f28f544f
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MqOkU_fldnvxjaSr_HtX8bSOivoGyZfxlsD4cHTycn6g
+    old_record: recvw2wE9MqOkU
+    ledger_rows: 1
+    retired_unit_id: 4ef16eb277b439c34c07
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9Mqcbt_fldnvxjaSr_OXR2bFIFCogJelxPc7ncE91Vnsb
+    old_record: recvw2wE9Mqcbt
+    ledger_rows: 1
+    retired_unit_id: 5a8f5bb7f44dbe8796b7
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9Mqcbt_fldnvxjaSr_RNembeEPSoSoJKxTrd1cg26lnCf
+    old_record: recvw2wE9Mqcbt
+    ledger_rows: 1
+    retired_unit_id: 928b38ac1e41f2b22513
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9Mqdmy_fldnvxjaSr_QkAqbn4BQoZwLUxD9escItsfnTc
+    old_record: recvw2wE9Mqdmy
+    ledger_rows: 1
+    retired_unit_id: 229b1966410ffd1b9c5d
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MrCN7_fldnvxjaSr_DNZQb7MFQopYDZxPmfJcII9Cnmb
+    old_record: recvw2wE9MrCN7
+    ledger_rows: 1
+    retired_unit_id: 69cba705fdad1ee91b3f
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MrCN7_fldnvxjaSr_PwSwbAtlSo7eWnx6krScwdQhnRg
+    old_record: recvw2wE9MrCN7
+    ledger_rows: 1
+    retired_unit_id: 8960074084d2640c2b31
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9Ms8h8_fldnvxjaSr_K7oab1qLGoVny0xAfIPca8MWnjf
+    old_record: recvw2wE9Ms8h8
+    ledger_rows: 1
+    retired_unit_id: 7720f100d4a751225f8a
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MtYyv_fldnvxjaSr_Z1oSbdrMBo4qT3xNvh6cRAWRnid
+    old_record: recvw2wE9MtYyv
+    ledger_rows: 1
+    retired_unit_id: 5f99223a2865bf7b8a49
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9Mua03_fldnvxjaSr_ERArbbZ5TohNtoxiHNdc427EnIU
+    old_record: recvw2wE9Mua03
+    ledger_rows: 1
+    retired_unit_id: 00046ce80f154aa2318e
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9Mua03_fldnvxjaSr_NLUDbefyGozgyHxHQ6vcafq0n7i
+    old_record: recvw2wE9Mua03
+    ledger_rows: 1
+    retired_unit_id: 1cf94f3cdb9604288dad
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MucUs_fldnvxjaSr_GVprbXqLqoD6jgxeFBRcmYdpnXb
+    old_record: recvw2wE9MucUs
+    ledger_rows: 1
+    retired_unit_id: 13adfb05a3151cf7574a
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MucUs_fldnvxjaSr_HKWAbZIvjoNTrPx0FJAcVuMRnZf
+    old_record: recvw2wE9MucUs
+    ledger_rows: 1
+    retired_unit_id: 0b3cfc69aafd056cdacd
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MuvEj_fldnvxjaSr_BX7vbuC0tox6i2xkCaCcHFMqnAd
+    old_record: recvw2wE9MuvEj
+    ledger_rows: 1
+    retired_unit_id: 07484df521eaeabeca0a
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MuvEj_fldnvxjaSr_D8PnbAHLcoAJi5xb3ijcxsoanmd
+    old_record: recvw2wE9MuvEj
+    ledger_rows: 1
+    retired_unit_id: 57b5d5aa05c89680f126
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MuvEj_fldnvxjaSr_GcrIbggKIo4D0bxZlJHc7Np1nhb
+    old_record: recvw2wE9MuvEj
+    ledger_rows: 1
+    retired_unit_id: cfb669aece14427c1787
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MuvEj_fldnvxjaSr_SAvcbAWsToZx5nxctJjcaGixnvh
+    old_record: recvw2wE9MuvEj
+    ledger_rows: 1
+    retired_unit_id: 144c1dd2c7bfc7a953f7
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MuxVI_fldnvxjaSr_Ts8JbjyCRoiaPex6oQPcFSwfnof
+    old_record: recvw2wE9MuxVI
+    ledger_rows: 1
+    retired_unit_id: e0467c1e5c177c310c85
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9Mv3TH_fldnvxjaSr_RgbYbfs1Nog9nlxgwTxcHq1LnHg
+    old_record: recvw2wE9Mv3TH
+    ledger_rows: 1
+    retired_unit_id: 0e37a70f387b4f00e1ca
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MvBb1_fldnvxjaSr_ENF9bHHhYoqU3KxtN0acBuo4nUh
+    old_record: recvw2wE9MvBb1
+    ledger_rows: 1
+    retired_unit_id: 285433a3e56de6bd7bda
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MvBb1_fldnvxjaSr_NAbxbBE4WoxaH4xs0h3cDxgSnWh
+    old_record: recvw2wE9MvBb1
+    ledger_rows: 1
+    retired_unit_id: 8a2df7620ff9a2f14add
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MvBb1_fldnvxjaSr_Z4YrbzXPCofL0Px3p1TcV2urnZd
+    old_record: recvw2wE9MvBb1
+    ledger_rows: 1
+    retired_unit_id: 37d04b6206c14b38d63a
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9Mw31T_fldnvxjaSr_B6jMbPYo7oH0Pjxg9Vscf0aTnne
+    old_record: recvw2wE9Mw31T
+    ledger_rows: 1
+    retired_unit_id: d0b5679a7e7121ff40ec
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9Mw31T_fldnvxjaSr_Ola1b0UvYo1puUxqJZjcw2A2nrb
+    old_record: recvw2wE9Mw31T
+    ledger_rows: 1
+    retired_unit_id: 339fd2f3b3dbb7d79a56
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9Mw31T_fldnvxjaSr_QK8KbGCqjoveL5xbB5HcmI2WnZc
+    old_record: recvw2wE9Mw31T
+    ledger_rows: 1
+    retired_unit_id: 289965c5934ab079f6cc
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MyVS0_fldnvxjaSr_Sa6bbM2rfoYBbOx1MLucTWSRnQf
+    old_record: recvw2wE9MyVS0
+    ledger_rows: 1
+    retired_unit_id: e6a5a251276cc90c4615
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MzRie_fldnvxjaSr_GFMHbUVBho6pvCxdsGmcc3MvnKz
+    old_record: recvw2wE9MzRie
+    ledger_rows: 1
+    retired_unit_id: f7e72617d276e3c3e877
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MzRie_fldnvxjaSr_Ha8Obv3onoQpeoxwPDQcCZvmnUc
+    old_record: recvw2wE9MzRie
+    ledger_rows: 1
+    retired_unit_id: 58af89bf64d83ae35dcc
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MzRie_fldnvxjaSr_ZWuzboBicomJIVxQPSFc22vfnZx
+    old_record: recvw2wE9MzRie
+    ledger_rows: 1
+    retired_unit_id: a9e5c253db645b1f4a08
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw35kNoBkHf_fldnvxjaSr_Kf3VbnBproTPjuxDyzfcXFHLnEh
+    old_record: recvw35kNoBkHf
+    ledger_rows: 1
+    retired_unit_id: 31118bafd59f7a66fbcc
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw35kNoBkHf_fldnvxjaSr_UYIUbOooXoph6Tx2XOTcI5yOnTC
+    old_record: recvw35kNoBkHf
+    ledger_rows: 1
+    retired_unit_id: c7e15a248a9fe49dfa89
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象
+  - resource_id: bitable__tbld8qE92YaY38Yz__recvw35kNoBkHf_fldnvxjaSr_X57ebIDHHolHTCxC3Y2c2k3zn3f
+    old_record: recvw35kNoBkHf
+    ledger_rows: 1
+    retired_unit_id: f2c4bcb349413265acc4
+    retired_at: 2026-10-20T16:17:26
+    why: 源记录已于 2026-10-14 负面样本表重建后换代；本资源对应的 L2 单元在 2026-10-20T16:17:26 被 prune_gone_units.py 退役 ⇒ 拒绝台账这一行已无可回指对象

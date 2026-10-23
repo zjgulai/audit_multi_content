@@ -186,10 +186,38 @@ for f in seen:
             spawn.add(p)
 spawned = sorted(os.path.relpath(p, root) for p in spawn if os.stat(p).st_mtime > epoch)
 
+# 启动器：**launchd 的 ProgramArguments 直接调起的那一个**（通常是 tools/run_shouheng.sh）。
+#
+# ★★ 2026-10-23 实测补上：原来这一段只看「图内代码 spawn 的脚本」，
+#   于是**改启动器本身**时它报的是
+#     「重启会生效  无 —— 启动之后没有任何被 import 的模块或被调起的脚本被改过
+#       （那这次重启不带来任何运行时变化，先想清楚为什么还要重启）」
+#   而那一轮我改的正是 `tools/run_shouheng.sh`（往里加了 `set -a` 去读端点环境文件）——
+#   **它就是 launchd 要执行的那个文件**，重启当然会生效。
+#   这条读数是 §2.7 里「判断时机的唯一硬依据」，它说错话的代价是让人放弃一次该做的重启。
+#   口径：从 plist 的 ProgramArguments 里取，**不写死文件名**（写死就又是一张常量表）。
+#   ⚠ 取 basename 再对回仓库副本：plist 里写的是**绝对路径**，而这台机器的路径大小写
+#     与仓库实际目录不一致（`Project` vs `project`），直接 realpath+relpath 会算出
+#     `../../Project/…/tools/run_shouheng.sh` 这种读起来没有意义的相对路径。
+#     plist 的 WorkingDirectory 就是 `tools/`，所以「同名文件在 tools/ 下」这个对法是稳的。
+launch = set()
+_plist = os.path.join(root, 'tools', 'com.shouheng.lark.plist')
+if os.path.isfile(_plist):
+    _src = open(_plist, encoding='utf-8', errors='replace').read()
+    _m = re.search(r'<key>ProgramArguments</key>\s*<array>(.*?)</array>', _src, re.S)
+    if _m:
+        for _s in re.findall(r'<string>(.*?)</string>', _m.group(1)):
+            _cand = os.path.join(root, 'tools', os.path.basename(_s))
+            if os.path.isfile(_cand) and _cand.endswith(SPAWN_EXT):
+                launch.add(_cand)
+launched = sorted(os.path.relpath(p, root) for p in launch if os.stat(p).st_mtime > epoch)
+
 print('===IMPORT===')
 print('\n'.join(sorted(changed)))
 print('===SPAWN===')
 print('\n'.join(spawned))
+print('===LAUNCH===')
+print('\n'.join(launched))
 PY
 }
 
@@ -284,13 +312,19 @@ if [ -z "${SINCE_USE:-}" ]; then
 else
   RAW="$(runtime_changed_since "${SINCE_USE}")"
   CHANGED="$(printf '%s\n' "$RAW" | sed -n '/^===IMPORT===/,/^===SPAWN===/p' | sed '1d;$d')"
-  SPAWNED="$(printf '%s\n' "$RAW" | sed -n '/^===SPAWN===/,$p' | sed '1d')"
-  if [ -n "$CHANGED" ] || [ -n "$SPAWNED" ]; then
+  SPAWNED="$(printf '%s\n' "$RAW" | sed -n '/^===SPAWN===/,/^===LAUNCH===/p' | sed '1d;$d')"
+  LAUNCHED="$(printf '%s\n' "$RAW" | sed -n '/^===LAUNCH===/,$p' | sed '1d')"
+  if [ -n "$CHANGED" ] || [ -n "$SPAWNED" ] || [ -n "$LAUNCHED" ]; then
     if [ -n "$CHANGED" ]; then
       echo "  重启会生效    $(printf '%s\n' "$CHANGED" | wc -l | tr -d ' ') 个被 import 的模块在启动后被改过："
       printf '%s\n' "$CHANGED" | sed 's/^/                  /'
     else
       echo "  重启会生效    没有被 import 的模块在启动后被改过"
+    fi
+    if [ -n "$LAUNCHED" ]; then
+      echo "  另（启动器）  $(printf '%s\n' "$LAUNCHED" | wc -l | tr -d ' ') 个启动器在启动后被改过 ——"
+      printf '%s\n' "$LAUNCHED" | sed 's/^/                  /'
+      echo "                它是 **launchd 直接执行的那一个**（plist 的 ProgramArguments），重启就会用新的。"
     fi
     if [ -n "$SPAWNED" ]; then
       echo "  另（spawn）   $(printf '%s\n' "$SPAWNED" | wc -l | tr -d ' ') 个被调起的脚本在启动后被改过/新建："
@@ -300,7 +334,7 @@ else
       echo "                  要靠这次重启才会开始跑。逐条看清是哪一种，别整段照读。"
     fi
   else
-    echo "  重启会生效    无 —— 启动之后没有任何被 import 的模块或被调起的脚本被改过"
+    echo "  重启会生效    无 —— 启动之后没有任何被 import 的模块、被调起的脚本或启动器被改过"
     echo "                （那这次重启不带来任何运行时变化，先想清楚为什么还要重启）"
   fi
 fi
@@ -311,7 +345,8 @@ fi
 READING="pid=${PID:-none}
 since=${SINCE_USE:-none}
 changed=${CHANGED:-}
-spawned=${SPAWNED:-}"
+spawned=${SPAWNED:-}
+launched=${LAUNCHED:-}"
 DIGEST="$(printf '%s' "$READING" | shasum -a 256 | awk '{print $1}')"
 
 # 只有「报告但不执行」那一次才写凭证。`--check` 是纯查看，不许留下任何东西

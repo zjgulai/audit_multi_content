@@ -1,0 +1,1306 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""p0_fastpath.py —— **P0 红线快路**（PRD §6.3 第一层 / §12「P0 层响应 ≤ 1 秒」）
+
+## 它补的是哪个口子
+
+PRD 原文（`内容审查 Agent PRD` v1.2，revision 36，§6.3）：
+
+    第一层：P0 法务合规红线快速扫描（关键词/正则匹配，毫秒级）
+        ├── 命中 → 直接 BLOCK，输出问题及依据
+        └── 未命中 → 进入第二层
+
+    **执行规则 1**：P0 命中即**停止后续审查**，直接输出 BLOCK，确保法务红线零延迟拦截。
+
+§6.2 的 P0 行更写明：「**无需大模型推理**，正则/关键词命中即输出 BLOCK」。
+§12 给的下限是「P0 层响应 ≤ 1 秒」。
+
+而现状（2026-10-05 实测）：素材一律走「四层前置 + 评审链」，
+端到端 **4~10 分钟**（四单实测均值 6.25 min）—— P0 命中也不例外。
+**差在入口方式**：那条链 79.6% 的时间是通用 agent 自己在探索，而 P0 这一层**不需要 agent**。
+
+本脚本就是那一层的执行体：**确定性匹配 + 组装四段溯源**，实测 **8~10 ms**。
+
+## 铁律（每条都有代价，不是客套）
+
+1. **只对命中短路** —— 只出 `BLOCK`。**永不**产出 PASS / REVIEW。
+   未命中一律 `hit=false`，交回原链（L4→L5→L6→L7 + 评审链），**判据一条不放宽**。
+2. **不许静默**：结论里必须带 `mode=p0_fastpath` 与「未跑四层前置/评审链」的声明 ——
+   库内纪律：缺前置必须**可见**（对照 `--allow-no-layer-preflight` 的 `waived_by_caller` 口径）。
+3. **四段溯源齐**（缺一段不许出结论）：
+   条款号（L4 直查 `kb/l4/canonical/`）＋ 规则与命中片段（L5 模式 + 匹配器）＋
+   `anchor`/`source_sha256`（模式自带）＋ L0 逐字与**可点直链** `entry_url`（`kb/l0/records/`）。
+4. **不写库**：只产结论 JSON。落表 / 云文档由调用方按既有发布件做（本脚本不碰 kb/l0–l7 数据）。
+5. **它替代不了判定主体**：这一层是**确定性红线**，不是专项审查。
+   要走专项（文案/图片/视频/产品宣称/AI 权利/本地化）的场合，命中之后同样要转人/转专项 ——
+   本脚本只在结论里写明"这是 P0 确定性拦截"，**不冒充专项结论**。
+
+## 用法
+
+    sh kb/kbpy l5/p0_fastpath.py --text "<素材原文>"           # 人读
+    sh kb/kbpy l5/p0_fastpath.py --text "<素材>" --json        # 机读（调用方按 hit 分支）
+    sh kb/kbpy l5/p0_fastpath.py --file <path> --json
+
+退出码：**恒 0**（命中与否是数据，不是错误）。调用方看 `hit`。
+依赖：`kb/l5/matcher.py`（同一份模式表与匹配逻辑，**不重复实现**）。
+"""
+from __future__ import annotations
+
+import argparse
+import glob
+import importlib.util
+import json
+import os
+import re
+import sys
+import time
+from datetime import datetime
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+KB = os.path.dirname(HERE)                      # kb/
+ROOT = os.path.dirname(KB)
+CANON_DIR = os.path.join(KB, "l4/canonical")
+L0_RECORDS = os.path.join(KB, "l0/records")
+
+
+def _load_matcher():
+    """复用 kb/l5/matcher.py 的 match() —— 一份模式表、一套匹配逻辑。"""
+    p = os.path.join(HERE, "matcher.py")
+    spec = importlib.util.spec_from_file_location("p0_matcher", p)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_L4_INDEX = None            # rule_id → 记录（**唯一键**；实测 632 组）
+_L4_BY_RC = None            # rule_code → [记录…]（**非唯一**；实测 15 个键一对多）
+
+
+def _l4_load():
+    """读 L4 canonical，**两个键分开存**。一次读盘、两个索引 —— 不许把非唯一键当唯一键用。"""
+    global _L4_INDEX, _L4_BY_RC
+    if _L4_INDEX is not None:
+        return
+    _L4_INDEX, _L4_BY_RC = {}, {}
+    for p in sorted(glob.glob(os.path.join(CANON_DIR, "*.jsonl"))):
+        try:
+            with open(p, encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        d = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if not d.get("article_no"):
+                        continue
+                    rec = {
+                        "article_no": d.get("article_no"),
+                        "form": d.get("form"),
+                        "rule_id": d.get("rule_id"),
+                        "source_file": os.path.relpath(p, ROOT),
+                    }
+                    rid = d.get("rule_id")
+                    if rid and rid not in _L4_INDEX:        # rule_id 唯一 ⇒ 首个即唯一
+                        _L4_INDEX[rid] = rec
+                    rc = d.get("rule_code")
+                    if rc:
+                        _L4_BY_RC.setdefault(rc, []).append(rec)
+        except OSError:
+            continue
+
+
+def _l4_clause(rule_id=None, rule_code=None):
+    """条款号（L4 定稿层）——**主键 `rule_id`**，`rule_code` 只在一对一时回落。
+
+    ★★ 2026-10-10：主键从 `rule_code` 换成 `rule_id`（**接线缺陷修复，不是重构**）
+    ─────────────────────────────────────────────────────────────────────────
+    旧实现按 `rule_code` 建索引、注释写「首个命中即采用（与 L4 内的排序一致）」。
+    实测（2026-10-10，读 L4 canonical 五个形态件）：
+        rule_code → 条款号 共 22 个键，其中 **15 个键一对多**：
+            H02 → [W-1.18, W-1.47]      H04 → [W-1.13, W-1.41]
+            H05 → [W-1.33, W-1.22]      …
+    ⇒ 旧实现的号**取决于文件排序**，没有判据守着；一旦 L4 重建换了顺序、或同一
+      rule_code 新增一条，引用的条款号会**静默换人**（错号比空号更坏 —— 空号人会去补，
+      错号人不会回头看）。
+
+    **当前 11 条 P0 恰好取对**（逐条实测：按 rule_code 取 == 按 rule_id 取，11/11），
+    所以这是**隐患**不是现行事故 —— 修的是"靠巧合"这件事本身。
+
+    本文件里的 `_l3_rule()` 早就写着「★ 为什么用 `rule_id` 而不是 `rule_code`」——
+    同一份文件里的两个函数本该用同一种键。
+
+    返回：`{"article_no", "form", "rule_id", "source_file", "via"}`，`via ∈ {rule_id, rule_code}`；
+    **取不到就返回 None（不猜）** —— 一对多时宁可让人来核，也不许挑一个。
+    """
+    _l4_load()
+    if rule_id and rule_id in _L4_INDEX:
+        r = dict(_L4_INDEX[rule_id])
+        r["via"] = "rule_id"
+        return r
+    if rule_code:
+        rows = _L4_BY_RC.get(rule_code) or []
+        nos = {x["article_no"] for x in rows}
+        if len(nos) == 1:                   # 恰好一个号 ⇒ 该 rule_code 无歧义，可回落
+            r = dict(rows[0])
+            r["via"] = "rule_code"
+            return r
+        if len(nos) > 1:                    # ★ 一对多 ⇒ **不猜**（旧实现在这里取了首个）
+            return None
+    return None
+
+
+def _l4_clause_miss_reason(rule_id, rule_code):
+    """取不到条款号时**把成因写出来** —— 「查不到」与「一对多不敢猜」是两件事，
+    混成一句会让人去修一个本来就没坏的东西。"""
+    _l4_load()
+    if rule_id and rule_id not in _L4_INDEX:
+        return "rule_id %s 不在 L4 映射里" % rule_id
+    if rule_code:
+        nos = {x["article_no"] for x in (_L4_BY_RC.get(rule_code) or [])}
+        if len(nos) > 1:
+            return "rule_code %s 在 L4 里一对多（%s）⇒ 不猜，需人工核" % (
+                rule_code, "、".join(sorted(nos)))
+    return "L4 里未按 rule_id/rule_code 查到"
+
+
+def _l0_verbatim(anchor):
+    """L0 逐字 + **可点直链**。
+
+    anchor 形如 `#<表名>/<record_id>/<字段名>`（如 `#广告文案明细/recvuJYdOb1B8v/命中片段`）。
+    L0 件在 `kb/l0/records/<源库标签>__<表名>/<record_id>.json`，内含 `entry_url`（飞书那条原始记录）。
+    """
+    if not anchor or not anchor.startswith("#"):
+        return None
+    parts = anchor.lstrip("#").split("/")
+    if len(parts) < 2:
+        return None
+    table, record_id = parts[0], parts[1]
+    field = parts[2] if len(parts) > 2 else None
+    cands = glob.glob(os.path.join(L0_RECORDS, "*__%s" % table, "%s.json" % record_id))
+    if not cands:
+        cands = glob.glob(os.path.join(L0_RECORDS, "**", "%s.json" % record_id), recursive=True)
+    if not cands:
+        return {"record_id": record_id, "table": table, "field": field,
+                "entry_url": None, "raw_verbatim": None,
+                "note": "L0 里找不到这条记录 ⇒ 直链缺失，需人工回源"}
+    try:
+        d = json.load(open(cands[0], encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    fv = ((d.get("fields") or {}).get(field) or {}) if field else {}
+    return {
+        "record_id": d.get("record_id") or record_id,
+        "table": d.get("source_table") or table,
+        "field": field,
+        "entry_url": d.get("entry_url"),
+        "raw_verbatim": fv.get("raw_verbatim") or fv.get("value"),
+        "l0_file": os.path.relpath(cands[0], ROOT),
+    }
+
+
+#: `pattern_id → 条款号`（模式表自带那一格）。懒加载一次，跟 `_L3_INDEX` 同一套做法。
+_ART_INDEX = None
+
+
+def _article_of(pattern_id):
+    """模式表里这条模式自带的条款号；取不到返回 **None（不编）**。
+
+    ★★ 2026-10-14 加。`matcher.match()` 的返回里**没有** `article_no`，而模式表
+      （`kb/l5/p0_patterns.jsonl`，实测 17/17 条都带这一格）**有** ⇒ 不补这一跳，
+      渲染层只能写「（来源未给条款号）」。**这不是缺数据，是缺一次搬运。**
+
+    ★ 为什么不从 L3 候选取：`kb/l3/candidates/external_standard.jsonl` **有重复行**
+      （同一个 `rule_id` 两行，条款号一格 `E-1.3419`、一格 `E-2.124`，`rule_text` 逐字相同）
+      ⇒ 「先读到的先用」等于**随机取一个号**。取证：`kb/l7/registry/layers.yaml:217` 明写
+      这 123 条条款级规则「唯一正确的段是 **E-2**」⇒ 模式表那格 `E-2.124` 才是对的。
+    """
+    global _ART_INDEX
+    if _ART_INDEX is None:
+        _ART_INDEX = {}
+        try:
+            with open(os.path.join(KB, "l5/p0_patterns.jsonl"), encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        d = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    pid, art = d.get("pattern_id"), d.get("article_no")
+                    if pid and art and pid not in _ART_INDEX:
+                        _ART_INDEX[pid] = art
+        except OSError:
+            pass
+    return _ART_INDEX.get(str(pattern_id or ""))
+
+
+def evaluate(text, report_ref=""):
+    """跑一次快路。返回结论 dict（`hit=false` 时只有 mode/elapsed）。
+
+    `report_ref`（2026-10-06）：报告链接，**只填进回执**，本函数不生成报告、不碰 IO ——
+    「P0 响应 ≤1s」与「报告生成 ≤30s」是 PRD §12 的两条独立指标，不许在一条路上等另一条。
+    """
+    t0 = time.perf_counter()
+    m = _load_matcher()
+    hits = m.match(text)
+    dt_ms = round((time.perf_counter() - t0) * 1000, 3)
+    # ★★ 2026-10-14：**把模式表自带的 `article_no` 补进命中**。
+    #   病灶（实测那条 V02）：`matcher.match()` 只回 `rule_id/rule_code/matched/anchor/…`，
+    #   **不回收模式表里的 `article_no`** ⇒ 渲染层取 `finding["article_no"]` 永远拿到 None
+    #   ⇒ 依据退化成「第 （来源未给条款号） 条」。**手上有号却说没有。**
+    #   为什么信模式表这一格：它与模式表同源、逐条可核；而 L3 候选 `external_standard.jsonl`
+    #   **存在重复行**（同一 rule_id 两行：E-1.3419 / E-2.124）⇒ 从 L3 取反而可能取到错的。
+    #   取证：`kb/l7/registry/layers.yaml:217` 明写这 123 条条款级规则「唯一正确的段是 E-2」。
+    hits = [dict(h, article_no=h.get("article_no") or _article_of(h.get("pattern_id"))) for h in hits]
+
+    out = {
+        "mode": "p0_fastpath",
+        "hit": bool(hits),
+        "elapsed_ms": dt_ms,
+        "matched_patterns": len(hits),
+        "text_chars": len(text or ""),
+        # 可见性：这一条结论**没有**走四层前置与评审链，必须说清楚
+        "layer_preflight": {
+            "mode": "p0_fastpath",
+            "enforced": False,
+            "why": "PRD §6.3 第一层：P0 命中即停止后续审查；本结论**未跑** L4→L7 层前置与评审链",
+            "is_pass_basis": False,
+        },
+    }
+    if not hits:
+        out["state"] = None
+        out["next"] = "未命中 P0 ⇒ 交回原链（L4→L5→L6→L7 + 评审链），判据一条不放宽"
+        return out
+
+    findings = []
+    for h in hits:
+        rc = h.get("rule_code")
+        findings.append({
+            "rule_code": rc,
+            "level": h.get("level") or "P0",
+            "verdict": h.get("match_note") or "BLOCK",          # 判据来自模式表，不在这里新造
+            "pattern_id": h.get("pattern_id"),
+            "rule_id": h.get("rule_id"),
+            # 段②：规则 / 命中片段（L5 模式 + 匹配器读数）
+            "matched": h.get("matched") or [],
+            "matched_count": h.get("matched_count"),
+            "whitelist_suppressed": h.get("whitelist_suppressed"),
+            "suggested_replacement": h.get("suggested_replacement") or "",
+            # 段③：锚点 + 指纹（模式自带）
+            "anchor": h.get("anchor"),
+            "source_sha256": h.get("source_sha256"),
+            # ★★ 2026-10-14：**把模式表自带的条款号搬进命中** —— 它原先没被传进来。
+            #   病灶（实测那条 V02）：模式表 `p0_patterns.jsonl` 里明写 `article_no="E-2.124"`，
+            #   而渲染层取的是 `finding["article_no"]` ⇒ **永远是 None** ⇒ 依据退化成
+            #   「第 （来源未给条款号） 条」。**手上有号却说没有**，是最没道理的一种缺。
+            #   为什么该信模式表这一格：它与模式表**同源、逐条可核**，且 L3 候选里那条
+            #   `external_standard.jsonl` **有重复行**（同一 rule_id 两行、条款号一格 E-1.3419
+            #   一格 E-2.124）⇒ 从 L3 取反而可能取到错的那个（见 `_item_fields` 的顺序注释）。
+            "article_no": h.get("article_no"),
+            # 段①：条款号（L4 直查）
+            # ★ 2026-10-10：主键改用 rule_id（唯一）；rule_code 在 L4 里一对多 ⇒ 只作回落
+            "clause": _l4_clause(rule_id=h.get("rule_id"), rule_code=rc),
+            # 段④：L0 逐字 + 直链
+            "verbatim": _l0_verbatim(h.get("anchor")),
+            # ★ PRD §5.3.3 逐条格式要的两格（2026-10-06 加）：
+            #   `【类别-子类】` 与 `原因 / 库名 / 版本`。两者都不在 P0 模式表里，
+            #   分别从**受控词表**（l7.json 的 vocabulary）与 **L3 规则**（按 rule_id 查）取。
+            "_category": _vocabulary().get(rc),
+            "_l3": _l3_rule(h.get("rule_id")),
+        })
+
+    out["state"] = "BLOCK"
+    out["findings"] = findings
+    out["issue_count"] = len(findings)
+    # ── 产品线 / 渠道（Owner 2026-10-06）───────────────────────────────────────────
+    #   现场原话：「里面的产品线和渠道都是空或者未指定，运行任务的时候从知识库命中产品线和
+    #   渠道的都填写进去」。⇒ 值只从 `kb/l5/l0_facets.py` 出（**唯一取数点**），字段名按实测登记
+    #   （`品线`；`平台`/`渠道/市场`），**取不到就留空** —— 不许从素材正文猜、也不许拿规则样本的属性充数。
+    out["facets"] = _facets_of(findings, text)
+    out["product_line"] = out["facets"].get("product_line") or ""
+    out["channel"] = out["facets"].get("channel") or ""
+    out["rendered"] = _render(text, findings, report_ref)
+    return out
+
+
+_VOCAB = None
+_FACETS = None
+
+
+def _facets_mod():
+    """导入同层的 `l0_facets`（**产品线 / 渠道的唯一取数点**）。
+
+    ★ 为什么不在这里再写一份「从 L0 取品线/平台」：
+      评审链（`kb/l8/review_run.sh` 的机读旁挂）也要**同一份**值。
+      两处各写一份 ⇒ 迟早一个取 `品线`、一个取 `适用产品`，同一条素材两个答案。
+      所以值只从 `l0_facets.py` 出，本文件与旁挂都调它。
+    """
+    global _FACETS
+    if _FACETS is None:
+        p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "l0_facets.py")
+        spec = importlib.util.spec_from_file_location("l0_facets", p)
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        _FACETS = m
+    return _FACETS
+
+
+def _facets_of(findings, text=""):
+    """素材属性（产品线 / 渠道）：**本素材自己的记录**优先，其次**素材原文**；取不到就空。
+
+    ★ 口径（2026-10-06 收紧，见 `l0_facets.record_is_this_material`）：
+      命中的 L0 记录**大多是规则样本**（比如那条真实投放的 Google 广告）—— 它的 `品线/平台`
+      是**那条样本自己的投放属性**，拿来当本次素材的属性就是编数据。
+      ⇒ 只有过了「这条记录是不是本素材本人」那道闸的记录才采信；否则回落素材原文受控词。
+    ★ 取不到就空，不抛错、不阻断结论。
+    """
+    try:
+        anchors = [f.get("anchor") for f in (findings or []) if f.get("anchor")]
+        return _facets_mod().facets_for_anchors(anchors, text or "")
+    except Exception as e:                                   # noqa: BLE001
+        return {"product_line": "", "channel": "", "from": {},
+                "all_product_lines": [], "all_channels": [], "anchors_used": 0,
+                "error": "%s: %s" % (type(e).__name__, e)}
+
+
+def _vocabulary():
+    """`rule_code` → 「类别-子类」。**单一真源 = `kb/l7/registry/l7.json` 的 `vocabulary`。**
+
+    ★ 为什么读 registry 而不是抄一份：`kb/l7/skills/kb-content-review/references/categories.md`
+      第一行自己写着「来源：kb/l7/registry/l7.json → vocabulary（**本文件是它的可读投影，
+      口径以 registry 为准**）」。抄第二份必然过期 —— 本库已因「同一事实写三处不一致」返工过一次。
+
+    ★ 为什么 P0 快路要它：PRD §5.3.2/§5.3.3 的**逐条**格式要求每条以 `【类别-子类】` 开头，
+      而 P0 模式表里只有 `rule_code`，没有类别。映射是静态的，读一次即缓存。
+    """
+    global _VOCAB
+    if _VOCAB is None:
+        _VOCAB = {}
+        try:
+            with open(os.path.join(KB, "l7/registry/l7.json"), encoding="utf-8") as fh:
+                cats = (json.load(fh).get("vocabulary") or {}).get("categories") or {}
+            for cat, node in cats.items():
+                for sub, sn in (node.get("subs") or {}).items():
+                    for code in (sn.get("codes") or []):
+                        _VOCAB.setdefault(code, "%s-%s" % (cat, sub))
+        except (OSError, json.JSONDecodeError, AttributeError):
+            pass
+    return _VOCAB
+
+
+_L3_INDEX = None
+
+
+#: L3 候选件（**按优先级**）。★ 见 `_l3_rule` 的注释：只读第一份会漏掉整类 P0。
+_L3_FILES = ("rules.jsonl", "external_standard.jsonl", "sample_cases.jsonl")
+
+
+def _l3_rule(rule_id):
+    """按 `rule_id` 取 L3 规则，只取渲染 §5.3 逐条要用的几格（原因 / 库名 / 版本 / 条款号 / 来源）。
+
+    ★ 为什么用 `rule_id` 而不是 `rule_code`：`REDLINE-CLAUSE-MAP-20260930.md` 明写
+      「**`rule_code` 在全库不唯一**……只写『H02 = W-1.18』无法唯一定位；带 `rule_id` 才能回源」。
+
+    ★★ 2026-10-14 修（Owner 报「依据里必须是飞书链接，不许出现『（来源未给库名）』」）：
+      **病灶：这个取值口原先只读 `rules.jsonl` 一份文件。**
+      而 2026-10-13 起，「外部标准」那一路的条款（Owner 定的可引用依据）落在
+      **`external_standard.jsonl`** —— 于是凡是命中那些条款的 P0，这里一律查不到 ⇒
+      渲染成 `《（来源未给库名） v0（试用版，未发布）》第 （来源未给条款号） 条`。
+      **实测复现**（素材「m8 pro吸奶器是最好的吸奶器」）：
+        · 模式表 `kb/l5/p0_patterns.jsonl` 里那条 V02 **明明带着** `article_no=E-2.124`；
+        · `external_standard.jsonl:253` 也有它，`kb_type=external_standard`、
+          `resource_id=url__momcozy_in.feishu.cn_wiki_NB55wAq8liEOdKkquL2cgtPEnmg`（**飞书 wiki 直链**）；
+        · 但索引只读 `rules.jsonl`（`grep` = **0 行**）⇒ 三格全空 ⇒ 业务同事拿到一个点不开的依据。
+      ⇒ 现在读**全部**候选件；并且多取一格 `resource_id` —— 那是「这条依据出自哪份原件」，
+        渲染层据此给出**可点的飞书直链**（见 `_item_fields`）。
+      ⚠️ 优先级 = `_L3_FILES` 的顺序（先读到的先用）：`rules.jsonl` 是主件，
+        `external_standard.jsonl` 补它没有的，`sample_cases.jsonl` 最后兜。
+    """
+    global _L3_INDEX
+    if _L3_INDEX is None:
+        _L3_INDEX = {}
+        for name in _L3_FILES:
+            try:
+                fh = open(os.path.join(KB, "l3/candidates", name), encoding="utf-8")
+            except OSError:
+                continue                      # 缺一份不影响其余：**缺什么就少什么**，不静默当成空库
+            with fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        d = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    rid = d.get("rule_id")
+                    if rid and rid not in _L3_INDEX:
+                        _L3_INDEX[rid] = {
+                            "reason": d.get("reason"),
+                            "kb_type": d.get("kb_type"),
+                            "kb_version": d.get("kb_version") or "v0",
+                            "article_no": d.get("article_no"),
+                            "rule_code": d.get("rule_code"),
+                            "fix_pairs": d.get("expression_fix_pairs") or [],
+                            "resource_id": d.get("resource_id"),
+                        }
+    return _L3_INDEX.get(rule_id)
+
+
+def _resource_url(resource_id):
+    """把条款的 `resource_id` 接成**可点的飞书直链**；接不到就 **None**（宁缺勿假）。
+
+    ★★ 2026-10-14 新增（Owner：「依据这里**必须**给飞书链接」）。三种形状：
+
+      · `bitable__<table>__<record>` —— 库内 `l0/records/` 有对齐件的，读它自己的 `entry_url`
+        （与 `review-engine/core/selfhit_check.l0_entry_url()` **同一口径**，不另立一套）。
+      · `url__<host>__<path…>__<token>` —— 原件本身就是一条 URL（实测形状：
+        `url__momcozy_in.feishu.cn_wiki_NB55wAq8liEOdKkquL2cgtPEnmg` ⇒
+        `https://momcozy-in.feishu.cn/wiki/NB55wAq8liEOdKkquL2cgtPEnmg`）。
+        ⚠️ 这个编码是**有损**的（域名里的 `-` 与路径里的 `.` 都被写成 `_`）——
+        所以**只认能唯一还原的那几类路径**（wiki/docx/sheets/base/file），
+        其余一律返回 None。**不猜**：一个点不开的链接比一句「取不到」更坏。
+      · 其余前缀（`wiki:` / `docx:` …）—— 这里**不处理**：那类要么得查一次 token，
+        要么得走 `_clickable_of` 的完整映射，属评审链那一侧；P0 快路只用上面两种，
+        拿不到就如实写「取不到」。
+
+    ⚠️ 纪律：**不许**在这里拼一个"看起来像"的链接。取不到 ⇒ 渲染层写「（取不到直链）」，
+      并由 `--selftest` 逐条盯着（见 ⑥c）。
+    """
+    rid = str(resource_id or "")
+    if rid.startswith("bitable__"):
+        rest = rid[len("bitable__"):]
+        for sub in ("2_内部正负样本库", "1_外部标准库"):
+            fp = os.path.join(KB, "l0", sub, "feishu_bitable_record__%s.json" % rest)
+            if os.path.exists(fp):
+                try:
+                    with open(fp, encoding="utf-8") as fh:
+                        return json.load(fh).get("entry_url") or None
+                except (OSError, json.JSONDecodeError):
+                    return None
+        return None
+    if rid.startswith("url__"):
+        body = rid[len("url__"):]
+        for kind in ("wiki", "docx", "sheets", "base", "file"):
+            marker = "_%s_" % kind
+            i = body.rfind(marker)
+            if i <= 0:
+                continue
+            host, token = body[:i], body[i + len(marker):]
+            if not re.fullmatch(r"[A-Za-z0-9]{20,30}", token or ""):
+                return None                     # token 形状不对 ⇒ 不拼（宁缺勿假）
+            host = host.replace("_", "-")       # `momcozy_in.feishu.cn` → `momcozy-in.feishu.cn`
+            return "https://%s/%s/%s" % (host, kind, token)
+        return None
+    return None
+
+
+# `kb_type` → 人读的库名（四类库，`kb/l7/registry/l7.json` 的受控枚举）。
+# ★★ 2026-10-14：键是 L1–L3 的 `kb_type` **真值**。原先只写了四个短名
+#   （`external`），而 2026-10-13 起外部标准那一路的 `kb_type` 实际是
+#   **`external_standard`** ⇒ 命中它的条款一律渲染成 `《external_standard v0…》`
+#   （Owner 2026-10-14 截图里那个「（来源未给库名）」就是它的近亲）。
+#   ⇒ 两种写法都认；**认不出就不猜**（保留原样，让人一眼看见）。
+_LIB_NAME = {"wording": "措辞表达库", "samples": "内部正负样本库",
+             "external": "外部标准库", "external_standard": "外部标准库",
+             "product": "产品描述库", "product_info": "产品描述库"}
+
+
+def _suggestion_for(finding, article_no=None):
+    """**这一条命中**该改什么 —— 按命中片段从该规则的逐条修订组里挑，不把整张表灌进来。
+
+    ★ 2026-10-06 加，起因是把 §5.3.3 的逐条块接上之后当场暴露的：
+      P0 模式表的 `suggested_replacement` 是**该 rule_code 下所有修订组的拼接**
+      （实测 W-1.18 那一格连着 26 组、几千字，末尾自己写着「另 26 组同码修订建议见证据单元」）。
+      直接填进「建议：」那一格 ⇒ 一条建议几千字，卡片与上下文都会被撑爆。
+
+    ★ 判据是「按**命中片段**挑」，不是「截断了事」：L3 规则的 `expression_fix_pairs`
+      每条都带 `fragment`（违规片段）与 `fix`（怎么改）。命中的是 `increase milk supply`，
+      就该给那一组的改法。挑不到才退回首组，并**写明还有几组** —— 不假装这就是全部。
+    """
+    rule = finding.get("_l3") or {}
+    pairs = rule.get("fix_pairs") or []
+    # ★ 2026-10-21：正则命中时 `pattern` 是正则源码，不是文本片段 ⇒ 优先用 `text`
+    hit_frags = [(str(m.get("text") or "") if m.get("kind") == "regex" else str(m.get("pattern") or ""))
+                 for m in (finding.get("matched") or [])]
+    def norm(x):
+        return str(x or "").lower().replace(" ", "")
+    for p in pairs:
+        frag = str(p.get("fragment") or "")
+        for h in hit_frags:
+            if not h or len(h) > 60:          # 正则那条（\b…）不当片段比
+                continue
+            a, b2 = norm(frag), norm(h)
+            if a and (a in b2 or b2 in a):
+                return _with_pointer(str(p.get("fix") or "").strip() or "（该组未给改法）", pairs, article_no)
+    if pairs:
+        return _with_pointer(str(pairs[0].get("fix") or "").strip(), pairs, article_no, first=True)
+    return (finding.get("suggested_replacement") or "（来源未给修改建议）")[:300]
+
+
+def _with_pointer(fix, pairs, article_no, first=False):
+    """给建议补一句**全量在哪儿** —— 不截断，也不假装这一组就是全部。
+
+    库规是「**搬是搬，砍是砍**」：超长内容搬到别的格子、一个字符不丢，不许截断。
+    这里那个「别的格子」就是规则文件本身 —— 逐条修订建议的全量在
+    `kb/l3/candidates/rules.jsonl#<条款号>`，读者按指针回源即可。
+
+    ★ 条款号必须**由调用方传进来**（用 `clause` 里那个，即「依据」行用的同一个）：
+      第一版自己去 L3 规则里摸 `article_no`，而那一格在 L3 候选里是**空的** ⇒
+      指针写成「rules.jsonl#（无条款号）」，**一个指向空处的链接**。
+      这是端到端预演里**看**出来的（判据没抓到），所以顺手补了自证的 ⑥c。
+    """
+    if len(pairs) <= 1:
+        return fix
+    how = "按首组给出" if first else "按命中片段给出"
+    return "%s（本码共 %d 组修订建议，此处%s；全量见 kb/l3/candidates/rules.jsonl#%s）" % (
+        fix, len(pairs), how, article_no or "（无条款号）")
+
+
+def _five_three_block(findings, report_ref=""):
+    """PRD §5.3.3 的**逐条块**（问题数 1–2 时逐条输出；≥3 时分类汇总 + 报告链接）。
+
+    ★ 2026-10-06 加。事故：Owner 拿 PRD §5.3.3 的模板对照守衡发出去的 BLOCK 卡片 ——
+      **抬头是对的、逐条四要素整块没有**。根因是渲染器有两套，而这一套（P0 快路）
+      只出「四段溯源表格」，从没出过 §5.3 的逐条格式。改 `review_engine.py` 那套**改不到这里**。
+
+    ★ 措辞**逐字照 PRD**，不许同义替换（`【审查结论：BLOCK】共发现 N 处必须修改。` /
+      `请修改后重新提交。`）。缺的格子写「（来源未给 X）」，**不代填**：
+      缺了要看得见，替它圆过去才是真出错。
+
+    ★ `report_ref`（2026-10-06 加）= 报告的**链接或路径**，由调用方给。
+      PRD §12 把「P0 层响应 ≤1s」与「报告生成 ≤30s」定成**两条独立指标** ⇒
+      **回执不许等报告**：这里只负责把链接填进去，报告本身在回执之后生成。
+      为空就照实说「报告稍后补」—— **不编一个链接**（编了等于把没发生的事写成发生了）。
+    """
+    n = len(findings)
+    L = ["【审查结论：BLOCK】共发现 %d 处必须修改。" % n, ""]
+    if n >= 3:
+        # PRD §5.3.3「≥3 个时只输出分类汇总 + 报告链接」
+        # ★ 计数只走 `_summary_lines`（= `_summary_counts`）—— 与报告同一份，见那里的注释。
+        L.extend(_summary_lines(findings))
+        L.append("")
+        L.append("→ 查看完整问题清单与修改建议：%s" % (
+            report_ref or "（报告在**回执之后**补，稍后单独发；补到之前这一格不填）"))
+        L.append("")
+        L.append("请修改后重新提交。")
+        return L
+
+    L.extend(_prd_block(_item_fields(findings)))
+    L.append("请修改后重新提交。")
+    return L
+
+
+def _basis_line(lib, ver, art, entry_url):
+    """「依据」行 —— PRD §5.3.3 的版式：`《库 版本》第 X 条（链接：<url>）`。
+
+    ★ 2026-10-08（Owner 原话：「**依据中，链接必须是飞书链接，我点击可以打开的**」）：
+      改前这里印的是 `kb/l3/candidates/rules.jsonl#W-1.8` —— **库内相对路径，业务同事点不开**；
+      而且 L1–L3 是库的**内部加工层**，点进去也没有下一步动作。
+      现在链接槽位放 **L0 飞书记录直链**（`entry_url`，取自 `_l0_verbatim`）。
+
+      ⚠️ 取不到时**照实说取不到**，绝不拿库内路径冒充「原始出处」——
+         PRD §5.3.3 原文要的是 `（链接：https://...）`，相对路径本来就不满足它。
+      ⚠️ 与走链那侧（`review_engine._evidence_line`）**措辞不同、方向一致**：
+         那侧今天改成了 `← 逐字命中「…」｜原始出处：<url>`；本侧按 PRD 保持 `（链接：…）` 形状，
+         因为 `_prd_block` 的版式是 PRD 逐字契约（selftest ④/⑥c 盯着）。
+    """
+    if entry_url:
+        return "《%s %s（试用版，未发布）》第 %s 条（链接：%s）" % (lib, ver, art, entry_url)
+    return ("《%s %s（试用版，未发布）》第 %s 条"
+            "（链接：未定位到飞书直链；库内路径 kb/l3/candidates/rules.jsonl#%s）"
+            % (lib, ver, art, art))
+
+
+def _item_fields(findings):
+    """每条问题的**六格内容** —— 回执与报告**唯一的抽取点**。
+
+    ★ 2026-10-06 加，起因是 Owner 现场报：「守衡说 3 个问题，云文档里只落 1 个」。
+      **实测云文档里三条都在**（三个独立 `<p>`），但**读起来像一条**，根因是版式：
+      `1.` 后面**紧跟 `【`（没有空格）** ⇒ markdown 不认成有序列表 ⇒
+      三条各是**一堵整段**（实测 776 / 569 / **1127** 字），没有标题层级、进不了文档目录，
+      第一屏只看得见第 1 条。**用户看到的是真的，只是原因不是"没写进去"。**
+
+    ⇒ 结论：**内容只能有一套，版式必须按介质分两套**。
+      格子的值在这里一次取好，回执与报告都从这里取；两种版式只是排版，不许各抽一套。
+      （这一条是「**后续两端数据必须对齐**」的落点：值同源、计数同源，见 `_summary_counts`。）
+    """
+    items = []
+    for i, f in enumerate(findings, 1):
+        cl = f.get("clause") or {}
+        vb = f.get("verbatim") or {}
+        rule = f.get("_l3") or {}
+        lib = _LIB_NAME.get(str(rule.get("kb_type") or ""), rule.get("kb_type") or "（来源未给库名）")
+        # ★★ 2026-10-14：条款号**先取模式表自带的那一格**。
+        #   病灶：`clause` 与 `_l3` 都取不到时原先直接写「（来源未给条款号）」，
+        #   而**模式表 `p0_patterns.jsonl` 里本来就带着 `article_no`**
+        #   （实测那条 V02：`article_no="E-2.124"`）—— 手上有号却说没有，是最没道理的一种缺。
+        #   顺序：L4 canonical（最权威）→ L3 候选 → 模式表自带 → 才算真没有。
+        #   ⚠️ 顺序在 2026-10-14 当天**改过一次，这里是第二次的结论**：
+        #     第一版写成 `L4 → L3 → 模式表`，实测**踩中一条脏数据** ——
+        #     `external_standard.jsonl` 里 **129 个 rule_id 全部重复**（同一 rid 两行，
+        #     条款号一格是 `E-1.3419`、另一格是 `E-2.124`，`rule_text` 逐字相同），
+        #     于是「先读到的先用」等于**随机取一个号**。
+        #     取证：`kb/l7/registry/layers.yaml:217` 明写「这 123 条是**条款级（法条型）**规则…
+        #     唯一正确的段是 **E-2**」⇒ `E-2.124` 才是对的那个；`E-1.3419` 是重复行带进来的。
+        #     ⇒ 模式表自带的那格**与模式表同源、逐条可核**，优先于可能有重复的 L3 候选。
+        #       （L4 canonical 仍最优先：真发过号的以台账为唯一真源。）
+        art = (cl.get("article_no") or f.get("article_no")
+               or rule.get("article_no") or "（来源未给条款号）")
+        # ★ 链接：L0 逐字回源的 `entry_url` 优先；没有就用条款的 `resource_id` 现接一条。
+        _entry = (vb or {}).get("entry_url") or _resource_url(rule.get("resource_id")) or ""
+        items.append({
+            "n": i,
+            "code": f.get("rule_code") or "（来源未给规则码）",
+            "category": f.get("_category") or "未分类-未分类",
+            "quote": "、".join("`%s`" % m.get("pattern") for m in (f.get("matched") or [])[:6]) or "—",
+            "reason": rule.get("reason") or "（来源未给判定理由）",
+            "article_no": art,
+            "basis": _basis_line(lib, rule.get("kb_version") or "v0", art, _entry),
+            "anchor": "%s｜source_sha256：%s" % (
+                f.get("anchor") or "（来源未给锚点）",
+                f.get("source_sha256") or "（来源未给指纹）"),
+            # ★★ 2026-10-14（Owner 裁定）：`verdict` 这一格**已删** —— 它原先被渲染成逐条块里的
+            #   `**判定**：事实（确定性逐字匹配）｜置信度：未给…`，而 PRD §5.3 逐条模板里
+            #   没有这一行、三态只在结论行一处。**没有任何下游读它**（`grep verdict`：
+            #   只有 `_prd_block` / `_doc_block` 两个渲染点，均已同步删除）⇒ 直接去掉这一格，
+            #   不留「渲染删了、数据还在」的半截状态。
+            "advice": _suggestion_for(f, art),
+            "entry_url": _entry,
+        })
+    return items
+
+
+_DIM = None
+
+
+def _load_dimension():
+    """加载**维度模块**（唯一实现 = `kb/l7/skills/kb-content-review/scripts/risk_category.py`）。
+
+    ★ 为什么按路径加载（与 `_load_matcher()` 同一手法）：本文件在 `kb/l5/`，而唯一实现在
+      L7 的 skill 目录下。写成包导入会造出一条**隐式耦合**（L5 依赖 L7 skill 的内部布局）；
+      按路径加载把这条耦合**写在明处** —— 路径改了会当场报错，而不是悄悄走第二条口径。
+    ★ 为什么必须共用同一份：**维度映射是口径**。P0 快路自己再写一份 ⇒
+      「回执说合规、报告说措辞表达」那类两端打架（本库为「同一事实两处不一致」返工过）。
+    """
+    global _DIM
+    if _DIM is None:
+        try:
+            _p = os.path.join(KB, "l7", "skills", "kb-content-review", "scripts",
+                              "risk_category.py")
+            spec = importlib.util.spec_from_file_location("kb_risk_category_l5", _p)
+            m = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(m)
+            _DIM = m
+        except Exception as e:                                # noqa: BLE001
+            print("[risk_category] ⚠ 维度模块加载失败 ⇒ 汇总**退回库内类别**（不编维度）：%s" % e,
+                  file=sys.stderr)
+            _DIM = False
+    return _DIM
+
+
+def _summary_key(f):
+    """一条命中的**汇总分组键**：PRD §5.3 的四维；未映射的落桶（桶名与另两处**同一个词**）。
+
+    `_category` 的形态是「类别-子类」（`_vocabulary()` 给的）⇒ 取 `-` 前那段再问维度。
+    取不到维度模块 ⇒ 退回**库内类别**（= 改前行为），告警已在 `_load_dimension()` 里打过。
+    """
+    cat = (f.get("_category") or "未分类-未分类").split("-")[0]
+    m = _load_dimension()
+    if not m:
+        return cat
+    return m.dimension_of(cat)[0] or m.UNMAPPED_BUCKET
+
+
+def _summary_counts(findings):
+    """分类汇总的**计数** —— 回执与报告**同一个计数点**。
+
+    ★ 「两端数据必须对齐」在这里落地：回执上那句「· X类问题：N 个」与报告开头那份汇总
+      **必须是同一次 Counter 的结果**。各算一次就会出现「回执说 3、报告说 2」——
+      而那正是 Owner 2026-10-06 报的那类事故的**形状**（数量对不上）。
+      所以：**只有这一个函数能数数**，谁都不许自己 `counter()` 一遍。
+
+    ★★ 2026-10-12（Owner 批准「推荐 ①」）：**分组键从「库内类别」改成 PRD §5.3 的四维**。
+      改前印的是「· 功效宣称类问题：1 个」，而 PRD §5.3.2 的逐字示例是「· 合规类问题：3 个」
+      —— 分的是**维度**，不是库内类别。评审链那一端（`review.py::render()` 的 ≥3 分支）
+      同批改成同一口径；两端的桶名都取 `risk_category.UNMAPPED_BUCKET`（**不各写一份**）。
+      ⚠️ 改的是**分组键**，不是计数：⑥e「两端各算一次、都必须等于 N」那条判据一个字没动。
+    """
+    from collections import Counter
+    return Counter(_summary_key(f) for f in findings)
+
+
+def _summary_lines(findings):
+    """分类汇总的**行**（回执与报告共用同一份文本）。"""
+    m = _load_dimension()
+    bucket = m.UNMAPPED_BUCKET if m else None
+    # 「未标注维度」压到最后：排序**不另写一份四维词表**（那会是第二份口径）。
+    return ["· %s类问题：%d 个" % (c, k)
+            for c, k in sorted(_summary_counts(findings).items(),
+                               key=lambda kv: (bucket is not None and kv[0] == bucket))]
+
+
+def _prd_block(items):
+    """PRD §5.3.3 的逐条块（**回执**用）。**版式逐字照 PRD，不许改**：
+    `N.【类别-子类】…` ＋ 缩进两格的 `**原因**/依据/锚点/建议`。
+
+    ★★ 2026-10-14（Owner 裁定）：**`**判定**` 那一行已删** —— PRD §5.3 的逐条模板
+      只有 原因 / 依据 /（BLOCK 才有）建议，三态只出现在**结论行** `【审查结论：X】`；
+      逐条再挂一个「判定」会让同一张卡上出现两个「判定」，业务侧分不清哪个是结论。
+      `_item_fields()` 那份数据里的 `fact_or_inference` / `confidence` **仍在**（只改版式）。
+
+    ★ 判据（selftest ②③④）逐字盯着这个版式，改它就会红 —— 这是故意的。
+      ④ 另有一条**反向对照**：逐条块里一旦再冒出 `**判定**：`，精确变红。
+    """
+    L = []
+    for it in items:
+        L.append("%d.【%s】全文，逐字命中 %s" % (it["n"], it["category"], it["quote"]))
+        L.append("  **原因**：%s" % it["reason"])
+        L.append("  **依据**：%s" % it["basis"])
+        L.append("  **锚点**：%s" % it["anchor"])
+        L.append("  **建议**：%s" % it["advice"])
+        if it["entry_url"]:
+            L.append("  L0 逐字（可点直链）：%s" % it["entry_url"])
+        L.append("")
+    return L
+
+
+def _doc_block(items):
+    """报告的逐条块（**云文档**用）：`### 问题 N ｜ 码 ｜ 类别` 进目录 ＋ 每格一行。
+
+    ★ 为什么要另起一套版式（Owner 2026-10-06 现场「只看到 1 个问题」）：
+      · **标题层级**：`###` 在飞书云文档里是 Heading 3 ⇒ **进文档目录**，
+        打开就能看见「问题 1 / 2 / 3」三条，点哪条跳哪条 —— 「数不出条数」这件事从根上没了；
+      · **每格一行**（`- **原因**：…`）：markdown 的无序列表飞书认，渲染成项目符号，
+        不再是一堵 1000+ 字的字墙。
+      **内容一字不改**（全部取自 `_item_fields`），改的只是排版 —— 这是与回执对齐的前提。
+    """
+    L = []
+    for it in items:
+        L.append("### 问题 %d ｜ %s ｜ %s" % (it["n"], it["code"], it["category"]))
+        L.append("")
+        L.append("- **命中（逐字）**：%s" % it["quote"])
+        L.append("- **原因**：%s" % it["reason"])
+        L.append("- **依据**：%s" % it["basis"])
+        L.append("- **锚点 + 指纹**：%s" % it["anchor"])
+        L.append("- **建议**：%s" % it["advice"])
+        if it["entry_url"]:
+            L.append("- **L0 逐字（可点直链）**：%s" % it["entry_url"])
+        L.append("")
+    return L
+
+
+def _md_cell(v):
+    """表格单元格转义。**不是洁癖，是实测被切断过**（2026-10-06）。
+
+    命中模式里带正则的「或」`|`（例如 `\\b(safest|perfect|zero[\\s-]?risk)\\b`），
+    直接塞进 markdown 表格单元格 ⇒ **列的分隔符就在模式中间** ⇒ 渲染时从第一个 `|` 断掉。
+    实测云文档里那一行只剩 `` `\\b(safest` ``，后面的 `perfect` / `zero risk` **全丢了** ——
+    而屏幕上的 markdown 源码看起来是好的（终端不按表格渲染），**只有落进云文档才看得见**。
+    换行同理（单元格里一行变两行 = 表格结构坏掉）。
+    """
+    return str(v if v is not None else "—").replace("|", "\\|").replace("\n", " ")
+
+
+def _provenance(text, findings, summary_only=False):
+    """【来路与边界】+ 四段溯源明细 —— **回执与报告共用**。
+
+    ★ 抽出来的理由同 `_item_fields`：这两节是「不许把它读成别的东西」的护栏，
+      报告与回执**必须一字不差**；各写一份就会出现「回执有边界、报告没有」这种事故。
+
+    ★ `summary_only`（2026-10-06）：回执在 ≥3 条时**只出分类汇总**（PRD §5.3.3），
+      所以那句「完整清单见报告」只对**回执**成立；报告里是全量逐条，写它会自相矛盾。
+    """
+    L = []
+    # ── 以下为**来路与边界**：PRD §5.3 管格式，这一节管「不许把它读成别的东西」。
+    #    Owner 2026-10-05 现场定的口径：这是红线拦截，**不得说成整链跑完或专项审过**。
+    L.append("【来路与边界】（必须一起读，一条都不许吞）")
+    L.append("")
+    L.append("- 走的是 **P0 快路**（PRD §6.3 第一层，确定性匹配，**不动用大模型推理**）；")
+    L.append("  **本结论未跑 L4→L5→L6→L7 层前置与评审链** —— 它是一条红线拦截，"
+             "**不是专项审查结论**，也不能当作 PASS 依据。")
+    L.append("- 判定对象（逐字）：%s" % (text or "").replace("\n", " / ")[:200])
+    if summary_only and len(findings) >= 3:
+        L.append("- 问题数 ≥3 ⇒ 上面只出分类汇总；**完整清单与逐条修改建议在报告里**"
+                 "（报告在回执**之后**生成，链接补在上一条）。")
+    L.append("")
+    L.append("### 附：四段溯源明细（回源用）")
+    for i, f in enumerate(findings, 1):
+        cl = f.get("clause") or {}
+        vb = f.get("verbatim") or {}
+        L.append("")
+        L.append("**问题 %d ｜ %s（%s）**" % (i, f.get("rule_code"), f.get("level")))
+        L.append("")
+        L.append("| 段 | 值 |")
+        L.append("|---|---|")
+        L.append("| ① 条款号（L4） | **%s**%s |" % (
+            _md_cell(cl.get("article_no") or "（%s）" % _l4_clause_miss_reason(
+                f.get("rule_id"), f.get("rule_code"))),
+            _md_cell("（form=%s，%s）" % (cl.get("form"), cl.get("source_file"))) if cl else ""))
+        L.append("| ② 命中片段（L3/L5） | %s（命中 %s 处，模式 %s） |" % (
+            _md_cell("、".join("`%s`" % m.get("pattern") for m in (f.get("matched") or [])[:6]) or "—"),
+            _md_cell(f.get("matched_count")), _md_cell(f.get("pattern_id"))))
+        L.append("| ③ 锚点 + 指纹 | `%s` ｜ `%s` |" % (
+            _md_cell(f.get("anchor")), _md_cell(f.get("source_sha256"))))
+        if vb.get("entry_url"):
+            L.append("| ④ L0 逐字（可点直链） | [%s](%s) ｜ 原值 `%s` |" % (
+                _md_cell(vb.get("record_id")), _md_cell(vb.get("entry_url")),
+                _md_cell((vb.get("raw_verbatim") or "")[:60])))
+        else:
+            L.append("| ④ L0 逐字 | ⚠️ 直链缺失（%s）—— 需人工回源 |" % _md_cell(vb.get("note") or "未取到"))
+        if f.get("whitelist_suppressed"):
+            L.append("")
+            L.append("- 安全词抑制：%s 处被白名单放行（未计为命中）" % f["whitelist_suppressed"])
+    return L
+
+
+def _report_md(text, findings, generated_at=""):
+    """P0 快路的**报告正文**（本地 .md；云端文档按同一份正文投递）。
+
+    ★ 为什么单起一份（2026-10-06，Owner 定）：PRD §12 把「P0 层响应 **≤1s**」与
+      「报告生成 **≤30s**」定成**两条各自独立的指标** ⇒ 两件事**不许互相拖累**：
+      回执走 `_render`（同步、越快越好），报告走这里（**在回执之后**生成，写完再把链接补进去）。
+      「≥3 条只出分类汇总」是 PRD §5.3.3 对**回执**的约束；报告里必须是**全量逐条**，
+      否则「查看完整问题清单」这句话就是假的。
+
+    ★★ **两端对齐**（Owner 2026-10-06：「后续两端数据必须对齐」）在这份函数里的三条落法：
+      ① **条数**：`共发现 N 处` 的 N 与逐条块的条数**同出 `len(findings)`**，不各算一次；
+      ② **计数**：分类汇总走 `_summary_lines`（同一份文本，回执也用这个函数）；
+      ③ **值**：每格的正文全部来自 `_item_fields`（回执那套版式也取同一份）。
+      ⇒ 判据 ⑥e/⑥f 逐条盯着这三件事（selftest）。
+    """
+    items = _item_fields(findings)
+    L = ["# 内容审查报告（P0 快路 · 红线拦截）", ""]
+    L.append("【审查结论：BLOCK】共发现 %d 处必须修改。" % len(findings))
+    L.append("")
+    if generated_at:
+        L.append("- 报告生成时间：%s" % generated_at)
+        L.append("")
+    # ── 产品线 / 渠道（取数口 = `l0_facets`：**本素材自己的记录**优先，其次素材原文）────
+    fx = _facets_of(findings, text)
+    if fx.get("product_line") or fx.get("channel"):
+        L.append("- **产品线 / 渠道**（%s）：**%s** / **%s**" % (
+            "、".join(v for v in (fx.get("from") or {}).values() if v) or "（来源未记）",
+            fx.get("product_line") or "（本单未取到）",
+            fx.get("channel") or "（本单未取到）"))
+        L.append("")
+    # ── 分类汇总：与飞书回执**同一份计数**（`_summary_lines` 是唯一计数出口）────────
+    if len(findings) >= 3:
+        L.append("**分类汇总**（与飞书回执同一份计数）：")
+        L.append("")
+        L.extend(_summary_lines(findings))
+        L.append("")
+    # ── 一眼数得出条数的索引表（Owner 现场「只看到 1 个问题」时最缺的就是这个）──────
+    L.append("| # | 规则码 | 类别 | 条款号 |")
+    L.append("|---|---|---|---|")
+    for it in items:
+        L.append("| %d | %s | %s | %s |" % (
+            it["n"], _md_cell(it["code"]), _md_cell(it["category"]), _md_cell(it["article_no"])))
+    L.append("")
+    L.append("## 一、问题清单与修改建议（全量 %d 条）" % len(items))
+    L.append("")
+    L.extend(_doc_block(items))
+    L.append("请修改后重新提交。")
+    L.append("")
+    L.append("---")
+    L.append("")
+    L.extend(_provenance(text, findings))
+    return "\n".join(L) + "\n"
+
+
+def _write_report(path, content):
+    """把报告写进 `path`。**必须经 `/bin/cp` 落地**（2026-10-06 实测）。
+
+    为什么不能直接 `open(path,"w")`：这样写出来的文件，**宿主那一侧**看到的是
+    一个带 4096 字节信封的版本（实测 `wc -c` 4127 / 真实 31），读起来像 binary。
+    机理是环境层面的（`read()` 拿到真内容、`stat` 尺寸被加过），所以：
+      · 先写临时件，再 `/bin/cp` 过去 —— 实测 `cp` 出来的**两个观察口径一致**（31/31）；
+      · 写完整**回读复核**（长度 + 首行），不一致就当失败抛出去，**不静默**。
+    """
+    import os
+    import subprocess
+    d = os.path.dirname(os.path.abspath(path)) or "."
+    os.makedirs(d, exist_ok=True)
+    tmp = os.path.join(d, ".%s.tmp" % os.path.basename(path))
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write(content)
+    subprocess.run(["/bin/cp", tmp, path], check=True)
+    os.unlink(tmp)
+    back = open(path, encoding="utf-8").read()
+    if len(back) != len(content):
+        raise RuntimeError("报告回读长度不符：写入 %d / 读回 %d（%s）"
+                           % (len(content), len(back), path))
+    return path
+
+
+def _render(text, findings, report_ref=""):
+    """回执正文（PRD §5.3.3）。**这条路是 ≤1s 的** —— 所以它不许做任何 IO。
+
+    ★ `report_ref`（2026-10-06）：报告在回执**之后**生成 ⇒ 这里只**填**链接、不等它。
+      为空（还没补上）就照实写「稍后补」，见 `_five_three_block` —— **不编链接**。
+    """
+    L = list(_five_three_block(findings, report_ref))
+    L.append("")
+    L.append("---")
+    L.append("")
+    L.extend(_provenance(text, findings, summary_only=True))
+    L.append("")
+    L.append("---")
+    L.append("下一步：按 PRD §5.3，BLOCK 需「修改后重新提交」；"
+             "本单未跑专项审查，**若素材属图片/视频/产品宣称等模态，仍需转对应专项复核**。")
+    return "\n".join(L)
+
+
+def selftest():
+    """判据自证（离线，不联网）。**这条路径此前一条判据都没有** —— 2026-10-06 补。
+
+    为什么必须有它：Owner 拿 PRD §5.3.3 的模板对照守衡发出去的 BLOCK 卡片，
+    发现**抬头对、逐条四要素整块没有**。而 `_render` 是这条红线路径的**唯一出口**，
+    改它之前**没有任何东西会红** —— 也就是说这次改动原本是「改完靠人看」。
+
+    样本是**真实素材**（2026-10-06 08:57 那一单的原话），不是编的。
+    """
+    import re
+    P, F = [], []
+
+    def chk(name, cond, extra=""):
+        (P if cond else F).append(name)
+        print("  %s %s%s" % ("✅" if cond else "❌", name, ("  " + extra) if extra else ""))
+
+    # ① 真实素材：必须命中，且渲染出 PRD §5.3.3 的逐条块
+    TEXT = "这段 listing 文案能不能发：Our M5 breast pump is doctor recommended and helps increase milk supply in 3 days."
+    res = evaluate(TEXT)
+    chk("① 真实素材命中 P0", res.get("hit") is True, "hits=%s" % (res.get("issue_count")))
+    r = res.get("rendered") or ""
+
+    chk("② 首行 = PRD §5.3.3 结论行（逐字）",
+        bool(re.match(r"^【审查结论：BLOCK】共发现 \d+ 处必须修改。$", r.split("\n")[0], re.M)),
+        repr(r.split("\n")[0]))
+    chk("③ 尾部动作 = 「请修改后重新提交。」", "请修改后重新提交。" in r)
+
+    # ④ 逐条四要素：每条必须齐【类别-子类】/ 原因 / 依据 / 锚点+sha / 判定 / 建议
+    # ★ 判据**不许崩**：表头一旦不合规（正是要抓的那种情形），
+    #   原先这里 re.search(...).group(1) 会抛 AttributeError ——
+    #   表现是「自证退 1」，但**后面 ④–⑧ 一条都没跑**：看的人只知道红了、
+    #   不知道红在哪，而且那不是判据在判，是脚本死了。
+    #   实测逮到过一次（把抬头改回旧格式的变异测试）。现在解析不出来就记一条失败，继续往下走。
+    _m = re.search(r"共发现 (\d+) 处", r)
+    n = int(_m.group(1)) if _m else -1
+    chk("④ 逐条条数 == findings 条数", n == res.get("issue_count"),
+        "%s vs %s" % (n, res.get("issue_count")))
+    DETAIL = re.findall(r"^\d+\.【[^】]+】[^\n]*\n(?:  [^\n]*\n?)+", r, re.M)
+    chk("④ 每条都渲染出逐条块", len(DETAIL) == n, "实测 %d 条" % len(DETAIL))
+    want = ("  **原因**：", "  **依据**：《", "  **锚点**：", "  **建议**：")
+    miss = [w.strip() for d in DETAIL for w in want if w not in d]
+    chk("④ 每条四要素齐全（原因/依据/锚点/建议）", not miss, "缺：%s" % miss)
+    # ★★ 2026-10-14（Owner 裁定）：逐条块里**不许再有 `**判定**` 行** ——
+    #   PRD §5.3 逐条模板只有 原因/依据/（BLOCK 才有）建议，三态只在结论行一处。
+    #   这条是**反向对照**：谁把那一行加回来，这里精确变红（而不是只在人眼里看着不对）。
+    #   ⚠️ 只查**逐条块**里的加粗标签：`判定对象（逐字）` 是另一格（「审的是哪段素材」），
+    #      与本次裁定无关，**不在**这条断言的射程内。
+    chk("④ 逐条块不再出现 `**判定**` 行（三态只在结论行）",
+        not re.search(r"^\s+\*\*判定\*\*：", r, re.M),
+        "命中：%s" % re.findall(r"^\s+\*\*判定\*\*：[^\n]*", r, re.M)[:2])
+
+    # ⑤ 类别-子类是**受控词表**里的取值，不是自造
+    cats = re.findall(r"^\d+\.【([^】]+)】", r, re.M)
+    known = set(_vocabulary().values())
+    chk("⑤ 类别-子类取自受控词表（不自造）", all(c in known for c in cats), str(cats))
+    chk("⑤ 词表读到了映射（H02/H04 都认得出）",
+        _vocabulary().get("H02") == "功效宣称-催乳与通乳宣称"
+        and _vocabulary().get("H04") == "背书与资质-医生专家推荐",
+        "H02=%s ｜ H04=%s" % (_vocabulary().get("H02"), _vocabulary().get("H04")))
+
+    # ⑥ 来路与边界**一条都没被 §5.3 的格式挤掉**（这是 Owner 现场定的硬口径）
+    chk("⑥ 边界：明说未跑四层与评审链", "未跑 L4→L5→L6→L7 层前置与评审链" in r)
+    chk("⑥ 边界：明说不是专项审查结论", "不是专项审查结论" in r)
+    chk("⑥ 边界：附了四段溯源明细（回源用）", "四段溯源明细" in r and "① 条款号（L4）" in r)
+
+    # ⑥b ★ 「建议」那一格的长度必须**有界** —— 2026-10-06 它就是这么爆的：
+    #     P0 模式表的 `suggested_replacement` 是该 rule_code 下**所有修订组的拼接**
+    #     （实测 W-1.18 连着 26 组、几千字），直接填进「建议：」那一格，
+    #     一条建议几千字，卡片与上下文一起被撑爆。现在按命中片段挑，并留一条上限断言。
+    longs = [(len(x), x[:40]) for x in re.findall(r"  建议：(.*)$", r, re.M) if len(x) > 800]
+    chk("⑥b 「建议」每格 ≤ 800 字（撑爆过一次）", not longs, str(longs))
+
+    # ⑥c 「依据」行的链接槽位必须是**业务同事点得开的飞书直链**。
+    #     ★ 2026-10-08 重写（Owner：「依据中，链接必须是飞书链接，我点击可以打开的」）。
+    #     旧判据是「指针里的条款号与依据行一致」——它盯的是 `rules.jsonl#W-1.8` 那个库内指针；
+    #     换链之后那个对象没有了，**旧判据会恒真**（`ptr` 空 ⇒ `bool(ptr)` 假 ⇒ 反而恒红或恒绿，
+    #     取决于写法），所以必须换成**盯链接本身**，否则就成了 §2.4 那种"判据成了注释"。
+    #     判据：链接要么是 `http(s)://…`（飞书直链），要么是**明说没定位到**的兜底措辞；
+    #     **裸的库内相对路径一律红**（它既点不开、又冒充原始出处）。
+    _ok_link = lambda u: u.startswith("http") or u.startswith("未定位到飞书直链")
+    ev = re.findall(r"  \*\*依据\*\*：《[^》]+》第 (\S+) 条", r)
+    links = re.findall(r"  \*\*依据\*\*：[^\n]*（链接：([^）]*)）", r)
+    bad = [u for u in links if not _ok_link(u)]
+    chk("⑥c 依据行的链接是飞书直链（点得开）",
+        bool(ev) and bool(links) and not bad,
+        "依据=%s 链接=%s 非直链=%s" % (ev, [u[:44] for u in links], bad))
+    # ⑥c2 反向对照：把链接换回库内路径 ⇒ ⑥c 必须红（拆掉这条，⑥c 就成了摆设）。
+    r_mut = r.replace("https://", "kb/l3/candidates/rules.jsonl#")
+    links_mut = re.findall(r"  \*\*依据\*\*：[^\n]*（链接：([^）]*)）", r_mut)
+    bad_mut = [u for u in links_mut if not _ok_link(u)]
+    chk("⑥c2 反向对照：链接换回库内路径 ⇒ ⑥c 会红", bool(bad_mut),
+        "变异后非直链=%s" % [u[:44] for u in bad_mut])
+
+    # ★★ ⑥c3/⑥c4（2026-10-14 加，Owner：「依据这里**必须**给飞书链接」）─────────────
+    #   病灶（实测那条 V02 命中，素材「m8 pro吸奶器是最好的吸奶器」）：
+    #     依据渲染成 `《（来源未给库名） v0（试用版，未发布）》第 （来源未给条款号） 条
+    #     （链接：未定位到飞书直链；库内路径 kb/l3/candidates/rules.jsonl#（来源未给条款号））`
+    #     —— 一个**点不开、也没有号**的依据，业务同事拿它没法回源。
+    #   三条根因（各修一处，这里逐条钉住）：
+    #     ① 取值口 `_l3_rule` 只读 `rules.jsonl` 一份，而这条落在 `external_standard.jsonl`；
+    #     ② `kb_type` 真值是 `external_standard`，而库名映射表只写了 `external`；
+    #     ③ 模式表自带的 `article_no` **根本没被搬进命中** ⇒ 渲染层永远拿不到号。
+    #   反向对照：把库名/条款号打回占位符 ⇒ 本条必须红（否则它只是个注释）。
+    _bads = [ln.strip()[:90] for ln in r.split("\n") if "**依据**：" in ln
+             and ("来源未给库名" in ln or "来源未给条款号" in ln or "未定位到飞书直链" in ln)]
+    chk("⑥c3 依据里不许出现「未给库名 / 未给条款号 / 未定位到直链」",
+        not _bads, str(_bads))
+    #    ⚠️ 变异必须**真造出缺陷**：第一版写成 `r.replace("外部标准库", …)`，
+    #      而本自证用的素材根本不命中外部标准那一路 ⇒ **替换 0 处、变异等于没发生**，
+    #      判据恒绿（这正是我在别处刚纠过一次的同一个坑）。现在用**通用正则**换掉
+    #      「《任意库名 版本》第 任意号 条」里的库名与号，任何素材都改得动。
+    _muta = re.sub(r"《[^》]*》第 [^ ]+ 条", "《（来源未给库名） v0》第 （来源未给条款号） 条", r)
+    chk("⑥c4 变异真的发生了", _muta != r, "替换 0 处 ⇒ 下面的反向对照是空的")
+    _badm = [ln for ln in _muta.split("\n") if "**依据**：" in ln and ("来源未给" in ln)]
+    chk("⑥c4 反向对照：打回占位符 ⇒ ⑥c3 会红", bool(_badm), "变异后 %d 行" % len(_badm))
+
+    # ⑥d 表格单元格里的 `|` 必须被转义 —— 2026-10-06 实测**云文档里被切断过**：
+    #     命中模式是正则（`\b(safest|perfect|…)\b`），那个「或」**就是列分隔符**，
+    #     渲染出来只剩 `` `\b(safest` ``，后面全丢。
+    #     ★ 为什么非要有这条判据：**终端上看不出来** —— markdown 源码是完整的，
+    #       只有落进云文档（按表格渲染）才现形。人眼在回执里也看不出来。
+    tbl = [ln for ln in r.split("\n") if ln.startswith("| ") and ln.rstrip().endswith(" |")]
+    badrows = [ln[:70] for ln in tbl if len(re.findall(r"(?<!\\)\|", ln)) != 3]
+    chk("⑥d 表格单元格里的 `|` 已转义（被切断过一次）", bool(tbl) and not badrows, str(badrows))
+
+    # ══ ⑥e/⑥f **两端对齐**（Owner 2026-10-06 当场要求：「后续两端数据必须对齐」）══════
+    #    「两端」= 飞书回执 ↔ 云文档报告。当天的事故形状是：**回执说 3 条、文档里读出来像 1 条**。
+    #    实测文档里三条都在（是版式挤成一堵字墙），但**「数量对不上」这件事必须由机器盯着** ——
+    #    人眼对不上时只会觉得"怪"，说不清是少写了还是没渲染出来。
+    #    所以这里把三件事钉死：**条数**、**分类计数的和**、**每格的值**。
+    #    ★ 用 3 命中的真实素材重跑（原来的样本只有 2 条，走不到 ≥3 那条分支 —— 而那正是出事的分支）。
+    BIG = ("Our M5 is the safest breast pump on the market and FDA approved. Totally pain-free.")
+    big = evaluate(BIG)
+    rcpt = big.get("rendered") or ""
+    rep = _report_md(BIG, big.get("findings") or [], "（自证·固定时刻）")
+    n_big = big.get("issue_count")
+    n_doc = len(re.findall(r"^### 问题 \d+ ｜ ", rep, re.M))
+    n_rcpt = int((re.search(r"共发现 (\d+) 处", rcpt) or [0, -1])[1])
+    chk("⑥e 三处条数一致：回执 / 报告 / findings（≥3 那条分支）",
+        n_big == 3 and n_big == n_doc == n_rcpt, "findings=%s 报告=%s 回执=%s" % (n_big, n_doc, n_rcpt))
+    sum_rcpt = sum(int(x) for x in re.findall(r"类问题：(\d+) 个", rcpt))
+    sum_doc = sum(int(x) for x in re.findall(r"类问题：(\d+) 个", rep))
+    chk("⑥e 分类汇总计数之和 == 条数（两端各算一次，必须都等于 N）",
+        sum_rcpt == n_big and sum_doc == n_big, "回执和=%s 报告和=%s N=%s" % (sum_rcpt, sum_doc, n_big))
+
+    # ══ ⑥g **分组键 = 维度**（PRD §5.3.2；Owner 2026-10-12 批准「推荐 ①」）══════════
+    #    改前两端印的是**库内类别**：「· 功效宣称类问题：1 个」；
+    #    PRD §5.3.2 的逐字示例是「· 合规类问题：3 个」—— 分的是 **§5.3 四维**。
+    #    ★ 这是**判据**，所以这里可以写死四维字面量（被测量的生产码不许写 —— 它只读政策件）。
+    _FOUR = {"合规", "消费者安全", "产品描述", "措辞表达"}
+    _m = _load_dimension()
+    chk("⑥g 维度模块可用（否则下面三条是空转）", bool(_m), "得到 %r" % (_m,))
+    _keys = sorted({_summary_key(f) for f in (big.get("findings") or [])}) if _m else []
+    chk("⑥g2 汇总键 ∈ 四维 ∪ {桶名}（不出现库内类别）",
+        bool(_keys) and set(_keys) <= (_FOUR | {_m.UNMAPPED_BUCKET}), "得到 %r" % (_keys,))
+    _kr = re.findall(r"· ([^·\n]+?)类问题：", rcpt)
+    _kd = re.findall(r"· ([^·\n]+?)类问题：", rep)
+    chk("⑥g3 两端的分组键**逐字一致**（同一口径，不是各分各的）",
+        bool(_kr) and sorted(set(_kr)) == sorted(set(_kd)),
+        "回执 %r ｜ 报告 %r" % (_kr, _kd))
+    _legacy = re.findall(r"· (功效宣称|绝对化与安全承诺|背书与资质|平台与促销|婴幼儿安全与场景)类问题：",
+                         rcpt)
+    chk("⑥g3b 回执里不再出现库内类别键（改前那套）", not _legacy,
+        "命中的库内类别键 %r" % (_legacy,))
+    # ⑥g4 **反向对照**：桶名不许与任何一个真维度重名 ——
+    #      重名 ⇒ 未映射的类别会被并进那个真维度（把「不知道」当「合规」，本库最坏的一类）。
+    chk("⑥g4 桶名与四维不重名（反向对照）",
+        bool(_m) and _m.UNMAPPED_BUCKET not in _FOUR, "得到 %r" % (getattr(_m, "UNMAPPED_BUCKET", None),))
+    chk("⑥g4b 桶名与评审链那一端**同一个词**（两端不各写一份）",
+        bool(_m) and _m.UNMAPPED_BUCKET == "未标注维度",
+        "得到 %r" % (getattr(_m, "UNMAPPED_BUCKET", None),))
+
+    # ══ ⑨ 产品线 / 渠道（Owner 2026-10-06：「从知识库命中产品线和渠道的都填写进去」）════
+    #    ★ 2026-10-06 改口径（准入闸）：命中的记录**是规则样本** —— 那条 `广告文案明细` 记录
+    #      是一条**真实投放的 Google 广告**（外部广告ID GG-12d45aa812b7 / 展示 8372 / 花费 $117.28），
+    #      它的 `品线/平台` 是**那条样本自己的投放属性** ⇒ **不许**拿来当本次素材的渠道。
+    #      取值只认：**本素材自己的记录**（素材原文逐字在它里面）或**素材原文**受控词命中。
+    #    ⚠️ 夹具必须换人：`BIG` 是**英文**样本（`Our M5 is the safest…`），里面**没有**中文受控词
+    #      ⇒ 它那两格本来就该是空的（见 ⑨d）。用**中文素材**才验得了「取得对」。
+    _CN = "M6 吸奶器能催奶，医生推荐，还模仿婴儿吸吮。"
+    _cn = evaluate(_CN)
+    _cnfac = _cn.get("facets") or {}
+    chk("⑨ 中文素材：产品线取自**素材原文**（吸奶器）",
+        _cn.get("product_line") == "吸奶器"
+        and "素材原文" in ((_cnfac.get("from") or {}).get("product_line") or ""),
+        "%r ← %s" % (_cn.get("product_line"), (_cnfac.get("from") or {}).get("product_line")))
+    chk("⑨ 反向对照：命中记录是规则样本 ⇒ **不许**把它的平台（Google）当本次渠道",
+        _cn.get("channel") == "", repr(_cn.get("channel")))
+    _cnrep = _report_md(_CN, _cn.get("findings") or [], "（自证·固定时刻）")
+    chk("⑨ 报告里写出产品线/渠道，且**来源写的是素材原文**（不是「命中记录」）",
+        "产品线 / 渠道" in _cnrep and "吸奶器" in _cnrep and "素材原文" in _cnrep,
+        " ｜ ".join(l for l in _cnrep.splitlines() if "产品线 / 渠道" in l))
+    # ⑨d 反向对照：英文样本没有中文受控词 ⇒ **两格都空**（空是诚实的，不是漏了）
+    chk("⑨d 反向对照：英文素材两格都空（不编）",
+        not big.get("product_line") and not big.get("channel"),
+        "%r / %r" % (big.get("product_line"), big.get("channel")))
+    # ⑨c 正例：素材原文**自己写了**渠道 ⇒ 就该填它（不是空、也不是从样本记录借来的）
+    _g = evaluate("这条 Google 广告：M6 吸奶器能催奶")
+    chk("⑨c 素材原文写了渠道 ⇒ 渠道=Google（来源=素材原文）",
+        _g.get("channel") == "Google"
+        and "素材原文" in (((_g.get("facets") or {}).get("from") or {}).get("channel") or ""),
+        "%r ← %s" % (_g.get("channel"),
+                     ((_g.get("facets") or {}).get("from") or {}).get("channel")))
+    # ⑨b 反向对照：**取不到就留空**，不许"编一个" —— 干净文案不命中，自然也没有 facets
+    _clean = evaluate("吸奶器静音设计，夜里不吵醒宝宝，续航 8 小时")
+    chk("⑨b 反向对照：未命中 ⇒ 没有产品线/渠道可写（不是编一个）",
+        (_clean.get("hit") is False) and not _clean.get("product_line") and not _clean.get("channel"))
+    # ⑥f **值**逐字一致：同一条问题的六格内容，两种版式里必须**一字不差**
+    #    （版式允许不同：回执 `  **原因**：`、报告 `- **原因**：`；**值**不许不同）
+    #    ★ 这一条**只能用 n≤2 的样本**验：PRD §5.3.3 规定 ≥3 条时**回执只出分类汇总**
+    #      ⇒ 那条分支上回执**本来就没有逐条内容**，拿它比是错的（第一版就写错了，判据当场红）。
+    #      所以：**条数/计数**在 ≥3 分支上验（⑥e），**逐条的值**在 n≤2 分支上验（⑥f）。
+    items_small = _item_fields(res.get("findings") or [])
+    rep_small = _report_md(TEXT, res.get("findings") or [], "")
+    diffs = [it["n"] for it in items_small
+             if not all(v and v in r and v in rep_small
+                        for v in (it["reason"], it["basis"], it["anchor"], it["advice"]))]
+    chk("⑥f 两端每格的值逐字一致（原因/依据/锚点/建议；n≤2 样本）", not diffs, "对不上的第 %s 条" % diffs)
+    # ⑥f2 反向对照：把报告里某一格的**值**改掉 ⇒ ⑥f 必须失配
+    #      （第一版改的是条目**标题**，而 ⑥f 比的是**值** ⇒ 反向对照自己不红，等于没验。
+    #        反向对照必须打在**判据真正读的那个量**上。）
+    v0 = items_small[0]["reason"]
+    tampered = rep_small.replace(v0, "（反向对照：此处被改过）", 1)
+    chk("⑥f2 反向对照：报告里改掉一格的值 ⇒ ⑥f 会红",
+        (v0 in rep_small) and (v0 not in tampered))
+
+    # ⑦ 反向对照：喂一句干净文案必须**不命中**（否则上面那些绿都是空转）
+    clean = evaluate("吸奶器静音设计，夜里不吵醒宝宝，续航 8 小时")
+    chk("⑦ 反向对照：干净文案不命中 P0", clean.get("hit") is False)
+
+    # ⑧ 反向对照：把逐条块拆掉，上面 ②③④ 必须会红（证明判据不是恒真）
+    broken = r.replace("  **原因**：", "  X：").replace("请修改后重新提交。", "")
+    ok2 = bool(re.match(r"^【审查结论：BLOCK】共发现 \d+ 处必须修改。$", broken.split("\n")[0], re.M))
+    ok3 = "请修改后重新提交。" in broken
+    ok4 = not [w.strip() for d in re.findall(r"^\d+\.【[^】]+】[^\n]*\n(?:  [^\n]*\n?)+", broken, re.M)
+               for w in ("  **原因**：",) if w not in d]
+    chk("⑧ 反向对照：拆掉逐条后 ②/③/④ 会红", ok2 and (not ok3) and (not ok4),
+        "首行还绿=%s 尾部还绿=%s 四要素还绿=%s" % (ok2, ok3, ok4))
+
+    # ⑨ 条款号取号键：**唯一键优先、非唯一键不猜**（2026-10-10 · 接线缺陷修复的判据）
+    #
+    #    病根（改前逐字）：`_l4_clause(rule_code)` 按 `rule_code` 建索引，注释写
+    #    「首个命中即采用（与 L4 内的排序一致）」—— 而 L4 里 `rule_code` **不唯一**：
+    #    实测 15 个键一对多（H02 → W-1.18 / W-1.47，H04 → W-1.13 / W-1.41 …）。
+    #    ⇒ 号取决于**文件排序**，没有判据守着。当前 11 条恰好取对（11/11），
+    #      所以修的是"靠巧合"本身 —— **错号比空号更坏**：空号人会去补，错号人不会回头看。
+    #    这四条判据拆掉任一条，对应的错法就重新变得"看不见"。
+    import json as _json
+    with open(os.path.join(KB, "l5/p0_patterns.jsonl"), encoding="utf-8") as _fh:
+        _rows = [_json.loads(x) for x in _fh if x.strip()]
+    _l4_load()
+    _rid2no = {rid: rec["article_no"] for rid, rec in (_L4_INDEX or {}).items()}
+    _amb = {rc: sorted({x["article_no"] for x in v})
+            for rc, v in (_L4_BY_RC or {}).items()
+            if len({x["article_no"] for x in v}) > 1}
+
+    chk("⑩a 判据前提：L4 里确实存在一对多的 rule_code（否则 ⑩c 是空转）",
+        bool(_amb), "实测 %d 个键一对多，例：%s" % (len(_amb), list(_amb.items())[:2]))
+
+    _fs = res.get("findings") or []
+    chk("⑩b 每条命中的号都走 rule_id（唯一键）取到",
+        bool(_fs) and all((f.get("clause") or {}).get("via") == "rule_id" for f in _fs),
+        "via=%s" % [(f.get("clause") or {}).get("via") for f in _fs][:5])
+
+    # ⑩c 一对多的 rule_code **单查** ⇒ 必须拒绝给号（改前在这里"取首个"）
+    _arc = sorted(_amb)[0] if _amb else None
+    _guessed = _l4_clause(rule_code=_arc) if _arc else None
+    chk("⑩c 一对多的 rule_code 单查 ⇒ None（不猜）", _guessed is None,
+        "rule_code=%s ⇒ %s" % (_arc, _guessed))
+
+    # ⑩c2 反向对照：补上 rule_id 就**必须取得到**（证明 ⑨c 不是"函数恒返回 None"）
+    _want_no = _amb[_arc][0] if _arc else None
+    _rid = next((r for r, no in _rid2no.items() if no == _want_no), None)
+    _got = _l4_clause(rule_id=_rid, rule_code=_arc) if _rid else None
+    chk("⑩c2 反向对照：给 rule_id 取得到号（⑩c 不是恒真）",
+        bool(_got) and _got.get("article_no") == _want_no,
+        "rule_id=%s ⇒ %s" % (_rid, (_got or {}).get("article_no")))
+
+    # ⑨d 模式表顶层带条款号（目标 18「P0 红线法务逐条确认」要用它签字）
+    _withno = sum(1 for p in _rows if str(p.get("article_no") or "").strip())
+    # ★ 2026-10-13 改：原判据是 `len(_rows) == 11` —— **条数写死**。
+    #   为什么必须改：PRD §7.3 的 6 条一票否决红线于 2026-10-13 入选（V01–V06，
+    #   条款号 E-1.3419），模式表 11 → **17** 条。写死的等式会把**正确的扩容**判成故障
+    #   （实测：内容判据 17/17 全过，只有这个等式红），逼着后人为加规则去改尺子。
+    #   改成**下限 + 内容**：① 条数不得少于已交付的基线 11（**表只许长、不许缩** ——
+    #   缩了说明规则被误删）；② 每条都必须带 `article_no`（法院签字要用它）。
+    #   ★ 与 L5 闸门的 `C_p0_count_recomputable`（`l5_gate.py::_p0_recompute`）**分工不同**：
+    #     那一把从 L3 反算「应该有几条」，这一把量「表本身有没有缺条款号」——**不重复造闸门**。
+    #   反向对照：抽掉任意一行的 `article_no` ⇒ 本条**精确变红**（`_withno` 少 1）。
+    _P0_BASELINE_N = 11
+    chk("⑩d P0 模式表 %d 条全带 article_no（下限 %d）" % (len(_rows), _P0_BASELINE_N),
+        len(_rows) >= _P0_BASELINE_N and _withno == len(_rows),
+        "实测 %d/%d，条数下限 %d" % (_withno, len(_rows), _P0_BASELINE_N))
+
+    print("\n自证：通过 %d / 失败 %d" % (len(P), len(F)))
+    for x in F:
+        print("  · 失败：%s" % x)
+    return 1 if F else 0
+
+
+def main():
+    ap = argparse.ArgumentParser(description="P0 红线快路（PRD §6.3 第一层）")
+    ap.add_argument("--text")
+    ap.add_argument("--file")
+    ap.add_argument("--json", action="store_true")
+    ap.add_argument("--selftest", action="store_true",
+                    help="只跑判据自证（离线）：PRD §5.3.3 逐条块 + 反向对照")
+    ap.add_argument("--report-out", metavar="PATH",
+                    help="命中时把**完整报告**（全量逐条 + 修改建议 + 四段溯源）写到该路径。"
+                         "PRD §12 把「P0 响应 ≤1s」与「报告生成 ≤30s」定成两条独立指标 ⇒ "
+                         "本开关**专供回执之后的异步补报告**，不要在出回执那条命令上加它。")
+    ap.add_argument("--report-ref", metavar="URL_OR_PATH", default="",
+                    help="把报告链接**填进回执**（重渲染用）。报告还没生成时**不要填** —— "
+                         "这一格宁可为空，也不许编一个链接。")
+    a = ap.parse_args()
+
+    if a.selftest:
+        print("P0 快路 · 判据自证（离线；样本取自 2026-10-06 的真实送审）")
+        return selftest()
+
+    if a.file:
+        text = open(a.file, encoding="utf-8").read()
+    elif a.text is not None:
+        text = a.text
+    else:
+        text = sys.stdin.read()
+
+    res = evaluate(text, report_ref=a.report_ref)
+    if a.report_out and res.get("hit"):
+        _write_report(a.report_out, _report_md(
+            text, res.get("findings") or [],
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        res["report_path"] = a.report_out
+    if a.json:
+        print(json.dumps(res, ensure_ascii=False, indent=1))
+    else:
+        if res["hit"]:
+            print(res["rendered"])
+            print()
+            print("（快路耗时 %.1f ms ｜ mode=%s%s）" % (
+                res["elapsed_ms"], res["mode"],
+                " ｜ 报告已写：%s" % res["report_path"] if res.get("report_path") else ""))
+        else:
+            print("P0 快路：**未命中**（耗时 %.1f ms）⇒ %s"
+                  % (res["elapsed_ms"], res["next"]))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

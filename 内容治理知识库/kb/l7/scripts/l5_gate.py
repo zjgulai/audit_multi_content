@@ -70,24 +70,31 @@ ITEM = re.compile(r"^\[(PASS|FAIL)\]\s+(\S+)\s*$")
 #   实测事故：`W-1.8/H06` 曾因 `rule_code` 丢失而**静默不出现在** `p0_patterns.jsonl`，
 #   而闸门照样 ✅ 过 —— 与批12-D「该 BLOCK 却给 PASS」同族（**丢规则不被闸门抓到**）。
 # 复算式（用户裁定「乙」口径，写死）：
-#   expected = |{ r : r.p_level==P0 ∧ r.rule_kind=='atomic' ∧ r.authority ∈ (expert,legal) }|
-#              ∪ { r : r.rule_code ∈ P0_CODE_ALLOWLIST({"H06"}) }
+#   expected = 主选取口径（atomic + expert/legal，或 code allowlist）
+#              ∪ 导出器登记的 boundary-only 规则（当前 M01/M02）。
 #   数据源 = `kb/l3/candidates/rules.jsonl`（生行）+ `kb/l3/manifest_l3.jsonl`（富化字段唯一真源）；
-#   **P0_CODE_ALLOWLIST 从 `kb/.work/l5_export.py` 读**（那次导出的唯一真源，不在此处另抄一份）。
-# 只报不修；不符 ⇒ 判红（本闸门原本就没有「P0 相关」判据，故是**新增**而非放松）。
+#   两类准入码都从 `kb/.work/l5_export.py` 读，避免在闸门里抄第二份策略。
+# 比较 rule_id 集合而非条数，避免「漏一条、多一条但总数相同」的假绿。
 def _p0_recompute():
     import json as _json
     import re as _re
     L3 = os.path.join(ROOT, "kb/l3")
     exp_src = os.path.join(ROOT, "kb/.work/l5_export.py")
     out = {"expected": None, "actual": None, "ok": None, "why": ""}
-    # ① 读 ALLOWLIST（唯一真源）
+    # ① 读两类导出准入码（唯一真源）
     allow = set()
+    boundary_only = ()
     try:
         txt = open(exp_src, encoding="utf-8").read()
         m = _re.search(r"P0_CODE_ALLOWLIST\s*=\s*\{([^}]*)\}", txt)
         if m:
             allow = {x.strip().strip('"').strip("'") for x in m.group(1).split(",") if x.strip()}
+        bm = _re.search(r"BOUNDARY_ONLY_CODES\s*=\s*\(([^)]*)\)", txt)
+        if bm:
+            boundary_only = tuple(x.strip().strip('"').strip("'") for x in bm.group(1).split(",") if x.strip())
+        if not m or not bm:
+            out["why"] = "l5_export.py 缺少 P0_CODE_ALLOWLIST 或 BOUNDARY_ONLY_CODES"
+            return out
     except Exception as e:                                        # noqa: BLE001
         out["why"] = "读 l5_export.py 的 ALLOWLIST 失败：%r" % e
         return out
@@ -103,7 +110,7 @@ def _p0_recompute():
         out["why"] = "读 manifest_l3 失败：%r" % e
         return out
     # ③ 生行（提供 rule_code）
-    codes = {}
+    codes, source_rows = {}, {}
     try:
         # ★ 2026-10-13：`codes` 读**两个**候选件。
         #   为什么：外部标准规则住 `candidates/external_standard.jsonl`（`rules.jsonl` 是措辞库的件，
@@ -115,6 +122,7 @@ def _p0_recompute():
                 if l.strip():
                     r = _json.loads(l)
                     codes[r.get("rule_id")] = (r.get("rule_code") or "").strip()
+                    source_rows[r.get("rule_id")] = r
     except Exception as e:                                        # noqa: BLE001
         out["why"] = "读 candidates/rules.jsonl 失败：%r" % e
         return out
@@ -125,20 +133,50 @@ def _p0_recompute():
                 exp.add(rid)
             elif codes.get(rid, "") in allow:
                 exp.add(rid)
+    # 导出器的 boundary-only 兜底按码补一条规则名；必须有 P0 源规则且
+    # rule_text 符合其约定格式。选择方式与导出器一致：优先采用带 article_no 的记录。
+    # 已由主口径选中的同码规则不重复补入。
+    boundary_re = _re.compile(r"^\s*边界：(.+?)；触发词")
+    for code in boundary_only:
+        if any(codes.get(rid) == code for rid in exp):
+            continue
+        pick = None
+        for rid, row in source_rows.items():
+            # Boundary-only selection is explicitly defined over the exporter’s
+            # source row (which already carries its P0 level); manifest enrichment
+            # only supplies missing fields and must not overwrite it.
+            if codes.get(rid) != code or row.get("p_level") != "P0":
+                continue
+            if not boundary_re.match(row.get("rule_text") or ""):
+                continue
+            if pick is None or (str(row.get("article_no") or "").strip()
+                                and not str(pick.get("article_no") or "").strip()):
+                pick = row
+        if pick and pick.get("rule_id"):
+            exp.add(pick["rule_id"])
     out["expected"] = len(exp)
     out["allowlist"] = sorted(allow)
-    # ④ 实际导出条数
+    out["boundary_only_codes"] = list(boundary_only)
+    out["expected_rule_ids"] = sorted(exp)
+    # ④ Actual export identities, not just a row count.
     try:
         p0p = os.path.join(ROOT, "kb/l5/p0_patterns.jsonl")
-        act = sum(1 for l in open(p0p, encoding="utf-8") if l.strip())
+        actual_rows = [_json.loads(l) for l in open(p0p, encoding="utf-8") if l.strip()]
+        actual_ids = [r.get("rule_id") for r in actual_rows]
     except Exception as e:                                        # noqa: BLE001
         out["why"] = "读 p0_patterns.jsonl 失败：%r" % e
         return out
-    out["actual"] = act
-    out["ok"] = (act == len(exp))
+    out["actual"] = len(actual_ids)
+    out["actual_rule_ids"] = sorted(x for x in actual_ids if x)
+    out["duplicate_rule_ids"] = sorted({x for x in actual_ids if x and actual_ids.count(x) > 1})
+    missing, unexpected = sorted(exp - set(actual_ids)), sorted(set(actual_ids) - exp)
+    out["missing_rule_ids"], out["unexpected_rule_ids"] = missing, unexpected
+    out["ok"] = (not missing and not unexpected and not out["duplicate_rule_ids"]
+                 and len(actual_ids) == len(exp))
     if not out["ok"]:
-        out["why"] = ("P0 导出条数 %d ≠ 按「乙」口径可复算的 %d —— "
-                      "**丢规则或多发规则**，必须逐条查" % (act, len(exp)))
+        out["why"] = ("P0 rule_id 集合与「乙」口径不一致：应有 %d 条、实际 %d 条；"
+                      "缺失=%s 多出=%s 重复=%s" %
+                      (len(exp), len(actual_ids), missing, unexpected, out["duplicate_rule_ids"]))
     return out
 
 

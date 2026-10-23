@@ -14,7 +14,7 @@ effective_from: 2026-09-29
 evidence_level: L1
 data_level: L2
 sensitivity_level: L2
-created_at: 2026-10-16
+created_at: 2026-10-22
 asks:
   - W-2.336 判什么、命中什么算违规
   - W-2.336 应该怎么改（合规替代写法）
@@ -29,7 +29,7 @@ source:
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblLxUfPz4Wqp2na"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblLxUfPz4Wqp2na
   record_ids: [recvuNn6eja33A]
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l3/candidates/rules.jsonl#r-c3a2f8f54e6d8e19"
   confidence: 确定

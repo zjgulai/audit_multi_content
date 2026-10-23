@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.43 是正例还是反例
   - S-1.43 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-40c68df2f4bbaf45"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 其他
 reason_category: unknown
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2vgYXuVvx/原文反馈"
-source_sha256: 089fc109c51facf040871d615cc9527b63af426858f6948cf5ba546786d2d565
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXuVvx
+anchor: "#负面样本/recvw7XJiSRQan/具体原因/分析"
+source_sha256: 80094178c0c4e04ce58ee31efc5d0f07014695a5c307d133eaa495ba658577ef
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XJiSRQan
 sample_body: "【审核 · 2026-08-24 23:29 · 饶雨诗】【终审-@[已脱敏] 】姐麻烦看看呀:YouAreTheBest: **项目名：**8.20上线【会员杂志】-哺乳时何时应该换边喂奶？ **设计要求：** 正文封面：标题：When to Switch Sides During Breastfeeding?                    图片：设计一张妈妈躺着侧边喂奶场景 内容图片：1 设计一张妈妈哺乳图片                    2 设计一张宝宝含着乳房睡着了图片                    3 设计一张哺乳时，宝宝推开妈妈的图片                    4 设计一张侧边喂养的图片 **设计稿件：** ![Image](img_v3_0214s_a4751234-77ee-4801-a77e-e041458ac20g)"
 reason_analysis: "【审核问题】图片 封面 项目名：8.20上线【会员杂志】-哺乳时何时应该换边喂奶。 【问题要点】 1. 项目名：8.20上线【会员杂志】-哺乳时何时应该换边喂奶 2. 【终审-@[已脱敏] 】姐麻烦看看呀 3. 正文封面：标题：When to Switch Sides During Breastfeeding? 4. 图片：设计一张妈妈躺着侧边喂奶场景 5. 内容图片：1 设计一张妈妈哺乳图片"
 advice: 应该换边喂奶？
@@ -90,8 +90,8 @@ advice: 应该换边喂奶？
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2vgYXuVvx/原文反馈`
-- 指纹：`089fc109c51facf040871d615cc9527b63af426858f6948cf5ba546786d2d565`
+- 锚点：`#负面样本/recvw7XJiSRQan/具体原因/分析`
+- 指纹：`80094178c0c4e04ce58ee31efc5d0f07014695a5c307d133eaa495ba658577ef`
 - 原因归类：unknown　|　素材类型：图片
 
 > 案例只作参照，不构成规则。

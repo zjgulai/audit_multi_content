@@ -1,5 +1,5 @@
 /**
- * prd53.mjs —— **PRD §5.3 三态结论输出规范**的判据（纯函数，无副作用）
+ * prd53.mjs —— **PRD §5.3 结论输出规范（四态）** 的判据（纯函数，无副作用）
  *
  * ── 为什么要有它（2026-10-06，Owner 在飞书私聊里发现三条回话格式不合规）
  *
@@ -24,7 +24,9 @@
  *
  * ── 判据的边界（写清楚，免得下一轮有人拿它当万能尺）
  *
- *   · 只认 PRD §5.3 定义的三态：`PASS` / `REVIEW` / `BLOCK`。
+ *   · 只认 PRD §5.3 定义的四态：`PASS` / `PASS+SUGGEST` / `REVIEW` / `BLOCK`。
+ *     `SUGGEST` 只是**旧解析别名**（规范化成 `PASS+SUGGEST`），**不是**四态之一 ——
+ *     见下面 `STATES` 那段（2026-10-21 Owner 口径）。
  *     `NEEDS_INPUT`（依据侧拒答）**不在 5.3 里** —— 它没有规范行可搬，
  *     所以这里对它返回 `null`（不搬、也不编一行出来）。要不要给拒答开第七档，是**另一件**。
  *   · 措辞是**逐字**判的：REVIEW 必须是「需人工确认」、BLOCK 必须是「必须修改」。
@@ -33,40 +35,70 @@
  */
 
 /**
- * 结论行的**状态标记**（PRD §5.3.2 四态：`PASS / SUGGEST / REVIEW / BLOCK`）。
+ * 结论行的**状态标记**：**PRD §5.3.2 四态** = `PASS / PASS+SUGGEST / REVIEW / BLOCK`。
  *
- * ★★ 2026-10-19（Owner 给了 §5.3.2 四态定义与边界，要求同步）：**加上 `SUGGEST`**。
- *   在此之前这里只有三态，而知识库一旦输出 `【SUGGEST】…`，本解析器就认不出来 ⇒
- *   判成「没拿到结论」⇒ 进补发队列重跑、表行记「未判」（`prd-v1.3-alignment.yaml::changes[A]`
- *   当初就是拿这条当「不做四态」的理由之一）。
- *   ⇒ 现在**格式层先通**（两种读法都要这一步）；「SUGGEST 能不能作为最终态」的定义级冲突
- *   见 `kb/l7/registry/prd532-states.yaml::conflict_decision`，待 Owner 裁定。
- * ⚠️ 顺序：`BLOCK` 在 `PASS` 前面，前缀匹配时不会互相吃掉。
+ * ★★ 2026-10-21（Owner：「总共 4 态 pass / pass+suggest / block / review」；
+ *   上游 PRD 同日 16:00 改到 rev 105）：**收回 2026-10-19 那版「SUGGEST 独立成态」**。
+ *   PRD rev 105 三处同向，都在说「SUGGEST 是 **PASS 的附属**、decision 仍记 PASS」：
+ *     · §5.3.2 内嵌表（sheet `xcdTpv`，rev 105）：**主状态**只列 `PASS / REVIEW / BLOCK`，
+ *       PASS 行的**附属信息**写「可附带 `SUGGEST`（如措辞优化建议）」；
+ *     · §6.3 规则 4：「无 P0、P1、P2 明确违规，仅存在 P3 SUGGEST 时，系统最终流转状态
+ *       （decision 字段）输出为 **PASS**，同时在结论中附带 SUGGEST 建议清单」；
+ *     · §5.3.4 那一档是**输出格式**（`【SUGGEST】发现 1 处建议优化，不阻断发布：…`），
+ *       不是状态机 —— 它就是「四桶」里的第二桶。
+ *   ⇒ 守衡的卡面 / 报告 / 台账**统一写 `PASS+SUGGEST`**；结论行里不再出现独立态 `SUGGEST`。
+ *
+ * ⚠️ `SUGGEST` 作为**解析别名**保留（`LEGACY_STATES`）：历史链答案、旧日志里那一行必须仍能
+ *   被认出（否则判成「没拿到结论」⇒ 进补发队列重跑、表行记「未判」），但它**不合四态格式**
+ *   （`conforms()` 会判红并说清为什么）。
+ * ⚠️ 顺序：`PASS+SUGGEST` 必须排在 `PASS` 前面，前缀匹配才不会互相吃掉。
  */
-export const STATES = ['PASS', 'SUGGEST', 'REVIEW', 'BLOCK'];
+export const STATES = ['PASS+SUGGEST', 'PASS', 'REVIEW', 'BLOCK'];
+
+/** 旧字面（2026-10-19 ~ 10-21 用过）：只作**解析别名**，不是四态之一。 */
+export const LEGACY_STATES = ['SUGGEST'];
+
+/**
+ * 任何来路的状态串 → 四态之一。
+ *
+ * 认不出的**原样大写返回**（不猜）：调用方拿它去 `conforms()` 时会被判出来。
+ * @param {string} state
+ * @returns {string}
+ */
+export function normState(state) {
+  const u = String(state ?? '').trim().toUpperCase();
+  return u === 'SUGGEST' ? 'PASS+SUGGEST' : u;
+}
 
 /** 结论行：从 `【审查结论：` 起到本行结尾。行内不许有换行（它是「一行结论」）。 */
-const LINE_RE = /【审查结论：(PASS|SUGGEST|REVIEW|BLOCK)】[^\n]*/;
+const LINE_RE = /【审查结论：(PASS\+SUGGEST|PASS|REVIEW|BLOCK|SUGGEST)】[^\n]*/;
 
 /**
  * 从一段文本里取出**第一行** `【审查结论：…】…`。
  *
+ * `state` **已规范化**（旧字面 `SUGGEST` ⇒ `PASS+SUGGEST`）；`token` 是行里**原样**那个词 ——
+ * `conforms()` 用它判「是不是旧字面」。
+ *
  * @param {string} text
- * @returns {{state:string, line:string}|null}
+ * @returns {{state:string, token:string, line:string, legacy:boolean}|null}
  */
 export function conclusionLine(text) {
   const m = LINE_RE.exec(String(text ?? ''));
   if (!m) return null;
-  return { state: m[1], line: m[0].trim() };
+  const token = m[1];
+  const state = normState(token);
+  return { state, token, line: m[0].trim(), legacy: token !== state };
 }
 
 /**
  * 这一行合不合 PRD §5.3 的**逐字措辞**？
  *
- * 判据按态分开，因为 PRD 对三态是三句不同的话：
- *   · 5.3.1 PASS  —— `【审查结论：PASS】未发现已知底线风险，可转交 @<负责人> 进行 sign-off`
- *   · 5.3.2 REVIEW —— `【审查结论：REVIEW】共发现 N 处需人工确认。`
- *   · 5.3.3 BLOCK  —— `【审查结论：BLOCK】共发现 N 处必须修改。`
+ * 判据按态分开，因为 PRD 对每一态是不同的话（rev 105 §5.3.4 四份模板）：
+ *   · PASS         —— `【审查结论：PASS】未发现已知底线风险，可转交 @<负责人> 进行 sign-off`
+ *   · PASS+SUGGEST —— `【审查结论：PASS+SUGGEST】发现 N 处建议优化，不阻断发布。`
+ *   · REVIEW       —— `【审查结论：REVIEW】共发现 N 处需人工确认。`
+ *   · BLOCK        —— `【审查结论：BLOCK】共发现 N 处必须修改。`
+ *   （`SUGGEST` 是**旧字面**：解析得出来，但判不合四态格式 —— 见上面 `STATES` 那段。）
  *
  * @param {string} line
  * @returns {{ok:boolean, state:string|null, why:string}}
@@ -75,7 +107,15 @@ export function conforms(line) {
   const s = String(line ?? '').trim();
   const head = LINE_RE.exec(s);
   if (!head) return { ok: false, state: null, why: '整行里没有【审查结论：<态>】标记' };
-  const state = head[1];
+  const token = head[1];
+  const state = normState(token);
+
+  // 旧字面：**能解析、但不合四态格式**。四态第 2 态叫 `PASS+SUGGEST`（SUGGEST 是 PASS 的附属）。
+  if (token !== state) {
+    return { ok: false, state,
+      why: '旧字面【审查结论：SUGGEST】—— PRD §5.3.2 的四态里第 2 态是「PASS+SUGGEST」'
+        + '（SUGGEST 是 PASS 的附属信息，§6.3 规则 4 的 decision 仍是 PASS），不是独立主状态' };
+  }
 
   if (state === 'PASS') {
     // ⚠️ 判据**不**要求 @ 后面是一个真句柄：`kb/l7/registry/l7.json` 的 approvers 现在是
@@ -85,16 +125,16 @@ export function conforms(line) {
     const ok = /^【审查结论：PASS】未发现已知底线风险，可转交 @\S[^\n]*进行 sign-off/.test(s);
     return { ok, state, why: ok ? '与 §5.3.1 逐字一致' : 'PASS 行必须含「未发现已知底线风险，可转交 @…进行 sign-off」' };
   }
-  if (state === 'SUGGEST') {
-    // ★★ 2026-10-19（Owner 同步 PRD §5.3.2 四态）：SUGGEST 那一行的**逐字措辞**取自
-    //   §5.3.4 样张：`【SUGGEST】发现 1 处建议优化，不阻断发布：…`
-    //   ⇒ 判据 = 「发现 N 处建议优化，不阻断发布」，**必须带「不阻断发布」**（那是它与 REVIEW 的分界）。
-    //   ⚠️ 两种收尾都认：PRD 样张是**行内**列建议（`不阻断发布：1.【…】…`）；
-    //      我们卡面是「结论行 ＋ 之下逐条」，于是收尾是句号（`不阻断发布。`）。
-    //      统一要求只有一条：**必须写「不阻断发布」**（那是与 REVIEW 的分界）。
-    const ok = /^【审查结论：SUGGEST】发现 \d+ 处建议优化，不阻断发布(?:[：:].*|。)?$/.test(s);
-    return { ok, state, why: ok ? '与 §5.3.4 样张逐字一致'
-      : 'SUGGEST 行必须是「发现 N 处建议优化，不阻断发布：…」（「不阻断发布」是它与 REVIEW 的分界，不许省）' };
+  if (state === 'PASS+SUGGEST') {
+    // ★★ 2026-10-21（四态第 2 态）：措辞取自 PRD §5.3.4 那一档样张 ——
+    //   `【SUGGEST】发现 1 处建议优化，不阻断发布：…`。两处**故意**的差别：
+    //     ① 态名写 `PASS+SUGGEST`（§5.3.2 主状态 PASS ＋ 附属 SUGGEST，Owner 2026-10-21 定）；
+    //     ② 卡面是「结论行 ＋ 之下逐条」，所以句末是句号而不是冒号。
+    //   「不阻断发布」**不许省** —— 那是它与 REVIEW 的唯一分界；
+    //   「需人工确认／必须修改」是另外两态的措辞，出现就不合这一态。
+    const ok = /^【审查结论：PASS\+SUGGEST】发现 \d+ 处建议优化，不阻断发布(?:[：:].*|。)?$/.test(s);
+    return { ok, state, why: ok ? '与 §5.3.4 样张逐字一致（四态第 2 态）'
+      : 'PASS+SUGGEST 行必须是「发现 N 处建议优化，不阻断发布：…」（「不阻断发布」是它与 REVIEW 的分界，不许省）' };
   }
   if (state === 'REVIEW') {
     const ok = /^【审查结论：REVIEW】共发现 \d+ 处需人工确认。$/.test(s);
@@ -202,7 +242,7 @@ export function passLineFor({ role = 'sign-off 责任人', handle = null } = {})
 }
 
 export function verdictLineFor({ state, n } = {}) {
-  const st = String(state ?? '').toUpperCase();
+  const st = normState(state);
   const count = Number(n);
   // ★★ 2026-10-15（Owner）：「**没有命中就是 pass**」——
   //   PASS **本来就没有 N**，所以它不该被下面那条「N 不合法 ⇒ 不派生」挡住。
@@ -234,6 +274,15 @@ export function verdictLineFor({ state, n } = {}) {
   //     而 `【审查结论：REVIEW】共发现 0 处需人工确认。` **自己跟自己矛盾**。
   //     那时退回链那一行更诚实 —— 链自己数出了几条，就照它说。
   if (!Number.isInteger(count) || count < 1) return null;
+
+  // ★★ 2026-10-21（四态第 2 态）：有建议、无强制问题 ⇒ **`PASS+SUGGEST`**。
+  //   PRD §6.3 规则 4 的 decision 仍是 PASS（这一态就是「统计四桶」里的第二桶），
+  //   而卡面 / 报告上的结论行**必须看得出「有建议」**，所以态名写全。
+  //   ⚠️ 旧字面（`st === 'SUGGEST'`）走 `normState()` 已归到这一支 —— 一处也不许各写一份。
+  if (st === 'PASS+SUGGEST') {
+    const line = `【审查结论：PASS+SUGGEST】发现 ${count} 处建议优化，不阻断发布。`;
+    return { state: 'PASS+SUGGEST', line, conform: conforms(line) };
+  }
 
   let line = null;
   if (st === 'REVIEW') line = `【审查结论：REVIEW】共发现 ${count} 处需人工确认。`;

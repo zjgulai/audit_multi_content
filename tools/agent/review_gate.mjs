@@ -32,6 +32,13 @@ import { bodyToText } from './feishu.mjs';
 // ★ 2026-10-09：帧文本改走 `video.frameLine`（**唯一产者**）—— 原先这一处自己拼过一份，
 //   与 `video.mjs` / `agent.mjs` 那份是两份实现。`video.mjs` 不引本模块，无循环依赖。
 import * as video from './video.mjs';
+import { readPublicPage } from './link_reader.mjs';
+export { readPublicPage } from './link_reader.mjs';
+// ★ 2026-10-22：「飞书链接」与「公网页面」是**两条路**，分流点只有一个（`feishu_link.readLink`）。
+//   事故与判据见 `feishu_link.mjs` 的文件头：飞书链接一律 302 到登录页，公开网页读取器
+//   永远读不到，而旧代码把失败原因写成了「域名解析到非公网地址」—— 指偏了。
+import { readLink } from './feishu_link.mjs';
+export { readLink, classifyFeishuLink, readFeishuLink, FeishuLinkError } from './feishu_link.mjs';
 
 /** 纯文字要多长才「像送审」。不是拍脑袋：一句正经的送审描述基本都过 30 字。 */
 export const MIN_REVIEW_CHARS = 30;
@@ -61,11 +68,14 @@ export const REVIEW_WORDS = [
 ];
 
 /** 文本里的链接（飞书文档/表格/wiki 与外部网页都算）。 */
-export const LINK_RE = /https?:\/\/[^\s<>"'）)】\]]+/g;
+export const LINK_RE = /https?:\/\/[^\s<>"'）)】\]，。！？；、]+/g;
 
 export function findLinks(text) {
   const m = String(text ?? '').match(LINK_RE);
-  return m ? [...new Set(m)] : [];
+  // Chinese prose punctuation is not included in LINK_RE's delimiter set.
+  // Strip sentence-ending punctuation so `https://example.com/。` is fetched
+  // as the URL the user actually pasted, not as a different path returning 404.
+  return m ? [...new Set(m.map((url) => url.replace(/[，。！？；、,.!?;:]+$/u, '')).filter(Boolean))] : [];
 }
 
 
@@ -183,6 +193,26 @@ export function mechanismQuestion(text) {
     : (!isAsk ? '没有疑问标记（是要求，不是提问）'
       : (isImperative ? '是祈使（对方在递东西来审）' : `在问审查本身怎么运作（${hits.slice(0, 3).join('、')}）`));
   return { ask, hits, why };
+}
+
+/**
+ * Deterministic answer for the recurring three-modality workflow question.
+ * A stale assistant turn already contradicted the live pipeline twice; for this
+ * narrow factual question, the implementation itself is safer than asking the
+ * model to reconcile its own old answer with the current code.
+ */
+export function reviewWorkflowMechanismAnswer(text, gate = isSubmission({ text })) {
+  const body = String(text ?? '');
+  const asksAllThree = /(?:文字|文本|文案)/.test(body) && /图片|图像/.test(body) && /链接|URL/.test(body);
+  const asksWorkflow = /怎么|如何|分别|流程|进入/.test(body);
+  if (!gate?.guard || gate.guard !== 'meta-ask' || !asksAllThree || !asksWorkflow) return null;
+  return [
+    '这是流程问题，我没有启动审核链。三类都从飞书消息进入，区别在送入审核链的材料：',
+    '1. 文字：原文按文本送审，先过 P0；未命中时继续四层规则与评审链，得到 PASS / REVIEW / BLOCK。',
+    '2. 图片：发送图片后读取 OCR 文字和画面读数，再把可审核读数送入审核链；画面读数不等于对整张原图做完整判定。',
+    '3. 纯链接：外部网页由受限读取器读取公网 HTTP(S) HTML / 纯文本页面正文；飞书文档链接走飞书只读接口读正文（docx / 表格 / 多维表格 / 知识库节点）。两种都把正文送入同一审核链；读取失败时不给审核结论、不判 PASS，也不写审核业务记录。',
+    '补充：长文本里带 URL 仍按文本送审；不会把 URL 字符串单独当成页面内容。飞书云空间附件（pptx / pdf / xlsx 等）按红线不下载，读不到正文时会说清「是附件、按红线不取」并给替代路径，不拿 DNS 或权限当理由。',
+  ].join('\n');
 }
 
 /** 去掉链接与多余空白之后的「正文」，用来判字数与关键词。 */
@@ -313,6 +343,38 @@ export function chainInput({ question = '', inbound = {} } = {}) {
     text: parts.join('\n\n'),
     media: [...new Set(media)],
   };
+}
+
+/**
+ * Read link-only submissions before they enter the review chain. Any failure is fail-closed.
+ *
+ * ★ 2026-10-22：默认 reader 从 `readPublicPage` 换成 `readLink`（分流器）——
+ *   飞书域名走飞书只读接口（docx / 表格 / 多维表格 / 知识库节点），其余仍是公开网页读取器。
+ *   这不是放宽：**没读到正文**照样 fail-closed，只是「能读的别读不了」。
+ *   ★ 失败话术：reader 可以抛带 `shouhengReply` 的错（见 `FeishuLinkError`）——
+ *   那种情况下**原样用它的话**。附件（pptx/pdf…）按红线不取、幻灯片飞书没接口、
+ *   权限不足可修，三种原因根本不同，揉成一句会让人去申请一个不需要的权限（AGENTS.md §2.4.3）。
+ */
+export async function prepareLinkReview({ gate, input, reader = readLink } = {}) {
+  if (gate?.kind !== 'link') return { input, pages: [], forcedReply: null };
+  const links = gate.links ?? [];
+  if (!links.length) return { input, pages: [], forcedReply: '链接地址未提取成功，暂不能审核；请重新发送可公开访问的 HTTP(S) 页面链接。' };
+  if (links.length > 3) return { input, pages: [], forcedReply: '本次最多读取 3 个链接。请拆分后逐条发送，我不会在未读取完整时给出通过结论。' };
+  const pages = [];
+  for (const url of links) {
+    try { pages.push(await reader(url)); }
+    catch (error) {
+      // reader 自己带了给用户看的话（分形态：红线 / 没接口 / 权限）⇒ 原样用，不许在这里
+      // 再拼一句「请提供可公开访问的页面」—— 对一份 pptx 说这句等于让人白折腾一趟。
+      const reply = error?.shouhengReply
+        ?? `链接内容未能读取（${error?.message ?? '未知原因'}），本次无法形成审核结论；`
+          + '请提供可公开访问的页面或直接粘贴正文。未读取到的内容不会判为通过。';
+      return { input, pages, forcedReply: reply };
+    }
+  }
+  const pageBlocks = pages.map((page, index) =>
+    `【链接页面 ${index + 1}｜已读取 ${page.contentType}｜${page.url}】\n${page.text}`);
+  return { input: { ...input, text: `${input?.text ?? ''}\n\n${pageBlocks.join('\n\n')}`.trim() }, pages, forcedReply: null };
 }
 
 /* ─────────────── 链的结论怎么交给模型 ─────────────── */
@@ -489,11 +551,11 @@ export function ackMessage(gate, { queued = false } = {}) {
   //   ⇒ **美国是系统既定口径，不是待用户填的参数**，所以这里**固定声明、不追问**
   //     （呼应 AGENTS.md 既有的「不许追问内容 ID / 渠道 / 产品线 / 版本」那条纪律）。
   const scopeLine = '本次按**美国市场**口径审查（PRD 第一阶段范围）。';
-  const card = { title: '⏳ 处理中…', verdict: '正在处理，请稍等，马上给你结果。' };
+  const card = { title: '⏳ 处理中…', verdict: '完整审核正在运行，完成后会在此回复；遇到故障会明确提示。' };
   card.note = note ? `${scopeLine}\n${note}` : scopeLine;
   return {
     block: `[[card:receipt]]\n${JSON.stringify(card)}`,
-    plain: `⏳ 处理中…\n正在处理，请稍等，马上给你结果。\n${card.note}`,
+    plain: `⏳ 处理中…\n完整审核正在运行，完成后会在此回复；遇到故障会明确提示。\n${card.note}`,
   };
 }
 

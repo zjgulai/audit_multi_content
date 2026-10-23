@@ -1,0 +1,26 @@
+{
+ "run": "daily-20261020-1216-L0",
+ "emitter": "l8/emit_l0_manifest_reconcile.py",
+ "appended": 0,
+ "manifest_rows_delta": 0,
+ "manifest_applied": true,
+ "manifest_applied_semantics": "manifest_applied=True 表示**本条 emit 动作执行了**；台账是否真增长看 manifest_rows_delta（本次为 +0）。两条语义分开，不改判据。",
+ "manifest_dedup": {
+  "read": 511,
+  "appended": 0,
+  "dup_skipped": 511,
+  "seen_refreshed": 511,
+  "impl": "kb/l8/l0_ledger.py:append_changed（既有实现，含 last_seen sidecar）"
+ },
+ "by_status": {
+  "registered": 184,
+  "gone": 326,
+  "updated": 1
+ },
+ "by_source_kind": {
+  "feishu_bitable_record": 511
+ },
+ "rows_before": 8586,
+ "rows_after": 8586,
+ "sha256_convention_proof": "recvw35kNoBkHf → ce546585a9be2a17ca6efc7324e63e6391c1e11e16cafafd7e7b98ed1d392ce2"
+}

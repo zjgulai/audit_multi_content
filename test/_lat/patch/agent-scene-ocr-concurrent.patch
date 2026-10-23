@@ -1,0 +1,43 @@
+--- a/tools/agent/agent.mjs
++++ b/tools/agent/agent.mjs
+@@ -459,9 +459,21 @@
+       //   ⚠️ 变量名**不许叫 `scene`** —— 那会把上面注入的那个 `scene` 参数**遮蔽掉**
+       //      （`let scene` 一写，`scene(got.path)` 当场 `scene is not a function`；
+       //       实测就是这么红的第一版）。
++      // ★ 2026-10-22：**画面读数与 OCR 并发起跑**（只重排时序，零口径改动）。
++      //   原先 `await scene()` 完了再 `await ocr()`，而这两条读数**互不依赖**
++      //   （上面 454–457 行已经写明理由：PRD §5.1 的图片输入本来就是两半）。
++      //   串着等 = 白等 min(两者)；实测那单画面读数 2791 ms、OCR 约 1.5 s ⇒ 省 1.5–2 s/图。
++      //   行为一个字不改：两条各自失败各自记（`sceneRes` 仍只是挂在 entry 上的一个读数；
++      //   OCR 抛错照旧 `pushImg({failed})` 后 `continue`），日志顺序也不变（先画面、后读到）。
++      const sceneP = Promise.resolve()
++        .then(() => scene(got.path))
++        .catch((e) => ({ ok: false, ms: 0, error: `画面读数抛异常：${e?.message ?? e}` }));
++      const ocrP = Promise.resolve()
++        .then(() => ocr(got.path))
++        .then((r) => ({ r }), (e) => ({ err: e }));
+       let sceneRes = null;
+       try {
+-        sceneRes = await scene(got.path);
++        sceneRes = await sceneP;
+       } catch (e) {
+         sceneRes = { ok: false, ms: 0, error: `画面读数抛异常：${e?.message ?? e}` };
+       }
+@@ -489,12 +501,13 @@
+       // 而这一条是写测试时才发现的 —— 第一版的 throw 会穿过 finally 冒到 handleMessage 外面，
+       // 后果是对方发图那一条消息**连正文都收不到回答**（正好复现我们要修的那个病）。
+       let r;
+-      try {
+-        r = await ocr(got.path);
+-      } catch (e) {
+-        pushImg({ failed: `OCR 抛异常：${e?.message ?? e}` });
++      // ★ 2026-10-22：OCR 已经在上面和画面读数**同时起跑**，这里只是取它的结果。
++      const ocrOut = await ocrP;
++      if (ocrOut.err) {
++        pushImg({ failed: `OCR 抛异常：${ocrOut.err?.message ?? ocrOut.err}` });
+         continue;
+       }
++      r = ocrOut.r;
+       if (!r?.ok) {
+         // 「这一张我读不到」—— 与下面的「图上没字」分开记。
+         pushImg({ failed: `OCR 失败（${r?.error ?? '未知'}）${r?.detail ? '：' + r.detail : ''}`,

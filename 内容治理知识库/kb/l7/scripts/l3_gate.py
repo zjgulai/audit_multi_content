@@ -58,6 +58,7 @@ KB = os.environ.get("KB_GATE_KB") or os.path.dirname(os.path.dirname(HERE))
 ROOT = os.path.dirname(KB)
 REGISTRY = os.environ.get("KB_GATE_L7") or os.path.join(KB, "l7/registry")
 DRIFT_YAML = os.path.join(REGISTRY, "l3-known-drift.yaml")
+RETIRED_YAML = os.path.join(REGISTRY, "l3-retired-resources.yaml")
 
 L2_UNITS = os.path.join(KB, "l2/units.jsonl")
 L3_REG = os.path.join(KB, "l3/registry/l3.json")
@@ -93,6 +94,19 @@ def _iter(p):
                 yield i, json.loads(line)
 
 
+def _same_anchor(u, anc):
+    """定稿/候选里的 anchor 与 L2 单元**现在的**锚点是不是同一坐标。
+
+    ★ 2026-10-20 补（与 l4_gate 同一条，两把尺子必须同口径）：L2 的图片级单元把字段级锚点
+      从 `#素材/<rec>/图片素材/#img.1`（历史误用）改成 `#素材/<rec>/图片素材`，旧锚点留进
+      `legacy_anchors`（写方自述「不丢引用」）。只比 `anchor` ⇒ 一次**坐标修正**把本闸门红 512。
+      ⇒ 判据 = `anchor` 相同 **或** 命中 `legacy_anchors`；sha 与「单元必须存在」一个字没放宽。
+      反向对照：`--selftest` 的 T3 把 legacy 摘掉必须**精确变红**。
+    """
+    return anc == (u.get("anchor") or "") or (anc is not None and
+                                              anc in (u.get("legacy_anchors") or []))
+
+
 def compute():
     for p in (L2_UNITS, L3_REG, L3_REJECTED):
         if not os.path.exists(p):
@@ -126,11 +140,23 @@ def compute():
                     c1.append([os.path.basename(p), d.get("rule_id"), uid, "L2 里没有这个 unit_id"])
                 elif eu.get("source_sha256") != u.get("source_sha256"):
                     c1.append([os.path.basename(p), d.get("rule_id"), uid, "source_sha256 对不上"])
-                elif eu.get("anchor") != u.get("anchor"):
+                elif not _same_anchor(u, eu.get("anchor")):
                     c1.append([os.path.basename(p), d.get("rule_id"), uid, "anchor 对不上"])
 
     # C2 拒绝项回指
-    c2, rej_res, rej_rows = [], set(), 0
+    # ★★ 2026-10-20：**资源已下线的台账行不算红**，但必须是**逐条登记**过的
+    #   （`kb/l7/registry/l3-retired-resources.yaml`，每条带下线原因 + 退役 run + 证据）。
+    #   为什么非加不可：飞书「负面样本」表 2026-10-14 整表重建 ⇒ 记录 id 全换代；
+    #   那批旧资源的单元于 2026-10-20T16:17:26 被 `prune_gone_units.py` 退役
+    #   （run=prune-20261020-161725），而 12:55 那轮重建的拒绝台账仍指着旧资源 ⇒ C2 红 240。
+    #   **没有放宽**：没登记的照样红；登记的进说明项被逐条点名（不静默）。
+    retired = set()
+    for x in (_yaml(RETIRED_YAML).get("retired") or []):
+        if isinstance(x, dict) and x.get("resource_id"):
+            retired.add(str(x["resource_id"]))
+        elif isinstance(x, str):
+            retired.add(x)
+    c2, c2_retired, rej_res, rej_rows = [], [], set(), 0
     rej_kind = collections.Counter()
     for ln, d in _iter(L3_REJECTED):
         rej_rows += 1
@@ -139,7 +165,10 @@ def compute():
         if rid:
             rej_res.add(rid)
             if rid not in res_ids:
-                c2.append([ln, rid, "L2 单元里没有这个资源"])
+                if rid in retired:
+                    c2_retired.append([ln, rid])
+                else:
+                    c2.append([ln, rid, "L2 单元里没有这个资源"])
 
     # C3 自报键声明
     with open(L3_REG, encoding="utf-8") as fh:
@@ -176,7 +205,7 @@ def compute():
                    "both": len(produced_res & rej_res),
                    "l2_resources": len(res_ids), "l2_units": len(by_uid)},
         "C1_bad_refs": c1[:CAP], "C1_n": len(c1),
-        "C2_bad_rejected": c2[:CAP], "C2_n": len(c2),
+        "C2_bad_rejected": c2[:CAP], "C2_n": len(c2), "C2_retired_n": len(c2_retired),
         "C3_undeclared_keys": undeclared, "C3_n": len(undeclared),
         "C3_declared_keys": sorted(declared), "C3_present_keys": present,
         "N1_reject_kinds": dict(rej_kind), "N2_archive": arch,
@@ -186,11 +215,112 @@ def compute():
     return rep, None
 
 
+def _selftest_fixture(root, unit_anchor, legacy, unit_sha, ev_anchor, ev_sha,
+                      unit_exists=True, reject_res="res-1", retired=None):
+    """最小夹具：1 个 L2 单元 + 1 条候选证据 + 1 行拒绝台账。只写临时目录。"""
+    for d in ("l2", "l3/candidates", "l3/registry", "l7/registry"):
+        os.makedirs(os.path.join(root, d), exist_ok=True)
+    unit = {"unit_id": "u1", "resource_id": "res-1", "anchor": unit_anchor,
+            "source_sha256": unit_sha}
+    if legacy:
+        unit["legacy_anchors"] = legacy
+    with open(os.path.join(root, "l2/units.jsonl"), "w", encoding="utf-8") as fh:
+        if unit_exists:
+            fh.write(json.dumps(unit, ensure_ascii=False) + "\n")
+    with open(os.path.join(root, "l3/candidates/cand.jsonl"), "w", encoding="utf-8") as fh:
+        fh.write(json.dumps({"rule_id": "r1", "evidence_units": [
+            {"unit_id": "u1", "anchor": ev_anchor, "source_sha256": ev_sha}]},
+            ensure_ascii=False) + "\n")
+    with open(os.path.join(root, "l3/rejected.jsonl"), "w", encoding="utf-8") as fh:
+        fh.write(json.dumps({"kind": "unit_level", "resource_id": reject_res},
+                            ensure_ascii=False) + "\n")
+    with open(os.path.join(root, "l3/registry/l3.json"), "w", encoding="utf-8") as fh:
+        json.dump({}, fh)
+    with open(os.path.join(root, "l7/registry/l3-retired-resources.yaml"), "w", encoding="utf-8") as fh:
+        fh.write("retired:\n")
+        for r in (retired or []):
+            fh.write("  - resource_id: %s\n    why: 夹具：源已下线\n" % r)
+
+
+def selftest():
+    """C1/C2 的**反向对照**：判据改完还必须能精确变红。"""
+    import shutil
+    import tempfile
+
+    global L2_UNITS, L3_REG, L3_REJECTED, L3_CANDIDATES, L3_ARCHIVE, DRIFT_YAML, RETIRED_YAML
+    saved = (L2_UNITS, L3_REG, L3_REJECTED, L3_CANDIDATES, L3_ARCHIVE, DRIFT_YAML, RETIRED_YAML)
+    NEW, OLD, sha = "#素材/R1/图片素材", "#素材/R1/图片素材/#img.1", "sha-A"
+    cases = [
+        ("T1 锚点逐字相同 ⇒ 过", dict(unit_anchor=NEW, legacy=None, unit_sha=sha,
+                                    ev_anchor=NEW, ev_sha=sha), 0, 0, None),
+        ("T2 旧写法 + 单元留了 legacy ⇒ 过（本次修复要治的那条）",
+         dict(unit_anchor=NEW, legacy=[OLD], unit_sha=sha, ev_anchor=OLD, ev_sha=sha),
+         0, 0, None),
+        ("T3 反例：同样的旧锚点、把 legacy 摘掉 ⇒ C1 必须红",
+         dict(unit_anchor=NEW, legacy=None, unit_sha=sha, ev_anchor=OLD, ev_sha=sha),
+         1, 0, "anchor 对不上"),
+        ("T4 反例：sha 不一致 ⇒ C1 必须红",
+         dict(unit_anchor=NEW, legacy=[OLD], unit_sha=sha, ev_anchor=OLD, ev_sha="sha-B"),
+         1, 0, "source_sha256 对不上"),
+        ("T5 反例：L2 里没有这个单元 ⇒ C1 必须红（C2 不判：单元整份没有时台账那行也必然找不到）",
+         dict(unit_anchor=NEW, legacy=[OLD], unit_sha=sha, ev_anchor=OLD, ev_sha=sha,
+              unit_exists=False), 1, None, "没有这个 unit_id"),
+        ("T6 反例：拒绝台账指向 L2 没有的资源 ⇒ C2 必须红（证明没把 C2 改坏）",
+         dict(unit_anchor=NEW, legacy=[OLD], unit_sha=sha, ev_anchor=OLD, ev_sha=sha,
+              reject_res="res-404"), 0, 1, None),
+        ("T7 同一行资源**已登记下线** ⇒ C2 不红（进说明项，不静默）",
+         dict(unit_anchor=NEW, legacy=[OLD], unit_sha=sha, ev_anchor=OLD, ev_sha=sha,
+              reject_res="res-404", retired=["res-404"]), 0, 0, None),
+        ("T8 反向对照：登记件里换成别的资源 ⇒ 原来那行必须精确变红",
+         dict(unit_anchor=NEW, legacy=[OLD], unit_sha=sha, ev_anchor=OLD, ev_sha=sha,
+              reject_res="res-404", retired=["res-other"]), 0, 1, None),
+    ]
+    rows, ok = [], True
+    tmp = tempfile.mkdtemp(prefix="l3gate-selftest-")
+    try:
+        for name, kw, want_c1, want_c2, why in cases:
+            root = os.path.join(tmp, name.split()[0])
+            _selftest_fixture(root, **kw)
+            L2_UNITS = os.path.join(root, "l2/units.jsonl")
+            L3_REG = os.path.join(root, "l3/registry/l3.json")
+            L3_REJECTED = os.path.join(root, "l3/rejected.jsonl")
+            L3_CANDIDATES = os.path.join(root, "l3/candidates/*.jsonl")
+            L3_ARCHIVE = os.path.join(root, "l3/_archive/none.jsonl")
+            DRIFT_YAML = os.path.join(root, "l7/registry/l3-known-drift.yaml")
+            RETIRED_YAML = os.path.join(root, "l7/registry/l3-retired-resources.yaml")
+            rep, err = compute()
+            if rep is None:
+                rows.append((name, False, "夹具算不出来：%s" % err))
+                ok = False
+                continue
+            got_why = " ".join(str(x[-1]) for x in rep["C1_bad_refs"])
+            good = rep["C1_n"] == want_c1 and \
+                (want_c2 is None or rep["C2_n"] == want_c2) and \
+                (why is None or why in got_why)
+            ok = ok and good
+            rows.append((name, good, "C1_n=%d C2_n=%d%s"
+                         % (rep["C1_n"], rep["C2_n"], ("：" + got_why) if got_why else "")))
+    finally:
+        L2_UNITS, L3_REG, L3_REJECTED, L3_CANDIDATES, L3_ARCHIVE, DRIFT_YAML, RETIRED_YAML = saved
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    for name, good, detail in rows:
+        print("  %s %s ｜ %s" % ("✅" if good else "❌", name, detail))
+    print("l3_gate --selftest %s（%d/%d）" % ("PASS" if ok else "FAIL",
+                                             sum(1 for _, g, _ in rows if g), len(rows)))
+    return 0 if ok else 1
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--quiet", action="store_true")
+    ap.add_argument("--selftest", action="store_true",
+                    help="C1/C2 判据的反向对照（造夹具，不碰真库）")
     a = ap.parse_args()
+
+    if a.selftest:
+        return selftest()
 
     rep, err = compute()
     if rep is None:
@@ -217,6 +347,10 @@ def main():
             print("C1 证据回指不上 %d 条：" % rep["C1_n"])
             for f, rid, uid, why in rep["C1_bad_refs"][:3]:
                 print("   %s ｜ %s ｜ unit %s ｜ %s" % (f, rid, uid, why))
+        if rep.get("C2_retired_n"):
+            print("  说明项（不是红）：拒绝台账里 %d 行指向**已登记下线**的旧资源"
+                  "（`kb/l7/registry/l3-retired-resources.yaml`，源记录已随飞书表重建换代）"
+                  % rep["C2_retired_n"])
         if rep["C2_n"]:
             print("C2 拒绝项在 L2 找不到出处 %d 条：" % rep["C2_n"])
             for ln, rid, why in rep["C2_bad_rejected"][:3]:

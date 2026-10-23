@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.104 是正例还是反例
   - S-1.104 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-8e6e7714cd1e8dab"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: EDM
 reason_category: 文化禁忌
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2vgYXPvdT/原文反馈"
-source_sha256: 01feb363ef2248223d1b4f29c9cefa45b114b94d86334cff83e69dce40d362f8
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXPvdT
+anchor: "#负面样本/recvw7XIUgdA2m/具体原因/分析"
+source_sha256: 51a28e99c13f57110f9de8e20c6e90545ee1385e2db0190e02dfbe6e70fc41c9
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XIUgdA2m
 sample_body: "【审核 · 2026-07-26 00:34 · 李新】【初审-@[已脱敏] 】帮忙看看呀:YouAreTheBest: **项目名**: EDM整风7.28【BB预热】外出解决方案-北美夏季版 **设计要求**: 明亮自然光的户外场景，类似公园，海边，妈妈穿夏季轻薄穿搭，推推车，宝宝在车内状态放松，可添加展示便携风扇等突出利益点。商品部分做纯文字就行，商品我们会用动态商品插在中标题与按钮中间。尾图建议：傍晚户外场景，妈妈坐在草地毯子上看着宝宝，宝宝坐在拖车座椅里举着手很兴奋的样子，可以在拖车遮阳篷上挂便携小风扇 **设计稿件：** ![Image](img_v3_0213u_d6f4c64b-aa7e-43ae-afd9-2f29210860fg)  MOMCOZY Breast Pumps - MonC٦s Bras everyday & reeding Body Pillows Pregnancy Feeding Geaar Out With Baby, Pace Unchanged Momcozy's outing gear helps you get baby out the door and into the day. Up to 20% off Let's Roll → Built for Easier Days Out Explore → Make Outings Feel Lighter Skip the prep hassle - Momcozy helps you make more memories together. Shop Outing Essentials momcozy 1580 N Logan St Ste 660, #30327, Denver, CO 80203-1994, USA Privacy Policy Terms & Conditions Warranty Policy All Rights Reserved © 2026 Momcozy."
 reason_analysis: "【文化禁忌】图片 尾图建议：傍晚户外场景，妈妈坐在草地毯子上看着宝宝，宝宝坐在。 【问题要点】 1. 尾图建议：傍晚户外场景，妈妈坐在草地毯子上看着宝宝，宝宝坐在拖车座椅里举着手很兴奋的样子，可以在拖车遮阳篷上挂便携小风扇 2. 【初审-@[已脱敏] 】帮忙看看呀 3. 项目名EDM整风7.28【BB预热】外出解决方案-北美夏季版 4. 设计要求明亮自然光的户外场景，类似公园，海边，妈妈穿夏季轻薄穿搭，推推车，宝宝在车内状态放松，可添加展示便携风扇等突出利益点 5. 商品部分做纯文字就行，商品我们会用动态商品插在中标题与按钮中间"
 advice: 建议：傍晚户外场景，妈妈坐在草地毯子上看着宝宝，宝宝坐在拖车座椅里举着手很兴奋的样子，可以在拖车遮阳篷上挂便携小风扇；可以在拖车遮阳篷上挂便携小风扇
@@ -115,8 +115,8 @@ All Rights Reserved © 2026 Momcozy.
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2vgYXPvdT/原文反馈`
-- 指纹：`01feb363ef2248223d1b4f29c9cefa45b114b94d86334cff83e69dce40d362f8`
+- 锚点：`#负面样本/recvw7XIUgdA2m/具体原因/分析`
+- 指纹：`51a28e99c13f57110f9de8e20c6e90545ee1385e2db0190e02dfbe6e70fc41c9`
 - 原因归类：文化禁忌　|　素材类型：图片
 
 > 案例只作参照，不构成规则。

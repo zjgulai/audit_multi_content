@@ -100,6 +100,12 @@ def _finding(**kw):
     # 与 `review()` 返回前的盖章**同一个函数**（不是复刻一份口径）
     if "risk_category" not in kw:
         RC.stamp(f)
+    # ★★ 2026-10-19（Owner：「所属类别/所属子类」统一到 A3 12 类）：
+    #   夹具也带上 A3 两格（真单的 `risk_items` 都带 —— `review.py::stamp_taxonomy` 盖的）。
+    #   不带的后果：分类汇总只能落「未归类」，量不到 A3 的那几行。
+    if "taxonomy_category" not in kw:
+        f["taxonomy_category"] = kw.pop("taxonomy_category", None) or "合规与受监管宣称"
+        f.setdefault("taxonomy_subcategory", "生理功效与效果承诺")
     return f
 
 
@@ -134,13 +140,33 @@ class DimensionWiringTests(unittest.TestCase):
 
         把搬运写成「读不到就给个默认维度」（蒙维度）⇒ 本用例精确变红。
         库规：**蒙错比留空更坏**（留空人会去补，错值人不会回头看）。
+
+        ★★ 2026-10-20 改夹具（**判据一个字没动**）：Owner 已裁定「必须归类」，
+           `原则性错误` / `文化禁忌` 从 `unmapped` 移进了 `map`（见
+           `kb/l7/registry/risk-category-policy.json`）⇒ 它们**不再是**未映射类。
+           仍留在 `unmapped` 的是 `unknown`（反例体系里「还没判」，实测 214 行）——
+           拿它当夹具，"蒙维度即红" 这条防护照样成立。
         """
-        f = _finding(category="原则性错误", sub="事实性错误")
+        f = _finding(category="unknown", sub="")
         self.assertIsNone(f["risk_category"], "夹具前提：该类未映射 ⇒ 盖章留空")
         item = R._finding_to_risk_item(f, 1)
         self.assertIsNone(item.get("risk_category"), "未映射的类别被蒙了一个维度")
         self.assertIn("待裁", str(item.get("risk_category_basis")),
                       "留空了却没写为什么 ⇒ 下一个人会以为是漏跑")
+
+    def test_owner_20261020_case_vocab_now_mapped(self):
+        """★ 2026-10-20（Owner：「未归类问题：2 个，不属于所属类别12类中的吗？
+
+        图片提取规则的时候要归类」）：这两类**必须给出维度**，不再留空。
+        反向对照：把 `map` 里这两条删掉 ⇒ 本用例精确变红。
+        """
+        for cat in ("原则性错误", "文化禁忌"):
+            f = _finding(category=cat, sub="")
+            self.assertEqual(f["risk_category"], "措辞表达",
+                             "%s 仍未映射 —— Owner 2026-10-20 已要求归类" % cat)
+            item = R._finding_to_risk_item(f, 1)
+            self.assertEqual(item.get("risk_category"), "措辞表达",
+                             "%s 的维度没搬进 risk_items" % cat)
 
     # ── 报告里看得见（PRD §8.3「每条包含：维度、位置…」）──────────────────
     def _write(self, findings):
@@ -149,34 +175,51 @@ class DimensionWiringTests(unittest.TestCase):
         return (Path(self.dir) / "R-1.review.md").read_text(encoding="utf-8")
 
     def test_report_renders_dimension_line(self):
-        """完整问题清单每条要印出「维度」。改前**整份报告没有「维度」二字**。"""
+        """★ 2026-10-19（Owner：「报告要同步 卡上 12 类呀，**整个知识库都要同步**」）：
+        **四维那一行整行撤掉**，报告里只留 A3 那一格 `- 所属类别 / 所属子类：**…**`。
+
+        防护意图照旧：完整清单里**每条必须能看出它归哪一类**（不许只有标题行、正文没有）；
+        新增半条反向对照：**`- 维度：**` 不许再出现**（两套分类并排正是 Owner 报的那个问题）。
+        """
         txt = self._write([_finding() for _ in range(3)])
-        self.assertIn("- 维度：**合规**", txt, "报告没印维度")
-        # ★ 只增不改：位置仍在标题行、其余各行不变
-        self.assertIn("【功效宣称-催乳与通乳宣称】全文", txt, "标题行被改动了")
+        self.assertNotIn("- 维度：", txt, "四维那一行又回来了（报告只许有一个轴：A3 12 类）")
+        self.assertIn("- 所属类别 / 所属子类：**合规与受监管宣称** / 生理功效与效果承诺", txt,
+                      "报告没印「所属类别 / 所属子类」")
+        self.assertIn("【合规与受监管宣称-生理功效与效果承诺】全文", txt, "标题行没换成 A3")
 
     def test_report_marks_unmapped_as_pending_not_fabricated(self):
-        """反向对照：未映射的在**人看的报告**里也必须写「未标注维度（待裁）」，不许编一个。"""
+        """反向对照：盖不到 A3 的条目在**人看的报告**里必须写 `未归类`，**不许编一个类**。
+
+        ★ 2026-10-19：原先这条盯的是四维的「未标注维度（待裁）」。四维撤掉后，
+          同一件防护换到 A3 上 —— 兜底类名就是 12 类里的 `未归类`（**不是**四维的桶名）。
+        """
         fs = [_finding() for _ in range(2)]
-        fs.append(_finding(category="文化禁忌", sub="文化歧义"))
+        fs.append(_finding(category="文化禁忌", sub="文化歧义", taxonomy_category=None,
+                           taxonomy_subcategory=None))
         txt = self._write(fs)
-        self.assertIn("未标注维度（待裁）", txt, "未映射的类别在报告里没被如实标注")
-        self.assertNotIn("- 维度：**合规**\n- 维度：**合规**", txt.replace("\n\n", "\n"))
+        self.assertIn("未归类", txt, "盖不到 A3 的条目在报告里没被如实标成 `未归类`")
+        self.assertNotIn("未标注维度", txt, "四维的桶名「未标注维度」又出现了")
 
     # ── PRD §5.3.2「问题 ≥ 3 个时，只输出分类汇总」：分的是**维度** ──────────
     def test_render_summary_groups_by_dimension(self):
-        """★ ≥3 条时汇总行必须是「· 合规类问题：N 个」—— PRD §5.3.2 逐字示例的口径。
+        """★ ≥3 条时汇总行必须是 **PRD §5.3.4 的形状**：`· 合规类：N 个 · …`（一行、按维度）。
 
-        改前按 `f["category"]`（库内类别）分组 ⇒ 印「· 功效宣称类问题：1 个」，
-        与 PRD 示例**不是同一样东西**。
-        **把分组键换回 `f["category"]` ⇒ 本用例精确变红。**
+        ⚠️ **2026-10-19 更正本用例的引文口径**：它原来写「PRD §5.3.2 逐字示例是
+        `· 合规类问题：3 个`」——**引错了**。实际核过 PRD v1.4：
+          · §5.3.2 那张内嵌表（`xcdTpv`）只有 `状态/定义/动作` 三列，**没有**分类汇总样张；
+          · 样张在 **§5.3.4**，逐字是 `· 合规类：X 个 · 消费者安全类：X 个 · 措辞类：X 个`
+            （一行、`·` 分隔、**没有「问题」二字**）。
+        ⇒ 断言随之改成 PRD 原样。**把分组键换回 `f["category"]`（库内类别）⇒ 本用例精确变红。**
         """
         fs = [_finding(category="功效宣称", sub="催乳与通乳宣称"),
               _finding(category="绝对化与安全承诺", sub="虚假安全承诺"),
               _finding(category="背书与资质", sub="监管认证宣称")]
         txt = R.render({"state": "BLOCK", "findings": fs, "trace": {}}, REG)
-        self.assertIn("· 合规类问题：3 个", txt, "没按维度汇总")
-        self.assertNotIn("功效宣称类问题", txt, "仍在按库内类别汇总")
+        # ★★ 2026-10-19：轴 = **A3 12 类**（`· <所属类别>类问题：N 个`，每类一行）
+        self.assertIn("· 合规与受监管宣称类问题：3 个", txt, "没按 A3 汇总")
+        self.assertNotIn("功效宣称类", txt, "仍在按 A1 库内类别汇总")
+        self.assertNotIn("合规类问题", txt, "仍在按 A2 四维汇总")
+        self.assertNotRegex(txt, r"个 · [^\n]*类问题：", "汇总被缩成一行了（应每类一行）")
 
     def test_render_summary_unmapped_gets_own_bucket_last(self):
         """★★ 反向对照：未映射的类别**单成一桶**（不并进「合规」），且**排在最后**。
@@ -184,32 +227,40 @@ class DimensionWiringTests(unittest.TestCase):
         把桶并进任一个真维度、或把桶名写成四维之一 ⇒ 本用例精确变红。
         库规：**「不知道」不许当「合规」**（蒙错比留空更坏）。
         """
+        # 一条有 A3（真单里规则层命中就有），两条**没有**（模型侧/反例层盖不到）⇒ 必须进兜底类
         fs = [_finding(category="功效宣称", sub="催乳与通乳宣称"),
-              _finding(category="原则性错误", sub="事实性错误"),
-              _finding(category="文化禁忌", sub="文化歧义")]
+              _finding(category="原则性错误", sub="事实性错误",
+                       taxonomy_category=None, taxonomy_subcategory=None),
+              _finding(category="文化禁忌", sub="文化歧义",
+                       taxonomy_category=None, taxonomy_subcategory=None)]
         txt = R.render({"state": "REVIEW", "findings": fs, "trace": {}}, REG)
-        self.assertIn("· 合规类问题：1 个", txt, "映射到维度的那一条没进「合规」")
-        self.assertIn("· 未标注维度类问题：2 个", txt, "未映射的两条没单成一桶")
-        body = [l for l in txt.splitlines() if l.startswith("· ")]
-        self.assertTrue(body and body[-1].startswith("· 未标注维度"),
-                        "桶没排在最后：%r" % (body,))
+        self.assertIn("· 合规与受监管宣称类问题：1 个", txt, "带 A3 的那条没进它的类")
+        self.assertIn("· 未归类问题：2 个", txt, "没有 A3 的两条没并进「未归类」兜底类")
+        # 每类一行：兜底类必须是**最后一个汇总行**
+        rows = [l for l in txt.splitlines() if l.startswith("· ")]
+        self.assertTrue(rows and rows[-1].startswith("· 未归类问题：2 个"),
+                        "兜底类没排在最后：%r" % (rows,))
 
     # ── PRD §5.3「按维度分组展示」：维度优先、risk_type 兜底 ────────────────
     def test_report_memory_groups_by_dimension_not_risk_type(self):
-        """★ 端到端：分组键必须是**维度**。
+        """★ 端到端：分组键必须是 **A3 12 类**（既不是库内 `risk_type`，也不是 A2 四维）。
 
-        `功效宣称`（⇒ 合规）与 `品牌一致性`（⇒ 措辞表达）两条，其 `risk_type`
-        （`功效宣称-催乳与通乳宣称` / `品牌一致性-禁区（库内反例条款）`）都**不等于**维度名
-        ⇒ 分组标题只能是「合规」「措辞表达」。
-        **把 `report_memory` 的分组键换回 `risk_type` ⇒ 本用例精确变红。**
+        ★ 2026-10-19（Owner：「报告要同步 卡上 12 类呀，**整个知识库都要同步**」）：
+          这条用例原先钉的是四维（`合规` / `措辞表达`）。四维撤掉后，同一件防护换成 A3：
+          两条条目分别给 `合规与受监管宣称` 与 `推广与价格透明`，其 `risk_type`
+          （`功效宣称-…` / `品牌一致性-…`）都**不等于**类名 ⇒ 分组标题只能是那两个类名。
+        **把 `report_memory` 的分组键换回 `risk_type` 或换回四维 ⇒ 本用例精确变红。**
         """
         items = [R._finding_to_risk_item(_finding(category="功效宣称", sub="催乳与通乳宣称"), 1),
-                 R._finding_to_risk_item(_finding(category="品牌一致性",
-                                                  sub="禁区（库内反例条款）"), 2)]
+                 R._finding_to_risk_item(_finding(category="品牌一致性", sub="禁区（库内反例条款）",
+                                                  taxonomy_category="推广与价格透明",
+                                                  taxonomy_subcategory="促销紧迫感与施压表述"), 2)]
         md = render_markdown({"review_id": "R-DIM", "decision": "REVIEW", "risk_items": items})
-        self.assertIn("### 合规", md, "没按维度分组")
-        self.assertIn("### 措辞表达", md, "没按维度分组")
+        self.assertIn("### 合规与受监管宣称", md, "没按 A3 12 类分组")
+        self.assertIn("### 推广与价格透明", md, "没按 A3 12 类分组")
         self.assertNotIn("### 功效宣称-催乳与通乳宣称", md, "分组回落成了库内类别")
+        self.assertNotIn("### 措辞表达", md, "分组又回到 A2 四维")
+        self.assertNotIn("### 合规\n", md, "分组又回到 A2 四维（裸「合规」）")
 
 
 if __name__ == "__main__":

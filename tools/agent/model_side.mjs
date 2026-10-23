@@ -30,7 +30,7 @@ import { sceneBlock } from './scene.mjs';
 import { sourceMenuLines, resolveSourceId, probeUrl, probeLabel } from './ext_basis.mjs';
 // ★ 2026-10-19（Owner：「按 prd 要求的字数限制梳理重点输出，不能出现截断的场景」）：
 //   字数判据**只有一个来源**（PRD 真源 `prd533-constraints.yaml`）—— 这里不自己写 50/30。
-import { checkFields as prd533Fields } from './prd533.mjs';
+import { checkFields as prd533Fields, ADVICE_MAX } from './prd533.mjs';
 
 /** 每次最多探几条依据链接（防 10 条 finding 拖出 10 次网络往返）。 */
 export const MAX_PROBE = 3;
@@ -71,12 +71,26 @@ export const TAXONOMY_CLASSES = Object.freeze([
   '平台与渠道政策', '北美本地化与标签要求', '母婴知识内容准确性', '未归类',
 ]);
 
-/** 模型侧看得到「文字层 + 画面读数」两样，但**看不到原图**。这条要说在前面。 */
+/** A3 所属类别误填到方向类目格时的确定性兼容映射，避免整条审核发现被丢弃。 */
+export function routeCategoryFromTaxonomy(taxonomyCategory, taxonomySubcategory = '') {
+  const cat = String(taxonomyCategory ?? '').trim();
+  const sub = String(taxonomySubcategory ?? '').trim();
+  if (!TAXONOMY_CLASSES.includes(cat) || cat === '未归类') return null;
+  if (cat === '产品安全与高危使用场景') return '消费者安全';
+  if (cat === '商品信息与Listing准确性') return '产品描述';
+  if (cat === '北美本地化与标签要求') return '本地化';
+  if (cat === '权利、肖像、隐私与AI') return /AI|生成内容标识/i.test(sub) ? 'AI 披露' : '隐私';
+  if (cat === '品牌信任与声誉') return '措辞表达';
+  // 其余类目无法无损地推断到更窄的路由方向，保留为通用合规方向。
+  return '合规';
+}
+
+/** 模型侧并行审查：接收 OCR/画面读数；图片单还直接接收原图。 */
 export const SYSTEM = [
   '你是内容合规审查里的**模型侧**。它与知识库侧**并行、互不参照**：',
   '你看不到任何知识库条款、检索结果或他人的结论，也不许引用条款号。',
-  '你只做一件事：读下面这段**素材的读数**（图上的字 / **画面读数** / 视频关键帧上的字 / 音轨转写），',
-  '凭语义、常识与平台惯例，列出**你发现的问题**。',
+  '你只做一件事：审查素材本身（图片单要直接看原图，并结合 OCR/画面读数；视频看关键帧文字/音轨转写），',
+  '凭视觉观察、语义理解、常识与美国平台惯例，列出**你发现的问题**。',
   '',
   '硬约束（违反的条目会被丢弃）：',
   '1. **没有发现就返回空数组 `[]`。** 不许为了「有产出」而编 —— 空的清单是有效结论。',
@@ -91,9 +105,23 @@ export const SYSTEM = [
   //   病灶：实测卡上出现「依据：独立语义复核（非条款依据，需人工核对）」——
   //   一条**没有依据**的判定，读者凭什么信它？PRD §5.3.3 也写明依据必须可引。
   //   ⇒ 规则前置：**每条都必须给得出依据**（外部标准 id 或可核 URL）；给不出就**不要报这条**。
-  '1c. **每条都必须给得出依据**（`source` 取 S1–S17 之一，或 `source_url` 给可核链接）；',
-  '   给不出依据的判断**不要写进结果** —— 一条没有依据的"问题"读者无法核对，反而稀释真问题。',
-  '   ⚠️ 这是「**有依据才报**」，不是「为了有依据而编一个来源」：编来源比不报坏得多。',
+  // ★★ 2026-10-22（Owner：「**依据文档链接，是需要提供证明这是个问题的外部链接**，
+  //   报告里的『送审素材原文：「Ask Midwife Vic」』更像是问题描述」）——
+  //   **呈现口径变了，提示词必须跟着变**：那一格现在只有三种写法
+  //     ① 登记来源《文档》（带链接）；② 模型自写可核 URL；③ 「无外部依据（原图观察：…；需人工核对）」。
+  //   ⇒ 所以：**有可挂的外部文档就必须挂**；只有纯画面事实才可以只给 `visual_anchor`，
+  //     那时报告会如实写「无外部依据」——**不许为了填满那一格去编一条法规或凑一个「最像的」来源**。
+  '1c. **图片单允许基于原图直接观察与图文语义关系提出问题，不要求外部/库内条款**；',
+  '   必须填写 `evidence_basis:"image_observation"` 与具体 `visual_anchor`（图号及可见事实/语义关系），',
+  '   并把观察事实与判断分开写。纯观察/语义一致性可以无引用；声称违反法规、平台规则或专业安全标准时，',
+  '   仍须给可核 `source`/`source_url`，否则不得作该规范性结论。',
+  '   1c-2 ★ **能挂外部文档的，一律挂上**（那一格读者会点开核对）：',
+  '     涉及「资质 / 执业身份」「从业年限与资历」「专家或机构背书」「功效与举证」',
+  '     「价格·对比·排名」这几类，请从第 6 条的已登记来源里挑一个（挑不出再写 `source_url`）——',
+  '     那一格要的是**能证明「这是个问题」的外部文档**，不是材料里那句原文本身。',
+  '     只有**纯画面事实**（人物姿势、物件状态与摆放、排版与图标、水印位置）才允许只给 `visual_anchor`；',
+  '     这种条目报告会如实写「无外部依据（原图观察：…）」，**不许**给它编一条法规。',
+  '   **不许编造画面内容**：图片单必须能从原图确认 `visual_anchor`，读数与原图冲突时以原图为准。',
   '1b. **非强制项也要报**（这关系到最终结论能不能落 SUGGEST 这一态）：',
   '   除了「不改就不能发」的强制项，**如果这段文案存在下面三类之一，就必须报出来**并标 `nature:"非强制"`：',
   '     · **措辞优化**：表达啰嗦、堆砌形容词、口语/网红腔、句式重复、术语不统一；',
@@ -107,11 +135,17 @@ export const SYSTEM = [
   //   变成「**只许依据画面读数那一节评价画面**」。两种写法都不是风格问题：
   //   放开而不设边界 ⇒ 它会把自己"想象"的画面写进 findings（2026-10-09 实测过
   //   它拿水印编出「图上反复出现『5615 RO0』」那种条目，让被审方去改图上不存在的东西）。
-  '2. **画面只能依据 `【图 N 的画面读数】` 那一节来说。** 它是视觉模型的读数，**不是原图**。',
+  '2. 图片单直接检查本轮随请求提供的原图；`【图 N 的画面读数】` 与 OCR 是辅助读数，不替代原图。',
   '   · 那一节里**写了**的（场景、人物、物品、可见标识、画面线索）⇒ 可以据此判，位置写「画面」；',
   '   · 那一节里**没写**的（月龄、声音、这张图之外的情节、更细的构图）⇒ **不许推断**，也不许写成问题；',
   '   · 那一节**没有**（这一单没跑画面层或没读到）⇒ 画面层就此打住，**不许把「我看不到画面」写成问题**'
     + '（那是能力边界，不是内容风险）。',
+  // ★ 2026-10-22（Owner：截图层水印不是素材问题）：重复/覆盖式审阅水印被 OCR 摘除后，
+  //   模型仍会从原图看见它；必须避免把截图叠加层推断成成品隐私/背书风险。
+  '2a. **截图层水印不计为素材问题**：若 OCR 读数注明已摘除重复/覆盖式水印，且原图显示它是半透明截图/审阅叠加层，',
+  '   不得把它写成隐私泄露、广告主/背书误认或要求删除水印的发现；不得单独据此判 REVIEW。',
+  '   水印若遮住文字，只说明受遮挡区域的局部识读受限，不将遮挡本身列为素材问题。',
+  '   只有原图能确认水印属于最终交付创意内容时，才按成品审查；不能确认时不得推断消费者会误认。',
   '3. **不许把「这段没有可读文字」写成问题。** 同上。',
   // ★ 2026-10-09（Owner：「守衡输出的没有视频的时间节点」）：原先只写「第几帧」，
   //   而输入里**根本没有帧号** ⇒ 模型只能编一个「帧 3」，或干脆写「（未给位置）」。
@@ -140,10 +174,10 @@ export const SYSTEM = [
   //   PRD §5.3.3「单条问题：…修改建议 ≤30 字」）——
   //   这一格是**报告**「修改建议」的上游来源（`sugModel`），上限必须在源头说清：
   //   渲染层 `_clip` 只是硬兜底 —— 源头写成 300 字，截出来的是半句诊断，不是动作。
-  '    **≤30 字**（PRD §5.3.3 硬约束，卡面与报告同一把尺）：一句可执行动作，不解释、不列 ①②③。',
+  `    **≤${ADVICE_MAX} 字**（卡面与报告同一把尺）：一句可执行动作，不解释、不列 ①②③。`,
   '    不许写「转对应负责人复核」「请人工确认」「建议修改」这类**没有动作**的话：',
   '    收到它的人还是不知道改什么。写不出具体改法时，就写清**缺什么信息才能定**（例如',
-  '    「需要知道投放的是哪个平台才能定这句话合不合规」）—— 那也是可执行的下一步，同样 ≤30 字。',
+  `    「需要知道投放的是哪个平台才能定这句话合不合规」）—— 那也是可执行的下一步，同样 ≤${ADVICE_MAX} 字。`,
   // ★★ 2026-10-17（Owner 裁定：报告的「问题描述」与「原因」必须分两格）———————
   //   PRD §8.3 的完整清单每条要 `维度 / 位置 / **问题描述** / **原因** / 依据文档链接 / 修改建议`，
   //   而我们此前只出一格 `reason` —— 现象、判据、后果全挤在那一句里，
@@ -206,8 +240,12 @@ export const SYSTEM = [
   '6. ★★ **每一条都必须交代依据**（Owner 2026-10-13：「必须带依据的 url」）。',
   '   实测过：写成「给不出就写 null」时，同一条素材有时给依据、有时全给 null ——',
   '   而**一条没有依据的问题，读的人除了信或不信没有第三条路**。所以这一格现在**必填**：',
-  '   实在找不到依据，就写 `source:"none"`，并在 `reason` 里写清你**凭什么**这么判',
-  '   （通用经验？平台惯例？），我会在卡片上如实标成「本条无外部来源」。',
+  '   图片的直接观察例外：若只描述原图可见事实/图文语义，不作规范违规断言，',
+  '   `source`/`source_url` 可为 null，但必须给 `evidence_basis:"image_observation"` 和可定位的 `visual_anchor`。',
+  '   ⚠️ 2026-10-22：这个例外只覆盖**纯画面事实**（姿势/物件状态/排版/水印位置）。',
+  '   凡是「资质 / 年限 / 背书 / 功效 / 对比」这类**要有外部文档才立得住**的，',
+  '   即使发生在图片上也**必须挑一个登记来源或给可核 URL**；报告那一格不会再把素材原文当依据印出来。',
+  '   其他类型实在找不到依据 ⇒ 这条不要报；不得用占位来源冒充依据。',
   '   · `source`：如果这条判断落在某个**已登记来源**上，挑它的 id（闭集，挑不出写 `null`）；',
   '   · `source_url` + `source_name`：如果依据是闭集之外的公开规则（平台政策页、监管页面等），',
   '     **把 URL 原样写出来** —— 我会替你探一次并在卡片上标出「已核 / 本机取不到 / 未核」。',
@@ -244,7 +282,8 @@ export const SYSTEM = [
   ' "excerpt":"逐字引用的原文","suggestion":"具体怎么改（改哪个词/换成什么/删哪句/补什么）",',
   ' "taxonomy_category":"所属类别（只能取下面 12 类之一；拿不准就写「未归类」）",',
   ' "taxonomy_subcategory":"所属子类（只能取该类子类清单里的一个；对不上写 null）",',
-  ' "source":"S11 或 null","source_url":"https://… 或 null","source_name":"来源名 或 null"}',
+  ' "source":"S11 或 null","source_url":"https://… 或 null","source_name":"来源名 或 null",',
+  ' "evidence_basis":"image_observation 或 external_source","visual_anchor":"图 1：可直接看到的事实/关系；非图片可为 null"}',
   `category 只能取：${CATEGORIES.join(' / ')}。`,
   // ★★ 2026-10-19（Owner：「最终输出的卡片态，**必须是 4 态**」）——
   //   PRD §5.3.2 的 SUGGEST 定义是「**存在非强制性问题**（措辞优化、轻微常识瑕疵、非核心卖点描述）」。
@@ -271,15 +310,40 @@ export const SYSTEM = [
 ].join('\n');
 
 /**
+ * Remove channel-only wrapper text from image reviews while preserving a real
+ * user focus (for example, "这张能发吗" or a named safety question).
+ */
+export function canonicalImageAuditRequest(text = '') {
+  const cleaned = String(text ?? '').replace(/^\s*\[图片\]\s*/u, '')
+    .replace(/^\s*@守衡\s*/u, '').trim();
+  const key = cleaned.toLocaleLowerCase().replace(/[\s\p{P}\p{S}]+/gu, '');
+  const generic = new Set([
+    '审查下这张图片', '审查下这张图', '审查一下这张图片', '审查一下这张图',
+    '审一下这张图片', '审一下这张图', '审核下这张图片', '审核下这张图',
+    '审核一下这张图片', '审核一下这张图', '检查下这张图片', '检查下这张图',
+    '检查一下这张图片', '检查一下这张图', '帮我审一下这张图片', '帮我审一下这张图',
+    '帮我审核一下这张图片', '帮我审核一下这张图', '帮我看下这张图片', '帮我看下这张图',
+    '帮我看一下这张图片', '帮我看一下这张图', '看下这张图片', '看下这张图',
+    '看一下这张图片', '看一下这张图', '看看这张图片', '看看这张图',
+    '请审查这张图片', '请审查这张图', '审查图片', '审查图', '审核图片', '审核图',
+    '审查一下', '审查下', '审一下', '审核一下', '审核下', '检查一下', '检查下',
+    '看一下', '看下', '看看', '帮我审一下', '请审查', '请审核',
+    'reviewthisimage', 'pleasereviewthisimage', 'auditthisimage', 'pleaseauditthisimage',
+  ]);
+  return generic.has(key) ? '' : cleaned;
+}
+
+/**
  * 拼给模型侧的那一段（**纯函数** —— 喂样本就能断言，不必真调模型）。
  * @param {{readings?:string, question?:string}} a
  * @returns {string}
  */
-export function buildPrompt({ readings = '', question = '', fixNote = '' } = {}) {
+export function buildPrompt({ readings = '', question = '', fixNote = '', hasImages = false } = {}) {
   const q = String(question ?? '').trim();
   const r = String(readings ?? '').trim();
   return [
     q ? `【对方的话】${q}` : '',
+    hasImages ? '【原图已作为本次模型输入】请逐张直接观察；可以用 image_observation + visual_anchor 报告纯视觉/语义问题，无需编造法规依据。' : '',
     '【素材的文字层读数】',
     r || '（没有读到任何文字 —— 这种情况下应当返回空数组）',
     // ★ 2026-10-19：超字数重试时的**定向纠正**（每单最多追加一次，见 `reviewModelSide`）。
@@ -330,7 +394,7 @@ export function normalizeLocation(v) {
   return s;
 }
 
-export function parseFindings(text) {
+export function parseFindings(text, { allowVisualNoBasis = false } = {}) {
   const s = String(text ?? '');
   const a = s.indexOf('['); const b = s.lastIndexOf(']');
   if (a < 0) return { ok: false, findings: [], dropped: [], error: '输出里没有 JSON 数组' };
@@ -361,19 +425,40 @@ export function parseFindings(text) {
     //   ⚠️ 归一化只做「空格/大小写」这一类**零语义差别**的收口，**不**做同义词映射：
     //     把 `合规` 收成 `消费者安全` 那种才是真改判定。
     const _canonCat = (s) => String(s ?? '').replace(/[\s\u3000]+/g, '').toLowerCase();
-    const category = (() => {
-      const rawCat = String(raw?.category ?? '').trim();
-      const hitCat = CATEGORIES.find((c) => _canonCat(c) === _canonCat(rawCat));
-      return hitCat ?? rawCat;
-    })();
+    const rawCat = String(raw?.category ?? '').trim();
+    const rawTaxonomy = String(raw?.taxonomy_category ?? '').trim();
+    const taxonomyCategory = TAXONOMY_CLASSES.includes(rawTaxonomy)
+      ? rawTaxonomy
+      : (TAXONOMY_CLASSES.includes(rawCat) ? rawCat : null);
+    const rawTaxonomySubcategory = String(raw?.taxonomy_subcategory ?? '').trim();
+    const hitCategory = CATEGORIES.find((c) => _canonCat(c) === _canonCat(rawCat));
+    // 模型偶尔把 A3 所属类别写进 `category`（方向类目）字段。此前闭集直接丢整条，
+    // 线上一张图 4 条 KB 参考中有 3 条因此没有进入合并结果。保留原始输入并映射到
+    // 最宽且不虚构的方向；所属类别仍按 A3 闭集展示。未知自由文本仍照旧 fail-closed。
+    const category = hitCategory
+      ?? routeCategoryFromTaxonomy(taxonomyCategory, rawTaxonomySubcategory)
+      ?? rawCat;
     if (!reason) { dropped.push({ i, why: '理由为空' }); continue; }
     if (!CATEGORIES.includes(category)) { dropped.push({ i, why: `类目不在闭集：${JSON.stringify(category)}` }); continue; }
     // ★★ 2026-10-19（Owner：「依据：必须要提供依据，为问题做支撑」）：
     //   既没有外部标准 id、也没有可核 URL ⇒ 打 `basis_missing` 标记，**由展示层决定不上卡**
     //   （不在这里丢：解析层丢会让「模型报了什么」这个读数消失，也把判据一起打穿 ——
     //    第一版就丢在这，`model_side_taxonomy` 的 4 条夹具当场全红）。
-    const _hasBasis = !!(String(raw?.source ?? '').trim()
-      || /^https?:\/\//i.test(String(raw?.source_url ?? '')));
+    // ★★ 2026-10-20（真单 AD-20261020-006 那张卡）：「有依据」= **能解析出登记来源**，不是"字段非空"。
+    //   病灶：原先只看 `String(source).trim()` 是否非空 ⇒ 提示词教的占位值 `source:"none"`
+    //   也算「有依据」⇒ `basis_missing=false` ⇒ 展示层过滤器放行 ⇒ 卡面印出
+    //   「依据：独立语义复核（非条款依据，需人工核对）」—— 而那句正是
+    //   Owner 2026-10-19 明令不许出现的自我否定（判它在、又说它没依据）。
+    //   判据与渲染侧**同一把尺**：`resolveSourceId()`（闭集 S1–S17，见 `ext_basis.mjs`）。
+    //   URL 落在 `source` 里（模型写错格）⇒ 也算有依据，并在下面归一化进 `source_url`。
+    const _srcRaw = String(raw?.source ?? '').trim();
+    const _srcIsUrl = /^https?:\/\//i.test(_srcRaw);
+    const _hasBasis = _srcIsUrl || !!resolveSourceId(_srcRaw)
+      || /^https?:\/\//i.test(String(raw?.source_url ?? ''));
+    const visualAnchor = String(raw?.visual_anchor ?? '').trim();
+    const visualBasis = allowVisualNoBasis
+      && String(raw?.evidence_basis ?? '').trim() === 'image_observation'
+      && visualAnchor.length >= 5;
     const sev = String(raw?.severity ?? '').trim().toUpperCase();
     findings.push({
       // ★★ 2026-10-20：位置先归一化（去括号/范围取首个）——模型侧三种漂移在真单里同时出现过。
@@ -393,7 +478,10 @@ export function parseFindings(text) {
       //   这类**非强制信号** ⇒ 判 advisory，并把「自报了什么」留在 `nature_overridden`（不静默改）。
       //   ⚠️ 方向是单向的：只把**自述为非强制**的改成 advisory；**绝不**把自述「强制」的降级。
       // 依据缺失标记：卡面据此不列这一条（PRD §5.3.3 要求每条可引）
-      basis_missing: !_hasBasis,
+      basis_missing: !_hasBasis && !visualBasis,
+      basis_kind: visualBasis ? 'visual_observation' : (_hasBasis ? 'external_source' : 'none'),
+      evidence_basis: visualBasis ? 'image_observation' : (_hasBasis ? 'external_source' : null),
+      visual_anchor: visualBasis ? visualAnchor : null,
       nature: (() => {
         const selfN = String(raw?.nature ?? '').trim() === '非强制' ? 'advisory' : 'mandatory';
         const text = `${reason} ${String(raw?.description ?? '')}`;
@@ -418,21 +506,19 @@ export function parseFindings(text) {
       description: String(raw?.description ?? '').trim() || null,
       // ★★ 2026-10-19（A3 12 类）：**只认枚举里的**；不在枚举里 ⇒ null（渲染层落「未归类」）。
       //   落 null 时把模型原话留在 `taxonomy_asked`（查得到它写了什么，不静默吞掉）。
-      taxonomyCategory: (() => {
-        const t = String(raw?.taxonomy_category ?? '').trim();
-        return TAXONOMY_CLASSES.includes(t) ? t : null;
-      })(),
+      taxonomyCategory,
       taxonomy_asked: raw?.taxonomy_category == null ? null
         : String(raw.taxonomy_category).slice(0, 40),
       // ★★ 2026-10-19 第二次：子类**必须属于已校验通过的类别**；否则 null（不跨类、不自造）。
       taxonomySubcategory: (() => {
-        const t = String(raw?.taxonomy_category ?? '').trim();
-        const sub = String(raw?.taxonomy_subcategory ?? '').trim();
+        const t = taxonomyCategory;
+        const sub = rawTaxonomySubcategory;
         if (!TAXONOMY_CLASSES.includes(t) || !sub) return null;
         return (TAXONOMY_SUBCLASSES[t] || []).includes(sub) ? sub : null;
       })(),
       taxonomy_sub_asked: raw?.taxonomy_subcategory == null ? null
         : String(raw.taxonomy_subcategory).slice(0, 40),
+      category_asked: raw?.category == null ? null : String(raw.category).slice(0, 60),
       excerpt: String(raw?.excerpt ?? '').trim() || null,
       // ★ 2026-10-09：模型侧的**可执行改法**（Owner：「不要甩给人」）。
       //   缺了不丢整条（它是补充信息，不是判定依据）；但为空时置 null，
@@ -444,7 +530,7 @@ export function parseFindings(text) {
       source_asked: raw?.source == null ? null : String(raw.source).slice(0, 60),
       // ★ 模型自己给的 URL：**照收**（Owner：它有权限写）。这里只做形状清洗，
       //   「可不可信」交给 `probeUrl` 探一次，结论由渲染层如实标出。
-      source_url: sanitizeUrl(raw?.source_url),
+      source_url: sanitizeUrl(raw?.source_url) || (_srcIsUrl ? sanitizeUrl(_srcRaw) : null),
       source_name: String(raw?.source_name ?? '').trim().slice(0, 80) || null,
       basis: 'model',      // 无库内依据
     });
@@ -523,20 +609,45 @@ function overLimitSafe(findings) {
 //   所以这里默认给 4000 并**在日志里报 raw 长度** —— 空正文与「没报问题」必须长得不一样。
 // ★ 2026-10-09 实测：`maxTokens=4000` 时输出被**腰斩**（`raw=1545 字`、有 `[` 无 `]`）
 //   ⇒ 从 4000 提到 8000，并在下面加了「截断就重试一次」。
-export async function reviewModelSide({ readings, question = '', ask, maxTokens = 8000,
+export async function reviewModelSide({ readings, question = '', imagePaths = [], requiredImageCount = 0, ask, maxTokens = 8000,
                                         // ★ 2026-10-19：时间预算可注入（判据要在**不睡 25 秒**的前提下验它）。
                                         //   生产不传 ⇒ 用 `OVER_LIMIT_RETRY_BUDGET_MS`。
                                         retryBudgetMs = OVER_LIMIT_RETRY_BUDGET_MS } = {}) {
   const t0 = Date.now();
-  const noRead = !String(readings ?? '').trim();
+  const imageList = Array.isArray(imagePaths) ? imagePaths.filter(Boolean) : [];
+  if (Number(requiredImageCount) > imageList.length) {
+    return { ok: false, findings: [], ms: Date.now() - t0,
+      error: `原图未完整交给模型侧（要求 ${Number(requiredImageCount)} 张，实际 ${imageList.length} 张）` };
+  }
+  const noRead = !String(readings ?? '').trim() && imageList.length === 0;
   // 「没读到任何文字」时**不调模型**：那是确定性的事实，问一次模型只会换来编造。
   if (noRead) return { ok: true, findings: [], ms: 0, skipped: '文字层是空的 —— 模型侧无需跑，也不会编' };
   if (typeof ask !== 'function') return { ok: false, findings: [], ms: 0, error: '没有可用的 llm.ask' };
   try {
     // ★ 2026-10-16：**判定这一跳必须确定** —— 温度 0（原先吃 `ask` 的默认 0.2，
     //   实测同一条素材两次跑出的问题零重合）。见 `llm.mjs::ask` 那段注释。
-    let raw = await ask(buildPrompt({ readings, question }), { system: SYSTEM, maxTokens, temperature: 0 });
-    let p = parseFindings(raw);
+    const prompt = buildPrompt({ readings, question, hasImages: imageList.length > 0 });
+    // 推理模型的 max_tokens 同时覆盖 reasoning 与正文；曾实测 reasoning 烧完整个预算，正文为 0。
+    // 模型侧需要结构化结论，禁用隐藏推理预算，避免“请求成功但空正文”伪装成格式错误。
+    const askOptions = { system: SYSTEM, maxTokens, temperature: 0,
+      ...(imageList.length ? { imagePaths: imageList } : {}), thinking: { type: 'disabled' } };
+    let raw = await ask(prompt, askOptions);
+    let p = parseFindings(raw, { allowVisualNoBasis: imageList.length > 0 });
+    // OCR 判据只把“重复平铺”形状标成截图层水印。若模型仍把同一水印列为隐私/遮挡/误认问题，
+    // 从最终 findings 中确定性排除；没有该来源标记时不滤，保留对真实成品水印的审查。
+    const hasScreenshotWatermark = imageList.length > 0
+      && /【图\s*\d+\s*的截图层水印判读】/.test(String(readings ?? ''));
+    const removeScreenshotWatermarkFindings = (parsed) => {
+      if (!hasScreenshotWatermark || !parsed?.ok || !Array.isArray(parsed.findings)) return parsed;
+      const isWatermarkOnly = (f) => /水印|watermark/i.test([
+        f?.description, f?.reason, f?.suggestion, f?.excerpt, f?.visual_anchor,
+      ].filter(Boolean).join(' '));
+      const kept = parsed.findings.filter((f) => !isWatermarkOnly(f));
+      const removed = parsed.findings.length - kept.length;
+      if (removed) console.log(`[agent] 🧹 OCR 已判为截图层的水印相关发现 ${removed} 条不计入素材问题`);
+      return removed ? { ...parsed, findings: kept } : parsed;
+    };
+    p = removeScreenshotWatermarkFindings(p);
     // ★ 2026-10-19：**重试预算只有一个**（截断 / 坏 JSON / 超字数 共用）。
     //   为什么：每多一次重试就多一整轮 LLM 调用，而 PRD §12 在给响应时间计时 ——
     //   一次超时被救回来、却把另一次拖成超时，等于把问题挪到别处。
@@ -553,10 +664,10 @@ export async function reviewModelSide({ readings, question = '', ask, maxTokens 
     //   而「坏 JSON」是**生成本身抖了一下**，同参数重采样大概率能拿到合法的。
     const _retryable = /被截断/.test(String(p.error ?? ''))
       || /JSON 解析失败/.test(String(p.error ?? ''));
-    if (!p.ok && _retryable) {
+    if (!p.ok && (_retryable || (imageList.length > 0 && !String(raw ?? '').trim()))) {
       console.log(`[agent] ↻ 模型侧输出被截断，重试一次（额度 ${maxTokens} → ${maxTokens * 2}）`);
-      raw = await ask(buildPrompt({ readings, question }), { system: SYSTEM, maxTokens: maxTokens * 2, temperature: 0 });
-      p = parseFindings(raw);
+      raw = await ask(prompt, { ...askOptions, maxTokens: maxTokens * 2 });
+      p = removeScreenshotWatermarkFindings(parseFindings(raw, { allowVisualNoBasis: imageList.length > 0 }));
       retried = true;
     }
     // ★★ 2026-10-19（Owner：「原因是不是没讲完？按 prd 要求的字数限制梳理重点输出，
@@ -590,9 +701,9 @@ export async function reviewModelSide({ readings, question = '', ask, maxTokens 
           '**不许**用「…」自己截断，写不下就删枝节。',
           '仍然返回**同样的 JSON 数组**：字段不变、条数不变、顺序不变、位置不变。',
         ].join('\n');
-        raw = await ask(buildPrompt({ readings, question, fixNote: note }),
-                        { system: SYSTEM, maxTokens, temperature: 0 });
-        const p2 = parseFindings(raw);
+        raw = await ask(buildPrompt({ readings, question, hasImages: imageList.length > 0, fixNote: note }),
+                        askOptions);
+        const p2 = parseFindings(raw, { allowVisualNoBasis: imageList.length > 0 });
         // ⚠️ 只有**重试确实成功**才用它；重试反而写坏了（坏 JSON / 被截断）就**保留第一版** ——
         //   否则「修字数」会把一条本来合格的模型侧结果换成坏的（这就是越修越坏的形状）。
         if (p2.ok) p = p2;
@@ -689,6 +800,12 @@ export function readingsForModelSide(inbound, { userText } = {}) {
     //   ⇒ 现在 `i.text` 本身就是**摘掉水印的那份**（唯一对外文本，见 `agent.mjs` 收口注释），
     //     这里不需要再挑字段：**同一件事不许再有第二个产者各挑各的**（今天已因它栽两次）。
     if (String(i?.text ?? '').trim()) parts.push('【图 ' + i.index + ' 上的字】\n' + String(i.text).trim());
+    // OCR 的重复位置判据已把平铺水印与素材文字分开。把这项已知来源随读数交给模型，
+    // 使它能将半透明截图/审阅叠加层从成品内容审查中排除，而不是只看到原图却不知道来源。
+    if ((i?.wmDropped?.length ?? 0) > 0
+      && ['core-tiled-at-different-positions', 'exact-repeat-no-coords'].includes(i?.wmBasis)) {
+      parts.push(`【图 ${i.index} 的截图层水印判读】OCR 判据识别到重复覆盖式水印并已从素材文字中摘除；按截图/审阅叠加层处理，不作为素材问题。若遮住文字，只说明局部识读受限。`);
+    }
     // ★★ 2026-10-15：**画面读数**（PRD §5.1「基础视觉识别」那一半）。
     //   为什么单列一节并把它**逐字**摊开（不压缩成一句）：模型要用它判「产品使用 / 人物行为 /
     //   场景风险」三类，压缩就等于替它挑掉了它需要的信息。三个结局必须长得不一样：

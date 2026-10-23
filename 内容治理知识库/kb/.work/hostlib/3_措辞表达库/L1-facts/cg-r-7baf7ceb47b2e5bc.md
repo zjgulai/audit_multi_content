@@ -6,7 +6,7 @@ kb_class: [措辞表达库]
 tier: L1
 topic: H05
 kind: fact
-summary: "[H05] 判为「需按建议改写」（P2·未定级）：命中表达 13 条、证据单元 36 条、覆盖记录 12 条；处理方式是「「perfect pump」→ 删除/替换为：删除 safest/100% safe/zero risk/perfect 等虚假安全承诺，以及 fits all」。状态 provisional、verification 已归纳。"
+summary: "[H05] 判为「禁用/必须修改」（P0·未定级）：命中表达 13 条、证据单元 36 条、覆盖记录 12 条；处理方式是「「perfect pump」→ 删除/替换为：删除 safest/100% safe/zero risk/perfect 等虚假安全承诺，以及 fits all」。状态 provisional、verification 已归纳。"
 owner: 法务 + 产品负责人
 half_life_days: 180
 valid_until: 2027-03-28
@@ -14,7 +14,7 @@ effective_from: 2026-09-29
 evidence_level: L1
 data_level: L2
 sensitivity_level: L2
-created_at: 2026-10-16
+created_at: 2026-10-22
 asks:
   - H05 判什么、命中什么算违规
   - H05 应该怎么改（合规替代写法）
@@ -31,7 +31,7 @@ source:
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
   record_ids: [recvuJYdOb1B8v, recvuJYdObCYOh, recvuJYdObCu5l, recvuJYdObE80Z, recvuJYdObFeLc, recvuJYdObGB9q, recvuJYdObGM2P, recvuJYdObJwyY, recvuJYdObKvVy, recvuJYdObNa32, recvuJYdOblbCM, recvuJYdObroBd]
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l3/candidates/rules.jsonl#r-7baf7ceb47b2e5bc ∪ kb/l5/p0_patterns.jsonl#p-08487282e2d400fe"
   confidence: 确定
@@ -42,7 +42,7 @@ pii:
 rule_id: r-7baf7ceb47b2e5bc
 article_no: W-1.33
 rule_code: H05
-p_level: P2
+p_level: P0
 risk_level: 未定级
 risk_level_raw: Critical
 risk_level_note: 源库 kb/l3 的 risk_level 为 unknown/空 —— 未做人工定级；本视图不据 P 级反推，故标未定级
@@ -56,7 +56,7 @@ kb_type: wording
 
 # [H05] 措辞表达库：命中「perfect pump」等 13 类表达
 
-**条款号**：W-1.33　|　**规则码**：H05　|　**rule_id**：`r-7baf7ceb47b2e5bc`　|　**判定**：P2 · 未定级
+**条款号**：W-1.33　|　**规则码**：H05　|　**rule_id**：`r-7baf7ceb47b2e5bc`　|　**判定**：P0 · 未定级
 
 ## 规则原文（照抄新库，未改写）
 
@@ -84,14 +84,9 @@ kb_type: wording
 - `\b100\s*%\s*(safe|safety)\b`
 - `one[\s-]size[\s-]fits[\s-]all`
 - `适合\s*所有\s*胸型|完全\s*安全|零\s*风险|绝对\s*安全|一定\s*不\s*损伤`
-- `最\s*(佳|优|强|安全|低价|便宜|有效|快|大|高|省|舒适)`
-- `(排名|销量|全网|行业|品类|国内|全球|世界|亚洲)\s*第一`
-- `第一\s*(品牌|选择|名|款|位)`
-- `最佳`
+- `最\s*(安全|低价|便宜|有效|快|大|省)`
 - `纯\s*天然`
 - `100\s*%\s*(安全|有效|无痛|无副作用|纯|天然|放心|保障|满意)`
-- `(?:\bno\.?\s*1|#\s*1)\b`
-- `\bbest\b`
 
 ### 白名单（命中这些不算违规）
 

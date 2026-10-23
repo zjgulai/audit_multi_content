@@ -6,7 +6,7 @@ kb_class: [措辞表达库]
 tier: L1
 topic: 未登记规则码
 kind: fact
-summary: "[W-2.411] 判为「禁用/必须修改」（P1·未定级）：命中表达 1 条、证据单元 1 条；处理方式是「删除该条目，或将其移至堵奶/乳腺炎的鉴别描述部分，明确说明发热属于炎症信号而非生理性乳胀的正常表现」。状态 provisional、verification 待验证。"
+summary: "[W-2.411] 判为「需按建议改写」（P2·未定级）：命中表达 1 条、证据单元 1 条；处理方式是「删除该条目，或将其移至堵奶/乳腺炎的鉴别描述部分，明确说明发热属于炎症信号而非生理性乳胀的正常表现」。状态 provisional、verification 待验证。"
 owner: 法务
 half_life_days: 180
 valid_until: 2027-03-28
@@ -14,7 +14,7 @@ effective_from: 2026-09-29
 evidence_level: L1
 data_level: L2
 sensitivity_level: L2
-created_at: 2026-10-16
+created_at: 2026-10-22
 asks:
   - W-2.411 判什么、命中什么算违规
   - W-2.411 应该怎么改（合规替代写法）
@@ -29,7 +29,7 @@ source:
   ref: "https://momcozy-in.feishu.cn/base/SKkkbdZi9aRuMzs7ob0cpSYHnQg?table=tbl8AI00JZO1iZtp"
   fingerprint: SKkkbdZi9aRuMzs7ob0cpSYHnQg/tbl8AI00JZO1iZtp
   record_ids: [recvoyJ6L9fEU7]
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l3/candidates/rules.jsonl#r-e8bef64d33f880ac"
   confidence: 确定
@@ -40,7 +40,7 @@ pii:
 rule_id: r-e8bef64d33f880ac
 article_no: W-2.411
 rule_code: ""
-p_level: P1
+p_level: P2
 risk_level: 未定级
 risk_level_raw: Medium
 risk_level_note: 源库 kb/l3 的 risk_level 为 unknown/空 —— 未做人工定级；本视图不据 P 级反推，故标未定级
@@ -54,7 +54,7 @@ kb_type: wording
 
 # [W-2.411] 措辞表达库：命中「可能伴随低热，一般不超过38.4℃」等 1 类表达
 
-**条款号**：W-2.411　|　**规则码**：（未登记）　|　**rule_id**：`r-e8bef64d33f880ac`　|　**判定**：P1 · 未定级
+**条款号**：W-2.411　|　**规则码**：（未登记）　|　**rule_id**：`r-e8bef64d33f880ac`　|　**判定**：P2 · 未定级
 
 ## 规则原文（照抄新库，未改写）
 

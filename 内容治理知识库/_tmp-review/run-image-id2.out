@@ -1,0 +1,1350 @@
+[preflight 11:18:58] 认领成功：RT-20261021-IMG-ID2
+[preflight 11:18:58] ⓪b skill 就绪 ✅（4 个：本层 skill + 点名的判定主体）
+[preflight 11:18:58] ② L4 闸门(自带)+引擎(预演)+记账 … invoked=kb-canonical-lookup session=test-image-id2
+[preflight 11:19:00] ② L4 记账完成 → kb/l7/runs/RT-20261021-IMG-ID2-L4.json
+[preflight 11:19:00] ③ L4 审计 …
+[preflight 11:19:00] ③ L4 审计 exit=0（红 0）
+[preflight 11:19:00] ② L5 闸门(自带)+引擎(预演)+记账 … invoked=kb-p0-check session=test-image-id2
+[preflight 11:19:03] ② L5 记账完成 → kb/l7/runs/RT-20261021-IMG-ID2-L5.json
+[preflight 11:19:03] ③ L5 审计 …
+[preflight 11:19:03] ③ L5 审计 exit=0（红 0）
+[preflight 11:19:03] ② L6 闸门(自带)+引擎(预演)+记账 … invoked=kb-recall session=test-image-id2
+[preflight 11:19:05] ② L6 记账完成 → kb/l7/runs/RT-20261021-IMG-ID2-L6.json
+[preflight 11:19:05] ③ L6 审计 …
+[preflight 11:19:05] ③ L6 审计 exit=0（红 0）
+[preflight 11:19:05] ② L7 闸门(自带)+引擎(预演)+记账 … invoked=kb-check session=test-image-id2
+[preflight 11:19:06] ② L7 记账完成 → kb/l7/runs/RT-20261021-IMG-ID2-L7.json
+[preflight 11:19:06] ③ L7 审计 …
+[preflight 11:19:06] ③ L7 审计 exit=0（红 0）
+[preflight 11:19:06] ✅ 四层前置全绿（L4–L7 各一 RUN，四道审计红 0）｜BASE=RT-20261021-IMG-ID2
+[preflight 11:19:06]    下一步：出结论 —— with_kb_evidence.py --require-layer-preflight RT-20261021-IMG-ID2 --decision-owner <判定主体>
+[preflight 11:19:06] 已释放认领 RT-20261021-IMG-ID2
+===== ② 自命中检查（确定性；它只报事实，不判三态）=====
+自命中检查：未命中
+  素材归一化字符 459 ｜ 扫过条款 207 条 ｜ 阈值 ratio≥0.9 且 run≥80
+===== ③ 引擎结论（唯一有权产出三态的地方）=====
+{
+ "decision": {
+  "review_id": "rv-20261021-111915",
+  "content_id": "AUTO-ed540c2c7ed8",
+  "content_id_basis": "指纹兜底：本单 `--no-publish-to-feishu`，不发飞书故不发业务号（不是漏发）",
+  "content_version": "ed540c2c7ed81916ae1717692addd06ff02850f252e5b4a6ae87d533ba903590",
+  "agent_version": "local-core-0.1.0",
+  "rule_version": "unfrozen",
+  "knowledge_version": "unfrozen",
+  "decision": "REVIEW",
+  "confidence": 0.75,
+  "summary": "【审查结论：REVIEW】共发现 1 处需人工确认。\n\n1.【未归类】图 1，命中：（来源未给引文）\n  **原因**：相似历史审核意见（advice·参考）：匹配分 1.00（画面 1.00 / 文字 0.00）｜图身份：同一张图（recvw7XIUg72fA seq=1，pHash 距离 6，相关 0.948）｜⚠️ 非本单素材逐字命中｜该意见为**同图历史意见**：本图在库里是复用图，该图还出现在其它内容不同的记录里 ⇒ 它属于那条记录，**不专指本图**\n  **依据**：《内部正负样本库（负面样本规则·历史审核意见） v0（试用版，未发布）》第 N-1.359 条 ← （来源未给命中片段）（L0 逐字核对：no_excerpt）｜原始出处：https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw7XIUg72fA\n  **建议**：不要倒着放，对于宝宝和妈妈来说，奶瓶的卫生重要至极，所以我们的产品才会有奶瓶消毒器，喝完奶、喝之前都要消毒杀菌的，所以随意倒着放这个行为不符合用户习惯\n\n建议转 @法务（未配置） @北美同事（未配置） 复核。（其中 1/1 条未匹配到方向：该转谁需要人确认）（建议人工确认）",
+  "issue_count": 1,
+  "issue_count_including_candidates": 1,
+  "candidate_count": 0,
+  "issue_count_basis": "issue_count（1 = 库内依据，**与分类汇总同一个数**，见 PRD §5.4）= 完整清单 1 − 非权威候选 0；候选无库内条款号、只作排查线索，不构成依据",
+  "issue_summary_by_category": {
+   "负面样本-原则性错误": 1
+  },
+  "risk_items": [
+   {
+    "risk_id": "nr-b53f2a5ba7340265",
+    "risk_type": "负面样本-原则性错误",
+    "risk_category": null,
+    "risk_category_basis": "类别「负面样本」不在政策件里（既非 map 也非 unmapped）⇒ **不编**",
+    "taxonomy_category": null,
+    "taxonomy_subcategory": null,
+    "taxonomy_basis": "该命中不在规则表里（如反例/案例层 sc-… 或覆盖缺口）⇒ 11 类留空，**不编**",
+    "priority_tier": "P2",
+    "priority_tier_basis": "规则行 p_level=P2",
+    "p_level": "P2",
+    "status": "confirmed",
+    "tier_action": "review",
+    "action": "review",
+    "location": "图 1",
+    "description": "库内条款命中（N-02）·复用图·同图历史意见",
+    "original_text": "",
+    "reason": "相似历史审核意见（advice·参考）：匹配分 1.00（画面 1.00 / 文字 0.00）｜图身份：同一张图（recvw7XIUg72fA seq=1，pHash 距离 6，相关 0.948）｜⚠️ 非本单素材逐字命中｜该意见为**同图历史意见**：本图在库里是复用图，该图还出现在其它内容不同的记录里 ⇒ 它属于那条记录，**不专指本图**",
+    "suggestion": "不要倒着放，对于宝宝和妈妈来说，奶瓶的卫生重要至极，所以我们的产品才会有奶瓶消毒器，喝完奶、喝之前都要消毒杀菌的，所以随意倒着放这个行为不符合用户习惯",
+    "rule_code": "N-02",
+    "authoritative": null,
+    "authority": null,
+    "superseded_by": null,
+    "fact_or_inference": "事实",
+    "confidence": "低",
+    "evidence": {
+     "library": "内部正负样本库（负面样本规则·历史审核意见）",
+     "article_no": "N-1.359",
+     "anchor": "#负面样本/recvw7XIUg72fA/具体原因/分析",
+     "source_sha256": "a4421abebabcff0681ec3820fe461b9115839677849aa92f940f41301e056044",
+     "excerpt": "",
+     "l0_entry_url": "https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw7XIUg72fA"
+    },
+    "source": "kb-content-review",
+    "evidence_gap": "引用契约六要素不全（缺 逐字摘录）",
+    "severity": "low",
+    "evidence_complete": false
+   }
+  ],
+  "report_url": null,
+  "next_action": "转法务、医学、专家或北美本地同事人工复核",
+  "next_owners": [
+   "法务",
+   "北美同事"
+  ],
+  "sla": {
+   "priority": "P2",
+   "target": "1 business day",
+   "escalate_to": [
+    "项目统筹"
+   ],
+   "timezone": "America/Los_Angeles",
+   "clock_rules": [
+    "Start the clock when the required input manifest is complete.",
+    "Pause the clock while waiting for missing submitter material.",
+    "Record timezone and business-calendar version with each SLA event.",
+    "SLA breach never changes the decision automatically."
+   ]
+  },
+  "version_gate": {},
+  "coverage": {
+   "text": "complete",
+   "image": "complete",
+   "audio": "not_applicable",
+   "video": "not_applicable",
+   "ocr": "complete",
+   "asr": "not_applicable",
+   "keyframes": "not_applicable",
+   "note": "声明模态：image；未拿到 provider 佐证的模态记 incomplete（缺口，不是不适用）；其中 image、ocr 的「complete」来自**调用方申报**（不是引擎自测），按申报档看待",
+   "declared_by": "caller",
+   "declared_modalities": [
+    "image",
+    "ocr"
+   ],
+   "declared_providers": {
+    "image": "agent-inline-vision",
+    "ocr": "agent-inline-vision"
+   },
+   "declared_via": {
+    "image": "registry:agent-inline-vision",
+    "ocr": "registry:agent-inline-vision"
+   }
+  },
+  "decision_trace": {
+   "reasons": [
+    "uncertain_or_review_item",
+    "p2_commonsense_layer"
+   ],
+   "confidence_status": "heuristic_not_calibrated",
+   "evaluated_at": "2026-10-21T03:19:15.452230+00:00",
+   "tier_trace": {
+    "P0": 0,
+    "P1": 0,
+    "P2": 1,
+    "P3": 0,
+    "p0_confirmed_blocking": 0,
+    "p0_without_evidence": 0,
+    "p3_advice_only": true,
+    "p0_confidence_flow": false
+   },
+   "confidence_route": {
+    "applies": true,
+    "band": "confirm",
+    "range": "0.60 - 0.84",
+    "effect": "force_review",
+    "annotate": "建议人工确认",
+    "decision_before": "REVIEW",
+    "decision": "REVIEW",
+    "why": "PRD v1.3 §6.6：0.60-0.84 输出 REVIEW，标注「建议人工确认」",
+    "p0_override": false,
+    "fail_open": false,
+    "warning": null,
+    "thresholds": {
+     "direct": 0.85,
+     "confirm": 0.6
+    },
+    "calibrated": false,
+    "thresholds_source": "kb/l7/registry/confidence-policy.json"
+   },
+   "confidence_derivation": {
+    "kind": "derived",
+    "base": 0.8,
+    "cat_bonus": 0.0,
+    "ev_penalty": 0.05,
+    "unc_p0_penalty": 0.0,
+    "raw": 0.75,
+    "clamped_to_keep_decision": null,
+    "final": 0.75,
+    "note": "**只让值有分布、不改结论**（截断到本结论自己的档）；动 0.90/0.70 两条线是下一步，先用 kb/l8/calibrate_confidence.py 量代价。"
+   },
+   "decision_before_confidence_flow": "REVIEW"
+  },
+  "suggestions": [],
+  "suggest_count": 0,
+  "suggest_label": false,
+  "coverage_caveat": "依据侧覆盖信号不足（trace.coverage.covered=false）：本次结论建立在已命中的 1 条依据上；**未被规则覆盖的部分不足以证明合规**（库口径：未命中 ≠ 合规）。"
+ },
+ "evidence_meta": {
+  "run_id": "20261021-111910",
+  "findings": 1,
+  "state": "REVIEW",
+  "report_path": null,
+  "material_facets": {
+   "product_line": "",
+   "channel": "",
+   "from": {},
+   "all_product_lines": [],
+   "all_channels": [],
+   "anchors_used": 0,
+   "records_skipped": [
+    {
+     "anchor": "#负面样本/recvw7XIUg72fA/具体原因/分析",
+     "table": "负面样本",
+     "why": "素材原文**不在**该记录里 ⇒ 它是命中记录（规则样本/依据），**不是本素材** ⇒ 不采信它的品线/平台（那是那条样本自己的投放属性）"
+    }
+   ]
+  },
+  "trace": {
+   "p0": {
+    "engine": "kb/l5/matcher.py",
+    "exit_code": 0,
+    "total_elapsed_ms": 66.66,
+    "engine_elapsed_ms": 16.896,
+    "hits": []
+   },
+   "rules": {
+    "engine": "kb/l3/candidates/rules.jsonl",
+    "kb_type_filter": null,
+    "rules_scanned": 510,
+    "hits": []
+   },
+   "negative_rules": {
+    "engine": "kb/l3/candidates/negative_rules.jsonl",
+    "rules_scanned": 476,
+    "hits": [
+     {
+      "article_no": "N-1.359",
+      "rule_id": "nr-b53f2a5ba7340265",
+      "rule_code": "N-02",
+      "rule_code_label": "原则性错误",
+      "rule_kind": "advice",
+      "confidence": "low",
+      "rule_text": "不要倒着放，对于宝宝和妈妈来说，奶瓶的卫生重要至极，所以我们的产品才会有奶瓶消毒器，喝完奶、喝之前都要消毒杀菌的，所以随意倒着放这个行为不符合用户习惯",
+      "action": {
+       "kind": "replace",
+       "replacement": "不要倒着放，对于宝宝和妈妈来说，奶瓶的卫生重要至极，所以我们的产品才会有奶瓶消毒器，喝完奶、喝之前都要消毒杀菌的，所以随意倒着放这个行为不符合用户习惯"
+      },
+      "score": 1.0,
+      "visual_score": 1.0,
+      "text_score": 0.0,
+      "why": "图身份：与库内图同一张（pHash 距离 6 ｜ 像素相关 0.948）",
+      "reasons": [
+       "图身份：同一张图（recvw7XIUg72fA seq=1，pHash 距离 6，相关 0.948）"
+      ],
+      "image_refs": [
+       "RPejbtlNcoWstbxX73oc2ZwZnIf",
+       "T0Ynbq8QtotFVixDW33crN9FnRg"
+      ],
+      "evidence": [
+       {
+        "anchor": "#负面样本/recvw7XIUg72fA/具体原因/分析",
+        "source_sha256": "a4421abebabcff0681ec3820fe461b9115839677849aa92f940f41301e056044",
+        "record_id": "recvw7XIUg72fA"
+       }
+      ],
+      "library_negative_sample": true,
+      "matched_by": "图身份",
+      "record_id": "recvw7XIUg72fA",
+      "matched_image": {
+       "record_id": "recvw7XIUg72fA",
+       "sha256": "a3c7828f2f66554dfa574e112d66026473023265f771df1d63410de11423ff8a",
+       "file_token": "T0Ynbq8QtotFVixDW33crN9FnRg",
+       "anchor": "#素材/recvw7XIUg72fA/图片素材/#img.1"
+      },
+      "attribution": "shared_reference",
+      "attribution_why": "同一张图出现在 3 条**内容不同**的记录里（recvw7XIUg72fA, recvwC9IMVeaGY, recvwwiEKDTDWq）⇒ 复用附图/复制污染，不得作为任何一条记录的意见依据",
+      "match_rank": 4,
+      "identity": true,
+      "evidence_gap": "图身份：与库内图同一张（pHash/像素相关），不是本单素材的逐字命中"
+     },
+     {
+      "article_no": "N-1.153",
+      "rule_id": "nr-f1182be37576e461",
+      "rule_code": "N-01",
+      "rule_code_label": "品牌一致性",
+      "rule_kind": "observation",
+      "confidence": "low",
+      "rule_text": "只需要展示一款吸奶器,能够适配所有型号,画面能够更换的,安装/更换简易,需要考虑带锁.品牌货架、门店自有货架均可使用，需要带有品牌颜色、logo",
+      "action": {
+       "kind": "prohibit",
+       "replacement": null
+      },
+      "score": 1.0,
+      "visual_score": 1.0,
+      "text_score": 0.0,
+      "why": "图身份：与库内图同一张（pHash 距离 6 ｜ 像素相关 0.948）",
+      "reasons": [
+       "图身份：同一张图（recvwC9IMVeaGY seq=1，pHash 距离 6，相关 0.948）"
+      ],
+      "image_refs": [
+       "Wx9nb3261o6h98xjqeDcsdkVnme",
+       "YAeQbsINoooLDCxXNX5cKi2Knhb"
+      ],
+      "evidence": [
+       {
+        "anchor": "#负面样本/recvwC9IMVeaGY/具体原因/分析",
+        "source_sha256": "d4cdca7434fe7dcbdbf76c2f8956b747f1becd3bea205b4ae04de7cf11de9c1d",
+        "record_id": "recvwC9IMVeaGY"
+       }
+      ],
+      "library_negative_sample": true,
+      "matched_by": "图身份",
+      "record_id": "recvwC9IMVeaGY",
+      "matched_image": {
+       "record_id": "recvwC9IMVeaGY",
+       "sha256": "a3c7828f2f66554dfa574e112d66026473023265f771df1d63410de11423ff8a",
+       "file_token": "Wx9nb3261o6h98xjqeDcsdkVnme",
+       "anchor": "#素材/recvwC9IMVeaGY/图片素材/#img.1"
+      },
+      "attribution": "shared_reference",
+      "attribution_why": "同一张图出现在 3 条**内容不同**的记录里（recvw7XIUg72fA, recvwC9IMVeaGY, recvwwiEKDTDWq）⇒ 复用附图/复制污染，不得作为任何一条记录的意见依据",
+      "match_rank": 4,
+      "identity": true,
+      "evidence_gap": "图身份：与库内图同一张（pHash/像素相关），不是本单素材的逐字命中"
+     },
+     {
+      "article_no": "N-1.154",
+      "rule_id": "nr-a1116f2df7cd3e62",
+      "rule_code": "N-01",
+      "rule_code_label": "品牌一致性",
+      "rule_kind": "observation",
+      "confidence": "low",
+      "rule_text": "向消费者传达：温暖、科技感",
+      "action": {
+       "kind": "prohibit",
+       "replacement": null
+      },
+      "score": 1.0,
+      "visual_score": 1.0,
+      "text_score": 0.0,
+      "why": "图身份：与库内图同一张（pHash 距离 6 ｜ 像素相关 0.948）",
+      "reasons": [
+       "图身份：同一张图（recvwC9IMVeaGY seq=1，pHash 距离 6，相关 0.948）"
+      ],
+      "image_refs": [
+       "Wx9nb3261o6h98xjqeDcsdkVnme",
+       "YAeQbsINoooLDCxXNX5cKi2Knhb"
+      ],
+      "evidence": [
+       {
+        "anchor": "#负面样本/recvwC9IMVeaGY/具体原因/分析",
+        "source_sha256": "d4cdca7434fe7dcbdbf76c2f8956b747f1becd3bea205b4ae04de7cf11de9c1d",
+        "record_id": "recvwC9IMVeaGY"
+       }
+      ],
+      "library_negative_sample": true,
+      "matched_by": "图身份",
+      "record_id": "recvwC9IMVeaGY",
+      "matched_image": {
+       "record_id": "recvwC9IMVeaGY",
+       "sha256": "a3c7828f2f66554dfa574e112d66026473023265f771df1d63410de11423ff8a",
+       "file_token": "Wx9nb3261o6h98xjqeDcsdkVnme",
+       "anchor": "#素材/recvwC9IMVeaGY/图片素材/#img.1"
+      },
+      "attribution": "shared_reference",
+      "attribution_why": "同一张图出现在 3 条**内容不同**的记录里（recvw7XIUg72fA, recvwC9IMVeaGY, recvwwiEKDTDWq）⇒ 复用附图/复制污染，不得作为任何一条记录的意见依据",
+      "match_rank": 4,
+      "identity": true,
+      "evidence_gap": "图身份：与库内图同一张（pHash/像素相关），不是本单素材的逐字命中"
+     },
+     {
+      "article_no": "N-1.294",
+      "rule_id": "nr-b955aee0f42af6ed",
+      "rule_code": "N-01",
+      "rule_code_label": "品牌一致性",
+      "rule_kind": "non_substantive",
+      "confidence": "low",
+      "rule_text": "麻烦看看呀",
+      "action": {
+       "kind": "prohibit",
+       "replacement": null
+      },
+      "score": 1.0,
+      "visual_score": 1.0,
+      "text_score": 0.0,
+      "why": "图身份：与库内图同一张（pHash 距离 6 ｜ 像素相关 0.948）",
+      "reasons": [
+       "图身份：同一张图（recvwC9IMVeaGY seq=1，pHash 距离 6，相关 0.948）"
+      ],
+      "image_refs": [
+       "AGrzbpOjZoYz1YxgEUAcVeK0nub",
+       "AgEdb2yCUoqSvuxdHDMcCkgjnoc",
+       "AtqWbwpcbo4tVHxDNeOcHAQFnac",
+       "CgSvbecRToP6ksx0PVPcLEFpnUJ",
+       "Cz5zbZgduokNWexuuDIcWSXmn5c"
+      ],
+      "evidence": [
+       {
+        "anchor": "#负面样本/recvw7XIUgJPcj/具体原因/分析",
+        "source_sha256": "34d5c40aa224acb0f38feef4511acba52c02f21e4593525a63eae2cf0965f51f",
+        "record_id": "recvwC9IMVeaGY"
+       }
+      ],
+      "library_negative_sample": true,
+      "matched_by": "图身份",
+      "record_id": "recvwC9IMVeaGY",
+      "matched_image": {
+       "record_id": "recvwC9IMVeaGY",
+       "sha256": "a3c7828f2f66554dfa574e112d66026473023265f771df1d63410de11423ff8a",
+       "file_token": "Wx9nb3261o6h98xjqeDcsdkVnme",
+       "anchor": "#素材/recvwC9IMVeaGY/图片素材/#img.1"
+      },
+      "attribution": "shared_reference",
+      "attribution_why": "同一张图出现在 3 条**内容不同**的记录里（recvw7XIUg72fA, recvwC9IMVeaGY, recvwwiEKDTDWq）⇒ 复用附图/复制污染，不得作为任何一条记录的意见依据",
+      "match_rank": 4,
+      "identity": true,
+      "evidence_gap": "图身份：与库内图同一张（pHash/像素相关），不是本单素材的逐字命中"
+     },
+     {
+      "article_no": "N-1.153",
+      "rule_id": "nr-f1182be37576e461",
+      "rule_code": "N-01",
+      "rule_code_label": "品牌一致性",
+      "rule_kind": "observation",
+      "confidence": "low",
+      "rule_text": "只需要展示一款吸奶器,能够适配所有型号,画面能够更换的,安装/更换简易,需要考虑带锁.品牌货架、门店自有货架均可使用，需要带有品牌颜色、logo",
+      "action": {
+       "kind": "prohibit",
+       "replacement": null
+      },
+      "score": 1.0,
+      "visual_score": 1.0,
+      "text_score": 0.0,
+      "why": "图身份：与库内图同一张（pHash 距离 6 ｜ 像素相关 0.948）",
+      "reasons": [
+       "图身份：同一张图（recvwwiEKDTDWq seq=1，pHash 距离 6，相关 0.948）"
+      ],
+      "image_refs": [
+       "Wx9nb3261o6h98xjqeDcsdkVnme",
+       "YAeQbsINoooLDCxXNX5cKi2Knhb"
+      ],
+      "evidence": [
+       {
+        "anchor": "#负面样本/recvwC9IMVeaGY/具体原因/分析",
+        "source_sha256": "d4cdca7434fe7dcbdbf76c2f8956b747f1becd3bea205b4ae04de7cf11de9c1d",
+        "record_id": "recvwwiEKDTDWq"
+       }
+      ],
+      "library_negative_sample": true,
+      "matched_by": "图身份",
+      "record_id": "recvwwiEKDTDWq",
+      "matched_image": {
+       "record_id": "recvwwiEKDTDWq",
+       "sha256": "a3c7828f2f66554dfa574e112d66026473023265f771df1d63410de11423ff8a",
+       "file_token": "YAeQbsINoooLDCxXNX5cKi2Knhb",
+       "anchor": "#素材/recvwwiEKDTDWq/图片素材/#img.1"
+      },
+      "attribution": "shared_reference",
+      "attribution_why": "同一张图出现在 3 条**内容不同**的记录里（recvw7XIUg72fA, recvwC9IMVeaGY, recvwwiEKDTDWq）⇒ 复用附图/复制污染，不得作为任何一条记录的意见依据",
+      "match_rank": 4,
+      "identity": true,
+      "evidence_gap": "图身份：与库内图同一张（pHash/像素相关），不是本单素材的逐字命中"
+     },
+     {
+      "article_no": "N-1.154",
+      "rule_id": "nr-a1116f2df7cd3e62",
+      "rule_code": "N-01",
+      "rule_code_label": "品牌一致性",
+      "rule_kind": "observation",
+      "confidence": "low",
+      "rule_text": "向消费者传达：温暖、科技感",
+      "action": {
+       "kind": "prohibit",
+       "replacement": null
+      },
+      "score": 1.0,
+      "visual_score": 1.0,
+      "text_score": 0.0,
+      "why": "图身份：与库内图同一张（pHash 距离 6 ｜ 像素相关 0.948）",
+      "reasons": [
+       "图身份：同一张图（recvwwiEKDTDWq seq=1，pHash 距离 6，相关 0.948）"
+      ],
+      "image_refs": [
+       "Wx9nb3261o6h98xjqeDcsdkVnme",
+       "YAeQbsINoooLDCxXNX5cKi2Knhb"
+      ],
+      "evidence": [
+       {
+        "anchor": "#负面样本/recvwC9IMVeaGY/具体原因/分析",
+        "source_sha256": "d4cdca7434fe7dcbdbf76c2f8956b747f1becd3bea205b4ae04de7cf11de9c1d",
+        "record_id": "recvwwiEKDTDWq"
+       }
+      ],
+      "library_negative_sample": true,
+      "matched_by": "图身份",
+      "record_id": "recvwwiEKDTDWq",
+      "matched_image": {
+       "record_id": "recvwwiEKDTDWq",
+       "sha256": "a3c7828f2f66554dfa574e112d66026473023265f771df1d63410de11423ff8a",
+       "file_token": "YAeQbsINoooLDCxXNX5cKi2Knhb",
+       "anchor": "#素材/recvwwiEKDTDWq/图片素材/#img.1"
+      },
+      "attribution": "shared_reference",
+      "attribution_why": "同一张图出现在 3 条**内容不同**的记录里（recvw7XIUg72fA, recvwC9IMVeaGY, recvwwiEKDTDWq）⇒ 复用附图/复制污染，不得作为任何一条记录的意见依据",
+      "match_rank": 4,
+      "identity": true,
+      "evidence_gap": "图身份：与库内图同一张（pHash/像素相关），不是本单素材的逐字命中"
+     },
+     {
+      "article_no": "N-1.294",
+      "rule_id": "nr-b955aee0f42af6ed",
+      "rule_code": "N-01",
+      "rule_code_label": "品牌一致性",
+      "rule_kind": "non_substantive",
+      "confidence": "low",
+      "rule_text": "麻烦看看呀",
+      "action": {
+       "kind": "prohibit",
+       "replacement": null
+      },
+      "score": 1.0,
+      "visual_score": 1.0,
+      "text_score": 0.0,
+      "why": "图身份：与库内图同一张（pHash 距离 6 ｜ 像素相关 0.948）",
+      "reasons": [
+       "图身份：同一张图（recvwwiEKDTDWq seq=1，pHash 距离 6，相关 0.948）"
+      ],
+      "image_refs": [
+       "AGrzbpOjZoYz1YxgEUAcVeK0nub",
+       "AgEdb2yCUoqSvuxdHDMcCkgjnoc",
+       "AtqWbwpcbo4tVHxDNeOcHAQFnac",
+       "CgSvbecRToP6ksx0PVPcLEFpnUJ",
+       "Cz5zbZgduokNWexuuDIcWSXmn5c"
+      ],
+      "evidence": [
+       {
+        "anchor": "#负面样本/recvw7XIUgJPcj/具体原因/分析",
+        "source_sha256": "34d5c40aa224acb0f38feef4511acba52c02f21e4593525a63eae2cf0965f51f",
+        "record_id": "recvwwiEKDTDWq"
+       }
+      ],
+      "library_negative_sample": true,
+      "matched_by": "图身份",
+      "record_id": "recvwwiEKDTDWq",
+      "matched_image": {
+       "record_id": "recvwwiEKDTDWq",
+       "sha256": "a3c7828f2f66554dfa574e112d66026473023265f771df1d63410de11423ff8a",
+       "file_token": "YAeQbsINoooLDCxXNX5cKi2Knhb",
+       "anchor": "#素材/recvwwiEKDTDWq/图片素材/#img.1"
+      },
+      "attribution": "shared_reference",
+      "attribution_why": "同一张图出现在 3 条**内容不同**的记录里（recvw7XIUg72fA, recvwC9IMVeaGY, recvwwiEKDTDWq）⇒ 复用附图/复制污染，不得作为任何一条记录的意见依据",
+      "match_rank": 4,
+      "identity": true,
+      "evidence_gap": "图身份：与库内图同一张（pHash/像素相关），不是本单素材的逐字命中"
+     }
+    ],
+    "require_visual": true,
+    "dropped_text_only": [],
+    "scene_provided": false,
+    "image_identity": {
+     "checked": 1,
+     "detected": 7,
+     "added": 7
+    },
+    "not_subject": [],
+    "not_subject_count": 0,
+    "not_substantive": [
+     {
+      "article_no": "N-1.153",
+      "rule_kind": "observation",
+      "why": "规则类型=observation（非 point/advice ⇒ 不是可引用的审核意见）",
+      "rule_text": "只需要展示一款吸奶器,能够适配所有型号,画面能够更换的,安装/更换简易,需要考虑带锁.品牌货架、门店自有货架均可使用，需要带有品牌颜色、logo"
+     },
+     {
+      "article_no": "N-1.154",
+      "rule_kind": "observation",
+      "why": "规则类型=observation（非 point/advice ⇒ 不是可引用的审核意见）",
+      "rule_text": "向消费者传达：温暖、科技感"
+     },
+     {
+      "article_no": "N-1.294",
+      "rule_kind": "non_substantive",
+      "why": "规则类型=non_substantive（非 point/advice ⇒ 不是可引用的审核意见）",
+      "rule_text": "麻烦看看呀"
+     },
+     {
+      "article_no": "N-1.153",
+      "rule_kind": "observation",
+      "why": "规则类型=observation（非 point/advice ⇒ 不是可引用的审核意见）",
+      "rule_text": "只需要展示一款吸奶器,能够适配所有型号,画面能够更换的,安装/更换简易,需要考虑带锁.品牌货架、门店自有货架均可使用，需要带有品牌颜色、logo"
+     },
+     {
+      "article_no": "N-1.154",
+      "rule_kind": "observation",
+      "why": "规则类型=observation（非 point/advice ⇒ 不是可引用的审核意见）",
+      "rule_text": "向消费者传达：温暖、科技感"
+     },
+     {
+      "article_no": "N-1.294",
+      "rule_kind": "non_substantive",
+      "why": "规则类型=non_substantive（非 point/advice ⇒ 不是可引用的审核意见）",
+      "rule_text": "麻烦看看呀"
+     }
+    ],
+    "not_substantive_count": 6,
+    "attribution_gate": "subject_or_record_level_anchored"
+   },
+   "units": {
+    "engine": "kb/l6/retriever.py",
+    "l6_mode": "vector_plus_bm25",
+    "semantic_recall": true,
+    "bm25_max": 43.0147,
+    "cosine_max": 0.0,
+    "used_vector": false,
+    "no_semantic_annotation": null,
+    "top_bm25": [
+     {
+      "source": "bm25_en",
+      "unit_id": "639a1aa9848eaa4dc5d5",
+      "anchor": "#l.1-3",
+      "table": "l.1-3",
+      "kb_type": "wording",
+      "source_sha256": "e482194a7b4d719bdb6a24f90ea25f4850317abb772f9dd6e4225e4696c7510f",
+      "raw_bm25": 43.0147,
+      "rrf": 0.03278688,
+      "queries": [
+       "main",
+       "img_text#1"
+      ],
+      "excerpt": "300 mmHg + 15 Level; M9: −300 mmHg + App Multi-Modus Komfort / schmerzfreie Erfahrung Hauptproblem für sensitive Mütter M5 Smart: bionisches Saugen; alle Modell"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "26140329710279a50819",
+      "anchor": "#l.1-4",
+      "table": "l.1-4",
+      "kb_type": "wording",
+      "source_sha256": "e482194a7b4d719bdb6a24f90ea25f4850317abb772f9dd6e4225e4696c7510f",
+      "raw_bm25": 42.2224,
+      "rrf": 0.03225806,
+      "queries": [
+       "main",
+       "img_text#1"
+      ],
+      "excerpt": "ens im Blick behalten. Wie finde ich die richtige Flansch-Größe? Die richtige Flansch-Größe entscheidet direkt über Komfort und Abpump-Effizienz. Eine unpassend"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "19e6afdddc18e3c3cd68",
+      "anchor": "#l.1-3",
+      "table": "l.1-3",
+      "kb_type": "wording",
+      "source_sha256": "97cb0bb3ce5d5fdcb0356148b190bd12d0367eb418d0f55aeb6e4eca76fd7510",
+      "raw_bm25": 39.384,
+      "rrf": 0.03174604,
+      "queries": [
+       "main",
+       "img_text#1"
+      ],
+      "excerpt": "en für ein effizientes, komfortables und vollständiges Milchabpumpen. Von der Einrichtung über die Bedienung bis zur Reinigung ist jedes Detail so konzipiert, d"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "2061ef94897ce5345a7a",
+      "anchor": "#l.1-3",
+      "table": "l.1-3",
+      "kb_type": "wording",
+      "source_sha256": "97cb0bb3ce5d5fdcb0356148b190bd12d0367eb418d0f55aeb6e4eca76fd7510",
+      "raw_bm25": 39.384,
+      "rrf": 0.03125,
+      "queries": [
+       "main",
+       "img_text#1"
+      ],
+      "excerpt": "en für ein effizientes, komfortables und vollständiges Milchabpumpen. Von der Einrichtung über die Bedienung bis zur Reinigung ist jedes Detail so konzipiert, d"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "b49f23617db38ca360f0",
+      "anchor": "#l.1-4",
+      "table": "l.1-4",
+      "kb_type": "wording",
+      "source_sha256": "1a27741b3c8bf0b1deec8a1711550d2c1f84aba4ccd4ba0f3177b4a435343dbd",
+      "raw_bm25": 37.9137,
+      "rrf": 0.03076924,
+      "queries": [
+       "main",
+       "img_text#1"
+      ],
+      "excerpt": "sitzen: Sie pumpen absolut diskret. *Getestet im Saugmodus von -300 mmHg im Vergleich zu anderen tragbaren Pumpen mit gleicher Saugstärke (Interne Tests, 2024)."
+     }
+    ],
+    "vector_rows": [],
+    "adopted": [
+     {
+      "source": "bm25_en",
+      "unit_id": "639a1aa9848eaa4dc5d5",
+      "anchor": "#l.1-3",
+      "table": "l.1-3",
+      "kb_type": "wording",
+      "source_sha256": "e482194a7b4d719bdb6a24f90ea25f4850317abb772f9dd6e4225e4696c7510f",
+      "raw_bm25": 43.0147,
+      "rrf": 0.03278688,
+      "queries": [
+       "main",
+       "img_text#1"
+      ],
+      "excerpt": "300 mmHg + 15 Level; M9: −300 mmHg + App Multi-Modus Komfort / schmerzfreie Erfahrung Hauptproblem für sensitive Mütter M5 Smart: bionisches Saugen; alle Modell",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "26140329710279a50819",
+      "anchor": "#l.1-4",
+      "table": "l.1-4",
+      "kb_type": "wording",
+      "source_sha256": "e482194a7b4d719bdb6a24f90ea25f4850317abb772f9dd6e4225e4696c7510f",
+      "raw_bm25": 42.2224,
+      "rrf": 0.03225806,
+      "queries": [
+       "main",
+       "img_text#1"
+      ],
+      "excerpt": "ens im Blick behalten. Wie finde ich die richtige Flansch-Größe? Die richtige Flansch-Größe entscheidet direkt über Komfort und Abpump-Effizienz. Eine unpassend",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "19e6afdddc18e3c3cd68",
+      "anchor": "#l.1-3",
+      "table": "l.1-3",
+      "kb_type": "wording",
+      "source_sha256": "97cb0bb3ce5d5fdcb0356148b190bd12d0367eb418d0f55aeb6e4eca76fd7510",
+      "raw_bm25": 39.384,
+      "rrf": 0.03174604,
+      "queries": [
+       "main",
+       "img_text#1"
+      ],
+      "excerpt": "en für ein effizientes, komfortables und vollständiges Milchabpumpen. Von der Einrichtung über die Bedienung bis zur Reinigung ist jedes Detail so konzipiert, d",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "2061ef94897ce5345a7a",
+      "anchor": "#l.1-3",
+      "table": "l.1-3",
+      "kb_type": "wording",
+      "source_sha256": "97cb0bb3ce5d5fdcb0356148b190bd12d0367eb418d0f55aeb6e4eca76fd7510",
+      "raw_bm25": 39.384,
+      "rrf": 0.03125,
+      "queries": [
+       "main",
+       "img_text#1"
+      ],
+      "excerpt": "en für ein effizientes, komfortables und vollständiges Milchabpumpen. Von der Einrichtung über die Bedienung bis zur Reinigung ist jedes Detail so konzipiert, d",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "b49f23617db38ca360f0",
+      "anchor": "#l.1-4",
+      "table": "l.1-4",
+      "kb_type": "wording",
+      "source_sha256": "1a27741b3c8bf0b1deec8a1711550d2c1f84aba4ccd4ba0f3177b4a435343dbd",
+      "raw_bm25": 37.9137,
+      "rrf": 0.03076924,
+      "queries": [
+       "main",
+       "img_text#1"
+      ],
+      "excerpt": "sitzen: Sie pumpen absolut diskret. *Getestet im Saugmodus von -300 mmHg im Vergleich zu anderen tragbaren Pumpen mit gleicher Saugstärke (Interne Tests, 2024).",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     }
+    ],
+    "discarded": [],
+    "gate": {
+     "bm25_raw_min": 8.0,
+     "vector_cosine_min": 0.6,
+     "use_raw_scores_only": true,
+     "why_not_rrf": "RRF 分恒为 1/(60+k)，实测 Top1 恒在 0.016393，A 组与 B 组看起来一样高，没有区分度，不能当门限",
+     "why_single_threshold_not_enough": "实测 BM25 原始分在 A/B 两组有重叠（A 组最低 5.32 < B 组最高 10.02），所以门限只用于「够不够格当参考」，要成为「依据」还必须同时命中规则层",
+     "measured": {
+      "bm25_raw": {
+       "A_group_min": 5.32,
+       "A_group_median": 12.76,
+       "B_group_median": 6.44,
+       "B_group_max": 10.02,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      },
+      "cosine": {
+       "A_group_min": 0.512,
+       "A_group_median": 0.669,
+       "B_group_median": 0.384,
+       "B_group_max": 0.569,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      }
+     },
+     "threshold_reasoning": "BM25 门限取 8.0：落在 A 组最低(5.32)与 B 组最高(10.02)之间、贴近两组中位之间，偏保守；余弦门限取 0.60：实测它是唯一能把 B 组全部挡在外面的取值（B 组最高 0.569），代价是 A 组丢 2 条；即便如此门限仍单独不可靠，必须叠加「同时命中规则层」才算依据",
+     "below_threshold_label": "参考",
+     "above_threshold_without_rule_hit": "仍只能标参考，不得作为依据",
+     "coverage_bm25_min": 16.0,
+     "coverage_reasoning": "PASS 必须建立在「知识库认识这个主题」之上，覆盖信号二选一：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ coverage_bm25_min(=16.0)。16.0 = 依据门限的 2 倍：实测 A 组中位 12.76 / 最高 23.16，B 组最高 10.02，取 16 能把实测 B 组全部挡在外面。覆盖信号不成立 → 拒答，不得输出 PASS。"
+    }
+   },
+   "image_identity": {
+    "engine": "kb/l3/candidates/negative_image_fp.jsonl",
+    "checked": 1,
+    "hits": [
+     {
+      "article_no": "N-1.359",
+      "rule_id": "nr-b53f2a5ba7340265",
+      "rule_code": "N-02",
+      "rule_code_label": "原则性错误",
+      "rule_kind": "advice",
+      "confidence": "low",
+      "rule_text": "不要倒着放，对于宝宝和妈妈来说，奶瓶的卫生重要至极，所以我们的产品才会有奶瓶消毒器，喝完奶、喝之前都要消毒杀菌的，所以随意倒着放这个行为不符合用户习惯",
+      "action": {
+       "kind": "replace",
+       "replacement": "不要倒着放，对于宝宝和妈妈来说，奶瓶的卫生重要至极，所以我们的产品才会有奶瓶消毒器，喝完奶、喝之前都要消毒杀菌的，所以随意倒着放这个行为不符合用户习惯"
+      },
+      "score": 1.0,
+      "visual_score": 1.0,
+      "text_score": 0.0,
+      "why": "图身份：与库内图同一张（pHash 距离 6 ｜ 像素相关 0.948）",
+      "reasons": [
+       "图身份：同一张图（recvw7XIUg72fA seq=1，pHash 距离 6，相关 0.948）"
+      ],
+      "image_refs": [
+       "RPejbtlNcoWstbxX73oc2ZwZnIf",
+       "T0Ynbq8QtotFVixDW33crN9FnRg"
+      ],
+      "evidence": [
+       {
+        "anchor": "#负面样本/recvw7XIUg72fA/具体原因/分析",
+        "source_sha256": "a4421abebabcff0681ec3820fe461b9115839677849aa92f940f41301e056044",
+        "record_id": "recvw7XIUg72fA"
+       }
+      ],
+      "library_negative_sample": true,
+      "matched_by": "图身份",
+      "record_id": "recvw7XIUg72fA",
+      "matched_image": {
+       "record_id": "recvw7XIUg72fA",
+       "sha256": "a3c7828f2f66554dfa574e112d66026473023265f771df1d63410de11423ff8a",
+       "file_token": "T0Ynbq8QtotFVixDW33crN9FnRg",
+       "anchor": "#素材/recvw7XIUg72fA/图片素材/#img.1"
+      },
+      "attribution": "shared_reference",
+      "attribution_why": "同一张图出现在 3 条**内容不同**的记录里（recvw7XIUg72fA, recvwC9IMVeaGY, recvwwiEKDTDWq）⇒ 复用附图/复制污染，不得作为任何一条记录的意见依据",
+      "match_rank": 4,
+      "identity": true,
+      "evidence_gap": "图身份：与库内图同一张（pHash/像素相关），不是本单素材的逐字命中"
+     },
+     {
+      "article_no": "N-1.153",
+      "rule_id": "nr-f1182be37576e461",
+      "rule_code": "N-01",
+      "rule_code_label": "品牌一致性",
+      "rule_kind": "observation",
+      "confidence": "low",
+      "rule_text": "只需要展示一款吸奶器,能够适配所有型号,画面能够更换的,安装/更换简易,需要考虑带锁.品牌货架、门店自有货架均可使用，需要带有品牌颜色、logo",
+      "action": {
+       "kind": "prohibit",
+       "replacement": null
+      },
+      "score": 1.0,
+      "visual_score": 1.0,
+      "text_score": 0.0,
+      "why": "图身份：与库内图同一张（pHash 距离 6 ｜ 像素相关 0.948）",
+      "reasons": [
+       "图身份：同一张图（recvwC9IMVeaGY seq=1，pHash 距离 6，相关 0.948）"
+      ],
+      "image_refs": [
+       "Wx9nb3261o6h98xjqeDcsdkVnme",
+       "YAeQbsINoooLDCxXNX5cKi2Knhb"
+      ],
+      "evidence": [
+       {
+        "anchor": "#负面样本/recvwC9IMVeaGY/具体原因/分析",
+        "source_sha256": "d4cdca7434fe7dcbdbf76c2f8956b747f1becd3bea205b4ae04de7cf11de9c1d",
+        "record_id": "recvwC9IMVeaGY"
+       }
+      ],
+      "library_negative_sample": true,
+      "matched_by": "图身份",
+      "record_id": "recvwC9IMVeaGY",
+      "matched_image": {
+       "record_id": "recvwC9IMVeaGY",
+       "sha256": "a3c7828f2f66554dfa574e112d66026473023265f771df1d63410de11423ff8a",
+       "file_token": "Wx9nb3261o6h98xjqeDcsdkVnme",
+       "anchor": "#素材/recvwC9IMVeaGY/图片素材/#img.1"
+      },
+      "attribution": "shared_reference",
+      "attribution_why": "同一张图出现在 3 条**内容不同**的记录里（recvw7XIUg72fA, recvwC9IMVeaGY, recvwwiEKDTDWq）⇒ 复用附图/复制污染，不得作为任何一条记录的意见依据",
+      "match_rank": 4,
+      "identity": true,
+      "evidence_gap": "图身份：与库内图同一张（pHash/像素相关），不是本单素材的逐字命中"
+     },
+     {
+      "article_no": "N-1.154",
+      "rule_id": "nr-a1116f2df7cd3e62",
+      "rule_code": "N-01",
+      "rule_code_label": "品牌一致性",
+      "rule_kind": "observation",
+      "confidence": "low",
+      "rule_text": "向消费者传达：温暖、科技感",
+      "action": {
+       "kind": "prohibit",
+       "replacement": null
+      },
+      "score": 1.0,
+      "visual_score": 1.0,
+      "text_score": 0.0,
+      "why": "图身份：与库内图同一张（pHash 距离 6 ｜ 像素相关 0.948）",
+      "reasons": [
+       "图身份：同一张图（recvwC9IMVeaGY seq=1，pHash 距离 6，相关 0.948）"
+      ],
+      "image_refs": [
+       "Wx9nb3261o6h98xjqeDcsdkVnme",
+       "YAeQbsINoooLDCxXNX5cKi2Knhb"
+      ],
+      "evidence": [
+       {
+        "anchor": "#负面样本/recvwC9IMVeaGY/具体原因/分析",
+        "source_sha256": "d4cdca7434fe7dcbdbf76c2f8956b747f1becd3bea205b4ae04de7cf11de9c1d",
+        "record_id": "recvwC9IMVeaGY"
+       }
+      ],
+      "library_negative_sample": true,
+      "matched_by": "图身份",
+      "record_id": "recvwC9IMVeaGY",
+      "matched_image": {
+       "record_id": "recvwC9IMVeaGY",
+       "sha256": "a3c7828f2f66554dfa574e112d66026473023265f771df1d63410de11423ff8a",
+       "file_token": "Wx9nb3261o6h98xjqeDcsdkVnme",
+       "anchor": "#素材/recvwC9IMVeaGY/图片素材/#img.1"
+      },
+      "attribution": "shared_reference",
+      "attribution_why": "同一张图出现在 3 条**内容不同**的记录里（recvw7XIUg72fA, recvwC9IMVeaGY, recvwwiEKDTDWq）⇒ 复用附图/复制污染，不得作为任何一条记录的意见依据",
+      "match_rank": 4,
+      "identity": true,
+      "evidence_gap": "图身份：与库内图同一张（pHash/像素相关），不是本单素材的逐字命中"
+     },
+     {
+      "article_no": "N-1.294",
+      "rule_id": "nr-b955aee0f42af6ed",
+      "rule_code": "N-01",
+      "rule_code_label": "品牌一致性",
+      "rule_kind": "non_substantive",
+      "confidence": "low",
+      "rule_text": "麻烦看看呀",
+      "action": {
+       "kind": "prohibit",
+       "replacement": null
+      },
+      "score": 1.0,
+      "visual_score": 1.0,
+      "text_score": 0.0,
+      "why": "图身份：与库内图同一张（pHash 距离 6 ｜ 像素相关 0.948）",
+      "reasons": [
+       "图身份：同一张图（recvwC9IMVeaGY seq=1，pHash 距离 6，相关 0.948）"
+      ],
+      "image_refs": [
+       "AGrzbpOjZoYz1YxgEUAcVeK0nub",
+       "AgEdb2yCUoqSvuxdHDMcCkgjnoc",
+       "AtqWbwpcbo4tVHxDNeOcHAQFnac",
+       "CgSvbecRToP6ksx0PVPcLEFpnUJ",
+       "Cz5zbZgduokNWexuuDIcWSXmn5c"
+      ],
+      "evidence": [
+       {
+        "anchor": "#负面样本/recvw7XIUgJPcj/具体原因/分析",
+        "source_sha256": "34d5c40aa224acb0f38feef4511acba52c02f21e4593525a63eae2cf0965f51f",
+        "record_id": "recvwC9IMVeaGY"
+       }
+      ],
+      "library_negative_sample": true,
+      "matched_by": "图身份",
+      "record_id": "recvwC9IMVeaGY",
+      "matched_image": {
+       "record_id": "recvwC9IMVeaGY",
+       "sha256": "a3c7828f2f66554dfa574e112d66026473023265f771df1d63410de11423ff8a",
+       "file_token": "Wx9nb3261o6h98xjqeDcsdkVnme",
+       "anchor": "#素材/recvwC9IMVeaGY/图片素材/#img.1"
+      },
+      "attribution": "shared_reference",
+      "attribution_why": "同一张图出现在 3 条**内容不同**的记录里（recvw7XIUg72fA, recvwC9IMVeaGY, recvwwiEKDTDWq）⇒ 复用附图/复制污染，不得作为任何一条记录的意见依据",
+      "match_rank": 4,
+      "identity": true,
+      "evidence_gap": "图身份：与库内图同一张（pHash/像素相关），不是本单素材的逐字命中"
+     },
+     {
+      "article_no": "N-1.153",
+      "rule_id": "nr-f1182be37576e461",
+      "rule_code": "N-01",
+      "rule_code_label": "品牌一致性",
+      "rule_kind": "observation",
+      "confidence": "low",
+      "rule_text": "只需要展示一款吸奶器,能够适配所有型号,画面能够更换的,安装/更换简易,需要考虑带锁.品牌货架、门店自有货架均可使用，需要带有品牌颜色、logo",
+      "action": {
+       "kind": "prohibit",
+       "replacement": null
+      },
+      "score": 1.0,
+      "visual_score": 1.0,
+      "text_score": 0.0,
+      "why": "图身份：与库内图同一张（pHash 距离 6 ｜ 像素相关 0.948）",
+      "reasons": [
+       "图身份：同一张图（recvwwiEKDTDWq seq=1，pHash 距离 6，相关 0.948）"
+      ],
+      "image_refs": [
+       "Wx9nb3261o6h98xjqeDcsdkVnme",
+       "YAeQbsINoooLDCxXNX5cKi2Knhb"
+      ],
+      "evidence": [
+       {
+        "anchor": "#负面样本/recvwC9IMVeaGY/具体原因/分析",
+        "source_sha256": "d4cdca7434fe7dcbdbf76c2f8956b747f1becd3bea205b4ae04de7cf11de9c1d",
+        "record_id": "recvwwiEKDTDWq"
+       }
+      ],
+      "library_negative_sample": true,
+      "matched_by": "图身份",
+      "record_id": "recvwwiEKDTDWq",
+      "matched_image": {
+       "record_id": "recvwwiEKDTDWq",
+       "sha256": "a3c7828f2f66554dfa574e112d66026473023265f771df1d63410de11423ff8a",
+       "file_token": "YAeQbsINoooLDCxXNX5cKi2Knhb",
+       "anchor": "#素材/recvwwiEKDTDWq/图片素材/#img.1"
+      },
+      "attribution": "shared_reference",
+      "attribution_why": "同一张图出现在 3 条**内容不同**的记录里（recvw7XIUg72fA, recvwC9IMVeaGY, recvwwiEKDTDWq）⇒ 复用附图/复制污染，不得作为任何一条记录的意见依据",
+      "match_rank": 4,
+      "identity": true,
+      "evidence_gap": "图身份：与库内图同一张（pHash/像素相关），不是本单素材的逐字命中"
+     },
+     {
+      "article_no": "N-1.154",
+      "rule_id": "nr-a1116f2df7cd3e62",
+      "rule_code": "N-01",
+      "rule_code_label": "品牌一致性",
+      "rule_kind": "observation",
+      "confidence": "low",
+      "rule_text": "向消费者传达：温暖、科技感",
+      "action": {
+       "kind": "prohibit",
+       "replacement": null
+      },
+      "score": 1.0,
+      "visual_score": 1.0,
+      "text_score": 0.0,
+      "why": "图身份：与库内图同一张（pHash 距离 6 ｜ 像素相关 0.948）",
+      "reasons": [
+       "图身份：同一张图（recvwwiEKDTDWq seq=1，pHash 距离 6，相关 0.948）"
+      ],
+      "image_refs": [
+       "Wx9nb3261o6h98xjqeDcsdkVnme",
+       "YAeQbsINoooLDCxXNX5cKi2Knhb"
+      ],
+      "evidence": [
+       {
+        "anchor": "#负面样本/recvwC9IMVeaGY/具体原因/分析",
+        "source_sha256": "d4cdca7434fe7dcbdbf76c2f8956b747f1becd3bea205b4ae04de7cf11de9c1d",
+        "record_id": "recvwwiEKDTDWq"
+       }
+      ],
+      "library_negative_sample": true,
+      "matched_by": "图身份",
+      "record_id": "recvwwiEKDTDWq",
+      "matched_image": {
+       "record_id": "recvwwiEKDTDWq",
+       "sha256": "a3c7828f2f66554dfa574e112d66026473023265f771df1d63410de11423ff8a",
+       "file_token": "YAeQbsINoooLDCxXNX5cKi2Knhb",
+       "anchor": "#素材/recvwwiEKDTDWq/图片素材/#img.1"
+      },
+      "attribution": "shared_reference",
+      "attribution_why": "同一张图出现在 3 条**内容不同**的记录里（recvw7XIUg72fA, recvwC9IMVeaGY, recvwwiEKDTDWq）⇒ 复用附图/复制污染，不得作为任何一条记录的意见依据",
+      "match_rank": 4,
+      "identity": true,
+      "evidence_gap": "图身份：与库内图同一张（pHash/像素相关），不是本单素材的逐字命中"
+     },
+     {
+      "article_no": "N-1.294",
+      "rule_id": "nr-b955aee0f42af6ed",
+      "rule_code": "N-01",
+      "rule_code_label": "品牌一致性",
+      "rule_kind": "non_substantive",
+      "confidence": "low",
+      "rule_text": "麻烦看看呀",
+      "action": {
+       "kind": "prohibit",
+       "replacement": null
+      },
+      "score": 1.0,
+      "visual_score": 1.0,
+      "text_score": 0.0,
+      "why": "图身份：与库内图同一张（pHash 距离 6 ｜ 像素相关 0.948）",
+      "reasons": [
+       "图身份：同一张图（recvwwiEKDTDWq seq=1，pHash 距离 6，相关 0.948）"
+      ],
+      "image_refs": [
+       "AGrzbpOjZoYz1YxgEUAcVeK0nub",
+       "AgEdb2yCUoqSvuxdHDMcCkgjnoc",
+       "AtqWbwpcbo4tVHxDNeOcHAQFnac",
+       "CgSvbecRToP6ksx0PVPcLEFpnUJ",
+       "Cz5zbZgduokNWexuuDIcWSXmn5c"
+      ],
+      "evidence": [
+       {
+        "anchor": "#负面样本/recvw7XIUgJPcj/具体原因/分析",
+        "source_sha256": "34d5c40aa224acb0f38feef4511acba52c02f21e4593525a63eae2cf0965f51f",
+        "record_id": "recvwwiEKDTDWq"
+       }
+      ],
+      "library_negative_sample": true,
+      "matched_by": "图身份",
+      "record_id": "recvwwiEKDTDWq",
+      "matched_image": {
+       "record_id": "recvwwiEKDTDWq",
+       "sha256": "a3c7828f2f66554dfa574e112d66026473023265f771df1d63410de11423ff8a",
+       "file_token": "YAeQbsINoooLDCxXNX5cKi2Knhb",
+       "anchor": "#素材/recvwwiEKDTDWq/图片素材/#img.1"
+      },
+      "attribution": "shared_reference",
+      "attribution_why": "同一张图出现在 3 条**内容不同**的记录里（recvw7XIUg72fA, recvwC9IMVeaGY, recvwwiEKDTDWq）⇒ 复用附图/复制污染，不得作为任何一条记录的意见依据",
+      "match_rank": 4,
+      "identity": true,
+      "evidence_gap": "图身份：与库内图同一张（pHash/像素相关），不是本单素材的逐字命中"
+     }
+    ],
+    "candidates": [
+     {
+      "image": "/Users/lute/.dsh/attachments/v1/objects/ab/ab49ec87e4c8bc91c6c19296388fd2e18933e4cdbd5db356e571014e7383c362",
+      "n": 4,
+      "top": [
+       {
+        "record_id": "recvw7XIUg72fA",
+        "seq": 1,
+        "hamming": 6
+       },
+       {
+        "record_id": "recvw7XIUg72fA",
+        "seq": 2,
+        "hamming": 6
+       },
+       {
+        "record_id": "recvwC9IMVeaGY",
+        "seq": 1,
+        "hamming": 6
+       },
+       {
+        "record_id": "recvwwiEKDTDWq",
+        "seq": 1,
+        "hamming": 6
+       }
+      ]
+     }
+    ],
+    "error": null
+   },
+   "coverage": {
+    "safe_vocabulary_hits": [],
+    "rule_cited_unit_hits": [],
+    "same_source_unit_hits": [],
+    "case_unit_hits": [],
+    "case_clause_pool": 176,
+    "rule_cited_anchor_pool": 962,
+    "rule_cited_resource_pool": 40,
+    "coverage_bm25_min": 16.0,
+    "covered_by": "",
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "covered": false
+   },
+   "elapsed_ms": 3157.0,
+   "perf": {
+    "p0_match_ms": 66.7,
+    "rule_layer_ms": 34.2,
+    "negative_rule_layer_ms": 204.6,
+    "unit_layer_ms": 2294.3,
+    "assemble_ms": 87.0,
+    "content_type": "image",
+    "text_bytes": 1183,
+    "threshold_s": 20
+   },
+   "risk_category": {
+    "with_dimension": 0,
+    "unmapped_or_pending": 1,
+    "policy": "kb/l7/registry/risk-category-policy.json"
+   },
+   "taxonomy": {
+    "with_class": 0,
+    "without_class": 1,
+    "policy": "kb/l3/registry/rule-taxonomy.json（人工口径，Owner 采用；非源字段）"
+   }
+  },
+  "source": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py",
+  "findings_source": {
+   "mode": "live",
+   "path": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py"
+  },
+  "kb_hits": [
+   {
+    "anchor": "#l.1-3",
+    "bm25": 43.0147,
+    "kb_type": "wording",
+    "source_sha256": "e482194a7b4d719bdb6a24f90ea25f4850317abb772f9dd6e4225e4696c7510f",
+    "excerpt": "300 mmHg + 15 Level; M9: −300 mmHg + App Multi-Modus Komfort / schmerzfreie Erfahrung Hauptproblem für sensitive Mütter M5 Smart: bionisches Saugen; alle Modell",
+    "url": "https://de.momcozy.com/collections/electric-breast-pump"
+   },
+   {
+    "anchor": "#l.1-4",
+    "bm25": 42.2224,
+    "kb_type": "wording",
+    "source_sha256": "e482194a7b4d719bdb6a24f90ea25f4850317abb772f9dd6e4225e4696c7510f",
+    "excerpt": "ens im Blick behalten. Wie finde ich die richtige Flansch-Größe? Die richtige Flansch-Größe entscheidet direkt über Komfort und Abpump-Effizienz. Eine unpassend",
+    "url": "https://de.momcozy.com/collections/electric-breast-pump"
+   },
+   {
+    "anchor": "#l.1-3",
+    "bm25": 39.384,
+    "kb_type": "wording",
+    "source_sha256": "97cb0bb3ce5d5fdcb0356148b190bd12d0367eb418d0f55aeb6e4eca76fd7510",
+    "excerpt": "en für ein effizientes, komfortables und vollständiges Milchabpumpen. Von der Einrichtung über die Bedienung bis zur Reinigung ist jedes Detail so konzipiert, d",
+    "url": "http://de.momcozy.com/products/momcozy-s12-pro-wearable-breast-pump"
+   },
+   {
+    "anchor": "#l.1-3",
+    "bm25": 39.384,
+    "kb_type": "wording",
+    "source_sha256": "97cb0bb3ce5d5fdcb0356148b190bd12d0367eb418d0f55aeb6e4eca76fd7510",
+    "excerpt": "en für ein effizientes, komfortables und vollständiges Milchabpumpen. Von der Einrichtung über die Bedienung bis zur Reinigung ist jedes Detail so konzipiert, d",
+    "url": "https://de.momcozy.com/products/momcozy-s12-pro-wearable-breast-pump"
+   },
+   {
+    "anchor": "#l.1-4",
+    "bm25": 37.9137,
+    "kb_type": "wording",
+    "source_sha256": "1a27741b3c8bf0b1deec8a1711550d2c1f84aba4ccd4ba0f3177b4a435343dbd",
+    "excerpt": "sitzen: Sie pumpen absolut diskret. *Getestet im Saugmodus von -300 mmHg im Vergleich zu anderen tragbaren Pumpen mit gleicher Saugstärke (Interne Tests, 2024).",
+    "url": "https://de.momcozy.com/products/momcozy-mobile-flow-hands-free-breast-pump"
+   }
+  ],
+  "layer_preflight": {
+   "base": "RT-20261021-IMG-ID2",
+   "ok": true,
+   "red_total": 0,
+   "mode": "enforced",
+   "details": {
+    "L4": {
+     "run": "RT-20261021-IMG-ID2-L4",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L4": "test-image-id2"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L5": {
+     "run": "RT-20261021-IMG-ID2-L5",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L5": "test-image-id2"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L6": {
+     "run": "RT-20261021-IMG-ID2-L6",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L6": "test-image-id2"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L7": {
+     "run": "RT-20261021-IMG-ID2-L7",
+     "exit": 0,
+     "red": 0,
+     "yellow": 0,
+     "skill_sessions": {
+      "L7": "test-image-id2"
+     },
+     "pass": true,
+     "note": ""
+    }
+   }
+  },
+  "position": {
+   "value": null,
+   "supplied_by": null,
+   "note": "未提供 ⇒ 依据层用默认位置（图片会是裸「图 1」，出口闸 R3 判红）"
+  },
+  "decision_owner": {
+   "skill": "图片安全审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check",
+    "图片安全审查"
+   ]
+  },
+  "image_skill_gate": {
+   "ok": true,
+   "expected": "图片安全审查",
+   "owner": "图片安全审查",
+   "checks": [
+    "skill 就绪：/Users/lute/.dsh/skills/图片安全审查",
+    "本会话观测到成功加载（loaded）"
+   ],
+   "warnings": [],
+   "load": {
+    "verdict": "loaded",
+    "calls": [
+     {
+      "callId": "call_00_cspuXK4EZPjCmxoI5pz10957",
+      "seq": 253745,
+      "verdict": "loaded",
+      "excerpt": "<skill_content name=\"图片安全审查\">\n<skill_resources>\nBase directory for this skill: /Users/lute/.dsh/skills/图片安全审查\nResolve re"
+     }
+    ]
+   }
+  },
+  "publish": {
+   "mode": "disabled_by_caller",
+   "published": false,
+   "reason": "disabled_by_caller"
+  },
+  "report_url": null,
+  "report_url_kind": null
+ }
+}
+
+===== ③b 转述模板（照抄这一段即可，不必再跑任何命令）=====
+状态：REVIEW ｜ 问题数：1 ｜ 置信度：0.75
+摘要：【审查结论：REVIEW】共发现 1 处需人工确认。
+
+1.【未归类】图 1，命中：（来源未给引文）
+  **原因**：相似历史审核意见（advice·参考）：匹配分 1.00（画面 1.00 / 文字 0.00）｜图身份：同一张图（recvw7XIUg72fA seq=1，pHash 距离 6，相关 0.948）｜⚠️ 非本单素材逐字命中｜该意见为**同图历史意见**：本图在库里是复用图，该图还出现在其它内容不同的记录里 ⇒ 它属于那条记录，**不专指本图**
+  **依据**：《内部正负样本库（负面样本规则·历史审核意见） v0（试用版，未发布）》第 N-1.359 条 ← （来源未给命中片段）（L0 逐字核对：no_excerpt）｜原始出处：https://momcozy-in.feishu.cn/base/GnRZbIuXraCzf0sGr2UcmZ62nfc?table=tbld8qE92YaY38Yz&record=recvw7XIUg72fA
+  **建议**：不要倒着放，对于宝宝和妈妈来说，奶瓶的卫生重要至极，所以我们的产品才会有奶瓶消毒器，喝完奶、喝之前都要消毒杀菌的，所以随意倒着放这个行为不符合用户习惯
+
+建议转 @法务（未配置） @北美同事（未配置） 复核。（其中 1/1 条未匹配到方向：该转谁需要人确认）（建议人工确认）
+层前置：ok=None mode=None
+判定主体：图片安全审查 ｜ mode=declared
+  ● 条款号 ? ｜ 相似历史审核意见（advice·参考）：匹配分 1.00（画面 1.00 / 文字 0.00）｜图身份：同一张图（recvw7XIUg72fA seq=1，pHash 距离 6，相关 0.948）｜⚠️ 非本单素材逐字命中｜该意见为**同图
+
+【飞书那一步没有做】published=false ｜ 原因 disabled_by_caller
+⇒ 这**由守衡侧负责**，不是你的活。**不许**自己调 lark-cli 去补写表。

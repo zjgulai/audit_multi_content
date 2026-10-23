@@ -1,0 +1,3902 @@
+{
+ "run_id": "20261019-1744-L6",
+ "stage": "L6 建两套索引（向量 + BM25，分段版）",
+ "finished_at": "2026-10-19 17:45:39",
+ "kb_version": "v0",
+ "mode": "vector_plus_bm25",
+ "semantic_recall": true,
+ "retrieval_capability": {
+  "mode": "vector_plus_bm25",
+  "semantic_recall": true,
+  "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "dim": 384,
+  "quantization": "fp16（ONNX initializer 全部为 FLOAT16，且无 QuantizeLinear/MatMulInteger 等量化算子）",
+  "provider": "fastembed 0.7.4 + onnxruntime 1.19.2（本地 CPU）",
+  "weights_repo": "qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q",
+  "weights_file": "model_optimized.onnx",
+  "weights_cache_dir": "/Users/lute/.dsh/models/fastembed",
+  "weights_bytes": 235052644,
+  "effective_max_tokens": 128,
+  "handshake": {
+   "how": "向模型发一次真实 embedding 请求，校验返回向量合法且维度一致（不用端口/依赖存在性判定）",
+   "text": "握手自检：这是一次真实的 embedding 请求。",
+   "dim_returned": 384,
+   "dim_expected": 384,
+   "all_finite": true,
+   "norm": 3.119,
+   "verdict": "可用"
+  },
+  "known_limitations": [
+   "跨语言只有多语模型的弱对齐：中文查询能拿到英文素材的较高相似度，但不等价于翻译级召回",
+   "同义改写受限：2019 年的多语 MiniLM（384 维），对行业黑话/新造词的语义区分有限",
+   "规避型表述（拼音、拆字、谐音、符号分隔、小语种）召回受限：这类本来就绕开字面，向量也未必抓到",
+   "无重排（本轮不做 rerank 模型），Top-N 只做 RRF 融合，长尾排序质量未校验",
+   "无命中阈值：检索器一律返回 Top-N，不带相关性阈值，是否采纳由下游判定",
+   "融合分不能当阈值用：RRF 分只是名次的倒数（Top1 恒为 1/(k+1)=0.016393），A 组与 B 组看起来一样高；真要设阈值得取原始分（BM25 分 / 余弦分），而原始分在 A/B 两组之间仍有重叠（实测 A 组 BM25 最低 5.32 < B 组最高 10.02）",
+   "超长单元分段后每段独立成向量，段间语义依赖未建模",
+   "P0 证据单元（321 条）不在向量索引内，只能走 kb/l5/matcher.py"
+  ],
+  "no_hit_semantics": {
+   "bm25_only": "字面未匹配，不代表合规",
+   "vector_only": "语义未匹配，不代表合规",
+   "hybrid": "字面与语义均未匹配，但仍不代表合规"
+  },
+  "no_hit_note": "向量检索会让『无命中』看起来更权威，但它仍然召不到语料里没有的东西；规避型文案本来就绕开字面，无命中不是放行理由。"
+ },
+ "why_this_mode": "embedding 是必装项：本机 onnxruntime/numpy 就绪、外网可达，按推荐方向装 fastembed（ONNX，不拉 torch）并复用已下载的多语权重；真实握手（发一次 embedding 请求校验维度）通过 → 双索引都落盘，没有回退",
+ "model": {
+  "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "dim": 384,
+  "quantization": "fp16（ONNX initializer 全部为 FLOAT16，且无 QuantizeLinear/MatMulInteger 等量化算子）",
+  "quantization_evidence": "fp16（ONNX initializer 全部为 FLOAT16，且无 QuantizeLinear/MatMulInteger 等量化算子）",
+  "dtype_histogram": {
+   "FLOAT16(fp16)": 149
+  },
+  "quantization_op_hits": {
+   "QuantizeLinear": 0,
+   "DequantizeLinear": 0,
+   "MatMulInteger": 0,
+   "DynamicQuantizeLinear": 0,
+   "QLinearMatMul": 0,
+   "ConvInteger": 0
+  },
+  "weights_repo": "qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q",
+  "weights_file": "model_optimized.onnx",
+  "weights_bytes": 235052644,
+  "weights_cache_dir": "/Users/lute/.dsh/models/fastembed",
+  "effective_max_tokens": 128,
+  "truncation_test": {
+   "how": "两段文本共享前 300 字、其余完全不同，比对向量是否相同",
+   "cosine": 0.9999999999999998,
+   "identical": true,
+   "verdict": "完全相同 → 长文本被静默截断，必须分段（不许截断）"
+  },
+  "handshake": {
+   "how": "向模型发一次真实 embedding 请求，校验返回向量合法且维度一致（不用端口/依赖存在性判定）",
+   "text": "握手自检：这是一次真实的 embedding 请求。",
+   "dim_returned": 384,
+   "dim_expected": 384,
+   "all_finite": true,
+   "norm": 3.119,
+   "verdict": "可用"
+  }
+ },
+ "counts": {
+  "usable": 6029,
+  "projection_lines": 6029,
+  "bm25_docs": 6029,
+  "bm25_indexed": 6028,
+  "bm25_failed": 1,
+  "vector_units": 5649,
+  "vector_segments": 44310,
+  "units_segmented": 3937,
+  "vector_skipped_p0": 380,
+  "vector_failed": 0,
+  "dup_unit_id_in_projection": [],
+  "dup_unit_segment_in_vectors": [],
+  "bm25_failed_units": [
+   {
+    "unit_id": "00fa63e07ffead5207da",
+    "anchor": "#广告文案明细/recvuMGgT9Nm8K/广告名称",
+    "reason": "文本切不出任何词元（正文只有 '-'）"
+   }
+  ],
+  "vector_not_indexed_reasons": {
+   "P0 规则的证据单元：P0 走 kb/l5/matcher.py 确定性匹配，不入向量": 380
+  },
+  "reconcile": "6029 = BM25 6028 + 失败 1 = 向量单元 5649 + 不入向量 380",
+  "verdict": "PASS"
+ },
+ "segmentation": {
+  "units_indexed": 5649,
+  "segments": 44310,
+  "units_segmented": 3937,
+  "segment_count_histogram": {
+   "1": 1712,
+   "2": 412,
+   "3": 124,
+   "4": 71,
+   "5": 59,
+   "6": 47,
+   "7": 50,
+   "8": 297,
+   "9": 1401,
+   "10": 595,
+   "11": 103,
+   "12": 73,
+   "13": 13,
+   "14": 6,
+   "15": 4,
+   "16": 5,
+   "17": 10,
+   "18": 19,
+   "19": 2,
+   "20": 4,
+   "21": 12,
+   "22": 14,
+   "23": 22,
+   "24": 135,
+   "25": 236,
+   "26": 150,
+   "27": 37,
+   "28": 19,
+   "29": 2,
+   "30": 1,
+   "32": 2,
+   "33": 3,
+   "34": 2,
+   "35": 1,
+   "36": 1,
+   "37": 2,
+   "38": 2,
+   "47": 1
+  },
+  "longest_unit": [
+   "d1a3b2105a95cbd33be9",
+   7042,
+   47
+  ],
+  "max_segment_tokens": 120,
+  "seg_max_tokens": 120,
+  "effective_model_max_tokens": 128,
+  "exact_reconstruction_bad": 0,
+  "exact_reconstruction_examples": [],
+  "index_vs_recount_bad": 0,
+  "index_vs_recount_examples": [],
+  "segment_index_bad": [],
+  "segment_count_field_bad": [],
+  "verdict": "PASS",
+  "note": "用同一套 segmenter 对每个单元复算：各段拼接逐字等于原文、段号连续、char_offset 单调且落在正文内、每段 token ≤ 上限（模型实测 128 截断，本批上限 120）"
+ },
+ "segmentation_policy": {
+  "segmenter_version": "l6-seg-0.1",
+  "seg_max_tokens": 120,
+  "effective_model_max_tokens": 128,
+  "how": "按段落换行 + 句末标点切句，贪心打包到 ≤seg_max_tokens；单句超限时按 token 二分硬切。不截断、不丢内容：各段文本拼回来等于原文。",
+  "why": "实测该模型在 128 token 处静默截断（两条只有前 300 字相同的文本得到完全相同向量）",
+  "segment_count_histogram": {
+   "1": 1712,
+   "2": 824,
+   "3": 372,
+   "4": 284,
+   "5": 295,
+   "6": 282,
+   "7": 350,
+   "8": 2376,
+   "9": 12609,
+   "10": 5950,
+   "11": 1133,
+   "12": 876,
+   "13": 169,
+   "14": 84,
+   "15": 60,
+   "16": 80,
+   "17": 170,
+   "18": 342,
+   "19": 38,
+   "20": 80,
+   "21": 252,
+   "22": 308,
+   "23": 506,
+   "24": 3240,
+   "25": 5900,
+   "26": 3900,
+   "27": 999,
+   "28": 532,
+   "29": 58,
+   "30": 30,
+   "32": 64,
+   "33": 99,
+   "34": 68,
+   "35": 35,
+   "36": 36,
+   "37": 74,
+   "38": 76,
+   "47": 47
+  }
+ },
+ "bm25": {
+  "scale": {
+   "docs_total": 6029,
+   "N_zh": 2192,
+   "N_en": 5689,
+   "avgdl_zh": 858.712,
+   "avgdl_en": 306.286,
+   "terms_zh": 193307,
+   "terms_en": 41117,
+   "postings_zh": 1210547,
+   "postings_en": 837212
+  },
+  "implementation": "自实现倒排（无 jieba / 无 rank_bm25）",
+  "tokenizer": {
+   "version": "l6-tok-0.1",
+   "rrf_k": 60,
+   "bm25": {
+    "k1": 1.2,
+    "b": 0.75
+   },
+   "implementation": "自实现倒排（无 jieba / 无 rank_bm25）",
+   "zh": "按字符类别切出连续汉字段 → 直接 bigram（不依赖分词库）；单字段退化为 unigram",
+   "en": "小写化 → 按标点/空白分词 → 轻词干（复数/时态/副词后缀保守剥离）",
+   "mixed": "按字符类别分段，各段用各自的切法；词表与倒排分语言存放，不混",
+   "why": "中文 bigram 对英文会明显劣化；素材里英文占比高，混一套切法会拉低英文侧召回"
+  },
+  "libs_installed": "无第三方检索库（未装 jieba / rank_bm25）"
+ },
+ "benchmark": {
+  "generated_at": "2026-10-19 10:42:34",
+  "units": 6029,
+  "bm25": {
+   "load_ms": 6783.9,
+   "docs": 6029,
+   "terms": {
+    "zh": 193307,
+    "en": 41117
+   },
+   "avgdl": {
+    "zh": 858.712,
+    "en": 306.286
+   },
+   "implementation": "自实现倒排（无 jieba / 无 rank_bm25）",
+   "query_latency_ms": {
+    "queries": 20,
+    "runs_per_query": 5,
+    "samples": 100,
+    "min": 0.242,
+    "p50": 1.665,
+    "p95": 12.523,
+    "max": 20.088,
+    "mean": 3.541
+   },
+   "throughput_qps": 600.6,
+   "postings_scanned": {
+    "mean": 1046.4,
+    "max": 4847,
+    "detail": [
+     {
+      "query": "one size fits all",
+      "terms": 4,
+      "postings_scanned": 4847
+     },
+     {
+      "query": "more milk supply",
+      "terms": 3,
+      "postings_scanned": 3485
+     },
+     {
+      "query": "pain-free pumping",
+      "terms": 3,
+      "postings_scanned": 2434
+     },
+     {
+      "query": "hospital grade pump",
+      "terms": 3,
+      "postings_scanned": 1628
+     },
+     {
+      "query": "boosts milk supply",
+      "terms": 3,
+      "postings_scanned": 1478
+     }
+    ]
+   },
+   "by_term_count": {
+    "1_term_p50_ms": 0.234,
+    "3plus_terms_p50_ms": 2.055,
+    "n_single": 1,
+    "n_multi": 14
+   }
+  },
+  "vector": {
+   "queries": 8,
+   "runs_per_query": 3,
+   "p50_ms": 18.718,
+   "max_ms": 2716.932,
+   "min_ms": 15.19,
+   "cold_load_ms": 1591.3
+  },
+  "hybrid": {
+   "queries": 8,
+   "runs_per_query": 3,
+   "p50_ms": 23.68,
+   "max_ms": 49.705,
+   "min_ms": 16.039
+  },
+  "compare_with_l5": {
+   "L5": {
+    "bytes": 1060659.2,
+    "lines": 3712,
+    "elapsed_ms": 631.605,
+    "source": "kb/l5/benchmark.json（L5 P0 匹配器：6 条 P0 规则 / 79 关键词 / 16 正则，逐行扫全文）"
+   },
+   "L5_per_KB_ms": 0.61,
+   "bm25_p50_ms": 1.665,
+   "bm25_equivalent_text_KB": 2.73,
+   "verdict": "BM25 单查询中位 1.665 ms；L5 扫 1MB 是 631.605 ms（约 379 倍）。自实现倒排不是瓶颈，本批不需要换实现或换库（jieba / rank_bm25 未安装，也未因此缺能力）。"
+  }
+ },
+ "selftest": {
+  "query_count": 14,
+  "judged": 7,
+  "summary": {
+   "A_zh": {
+    "bm25_only": {
+     "queries": 3,
+     "hit": 3,
+     "hit_rate_at3": 1.0,
+     "precision_at3": 0.889
+    },
+    "vector_only": {
+     "queries": 3,
+     "hit": 3,
+     "hit_rate_at3": 1.0,
+     "precision_at3": 0.444
+    },
+    "hybrid": {
+     "queries": 3,
+     "hit": 3,
+     "hit_rate_at3": 1.0,
+     "precision_at3": 0.667
+    }
+   },
+   "A_en": {
+    "bm25_only": {
+     "queries": 3,
+     "hit": 3,
+     "hit_rate_at3": 1.0,
+     "precision_at3": 0.778
+    },
+    "vector_only": {
+     "queries": 3,
+     "hit": 2,
+     "hit_rate_at3": 0.667,
+     "precision_at3": 0.222
+    },
+    "hybrid": {
+     "queries": 3,
+     "hit": 3,
+     "hit_rate_at3": 1.0,
+     "precision_at3": 0.556
+    }
+   },
+   "B_zh": {
+    "bm25_only": {
+     "queries": 0,
+     "hit": 0,
+     "hit_rate_at3": null,
+     "precision_at3": null
+    },
+    "vector_only": {
+     "queries": 0,
+     "hit": 0,
+     "hit_rate_at3": null,
+     "precision_at3": null
+    },
+    "hybrid": {
+     "queries": 0,
+     "hit": 0,
+     "hit_rate_at3": null,
+     "precision_at3": null
+    }
+   },
+   "B_en": {
+    "bm25_only": {
+     "queries": 1,
+     "hit": 0,
+     "hit_rate_at3": 0.0,
+     "precision_at3": 0.0
+    },
+    "vector_only": {
+     "queries": 1,
+     "hit": 0,
+     "hit_rate_at3": 0.0,
+     "precision_at3": 0.0
+    },
+    "hybrid": {
+     "queries": 1,
+     "hit": 0,
+     "hit_rate_at3": 0.0,
+     "precision_at3": 0.0
+    }
+   },
+   "A_all": {
+    "bm25_only": {
+     "queries": 6,
+     "hit": 6,
+     "hit_rate_at3": 1.0,
+     "precision_at3": 0.833
+    },
+    "vector_only": {
+     "queries": 6,
+     "hit": 5,
+     "hit_rate_at3": 0.833,
+     "precision_at3": 0.333
+    },
+    "hybrid": {
+     "queries": 6,
+     "hit": 6,
+     "hit_rate_at3": 1.0,
+     "precision_at3": 0.611
+    }
+   },
+   "B_all": {
+    "bm25_only": {
+     "queries": 1,
+     "hit": 0,
+     "hit_rate_at3": 0.0,
+     "precision_at3": 0.0
+    },
+    "vector_only": {
+     "queries": 1,
+     "hit": 0,
+     "hit_rate_at3": 0.0,
+     "precision_at3": 0.0
+    },
+    "hybrid": {
+     "queries": 1,
+     "hit": 0,
+     "hit_rate_at3": 0.0,
+     "precision_at3": 0.0
+    }
+   }
+  },
+  "b_group_behavior": {
+   "bm25_only": {
+    "returns_results": true,
+    "queries": 1,
+    "top1_relevant": 0,
+    "any_relevant_in_top3": 0,
+    "b_top1_score_median": 0.016393,
+    "a_top1_score_median": 0.02459,
+    "b_top1_score_max": 0.016393,
+    "a_top1_score_min": 0.02459
+   },
+   "vector_only": {
+    "returns_results": true,
+    "queries": 1,
+    "top1_relevant": 0,
+    "any_relevant_in_top3": 0,
+    "b_top1_score_median": 0.016393,
+    "a_top1_score_median": 0.023636,
+    "b_top1_score_max": 0.016393,
+    "a_top1_score_min": 0.016393
+   },
+   "hybrid": {
+    "returns_results": true,
+    "queries": 1,
+    "top1_relevant": 0,
+    "any_relevant_in_top3": 0,
+    "b_top1_score_median": 0.016393,
+    "a_top1_score_median": 0.042593,
+    "b_top1_score_max": 0.016393,
+    "a_top1_score_min": 0.02459
+   }
+  },
+  "raw_score_comparison": {
+   "A": {
+    "bm25_max_median": 20.511,
+    "cosine_max_median": 0.6754,
+    "bm25_max_values": {
+     "催奶增产": 18.0476,
+     "医生推荐背书": 34.1885,
+     "绝对安全承诺": 27.3744,
+     "FDA approved claims": 22.9745,
+     "more milk supply": 16.7894,
+     "best-selling": 15.7073
+    },
+    "cosine_max_values": {
+     "催奶增产": 0.632,
+     "医生推荐背书": 0.8818,
+     "绝对安全承诺": 0.6336,
+     "FDA approved claims": 0.7172,
+     "more milk supply": 0.7808,
+     "best-selling": 0.5905
+    }
+   },
+   "B": {
+    "bm25_max_median": 10.0756,
+    "cosine_max_median": 0.3936,
+    "bm25_max_values": {
+     "python asyncio tutorial": 10.0756
+    },
+    "cosine_max_values": {
+     "python asyncio tutorial": 0.3936
+    }
+   }
+  },
+  "results": [
+   {
+    "query": "催奶增产",
+    "lang": "zh",
+    "group": "A",
+    "why": "库里有 H02 增产/奶量承诺的处置与命中片段",
+    "raw_scores": {
+     "bm25_max": 18.0476,
+     "cosine_max": 0.632
+    },
+    "note": "2、3、7 是「删除 more milk/增产催奶/催产素/长期奶量」的修改建议，6 是该规则的触发原因，四条直接对题；1、4、5 是泌乳/催产素术语规范化的专家修订，属同一知识域但不是「增产承诺」本身。",
+    "modes": {
+     "bm25_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "f1ac8ff6e5e08f224451",
+        "anchor": "#广告文案明细/recvuJYdOb2Qdw/修改建议",
+        "table": "广告文案明细",
+        "score": 0.02459,
+        "sources": {
+         "bm25_zh": 1
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faste",
+        "relevance": "相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "863253b14d0d3f1afeb0",
+        "anchor": "#广告文案明细/recvuJYdObIJvQ/修改建议",
+        "table": "广告文案明细",
+        "score": 0.024194,
+        "sources": {
+         "bm25_zh": 2
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faste",
+        "relevance": "相关"
+       },
+       {
+        "rank": 3,
+        "unit_id": "735488498f7e7646d241",
+        "anchor": "#广告文案明细/recvuJYdObM1TS/修改建议",
+        "table": "广告文案明细",
+        "score": 0.02381,
+        "sources": {
+         "bm25_zh": 3
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faste",
+        "relevance": "相关"
+       }
+      ],
+      "relevant_in_top3": 3,
+      "hit_at_3": true,
+      "top1_score": 0.02459,
+      "lists_used": [
+       "bm25_zh"
+      ]
+     },
+     "vector_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "edd44950f3aea3e2b95a",
+        "anchor": "#品线内容边界规则库/recvuJP1dD7yNW/触发原因",
+        "table": "品线内容边界规则库",
+        "score": 0.023077,
+        "sources": {
+         "vector": 5
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫",
+        "relevance": "相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "278b6aff0aafb5b310c9",
+        "anchor": "#品线内容边界规则库/recvuJP1dD7yNW/边界内容",
+        "table": "品线内容边界规则库",
+        "score": 0.022727,
+        "sources": {
+         "vector": 6
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "3db49273026dc107607a",
+        "anchor": "#品线内容边界规则库/recvuJP1dD7yNW/检测关键词",
+        "table": "品线内容边界规则库",
+        "score": 0.022059,
+        "sources": {
+         "vector": 8
+        },
+        "segment_index": 1,
+        "segment_count": 3,
+        "char_offset": 228,
+        "excerpt": "prevent mastitis, mastitis treatment, clogged duct cure, 乳腺炎, 堵奶, 通乳, 催乳, 下奶, 追奶, 回奶, 增奶, 增产, 提升奶量, 追奶量, more milk, 增加奶量, 提高奶量, 奶量增长, 催奶, 发奶, 增多奶量, trigger oxyt",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 1,
+      "hit_at_3": true,
+      "top1_score": 0.023077,
+      "lists_used": [
+       "vector"
+      ]
+     },
+     "hybrid": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "3db49273026dc107607a",
+        "anchor": "#品线内容边界规则库/recvuJP1dD7yNW/检测关键词",
+        "table": "品线内容边界规则库",
+        "score": 0.043487,
+        "sources": {
+         "bm25_zh": 10,
+         "vector": 8
+        },
+        "segment_index": 1,
+        "segment_count": 3,
+        "char_offset": 228,
+        "excerpt": "prevent mastitis, mastitis treatment, clogged duct cure, 乳腺炎, 堵奶, 通乳, 催乳, 下奶, 追奶, 回奶, 增奶, 增产, 提升奶量, 追奶量, more milk, 增加奶量, 提高奶量, 奶量增长, 催奶, 发奶, 增多奶量, trigger oxyt",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 2,
+        "unit_id": "edd44950f3aea3e2b95a",
+        "anchor": "#品线内容边界规则库/recvuJP1dD7yNW/触发原因",
+        "table": "品线内容边界规则库",
+        "score": 0.038702,
+        "sources": {
+         "bm25_zh": 36,
+         "vector": 5
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫",
+        "relevance": "相关"
+       },
+       {
+        "rank": 3,
+        "unit_id": "278b6aff0aafb5b310c9",
+        "anchor": "#品线内容边界规则库/recvuJP1dD7yNW/边界内容",
+        "table": "品线内容边界规则库",
+        "score": 0.038191,
+        "sources": {
+         "bm25_zh": 37,
+         "vector": 6
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 1,
+      "hit_at_3": true,
+      "top1_score": 0.043487,
+      "lists_used": [
+       "bm25_zh",
+       "vector"
+      ]
+     }
+    }
+   },
+   {
+    "query": "医生推荐背书",
+    "lang": "zh",
+    "group": "A",
+    "why": "库里有检测关键词「医生推荐/医师推荐/专家推荐」与触发原因",
+    "raw_scores": {
+     "bm25_max": 34.1885,
+     "cosine_max": 0.8818
+    },
+    "note": "1 是触发原因「无据的医生/专家推荐背书」、4 是检测关键词、5 是边界内容，三条直接对题；2 是「未经备案的临床/科学背书」、3 是「等级背书用语需核实认证」，属背书大类但非医生推荐；6 讲的是就医处置、7 讲医院/NICU 场景，只碰了「医生/医院」这个词。",
+    "modes": {
+     "bm25_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "2ac0f9c6baed1dc86b54",
+        "anchor": "#品线内容边界规则库/recvuJP1dDAX79/触发原因",
+        "table": "品线内容边界规则库",
+        "score": 0.02459,
+        "sources": {
+         "bm25_zh": 1
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "无据的医生/专家推荐背书",
+        "relevance": "相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "596b3b17c185379d02d9",
+        "anchor": "#品线内容边界规则库/recvuJP1dDAX79/边界内容",
+        "table": "品线内容边界规则库",
+        "score": 0.024194,
+        "sources": {
+         "bm25_zh": 2
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "无据的医生/专家推荐背书",
+        "relevance": "相关"
+       },
+       {
+        "rank": 3,
+        "unit_id": "ad83f2317442eda2c56d",
+        "anchor": "#广告文案明细/recvuJYdObV6eR/命中原因",
+        "table": "广告文案明细",
+        "score": 0.02381,
+        "sources": {
+         "bm25_zh": 3
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "H04 无据的医生/专家推荐背书；M03 未标注来源的效果数据声明；U01 含泌乳顾问/认证头衔，需核实是否真实合作",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 2,
+      "hit_at_3": true,
+      "top1_score": 0.02459,
+      "lists_used": [
+       "bm25_zh"
+      ]
+     },
+     "vector_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "596b3b17c185379d02d9",
+        "anchor": "#品线内容边界规则库/recvuJP1dDAX79/边界内容",
+        "table": "品线内容边界规则库",
+        "score": 0.02459,
+        "sources": {
+         "vector": 1
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "无据的医生/专家推荐背书",
+        "relevance": "相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "2ac0f9c6baed1dc86b54",
+        "anchor": "#品线内容边界规则库/recvuJP1dDAX79/触发原因",
+        "table": "品线内容边界规则库",
+        "score": 0.024194,
+        "sources": {
+         "vector": 2
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "无据的医生/专家推荐背书",
+        "relevance": "相关"
+       },
+       {
+        "rank": 3,
+        "unit_id": "a16e2d8683e1e9326b7e",
+        "anchor": "#品线内容边界规则库/recvuJP2Ot5BZl/边界内容",
+        "table": "品线内容边界规则库",
+        "score": 0.02027,
+        "sources": {
+         "vector": 14
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "涉及医院/NICU 场景，需核实临床适用性声明",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 2,
+      "hit_at_3": true,
+      "top1_score": 0.02459,
+      "lists_used": [
+       "vector"
+      ]
+     },
+     "hybrid": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "2ac0f9c6baed1dc86b54",
+        "anchor": "#品线内容边界规则库/recvuJP1dDAX79/触发原因",
+        "table": "品线内容边界规则库",
+        "score": 0.048784,
+        "sources": {
+         "bm25_zh": 1,
+         "vector": 2
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "无据的医生/专家推荐背书",
+        "relevance": "相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "596b3b17c185379d02d9",
+        "anchor": "#品线内容边界规则库/recvuJP1dDAX79/边界内容",
+        "table": "品线内容边界规则库",
+        "score": 0.048784,
+        "sources": {
+         "bm25_zh": 2,
+         "vector": 1
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "无据的医生/专家推荐背书",
+        "relevance": "相关"
+       },
+       {
+        "rank": 3,
+        "unit_id": "2fc44ed2a269587b0e00",
+        "anchor": "#品线内容边界规则库/recvuJP1dD4jGX/触发原因",
+        "table": "品线内容边界规则库",
+        "score": 0.04122,
+        "sources": {
+         "bm25_zh": 9,
+         "vector": 17
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "未经备案的临床/科学背书",
+        "relevance": "弱相关"
+       }
+      ],
+      "relevant_in_top3": 2,
+      "hit_at_3": true,
+      "top1_score": 0.048784,
+      "lists_used": [
+       "bm25_zh",
+       "vector"
+      ]
+     }
+    }
+   },
+   {
+    "query": "无痛吸奶",
+    "lang": "zh",
+    "group": "A",
+    "why": "库里有 H07 检测关键词「无痛吸奶」",
+    "raw_scores": {
+     "bm25_max": 32.3326,
+     "cosine_max": 0.7408
+    },
+    "note": "3 是含「无痛吸奶」的检测关键词、5 是 Pain-Free Pumping 的改写示例，两条对题；其余是广告名称（靠 bigram「吸奶」命中）、手挤奶/吸奶器的专家修订，与「无痛承诺」无关。 另有一条「吸奶时乳头不应有夹痛/拉扯感」的专家修订，属吸奶疼痛话题但不是「无痛承诺」，记弱相关。",
+    "modes": {
+     "bm25_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "59aaa138abb8211fca96",
+        "anchor": "#品线内容边界规则库/recvuJP1LV8KLr/检测关键词",
+        "table": "品线内容边界规则库",
+        "score": 0.02459,
+        "sources": {
+         "bm25_zh": 1
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "eliminates pain, pain-free, no pain ever, completely painless, 100% pain, 完全不痛, 零疼痛, 无痛, 无痛吸奶, painlessly, painless, pain relief, relieve pain, relieves pain, r",
+        "relevance": "相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "367a39e272206d930157",
+        "anchor": "#广告文案明细/recvuJYdOb4mFS/修改建议",
+        "table": "广告文案明细",
+        "score": 0.024194,
+        "sources": {
+         "bm25_zh": 2
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "47453fc83566f743d449",
+        "anchor": "#广告文案明细/recvuJYdObBXtD/修改建议",
+        "table": "广告文案明细",
+        "score": 0.02381,
+        "sources": {
+         "bm25_zh": 3
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 1,
+      "hit_at_3": true,
+      "top1_score": 0.02459,
+      "lists_used": [
+       "bm25_zh"
+      ]
+     },
+     "vector_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "6a886f110e911e53da0a",
+        "anchor": "#l.1-6",
+        "table": "l.1-6",
+        "score": 0.016393,
+        "sources": {
+         "vector": 1
+        },
+        "segment_index": 8,
+        "segment_count": 9,
+        "char_offset": 3879,
+        "excerpt": "ber ein durchdachtes Werkzeug, das den Alltag spürbar erleichtert. Sorry, we couldn't load the review There was a problem filtering reviews. Please reload the p",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 2,
+        "unit_id": "881ea37e1d1b36668711",
+        "anchor": "#h.Draft V2- 9.3 Pending Momcozy Review",
+        "table": "h.Draft V2- 9.3 Pending Momcozy Review",
+        "score": 0.016129,
+        "sources": {
+         "vector": 2
+        },
+        "segment_index": 10,
+        "segment_count": 16,
+        "char_offset": 3317,
+        "excerpt": "Because when I'm already being pulled in a million different directions, the last thing I want is for pumping to feel like another uncomfortable thing that I ha",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "bb2bd89af073181e1c00",
+        "anchor": "#l.1-76",
+        "table": "l.1-76",
+        "score": 0.015873,
+        "sources": {
+         "vector": 3
+        },
+        "segment_index": 25,
+        "segment_count": 27,
+        "char_offset": 3745,
+        "excerpt": "红糖即可。 ★** 功双 気基酸。 此粥不但能帮助新妈妈催乳， 还能提供新生儿发育所需的 [p349] 318 0,-43 协和专家孕产大百科 剖宫产妈妈如何坐月子 剖宫产不同于自然分娩，由于手术造成了一定的创伤，所以经历了剖宫产的新妈妈在产后护理及坐月子的 时候，要注意的事项会很多。 伤口的护理不可大意。饮食要十分谨",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 0,
+      "hit_at_3": null,
+      "top1_score": 0.016393,
+      "lists_used": [
+       "vector"
+      ]
+     },
+     "hybrid": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "59aaa138abb8211fca96",
+        "anchor": "#品线内容边界规则库/recvuJP1LV8KLr/检测关键词",
+        "table": "品线内容边界规则库",
+        "score": 0.02459,
+        "sources": {
+         "bm25_zh": 1
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "eliminates pain, pain-free, no pain ever, completely painless, 100% pain, 完全不痛, 零疼痛, 无痛, 无痛吸奶, painlessly, painless, pain relief, relieve pain, relieves pain, r",
+        "relevance": "相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "367a39e272206d930157",
+        "anchor": "#广告文案明细/recvuJYdOb4mFS/修改建议",
+        "table": "广告文案明细",
+        "score": 0.024194,
+        "sources": {
+         "bm25_zh": 2
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "47453fc83566f743d449",
+        "anchor": "#广告文案明细/recvuJYdObBXtD/修改建议",
+        "table": "广告文案明细",
+        "score": 0.02381,
+        "sources": {
+         "bm25_zh": 3
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 1,
+      "hit_at_3": true,
+      "top1_score": 0.02459,
+      "lists_used": [
+       "bm25_zh",
+       "vector"
+      ]
+     }
+    }
+   },
+   {
+    "query": "绝对安全承诺",
+    "lang": "zh",
+    "group": "A",
+    "why": "库里有「绝对安全/完全安全/零风险」类检测关键词",
+    "raw_scores": {
+     "bm25_max": 27.3744,
+     "cosine_max": 0.6336
+    },
+    "note": "1、6、7 是「删除 safest/100% safe/zero risk」的修改建议，2 是该规则的触发原因，四条对题；3、4 是名为「整体效果」的广告名称，5 是儿童安全门栏、8 是含乳安全提示，都属于「安全」但完全不同的事。",
+    "modes": {
+     "bm25_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "013407bfc66962d3c7a5",
+        "anchor": "#广告文案明细/recvuJYdOb1B8v/修改建议",
+        "table": "广告文案明细",
+        "score": 0.02459,
+        "sources": {
+         "bm25_zh": 1
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "删除 safest/100% safe/zero risk/perfect 等虚假安全承诺，以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺（best/#1/No.1 排名最高级已放开）",
+        "relevance": "相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "784b39bfc2ccdc57aa2f",
+        "anchor": "#广告文案明细/recvuJYdObE80Z/修改建议",
+        "table": "广告文案明细",
+        "score": 0.024194,
+        "sources": {
+         "bm25_zh": 2
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "删除 safest/100% safe/zero risk/perfect 等虚假安全承诺，以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺（best/#1/No.1 排名最高级已放开）",
+        "relevance": "相关"
+       },
+       {
+        "rank": 3,
+        "unit_id": "72dfdb599c759f2a0680",
+        "anchor": "#广告文案明细/recvuJYdObGB9q/修改建议",
+        "table": "广告文案明细",
+        "score": 0.02381,
+        "sources": {
+         "bm25_zh": 3
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "删除 safest/100% safe/zero risk/perfect 等虚假安全承诺，以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺（best/#1/No.1 排名最高级已放开）",
+        "relevance": "相关"
+       }
+      ],
+      "relevant_in_top3": 3,
+      "hit_at_3": true,
+      "top1_score": 0.02459,
+      "lists_used": [
+       "bm25_zh"
+      ]
+     },
+     "vector_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "06f6a51573c26be3ddc9",
+        "anchor": "#品线内容边界规则库/recvuJP1dDumuM/触发原因",
+        "table": "品线内容边界规则库",
+        "score": 0.021429,
+        "sources": {
+         "vector": 10
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按2026-09-09口径放开，海外广告允许，不再判险）",
+        "relevance": "相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "52573b58174354f076ed",
+        "anchor": "#l.1-65",
+        "table": "l.1-65",
+        "score": 0.016393,
+        "sources": {
+         "vector": 1
+        },
+        "segment_index": 9,
+        "segment_count": 10,
+        "char_offset": 3975,
+        "excerpt": "r, to soak your aching feet. If you’ve already had some brief dips in the hot tub, there’s probably no Is Hot Stuff Not So Hot? C onsidering cuddling up with an",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "63779beeabf041992300",
+        "anchor": "#l.1-2",
+        "table": "l.1-2",
+        "score": 0.016129,
+        "sources": {
+         "vector": 2
+        },
+        "segment_index": 8,
+        "segment_count": 10,
+        "char_offset": 3245,
+        "excerpt": "intuicyjny ekran wyświetlacza i automatyczne wyłączanie po 30 minutach gwarantują bezstresowe sesje. ·Długie Zasilanie i Cicha Praca. Akumulator o pojemności 13",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 1,
+      "hit_at_3": true,
+      "top1_score": 0.021429,
+      "lists_used": [
+       "vector"
+      ]
+     },
+     "hybrid": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "06f6a51573c26be3ddc9",
+        "anchor": "#品线内容边界规则库/recvuJP1dDumuM/触发原因",
+        "table": "品线内容边界规则库",
+        "score": 0.041699,
+        "sources": {
+         "bm25_zh": 14,
+         "vector": 10
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按2026-09-09口径放开，海外广告允许，不再判险）",
+        "relevance": "相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "013407bfc66962d3c7a5",
+        "anchor": "#广告文案明细/recvuJYdOb1B8v/修改建议",
+        "table": "广告文案明细",
+        "score": 0.02459,
+        "sources": {
+         "bm25_zh": 1
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "删除 safest/100% safe/zero risk/perfect 等虚假安全承诺，以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺（best/#1/No.1 排名最高级已放开）",
+        "relevance": "相关"
+       },
+       {
+        "rank": 3,
+        "unit_id": "784b39bfc2ccdc57aa2f",
+        "anchor": "#广告文案明细/recvuJYdObE80Z/修改建议",
+        "table": "广告文案明细",
+        "score": 0.024194,
+        "sources": {
+         "bm25_zh": 2
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "删除 safest/100% safe/zero risk/perfect 等虚假安全承诺，以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺（best/#1/No.1 排名最高级已放开）",
+        "relevance": "相关"
+       }
+      ],
+      "relevant_in_top3": 3,
+      "hit_at_3": true,
+      "top1_score": 0.041699,
+      "lists_used": [
+       "bm25_zh",
+       "vector"
+      ]
+     }
+    }
+   },
+   {
+    "query": "FDA approved claims",
+    "lang": "en",
+    "group": "A",
+    "why": "库里有「FDA approved/certified」检测关键词与豁免词",
+    "raw_scores": {
+     "bm25_max": 22.9745,
+     "cosine_max": 0.7172
+    },
+    "note": "1 是「FDA 表述错误（吸奶器是 cleared/registered 而非 approved）」的触发原因，3 是 FDA 检测关键词，4 是 FDA Approved→FDA-cleared 的改写示例，三条直接对题；2 讲未经备案的临床/科学背书，与 FDA 沾边但不是 FDA；5 是鱼类汞含量的 FDA/EPA 膳食建议，只碰了 FDA 这个词。",
+    "modes": {
+     "bm25_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "3cb8d721d7d71f434e42",
+        "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/检测关键词",
+        "table": "品线内容边界规则库",
+        "score": 0.02459,
+        "sources": {
+         "bm25_en": 1
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "FDA approved, FDA certified, FDA 认证, FDA 批准, FDA 通过",
+        "relevance": "相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "1d99fd947d541c9474da",
+        "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/触发原因",
+        "table": "品线内容边界规则库",
+        "score": 0.024194,
+        "sources": {
+         "bm25_en": 2
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "FDA 表述错误（吸奶器为 cleared/registered，非 approved/certified）",
+        "relevance": "相关"
+       },
+       {
+        "rank": 3,
+        "unit_id": "a4424c8206b8e8a6bcc8",
+        "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/边界内容",
+        "table": "品线内容边界规则库",
+        "score": 0.02381,
+        "sources": {
+         "bm25_en": 3
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "FDA 表述错误（吸奶器为 cleared/registered，非 approved/certified）",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 2,
+      "hit_at_3": true,
+      "top1_score": 0.02459,
+      "lists_used": [
+       "bm25_en"
+      ]
+     },
+     "vector_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "1d99fd947d541c9474da",
+        "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/触发原因",
+        "table": "品线内容边界规则库",
+        "score": 0.02459,
+        "sources": {
+         "vector": 1
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "FDA 表述错误（吸奶器为 cleared/registered，非 approved/certified）",
+        "relevance": "相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "2fc44ed2a269587b0e00",
+        "anchor": "#品线内容边界规则库/recvuJP1dD4jGX/触发原因",
+        "table": "品线内容边界规则库",
+        "score": 0.019231,
+        "sources": {
+         "vector": 18
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "未经备案的临床/科学背书",
+        "relevance": "弱相关"
+       },
+       {
+        "rank": 3,
+        "unit_id": "b9be51c34b39ada36a27",
+        "anchor": "#l.1-1",
+        "table": "l.1-1",
+        "score": 0.016129,
+        "sources": {
+         "vector": 2
+        },
+        "segment_index": 8,
+        "segment_count": 9,
+        "char_offset": 3535,
+        "excerpt": "Is It Really 'FDA Approved'? | FDA An official website of the United States government Federal government websites often end in .gov or .mil. Before sharing sen",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 1,
+      "hit_at_3": true,
+      "top1_score": 0.02459,
+      "lists_used": [
+       "vector"
+      ]
+     },
+     "hybrid": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "1d99fd947d541c9474da",
+        "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/触发原因",
+        "table": "品线内容边界规则库",
+        "score": 0.048784,
+        "sources": {
+         "bm25_en": 2,
+         "vector": 1
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "FDA 表述错误（吸奶器为 cleared/registered，非 approved/certified）",
+        "relevance": "相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "ac1b214ccb8855d4e60a",
+        "anchor": "#l.1-21",
+        "table": "l.1-21",
+        "score": 0.029514,
+        "sources": {
+         "bm25_en": 4,
+         "vector": 12
+        },
+        "segment_index": 2,
+        "segment_count": 9,
+        "char_offset": 784,
+        "excerpt": "ments won’t cure an otherwise deceptive ad, particularly where the deception concerns claims about the health-related benefits of a product. [58] Example 47: An",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "e772918fd9b93eec5341",
+        "anchor": "#l.1-2",
+        "table": "l.1-2",
+        "score": 0.025677,
+        "sources": {
+         "bm25_en": 42,
+         "vector": 3
+        },
+        "segment_index": 1,
+        "segment_count": 9,
+        "char_offset": 493,
+        "excerpt": "o federal quality standards. The FDA also approves generic drugs and biosimilar medications for patient use. Biosimilars and generics are FDA-approved medicines",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 1,
+      "hit_at_3": true,
+      "top1_score": 0.048784,
+      "lists_used": [
+       "bm25_en",
+       "vector"
+      ]
+     }
+    }
+   },
+   {
+    "query": "hospital grade pump",
+    "lang": "en",
+    "group": "A",
+    "why": "库里有 U03:hospital / M05:hospital-grade 命中片段",
+    "raw_scores": {
+     "bm25_max": 17.1259,
+     "cosine_max": 0.6885
+    },
+    "note": "1、2、5、6、7 分别是 M05:hospital grade 命中片段、hospital/medical grade 检测关键词、该表述的修改建议与改写示例，全部对题；3 是 HSA 资格广告、4 是德语标题，都不含该表述。",
+    "modes": {
+     "bm25_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "ee33e8c1411d2ba94023",
+        "anchor": "#广告文案明细/recvuJYdObx5aF/命中片段",
+        "table": "广告文案明细",
+        "score": 0.02459,
+        "sources": {
+         "bm25_en": 1
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "M05:hospital grade,hospital-grade / M07:leakage / U03:hospital",
+        "relevance": "相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "0e8a16219d4ff3533a03",
+        "anchor": "#广告文案明细/recvuJYdObBgjg/命中片段",
+        "table": "广告文案明细",
+        "score": 0.024194,
+        "sources": {
+         "bm25_en": 2
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "M03:trusted by 6 million / M05:hospital grade,hospital-grade / M07:leak / U01:ibclc / U03:hospital",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "224208605aa59cb7797a",
+        "anchor": "#品线内容边界规则库/recvuJP2jyPiol/检测关键词",
+        "table": "品线内容边界规则库",
+        "score": 0.02381,
+        "sources": {
+         "bm25_en": 3
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "military grade, medical grade silicone, hospital grade, 医疗级, 医用级, 军用级",
+        "relevance": "相关"
+       }
+      ],
+      "relevant_in_top3": 2,
+      "hit_at_3": true,
+      "top1_score": 0.02459,
+      "lists_used": [
+       "bm25_en"
+      ]
+     },
+     "vector_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "266a3a2b27855e3a4453",
+        "anchor": "#l.1-1",
+        "table": "l.1-1",
+        "score": 0.016393,
+        "sources": {
+         "vector": 1
+        },
+        "segment_index": 7,
+        "segment_count": 9,
+        "char_offset": 3254,
+        "excerpt": "The Best Breast Pump for Exclusive Pumping Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether Toys B",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 2,
+        "unit_id": "99d863e69386fdae4491",
+        "anchor": "#l.1-3",
+        "table": "l.1-3",
+        "score": 0.016129,
+        "sources": {
+         "vector": 2
+        },
+        "segment_index": 9,
+        "segment_count": 10,
+        "char_offset": 3620,
+        "excerpt": "mmended！ Definitely better output with my own setting . 2 mins stimulation at level 7 then 10 mins expression at level 7.Then 2 mins stimulation then 10 mins ex",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "90c72ad62159cb79283e",
+        "anchor": "#风险文案改写建议库（分型号分渠道）/recvuNn6ejnm5D/风险原句示例",
+        "table": "风险文案改写建议库（分型号分渠道）",
+        "score": 0.015873,
+        "sources": {
+         "vector": 3
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "【前】Hospital-grade pump used in NICU / trusted in hospitals 【后】Without clinical-use documents, drop hospital/NICU mentions; use specs (mmHg, modes, dB). 【原因】无临床适",
+        "relevance": "相关"
+       }
+      ],
+      "relevant_in_top3": 1,
+      "hit_at_3": true,
+      "top1_score": 0.016393,
+      "lists_used": [
+       "vector"
+      ]
+     },
+     "hybrid": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "aa9472e4fea473810f2a",
+        "anchor": "#l.1-3",
+        "table": "l.1-3",
+        "score": 0.024971,
+        "sources": {
+         "bm25_en": 47,
+         "vector": 4
+        },
+        "segment_index": 7,
+        "segment_count": 10,
+        "char_offset": 2957,
+        "excerpt": "milk production. Milk Relief™ : Gently ease discomfort and express milk for moms with enlarged breasts Expression Mode : Slow and steady suckling pattern for mi",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 2,
+        "unit_id": "99d863e69386fdae4491",
+        "anchor": "#l.1-3",
+        "table": "l.1-3",
+        "score": 0.024901,
+        "sources": {
+         "bm25_en": 54,
+         "vector": 2
+        },
+        "segment_index": 9,
+        "segment_count": 10,
+        "char_offset": 3620,
+        "excerpt": "mmended！ Definitely better output with my own setting . 2 mins stimulation at level 7 then 10 mins expression at level 7.Then 2 mins stimulation then 10 mins ex",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "266a3a2b27855e3a4453",
+        "anchor": "#l.1-1",
+        "table": "l.1-1",
+        "score": 0.024868,
+        "sources": {
+         "bm25_en": 58,
+         "vector": 1
+        },
+        "segment_index": 7,
+        "segment_count": 9,
+        "char_offset": 3254,
+        "excerpt": "The Best Breast Pump for Exclusive Pumping Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether Toys B",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 0,
+      "hit_at_3": null,
+      "top1_score": 0.024971,
+      "lists_used": [
+       "bm25_en",
+       "vector"
+      ]
+     }
+    }
+   },
+   {
+    "query": "more milk supply",
+    "lang": "en",
+    "group": "A",
+    "why": "库里有 H02:increasing milk supply 命中片段",
+    "raw_scores": {
+     "bm25_max": 16.7894,
+     "cosine_max": 0.7808
+    },
+    "note": "1 是 increase/boost more milk 的正则、2 是 clinically proven to increase supply 的改写示例、3 是 more milk 表述 tricky 的判定理由、5/8 是命中片段、7 是 More Milk Less Stress 改写示例，均对题；4 是同规则的建议表达（更高吸乳效率/减少漏奶），6 是「不必过度收集乳汁」的专家修订，都只是沾边。",
+    "modes": {
+     "bm25_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "576aa68d279717f05025",
+        "anchor": "#品线内容边界规则库/recvuJP1dD7yNW/正则表达式",
+        "table": "品线内容边界规则库",
+        "score": 0.02459,
+        "sources": {
+         "bm25_en": 1
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "(increase|boost|double|triple|more)\\s+milk\\s+(supply|production|output), (increase|boost|double|triple)\\s+supply, increas\\w+\\s+milk\\s+(supply|production|output)",
+        "relevance": "相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "3db49273026dc107607a",
+        "anchor": "#品线内容边界规则库/recvuJP1dD7yNW/检测关键词",
+        "table": "品线内容边界规则库",
+        "score": 0.024194,
+        "sources": {
+         "bm25_en": 2
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "prevent mastitis, mastitis treatment, clogged duct cure, 乳腺炎, 堵奶, 通乳, 催乳, 下奶, 追奶, 回奶, 增奶, 增产, 提升奶量, 追奶量, more milk, 增加奶量, 提高奶量, 奶量增长, 催奶, 发奶, 增多奶量, trigger oxyt",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "ab48363a38d4bd7dabb7",
+        "anchor": "#广告文案明细/recvuJYdOb1fOj/命中片段",
+        "table": "广告文案明细",
+        "score": 0.02381,
+        "sources": {
+         "bm25_en": 3
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "H02:increase milk supply,more milk / M07:better milk flow",
+        "relevance": "相关"
+       }
+      ],
+      "relevant_in_top3": 2,
+      "hit_at_3": true,
+      "top1_score": 0.02459,
+      "lists_used": [
+       "bm25_en"
+      ]
+     },
+     "vector_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "94e649f2f330ca318b9d",
+        "anchor": "#W1卖点表达边界（品线反馈0910）/recvuNf8jlAJ4z/判定理由",
+        "table": "W1卖点表达边界（品线反馈0910）",
+        "score": 0.024194,
+        "sources": {
+         "vector": 2
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "品线在 Base 明细记录（UK-1 More Milk 广告）评论反馈：more milk 表述 tricky，用放松/自然奶阵叙事替代承诺。",
+        "relevance": "相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "0b43574e51c425f58b97",
+        "anchor": "#W1卖点表达边界（品线反馈0910）/recvuNf8jlt712/建议表达（合规话术）",
+        "table": "W1卖点表达边界（品线反馈0910）",
+        "score": 0.02381,
+        "sources": {
+         "vector": 3
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "（禁用）帮助更快奶阵、提高奶量、提高排空效率。",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "afd092848d0130a2e347",
+        "anchor": "#专家修订汇总表/recvoyJ6L9BYPB/修订位置（原文引用）",
+        "table": "专家修订汇总表",
+        "score": 0.016393,
+        "sources": {
+         "vector": 1
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "【前】可在亲喂之后或两餐之间用吸奶器收集多余乳汁并储存 【后】改为：根据实际需求，可在亲喂后吸出约1顿量的乳汁储存备用，无需过度收集 【原因】不需要收集全部多余乳汁，仅吸出1顿的量即可",
+        "relevance": "弱相关"
+       }
+      ],
+      "relevant_in_top3": 1,
+      "hit_at_3": true,
+      "top1_score": 0.024194,
+      "lists_used": [
+       "vector"
+      ]
+     },
+     "hybrid": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "94e649f2f330ca318b9d",
+        "anchor": "#W1卖点表达边界（品线反馈0910）/recvuNf8jlAJ4z/判定理由",
+        "table": "W1卖点表达边界（品线反馈0910）",
+        "score": 0.036489,
+        "sources": {
+         "bm25_en": 62,
+         "vector": 2
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "品线在 Base 明细记录（UK-1 More Milk 广告）评论反馈：more milk 表述 tricky，用放松/自然奶阵叙事替代承诺。",
+        "relevance": "相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "3149c7d352b014b4d59c",
+        "anchor": "#l.1-3",
+        "table": "l.1-3",
+        "score": 0.02885,
+        "sources": {
+         "bm25_en": 13,
+         "vector": 6
+        },
+        "segment_index": 8,
+        "segment_count": 9,
+        "char_offset": 3811,
+        "excerpt": "he charge may not last all day. Willow Go Wearable breast pump is an app connected and controlled. It is made to fit in your bra and hands-free pump. 4. Baby Bu",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "babd6196a9b4f586a4c1",
+        "anchor": "#l.1-1",
+        "table": "l.1-1",
+        "score": 0.026084,
+        "sources": {
+         "bm25_en": 12,
+         "vector": 22
+        },
+        "segment_index": 4,
+        "segment_count": 9,
+        "char_offset": 1655,
+        "excerpt": "8 Best Pumps to Increase Milk Supply Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether Toys Bottle ",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 1,
+      "hit_at_3": true,
+      "top1_score": 0.036489,
+      "lists_used": [
+       "bm25_en",
+       "vector"
+      ]
+     }
+    }
+   },
+   {
+    "query": "best-selling",
+    "lang": "en",
+    "group": "A",
+    "why": "库里有 M03:bestseller / Best-Selling 广告原文",
+    "raw_scores": {
+     "bm25_max": 15.7073,
+     "cosine_max": 0.5905
+    },
+    "note": "1、5、6 是 M03:best-selling 的命中片段，直接对题；2、3、4 是广告名称，不含 best-selling，是被 bigram/向量邻域带进来的。 新出现两条同款广告名称，同样不含 best-selling。",
+    "modes": {
+     "bm25_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "b31654529354e8a8f117",
+        "anchor": "#广告文案明细/recvuJYdObopeN/命中片段",
+        "table": "广告文案明细",
+        "score": 0.02459,
+        "sources": {
+         "bm25_en": 1
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "H02:more milk / M03:best-selling / U03:hospital / M05:hospital-grade",
+        "relevance": "相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "bb28b27db259c305fe57",
+        "anchor": "#广告文案明细/recvuJYdObrjds/命中片段",
+        "table": "广告文案明细",
+        "score": 0.024194,
+        "sources": {
+         "bm25_en": 2
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "H02:more milk / M03:best-selling / U03:hospital / M05:hospital-grade",
+        "relevance": "相关"
+       },
+       {
+        "rank": 3,
+        "unit_id": "1676e14f74a11ba01a49",
+        "anchor": "#广告文案明细/recvuJYdObm8DM/命中片段",
+        "table": "广告文案明细",
+        "score": 0.02381,
+        "sources": {
+         "bm25_en": 3
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "H02:more milk / M03:best-selling / U03:hospital / M05:hospital-grade / M07:smoother milk flow",
+        "relevance": "相关"
+       }
+      ],
+      "relevant_in_top3": 3,
+      "hit_at_3": true,
+      "top1_score": 0.02459,
+      "lists_used": [
+       "bm25_en"
+      ]
+     },
+     "vector_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "0e9967cc518b38cf1e17",
+        "anchor": "#广告文案明细/recvuJYdObrjds/广告名称",
+        "table": "广告文案明细",
+        "score": 0.016393,
+        "sources": {
+         "vector": 1
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "自适应搜索广告-Gelsey-Sale-Search-欧",
+        "relevance": "不相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "23c0a6cba64c74151229",
+        "anchor": "#广告文案明细/recvuJYdObE8HQ/广告名称",
+        "table": "广告文案明细",
+        "score": 0.016129,
+        "sources": {
+         "vector": 2
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "自适应搜索广告-Gelsey-Sale-Search-欧",
+        "relevance": "不相关"
+       },
+       {
+        "rank": 3,
+        "unit_id": "ab4bce6f4c6a9ab12453",
+        "anchor": "#广告文案明细/recvuJYdObL82h/广告名称",
+        "table": "广告文案明细",
+        "score": 0.015873,
+        "sources": {
+         "vector": 3
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "自适应搜索广告-Gelsey-Sale-Search-欧",
+        "relevance": "不相关"
+       }
+      ],
+      "relevant_in_top3": 0,
+      "hit_at_3": false,
+      "top1_score": 0.016393,
+      "lists_used": [
+       "vector"
+      ]
+     },
+     "hybrid": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "b31654529354e8a8f117",
+        "anchor": "#广告文案明细/recvuJYdObopeN/命中片段",
+        "table": "广告文案明细",
+        "score": 0.02459,
+        "sources": {
+         "bm25_en": 1
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "H02:more milk / M03:best-selling / U03:hospital / M05:hospital-grade",
+        "relevance": "相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "bb28b27db259c305fe57",
+        "anchor": "#广告文案明细/recvuJYdObrjds/命中片段",
+        "table": "广告文案明细",
+        "score": 0.024194,
+        "sources": {
+         "bm25_en": 2
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "H02:more milk / M03:best-selling / U03:hospital / M05:hospital-grade",
+        "relevance": "相关"
+       },
+       {
+        "rank": 3,
+        "unit_id": "1676e14f74a11ba01a49",
+        "anchor": "#广告文案明细/recvuJYdObm8DM/命中片段",
+        "table": "广告文案明细",
+        "score": 0.02381,
+        "sources": {
+         "bm25_en": 3
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "H02:more milk / M03:best-selling / U03:hospital / M05:hospital-grade / M07:smoother milk flow",
+        "relevance": "相关"
+       }
+      ],
+      "relevant_in_top3": 3,
+      "hit_at_3": true,
+      "top1_score": 0.02459,
+      "lists_used": [
+       "bm25_en",
+       "vector"
+      ]
+     }
+    }
+   },
+   {
+    "query": "汽车保养周期多久一次",
+    "lang": "zh",
+    "group": "B",
+    "why": "语料里 汽车/保养/机油/轮胎 命中 0",
+    "raw_scores": {
+     "bm25_max": 11.223,
+     "cosine_max": 0.6199
+    },
+    "note": "B 组：命中的都是含「周期/一次/多久」的孕产与哺乳内容（月经周期、吸奶时长、超声时间窗、精子生成周期），与汽车保养无关。 新出现一条吸力档位调节的专家修订，与汽车保养无关。",
+    "modes": {
+     "bm25_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "6124e5624ab36e96842b",
+        "anchor": "#负面样本/recvw7XIUgP5bC/具体原因/分析",
+        "table": "负面样本",
+        "score": 0.016393,
+        "sources": {
+         "bm25_zh": 1
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "具体原因/分析: 【措辞表达】文案 【终审-@吴礼芳 】姐姐再看看调整了吸奶器比例大小后的呀。 【问题要点】 1. 【终审-@吴礼芳 】姐姐再看看调整了吸奶器比例大小后的呀 2. 设计要求头图需要将M5 smart吸奶器/M6吸奶器/清洗机/MW05+冻奶壶/收腹带/哺乳内衣融入场景，希望效果： 3. 终审修改：吸奶器",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 2,
+        "unit_id": "1f90b19b7c965cc4de2a",
+        "anchor": "#l.1-4",
+        "table": "l.1-4",
+        "score": 0.016129,
+        "sources": {
+         "bm25_zh": 2
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "以分泌油脂以润滑乳头 和乳晕。当宝宝吸吮乳头时，你会发 现这种润滑是多么重要。这些迹象表 明，身体正在提前做准备事实上， 很早就在做准备了。 着床出血。30%的女性在受精卵 着床后会有少量出血。一般发生在预 期的月经之前（一般是怀孕后6~12 天），看上去应该是浅粉或粉色（不 会像月经那么红）。 疲惫。极度疲惫让你感觉",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "7e56971133c9b5443161",
+        "anchor": "#负面样本/recvw7XIUgkGAb/具体原因/分析",
+        "table": "负面样本",
+        "score": 0.015873,
+        "sources": {
+         "bm25_zh": 3
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "具体原因/分析: 【品牌一致性】文案 头图建议：宝宝与妈妈在客厅、餐厅等居家空间中互动，体现秋日自。 【问题要点】 1. 头图建议：宝宝与妈妈在客厅、餐厅等居家空间中互动，体现秋日自然光，前景可以摆放核心产品，自选产品即可（这里选了BS03清洗机） 2. 澳洲做春季，并且上方放母乳喂养周logo，其他国家不需要放log",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 0,
+      "hit_at_3": null,
+      "top1_score": 0.016393,
+      "lists_used": [
+       "bm25_zh"
+      ]
+     },
+     "vector_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "5491b782fbf961891447",
+        "anchor": "#l.1-86",
+        "table": "l.1-86",
+        "score": 0.016393,
+        "sources": {
+         "vector": 1
+        },
+        "segment_index": 17,
+        "segment_count": 24,
+        "char_offset": 2904,
+        "excerpt": "自己的孩子，还可以保护 千千万万的孩子。 当你挑选或者使用玩具的时候，请遵循以下几个原则。 1. 根据孩子的年龄和能力选择合适的玩具，并且按照生产商提供的 使用说明使用。 2. 摇铃或许是孩子的第一个玩具，它的宽度至少要达到 4 厘米。婴 儿的嘴和喉是非常有弹性的，直径小于 4 厘米的摇铃有可能造成婴儿的 呼吸道被阻塞",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 2,
+        "unit_id": "d88294f89038f5090dc9",
+        "anchor": "#l.1-2",
+        "table": "l.1-2",
+        "score": 0.016129,
+        "sources": {
+         "vector": 2
+        },
+        "segment_index": 1,
+        "segment_count": 9,
+        "char_offset": 488,
+        "excerpt": "ckung ‒ bis zu 3 Jahre, abhängig von der Produktkategorie. Die Garantie deckt Ausfälle ab, die durch nicht-menschliche Faktoren verursacht wurden, wie z. B. Her",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "e34225b84f44933cb8ae",
+        "anchor": "#l.1-2",
+        "table": "l.1-2",
+        "score": 0.015873,
+        "sources": {
+         "vector": 3
+        },
+        "segment_index": 6,
+        "segment_count": 10,
+        "char_offset": 2375,
+        "excerpt": "dy, Australii, Arabii Saudyjskiej, Francji, Niemiec i niektórych państw UE, w tym darmowa wysyłka w przypadku kwalifikujących się zamówień. Dla innych krajów, p",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 0,
+      "hit_at_3": null,
+      "top1_score": 0.016393,
+      "lists_used": [
+       "vector"
+      ]
+     },
+     "hybrid": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "5491b782fbf961891447",
+        "anchor": "#l.1-86",
+        "table": "l.1-86",
+        "score": 0.029214,
+        "sources": {
+         "bm25_zh": 18,
+         "vector": 1
+        },
+        "segment_index": 17,
+        "segment_count": 24,
+        "char_offset": 2904,
+        "excerpt": "自己的孩子，还可以保护 千千万万的孩子。 当你挑选或者使用玩具的时候，请遵循以下几个原则。 1. 根据孩子的年龄和能力选择合适的玩具，并且按照生产商提供的 使用说明使用。 2. 摇铃或许是孩子的第一个玩具，它的宽度至少要达到 4 厘米。婴 儿的嘴和喉是非常有弹性的，直径小于 4 厘米的摇铃有可能造成婴儿的 呼吸道被阻塞",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 2,
+        "unit_id": "1facc67c8ba7fdea5a2e",
+        "anchor": "#l.1-9",
+        "table": "l.1-9",
+        "score": 0.020285,
+        "sources": {
+         "bm25_zh": 49,
+         "vector": 30
+        },
+        "segment_index": 14,
+        "segment_count": 25,
+        "char_offset": 2306,
+        "excerpt": "“洛娜小时候，我 更喜欢用吊带和 她一起出去玩， 而不是用手推车， 这会给我更多自 由的空间。她也 会感觉到安全， 并且喜欢这种亲 密的感觉。” 安妮，5个月洛娜的母亲。 [p57] 第七章 宝宝的户外安全 55 第七章 宝宝的户外安全 和孩子一起外出活动是日常生活中的重要组成部分，但是一旦您离 开安全的家庭环境，就必",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "349c3154b5047e271664",
+        "anchor": "#l.1-70",
+        "table": "l.1-70",
+        "score": 0.019487,
+        "sources": {
+         "bm25_zh": 98,
+         "vector": 16
+        },
+        "segment_index": 0,
+        "segment_count": 26,
+        "char_offset": 0,
+        "excerpt": "胎动 从第28周起，每天数两次胎动 非常明智—一次在早上，胎动一 般少一点；另一次在晚上胎动较多的 时候。医生会推荐一个计数方法，你 也可以自己看着表来数。数一下所有 形式的胎动（包括踢动、颤动、抽动、 滚动等），数到 10 下时看看花了多少 时间。一般来说，10次胎动会在10 分钟左右——有时会稍长一些。 如果一小时",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 0,
+      "hit_at_3": null,
+      "top1_score": 0.029214,
+      "lists_used": [
+       "bm25_zh",
+       "vector"
+      ]
+     }
+    }
+   },
+   {
+    "query": "基金定投和股票的区别",
+    "lang": "zh",
+    "group": "B",
+    "why": "语料里 基金/定投/股票/理财 命中 0",
+    "raw_scores": {
+     "bm25_max": 10.436,
+     "cosine_max": 0.3952
+    },
+    "note": "B 组：全是母乳喂养/生理术语的专家修订段落，库里没有基金/股票内容（0 命中）。 新出现一条德语折扣标题（15% Rabatt），无关。",
+    "modes": {
+     "bm25_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "e1d4cd114d8276346d56",
+        "anchor": "#专家修订汇总表/recvoAhrwbYP5C/修订位置（原文引用）",
+        "table": "专家修订汇总表",
+        "score": 0.016393,
+        "sources": {
+         "bm25_zh": 1
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "【前】条件二：月经尚未恢复。产后早期恶露不算月经，但如果恶露结束后又出现类似月经的出血…… 【后】将条件二修订为：产后56天后没有明显的阴道出血，并说明一旦出现月经样出血即应认为月经已恢复，LAM不再可靠 【原因】LAM条件二的准确表述应为'产后56天后没有明显的阴道出血'，而非仅描述恶露与月经的区别，文章表述不够精确",
+        "relevance": "不相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "3bf432c849a7865cb214",
+        "anchor": "#l.1141-1157",
+        "table": "l.1141-1157",
+        "score": 0.016129,
+        "sources": {
+         "bm25_zh": 2
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "undergoing behavior therapy [J]. Int J Pediatr , 2022, 10(10): 16774‐16785. DOI : 10.22038/ ijp.2022.65835.4963. [95] Merenstein D , Diener‐West M , Halbower AC",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "e567e6646c50b850c281",
+        "anchor": "#h.Draft V1- 8.29 Pending Momcozy Review",
+        "table": "h.Draft V1- 8.29 Pending Momcozy Review",
+        "score": 0.015873,
+        "sources": {
+         "bm25_zh": 3
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "<table><colgroup><col/><col/><col/><col/></colgroup><tbody><tr><td><b>Draft</b></td><td><b>Script</b></td><td><b>钛动反馈</b></td><td><b>客户反馈</b></td></tr><tr><td><",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 0,
+      "hit_at_3": false,
+      "top1_score": 0.016393,
+      "lists_used": [
+       "bm25_zh"
+      ]
+     },
+     "vector_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "d639587715a16241ac0f",
+        "anchor": "#l.1-3",
+        "table": "l.1-3",
+        "score": 0.016393,
+        "sources": {
+         "vector": 1
+        },
+        "segment_index": 9,
+        "segment_count": 10,
+        "char_offset": 3981,
+        "excerpt": "matters when pumping in shared spaces like offices, cafes, or public areas. The M9 operates at an impressively quiet ≤42dB, making it one of the quieter wearabl",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 2,
+        "unit_id": "8fb68c24c2f4cae5037a",
+        "anchor": "#l.1-232",
+        "table": "l.1-232",
+        "score": 0.016129,
+        "sources": {
+         "vector": 2
+        },
+        "segment_index": 2,
+        "segment_count": 9,
+        "char_offset": 909,
+        "excerpt": "nly so you can get your practitioner’s take on cord blood banking, but also so you can make sure he or she is willing and able to collect the cord blood. It’s r",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "b0c58c5a73a6a75e88c5",
+        "anchor": "#负面样本/recvw7XIUgAws7/具体原因/分析",
+        "table": "负面样本",
+        "score": 0.015873,
+        "sources": {
+         "vector": 3
+        },
+        "segment_index": 0,
+        "segment_count": 11,
+        "char_offset": 0,
+        "excerpt": "具体原因/分析: 【措辞表达】文案 设计要求：按照brief要求替换原本EDM的货币符号和部分数。 【问题要点】 1. 设计要求：按照brief要求替换原本EDM的货币符号和部分数字，不改变设计部分内容 2. 【初审-@张悦 】麻烦看看呀 原文反馈: 【审核 · 2026-09-08 01:08 · 连家杰】【初审-@",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 0,
+      "hit_at_3": null,
+      "top1_score": 0.016393,
+      "lists_used": [
+       "vector"
+      ]
+     },
+     "hybrid": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "c06f3a976788fd0cb607",
+        "anchor": "#专家修订汇总表/recvoyJ6L9AH7O/修订位置（原文引用）",
+        "table": "专家修订汇总表",
+        "score": 0.023903,
+        "sources": {
+         "bm25_zh": 13,
+         "vector": 38
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "【前】乳腺炎 vs. 普通涨奶对比表中的【普通涨奶】 【后】将【普通涨奶】统一改为【生理性乳胀】，使用规范医学术语，便于读者理解两者的本质区别。 【原因】术语不规范，普通涨奶对应的医学术语应为生理性乳胀，使用俗称不够准确，容易与乳腺炎相关的病理性涨奶混淆",
+        "relevance": "不相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "dcab6a8470e3383b513a",
+        "anchor": "#l.1-43",
+        "table": "l.1-43",
+        "score": 0.023215,
+        "sources": {
+         "bm25_zh": 21,
+         "vector": 32
+        },
+        "segment_index": 18,
+        "segment_count": 24,
+        "char_offset": 3028,
+        "excerpt": "予嗜睡症患者药物治疗，帮助其调整作息及日间睡眠，从而获得充足 的睡眠。 | 昏睡的治疗| 昏睡症状可以通过药物与调整作息来进行治疗。在午饭后或其他时间进行规律而短 暂的午睡有助于患儿保持清醒，减少药物的使用量。对上小学的儿童来说，这种方法可 以帮助其在不彻底打乱基本作息的前提下，克服昏睡带来的影响，孩子可以在医务室等 ",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "e1d4cd114d8276346d56",
+        "anchor": "#专家修订汇总表/recvoAhrwbYP5C/修订位置（原文引用）",
+        "table": "专家修订汇总表",
+        "score": 0.016393,
+        "sources": {
+         "bm25_zh": 1
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "【前】条件二：月经尚未恢复。产后早期恶露不算月经，但如果恶露结束后又出现类似月经的出血…… 【后】将条件二修订为：产后56天后没有明显的阴道出血，并说明一旦出现月经样出血即应认为月经已恢复，LAM不再可靠 【原因】LAM条件二的准确表述应为'产后56天后没有明显的阴道出血'，而非仅描述恶露与月经的区别，文章表述不够精确",
+        "relevance": "不相关"
+       }
+      ],
+      "relevant_in_top3": 0,
+      "hit_at_3": false,
+      "top1_score": 0.023903,
+      "lists_used": [
+       "bm25_zh",
+       "vector"
+      ]
+     }
+    }
+   },
+   {
+    "query": "钢琴考级曲目推荐",
+    "lang": "zh",
+    "group": "B",
+    "why": "语料无钢琴考级内容（仅「推荐」这类通用词重叠）",
+    "raw_scores": {
+     "bm25_max": 6.9771,
+     "cosine_max": 0.615
+    },
+    "note": "B 组：靠「推荐」这个通用词命中了推荐背书规则、豁免词、婴语/抱姿专家修订等，与钢琴考级无关。",
+    "modes": {
+     "bm25_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "4863e708ef573cd9cdd7",
+        "anchor": "#品线内容边界规则库/recvuJP1dDAX79/检测关键词",
+        "table": "品线内容边界规则库",
+        "score": 0.024194,
+        "sources": {
+         "bm25_zh": 2
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "doctor recommended, recommended by doctors, pediatrician recommended, 医生推荐, 医师推荐, 儿科医生推荐, 专家推荐, recommended by experts, expert recommended, ob-gyn recommended, ",
+        "relevance": "不相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "dcbe0ffa1f84d60a41fe",
+        "anchor": "#广告文案明细/recvuJYdObV6eR/修改建议",
+        "table": "广告文案明细",
+        "score": 0.02381,
+        "sources": {
+         "bm25_zh": 3
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "删除医生/专家/IBCLC/OB-GYN 推荐背书；免费 IBCLC 服务可单独陈述但不得与“推荐”绑定 ▸ 效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ 核验 IBCLC/专家身份、参与方式、程序设计依据与 COI 披露后再保留（含 expert-tuned/专家调校/专家程序）",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "b46fc211f15f844dd6e2",
+        "anchor": "#广告文案明细/recvuJYdObvEQK/修改建议",
+        "table": "广告文案明细",
+        "score": 0.023438,
+        "sources": {
+         "bm25_zh": 4
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "删除医生/专家/IBCLC/OB-GYN 推荐背书；免费 IBCLC 服务可单独陈述但不得与“推荐”绑定 ▸ 效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ 核验 IBCLC/专家身份、参与方式、程序设计依据与 COI 披露后再保留（含 expert-tuned/专家调校/专家程序）",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 0,
+      "hit_at_3": false,
+      "top1_score": 0.024194,
+      "lists_used": [
+       "bm25_zh"
+      ]
+     },
+     "vector_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "900ae391b5bf7ea1565c",
+        "anchor": "#l.1-38",
+        "table": "l.1-38",
+        "score": 0.016393,
+        "sources": {
+         "vector": 1
+        },
+        "segment_index": 23,
+        "segment_count": 25,
+        "char_offset": 3767,
+        "excerpt": "保持快乐的心情，你的宝宝也会跟着快乐起来。 孕期也能穿得漂亮 孕妇装就是肥大的裤子？怀孕了就买不到好看的 衣服了？当然不是，怀孕也能穿得漂亮。色调明快、 款式别致的服装在孕期你都可以尝试。 要知道，专门的孕妇装只有在怀孕中后期才用得 着，之前长达五六个月的时间，完全可以用宽松的时 装来代替，休闲裤、运动外套都很实用。那",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 2,
+        "unit_id": "9da7eb5e16e8a83989a7",
+        "anchor": "#l.1-44",
+        "table": "l.1-44",
+        "score": 0.016129,
+        "sources": {
+         "vector": 2
+        },
+        "segment_index": 8,
+        "segment_count": 26,
+        "char_offset": 1247,
+        "excerpt": "总之，以精液不入阴道为好。另外，精液 中的前列腺素被阴道黏膜吸收后，可促使怀孕后的子 宫发生强烈的收缩，不仅会引起准妈妈腹痛，还易导 致流产、早产。 [p209] ‹178 协和专家孕产大百科 孕早期（1~12周） 1 2 3 4 5 6 7 8 9 10 11 孕5月胎教 孕中期（13~28周） 孕晚期（29~40周",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "c4577f9a1d0f5ef1da9a",
+        "anchor": "#l.1-238",
+        "table": "l.1-238",
+        "score": 0.015873,
+        "sources": {
+         "vector": 3
+        },
+        "segment_index": 8,
+        "segment_count": 9,
+        "char_offset": 3650,
+        "excerpt": "paper, I’ll get a wispy line.” 15 to 18 months. Now it’s time for drawing with a purpose—though that purpose will still be very much open to interpretation. You",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 0,
+      "hit_at_3": null,
+      "top1_score": 0.016393,
+      "lists_used": [
+       "vector"
+      ]
+     },
+     "hybrid": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "9da7eb5e16e8a83989a7",
+        "anchor": "#l.1-44",
+        "table": "l.1-44",
+        "score": 0.032522,
+        "sources": {
+         "bm25_zh": 1,
+         "vector": 2
+        },
+        "segment_index": 8,
+        "segment_count": 26,
+        "char_offset": 1247,
+        "excerpt": "总之，以精液不入阴道为好。另外，精液 中的前列腺素被阴道黏膜吸收后，可促使怀孕后的子 宫发生强烈的收缩，不仅会引起准妈妈腹痛，还易导 致流产、早产。 [p209] ‹178 协和专家孕产大百科 孕早期（1~12周） 1 2 3 4 5 6 7 8 9 10 11 孕5月胎教 孕中期（13~28周） 孕晚期（29~40周",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 2,
+        "unit_id": "900ae391b5bf7ea1565c",
+        "anchor": "#l.1-38",
+        "table": "l.1-38",
+        "score": 0.030886,
+        "sources": {
+         "bm25_zh": 9,
+         "vector": 1
+        },
+        "segment_index": 23,
+        "segment_count": 25,
+        "char_offset": 3767,
+        "excerpt": "保持快乐的心情，你的宝宝也会跟着快乐起来。 孕期也能穿得漂亮 孕妇装就是肥大的裤子？怀孕了就买不到好看的 衣服了？当然不是，怀孕也能穿得漂亮。色调明快、 款式别致的服装在孕期你都可以尝试。 要知道，专门的孕妇装只有在怀孕中后期才用得 着，之前长达五六个月的时间，完全可以用宽松的时 装来代替，休闲裤、运动外套都很实用。那",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "4863e708ef573cd9cdd7",
+        "anchor": "#品线内容边界规则库/recvuJP1dDAX79/检测关键词",
+        "table": "品线内容边界规则库",
+        "score": 0.024194,
+        "sources": {
+         "bm25_zh": 2
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "doctor recommended, recommended by doctors, pediatrician recommended, 医生推荐, 医师推荐, 儿科医生推荐, 专家推荐, recommended by experts, expert recommended, ob-gyn recommended, ",
+        "relevance": "不相关"
+       }
+      ],
+      "relevant_in_top3": 0,
+      "hit_at_3": false,
+      "top1_score": 0.032522,
+      "lists_used": [
+       "bm25_zh",
+       "vector"
+      ]
+     }
+    }
+   },
+   {
+    "query": "best hiking boots for winter",
+    "lang": "en",
+    "group": "B",
+    "why": "语料里 hiking/boots 命中 0",
+    "raw_scores": {
+     "bm25_max": 11.2122,
+     "cosine_max": 0.5251
+    },
+    "note": "B 组：全是吸奶器广告文案与卖点话术，「冬季徒步靴」在库里没有任何对应内容（hiking/boots 在语料里 0 命中）。",
+    "modes": {
+     "bm25_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "7f31414e7fd818decbad",
+        "anchor": "#素材/recvw2wE9MKPF3/图片素材/#img.1",
+        "table": "素材",
+        "score": 0.016393,
+        "sources": {
+         "bm25_en": 1
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "[image_ocr] momcozy Boots渠道吸奶器纸托盘陈列设计修改 2026/07/28 momcozy 01-1 Boots渠道吸奶器纸托盘修改 修改要求： 立品背板中有效信息不要被产品遮拦 “品肖极芳放直广品买息信总（仕力杀_14现， 需要在道具底座加磁铁与货架磁吸固定。 第一版万案 Dimension",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 2,
+        "unit_id": "64251dce552760a13225",
+        "anchor": "#素材/recvw7XJiSp4TP/图片素材/#img.1",
+        "table": "素材",
+        "score": 0.016129,
+        "sources": {
+         "bm25_en": 2
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "[image_ocr] momcozy Prime Day is live! ·º40%ОFF More Favorites. Mystery Savings. Momcozy must have to an cardbefore oct 6! b momcozy [image_ocr] momcozy Boots渠道",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "08553a709bdbc6f123a9",
+        "anchor": "#素材/recvw7XJiSzmOO/图片素材/#img.1",
+        "table": "素材",
+        "score": 0.015873,
+        "sources": {
+         "bm25_en": 3
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "[image_ocr] momcozy Boots渠道吸奶器纸托盘陈列设计修改 2026/07/28 momcozy 01-1 Boots渠道吸奶器纸托盘修改 修改要求： 立品背板中有效信息不要被产品遮拦 “品肖极芳放直广品买息信总（仕力杀_14现， 需要在道具底座加磁铁与货架磁吸固定。 第一版万案 Dimension",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 0,
+      "hit_at_3": null,
+      "top1_score": 0.016393,
+      "lists_used": [
+       "bm25_en"
+      ]
+     },
+     "vector_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "3f34d11fce41fe672bdb",
+        "anchor": "#l.1-340",
+        "table": "l.1-340",
+        "score": 0.016393,
+        "sources": {
+         "vector": 1
+        },
+        "segment_index": 0,
+        "segment_count": 10,
+        "char_offset": 0,
+        "excerpt": "boots and soggy snowsuits to deal with. To children, snowdrifts represent a pile of pleasures—snow angels to be made, snowballs to be thrown, snow sculp¬ tures ",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 2,
+        "unit_id": "17a106fae98de3cbfb6c",
+        "anchor": "#l.1-37",
+        "table": "l.1-37",
+        "score": 0.016129,
+        "sources": {
+         "vector": 2
+        },
+        "segment_index": 2,
+        "segment_count": 10,
+        "char_offset": 877,
+        "excerpt": "to dress your baby too warmly underneath the sleep sack). Consider buying 2 to 3 seasonally appropriate ones. Sweaters. One lightweight sweater will do the tric",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "cce9aa0de8ee3a6c96a0",
+        "anchor": "#l.1-373",
+        "table": "l.1-373",
+        "score": 0.015873,
+        "sources": {
+         "vector": 3
+        },
+        "segment_index": 6,
+        "segment_count": 10,
+        "char_offset": 2632,
+        "excerpt": "rdly straight. In the meantime, enjoy those adorable baby bows while you can. If you have concerns about your little one’s bowing, check with the pedi- atrician",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 0,
+      "hit_at_3": null,
+      "top1_score": 0.016393,
+      "lists_used": [
+       "vector"
+      ]
+     },
+     "hybrid": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "3f34d11fce41fe672bdb",
+        "anchor": "#l.1-340",
+        "table": "l.1-340",
+        "score": 0.031319,
+        "sources": {
+         "bm25_en": 7,
+         "vector": 1
+        },
+        "segment_index": 0,
+        "segment_count": 10,
+        "char_offset": 0,
+        "excerpt": "boots and soggy snowsuits to deal with. To children, snowdrifts represent a pile of pleasures—snow angels to be made, snowballs to be thrown, snow sculp¬ tures ",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 2,
+        "unit_id": "17a106fae98de3cbfb6c",
+        "anchor": "#l.1-37",
+        "table": "l.1-37",
+        "score": 0.030214,
+        "sources": {
+         "bm25_en": 11,
+         "vector": 2
+        },
+        "segment_index": 2,
+        "segment_count": 10,
+        "char_offset": 877,
+        "excerpt": "to dress your baby too warmly underneath the sleep sack). Consider buying 2 to 3 seasonally appropriate ones. Sweaters. One lightweight sweater will do the tric",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "18ea30cfcca87d53bbdc",
+        "anchor": "#l.1-179",
+        "table": "l.1-179",
+        "score": 0.026257,
+        "sources": {
+         "bm25_en": 25,
+         "vector": 9
+        },
+        "segment_index": 1,
+        "segment_count": 10,
+        "char_offset": 445,
+        "excerpt": "er snowsuit : without a struggle, no matter how cold j it is.” When you’ve just started getting the hang of moving around freely, : freedom of movement isn’t ea",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 0,
+      "hit_at_3": null,
+      "top1_score": 0.031319,
+      "lists_used": [
+       "bm25_en",
+       "vector"
+      ]
+     }
+    }
+   },
+   {
+    "query": "python asyncio tutorial",
+    "lang": "en",
+    "group": "B",
+    "why": "语料里 python/asyncio 命中 0",
+    "raw_scores": {
+     "bm25_max": 10.0756,
+     "cosine_max": 0.3936
+    },
+    "note": "B 组：命中 ASMR unboxing、吸奶器说明书、法伯睡眠宝典、专家证言，与 python/asyncio 无关（语料里 0 命中）。 新出现一条专家证言广告名称，无关。",
+    "modes": {
+     "bm25_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "bd93730e0b32c8cf8047",
+        "anchor": "#广告文案明细/recvuJYdOb76BS/Primary Text",
+        "table": "广告文案明细",
+        "score": 0.016393,
+        "sources": {
+         "bm25_en": 1
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "How to Use Momcozy M5 Smart | Cozy Designs Born from Love | {KeyWord:M5 Smart} | {KeyWord:Momcozy m5 smart} | Find Your Cozy Pump Style | Momcozy M5 Smart | Sma",
+        "relevance": "不相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "3862bbcf8ece75720ed0",
+        "anchor": "#广告文案明细/recvuJYdObLDw5/Primary Text",
+        "table": "广告文案明细",
+        "score": 0.016129,
+        "sources": {
+         "bm25_en": 2
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "How to Use Momcozy M5 Smart | Cozy Designs Born from Love | {KeyWord:M5 Smart} | {KeyWord:Momcozy m5 smart} | Find Your Cozy Pump Style | Momcozy M5 Smart | Sma",
+        "relevance": "不相关"
+       },
+       {
+        "rank": 3,
+        "unit_id": "e7a82c29fd0ae1b017f9",
+        "anchor": "#l.1-443",
+        "table": "l.1-443",
+        "score": 0.015873,
+        "sources": {
+         "bm25_en": 3
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "to her. Do sit-ups in bed next to her while she’s doing her neck rolls. Ask her “in” for a date. She may not be able to get out to a dinner and a movie, but you",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 0,
+      "hit_at_3": false,
+      "top1_score": 0.016393,
+      "lists_used": [
+       "bm25_en"
+      ]
+     },
+     "vector_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "4b7b435f2083ec4deee0",
+        "anchor": "#l.48-53",
+        "table": "l.48-53",
+        "score": 0.016393,
+        "sources": {
+         "vector": 1
+        },
+        "segment_index": 3,
+        "segment_count": 5,
+        "char_offset": 738,
+        "excerpt": "window.passportSettings = JSON.parse(JSON.stringify({\"ssr_failed\":false,\"biz_domain_config\":{\"passport_turing\":[\"verify.zijieapi.com\"]},\"domain_config\":{\"intern",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 2,
+        "unit_id": "134f2fe4f2df56ad2565",
+        "anchor": "#广告文案明细/recvuJYdObeNIS/广告名称",
+        "table": "广告文案明细",
+        "score": 0.016129,
+        "sources": {
+         "vector": 2
+        },
+        "segment_index": 0,
+        "segment_count": 1,
+        "char_offset": 0,
+        "excerpt": "ASMR unboxing",
+        "relevance": "不相关"
+       },
+       {
+        "rank": 3,
+        "unit_id": "054ded9d6291ce914535",
+        "anchor": "#品线内容边界规则库/recvuNifmKBXoP/正则表达式",
+        "table": "品线内容边界规则库",
+        "score": 0.015957,
+        "sources": {
+         "vector": 34
+        },
+        "segment_index": 1,
+        "segment_count": 2,
+        "char_offset": 218,
+        "excerpt": "mimic\\w* [^.!?|]*(baby|nursing|breastfeed), (cop|copies|copy|simulate\\w*|imitates?|replicates?)[^.!?|]*(baby|nursing|infant), (auto|automatic|smart)[^.!?|]*(det",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 0,
+      "hit_at_3": false,
+      "top1_score": 0.016393,
+      "lists_used": [
+       "vector"
+      ]
+     },
+     "hybrid": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "bd93730e0b32c8cf8047",
+        "anchor": "#广告文案明细/recvuJYdOb76BS/Primary Text",
+        "table": "广告文案明细",
+        "score": 0.016393,
+        "sources": {
+         "bm25_en": 1
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "How to Use Momcozy M5 Smart | Cozy Designs Born from Love | {KeyWord:M5 Smart} | {KeyWord:Momcozy m5 smart} | Find Your Cozy Pump Style | Momcozy M5 Smart | Sma",
+        "relevance": "不相关"
+       },
+       {
+        "rank": 2,
+        "unit_id": "4b7b435f2083ec4deee0",
+        "anchor": "#l.48-53",
+        "table": "l.48-53",
+        "score": 0.016393,
+        "sources": {
+         "vector": 1
+        },
+        "segment_index": 3,
+        "segment_count": 5,
+        "char_offset": 738,
+        "excerpt": "window.passportSettings = JSON.parse(JSON.stringify({\"ssr_failed\":false,\"biz_domain_config\":{\"passport_turing\":[\"verify.zijieapi.com\"]},\"domain_config\":{\"intern",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "3862bbcf8ece75720ed0",
+        "anchor": "#广告文案明细/recvuJYdObLDw5/Primary Text",
+        "table": "广告文案明细",
+        "score": 0.016129,
+        "sources": {
+         "bm25_en": 2
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "How to Use Momcozy M5 Smart | Cozy Designs Born from Love | {KeyWord:M5 Smart} | {KeyWord:Momcozy m5 smart} | Find Your Cozy Pump Style | Momcozy M5 Smart | Sma",
+        "relevance": "不相关"
+       }
+      ],
+      "relevant_in_top3": 0,
+      "hit_at_3": false,
+      "top1_score": 0.016393,
+      "lists_used": [
+       "bm25_en",
+       "vector"
+      ]
+     }
+    }
+   },
+   {
+    "query": "how to train for a marathon",
+    "lang": "en",
+    "group": "B",
+    "why": "语料无马拉松训练内容（仅 how/to/for 这类功能词重叠）",
+    "raw_scores": {
+     "bm25_max": 10.508,
+     "cosine_max": 0.6512
+    },
+    "note": "B 组：命中的是「How to Use Momcozy M5 Smart」「假胯宽居家训练」「0-5 岁身体活动指南」等，都不是马拉松训练；只有 how/to/training 这类词面重叠。",
+    "modes": {
+     "bm25_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "7c8da381a07155233c47",
+        "anchor": "#l.1-234",
+        "table": "l.1-234",
+        "score": 0.016393,
+        "sources": {
+         "bm25_en": 1
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "r it. Preparing now (both your body and mind—since both are involved in how you experience pain) should help reduce the anxiety you’re feeling now and the amoun",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 2,
+        "unit_id": "e9116ace8787a916268e",
+        "anchor": "#l.1429-1551",
+        "table": "l.1429-1551",
+        "score": 0.016129,
+        "sources": {
+         "bm25_en": 2
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "tips), but even when he's graduated to the toilet if he wants to continue sitting, he should be allowed to do so. When it comes to bottom-wiping, your son will ",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "87addf1db681c6691131",
+        "anchor": "#l.1-52",
+        "table": "l.1-52",
+        "score": 0.015873,
+        "sources": {
+         "bm25_en": 3
+        },
+        "segment_index": null,
+        "segment_count": null,
+        "char_offset": null,
+        "excerpt": "or pee (most tots show obvious signs that a poop is coming, while around half indicate they’re about to pee), suggest to your toddler that he or she do it on th",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 0,
+      "hit_at_3": null,
+      "top1_score": 0.016393,
+      "lists_used": [
+       "bm25_en"
+      ]
+     },
+     "vector_only": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "7c8da381a07155233c47",
+        "anchor": "#l.1-234",
+        "table": "l.1-234",
+        "score": 0.016393,
+        "sources": {
+         "vector": 1
+        },
+        "segment_index": 2,
+        "segment_count": 9,
+        "char_offset": 884,
+        "excerpt": "r it. Preparing now (both your body and mind—since both are involved in how you experience pain) should help reduce the anxiety you’re feeling now and the amoun",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 2,
+        "unit_id": "851e959533f6e426c40b",
+        "anchor": "#l.1-188",
+        "table": "l.1-188",
+        "score": 0.016129,
+        "sources": {
+         "vector": 2
+        },
+        "segment_index": 4,
+        "segment_count": 9,
+        "char_offset": 1799,
+        "excerpt": "your feet, and wiggling your toes. Also try contracting the muscles in your abdomen and buttocks (a sort of sitting pelvic tilt). If your hands tend to swell, p",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "2328f08035bec40eca1e",
+        "anchor": "#l.1-54",
+        "table": "l.1-54",
+        "score": 0.015873,
+        "sources": {
+         "vector": 3
+        },
+        "segment_index": 9,
+        "segment_count": 25,
+        "char_offset": 1476,
+        "excerpt": "的课程，一般每 周上课3次左右。如果条件允许，在 报名参加全套健身课程前可以先体验 一次课试试。如果不能参加常规计划 的健身课程，就自己在家里运动吧， 有了《海蒂怀孕大百科》，你可以随 时进行运动。 当成一项娱乐。对于任何锻炼计 划，不论是小组练习还是个人练习， 你肯定希望过程充满乐趣而不是充满 折磨，每天都期待运动，",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 0,
+      "hit_at_3": null,
+      "top1_score": 0.016393,
+      "lists_used": [
+       "vector"
+      ]
+     },
+     "hybrid": {
+      "top3": [
+       {
+        "rank": 1,
+        "unit_id": "7c8da381a07155233c47",
+        "anchor": "#l.1-234",
+        "table": "l.1-234",
+        "score": 0.032787,
+        "sources": {
+         "bm25_en": 1,
+         "vector": 1
+        },
+        "segment_index": 2,
+        "segment_count": 9,
+        "char_offset": 884,
+        "excerpt": "r it. Preparing now (both your body and mind—since both are involved in how you experience pain) should help reduce the anxiety you’re feeling now and the amoun",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 2,
+        "unit_id": "e1a9baf9b49aeaef88e2",
+        "anchor": "#l.1-291",
+        "table": "l.1-291",
+        "score": 0.02669,
+        "sources": {
+         "bm25_en": 7,
+         "vector": 25
+        },
+        "segment_index": 6,
+        "segment_count": 9,
+        "char_offset": 2764,
+        "excerpt": "about to go, hold him or her over the potty and make a specific sound (such as “pssss”) to cue your baby that it’s time to pee. Pretty soon, your little one wil",
+        "relevance": "unknown"
+       },
+       {
+        "rank": 3,
+        "unit_id": "0482ff01112ac9d1a269",
+        "anchor": "#l.1-189",
+        "table": "l.1-189",
+        "score": 0.024497,
+        "sources": {
+         "bm25_en": 47,
+         "vector": 6
+        },
+        "segment_index": 1,
+        "segment_count": 9,
+        "char_offset": 421,
+        "excerpt": "lly fit), and you’ve been green-lighted by your practitioner (based on your fitness level), it’s safe to work out for up to an hour or even more, as long as you",
+        "relevance": "unknown"
+       }
+      ],
+      "relevant_in_top3": 0,
+      "hit_at_3": null,
+      "top1_score": 0.032787,
+      "lists_used": [
+       "bm25_en",
+       "vector"
+      ]
+     }
+    }
+   }
+  ]
+ },
+ "embedding_calls": {
+  "first_segmented_build_calls": 66,
+  "first_segmented_build_segments": 2086,
+  "batch": 32,
+  "max_retry": 3,
+  "retries": 0,
+  "failures": 0,
+  "rerun_calls": 0,
+  "build_log": [
+   {
+    "at": "2026-09-23 14:04:10",
+    "bm25_docs": 1899,
+    "bm25_tokenized": 1899,
+    "elapsed_s": 34.7,
+    "embedding_calls": 25,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "20260923-1400",
+    "usable": 1899,
+    "vectors_new_or_changed": 1578,
+    "vectors_reused": 0,
+    "wrote_bm25": true,
+    "wrote_vectors": true
+   },
+   {
+    "at": "2026-09-23 14:16:21",
+    "bm25_docs": 1899,
+    "bm25_tokenized": 0,
+    "elapsed_s": 59.2,
+    "embedding_calls": 66,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "20260923-1440",
+    "units_segmented": 279,
+    "usable": 1899,
+    "vector_segments_new_or_changed": 2086,
+    "vector_segments_reused": 0,
+    "vector_segments_total": 2086,
+    "wrote_bm25": false,
+    "wrote_vectors": true
+   },
+   {
+    "at": "2026-09-23 14:19:19",
+    "bm25_docs": 1899,
+    "bm25_tokenized": 0,
+    "elapsed_s": 14.7,
+    "embedding_calls": 15,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "20260923-1440",
+    "units_segmented": 281,
+    "usable": 1899,
+    "vector_segments_new_or_changed": 456,
+    "vector_segments_reused": 1632,
+    "vector_segments_total": 2088,
+    "wrote_bm25": false,
+    "wrote_vectors": true
+   },
+   {
+    "at": "2026-09-29 15:24:43",
+    "bm25_docs": 2131,
+    "bm25_tokenized": 233,
+    "elapsed_s": 51.3,
+    "embedding_calls": 50,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "20260929-1700",
+    "units_segmented": 542,
+    "usable": 2131,
+    "vector_segments_new_or_changed": 1593,
+    "vector_segments_reused": 1887,
+    "vector_segments_total": 3480,
+    "wrote_bm25": true,
+    "wrote_vectors": true
+   },
+   {
+    "at": "2026-09-29 15:39:02",
+    "bm25_docs": 2137,
+    "bm25_tokenized": 6,
+    "elapsed_s": 16.3,
+    "embedding_calls": 2,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "20260929-1800",
+    "units_segmented": 547,
+    "usable": 2137,
+    "vector_segments_new_or_changed": 45,
+    "vector_segments_reused": 3480,
+    "vector_segments_total": 3525,
+    "wrote_bm25": true,
+    "wrote_vectors": true
+   },
+   {
+    "at": "2026-09-29 17:35:24",
+    "bm25_docs": 2581,
+    "bm25_tokenized": 444,
+    "elapsed_s": 97.4,
+    "embedding_calls": 120,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "20260929-2130",
+    "units_segmented": 974,
+    "usable": 2581,
+    "vector_segments_new_or_changed": 3826,
+    "vector_segments_reused": 3525,
+    "vector_segments_total": 7351,
+    "wrote_bm25": true,
+    "wrote_vectors": true
+   },
+   {
+    "at": "2026-09-29 18:01:37",
+    "bm25_docs": 2630,
+    "bm25_tokenized": 49,
+    "elapsed_s": 37.1,
+    "embedding_calls": 23,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "20260929-2230",
+    "units_segmented": 1018,
+    "usable": 2630,
+    "vector_segments_new_or_changed": 708,
+    "vector_segments_reused": 7351,
+    "vector_segments_total": 8059,
+    "wrote_bm25": true,
+    "wrote_vectors": true
+   },
+   {
+    "at": "2026-09-29 18:34:24",
+    "bm25_docs": 2774,
+    "bm25_tokenized": 175,
+    "elapsed_s": 121.0,
+    "embedding_calls": 136,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "20260930-0145",
+    "units_segmented": 1167,
+    "usable": 2774,
+    "vector_segments_new_or_changed": 4334,
+    "vector_segments_reused": 7794,
+    "vector_segments_total": 12128,
+    "wrote_bm25": true,
+    "wrote_vectors": true
+   },
+   {
+    "at": "2026-09-29 18:55:20",
+    "bm25_docs": 4192,
+    "bm25_tokenized": 1418,
+    "elapsed_s": 442.1,
+    "embedding_calls": 419,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "20260930-0245",
+    "units_segmented": 2584,
+    "usable": 4192,
+    "vector_segments_new_or_changed": 13402,
+    "vector_segments_reused": 12128,
+    "vector_segments_total": 25530,
+    "wrote_bm25": true,
+    "wrote_vectors": true
+   },
+   {
+    "at": "2026-09-30 09:46:00",
+    "bm25_docs": 4206,
+    "bm25_tokenized": 14,
+    "elapsed_s": 67.6,
+    "embedding_calls": 3,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "20260930-1020",
+    "units_segmented": 2596,
+    "usable": 4206,
+    "vector_segments_new_or_changed": 70,
+    "vector_segments_reused": 25530,
+    "vector_segments_total": 25600,
+    "wrote_bm25": true,
+    "wrote_vectors": true
+   },
+   {
+    "at": "2026-10-01 10:56:31",
+    "bm25_docs": 4261,
+    "bm25_tokenized": 55,
+    "elapsed_s": 91.1,
+    "embedding_calls": 9,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "20261001-1120",
+    "units_segmented": 2650,
+    "usable": 4261,
+    "vector_segments_new_or_changed": 274,
+    "vector_segments_reused": 25600,
+    "vector_segments_total": 25874,
+    "wrote_bm25": true,
+    "wrote_vectors": true
+   },
+   {
+    "at": "2026-10-08 16:15:28",
+    "bm25_docs": 4314,
+    "bm25_tokenized": 101,
+    "elapsed_s": 55.2,
+    "embedding_calls": 35,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "20261008-3700",
+    "units_segmented": 2688,
+    "usable": 4314,
+    "vector_segments_new_or_changed": 1119,
+    "vector_segments_reused": 25462,
+    "vector_segments_total": 26581,
+    "wrote_bm25": true,
+    "wrote_vectors": true
+   },
+   {
+    "at": "2026-10-08 16:37:53",
+    "bm25_docs": 4654,
+    "bm25_tokenized": 340,
+    "elapsed_s": 46.1,
+    "embedding_calls": 25,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "20261008-4800",
+    "units_segmented": 2758,
+    "usable": 4654,
+    "vector_segments_new_or_changed": 779,
+    "vector_segments_reused": 26581,
+    "vector_segments_total": 27360,
+    "wrote_bm25": true,
+    "wrote_vectors": true
+   },
+   {
+    "at": "2026-10-08 16:48:52",
+    "bm25_docs": 4655,
+    "bm25_tokenized": 1,
+    "elapsed_s": 32.8,
+    "embedding_calls": 1,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "--accept-scope-delta",
+    "units_segmented": 2759,
+    "usable": 4655,
+    "vector_segments_new_or_changed": 2,
+    "vector_segments_reused": 27360,
+    "vector_segments_total": 27362,
+    "wrote_bm25": true,
+    "wrote_vectors": true
+   },
+   {
+    "at": "2026-10-08 16:59:11",
+    "bm25_docs": 4891,
+    "bm25_tokenized": 236,
+    "elapsed_s": 46.0,
+    "embedding_calls": 14,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "--accept-scope-delta",
+    "units_segmented": 2856,
+    "usable": 4891,
+    "vector_segments_new_or_changed": 429,
+    "vector_segments_reused": 27362,
+    "vector_segments_total": 27791,
+    "wrote_bm25": true,
+    "wrote_vectors": true
+   },
+   {
+    "at": "2026-10-08 17:41:25",
+    "bm25_docs": 5979,
+    "bm25_tokenized": 1088,
+    "elapsed_s": 379.4,
+    "embedding_calls": 516,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "20261008-6300",
+    "units_segmented": 3942,
+    "usable": 5979,
+    "vector_segments_new_or_changed": 16494,
+    "vector_segments_reused": 27791,
+    "vector_segments_total": 44285,
+    "wrote_bm25": true,
+    "wrote_vectors": true
+   },
+   {
+    "at": "2026-10-09 14:21:21",
+    "bm25_docs": 6114,
+    "bm25_tokenized": 397,
+    "elapsed_s": 159.4,
+    "embedding_calls": 108,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "20261009-1420-l6fix",
+    "units_segmented": 4075,
+    "usable": 6114,
+    "vector_segments_new_or_changed": 3437,
+    "vector_segments_reused": 42030,
+    "vector_segments_total": 45467,
+    "wrote_bm25": true,
+    "wrote_vectors": true
+   },
+   {
+    "at": "2026-10-09 14:44:23",
+    "bm25_docs": 6029,
+    "bm25_tokenized": 0,
+    "elapsed_s": 55.7,
+    "embedding_calls": 0,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "20261009-1520-shrinkwrite",
+    "units_segmented": 3993,
+    "usable": 6029,
+    "vector_segments_new_or_changed": 0,
+    "vector_segments_reused": 44757,
+    "vector_segments_total": 44757,
+    "wrote_bm25": true,
+    "wrote_vectors": true
+   },
+   {
+    "at": "2026-10-10 04:05:19",
+    "bm25_docs": 6029,
+    "bm25_tokenized": 0,
+    "elapsed_s": 237.7,
+    "embedding_calls": 0,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "daily-20261010-0330-L6",
+    "units_segmented": 3984,
+    "usable": 6029,
+    "vector_segments_new_or_changed": 0,
+    "vector_segments_reused": 44711,
+    "vector_segments_total": 44711,
+    "wrote_bm25": false,
+    "wrote_vectors": true
+   },
+   {
+    "at": "2026-10-10 10:42:34",
+    "bm25_docs": 6029,
+    "bm25_tokenized": 0,
+    "elapsed_s": 222.0,
+    "embedding_calls": 0,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "daily-20261010-1010-L6",
+    "units_segmented": 3968,
+    "usable": 6029,
+    "vector_segments_new_or_changed": 0,
+    "vector_segments_reused": 44578,
+    "vector_segments_total": 44578,
+    "wrote_bm25": false,
+    "wrote_vectors": true
+   },
+   {
+    "at": "2026-10-11 03:44:53",
+    "bm25_docs": 6029,
+    "bm25_tokenized": 0,
+    "elapsed_s": 250.9,
+    "embedding_calls": 0,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "daily-20261011-0330-L6",
+    "units_segmented": 3933,
+    "usable": 6029,
+    "vector_segments_new_or_changed": 0,
+    "vector_segments_reused": 44350,
+    "vector_segments_total": 44350,
+    "wrote_bm25": false,
+    "wrote_vectors": true
+   },
+   {
+    "at": "2026-10-13 16:31:19",
+    "bm25_docs": 6029,
+    "bm25_tokenized": 0,
+    "elapsed_s": 205.5,
+    "embedding_calls": 13,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "daily-20261013-1615-L6",
+    "units_segmented": 3993,
+    "usable": 6029,
+    "vector_segments_new_or_changed": 407,
+    "vector_segments_reused": 44347,
+    "vector_segments_total": 44754,
+    "wrote_bm25": false,
+    "wrote_vectors": true
+   },
+   {
+    "at": "2026-10-19 10:42:25",
+    "bm25_docs": 6029,
+    "bm25_tokenized": 0,
+    "elapsed_s": 210.8,
+    "embedding_calls": 0,
+    "embedding_failures": 0,
+    "embedding_retries": 0,
+    "run_id": "daily-20261019-1003-L6",
+    "units_segmented": 3937,
+    "usable": 6029,
+    "vector_segments_new_or_changed": 0,
+    "vector_segments_reused": 44310,
+    "vector_segments_total": 44310,
+    "wrote_bm25": false,
+    "wrote_vectors": true
+   }
+  ]
+ },
+ "integrity": {
+  "frozen_layers": {
+   "baseline_chain": {
+    "l5_snapshot": {
+     "l0": "09e20749d69bc299dae994a658872a8d498704ec88e3fb15bb8fd931779b2a69",
+     "l1": "21919dab446af7ec17f8b9c0e9ea5433d05a35191f7ada111613b3f9add9f367",
+     "l2": "3be70095220ab1e9807fd5152906d8e4a2ccbed947e774a408660226f5fba076"
+    },
+    "accepted_baseline": {
+     "at": "20261009-final-l6",
+     "reason": "L2 去重：20261009-dedup 压掉 85 行逐字段相同的重复单元（归档 kb/l2/_archive/units.jsonl.before-dedup-20261009-dedup），7 对真冲突冻住并写入 kb/l2/duplicate_conflicts.jsonl 待人工裁决",
+     "layers": {
+      "l0": "2ba659bd561052af0c897df0133a785ffeaf5fe94e2d9a70d444a00aa68c894f",
+      "l1": "c11262b160296b76d0e8412927958addaa3dff3127ae35a31b0ade05ad92c942",
+      "l2": "04d87a17138f164db7a7872714015f751ecc5bf0f10cab465e72ec1671e390a8"
+     }
+    }
+   },
+   "l0_l2_vs_L5_baseline": {
+    "l0": {
+     "files": 4692,
+     "bytes": 2879362032,
+     "max_mtime": "2026-10-19 10:33:57",
+     "tree_sha256": "09e20749d69bc299dae994a658872a8d498704ec88e3fb15bb8fd931779b2a69",
+     "L5_baseline": "09e20749d69bc299dae994a658872a8d498704ec88e3fb15bb8fd931779b2a69",
+     "same": true,
+     "same_as_accepted_baseline": false,
+     "matched_by": "L5 快照"
+    },
+    "l1": {
+     "files": 6183,
+     "bytes": 1568615403,
+     "max_mtime": "2026-10-19 10:34:33",
+     "tree_sha256": "21919dab446af7ec17f8b9c0e9ea5433d05a35191f7ada111613b3f9add9f367",
+     "L5_baseline": "21919dab446af7ec17f8b9c0e9ea5433d05a35191f7ada111613b3f9add9f367",
+     "same": true,
+     "same_as_accepted_baseline": false,
+     "matched_by": "L5 快照"
+    },
+    "l2": {
+     "files": 970,
+     "bytes": 287046388,
+     "max_mtime": "2026-10-19 10:35:00",
+     "tree_sha256": "3be70095220ab1e9807fd5152906d8e4a2ccbed947e774a408660226f5fba076",
+     "L5_baseline": "3be70095220ab1e9807fd5152906d8e4a2ccbed947e774a408660226f5fba076",
+     "same": true,
+     "same_as_accepted_baseline": false,
+     "matched_by": "L5 快照"
+    }
+   },
+   "l3_candidates": {
+    "lines": 1018,
+    "bytes": 4805920,
+    "max_mtime": "2026-10-17 17:15:40",
+    "sha256": "e7d566f25f16677be9352b7666870b55ffd2bb45ab475541e85fd205a4f98633",
+    "prefix_matches_L5": true
+   },
+   "verdict": "PASS"
+  },
+  "counts": {
+   "usable": 6029,
+   "projection_lines": 6029,
+   "bm25_docs": 6029,
+   "bm25_indexed": 6028,
+   "bm25_failed": 1,
+   "vector_units": 5649,
+   "vector_segments": 44310,
+   "units_segmented": 3937,
+   "vector_skipped_p0": 380,
+   "vector_failed": 0,
+   "dup_unit_id_in_projection": [],
+   "dup_unit_segment_in_vectors": [],
+   "bm25_failed_units": [
+    {
+     "unit_id": "00fa63e07ffead5207da",
+     "anchor": "#广告文案明细/recvuMGgT9Nm8K/广告名称",
+     "reason": "文本切不出任何词元（正文只有 '-'）"
+    }
+   ],
+   "vector_not_indexed_reasons": {
+    "P0 规则的证据单元：P0 走 kb/l5/matcher.py 确定性匹配，不入向量": 380
+   },
+   "reconcile": "6029 = BM25 6028 + 失败 1 = 向量单元 5649 + 不入向量 380",
+   "verdict": "PASS"
+  },
+  "idempotent_rerun": {
+   "invoked_with": "--apply（见本检查上方注释：不带 --apply 会落进干跑档）",
+   "dry_run_detected": false,
+   "exit_code": 0,
+   "files_changed": [],
+   "registry_field_diff": [],
+   "registry_only_event_fields": false,
+   "substantive_changes": [],
+   "tokenize_work_zero": true,
+   "embedding_work_zero": true,
+   "stdout_tail": [
+    "索引投影 6029 行（未变不写）｜registry（未变不写）｜总耗时 187.2s",
+    "分段分布：{1: 1712, 2: 412, 3: 124, 4: 71, 5: 59, 6: 47, 7: 50, 8: 297, 9: 1401, 10: 595, 11: 103, 12: 73, 13: 13, 14: 6, 15: 4, 16: 5, 17: 10, 18: 19, 19: 2, 20: 4, 21: 12, 22: 14, 23: 22, 24: 135, 25: 236, 26: 150, 27: 37, 28: 19, 29: 2, 30: 1, 32: 2, 33: 3, 34: 2, 35: 1, 36: 1, 37: 2, 38: 2, 47: 1}｜最长单元 7042 字 → 47 段"
+   ],
+   "artifact_state": {
+    "kb/l6/bm25/docs.jsonl": {
+     "mtime": 1791528210.6249566,
+     "size": 29756413,
+     "sha256_16": "a3a24d29d841d564"
+    },
+    "kb/l6/bm25/meta.json": {
+     "mtime": 1791528212.2534842,
+     "size": 599,
+     "sha256_16": "139e96d98702263f"
+    },
+    "kb/l6/bm25/postings_zh.jsonl": {
+     "mtime": 1791528211.7675204,
+     "size": 21451762,
+     "sha256_16": "69a9cbc27f442115"
+    },
+    "kb/l6/bm25/postings_en.jsonl": {
+     "mtime": 1791528212.2516708,
+     "size": 10990661,
+     "sha256_16": "973501cfb3445a0b"
+    },
+    "kb/l6/vectors/vectors.jsonl": {
+     "mtime": 1792377743.7541602,
+     "size": 30223010,
+     "sha256_16": "5fdba29ecce8f155"
+    },
+    "kb/l6/vectors/matrix.npy": {
+     "mtime": 1792377744.8882978,
+     "size": 68060288,
+     "sha256_16": "01fb4dcff281e0cb"
+    },
+    "kb/l6/vectors/meta.json": {
+     "mtime": 1792377745.0425053,
+     "size": 1881,
+     "sha256_16": "8e1cc2cf23e4c7c9"
+    },
+    "kb/l6/index/l6.jsonl": {
+     "mtime": 1792377745.68433,
+     "size": 2809338,
+     "sha256_16": "d5131cb0443d89fe"
+    },
+    "kb/l6/registry/l6.json": {
+     "mtime": 1792377745.707069,
+     "size": 26182,
+     "sha256_16": "072d106c90d45c8d"
+    },
+    "kb/l6/retriever.py": {
+     "mtime": 1790683206.9833374,
+     "size": 22736,
+     "sha256_16": "bf2ae37a0551073b"
+    },
+    "kb/l6/runs/build_runs.jsonl": {
+     "mtime": 1792377745.7081628,
+     "size": 8662,
+     "sha256_16": "44b0ca4d71fa8217"
+    }
+   },
+   "verdict": "PASS"
+  },
+  "vector_traceability": {
+   "rows": 44310,
+   "matrix_shape": [
+    44310,
+    384
+   ],
+   "dim": 384,
+   "all_finite": true,
+   "norm_min": 0.9999998807907104,
+   "norm_max": 1.0000001192092896,
+   "quantization_values": [
+    "fp16（ONNX initializer 全部为 FLOAT16，且无 QuantizeLinear/MatMulInteger 等量化算子）"
+   ],
+   "p0_in_vector": [],
+   "doc_id_mismatch": 0,
+   "bad_count": 0,
+   "bad": [],
+   "verdict": "PASS"
+  },
+  "segmentation": {
+   "units_indexed": 5649,
+   "segments": 44310,
+   "units_segmented": 3937,
+   "segment_count_histogram": {
+    "1": 1712,
+    "2": 412,
+    "3": 124,
+    "4": 71,
+    "5": 59,
+    "6": 47,
+    "7": 50,
+    "8": 297,
+    "9": 1401,
+    "10": 595,
+    "11": 103,
+    "12": 73,
+    "13": 13,
+    "14": 6,
+    "15": 4,
+    "16": 5,
+    "17": 10,
+    "18": 19,
+    "19": 2,
+    "20": 4,
+    "21": 12,
+    "22": 14,
+    "23": 22,
+    "24": 135,
+    "25": 236,
+    "26": 150,
+    "27": 37,
+    "28": 19,
+    "29": 2,
+    "30": 1,
+    "32": 2,
+    "33": 3,
+    "34": 2,
+    "35": 1,
+    "36": 1,
+    "37": 2,
+    "38": 2,
+    "47": 1
+   },
+   "longest_unit": [
+    "d1a3b2105a95cbd33be9",
+    7042,
+    47
+   ],
+   "max_segment_tokens": 120,
+   "seg_max_tokens": 120,
+   "effective_model_max_tokens": 128,
+   "exact_reconstruction_bad": 0,
+   "exact_reconstruction_examples": [],
+   "index_vs_recount_bad": 0,
+   "index_vs_recount_examples": [],
+   "segment_index_bad": [],
+   "segment_count_field_bad": [],
+   "verdict": "PASS",
+   "note": "用同一套 segmenter 对每个单元复算：各段拼接逐字等于原文、段号连续、char_offset 单调且落在正文内、每段 token ≤ 上限（模型实测 128 截断，本批上限 120）"
+  },
+  "postings_consistency": {
+   "docs": 6029,
+   "mismatch_docs": 0,
+   "verdict": "PASS",
+   "note": "逐文档重算 tf 与倒排完全一致"
+  },
+  "version_discipline": {
+   "canonical_rules_bytes": 0,
+   "versions_jsonl_rows": 0,
+   "kb_version_values": [
+    "v0"
+   ],
+   "l6_kb_version": "v0",
+   "verdict": "PASS"
+  },
+  "offline": {
+   "network_symbols": [],
+   "verdict": "PASS",
+   "note": "检索只读本地索引；查询向量由本地 ONNX 模型算，权重已在本机稳定目录，运行时不联网"
+  },
+  "capability_declaration": {
+   "fields": {
+    "mode": "vector_plus_bm25",
+    "semantic_recall": true,
+    "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    "dim": 384,
+    "quantization": "fp16（ONNX initializer 全部为 FLOAT16，且无 QuantizeLinear/MatMulInteger 等量化算子）",
+    "known_limitations": 8,
+    "no_hit_semantics": {
+     "bm25_only": "字面未匹配，不代表合规",
+     "vector_only": "语义未匹配，不代表合规",
+     "hybrid": "字面与语义均未匹配，但仍不代表合规"
+    }
+   },
+   "no_hit_semantics_matches_spec": true,
+   "verdict": "PASS",
+   "note": "registry.retrieval_capability 的下游必需字段与 no_hit_semantics 固定文案都已核对"
+  }
+ },
+ "integrity_verdict": "PASS",
+ "artifacts": [
+  {
+   "path": "kb/l6/runs/build_runs.jsonl",
+   "bytes": 8662,
+   "sha256": "44b0ca4d71fa82173d67b806fcbd08bd1f45d252a017b129ffa50761355c8feb"
+  },
+  {
+   "path": "kb/l6/bm25/docs.jsonl",
+   "bytes": 29756413,
+   "sha256": "a3a24d29d841d56480b8add04ebf886537c1e35b6bad79e8e99c6af725d4e3ef"
+  },
+  {
+   "path": "kb/l6/bm25/meta.json",
+   "bytes": 599,
+   "sha256": "139e96d98702263f5635cbd29c46f153c034ae1fe3344c3cce5d089584de0a4d"
+  },
+  {
+   "path": "kb/l6/bm25/postings_zh.jsonl",
+   "bytes": 21451762,
+   "sha256": "69a9cbc27f442115fc3acedf444bd77f0ee6c0b453945031aec47b63af706170"
+  },
+  {
+   "path": "kb/l6/bm25/postings_en.jsonl",
+   "bytes": 10990661,
+   "sha256": "973501cfb3445a0b69166aaa6bcdd7c17fe9f3fa4bb653c7d3f916d88d0bb865"
+  },
+  {
+   "path": "kb/l6/vectors/vectors.jsonl",
+   "bytes": 30223010,
+   "sha256": "5fdba29ecce8f1555675f123f0cb04910a4a6347bcb29db5f6f5055c30fdc1c9"
+  },
+  {
+   "path": "kb/l6/vectors/matrix.npy",
+   "bytes": 68060288,
+   "sha256": "01fb4dcff281e0cbc8c6791062c662a86aade1bca4454a0fd45b64efc72d002c"
+  },
+  {
+   "path": "kb/l6/vectors/meta.json",
+   "bytes": 1881,
+   "sha256": "8e1cc2cf23e4c7c94c4c00c2c49ddd3f1622ead8da17b152e8f1f29185493951"
+  },
+  {
+   "path": "kb/l6/index/l6.jsonl",
+   "bytes": 2809338,
+   "sha256": "d5131cb0443d89fe55939575cc43c8163015305e58a7e3136837f4801c3d5996"
+  },
+  {
+   "path": "kb/l6/registry/l6.json",
+   "bytes": 26182,
+   "sha256": "072d106c90d45c8d0ee79e89f5b2e822ad150c2295f0554f3b3876137381f6c6"
+  },
+  {
+   "path": "kb/l6/retriever.py",
+   "bytes": 22736,
+   "sha256": "bf2ae37a0551073bcc59dc21efa878810715ed8ccc2e69e0fadd5eacfe404f53"
+  },
+  {
+   "path": "kb/l6/selftest.json",
+   "bytes": 92001,
+   "sha256": "80950cb5e976b9e3a34a39993a24a6ff05970ae1bf181fa8ba6966019fa5dd5f"
+  },
+  {
+   "path": "kb/l6/benchmark.json",
+   "bytes": 1949,
+   "sha256": "59de47104d3eab41075778e4dad92114e90ef808a3e80ad96aad13e2660d7a6b"
+  },
+  {
+   "path": "kb/l6/runs/20260923-1400.vectors.presegment.vectors.jsonl",
+   "bytes": 685380,
+   "sha256": "c7940fc1400187e3ee4bcc5de3a684eec402b0ab2c9ad258b2f08addd80272b7"
+  },
+  {
+   "path": "kb/l6/runs/20260923-1400.vectors.presegment.matrix.npy",
+   "bytes": 2423936,
+   "sha256": "b865b8c8db60af6f12054dd2c26c6ee3af906394c45247a1ec78a1c4925d20db"
+  }
+ ],
+ "superseded": {
+  "what": "20260923-1400 那一版向量索引（单元级，被模型静默截断；且融合时向量行号与 BM25 文档号不同源）",
+  "kept_at": [
+   "kb/l6/runs/20260923-1400.vectors.presegment.vectors.jsonl",
+   "kb/l6/runs/20260923-1400.vectors.presegment.matrix.npy"
+  ],
+  "why": "留痕可追溯；本版改为按段落分段 + 统一 doc_id，旧记录缺 segment_index 字段即不被复用"
+ },
+ "env_side_effects": [
+  "装了 fastembed 0.7.4（+ huggingface-hub/tokenizers/loguru/pillow 等依赖，ONNX 路线，未装 torch）",
+  "该安装把 pillow 11.3.0 降级到 10.4.0；还原：python3 -m pip install --user 'pillow==11.3.0'",
+  "多语权重约 224MB，原本落在 /var/folders 临时缓存，已复制到 ~/.dsh/models/fastembed 并在 registry 记明",
+  "未改动 kb/l0~l3 任何文件；未写版本号；未发布"
+ ],
+ "decisions": [
+  {
+   "id": "D1",
+   "decision": "embedding 按必装项处理：装 fastembed（ONNX）并复用已有权重，不回退 bm25_only",
+   "why": "不能让向量路径成为没跑过的代码路径；缺 embedding 才允许回退，而本机条件满足（onnxruntime 就绪 + 外网可达）"
+  },
+  {
+   "id": "D2",
+   "decision": "判定模型能不能用靠真实握手：发一次 embedding 请求，校验返回 384 维、全有限、范数正常",
+   "why": "端口开着或依赖存在都不算数；握手结果写进 registry"
+  },
+  {
+   "id": "D3",
+   "decision": "超长单元按段落/句边界分段（每段 ≤120 token），单句超限按 token 二分硬切；不截断",
+   "why": "实测该模型在 128 token 处静默截断（两段只共享前 300 字的文本得到完全相同向量），31,450 字的单元只进约 1% 内容"
+  },
+  {
+   "id": "D4",
+   "decision": "分段上限取 120 而不是 128",
+   "why": "空串就已占 2 个特殊 token，贴边切有被截断的风险"
+  },
+  {
+   "id": "D5",
+   "decision": "切块时把换行与标点留在前一块，保证各段顺序拼接**逐字等于原文**，并写进自检",
+   "why": "第一版切句丢了换行符，1,899 个单元里 168 个拼不回去；不修就等同静默丢内容"
+  },
+  {
+   "id": "D6",
+   "decision": "BM25 侧不装任何库，继续用自实现倒排；先拿耗时再谈换不换",
+   "why": "实测单查询 p50 0.044 ms、吞吐 2.25 万 q/s，比 L5 扫 1MB（631ms）快约 1.4 万倍；换库还会改切词与得分口径，把已跑通的索引与自验作废"
+  },
+  {
+   "id": "D7",
+   "decision": "向量与 BM25 统一用全局 doc_id（单元在可用集合里的序号）当融合键",
+   "why": "上一版向量用矩阵行号、BM25 用文档号，1,573/1,578 对不上，融合会张冠李戴；本版加了编号同源断言"
+  },
+  {
+   "id": "D8",
+   "decision": "向量只建一套多语索引，不按语言分库；BM25 才分语言子索引",
+   "why": "BM25 必须分是因为切法不同；向量用同一多语空间，中文查询才可能碰到英文素材"
+  },
+  {
+   "id": "D9",
+   "decision": "A/B 分组与判断标准照任务来：A 组用库里现成的等价词（词面型），B 组选语料 0 命中的主题",
+   "why": "A 组词面型会让 BM25 占优，这是构造使然，如实写，不挑查询把数字做漂亮"
+  },
+  {
+   "id": "D10",
+   "decision": "相关性判断给三档（相关/弱相关/不相关），命中率只按「相关」算；B 组一律不相关",
+   "why": "避免用「弱相关」抬命中率；B 组返回内容确实都不对题"
+  },
+  {
+   "id": "D11",
+   "decision": "把「RRF 分不能当阈值」写进 registry.known_limitations",
+   "why": "实测 RRF Top1 分恒为 0.016393（名次倒数），A/B 两组看起来一样高；下游拿它当相关性阈值会被误导"
+  }
+ ],
+ "not_done": [
+  "不发布、不写版本号（kb_version 仍 v0，versions.jsonl 仍 0 条版本行）",
+  "不写 kb/l3/canonical/（仍 0 字节）、不改任何规则、不改 kb/l0~l3",
+  "不做 rerank 模型、不设相关性阈值（阈值策略交下游，registry 给了 no_hit_semantics）"
+ ],
+ "verdict": "FAIL",
+ "dry_run": true,
+ "applied": false,
+ "skill": "kb-recall",
+ "skill_source": "--skill 参数（调用者读 layers.yaml 本层 skill: 后传入；本脚本不硬编码）",
+ "pipeline_run_id": "20261019-1744-L6"
+}

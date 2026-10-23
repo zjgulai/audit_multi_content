@@ -1,0 +1,236 @@
+{
+  "review_id": "20261022-141151",
+  "content_id": "text-b7555e023881",
+  "content_id_basis": "指纹（依据侧不发业务号，发号真源 = kb/l7/review-engine/core/content_id.py）",
+  "content_type": "image",
+  "content_version": "b7555e0238814ee136888ce783b08ebf425e63bcdb30ad7940973befc61c99fc",
+  "content_hash": "b7555e0238814ee136888ce783b08ebf425e63bcdb30ad7940973befc61c99fc",
+  "agent_version": "kb-content-review@1.3.0",
+  "rule_version": "article-no-2+l3-0.2+rules.jsonl@82fbcf5abca1adfe",
+  "knowledge_version": "v0",
+  "version_binding": {
+    "review_id": "20261022-141151",
+    "content_id": null,
+    "content_id_form": "AD-YYYYMMDD-NNN（PRD §5.4）",
+    "content_id_note": "本入口（依据侧）**不发业务号** —— 发号要读飞书表，而依据侧不该为此访问飞书。业务号由发号方在发飞书那一刻发：`kb/l7/review-engine/core/content_id.py`（唯一实现）。",
+    "content_fingerprint": "text-b7555e023881",
+    "content_hash": "b7555e0238814ee136888ce783b08ebf425e63bcdb30ad7940973befc61c99fc",
+    "content_version": "b7555e0238814ee136888ce783b08ebf425e63bcdb30ad7940973befc61c99fc",
+    "agent_version": "kb-content-review@1.3.0",
+    "rule_version": "article-no-2+l3-0.2+rules.jsonl@82fbcf5abca1adfe",
+    "knowledge_version": "v0",
+    "sources": {
+      "content_hash": "送审文本 utf-8 的 sha256",
+      "agent_version": "kb/l7/skills/kb-content-review/SKILL.md → frontmatter.version",
+      "rule_version": "kb/l7/registry/l7.json → article_no_source.scheme_version ＋ kb/l3/registry/l3.json → distiller_version ＋ kb/l3/candidates/rules.jsonl 的 sha256[:16]",
+      "knowledge_version": "kb/l7/registry/l7.json → kb_version"
+    }
+  },
+  "decision": "REVIEW",
+  "decision_raw": "REVIEW",
+  "confidence": "未标定（本入口逐条给 高/中/低；全局数值置信度属裁决侧）",
+  "input_manifest": {
+    "text": "【对方这条消息里附了图，共 1 张。下面每一格是**两条读数**：① **本机 OCR 读出的图内文字**（逐字，可能有识别错误；也可能读不全）；② **画面读数**（一个吃图的视觉模型看那张图写下的、只陈述看得见的：场景 / 人物（含是否婴幼儿）/ 物品是否在用 / 可见商标 / 画面线索）。②是**模型给的读数，不是原图**：涉及画面的结论**只能依据它**，并写明「画面结论依据的是这份读数」；**读数里没写的（月龄、声音、这张图之外的情节）不许推断**；②**没读到**时如实说「画面这一层未测」，**不许**说成「画面没问题」。所以：可以按这两条读数做文案、宣称、产品使用、人物行为与场景层面的判定，但凡读数没覆盖的部分，都要把边界写出来。】\n【图 1 指纹 sha256=e244408b62c525ddcbd79e5ce154712b22fcb4c6883d23a5fc71ef39ad21ea68】\n【图 1 内文字｜10 行】\nBreastfeeding Month\nShare What Helped. Find Real Support.\nHelp Another Mom.\nShare real breastfeeding and pumping experiences，\nhelp build the Support List, and get a chance to win prizes worth\nup to $199.99.\n依引\nJoin Breastfeeding Month\nmomcozY\nMOmCOZY\n【/图 1】\n【图 1 画面读数（视觉模型的读数，**不是原图**；涉及画面的结论只能依据这一格）】\n- 场景：客厅\n- 人物：中部偏左 · 成人 · 坐在沙发上，手持笔和本子，低头书写；中部偏右 · 成人 · 坐在沙发上，双手抱着婴儿；中部偏右 · 婴幼儿 · 被成人抱在怀中，面朝前方 · 睡眠场景：否；睡姿：不适用\n- 物品：茶几上的两个带盖圆柱形容器（杯/罐状）（朝向：正放）；茶几右侧的透明小杯（朝向：正放）；沙发上的浅色书本/本子（朝向：看不清）\n- 可见标识：有文字，位于左上及左侧，认不清；有文字，位于左下按钮内，认不清；画面中有半透明水印文字，认不清\n- 图上文字用的是什么文字：英文\n- 画面线索：画面中有婴幼儿出镜，被成人抱在怀中；画面中有可识别的成人人物；画面中有半透明水印文字\n- 读数自报看不清的：容器上的具体文字内容；水印的具体文字内容；书本/本子的具体朝向\n【/图 1 画面读数】\n【★ 这是**送审素材**：不管对方写没写「审一下」，都要走 kb_review_chain，把上面这段读数当输入交进去 —— 只回一段「我读到了什么」不算回答。连「这里没有可判内容」这种结论也必须由链给出，不由你替它下。】\n\n【图片 1 的图内文字（本机 OCR）】\nBreastfeeding Month\nShare What Helped. Find Real Support.\nHelp Another Mom.\nShare real breastfeeding and pumping experiences，\nhelp build the Support List, and get a chance to win prizes worth\nup to $199.99.\n依引\nJoin Breastfeeding Month\nmomcozY\nMOmCOZY",
+    "sha256": "b7555e0238814ee136888ce783b08ebf425e63bcdb30ad7940973befc61c99fc",
+    "modality": [
+      "image"
+    ]
+  },
+  "coverage": {
+    "text": "not_applicable",
+    "image": "complete",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "本批只送审 image 一种模态；其余模态不适用（不是缺口）。本块是报告契约要求的覆盖状态，不等于 OCR/ASR/关键帧流水线已执行 —— 后者见 trace。"
+  },
+  "risk_items": [
+    {
+      "risk_id": "nr-6563d6d9788d40b2",
+      "risk_type": "负面样本-N-02",
+      "risk_category": null,
+      "risk_category_basis": "类别「负面样本」不在政策件里（既非 map 也非 unmapped）⇒ **不编**",
+      "taxonomy_category": "品牌信任与声誉",
+      "taxonomy_subcategory": null,
+      "taxonomy_basis": {
+        "version": "2026-10-21",
+        "source": "kb/l7/registry/negative-taxonomy-map.json",
+        "matched_by": "default_n02",
+        "confidence": "low",
+        "why": "N-02 里未逐条定类的条目，正文形态是**设计/创意方向的需求描述与评审反馈**（如「图1：妈妈抱着哭泣的宝宝」「营造柔和、亲密、轻松的氛围」）。按 case-taxonomy-map.json 对「设计/创意方向 ⇒ 品牌信任与声誉（调性/一致性）」的同一条先例落，**逐条入队复核**。"
+      },
+      "priority_tier": "P2",
+      "priority_tier_basis": "规则行 p_level=P2",
+      "layer": "负面样本规则（N-1.x）",
+      "p_level": "P2",
+      "risk_level": null,
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "顶部，图 1 第 1 处",
+      "original_text": "",
+      "reason": "相似历史审核意见（advice·参考）：匹配分 1.00（画面 1.00 / 文字 1.00）｜仅文字相近｜⚠️ 非本单素材逐字命中｜该历史意见未指定图号，按**记录级意见**展示；不代表本图独立判定",
+      "suggestion": "不要过于完美，现在的画面就是感觉太完美了，妈妈的状态也太完美了，完美到不像哺乳期的妈妈，而且话说她在记什么",
+      "verbatim_verified": false,
+      "fact_or_inference": "事实",
+      "confidence": "低",
+      "evidence": {
+        "library": "内部正负样本库（负面样本规则·历史审核意见）",
+        "article_no": "N-1.360",
+        "anchor": "#负面样本/recvw7XIUgGnxv/具体原因/分析",
+        "source_sha256": "1e3e3bb72f6624ed691a0862ffe884e23bb122868d9f41af0bdbc15ff6e3cc02",
+        "excerpt": ""
+      },
+      "source": "kb-content-review",
+      "evidence_gap": "历史审核意见：命中是**相似召回**，不是本单素材的逐字命中；规则原文见 history_rule_text（蒸馏时逐字取自源记录字段）"
+    },
+    {
+      "risk_id": "nr-6563d6d9788d40b2",
+      "risk_type": "负面样本-原则性错误",
+      "risk_category": null,
+      "risk_category_basis": "类别「负面样本」不在政策件里（既非 map 也非 unmapped）⇒ **不编**",
+      "taxonomy_category": "品牌信任与声誉",
+      "taxonomy_subcategory": null,
+      "taxonomy_basis": {
+        "version": "2026-10-21",
+        "source": "kb/l7/registry/negative-taxonomy-map.json",
+        "matched_by": "default_n02",
+        "confidence": "low",
+        "why": "N-02 里未逐条定类的条目，正文形态是**设计/创意方向的需求描述与评审反馈**（如「图1：妈妈抱着哭泣的宝宝」「营造柔和、亲密、轻松的氛围」）。按 case-taxonomy-map.json 对「设计/创意方向 ⇒ 品牌信任与声誉（调性/一致性）」的同一条先例落，**逐条入队复核**。"
+      },
+      "priority_tier": "P2",
+      "priority_tier_basis": "规则行 p_level=P2",
+      "layer": "负面样本规则（N-1.x）",
+      "p_level": "P2",
+      "risk_level": null,
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "顶部，图 1 第 1 处",
+      "original_text": "",
+      "reason": "相似历史审核意见（advice·参考）：匹配分 1.00（画面 1.00 / 文字 0.00）｜图身份：同一张图（recvw7XIUgGnxv seq=1，pHash 距离 0，相关 0.993）｜⚠️ 非本单素材逐字命中｜该历史意见未指定图号，按**记录级意见**展示；不代表本图独立判定",
+      "suggestion": "不要过于完美，现在的画面就是感觉太完美了，妈妈的状态也太完美了，完美到不像哺乳期的妈妈，而且话说她在记什么",
+      "verbatim_verified": false,
+      "fact_or_inference": "事实",
+      "confidence": "低",
+      "evidence": {
+        "library": "内部正负样本库（负面样本规则·历史审核意见）",
+        "article_no": "N-1.360",
+        "anchor": "#负面样本/recvw7XIUgGnxv/具体原因/分析",
+        "source_sha256": "1e3e3bb72f6624ed691a0862ffe884e23bb122868d9f41af0bdbc15ff6e3cc02",
+        "excerpt": ""
+      },
+      "source": "kb-content-review",
+      "evidence_gap": "图身份：与库内图同一张（pHash/像素相关），不是本单素材的逐字命中"
+    },
+    {
+      "risk_id": "nr-5b7a64d7b720bdb3",
+      "risk_type": "负面样本-品牌一致性",
+      "risk_category": null,
+      "risk_category_basis": "类别「负面样本」不在政策件里（既非 map 也非 unmapped）⇒ **不编**",
+      "taxonomy_category": "品牌信任与声誉",
+      "taxonomy_subcategory": null,
+      "taxonomy_basis": {
+        "version": "2026-10-21",
+        "source": "kb/l7/registry/negative-taxonomy-map.json",
+        "matched_by": "by_code",
+        "confidence": "high",
+        "why": "标签同名语义；A3 该类含子类「品牌口号与价值主张」。与 case-taxonomy-map.json 同标签口径一致。"
+      },
+      "priority_tier": "P2",
+      "priority_tier_basis": "规则行 p_level=P2",
+      "layer": "负面样本规则（N-1.x）",
+      "p_level": "P2",
+      "risk_level": null,
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "顶部，图 1 第 1 处",
+      "original_text": "",
+      "reason": "相似历史审核意见（point·参考）：匹配分 1.00（画面 0.00 / 文字 0.00）｜本素材检索命中的库内单元与规则取证图同图：取证锚点相同｜⚠️ 非本单素材逐字命中｜该历史意见未指定图号，按**记录级意见**展示；不代表本图独立判定",
+      "suggestion": "",
+      "verbatim_verified": false,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "内部正负样本库（负面样本规则·历史审核意见）",
+        "article_no": "N-1.132",
+        "anchor": "#素材/recvw7XJiSw14s/图片素材/#img.1",
+        "source_sha256": "9151d2c6fc657122af4d1b89abc48700a0f0baf37b5db387f33dea6747871608",
+        "excerpt": ""
+      },
+      "source": "kb-content-review",
+      "evidence_gap": "历史审核意见：命中是**相似召回**，不是本单素材的逐字命中；规则原文见 history_rule_text（蒸馏时逐字取自源记录字段）"
+    }
+  ],
+  "issue_count": 3,
+  "report_url": null,
+  "next_action": "建议转复核责任人复核。",
+  "next_owners": [
+    "复核责任人"
+  ],
+  "sla": {},
+  "version_gate": {
+    "reviewed_hash": "b7555e0238814ee136888ce783b08ebf425e63bcdb30ad7940973befc61c99fc",
+    "release_hash": null,
+    "note": "本入口不掌握发布版本；发布/送审版本比对属裁决侧（review_engine.py:115-119），此处不代替它下结论"
+  },
+  "decision_trace": {
+    "reasons": [
+      "findings_present_without_block"
+    ],
+    "confidence_status": "not_calibrated_by_this_entry",
+    "evaluated_at": "2026-10-22T14:12:05",
+    "decided_by": "kb-content-review/scripts/review.py（依据侧自身分支，:709-715）",
+    "note": "本报告不重算结论；三态由上表 decision_raw 原样带出",
+    "tier_trace": {
+      "P0": 0,
+      "P1": 0,
+      "P2": 3,
+      "P3": 0,
+      "未标层": 0
+    },
+    "confidence_route": {
+      "applies": false,
+      "band": null,
+      "calibrated": false,
+      "why": "依据侧**不合成全局数值置信度**（逐条给 高/中/低）⇒ 没有可切三档的数。PRD §6.6 的数值分档与标注在**裁决侧**生效：见 `review_engine.decide()` → `decision_trace.confidence_route`；策略真源 `kb/l7/registry/confidence-policy.json`。",
+      "handled_by": "kb/l7/review-engine/core/review_engine.py::decide()"
+    },
+    "image_identity": {
+      "checked": true,
+      "detected": 3,
+      "added": 3,
+      "upgraded": 0,
+      "hits": [
+        {
+          "article_no": "N-1.328",
+          "rule_id": "nr-8d39a7a3a118bcfd",
+          "record_id": "recvw7XIUgGnxv",
+          "matched_by": "图身份",
+          "match_rank": 4,
+          "attribution": "subject"
+        },
+        {
+          "article_no": "N-1.329",
+          "rule_id": "nr-9bc485b937043163",
+          "record_id": "recvw7XIUgGnxv",
+          "matched_by": "图身份",
+          "match_rank": 4,
+          "attribution": "subject"
+        },
+        {
+          "article_no": "N-1.360",
+          "rule_id": "nr-6563d6d9788d40b2",
+          "record_id": "recvw7XIUgGnxv",
+          "matched_by": "图身份",
+          "match_rank": 4,
+          "attribution": "subject"
+        }
+      ]
+    }
+  },
+  "unmet_citation": []
+}

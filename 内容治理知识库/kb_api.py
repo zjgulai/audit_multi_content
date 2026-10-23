@@ -258,6 +258,9 @@ class ReviewReq(BaseModel):
                     "`skill_invocation_audit.py` 逐层核 <BASE>-L{4,5,6,7}（2026-10-03 起含 L7），任一层红 ⇒ HTTP 409 / "
                     "NEEDS_INPUT，不出结论。不传 ⇒ 结论里记 `layer_preflight.mode=waived_by_api`"
                     "（**未经层前置**这件事必须可见）")
+    # ★ 2026-10-20：内容类型（默认 text ⇒ 与改动前逐字一致）。
+    #   传 `image` 才启用「负面样本规则 N-1.x」层（该层按图内文字+画面读数检索）。
+    content_type: Optional[str] = Field(default=None, description="text / image（默认 text）")
     sku: Optional[str] = None
     decision_owner: Optional[str] = Field(
         default=None,
@@ -380,7 +383,8 @@ def do_review(req: ReviewReq, authorization: Optional[str] = Header(default=None
         # 且报告必须走 node 明文通道（python 写 .md 会变信封态，宿主读不到）
         res, err = _adapter().run(req.text, content_id=req.content_id, channel=req.channel,
                                   product_line=req.product_line,
-                                  product_line_seed=req.product_line_seed, write_report=True)
+                                  product_line_seed=req.product_line_seed, write_report=True,
+                                  content_type=(req.content_type or "text"))
     except HTTPException:
         raise
     except Exception as exc:                   # noqa: BLE001

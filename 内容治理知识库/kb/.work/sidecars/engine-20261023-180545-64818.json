@@ -1,0 +1,579 @@
+{
+ "decision": {
+  "review_id": "rv-20261023-180558",
+  "content_id": "AUTO-2ff34b2a5432",
+  "content_id_basis": "指纹兜底：本单 `--no-publish-to-feishu`，不发飞书故不发业务号（不是漏发）",
+  "content_version": "2ff34b2a543275f87aea1375cc43f217b5d8101a247b515f4576ad466d712aef",
+  "agent_version": "local-core-0.1.0",
+  "rule_version": "unfrozen",
+  "knowledge_version": "unfrozen",
+  "decision": "PASS",
+  "confidence": 0.93,
+  "summary": "【审查结论：PASS】未发现已知底线风险，可转交 @sign-off 责任人（未配置） 进行 sign-off。",
+  "issue_count": 0,
+  "issue_count_including_candidates": 0,
+  "candidate_count": 0,
+  "issue_count_basis": "issue_count（0 = 库内依据，**与分类汇总同一个数**，见 PRD §5.4）= 完整清单 0 − 非权威候选 0；候选无库内条款号、只作排查线索，不构成依据",
+  "issue_summary_by_category": {},
+  "risk_items": [],
+  "report_url": null,
+  "next_action": "转 sign-off 负责人确认送审版本与发布版本一致",
+  "next_owners": [
+   "Sign-off 负责人"
+  ],
+  "sla": {
+   "priority": "any",
+   "target": "1 business day",
+   "escalate_to": [
+    "项目统筹",
+    "Sign-off 负责人"
+   ],
+   "timezone": "America/Los_Angeles",
+   "clock_rules": [
+    "Start the clock when the required input manifest is complete.",
+    "Pause the clock while waiting for missing submitter material.",
+    "Record timezone and business-calendar version with each SLA event.",
+    "SLA breach never changes the decision automatically."
+   ]
+  },
+  "version_gate": {},
+  "coverage": {
+   "text": "complete",
+   "image": "complete",
+   "audio": "not_applicable",
+   "video": "not_applicable",
+   "ocr": "complete",
+   "asr": "not_applicable",
+   "keyframes": "not_applicable",
+   "note": "声明模态：image；未拿到 provider 佐证的模态记 incomplete（缺口，不是不适用）；其中 image、ocr 的「complete」来自**调用方申报**（不是引擎自测），按申报档看待",
+   "declared_by": "caller",
+   "declared_modalities": [
+    "image",
+    "ocr"
+   ],
+   "declared_providers": {
+    "image": "macos-vision",
+    "ocr": "macos-vision"
+   },
+   "declared_via": {
+    "image": "cli--coverage",
+    "ocr": "cli--coverage"
+   }
+  },
+  "decision_trace": {
+   "reasons": [
+    "no_known_blocking_or_review_risk"
+   ],
+   "confidence_status": "heuristic_not_calibrated",
+   "evaluated_at": "2026-10-23T10:05:58.581323+00:00",
+   "tier_trace": {
+    "P0": 0,
+    "P1": 0,
+    "P2": 0,
+    "P3": 0,
+    "p0_confirmed_blocking": 0,
+    "p0_without_evidence": 0,
+    "p3_advice_only": true,
+    "p0_confidence_flow": false
+   },
+   "confidence_route": {
+    "applies": true,
+    "band": "direct",
+    "range": ">= 0.85",
+    "effect": "keep",
+    "annotate": null,
+    "decision_before": "PASS",
+    "decision": "PASS",
+    "why": "PRD v1.3 §6.6：≥0.85 直接输出结论（BLOCK / SUGGEST / PASS）",
+    "p0_override": false,
+    "fail_open": false,
+    "warning": null,
+    "thresholds": {
+     "direct": 0.85,
+     "confirm": 0.6
+    },
+    "calibrated": false,
+    "thresholds_source": "kb/l7/registry/confidence-policy.json"
+   },
+   "confidence_derivation": {
+    "kind": "derived",
+    "base": 0.93,
+    "cat_bonus": 0.0,
+    "ev_penalty": 0.0,
+    "unc_p0_penalty": 0.0,
+    "raw": 0.93,
+    "clamped_to_keep_decision": null,
+    "final": 0.93,
+    "note": "**只让值有分布、不改结论**（截断到本结论自己的档）；动 0.90/0.70 两条线是下一步，先用 kb/l8/calibrate_confidence.py 量代价。"
+   },
+   "decision_before_confidence_flow": "PASS"
+  },
+  "suggestions": [],
+  "suggest_count": 0,
+  "suggest_label": false
+ },
+ "evidence_meta": {
+  "run_id": "20261023-180555",
+  "findings": 0,
+  "state": "PASS",
+  "report_path": null,
+  "material_facets": {
+   "product_line": "",
+   "channel": "",
+   "from": {},
+   "all_product_lines": [],
+   "all_channels": [],
+   "anchors_used": 0
+  },
+  "trace": {
+   "p0": {
+    "engine": "kb/l5/matcher.py",
+    "exit_code": 0,
+    "total_elapsed_ms": 52.08,
+    "engine_elapsed_ms": 19.682,
+    "hits": []
+   },
+   "rules": {
+    "engine": "kb/l3/candidates/rules.jsonl",
+    "kb_type_filter": null,
+    "rules_scanned": 639,
+    "hits": [
+     {
+      "rule_id": "r-724b26ecb1dee9c4",
+      "article_no": "W-1.30",
+      "rule_code": "安全词",
+      "taxonomy_category": "商品信息与Listing准确性",
+      "taxonomy_subcategory": "规格与参数表述",
+      "p_level": "P1",
+      "risk_level": "Low",
+      "authority": null,
+      "kb_type": "wording",
+      "authority_source_table": null,
+      "matched_fragments": [
+       "suction levels"
+      ],
+      "anchor": "#品线内容边界规则库/recvuJP2Ot474u/边界内容",
+      "source_sha256": "5a740e9d29e4a9defa82e99066118cb7a118d1d55a21b0e109f6a0aa0257d000",
+      "rule_text": "边界：客观功能/真实认证关键词（正面提示，不参与降级）；触发词：suction level, suction levels, adjustable suction, 9 levels, 10 levels, hands-free, wearable, portable, rechargeable, wireless, BPA-free, food-grade silicone, food grade, FDA cleared, FDA-cleared, FDA registered, easy to clean, dishwasher safe, dishwasher-safe, quiet mode, low noise, low-decibel, reduces pain, less pain, gentle, comfort",
+      "suggested_replacement": ""
+     }
+    ]
+   },
+   "negative_rules": {
+    "engine": "kb/l3/candidates/negative_rules.jsonl",
+    "rules_scanned": 476,
+    "hits": [],
+    "require_visual": true,
+    "dropped_text_only": [],
+    "scene_provided": false,
+    "not_subject": [],
+    "not_subject_count": 0,
+    "not_substantive": [],
+    "not_substantive_count": 0,
+    "attribution_gate": "subject_or_record_level_anchored"
+   },
+   "units": {
+    "engine": "kb/l6/retriever.py",
+    "l6_mode": "vector_plus_bm25",
+    "semantic_recall": true,
+    "bm25_max": 40.8489,
+    "cosine_max": 0.0,
+    "used_vector": false,
+    "no_semantic_annotation": null,
+    "top_bm25": [
+     {
+      "source": "bm25_en",
+      "unit_id": "488307f73e44e64c1eb2",
+      "anchor": "#品线内容边界规则库/recvuJP2Ot474u/检测关键词",
+      "table": "品线内容边界规则库",
+      "kb_type": "wording",
+      "source_sha256": "5a740e9d29e4a9defa82e99066118cb7a118d1d55a21b0e109f6a0aa0257d000",
+      "raw_bm25": 40.8489,
+      "rrf": 0.03278688,
+      "queries": [
+       "main",
+       "img_text#1"
+      ],
+      "excerpt": "suction level, suction levels, adjustable suction, 9 levels, 10 levels, hands-free, wearable, portable, rechargeable, wireless, BPA-free, food-grade silicone, f"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "631e1742b40d8f5e8bed",
+      "anchor": "#l.1-2",
+      "table": "l.1-2",
+      "kb_type": "wording",
+      "source_sha256": "bfa131eb476b3b1040ff0197ed73e999b541d22185d143c1bc0d5439cbaf428b",
+      "raw_bm25": 28.5436,
+      "rrf": 0.03200205,
+      "queries": [
+       "main",
+       "img_text#1"
+      ],
+      "excerpt": "nge stands out with its integrated warm-massage elements—five vibration units and a petal-shaped warming zone, making it unique in the wearable pump market. Fea"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "d684e5d7a716e42a68dc",
+      "anchor": "#l.1-3",
+      "table": "l.1-3",
+      "kb_type": "wording",
+      "source_sha256": "f03ce57a8e6e542dd802551af6af9108df86e1ae87929d8394697c8b2de54677",
+      "raw_bm25": 28.3545,
+      "rrf": 0.03149802,
+      "queries": [
+       "main",
+       "img_text#1"
+      ],
+      "excerpt": "ss. A pump can be wireless and still use tubing, as long as it runs on battery power rather than wall power. A portable breast pump is designed to be easy to ca"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "52e9a289d7e99c4edd20",
+      "anchor": "#l.1-3",
+      "table": "l.1-3",
+      "kb_type": "wording",
+      "source_sha256": "b573daff5269c8184e4e354ed429f2b50f0a20aa8142af099a7671d0d7bd5c84",
+      "raw_bm25": 27.1851,
+      "rrf": 0.03077652,
+      "queries": [
+       "main",
+       "img_text#1"
+      ],
+      "excerpt": "especially when it comes to wearable breast pumps. The Momcozy M5 runs on a 1st generation motor, while the M6 upgrades the experience with a 2nd generation mot"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "65558865eb3bfab47ea5",
+      "anchor": "#广告文案明细/recvuJYdObBmKV/Primary Text",
+      "table": "广告文案明细",
+      "kb_type": "wording",
+      "source_sha256": "2275462e9d7eed965dfd78b492edfbb44be57ec0e531c95520cf0fdb83953807",
+      "raw_bm25": 27.0753,
+      "rrf": 0.03030999,
+      "queries": [
+       "main",
+       "img_text#1"
+      ],
+      "excerpt": "Amazon's #1 Breast Pump — Upgraded | Now Smarter. Still #1. | Pump at Your Desk. No One Knows. | Pump Like Baby's Latch — No Pain | Control From Your Phone | We"
+     }
+    ],
+    "vector_rows": [],
+    "adopted": [
+     {
+      "source": "bm25_en",
+      "unit_id": "488307f73e44e64c1eb2",
+      "anchor": "#品线内容边界规则库/recvuJP2Ot474u/检测关键词",
+      "table": "品线内容边界规则库",
+      "kb_type": "wording",
+      "source_sha256": "5a740e9d29e4a9defa82e99066118cb7a118d1d55a21b0e109f6a0aa0257d000",
+      "raw_bm25": 40.8489,
+      "rrf": 0.03278688,
+      "queries": [
+       "main",
+       "img_text#1"
+      ],
+      "excerpt": "suction level, suction levels, adjustable suction, 9 levels, 10 levels, hands-free, wearable, portable, rechargeable, wireless, BPA-free, food-grade silicone, f",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "631e1742b40d8f5e8bed",
+      "anchor": "#l.1-2",
+      "table": "l.1-2",
+      "kb_type": "wording",
+      "source_sha256": "bfa131eb476b3b1040ff0197ed73e999b541d22185d143c1bc0d5439cbaf428b",
+      "raw_bm25": 28.5436,
+      "rrf": 0.03200205,
+      "queries": [
+       "main",
+       "img_text#1"
+      ],
+      "excerpt": "nge stands out with its integrated warm-massage elements—five vibration units and a petal-shaped warming zone, making it unique in the wearable pump market. Fea",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "d684e5d7a716e42a68dc",
+      "anchor": "#l.1-3",
+      "table": "l.1-3",
+      "kb_type": "wording",
+      "source_sha256": "f03ce57a8e6e542dd802551af6af9108df86e1ae87929d8394697c8b2de54677",
+      "raw_bm25": 28.3545,
+      "rrf": 0.03149802,
+      "queries": [
+       "main",
+       "img_text#1"
+      ],
+      "excerpt": "ss. A pump can be wireless and still use tubing, as long as it runs on battery power rather than wall power. A portable breast pump is designed to be easy to ca",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "52e9a289d7e99c4edd20",
+      "anchor": "#l.1-3",
+      "table": "l.1-3",
+      "kb_type": "wording",
+      "source_sha256": "b573daff5269c8184e4e354ed429f2b50f0a20aa8142af099a7671d0d7bd5c84",
+      "raw_bm25": 27.1851,
+      "rrf": 0.03077652,
+      "queries": [
+       "main",
+       "img_text#1"
+      ],
+      "excerpt": "especially when it comes to wearable breast pumps. The Momcozy M5 runs on a 1st generation motor, while the M6 upgrades the experience with a 2nd generation mot",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "65558865eb3bfab47ea5",
+      "anchor": "#广告文案明细/recvuJYdObBmKV/Primary Text",
+      "table": "广告文案明细",
+      "kb_type": "wording",
+      "source_sha256": "2275462e9d7eed965dfd78b492edfbb44be57ec0e531c95520cf0fdb83953807",
+      "raw_bm25": 27.0753,
+      "rrf": 0.03030999,
+      "queries": [
+       "main",
+       "img_text#1"
+      ],
+      "excerpt": "Amazon's #1 Breast Pump — Upgraded | Now Smarter. Still #1. | Pump at Your Desk. No One Knows. | Pump Like Baby's Latch — No Pain | Control From Your Phone | We",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     }
+    ],
+    "discarded": [],
+    "gate": {
+     "bm25_raw_min": 8.0,
+     "vector_cosine_min": 0.6,
+     "use_raw_scores_only": true,
+     "why_not_rrf": "RRF 分恒为 1/(60+k)，实测 Top1 恒在 0.016393，A 组与 B 组看起来一样高，没有区分度，不能当门限",
+     "why_single_threshold_not_enough": "实测 BM25 原始分在 A/B 两组有重叠（A 组最低 5.32 < B 组最高 10.02），所以门限只用于「够不够格当参考」，要成为「依据」还必须同时命中规则层",
+     "measured": {
+      "bm25_raw": {
+       "A_group_min": 5.32,
+       "A_group_median": 12.76,
+       "B_group_median": 6.44,
+       "B_group_max": 10.02,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      },
+      "cosine": {
+       "A_group_min": 0.512,
+       "A_group_median": 0.669,
+       "B_group_median": 0.384,
+       "B_group_max": 0.569,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      }
+     },
+     "threshold_reasoning": "BM25 门限取 8.0：落在 A 组最低(5.32)与 B 组最高(10.02)之间、贴近两组中位之间，偏保守；余弦门限取 0.60：实测它是唯一能把 B 组全部挡在外面的取值（B 组最高 0.569），代价是 A 组丢 2 条；即便如此门限仍单独不可靠，必须叠加「同时命中规则层」才算依据",
+     "below_threshold_label": "参考",
+     "above_threshold_without_rule_hit": "仍只能标参考，不得作为依据",
+     "coverage_bm25_min": 16.0,
+     "coverage_reasoning": "PASS 必须建立在「知识库认识这个主题」之上，覆盖信号二选一：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ coverage_bm25_min(=16.0)。16.0 = 依据门限的 2 倍：实测 A 组中位 12.76 / 最高 23.16，B 组最高 10.02，取 16 能把实测 B 组全部挡在外面。覆盖信号不成立 → 拒答，不得输出 PASS。"
+    }
+   },
+   "image_identity": {
+    "engine": "kb/l3/candidates/negative_image_fp.jsonl",
+    "checked": 1,
+    "hits": [],
+    "candidates": [
+     {
+      "image": "/tmp/shouheng-chain-img-DtjXHv/16o_96420cef-15a2-482c-b22f-c57e96cd9d4g-mvkt0hgz-efg4ei.img",
+      "n": 0,
+      "top": []
+     }
+    ],
+    "error": null
+   },
+   "coverage": {
+    "safe_vocabulary_hits": [
+     "W-1.30"
+    ],
+    "rule_cited_unit_hits": [
+     {
+      "anchor": "#品线内容边界规则库/recvuJP2Ot474u/检测关键词",
+      "raw_bm25": 40.8489
+     }
+    ],
+    "same_source_unit_hits": [],
+    "case_unit_hits": [],
+    "case_clause_pool": 176,
+    "rule_cited_anchor_pool": 965,
+    "rule_cited_resource_pool": 49,
+    "coverage_bm25_min": 16.0,
+    "covered_by": "safe_vocabulary",
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "covered": true
+   },
+   "elapsed_ms": 2138.0,
+   "perf": {
+    "p0_match_ms": 52.1,
+    "rule_layer_ms": 31.8,
+    "negative_rule_layer_ms": 182.7,
+    "unit_layer_ms": 1711.9,
+    "assemble_ms": 72.1,
+    "content_type": "image",
+    "text_bytes": 2006,
+    "threshold_s": 20
+   },
+   "risk_category": {
+    "with_dimension": 0,
+    "unmapped_or_pending": 0,
+    "policy": "kb/l7/registry/risk-category-policy.json"
+   },
+   "taxonomy": {
+    "with_class": 0,
+    "without_class": 0,
+    "policy": "kb/l3/registry/rule-taxonomy.json（人工口径，Owner 采用；非源字段）"
+   }
+  },
+  "source": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py",
+  "findings_source": {
+   "mode": "live",
+   "path": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py"
+  },
+  "kb_hits": [
+   {
+    "anchor": "#品线内容边界规则库/recvuJP2Ot474u/检测关键词",
+    "bm25": 40.8489,
+    "kb_type": "wording",
+    "source_sha256": "5a740e9d29e4a9defa82e99066118cb7a118d1d55a21b0e109f6a0aa0257d000",
+    "excerpt": "suction level, suction levels, adjustable suction, 9 levels, 10 levels, hands-free, wearable, portable, rechargeable, wireless, BPA-free, food-grade silicone, f",
+    "url": "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblD1MiUK1v5fdjD&record=recvuJP2Ot474u"
+   },
+   {
+    "anchor": "#l.1-2",
+    "bm25": 28.5436,
+    "kb_type": "wording",
+    "source_sha256": "bfa131eb476b3b1040ff0197ed73e999b541d22185d143c1bc0d5439cbaf428b",
+    "excerpt": "nge stands out with its integrated warm-massage elements—five vibration units and a petal-shaped warming zone, making it unique in the wearable pump market. Fea",
+    "url": "https://momcozy.com/blogs/breastfeeding/wearable-pump-wellness-vs-smart"
+   },
+   {
+    "anchor": "#l.1-3",
+    "bm25": 28.3545,
+    "kb_type": "wording",
+    "source_sha256": "f03ce57a8e6e542dd802551af6af9108df86e1ae87929d8394697c8b2de54677",
+    "excerpt": "ss. A pump can be wireless and still use tubing, as long as it runs on battery power rather than wall power. A portable breast pump is designed to be easy to ca",
+    "url": "https://ca.momcozy.com/collections/wearable-breast-pump"
+   },
+   {
+    "anchor": "#l.1-3",
+    "bm25": 27.1851,
+    "kb_type": "wording",
+    "source_sha256": "b573daff5269c8184e4e354ed429f2b50f0a20aa8142af099a7671d0d7bd5c84",
+    "excerpt": "especially when it comes to wearable breast pumps. The Momcozy M5 runs on a 1st generation motor, while the M6 upgrades the experience with a 2nd generation mot",
+    "url": "https://momcozy.com/blogs/momcare/momcozy-m5-vs-m6-comparison"
+   },
+   {
+    "anchor": "#广告文案明细/recvuJYdObBmKV/Primary Text",
+    "bm25": 27.0753,
+    "kb_type": "wording",
+    "source_sha256": "2275462e9d7eed965dfd78b492edfbb44be57ec0e531c95520cf0fdb83953807",
+    "excerpt": "Amazon's #1 Breast Pump — Upgraded | Now Smarter. Still #1. | Pump at Your Desk. No One Knows. | Pump Like Baby's Latch — No Pain | Control From Your Phone | We",
+    "url": "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJYdObBmKV"
+   }
+  ],
+  "layer_preflight": {
+   "base": "20261023-180545",
+   "ok": true,
+   "red_total": 0,
+   "mode": "enforced",
+   "details": {
+    "L4": {
+     "run": "20261023-180545-L4",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L4": "session-760f0939-0afe-48ac-9aa7-88c691f902c4"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L5": {
+     "run": "20261023-180545-L5",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L5": "session-760f0939-0afe-48ac-9aa7-88c691f902c4"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L6": {
+     "run": "20261023-180545-L6",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L6": "session-760f0939-0afe-48ac-9aa7-88c691f902c4"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L7": {
+     "run": "20261023-180545-L7",
+     "exit": 0,
+     "red": 0,
+     "yellow": 0,
+     "skill_sessions": {
+      "L7": "session-760f0939-0afe-48ac-9aa7-88c691f902c4"
+     },
+     "pass": true,
+     "note": ""
+    }
+   }
+  },
+  "position": {
+   "value": "顶部，图 1 第 1 处",
+   "supplied_by": "reviewer(cli)",
+   "note": "复核人按 Owner 2026-10-20 令写入（四形态）"
+  },
+  "decision_owner": {
+   "skill": "图片安全审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check",
+    "图片安全审查"
+   ]
+  },
+  "image_skill_gate": {
+   "ok": true,
+   "expected": "图片安全审查",
+   "owner": "图片安全审查",
+   "checks": [
+    "送审原图可读：1 张",
+    "skill 就绪：/Users/lute/.dsh/skills/图片安全审查",
+    "本会话观测到成功加载（loaded）"
+   ],
+   "warnings": [],
+   "load": {
+    "verdict": "loaded",
+    "calls": [
+     {
+      "callId": "call_00_ET_KfHsrXNVPQOuf6cqEe3g4188",
+      "seq": 46,
+      "verdict": "loaded",
+      "excerpt": "<skill_content name=\"图片安全审查\">\n<skill_resources>\nBase directory for this skill: /Users/lute/.dsh/skills/图片安全审查\nResolve re"
+     }
+    ]
+   }
+  },
+  "publish": {
+   "mode": "disabled_by_caller",
+   "published": false,
+   "reason": "disabled_by_caller"
+  },
+  "report_url": null,
+  "report_url_kind": null
+ }
+}

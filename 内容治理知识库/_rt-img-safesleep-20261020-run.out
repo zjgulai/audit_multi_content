@@ -1,0 +1,43 @@
+结论：REVIEW
+依据命中 5 处（检索时库内规则 1020 条 + P0 匹配；库规模按运行时实读，不硬编码）
+依据来源：本次现跑 review.py
+层前置：L4=✅ / L5=✅ / L6=✅ / L7=✅ ｜ 红合计 0 ｜ 会话 {'L4': 'session-7579b602-4efa-4da3-90f0-5169d02dfd40', 'L5': 'session-7579b602-4efa-4da3-90f0-5169d02dfd40', 'L6': 'session-7579b602-4efa-4da3-90f0-5169d02dfd40', 'L7': 'session-7579b602-4efa-4da3-90f0-5169d02dfd40'}
+判定主体：图片安全审查（declared）
+{
+ "review_id": "rv-20261021-110259",
+ "content_id": "AD-20261021-011",
+ "content_id_basis": "业务编号（PRD §5.4）：PRD §5.4 `AD-YYYYMMDD-NNN`；序号=11（表内同日前缀最大 +1）；读到 238 个内容 ID（表内 238 行、翻了 2 页）",
+ "content_version": "b5f2bf4b0af5780289b61e713630405bea98795c30dbb2d079cb14b01af76469",
+ "agent_version": "local-core-0.1.0",
+ "rule_version": "unfrozen",
+ "knowledge_version": "unfrozen",
+ "decision": "REVIEW",
+ "confidence": 0.83,
+ "summary": "【审查结论：REVIEW】共发现 5 处需人工确认。\n\n· 品牌信任与声誉类问题：1 个\n· 未归类问题：4 个\n\n→ 查看完整问题清单与修改建议：（本次未写报告，见 --report-dir）\n\n建议转 @法务（未配置） @北美同事（未配置） 复核。（其中 5/5 条未匹配到方向：该转谁需要人确认）（建议人工确认）",
+ "issue_count": 5,
+ "issue_count_including_candidates": 5,
+ "candidate_count": 0,
+ "issue_count_basis": "issue_count（5 = 库内依据，**与分类汇总同一个数**，见 PRD §5.4）= 完整清单 5 − 非权威候选 0；候选无库内条款号、只作排查线索，不构成依据",
+ "issue_summary_by_category": {
+  "负面样本-N-02": 4,
+  "原则性错误-禁区（库内反例条款）": 1
+ },
+ "risk_items": [
+  {
+   "risk_id": "nr-e9a668d63635960c",
+   "risk_type": "负面样本-N-02",
+   "risk_category": null,
+   "risk_category_basis": "类别「负面样本」不在政策件里（既非 map 也非 unmapped）⇒ **不编**",
+   "taxonomy_category": null,
+   "taxonomy_subcategory": null,
+   "taxonomy_basis": "该命中不在规则表里（如反例/案例层 sc-… 或覆盖缺口）⇒ 11 类留空，**不编**",
+   "prio
+飞书发布：素材属性 → 渠道='' ｜ 产品线=''（由 l0_facets 推出：{}）
+飞书发布：自动调用 feishu_publish.py --apply …
+  ③ 既有同「内容 ID」行 0 条（本单**新增一行**，不更新它们）
+  ④ 云文档：新建 → https://momcozy-in.feishu.cn/docx/RasidU1HyoCiDMxSmQQcNM0nn3f
+     ✅ 链接分享已开：link_share_entity=tenant_readable（PRD §9/§15 的报告链接这才打得开）
+  ⑤ 表行：新建 reczz28PuBXjl4Ke
+  ⑥ 读回：表行 reczz28PuBXjl4Ke ｜ 内容 ID 与结论一致 ✅
+  完成：docx=https://momcozy-in.feishu.cn/docx/RasidU1HyoCiDMxSmQQcNM0nn3f ｜ record=reczz28PuBXjl4Ke
+  门槛：report_link_required=True ｜ n_issues=5 ｜ min_issues=3 ｜ emitted=True ｜ form=summary_with_link ｜ source=policy

@@ -235,6 +235,12 @@ for base, tid, name in TABLES:
     for k in ("same", "only_feishu", "only_l0", "changed"):
         tot[k] += ent[k]
     print(f"[{name}] 飞书={len(fs)} L0={len(l0)} 一致={same} 飞书多={len(only_feishu)} L0多={len(only_l0)} 值变={len(changed)}")
+    # ★ 2026-10-19：把「只有飞书有」的**记录 id 与快照路径**也交出去（零写，只走 stdout）。
+    #   为什么：`l0_gate.py` 要判的是「这几条是不是**都被 filter 排除**」，不是「一共几条」——
+    #   条数只是那个判据的**影子**；源侧多一条未审核材料，影子就变，闸门就假红
+    #   （2026-10-18 周更正是这么停在 L0 的）。一行 JSON + `ensure_ascii` ⇒ 表名带空格也不会被拆错。
+    print("[only-feishu-ids] " + json.dumps(
+        {"table": name, "tid": tid, "snap": snap, "ids": list(only_feishu)}, ensure_ascii=True))
 
 # ---------- manifest 登记对账 ----------
 # 注意：resource_key 有两种形态 —— 入口 Base 的表用 bitable:<table_id>:<record_id>，

@@ -3360,3 +3360,268 @@ lark-cli im messages delete --message-id om_x100b63ca749d28a0df0d2b621d340ec  --
 - **从下一轮起就没有这个问题了**：出站收口已在两个发送口生效，周日 03:30 那趟推出去的是**干净的**正文；
 - 若 Owner 要求"群里把这几条盖过去"，可选动作是**推一条人工订正**（本库 2026-10-10 有先例，
   措辞写明「人工订正，不是日更重跑」）—— **等一句话再做**，因为它是对着群里真人发的。
+
+---
+
+## 2026-10-19 · 周报展示层三处「把事说错」（Owner 同意「推荐 ①」）
+
+**改动文件**：`kb/l8/daily_digest.py`（唯一）
+**备份**：`kb/l7/_backups/digest-display-20261019-110510/daily_digest.py`（回退 = `/bin/cp` 覆盖回去）
+**触发**：Owner 拿 10-19 那张群卡片问「周更的问题定位下」。定位出**三处读者直接看到的话是错的**
+（另有一处 L7 新鲜度假红，**不在本文件**，已由 `layer_freshness.py` 的 L7 例外修掉）。
+
+### 改了什么
+
+| # | 位置 | 原行为 | 新行为 | 为什么 |
+|---|---|---|---|---|
+| 1 | `_freshness_summary()` | 陈旧判词 `str(reason)[:40]` | **不截断**，全文进 md 与卡片（卡片按层分行） | 实测 127 字判词被切成「…`change_state=no_new_input` 而*」，**真原因（谁变了、哪个时间晚于哪个时间）全被切掉**；而同一段又写着「本次实测 L7 0.0h」⇒「陈旧」与「刚跑过」并列，无人能判 |
+| 2 | `render_push()` 的 ⛔ 段 | `miss` 为空也照打「覆盖这几类的脚本**没有被登记进那张清单**」 | `miss` 为空 ⇒ 照实写「没有专属引擎脚本（兜底格）／本轮库内 0 条」；`miss` 非空才说「没登记」并列出脚本 | 第 ⑫ 类在 `CLASSES` 里就是 `scripts=[]`、飞书侧 0 条；原话**与同一份 md 摘要的结论相反**（md 写「没有『有脚本却没接进日更』的类」），且连一个脚本名都列不出来 |
+| 3 | `render_push()` / `render_md()` 标题 | 写死「（日更报告）」／「· 日更对齐摘要」 | 周期词与「本趟 vs 排期」**从 launchd plist 现读**；并加两行：`排期：每周日 03:30 ｜ 本趟 … 不在排期时刻 ⇒ 补跑`、`上一次排期趟：… → 停在 L0 闸门红：exit=1` | 排期 2026-10-16 起是**周更**，而 10-19 10:03 这一趟**根本不在排期时刻**（周日 03:30 那趟 10-18 停在 L0）——卡片却是一条不带提示的「日更报告」，读者无法判断「周更到底跑成没有」 |
+
+### 关键口径（别改错）
+
+- **周期词不许写死**：`_schedule_fact()` 只**解读** `watch_review_readiness._read_schedule()`
+  （排期解析的唯一真源，那份文件自己写着「抄出去的第二份必然过期」）。读不到 ⇒ `kind=None`
+  ⇒ 标题只写「（报告）」，并打印「排期：读不到（原因）」—— **不许 fail-open 猜一个周期**。
+- **「上一次排期趟」只读 L0 记账**（`kb/l7/runs/daily-<日期>-<时刻>-L0.json` 的 `verdict`）：
+  L0 是每一轮第一层，它停在哪就代表整轮停在哪。**找不到落章写「未见落章」** —— 没落章 ≠ 没跑，也 ≠ 跑成。
+- **比对容差 `SLOT_TOLERANCE_MIN=20` 分钟**：launchd 会因休眠/唤醒抖动几分钟，那不足以把
+  「排期那一趟」说成「补跑」。它只是个容差常量，**不是判据**。
+- **正文里的「日更」当专名保留**（`daily_via_skill.sh` / `com.kb.pipeline-daily` 就叫这个）：
+  本次只改**关于周期的那句断言**（标题）与**本趟与排期的关系**，不改引擎清单等专名。
+
+### 判据与反向对照
+
+- `python3 kb/l8/daily_digest.py --selftest`：**37/0 → 44/0**（新增 ⑦ 条：⑥a／⑥b／⑥b2／⑥c／⑥d／⑥e／⑥f）。
+- **⑥a 必须走真链**：截断发生在 `_freshness_summary()`，夹具直接塞 `stale_pairs` **只证到渲染层**
+  —— 实测过：那样把 `[:40]` 加回去**照样全绿**。现改为把 `layer_freshness.judge` 打桩、整链验。
+- **三条变异自证**（各改一处，跑 selftest，看是否**精确**变红）：
+
+| 变异 | 结果 |
+|---|---|
+| 把 `[:40]` 加回去 | ❌ ⑥a（判词 173 字 → 摘要里 40 字） |
+| 标题写死「日更报告」 | ❌ ⑥c ＋ ❌ ⑥e |
+| 原因分支改成「总是说没登记」 | ❌ ⑥b |
+| （不改） | ✅ 44/0 |
+
+- 旁证：`workflow_smoke.py` ✅ 契约齐（rc=0）｜`check_agents_md_drift.py` rc=0｜
+  `tools/envelope_gate.py` 扫 5830 件，**本文件不在那 14 个信封态里**（该闸门另有自身读数不一致的旧问题，与本改无关）。
+
+### 回滚
+
+```bash
+cp kb/l7/_backups/digest-display-20261019-110510/daily_digest.py kb/l8/daily_digest.py
+python3 kb/l8/daily_digest.py --selftest    # 应回到 37/0
+```
+
+---
+
+## 2026-10-19 · 第二批：跳过要说为什么 ＋ 预演档报黄 ＋ L7 例外补自证（Owner 同意 C1/C2/D1）
+
+**改动文件**：`kb/l8/daily_digest.py`（第二批）｜`kb/l7/scripts/layer_freshness.py`（**只加自测，判据逻辑一个字没动**）
+**备份**：`kb/l7/_backups/digest-display-20261019-110510/`（**本会话动手前**的原件，第一二批共用这一个回滚点）
+＋ `kb/l7/_backups/lf-selftest-l7-20261019-112433/layer_freshness.py`
+**授权**：Owner 2026-10-19「同意，不要影响现有的工作流」。
+
+### 改了什么
+
+| # | 位置 | 原行为 | 新行为 | 为什么 |
+|---|---|---|---|---|
+| 1 | `render_push()` / `render_md()` 入库段 | 只写「跳过 11」一个数 | 按 `ingest.skipped[].why` **分组给原因**；当「跳过数 = 声明数」时点明是 `l0-expected-diffs.yaml` 的**预期排除、不是漏抓**；并点明「台账 +N 是 reconcile 追加行，**另一本账**」 | 原话读起来像「11 条数据被丢了」；真相是 `材料审核状态=[]`，按 `kb/l0/registry/kb.json → filter` 本就不入库，且 EX-1 已声明 11 |
+| 2 | `_layer_stamps()` / `_split_layers()` | 只看退出码 ⇒ 预演档照样 `L7✅` | 读 `verdict`；含「预演/未落盘/非执行证据/干跑」的进 `preview`，卡片与 md 报 **⚠️ 预演/自述（不判红，但不算真执行）** | 10-19 的 L7 落章 verdict 就是「全走完（预演 · 未落盘 · 非执行证据）」、skill 证据退回注册表 ⇒ 一片绿把「没真跑」说成「跑了」。库规：**预演/自述报黄，不判红** |
+| 3 | `_declared_only_feishu()` | —（无此概念） | 走 **`l0_gate.load_yaml` / `l0_gate.EXPECT` 的同一个读取器**读声明合计；读不到回 `None`，**不猜** | 声明数不许抄第二份；也不在摘要里复算「真差异」（那是闸门的事） |
+| 4 | `layer_freshness._selftest()` | 只有反测 1–8，**没有 L7 用例** | 加 **反测9a/9b** | 10:57 那个 L7 例外的唯一反向对照在 `watch_review_readiness --selftest` 的 ㉓l 里，而**那条 selftest 不在任何定时任务里跑** ⇒ 删掉例外，本文件自测照样全绿 |
+
+### 判据与反向对照
+
+- `daily_digest.py --selftest`：**44/0 → 53/0**（新增 ⑦a／⑦a2／⑦a3／⑦b／⑦b2／⑦c／⑦d／⑦e／⑦f）。
+- `layer_freshness.py selftest`：反测 1–8 → **1–9 全过**。
+- **五条变异自证**（各改一处 ⇒ 精确变红）：
+
+| 变异 | 结果 |
+|---|---|
+| `done` 不再排除 `preview` | ❌ ⑦a2（`done=['L0','L7']`） |
+| `_layer_stamps` 不读 `verdict` | ❌ ⑦a3（verdict=''） |
+| `build()` 不并 `skip_reasons` | ❌ ⑦f（原因组 0 ｜ 合计 0 ｜ 跳过 11） |
+| 删掉 L7 例外（预演档一律跳过） | ❌ 反测9a（取到 20260930-1740.json） |
+| 例外放大成「任何预演都算」 | ❌ 反测9b（取到 20261019-0946-L7.json） |
+| （不改） | ✅ digest 53/0｜layer_freshness 全过 |
+
+### 工作流回归（Owner：「不要影响现有的工作流」）
+
+| 闸门 | 结果 |
+|---|---|
+| `kb/l8/workflow_smoke.py` | **rc=0「契约齐」** |
+| `kb/l8/check_agents_md_drift.py` | rc=0（11 项 ✅） |
+| `kb/l8/watch_review_readiness.py --selftest` | **123/0**（它 import 了被我改过自测的层） |
+| `kb/l8/daily_digest.py <BASE> --print-push` | rc=0，出站星号 0 |
+| `tools/envelope_gate.py` | 5818 正常／14 信封态，**改的两个文件都不在里面** |
+
+### 回滚
+
+```bash
+cp kb/l7/_backups/digest-display-20261019-110510/daily_digest.py kb/l8/daily_digest.py
+cp kb/l7/_backups/lf-selftest-l7-20261019-112433/layer_freshness.py kb/l7/scripts/layer_freshness.py
+```
+（回滚点 = **本会话两批之前**的原件；回滚后 digest 自测应回到 37/0。）
+
+---
+
+## 2026-10-19 · ★★ 周更失败**自动补跑**（Owner：「我需要的是你解决问题，不要一直在修复问题」）
+
+**改动文件**：`kb/l8/watch_review_readiness.py`
+**备份**：`kb/l7/_backups/weekly-heal-20261019-113103/watch_review_readiness.py`
+**触发**：Owner 问「你跟我确认的问题（EX-1 治本），这次能修复周更问题吗？」——
+  **答案是「不能」**：EX-1 治本只消掉一类红，周更失败的**恢复路径**根本没接。
+  这条改的就是那条路。
+
+### 病灶（可复核）
+
+| 事实 | 证据 |
+|---|---|
+| 自愈的唯一触发因是「新鲜度红」，而阈值是 **8 天** | `heal_decision(freshness_stale=…)` 是唯一入口 |
+| 周更没跑成 ⇒ **只推一条告警**，附带一条给人敲的 `launchctl kickstart` | `check_weekly_run_ran()` 返回 False 只进非阻断告警组 |
+| 10-19 那趟补跑是**人** 10:03 敲的 | 10:00:11 告警（`kb/.work/.review-readiness-alert.json`）→ 10:03:57 起跑；`kb/.work/freshness-heal.ndjson` 最后一条停在 **2026-10-13** |
+| ⇒ 周更失败后最长约 **2 天**无人兜（等到 8 天阈值才自愈） | 阈值 8 天 − 周期 7 天 |
+
+### 改了什么
+
+| # | 位置 | 原行为 | 新行为 |
+|---|---|---|---|
+| 1 | `heal_decision()` | `if not freshness_stale: return False` | 加 `weekly_missed` 参数：**「这一轮该跑的没跑成」也是触发因**，五道前置一道不减 |
+| 2 | `main()` 自愈段 | 只在 `fresh_ok is False` 时进入 | `heal_causes(fresh_ok, wk_ok)` 纯函数算触发因；`heal_sig()` 算「这一轮」签名（周更 ⇒ `weekly-missed@<排期时刻>`，**同一槽只踢一次**） |
+| 3 | 自证 ⑰l | `"...字面量..." in _src2` —— **那串字面量就写在判据自己正文里** ⇒ 恒真 | 改用 `inspect.getsource(main)`：**只扫 `main()` 正文**，扫不到自证自己 |
+
+### 效果（周更失败后的时间线）
+
+| | 旧 | 新 |
+|---|---|---|
+| 周日 03:30 跑挂 | 停在 L0 | 停在 L0 |
+| 周日 15:30（宽限 12h 后） | 推一条告警，**等人** | 推告警 **＋ 自动踢一次补跑**（五道前置全过时） |
+| 补跑 | 人看到才做（10-19 实测：隔了 30 小时） | ~50 分钟后数据到位；失败也会留痕 |
+
+### 判据与反向对照
+
+- `watch_review_readiness.py --selftest`：**123/0 → 130/0**（新增 ⑰m/⑰n/⑰o/⑰p/⑰q/⑰r/⑰s）。
+- **四条变异各改一处，实测精确变红**：
+
+| 变异 | 结果 |
+|---|---|
+| `heal_decision` 退回「只认新鲜度」 | ❌ ⑰m ＋ ⑰o ＋ ⑰p |
+| `main()` 触发退回 `if fresh_ok is False:` | ❌ ⑰s |
+| `heal_causes` 只看新鲜度 | ❌ ⑰q |
+| 周更签名不带排期时刻 | ❌ ⑰r |
+
+### 工作流回归
+
+`workflow_smoke.py` **rc=0「契约齐」**｜`check_agents_md_drift.py` rc=0｜
+`watch_review_readiness.py --no-send --no-heal` **rc=0「✅ 就绪」**（真跑一遍 main，不推不动手）｜
+`daily_digest.py --selftest` 53/0｜`layer_freshness.py selftest` 全过｜`envelope_gate` 我的文件 0 命中。
+
+### 回滚
+
+```bash
+cp kb/l7/_backups/weekly-heal-20261019-113103/watch_review_readiness.py kb/l8/watch_review_readiness.py
+python3 kb/l8/watch_review_readiness.py --selftest     # 应回到 123/0
+```
+
+---
+
+## 2026-10-19 · ★★ EX-1 判据：从「数条数」换成「逐条复算」（Owner「推荐：做 ②」）
+
+**改动文件**：`kb/l7/scripts/l0_gate.py`｜`kb/l7/registry/l0-expected-diffs.yaml`｜`kb/l8/align_l0_feishu.py`
+**备份**：`kb/l7/_backups/ex1-predicate-20261019-115305/`（三件）
+**触发**：Owner 指出「你给我的建议必须是能修复周更问题的」——审核我自己的建议后，
+  只有这条对应**真实发生过的那次停摆**（10-18 周更停在 L0），其余都是配套。
+
+### 病灶
+
+EX-1 的判据是「材料收集 `only_feishu` 条数 == 11」。而它**真正该核的**是
+「这几条是不是都被 `kb/l0/registry/kb.json → filter` 排除（只收「材料审核状态 == 通过」）」。
+**条数只是那个判据的影子**：飞书侧多一条未审核材料，影子就变 ⇒ 闸门判红 ⇒ 整轮停在 L0 ⇒
+L1–L7 一周没跑。2026-10-18 就是这么停的，10-19 靠人手补。
+
+### 改了什么
+
+| # | 文件 | 改法 |
+|---|---|---|
+| 1 | `align_l0_feishu.py` | 每张表多打一行 `[only-feishu-ids] {json}`：表名 / table_id / **快照路径** / **only_feishu 的记录 id**（零写，只走 stdout） |
+| 2 | `l0_gate.py` | 新增 `_judge_by_filter()`：按 `filter_assert` **逐条复算**这 N 条是否都被 filter 排除；新增 `_expected_verdict()` 把「filter 优先、计数回退」写成纯函数；新增 `--selftest`（7 条，零网络） |
+| 3 | `l0-expected-diffs.yaml` | EX-1 增加 `filter_assert: {field: 材料审核状态, not_in: [通过]}`；`expected: 11` 退化为**参考值**（仍打印，供人看漂移） |
+
+**三条硬规矩**：
+- **`filter_assert` 优先于条数**：全部被排除 ⇒ 预期内（条数变了也不红）；
+- **有记录不满足 filter ⇒ 真差异**（放宽**不许吞掉真差异**，残差 = 违规条数）；
+- **读不到快照/字段/ids ⇒ 回退计数**（fail-closed，不放行，且 verdict 里写明「已回退计数」，不静默）。
+
+### 判据与反向对照（`l0_gate.py --selftest` 7/0）
+
+| 用例 | 钉什么 |
+|---|---|
+| ① | 12 条全部未审核、声明 11 ⇒ **预期内、真差异 0**（条数变了也不红） |
+| ② | 有 1 条 `材料审核状态=["通过"]` ⇒ **必须判真差异**（吞掉真差异 ⇒ 本条精确变红） |
+| ③ | 快照读不到 ⇒ 判不了 ⇒ **回退计数**且条数多了仍红 |
+| ③b | 快照里没有该字段 ⇒ 同样回退（无法证明 ≠ 证明干净） |
+| ④/④b | 没写 `filter_assert` 的声明 ⇒ **行为一个字不变**（老规矩：计数） |
+| ⑤ | 对齐器没给 ids 行（老版本）⇒ 回退计数 |
+
+### 端到端实跑（真拉飞书，只读）
+
+| 场景 | 结果 |
+|---|---|
+| 正常跑（声明 11、实际 11） | ✅ 过 / 真差异 0 / 退出码 0；判词写明「按 filter 逐条复算：11 条 `材料审核状态` 均不在 ['通过']」 |
+| **制造 10-18 的形状**（临时把声明改成 10、实际仍 11） | ✅ **仍然过 / 真差异 0 / 退出码 0** ← 改前这里必然红。跑完已还原成 11 |
+| **反向对照**：临时去掉 `filter_assert`、声明仍 10 | ❌ **未过 / 真差异 1 / 退出码 1** ← 证明老计数判据**还在**，「变绿」是 filter 判据给的，不是把闸门拆了 |
+
+> ⚠️ 过程留痕：第二项跑完时我用备份还原了 YAML，**误把新加的 `filter_assert` 一起撤掉了**（备份是加它之前的版本）。
+> 已发现并复原，随后重跑上面三项 + 全部闸门，终检全绿。**回滚命令里的 YAML 那一行会把 filter_assert 一起退掉，
+> 只有确实要退回老判据时才用它。**
+
+### 工作流回归
+
+`workflow_smoke.py` **rc=0「契约齐」**｜`check_agents_md_drift.py` rc=0｜
+**`skills_check.py` 五类全 0**（改了 registry，这条必须核）｜`daily_digest` 53/0｜
+`watch_review_readiness` 130/0｜`envelope_gate` 我改的三个文件 **0 命中**。
+
+### 回滚
+
+```bash
+cp kb/l7/_backups/ex1-predicate-20261019-115305/l0_gate.py   kb/l7/scripts/l0_gate.py
+cp kb/l7/_backups/ex1-predicate-20261019-115305/align_l0_feishu.py kb/l8/align_l0_feishu.py
+cp kb/l7/_backups/ex1-predicate-20261019-115305/l0-expected-diffs.yaml kb/l7/registry/l0-expected-diffs.yaml
+python3 kb/l7/scripts/l0_gate.py            # 应回到「数条数」判据
+```
+
+## 2026-10-21 · 图身份层：库内负面样本图按「图对图」认（＋生产形态判据 S14）
+
+**改动文件**：`kb/l8/build_negative_image_fp.py`（新增）、`kb/l8/check_negative_image_identity.py`（新增）、
+`kb/l8/review_run.sh`、`kb/l8/workflow_smoke.py`（新增 S14）。
+**关联改动**（不属 kb/l8，登记在 `report-output-contract.yaml::fix_20261021_image_identity_hit`）：
+`kb/l7/skills/kb-content-review/scripts/review.py`（`--image` ＋ `layer_image_identity`）、
+`kb/l7/review-engine/core/with_kb_evidence.py`（`--image` 透传）。
+**备份**：`kb/l8/review_run.sh.bak-pre-image-identity-20261021-111827`、
+`kb/l8/workflow_smoke.py.bak-pre-s14-20261021-112316`（回退 = `/bin/cp` 覆盖回去）。
+**触发**：2026-10-21 德国海报从守衡发出去 **0 命中** ⇒ 结论 PASS。根因：认图只靠 OCR 文本
+（图字节 sha 被飞书 IM 重压缩打掉；两套 OCR 又对不上：丢变音符号、夹水印行）。
+
+### 改了什么
+
+| # | 位置 | 原行为 | 新行为 | 为什么 |
+|---|---|---|---|---|
+| 1 | `build_negative_image_fp.py` | 无 | 339 张库内图 → sha / pHash / 记录 / 序号 / file_token / 规则，落 `kb/l3/candidates/negative_image_fp.jsonl` | 「图对图」先要有图身份索引；离线可复算（38s） |
+| 2 | `check_negative_image_identity.py` | 无 | 把库内图**缩 80%＋JPEG70**（模拟飞书）当送审图 → 真引擎 ⇒ 必须命中**它自己**的可引用规则；噪声图必须 0 命中；`--selftest` 反向对照 | 旧 S13 量的是「库内 OCR → 引擎」，**不覆盖生产形态**；这张图在 S13 口径下是绿的 |
+| 3 | `review_run.sh` | 无 `--image` | 新增 `--image`（可重复）→ `with_kb_evidence --image`；不给 ⇒ 命令行与改动前逐字相同 | 图必须进链；它此前只用于申报 coverage（算 sha），**从未进过评审** |
+| 4 | `workflow_smoke.py` | S1–S13 | 新增 **S14**（读 `.work/negative_image_identity.json`；没读数/超 7 天 = 未测，不计红） | 让「库内图必命中」有生产形态的尺子，且不重造 S13 |
+
+### 判据与读数（2026-10-21）
+
+- `check_negative_image_identity.py --selftest`：噪声图 0 命中、库内图命中 ✅
+- `--sample 12 --seed 7`：**12/12 命中**、噪声 0；全库 339 张里 **188 张有可引用规则**、151 张只有 observation/brief（数据缺口，另案）
+- `workflow_smoke` **S14 绿**
+- 端到端 `review_run.sh --image`（德国海报）：**REVIEW/1、N-1.359**，「图身份：pHash 距离 6，相关 0.948」
+
+### 边界（照实说）
+
+- 图身份命中一律 **REVIEW**（历史审核意见）；「同图＋稳定反例/禁区 ⇒ BLOCK」需 Owner 裁定，本批不启用。
+- `S10 出口闸`仍红（存量：merged 记录位置裸「图 1」，来自 11:18–11:19 那两单）—— 与本批无交集。
+- `check_negative_image_hitrate --selftest` ⑵ 在**不可引夹具**上失败；改动前备份同样失败，属存量。

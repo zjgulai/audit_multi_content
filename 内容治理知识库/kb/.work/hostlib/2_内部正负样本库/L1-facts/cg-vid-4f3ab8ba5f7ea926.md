@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - 这条视频（FD162D27-BD92-479B-B306-7B4121D2BC07.mp4）画面里出现了哪些文字
   - 某个时间点画面上写的是什么

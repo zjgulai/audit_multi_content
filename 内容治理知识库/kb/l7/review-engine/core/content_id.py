@@ -69,6 +69,13 @@ FORM_RE = re.compile(r"^AD-(\d{8})-(\d{3})$")
 #: 发不出去时用的指纹形态。**它不是内容 ID**，是「本单没有业务号」的可见标记。
 FALLBACK_PREFIX = "AUTO-"
 
+#: 读表分页（2026-10-20 加）。`lark-cli base +record-list` 默认只回 **100 行**，
+#: json 格式上限 200；不翻页 ⇒ 只看得见最早那 100 行 ⇒ 当天的新号一个都看不见 ⇒ 恒发 001。
+_PAGE_LIMIT = 200
+
+#: 翻页保险：服务端 `has_more` 抽风时不把发号拖死。
+_MAX_PAGES = 200
+
 
 def is_business_id(v) -> bool:
     """是不是 PRD §5.4 的业务编号形态。"""
@@ -103,20 +110,64 @@ def list_table_content_ids(destinations=None, lark_runner=None) -> tuple[list | 
         dest = (destinations or _default_destinations)()
         runner = lark_runner or _default_lark_run
         got = runner("base", "+record-list", "--base-token", dest["base_token"],
-                     "--table-id", dest["table_id"], "--format", "json")
-        d = (got or {}).get("data") or {}
-        names = d.get("fields") or []
-        try:
-            ci = names.index("内容 ID")
-        except ValueError:
-            ci = 0
-        out = []
-        for row in (d.get("data") or []):
-            if ci < len(row):
-                v = str(row[ci] or "").strip()
-                if v:
-                    out.append(v)
-        return out, "读到 %d 个内容 ID（表内 %d 行）" % (len(out), len(d.get("data") or []))
+                     "--table-id", dest["table_id"], "--format", "json",
+                     "--limit", str(_PAGE_LIMIT), "--offset", "0")
+        # ★★ 2026-10-20：**「没读到」有两种形状，一种都不许被当成「表里一行都没有」**。
+        #   ① `feishu_publish._lark_run` 在 `allow_fail` 关闭时 **抛 `SystemExit`** ——
+        #      **它不是 `Exception` 的子类** ⇒ 原先下面那个 `except Exception` 接不住
+        #      ⇒ 直接穿出 `resolve()`、穿出引擎的 `except Exception` ⇒ **整个引擎 exit=1、
+        #      stdout 0 字节、结论与旁挂全丢**。实测复现（假 lark-cli 逐字吐 keychain 报错）：
+        #      `rc=1 ｜ stdout 0 字节 ｜ stderr 只剩 lark-cli 输出不是 JSON`。
+        #   ② `allow_fail=True` 时它**不抛**，返回 `{"ok": false, "raw": …}` ——
+        #      原先 `d = {}` ⇒ `out=[]` ⇒ `next_seq([])=1` ⇒ 发出 `AD-…-001`
+        #      **与表里已有的号撞车**（历史行不改不重编号）。这条更阴：不报错、直接错号。
+        #   ⇒ 两条一律按"读不到"返回 `(None, 原因)`，由 `resolve()` 退指纹、**不编号**。
+        if isinstance(got, dict) and got.get("ok") is False:
+            return None, "读表失败（lark-cli 报错）：%s" % (
+                str(got.get("error") or got.get("raw") or "")[:300])
+        # ★★ 2026-10-20（第三处，也是当天最贵的一处）：**必须翻页**。
+        #   病灶：lark-cli `+record-list` 默认只回**一页 100 行**，而这张表已有 ~190 行 ——
+        #   于是「内容 ID」永远只看见**最早那 100 行**，今天新写的行全在第 2 页 ⇒ 永远看不见
+        #   ⇒ `next_seq([])=1` ⇒ **每一单都发 `AD-…-001`**。
+        #   实测代价（2026-10-20 15:1x 核表）：当天 **5 条记录共用 `AD-20261020-001`**；
+        #   而按内容 ID 幂等 upsert 的那条路会**命中同一行** ⇒ 后一单覆盖前一单。
+        #   判据：④f/④f2（两页才看得到今天的号 ⇒ 必须取到 max+1；页尾不满也必须翻完）。
+        out: list[str] = []
+        seen_rows = 0
+        offset = 0
+        pages = 0
+        while True:
+            pages += 1
+            if pages > _MAX_PAGES:      # 保险：不许无限翻（服务端 has_more 抽风时不挂死）
+                return None, "读表超过 %d 页仍未结束 ⇒ 不编号（宁可退指纹，也不发重号）" % _MAX_PAGES
+            d = (got or {}).get("data") or {}
+            names = d.get("fields") or []
+            try:
+                ci = names.index("内容 ID")
+            except ValueError:
+                ci = 0
+            rows = d.get("data") or []
+            for row in rows:
+                if ci < len(row):
+                    v = str(row[ci] or "").strip()
+                    if v:
+                        out.append(v)
+            seen_rows += len(rows)
+            if not rows or not d.get("has_more"):
+                break
+            offset += len(rows)
+            got = runner("base", "+record-list", "--base-token", dest["base_token"],
+                         "--table-id", dest["table_id"], "--format", "json",
+                         "--limit", str(_PAGE_LIMIT), "--offset", str(offset))
+            if isinstance(got, dict) and got.get("ok") is False:
+                return None, "读表失败（第 %d 页 lark-cli 报错）：%s" % (
+                    pages + 1, str(got.get("error") or got.get("raw") or "")[:300])
+        return out, "读到 %d 个内容 ID（表内 %d 行、翻了 %d 页）" % (len(out), seen_rows, pages)
+    except SystemExit as e:                                        # ★ 2026-10-20 补
+        # `SystemExit` 是 `BaseException`，上面那个 `except Exception` 抓不到它 ——
+        # 这正是「引擎整单被一个读表失败打死」的真凶，别改回 `except Exception` 一条。
+        return None, "读表失败（lark-cli 退出）：%s" % (
+            e.code if isinstance(e.code, str) else (e.code,))
     except Exception as e:                                        # noqa: BLE001
         return None, "读表失败：%s" % e
 
@@ -225,6 +276,48 @@ def _selftest() -> int:
     r = resolve("20260922", want_business_id=False, lark_runner=must_not_call)
     ck("④c 不发就不读表", r["ok"] is False and r["basis"] == "not_publishing"
        and r["content_id"] is None, "得到 %r" % r)
+
+    # ④d ★★ 2026-10-20：runner 抛 `SystemExit` ⇒ **必须退成「不编号」，不许把引擎打死**
+    #   （真凶是 `feishu_publish._lark_run` 抛 SystemExit，而 SystemExit 不是 Exception）
+    def exits(*a, **k):
+        raise SystemExit('lark-cli 输出不是 JSON：{"error":{"message":"keychain access blocked"}}')
+    r = resolve("20260922", destinations=lambda: {"base_token": "b", "table_id": "t"},
+                lark_runner=exits)
+    ck("④d SystemExit 不吃掉整单", r["ok"] is False and r["content_id"] is None
+       and r["basis"] == "table_unreadable", "得到 %r" % r)
+    ck("④d2 原因写明 keychain", "keychain" in r["reason"], r["reason"])
+
+    # ④e ★★ 2026-10-20：runner 返回 `{"ok": false}`（allow_fail 档）⇒ **不许当成空表**
+    #   当成空表 ⇒ next_seq([])=1 ⇒ 发 AD-…-001 ⇒ 与表里已有号撞车
+    def fails_soft(*a, **k):
+        return {"ok": False, "error": {"message": "keychain Get failed"}}
+    r = resolve("20260922", destinations=lambda: {"base_token": "b", "table_id": "t"},
+                lark_runner=fails_soft)
+    ck("④e ok:false 不发 001", r["ok"] is False and r["content_id"] is None,
+       "得到 %r（空表会让 next_seq 得 1 ⇒ 撞号）" % (r["content_id"],))
+
+    # ④f ★★ 2026-10-20：**今天的号在第 2 页** ⇒ 必须翻页才发得出 max+1，不许恒发 001
+    #   （实测代价：当天 5 条记录共用 AD-20261020-001；按内容 ID 幂等 upsert 会命中同一行）
+    def paged(*a, **k):
+        args = list(a)
+        off = int(args[args.index("--offset") + 1]) if "--offset" in args else 0
+        if off == 0:
+            return {"ok": True, "data": {
+                "fields": ["内容 ID"],
+                "data": [["AD-20261019-018"], ["AD-20261019-019"]],
+                "has_more": True}}
+        return {"ok": True, "data": {
+            "fields": ["内容 ID"],
+            "data": [["AD-20261020-001"], ["AD-20261020-003"]],
+            "has_more": False}}
+    ids, why = list_table_content_ids(
+        destinations=lambda: {"base_token": "b", "table_id": "t"}, lark_runner=paged)
+    ck("④f 翻页读全表", ids == ["AD-20261019-018", "AD-20261019-019",
+                                "AD-20261020-001", "AD-20261020-003"], "得到 %r" % (ids,))
+    r = resolve("20261020", destinations=lambda: {"base_token": "b", "table_id": "t"},
+                lark_runner=paged)
+    ck("④f2 不许恒发 001", r["ok"] is True and r["content_id"] == "AD-20261020-004",
+       "得到 %r（不翻页会得 001 ⇒ 撞号）" % (r["content_id"],))
 
     # ⑤ 指纹兜底形态 + 它**不是**业务号
     fb = fallback_of("e2678dd00abea802")

@@ -35,6 +35,7 @@
     python3 kb/l8/daily_digest.py --selftest
 """
 import argparse
+import datetime
 import glob
 import io
 import json
@@ -343,8 +344,34 @@ def _load(base, suffix):
     return None
 
 
+#: 预演/自述的判据词。⚠️ 这里判的是「**这份读数强不强**」（报告要不要报黄），
+#: **不是** `layer_freshness._preview_marks` 那把「算不算一次层运行」的尺子 —— 两件事，
+#: 别把两把尺子合成一把（2026-10-19：同一个 verdict 在两处各有各的用途）。
+_PREVIEW_MARKS = ("预演", "未落盘", "非执行证据", "干跑", "dryrun", "dry_run")
+
+
+def _split_layers(stamps):
+    """把落章切成 `done` / `preview` / `bad` / `missing` —— **纯函数**，自证直接喂夹具。
+
+    ★ 2026-10-19：`done` 只收**真执行**的层；退出码 0 但落章是预演/自述的进 `preview`
+      （报黄，不判红 —— 见 `_layer_stamps` 的说明）。
+    """
+    done = [L for L, v in stamps.items() if v and v["exit"] == 0 and not v.get("preview")]
+    preview = [L for L, v in stamps.items() if v and v["exit"] == 0 and v.get("preview")]
+    bad = ["%s(exit=%s)" % (L, v["exit"]) for L, v in stamps.items() if v and v["exit"] != 0]
+    missing = [L for L, v in stamps.items() if not v]
+    return {"done": done, "bad": bad, "missing": missing, "preview": preview}
+
+
 def _layer_stamps(base):
-    """复刻 `observe_layers.py` 的落章发现（**不抄第二份**）。"""
+    """复刻 `observe_layers.py` 的落章发现（**不抄第二份**）。
+
+    ★ 2026-10-19：**除了退出码，还要判这份落章是「真执行」还是「预演／自述」**。
+      实测：10-19 的 L7 落章 `daily-…-L7.json` 退出码 0，verdict 却是
+      「全走完（预演 · 未落盘 · 非执行证据）」、skill 证据退回注册表声明 ⇒ 卡片照打 `L7✅`。
+      库规是「**预演/自述 ⇒ 报黄，不判红**」：绿是绿、黄是黄，混成一片绿
+      等于把「没真跑」说成「跑了」。
+    """
     import observe_layers as OL
     out = {}
     for L in ("L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7"):
@@ -352,17 +379,133 @@ def _layer_stamps(base):
         if not p:
             out[L] = None
             continue
-        rc = 0
+        rc, verdict, ev = 0, "", ""
         try:
             d = json.load(io.open(p, encoding="utf-8"))
             for k in ("exit_code", "exit", "rc"):
                 if isinstance(d.get(k), int):
                     rc = d[k]
                     break
+            verdict = str(d.get("verdict") or "")
+            ev = str(((d.get("extra") or {}).get("skill_evidence")) or "")
         except Exception:                                     # noqa: BLE001
             pass
-        out[L] = {"stamp": os.path.basename(p), "exit": rc}
+        out[L] = {"stamp": os.path.basename(p), "exit": rc, "verdict": verdict,
+                  "skill_evidence": ev,
+                  "preview": any(m in verdict for m in _PREVIEW_MARKS)}
     return out
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 排期事实：**这趟是不是排期那一趟**，以及**上一次排期趟跑到哪了**
+# ══════════════════════════════════════════════════════════════════════════
+# ★ 2026-10-19（Owner 同意「推荐 ①」）：报告标题原先**写死「日更」**，而排期早在 2026-10-16
+#   就改成**周更（每周日 03:30）**；更糟的是 10-19 10:03 这一趟**根本不在排期时刻**
+#   （周日 03:30 那趟 10-18 停在 L0 闸门红），报告却把它印成一条正常的「日更报告」。
+#   ⇒ 周期词与「本趟 vs 排期」一律**从 launchd plist 现读**（排期的唯一真源），
+#   解析仍只留 `watch_review_readiness._read_schedule()` 那一处 —— 本段只**解读**，不重写解析。
+WEEKDAY_CN = ("周日", "周一", "周二", "周三", "周四", "周五", "周六")   # launchd：0/7=周日
+#: 排期时刻与本趟 BASE 的比对容差（分钟）：launchd 会因休眠唤醒抖动几分钟，
+#: 那不足以把「排期那一趟」说成「补跑」；超过它才叫补跑。
+SLOT_TOLERANCE_MIN = 20
+
+
+def _base_dt(base):
+    """`daily-20261019-1003` → `datetime(2026,10,19,10,3)`；解析不出回 `None`。"""
+    m = re.match(r"^daily-(\d{8})-(\d{4})", str(base or ""))
+    if not m:
+        return None
+    try:
+        return datetime.datetime.strptime(m.group(1) + m.group(2), "%Y%m%d%H%M")
+    except ValueError:
+        return None
+
+
+def _prev_slot_line(base_dt, spec):
+    """**上一次排期趟**跑到哪了 —— 读 `kb/l7/runs/daily-<日期>-<时刻>-L0.json` 的 verdict。
+
+    为什么只看 L0 那一份：L0 是每一轮的第一层，它停在哪就代表整轮停在哪
+    （2026-10-18 实测就是「停在 L0 闸门红：exit=1」⇒ L1–L7 全无落章）。
+    找不到落章就写「未见落章」—— **没落章 ≠ 没跑，也 ≠ 跑成**，不许猜。
+    """
+    hh, mm = spec["hour"], spec["minute"]
+    wds = spec.get("weekdays") or []
+    for i in range(1, 9):
+        d = base_dt - datetime.timedelta(days=i)
+        if wds and ((d.weekday() + 1) % 7) not in wds:
+            continue
+        if not wds and i > 1:
+            break                                   # 每天：只看前一天
+        stamp = "%s-%02d%02d" % (d.strftime("%Y%m%d"), hh, mm)
+        p = os.path.join("kb", "l7", "runs", "daily-%s-L0.json" % stamp)
+        if not os.path.exists(p):
+            return "`daily-%s` → **未见落章**（没跑成，或落章不在 `kb/l7/runs/`）" % stamp
+        verdict = ""
+        try:
+            with io.open(p, encoding="utf-8") as fh:
+                verdict = str((json.load(fh) or {}).get("verdict") or "")
+        except Exception:                                     # noqa: BLE001
+            verdict = ""
+        return "`daily-%s` → **%s**" % (stamp, verdict or "落章里没有 verdict")
+    return None
+
+
+def _schedule_fact(base):
+    """本驱动**实际排期** vs 本趟 BASE → 一份事实（读不到就如实写读不到）。
+
+    返回 `{"kind","human","is_slot","base_at","plist","prev_slot","spec","why"}`；
+    `kind` ∈ {`周更`,`日更`,`周期`,None}；`is_slot` ∈ {True,False,None}。
+    **任何一步失败都不许让摘要挂掉** —— 调用方按「读不到」渲染，不按「正常」。
+    """
+    out = {"kind": None, "human": None, "is_slot": None, "base_at": None,
+           "plist": None, "prev_slot": None, "spec": None, "why": ""}
+    try:
+        from watch_review_readiness import DAILY_PLIST, _read_schedule
+        spec, how = _read_schedule()
+        out["plist"] = os.path.basename(DAILY_PLIST)
+    except Exception as e:                                    # noqa: BLE001
+        out["why"] = "读不到排期（%r）" % e
+        return out
+    if not spec:
+        out["why"] = "读不到排期（%s）" % how
+        return out
+    wds = spec.get("weekdays") or []
+    if not wds:
+        out["kind"] = "日更"
+        out["human"] = "每天 %02d:%02d" % (spec["hour"], spec["minute"])
+    elif len(wds) == 1:
+        out["kind"] = "周更"
+        out["human"] = "每%s %02d:%02d" % (WEEKDAY_CN[wds[0] % 7], spec["hour"], spec["minute"])
+    else:
+        out["kind"] = "周期"
+        out["human"] = "%s %02d:%02d" % ("、".join(WEEKDAY_CN[w % 7] for w in wds),
+                                        spec["hour"], spec["minute"])
+    out["spec"] = spec
+    d = _base_dt(base)
+    if d is None:
+        out["why"] = "BASE 解析不出时刻（%r）" % (base,)
+        return out
+    out["base_at"] = d.strftime("%Y-%m-%d %H:%M")
+    same_wd = (not wds) or (((d.weekday() + 1) % 7) in wds)
+    delta = abs((d.hour * 60 + d.minute) - (spec["hour"] * 60 + spec["minute"]))
+    out["is_slot"] = bool(same_wd and delta <= SLOT_TOLERANCE_MIN)
+    out["prev_slot"] = _prev_slot_line(d, spec)
+    return out
+
+
+def _kind_word(D):
+    """报告的**周期口径词**（`周更`／`日更`／`周期`）；排期读不到回 `None`（标题不写周期）。"""
+    return (D.get("schedule") or {}).get("kind")
+
+
+def _slot_words(sched):
+    """本趟与排期的关系，一句话。`is_slot` 三态：True=排期那一趟／False=补跑／None=比不了。"""
+    v = (sched or {}).get("is_slot")
+    if v is True:
+        return "= **排期那一趟**"
+    if v is False:
+        return "**不在排期时刻 ⇒ 补跑／手动跑**"
+    return "**与排期比对不了**"
 
 
 def _freshness_summary():
@@ -381,9 +524,16 @@ def _freshness_summary():
             if isinstance(a, (int, float)):
                 ages[L] = round(a / 3600.0, 1)
             if not j.get("fresh"):
-                bad.append("%s(%s)" % (L, str(j.get("reason"))[:40]))
+                bad.append((L, str(j.get("reason") or "")))
         oldest = max(ages.items(), key=lambda kv: kv[1]) if ages else (None, None)
-        return {"ok": not bad, "stale": bad, "ages": ages,
+        # ★ 2026-10-19：判词**不再截断**。原先是 `[:40]` —— 实测把 127 字的判词切成
+        #   「…`change_state=no_new_input` 而*」，**真正的原因（谁变了、哪个时间晚于哪个
+        #   时间）全被切掉**，读者只看到一句断在半截的话；而同一段「本次实测」又写着 0.0h
+        #   ⇒ 「陈旧」与「刚跑过」并列，谁都判断不了。判词长度是**信息**，不是噪声。
+        return {"ok": not bad,
+                "stale": ["%s(%s)" % (L, r) for (L, r) in bad],
+                "stale_pairs": [{"layer": L, "reason": r} for (L, r) in bad],
+                "ages": ages,
                 "oldest_layer": oldest[0], "oldest_h": oldest[1],
                 "threshold_h": round(getattr(lf, "STALE_AFTER", 86400) / 3600.0, 1),
                 # ★ 2026-10-16：给人看的写法**从常量取**（周更后 24h → 8 天，
@@ -411,12 +561,18 @@ def build(base):
     D = {"base": base, "at": time.strftime("%Y-%m-%d %H:%M:%S"),
          "align": (align or {}).get("summary") or {},
          "align_tables": (align or {}).get("tables") or {},
-         "ingest": {k: len((ingest or {}).get(k) or []) for k in ("written", "skipped", "archived")},
+         "ingest": {**{k: len((ingest or {}).get(k) or []) for k in ("written", "skipped", "archived")},
+                    # ★ 2026-10-19：「跳过 11」要说清**为什么**、以及是不是**声明内**
+                    "skip_reasons": _skip_reasons(ingest),
+                    "declared_only_feishu": _declared_only_feishu()},
          "emit": {"appended": (emit or {}).get("appended"),
                   "before": (emit or {}).get("rows_before"),
                   "after": (emit or {}).get("rows_after")},
          "schema": schema, "video": vid, "stamps": stamps, "fresh": fresh,
          "products": products, "engines": sorted(engines)}
+    # ★ 2026-10-19：本趟是不是**排期那一趟**、**上一次排期趟**跑到哪了 —— 现读一次，
+    #   两个渲染器（md／推文）共用，别各读一遍（读两遍就会有两次真相）。
+    D["schedule"] = _schedule_fact(base)
 
     # ── 12 类矩阵 ─────────────────────────────────────────────────────
     matrix = []
@@ -536,11 +692,50 @@ def build(base):
                          for m in picked)})
     D["five"] = five
 
-    done = [L for L, v in stamps.items() if v and v["exit"] == 0]
-    bad = ["%s(exit=%s)" % (L, v["exit"]) for L, v in stamps.items() if v and v["exit"] != 0]
-    missing = [L for L, v in stamps.items() if not v]
-    D["layers"] = {"done": done, "bad": bad, "missing": missing}
+    # ★ 2026-10-19：`done` 只收**真执行**的层；退出码 0 但落章是预演/自述的进 `preview`
+    #   （报黄，不判红 —— 见 `_layer_stamps` 的说明）。切分逻辑抽成 `_split_layers()` 纯函数，
+    #   好让自证能直接喂夹具（否则只能靠真库，改坏了也未必看得见）。
+    D["layers"] = _split_layers(stamps)
     return D
+
+
+def _skip_reasons(ingest):
+    """入库回执里 `skipped` **按原因分组**（同因合并，多的在前）。
+
+    ★ 2026-10-19：卡片原先只写「跳过 11」，**不说为什么** —— 读起来像「11 条数据被丢了」。
+      原因就在入库回执里（每条 `why` 一句），不展示等于让读者自己猜。
+    """
+    cnt = {}
+    for x in (ingest or {}).get("skipped") or []:
+        why = str((x or {}).get("why") or "").strip() or "（回执里没写原因）"
+        cnt[why] = cnt.get(why, 0) + 1
+    return sorted(({"why": k, "n": v} for k, v in cnt.items()), key=lambda d: -d["n"])
+
+
+def _declared_only_feishu():
+    """`kb/l7/registry/l0-expected-diffs.yaml` 里 **`only_feishu` 的声明合计**。
+
+    **走 `l0_gate.py` 的同一个读取器**（`load_yaml` ＋ `EXPECT`）—— 不抄第二份解析，
+    也不在这里复算「预期内/真差异」（那是闸门的事）。读不到就回 `None`：**不猜**。
+    """
+    try:
+        sys.path.insert(0, os.path.join("kb", "l7", "scripts"))
+        import l0_gate as _g
+        doc = _g.load_yaml(_g.EXPECT) or {}
+        items = []
+        for e in (doc.get("expected") or []):
+            if isinstance(e, dict) and e.get("kind") == "only_feishu":
+                try:
+                    n = int(e.get("expected"))
+                except (TypeError, ValueError):
+                    continue
+                items.append({"id": str(e.get("id") or "?"),
+                              "table": str(e.get("table") or "?"), "expected": n})
+        if not items:
+            return None
+        return {"total": sum(i["expected"] for i in items), "items": items}
+    except Exception:                                         # noqa: BLE001
+        return None
 
 
 def _v(x):
@@ -550,8 +745,22 @@ def _v(x):
 
 def render_md(D):
     A = D["align"]
-    L = ["# DSH 知识库 L0 ↔ 飞书侧（内容治理源数据）· 日更对齐摘要", "",
-         "**BASE** `%s` ｜ 生成于 %s" % (D["base"], D["at"]), "",
+    # ★ 2026-10-19：标题的周期词与「本趟 vs 排期」**从 plist 现读**（原写死「日更」，
+    #   而排期 2026-10-16 起是周更；10-19 那趟更不在排期时刻）。
+    _sched = D.get("schedule") or {}
+    L = ["# DSH 知识库 L0 ↔ 飞书侧（内容治理源数据）· %s对齐摘要"
+         % (_kind_word(D) or "周期"), "",
+         "**BASE** `%s` ｜ 生成于 %s" % (D["base"], D["at"]), ""]
+    if _sched.get("human"):
+        L.append("**排期**：%s（launchd `%s`） ｜ 本趟 **%s** %s"
+                 % (_sched["human"], _sched.get("plist") or "plist",
+                    _sched.get("base_at") or D["base"], _slot_words(_sched)))
+        if _sched.get("prev_slot"):
+            L.append("**上一次排期趟**：%s" % _sched["prev_slot"])
+        L.append("")
+    elif _sched.get("why"):
+        L += ["**排期**：读不到（%s）—— 本报告不写周期口径" % _sched["why"], ""]
+    L += [
          "> 由 `kb/l8/daily_digest.py` 出。口径照 `kb-l0-feishu` 的 "
          "`references/coverage-matrix.md`：**12 类 × 四态**"
          "（`已对齐`／`不适用（附证据）`／`读不到（原因码）`／`不可核（原因码）`）。", "",
@@ -562,10 +771,12 @@ def render_md(D):
                 A.get("changed"), _v(A.get("pull_failed"))))
     L.append("- 覆盖率：12 类里 **%d 类在日更 engine 清单内**，其余落 "
              "`不可核（stage_not_in_daily_engine_list）`" % n_run)
-    L.append("- 各层：完成 %s%s%s" % (
+    L.append("- 各层：完成 %s%s%s%s" % (
         ",".join(D["layers"]["done"]) or "无",
         "｜失败 " + ",".join(D["layers"]["bad"]) if D["layers"]["bad"] else "",
-        "｜无落章 " + ",".join(D["layers"]["missing"]) if D["layers"]["missing"] else ""))
+        "｜无落章 " + ",".join(D["layers"]["missing"]) if D["layers"]["missing"] else "",
+        "｜**预演/自述（不判红，但不算真执行）** " + ",".join(D["layers"].get("preview") or [])
+        if D["layers"].get("preview") else ""))
     L += ["", "## 1. 记录层（① 表格记录·文本字段）", "",
           "| 量 | 值 |", "|---|---|",
           "| 一致 | %s |" % A.get("same"), "| **新增（飞书多）** | **%s** |" % A.get("only_feishu"),
@@ -579,11 +790,28 @@ def render_md(D):
                     t.get("table"), t.get("feishu_records"), t.get("l0_records"), t.get("same"),
                     t.get("only_feishu"), t.get("only_l0"), t.get("changed")))
         L.append("")
+    _ing = D["ingest"]
     L += ["## 2. 入库与台账", "",
           "- 入库：写入 **%s** ｜ 跳过 %s ｜ 归档 %s" % (
-              D["ingest"]["written"], D["ingest"]["skipped"], D["ingest"]["archived"]),
-          "- 补登记（台账）：%s 行（%s → %s）" % (
-              D["emit"]["appended"], D["emit"]["before"], D["emit"]["after"]), ""]
+              _ing["written"], _ing["skipped"], _ing["archived"])]
+    # ★ 2026-10-19：「跳过 11」必须说清**为什么**、以及是不是**声明内**（原先只有个数）。
+    for _r in (_ing.get("skip_reasons") or [])[:5]:
+        L.append("  - 跳过 **%d** 条：%s" % (_r["n"], _r["why"]))
+    if len(_ing.get("skip_reasons") or []) > 5:
+        L.append("  - 另有 %d 种原因，见 `kb/l8/runs/%s-L0-l0-ingest.json`"
+                 % (len(_ing["skip_reasons"]) - 5, D["base"]))
+    _dec = _ing.get("declared_only_feishu") or {}
+    if _dec.get("total") and _dec["total"] == _ing.get("skipped"):
+        L.append("  - **跳过数 = 声明数**（%d）：`kb/l7/registry/l0-expected-diffs.yaml` "
+                 "%s ⇒ **这 %d 条是声明内的预期排除，不是漏抓**"
+                 % (_ing["skipped"],
+                    "、".join("%s(%s) expected %s"
+                              % (i["id"], i["table"], i["expected"]) for i in _dec.get("items") or []),
+                    _ing["skipped"]))
+    L.append("- 补登记（台账）：%s 行（%s → %s）—— ⚠️ 这是 **reconcile 的追加行**，"
+             "**不是入库条数**（两本账，别相加）" % (
+                 D["emit"]["appended"], D["emit"]["before"], D["emit"]["after"]))
+    L.append("")
     L += ["## 3. 覆盖率矩阵（**12 类 × 四态** —— 该文件 §三 硬性要求的那张表）", "",
           "| # | 类型 | 状态 | 条数 | 依据 / 原因码 | 在日更清单 |", "|---|---|---|---|---|---|"]
     for m in D["matrix"]:
@@ -620,22 +848,34 @@ def render_md(D):
             "✅ 已跑" if f["ran"] else ("❌ 未跑（%s）" % (f.get("why") or "不在日更清单")),
             f["detail"]))
     L += ["", "## 5. 各层写档 / 新鲜度", "",
-          "| 层 | 落章 | 退出码 |", "|---|---|---|"]
+          "| 层 | 落章 | 退出码 | 这份落章强不强 |", "|---|---|---|---|"]
     for k in ("L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7"):
         v = D["stamps"].get(k)
-        L.append("| %s | %s | %s |" % (k, (v or {}).get("stamp") or "**无**",
-                                       (v or {}).get("exit") if v else "—"))
+        # ★ 2026-10-19：退出码 0 **不等于**真执行 —— 预演/自述档要在这里看得见（报黄，不判红）。
+        _rd = "—"
+        if v:
+            _rd = ("⚠️ **预演/自述 · 不判红但不算真执行**（`%s`）" % (v.get("verdict") or "")
+                   if v.get("preview") else "真执行")
+        L.append("| %s | %s | %s | %s |" % (k, (v or {}).get("stamp") or "**无**",
+                                           (v or {}).get("exit") if v else "—", _rd))
     fr = D["fresh"]
     L += ["", "### 新鲜度是怎么判的", "",
           "- **判据**：`kb/l7/scripts/layer_freshness.py::judge()` 逐层（L0–L7）看"
           "「**最近一次成功 RUN 距今**」，超过阈值即判陈旧。",
           "- **阈值**：`STALE_AFTER = %sh`（%s 内跑过算新鲜；唯一出处 "
           "`kb/l7/scripts/layer_freshness.py`）。"
-          % (fr.get("threshold_h"), fr.get("threshold_human") or "24 小时"),
-          "- **结论**：%s" % ("✅ 各层不陈旧" if fr.get("ok") else
-                           ("⚠️ 陈旧：%s" % "，".join(fr.get("stale") or [])) if fr.get("ok") is False
-                           else "（测不到：%s）" % fr.get("error")),
-          "- **本次实测**：%s" % ("；".join("%s %sh" % (k, v) for k, v in (fr.get("ages") or {}).items())
+          % (fr.get("threshold_h"), fr.get("threshold_human") or "24 小时")]
+    # ★ 2026-10-19：陈旧判词按层分行给**全文**（原先截 40 字，切在句中）。
+    if fr.get("ok") is False:
+        L.append("- **结论**：⚠️ 陈旧 %d 层（判词逐条给全文，不截断）："
+                 % len(fr.get("stale") or []))
+        for _p in (fr.get("stale_pairs") or []):
+            L.append("  - **%s**：%s" % (_p.get("layer"), _p.get("reason")))
+    else:
+        L.append("- **结论**：%s"
+                 % ("✅ 各层不陈旧" if fr.get("ok")
+                    else "（测不到：%s）" % fr.get("error")))
+    L += ["- **本次实测**：%s" % ("；".join("%s %sh" % (k, v) for k, v in (fr.get("ages") or {}).items())
                               or "—"),
           "- 最旧：**%s %sh**" % (fr.get("oldest_layer"), fr.get("oldest_h")), ""]
     L += ["## 6. 本轮产物", ""] + ["- `kb/l8/runs/%s`" % p for p in D["products"]] + [""]
@@ -646,14 +886,44 @@ def render_push(D):
     """推文（飞书消息）：**短**，但把 Owner 点名的那几项放在最前。"""
     A = D["align"]
     # ★ Owner 2026-10-09 反馈①：「没有写明是 DSH 知识库 L0 与飞书侧内容治理源侧数据对齐」
-    head = "📊 **DSH 知识库 · L0 ↔ 飞书侧（内容治理源数据）对齐**（日更报告）"
-    L = [head, "BASE `%s` ｜ 起跑见日志 ｜ 生成 %s" % (D["base"], D["at"]), ""]
+    # ★★ 2026-10-19：周期词**不许写死**（原写「（日更报告）」）。排期 2026-10-16 起是**周更**，
+    #   而 10-19 10:03 这一趟**根本不在排期时刻**（周日 03:30 那趟 10-18 停在 L0 闸门红）——
+    #   卡上却是一条不带任何提示的「日更报告」⇒ 读者无法判断「周更到底跑成没有」。
+    _kind = _kind_word(D)
+    _sched = D.get("schedule") or {}
+    head = ("📊 **DSH 知识库 · L0 ↔ 飞书侧（内容治理源数据）对齐**（%s报告）" % _kind
+            if _kind else "📊 **DSH 知识库 · L0 ↔ 飞书侧（内容治理源数据）对齐**（报告）")
+    L = [head, "BASE `%s` ｜ 起跑见日志 ｜ 生成 %s" % (D["base"], D["at"])]
+    if _sched.get("human"):
+        L.append("**排期**：%s ｜ 本趟 **%s** %s"
+                 % (_sched["human"], _sched.get("base_at") or D["base"], _slot_words(_sched)))
+        if _sched.get("prev_slot"):
+            L.append("**上一次排期趟**：%s" % _sched["prev_slot"])
+    elif _sched.get("why"):
+        L.append("**排期**：读不到（%s）—— 本条不写「日更／周更」" % _sched["why"])
+    L.append("")
     L.append("**记录层**：一致 %s ｜ **新增 %s** ｜ **下架 %s** ｜ 值变 %s ｜ 拉取失败 %s"
              % (A.get("same"), A.get("only_feishu"), A.get("only_l0"),
                 A.get("changed"), _v(A.get("pull_failed"))))
+    _ing = D["ingest"]
     L.append("**入库**：写入 %s ｜ 跳过 %s ｜ 归档 %s ｜ 台账 +%s（%s → %s）"
-             % (D["ingest"]["written"], D["ingest"]["skipped"], D["ingest"]["archived"],
+             % (_ing["written"], _ing["skipped"], _ing["archived"],
                 D["emit"]["appended"], D["emit"]["before"], D["emit"]["after"]))
+    # ★ 2026-10-19：**跳过要说为什么**（原先只有个数，读起来像"11 条数据丢了"），
+    #   并点明「台账 +N 是另一本账」—— 这两个数并排时读者最容易把它们相加。
+    for _r in (_ing.get("skip_reasons") or [])[:3]:
+        L.append("   · 跳过 %d 条：%s" % (_r["n"], _r["why"]))
+    if len(_ing.get("skip_reasons") or []) > 3:
+        L.append("   · 另有 %d 种原因（见 `kb/l8/runs/%s-L0-l0-ingest.json`）"
+                 % (len(_ing["skip_reasons"]) - 3, D["base"]))
+    _dec = _ing.get("declared_only_feishu") or {}
+    if _dec.get("total") and _dec["total"] == _ing.get("skipped"):
+        L.append("   · **%d = 声明数**（`l0-expected-diffs.yaml` %s）"
+                 "⇒ **声明内的预期排除，不是漏抓**"
+                 % (_ing["skipped"],
+                    "、".join("%s expected %s" % (i["id"], i["expected"])
+                              for i in _dec.get("items") or [])))
+    L.append("   · 台账是 **reconcile 追加行**，与入库条数是**两本账**，别相加")
     L.append("")
     L.append("**分类覆盖**（库内 ｜ 本轮）")
     for f in D["five"]:
@@ -663,14 +933,23 @@ def render_push(D):
             "本轮已跑" if f["ran"] else ("⛔ 本轮未跑（%s）" % (f.get("why") or "不在日更 engine 清单"))))
     L.append("")
     ly = D["layers"]
-    L.append("**各层**：%s%s%s" % (
+    L.append("**各层**：%s%s%s%s" % (
         "、".join("%s✅" % x for x in ly["done"]) or "无",
         " ｜ 失败 %s" % "、".join(ly["bad"]) if ly["bad"] else "",
-        " ｜ **无落章 %s**" % "、".join(ly["missing"]) if ly["missing"] else ""))
+        " ｜ **无落章 %s**" % "、".join(ly["missing"]) if ly["missing"] else "",
+        " ｜ ⚠️ **预演/自述 %s**（不判红，但**不算真执行**）" % "、".join(ly.get("preview") or [])
+        if ly.get("preview") else ""))
     fr = D["fresh"]
-    L.append("**新鲜度**：%s" % ("✅ 不陈旧" if fr.get("ok") else
-                             ("⚠️ 陈旧 %s" % "，".join(fr.get("stale") or [])) if fr.get("ok") is False
-                             else "（测不到）"))
+    # ★ 2026-10-19：陈旧判词**逐条给全文**（原先截 40 字 ⇒「…而*」，原因全丢）。
+    if fr.get("ok") is False:
+        _pairs = fr.get("stale_pairs") or [{"layer": "-", "reason": s} for s in (fr.get("stale") or [])]
+        L.append("**新鲜度**：⚠️ 陈旧 %d 层（判词**全文**逐条给）" % len(_pairs))
+        for _p in _pairs:
+            L.append("   · **%s**：%s" % (_p.get("layer"), _p.get("reason")))
+    elif fr.get("ok"):
+        L.append("**新鲜度**：✅ 不陈旧")
+    else:
+        L.append("**新鲜度**：（测不到：%s）" % (fr.get("error") or ""))
     if fr.get("threshold_h"):
         L.append("   = 逐层 L0–L7 比「最近一次成功 RUN 距今」≤ **%sh**（`layer_freshness.judge`）"
                  % fr["threshold_h"])
@@ -679,17 +958,31 @@ def render_push(D):
     norun = [m for m in D["matrix"] if not m["in_daily"]]
     if norun:
         L.append("")
-        L.append("⛔ **日更不跑这些类**（%d 类）：%s"
-                 % (len(norun), "、".join(m["name"] for m in norun)))
+        L.append("⛔ **%s不跑这些类**（%d 类）：%s"
+                 % (_kind or "本驱动", len(norun), "、".join(m["name"] for m in norun)))
         # ★ Owner 反馈②：「视频/文档/链接为什么不跑？」—— 原来只写"不在 engine 清单"，
         #   那是**机制名**，不是原因。这里把链条讲完：谁定的 → 缺了哪些脚本 → 后果是什么。
+        # ★★ 2026-10-19：**`miss` 为空时不许再说「脚本没登记」**。第 ⑫ 类在 `CLASSES` 里
+        #   就是 `scripts=[]`（兜底格，不是一类资源），原先这里照样打印「覆盖这几类的脚本
+        #   没有被登记进那张清单」⇒ 与**同一份 md 摘要的结论相反**（md 写「没有『有脚本却
+        #   没接进日更』的类」），而且连一个脚本名都列不出来 —— 读者被指向一个不存在的缺陷。
+        _cnt = sum(m["count"] or 0 for m in norun)
         miss = sorted({s for m in norun for s in m["scripts"]})
-        L.append("   原因：日更按 `kb/l7/registry/layers.yaml` 各层 `engine:` 清单执行；"
-                 "覆盖这几类的脚本**没有被登记进那张清单** ⇒ **从来没被接进日更**。")
         if miss:
+            L.append("   原因：%s按 `kb/l7/registry/layers.yaml` 各层 `engine:` 清单执行；"
+                     "覆盖这几类的脚本**没有被登记进那张清单** ⇒ **从来没被接进日更**。"
+                     % (_kind or "本驱动"))
             L.append("   缺登记的脚本（%d 个）：%s" % (len(miss), "、".join(miss)))
-        L.append("   ⚠️ **数据没丢**：它们仍在库里、仍可检索；只是**日更不更新这几类**。"
-                 "要更新得人工跑（或按下面「能不能接」的结论重新接线）。")
+        else:
+            L.append("   原因：这几类**没有专属引擎脚本**，它本身不是一类资源（兜底格）⇒ "
+                     "%s没有可跑的动作；**不是**「有脚本却没登记进清单」。" % (_kind or "本驱动"))
+            L.append("   本轮这类在库内 **%d 条**%s。" % (
+                _cnt, "（飞书侧也没有）⇒ 不跑它不影响任何数据" if _cnt == 0
+                else "—— 仍在库里、仍可检索，只是日更不更新"))
+        if _cnt > 0:
+            L.append("   ⚠️ **数据没丢**：它们仍在库里、仍可检索；只是**%s不更新这几类**。"
+                     "要更新得人工跑（或按下面「能不能接」的结论重新接线）。"
+                     % (_kind or "本驱动"))
     L.append("")
     L.append("完整摘要：`kb/l8/runs/%s-digest.md`" % D["base"])
     return "\n".join(L)
@@ -892,18 +1185,24 @@ def selftest() -> int:
         _allgone > 100 and _gap <= 20 and _gap < _allgone / 10,
         "gone 总数 %d ／ 判成真·已不存在 %d ／ 留档 %d" % (_allgone, _gap, _allgone - _gap))
     # 正文必须带 Owner 点名的四个词，否则等于没答他的问题
-    txt = render_push({"base": "T", "at": "2026-01-01 00:00:00",
-                       "align": {"same": 1, "only_feishu": 2, "only_l0": 3,
-                                             "changed": 4, "pull_failed": 0},
-                       "ingest": {"written": 0, "skipped": 0, "archived": 0},
-                       "emit": {"appended": 0, "before": 0, "after": 0},
-                       "five": [{"label": x, "count": 0, "ran": False, "detail": ""}
-                                for x in ("文案", "图片", "视频", "文档", "链接")],
-                       "matrix": [{"no": 1, "name": "n", "in_daily": False, "state": "x",
-                                   "count": 0, "note": "", "scripts": [], "kind": None}],
-                       "layers": {"done": [], "bad": [], "missing": []},
-                       "fresh": {"ok": True, "threshold_h": 24.0,
-                                 "oldest_layer": "L3", "oldest_h": 1.3}})
+    def _mkD(**over):
+        """推文夹具（**逐字真实形状**）：只造 `render_push` 真正读的字段。"""
+        d = {"base": "T", "at": "2026-01-01 00:00:00",
+             "align": {"same": 1, "only_feishu": 2, "only_l0": 3,
+                       "changed": 4, "pull_failed": 0},
+             "ingest": {"written": 0, "skipped": 0, "archived": 0},
+             "emit": {"appended": 0, "before": 0, "after": 0},
+             "five": [{"label": x, "count": 0, "ran": False, "detail": ""}
+                      for x in ("文案", "图片", "视频", "文档", "链接")],
+             "matrix": [{"no": 1, "name": "n", "in_daily": False, "state": "x",
+                         "count": 0, "note": "", "scripts": [], "kind": None}],
+             "layers": {"done": [], "bad": [], "missing": []},
+             "fresh": {"ok": True, "threshold_h": 24.0,
+                       "oldest_layer": "L3", "oldest_h": 1.3}}
+        d.update(over)
+        return d
+
+    txt = render_push(_mkD())
     for w in ("新增", "下架", "文案", "图片", "视频", "文档", "链接"):
         chk("④ 推文含「%s」" % w, w in txt)
     chk("④b 落点是**群**而不是私聊（Owner 2026-10-09 第二次口径）",
@@ -943,6 +1242,123 @@ def selftest() -> int:
         _ok_send and "*" not in _sent and "新增 13" in _sent, "实发：%r" % _sent[:50])
     chk("⑤ 自证档不真发", send("x", "c")[1].startswith("[自证]")
         if os.environ.get("KB_DIGEST_FORCE_SEND") == "1" else True, "(需 KB_DIGEST_FORCE_SEND=1 才验)")
+    # ── ⑥ 展示层三条（2026-10-19 修；每条都配反向对照）──────────────────────────
+    #  为什么钉这三条：10-19 那张周报上 —— ① 陈旧判词被切成「…而*」（真原因全丢）；
+    #  ② 把一个 `scripts=[]` 的兜底格说成「脚本没登记进清单」（与同一份 md 摘要**结论相反**）；
+    #  ③ 标题写死「日更」而排期是周更，且没写这一趟是补跑。三条都是**读者直接看到的话**。
+    _long = ("8 天 内跑过，但 `change_state=no_new_input` 而**上游水位已变**"
+             "（落章 l6/registry/l6.json:945:26178 ≠ 现状 l6/registry/l6.json:945:26182）"
+             "⇒ **判陈旧**（防假绿：不许自证）；上游最新改动 10:42:25 **晚于**本层运行 17:39:28")
+    # ★ ⑥a 必须走**真链**：截断在 `_freshness_summary()` 里（`[:40]`），**不在** `render_push()`。
+    #   夹具直接塞 `stale_pairs` 只能证到渲染层 —— 实测过：那样把 `[:40]` 加回去**照样全绿**。
+    #   ⇒ 这里把 `layer_freshness.judge` 打桩成「L7 陈旧 + 一条完整判词」，整条链一起验。
+    try:
+        import layer_freshness as _lf
+        _real_judge = _lf.judge
+
+        def _fake_judge(kb_root, layer, now=None):
+            if layer == "L7":
+                return {"fresh": False, "reason": _long, "run_age": 300.0}
+            return {"fresh": True, "reason": "ok", "run_age": 300.0}
+
+        try:
+            _lf.judge = _fake_judge
+            _fr_stale = _freshness_summary()
+            _stale_txt = render_push(_mkD(fresh=_fr_stale))
+        finally:
+            _lf.judge = _real_judge
+        _got = ((_fr_stale.get("stale_pairs") or [{}])[0] or {}).get("reason") or ""
+        chk("⑥a 陈旧判词**原样进正文**（`_freshness_summary` 里把判词截成 40 字 ⇒ 本条精确变红）",
+            "上游水位已变" in _stale_txt and "17:39:28" in _stale_txt and _got == _long,
+            "判词 %d 字 → 摘要里 %d 字" % (len(_long), len(_got)))
+    except Exception as _e:                                   # noqa: BLE001
+        chk("⑥a 陈旧判词原样进正文", False, "打桩失败：%r" % (_e,))
+    _norun_empty = render_push(_mkD(matrix=[
+        {"no": 12, "name": "其它附件 / 未知类型", "in_daily": False, "state": "x",
+         "count": 0, "note": "", "scripts": [], "kind": None}]))
+    _norun_orphan = render_push(_mkD(matrix=[
+        {"no": 10, "name": "某类", "in_daily": False, "state": "x",
+         "count": 5, "note": "", "scripts": ["orphan.py"], "kind": None}]))
+    chk("⑥b 兜底格（`scripts=[]`）**不许**被说成「脚本没登记进清单」"
+        "（它与同一份 md 摘要的结论相反）",
+        "没有被登记进那张清单" not in _norun_empty and "兜底格" in _norun_empty,
+        "该段：%r" % _norun_empty.split("⛔")[-1][:48].replace("\n", " "))
+    chk("⑥b2 **反向对照**：真有孤儿脚本时，仍必须说「没登记」并把脚本名列出",
+        "没有被登记进那张清单" in _norun_orphan and "orphan.py" in _norun_orphan)
+    _sched_w = {"kind": "周更", "human": "每周日 03:30", "is_slot": False,
+                "base_at": "2026-10-19 10:03", "plist": "x.plist",
+                "prev_slot": "`daily-20261018-0330` → **停在 L0 闸门红：exit=1**", "why": ""}
+    _t_week = render_push(_mkD(schedule=_sched_w))
+    _t_slot = render_push(_mkD(schedule=dict(_sched_w, is_slot=True)))
+    _t_daily = render_push(_mkD(schedule=dict(_sched_w, kind="日更", human="每天 03:30")))
+    chk("⑥c 标题周期词**跟排期走**（写死「日更」⇒ 本条精确变红）",
+        "（周更报告）" in _t_week and "（日更报告）" not in _t_week
+        and "（日更报告）" in _t_daily)
+    chk("⑥d 不在排期时刻写「补跑」／在排期时刻写「排期那一趟」，并带上一次排期趟的结果",
+        "补跑" in _t_week and "排期那一趟" in _t_slot
+        and "上一次排期趟" in _t_week and "停在 L0 闸门红" in _t_week)
+    _t_unknown = render_push(_mkD(schedule={"why": "读不到排期（x）"}))
+    chk("⑥e 排期读不到时**不写周期词**、也不假装比对过（不许 fail-open）",
+        "（报告）" in _t_unknown and "读不到" in _t_unknown
+        and "周更报告" not in _t_unknown)
+    # ★ ⑥f 接**真库**：排期解析必须与 plist 的 `Weekday` 一致，且比对得出**三态之一**。
+    #   不写死「必须有 Weekday」—— 排期从周更改回每天是合法改动，硬断言会把正确改动判成故障。
+    _sf = _schedule_fact("daily-20261019-1003")
+    _spec = (_sf or {}).get("spec") or {}
+    chk("⑥f 真库：排期读得到、周期词与 plist 一致、本趟与排期的比对落三态之一",
+        bool(_spec) and _sf.get("kind") is not None and _sf.get("is_slot") in (True, False),
+        "kind=%r ｜ %r ｜ is_slot=%r ｜ weekdays=%r"
+        % (_sf.get("kind"), _sf.get("human"), _sf.get("is_slot"), _spec.get("weekdays")))
+    # ── ⑦ 入库说清「为什么跳过」＋ 预演档**报黄**（2026-10-19 第二批，Owner 同意做 C1/C2/D1）──
+    #   钉的是两件「读者会读错」的事：① 退出码 0 的预演档被并进 `✅`；
+    #   ② 「跳过 11」只有一个数，读者以为是数据丢了。
+    _lc_prev = render_push(_mkD(layers={"done": ["L0", "L6"], "bad": [], "missing": [],
+                                        "preview": ["L7"]}))
+    chk("⑦a 预演/自述的层**报黄**，不许并进 ✅（把它放回 done ⇒ 本条精确变红）",
+        "预演/自述 L7" in _lc_prev and "L7✅" not in _lc_prev,
+        next((x for x in _lc_prev.splitlines() if "各层" in x), ""))
+    _ing_fx = {"written": 0, "skipped": 3, "archived": 0,
+               "skip_reasons": [{"why": "准入未过：材料审核状态=[] != [\"通过\"]", "n": 3}],
+               "declared_only_feishu": {"total": 3, "items": [{"id": "EX-1",
+                                       "table": "材料收集", "expected": 3}]}}
+    _t_ing = render_push(_mkD(ingest=_ing_fx))
+    chk("⑦b 跳过**说得出原因**，且「跳过数 = 声明数」时说「不是漏抓」、并点明两本账",
+        "材料审核状态" in _t_ing and "不是漏抓" in _t_ing and "两本账" in _t_ing)
+    chk("⑦b2 **反向对照**：跳过数 ≠ 声明数时**不许**说「声明内的预期排除」",
+        "不是漏抓" not in render_push(_mkD(ingest=dict(
+            _ing_fx, skipped=2,
+            declared_only_feishu={"total": 3, "items": [{"id": "EX-1", "expected": 3}]}))))
+    chk("⑦c 回执缺 `skipped` 明细／缺声明 ⇒ 不崩、也不贴「声明内」",
+        "不是漏抓" not in render_push(_mkD()))
+    chk("⑦d `_skip_reasons()` 分组正确；缺件回空表（**缺回执 ≠ 有 0 条跳过**）",
+        _skip_reasons(None) == [] and _skip_reasons(
+            {"skipped": [{"why": "a"}, {"why": "a"}, {"why": "b"}]}) == [
+            {"why": "a", "n": 2}, {"why": "b", "n": 1}])
+    _dec_real = _declared_only_feishu()
+    chk("⑦e 真库：EX 声明读得到（走 `l0_gate.load_yaml` 的同一个读取器，不抄第二份解析）",
+        isinstance(_dec_real, dict) and (_dec_real.get("total") or 0) > 0,
+        "only_feishu 声明合计=%s" % ((_dec_real or {}).get("total"),))
+    # ★ ⑦a2/⑦a3/⑦f 走**真链**：⑦a 只证渲染层，改坏 `_split_layers()` 或
+    #   `_layer_stamps()` 的 verdict 解析它照样绿 —— 这三条把它们接上。
+    _spl = _split_layers({"L0": {"exit": 0, "preview": False},
+                          "L7": {"exit": 0, "preview": True, "verdict": "全走完（预演 · 未落盘 · 非执行证据）"},
+                          "L6": None,
+                          "L5": {"exit": 2, "preview": False}})
+    chk("⑦a2 切分：预演档进 `preview` 不进 `done`；缺落章进 missing、非零退出进 bad",
+        _spl["preview"] == ["L7"] and "L7" not in _spl["done"]
+        and _spl["missing"] == ["L6"] and _spl["bad"] == ["L5(exit=2)"],
+        "done=%s preview=%s missing=%s bad=%s"
+        % (_spl["done"], _spl["preview"], _spl["missing"], _spl["bad"]))
+    _Db = build("daily-20261019-1003")          # 真库一次，供 ⑦a3 与 ⑦f 共用
+    _v7 = (_Db["stamps"] or {}).get("L7") or {}
+    chk("⑦a3 真库：L7 落章被认成**预演/自述**（拆掉 verdict 解析 ⇒ 本条精确变红）",
+        _v7.get("preview") is True and "预演" in (_v7.get("verdict") or ""),
+        "verdict=%r" % ((_v7 or {}).get("verdict"),))
+    _sr = _Db["ingest"].get("skip_reasons") or []
+    chk("⑦f 真库：跳过的原因**确实从入库回执并进了摘要**（拆掉那步接线 ⇒ 本条变红）",
+        bool(_sr) and sum(r["n"] for r in _sr) == _Db["ingest"]["skipped"],
+        "原因组 %d ｜ 合计 %s ｜ 跳过 %s"
+        % (len(_sr), sum(r["n"] for r in _sr), _Db["ingest"]["skipped"]))
     print("\n自证：通过 %d / 失败 %d" % (ok, fail))
     return 0 if fail == 0 else 1
 

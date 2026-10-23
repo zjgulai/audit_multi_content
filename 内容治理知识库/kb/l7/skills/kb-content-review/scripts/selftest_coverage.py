@@ -92,6 +92,45 @@ def main():
     by, _ = rev.coverage_judge(rows((A_OTHER, 1.0)), set(), set(), THR, has_safe_hits=True)
     chk("B5 命中允许表述（安全词）⇒ covered_by=safe_vocabulary", by == "safe_vocabulary", by)
 
+    # ── ★★ 2026-10-23：锚点**同名 ≠ 同源**（位置型锚点撞名把覆盖池污染了）──────────
+    #   实测病灶：`#l.1-1` 在 L2 被 **921** 个单元共用；external_standard 并进 rules 后，
+    #   它的锚点进了覆盖池 ⇒ 命中**另一份文档**的同名单元也算「被规则引用」
+    #   ⇒ 5 条回归样本从 REVIEW（库不认识这个题材）翻成 **PASS**（fail-open）。
+    S_SHA_RULE = "a" * 64        # 引用这个锚点的规则，它所依据的那份文档
+    S_SHA_MAT = "b" * 64         # 本次素材命中的单元所在的**另一份**文档
+
+    def rows_sha(*triples):
+        return [{"anchor": a, "raw_bm25": s, "source_sha256": h} for a, s, h in triples]
+
+    # B8 ★ 反向对照：锚点同名、**文档不同** ⇒ 不许算覆盖（10-23 那 5 条翻 PASS 的形状）
+    by, _ = rev.coverage_judge(rows_sha(("#l.1-1", THR + 1, S_SHA_MAT)), {"#l.1-1"}, set(), THR,
+                              cited_shas={"#l.1-1": {S_SHA_RULE}})
+    chk("B8 ★ 反向对照：锚点同名但 source_sha256 不同（另一份文档）⇒ **不覆盖**", by == "", by)
+
+    # B9 正例：同名**且**同一份文档 ⇒ 仍算覆盖（收窄不许把本该认的也挡掉）
+    by, _ = rev.coverage_judge(rows_sha(("#l.1-1", THR + 1, S_SHA_RULE)), {"#l.1-1"}, set(), THR,
+                              cited_shas={"#l.1-1": {S_SHA_RULE}})
+    chk("B9 同名且同文档（source_sha256 一致）⇒ 仍是 covered_by=rule", by == "rule", by)
+
+    # B10 反向对照：给了 cited_shas，但命中单元**没有** sha ⇒ 不覆盖（保守一侧）
+    by, _ = rev.coverage_judge(rows(("#l.1-1", THR + 1)), {"#l.1-1"}, set(), THR,
+                              cited_shas={"#l.1-1": {S_SHA_RULE}})
+    chk("B10 反向对照：命中单元缺 source_sha256 ⇒ 不覆盖（宁转人工，不放 PASS）", by == "", by)
+
+    # B11 ★ 反向对照：**位置型**锚点（`#l.1-3`，跨文档共用）不许判同源 ——
+    #   实测形状：回表取到的是「扫到的第一份文档」的资源，与本次素材无关 ⇒ 覆盖被凭空撑起来。
+    #   ⚠️ `cited` 必须空：位置型锚点若进了被引池，命中的就是 `direct` 那一条（B8 管它）。
+    #      这里要验的是**同源支路**，所以只给 `cited_res`。
+    by, _ = rev.coverage_judge(rows(("#l.1-3", THR + 1)), set(), {"REC-X"}, THR,
+                              resources_of=lambda aa: {"#l.1-3": "REC-X"})
+    chk("B11 ★ 反向对照：位置型锚点（#l.1-3）**不算同源**（哪怕回表给出 resource）", by == "", by)
+
+    # B12 正例：带记录 id 的锚点照旧算同源（收窄不许把这条该认的也挡掉）
+    by, _ = rev.coverage_judge(rows(("#素材/REC-A/图片素材/#img.1", THR + 1)), set(),
+                              {"REC-A"}, THR,
+                              resources_of=lambda aa: {"#素材/REC-A/图片素材/#img.1": "REC-A"})
+    chk("B12 带记录 id 的锚点仍算同源（收窄没把该认的挡掉）", by == "same_source", by)
+
     # B6 ★★ 地基：两个**真实**锚点回权威表取到的 resource_id 必须相同
     #   若这条不成立，B 的整个前提就是错的（而它会静默地什么都不做）
     import time

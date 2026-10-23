@@ -1,0 +1,33 @@
+{
+  "ok": true,
+  "identity": "bot",
+  "data": {
+    "actual_range": "A1:C4",
+    "annotated_csv": "[row=1] 指标,定义,统计方式\n[row=2] 1. 已审内容数,产生有效审查记录的内容版本数,按 content_id + version + stage 去重\n[row=3] 2. 四态分布,PASS / SUGGEST / REVIEW / BLOCK 数量及占比,各状态数量 ÷ 已审内容数\n[row=4] 3. 人工复核工单量,需人工介入的内容版本数,REVIEW + BLOCK 需人工确认的数量",
+    "col_count": 3,
+    "col_indices": [
+      "A",
+      "B",
+      "C"
+    ],
+    "current_region": "A1:C4",
+    "has_more": false,
+    "revision": 96,
+    "row_count": 4,
+    "row_indices": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "warning_message": "①定位行号：必须直接读取 annotated_csv 中每行开头的 [row=N] 前缀（N 即为实际表格行号），不要自己数行，不要用\"序号/ID/编号\"列的值推导（这些列可能跳号或从非 1 开始，会全盘错位）；②定位列字母：必须用 col_indices[j]，不要手数。"
+  },
+  "_notice": {
+    "update": {
+      "command": "lark-cli update",
+      "current": "1.0.95",
+      "latest": "1.0.98",
+      "message": "lark-cli 1.0.98 available, current 1.0.95, run: lark-cli update"
+    }
+  }
+}

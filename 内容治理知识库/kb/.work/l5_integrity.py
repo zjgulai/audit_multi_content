@@ -251,6 +251,19 @@ cand = cand_all          # ← 只影响下面的 pattern 回指段
 
 # ---- 3) + 4) pattern 回指与词源
 pats = [json.loads(l) for l in open("kb/l5/p0_patterns.jsonl", encoding="utf-8") if l.strip()]
+
+# ★★ 2026-10-22：`boundary_of_code` 的校验池 —— **按 rule_code 聚合「边界：…；触发词」段**
+#   （两个候选件都算，任何 p_level 都算：边界段本来就不保证住在入选的那一条规则上）。
+#   病灶（本文件当场红）：H09 的边界词来自同码的 `r-7489e156a5d2c7b2`（P1），
+#   而入选的 H09 是 `r-006445396c95aa10` ⇒ 拿「这一条规则的 rule_text」去核永远核不过。
+#   这不是把判据放松：词仍必须**逐字**出现在某条同码规则的边界段里（真核，不是自证）。
+_BND_RE = re.compile(r"^\s*边界：(.+?)；触发词")
+BND_BY_CODE = {}
+for _r in cand_all.values():
+    _m = _BND_RE.match(_r.get("rule_text") or "")
+    if _m:
+        BND_BY_CODE.setdefault(_r.get("rule_code"), set()).add(norm(_m.group(1)))
+
 trace_bad, word_bad, rows = [], [], []
 for p in pats:
     r = cand.get(p["rule_id"])
@@ -266,7 +279,9 @@ for p in pats:
             trace_bad.append({**hit, "why": "证据三元组缺项"})
             break
     pool_source = norm(r["forbidden_expression"])
-    pool_rule = norm((r.get("rule_text") or "") + " " + (r.get("suggested_replacement") or ""))
+    # ★ 2026-10-21：`reason` 也算规则自己的文本（H09 的边界表述住在 `reason` 里）
+    pool_rule = norm((r.get("rule_text") or "") + " " + (r.get("suggested_replacement") or "")
+                     + " " + (r.get("reason") or ""))
     pool = pool_source + " " + pool_rule
     terms = {m["term"]: m for m in p.get("match_terms") or []}
     for w in p["patterns"]:
@@ -279,6 +294,10 @@ for p in pats:
             word_bad.append({**hit, "word": w, "kind": b, "why": "自称逐字来自命中片段，实际不在"})
         elif b == "verbatim_rule_text" and norm(w) not in pool_rule:
             word_bad.append({**hit, "word": w, "kind": b, "why": "自称逐字来自规则文本，实际不在"})
+        elif b == "boundary_of_code":
+            if norm(w) not in (BND_BY_CODE.get(p.get("rule_code")) or set()):
+                word_bad.append({**hit, "word": w, "kind": b,
+                                 "why": "自称来自同码边界段，实际不在该码任何「边界：…；触发词」段里"})
         elif b.startswith("equivalent_of:"):
             anc = norm(b.split(":", 1)[1])
             if not anc or anc == norm(w) or anc not in pool:

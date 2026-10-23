@@ -33,6 +33,11 @@ layers:
   - kb/l8/align_l0_schema.py
   - kb/l8/reconcile_l0_feishu.py
   - kb/l8/emit_l0_manifest_reconcile.py
+  # ★ 2026-10-20 补登记：附件字节落盘。「L0 有图」的**唯一**执行者，
+  #   此前不在任何 engine 清单里 ⇒ 最后一次真跑 2026-10-09，之后登记的附件行
+  #   一直停在 metadata_only（实测 30 个 token / 11 条记录）。已接进
+  #   `l7/scripts/l0_daily_sync.py` 的 ②c 步；本行只是把它登记成 L0 的引擎。
+  - kb/l8/store_l0_attachments.py
   - kb/l8/fetch_video_bytes.py
   - kb/l8/extract_video_keyframes.py
   - kb/l8/drill_links_2levels.py
@@ -112,6 +117,7 @@ layers:
     '
   engine:
   - kb/l8/l2_split_run.py
+  - kb/l8/l2_resync_media_vision.py
   inputs:
   - kb/l1/manifest_l1.jsonl
   - kb/l1/{1..4,9}_*/*.json
@@ -146,6 +152,10 @@ layers:
   engine:
   - kb/l8/l3_distill_run.py
   - kb/l8/l3_reject_ledger_rebuild.py
+  # ★ 2026-10-20：负面样本规则（N-1.x 段）。独立语料、独立产物，
+  #   不动 rules.jsonl 一行；每天随 L3 重算 = 新图/新记录/新画面读数自动跟上。
+  #   判据：kb/l8/check_negative_rule_coverage.py（条款号/证据/挂载/映射四项）。
+  - kb/l8/l3_negative_rules.py
   - kb/.work/l3_report.py
   inputs:
   - kb/l2/units.jsonl
@@ -184,6 +194,8 @@ layers:
   engine:
   - kb/.work/l4_ledger_repair.py
   - kb/.work/l4_article.py
+  # ★ 2026-10-20：负面样本规则（N-1.x）定稿。逐字搬运、条款号沿用；non_substantive 不进 L4。
+  - kb/l8/l4_promote_negative_rules.py
   - kb/.work/fix_l4_repromote.py
   - kb/.work/l4_integrity.py
   - kb/.work/l4_report.py
@@ -223,7 +235,7 @@ layers:
   skill:
   - kb-p0-check
   skill_write: true
-  skill_note: '**写档三条件（缺一不可）**：① 由 `kb-pipeline` 以层身份调用 ② 带 `--apply` ③ 人开闸。 引擎清单读本层 `engine`（唯一真源）；跑完回 `kb/kbpy l7/scripts/l5_gate.py`。 ★ **本层比别的层多一条红线**：旧模式表必须**人工归档**成 `kb/l5/runs/<RUN>.p0_patterns.superseded.jsonl`（本层 write_mode = overwrite_with_archive， 而归档动作**不在脚本里**）—— 覆盖式写入的兜底缺口，不许省。 另：`l5_integrity.py` 的基线两项（frozen_layers / l3_append_only）在活库上必然 FAIL， 须逐项登记 `kb/l7/registry/l5-known-drift.yaml`；实质 4 项红了必须真修。
+  skill_note: '**写档三条件（缺一不可）**：① 由 `kb-pipeline` 以层身份调用 ② 带 `--apply` ③ 人开闸。 引擎清单读本层 `engine`（唯一真源）；跑完回 `kb/kbpy l7/scripts/l5_gate.py`。 ★ **本层比别的层多一条红线**：旧模式表必须**人工归档**成 `kb/l5/runs/<RUN>.p0_patterns.superseded.jsonl`（本层 write_mode = overwrite_with_archive， 而归档动作**不在脚本里**）—— 覆盖式写入的兜底缺口，不许省。 另：`l5_integrity.py` 的基线两项（frozen_layers / l3_append_only）在活库上必然 FAIL，须逐项登记 `kb/l7/registry/l5-known-drift.yaml`；5 个实质项红了必须真修。
 
     '
   engine:
@@ -251,13 +263,13 @@ layers:
   - kb/l5/runs/<run_id>.p0_patterns.superseded.jsonl
   - kb/l3/candidates/rules.jsonl
   idempotency_key: pattern_id = 'p-' + sha1(f'{EXPORTER_VERSION}|{rule_id}')[:16]（kb/.work/l5_export.py:301；源不变则 id 不变）
-  gate: kb/l7/scripts/l5_gate.py（**包装+分类档**：原样跑 kb/.work/l5_integrity.py 的 6 项并全打出来，再把「实质 4 项」与「基线 2 项」分开——实质项 FAIL 判红；基线项（frozen_layers / l3_append_only）实测在活库上必然 FAIL，须逐项登记在 kb/l7/registry/l5-known-drift.yaml，漏登记判红）
+  gate: kb/l7/scripts/l5_gate.py（原样跑 `l5_integrity.py` 并分类 5 个实质项与 2 个已登记的基线漂移；另按 `l5_export.py` 真源复算 P0 导出 rule_id 集合，含 boundary-only 规则，逐条比对，漏项/多项/重复均判红）
   cwd: '{kb_root}'
   python: ${KB_PYTHON}
   envelope: required
   write_mode: overwrite_with_archive
   dry_run: true
-  notes: '★ 本层落章引擎 = kb/.work/l5_report.py（**有** --apply 档；预演写 kb/l5/runs/<RUN>-dryrun.json）。 ★ 本层 registry **未声明 idempotency_key**（kb/l5/registry/l5.json 只有 10 个键）； 上表填的是从代码读出的确定性主键（l5_export.py:301），已标明来源。 ★ 归档不在脚本里：旧模式表要**人工**归档成 superseded.jsonl —— 这是覆盖式写入的兜底缺口。 ★ L2→L5 的边**只经由 l5_prep.py / l5_bench.py**：l5_export.py:31 声明了 L2 常量但全文只 open L3， 那个 L2 是**死常量**。 ★ 选取口径：p_level=P0 ∧ rule_kind=atomic ∧ authority∈{expert,legal}（+ code_allowlist=[H06]）， 21 条 P0 → 入选 6 条（kb/l5/registry/l5.json → selection / excluded）。 ★ 运行时只读器是 kb/l5/matcher.py（--text / --file / --json / --selftest），**不写盘** —— 这是 L5 的「读」通道。
+  notes: '★ 本层落章引擎 = kb/.work/l5_report.py（**有** --apply 档；预演写 kb/l5/runs/<RUN>-dryrun.json）。 ★ 本层 registry **未声明 idempotency_key**（kb/l5/registry/l5.json 只有 10 个键）； 上表填的是从代码读出的确定性主键（l5_export.py:301），已标明来源。 ★ 归档不在脚本里：旧模式表要**人工**归档成 superseded.jsonl —— 这是覆盖式写入的兜底缺口。 ★ L2→L5 的边**只经由 l5_prep.py / l5_bench.py**：l5_export.py:31 声明了 L2 常量但全文只 open L3， 那个 L2 是**死常量**。 ★ 导出准入口径以 `kb/.work/l5_export.py` 为真源：P0 atomic + expert/legal、`P0_CODE_ALLOWLIST` 与 `BOUNDARY_ONLY_CODES`；当前 L5 闸门逐个核对 19 个导出 rule_id。 ★ 运行时只读器是 kb/l5/matcher.py（--text / --file / --json / --selftest），**不写盘** —— 这是 L5 的「读」通道。
 
     '
 - layer: L6

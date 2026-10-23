@@ -14,7 +14,7 @@ effective_from: 2026-09-29
 evidence_level: L1
 data_level: L2
 sensitivity_level: L2
-created_at: 2026-10-16
+created_at: 2026-10-22
 asks:
   - W-2.116 判什么、命中什么算违规
   - W-2.116 应该怎么改（合规替代写法）
@@ -29,7 +29,7 @@ source:
   ref: "https://momcozy-in.feishu.cn/base/SKkkbdZi9aRuMzs7ob0cpSYHnQg?table=tbl8AI00JZO1iZtp"
   fingerprint: SKkkbdZi9aRuMzs7ob0cpSYHnQg/tbl8AI00JZO1iZtp
   record_ids: [rec27JyMFn8Ebo, rec27JyMFn8HrR, rec27JyMFn8KIP, recvoAhrwbEVFd, recvoAhrwbKr2O, recvoAhrwbT6Tc, recvoAhrwbvD31, recvoyJ6L91Ak3, recvoyJ6L93hWv, recvoyJ6L95B5q, recvoyJ6L95UkD, recvoyJ6L97pK3, recvoyJ6L999QF, recvoyJ6L9CUi2, recvoyJ6L9DTdb, recvoyJ6L9J8Wj, recvoyJ6L9Jh2B, recvoyJ6L9JvG8, recvoyJ6L9MYQp, recvoyJ6L9NXCT, recvoyJ6L9NXXQ, recvoyJ6L9ObLx, recvoyJ6L9OoXf, recvoyJ6L9Q7JN, recvoyJ6L9SHGE, recvoyJ6L9TPrl, recvoyJ6L9UK4j, recvoyJ6L9Vv5i, recvoyJ6L9WWls, recvoyJ6L9di9S, recvoyJ6L9fgzB, recvoyJ6L9iUIZ, recvoyJ6L9kDLV, recvoyJ6L9uHyk, recvoyJ6L9uOz0, recvs3QiNPlgkv, recvs3QvHR2v7D, recvs3QvHR9I8z, recvs3QvHRVjwr, recvs40EGMb2iS, recvs40EGMfDZy, recvs40EGMiMWj, recvs41gwA3UGn, recvs41gwABurp, recvs41gwAN6XJ, recvs41gwAkG8C, recvs41gwAv8pq]
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l3/candidates/rules.jsonl#r-49a58aca87e2b71d"
   confidence: 确定

@@ -1,0 +1,96 @@
+meta:
+  file: kb/l7/registry/negative-image-hitrate.yaml
+  answers: 库内反面案例图（339 张）发到飞书侧，凭什么判「命中」；怎么保证不反复修复
+  checker: kb/l8/check_negative_image_hitrate.py
+  checker_selftest: python3 kb/l8/check_negative_image_hitrate.py --selftest
+  smoke_wired: kb/l8/workflow_smoke.py（S13，读 kb/.work/negative_image_hitrate.json）
+  set_by: Owner（2026-10-20 对话；原话见下）
+  registered_at: '2026-10-20'
+  registered_by: DSH agent（本会话）
+
+owner_ruling:
+  quote_1: '「339 张图，提炼成规则的，我这飞书侧问守衡，触发规则了，就必须输出命中知识库」'
+  quote_2: '「但串图风险回来，我不能接受！不能出现这种问题」'
+  quote_3: '「你的所有修复必须落库，避免这个问题反复修复」'
+  reading: >-
+    两条要求同时成立：**有触发就必须输出**（不许静默吞掉命中），
+    **且不许把别的图的意见当成这张图的**（串图）。落点不是"放宽/收紧"，
+    而是**每条输出都带证据类**（凭什么算），并且把这条判据固化成闸门。
+
+what_is_a_hit:
+  definition: >-
+    一条 `negative_rules.jsonl`（N-1.x）的命中产生一条 finding，且它的
+    `evidence_class != unknown`。**判据是"库内这条规则挂的图里有本单对上的那张"**，
+    不是"文字看着像"。
+  evidence_classes:
+    figure: >-
+      规则正文写了「图N」，且 N == 本素材对上的那张取证图的 seq ⇒ 才算「**这张图**的历史意见」。
+    record: >-
+      规则是记录级意见（正文无图号），本图在该记录里，且命中已**图级锚定**
+      （matched_image.sha / 同图指纹 / 自命中层）⇒ 「**该记录**的历史意见」。
+    shared: >-
+      本图在库里是**复用图**（同一张图挂在内容不同的多条记录里）⇒
+      「**同图历史意见**（不专指本图）」。仍要求同图（sha/指纹/画面），**不是**放宽到"文字相近"。
+    unknown: >-
+      连"对上了哪张取证图"都定不下来（semantic / 归属产物缺失）⇒ **不输出**，
+      只进 `negative_rules.not_subject`。输出它才是编造。
+
+three_gates_that_used_to_swallow_hits:
+  - id: narrow
+    where: kb/l7/review-engine/core/self_negative.py::narrow_negative_hits
+    old: 规则 `record_ids` > 1 就整条丢（跨记录聚合）
+    now: 先看图级锚定；只有"没对上任何一张取证图"才丢
+    measured_loss_before: 122/329 张库内图的命中被整批清空
+  - id: attribution
+    where: kb/l7/skills/kb-content-review/scripts/review.py（negative_rules → findings 段）
+    old: 只有 `subject` 可引用（288 张去重图里 subject 仅 15）
+    now: figure/record/shared 都输出，但带证据类；unknown 仍不输出
+    measured_loss_before: 60 张样本里 31 张（52%）回拒答
+  - id: score_cap
+    where: kb/l8/negative_rule_match.py::score_rule
+    old: 带画面读数 + 规则无画面线索 ⇒ score = 0.4×text ≤ 0.40 < 阈值 0.45（新图必空）
+    now: 未改（见 `cut2_decision`）；本批要求只覆盖"库内图"，新图另议
+
+cut2_decision:
+  what: 「回填画面线索 + 重标阈值 + 解除 0.40 上限」
+  status: 已标定，**未上线**
+  calibration:
+    method: 从 L2 `[image_visual]` 生成 412/476 条规则的 `visual_cues`，用"同题材新图"（画面读数 + 2 行文字）量召回与精度
+    results:
+      - '不灌线索（现状）：新图召回 5%｜精度 ~100%'
+      - 'df_cap=200 + 解除上限：召回 34%｜精度 32%'
+      - 'df_cap=6 + 文字≥0.20：召回 11%｜精度 51%'
+    why_not_shipped: >-
+      精度 32%~51% 意味着**一半以上命中是跨记录噪声**，正是 Owner 明确不接受的那一类。
+      按「串图不能接受」优先，本刀不落盘；要做必须先把精度做到可接受（新图另立金标集）。
+
+rule_quality_gate:
+  why: >-
+    Owner 真单（2026-10-20 18:59，MomAndMore 活动日历图）：报告里出现
+    「https://www.figma.com/design/…」「项目背景：亚马逊多语言修改」「麻烦看看呀」三种"意见"，
+    观感就是串图/垃圾。核对：476 条 N-1.x 里只有 **132 条（28%）**带规范内容，
+    其余 observation 245 / brief 35 / non_substantive 39。
+  rule: 只引用 `rule_kind ∈ {point, advice}` 且正文 ≥10 字、非 URL、非 @提醒 的规则
+  where: kb/l7/skills/kb-content-review/scripts/review.py（`_substantive_rule`）
+  trace: `negative_rules.not_substantive` / `not_substantive_count`（被筛掉的原样留痕，不静默丢）
+  measured:
+    images_with_citable_rule: 254 / 339（75%）
+    images_without_citable_rule: 85 / 339（25%，41 条记录；其中只有 8 条记录带「建议」字段）
+    gate_assertion: 垃圾正文却进意见 = 0（`check_negative_image_hitrate.py`，红了就是这条回归了）
+
+gates:
+  H1_data_coverage: 339 张图每张都能在 negative_rules.jsonl 里找到挂它的规则（按 sha 与 file_token 双口径）
+  H2_engine_hit: 抽样逐张送真引擎（守衡送审形状），每张必须出 ≥1 条 `layer=负面样本规则` 的 finding
+  H3_reverse_control: 把图内文字换成无关营销文案 ⇒ 负面样本意见必须为 0（证明判据不恒真）
+  H4_selftest: `--selftest` 两例 —— 清空图内文字 ⇒ 不命中；原样送 ⇒ 命中
+
+artifacts:
+  gate_readout: kb/.work/negative_image_hitrate.json
+  per_image_list: 339张图-飞书验证清单-20261020.md（逐张：记录 ID / 图序号 / 是否命中 / 条数）
+  delivery: 交付-负面样本规则归属门修复-20261020.md
+
+regression_history:
+  - at: '2026-10-20'
+    what: 三道门收紧（串图修复）⇒ 库内图命中率掉到 5%，没有任何尺子在量
+    fix: 证据类输出（本件）+ 闸门 H1–H4
+    numbers: '60 张样本：有意见 3/60 → 29/60（证据类上线前）→ 全量 339 逐张跑批见 artifacts'

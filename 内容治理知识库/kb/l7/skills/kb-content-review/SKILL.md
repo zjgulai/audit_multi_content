@@ -191,6 +191,14 @@ for R in $BASE-L4 $BASE-L5 $BASE-L6 $BASE-L7; do sh kb/kbpy l7/scripts/skill_inv
 实测同日一单四层审计全绿，而让位表指定的判定主体**一次都没加载**，报告照样出了。
 登记见 `report-output-contract.yaml` 的 `applied_20261003.three_defenses_20261003`。
 
+### 图单专项（2026-10-21）：原图与完整 skill 调用证据
+
+`--content-type image` 时，必须同时传入每张原图的 `--image <path>`，并由当前进程的
+`DSH_SESSION_JSONL` 读取本轮会话。入口要求原图可读、判定主体恰为 `图片安全审查`，且会话中有
+该 skill 的真实成功加载证据；`--loaded-skill` 与 `--coverage` 都只是调用方申报，不能替代此证据。
+缺少任一项即 `NEEDS_INPUT` / 退出码 3，不得生成三态结论或发布。图片安全审查 skill 的完整步骤
+与本入口闸门必须同时通过；单独跑知识库规则链、视觉/OCR 或填写五类视觉清单都不等于完整执行。
+
 ⚠️ **与上一节（新鲜度前置）的强度对比**：新鲜度 = **代码级阻断**（`l7/scripts/review_freshness_gate.py`，
 由本 skill 的 `review.py` 与 `kb_api.py` 调用，超期 ⇒ 退出码 3 / HTTP 409）；层前置现在是**同一强度**
 （CLI 默认拒答 ＋ API 409）。两者判据不同、**都在结论路径上，不许只跑一个**。

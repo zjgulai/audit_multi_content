@@ -370,12 +370,12 @@
   },
   "known_tension": {
    "dual_axis": "评审链规则层读规则行（吃到本次表值）；L5 侧读 manifest 富化（覆盖规则行 ⇒ 仍是旧值）。两轴并存**已显式登记**在注册表 `dual_axis`，**不是**静默漂移。",
-   "why_not_synced": "同步进 manifest 会让 `l5_gate._p0_recompute` 的 expected 从 17 变 19（阻断闸门）+ 快路扩容需法务签字。",
+   "why_not_synced": "本次双轴登记（2026-10-17）时，旧版 L5 闸门只复算 17 条，边界候选 M01/M02 尚未纳入；2026-10-21 导出器按 Owner 口径追加了两条 boundary-only 规则后，L5 闸门已修为从导出器真源复算并逐个比对 rule_id，当前 19 条一致。该修复不等于放宽一般 P0 准入；快路新增规则仍须法务签字。",
    "engine_impact": "severity 变化 26 条（23 条 REVIEW→BLOCK，3 条 BLOCK→REVIEW：W-2.268 / W-2.326 / W-2.328）。"
   },
   "boundary": [
    "★ 不动 `risk_level`（PRD §6.5 的另一轴）——`apply_taxonomy()` 不写这一列，也不触发 P0 地板。",
-   "★ 不动 `p0_patterns.jsonl`（快路 17 条，法务签字台账）——导出侧另加 fail-closed 守卫。",
+   "★ 不把本表的 P0 档位变化直接写入快路；当前导出 19 条 = 原主选取 17 条 + Owner 明确批准的 M01/M02 boundary-only 两条。导出身份由 `l5_gate.py` 逐条核对，常规快路新增仍受法务签字台账约束。",
    "★ 11 类体系与库内既有两套类目（`l7.json.vocabulary.categories` 规则词表、`l4/canonical/sample_case.reason_category` 反例类目）及 PRD §5.3 四维的映射关系**尚未裁**。"
   ]
  }

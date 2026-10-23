@@ -1,0 +1,206 @@
+{
+ "decision": {
+  "state": "REVIEW",
+  "decision": "REVIEW",
+  "confidence": null,
+  "review_id": "rv-20261023-184147",
+  "content_id": "AUTO-a201ba6c35b9",
+  "content_id_basis": "指纹兜底：本单 `--no-publish-to-feishu`，不发飞书故不发业务号（不是漏发）",
+  "content_version": "a201ba6c35b9b8e83051cb990009e8ade277f876ddf1cf40f0f9bda7b17951ee",
+  "issue_count": 0,
+  "summary": "【审查结论：REVIEW】共发现 0 处需人工确认。\n\n**本次没有发现内容问题**（0 处）。下面是**覆盖缺口**说明 —— 缺的是**库覆盖**，不是素材有问题：\n\n**覆盖缺口说明（不是内容问题）**：本次素材的**文字层逐字命中 0 条**，但覆盖判据不成立（没有「既被规则引用、又达门限」的单元）——**这不是素材有问题，是库对该题材没有可依据的条款**。\n   原因：依据侧检索到 5 条命中，最高 BM25 39.7645（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。\n   依据：`kb/l7/registry/l7.json` 的 `retrieval.gate.coverage_bm25_min=16.0`（覆盖判据标定值；覆盖信号不成立时**不得输出 PASS**）\n   建议：转人工复核后再定；补素材无用（缺的是库覆盖）。\n\n**库内命中（读数）** —— 检索命中了 5 条，逐条列出**原文与直链**：\n\n1. `#l.1-1`｜BM25 39.7645｜wording\n   命中原文（逐字）：Momcozy Air 1 Wearable Breast Pump - Ultra-Slim On-the-Go Solution ⏰️ Autumn Sale Extended: Final Hours Shop Now Switch to your local store for faster shipping,\n   直链：https://uk.momcozy.com/products/momcozy-air-1-ultra-slim-breast-pump\n2. `#l.1-1`｜BM25 38.8644｜wording\n   命中原文（逐字）：Momcozy M5 Smart Wearable Pump – Bluetooth App Control | CA Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush\n   直链：https://ca.momcozy.com/products/m5-smart-wearable-breast-pump-upgraded-with-app-control?variant=47796813922491\n3. `#l.1-1`｜BM25 38.819｜wording\n   命中原文（逐字）：Momcozy M5 Smart Breast Pump | App-Controlled Tracking | Shop EU Autumn Sale-Final Hours: Shop Now ! Switch to your local store for faster shipping, local prici\n   直链：https://eu.momcozy.com/products/m5-smart-wearable-breast-pump-upgraded-with-app-control\n4. `#l.1-1`｜BM25 38.6971｜wording\n   命中原文（逐字）：M5 Smart Wearable Breast Pump – Upgraded with App Control Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush &\n   直链：https://momcozy.com/collections/wearable-breast-pump/products/m5-smart-wearable-breast-pump-upgraded-with-app-control?variant=45110887514310\n5. `#l.1-1`｜BM25 38.4607｜wording\n   命中原文（逐字）：M5 Smart Wearable Breast Pump – Upgraded with App Control Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush &\n   直链：https://momcozy.com/products/m5-smart-wearable-breast-pump-upgraded-with-app-control\n\n> ⚠️ 上面是**读数**：命中的**大多是别人的素材样本 / 外部材料，不是覆盖本素材的条款**，**不得据此当 PASS 依据**，也不得当作「本素材已合规」的证明。\n\n建议转 @法务（未配置） @北美同事（未配置） 复核。",
+  "risk_items": [
+   {
+    "risk_type": "覆盖缺口",
+    "priority_tier": "转人工",
+    "action": "库对该题材没有可依据的条款 ⇒ 转人工看**覆盖**（不是发现了内容问题）",
+    "category": "覆盖",
+    "sub": "知识库覆盖缺口",
+    "reason": "依据侧检索到 5 条命中，最高 BM25 39.7645（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。",
+    "severity": "REVIEW",
+    "reason_code": "coverage_not_covered",
+    "coverage": {
+     "covered": false,
+     "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+     "rule_cited_unit_hits": 0,
+     "safe_vocabulary_hits": 0,
+     "coverage_bm25_min": 16.0,
+     "bm25_max": 39.7645,
+     "top_hit_anchor": "#l.1-1",
+     "top_hit_excerpt": "Momcozy Air 1 Wearable Breast Pump - Ultra-Slim On-the-Go Solution ⏰️ Autumn Sale Extended: Final Hours Shop Now Switch to your local store for faster shipping,"
+    },
+    "coverage_gap": true
+   }
+  ],
+  "next_owners": [
+   "法务",
+   "医学顾问"
+  ],
+  "fails_closed": true,
+  "refusal": {
+   "state": "NEEDS_INPUT",
+   "detail": "依据侧拒答（fail-closed）",
+   "fails_closed": true,
+   "reason_code": "coverage_not_covered",
+   "coverage": {
+    "covered": false,
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "rule_cited_unit_hits": 0,
+    "safe_vocabulary_hits": 0,
+    "coverage_bm25_min": 16.0,
+    "bm25_max": 39.7645,
+    "top_hit_anchor": "#l.1-1",
+    "top_hit_excerpt": "Momcozy Air 1 Wearable Breast Pump - Ultra-Slim On-the-Go Solution ⏰️ Autumn Sale Extended: Final Hours Shop Now Switch to your local store for faster shipping,"
+   },
+   "human": "依据侧检索到 5 条命中，最高 BM25 39.7645（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。"
+  },
+  "gate": null
+ },
+ "evidence_meta": {
+  "run_id": "20261023-184145",
+  "findings": 0,
+  "state": "REVIEW",
+  "fails_closed": true,
+  "refusal": {
+   "state": "NEEDS_INPUT",
+   "detail": "依据侧拒答（fail-closed）",
+   "fails_closed": true,
+   "reason_code": "coverage_not_covered",
+   "coverage": {
+    "covered": false,
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "rule_cited_unit_hits": 0,
+    "safe_vocabulary_hits": 0,
+    "coverage_bm25_min": 16.0,
+    "bm25_max": 39.7645,
+    "top_hit_anchor": "#l.1-1",
+    "top_hit_excerpt": "Momcozy Air 1 Wearable Breast Pump - Ultra-Slim On-the-Go Solution ⏰️ Autumn Sale Extended: Final Hours Shop Now Switch to your local store for faster shipping,"
+   },
+   "human": "依据侧检索到 5 条命中，最高 BM25 39.7645（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。"
+  },
+  "report_path": null,
+  "source": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py",
+  "findings_source": {
+   "mode": "live",
+   "path": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py"
+  },
+  "kb_hits": [
+   {
+    "anchor": "#l.1-1",
+    "bm25": 39.7645,
+    "kb_type": "wording",
+    "source_sha256": "6b99574f19a2bbc4a32911b25f912e6546e159c9f820ede6ee67a8a5e708a9ff",
+    "excerpt": "Momcozy Air 1 Wearable Breast Pump - Ultra-Slim On-the-Go Solution ⏰️ Autumn Sale Extended: Final Hours Shop Now Switch to your local store for faster shipping,",
+    "url": "https://uk.momcozy.com/products/momcozy-air-1-ultra-slim-breast-pump"
+   },
+   {
+    "anchor": "#l.1-1",
+    "bm25": 38.8644,
+    "kb_type": "wording",
+    "source_sha256": "fac9f460268feec110f99ac7a8cef601aa0339be254638c4a4967eb2b2370943",
+    "excerpt": "Momcozy M5 Smart Wearable Pump – Bluetooth App Control | CA Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush",
+    "url": "https://ca.momcozy.com/products/m5-smart-wearable-breast-pump-upgraded-with-app-control?variant=47796813922491"
+   },
+   {
+    "anchor": "#l.1-1",
+    "bm25": 38.819,
+    "kb_type": "wording",
+    "source_sha256": "a55b3b5b0093e12832de7baf9fc53b1b65236221aed78dcf981f33f3e79f3dc7",
+    "excerpt": "Momcozy M5 Smart Breast Pump | App-Controlled Tracking | Shop EU Autumn Sale-Final Hours: Shop Now ! Switch to your local store for faster shipping, local prici",
+    "url": "https://eu.momcozy.com/products/m5-smart-wearable-breast-pump-upgraded-with-app-control"
+   },
+   {
+    "anchor": "#l.1-1",
+    "bm25": 38.6971,
+    "kb_type": "wording",
+    "source_sha256": "fdd1d791cbc4f262746270962aec601cedc5037149f4c1113eec1351237c24dc",
+    "excerpt": "M5 Smart Wearable Breast Pump – Upgraded with App Control Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush &",
+    "url": "https://momcozy.com/collections/wearable-breast-pump/products/m5-smart-wearable-breast-pump-upgraded-with-app-control?variant=45110887514310"
+   },
+   {
+    "anchor": "#l.1-1",
+    "bm25": 38.4607,
+    "kb_type": "wording",
+    "source_sha256": "a2bf60596c59162ca1d91c96063a6e86a184710a92b212996948b04d25ce3af9",
+    "excerpt": "M5 Smart Wearable Breast Pump – Upgraded with App Control Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush &",
+    "url": "https://momcozy.com/products/m5-smart-wearable-breast-pump-upgraded-with-app-control"
+   }
+  ],
+  "layer_preflight": {
+   "base": "20261023-184137",
+   "ok": true,
+   "red_total": 0,
+   "mode": "enforced",
+   "details": {
+    "L4": {
+     "run": "20261023-184137-L4",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L4": "session-e8ec5e82-72e4-4b98-a13f-f70d6905fc21"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L5": {
+     "run": "20261023-184137-L5",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L5": "session-e8ec5e82-72e4-4b98-a13f-f70d6905fc21"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L6": {
+     "run": "20261023-184137-L6",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L6": "session-e8ec5e82-72e4-4b98-a13f-f70d6905fc21"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L7": {
+     "run": "20261023-184137-L7",
+     "exit": 0,
+     "red": 0,
+     "yellow": 0,
+     "skill_sessions": {
+      "L7": "session-e8ec5e82-72e4-4b98-a13f-f70d6905fc21"
+     },
+     "pass": true,
+     "note": ""
+    }
+   }
+  },
+  "position": {
+   "value": null,
+   "supplied_by": null,
+   "note": "未提供 ⇒ 依据层用默认位置（图片会是裸「图 1」，出口闸 R3 判红）"
+  },
+  "decision_owner": {
+   "skill": "文案合规审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check",
+    "文案合规审查"
+   ]
+  },
+  "publish": {
+   "mode": "disabled_by_caller",
+   "published": false,
+   "reason": "disabled_by_caller"
+  },
+  "report_url": null,
+  "report_url_kind": null
+ }
+}

@@ -115,19 +115,28 @@ def compute():
     with open(L6_REG, encoding="utf-8") as fh:
         reg = json.load(fh)
     own = (reg.get("counts") or {}).get("usable")
+    # ★ 2026-10-20：索引里另有**负面样本规则文档**（N-1.x，Owner 批准并入，来源 kb/l3/candidates/
+    #   negative_rules.jsonl）。它们不是 L2 单元，所以：`counts.usable` 只算 L2 单元，
+    #   索引行数 = 可用单元 + 规则文档数；**规则文档数必须与注册表自报一致**（否则就是偷塞）。
+    n_rules = int((reg.get("counts") or {}).get("negative_rule_docs") or 0)
     c1 = []
     if own != usable:
         c1.append(["counts.usable", "自报 %s" % own, "复算 %s" % usable])
-    if n_idx != usable:
-        c1.append(["index/l6.jsonl", "行数 %d" % n_idx, "复算可用单元 %d" % usable])
+    if n_idx != usable + n_rules:
+        c1.append(["index/l6.jsonl", "行数 %d" % n_idx, "复算可用单元+规则 %d" % (usable + n_rules)])
     if not idx_ids and n_idx:
         c1.append(["index/l6.jsonl", "没有 unit_id 字段", ""])
 
     # C2 向量可回指
-    c2, n_vec = [], 0
+    c2, n_vec, n_nr = [], 0, 0
+    nr_ids = set()
     for ln, d in _iter(L6_VEC):
         n_vec += 1
         uid = d.get("unit_id")
+        if str(uid or "").startswith("nr-"):
+            # 负面样本规则文档：不在 L2；向量是**按段一行**，所以按 **distinct unit_id** 计数
+            nr_ids.add(uid)
+            continue
         u = units.get(uid)
         if u is None:
             if len(c2) < CAP:
@@ -135,6 +144,9 @@ def compute():
         elif u.get("source_sha256") != d.get("source_sha256"):
             if len(c2) < CAP:
                 c2.append([ln, uid, "source_sha256 对不上"])
+
+    if n_rules != len(nr_ids):
+        c2.append(["negative_rule_docs", "注册表自报 %d" % n_rules, "向量里实际 %d" % len(nr_ids)])
 
     # C3 编号同源
     c3, docs_ids, n_docs = [], set(), 0

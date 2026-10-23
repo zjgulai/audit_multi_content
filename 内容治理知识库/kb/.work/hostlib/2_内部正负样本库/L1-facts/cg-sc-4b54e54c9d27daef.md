@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.54 是正例还是反例
   - S-1.54 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-4b54e54c9d27daef"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 社媒
 reason_category: 品牌一致性
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2vgYXa30w/原文反馈"
-source_sha256: b286948d5c26cc844555fbfae298f673c70a3bf9c77d6a692235bcbbf748686c
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXa30w
+anchor: "#负面样本/recvw7XIUgWWAn/具体原因/分析"
+source_sha256: a890f4920349f5fb081837d32db6895466f698e27aa8988646930fff042cfed5
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XIUgWWAn
 sample_body: "【审核 · 2026-09-07 22:14 · 吴悠】【初审-@[已脱敏] 】辛苦看看这个呀:YouAreTheBest: **项目名：秋促KV延展-BOAbanner** **设计需求：** - 产品替换，由KV版7个替换为8个产品； - 产品替换内容：推车、吸奶器、吸奶器、内衣、暖奶瓶； - 目前初稿给到两个方向，主要是产品位置和版式 - 排版内容主要凸显活动折扣点，用KV环境色凸显强调 - logo和出血线严格按照最新的社媒指引规范使用 ![Image](img_v3_0215a_c7418cc5-8e82-4f36-8351-1c63c554082g) ![Image](img_v3_0215a_a02f236a-302a-4395-9aeb-7f76cdd3aafg)"
 reason_analysis: "【品牌一致性】图片 - 产品替换，由KV版7个替换为8个产品。 【问题要点】 1. - 产品替换，由KV版7个替换为8个产品 2. - 产品替换内容：推车、吸奶器、吸奶器、内衣、暖奶瓶 3. 【初审-@[已脱敏] 】辛苦看看这个呀 4. - 目前初稿给到两个方向，主要是产品位置和版式 5. - 排版内容主要凸显活动折扣点，用KV环境色凸显强调"
 advice: 替换为8个产品
@@ -89,8 +89,8 @@ advice: 替换为8个产品
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2vgYXa30w/原文反馈`
-- 指纹：`b286948d5c26cc844555fbfae298f673c70a3bf9c77d6a692235bcbbf748686c`
+- 锚点：`#负面样本/recvw7XIUgWWAn/具体原因/分析`
+- 指纹：`a890f4920349f5fb081837d32db6895466f698e27aa8988646930fff042cfed5`
 - 原因归类：品牌一致性　|　素材类型：图片
 
 > 案例只作参照，不构成规则。

@@ -1,0 +1,31 @@
+{
+ "run_id": "20261020-1743",
+ "at": "2026-10-20T17:43:59",
+ "source": "pipeline_sync",
+ "trigger": "--sync L5",
+ "skills": [
+  "kb-check",
+  "kb-pipeline"
+ ],
+ "commands": [
+  "kb/kbpy l7/scripts/kb_pipeline.py --check",
+  "kb/kbpy l7/scripts/kb_pipeline.py --sync --only L5",
+  "kb/kbpy l7/scripts/kb_pipeline.py --sync --only L5 --apply"
+ ],
+ "products": [
+  "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/kb-gate-ctv9lj07/2026-10-20-daily-health.md",
+  "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/kb-gate-ctv9lj07/daily-health-latest.json",
+  "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/kb-gate-bww4n8gy/2026-10-20-daily-health.md",
+  "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/kb-gate-bww4n8gy/daily-health-latest.json",
+  "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/kb-gate-3bm9s_q5/2026-10-20-daily-health.md",
+  "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/kb-gate-3bm9s_q5/daily-health-latest.json",
+  "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/kb-freshness-4zyga8d0/2026-10-20-daily-health.md",
+  "/var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/kb-freshness-4zyga8d0/daily-health-latest.json"
+ ],
+ "verdict": "全走完",
+ "human_involved": true,
+ "extra": {
+  "write_merges": 7,
+  "previous_at": "2026-10-20T17:43:52"
+ }
+}

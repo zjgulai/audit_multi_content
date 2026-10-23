@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.298 是正例还是反例
   - S-1.298 的问题要点与原因归类是什么
@@ -22,13 +22,13 @@ not_proves: 案例是参照，不构成规则 —— 不能证明「和它像」
 forbidden: 不许把案例当规则用（案例只作参照）；不许据本条直接判 BLOCK；不许把派生视图的字段改动当成新库改动（视图不写回）
 related:
   - cg-sc-952efa07b7bc61d6
-  - cg-sc-998f7365fd5dd926
-  - cg-sc-4d49e1990afc456f
+  - cg-sc-998f7365fd5dd926-S-1_109
+  - cg-sc-ee347a64c2b285d4-S-1_185
 source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-db3dd5bad9b57682"
   confidence: 确定

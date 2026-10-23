@@ -1,0 +1,29 @@
+{
+ "run_id": "20261017-174845",
+ "at": "2026-10-17T17:48:45",
+ "source": "review_machine",
+ "trigger": "这款吸奶器绝对是最好的，能增产催奶，FDA 认证，完全无痛，模拟婴儿自然吮吸节奏。",
+ "skills": [
+  "kb-content-review",
+  "审查裁决"
+ ],
+ "commands": [
+  "kb-content-review/scripts/review.py --text …",
+  "l7/review-engine/core/review_engine.py decide()"
+ ],
+ "products": [
+  "kb/l7/reports/20261017-174840.review.md"
+ ],
+ "verdict": "BLOCK ｜ issue_count=7",
+ "human_involved": false,
+ "content_id": "AUTO-82b220bf5713",
+ "confidence": 0.94,
+ "extra": {
+  "decision_owner": {
+   "skill": null,
+   "mode": "waived_by_caller",
+   "reason": "调用方显式声明不记判定主体（--allow-no-decision-owner）"
+  },
+  "loaded_skills": []
+ }
+}

@@ -677,7 +677,8 @@ def render_kb_hits(hits, limit=8):
 
 
 def _evidence_findings(text: str, write_report: bool = False,
-                       findings_from=None, findings_out=None):
+                       findings_from=None, findings_out=None, scene=None, content_type=None,
+                       position=None, images=None):
     """拿依据侧（kb-content-review 的 review.py）带条款号的 findings。
 
     三条路：
@@ -692,6 +693,37 @@ def _evidence_findings(text: str, write_report: bool = False,
     if not REVIEW_PY.exists():
         return None, "依据组件不在位：%s" % REVIEW_PY
     cmd = [sys.executable, str(REVIEW_PY), "--kb-root", str(ROOT), "--text", text, "--json"]
+    # ★★ 2026-10-20（实测缺陷，最坏的一类）：**适配器从不把 content-type 传给依据层**。
+    #   实测：一张图（守衡送来的正文 = OCR + 画面读数）走 `with_kb_evidence` ⇒ 依据层收到的是默认
+    #   `text` ⇒ 「负面样本规则 N-1.x」层**根本没跑** ⇒ 0 条、结论 PASS。
+    #   而同一段正文直调 review.py 时是 5 条 REVIEW。**差别只在这一行。**
+    #   归一化：守衡传的是中文「图片/视频」，review.py 只认 text/image/video。
+    _ct = str(content_type or "").strip().lower()
+    _ct = {"图片": "image", "image": "image", "视频": "video", "video": "video"}.get(_ct, "text")
+    if _ct != "text":
+        cmd += ["--content-type", _ct]
+    # ★ 2026-10-20：把**画面读数**透传给依据层（负面样本规则 N-1.x 层靠它才启得起来）。
+    #   传的是守衡 scene.mjs 的输出本体；落成临时 JSON，review.py 侧 --scene-json 读它。
+    if scene is not None:
+        import tempfile as _tf
+        _sf = os.path.join(_tf.mkdtemp(prefix="kb-scene-"), "scene.json")
+        with open(_sf, "w", encoding="utf-8") as _fh:
+            json.dump(scene, _fh, ensure_ascii=False)
+        cmd += ["--scene-json", _sf]
+    # ★★ 2026-10-20（Owner 令「位置要写尽详细具体位置」）：把**复核人写的位置**透传给依据层。
+    #   病根：不给 `--position` 时 review.py 用 image 的默认 `图片 1（#img.1）`，
+    #   归一化后成了裸 `图 1` —— 出口闸 R3 正是点名这个形状判红。
+    #   不给本参数 ⇒ 行为与改动前**逐字一致**（仍是 review.py 的那个默认）。
+    if position:
+        cmd += ["--position", str(position)]
+    # ★ 2026-10-21：**把送审图本身交给依据层**（不是只交它的 sha）。
+    #   病根：此前 `--image` 只用于申报 coverage（算 sha），图**从未进过评审**
+    #   ⇒ 依据层只能按 OCR 文本认图（德国海报丢变音/夹水印 ⇒ 0 命中 ⇒ PASS）。
+    #   给了 --image ⇒ review.py 走「图身份层」（pHash/像素相关），不依赖 OCR / 字节 sha；
+    #   不给 ⇒ 行为与改动前逐字一致。
+    if images:
+        for _p in images:
+            cmd += ["--image", str(_p)]
     if not write_report:
         cmd.append("--dry-run")          # 默认不落盘（冒烟/预演）；要留痕就 write_report=True
     # ★ 防线1（2026-10-03）：把「从哪扇门进来的」告诉 review.py —— 它自本批起**拒直接调用**。
@@ -718,6 +750,36 @@ def _evidence_findings(text: str, write_report: bool = False,
         except OSError as e:              # 缓存写不了不该让评审失败
             print("[warn] findings 缓存没写成：%r" % (e,), file=sys.stderr)
     return ev, None
+
+
+def _desc_of(f):
+    """**问题描述**（PRD §8.3 六格之一）—— 必须有，且 ≤50 字（PRD §5.3.3）。
+
+    ★★ 2026-10-20（Owner：「问题描述：（本条未提供问题描述）==》不允许出现这样的回答，
+      必须有问题描述」）：本函数**新增** `description` 这一格。改前 `_to_risk_item` 压根没有它
+      ⇒ 渲染层（守衡 `descriptionOf()`）取不到 ⇒ 报告逐条印占位句
+      `（本条未提供问题描述）`，收报告的人看不出这条到底哪里有问题。
+
+    取值三条，**都不编**：
+      ① 条目自带 `description`（案例层已按「库内反例 + 问题要点」写好）；
+      ② 没有描述但有逐字命中 ⇒ 用命中原文，并**明说这是替代**（它不是模型写的描述）；
+      ③ 都没有 ⇒ 用「库内条款命中（规则码/类别）」如实交代 —— 仍不是空，也不是占位句。
+    """
+    d = str(f.get("description") or "").strip()
+    if d:
+        return d[:50]
+    exc = str(f.get("excerpt") or "").strip()
+    if exc:
+        return ("逐字命中「%s」（以命中原文代描述）" % exc)[:50]
+    tail = str(f.get("rule_code") or f.get("category") or "未分类").strip()
+    # ★ 2026-10-20：负面样本规则的命中带**证据类**（figure/record/shared）——
+    #   把它压成短标签放进描述，卡片与报告才看得出「这条意见凭什么算」，
+    #   而不是把复用图的记录级意见当成"这张图的问题"（那正是串图）。
+    _cls = str(f.get("evidence_class") or "").strip()
+    _tag = {"figure": "按图号对上本图", "record": "记录级意见",
+            "shared": "复用图·同图历史意见"}.get(_cls, "")
+    _base = "库内条款命中（%s）" % tail
+    return ((_base + "·" + _tag) if _tag else _base)[:50]
 
 
 def _to_risk_item(f):
@@ -792,7 +854,14 @@ def _to_risk_item(f):
         "tier_action": tiering.action_of(_tier),
         "action": "block" if str(f.get("severity")).upper() == "BLOCK" else "review",
         "location": f.get("position") or "全文",
+        # ★★ 2026-10-20（Owner：「不允许出现这样的回答，必须有问题描述」）：PRD §8.3 六格之一。
+        #   守衡 `descriptionOf()` 的取值顺序是 `x.description → x.kb.description → excerpt → 占位句`
+        #   ⇒ 这一格不给，报告就只能印「（本条未提供问题描述）」。
+        "description": _desc_of(f),
         "original_text": exc or "",
+        # 历史规则文本必须独立展示，不能冒充当前素材 OCR/原文。
+        "history_rule_text": f.get("history_rule_text") or "",
+        "history_attribution": f.get("evidence_class_label") or f.get("attribution") or "",
         "reason": f.get("reason") or "",
         "suggestion": f.get("advice") if f.get("advice") not in (None, "None") else (f.get("advice_note") or ""),
         "rule_code": f.get("rule_code"),
@@ -869,6 +938,12 @@ def _coverage_for(content_type: str, provided=None) -> dict:
     if provided:
         cov["declared_by"] = "caller"
         cov["declared_modalities"] = sorted(provided)
+        # ★ 2026-10-20 加：**逐个点名是谁在作证、怎么来的**。
+        #   这一格只加留痕，**不参与判定**（判定仍是上面那条 ok=四段齐全）。
+        cov["declared_providers"] = {m: (provided.get(m) or {}).get("provider")
+                                     for m in sorted(provided)}
+        cov["declared_via"] = {m: (provided.get(m) or {}).get("via")
+                               for m in sorted(provided)}
         cov["note"] += ("；其中 %s 的「complete」来自**调用方申报**（不是引擎自测），按申报档看待"
                         % "、".join(sorted(provided)))
     return cov
@@ -888,9 +963,109 @@ def _parse_coverage_specs(specs):
         m, provider, ver, chash, status = (p.strip() for p in parts)
         if not (m and provider and ver and chash and status):
             raise ValueError("有一段是空的：%r" % s)
+        # `via` 只用于**留痕**（结论里看得出这份 complete 是手填的、还是登记件换来的），
+        # 不参与判定；`_coverage_for()` 只认四段佐证在不在。
         out[m] = {"provider": provider, "provider_version": ver,
-                  "content_hash": chash, "status": status}
+                  "content_hash": chash, "status": status,
+                  "via": "cli--coverage"}
     return out or None
+
+
+#: 已登记的多模态 provider —— **唯一真源**，由 `_coverage_from_images()` 实读。
+#: 为什么要登记（2026-10-20 真单）：`--coverage` 要手填四段、其中 content_hash 是文件 sha256，
+#: 手抄必然抄错或漏抄 ⇒「agent 自己看过图」没有任何机器可核的落点 ⇒ 引擎只能回 NEEDS_INPUT
+#: （`incomplete_coverage:image,ocr`），**与图片内容无关**。
+VISION_PROVIDERS_PATH = KB / "l7/review-engine/knowledge-base/vision-providers.json"
+
+
+def load_vision_providers(path=None):
+    """读已登记的 provider 清单 → {id: spec}。
+
+    读不到 / 不是合法 JSON / 缺 `providers[]` ⇒ **抛 ValueError**（不静默返回空）：
+    静默返回空会让「申报没生效」看起来和「没申报」一模一样。
+    """
+    p = Path(path) if path else VISION_PROVIDERS_PATH
+    try:
+        raw = json.loads(p.read_text(encoding="utf-8"))
+    except OSError as e:
+        raise ValueError("读不到 provider 登记件 %s：%s" % (p, e))
+    except json.JSONDecodeError as e:
+        raise ValueError("provider 登记件不是合法 JSON %s：%s" % (p, e))
+    items = (raw or {}).get("providers")
+    if not isinstance(items, list) or not items:
+        raise ValueError("provider 登记件缺 providers[]：%s" % p)
+    out = {}
+    for it in items:
+        pid = (it or {}).get("id")
+        if not pid:
+            continue
+        out[pid] = it
+    if not out:
+        raise ValueError("provider 登记件里没有任何带 id 的条目：%s" % p)
+    return out
+
+
+def _sha256_file(path):
+    """**实算**文件 sha256 —— 这就是 `--image` 存在的理由（手抄 sha 必然抄错）。"""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _coverage_from_images(paths, provider_id="agent-inline-vision",
+                          provider_version=None, providers=None):
+    """把「调用方真读过这几张图」转成 `_coverage_for()` 认的 provided 结构。
+
+    与 `--coverage` **同级**：都是**申报**，不是引擎自测。差别只在**谁填 content_hash**：
+    这里由本函数**实算文件 sha256**（手抄正是 2026-10-20 那次「看了图但填不出证据」的来源）。
+
+    ⚠️ 只适用于**完整读过**的图：本开关一律记 `status=complete`。
+      读不全（遮挡 / 太小 / 只看局部）**不许用本开关** —— 当前判据**不分辨** `status` 的取值
+      （见登记件 `kb/l7/registry/report-output-contract.yaml`
+      → `known_defect_20261020_coverage_status_unchecked`），
+      用了就会把「没读全」伪装成「读全了」。
+
+    content_hash 形状（稳定、可复现）：
+      · 单图 ⇒ 该文件 sha256（人与机器对得上）；
+      · 多图 ⇒ 各图 sha256 **排序后拼接**再 sha256（与传入顺序无关）。
+    """
+    paths = [str(x) for x in (paths or [])]
+    if not paths:
+        return None
+    providers = providers if providers is not None else load_vision_providers()
+    spec = providers.get(provider_id)
+    if spec is None:
+        raise ValueError("provider %r 没有登记（已登记：%s）"
+                         % (provider_id, "、".join(sorted(providers)) or "无"))
+    mods = spec.get("modalities") or []
+    if not mods:
+        raise ValueError("provider %r 没声明 modalities，不知道它能给哪些模态作证" % provider_id)
+    ver = provider_version or spec.get("default_provider_version")
+    if not ver:
+        raise ValueError("provider %r 没有 provider_version（登记件也没给 default_provider_version）"
+                         % provider_id)
+    per = []
+    for x in paths:
+        pp = Path(x)
+        if not pp.is_file():
+            raise ValueError("图读不到（--image 只收真实文件）：%s" % x)
+        per.append({"path": str(pp), "sha256": _sha256_file(pp)})
+    if len(per) == 1:
+        chash = per[0]["sha256"]
+    else:
+        h = hashlib.sha256()
+        for s in sorted(p["sha256"] for p in per):
+            h.update(s.encode("ascii"))
+        chash = h.hexdigest()
+    out = {}
+    for m in mods:
+        out[m] = {"provider": provider_id, "provider_version": str(ver),
+                  "content_hash": chash, "status": "complete",
+                  "via": "registry:%s" % provider_id,
+                  "images": [p["path"] for p in per]}
+    return out
 
 
 #: 本单发不发飞书 —— 决定**要不要发业务号**（不发就不去读表，见 content_id.py）。
@@ -953,9 +1128,12 @@ def _auto_content_id(content_version: str) -> str:
 def run(text: str, *, content_id=None, channel="", product_line="", product_line_seed="",
         write_report: bool = False, findings_from=None, findings_out=None,
         decision_owner=None, loaded_skills=None,
-        content_type: str = "text", coverage_provided=None):
+        content_type: str = "text", coverage_provided=None, scene=None, position=None,
+        images=None):
     ev, err = _evidence_findings(text, write_report=write_report,
-                                 findings_from=findings_from, findings_out=findings_out)
+                                 findings_from=findings_from, findings_out=findings_out,
+                                 scene=scene, content_type=content_type, position=position,
+                                 images=images)
     if ev is None:
         return None, err
 
@@ -1374,6 +1552,113 @@ def layer_preflight(base: str, layers=LAYER_PREFLIGHT_LAYERS) -> dict:
     return out
 
 
+def _scene_from_arg(a):
+    """读 `--scene-json`；读不出就返回 None（**不猜、不抛**）。"""
+    p = getattr(a, "scene_json", None)
+    if not p:
+        return None
+    try:
+        with open(p, encoding="utf-8") as fh:
+            d = json.load(fh)
+        if isinstance(d, dict) and isinstance(d.get("scene"), dict):
+            return d["scene"]
+        return d if isinstance(d, dict) else None
+    except Exception as e:                                    # noqa: BLE001
+        print("[scene] ⚠ 画面读数读不出（%s）：%s ⇒ 负面样本规则层按「仅文字」跑" % (p, e),
+              file=sys.stderr)
+        return None
+
+
+#: 图片单的判定主体（kb-review 让位表：图片/主图/图上文字/婴幼儿画面 → 图片安全审查）
+IMAGE_DECISION_OWNER = "图片安全审查"
+
+
+def _json_tool(argv, timeout=60):
+    """跑一个只读判据脚本并解析它的 `--json` 输出；跑不起来返回 (None, {"error": …})。"""
+    try:
+        p = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, cwd=str(ROOT))
+    except Exception as e:                      # noqa: BLE001
+        return None, {"error": str(e)}
+    try:
+        payload = json.loads(p.stdout or "{}")
+    except Exception:                           # noqa: BLE001
+        payload = {"error": "输出不是 JSON：%r" % (p.stdout or "")[:200],
+                   "stderr": (p.stderr or "")[:200]}
+    return p.returncode, payload
+
+
+def image_skill_gate(a):
+    """图片单专项闸门（2026-10-21）：原图可读 + 判定主体正确 + skill 就绪 + 本会话真实加载。
+
+    为什么加（本机实测）：某 skill 的 SKILL.md 落成「信封态」⇒ harness 读不到 ⇒ 不在 catalog ⇒
+    `skill` 工具报 `unknown or no longer available` ⇒ 模型改成「直接读文件」，照样申报
+    `--loaded-skill`，而流程上**没有任何东西会红**（申报是自述档）。三条判据各管一段：
+      ① 判定主体必须是 图片安全审查（`--content-type image` 时）；
+      ② skill 文件在 harness 侧读得到（`kb/l8/assert_skill_ready.py`，判信封态/NUL/UTF-8/frontmatter）；
+      ③ 本会话日志里有**成功的** skill 调用（`kb/l8/verify_skill_loaded.py` —— 观测，不是自述）。
+    图片审查必须读取本轮真实原图并验证本会话的 skill 调用；缺图、无会话日志或日志不可读
+    都是未验证，必须 fail-closed 为 NEEDS_INPUT。不能用 coverage 或 --loaded-skill 自述补位。
+    """
+    out = {"ok": True, "expected": IMAGE_DECISION_OWNER, "owner": a.decision_owner,
+           "checks": [], "warnings": [], "load": None}
+
+    # 图片规则的图身份层必须拿到**本轮原图**。只有 OCR/画面摘要或 coverage 声明，
+    # 都不能证明图身份层看过送审图；允许继续会静默丢失 L3 图像指纹召回。
+    image_paths = [str(p).strip() for p in (getattr(a, "image", None) or []) if str(p).strip()]
+    if not image_paths:
+        out.update(ok=False, reason_code="image_source_missing")
+        out["checks"].append("没有 --image 原图路径；本轮不能执行图身份核验")
+        return out
+    unreadable = [p for p in image_paths
+                  if not os.path.isfile(p) or not os.access(p, os.R_OK)]
+    if unreadable:
+        out.update(ok=False, reason_code="image_source_unreadable")
+        out["checks"].append("送审原图不存在或不可读：%s" % ", ".join(unreadable))
+        return out
+    out["checks"].append("送审原图可读：%d 张" % len(image_paths))
+
+    if (a.decision_owner or "") != IMAGE_DECISION_OWNER:
+        if getattr(a, "allow_decision_owner_mismatch", False):
+            out["warnings"].append("判定主体 %r ≠ %s（调用方显式 --allow-decision-owner-mismatch）"
+                                   % (a.decision_owner, IMAGE_DECISION_OWNER))
+        else:
+            out.update(ok=False, reason_code="decision_owner_mismatch")
+            out["checks"].append("判定主体 %r 不是 %s" % (a.decision_owner, IMAGE_DECISION_OWNER))
+            return out
+
+    rc, payload = _json_tool([sys.executable, str(KB / "l8/assert_skill_ready.py"),
+                              "--skill", IMAGE_DECISION_OWNER, "--json"])
+    skills = payload.get("skills") or [{}]
+    if rc != 0:
+        out.update(ok=False, reason_code="skill_not_ready")
+        out["checks"].append("skill 在 harness 侧读不到：%s"
+                             % ("；".join(skills[0].get("reasons") or [])
+                                or payload.get("error") or "rc=%s" % rc))
+        return out
+    out["checks"].append("skill 就绪：%s" % skills[0].get("path"))
+
+    session = os.environ.get("DSH_SESSION_JSONL")
+    if not session:
+        out["load"] = {"verdict": "unverified", "why": "no_session"}
+        out.update(ok=False, reason_code="skill_session_unverified")
+        out["checks"].append("没有 $DSH_SESSION_JSONL；本会话真实 skill 调用未测，拒绝出结论")
+        return out
+    rc, payload = _json_tool([sys.executable, str(KB / "l8/verify_skill_loaded.py"),
+                              "--skill", IMAGE_DECISION_OWNER, "--json", "--session", session])
+    out["load"] = {"verdict": payload.get("verdict"), "calls": payload.get("calls")}
+    if rc == 5:
+        out.update(ok=False, reason_code="skill_session_unverified")
+        out["checks"].append("会话日志读不了；本会话真实 skill 调用未测，拒绝出结论：%s"
+                             % (payload.get("reason") or "untested"))
+    elif rc != 0:
+        out.update(ok=False, reason_code="skill_not_loaded")
+        out["checks"].append("本会话**没有成功的** skill(%s) 调用：%s"
+                             % (IMAGE_DECISION_OWNER, payload.get("reason") or payload.get("verdict")))
+    else:
+        out["checks"].append("本会话观测到成功加载（%s）" % payload.get("verdict"))
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--text", required=True)
@@ -1381,6 +1666,8 @@ def main() -> int:
     ap.add_argument("--channel", default="")
     ap.add_argument("--product-line", default="")
     ap.add_argument("--product-line-seed", default="", help="给 5 条种子规则扫描器的词表原样值（如 吸奶器）")
+    ap.add_argument("--scene-json", default=None,
+                    help="画面读数 JSON（守衡 scene.mjs 输出）—— 传了才启用负面样本规则层 N-1.x")
     ap.add_argument("--findings-from", default=None,
                     help="复用一份已算好的依据缓存（跳过 subprocess 再跑 review.py）。"
                          "缓存文本指纹与本次不一致即拒用")
@@ -1397,6 +1684,9 @@ def main() -> int:
                          "用了它，结论里会留 `evidence_meta.layer_preflight.mode=waived_by_caller` —— "
                          "**缺层前置这件事必须可见，不许静默**")
     ap.add_argument("--content-type", default="", help="写飞书表用的内容类型（如 listing 文案 / 主图）")
+    ap.add_argument("--allow-decision-owner-mismatch", action="store_true",
+                    help="图片单（--content-type image）默认**要求**判定主体 = 图片安全审查"
+                         "（kb-review 让位表）。用它才允许别的判定主体，且留痕 —— 缺省不放行")
     ap.add_argument("--write-report", action="store_true",
                     help="**真的把报告落盘**（默认不落盘：不给它时依据侧走 `--dry-run`）。"
                          "问题数 ≥3 的单子按 PRD §5.3.4 **只出分类汇总 + 报告链接** ——"
@@ -1409,6 +1699,24 @@ def main() -> int:
                          "★ 这是**申报档**（与 --loaded-skill 同级，不是引擎自测）：结论里会记"
                          " `coverage.declared_by=caller` 并逐个点名申报过的模态。"
                          "**没有真跑过 provider 就不许填** —— 填了等于伪造模态覆盖。")
+    ap.add_argument("--image", action="append", default=None, metavar="PATH",
+                    help="调用方**真读过**的图片文件（可重复）。给了它 ⇒ 按已登记 provider"
+                         "（`kb/l7/review-engine/knowledge-base/vision-providers.json`）自动生成"
+                         " image/ocr 的 coverage 申报，**content_hash 由文件 sha256 实算**，不用手抄。"
+                         "★ 与 `--coverage` 同级：仍是**申报档**，不是引擎自测；结论里会记"
+                         " `declared_providers` / `declared_via`。"
+                         "⚠️ 只适用于**完整读过**的图：遮挡/太小/只看局部时**别用它**"
+                         "（当前判据不分辨 status 取值，用了等于把「没读全」伪装成「读全了」）。")
+    ap.add_argument("--vision-provider", default="agent-inline-vision",
+                    help="配合 --image：用哪个**已登记**的 provider（默认 agent-inline-vision）")
+    ap.add_argument("--vision-provider-version", default=None,
+                    help="配合 --image：provider 版本（默认取登记件的 default_provider_version）")
+    ap.add_argument("--position", default=None, metavar="LOC",
+                    help="**复核人写的位置**（透传给依据层 review.py）。Owner 2026-10-20 令："
+                         "图片写 `图 N 第 X 处`，可加区域前缀 → `图片顶部，图 1 第 3 处`"
+                         "（区域词只许 顶部/中部/底部/左侧/右侧）；`第 X 处` = 该图内文字块的阅读顺序行号，"
+                         "且**必须能被那一行文字复核**。视频写 `视频 MM:SS`，纯文字写 `正文第 X 段`。"
+                         "不给它 ⇒ 行为与改动前逐字一致（图片仍是 review.py 的默认 `图 1`，会被出口闸 R3 判红）。")
     ap.add_argument("--question", default="", help="送审时**用户的原提问**（落进报告正文与飞书「送审问题」列；"
                                                    "2026-10-03 用户裁定 (a)+(b) 一起做）")
     # ── 判定主体（2026-10-03 加，防线2）────────────────────────────────────────
@@ -1518,11 +1826,72 @@ def main() -> int:
             print("  确实不需要专项：显式加 --allow-no-decision-owner（结论里会记 mode=waived_by_caller）")
         return 3
 
+    # ── 图片单专项闸门（fail-closed，2026-10-21 加）────────────────────────────
+    #   为什么加：本机实测同一单「报告已发、判定主体那个 skill 一次没加载过」，而层前置与四道审计
+    #   **全绿** —— 层前置保护的是「证据管道」，不保护「专项 skill 真的跑过」。
+    _img_gate = None
+    # 口径：判定「这是不是图片单」除了英文 `image`，也认几个**中文/别名**写法 ——
+    #   否则写 `--content-type 主图` 就**绕过**了本闸门（实测口径坑：技能正文要求英文，
+    #   但引擎历史上收过「主图 / 素材图」这类值）。认出来之后**照样要求英文 image**，
+    #   只是不让你用别名把闸门绕过去。
+    _ct_raw = (a.content_type or "").strip()
+    _ct = _ct_raw.lower()
+    _IMAGE_ALIASES = {"image", "主图", "图片", "素材图", "image/"}
+    if _ct in _IMAGE_ALIASES:
+        if _ct != "image":
+            print("⚠️ --content-type=%r 是别名写法；图片单请用英文 `image`"
+                  "（coverage 闸门只认英文，中文写法会让它静默失效）" % _ct_raw, file=sys.stderr)
+        _img_gate = image_skill_gate(a)
+        if not _img_gate["ok"]:
+            refusal = {
+                "state": "NEEDS_INPUT", "decision": "NEEDS_INPUT",
+                "summary": ("【审查结论：NEEDS_INPUT】图片单专项闸门未过（fail-closed，原因码 %s）：%s"
+                            % (_img_gate.get("reason_code"), "；".join(_img_gate["checks"]))),
+                "issue_count": 0,
+                "image_skill_gate": _img_gate,
+                "next_action": ("图片单必须先让「图片安全审查」在 harness 侧**读得到**、"
+                                "给本轮可读原图 `--image`，并在可读取的 `$DSH_SESSION_JSONL` 中"
+                                "观测到本会话真实 skill 工具调用，再重跑本命令；"
+                                "文件坏了（信封态/坏 frontmatter）看 kb/l8/assert_skill_ready.py 头注释的修法。"),
+            }
+            if a.json:
+                print(json.dumps(refusal, ensure_ascii=False, indent=1))
+            else:
+                print("结论：NEEDS_INPUT（**图片单专项闸门未过** —— 不出三态结论）")
+                print("  原因码：%s" % _img_gate.get("reason_code"))
+                for why in _img_gate["checks"]:
+                    print("  · %s" % why)
+                for w in _img_gate["warnings"]:
+                    print("  ⚠️ %s" % w)
+                print("  判据：kb/l8/assert_skill_ready.py（文件能否被 harness 读到）"
+                      "＋ kb/l8/verify_skill_loaded.py（本会话有没有**真的**加载过）"
+                      "＋ 本轮 `--image` 原图可读性")
+            return 3
+
     try:
         _cov_provided = _parse_coverage_specs(a.coverage)
     except ValueError as e:
         print("❌ --coverage 解析失败：%s" % e, file=sys.stderr)
         return 2
+
+    # ★ 2026-10-20：`--image` —— 把「调用方真读过这几张图」换成**实算 sha256** 的 coverage 申报。
+    #   优先级：显式 `--coverage` > `--image`（前者是人点名写的，后者由登记件推）。
+    #   不给 `--image` ⇒ 行为与改动前**逐字一致**（声明的模态一律 incomplete）。
+    if getattr(a, "image", None):
+        try:
+            _img_cov = _coverage_from_images(a.image, a.vision_provider, a.vision_provider_version)
+        except ValueError as e:
+            print("❌ --image 解析失败：%s" % e, file=sys.stderr)
+            return 2
+        _merged = dict(_cov_provided or {})
+        for _k, _v in (_img_cov or {}).items():
+            _merged.setdefault(_k, _v)
+        _cov_provided = _merged or None
+        if _cov_provided:
+            _m = sorted((_img_cov or {}))
+            print("模态申报：--image 实算 %d 张图 → %s（provider=%s @%s）"
+                  % (len(a.image), "、".join(_m), a.vision_provider,
+                     (a.vision_provider_version or "登记件默认")), file=sys.stderr)
 
     # ★ 本单发不发飞书 —— 决定要不要发业务号（见 `_auto_content_id`）。
     #   必须在 `run()` 之前设好：content_id 是在 run() 里算的。
@@ -1540,12 +1909,27 @@ def main() -> int:
                    content_type=(a.content_type or "text"),
                    # ★ 2026-10-05 加（用户裁定）：调用方申报的模态佐证。
                    #   不给 ⇒ 行为与改动前**逐字一致**（声明的模态一律 incomplete）。
-                   coverage_provided=_cov_provided)
+                   coverage_provided=_cov_provided,
+                   scene=_scene_from_arg(a),
+                   # ★ 2026-10-20：复核人写的位置（不给 ⇒ 与改动前逐字一致）
+                   position=getattr(a, "position", None),
+                   # ★ 2026-10-21：送审图文件（不给 ⇒ 与改动前逐字一致）
+                   images=getattr(a, "image", None))
     if res is None:
         print("❌ 跑不起来：%s" % err, file=sys.stderr)
         return 2
     res["evidence_meta"]["layer_preflight"] = pf      # 过了/豁免了都要留痕（可核性）
+    # ★ 2026-10-20：谁写的位置要看得见（不给就记 None —— 缺位置必须可见，不许静默）
+    res["evidence_meta"]["position"] = {
+        "value": getattr(a, "position", None),
+        "supplied_by": "reviewer(cli)" if getattr(a, "position", None) else None,
+        "note": ("复核人按 Owner 2026-10-20 令写入（四形态）"
+                 if getattr(a, "position", None) else
+                 "未提供 ⇒ 依据层用默认位置（图片会是裸「图 1」，出口闸 R3 判红）"),
+    }
     res["evidence_meta"]["decision_owner"] = do       # 同上：判了/豁免了都要留痕
+    if _img_gate is not None:                          # 图片单专项闸门：过了/带告警都要留痕
+        res["evidence_meta"]["image_skill_gate"] = _img_gate
     if a.json:
         pass          # ★ JSON 统一挪到最后打印 —— 要带上发布结果（publish），且 stdout 必须保持**纯 JSON**
     else:

@@ -1,0 +1,735 @@
+{
+ "kb_version": "v0",
+ "layer": "L7 消费侧（使用知识库的 skill 与验收）",
+ "run_id": "20260923-1500",
+ "article_no_source": {
+  "field": "article_no",
+  "assigned_by": "L4（定稿与发布层），本步只读，不重新分配",
+  "field_lives_in": "kb/l4/canonical/*.jsonl（定稿；**五个形态文件** — wording_entry/wording_revision_pair/sample_case/scoped_clause/clause；rules.jsonl 为空迁移留痕不计）+ kb/l3/candidates/rules.jsonl（L4 追加写的带号行）+ kb/l3/candidates/external_standard.jsonl（L4 追加写的带号行）+ kb/l4/registry/l4.json 的 numbering.issued",
+  "field_lives_in_was": "kb/l3/candidates/rules.jsonl（20260923-1445 时的位置；候选文件的 article_no 仍保留未动，但本批新发的条款号没有写回候选文件）",
+  "numbering_registry": "kb/l4/registry/l4.json",
+  "format": "<库前缀>-<形态段>.<序号>，例如 W-2.137；前缀 W=措辞表达库、S=内部正负样本库、E=外部标准库、P=产品描述库、X=不得分配",
+  "scheme_version": "article-no-2",
+  "total_rules": 638,
+  "total_rules_note": "规则类形态（wording_entry + wording_revision_pair + external_standard 条款型）的条数。★ 2026-09-30 从 509 变 632：新增 kb/l3/candidates/external_standard.jsonl 的 123 条外部标准条款级规则（L3 run 20260930-1400），本批落 E-2 段。",
+  "total_outputs": 4569,
+  "total_outputs_note": "全部带条款号的记录数 = 4569（台账 numbering.issued 逐段相加）。其中 canonical 落盘 1480 条；E-2 的 123 条仍是**候选**，未晋升定稿（晋升要过人工抽查，不在本批）。",
+  "candidate_rows": 9138,
+  "by_form": {
+   "scoped_clause": 3458,
+   "wording_entry": 56,
+   "wording_revision_pair": 453,
+   "sample_case": 473,
+   "external_standard_clause": 129
+  },
+  "ranges": {
+   "E-1": [
+    1,
+    3458
+   ],
+   "E-2": [
+    1,
+    129
+   ],
+   "S-1": [
+    1,
+    316
+   ],
+   "W-1": [
+    1,
+    56
+   ],
+   "W-2": [
+    1,
+    453
+   ],
+   "W-3": [
+    1,
+    157
+   ]
+  },
+  "prefixes": {
+   "E": "external_standard（1_外部标准库）",
+   "S": "internal_sample（2_内部正负样本库）",
+   "W": "wording（3_措辞表达库）",
+   "P": "product_desc（4_产品描述库）",
+   "X": "unknown（9_未归类）—— blocked_policy：不得分配，先归类再编号"
+  },
+  "segments_used": [
+   "E-1",
+   "E-2",
+   "S-1",
+   "W-1",
+   "W-2",
+   "W-3"
+  ],
+  "reserved_unused_segments": [
+   "P-1",
+   "S-2",
+   "W-4",
+   "W-5",
+   "W-6"
+  ],
+  "missing_article_no": [],
+  "missing_check": "逐条核过：候选件 4569 个唯一 id 全部能取到条款号，取不到的 0 条。（口径：按**台账 assignments** 核，不按文件自带字段核 —— sample_cases/scoped_clauses 的条目不回写号，号只在台账与 canonical 里。）",
+  "read_at": "2026-10-14 04:02:25",
+  "read_at_previous": "2026-10-13 16:33:20",
+  "candidate_rows_note": "9138 行 = 唯一 id 4569 条，其中 rules/external_standard 两个文件按 L4 的追加约定各存两份（原行 + 带号行），差异只有 article_no 一个字段。各文件自带 article_no 的行数：{'external_standard.jsonl': 135, 'rules.jsonl': 509, 'sample_cases.jsonl': 473, 'scoped_clauses.jsonl': 3458}",
+  "by_form_note": "`sample_case` = W-3(157) + S-1(201)，沿用旧键口径不变；`external_standard_clause` = E-2(123)，2026-09-30 新增，由 form ∈ {recommendation, substantiation, disclosure, prohibition, scope, mandate} 六类条款级规则构成（见 ledger block_by_library['external_standard']['E-2'].forms）。",
+  "refreshed_by": "kb/.work/l7_article_source_refresh.py daily-20261014-0330-L7",
+  "refresh_note": "★ 为什么刷新：本块是**读取快照**（见 read_at），上次是 2026-09-24 15:20。之后 123 条外部标准条款级规则入库并发号，快照却仍把 E-2 列为 reserved_unused —— 而 E-2.1…E-2.123 已发出。L7 是引用契约层，留着一张说 E-2 未启用的表会让 E-2.x 被判成无效号。"
+ },
+ "citation_contract": {
+  "format": "《<库名> <版本>》第 <条款号> 条（链接：<url>）",
+  "version_in_citation": "v0（试用版，未发布）",
+  "library_names_from": "kb/l0/registry/kb.json → kb_types（label + dir），不得自造库名",
+  "libraries": {
+   "external_standard": {
+    "label": "外部标准库",
+    "dir": "1_外部标准库"
+   },
+   "internal_sample": {
+    "label": "内部正负样本库",
+    "dir": "2_内部正负样本库"
+   },
+   "wording": {
+    "label": "措辞表达库",
+    "dir": "3_措辞表达库"
+   },
+   "product_desc": {
+    "label": "产品描述库",
+    "dir": "4_产品描述库"
+   },
+   "unknown": {
+    "label": "未归类（不猜）",
+    "dir": "9_未归类"
+   }
+  },
+  "library_of_current_rules": "wording（509 条候选规则的 kb_type 全为 wording → 引用库名一律《措辞表达库》；其余三类库在本知识库里暂无规则，库名仅登记备用，不许拿它们当引用来源）",
+  "must_include": [
+   "库名",
+   "版本",
+   "条款号",
+   "anchor",
+   "source_sha256",
+   "逐字摘录"
+  ],
+  "forbidden": [
+   "只给锚点不给 source_sha256",
+   "转述/概括/润色摘录",
+   "裸 URL 当依据",
+   "引用不存在的库名"
+  ],
+  "hard_gate": "引用不到本地锚点（anchor 解析失败 或 source_sha256 对不上 或 摘录与原文不逐字一致）的结论，一律不输出",
+  "fact_or_inference": [
+   "事实",
+   "推断"
+  ],
+  "confidence": [
+   "高",
+   "中",
+   "低"
+  ]
+ },
+ "retrieval": {
+  "order": [
+   "P0 确定性匹配（kb/l5/matcher.py）",
+   "规则层（kb/l3/candidates/rules.jsonl，按 kb_type + 关键词）",
+   "单元层（kb/l6/retriever.py，BM25 主 / 向量补）",
+   "原文层（按锚点回 kb/l0/records 或 kb/l0/snapshots）"
+  ],
+  "default_mode": "bm25_only",
+  "why_bm25_first": "L6 实测：同一查询集上 bm25_only 的 A 组 hit@3 = 1.0 / p@3 = 0.958，hybrid（等权 RRF）0.875 / 0.542，vector_only 0.625 / 0.25；等权 RRF 反而拉低精确度（中文侧最明显）",
+  "forbid_equal_rrf_default": true,
+  "gate": {
+   "bm25_raw_min": 8.0,
+   "vector_cosine_min": 0.6,
+   "use_raw_scores_only": true,
+   "why_not_rrf": "RRF 分恒为 1/(60+k)，实测 Top1 恒在 0.016393，A 组与 B 组看起来一样高，没有区分度，不能当门限",
+   "why_single_threshold_not_enough": "实测 BM25 原始分在 A/B 两组有重叠（A 组最低 5.32 < B 组最高 10.02），所以门限只用于「够不够格当参考」，要成为「依据」还必须同时命中规则层",
+   "measured": {
+    "bm25_raw": {
+     "A_group_min": 5.32,
+     "A_group_median": 12.76,
+     "B_group_median": 6.44,
+     "B_group_max": 10.02,
+     "source": "kb/l6/selftest.json → raw_score_comparison"
+    },
+    "cosine": {
+     "A_group_min": 0.512,
+     "A_group_median": 0.669,
+     "B_group_median": 0.384,
+     "B_group_max": 0.569,
+     "source": "kb/l6/selftest.json → raw_score_comparison"
+    }
+   },
+   "threshold_reasoning": "BM25 门限取 8.0：落在 A 组最低(5.32)与 B 组最高(10.02)之间、贴近两组中位之间，偏保守；余弦门限取 0.60：实测它是唯一能把 B 组全部挡在外面的取值（B 组最高 0.569），代价是 A 组丢 2 条；即便如此门限仍单独不可靠，必须叠加「同时命中规则层」才算依据",
+   "below_threshold_label": "参考",
+   "above_threshold_without_rule_hit": "仍只能标参考，不得作为依据",
+   "coverage_bm25_min": 16.0,
+   "coverage_reasoning": "PASS 必须建立在「知识库认识这个主题」之上，覆盖信号二选一：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ coverage_bm25_min(=16.0)。16.0 = 依据门限的 2 倍：实测 A 组中位 12.76 / 最高 23.16，B 组最高 10.02，取 16 能把实测 B 组全部挡在外面。覆盖信号不成立 → 拒答，不得输出 PASS。"
+  },
+  "vector_fallback": {
+   "when": "BM25 原始分最高值 < bm25_raw_min",
+   "what": "改用 kb/l6 的向量索引补召；命中仍受两重约束：余弦 ≥ cosine_min 且同时命中规则层才算依据",
+   "must_annotate": "检索结果与最终结论里显式标注本次用了向量补召"
+  },
+  "no_silent_degradation": {
+   "how": "读 kb/l6/registry/l6.json 的 retrieval_capability.mode 与 semantic_recall；若为 bm25_only / semantic_recall=false，则检索结果与最终结论必须显式标注「无语义召回」"
+  },
+  "no_hit_semantics": {
+   "bm25_only": "字面未匹配，不代表合规",
+   "vector_only": "语义未匹配，不代表合规",
+   "hybrid": "字面与语义均未匹配，但仍不代表合规"
+  },
+  "no_hit_semantics_source": "kb/l6/registry/l6.json → retrieval_capability.no_hit_semantics（原文照搬，不得改写）",
+  "refusal_owner": "拒答只能在 skill 层实现：L6 实测 B 组三种模式 hit@3 全为 0 却都返回了 Top3，索引层没有拒答能力"
+ },
+ "decision_rules": {
+  "finding_requires": "P0 命中 或 规则层命中（rule.forbidden_expression 片段在正文里逐字命中）",
+  "BLOCK": [
+   "P0 命中（kb/l5/matcher.py）",
+   "规则层命中且 rule.p_level = P0",
+   "规则层命中且 rule.risk_level = 高危·红"
+  ],
+  "REVIEW": [
+   "规则层命中但既非 P0 也非高危·红（需人工判断语境）",
+   "同一处内容同时命中允许表述（安全词）与疑似违规表述，需人工定夺"
+  ],
+  "PASS": [
+   "无 P0 命中、无规则层命中，且检索到的依据足以覆盖该主题（至少一条单元层结果 ≥ 门限，或命中过该主题的规则）"
+  ],
+  "refuse": [
+   "无 P0 命中、无规则层命中，且单元层最高原始分 < 门限（BM25 与余弦都没过）",
+   "即：检索不到依据 → 按 no_hit_semantics 拒答，不得输出 PASS"
+  ],
+  "refusal_must_include": [
+   "查了什么（原始查询词）",
+   "用了几种模式（BM25 / 向量 / 是否降级）",
+   "为什么判断没有依据（分数与门限对比）",
+   "no_hit_semantics 原文"
+  ],
+  "routing": {
+   "problems_1_2": "逐条输出（编号 + 类别-子类 + 位置 + 引文 + 原因 + 依据；BLOCK 另给建议）",
+   "problems_3_plus": "只输出分类汇总 + 报告链接；完整清单必须真的写到 kb/l7/reports/ 下并在结论里给路径",
+   "tail": {
+    "PASS": "转 sign-off 责任人",
+    "REVIEW": "建议转复核责任人",
+    "BLOCK": "请修改后重新提交"
+   }
+  }
+ },
+ "approvers": {
+  "_note": "不硬编码人名：组织变动后模板会失效。这里是角色位，上线前由内容治理负责人填入真实 @ 句柄；未填时输出保留角色名并标注「未配置」",
+  "configured": false,
+  "pass_signoff": {
+   "role": "sign-off 责任人",
+   "handle": null
+  },
+  "review_reviewers": {
+   "role": "复核责任人",
+   "handle": null
+  },
+  "block_owner": {
+   "role": "内容方修改责任人",
+   "handle": null
+  }
+ },
+ "vocabulary": {
+  "version": "l7-vocab-0.1",
+  "closure": "受控枚举：出现词表以外的类别时不得自造，记为「未分类-未分类」并写进报告",
+  "prd_source": "kb/.work/prd.md（内容审查 Agent PRD）§7.2 / §7.3",
+  "prd_7_2_domains": [
+   "车内场景",
+   "功效宣称与广告用语",
+   "喂养场景",
+   "人物、肖像与 AI",
+   "睡眠场景",
+   "洗护与沐浴",
+   "出行与户外",
+   "居家与用电",
+   "玩具与玩乐"
+  ],
+  "prd_7_3_vetoes": [
+   "1 车内出现未使用安全座椅 / 反向安装错误 / 成人未系安全带 / 安全座椅装副驾 / 儿童独留车内",
+   "2 医疗功效宣称（治疗、预防疾病等）",
+   "3 绝对化用语（最、第一、最佳、100%、纯天然等）",
+   "4 无依据的销量/排名宣称",
+   "5 危险行为示范（如无人看护下水、趴睡、怀抱乘车等）",
+   "6 未成年人未经授权出镜 / 隐私暴露",
+   "7 AI 深度合成内容未标识"
+  ],
+  "categories": {
+   "功效宣称": {
+    "prd_7_2": [
+     "功效宣称与广告用语",
+     "喂养场景"
+    ],
+    "prd_7_3": [
+     2
+    ],
+    "subs": {
+     "疾病治疗宣称": {
+      "codes": [
+       "H01"
+      ],
+      "label": "治疗/治愈/诊断类宣称"
+     },
+     "催乳与通乳宣称": {
+      "codes": [
+       "H02"
+      ],
+      "label": "催乳、增产、通乳、乳腺炎/堵奶处置"
+     },
+     "临床与实验证据宣称": {
+      "codes": [
+       "H03"
+      ],
+      "label": "临床证明/测试/验证类"
+     },
+     "疼痛功效承诺": {
+      "codes": [
+       "H07",
+       "U04"
+      ],
+      "label": "无痛、缓解疼痛、痛点消除暗示"
+     },
+     "效率与漏奶宣称": {
+      "codes": [
+       "M07"
+      ],
+      "label": "排空效率、奶流、漏奶、移除量"
+     },
+     "智能与仿生宣称": {
+      "codes": [
+       "H09"
+      ],
+      "label": "自动识别节奏、模拟婴儿吸吮"
+     }
+    }
+   },
+   "绝对化与安全承诺": {
+    "prd_7_2": [
+     "功效宣称与广告用语"
+    ],
+    "prd_7_3": [
+     3,
+     4
+    ],
+    "subs": {
+     "虚假安全承诺": {
+      "codes": [
+       "H05"
+      ],
+      "label": "最安全/100%安全/零风险/完美"
+     },
+     "绝对化性能表述": {
+      "codes": [
+       "M02",
+       "H08"
+      ],
+      "label": "超强/极致/无敌/倍数碾压"
+     },
+     "无依据数据与销量排名": {
+      "codes": [
+       "M03"
+      ],
+      "label": "百分比、倍数、best-selling、排名"
+     },
+     "竞品对比": {
+      "codes": [
+       "M06"
+      ],
+      "label": "比同类/优于/对比竞品"
+     },
+     "绝对化用语": {
+      "codes": [
+       "V02"
+      ],
+      "label": "PRD §7.3 第 3 项一票否决：最、第一、最佳、100%、纯天然等绝对化用语"
+     }
+    }
+   },
+   "背书与资质": {
+    "prd_7_2": [
+     "功效宣称与广告用语",
+     "人物、肖像与 AI"
+    ],
+    "prd_7_3": [
+     4
+    ],
+    "subs": {
+     "医生专家推荐": {
+      "codes": [
+       "H04"
+      ],
+      "label": "医生/专家/儿科医生推荐背书"
+     },
+     "监管认证宣称": {
+      "codes": [
+       "H06"
+      ],
+      "label": "FDA 等监管机构认证/批准"
+     },
+     "等级与资质背书": {
+      "codes": [
+       "M05"
+      ],
+      "label": "医疗级/军用级/hospital grade"
+     },
+     "专业头衔与合作": {
+      "codes": [
+       "U01"
+      ],
+      "label": "IBCLC、泌乳顾问、专家调校"
+     },
+     "医疗场景宣称": {
+      "codes": [
+       "U03"
+      ],
+      "label": "医院/NICU 场景、临床适用性"
+     }
+    }
+   },
+   "平台与促销": {
+    "prd_7_2": [
+     "功效宣称与广告用语"
+    ],
+    "prd_7_3": [
+     3
+    ],
+    "subs": {
+     "静音绝对化表述": {
+      "codes": [
+       "M01"
+      ],
+      "label": "静音/零噪音/几乎无声"
+     },
+     "促销紧迫感表述": {
+      "codes": [
+       "M04"
+      ],
+      "label": "限时/最后机会/错过即无"
+     },
+     "保险与支付资格宣称": {
+      "codes": [
+       "U02"
+      ],
+      "label": "保险可报销/HSA/FSA"
+     }
+    }
+   },
+   "婴幼儿安全与场景": {
+    "prd_7_2": [
+     "车内场景",
+     "喂养场景",
+     "睡眠场景",
+     "洗护与沐浴",
+     "出行与户外",
+     "居家与用电",
+     "玩具与玩乐"
+    ],
+    "prd_7_3": [
+     1,
+     5
+    ],
+    "subs": {
+     "乘车安全": {
+      "codes": [],
+      "label": "安全座椅、反向安装、儿童独留车内"
+     },
+     "睡眠安全": {
+      "codes": [],
+      "label": "趴睡、同床、窒息风险"
+     },
+     "喂养与营养": {
+      "codes": [],
+      "label": "母乳/配方奶/辅食/喂养方式"
+     },
+     "洗护与沐浴": {
+      "codes": [],
+      "label": "水温、洗护用品、沐浴安全"
+     },
+     "出行与户外": {
+      "codes": [],
+      "label": "推车、外出、户外安全"
+     },
+     "居家与用电": {
+      "codes": [],
+      "label": "电器、插座、电池、居家防护"
+     },
+     "玩具与玩乐": {
+      "codes": [],
+      "label": "小零件误吞、适用年龄、玩具使用"
+     },
+     "危险行为示范": {
+      "codes": [],
+      "label": "无人看护下水、怀抱乘车等危险示范"
+     }
+    }
+   },
+   "人物肖像与 AI": {
+    "prd_7_2": [
+     "人物、肖像与 AI"
+    ],
+    "prd_7_3": [
+     6,
+     7
+    ],
+    "subs": {
+     "未成年人出镜与隐私": {
+      "codes": [],
+      "label": "未授权出镜、隐私暴露"
+     },
+     "AI 合成标识": {
+      "codes": [],
+      "label": "AI 生成/深度合成未标识"
+     },
+     "肖像与授权": {
+      "codes": [],
+      "label": "达人/用户肖像授权范围"
+     }
+    }
+   },
+   "表述与术语准确性": {
+    "prd_7_2": [
+     "玩具与玩乐"
+    ],
+    "prd_7_3": [],
+    "subs": {
+     "术语与口径": {
+      "codes": [],
+      "label": "医学术语、口径不规范"
+     },
+     "事实与数据依据": {
+      "codes": [],
+      "label": "数据、样本、统计口径、指南引用"
+     },
+     "语气与立场": {
+      "codes": [],
+      "label": "营销口吻、公共卫生立场、绝对化措辞"
+     },
+     "允许表述（安全词）": {
+      "codes": [
+       "安全词"
+      ],
+      "label": "源侧明确放开的表述，命中不作为违规"
+     }
+    }
+   },
+   "未分类": {
+    "prd_7_2": [],
+    "prd_7_3": [],
+    "subs": {
+     "未分类": {
+      "codes": [],
+      "label": "词表以外的类别，不得自造新类别"
+     }
+    }
+   }
+  },
+  "code_map": {
+   "H01": [
+    "功效宣称",
+    "疾病治疗宣称"
+   ],
+   "H02": [
+    "功效宣称",
+    "催乳与通乳宣称"
+   ],
+   "H03": [
+    "功效宣称",
+    "临床与实验证据宣称"
+   ],
+   "H04": [
+    "背书与资质",
+    "医生专家推荐"
+   ],
+   "H05": [
+    "绝对化与安全承诺",
+    "虚假安全承诺"
+   ],
+   "H06": [
+    "背书与资质",
+    "监管认证宣称"
+   ],
+   "H07": [
+    "功效宣称",
+    "疼痛功效承诺"
+   ],
+   "H08": [
+    "绝对化与安全承诺",
+    "绝对化性能表述"
+   ],
+   "H09": [
+    "功效宣称",
+    "智能与仿生宣称"
+   ],
+   "M01": [
+    "平台与促销",
+    "静音绝对化表述"
+   ],
+   "M02": [
+    "绝对化与安全承诺",
+    "绝对化性能表述"
+   ],
+   "M03": [
+    "绝对化与安全承诺",
+    "无依据数据与销量排名"
+   ],
+   "M04": [
+    "平台与促销",
+    "促销紧迫感表述"
+   ],
+   "M05": [
+    "背书与资质",
+    "等级与资质背书"
+   ],
+   "M06": [
+    "绝对化与安全承诺",
+    "竞品对比"
+   ],
+   "M07": [
+    "功效宣称",
+    "效率与漏奶宣称"
+   ],
+   "U01": [
+    "背书与资质",
+    "专业头衔与合作"
+   ],
+   "U02": [
+    "平台与促销",
+    "保险与支付资格宣称"
+   ],
+   "U03": [
+    "背书与资质",
+    "医疗场景宣称"
+   ],
+   "U04": [
+    "功效宣称",
+    "疼痛功效承诺"
+   ],
+   "安全词": [
+    "表述与术语准确性",
+    "允许表述（安全词）"
+   ],
+   "V02": [
+    "绝对化与安全承诺",
+    "绝对化用语"
+   ],
+   "UNCODED": [
+    "未分类",
+    "未分类"
+   ]
+  },
+  "keyword_map": [
+   [
+    "安全座椅|反向安装|副驾|独留车内|怀抱乘车|未系安全带",
+    "婴幼儿安全与场景",
+    "乘车安全"
+   ],
+   [
+    "趴睡|仰卧|同床|窒息|睡眠环境|夜里|夜间看护",
+    "婴幼儿安全与场景",
+    "睡眠安全"
+   ],
+   [
+    "辅食|配方奶|母乳喂养|亲喂|瓶喂|断奶|喂养方式",
+    "婴幼儿安全与场景",
+    "喂养与营养"
+   ],
+   [
+    "沐浴|洗护|水温|洗澡|清洁用品|润肤",
+    "婴幼儿安全与场景",
+    "洗护与沐浴"
+   ],
+   [
+    "推车|出行|外出|户外|旅行",
+    "婴幼儿安全与场景",
+    "出行与户外"
+   ],
+   [
+    "用电|插座|电池|电器|加热|暖奶器",
+    "婴幼儿安全与场景",
+    "居家与用电"
+   ],
+   [
+    "玩具|误吞|小零件|适用年龄|牙胶",
+    "婴幼儿安全与场景",
+    "玩具与玩乐"
+   ],
+   [
+    "下水|游泳|无人看护|危险动作|危险示范",
+    "婴幼儿安全与场景",
+    "危险行为示范"
+   ],
+   [
+    "肖像|出镜|授权|达人|未成年人|隐私",
+    "人物肖像与 AI",
+    "未成年人出镜与隐私"
+   ],
+   [
+    "AI|深度合成|生成图片|生成视频|数字人",
+    "人物肖像与 AI",
+    "AI 合成标识"
+   ],
+   [
+    "术语|规范化|规范医学|口径|俗称|表述不准确",
+    "表述与术语准确性",
+    "术语与口径"
+   ],
+   [
+    "样本|统计|百分位|数据|证据|指南|参考文献|循证",
+    "表述与术语准确性",
+    "事实与数据依据"
+   ],
+   [
+    "语气|口吻|营销化|立场|口吻混淆|绝对",
+    "表述与术语准确性",
+    "语气与立场"
+   ],
+   [
+    "剂量|浓度|配比|成分|摄入量",
+    "表述与术语准确性",
+    "事实与数据依据"
+   ],
+   [
+    "more milk|milk supply|milk flow|奶量|催乳|催奶|增产|下奶|let-down|supply|排空|移出量",
+    "功效宣称",
+    "催乳与通乳宣称"
+   ],
+   [
+    "pain|疼痛|舒适|comfort|gentle",
+    "功效宣称",
+    "疼痛功效承诺"
+   ],
+   [
+    "silent|quiet|静音|噪音|dB",
+    "平台与促销",
+    "静音绝对化表述"
+   ],
+   [
+    "bestseller|best-selling|排名|销量|percent|百分|数据|%",
+    "绝对化与安全承诺",
+    "无依据数据与销量排名"
+   ],
+   [
+    "hospital|NICU|医院|医用|医疗级",
+    "背书与资质",
+    "医疗场景宣称"
+   ]
+  ],
+  "classification_order": [
+   "rule_code（code_map）",
+   "keyword_map（按顺序首个命中）",
+   "未分类-未分类"
+  ]
+ },
+ "self_test_refs": {
+  "A_block": "kb/l7/selftest_a_block.md",
+  "B_refusal": "kb/l7/selftest_b_refusal.md",
+  "C_acceptance": "kb/l7/acceptance/（acceptance_cases.md 不存在 → 未跑，见 runs 报告）",
+  "D_paraphrase": "kb/l7/selftest_d_paraphrase.md",
+  "E_trigger": "kb/l7/selftest_e_trigger.md"
+ }
+}

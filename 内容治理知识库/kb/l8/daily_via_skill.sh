@@ -146,6 +146,28 @@ else
   log "   （该步退出码 3 = 有层没落章、已明示；**不改变日更本身的退出码**）"
 fi
 
+# ★ 2026-10-19（改动单 A）：**③c L1 索引重建由驱动确定性执行**。
+#   为什么从这里挪过来：③c 原先写在任务书里、由 agent 做；周更一旦在 L0 闸门红处早停
+#   （2026-10-18 实测），agent 根本走不到 ③c ⇒ 索引 mtime 停在上一轮，巡检报「③c 没被执行」。
+#   索引是**当前 L1 状态的纯投影**，重建与「整条链跑到哪一层」无关 —— 放在 agent 结束后无条件跑，
+#   既不会掩盖「某层没跑」（那是观测/周更门的事），也不会因为早停而漏掉投影。
+#   失败只喊不改日更退出码（与 observe / digest / P0 / git 同档），由就绪巡检的 L1 索引判据兜底。
+if [ "$DRY" = "1" ]; then
+  log "⏭ 只读预演（DRY=1）⇒ 跳过 L1 索引重建"
+else
+  if python3 kb/l1/index/rebuild_l1_index.py --write --run "$BASE" >>"$LOG" 2>&1; then
+    _l1chk=$(python3 kb/l1/index/rebuild_l1_index.py --check 2>&1); _l1rc=$?
+    printf '%s\n' "$_l1chk" | tail -4 | tee -a "$LOG"
+    if [ "$_l1rc" = "0" ]; then
+      log "   ✅ L1 索引：重建 + --check [OK]"
+    else
+      log "   ❌ L1_INDEX=FAIL（--check rc=$_l1rc）—— 见上面的 [OK]/DRIFT"
+    fi
+  else
+    log "   ❌ L1_INDEX=WRITE_FAIL"
+  fi
+fi
+
 # ★ 2026-10-09（Owner 裁定「推荐 A」）：**日更摘要 → 推守衡私聊**。
 #   为什么要有：实测日更**什么都不推**（本脚本 / 任务书 / daily_health.py / l0_daily_sync.py
 #   四处零发送动作；daily_health.py 自己写着「要接告警请读 daily-health-latest.json」，

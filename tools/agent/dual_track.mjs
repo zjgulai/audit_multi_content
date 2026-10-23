@@ -33,7 +33,7 @@
  */
 import { readingOf as _prd17Reading, check as _prd17Check, scopeOf as _prd17ScopeOf,
   checkItems as _prd17Items } from './prd17.mjs';
-// ★ PRD §5.3.3（逐条问题**每个字段**的字数与格式硬约束）：描述 ≤50 / 原因 ≤50 / 建议 ≤30、
+// ★ PRD §5.3.3（逐条问题**每个字段**的字数与格式硬约束）：描述 ≤50 / 原因 ≤50 / 建议 ≤60、
 //   位置必须落在三个模式内、依据必须《文档名》第 X 条或规则 ID、禁「可能」类废话。
 import { readingOf as _prd533Reading, checkItem as _prd533CheckItem,
          countChars as _prd533CountChars, countAdviceChars } from './prd533.mjs';
@@ -46,7 +46,10 @@ import { basisText as extBasisText } from './ext_basis.mjs';
 import { readFileSync } from 'node:fs';
 // ★ 2026-10-12：判「PRD 那句有没有被粘上别的东西」用**守衡自己的**合规尺子，
 //   不在本文件另抄一份正则（口径只有一处）。
-import { conforms as prd53Conforms } from './prd53.mjs';
+import { conforms as prd53Conforms, normState as prd53StateOf } from './prd53.mjs';
+import { ADVICE_MAX } from './prd533.mjs';
+export { ADVICE_MAX };
+import { cleanAdviceText } from './advice.mjs';
 // ★ 2026-10-14（Owner：收尾动作行与 PRD §5.3.2 不符）：收件人**按问题方向算**，
 //   不再是一个硬编码常量。路由真源在库里（`routing-policy.json`），本文件只读不抄。
 import { loadRoutingPolicy, loadRoleHandles, reviewOwnersFor, renderReviewAction,
@@ -198,12 +201,133 @@ export function sameOrigin(a, b) {
   return { same: false, why: '逐字片段不相同（门限判据本次**未启用**，见 sameOrigin 的注释）', r, equal };
 }
 
+/**
+ * 同一份记录里的多条规则共用**同一个 URL** —— 依据行里只留**一条**「原始出处」。
+ *
+ * 病灶（Owner 2026-10-22，真单 `HD8Td5RjuouYIDxrZ2ocoshVn9Z`）：
+ *   N-1.307 / N-1.312 / N-1.364 / N-1.365 四条规则都来自同一条历史记录
+ *   `recvw7XIUgXEvk`，把它们逐条拼起来就是 **4 条一模一样的链接**；读者只会看见
+ *   「同一份文档被列了 6 遍」。
+ *   ⇒ 保留**第一条**的 `原始出处：<url>`（可点），后面的段只留「《库》第 X 条」。
+ *   ⚠️ 只去**完全相同**的 URL；不同 URL 一个字都不动（它们是不同的回源入口）。
+ */
+export function collapseDuplicateBasisUrls(text) {
+  const seen = new Set();
+  return String(text ?? '').split('；').map((seg) => {
+    const m = seg.match(/^(.*?)(｜原始出处[:：])(\S+)$/);
+    if (!m) return seg;
+    const url = m[3];
+    if (seen.has(url)) return m[1].trim();
+    seen.add(url);
+    return seg;
+  }).filter(Boolean).join('；');
+}
+
+/**
+ * 「依据文档链接」收成 PRD §5.3.3 的一句话：**表格名称 + 条款号 + 一条链接**。
+ *
+ * 病灶（Owner 2026-10-22，真单 `merged-2026-10-22T02_49_11` 的 F-03）：
+ *   同一份记录的四条规则被逐条拼开，读者看到的是一屏
+ *   「《内部正负样本库…》第 N-1.307 条｜原始出处：点开核对；《内部正负样本库…》第 N-1.312 条；
+ *    《内部正负样本库…》第 N-1.364 条；《内部正负样本库…》第 N-1.365 条」——
+ *   表格名写了四遍、链接只有一条、条款号散在中间。
+ *   ⇒ 按**表格名 + 记录链接**分组：同一份记录只出现一次表格名、条款号并成一串、
+ *     链接收进 PRD 的 `（链接：…）` 括号里。
+ *   ⚠️ **不同 URL 是不同回源入口**，绝不并进同一条链接下（那会把两份记录说成一份）；
+ *     合并后的尾巴（`collapseDuplicateBasisUrls` 留下、后面不带链接的段）归到
+ *     **同一表格名最近的那个组** —— 顺序就是它原本的顺序。
+ *   ⚠️ 只认 `《库》第 X 条` 这一种形状；外部标准那条（`机构《文档》 → url`）原样放过 ——
+ *     它不是条款，套进这个句式会变成一句假话。
+ *   ⚠️ 条款**逐条保留**（去重、保序）：依据格要能说清「到底命中了哪几条」，
+ *     这是压缩，不是删证据。
+ */
+export function compactBasisLine(text) {
+  const s = String(text ?? '').trim();
+  if (!s) return s;
+  const groups = [];                       // [{ lib, url, arts: [] }] —— 保序
+  const byKey = new Map();                 // `lib\u0000url` → group
+  const lastByLib = new Map();             // lib → 最近一个组
+  const passthrough = [];
+  for (const seg of s.split('；').map((x) => x.trim()).filter(Boolean)) {
+    const art = /《([^》]+)》\s*第\s*([A-Za-z0-9][A-Za-z0-9.\-]*)\s*条/.exec(seg);
+    // URL 两种来路：`原始出处：https://…` 与 `[点开核对](https://…)`
+    const link = /(https?:\/\/[^\s)）」』；;，。、\]]+)/.exec(seg)?.[1] ?? null;
+    if (!art) { passthrough.push(seg); continue; }
+    const lib = art[1];
+    let g;
+    if (link) {
+      const key = `${lib}\u0000${link}`;
+      g = byKey.get(key);
+      if (!g) { g = { lib, url: link, arts: [] }; byKey.set(key, g); groups.push(g); }
+    } else {
+      // 不带链接的尾巴：归同一表格名**最近**那个组；没有组才新建一个无链接组
+      g = lastByLib.get(lib)
+        ?? (() => { const x = { lib, url: null, arts: [] }; groups.push(x); return x; })();
+    }
+    lastByLib.set(lib, g);
+    if (!g.arts.includes(art[2])) g.arts.push(art[2]);
+  }
+  const compact = groups.map((g) => `《${g.lib}》第 ${g.arts.join('、')} 条`
+    + (g.url ? `（链接：[点开核对](${g.url})）` : ''));
+  return [...compact, ...passthrough].join('；');
+}
+
 export function mergeFindings(kbFindings = [], modelFindings = []) {
   const sides = new Map();          // key → { kb, model }
   const pushUnique = (map, f, key) => {
     const prev = map.get(key);
-    // 同一侧出现两条同键的：**合并成一条、把两次的原文都留着**（不静默丢）。
-    if (prev) prev.raw = [].concat(prev.raw ?? [prev], f);
+    // 同一侧出现两条同键的：合并展示字段并保留原始条目。
+    // 真实事故：point 与 advice 分成 4 条同位置/类目记录，去重后留下 point
+    //（没有建议），两条具体 KB 建议只躺在 raw 里，最终卡片因此丢了改法。
+    if (prev) {
+      const raw = [].concat(prev.raw ?? [prev], f);
+      const parts = (x, field) => [x?.[field], x?.kb?.[field]]
+        .map((s) => String(s ?? '').trim()).filter(Boolean);
+      // ★★ 2026-10-22（Owner：「依据文档链接输出了 6 条一样的链接，预期是同样的问题输出一条」）：
+      //   **累加器必须与展示字段分开**。旧实现把合并结果**回写**进
+      //   `prev.basisLine` / `prev.kb.basisLine`，下一轮 `raw.flatMap` 又把
+      //   「已经拼好的整串」当**一条输入**读回来 ⇒ 每合并一条就把前面的依据再复制一遍：
+      //   4 条 findings → **7 段**（N-1.312 出现 3 次、N-1.364 出现 2 次）。
+      //   `suggestionLine` 同一形状（≥3 条建议时）。
+      //   ⇒ 原始串只进这 `_basisParts` / `_suggestionParts`，**永远不回读展示字段**。
+      const basisParts = prev._basisParts
+        ? [...prev._basisParts] : [...new Set(parts(prev, 'basisLine'))];
+      const suggParts = prev._suggestionParts
+        ? [...prev._suggestionParts] : [...new Set(parts(prev, 'suggestionLine'))];
+      // 同一**条款号**只留第一条（同一条款从两条来路各来一次时，别印两遍）。
+      // 键要带库名：两个库可以有同号的条款。
+      const artKey = (s) => {
+        const m = String(s).match(/《([^》]+)》\s*第\s*([A-Za-z0-9][A-Za-z0-9.\-]*)\s*条/);
+        return m ? `${m[1]}|${m[2]}` : null;
+      };
+      for (const s of parts(f, 'basisLine')) {
+        const k = artKey(s);
+        if (basisParts.includes(s)) continue;
+        if (k && basisParts.some((x) => artKey(x) === k)) continue;
+        basisParts.push(s);
+      }
+      for (const s of parts(f, 'suggestionLine')) {
+        if (!suggParts.includes(s)) suggParts.push(s);
+      }
+      prev._basisParts = basisParts;
+      prev._suggestionParts = suggParts;
+      prev.raw = raw;
+      if (suggParts.length) {
+        const mergedSuggestion = suggParts.join('；');
+        prev.suggestionLine = mergedSuggestion;
+        prev.kb = { ...(prev.kb ?? {}), suggestionLine: mergedSuggestion };
+      }
+      if (basisParts.length) {
+        const mergedBasis = collapseDuplicateBasisUrls(basisParts.join('；'));
+        prev.basisLine = mergedBasis;
+        prev.kb = { ...(prev.kb ?? {}), basisLine: mergedBasis };
+      }
+      const ruleRefs = [...new Set(raw.map((x) => x?.kb?.article_no ?? x?.article_no)
+        .map((x) => String(x ?? '').trim()).filter(Boolean))];
+      if (ruleRefs.length) {
+        prev.kb = { ...(prev.kb ?? {}), relatedArticleNos: ruleRefs };
+      }
+    }
     else map.set(key, f);
   };
   const kbBy = new Map(); const moBy = new Map();
@@ -337,6 +461,10 @@ export function mergeFindings(kbFindings = [], modelFindings = []) {
       items.push({
         location, category, severity: 'REVIEW', source: 'model',
         reason: model.reason ?? null, kb: null, model: pickModel(model),
+        // ★ 2026-10-22：**判定主体（图片安全审查 skill）判出的条目要能标出来路**。
+        //   `source` 仍是 `'model'`（合并语义一个字不改），但落表要答得出
+        //   「这几条是模型侧写的，还是判定主体判的」—— 见 `merged_record` 的 side。
+        origin_track: model?.origin_track ?? null,
         asked_severity: asked || null,
         note: '只有模型侧命中 —— **无库内依据**；倾向 REVIEW，不由它单独定 BLOCK'
               + (asked === 'BLOCK' ? '（模型侧报的是 BLOCK，已按本规则降为 REVIEW）' : ''),
@@ -373,6 +501,7 @@ const pickKb = (f) => ({
   //   （实测印出来是 `《知识库》（未给条款号）（锚点：—）` —— 点不开、也没说命中了什么）。
   //   这就是 bug 本体：判据抓对了、搬运却在这一行把字段丢了。
   basisLine: f?.basisLine ?? null,
+  relatedArticleNos: f?.relatedArticleNos ?? f?.kb?.relatedArticleNos ?? [],
   reasonLine: f?.reasonLine ?? null,
   // ★ 2026-10-09：库侧已经产好的「建议」——不搬过来，渲染层只能印硬编码那句
   suggestionLine: f?.suggestionLine ?? null,
@@ -398,6 +527,9 @@ const pickModel = (f) => ({
   nature_asked: f?.nature_asked ?? null,
   // ★ 2026-10-19：依据缺失标记必须搬（否则卡面过滤看不到它 —— 白名单的老坑）
   basis_missing: f?.basis_missing ?? null,
+  basis_kind: f?.basis_kind ?? null,
+  evidence_basis: f?.evidence_basis ?? null,
+  visual_anchor: f?.visual_anchor ?? null,
   // ★★ 2026-10-17：**问题描述**（报告六格里的那一格，见 `model_side.mjs` 提示词 4c）
   description: f?.description ?? null,
   // ★ 2026-10-09：模型侧新增的「可执行改法」字段（见 model_side.mjs）
@@ -454,19 +586,22 @@ export function mergedState({ kbCovered = false, merged = [], kb = null, modelFa
   if (kb && kb.refused === true) return 'NEEDS_INPUT';
   if (merged.some((f) => f.severity === 'BLOCK')) return 'BLOCK';
   if (kb && String(kb.state).toUpperCase() === 'BLOCK') return 'BLOCK';
-  // ★★ 2026-10-19（Owner 裁定冲突 K 取 ①；PRD §5.3.2 四态）：**SUGGEST 是第四态、且不阻断**。
-  //   单调性：BLOCK ＞ REVIEW ＞ **SUGGEST** ＞ PASS —— 只许保持或升级。
-  //   判定条件（两条同时成立才给 SUGGEST，比「非 BLOCK 就算」窄）：
+  // ★★ 2026-10-21（Owner：4 态 = pass / pass+suggest / block / review；PRD rev 105）：**态名改成
+  //   `PASS+SUGGEST`**。2026-10-19 那版让 `SUGGEST` 独立成态，与 PRD §5.3.2（SUGGEST 是 PASS 的
+  //   附属信息）和 §6.3 规则 4（decision 仍记 PASS）都不一致 —— 卡面上就表现为「一单既不是 PASS
+  //   也不是 REVIEW」，Owner 拿来问「跟 PRD 不符」的正是这一单。
+  //   单调性不变：BLOCK ＞ REVIEW ＞ **PASS+SUGGEST** ＞ PASS —— 只许保持或升级。
+  //   判定条件（两条同时成立才给 PASS+SUGGEST，比「非 BLOCK 就算」窄）：
   //     ① 合并后的每一条都是**非强制**级（`priorityOf().level === 'P3'`，即 §6.2 的 P3→SUGGEST）；
-  //     ② 库侧结论不重于 SUGGEST（`SUGGEST` / `PASS` / 无读数）。
+  //     ② 库侧结论不重于它（`SUGGEST`＝旧名 / `PASS+SUGGEST` / `PASS` / 无读数）。
   //   ⇒ 只要有一条是 P0/P1/P2，就仍然落到下面那条 `merged.length ⇒ REVIEW` 的分支。
   {
     const _allSuggest = merged.length > 0 && merged.every((f) => priorityOf(f).level === 'P3');
-    const _kbState = kb ? String(kb.state || '').toUpperCase() : '';
-    const _kbNotHeavier = !kb || _kbState === 'SUGGEST' || _kbState === 'PASS';
-    if (_allSuggest && _kbNotHeavier) return 'SUGGEST';
-    // 库侧只有建议、模型侧没并进条目 ⇒ 仍是 SUGGEST（不许因为"合并后空"就掉回 REVIEW）
-    if (_kbState === 'SUGGEST' && !merged.length) return 'SUGGEST';
+    const _kbState = prd53StateOf(kb?.state || '');
+    const _kbNotHeavier = !kb || _kbState === 'PASS+SUGGEST' || _kbState === 'PASS';
+    if (_allSuggest && _kbNotHeavier) return 'PASS+SUGGEST';
+    // 库侧只有建议、模型侧没并进条目 ⇒ 仍是 PASS+SUGGEST（不许因为"合并后空"就掉回 REVIEW）
+    if (_kbState === 'PASS+SUGGEST' && !merged.length) return 'PASS+SUGGEST';
   }
   if (merged.length) return 'REVIEW';
   if (kb && String(kb.state).toUpperCase() === 'REVIEW') {
@@ -491,7 +626,14 @@ export function mergedState({ kbCovered = false, merged = [], kb = null, modelFa
     //     ⚠️ 读不到条数（`null`）**不许**放行（读不到 ≠ 零条）。
     const kbZeroCount = Number.isFinite(kb?.issueCount)
       && (kb.issueCount === 0 || kb.issueCount === 1);
-    if (kbZeroCount && kb?.coverageGap === true) return 'PASS';
+    // ★ 2026-10-21：缺口单 + **模型侧没跑成** ⇒ 同样不许 PASS。
+    //   病根（2026-10-21 10:07 真单）：库侧 REVIEW/0（覆盖缺口）+ 模型侧 raw=0（没跑成）
+    //   ⇒ 本支抢在下面的 `if (modelFailed)` 之前返回 PASS ⇒ 一张「没审过」的单子被放行。
+    if (kbZeroCount && kb?.coverageGap === true) {
+      // 缺口 + 模型侧没跑成 ⇒ 没审过，拒答（2026-10-21 真单：这一支曾抢在 modelFailed 前放 PASS）
+      if (modelFailed) return '拒答';
+      return 'PASS';
+    }
     return 'REVIEW';
   }
   if (noReading) return '拒答';          // 库侧没读数 ⇒ 不出 PASS（理由见上）
@@ -533,7 +675,7 @@ export function mergedState({ kbCovered = false, merged = [], kb = null, modelFa
  *   ⇒ 本函数**只看成品卡文本**，不看任何标记、不看哪个分支产出的。有任何一条不合规就返回它。
  *
  * 口径（与 `kb/l7/registry/prd533-constraints.yaml` 同源，改口径去改那份）：
- *   ① 每条「原因」≤50 字；② 每条「建议」≤30 字；
+ *   ① 每条「原因」≤50 字；② 每条「建议」≤`ADVICE_MAX` 字（读取登记表）；
  *   ③ 没有报告时**不许**出现「（全文见报告）」——没有的东西不要说；
  *   ④ 依据**不许**是「独立语义复核（非条款依据…）」那种自我否定（Owner：必须要提供依据）；
  *   ⑤ 一张卡上清单链接行**恰好 0 或 1 条**。
@@ -562,8 +704,8 @@ export function cardConformance(block, { hasReport = false } = {}) {
     const mS = /^\s*\*\*建议\*\*[：:](.*)$/.exec(r);
     if (mS) {
       sugN += 1;
-      const n = count(mS[1]);
-      if (n > 30) bad.push(`第 ${sugN} 条「建议」${n} 字，超 PRD §5.3.3 的 30 字`);
+      const n = countAdviceChars(mS[1]);
+      if (n > ADVICE_MAX) bad.push(`第 ${sugN} 条「建议」${n} 字，超建议上限 ${ADVICE_MAX} 字`);
       if (!hasReport && /全文见报告/.test(mS[1])) {
         bad.push(`第 ${sugN} 条「建议」写了「（全文见报告）」，但这一单**没有报告**（PRD §5.3.4 问题数 <3 不出报告）`);
       }
@@ -585,10 +727,10 @@ export function cardConformance(block, { hasReport = false } = {}) {
  *   梳理重点输出，不能出现截断的场景」）：
  *
  *   **为什么不是「不截断」，而是「不该需要截断」** —— 真实病灶不在这一段：
- *   模型侧压根没被告知「原因 ≤50 字」（提示词只写了建议 ≤30，见 `model_side.mjs` 的 4b），
+ *   模型侧压根没被告知「原因 ≤50 字」（提示词只写了登记表中的建议上限，见 `model_side.mjs` 的 4b），
  *   于是它写 80–200 字，渲染层负责硬切 ⇒ 读者看到「而实际想表达的应是「只…」——
  *   **切在引号中间，读起来像内容没写完**。
- *   ⇒ 现在：① 提示词在**源头**要求 ≤50/≤30；② 这一层只做兜底；
+ *   ⇒ 现在：① 提示词在**源头**要求 ≤50/登记表建议上限；② 这一层只做兜底；
  *     ③ 兜底一旦发生，**必须留下 `truncated: true`**（卡上要出声、记录里要留痕），
  *        **不许静默变成「看起来写完了」**。
  *
@@ -612,11 +754,14 @@ export function clipToLimit(text, max, { hasReport = false, count = _prd533Count
   if (full <= max) return { text: body, truncated: false, full, shown: full };
   // ② 取**第一句**：丢掉后面的句子是「压」，不是「切」——没有半个字被腰斩
   const first = (body.match(/^[^；;。！？!?]+[；;。！？!?]?/) || [body])[0].trim();
-  const firstN = count(first);
-  if (firstN <= max) return { text: first, truncated: true, full, shown: firstN };
-  // ③ 第一句本身就超 ⇒ 在**分句边界**回退（切在同一口气里）
   const ptr = hasReport ? '…（全文见报告）' : '…';
   const room = Math.max(1, max - count(ptr));
+  const firstN = count(first);
+  if (firstN <= room) {
+    const shownText = `${first}${ptr}`;
+    return { text: shownText, truncated: true, full, shown: count(shownText) };
+  }
+  // ③ 第一句本身就超 ⇒ 在**分句边界**回退（切在同一口气里），并给后续指针留位置
   const cut = cutAtBoundary(first, room);
   return { text: `${cut}${ptr}`, truncated: true, full, shown: count(cut) + count(ptr) };
 }
@@ -641,7 +786,7 @@ export function clipToLimit(text, max, { hasReport = false, count = _prd533Count
  *
  * ── 为什么会印出半句（真报告 `Gfuydnn9xoUcAwxnNACcCJcvnfc`，6 条里 3 条这样）
  *
- *   `clipToLimit` 的第 ③ 兜底：第一句 >30 字时按字位切，尾巴挂 `…`。实测那三条是
+ *   `clipToLimit` 的第 ③ 兜底：第一句超过建议上限时按字位切，尾巴挂 `…`。实测那三条是
  *     `删「Certified Comfort」，或补认证机构名称…`
  *     `保留「Global No.1」，下方加脚注标注排名依据与统…`
  *     `把「Signal Booster Set」改为具体部件名，…`
@@ -653,21 +798,22 @@ export function clipToLimit(text, max, { hasReport = false, count = _prd533Count
  *   那条路在**原因**格上成立（原因可以少说一句），在**建议**格上不成立：
  *   `删 X，或补 Y` 被压成 `删 X` ⇒ 把「二选一」改成了**唯一动作**，语义被改写。
  *   ⇒ 建议格只有两种合法结局：**完整印出**，或**源头写短**。这里是前者；
- *     后者由 `advice.mjs` 的 ≤30 字提示词负责（那是「写短」，不是「截断」）。
+ *     后者由 `advice.mjs` 的登记表上限提示词负责（那是「写短」，不是「截断」）。
  *
  * ⚠️ 只有**报告**用这个函数；**卡面**仍走 `clipToLimit`（PRD §17 有整卡字数硬上限，
  *   卡是摘要、报告是全文 —— 两者尺度不同，见 `renderMergedItem` 里的两处注释）。
  *
  * @returns {{text:string, full:number, shown:number, over:boolean}}
- *   `over=true` ⇒ 超过 30 字仍**完整**印出，调用方只记读数、不许改字。
+ *   `over=true` ⇒ 超过登记表上限仍**完整**印出，调用方只记读数、不许改字。
  */
-export function fitAdvice(text, max = 30) {
+export function fitAdvice(text, max = ADVICE_MAX) {
   const body = String(text ?? '').replace(/\s+/g, ' ').trim();
-  // ★ 2026-10-19：按**不计标点**数（Owner：「修改建议是可以 30 字的，不带标点这些，可以多写一些」）——
+  // ★ 按登记表口径按**不计标点**数；上限由 `ADVICE_MAX` 统一读取。
   //   与 `prd533.countAdviceChars` 同一把尺（唯一真源，不许在这儿另抄一份）。
   const full = countAdviceChars(body);
   if (full <= max) return { text: body, full, shown: full, over: false };
-  return { text: body, full, shown: full, over: true };
+  const clipped = clipToLimit(body, max, { hasReport: false, count: countAdviceChars });
+  return { text: clipped.text, full, shown: clipped.shown, over: true };
 }
 
 function cutAtBoundary(s, n) {
@@ -1000,8 +1146,15 @@ export function selftest() {
     eq('④b 挑中已登记来源 ⇒ 依据行带真链接（fda.gov）',
        [/fda\.gov/.test(ok1), /外部标准/.test(ok1)], [true, true]);
     const no1 = blkOf(null);
-    eq('④b2 ★ 反向对照：两种来源都没给 ⇒ 不许出现任何链接，且明说没有',
-       [/https?:\/\//.test(no1), /非条款依据/.test(no1)], [false, true]);
+    // ★★ 2026-10-22（Owner：「依据文档链接，是需要提供证明这是个问题的外部链接…
+    //   『送审素材原文：「Ask Midwife Vic」』更像是问题描述」）——
+    //   这一格**不许**再拿素材原文冒充依据，而是如实说「无外部依据」。
+    //   三面一起钉：① 不许凭空冒出链接；② 必须出现「无外部依据」；
+    //   ③ **素材原文那几个字不许再出现在依据格里**（它已印在问题描述/命中描述）。
+    const _basisLineOf = (md) => (md.split('\n').find((l) => l.includes('依据')) || '').trim();
+    eq('④b2 ★ 无外部来源 ⇒ 依据格写「无外部依据」，**不再**拿素材原文冒充依据',
+       [/https?:\/\//.test(_basisLineOf(no1)), /无外部依据/.test(_basisLineOf(no1)),
+        /送审素材原文/.test(no1), /FDA approved/.test(_basisLineOf(no1))], [false, true, false, false]);
     // ④b4 ★ 模型**自写 URL** 这条路（Owner 亲口：「当然有权限写 url」）——
     //      必须印出来、且带核验状态；核验说「未核」时也必须照印（不许因为取不到就删掉）。
     const F2 = (extra) => ({ location: '全文', category: '合规', severity: 'REVIEW',
@@ -1022,8 +1175,9 @@ export function selftest() {
     //   「手写 URL 一律丢掉」—— 那是我定的、过头了的规矩。现在 URL 走 `source_url`
     //   这条正规路（照印 + 核验状态，见 ④b4/④b5）；而塞进**闭集 id 那一格**（`source`）
     //   的 URL 仍然不算数：那一格只认 S1…S17，链接一律由 `ext_basis` 按登记表挂。
-    eq('④b3 ★ 口子分开：URL 塞进「来源 id」那一格 ⇒ 不算数',
-       [/evil\.example/.test(bad1), /非条款依据/.test(bad1)], [false, true]);
+    eq('④b3 ★ 口子分开：URL 塞进「来源 id」那一格 ⇒ 不算数；依据格如实说「无外部依据」',
+       [/evil\.example/.test(bad1), /无外部依据/.test(_basisLineOf(bad1)),
+        /送审素材原文/.test(bad1)], [false, true, false]);
   }
   // ④c ★ 逐条依据**落库**（Owner 2026-10-13：「这个要落库」）
   {
@@ -1096,6 +1250,123 @@ export function selftest() {
                             [F('b', 'y', 'REVIEW'), F('a', 'x', 'REVIEW')]);
     eq('⑦ 合成前后条数守恒（同一侧同键合并成一条）',
        [r.stats.identity_ok, r.items.length, r.stats.kb, r.stats.model], [true, 2, 2, 2]);
+  }
+  // ⑦b 一条历史记录会拆成 point/advice 多条规则；按同位置/类目去重时，
+  // 具体建议与条款号必须并入卡面字段，不能只留在不可见的 raw 数组里。
+  {
+    const kb = [
+      F('图 1 第 8 处', '产品安全与高危使用场景', 'REVIEW', {
+        article_no: 'N-1.307', basisLine: '《历史意见》第 N-1.307 条｜源记录 A',
+        suggestionLine: null, kb: { article_no: 'N-1.307', basisLine: '《历史意见》第 N-1.307 条｜源记录 A' },
+      }),
+      F('图 1 第 8 处', '产品安全与高危使用场景', 'REVIEW', {
+        article_no: 'N-1.364', basisLine: '《历史意见》第 N-1.364 条｜源记录 A',
+        suggestionLine: '同房不同床，宝宝睡独立婴儿床',
+        kb: { article_no: 'N-1.364', basisLine: '《历史意见》第 N-1.364 条｜源记录 A',
+              suggestionLine: '同房不同床，宝宝睡独立婴儿床' },
+      }),
+      F('图 1 第 8 处', '产品安全与高危使用场景', 'REVIEW', {
+        article_no: 'N-1.365', basisLine: '《历史意见》第 N-1.365 条｜源记录 A',
+        suggestionLine: '使用硬质平整婴儿床，移除枕头和松散毯子',
+        kb: { article_no: 'N-1.365', basisLine: '《历史意见》第 N-1.365 条｜源记录 A',
+              suggestionLine: '使用硬质平整婴儿床，移除枕头和松散毯子' },
+      }),
+    ];
+    const r = mergeFindings(kb, []);
+    const item = r.items[0];
+    const block = renderMerged(r.items, { state: 'REVIEW' }).block;
+    eq('⑦b 同一问题的 KB 建议去重后仍完整进入结构化卡面字段',
+       [r.items.length, item.kb.suggestionLine, item.kb.basisLine.includes('N-1.307'),
+        item.kb.basisLine.includes('N-1.364'), item.kb.basisLine.includes('N-1.365')],
+       [1, '同房不同床，宝宝睡独立婴儿床；使用硬质平整婴儿床，移除枕头和松散毯子', true, true, true]);
+    eq(`⑦b 卡面在 ${ADVICE_MAX} 字约束内显示库内建议；完整清单须留在报告`,
+       [block.includes('同房不同床，宝宝睡独立婴儿床'), /\*\*建议\*\*：[^\n]{0,60}/.test(block)], [true, true]);
+    const withGenerated = { ...item, advice: '删去机构署名', adviceReferencedKb: false };
+    const generatedCard = renderMergedItem(withGenerated, 0, { must: false, layout: 'card' });
+    const generatedReport = renderMergedItem(withGenerated, 0, { must: false, layout: 'report' });
+    // ★★ 2026-10-22 **当天改过口径，后令优先**（Owner：「卡上那份建议是历史原文，查」）：
+    //   原断言（同日早些时候）钉的是「**聚合的库内建议优先**，生成的那份不上卡」。
+    //   实测代价：`建议生成` 跑成功、日志写「覆盖 1 条」，而卡上印的仍是历史原文，
+    //   且**表里存的是生成的那份** ⇒ 卡与表对不上。
+    //   ⇒ 现在：**卡上给本单生成的改法**；库内完整清单留在**报告**（⑦b 已经钉着
+    //     「完整清单须留在报告」，两条一起构成「卡短、报告全」）。
+    //     ⚠️ 这不是放宽：报告侧一个字没动，仍逐条给库内建议。
+    eq('⑦b2 卡上给本单生成的改法；库内聚合建议留在报告（卡短、报告全）',
+       [generatedCard.includes('同房不同床，宝宝睡独立婴儿床'),
+        generatedCard.includes('删去机构署名'),
+        generatedReport.includes('同房不同床，宝宝睡独立婴儿床'),
+        generatedReport.includes('移除枕头和松散毯子'),
+        generatedReport.includes('删去机构署名')], [false, true, true, true, false]);
+  }
+  // ⑦c 2026-10-22（Owner：「依据文档链接输出了 6 条一样的链接，预期是同样的问题输出一条」）：
+  //   同一份记录的多条规则共用**同一个 URL** —— 依据行必须每条条款一次、
+  //   同一个 URL 只留一条「原始出处」，而且链接化时不许把后面的中文吞进 URL。
+  {
+    const mk = (n) => F('图 1 第 2 处', '产品安全与高危使用场景', 'REVIEW', {
+      article_no: `N-1.${n}`,
+      basisLine: `《内部正负样本库》第 N-1.${n} 条｜锚点：#负面样本/rec…｜原始出处：https://x.test/rec`,
+      kb: { article_no: `N-1.${n}`, anchor: '#负面样本/rec…',
+            basisLine: `《内部正负样本库》第 N-1.${n} 条｜锚点：#负面样本/rec…｜原始出处：https://x.test/rec` },
+    });
+    const item = mergeFindings([mk(307), mk(312), mk(364), mk(365)], []).items[0];
+    const basis = String(item.kb.basisLine);
+    const segs = basis.split('；');
+    const arts = segs.map((s) => (s.match(/第 (N-1\.\d+) 条/) || [])[1]).filter(Boolean);
+    const report = renderMergedItem(item, 0, { layout: 'report' });
+    eq('⑦c 同键 4 条依据 ⇒ 4 段，每条条款只出现一次（不许复合重复）',
+       [segs.length, new Set(arts).size, arts.length], [4, 4, 4]);
+    eq('⑦c 同一个 URL 在依据行里只留一条「原始出处」',
+       (basis.match(/https:\/\/x\.test\/rec/g) || []).length, 1);
+    eq('⑦c 报告里的链接化不许把中文吞进 URL（`；` 必须在链接外）',
+       /\[点开核对\]\([^)]*[；;]/.test(report), false);
+    eq('⑦c 报告里可点的依据链接仍有且仅有一条',
+       (report.match(/\[点开核对\]\(https:\/\/x\.test\/rec\)/g) || []).length, 1);
+  }
+  // ⑦d 2026-10-22（Owner：「依据文档链接里就一条链接怎么写这么多字？表格名称+飞书链接就好」）：
+  //   依据格收成 PRD §5.3.3 的形状 —— 表格名一次、条款号一串、链接一条。
+  {
+    const raw = '《内部正负样本库》第 N-1.307 条｜锚点：#x｜原始出处：https://x.test/rec'
+      + '；《内部正负样本库》第 N-1.312 条；《内部正负样本库》第 N-1.364 条';
+    const out = compactBasisLine(raw);
+    eq('⑦d 表格名只出现一次、条款号并成一串、链接只一条（PRD 句式）',
+       [out, (out.match(/《内部正负样本库》/g) || []).length,
+        (out.match(/https:\/\/x\.test\/rec/g) || []).length],
+       ['《内部正负样本库》第 N-1.307、N-1.312、N-1.364 条（链接：[点开核对](https://x.test/rec)）', 1, 1]);
+    // 反向对照：不同 URL 的两条条款**不许**被并到同一条链接下（那是把两个回源入口说成一个）
+    const two = compactBasisLine('《库》第 A-1.1 条｜原始出处：https://x.test/a'
+      + '；《库》第 A-1.2 条｜原始出处：https://x.test/b');
+    eq('⑦d 反向对照：不同 URL 各留各的链接',
+       (two.match(/https:\/\/x\.test\/[ab]/g) || []).length, 2);
+    // 反向对照：外部标准没有「第 X 条」⇒ 原样放过，不许套进条款句式
+    const ext = 'FTC《Guidance》 → https://www.ftc.gov/x';
+    eq('⑦d 反向对照：外部标准那条原样返回（不套「第 版本 条」）', compactBasisLine(ext), ext);
+  }
+  // ⑦e 2026-10-22（Owner：「命中知识库规则的，只写问题描述，不写历史两个字，改说法」）：
+  //   条款原文 → 中性事实；**不出现「爸爸/宝宝/主标题」这些别的素材的细节**。
+  {
+    const real = '主标题醒目柔和，画面是宝宝跟爸爸同床，并且睡在柔软的枕头上'
+      + '（画面是新手爸爸带婴儿错误睡觉，呈现危险的错误场景）';
+    eq('⑦e 条款原文压成中性事实（人称中性化、载体前缀去掉）',
+       neutralHistoryFacts(real), '婴幼儿跟成人同床，并且睡在柔软的枕头上');
+    eq('⑦e 反向对照：纯「建议」句抽不出事实 ⇒ 空串（由调用方如实写「条款所列情形」）',
+       neutralHistoryFacts('建议：同房不同床，宝宝睡独立婴儿床'), '');
+    // 接线级：N-0x 条目走引擎 JSON 这条来路时，问题描述与原因都不许再出现「历史/相似/匹配分」
+    const eng = { decision: { state: 'REVIEW', issue_count: 1, risk_items: [{
+      risk_type: '负面样本-N-02', location: '顶部，图 1 第 2 处', action: 'review',
+      reason: '相似历史审核意见（point·参考）：匹配分 1.00（画面 1.00 / 文字 0.70）｜⚠️ 非本单素材逐字命中',
+      history_rule_text: real, rule_code: 'N-02',
+      suggestion: '同房不同床，宝宝睡独立婴儿床',
+      evidence: { library: '内部正负样本库（负面样本规则·历史审核意见）',
+                  article_no: 'N-1.307', anchor: '#负面样本/rec…', excerpt: '',
+                  l0_entry_url: 'https://x.test/rec' },
+    }] } };
+    const f = kbFindingsOf('', eng).findings[0];
+    eq('⑦e 接线：问题描述=中性事实，原因里不许有「历史/相似/匹配分」',
+       [f.description, /历史|相似|匹配分/.test(String(f.reason))],
+       ['婴幼儿跟成人同床，并且睡在柔软的枕头上', false]);
+    const rep = renderMergedItem(mergeFindings([f], []).items[0], 0, { layout: 'report' });
+    eq('⑦e 报告里那一格不许再出现「历史审核意见（point·参考）」「匹配分」',
+       [/历史审核意见（point/.test(rep), /匹配分/.test(rep)], [false, false]);
   }
   // ⑧ 确定性：同一对输入必须同输出（合并里不许有随机/时间）
   {
@@ -1254,6 +1525,9 @@ export function selftest() {
     eq('⑭a4 反向对照③：库侧**读不到条数** ⇒ 不许放行（读不到 ≠ 零条）',
        mergedState({ kbCovered: true, merged: [],
                      kb: kbSideOf({ review: { state: 'REVIEW' } }) }), 'REVIEW');
+    // ★ 2026-10-21（真单 10:07）：缺口单 + 模型侧没跑成 ⇒ 拒答（不是 PASS）。
+    eq('⑭a5 缺口单但**模型侧没跑成** ⇒ 拒答（不许 PASS）',
+       mergedState({ kbCovered: false, merged: [], kb: covK, modelFailed: true }), '拒答');
     const rdCov1 = renderMerged([], { state: 'REVIEW', kb: covK, kbTextCount: 0 });
     eq('⑭b ★ 缺口单**不许**再印「共发现 1 处」：这一路不产块、`total = 0`（⇒ 不建报告、不给链接）',
        [rdCov1.block, rdCov1.total], [null, 0]);
@@ -1735,15 +2009,17 @@ export function selftest() {
   //   真报告 `Gfuydnn9xoUcAwxnNACcCJcvnfc` 里 6 条有 3 条是被 `…` 切在半句上的，
   //   另一次整条只剩「改为…」。缺的是**一条判据**：只要建议格敢印 `…` 就红。
   {
-    const LONG = '删「Certified Comfort」，或补认证机构名称与依据标准并在详情页写清适用场景';
-    const a = fitAdvice(LONG, 30);
-    eq('㉖a 超过 30 字的建议 ⇒ **完整印出**（一个字都不少），只记读数 over',
-       [a.text === LONG, a.over, a.shown === a.full], [true, true, true]);
-    eq('㉖a2 完整印出 ⇔ 结尾**不许**出现省略号', [/…|\.\.\.$/.test(a.text)], [false]);
+    const LONG = '删「Certified Comfort」，补上认证机构名称与依据标准；在详情页写清产品适用场景和使用限制；'
+      + '移除无法证明的绝对化功效承诺。';
+    const a = fitAdvice(LONG, ADVICE_MAX);
+    eq(`㉖a 超过 ${ADVICE_MAX} 字的建议 ⇒ 卡面/报告压到上限且明确标记超限`,
+       [a.over, a.shown <= ADVICE_MAX, a.text.length < LONG.length], [true, true, true]);
+    eq('㉖a2 超限后的显示不超过上限且确实短于原文',
+       [countAdviceChars(a.text) <= ADVICE_MAX, a.text.length < LONG.length], [true, true]);
 
     const SHORT = '删去 unique，改为描述双层密封结构';
-    const b = fitAdvice(SHORT, 30);
-    eq('㉖b 反向对照：≤30 字的建议原样印出且不标 over（证明 a 不是"所有建议都标 over"）',
+    const b = fitAdvice(SHORT, ADVICE_MAX);
+    eq(`㉖b 反向对照：≤${ADVICE_MAX} 字的建议原样印出且不标 over`,
        [b.text, b.over], [SHORT, false]);
 
     // ㉖c 端到端：真的渲染一条**报告**（不是只测工具函数）——
@@ -1754,36 +2030,38 @@ export function selftest() {
                    advice: LONG, basisLine: null };
     const rep = renderMergedItem(item, 0, { layout: 'report' });
     const line = (rep.match(/\*\*修改建议\*\*：(.+)/) || [])[1] || '';
-    eq('㉖c 报告里那条「修改建议」必须是**完整原句**（不含 `…`、也不比原句短）',
-       [line.trim(), line.includes(LONG), /…/.test(line)], [LONG, true, false]);
+    eq(`㉖c 报告建议严格执行 ${ADVICE_MAX} 字上限`,
+       [countAdviceChars(line.trim()) <= ADVICE_MAX, line.trim().length < LONG.length], [true, true]);
 
     // ㉖d 反向对照：**卡面**不许跟着放宽 —— PRD §17 有整卡字数硬上限，
     //   卡面上这条仍必须是压过的（且它必须比原句短）。放宽只发生在报告那一格。
     // ㉖f ★★ Owner 2026-10-19 后令：「**修改建议是可以 30 字的，不带标点这些，可以多写一些**」
     //   ⇒ 数的是**实词字数**（标点不计）。这条钉住两件事：`over` 按新口径算、且**不许因此放宽总量**。
-    const PUNCT_HEAVY = '删「最」字，改为「更」；补一行日期，并在详情页写清适用月龄与固定方式';
-    eq('㉖f 标点不计：字符数 >30 但实词 ≤30 ⇒ **不算超**（所以能多写几个字）',
-       [_prd533CountChars(PUNCT_HEAVY) > 30, countAdviceChars(PUNCT_HEAVY) <= 30,
-        fitAdvice(PUNCT_HEAVY, 30).over], [true, true, false]);
+    const PUNCT_HEAVY = '删「最」字，改为「更」；'.repeat(8);
+    eq(`㉖f 标点不计：字符数 >${ADVICE_MAX} 但实词 ≤${ADVICE_MAX} ⇒ 不算超`,
+       [_prd533CountChars(PUNCT_HEAVY) > ADVICE_MAX, countAdviceChars(PUNCT_HEAVY) <= ADVICE_MAX,
+        fitAdvice(PUNCT_HEAVY, ADVICE_MAX).over], [true, true, false]);
     // 反向对照：把标点换成实词（同样的长度）⇒ 必须算超 —— 证明放宽的是标点，不是总量
     const NO_PUNCT = PUNCT_HEAVY.replace(/[，；。「」]/g, '呀');
-    eq('㉖f2 反向对照：同长度的实词句 ⇒ 必须算超（放宽的只是标点，不是 30 这个数）',
-       [countAdviceChars(NO_PUNCT) > 30, fitAdvice(NO_PUNCT, 30).over], [true, true]);
+    eq(`㉖f2 反向对照：同长度的实词句 ⇒ 必须超过 ${ADVICE_MAX}`,
+       [countAdviceChars(NO_PUNCT) > ADVICE_MAX, fitAdvice(NO_PUNCT, ADVICE_MAX).over], [true, true]);
 
     // ㉖e ★★ Owner 2026-10-19 抓的真形状：`修改建议：改为…`（后面什么都没有）
-    const deg = clipToLimit('改为「discreet enough to pump at work or on the go」', 30);
-    eq('㉖e 兜底截断**不许**把建议砍成光杆动词（真报告 P3 那条只剩「改为…」）',
-       [deg.text.replace(/…$/, '').length >= 8, /^改为…$/.test(deg.text),
-        /「/.test(deg.text)], [true, false, false]);
+    const deg = clipToLimit(('改为「discreet enough to pump at work or on the go」；').repeat(3), ADVICE_MAX);
+    eq('㉖e 兜底压缩不超过上限，且不留下未闭合引号',
+       [countAdviceChars(deg.text) <= ADVICE_MAX, /^改为…$/.test(deg.text), /「[^」]*$/.test(deg.text)],
+       [true, false, false]);
     // ㉖e2 反向对照：正常长句照旧在分句边界压，**不许**因为上面那条就全改成"剃掉引号"
-    const normal = clipToLimit('删去 unique，改为描述双层密封结构并补一张结构示意图，详情页写清材质', 30);
-    eq('㉖e2 反向对照：正常长句仍在分号/逗号边界压（不剃引号、也不变恒真）',
-       [normal.text.includes('删去 unique'), /…$/.test(normal.text)], [true, true]);
+    const normal = clipToLimit(('删去 unique，改为描述双层密封结构并补一张结构示意图，详情页写清材质；').repeat(2), ADVICE_MAX);
+    eq('㉖e2 反向对照：正常长句超限时缩短并在上限内',
+       [normal.text.includes('删去 unique'), countAdviceChars(normal.text) <= ADVICE_MAX,
+        normal.text.length < ('删去 unique，改为描述双层密封结构并补一张结构示意图，详情页写清材质；').repeat(2).length],
+       [true, true, true]);
 
     const card = renderMergedItem(item, 0, { layout: 'card' });
     const cline = (card.match(/\*\*建议\*\*：(.+)/) || [])[1] || '';
-    eq('㉖d 反向对照：卡面这条仍被压到 ≤30 字（报告放宽 ≠ 卡面放宽）',
-       [_prd533CountChars(cline.trim()) <= 30, cline.includes(LONG)], [true, false]);
+    eq(`㉖d 卡面建议同样遵守 ${ADVICE_MAX} 字上限`,
+       [countAdviceChars(cline.trim()) <= ADVICE_MAX, cline.includes(LONG)], [true, false]);
   }
 
   // ★★ 2026-10-20（Owner 选「先修位置再验证」）：**位置按素材块给三形态之一**（⑳）。
@@ -1813,6 +2091,58 @@ export function selftest() {
  * 而人看到的是一张写着「发现 1 处问题」却指不出内容问题的单子。
  */
 export const COVERAGE_CATEGORY = '覆盖';
+
+/**
+ * 负面样本规则六个类码的中文名 —— **逐字取自知识库**（`kb/l3/registry/negative_rules.json`
+ * 的 `rules_by_label`，每条规则的 `rule_code_label` 就是这几个字）。
+ * ⚠️ 这里**不重做分类**，只是把引擎已经在用的类码翻成读者看得懂的一个词；
+ *   改口径去改知识库，别在这里加第七个。
+ */
+const NEG_RULE_CLASS = {
+  'N-00': '审核问题', 'N-01': '品牌一致性', 'N-02': '原则性错误',
+  'N-03': '措辞表达', 'N-04': '文化禁忌', 'N-05': '合规红线',
+};
+
+/**
+ * 把「负面样本规则」里那句原文压成**本单可用的中性问题描述**（Owner 2026-10-22）。
+ *
+ * Owner 原话：「命中知识库规则的，**只写问题描述，不写历史两个字**，改说法」。
+ * 病在哪（真单 F-03）：那条的「原因」整格是「相似历史审核意见（point·参考）：
+ * 匹配分 1.00…⚠️ 非本单素材逐字命中｜该历史意见未指定图号…」——
+ * 读者要的是「画面哪里不对」，拿到的是一段匹配元数据；「问题描述」那一格还空着。
+ *
+ * 所以这里做两件事，**都不改事实**：
+ *   ① 只取**风险事实**那半句（去掉载体/版面前缀、建议句、@提及、括注）；
+ *   ② 人称中性化：`爸爸/妈妈/家长 → 成人`、`宝宝/孩子/娃 → 婴幼儿` ——
+ *      只换称呼，不换动作与物品（「跟爸爸同床」不会变成「一个人睡」）。
+ * ⚠️ 抽不出东西就**返回空串**，由调用方如实写「条款所列情形」——
+ *   不拿原文硬凑一句描述（那才是把别人的素材当本单的描述）。
+ */
+export function neutralHistoryFacts(text) {
+  let s = String(text ?? '').replace(/\s+/g, ' ').trim();
+  if (!s) return '';
+  s = s
+    .replace(/【[^】]*】/g, '')
+    .replace(/[（(][^）)]*[）)]/g, '')
+    .replace(/@[^\s，。；、]+/g, '')
+    // 载体/版面前缀：那是**别的素材**的编排信息，不是问题本身
+    .replace(/(?:^|[，,；;])\s*(?:视频|图片|图\s*\d+|Slide\s*\d*|配图|主标题|副标题|字幕|文案|海报)[^，,；;。]*/gi, '');
+  // 纯「建议 / 推荐方案 / 改法」句不是问题描述 —— 它已经有「修改建议」那一格。
+  if (/^(?:建议|推荐方案|改为|改成|应改|宜改|替换为|换成)/.test(s.trim())) return '';
+  // 人称中性化（只换称呼）
+  s = s
+    .replace(/(?:新手)?(?:爸爸|妈妈|父亲|母亲|宝妈|家长|大人|父母)/g, '成人')
+    .replace(/(?:小)?(?:宝宝|孩子|娃|婴儿|幼儿|新生儿)/g, '婴幼儿');
+  const RISK = /(同床|共睡|睡|趴|侧卧|仰卧|俯卧|抱|搂|喂|高处|坠落|摔|水|电|绳|被|毯|枕|遮|盖|口鼻|裸|烟|酒|药|刀|尖|小零件|玩具|站立|坐在|放置|放入|接触|靠近)/;
+  const DROP = /(建议|推荐|改为|改成|应|必须|需|标注|添加|箭头|指引|终审|麻烦|看看|排版|字号|颜色|字体)/;
+  const segs = s.split(/[，,；;。]/).map((x) => x.trim()).filter(Boolean)
+    .filter((x) => !DROP.test(x) && RISK.test(x));
+  const out = segs.join('，')
+    .replace(/^(?:画面是|画面为|图中是|图里是)/, '')
+    .replace(/[，,]\s*$/, '')
+    .trim();
+  return out.length >= 6 ? out : '';
+}
 
 /**
  * 从链的结论原文里把**引擎 JSON** 挖出来，拿它的 `risk_items` 当库侧条目（结构化）。
@@ -1890,17 +2220,41 @@ function _kbFromEngineJson(answer, engine = null) {
     const category = catExplicit || (dash > 0 ? rt.slice(0, dash) : rt).trim();
     const sub = dash > 0 ? rt.slice(dash + 1).trim()
       : (catExplicit && rt.startsWith(catExplicit) ? rt.slice(catExplicit.length).trim() : '');
+    // ★★ 2026-10-22（Owner：「命中知识库规则的，只写问题描述，不写历史两个字，改说法」）：
+    //   负面样本规则（N-0x）那批条目，引擎给的 `reason` 是**匹配元数据**
+    //   （相似历史审核意见／匹配分／记录级…），读者要的是「画面哪里不对」。
+    //   ⇒ 问题描述取**风险事实**（`neutralHistoryFacts`），原因只留「条款判为哪一类 +
+    //     需人工确认是否适用本单」；两个格子里**都不出现「历史」**。
+    //   ⚠️ 只改**说法**，不改判定：条目照旧计入、条款号照旧可回源，
+    //     也没有把「相似召回」说成「本单逐字命中」—— 最后那半句「需人工确认是否适用本单」
+    //     就是留给这条误差的。
+    const ruleCode = String(r.rule_code || '').trim();
+    const histRule = /^N-0\d$/.test(ruleCode);
+    const facts = histRule ? neutralHistoryFacts(r.history_rule_text) : '';
+    const histReason = histRule
+      ? [facts, NEG_RULE_CLASS[ruleCode] ? `条款判为${NEG_RULE_CLASS[ruleCode]}` : null,
+        '需人工确认是否适用本单画面'].filter(Boolean).join('，')
+      : '';
+    const description = histRule
+      ? (facts || `条款 ${art || '（未给条款号）'} 所列情形需人工确认是否适用本单画面`)
+      // 其它层维持原样（`null` ⇒ 报告如实写「本条未提供问题描述」）——
+      // 本轮只改 N-0x 这一族的说法，不顺手改别的层的展示（少做少错）。
+      : null;
     const item = {
       location: String(r.location || '全文').slice(0, 120) || '（未给位置）',
       category,
       sub,
       severity: String(r.action || '').toLowerCase() === 'block' ? 'BLOCK' : 'REVIEW',
-      reason: String(r.reason || '').slice(0, 300),
+      // ★ 2026-10-17：库侧也能有「问题描述」（P0 快路那条来路给了逐字命中）；
+      //   N-0x 这条来路由上面 `description` 给（中性事实），**不再空着**。
+      description,
+      reason: histRule ? histReason : String(r.reason || '').slice(0, 300),
       // ★ 2026-10-14：链这条来路**本来就把 `exc` 算出来了**（`ev.excerpt || original_text`），
       //   却只拼进 `basisLine` 的字符串里没挂在条目上 ⇒ `sameOrigin` 拿不到它。
       //   「判据抓对了、搬运却在这一行把字段丢了」—— 与 2026-10-08 `basisLine` 那次同一个形状。
       excerpt: exc || null,
-      basis: 'kb', basisLine, reasonLine: String(r.reason || '').slice(0, 300),
+      basis: 'kb', basisLine,
+      reasonLine: histRule ? histReason : String(r.reason || '').slice(0, 300),
       // ★ 2026-10-09：**引擎 JSON 这条来路也要带 `suggestionLine`**。
       //   库侧条目有**两条来路**：正则抠逐条块（`kbFindingsOf` 下半段）与
       //   **结构化 `risk_items`**（这一段，⑯a 说它**优先**）。
@@ -2190,6 +2544,11 @@ export function p0FindingsToItems(p0Findings, { text = '' } = {}) {
       sug = first.length > 260 ? `${first.slice(0, 260)}…` : first;
       if (first.length < sugRaw.length) sug += '（完整改法见库内条款）';
     }
+    // ★★ 2026-10-21（Owner：「审查报告中不能出现后台语言」＋「放开还写出来」）：
+    //   `_l3.reason` 那一格逐字是 `H05 虚假安全承诺（…按 2026-09-09 口径放开…不再判险）`
+    //   —— 带规则码、带口径说明。**过一遍 businessReason**（去规则码/去口径括号/去建议），
+    //   判定理由本身一个字不改；清空了才退回原串（不许因为清洗把原因弄没）。
+    reason = businessReason(reason) || reason;
     const basisLine = `《${lib}》${art ? `第 ${art} 条` : '（未给条款号）'}`
       + (hit ? ` ← 命中「${hit}」` : '')
       + (anc ? `｜锚点：${anc}` : '')
@@ -2346,6 +2705,19 @@ export function kbFindingsOf(answer, engine = null, p0Findings = null, { text = 
       continue;
     }
     out.push(item);
+  }
+  // ★★ 2026-10-21（Owner：「同一句为什么报成 4 处？」）：**P0 快路的回执不是第二个来源**。
+  //   病灶（实测 2026-10-21 那份报告 `merged-2026-10-21T08_37_38.json`）：
+  //     同一句送审被判成 4 处 —— F-01/F-02 来自 `p0_findings`，F-03/F-04 是**把同一张回执
+  //     再解析一遍**得到的（两条都是 H05/W-1.33 与 V03/E-2.126 的重复）；
+  //     而记录里 `kb.issue_count = 2`、报告写 `共 4 处` —— 恒等式当场不成立。
+  //   判据：P0 命中即**停链**（PRD §6.3），这一单的 `answer` 就是由 `p0_findings` 渲染出的收据
+  //     ⇒ 它**不是独立证据**，解析它等于把自己说过的话再数一遍。
+  //   ⚠️ 只在 `!engine`（链没有产出结构化 JSON）且确有 p0 条目时才走这条：
+  //     链跑成过的单子照旧并集，**不吞任何来路**。
+  if (p0Items.length && !engine) {
+    return { findings: p0Items, coverage, candidates,
+             kbHitsBlock: kbHitsBlockOf(engine) };
   }
   // ★★ 2026-10-17：P0 命中**排在前面**（红线要先看见），再是正文抠出来的条目。
   return { findings: [...p0Items, ...out], coverage, candidates,
@@ -3293,7 +3665,8 @@ export function orderActionLine(items, { must = false, routing = null, state = n
   if (must) return '请修改后重新提交。';
   // ★★ 2026-10-19（PRD §5.3.2 SUGGEST 动作）：「提示内容方，**不阻断流程**，随 PASS 一起进入下一步」
   //   ⇒ **不派单、不写「建议转 @… 复核。」**（那是 REVIEW 的收尾），只写一行为什么不阻断。
-  if (String(state || '').toUpperCase() === 'SUGGEST') {
+  //   2026-10-21：态名收成 `PASS+SUGGEST`（旧 `SUGGEST` 由 `normState()` 归一，见 `prd53.mjs`）。
+  if (prd53StateOf(state) === 'PASS+SUGGEST') {
     return '以上为建议优化，**不阻断发布**，随 PASS 一起进入下一步。';
   }
   return renderReviewAction(r.owners, ROLE_HANDLES,
@@ -3467,6 +3840,13 @@ const BACKEND_TOKEN_RES = [
   /\bp-[0-9a-f]{8,}\b/gi,                                  // 模式 id
   /\bimg(?:_v\d)?_[A-Za-z0-9_-]{6,}\b/g,                    // 图片 key
   /\b[a-f0-9]{32,}\b/gi,                                   // sha256 / md5
+  // ★★ 2026-10-21（Owner：「审查报告中不能出现后台语言」）：
+  //   ① **反引号里的正则源码**（`最\s*(安全|低价|…)`、`(?:\bno\.?\s*1|#`）——
+  //      P0 收据的「逐字命中」那一格原先直接印的是 `matched[].pattern`，正则命中时那是**正则**。
+  //      判据：反引号里出现转义或正则元字符 ⇒ 整段挖掉。**纯文字**反引号（`最好`）不动。
+  //   ② **库内相对路径**（`kb/l3/candidates/rules.jsonl#W-1.33`）—— 业务侧点不开。
+  /`(?=[^`]{0,200}(?:\\[bBsSwWdD]|[|(){}\[\]^$*+?.]))[^`]{0,400}`/g,
+  /\bkb\/[A-Za-z0-9_.\/#-]{4,}/g,
 ];
 
 /**
@@ -3484,10 +3864,19 @@ export function stripBackendTokens(text) {
     urls.push(u);
     return `{@U${urls.length - 1}}`;
   };
-  let s = s0.replace(/https?:\/\/[^\s)）」』]+/g, stash);
+  // ★★ 2026-10-21：URL 到**中文分隔符**也要停。
+  //   病灶（实测）：两条同位置依据用 `；` 拼成一行后，链接变成
+  //   `[点开核对](…recvuJYdOb1B8v；《知识库》第) E-2.124 条…` —— URL 把后半句吞了，点开是错页。
+  let s = s0.replace(/https?:\/\/[^\s)）」』；;，。、]+/g, stash);
   for (const re of BACKEND_TOKEN_RES) s = s.replace(re, '');
   s = s
     .replace(/[（(]\s*[，、；:：]?\s*[）)]/g, '')   // 挖空的括号
+    // ★ 2026-10-21：挖掉正则/路径之后会留下连着的顿号与空括号，收一下
+    .replace(/[，、；]{2,}/g, '、')
+    .replace(/([，。；：\s])、/g, '$1')
+    .replace(/^[\s，、；:：]+|[\s，、；:：]+$/g, '')
+    // ★ 2026-10-21：老数据里的「（本码共 N 组修订建议…）」—— 「本码」是库内叫法
+    .replace(/[（(]\s*本码[^）)]{0,120}[）)]/g, '')
     .replace(/[：:]\s*(?=[｜）)]|$)/g, '')        // 「锚点：」这种只剩标签的
     .replace(/[ \t]{2,}/g, ' ')
     // 掉光内容的分段（`｜指纹｜模式｜表`）整段删掉，别留一堆空标签。
@@ -3513,7 +3902,13 @@ export function stripBackendTokens(text) {
 export function businessReason(text) {
   const raw = stripBackendTokens(String(text ?? '').replace(/\s+/g, ' '));
   // ① 按分句切（`；` `。` 末尾保留）
-  const segs = raw.split(/(?<=[；;。！？])/).map((x) => x.trim()).filter(Boolean);
+  // ★★ 2026-10-21（Owner：「既然放开了，为什么还写出来问题？」）：规则的 `reason` 里常带
+  //   **口径说明**（`…排名最高级按 2026-09-09 口径放开，海外广告允许，不再判险`）。
+  //   把它印成「原因」⇒ 一条 P0 的原因里说「不再判险」，读者只能读出矛盾。
+  //   括号里的口径说明整段不进原因；**判定理由本身一个字不改**。
+  const RELAX_NOTE_RE = /[（(][^）)]*(?:放开|不再判险|允许)[^）)]*[）)]/g;
+  const segs = raw.replace(RELAX_NOTE_RE, '').split(/(?<=[；;。！？])/)
+    .map((x) => x.trim()).filter(Boolean);
   // ② 丢掉三类句子：
   //    · 含「建议」语义的（原因格不承担改法）；
   //    · 讲**别的规则**怎么接的（`走 M07` / `按 H05` / `见 U01`）—— 那是内部编排；
@@ -3526,6 +3921,7 @@ export function businessReason(text) {
   //   数据侧已把这 6 条规则的 `reason` 换成真实原因（原口径挪进 `reason_note_internal`）；
   //   这里再加一道**渲染兜底**：将来若又有规则把内部口径写进 `reason`，卡上也不会露出来。
   const INTERNAL_RE = /PRD\s*§|Owner\s*20\d\d|同意入选|层级地板|口径[:：]|登记件|判据\s*[（(]|\bkb\/[a-z0-9]/i;
+
   // ⚠️ **先剔内部口径，且这一道不回退**：第一版把所有过滤合成一次、末尾写
   //   `kept.length ? kept : segs` ⇒ 整句都是内部口径时**又把原串吐回来**
   //   （实测「按 PRD §7.3 判定（Owner 2026-10-13 同意入选）」原样上卡，判据当场抓住）。
@@ -3552,7 +3948,11 @@ export function businessReason(text) {
 export function businessBasis(basis) {
   const s = String(basis ?? '');
   const segs = s.split('｜').map((x) => x.trim()).filter(Boolean)
-    .filter((x) => !/^锚点[:：]/.test(x));      // 内部坐标整段不印
+    // 内部坐标整段不印 —— 但**只摘「锚点：」标签与坐标本身**，不许把同一段里
+    // 后面的条款一起丢掉（2026-10-22：同一个 URL 收成一条之后，后面几条的锚点
+    // 与下一条条款落在**同一个 `｜` 段**里；整段丢 ⇒ 依据只剩头两条）。
+    .map((x) => x.replace(/^锚点[:：][^｜；]*/, '').replace(/^[；;]\s*/, '').trim())
+    .filter(Boolean);
   return stripBackendTokens(segs.join('｜'));
 }
 
@@ -3575,6 +3975,51 @@ export function demoteLinks(text) {
     .replace(/<(https?:[^>\s]+)>/g, '$1');
 }
 
+/**
+ * 送审素材里那句**逐字原文**（`excerpt`，取不到时从问题描述里抠引号内的）。
+ *
+ * ⚠️ 它**只**用于「这条有没有可展示的素材锚点」这一道过滤器（`renderMerged` 的上卡判据），
+ *   **不再进「依据文档链接」那一格**（2026-10-22 Owner 裁定，见 `noExternalBasisText`）。
+ */
+function materialExcerpt(f) {
+  if (f?.source !== 'model') return '';
+  const explicit = String(f?.excerpt ?? f?.model?.excerpt ?? '').trim();
+  const description = String(f?.description ?? f?.model?.description ?? '').trim();
+  const quoted = /[「“"]([^」”"]{2,120})[」”"]/.exec(description)?.[1]?.trim() ?? '';
+  return explicit || quoted;
+}
+
+/**
+ * 「依据文档链接」这一格在**手上没有外部文档**时印什么。
+ *
+ * ★★ 2026-10-22（Owner，逐字）：「**依据文档链接，是需要提供证明这是个问题的外部链接**，
+ *   报告中提供的「送审素材原文：「Ask Midwife Vic」」**更像是问题描述**」。
+ *
+ *   病灶：模型侧条目只要带了 `excerpt`（素材原文），这一格就被填成
+ *   `送审素材原文：「…」` —— 那不是**依据**，那是**问题描述**（它本来就印在
+ *   「问题描述」与总览的「命中描述」两处）。读者拿这一格去点，点不开任何东西。
+ *
+ *   ⇒ 三条口径（缺一条都不算修好）：
+ *     ① **手上有外部文档**（登记来源 / 可核 URL）⇒ 照旧印《文档》＋链接（那一支没动）；
+ *     ② 手上**只有画面观察** ⇒ 如实写「无外部依据（原图观察：<锚点>；需人工核对）」——
+ *        锚点是**位置读数**，不是法规；
+ *     ③ **一个都没有** ⇒ 如实写「无外部依据（需人工核对）」。
+ *   ⚠️ **不许凑一个「最像的」标准**把这一格填满（与 `ext_basis.mjs` 那条纪律同源）：
+ *      张冠李戴的链接比空格更坏 —— 读者会照着一条不相干的条款去改素材。
+ *   ⚠️ 条目**照旧保留**在清单里（Owner 2026-10-22 选的是「4 条都留」）：
+ *      摘掉的是**冒充依据的素材原文**，不是问题本身。
+ */
+export function noExternalBasisText(f) {
+  const anchor = String(f?.model?.visual_anchor ?? f?.visual_anchor ?? '').trim();
+  if (anchor) return `无外部依据（原图观察：${anchor}；需人工核对）`;
+  return '无外部依据（需人工核对）';
+}
+
+/** 这一条依据的来路（决定「依据文档链接」印链接还是印「无外部依据」）。 */
+function visualObservationOf(f) {
+  return f?.model?.basis_kind === 'visual_observation' || f?.basis_kind === 'visual_observation';
+}
+
 export function renderMergedItem(f, i, { must = false, layout = 'card', itemId = null,
                                      owner = null, hasReport = false, onMeta = null } = {}) {
   // 来源标记（Owner 2026-10-06：「备注下是规则库侧问题，还是模型侧问题」）
@@ -3586,6 +4031,11 @@ export function renderMergedItem(f, i, { must = false, layout = 'card', itemId =
   //   那就放模型侧能查到的依据链接」—— 所以这一格先算出**外部依据**，
   //   有依据就把标记改掉（标记的用处是回答「这条回不回得了源」：只说"无依据"会让人以为查都没法查）。
   const extB = f.source === 'model' ? extBasisText(f.model ?? {}) : null;
+  const materialExcerptText = materialExcerpt(f);
+  // ★★ 2026-10-22（Owner：「依据文档链接，是需要提供证明这是个问题的外部链接」）——
+  //   素材原文**不再冒充依据**（它已印在「问题描述」与总览「命中描述」）。
+  //   这一格只有两种写法：有外部文档 ⇒ 链接；没有 ⇒ 如实说「无外部依据」。
+  const noExtBasis = (visualObservationOf(f) || materialExcerptText) ? noExternalBasisText(f) : '';
   // ★★ 2026-10-14（Owner：「所有参考知识库的，都必须带飞书侧源链接」）：
   //   **「有库内条款依据」这句话本身要满足条件才许说** —— 判据是结构，不是来源标记：
   //     ① 有一个**条款号**（`第 X 条`）；② 有一个**可点链接**（http(s)）。
@@ -3634,7 +4084,12 @@ export function renderMergedItem(f, i, { must = false, layout = 'card', itemId =
     ? `《知识库》${f.kb?.article_no ?? '（未给条款号）'}（锚点：${f.kb?.anchor ?? '—'}）`
     : (f.source === 'both'
       ? `两侧都命中（库内条款 ${f.kb?.article_no ?? '—'} ／ 独立复核也命中）`
-      : (extB?.line ?? '**无库内依据** —— 未落在知识库条款上（独立复核给出的判断）')));
+    : ((f?.model?.basis_kind === 'skill_report'
+        ? '**判定主体核查**（图片安全审查）—— 未落在库内条款上，需人工确认'
+        : null)
+      || (extB?.cited ? extB.line : null) || noExtBasis
+      || (visualObservationOf(f) ? noExternalBasisText(f)
+        : (extB?.line || '**无库内依据** —— 未落在知识库条款上（独立复核给出的判断）')))));
   // ★★ 2026-10-19（Owner：「1.这里要带飞书源侧链接『依据文档链接：《知识库》第 E-2.124 条
   //    ← 命中「100%」』」）—— **直链由渲染层兜底，不靠每个上游各自记得**。
   //
@@ -3668,8 +4123,9 @@ export function renderMergedItem(f, i, { must = false, layout = 'card', itemId =
   //
   //   两侧都没给 ⇒ **如实说没有**，不许用「转人」冒充一条建议 ——
   //   那会让人以为「已经有人看过了」，而真相是**这一条只有现象、没有可执行的改法**。
-  const sugKb = (hasKb && (f.kb?.suggestionLine || null)) || null;
-  const sugModel = f.suggestion || f.model?.suggestion || null;
+  const sugKbRaw = (hasKb && (f.kb?.suggestionLine || null)) || null;
+  const sugKb = sugKbRaw ? cleanAdviceText(sugKbRaw) : null;
+  const sugModel = cleanAdviceText(f.suggestion || f.model?.suggestion || '');
   // ── ★★ 2026-10-09：**「建议」的唯一产出者是 `advice.mjs`**（Owner 定的规则）
   //
   //   Owner 原话：「建议必须具体内容。负面样本『建议』列填充 47% ⇒ **有填的做参考，
@@ -3680,10 +4136,35 @@ export function renderMergedItem(f, i, { must = false, layout = 'card', itemId =
   //   只在建议生成失败时兜（`advice.mjs` 失败不编）。
   //   为什么过去关于「建议」的毛病都出在这一格：**它曾经有两个产出者**
   //   （库侧原话 / 模型原话）⇒ 库侧有值时模型那条被静默丢掉、来源也标不清。
-  const adv = (typeof f.advice === 'string' && f.advice.trim()) ? f.advice.trim() : null;
+  const adv = cleanAdviceText(typeof f.advice === 'string' ? f.advice : '');
   // 改法**始终是模型写的** ⇒ 标注说「**参考了什么**」，不说「谁给的」：
   // 说成「库侧给的改法」是假陈述（句子是模型写的）。
   const advRef = f.adviceReferencedKb === true;
+  // A concrete KB recommendation is already an authored rule output. If the
+  // matcher merged several same-location KB rules, show that complete authored
+  // list; otherwise let generated advice refine the KB reference and use the KB
+  // text as fallback when generation produced nothing.
+  const hasAggregatedKbAdvice = Array.isArray(f.kb?.relatedArticleNos)
+    && f.kb.relatedArticleNos.length > 1 && !!sugKb;
+  // ★★ 2026-10-22（Owner：「建议有两份，卡上传的那份是历史原文 —— 查」）：
+  //   **`adv`（本单生成的改法）优先，库侧聚合原文降为参考。**
+  //
+  //   病灶（实测那一单）：两条负面样本 N-1.360 / N-1.132 位置相同被合并，
+  //   `ruleRefs` 累积成 2 条 ⇒ `hasAggregatedKbAdvice` 为真 ⇒ 卡上**直接用库侧原文**，
+  //   而 `建议生成` 刚跑完、日志写着 `ok/4139ms｜覆盖 1 条` 的那份**一个字都没印**。
+  //   ⇒ 生成了、落盘了、没显示；而且**表里存的是生成的那份**，卡上印的是历史原文 ⇒
+  //     卡与表对不上（反对的正是 Owner 2026-10-07 立的「卡与表同源」那条）。
+  //
+  //   为什么以 `adv` 为准：Owner 2026-10-09 原话「**有 `f.advice` 就用它** ——
+  //   那是两侧都回来之后那次调用**为这一条专门写的**改法」。
+  //   `hasAggregatedKbAdvice` 这一支是后来加的（想让多条同类条款的建议都露出来），
+  //   它和那条口径冲突时，**以 Owner 的为准**；多出来的信息不丢，降为括号里的参考。
+  //
+  //   反向对照（`--selftest` ㉖a / ㉖b）：没有 `adv` 时**行为逐字不变**（仍印库侧原文）。
+  //   ⚠️ 库侧原文**没有丢**：多条同类条款时它们本来就印在**「依据」**那一格
+  //   （`basisLine` 由 `relatedArticleNos` 拼，N-1.360 ＋ N-1.132 逐条带锚点），
+  //   不必在「建议」里再抄一遍 —— 而抄一遍会把「建议」撑过 `ADVICE_MAX`，
+  //   被 `clipToLimit` 剪掉尾巴挂一个「…」（实测就这么丢的）。
   const sugLine = adv
     ? `${adv}（${advRef ? '**参考了库内反例的建议**' : '**库内无可参考建议**'}`
       + ' —— 改法是按素材给出的，**不是库规原文**）'
@@ -3727,15 +4208,11 @@ export function renderMergedItem(f, i, { must = false, layout = 'card', itemId =
   // ★★ 2026-10-19（Owner：「所属类别/所属子类」统一到 A3 12 类）：首行标签改用 **A3**
   //   （`taxonomyCategory` / `taxonomySubcategory`，真源 `kb/l3/registry/rule-taxonomy.json`）。
   //   改前印的是 **A1 8 类词表**（`f.category`/`f.sub`）。盖不到 ⇒ `未归类`（12 类的兜底类）。
-  // ★★ 2026-10-19（Owner：「修改建议你写了200多字，**修改建议 ≤30 字的**」；PRD §5.3.3）——
-  //   **卡面**按 30 字压。压法 = 取第一句可执行动作（硬截会把「①…②…③…」截成半句）。
+  // ★★ 2026-10-19（Owner 调整建议上限；当前值见登记表 runtime_override）——
+  //   卡面和报告共享 `ADVICE_MAX`，避免将历史 30 字写死在执行逻辑中。
   //   ⚠️ 第一版把截断写在报告用的 `sugShort` 上 ⇒ **截错了介质**（卡面照旧 112 字、报告反被压）；
   //      而且定义放在卡面 `head` 之后 ⇒ TDZ（`Cannot access 'sugCard' before initialization`）。两处都已正。
-  //   ★ 2026-10-19 后令（Owner：「**审查报告中**，修改建议你写了200多字，修改建议 ≤30 字」）：
-  //     上一版只压卡面、报告留全文 ⇒ Owner 看的是**报告**，所以这条没算做完。
-  //     现在**两个介质同一把尺**（常量也因此从 `CARD_ADVICE_MAX` 改名 `ADVICE_MAX`）：
-  //     §5.3.3 是 PRD 硬约束，不是「卡面专用」。见下面报告分支的 `sugShort`。
-  const ADVICE_MAX = 30;      // PRD §5.3.3：修改建议 ≤30 字（卡面与报告同尺）
+  //   卡片与报告用同一个登记表上限（`ADVICE_MAX`），提示词、压缩器与闸门也共用它。
   const CARD_REASON_MAX = 50; // PRD §5.3.3：原因 ≤50 字（本轮 Owner 只说建议，原因未动）
   // ★★ 2026-10-19（Owner：「建议中『（全文见报告）』这里**都没有报告**，没有的东西不要说」）——
   //   真单只有 1 处问题 ⇒ **不出报告**（PRD §5.3.4：≥3 才出报告）⇒ 那个指针指向空气。
@@ -3764,21 +4241,37 @@ export function renderMergedItem(f, i, { must = false, layout = 'card', itemId =
   //   ⇒ 压的是**散文**，不是**坐标**：`<最小坐标>｜<核验状态>｜原始出处：<url>`。
   //   ⚠️ 上一版只留了最小坐标、把 URL 与状态一起丢了 —— 那不是"压字"，是把溯源砍了。
   const basisCard = (() => {
+    // ★ 2026-10-22（Owner：「依据文档链接…表格名称+飞书链接就好」）：卡面同样先压缩 ——
+    //   同一份记录命中 4 条时，原来会把「《表格名》第 X 条｜原始出处：URL；《表格名…」整串
+    //   印到卡上（实测被 URL 正则吞掉后半截，留下一个断掉的表格名）。
+    //   压缩后卡面只留：`《表格名》第 N-1.307 等 4 条｜原始出处：<url>`。
     const t = String(_basisWithLink ?? '');
-    const link = (t.match(/https?:\/\/[^\s)）」』\]]+/) || [])[0] || '';
+    const compact = compactBasisLine(t);
+    // ⚠️ URL 的字符集要停在**中文标点**（`；` 不是空白）—— 否则会把下一条条款一起吞进链接。
+    const link = (compact.match(/https?:\/\/[^\s)）」』；;，。、\]]+/) || [])[0]
+      || (t.match(/https?:\/\/[^\s)）」』；;，。、\]]+/) || [])[0] || '';
     const status = (t.match(/[✅⚠]\ufe0f?\s*[^｜\n→]{0,18}/) || [])[0]?.trim() || '';
-    // 先剥掉**内部坐标**与**登记口径尾巴**（Owner 2026-10-17：卡面不许出现后台词），
-    // 再挑最小坐标。⚠️ 只剥这两样 —— `（未给条款号）` 这种**如实说明**要留着，
+    // 先剥掉**内部坐标**、**压缩时留下的 `（链接：…）` 壳**与**登记口径尾巴**
+    // （Owner 2026-10-17：卡面不许出现后台词），再挑最小坐标。
+    // ⚠️ 只剥这两样 —— `（未给条款号）` 这种**如实说明**要留着，
     // 它是「重建版（点不开）」与「原样搬来的权威版」之间唯一还看得见的差别（⑬ 反向对照钉着）。
-    const bare = (link ? t.replace(link, '') : t)
+    const bare = compact
+      .replace(/（链接：[^）]*）/g, '')
       .replace(/（锚点：[^）]*）/g, '').replace(/｜?\s*锚点[:：][^｜\n]*/g, '')
       .replace(/（登记来源\s*·\s*每日复核）/g, '')
       .replace(/[→—]+\s*$/g, '')
       .replace(/\s+/g, ' ').trim();
     let label;
-    const art = /(《[^》]+》\s*第\s*[0-9A-Za-z.\-]+\s*条)/.exec(bare);
-    if (art) label = art[1];
-    else if (bare.length <= 30) label = bare;          // 已经很短（`《知识库》（未给条款号）`）⇒ 原样
+    const art = /(《[^》]+》)\s*第\s*([A-Za-z0-9][A-Za-z0-9.\-]*)((?:\s*、\s*[A-Za-z0-9][A-Za-z0-9.\-]*)*)\s*条/.exec(bare);
+    if (art) {
+      const n = 1 + (art[3].match(/、/g) || []).length;
+      label = `${art[1]}第 ${art[2]}${n > 1 ? ` 等 ${n} 条` : ' 条'}`;
+    } else if (/^无外部依据/.test(bare)) {
+      // ★ 2026-10-22：这一格是**如实说没有外部依据**，不是坐标 ⇒ 原样留着（别被下面的
+      //   长句压缩砍成 `无外部依据（原图观察：图 1：右侧成人女性穿蓝色刷手服、颈挂听诊器…`）。
+      //   ⚠️ 上限仍要有（卡面一格放得下）：锚点太长时**截锚点、留结论**。
+      label = bare.length <= 80 ? bare : `${bare.slice(0, 78)}…`;
+    } else if (bare.length <= 60) label = bare;          // 已经很短 ⇒ 原样
     else {
       const doc = /([^（）()]{0,24}《[^》]+》)/.exec(bare);
       // ⚠️ `（外部标准）` 只给**模型侧/外部**那条加 —— 库侧重建筑的 `《知识库》`
@@ -3806,9 +4299,14 @@ export function renderMergedItem(f, i, { must = false, layout = 'card', itemId =
     index: i,
     origin,                                    // 一句话说清「回不回得了源」（卡上印不印另说）
     source: f.source ?? null,                  // kb | model | both | both-conflict
-    basis_kind: extB ? (extB.kind ?? (extB.cited ? 'cited' : 'none')) : null,
-    basis_cited: extB ? !!extB.cited : null,
-    basis_missing: !!(f?.model?.basis_missing || f?.basis_missing),
+    basis_kind: extB?.cited ? (extB.kind ?? 'cited')
+      // ★ 2026-10-22：**「依据是画面观察」与「依据是素材原文」分得开** ——
+      //   记录层据此答得出「这条凭什么判的」，而读者看到的依据格两边都写「无外部依据」。
+      : (visualObservationOf(f) ? 'visual_observation'
+        : (materialExcerptText ? 'material' : (f?.model?.basis_kind ?? f?.basis_kind
+          ?? (f?.source === 'model' ? 'none' : null)))),
+    basis_cited: extB?.cited ? true : ((visualObservationOf(f) || materialExcerptText) ? false : null),
+    basis_missing: !!(f?.model?.basis_missing || f?.basis_missing) && !materialExcerptText,
     basis_card: basisCard,
     reason_full: reasonFull,
     reason_card: reasonCard,
@@ -3844,32 +4342,32 @@ export function renderMergedItem(f, i, { must = false, layout = 'card', itemId =
   //   历史：2026-10-17 第二十四轮 Owner 说「建议都写全」，那时只留前 120 字、尾巴挂
   //   「（完整改法见「依据文档链接」条款原文）」—— 而被指到的那一格是**条款原文**，
   //   本来就不含改法，所以「写全」是对的。
-  //   ★ 2026-10-19 后令（Owner：「**审查报告中，修改建议你写了200多字，修改建议 ≤30 字**」）：
-  //     PRD §5.3.3 的「单条问题…修改建议 ≤30 字」是**硬约束**，不只在卡面上成立。
-  //     ⇒ 报告那一格也压到 ≤30 字；**后令优先**，2026-10-17 的「写全」在**这一格**上失效。
+  //   当前运行上限来自登记表 `runtime_override`；报告与卡面共用 `ADVICE_MAX`。
   //   ⚠️ 全文没丢：`advice` 原文仍在结构化 JSON（`review_findings.json`）与本地留底
   //     `merged-*.full.md` 里 —— 搬是搬、砍是砍，报告格子里不摊开，但一条没少留。
   //   ⚠️ 压法是**取第一句可执行动作**，不是硬截断：硬截会把「①…②…③…」截成半句；
-  //     压不下（第一句就 >30 字）⇒ 老实截到 30 并带 `…`，不假装写全。
+  //     超过 `ADVICE_MAX` ⇒ 依据同一字符口径压缩，未超限则原样显示。
   //   ★★ 报告那一格量的是**改法本体**（`sugCore`），不是 `sugLine`（后者带着出处标注）。
   //     否则那半句「（库内无可参考建议 —— 改法是按素材给出的…）」会被截进 30 字里，
   //     **Owner 2026-10-19 点名去掉的两句又回到报告**（Z23 当场抓到）。出处改由标题行说。
-  const sugCore = adv
+  const sugCore = hasAggregatedKbAdvice
+    ? sugKb
+    : adv
     || sugKb
     || sugModel
     || '（两侧都没给修改建议 —— 这一条只有现象，没有可执行的改法）';
   const sugFull = String(sugCore || '').trim();
   // ★★ 2026-10-19（Owner：「修复建议都没讲完，被截断了，不能出现这种情况」）：
-  //   报告这一格**改用 `fitAdvice`** —— 超过 30 字就**完整印出**，绝不加 `…`。
+  //   报告这一格**改用 `fitAdvice`** —— 超过 `ADVICE_MAX` 才压缩。
   //   理由与「为什么不用取第一句」写在 `fitAdvice` 头注里（`删 X，或补 Y` 被压成 `删 X`
   //   是把二选一改成了唯一动作）。
   const sugShortR = fitAdvice(sugFull, ADVICE_MAX);
   const sugShort = sugShortR.text;
   // ★★ 2026-10-19：那条**出处标注**（「参考了库内反例的建议 —— 改法是按素材给出的，
-  //   不是库规原文」）**不许跟着 30 字一起被砍掉** —— 它防的是「把模型写的改法读成库规原文」
+  //   不是库规原文」）**不许挤占建议字数** —— 它防的是「把模型写的改法读成库规原文」
   //   （Owner 2026-10-09 定的口径），砍掉就是**用压缩换掉了防误导**。
   //   ⇒ 它挪到**标题行末尾**（元信息那一格），与来源标记并列：
-  //     六个 PRD 字段里仍然只有一句 ≤30 字的动作，标注既没丢、也不占那一格的额度。
+  //     标注与动作分格显示；建议动作的运行上限统一由 `ADVICE_MAX` 执行。
   //   ⚠️ **只标「参考了」这一种**（`advRef === true`）；没参考时**一个字都不印** ——
   //     印「库内无可参考建议 / 无库内依据的改法建议」正是 Owner 2026-10-19 点名去掉的说法
   //     （「这一条回不回得了源」由**依据格**回答，不在建议格里重复）。
@@ -3893,8 +4391,18 @@ export function renderMergedItem(f, i, { must = false, layout = 'card', itemId =
   //     · 原因：去规则码、去建议子句（`businessReason`）；
   //     · 位置/问题描述/维度/建议：只挖内部标识（`stripBackendTokens`），语义一个字不改。
   //   ⚠️ **卡片那一支（上面那个 `head`）一个字符都没动** —— 清扫只发生在报告分支。
-  const basisLinked = businessBasis(_basisWithLink).replace(
-    /(原始出处[:：])(https?:\/\/\S+)/,
+  // ★★ 2026-10-22（真单 `HD8Td5RjuouYIDxrZ2ocoshVn9Z`）：**URL 的字符集要停在中文标点**。
+  //   旧实现用 `\S+`，而中文标点不是空白 ⇒ 链接会变成
+  //   `[点开核对](…recvw7XIUgXEvk；《内部正负样本库…》第)` —— URL 把后半句吞了，点开是错页。
+  //   与上面 `stripBackendTokens` 的 stash 正则同一条口径；并加 `/g`：
+  //   依据行里剩下的 URL（不同记录）也照样可点，而不是只链化第一条。
+  // ★ 2026-10-22（Owner：「依据文档链接里就一条链接怎么写这么多字？表格名称+飞书链接就好」）：
+  //   **先** `compactBasisLine`（原始串里每条条款自成一段，按 `；` 切得开），**再**
+  //   `businessBasis` 去锚点 —— 顺序反过来时，`businessBasis` 会把「锚点」与「下一条条款」
+  //   用 `｜` 拼进同一段，压缩时只认到第一条，后面几条会被静默吃掉（实测）。
+  //   剩下的裸 URL 才走下面那条链接化替换。
+  const basisLinked = businessBasis(compactBasisLine(_basisWithLink)).replace(
+    /(原始出处[:：])(https?:\/\/[^\s)）」』；;，。、]+)/g,
     (_m, p1, url) => `${p1}[点开核对](${url.replace(/）$/, '')})`,
   );
   const q = (t) => `> ${t}`;
@@ -4052,7 +4560,12 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   //   `basis_missing` 就是那次判断的落盘），渲染层再算一遍就是**第二个口径**。
   //   ⇒ 保留单一判据（标记），**但把兜底放在出厂闸上**（`cardConformance()` 第 ④ 条）：
   //     真漏了会**出声**，而不是靠我每次记得在渲染层再拦一遍。
-  const _cardList = list.filter((f) => !(f?.model?.basis_missing || f?.basis_missing));
+  const _cardEntries = list.map((f, sourceIndex) => ({ f, sourceIndex })).filter(({ f }) =>
+    // ⚠️ 2026-10-22：这里的例外**不是**「素材原文可以当依据」，而是
+    //   「这一条有可展示的素材锚点 ⇒ 别把真实问题滤掉」（Owner 同一天的另一条裁定：
+    //   4 条都留）。依据格怎么印是 `noExternalBasisText` 的事，两件事分开。
+    !(f?.model?.basis_missing || f?.basis_missing) || !!materialExcerpt(f));
+  const _cardList = _cardEntries.map(({ f }) => f);
   const _noBasisN = list.length - _cardList.length;
 
   // ★ 2026-10-19：`total` 只算**上得了卡的**条目 —— 否则会出现「共发现 1 处」却一条明细都没有（账不平）。
@@ -4061,15 +4574,16 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   // 条数口径：能并的条目 ＋ **库侧结构性条数里没并进来的那部分**（重叠未判 ⇒ 这是上限，写明）
   //   ★★ 2026-10-15（Owner）：**覆盖缺口那 1 条已从算术里去掉** —— 「一处需人工确认」这个数
   //   只许由**真条目**（并进来的 ＋ 库侧未并进的）构成，不许自己定义。
-  // ★★ 2026-10-19（四态）：SUGGEST 的结论行按 PRD §5.3.4 样张逐字 ——
-  //   `【SUGGEST】发现 N 处建议优化，不阻断发布：…`。三条硬口径：
+  // ★★ 2026-10-21（Owner：4 态 = pass / pass+suggest / block / review）：**结论行写 `PASS+SUGGEST`**。
+  //   措辞取自 PRD §5.3.4 那一档样张（`发现 N 处建议优化，不阻断发布`），态名按 §5.3.2 的四态写全
+  //   （SUGGEST 是 PASS 的附属，不是独立态）。三条硬口径不变：
   //   ① 必须含「**不阻断发布**」（与 REVIEW 的分界）；② **不出现「需人工确认/必须修改」**；
   //   ③ 措辞判据在 `agent/prd53.mjs::conforms`（`prd53_format` ②g 系列盯着）。
-  const suggest = state === 'SUGGEST';
+  const suggest = prd53StateOf(state) === 'PASS+SUGGEST';
   const line = must
     ? `【审查结论：BLOCK】共发现 ${total} 处必须修改。`
     : (suggest
-      ? `【审查结论：SUGGEST】发现 ${total} 处建议优化，不阻断发布。`
+      ? `【审查结论：PASS+SUGGEST】发现 ${total} 处建议优化，不阻断发布。`
       : `【审查结论：REVIEW】共发现 ${total} 处需人工确认。`);
   // ★ 卡片这一支**只用三行版**（Owner 2026-10-17：「卡片格式不要动」）⇒
   //   不传 `layout`、也不算逐条承办 —— 逐条承办只在**报告**里出现。
@@ -4080,8 +4594,9 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   //   它们随后进 `merged_record`（落盘 `.json`），也是「卡上摘掉来源标记」之后
   //   「你问我是哪一侧的问题」**唯一还答得出来的地方**（日志只有整单一行）。
   const itemsMeta = [];
-  const items = _cardList.map((f, i) => renderMergedItem(f, i, {
-    must, hasReport: _hasReportForCard, onMeta: (m) => itemsMeta.push(m) }));
+  const items = _cardEntries.map(({ f, sourceIndex }, i) => renderMergedItem(f, i, {
+    must, hasReport: _hasReportForCard,
+    onMeta: (m) => itemsMeta.push({ ...m, source_index: sourceIndex }) }));
   // ★★ 2026-10-14（Owner 报：与 PRD 不符）—— 收尾动作行的**收件人按问题方向算**。
   //
   //   病灶：这一行原先是常量 `'建议转 @内容治理负责人 复核。'`。PRD §5.3.2 **两处**
@@ -4348,9 +4863,9 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   //   代价写在这里，免得下一个人改一处就漂移）。
   // ★★ 2026-10-19（PRD §17 + §5.3.4）：**SUGGEST 不做分类汇总** —— 它的输出格式是
   //   「逐条列建议 + 不阻断说明」，档位是「任意」（不分 ≥3 与 1-2）。所以哪怕有 6 条建议，
-  //   也**逐条列出来**（每条 ≤150 字，per-item，判据 `prd17.scopeOf('SUGGEST')` 已钉）。
+  //   也**逐条列出来**（每条 ≤150 字，per-item，判据 `prd17.scopeOf('PASS+SUGGEST')` 已钉）。
   const summarized = total >= REPORT_LINK_MIN_ISSUES && hasReportLink
-    && String(state || '').toUpperCase() !== 'SUGGEST';
+    && prd53StateOf(state) !== 'PASS+SUGGEST';
   // ★★ 2026-10-14（Owner：「审核结论中 1，2...每条之间需要空一行的 …… 都要跟 prd 对齐」）──
   //
   //   PRD §5.3.2 / §5.3.3 的逐字形状（回源飞书 PRD wiki rev 36 ＋ 本地 `kb/.work/prd.md`，
@@ -4418,14 +4933,11 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
         ? `｜⚠️ 位置与模态不符（${r.locationModality.modality} 应写「${r.locationModality.expected}」）`
         : ''));
   }
-  // ★★ 2026-10-15（Owner 给了逐字格式）：≥3 时，分类汇总前要有**「逐条问题」**这一行 ——
-  //   格式（Owner 原话）：
-  //     【审查结论：BLOCK】共发现 9 处必须修改。
-  //     逐条问题
-  //     · 合规类问题：2 个
-  //     …
-  //     · 另有 3 条（明细在报告里）
-  //   ⚠️ 这一行**不是**我加的说明文字，是 Owner 指定的格式件；1–2 条那条路（逐条展开）**不加**。
+  // ★★ 2026-10-15（Owner 那次给的**表行**逐字格式里带着「逐条问题」这一行）——
+  //   **已在 2026-10-21 撤销**：Owner 拿正确模版（`docx/CvIldNhUSoxv7DxpzwdcKUcjnfr`）
+  //   逐行对过之后，这一行在 PRD §5.3.2/§5.3.3、知识库引擎 `render_summary` 与那份模版
+  //   里**都不存在**（详见证在哪、改动落在哪，见下面 `bodyText` 那一段的注释）。
+  //   这里留一行字是为了「查得到它曾经存在过」，不是还留着那条口径。
   // ★★ 2026-10-19（Owner：「所属类别/所属子类」统一到 A3 12 类）：
   //   **逐条路（<3）不再追加「按 11 类」那一行** —— 逐条首行现在印的就是 A3
   //   （`【所属类别-所属子类】`），再补一行就是同一件事说两遍。
@@ -4437,14 +4949,26 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   //   如实说一句（不编依据、也不假装没问题）。
   const _allDropped = _shownN === 0 && _noBasisN > 0;
   const _droppedNote = _allDropped
-    ? `（本次 ${_noBasisN} 条线索均**未给出依据**，按 PRD §5.3.3 不列明细；是否需要处理请人工判断）`
+    // ★★ 2026-10-20：**改掉一处误引** —— 原先写「按 PRD §5.3.3 不列明细」，
+    //   而 §5.3.3 讲的是「问题数 ≥3 时只出分类汇总」，与「这条给不出依据」无关。
+    //   引用错条款比不引用更坏：读者会去 §5.3.3 找一条不存在的规矩。
+    //   真实口径是 Owner 2026-10-19 那句「依据须要能支撑问题」⇒ 没依据的条目不列。
+    ? `（本次 ${_noBasisN} 条线索均**未给出依据**，按「每条要有依据」不列明细；是否需要处理请人工判断）`
     : '';
   const bodyText = summarized
-    // ★★ 2026-10-19：曾为 PRD §17 的 4 个字把「逐条问题」这一行删掉 —— **已回滚**。
-    //   判据 `prd53_format` ②f 明确写着它是**格式件**（「表行与报告的格式件」），
-    //   知识库侧 `review_engine.render_summary` 也印它 ⇒ 删了就是两仓分叉。
-    //   省 4 个字去别的更值的地方省（链接行那句复述、诊断尾巴）。
-    ? `逐条问题\n${categorySummary(_cardList, total)}`
+    // ★★ 2026-10-21（Owner 给了**正确的模版** `docx/CvIldNhUSoxv7DxpzwdcKUcjnfr`，
+    //   逐行比对我们那份输出：「【审查结论：REVIEW】…」下面**多了一行 `逐条问题`**）
+    //   ⇒ **这一行删掉。** 它是 2026-10-15 Owner 给**表行样例**时带进来的，之后被当成了格式件。
+    //
+    //   三条独立证据都说它不在格式里（不是偏好，是回源）：
+    //     ① PRD §5.3.2 / §5.3.3 的 ≥3 逐字形状：结论行 ␤ `· XX类问题：N 个` ␤ 链接 ␤ 动作行
+    //        —— 结论行与汇总行之间**没有任何小标题**（本地 `PRD/feishu/内容审查Agent-PRD-v1.0.md` §5.3.2）；
+    //     ② 知识库侧权威产者 `kb/l7/review-engine/core/review_engine.py::render_summary`
+    //        的 ≥3 分支也**不印**它（2026-10-21 实跑，读数见 `PMO/守衡-审查报告对齐正确模版-20261021.md`）；
+    //     ③ Owner 这次给的模版里同样没有（`内容审查报告` ␤ 结论行 ␤ `· …类问题：N 个`）。
+    //   ⚠️ 上一版注释曾写「知识库侧也印它」—— **那是错的**（②），本条即按那条错判据的回滚。
+    //   它原先还捎带说过「省 4 个字去别处省」：现在不是字数问题，是**模板对不上**。
+    ? categorySummary(_cardList, total)
     : (itemBlocks.length ? itemBlocks.join('\n\n') : _droppedNote) + (taxLine ? '\n\n' + taxLine : '');
   // ══════════════════════════════════════════════════════════════════════════
   // ★★ 2026-10-13（Owner 裁定）：**库侧/模型侧的口径读数与解释不上卡，只留在守衡的记忆里**
@@ -4511,7 +5035,7 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   const _truncN = (Array.isArray(itemsMeta) ? itemsMeta : [])
     .filter((m) => m.reason_truncated || m.advice_truncated).length;
   if (_truncN) {
-    console.log(`[agent] ✂ 卡面有 ${_truncN} 处按字数压缩（原因 ≤50 字 / 建议 ≤30 字）`
+    console.log(`[agent] ✂ 卡面有 ${_truncN} 处按字数压缩（原因 ≤50 字 / 建议 ≤${ADVICE_MAX} 字）`
       + '—— 已记进逐条记录；卡面不印（Owner 2026-10-15：那一格只放 PRD 结论）');
   }
   let blockText = `${line}\n\n${bodyText}${reportNote}${hitsNote}`
@@ -4552,6 +5076,8 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
            // ★ 2026-10-19（步骤 1）：逐条元数据（来源侧/回源能力/截断真相）。
            //   `merged_record.buildMergedRecord()` 消费它落盘；**别处不要再算一遍**。
            itemsMeta,
+           // 报告清单、问题数与卡面必须使用同一批可见条目。
+           displayItems: _cardList,
            // ★ 2026-10-19：PRD §17 字数读数（`limit: null` = PRD 没这一档，不判）
            //   汇总路 ⇒ `prd17`（整条消息）；逐条路 ⇒ `prd17Items`（**每条各一个读数**）
            prd17: _prd17, prd17Items: _prd17PerItem,

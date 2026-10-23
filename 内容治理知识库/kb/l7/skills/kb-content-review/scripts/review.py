@@ -41,6 +41,14 @@ if not _os.environ.get("KB_INTERP_OK"):
 
 import argparse, glob, hashlib, json, os, re, subprocess, sys, time, unicodedata
 
+
+def history_action_advice_note(action):
+    """Describe the provenance of a historical recommendation without inventing disposition."""
+    action = action if isinstance(action, dict) else {}
+    if action.get("kind") == "replace" and str(action.get("replacement") or "").strip():
+        return "取自源记录的建议原文"
+    return "源记录未提供具体修改建议；此条仅为相似历史参考，不构成禁止或打回依据"
+
 #: 库根判定的六件套：一个都不能少（少哪一个，对应那段协议就跑不了）。
 #:   l7.json          → 门限 / 受控词表 / 责任人（引用契约与分流规则的来源）
 #:   rules.jsonl      → 规则层（条款号 + 禁用表达）
@@ -164,8 +172,80 @@ except RuntimeError:
 L7 = os.path.join(ROOT, "kb", "l7")
 REG_PATH = os.path.join(L7, "registry", "l7.json")
 RULES = os.path.join(ROOT, "kb", "l3", "candidates", "rules.jsonl")
+# ★ 2026-10-21：P0 快路的 V01–V06（E-2.124~E-2.129）**不住 rules.jsonl**，
+#   它们住在 external_standard.jsonl。只读前者 ⇒ 这些 P0 命中的 finding 变成
+#   「未归类 / 无条款号」，判定从 BLOCK 掉成 REVIEW（实测「全美国销量no.1」）。
+EXTERNAL_RULES = os.path.join(ROOT, "kb", "l3", "candidates", "external_standard.jsonl")
 MATCHER = os.path.join(ROOT, "kb", "l5", "matcher.py")
+ADVICE_BOOK = os.path.join(ROOT, "kb", "l5", "advice_book.py")
 L6REG = os.path.join(ROOT, "kb", "l6", "registry", "l6.json")
+
+
+_ADVICE_BOOK = None
+
+
+def _advice_book():
+    """「建议」兜底改法表（唯一来源 = `kb/l5/advice_book.py`）。
+
+    ★ 2026-10-19（Owner：「**必须给建议**」）：改前本条链路的「建议」只有一个来源
+      （规则的 `advice` 格），空了就**整行不印**（BLOCK 卡上连「建议」都没有）。
+      实测 17 条 P0 模式里 10 条没有原话 ⇒ 那一档的卡上永远看不到改法。
+      ⚠️ 加载失败不许静默：回同签名空壳（通用句），原因打 stderr。
+    """
+    global _ADVICE_BOOK
+    if _ADVICE_BOOK is not None:
+        return _ADVICE_BOOK
+    try:
+        import importlib.util as _ilu                          # noqa: PLC0415 —— 本文件既有惯例：惰性加载
+        _spec = _ilu.spec_from_file_location("kb_advice_book_review", ADVICE_BOOK)
+        _mod = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)
+        _ADVICE_BOOK = _mod
+    except Exception as e:                                   # noqa: BLE001
+        print("[advice_book] ⚠ 兜底改法表加载失败 ⇒ 建议降级为通用句：%s" % e, file=sys.stderr)
+
+        class _Empty:
+            @staticmethod
+            def fallback(rule_code=None, rule_id=None, hits=()):
+                return ("删去命中的违规表述后再提交。", "generic_no_book")
+
+        _ADVICE_BOOK = _Empty()
+    return _ADVICE_BOOK
+
+
+def backfill_advice(findings, state):
+    """BLOCK 单的「建议」**补进数据**（Owner 2026-10-19「必须给建议」）。
+
+    为什么补在 `review()` 返回前、而不是渲染时：
+      同一条 finding 有三处消费者 —— **卡片**（`render()`）、**报告**（`write_report`）、
+      **入口 JSON**（`_finding_to_risk_item → suggestion`）。只在渲染层补，就会
+      「卡上有建议、报告里那一格空着」，而这正是本库反复栽过的两端不一致。
+    ⇒ 在这里补一次，三处读同一格。**已有建议一个字不改**（库内原话优先）；
+      补进来的那句记 `advice_source`（`p0_advice_book:<CODE>` / `generic_*`），查得到出处。
+
+    ⚠️ 只补 BLOCK：PRD §5.3.4 的 REVIEW 模板没有逐条「建议」行（改法是 `建议转 @…复核。`），
+      给 REVIEW 逐条补建议＝改 PRD 版式。
+    """
+    if state != "BLOCK":
+        return 0
+    book = _advice_book()
+    n = 0
+    for f in findings or []:
+        if not isinstance(f, dict) or str(f.get("action") or "").lower() == "advice":
+            continue
+        if str(f.get("advice") or "").strip():
+            continue
+        rid = f.get("rule_id")
+        # 命中片段：`excerpt` 是逐字命中那段；没有就用 `position` 之外什么都不给（不编）。
+        hits = [str(f.get("excerpt") or "").strip()]
+        adv, src = book.fallback(rule_code=f.get("rule_code"), rule_id=rid,
+                                 hits=[h for h in hits if h])
+        if not str(adv or "").strip():
+            continue
+        f["advice"] = adv
+        f["advice_source"] = src
+        n += 1
+    return n
 
 
 def norm(s):
@@ -199,10 +279,16 @@ def _l4_article_no_map():
 
 def load_rules():
     latest = {}
-    for l in open(RULES, encoding="utf-8"):
-        if l.strip():
-            r = json.loads(l)
-            latest[r["rule_id"]] = r
+    # ★ 2026-10-21：外部标准规则（V01–V06 / E-2.12x）与措辞库规则合并成一张表。
+    #   先读 rules.jsonl（同名 rule_id 以它为准），再补 external_standard.jsonl 里没有的。
+    for _path in (RULES, EXTERNAL_RULES):
+        if not os.path.exists(_path):
+            continue
+        for l in open(_path, encoding="utf-8"):
+            if l.strip():
+                r = json.loads(l)
+                if r.get("rule_id"):
+                    latest.setdefault(r["rule_id"], r)
     amap = _l4_article_no_map()
     filled = 0
     for rid, r in latest.items():
@@ -274,12 +360,256 @@ def taxonomy_index():
                 rid = r.get("rule_id")
                 cat, sub = r.get("taxonomy_category"), r.get("taxonomy_subcategory")
                 if rid and (cat or sub):
+                    # ★★ 2026-10-20（W-1.57 那次实测）：`taxonomy_basis` 若是**字符串**，
+                    #   `(str).get("version")` 抛 AttributeError ⇒ 外层 `except` 把**整份文件的
+                    #   后续行**全部跳过 ⇒ 排在后面的规则统统「不在规则表里」、A3 分类恒空。
+                    #   实测：1018 行是 dict、我新加的两行写成字符串 ⇒ 只有它们丢分类，
+                    #   而症状看起来像「引擎不认识这条规则」。
+                    #   ⇒ 两种形状都认；取不到版本就给默认值，**不再因为一格形状打穿整份索引**。
+                    _tb = r.get("taxonomy_basis")
                     idx[rid] = {"taxonomy_category": cat, "taxonomy_subcategory": sub,
-                                "taxonomy_basis": (r.get("taxonomy_basis") or {}).get("version")
-                                or "kb/l3/registry/rule-taxonomy.json"}
+                                "taxonomy_basis": ((_tb.get("version") if isinstance(_tb, dict) else None)
+                                                   or "kb/l3/registry/rule-taxonomy.json")}
         except Exception:                                    # noqa: BLE001
             continue
     return idx
+
+
+#: A3 的兜底类名（12 类里的第 12 个；真源 `kb/l3/registry/rule-taxonomy.json`）。
+TAX_UNCLASSED = "未归类"
+
+
+def taxonomy_classes():
+    """A3 的 12 类**顺序**（真源 = `kb/l3/registry/rule-taxonomy.json` 的 classes）。
+
+    读不到 ⇒ 返回空表（调用方因此只保证「未归类压最后」，**不编一套顺序**）。
+    """
+    global _TAX_CLASSES
+    if _TAX_CLASSES is None:
+        _TAX_CLASSES = []
+        try:
+            with open(os.path.join(ROOT, "kb", "l3", "registry", "rule-taxonomy.json"),
+                      encoding="utf-8") as fh:
+                reg = json.load(fh)
+            _TAX_CLASSES = [str(c.get("name") or "").strip()
+                            for c in (reg.get("classes") or []) if str(c.get("name") or "").strip()]
+        except Exception as e:                                  # noqa: BLE001
+            print("[taxonomy] ⚠ 12 类注册表读不到 ⇒ 汇总顺序退回字典序：%s" % e, file=sys.stderr)
+    return _TAX_CLASSES
+
+
+_TAX_CLASSES = None
+
+
+def tax_category(f):
+    """这一条的**所属类别**（A3 12 类）；盖不到 ⇒ `未归类`（兜底类，**不编**）。"""
+    return str((f or {}).get("taxonomy_category") or "").strip() or TAX_UNCLASSED
+
+
+def tax_label(f):
+    """`<所属类别>-<所属子类>`（卡面/报告的逐条标签）；子类没有就只印类别。"""
+    cat = tax_category(f)
+    sub = str((f or {}).get("taxonomy_subcategory") or "").strip()
+    return ("%s-%s" % (cat, sub)) if sub and cat != TAX_UNCLASSED else cat
+
+
+# ── ★★ 2026-10-20（Owner：「未归类问题：2 个，不属于所属类别12类中的吗？图片提取规则的
+#    时候要归类」）────────────────────────────────────────────────────────────────
+# 病灶（当真单核过）：案例层 finding（`sc-…` / `S-1.195` / `N-1.337`）由下面 case 分支直接
+#   拼出来，**从来不带 `taxonomy_category`**；而 `taxonomy_index()`（本文件上方）只读
+#   `rules.jsonl` + `external_standard.jsonl`，案例层两条都不在 ⇒ `stamp_taxonomy()` 把它们
+#   记成 missing ⇒ 报告「所属类别」落 `未归类`（实测一张德国社媒贴的图单里 4 条有 2 条如此）。
+# ⇒ 修法：**在提取这一层就归类**（Owner 原话「图片提取规则的时候要归类」），映射表唯一真源
+#   `kb/l7/registry/case-taxonomy-map.json`（12 类真源仍是 `rule-taxonomy.json`）。
+_CASE_TAX_PATH = os.path.join(ROOT, "kb", "l7", "registry", "case-taxonomy-map.json")
+_CASE_TAX = None
+
+
+def case_taxonomy(reason_category):
+    """案例「原因分类」→ A3 12 类。**只在案例层用**；映射不到 ⇒ `未归类`（不编）。
+
+    读不到映射表 ⇒ 返回 `(未归类, None, 原因)`，**不抛**：分类是附加视图，
+    不许因为它把整条评审链拖死（与 `taxonomy_index()` 同一条口径）。
+    """
+    global _CASE_TAX
+    if _CASE_TAX is None:
+        _CASE_TAX = {}
+        try:
+            with open(_CASE_TAX_PATH, encoding="utf-8") as fh:
+                _CASE_TAX = (json.load(fh) or {}).get("map") or {}
+        except Exception as e:                                   # noqa: BLE001
+            print("[case_taxonomy] ⚠ 映射表读不到 ⇒ 案例层落未归类：%s" % e, file=sys.stderr)
+    key = str(reason_category or "").strip()
+    row = _CASE_TAX.get(key) or {}
+    cat = str(row.get("taxonomy_category") or "").strip()
+    if not cat:
+        return (TAX_UNCLASSED, None,
+                "案例分类 %r 不在 case-taxonomy-map.json 里 ⇒ A3 留空（**不编**）" % key)
+    return (cat, None, "kb/l7/registry/case-taxonomy-map.json（Owner 2026-10-20 采用，非 PRD 原文）")
+
+
+# ── ★★ 2026-10-21（Owner：「能跟飞书表中“原因分类”来对齐吗？归属于12类别」）──────────
+# 病灶（实测）：图片类审查报告 22 份 / 92 条里 **87 条落 `未归类`（95%）**，文字类只有 2%。
+#   图片单的命中恰恰集中在**负面样本层**（N-02 占 65/85 次引用），而这一层 437/437 条
+#   从来没有 `taxonomy_category`，`rule-taxonomy.json` 的 638 条与它们 **rule_id 交集 0**。
+# ⇒ 修法与案例层同形：**在提取这一层就归类**（Owner 2026-10-20 原话「图片提取规则的时候要归类」），
+#   映射表唯一真源 `kb/l7/registry/negative-taxonomy-map.json`（12 类真源仍是 `rule-taxonomy.json`）。
+#   ⚠️ 别按 rule_code 一刀切：N-02「原则性错误」64 条横跨安全场景 / 排版 / 设计方向三类，
+#   所以映射表用 `by_code` ＋ `overrides_n02`（逐条读了正文的）＋ `default_n02`（入队复核）三层。
+_NEG_TAX_PATH = os.path.join(ROOT, "kb", "l7", "registry", "negative-taxonomy-map.json")
+_NEG_TAX = None
+
+
+def negative_taxonomy(code=None, article_no=None):
+    """负面样本规则（`N-1.x`）→ A3 12 类。返回 `(category, basis)`；认不出 ⇒ `(None, None)`。
+
+    优先级：`overrides_n02[article_no]`（逐条读过正文）＞ `by_code[rule_code]` ＞
+    `default_n02`（仅 N-02）＞ 认不出。**读不到映射表 ⇒ 不抛**、返回 `(None, None)`：
+    分类是附加视图，不许因为它把整条评审链拖死（与 `case_taxonomy()` 同一条口径）。
+    """
+    global _NEG_TAX
+    if _NEG_TAX is None:
+        _NEG_TAX = {}
+        try:
+            with open(_NEG_TAX_PATH, encoding="utf-8") as fh:
+                _NEG_TAX = json.load(fh) or {}
+        except Exception as e:                                   # noqa: BLE001
+            print("[negative_taxonomy] ⚠ 映射表读不到 ⇒ 负面样本层落未归类：%s" % e, file=sys.stderr)
+    if not _NEG_TAX:
+        return (None, None)
+    code = str(code or "").strip()
+    art = str(article_no or "").strip()
+    row, matched = None, None
+    if art:
+        row = (_NEG_TAX.get("overrides_n02") or {}).get(art)
+        matched = "overrides_n02" if row else None
+    if not row and code:
+        row = (_NEG_TAX.get("by_code") or {}).get(code)
+        matched = "by_code" if row else None
+    if not row and code == "N-02":
+        row = _NEG_TAX.get("default_n02")
+        matched = "default_n02" if row else None
+    cat = str((row or {}).get("taxonomy_category") or "").strip()
+    if not cat:
+        return (None, None)
+    return (cat, {"version": str((_NEG_TAX.get("meta") or {}).get("created_at") or ""),
+                  "source": "kb/l7/registry/negative-taxonomy-map.json",
+                  "matched_by": matched,
+                  "confidence": (row or {}).get("confidence") or "high",
+                  "why": str((row or {}).get("basis") or "")[:160]})
+
+
+
+# ── 案例层「命中片段」清洗 ────────────────────────────────────────────────────
+# ★★ 2026-10-20（Owner：「依据文档链接中不要写【问题要点】，字数超过 prd 限制了」）：
+#   改前是 `reason_analysis[:120]` —— 那是**整段评审留痕**，开头 `【原则性错误】图片 图1 …`，
+#   紧接着 `【问题要点】` 与 `1. … 2. … 3. …`。报告「依据文档链接」那一格把它们全抄了进去
+#   （实测 181 字，另把**别人的五条要点**塞进了这一单的依据）。⇒ 现在只取**一条**要点：
+#   有 `【问题要点】` 就取它后面第一条；没有就用首句。**逐字不改**，只是切一段，仍可回源。
+_RE_CASE_POINT = re.compile(r"【\s*问题要点\s*】")
+_RE_CASE_ENUM = re.compile(r"(?:^|[\s。；;：:])\d{1,2}\s*[.、．]\s*")
+_RE_CASE_TAG = re.compile(r"【[^】]{0,24}】")
+
+_HISTORY_BY_RECORD = None
+
+
+def _history_text_value(value):
+    """L0 stores text fields as {value, raw_verbatim}; return the source text."""
+    if isinstance(value, dict):
+        return str(value.get("raw_verbatim") or value.get("value") or "").strip()
+    return str(value or "").strip()
+
+
+def history_case_for_record(record_id):
+    """Return the full source-side review analysis/advice for a matched image record.
+
+    Prefer L4's stable case payload. If the source record was not promoted to L4,
+    fall back to the read-only L0 record. This is historical context, never a new
+    normative rule; callers must retain the record-level attribution.
+    """
+    rid = str(record_id or "").strip()
+    if not rid:
+        return {}
+    global _HISTORY_BY_RECORD
+    if _HISTORY_BY_RECORD is None:
+        _HISTORY_BY_RECORD = {}
+        p = os.path.join(ROOT, "kb", "l4", "canonical", "sample_case.jsonl")
+        try:
+            with open(p, encoding="utf-8") as fh:
+                for line in fh:
+                    if not line.strip():
+                        continue
+                    try:
+                        row = json.loads(line)
+                    except Exception:
+                        continue
+                    source_id = str(row.get("resource_id") or "").split("__")[-1]
+                    if not source_id:
+                        continue
+                    old = _HISTORY_BY_RECORD.get(source_id)
+                    # Stable canonical rows win; otherwise retain the first source-linked row.
+                    if old is None or (row.get("status") == "stable" and old.get("status") != "stable"):
+                        _HISTORY_BY_RECORD[source_id] = {
+                            "analysis": str(row.get("reason_analysis") or "").strip(),
+                            "advice": str(row.get("advice") or "").strip(),
+                            "article_no": row.get("article_no"),
+                            "status": row.get("status"),
+                        }
+        except OSError:
+            pass
+    cached = dict(_HISTORY_BY_RECORD.get(rid) or {})
+    # L4 does not yet contain every source case. Read the exact L0 row for the
+    # Also fill individual empty fields from L0: a canonical case can preserve
+    # the analysis while its advice field is blank even when L0 has a suggestion.
+    source = {}
+    paths = glob.glob(os.path.join(ROOT, "kb", "l0", "records", "*", rid + ".json"))
+    for path in paths:
+        try:
+            with open(path, encoding="utf-8") as fh:
+                row = json.load(fh)
+            fields = row.get("fields") or {}
+            analysis = _history_text_value(fields.get("具体原因/分析"))
+            advice = _history_text_value(fields.get("建议"))
+            if analysis or advice:
+                source = {"analysis": analysis, "advice": advice,
+                          "article_no": None, "status": "L0 source"}
+                break
+        except (OSError, ValueError):
+            continue
+    if source:
+        return {**source, **{k: v for k, v in cached.items() if v}}
+    return cached
+
+
+def case_excerpt(case, limit=60):
+    """案例层的「命中片段」：**一条**要点，去 `【问题要点】` 标记与序号，≤ limit 字。
+
+    返回空串表示这条案例正文里没有可用片段（调用方据此如实说「来源未给引文」，
+    不许拿 reason 顶上去 —— 那等于把两格合成一格）。
+    """
+    raw = str((case or {}).get("reason_analysis") or (case or {}).get("sample_body") or "").strip()
+    if not raw:
+        return ""
+    tail = raw.split("【问题要点】", 1)[1] if "【问题要点】" in raw else raw
+    parts = [p.strip() for p in re.split(r"\n|(?=\s?\d{1,2}\s*[.、．])", tail) if p.strip()]
+    # ⚠️ 取**最长**那条而不是第一条：实测 S-1.195 的第一条要点是
+    #    「【终审-@吴礼芳 】麻烦看看呀」（@某人 + 客套），真正说的是第二/三条
+    #    （「图1: 不同族裔的妈妈们…」）。取第一条等于把客套当命中片段。
+    cands = []
+    for p in parts:
+        q = _RE_CASE_TAG.sub("", _RE_CASE_ENUM.sub(" ", p)).strip(" ：:；;，,")
+        if len(q) >= 6:                       # 太短的（「麻烦了」）不算要点
+            cands.append(q)
+    point = max(cands, key=len) if cands else ""
+    if len(point) > limit:
+        cut = point[:limit]
+        for sep in ("。", "；", ";", "，", ","):
+            j = cut.rfind(sep)
+            if j >= 10:
+                cut = cut[:j]
+                break
+        point = cut.strip()
+    return point
 
 
 def stamp_taxonomy(findings, idx):
@@ -299,6 +629,11 @@ def stamp_taxonomy(findings, idx):
             f["taxonomy_category"] = t["taxonomy_category"]
             f["taxonomy_subcategory"] = t["taxonomy_subcategory"]
             f["taxonomy_basis"] = t["taxonomy_basis"]
+            st["stamped"] += 1
+        elif str(f.get("taxonomy_category") or "").strip():
+            # ★★ 2026-10-20：**条目自己已经带了分类**（案例层，见 `case_taxonomy()`）——
+            #   这里不许把它抹成 None。改前这一支是无条件 `= None`，
+            #   于是案例层刚归好的类在这一步又被打回「未归类」（一条链上两个写者打架）。
             st["stamped"] += 1
         else:
             f["taxonomy_category"] = None
@@ -328,6 +663,12 @@ def layer_rules(text, rules, kb_type=None):
                 matched.append(f)
         if matched:
             hits.append({"rule_id": rid, "article_no": r.get("article_no"), "rule_code": r.get("rule_code"),
+                         # ★★ 2026-10-20（W-1.57 品牌写法那次）：**把分类随命中一起带出去**。
+                         #   病灶：`layer_rules` 返回的 hit 里没有 taxonomy 两格 ⇒ 引擎从 trace 造
+                         #   risk_item 时 `f.get("taxonomy_category")` 恒 None ⇒ 报告写「该命中不在
+                         #   规则表里」，而规则行里明明带着 `品牌信任与声誉`。规则自带的分类不许丢。
+                         "taxonomy_category": r.get("taxonomy_category"),
+                         "taxonomy_subcategory": r.get("taxonomy_subcategory"),
                          "p_level": r.get("p_level"), "risk_level": r.get("risk_level"),
                          "authority": r.get("authority"), "kb_type": r.get("kb_type"),
                          "authority_source_table": r.get("authority_source_table"),
@@ -336,6 +677,286 @@ def layer_rules(text, rules, kb_type=None):
                          "rule_text": r.get("rule_text"), "suggested_replacement": r.get("suggested_replacement")})
     return {"engine": "kb/l3/candidates/rules.jsonl", "kb_type_filter": kb_type,
             "rules_scanned": len(rules), "hits": hits}
+
+
+# ---------------- 第 2b 层：负面样本规则（N-1.x，2026-10-20 加） ----------------
+def layer_negative_rules(text, scene=None, top=3, min_score=0.45, require_visual=False):
+    """按「图内文字 + 画面读数」检索**负面样本规则**（`kb/l3/candidates/negative_rules.jsonl`）。
+
+    为什么单开一层、不并进 `rules.jsonl`：
+      · `rules.jsonl` 由 L3 蒸馏**整文件覆盖写**（`l3_distill_run.py`）⇒ 手工追加进去，
+        下一次日更会被原样抹掉；
+      · 两类规则的形态也不同：那边是「禁用片段逐字命中」，这边是「画面线索 + 图内文字近似」。
+    ⇒ 独立语料 + 独立层，**不动**既有规则层一个字；读不到就返回空（不抛、不拖死评审）。
+
+    口径（与 `kb/l8/negative_rule_match.py` 同源）：
+      · 命中一律 `REVIEW`（历史审核意见，**不是**判定），`p_level=P2`；
+      · 分数与命中理由原样带出（画面/文字两路分列），并给 `matched_images` 供人回看。
+
+    ★★ 2026-10-20（真单事故：图片单的报告里出现「1.挂式衣架: 磨砂亚克力材质…」——
+      图里根本没有衣架）：
+      `require_visual=True` 时**只留"真的对上了这张图"的命中**：
+        · `match_rank >= 2`（同图指纹：图内文字逐字相等/包含），或
+        · `visual_score >= 0.30`（画面线索对上了）
+      理由：不带这两条的命中，读数是「仅文字相近、画面 0.00」——中文审核意见与英文素材的
+      字符二元组偶然重叠（同品牌名 `momcozy` 就够）就能过 0.45 的线，
+      **画面完全无关也会进清单**，而报告会把它印成"这张图命中了某某条款"。
+      ⚠️ 只对**图片/视频类**素材启用（`require_visual=True` 由调用方按素材形态给）：
+        纯文案单没有画面读数，按这条过滤会把整层清空。
+      ⚠️ 被过滤的**不静默丢**：条数写进 `dropped_text_only`，报告/留底查得到。
+    """
+    p = globals().get("NEG_RULES") or os.path.join(ROOT, "kb", "l3", "candidates", "negative_rules.jsonl")
+    if not os.path.exists(p):
+        return {"engine": "kb/l3/candidates/negative_rules.jsonl", "hits": [], "missing": True,
+                "note": "负面样本规则语料不存在（未蒸馏或未落盘）"}
+    try:
+        sys.path.insert(0, os.path.join(ROOT, "kb", "l8"))
+        import negative_rule_match as _N          # noqa: E402
+        rules = _N.load_rules(p)
+        hits = _N.match(text, scene, top=top, min_score=min_score, rules=rules)
+        dropped = []
+        if require_visual:
+            keep = []
+            for h in hits:
+                rank = int(h.get("match_rank") or 0)
+                vis = float(h.get("visual_score") or 0)
+                if rank >= 2 or vis >= 0.30:
+                    keep.append(h)
+                else:
+                    dropped.append({"article_no": h.get("article_no"),
+                                    "score": h.get("score"), "visual_score": vis,
+                                    "why": "仅文字相近（画面未对上，也不是同图指纹）"})
+            hits = keep
+        return {"engine": "kb/l3/candidates/negative_rules.jsonl",
+                "rules_scanned": len(rules), "hits": hits,
+                "require_visual": bool(require_visual),
+                "dropped_text_only": dropped}
+    except Exception as e:                         # noqa: BLE001 — 附加层不许拖死评审
+        return {"engine": "kb/l3/candidates/negative_rules.jsonl", "hits": [],
+                "error": "%s: %s" % (type(e).__name__, e)}
+
+
+
+# ---------------- 第 2c 层：图身份（pHash + 像素相关；2026-10-21） ----------------
+# 为什么单开一层：送审图经飞书重压缩（图字节 sha 变了）、两套 OCR 读法不同（变音符号丢失 /
+# 水印行 / 错字），文本与字节 sha 都会失效。图对图（pHash + 像素相关）是同一把尺子：
+# 实测同一张图重压缩后相关 ≥0.9988、本单真实附件 0.962；画面不同的图 ≤0.31。
+# 命中 ⇒ 取该库内图挂的规则（N-1.x）⇒ REVIEW（历史审核意见；与本库既有口径一致）。
+# 边界：本层**不判合规**，只回答「这张图是不是库内某张负面样本图」。
+_IDX_CACHE = {"path": None, "rows": None}
+_NEGR_CACHE = {"path": None, "rules": None}
+_ROLES_CACHE = {"path": None, "roles": None}
+
+
+def _fp_index():
+    p = os.path.join(ROOT, "kb", "l3", "candidates", "negative_image_fp.jsonl")
+    if _IDX_CACHE["path"] == p and _IDX_CACHE["rows"] is not None:
+        return _IDX_CACHE["rows"]
+    rows = None
+    if os.path.exists(p):
+        try:
+            rows = []
+            for line in open(p, encoding="utf-8"):
+                line = line.strip()
+                if line:
+                    rows.append(json.loads(line))
+        except Exception:
+            rows = None
+    _IDX_CACHE.update(path=p, rows=rows)
+    return rows
+
+
+def _neg_rules_by_id():
+    p = globals().get("NEG_RULES") or os.path.join(ROOT, "kb", "l3", "candidates", "negative_rules.jsonl")
+    if _NEGR_CACHE["path"] == p and _NEGR_CACHE["rules"] is not None:
+        return _NEGR_CACHE["rules"]
+    out = {}
+    if os.path.exists(p):
+        try:
+            for line in open(p, encoding="utf-8"):
+                line = line.strip()
+                if not line:
+                    continue
+                r = json.loads(line)
+                rid = r.get("rule_id") or r.get("article_no")
+                if rid:
+                    out[rid] = r
+        except Exception:
+            out = {}
+    _NEGR_CACHE.update(path=p, rules=out)
+    return out
+
+
+def _image_roles():
+    p = os.path.join(ROOT, "kb", "l3", "registry", "image_roles.json")
+    if _ROLES_CACHE["path"] == p and _ROLES_CACHE["roles"] is not None:
+        return _ROLES_CACHE["roles"]
+    roles = {"records": {}, "sha": {}, "missing": True}
+    if os.path.exists(p):
+        try:
+            roles = json.load(open(p, encoding="utf-8"))
+        except Exception:
+            pass
+    _ROLES_CACHE.update(path=p, roles=roles)
+    return roles
+
+
+def _role_of(record_id, sha):
+    roles = _image_roles()
+    if roles.get("missing"):
+        return "no_roles_artifact", "image_roles.json 缺件（不门控，按 record 归属）"
+    p = (roles.get("records") or {}).get(record_id) or {}
+    for im in (p.get("images") or []):
+        if sha and (im.get("sha256") or "").lower() == str(sha).lower():
+            return im.get("role") or "unknown", im.get("why") or ""
+    if sha and (roles.get("sha") or {}).get(sha):
+        return roles["sha"][sha], "按 sha 索引取角色"
+    return "unknown", "该记录/该图不在 image_roles 产物里（没有媒体台账 sha）"
+
+
+def _phash_path(path):
+    """返回 (56bit int, PIL image)；PIL/numpy 不可用或图读不出 ⇒ (None, None)。"""
+    try:
+        from PIL import Image
+        import numpy as np
+        Image.MAX_IMAGE_PIXELS = None
+        im = Image.open(path).convert("RGB")
+        w, h = im.size
+        f = max(1, min(w, h) // 128)
+        if f > 1:
+            im = im.reduce(f)
+        g = im.convert("L").resize((32, 32), Image.LANCZOS)
+        a = np.asarray(g, dtype=float)
+        d = np.fft.rfft2(a)[:8, :8][1:, :]
+        med = np.median(d)
+        n = 0
+        for b in (d > med).flatten():
+            n = (n << 1) | (1 if b else 0)
+        return n, im
+    except Exception:
+        return None, None
+
+
+def _corr(im_a, im_b, s=96):
+    try:
+        from PIL import Image
+        import numpy as np
+        a = np.asarray(im_a.convert("L").resize((s, s), Image.LANCZOS), dtype=float).flatten()
+        b = np.asarray(im_b.convert("L").resize((s, s), Image.LANCZOS), dtype=float).flatten()
+        a = a - a.mean()
+        b = b - b.mean()
+        with np.errstate(all="ignore"):
+            aa = float(a @ a)
+            bb = float(b @ b)
+            den = (aa ** 0.5) * (bb ** 0.5) if aa > 0 and bb > 0 else 0.0
+            return float(a @ b / den) if den > 1e-12 else 0.0
+    except Exception:
+        return None
+
+
+def layer_image_identity(image_paths, top=3, max_hamming=10, min_corr=0.90):
+    """图身份层：按**图对图**认「这张图是不是库内某张负面样本图」。
+
+    @param image_paths  送审图的本地文件路径（守衡已下载；可多张）
+    @returns {engine, checked, hits, candidates, error}
+    命中 hit 的形状与 `layer_negative_rules` 一致（下游 findings 装配不用改）；
+    `match_rank=4` 表示「图身份」（字节 sha 那一档是 4，逐字/短语是 2/3）。
+    """
+    out = {"engine": "kb/l3/candidates/negative_image_fp.jsonl", "checked": 0,
+           "hits": [], "candidates": [], "error": None}
+    paths = [p for p in (image_paths or []) if p]
+    if not paths:
+        return out
+    idx = _fp_index()
+    if idx is None:
+        out["missing"] = True
+        out["error"] = "索引缺件（跑 kb/l8/build_negative_image_fp.py 重建）"
+        return out
+    rules = _neg_rules_by_id()
+    seen = set()
+    for p in paths:
+        if not os.path.exists(p):
+            out.setdefault("missing_files", []).append(p)
+            continue
+        nq, imq = _phash_path(p)
+        if nq is None or imq is None:
+            out.setdefault("unreadable", []).append(p)
+            continue
+        out["checked"] += 1
+        cand = []
+        for r in idx:
+            try:
+                d = bin(nq ^ int(r.get("phash") or "0", 16)).count("1")
+            except Exception:
+                continue
+            if d <= max_hamming:
+                cand.append((d, r))
+        cand.sort(key=lambda x: x[0])
+        out["candidates"].append({"image": p, "n": len(cand),
+                                  "top": [{"record_id": r.get("record_id"), "seq": r.get("seq"),
+                                           "hamming": d} for d, r in cand[:5]]})
+        matched = []
+        for d, r in cand:
+            libp = os.path.join(ROOT, "kb", r.get("path") or "")
+            conf = None
+            if os.path.exists(libp):
+                try:
+                    from PIL import Image
+                    Image.MAX_IMAGE_PIXELS = None
+                    lib = Image.open(libp).convert("RGB")
+                    conf = _corr(imq, lib)
+                except Exception:
+                    conf = None
+            if conf is not None and conf >= min_corr:
+                matched.append((d, r, conf))
+            elif conf is None and d <= 4:
+                matched.append((d, r, None))
+        # 同图多记录（169 个 sha 对 339 张图）：同内容的副本都要算进来，否则可能漏掉
+        # 「用户真正发的那条记录」的规则。上限放宽到 10（按 pHash 距离排序）。
+        for d, r, conf in matched[:max(top, 10)]:
+            rid = r.get("record_id")
+            sha = r.get("sha256")
+            for rule_id in (r.get("rule_ids") or []):
+                key = (rule_id, rid, sha)
+                if key in seen:
+                    continue
+                seen.add(key)
+                rule = rules.get(rule_id)
+                if not rule:
+                    continue
+                ev = (rule.get("evidence_units") or [{}])[0]
+                anchor = ev.get("anchor")
+                role, why = _role_of(rid, sha)
+                out["hits"].append({
+                    "article_no": rule.get("article_no"), "rule_id": rule_id,
+                    "rule_code": rule.get("rule_code"),
+                    "rule_code_label": rule.get("rule_code_label"),
+                    "rule_kind": rule.get("rule_kind"),
+                    "confidence": rule.get("confidence"),
+                    "rule_text": rule.get("rule_text") or "",
+                    "action": rule.get("action") or {},
+                    "score": 1.0, "visual_score": 1.0, "text_score": 0.0,
+                    "why": "图身份：与库内图同一张（pHash 距离 %d%s）"
+                           % (d, "" if conf is None else " ｜ 像素相关 %.3f" % conf),
+                    "reasons": ["图身份：同一张图（%s seq=%s，pHash 距离 %d%s）"
+                                % (rid, r.get("seq"), d,
+                                   "" if conf is None else "，相关 %.3f" % conf)],
+                    "image_refs": [im.get("file_token") for im in (rule.get("image_refs") or [])][:5],
+                    "evidence": [{"anchor": anchor, "source_sha256": ev.get("source_sha256"),
+                                  "record_id": rid}],
+                    "library_negative_sample": True,
+                    "matched_by": "图身份",
+                    "record_id": rid,
+                    "matched_image": {"record_id": rid, "sha256": sha,
+                                      "file_token": r.get("file_token"),
+                                      "anchor": "#素材/%s/图片素材/#img.%s" % (rid, r.get("seq"))},
+                    "attribution": role,
+                    "attribution_why": why,
+                    "match_rank": 4,
+                    "identity": True,
+                    "evidence_gap": "图身份：与库内图同一张（pHash/像素相关），不是本单素材的逐字命中",
+                })
+    return out
 
 
 # ---------------- 第 3 层：单元层（BM25 主 / 向量补） ----------------
@@ -348,6 +969,43 @@ def rule_cited_anchors(rules):
                 out.add(u["anchor"])
         if r.get("anchor"):
             out.add(r["anchor"])
+    return out
+
+
+
+def rule_cited_anchor_shas(rules):
+    """「被引用锚点」→ 该锚点**所在单元**的 `source_sha256` 集合（**同源校验**用，2026-10-23）。
+
+    ## 为什么需要（实测 2026-10-23，回归集逼出来的）
+
+    L2 的锚点里有**位置型**写法：`#l.1-1` / `#l.1-506` / `#h.<小标题>` —— 它们不是记录身份，
+    而是「某页的第 n 个列表项 / 某个小标题」。实测 `kb/l2/units.jsonl` 里 `#l.1-1` 被 **921**
+    个单元共用。
+
+    `rule_cited_anchors()` 只比锚点**名字** ⇒ 谁的名字撞上，就算「被规则引用过」。
+    2026-10-21 把 `kb/l3/candidates/external_standard.jsonl` 并进 `rules`（那条改动本身是为了让
+    V01–V06 / E-2.12x 能被规则层命中）之后，这些规则的**位置型**锚点也进了覆盖池 ⇒ 检索命中的
+    单元只要**同名**（哪怕完全是另一份文档）覆盖判据就成立。
+
+    实测代价（回归集 5 条同形）：素材是 AAP 技术报告开头，命中的却是 `uk.momcozy.com` 商品页
+    （同锚点 `#l.1-1`，BM25 118.3 / 37.2）⇒ `covered_by=rule` ⇒ 三态从 REVIEW 翻成 **PASS**。
+    方向是 **fail-open**（该转人工的放过去了），比漏判更坏。
+
+    ## 判据（**只收窄，不放宽**）
+
+    「被规则引用过」= **锚点相同 且 `source_sha256` 相同**（同一份文档里的同一个锚点）。
+    实测 965 个被引锚点在 L2 都有单元、且 sha **逐条一致**（965/965）⇒ 这条收窄对本该认的
+    命中**零影响**；记录型锚点（`#广告文案明细/recv…/命中片段`）带记录 id、天然唯一，行为不变。
+    取不到 sha 的规则单元**不进池**（保守一侧：宁可判「没覆盖」转人工，也不许放成 PASS）。
+    """
+    out = {}
+    for r in rules.values():
+        for u in list(r.get("evidence_units") or []) + [r]:
+            if not isinstance(u, dict):
+                continue
+            a, s = u.get("anchor"), u.get("source_sha256")
+            if a and s:
+                out.setdefault(a, set()).add(s)
     return out
 
 
@@ -470,6 +1128,26 @@ _MEDIA_PREFIX_RE = re.compile(r"^media_([A-Za-z0-9]+)_(recv[A-Za-z0-9]+)$")
 _ATTACH_SUFFIX_RE = re.compile(r"^(bitable__[A-Za-z0-9]+__recv[A-Za-z0-9]+)_fld[A-Za-z0-9]+_.+$")
 
 
+_POSITIONAL_ANCHOR_RE = re.compile(r"^#[lh]\.\d")
+
+
+def anchor_has_identity(a):
+    """锚点是否**带身份**（能唯一指回一份文档）—— 判「同源」的前提。
+
+    `#l.1-1` / `#l.1-506` / `#h.<小标题>` 是**页面位置**，不是记录身份：实测 `#l.1-1`
+    在 `kb/l2/units.jsonl` 里被 **921** 个单元共用（来自几百份不同的网页）。拿这种锚点去
+    `resources_of_anchors()` 回表，取到的是**扫到的第一条**那份文档 —— 与本次素材无关。
+
+    实测代价（2026-10-23，回归集 RC-2694cc2ea7e0 德语文案）：命中锚点 `#l.1-3`，
+    回表取到 `support.google.com/adspolicy` 的 resource_id，而那条 resource 在被引池里
+    ⇒ 判成「同源」⇒ 覆盖成立 ⇒ 三态从 REVIEW 翻 **PASS**。
+
+    ⇒ 同源支路只认带记录 id 的锚点（`#<表>/rec…/<字段>`、`#素材/rec…/…`）。
+      同一份文档的命中不会因此丢：那条路由 `direct`（锚点 + `source_sha256`）兜着。
+    """
+    return bool(a) and not _POSITIONAL_ANCHOR_RE.match(str(a))
+
+
 def canon_resource(rid):
     """把同一父记录的三种 `resource_id` 写法归一到记录级（②③ → ①）。
 
@@ -488,7 +1166,8 @@ def canon_resource(rid):
 
 
 def coverage_judge(unit_rows, cited, cited_res, cov_thr, has_safe_hits=False,
-                   resources_of=None, case_anchors=None, case_resources=None):
+                   resources_of=None, case_anchors=None, case_resources=None,
+                   cited_shas=None):
     """**覆盖判据的纯函数版**（2026-10-08 抽出）—— 返回 `(covered_by, detail)`。
 
     ★ 为什么抽出来：判定逻辑内联在 `review()` 里时，**只能靠「真跑一遍整链」来测** ——
@@ -509,14 +1188,30 @@ def coverage_judge(unit_rows, cited, cited_res, cov_thr, has_safe_hits=False,
     #   **只归写法，不动门限、不动任何分支。**
     cited_res = {canon_resource(x) for x in cited_res}
     case_resources = {canon_resource(x) for x in case_resources}
+    # ★★ 2026-10-23：**锚点同名 ≠ 同源**。位置型锚点（`#l.1-1` 被 921 个单元共用）名字到处撞，
+    #   只比锚点 ⇒ 命中**别的文档**的同名单元也算「被规则引用」⇒ 覆盖成立 ⇒ REVIEW 翻 PASS
+    #   （实测 5 条）。`cited_shas` 给了就要求 **锚点相同 且 source_sha256 相同**；
+    #   不给（老调用方 / 自证）行为一个字不变。
+    def _cite_ok(_r):
+        _a = _r.get("anchor")
+        if _a not in cited:
+            return False
+        if cited_shas is None:
+            return True
+        _s = _r.get("source_sha256")
+        return bool(_s) and _s in (cited_shas.get(_a) or set())
+
     direct = [r for r in unit_rows
-              if r.get("anchor") in cited and (r.get("raw_bm25") or 0) >= cov_thr]
+              if _cite_ok(r) and (r.get("raw_bm25") or 0) >= cov_thr]
     strong = [r for r in unit_rows if (r.get("raw_bm25") or 0) >= cov_thr]
     rmap = resources_of([r.get("anchor") for r in strong]) if strong else {}
     same = []
     if not direct and cited_res and rmap:
+        # ★ 2026-10-23：**位置型锚点判不了「同源」**（见 `anchor_has_identity`）——
+        #   `#l.1-3` 这种锚点回表取到的是「扫到的第一份文档」，与本次素材无关。
         same = [r for r in strong
-                if rmap.get(r["anchor"]) and rmap[r["anchor"]] in cited_res]
+                if anchor_has_identity(r["anchor"])
+                and rmap.get(r["anchor"]) and rmap[r["anchor"]] in cited_res]
     # ── ★★ A 第四路：**命中 L4 定稿的「反例 / 禁区」案例**（2026-10-08，Owner 批准 A）──
     #   原判据只认「被规则引用的单元」⇒ 库里 358 条带条款号的案例（181 反例）**一条都进不了池**。
     #   这里把案例当作**独立的一路依据**加进来，**不动前三路的任何判据与门限**。
@@ -559,6 +1254,63 @@ case_subject_terms = _ct.case_subject_terms
 case_thematic_ok = _ct.case_thematic_ok
 
 
+def _attribution_of(hit):
+    """命中的**图片归属角色**（2026-10-20「串图」修复 ②）。
+
+    只有 `subject` 才允许把这条历史意见当成「**这张图**的依据」；其余一律只作线索。
+
+    两个轴别混（都成立才算依据）：
+      · `figure_attribution`（self_negative 收窄层）= 规则正文讲的是**不是这张图**（figure/record）；
+      · **图片角色**（本函数）= 这张库内图在那条记录里**是不是被审对象**
+        （`subject` / `record_level` / `shared_reference` / `unknown`）。
+    角色判定真源 = `kb/l3/registry/image_roles.json`（由 `kb/l8/image_roles.py` 生成；判据在
+    那个文件头：单图 ∧ 该图未出现在内容不同的其它记录里 ⇒ subject）。本函数只做**翻译**，
+    不自己算判据 —— 判据散成两处必然走样。
+
+    · 匹配层（negative_rule_match）已在 hit 里算好 `attribution` ⇒ 直接用；
+    · 自命中层（self_negative：`library_negative_sample`）的 hit 只有 record_id
+      ⇒ 按**记录**角色代理（记录里有 subject 图才算 subject）；
+    · 产物缺失 ⇒ `no_roles_artifact`：**不门控**（抑制装置缺件就停用，别静默把整层清空）。
+    """
+    a = hit.get("attribution")           # 匹配层算好的图片角色
+    if a:
+        return a
+    root = globals().get("ROOT")
+    if not root:
+        return "no_roles_artifact"
+    p = os.path.join(root, "kb", "l3", "registry", "image_roles.json")
+    if not os.path.exists(p):
+        return "no_roles_artifact"
+    try:
+        sys.path.insert(0, os.path.join(root, "kb"))
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location(
+            "_kb_image_roles_review", os.path.join(root, "kb", "l8", "image_roles.py"))
+        _m = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_m)
+        roles = _m.load_roles(p)
+        rid = ((hit.get("evidence") or [{}])[0] or {}).get("record_id") or hit.get("record_id")
+        return _m.role_of_record(roles, rid) if rid else "unknown"
+    except Exception:                              # noqa: BLE001 —— 归属算不出来不许拖死评审
+        return "unknown"
+
+
+def _load_self_negative():
+    """加载「本素材**就是**库里某条负面样本的取证图」这一层（`core/self_negative.py`）。
+
+    与 `_load_case_theme()` **同一个理由**：本脚本 import 时就会把整条引擎跑起来
+    （模块级解析 sys.argv 并执行）⇒ 逻辑内联在这里就**测不了**。
+    抽成可导入模块后，`python3 kb/l7/review-engine/core/self_negative.py --selftest`
+    才能拿正例与反向对照各跑一遍。一份实现，两边共用。
+    """
+    import importlib.util as _ilu
+    _p = os.path.join(ROOT, "kb", "l7", "review-engine", "core", "self_negative.py")
+    _spec = _ilu.spec_from_file_location("self_negative", _p)
+    _m = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_m)
+    return _m
+
+
 def load_case_clauses():
     """L4 定稿的**「反例 / 禁区」条款** —— 覆盖池里原先**完全没有**它们（2026-10-08 · A）。
 
@@ -586,36 +1338,93 @@ def load_case_clauses():
     要真升级成规则，得先补那 98 条 advice —— 那是**数据层的活，另外报批**。
     """
     path = os.path.join(ROOT, "kb", "l4", "canonical", "sample_case.jsonl")
-    out = []
+    rows = []
     try:
         with open(path, encoding="utf-8") as fh:
             for line in fh:
                 if not line.strip():
                     continue
                 try:
-                    d = json.loads(line)
+                    rows.append(json.loads(line))
                 except Exception:                              # noqa: BLE001
                     continue
-                if d.get("polarity") != "反例":
-                    continue
-                rc = str(d.get("reason_category") or "").strip()
-                if not rc or rc.lower() == "unknown":
-                    continue
-                if not d.get("anchor"):
-                    continue
-                # ── ★★ 已销号的条款**不许再当依据**（2026-10-14 加）─────────────────
-                #   为什么非加不可：销号只写标记（`status=superseded` ＋ `superseded_by`），
-                #   而本函数原先**不读 `status`** ⇒ 被销的号照样进池、照样被引用 ——
-                #   而**被销那一侧的 anchor 是死的**（旧代 `#正面和负面样本/recvw2…`，
-                #   实测 201 个 record **0 个**还在）⇒ 引擎会继续产出**点不开的直链**。
-                #   换句话说：**不加这一条，销号在引擎侧等于没生效（只是化妆）。**
-                #   边界：只挡「产出依据」这一路；覆盖池用的是**存活的孪生号**
-                #   （实测 61 个被销号**全部**有孪生号在池子里 ⇒ 覆盖不受损）。
-                if str(d.get("status") or "").strip().lower() == "superseded":
-                    continue
-                out.append(d)
     except OSError:
         return []                    # 读不到 ⇒ 空 ⇒ 覆盖判据退回原样（保守一侧，不静默放宽）
+
+    # ── ★★ 2026-10-20：**先折叠成一个条款号一行（取最后一行），再过滤** ────────────
+    #   与 `kb/l7/scripts/l4_gate.py::read_last_per_key` 同一条口径
+    #   （闸门侧原文：「退役是另起一行，原行逐字节不动」）。
+    #   为什么顺序必须是这样（上一版踩过）：退役行是被**追加**在文件末尾的，
+    #   若先按 status 过滤再折叠，退役行被滤掉、剩下的**原行（anchor 已死）**反而留了下来
+    #   ⇒ 退役在引擎侧等于没生效。实测背景：2026-10-20 有 20 条 `#正面和负面样本/recvw2…`
+    #   的源记录随飞书表重建作废，且退役行与原行**同时存在**。
+    _folded, _order = {}, []
+    for _d in rows:
+        _k = str(_d.get("article_no") or "").strip() or ("#%d" % len(_order))
+        if _k not in _folded:
+            _order.append(_k)
+        _folded[_k] = _d
+    rows = [_folded[k] for k in _order]
+
+    out = []
+    for d in rows:
+        # ── 已销号 / 已退役的条款**不许再当依据**（销号口径 2026-10-14 加；退役 2026-10-20 补）
+        #   为什么非加不可：销号只写标记（`status=superseded` ＋ `superseded_by`），
+        #   而本函数原先**不读 `status`** ⇒ 被销的号照样进池、照样被引用 ——
+        #   而**被销那一侧的 anchor 是死的**（旧代 `#正面和负面样本/recvw2…`，
+        #   实测 201 个 record **0 个**还在）⇒ 引擎会继续产出**点不开的直链**。
+        #   换句话说：**不加这一条，销号/退役在引擎侧等于没生效（只是化妆）。**
+        #   边界：只挡「产出依据」这一路；覆盖池用的是**存活的孪生号**
+        #   （实测 61 个被销号**全部**有孪生号在池子里 ⇒ 覆盖不受损）。
+        if str(d.get("status") or "").strip().lower() in ("superseded", "retired"):
+            continue
+        if d.get("polarity") != "反例":
+            continue
+        rc = str(d.get("reason_category") or "").strip()
+        if not rc or rc.lower() == "unknown":
+            continue
+        if not d.get("anchor"):
+            continue
+        out.append(d)
+    return out
+
+
+#: 「图上文字」外壳 → 块内正文。三种外壳都认（守衡 / 引擎自己 / 早期写法）。
+#: ★ 为什么必须认这些外壳：`buildImageBlock` 的产出长这样
+#:   `【图 1 内文字｜4 行】\n<body>\n【/图 1】`；而引擎把它并进素材文本后又会再包一层
+#:   `【图内文字（本机 OCR，逐字，可能误识、也可能读不全）】\n<body>`。
+_IMG_TEXT_PATTERNS = (
+    re.compile(r"【图\s*\d*\s*内文字[^】]*】\s*\n(.*?)(?:\n\s*【/图\s*\d*\s*】)", re.S),
+    re.compile(r"【图片\s*\d+\s*的图内文字[^】]*】\s*\n(.*?)(?=\n\s*【)", re.S),
+    re.compile(r"【图内文字[^】]*】\s*\n(.*?)(?=\n\s*【|\Z)", re.S),
+)
+
+
+def image_text_blocks(text, max_blocks=3, max_chars=2000):
+    """从素材文本里抽出「图上文字」块（去重、限量）—— 供**单独再查一次**。
+
+    ## 为什么（2026-10-20 实测，MOMCOZY 图 1）
+
+    素材文本一半是 **4 行英文 OCR（`MOMCOZY / Evolving for / mom and cozy / M0m222`）**、
+    一半是**中文画面读数**（影棚 / 无人物 / 物品…）。`layer_units` 原先只拿**整段**查一次，
+    而 BM25 分**中英两个子索引各算各的**、原始分不可比：
+      · 中文那路 rank1 = 368.095（`#l.1-2`，无关长文档）
+      · 英文那路里真正同源的那条 = **46.367**（`#负面样本/recvw7XIUgFaLV/具体原因/分析`）
+    ⇒ 按原始分混排后英文那路被整体挤出 top5 ⇒ 覆盖判据 `rule_cited_unit_hits=0`
+      ⇒ 判成 `coverage_not_covered` 拒答。**库其实认识这张图**（该单元正被 L4 条款 N-1.185 取证）。
+
+    ⇒ 图上文字是**区分度最高的那段**，必须**单独再查一次**，并把结果与主查询**按排名融合**
+      （不是按原始分相加 —— 见 `layer_units` 里的 RRF）。
+    """
+    out = []
+    for pat in _IMG_TEXT_PATTERNS:
+        for m in pat.finditer(text or ""):
+            body = re.sub(r"^\s*【[^】]*】\s*", "", (m.group(1) or "").strip()).strip()
+            if len(body) < 4 or body in out:
+                continue
+            out.append(body[:max_chars])
+            if len(out) >= max_blocks:
+                return out
     return out
 
 
@@ -629,17 +1438,65 @@ def layer_units(text, reg, top=5):
     semantic = bool(l6["semantic_recall"])
     gate = reg["retrieval"]["gate"]
     bm = RT.BM25()
-    raw = []
-    for name, lst in bm.search(text).items():
-        for did, sc, _ in lst[:top]:
-            d = bm.docs[did]
-            raw.append({"source": name, "unit_id": d["unit_id"], "anchor": d["anchor"],
-                        "table": d["table"], "kb_type": d["kb_type"],
-                        "source_sha256": d["source_sha256"], "raw_bm25": round(sc, 4),
-                        "excerpt": d["text_excerpt"][:200]})
-    raw.sort(key=lambda x: -x["raw_bm25"])
-    raw = raw[:top]
-    bm25_max = raw[0]["raw_bm25"] if raw else 0.0
+    _env = os.environ.get("KB_IMG_TEXT_RECALL", "").strip().lower()
+    # ★★ 收窄（2026-10-20，回归实测后改）：**只有素材里真带「图上文字」块时才走新路径**。
+    #   第一版把 RRF 用到了所有素材 ⇒ 回归集 solid 80 条里 **9 条三态漂移**
+    #   （其中 5 条 REVIEW→PASS，属 fail-open 方向）—— 那是"顺手改了别的素材的召回"，
+    #   与 Owner 的「不影响工作流」直接冲突。纯文字单必须**逐字保持老口径**。
+    _blocks = [] if _env in ("off", "0", "false", "no") else image_text_blocks(text)
+    if not _blocks:
+        # ── **老路径**（2026-10-20 之前的行为），只给反向对照 / 紧急回退用 ──────────
+        #   口径：分语言各取 top-k → 按**原始分**混排 → 取 top。
+        raw = []
+        for name, lst in bm.search(text).items():
+            for did, sc, _ in lst[:top]:
+                d = bm.docs[did]
+                raw.append({"source": name, "unit_id": d["unit_id"], "anchor": d["anchor"],
+                            "table": d["table"], "kb_type": d["kb_type"],
+                            "source_sha256": d["source_sha256"], "raw_bm25": round(sc, 4),
+                            "excerpt": d["text_excerpt"][:200]})
+        raw.sort(key=lambda x: -x["raw_bm25"])
+        raw = raw[:top]
+        bm25_max = raw[0]["raw_bm25"] if raw else 0.0
+        _legacy = True
+    else:
+        _legacy = False
+    # ★★ 2026-10-20（Owner 批准 B）：主查询 ＋ 每个「图上文字」块各查一次，**按排名融合（RRF）**。
+    #   为什么不按原始分：`bm.search()` 返回的是**中/英两个子索引各自的原始分**，而两个子索引的
+    #   N / avgdl 不同 ⇒ 原始分**不可比**。原先 `raw.sort(key=-raw_bm25)` 等于让中文那一路
+    #   无条件压过英文那一路（实测 368 vs 46）。RRF 只看**各自的名次**，天然免疫这个不可比。
+    #   口径与 L6 自己的 BM25×向量融合一致（`retriever.py`：RRF k=60），没有新造一把尺子。
+    if not _legacy:
+        queries = [("main", text)]
+        if os.environ.get("KB_IMG_TEXT_EXTRA", "").strip().lower() not in ("off", "0", "false", "no"):
+            for i, blk in enumerate(_blocks):
+                queries.append(("img_text#%d" % (i + 1), blk))
+        K_RRF = 60
+        depth = max(top * 2, 10)
+        pooled = {}
+        for qname, q in queries:
+            for lname, lst in bm.search(q).items():
+                for rank, (did, sc, _) in enumerate(lst[:depth], 1):
+                    d = bm.docs[did]
+                    uid = d["unit_id"]
+                    row = pooled.get(uid)
+                    if row is None:
+                        pooled[uid] = {"source": lname, "unit_id": uid, "anchor": d["anchor"],
+                                       "table": d["table"], "kb_type": d["kb_type"],
+                                       "source_sha256": d["source_sha256"],
+                                       "raw_bm25": round(sc, 4),
+                                       "rrf": round(1.0 / (K_RRF + rank), 8),
+                                       "queries": [qname],
+                                       "excerpt": d["text_excerpt"][:200]}
+                    else:
+                        row["rrf"] = round(row["rrf"] + 1.0 / (K_RRF + rank), 8)
+                        if sc > row["raw_bm25"]:
+                            row["raw_bm25"] = round(sc, 4)
+                            row["source"] = lname
+                        if qname not in row["queries"]:
+                            row["queries"].append(qname)
+        raw = sorted(pooled.values(), key=lambda r: (-r["rrf"], -r["raw_bm25"]))[:top]
+        bm25_max = max((r["raw_bm25"] for r in raw), default=0.0)
     used_vector = False
     vec_rows = []
     if bm25_max < gate["bm25_raw_min"] and semantic:
@@ -927,7 +1784,35 @@ def same_source_advice(rule, matched_term):
 
 
 # ---------------- 汇编 ----------------
-def review(text, content_type="text", position="全文", report_dir=None, run_id=None, top=5):
+
+# ── 位置归一化（2026-10-20）───────────────────────────────────────────────────
+# 真单读数：同一条链里出现过 `图片 1（#img.1）`、`图 1 第 2–3 处（主标题）` 两种非三形态写法，
+# 报告「位置」那一列因此指不到地方。这里**只做可证明不丢信息的三件事**：
+#   ① 去括号补语 ② 范围取首个 ③ `图片 N`→`图 N`（`[00:12]`→`视频 00:12` 同理由）。
+# ⚠️ **不补**「第 X 处」：推不出处的就不许编 —— 出口闸 `kb/l8/material_evidence_gate.py` 会判红，
+#   那正是要它响的场合（宁可红，也不要一个看起来精确、其实编出来的位置）。
+_RE_PAREN = re.compile(r"[（(][^（）()]*[）)]")
+_RE_RANGE = re.compile(r"第\s*(\d+)\s*[–—\-~～至]\s*\d+\s*处")
+_RE_IMG_PREFIX = re.compile(r"^图片\s*(\d+)")
+_RE_VID_TC = re.compile(r"^\[?(\d{1,2}):(\d{2})\]?$")
+_RE_VID_PREFIX_TC = re.compile(r"^视频\s*\[?(\d{1,2}):(\d{2})\]?$")
+
+
+def _normalize_position(pos):
+    """位置归一化：去括号补语 / 范围取首个 / `图片 N`→`图 N` / `[MM:SS]`→`视频 MM:SS`。"""
+    s = str(pos or "").strip()
+    if not s:
+        return s
+    s = _RE_PAREN.sub("", s).strip()
+    s = _RE_RANGE.sub(r"第 \1 处", s)
+    s = _RE_IMG_PREFIX.sub(r"图 \1", s)
+    m = _RE_VID_TC.match(s) or _RE_VID_PREFIX_TC.match(s)
+    if m:
+        s = "视频 %s:%s" % (m.group(1), m.group(2))
+    return re.sub(r"\s+", " ", s).strip()
+
+def review(text, content_type="text", position="全文", report_dir=None, run_id=None, top=5, scene=None, image_paths=None):
+    position = _normalize_position(position)   # ★ 2026-10-20：位置三形态归一化（见上方 helper）
     # run_id 必须逐次唯一：以前默认写死 "20260923-1500"，每跑一次就覆盖上一次的报告
     # （实测把自测报告 20260923-1500.review.md 覆盖掉了）。默认取当前时间戳。
     run_id = run_id or time.strftime("%Y%m%d-%H%M%S")
@@ -948,9 +1833,127 @@ def review(text, content_type="text", position="全文", report_dir=None, run_id
     _t = time.perf_counter()
     trace["rules"] = layer_rules(text, rules)
     _perf["rule_layer_ms"] = round((time.perf_counter() - _t) * 1000, 1)
+    # ── 第 2b 层：负面样本规则（只有图片类或有画面读数时才跑；文本类默认不引入）──
+    # ★ 2026-10-20：**正文里带画面读数 ⇒ 按图片处理**。
+    #   为什么：守衡把每张图的画面读数拼进送审正文（`【/图 N 画面读数】`），但
+    #   `--content-type` 是 headless 里的模型自己选的（模板只说"三选一"）——
+    #   选成 text 时这一层就不会跑，而素材明明是图。判据放在**素材自身**上，
+    #   不依赖上游选对：只要有画面读数字块，就当图片走。
+    # ★★ 2026-10-20（P0 收口）：**再加一路「图内文字（本机 OCR）」**。
+    #   上一版只认画面读数块，而 10:07 那单的 `--text` 里**只有 OCR、没有画面读数**
+    #   （画面读数进了 `question`，没进素材文件）⇒ 兜底条件不成立 ⇒ 整层没跑 ⇒ PASS。
+    #   实测同一天：`content_type=text` → PASS/0 条；`content_type=image` → REVIEW/5 条。
+    #   守衡送审的图单，正文**恒以** `【图片 N 的图内文字（本机 OCR）】` 开头 ——
+    #   这就是现成的、不依赖上游把 `--content-type` 选对的信号。
+    #   判据：`kb/l8/check_negative_rule_trigger.py`（A 组三条触发路 ＋ B 组三条不许误触发）。
+    _looks_image = (("画面读数" in text) or ("【/图" in text)
+                    or ("图内文字（本机 OCR）" in text))
+    if (content_type == "image") or (scene is not None) or _looks_image:
+        _t = time.perf_counter()
+        trace["negative_rules"] = layer_negative_rules(
+            text, scene, top=max(top, 3),
+            # ★★ 2026-10-20：图片/视频类素材要求"真的对上这张图"（同图指纹或画面线索），
+            #   否则「仅文字相近、画面 0.00」也会进清单 —— 那是把别家素材的历史意见印成本单命中。
+            require_visual=_looks_image or (str(content_type or "").lower() in ("image", "video")))
+        _perf["negative_rule_layer_ms"] = round((time.perf_counter() - _t) * 1000, 1)
+        trace["negative_rules"]["scene_provided"] = scene is not None
     _t = time.perf_counter()
     trace["units"] = layer_units(text, reg, top=top)
     _perf["unit_layer_ms"] = round((time.perf_counter() - _t) * 1000, 1)
+    # ── ★★ 2026-10-20（Owner 真单：「339 中的图片没命中知识库」，而引擎给了 PASS）──────
+    #   病灶：图片单的三条身份判据（图字节 sha / 逐字包含 / 行重合）会因**传输形态**失效
+    #   （聊天图与附件原件字节不同、两套 OCR 读得不同），而 `require_visual` 又把
+    #   「仅文字相近」整批丢掉 ⇒ 负面样本规则层 0 命中 ⇒ 覆盖被一个**安全词**撑起来
+    #   （实测 `wearable`）⇒ 无 findings ⇒ **PASS**，而那张图在库里正是负面样本。
+    #   兜底判据：**单元层已经把它召回了**（实测 BM25 308），命中单元自带的 `source_sha256`
+    #   与规则 `image_refs[].sha256` 是同一把尺子（都是图字节）⇒ 用它们确认「同一张图」，
+    #   完全不依赖送审侧把 sha 传对、也不依赖两套 OCR 读得一样。
+    #   口径：与 N-1.x 那层**同一条**（历史审核意见 ⇒ REVIEW，不 BLOCK）；去重按条款号。
+    try:
+        _sn = _load_self_negative()
+        _sn_hits = _sn.self_negative_hits((trace.get("units") or {}).get("top_bm25") or [],
+                                          top=max(top, 3))
+    except Exception as _e:                              # noqa: BLE001 — 附加层不许拖死评审
+        _sn_hits = []
+        trace["library_negative_sample"] = {"error": "%s: %s" % (type(_e).__name__, _e)}
+    if _sn_hits:
+        _nr = trace.get("negative_rules")
+        if not isinstance(_nr, dict):
+            _nr = {"engine": "kb/l3/candidates/negative_rules.jsonl", "hits": [],
+                   "self_reference_only": True}
+            trace["negative_rules"] = _nr
+        _have = {(h.get("article_no") or "") for h in (_nr.get("hits") or [])}
+        _added = [h for h in _sn_hits if (h.get("article_no") or "") not in _have]
+        _nr.setdefault("hits", []).extend(_added)
+        # ★ 两个读数必须分开记（实测踩过）：`detected` = 同图判据认出几条，
+        #   `added` = 其中**新**并入 findings 几条（相似度那层可能已经命中同一条规则）。
+        #   覆盖那条闸门看的是 `detected` —— 否则「判据成立但被去重」会被读成「判据没成立」，
+        #   闸门就白装了（本库反复栽在「判据在、读数错」上）。
+        _nr["library_negative_sample"] = {
+            "detected": len(_sn_hits),
+            "added": len(_added),
+            "hits": [{"article_no": h.get("article_no"), "record_id": h.get("record_id"),
+                      "matched_by": h.get("matched_by"), "unit_anchor": h.get("unit_anchor"),
+                      "unit_bm25": h.get("unit_raw_bm25")}
+                     for h in _sn_hits[:5]],
+            "note": "本素材命中的库内单元与规则取证图**同图**（图字节 sha256 / 取证锚点相同）"
+                    "⇒ 这张图在知识库里是**负面样本**（历史审核已判「不能这么做」），"
+                    "判 **REVIEW**（不判 BLOCK）；"
+                    "⚠️ 这条判据不依赖送审侧传对 sha，也不依赖两套 OCR 读得一样",
+        }
+    # ── 第 2c 层：图身份（2026-10-21）—— **图对图**认，不依赖 OCR / 图字节 sha ──
+    #   病根（2026-10-21 德国海报）：生产文本丢变音符号 + 夹水印行 ⇒ 文本层 0 命中；
+    #   图字节 sha 又被飞书重压缩打掉 ⇒ 两条身份判据都失效。图身份层只用 pHash/像素相关。
+    if image_paths:
+        try:
+            _idn = layer_image_identity(image_paths, top=max(top, 3))
+        except Exception as _e:                          # noqa: BLE001 — 附加层不许拖死评审
+            _idn = {"engine": "kb/l3/candidates/negative_image_fp.jsonl", "hits": [],
+                    "error": "%s: %s" % (type(_e).__name__, _e)}
+        trace["image_identity"] = _idn
+        if _idn.get("hits"):
+            if "_sn" not in dir():
+                _sn = _load_self_negative()
+            _nr = trace.get("negative_rules")
+            if not isinstance(_nr, dict):
+                _nr = {"engine": "kb/l3/candidates/negative_rules.jsonl", "hits": []}
+                trace["negative_rules"] = _nr
+            _merged, _merge_counts = _sn.merge_image_identity_hits(
+                _nr.get("hits") or [], _idn["hits"])
+            _nr["hits"] = _merged
+            _added = _idn["hits"]
+            _nr["image_identity"] = {"checked": _idn.get("checked"),
+                                     "detected": len(_idn["hits"]),
+                                     "added": _merge_counts["added"],
+                                     "upgraded": _merge_counts["replaced"]}
+    # ── ★★ 2026-10-20（Owner 实测：「我发了图片，回复的问题是其他图片的」）──────────────
+    #   病灶：规则的取证图是**整条记录的全部图**，而规则正文常常只讲其中一张 ——
+    #   实测同一记录 5 张图产出 4 条规则，正文分别写「图1」「图2」「图3」「图4」，
+    #   而四条规则的 `image_refs` **全都是那 5 张** ⇒ 发的是图4，卡上却印了图1/图2/图3 的意见。
+    #   另有一类跨记录聚合的规则（实测一条覆盖 14 条记录 / 43 张图）对任何图都可能命中。
+    #   ⇒ 在**两层命中合并之后**统一收窄（只收窄「讲哪张图」这一层，不改任何评分与门槛）：
+    #     ① 跨记录聚合 ⇒ 图片级不认；② 正文写「图N」⇒ N 必须等于本素材对上的取证图 seq；
+    #     ③ 无「图N」的记录级意见保留，但在读数里标 `attribution=record`（不许说成「这张图命中」）。
+    #     被丢掉的全部进 `negative_rules.narrowed_out`（**不静默丢**）。
+    try:
+        _nr2 = trace.get("negative_rules") or {}
+        _raw_hits = _nr2.get("hits") or []
+        if _raw_hits:
+            if "_sn" not in dir():          # 上面那段 try 失败过 ⇒ 这里自己再装一次（不许因它整层不跑）
+                _sn = _load_self_negative()
+            _unit_shas = {(u.get("source_sha256") or "").lower()
+                          for u in ((trace.get("units") or {}).get("top_bm25") or [])}
+            _sub_shas = _sn.image_shas_in(text)
+            _kept, _narrowed = _sn.narrow_negative_hits(
+                _raw_hits, submitted_shas=_sub_shas, unit_shas=_unit_shas)
+            if _narrowed:
+                _nr2["hits"] = _kept
+                _nr2["narrowed_out"] = _narrowed
+                _nr2["narrowed_note"] = (
+                    "被剔掉的都是「讲的不是这张图」的命中：跨记录聚合，或正文写「图N」而本素材对上的"
+                    "取证图是别的序号。判据见 `kb/l7/review-engine/core/self_negative.py::narrow_negative_hits`")
+    except Exception as _e:                              # noqa: BLE001 — 收窄层不许拖死评审
+        trace.setdefault("negative_rules", {})["narrow_error"] = "%s: %s" % (type(_e).__name__, _e)
     _assemble_t = time.perf_counter()
 
     findings, unmet = [], []
@@ -960,7 +1963,10 @@ def review(text, content_type="text", position="全文", report_dir=None, run_id
         p0_rule_ids.add(rid)
         r = rules.get(rid, {})
         (cat, sub), basis = classify(r, vocab)
-        excerpt = (h["matched"][0]["pattern"] if h.get("matched") else r.get("forbidden_expression") or "")
+        # ★ 2026-10-21：正则命中时 `pattern` 是**正则源码**，拿它当「逐字摘录」既读不懂、
+        #   也不满足引用契约；`matched[].text` 是真正被命中的那段文本（matcher 2026-10-21 起记）。
+        excerpt = ((h["matched"][0].get("text") or h["matched"][0]["pattern"])
+                   if h.get("matched") else r.get("forbidden_expression") or "")
         src = resolve_excerpt(r, excerpt, preferred=h.get("anchor"))
         if not src:
             # ── 反静默丢（2026-09-30 修，实测漏放；fail-closed，见本文件顶部口径）────────
@@ -1159,6 +2165,169 @@ def review(text, content_type="text", position="全文", report_dir=None, run_id
             "classification_basis": basis,
         })
 
+    # ── 负面样本规则（N-1.x）→ findings（2026-10-20）────────────────────────
+    # 定位：**历史审核意见**，一律 REVIEW（不当判定依据，也不据此 BLOCK）。
+    # 依据六要素齐（库名/条款号/锚点/sha/摘录/直链）⇒ 可回源；`verbatim_verified` 照实写 False：
+    # 本层没有回 L0 逐字重算（规则文本是蒸馏时从源记录字段逐字取的，但这里不重复核）。
+    #
+    # ★★ 2026-10-20（真单事故：图片单报告印出「1.挂式衣架: 磨砂亚克力材质…」，图里没有衣架）：
+    #   `excerpt` / `matched_term` **不再取规则正文** —— 规则正文是**历史记录自己的话**，
+    #   不是这一单素材里的字。把它印进「命中描述」等于给读者看一段素材里不存在的原文。
+    #   现在：`excerpt` 留空（报告那一格印 `—`，那是诚实的）；规则原文另存 `history_rule_text`
+    #   供回源核对，**不许**再冒充逐字命中。同批的第二处收口见 `require_visual`（画面 0.00 不入清单）。
+    #
+    # ★★ 2026-10-20 第二轮（**串图**，Owner 真单：发 Giveaway 长图，回的链接是 BJs 渠道记录）：
+    #   「同图」判得对，但**归属**不对 —— 那条记录里装着 4 张图（2 张 BJs + 这张长图重复两次），
+    #   而那张长图还挂在另外 2 条**内容完全不同**的记录里。把这种记录的意见印成「这张图的依据」
+    #   就是串图。⇒ 现在**只有 `attribution == "subject"` 才进 findings**：
+    #     subject           = 该记录按图字节去重后仅 1 张图，且该图未出现在内容不同的其它记录里
+    #     其它（record_level / shared_reference / unknown / semantic）⇒ **只作线索**，
+    #     写进 `negative_rules.not_subject`（不静默丢，报告/留底查得到），并且
+    #     **单独撑不起 PASS**（见下面 state 收口：无 findings 且有线索 ⇒ 拒答，不是通过）。
+    #
+    # ★★ 2026-10-20 第三轮（Owner：「我在飞书侧发图片，就是无法命中这些规则」）——
+    #   **只有 subject 才可引用**这条把召回压到 ~5%：库内 288 张去重图里 subject 只有 **15 张**
+    #   （`kb/l3/registry/image_roles.json`：shared_reference 182 / record_level 91）。
+    #   而「记录里有多张图」并**不等于**"这条意见不指向这张图" —— 只要命中是**图级锚定**的
+    #   （`figure_anchored`：对上了这条规则的某张取证图）且规则正文没有讲别的图号，
+    #   这条意见就是**这条记录**的意见，可以引用，但必须**如实标成记录级**（见下面的 reason 后缀）。
+    #   `shared_reference` 仍然一律挡：同一张图挂在**内容不同**的多条记录里，意见指向哪条是真说不清。
+    # ★★ 2026-10-20 第四轮（Owner：「触发规则了，就必须输出命中知识库」＋「串图不能接受」）：
+    #   上一轮只有 `subject` / 图级锚定的 `record_level` 才进 findings ⇒ **52% 的库内图回拒答**。
+    #   Owner 的要求两条同时成立，所以这里**不再丢弃命中**，而是**把"这条意见凭什么算"标出来**：
+    #     figure —— 规则正文讲「图N」且 N 就是本素材对上的那张 ⇒ 才算「**这张图**的意见」
+    #     record —— 规则是**记录级**意见（正文没写图号），本图在该记录里 ⇒ 「**该记录**的历史意见」
+    #     shared —— 这张图在库里是**复用图**（同一张图挂在内容不同的多条记录里）
+    #               ⇒ 「**同图历史意见**（该图还出现在记录 …）」，它属于那条记录，不专指本图
+    #     unknown —— 连"对上了哪张取证图"都定不下来（semantic / 归属产物缺失）⇒ 仍只作线索，不算命中
+    #   **三条硬约束（防串图）**：
+    #     ① `unknown` 一律不进 findings；② 任何一条 finding 都**不许**被说成「这张图命中」
+    #     除非证据类就是 `figure`；③ `require_visual`（只在同图/画面真对上时才收）一个字不动。
+    # ★★ 2026-10-20 第五轮（Owner 真单：图片单里出现「Figma 链接」「项目背景：亚马逊多语言修改」
+    #   「麻烦看看呀」三条当意见）—— **规则质量问题，不是归属问题**：
+    #   476 条 N-1.x 里只有 **132 条（28%）带规范内容**；245 条是 `observation`（纯观察）、
+    #   35 条 `brief`（需求描述）、39 条 `non_substantive`（@提醒/客套）。
+    #   把它们印成"历史审核意见"就是串图观感的真正来源。
+    #   ⇒ 只引用**有规范内容**的规则（point/advice ＋ 正文非 URL/非 @提醒/≥10 字），
+    #     其余**如实记进 `negative_rules.not_substantive`**（不静默丢，报告/留底查得到）。
+    _RE_URL = re.compile(r"https?://|www\.", re.I)
+
+    def _substantive_rule(h):
+        t = str(h.get("rule_text") or "").strip()
+        if str(h.get("rule_kind") or "") not in ("point", "advice"):
+            return False, "规则类型=%s（非 point/advice ⇒ 不是可引用的审核意见）" % h.get("rule_kind")
+        if len(t) < 10:
+            return False, "规则正文过短（%d 字）" % len(t)
+        if _RE_URL.search(t):
+            return False, "规则正文是链接/附件引用（不是意见）"
+        if t.startswith("@") or t.count("@") >= 2:
+            return False, "规则正文是 @ 提醒（不是意见）"
+        return True, ""
+
+    _ns_seen, _ns_lines = set(), []
+    _nonsub_lines = []
+    for h in (trace.get("negative_rules") or {}).get("hits", []):
+        _ok_sub, _why_sub = _substantive_rule(h)
+        if not _ok_sub:
+            _nonsub_lines.append({"article_no": h.get("article_no"), "rule_kind": h.get("rule_kind"),
+                                  "why": _why_sub, "rule_text": (h.get("rule_text") or "")[:80]})
+            continue
+        _attr = _attribution_of(h)
+        _fig_anchored = (bool(h.get("figure_anchored"))
+                         or int(h.get("match_rank") or 0) >= 2
+                         or bool(h.get("library_negative_sample")))
+        _fig_attr = str(h.get("figure_attribution") or "")
+        _mi = h.get("matched_image") or {}
+        if _attr == "semantic" or _attr == "unknown":
+            _cls = "unknown"
+        elif _fig_anchored and _fig_attr == "figure":
+            _cls = "figure"
+        elif _attr == "shared_reference":
+            # 复用图：图在、记录也在，但这张图挂在**内容不同**的多条记录里 ⇒ 只能算同图历史意见
+            _cls = "shared"
+        elif _fig_anchored:
+            _cls = "record"
+        else:
+            _cls = "unknown"
+        if _cls == "unknown":
+            _key = (h.get("article_no"), _mi.get("record_id"), _mi.get("sha256"))
+            if _key not in _ns_seen:
+                _ns_seen.add(_key)
+                _ns_lines.append({
+                    "article_no": h.get("article_no"),
+                    "rule_kind": h.get("rule_kind"),
+                    "attribution": _attr,
+                    "why": (h.get("attribution_why") or "") or "对不上任何一张取证图（semantic/unknown）⇒ 只作线索",
+                    "record_id": _mi.get("record_id"),
+                    "file_token": _mi.get("file_token"),
+                    "image_sha256": _mi.get("sha256"),
+                    "image_anchor": _mi.get("anchor"),
+                    "score": h.get("score"),
+                    "history_rule_text": (h.get("rule_text") or "")[:120],
+                })
+            continue
+        ev = (h.get("evidence") or [{}])[0]
+        act = h.get("action") or {}
+        _history_record_id = (ev.get("record_id") or _mi.get("record_id")
+                              or h.get("record_id"))
+        _history_case = history_case_for_record(_history_record_id)
+        # ★★ 2026-10-21：负面样本层此前**从不带 A3** ⇒ 图片单 95% 落「未归类」。
+        #   `stamp_taxonomy()` 有一条「条目自己带了分类就别抹掉」的分支，所以这里盖完即生效；
+        #   盖不到（映射表里没有）⇒ 留 None，报告照旧落兜底类，**不编**。
+        _nt_cat, _nt_basis = negative_taxonomy(h.get("rule_code"), h.get("article_no"))
+        findings.append({
+            "severity": "REVIEW",
+            "layer": "负面样本规则（N-1.x）",
+            "p_level": "P2",
+            "category": "负面样本", "sub": h.get("rule_code_label") or h.get("rule_code") or "未分类",
+            "taxonomy_category": _nt_cat,
+            "taxonomy_subcategory": None,
+            "taxonomy_basis": _nt_basis,
+            "position": position,
+            "excerpt": "",
+            "matched_term": "",
+            "history_rule_text": h.get("rule_text") or "",
+            "history_analysis": _history_case.get("analysis") or "",
+            "history_advice": _history_case.get("advice") or "",
+            "history_record_id": _history_record_id or "",
+            "history_scope": "record_level",
+            "verbatim_verified": False,
+            "anchor": ev.get("anchor"),
+            "source_sha256": ev.get("source_sha256"),
+            "l0_entry_url": _l0_entry_url(ev.get("anchor")),
+            "article_no": h.get("article_no"), "rule_id": h.get("rule_id"),
+            "rule_code": h.get("rule_code"), "kb_type": "internal_sample",
+            "library": "内部正负样本库（负面样本规则·历史审核意见）",
+            "evidence_gap": h.get("evidence_gap")
+                            or ("历史审核意见：命中是**相似召回**，不是本单素材的逐字命中；"
+                                "规则原文见 history_rule_text（蒸馏时逐字取自源记录字段）"),
+            "attribution": _attribution_of(h),
+            "figure_attribution": h.get("figure_attribution"),
+            "evidence_class": _cls,
+            "evidence_class_label": {
+                "figure": "这张图的历史意见（规则正文按图号对上了本图）",
+                "record": "该记录的历史意见（本图在该记录里；正文未按图号指定）",
+                "shared": "同图历史意见（本图是库内复用图，该图还出现在其它记录）",
+            }.get(_cls, ""),
+            "reason": "相似历史审核意见（%s·参考）：匹配分 %.2f（画面 %.2f / 文字 %.2f）｜%s｜⚠️ 非本单素材逐字命中"
+                      % (h.get("rule_kind") or "point", h.get("score") or 0,
+                         h.get("visual_score") or 0, h.get("text_score") or 0,
+                         "；".join(h.get("reasons") or [])[:120] or "仅文字相近")
+                      + {"figure": "",
+                         "record": "｜该历史意见未指定图号，按**记录级意见**展示；不代表本图独立判定",
+                         "shared": "｜该意见为**同图历史意见**：本图在库里是复用图，"
+                                   "该图还出现在其它内容不同的记录里 ⇒ 它属于那条记录，**不专指本图**",
+                         }.get(_cls, ""),
+            "advice": (act.get("replacement") or None) if act.get("kind") == "replace" else None,
+            "advice_note": history_action_advice_note(act),
+            "fact_or_inference": "事实",
+            "confidence": "中" if (h.get("rule_kind") == "point") else "低",
+            "matched_images": h.get("image_refs") or [],
+            # 报告渲染要这一格（实测 KeyError：write_report 第 1827 行）
+            "classification_basis": "负面样本规则 N-1.x：rule_code=%s（%s）；语料=内部正负样本库"
+                                    % (h.get("rule_code"), h.get("rule_kind") or "point"),
+        })
+
     # 去重：同一处文案命中多条同义规则（L3 的修订对规则常有大量近义条目）时合并为一条，
     # 保留严重度最高的一条，并把被合并的条款号记进 merged_articles（可追溯，不静默丢）
     order = {"BLOCK": 0, "REVIEW": 1}
@@ -1166,6 +2335,12 @@ def review(text, content_type="text", position="全文", report_dir=None, run_id
     by_key, merged = {}, {}
     for f in findings:
         k = (f["category"], f["sub"], norm(f.get("matched_term") or f["excerpt"]))
+        # ★ 2026-10-20 第三轮：负面样本规则（N-1.x）的 `excerpt` / `matched_term` 是**故意留空**的
+        #   （规则正文是历史记录自己的话，不许冒充本单逐字命中）⇒ 去重键退化成只剩
+        #   (类别, 子类)，把**五条不同的历史意见合并成一条**（实测 17:11 那单：命中 5 条、只剩 1 条）。
+        #   ⇒ 两格都空时把**条款号**并入键：不同规则各自成条，同一条规则仍只出现一次。
+        if not (f.get("matched_term") or f.get("excerpt")):
+            k = k + (f.get("article_no") or f.get("rule_id") or "",)
         if k in by_key:
             merged.setdefault(id(by_key[k]), []).append(f["article_no"])
             if f.get("advice") and not by_key[k].get("advice"):
@@ -1180,6 +2355,7 @@ def review(text, content_type="text", position="全文", report_dir=None, run_id
 
     # 覆盖信号：内容主题是否落在知识库管辖范围内（决定「无问题」是 PASS 还是拒答）
     cited = rule_cited_anchors(rules)
+    cited_shas = rule_cited_anchor_shas(rules)          # ★ 2026-10-23：锚点同名 ≠ 同源
     cited_res = rule_cited_resources(rules)          # ★ B：被引锚点的**源素材**（一键多源已保守跳过）
     gate_thr = reg["retrieval"]["gate"]["bm25_raw_min"]
     safe_hits = [h for h in trace["rules"]["hits"]
@@ -1198,7 +2374,8 @@ def review(text, content_type="text", position="全文", report_dir=None, run_id
         trace["units"]["top_bm25"], cited, cited_res, cov_thr,
         has_safe_hits=bool(safe_hits),
         case_anchors={c["anchor"] for c in case_clauses},
-        case_resources={c.get("resource_id") for c in case_clauses if c.get("resource_id")})
+        case_resources={c.get("resource_id") for c in case_clauses if c.get("resource_id")},
+        cited_shas=cited_shas)
     trace["coverage"] = {
         "safe_vocabulary_hits": [h["article_no"] for h in safe_hits][:5],
         "rule_cited_unit_hits": [{"anchor": r["anchor"], "raw_bm25": r["raw_bm25"]}
@@ -1220,6 +2397,19 @@ def review(text, content_type="text", position="全文", report_dir=None, run_id
                "只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；"
                "四者都没有 → 拒答（无命中不等于合规）",
     }
+    # ── ★★ 2026-10-20：安全词**不单独**支撑 PASS（反 fail-open 的第二半）───────────
+    #   实测那一单的覆盖是 `covered_by=safe_vocabulary` —— 靠规则层命中一个**安全词**
+    #   （`wearable`）撑起来的，而素材本身在库里是**负面样本**。
+    #   口径：当「同一张图 = 库内负面样本」这一事实成立时，**不许**只用安全词解释覆盖；
+    #   照实记进 trace（报告里看得见），判定由上面那条 findings 走 REVIEW。
+    #   ⚠️ 只在**这一种组合**下收窄：不把「安全词不能支撑 PASS」推广到所有单
+    #     （纯文案单命中允许表述、且无任何问题 ⇒ PASS 是既有且正确的形状）。
+    if (covered_by == "safe_vocabulary"
+            and ((trace.get("negative_rules") or {}).get("library_negative_sample") or {}).get("detected")):
+        trace["coverage"]["safe_vocabulary_alone_insufficient"] = (
+            "安全词命中（%s）**不单独**支撑 PASS：本素材与库内负面样本同图"
+            "（见 negative_rules.library_negative_sample）⇒ 判 REVIEW，不是通过"
+            % "、".join(trace["coverage"].get("safe_vocabulary_hits") or []))
     # ── ★★ A：案例命中**要产出依据**（否则「覆盖成立」了、依据栏还是空的）──────────
     #   形状与规则层命中**逐字段对齐**（library / article_no / anchor / source_sha256 / excerpt），
     #   下游的 `cite()` / `render()` / 发布件 / 双轨合并**一行都不用改**。
@@ -1251,7 +2441,16 @@ def review(text, content_type="text", position="全文", report_dir=None, run_id
                 "anchor": c["anchor"], "article_no": c.get("article_no"),
                 "why": _why_theme})
             continue
-        _ra = str(c.get("reason_analysis") or c.get("sample_body") or "")[:120]
+        _ra = case_excerpt(c)
+        # ★★ 2026-10-20：案例层**在提取这一层就归类**（Owner：「图片提取规则的时候要归类」），
+        #   不分类的后果是报告落「未归类」（实测一张图单 4 条有 2 条如此）。
+        _tax_cat, _tax_sub, _tax_basis = case_taxonomy(c.get("reason_category"))
+        _art = c.get("article_no")
+        # 问题描述（PRD §8.3 六格之一）：**必须有**（Owner 2026-10-20「不允许出现这样的回答，
+        #   必须有问题描述」）。案例层不许拿 excerpt 顶描述（那会把别人的原文当本单的描述），
+        #   所以用「库内反例 + 问题要点」如实写，并标明**非本单画面**。
+        _desc = ("库内反例 %s 的问题要点：%s（非本单画面）" % (_art, _ra)) if (_art and _ra) else (
+            "库内反例 %s 命中（非本单画面，需人工核对同源）" % _art if _art else "")
         findings.append({
             "severity": "REVIEW", "layer": "案例层（L4 定稿「反例/禁区」）",
             # ★ 2026-10-10：案例层是 L4 定稿的「反例/禁区」。它**不是 P0 确定性匹配**
@@ -1262,7 +2461,16 @@ def review(text, content_type="text", position="全文", report_dir=None, run_id
 
             "category": c.get("reason_category") or "反例",
             "sub": "禁区（库内反例条款）",
+            # A3 12 类：案例层**自带**（不再指望 stamp_taxonomy 去规则表里找 —— 案例层不在那张表里）
+            "taxonomy_category": _tax_cat,
+            "taxonomy_subcategory": _tax_sub,
+            "taxonomy_basis": _tax_basis,
+            "description": _desc,
             "position": position, "excerpt": _ra, "matched_term": row["anchor"],
+            "history_analysis": c.get("reason_analysis") or "",
+            "history_advice": c.get("advice") or "",
+            "history_record_id": str(c.get("resource_id") or "").split("__")[-1],
+            "history_scope": "record_level",
             "verbatim_verified": False,
             "anchor": c["anchor"], "source_sha256": c.get("source_sha256"),
             "l0_entry_url": _l0_entry_url(c["anchor"]),
@@ -1293,7 +2501,42 @@ def review(text, content_type="text", position="全文", report_dir=None, run_id
             "verbatim_source": None,
             "classification_basis": "L4 canonical/sample_case.jsonl（polarity=反例）",
         })
+    # ── ★★ 2026-10-20（串图修复 ②）：**非 subject 的同图命中，单独撑不起 PASS** ────────
+    #   病灶：Giveaway 长图命中的是 BJs/Costco/品牌日 三条记录 —— 那张图只是它们的**附图**，
+    #   该图还跨 3 条内容不同的记录。把这些命中挡在 findings 之外后，会留下「0 findings」；
+    #   这时若覆盖信号（安全词/同源单元）成立，旧逻辑会判 **PASS** ⇒ 等于把「串图」换成
+    #   「未命中即通过」，方向从假依据变成假放行，更坏。
+    #   口径：有这类线索、又没有别的 findings ⇒ **拒答（覆盖缺口）**，并把理由写进 trace：
+    #   它既不是「通过」，也不是「发现了内容问题」，而是「库里没有针对这张图的意见，需人工看覆盖」。
+    #   ⚠️ 只挡 PASS 一个方向：BLOCK/REVIEW/NEEDS_INPUT 一个字不动。
+    # ★★ 2026-10-20 补（实测崩溃，非假设）：`trace["negative_rules"]` 只在
+    #   「图片/视频单」那一路才被初始化（见上面的 `_looks_image` 分支）——
+    #   **纯文字单**这一路从来没建过这个键，而下面几行是无条件写的 ⇒
+    #   文字类素材一律 `KeyError: 'negative_rules'`，整单跑不出来（引擎 exit 2）。
+    #   兜底不是"跳过判据"，而是把"这一层本单没跑"如实记进 trace（fail-visible）。
+    trace.setdefault("negative_rules", {
+        "engine": "kb/l3/candidates/negative_rules.jsonl",
+        "hits": [],
+        "not_run": "本单不是图片/视频（或正文里没有画面读数/图内文字）⇒ 负面样本规则层没跑",
+    })
+    trace["negative_rules"]["not_subject"] = _ns_lines
+    trace["negative_rules"]["not_subject_count"] = len(_ns_lines)
+    trace["negative_rules"]["not_substantive"] = _nonsub_lines
+    trace["negative_rules"]["not_substantive_count"] = len(_nonsub_lines)
+    trace["negative_rules"]["attribution_gate"] = (
+        "subject_or_record_level_anchored" if _ns_lines or findings is not None else "n/a")
+    _covered_by_before = covered_by
     covered = bool(covered_by)
+    if _ns_lines and not findings:
+        covered = False
+        trace["coverage"]["coverage_gap"] = True
+        trace["coverage"]["coverage_gap_reason"] = (
+            "库内有**同图**命中（%d 条规则 / 涉及记录 %d 个），但那张图在这些记录里是"
+            "**跨内容复用的复用图**（同一张图挂在内容不同的多条记录里）⇒ 意见指向哪条记录说不清，"
+            "**不作为依据**；库内无针对这张图的意见 ⇒ 覆盖缺口，需人工看覆盖，"
+            "**不得据此当 PASS（未命中 ≠ 合规）**"
+            % (len(_ns_lines), len({x.get("record_id") for x in _ns_lines if x.get("record_id")})))
+        trace["coverage"]["covered_by_before_attribution_gate"] = _covered_by_before
     n = len(findings)
     if any(f["severity"] == "BLOCK" for f in findings):
         state = "BLOCK"
@@ -1339,6 +2582,15 @@ def review(text, content_type="text", position="全文", report_dir=None, run_id
     _tax_st = stamp_taxonomy(findings, taxonomy_index())
     trace["taxonomy"] = {"with_class": _tax_st["stamped"], "without_class": _tax_st["missing"],
                          "policy": "kb/l3/registry/rule-taxonomy.json（人工口径，Owner 采用；非源字段）"}
+
+    # ── ★★ 2026-10-19（Owner：「必须给建议」）：BLOCK 单的「建议」在这里补进**数据** ────
+    #   补在**返回前**而不是渲染时：卡片（`render()`）、报告（`write_report`）、
+    #   入口 JSON（`_finding_to_risk_item → suggestion`）三处读同一格，才不会两端打架。
+    _adv_n = backfill_advice(findings, state)
+    if _adv_n:
+        trace["advice_fallback_n"] = _adv_n
+        print("[review] 建议兜底补入 %d 条（库内无原话改法，按 kb/l5/advice_book.py 给）" % _adv_n,
+              file=sys.stderr)
 
     return {"state": state, "findings": findings, "unmet_citation": unmet, "trace": trace,
             "registry": {"gate": reg["retrieval"]["gate"], "routing": reg["decision_rules"]["routing"],
@@ -1398,14 +2650,25 @@ def render(result, reg, report_path=None):
     lines.append("")
     if len(fs) <= 2:
         for i, f in enumerate(fs, 1):
-            lines.append(f"{i}.【{f['category']}-{f['sub']}】{f['position']}，{f['excerpt']}")
+            # ★★ 2026-10-19（Owner：「所属类别/所属子类」统一到 A3 12 类）：
+            #   首行标签从 **A1 8 类词表**（`f['category']-f['sub']`）换成 **A3 12 类**
+            #   （`taxonomy_category` / `taxonomy_subcategory`，真源 `rule-taxonomy.json`）。
+            #   盖不到（模型侧条目 / 反例案例层 sc-…）⇒ 印 **`未归类`**（12 类的兜底类）。
+            _tax_lbl = tax_label(f)
+            lines.append(f"{i}.【{_tax_lbl}】{f['position']}，{f['excerpt']}")
             lines.append(f"  原因：{f['reason']}")
             lines.append(f"  依据：{cite(f, reg)}")
-            lines.append(f"  锚点：{f['anchor']}｜source_sha256：{f['source_sha256']}")
+            # ★★ 2026-10-19（Owner 逐字：「**去掉锚点**」＋「卡片信息必须按照 PRD 字段执行」）——
+            #   **这一行不再上卡**。它是**库内坐标**（`#广告文案明细/rec…/命中片段`）+ 指纹，
+            #   业务侧读不懂、PRD §5.3.3/§5.3.4 的逐条字段里也没有它。
+            #   ⚠️ 溯源没有丢：`f['anchor']` / `f['source_sha256']` 仍在 findings / 报告
+            #      （`write_report` 的「- 锚点：`…`」「逐条四段」）与入口 JSON 里 —— 删的只是卡上那一行。
             # ★★ 2026-10-14（Owner 裁定）：逐条块**不再输出「判定：…｜置信度：…」这一行**。
             #   口径：PRD §5.3 逐条模板只有 原因 / 依据 /（BLOCK 才有）建议，三态只在结论行
             #   一处 ⇒ 同一张卡上不许出现两个「判定」。
             #   `f['fact_or_inference']` / `f['confidence']` **仍在引擎 JSON 里**（只改版式）。
+            # ★★ 2026-10-19（Owner：「**必须给建议**」）：`advice` 现在由 `backfill_advice()`
+            #   在 `review()` 返回前补过（BLOCK 单**恒有值**）⇒ 这里不再需要「有才印」的隐式空行。
             if state == "BLOCK" and f.get("advice"):
                 lines.append(f"  建议：{f['advice']}")
             if i != len(fs):
@@ -1424,25 +2687,30 @@ def render(result, reg, report_path=None):
         #   `kb/l7/registry/risk-category-policy.json`，实现 `risk_category.py`），本处只读结果。
         #   未映射的四类（原则性错误 / 文化禁忌 / 未分类 / unknown）**单成一桶、如实署名、排在最后**：
         #   **既不丢掉、也不并进「合规」** —— 桶名与 `report_memory` 的「未标注维度」保持同一个词。
-        #   ⚠️ 桶**不按**一份写死的四维顺序排（那会是第二份词表）：按首次出现顺序，
-        #      只把「未标注维度」压到最后。
-        # ★★ 2026-10-17（Owner 逐字：「推荐：把卡片的分类汇总行改成 11 类」）──────────────
-        #   上面那段 2026-10-12 的口径是 **PRD §5.3 四维**；今天 Owner 定了：**分类汇总一律按 11 类**，
-        #   四维退回它唯一该待的位置 —— 报告的分组与逐条「维度」格（`report_memory` / `merged_report`）。
-        #   ⚠️ 一处独立生产者的同批改动：守衡 `dual_track.categorySummary()` 已同步切 11 类
-        #      （两处若只改一处，同一单会在卡上与引擎文本里出现两种分类）。
-        #   桶规则：
-        #     · 有 11 类 ⇒ `· <11 类名>：N 个`
-        #     · 没有 11 类（反例/案例层 sc-…、覆盖缺口、P0「不可逐字回源」那类）
-        #       ⇒ 单成一桶 `· 未归 11 类问题：N 个`（**如实署名，既不丢也不并进任何一类**）
-        _tax_unclassed = "未归 11 类"
+        #
+        # ★★ 2026-10-17 曾按 Owner 令把这一格**改成 11 类**（`taxonomy_category`），
+        #   2026-10-19 **已回退到 PRD 四维**，理由（两条，都是实测）：
+        #     ① Owner 2026-10-19 再次裁定「卡片所有的回复必须跟 PRD §5.3 对齐」，
+        #        而 §5.3.4 的 ≥3 样张逐字是 `· 合规类：X 个 · 消费者安全类：X 个 · 措辞类：X 个`；
+        #     ② 11 类在**模型侧条目上根本盖不上章**（`stamp_taxonomy` 只认规则表里的 rule_id），
+        #        实测真单（4 条全是模型侧/外部标准）⇒ 4 条全落 `· 未归 11 类问题：4 个`
+        #        ⇒ **分类汇总退化成一个常数桶**，比「分组不准」更坏：读卡的人拿不到任何分布。
+        #   ⚠️ 11 类**没有消失**：它仍在报告（`report_memory.taxonomy_section_lines()` 的「按所属类别汇总（12 类）」段）
+        #      与逐条标签里 —— 那里每条都能盖到，也不会顶掉 PRD 的分类汇总。
+        #
+        # ★★ 形状（Owner 2026-10-19 第三次给的样子）：**每类一行**、`· <维度>类问题：N 个`。
+        #   条数降序；并列时按政策件四维顺序；「未标注维度」桶**压最后**（不并进任何一类）。
+        # ★★ 2026-10-19（Owner：「所属类别/所属子类」统一到 A3 12 类）：
+        #   汇总的轴从 **A2 PRD 四维**（`risk_category`）换成 **A3 12 类**（`taxonomy_category`）——
+        #   与逐条首行、规则行、报告同一套。盖不到的落 **`未归类`**（12 类里的兜底类）。
         agg = {}
         for f in fs:
-            k = str(f.get("taxonomy_category") or "").strip() or _tax_unclassed
-            agg[k] = agg.get(k, 0) + 1
-        for k in sorted(agg, key=lambda x: (x == _tax_unclassed, -agg[x])):
-            lines.append(f"· {k}：{agg[k]} 个" if k != _tax_unclassed
-                         else f"· {k}问题：{agg[k]} 个")
+            agg[tax_category(f)] = agg.get(tax_category(f), 0) + 1
+        _order = {n: i for i, n in enumerate(taxonomy_classes())}
+        _bucket = TAX_UNCLASSED
+        _keys = sorted(agg, key=lambda x: (x == _bucket, _order.get(x, 99), x))
+        # * 形状（Owner 2026-10-19 给的格式）：**每类一行**，行间不空行；兜底写 `· 未归类问题：N 个`。
+        lines.extend("· %s问题：%d 个" % (k if k == _bucket else k + "类", agg[k]) for k in _keys)
         lines.append("")
         lines.append(f"→ 查看完整问题清单与修改建议：{report_path or '（未写报告，见 --report-dir）'}")
     lines.append("")
@@ -1570,31 +2838,26 @@ def write_report(result, reg, report_dir, run_id, apply=True):
                            f"（全文见机读 JSON 的 `excerpt` 与下方 L0 直链）")
         else:
             _quote_line = f"- 命中表达（**非逐字**，源侧无此原文，仅留 20 字）：{_ex[:20]}…"
-        # ★★ 2026-10-12（10/19–10/23 行 #5 · PRD §8.3 逐字「完整问题清单，**每条包含：维度**、
-        #   位置、问题描述、原因、依据文档链接、修改建议」）：这一行把「维度」补进清单。
-        #   改前**整份报告没有「维度」二字**（实测：近 15 份报告命中 0）——
-        #   标题行印的是 `【库内类别-子类】`，那是**细分**不是**维度**，两者在 PRD §5.4 里是两格。
-        #   本行**只增不改**：标题行、`_quote_line`、其余各行一字未动。
-        #   未映射的类别（原则性错误 / 文化禁忌 / 未分类 / unknown）**如实写「未标注维度」＋待裁理由**，
-        #   **不蒙一个维度**（蒙错比留空更坏 —— 留空人会去补，错值人不会回头看）。
-        _dim = f.get("risk_category")
-        _dim_basis = f.get("risk_category_basis")
-        if _dim:
-            _dim_line = f"- 维度：**{_dim}**" + (f"（{_dim_basis}）" if _dim_basis else "")
-        else:
-            # ★ 桶名同样**只从唯一真源取**（`risk_category.UNMAPPED_BUCKET`）——
-            #   本文件不写那个词的字面量，写了就是第二份口径（三处各写一份必然漂移）。
-            _bkt = _unmapped_dim_bucket()
-            _label = f"{_bkt}（待裁）" if _bkt else "（维度模块不可用，本格留空）"
-            _dim_line = f"- 维度：**{_label}**" + (f" —— {_dim_basis}" if _dim_basis else "")
+        # ── 历史：2026-10-12 这里曾补过一行 `- 维度：**<四维>**`（当时 PRD §8.3 要求清单含「维度」）。
+        #    2026-10-19 Owner 定「**整个知识库都要同步** 卡上 12 类」后，那一行**已撤掉**；
+        #    原来它承担的两件事（① 每条说得出归类 ② 未映射不编）**都还在**：
+        #    ① 由下面 `- 所属类别 / 所属子类：` 那一格承担（恒印，盖不到写 `未归类`）；
+        #    ② 同上 —— `未归类` 就是 12 类的兜底类，不是编出来的类名。
+        # ★★ 2026-10-19（Owner：「报告要同步 卡上 12 类呀，**整个知识库都要同步**」）——
+        #   **`- 维度：**` 这一行整行撤掉**。理由：下一行 `- 所属类别 / 所属子类：` 已经是
+        #   Owner 定的那套 A3 12 类；再留一行四维，同一份报告里两套分类并排
+        #   （实测真报告：维度=消费者安全 而 所属类别=合规与受监管宣称 —— 读者只能怀疑哪个对）。
+        #   ⚠️ `risk_category` / `risk_category_basis` **仍在机读 JSON 里**（路由与统计还在用），
+        #      撤掉的是**报告里那一行字**，不是数据。
         # ★ 2026-10-17：11 类那一格（附加视图，只增不改）。取不到就**不印**（不写「未分类」冒充）。
-        _tax_line = None
-        if f.get("taxonomy_category"):
-            _tax_line = "- 11 类：**%s**%s" % (
-                f["taxonomy_category"],
-                (" / %s" % f["taxonomy_subcategory"]) if f.get("taxonomy_subcategory") else "")
-        L += [f"### {i}.【{f['category']}-{f['sub']}】{f['position']}", "",
-              _dim_line] + ([_tax_line] if _tax_line else []) + [
+        # ★ 2026-10-19：这一格就是 Owner 说的「所属类别 / 所属子类」（A3 12 类）。
+        #   改名并**恒印**（盖不到就写 `未归类`）—— 报告与卡面同一套标签。
+        _tax_line = "- 所属类别 / 所属子类：**%s**%s" % (
+            tax_category(f),
+            (" / %s" % f["taxonomy_subcategory"]) if (f.get("taxonomy_subcategory")
+                                                      and f.get("taxonomy_category")) else "")
+        L += [f"### {i}.【{tax_label(f)}】{f['position']}", "",
+              _tax_line] + [
               _quote_line,
               f"- 原因：{f['reason']}",
               f"- 依据：{cite(f, reg)}",
@@ -1767,22 +3030,6 @@ class _LazyRC:
 
 _rc = _LazyRC()
 
-
-def _unmapped_dim_bucket():
-    """未映射类别的**桶名** —— 唯一真源 `risk_category.py::UNMAPPED_BUCKET`。
-
-    ★ 本文件**不写桶名字面量**（写了就是第二份口径，正是本库反复栽的那一类）。
-    ★ 模块取不到时返回 `None` 并**打印告警**（不静默）：调用方据此退回库内类别分组
-      （= 改前行为）。为什么不直接抛：桶名只是**呈现**，而模块真的坏了的话
-      `stamp()` 那边早已把每条 `risk_category` 留空 —— 也就是说
-      **全部条目会落进同一个桶、一眼就能看出不对**，不会伪装成一个像样的分组。
-    """
-    try:
-        return _rc.UNMAPPED_BUCKET
-    except Exception as e:                                    # noqa: BLE001
-        print("[risk_category] ⚠ 汇总分组退回落库内类别（桶名真源不可用）：%s" % e,
-              file=sys.stderr)
-        return None
 
 
 def _severity_of(p_level, risk_level):
@@ -2075,6 +3322,23 @@ def report_memory_payload(res, reg, text, run_id, content_type="text", position=
     vb["review_id"] = run_id
     state = res.get("state")
     cov = _coverage_block(content_type)
+    _trace = res.get("trace") if isinstance(res.get("trace"), dict) else {}
+    _identity = _trace.get("image_identity") if isinstance(_trace.get("image_identity"), dict) else {}
+    _negative = _trace.get("negative_rules") if isinstance(_trace.get("negative_rules"), dict) else {}
+    _identity_hits = _identity.get("hits") if isinstance(_identity.get("hits"), list) else []
+    _negative_hits = _negative.get("hits") if isinstance(_negative.get("hits"), list) else []
+    _image_audit = None
+    if _identity or _negative:
+        _identity_merge = _negative.get("image_identity") if isinstance(_negative.get("image_identity"), dict) else {}
+        _image_audit = {
+            "checked": bool(_identity.get("checked")),
+            "detected": int(_identity.get("detected", len(_identity_hits)) or 0),
+            "added": int(_identity_merge.get("added", 0) or 0),
+            "upgraded": int(_identity_merge.get("upgraded", 0) or 0),
+            "hits": [{k: h.get(k) for k in ("article_no", "rule_id", "record_id", "matched_by",
+                                              "match_rank", "attribution", "figure_attribution") if h.get(k) is not None}
+                     for h in (_identity_hits or _negative_hits)[:10]],
+        }
     ap = reg.get("approvers") or {}
 
     def _role(key):
@@ -2128,6 +3392,7 @@ def report_memory_payload(res, reg, text, run_id, content_type="text", position=
             #   分层与分流落了地也看不出来。
             "tier_trace": _tier_trace(res),
             "confidence_route": _confidence_flow_note(res),
+            **({"image_identity": _image_audit} if _image_audit is not None else {}),
         },
         "unmet_citation": res.get("unmet_citation") or [],
     }
@@ -2232,6 +3497,9 @@ def main():
                     help="知识库根（含 kb/ 与 l0…l7 那层）；不给就按 KB_ROOT → 已知落点 → 向上查找")
     ap.add_argument("--text")
     ap.add_argument("--file")
+    ap.add_argument("--image", action="append", default=None, metavar="PATH",
+                    help="送审图文件（可重复）。给了就走「图身份」层（pHash/像素相关），"
+                         "不依赖 OCR / 图字节 sha；不给 ⇒ 行为与改动前逐字一致。")
     ap.add_argument("--content-type", default="text", choices=["text", "image", "video"])
     ap.add_argument("--position", default=None)
     # 默认 None，**到 main() 里按真正解析出的库根**再算。
@@ -2244,6 +3512,8 @@ def main():
                     help="本次运行的编号，用于报告文件名；省略则取当前时间戳（保证逐次唯一，不互相覆盖）")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--top", type=int, default=5)
+    ap.add_argument("--scene-json", default=None,
+                    help="画面读数 JSON（守衡 scene.mjs 的输出；图片类素材传它会启用「负面样本规则」层）")
     ap.add_argument("--dry-run", action="store_true",
                     help="干跑：只打印将写入的报告路径/字节数/前 20 行，不落盘（预演用）")
     ap.add_argument("--apply", action="store_true",
@@ -2262,6 +3532,7 @@ def main():
         "RULES": ("kb", "l3", "candidates", "rules.jsonl"),
         "MATCHER": ("kb", "l5", "matcher.py"),
         "L6REG": ("kb", "l6", "registry", "l6.json"),
+        "NEG_RULES": ("kb", "l3", "candidates", "negative_rules.jsonl"),
     }.items()})
     # ★ 报告目录在**库根解析之后**才算：--report-dir 显式给了就用它，没给才落到本库根的 l7/reports。
     #   于是 `--kb-root <副本>` 拿副本做隔离测试时，报告也落在副本里，不碰权威库。
@@ -2391,7 +3662,18 @@ def main():
         text = sys.stdin.read()
     pos = a.position or {"text": "全文", "image": "图片 1（#img.1）", "video": "视频 00:00（时间戳锚点）"}[a.content_type]
     reg = load_registry()
-    res = review(text, a.content_type, pos, rep_dir, a.run_id, a.top)
+    scene = None
+    if a.scene_json:
+        try:
+            _sc = json.load(open(a.scene_json, encoding="utf-8"))
+            # 守衡 scene.mjs 的返回有两种形状：{ok, scene:{...}} 或直接 {...}（读数本体）
+            scene = _sc.get("scene") if isinstance(_sc, dict) and isinstance(_sc.get("scene"), dict) else _sc
+            if not isinstance(scene, dict):
+                scene = None
+        except Exception as e:                       # noqa: BLE001
+            print("[scene] ⚠ 画面读数读不出（%s）⇒ 本层只按文字匹配：%s" % (a.scene_json, e),
+                  file=sys.stderr)
+    res = review(text, a.content_type, pos, rep_dir, a.run_id, a.top, scene=scene, image_paths=a.image)
     res["content"] = text
     res["query_words"] = text[:120]
     path = write_report(res, reg, rep_dir, res["run_id"], apply=not a.dry_run) if (len(res["findings"]) >= 3 or a.report_dir) else None

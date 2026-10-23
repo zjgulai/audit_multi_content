@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.192 是正例还是反例
   - S-1.192 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-f24acc3b05a05b91"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 社媒
 reason_category: 品牌一致性
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2vgYXf36s/原文反馈"
-source_sha256: 07310a2a25426a55b223fbd093e5323f0f938c5b04182dcb482f7916eb91362b
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXf36s
+anchor: "#负面样本/recvw7XJiSEDgG/具体原因/分析"
+source_sha256: 2c6a39bf295472ee1bb2b02834f5e2ac1461d22ca7fa04db881cf8ddb3e3f2cd
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XJiSEDgG
 sample_body: "【审核 · 2026-08-14 01:45 · 吴礼芳】@[已脱敏] 折扣会不会不够明显？比如加粗一点或颜色更明显点？别的没什么问题  --- 其他审核者反馈 ---  [2026-08-13 14:44 饶雨诗] 【初审-@[已脱敏] 】麻烦看看呀:YouAreTheBest: **项目名：社区母乳喂养EDM推宣 第三阶段 修改** **设计要求：** 修改头图，改成妈妈们在户外进行讨论，氛围更加阳光休闲，穿着更加时髦 增加一个新板块： “主标题**You’re Not Alone** 副标题**From sleepless nights to everyday wins, find real question --- [2026-08-13 16:59 饶雨诗] 【终审-@[已脱敏]  】姐麻烦看看呀:YouAreTheBest: **项目名：社区母乳喂养EDM推宣 第三阶段 修改** **设计要求：** 昨天的需求，修改头图，改成妈妈们在户外进行讨论，氛围更加阳光休闲，穿着更加时髦 增加一个新板块： “主标题：**You’re Not Alone** 副标题：**From sleepless nights to everyday wins, find rea --- [2026-08-13 17:45 吴礼芳] @[已脱敏] 折扣会不会不够明显？比如加粗一点或颜色更明显点？别的没什么问题"
 reason_analysis: 【品牌一致性】图片 折扣会不会不够明显。 【问题要点】 1. 折扣会不会不够明显 2. 比如加粗一点或颜色更明显点
 advice: ""
@@ -93,8 +93,8 @@ advice: ""
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2vgYXf36s/原文反馈`
-- 指纹：`07310a2a25426a55b223fbd093e5323f0f938c5b04182dcb482f7916eb91362b`
+- 锚点：`#负面样本/recvw7XJiSEDgG/具体原因/分析`
+- 指纹：`2c6a39bf295472ee1bb2b02834f5e2ac1461d22ca7fa04db881cf8ddb3e3f2cd`
 - 原因归类：品牌一致性　|　素材类型：图片
 
 > 案例只作参照，不构成规则。

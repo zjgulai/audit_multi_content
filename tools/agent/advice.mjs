@@ -30,42 +30,58 @@
  *      所以标成「库侧给的改法」会是假陈述（这也是安全阀，见 `renderMergedItem`）。
  */
 
-/** PRD §5.3.3：修改建议 ≤30 字（与 `dual_track.ADVICE_MAX` 同一个数，改一处要改两处）。 */
-export const ADVICE_MAX = 30;
+/** 修改建议上限来自唯一 PRD registry；提示词、渲染与验收共用该值。 */
+import { countAdviceChars, ADVICE_MAX } from './prd533.mjs';
+export { ADVICE_MAX };
 
 /**
- * 字数口径：**标点不计**（Owner 2026-10-19：「修改建议是可以 30 字的，**不带标点这些**，
- * 可以多写一些」）⇒ 30 字指**实词字数**，`删「最」字，改为「更」；补一行日期` 按 11 字算。
+ * 字数口径：**标点不计**，与 PRD registry 的规则一致。
  *
  * ★ 唯一真源在 `prd533.mjs::countAdviceChars`（渲染层、守衡侧判据、库侧 `prd533_check.py`
  *   都用同一套字符集）。这里不改写第二份 —— 抄一份出去，迟早三处各说各话。
  */
 export function adviceChars(t) { return countAdviceChars(t); }
 
-import { countAdviceChars } from './prd533.mjs';
+/**
+ * 建议格只放动作句。把来源说明留在原因/依据格，不让它顶在动作前面吃掉展示额度。
+ * 同位置合并的历史记录常把「源记录未填建议」和真正的建议串在一起；去掉重复说明、
+ * 去重动作句后，业务侧能直接看到可执行修改。
+ */
+export function cleanAdviceText(text) {
+  const boilerplate = /(?:源记录|历史记录|记录本身)[^。；;]{0,30}(?:未给|没给|没有|未提供|未填写|为空|无)(?:具体)?(?:改法|修改建议|建议)|此条仅为相似历史参考|不构成禁止或打回依据/;
+  const clauses = String(text ?? '').replace(/\s+/g, ' ').trim()
+    .split(/(?<=[；;。\n])|(?<=；)|(?<=;)/u)
+    .map((part) => part.trim().replace(/^[；;。\s]+|[；;。\s]+$/g, ''))
+    .filter((part) => part && !boilerplate.test(part))
+    .map((part) => part.replace(/^(?:修改建议|建议|推荐方案|改法)[：:]\s*/u, '').trim())
+    .filter(Boolean);
+  return [...new Set(clauses)].join('；');
+}
 
 const SYSTEM = [
   '你在给一份已经判完的内容审查，**逐条写具体改法**。',
   '每条只写一件事：**怎么改**。改哪个词、换成什么、删哪句、补什么。',
   '',
   '硬约束：',
-  // ★★ 2026-10-19（Owner：「**审查报告中**，修改建议你写了200多字，修改建议 ≤30 字」）——
+  // ★★ 当前建议上限通过登记表 `ADVICE_MAX` 管理，运行时覆盖高于上游历史值。
   //   病灶在**产出侧**，不只是显示侧：提示词只说「写具体改法」，模型就交来一段 372 字的
   //   情况说明（「这段素材里检索不到…需要给出原词才能写具体替换…」）——那不是改法。
   //   只在渲染层截断治不了它：截完剩的是半句诊断，还不是动作。
-  //   ⇒ 源头就要 ≤30 字（PRD §5.3.3），渲染层的 `_clip` 只当**硬兜底**。
-  '0. **每条 ≤30 字（PRD §5.3.3 硬约束，卡面与报告同一把尺）**：一句**可执行动作**，',
-  '   不解释、不复述原因、不列 ①②③。超过 30 字的一律不合格 —— 收到的人只读这一句。',
-  '   ★ **标点不计入 30 字**（「，」「。」「「」」这些不算）⇒ 该断句就断句，别为了省字数写成一句长坨。',
+  //   ⇒ 源头按 `ADVICE_MAX` 写短，渲染层的 `_clip` 只当**硬兜底**。
+  `0. **每条 ≤${ADVICE_MAX} 字（卡面与报告同一把尺）**：一句**可执行动作**，`,
+  `   不解释、不复述原因、不列 ①②③。超过 ${ADVICE_MAX} 字的一律不合格 —— 收到的人只读这一句。`,
+  `   ★ **标点不计入 ${ADVICE_MAX} 字**（「，」「。」「「」」这些不算）⇒ 该断句就断句，别为了省字数写成一句长坨。`,
   '1. **不许写没有动作的话** —— 「转对应负责人复核」「请人工确认」「建议修改」「需进一步核实」',
   '   这类一律不合格：收到它的人还是不知道该改什么。',
   '2. 若某条**确实写不出具体改法**，就写清**缺什么信息才能定**（例：「需要知道投放在哪个平台',
-  '   才能定这句促销语合不合规」）—— 那也是可执行的下一步，**同样 ≤30 字**。',
+  `   才能定这句促销语合不合规」）—— 那也是可执行的下一步，**同样 ≤${ADVICE_MAX} 字**。`,
+  '   若依据只是相似历史意见且该源记录没有填写建议，不能把「没有建议」推成「禁止、打回、拒绝发布」；',
+  '   也不能冒充源记录原文。只有当前素材和明确规则独立支持具体修改时才写改法，否则 advice 留空。',
   '   ✗ 反例（真实 372 字那种，不合格）：「这段素材里检索不到…需要给出被判定为绝对化的那个原词，',
   '     以及它在第几段第几个字，才能写具体替换。在那之前可以先做一件能落地的……」',
   '3. `reference` 是**库里同类反例的建议原文**，**只是参考**：',
   '   · 有值 ⇒ 照素材改写它（不要原样抄，它讲的可能是别的事）；',
-  '   · 空的 ⇒ **不用管**，你自己按素材写。',
+  '   · 空的 ⇒ 只能基于当前素材和明确依据独立写具体改法；若写不出就输出 advice 为空字符串。',
   '4. **不许**在改法里声称「库规要求」「条款规定」—— 你是给建议，不是引用规则。',
   '',
   '输出：**只输出一个 JSON 数组**，不要解释、不要 markdown 代码块。每项形如',
@@ -74,11 +90,11 @@ const SYSTEM = [
 ].join('\n');
 
 /**
- * 压缩用 system：把**已经写长**的改法压到 ≤30 字。
+ * 压缩用 system：把**已经写长**的改法压到登记表的建议上限。
  *
  * ★★ 2026-10-19（Owner：「这里的 修复建议都没讲完，**被截断了**，不能出现这种情况」）
  *
- *   病根在**产出侧**：提示词早就要 ≤30，模型不照做时，渲染层用 `…` 把它切在半句上
+ *   病根在**产出侧**：提示词约束建议上限，模型不照做时，渲染层用 `…` 把它切在半句上
  *   （真报告 6 条里 3 条是这样，最狠的一条只剩「改为…」）。切出来的不是"短改法"，
  *   是**没有动作的半句** —— 收到的人反而更不知道该改什么。
  *
@@ -90,9 +106,9 @@ const SYSTEM = [
  *   ⇒ 两条都做，且**压缩失败时宁可印长的完整句，也不许切**。
  */
 const SYSTEM_COMPRESS = [
-  '你在把「修改建议」压到 ≤30 字。**只压不加**：不许新增观点、不许改主意。',
+  `你在把「修改建议」压到 ≤${ADVICE_MAX} 字。**只压不加**：不许新增观点、不许改主意。`,
   '硬约束：',
-  '1. 每条 ≤30 字（**标点不计**），**一句完整的话**；',
+  `1. 每条 ≤${ADVICE_MAX} 字（**标点不计**），**一句完整的话**；`,
   '2. **不许**用省略号（`…` / `...`）收尾，**不许**留下半句 —— 读的人只有这一句；',
   '3. 保不住全部细节时，**保留最主要的那个动作**（改哪个词 / 换成什么 / 删哪句）；',
   '4. 只输出 JSON 数组：[{"i":0,"advice":"…"}]，不要解释。',
@@ -146,11 +162,26 @@ export function parseAdvice(text) {
   const advice = {};
   for (const raw of arr) {
     const i = Number(raw?.i);
+    // Preserve the model's exact text until the safety gate runs below. Cleaning
+    // first could erase a risky clause and make the rejection counter look green.
     const t = String(raw?.advice ?? '').trim();
     if (!Number.isInteger(i) || i < 0 || !t) continue;
     advice[i] = t;
   }
   return { ok: true, advice };
+}
+
+// A historical record with no advice cannot support an invented prohibition.
+// Suppress this exact escalation shape so prompt drift cannot turn missing data
+// into a REVIEW→BLOCK decision in the recommendation field.
+export function rejectUnsupportedHistoricalDisposition(text, item = {}) {
+  const s = String(text ?? '').replace(/\s+/g, ' ').trim();
+  const saysMissing = /(?:源记录|历史记录|记录本身)[^。；;]{0,24}(?:未给|没给|没有|未提供|未填写|为空|无)(?:具体)?(?:改法|建议)/.test(s);
+  const escalates = /(?:禁止|打回|驳回|拒绝发布|不得发布|不予发布|不可发布|直接拒绝)/.test(s);
+  const reason = String(item?.kb?.reasonLine ?? item?.reason ?? '');
+  const recordLevel = /相似历史审核意见|相似历史记录|历史审核意见|point[·.]参考|record[_ -]?level/i.test(reason);
+  const hasKbRecommendation = String(item?.kbAdvice ?? item?.kb?.suggestionLine ?? '').trim().length > 0;
+  return escalates && (saysMissing || (recordLevel && !hasKbRecommendation));
 }
 
 /**
@@ -188,8 +219,16 @@ export async function generateAdvice({ items = [], readings = '', question = '',
     return { ok: false, advice: {}, ms: Date.now() - t0, raw: txt.length,
              error: `${p.error}｜raw=${txt.length} 字${txt.length ? '' : '（0 字 = 额度被 reasoning 烧光，不是解析问题）'}` };
   }
+  const rejectedUnsupported = [];
+  for (const [i, advice] of Object.entries(p.advice)) {
+    if (!advice) continue;
+    if (rejectUnsupportedHistoricalDisposition(advice, items[Number(i)])) {
+      delete p.advice[i];
+      rejectedUnsupported.push(Number(i));
+    }
+  }
   // ── ★★ 2026-10-19（Owner：「被截断了，不能出现这种情况」）：**写短，不切短** ──────
-  //   提示词已经写了 ≤30，模型不一定照做；此时**再问一次让它自己压**。
+  //   提示词已经写了登记表上限，模型不一定照做；此时**再问一次让它自己压**。
   //   压成了 ⇒ 用它；压不成（调用失败/还超）⇒ **原样留着**（渲染层会完整印出，绝不加 `…`）。
   const over = Object.entries(p.advice).filter(([, t]) => adviceChars(t) > ADVICE_MAX);
   let compressed = 0;
@@ -210,5 +249,6 @@ export async function generateAdvice({ items = [], readings = '', question = '',
     } catch { /* 压缩失败 ⇒ 留原句（完整 > 半句） */ }
   }
   return { ok: true, advice: p.advice, ms: Date.now() - t0, raw: txt.length,
-           compressed, over_length: Object.keys(p.advice).filter((i) => adviceChars(p.advice[i]) > ADVICE_MAX) };
+           compressed, rejected_unsupported: rejectedUnsupported,
+           over_length: Object.keys(p.advice).filter((i) => adviceChars(p.advice[i]) > ADVICE_MAX) };
 }

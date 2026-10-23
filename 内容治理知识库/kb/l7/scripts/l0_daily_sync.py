@@ -297,6 +297,28 @@ def main() -> int:
             argv.append("--apply")
         steps.append(run_step("ingest_l0_new_records", argv, a.timeout))
 
+    # ── ②b 新增记录的**附件行 + 字节**（2026-10-20 补）───────────────────────
+    # 缺陷（实测，不是推测）：`ingest_l0_new_records.py` 的附件处理是**独立模式**
+    #   （`--attachments`），而本脚本原先只跑它的默认模式 ⇒ **新增记录的图片
+    #   连台账行都没有**，`store_l0_attachments.py`（按 feishu_attachment 行遍历）
+    #   自然也不会去下它们。实测代价：2026-10-20 那轮新增的 1 条负面样本记录，
+    #   5 张图在 manifest 里 **0 行**、字节 **0 个**，而摘要仍写「图片附件 已对齐」。
+    # 边界：只在 --apply 时落字节；干跑只打账（不静默跳过）。
+    att_argv = [KBPY, "l8/ingest_l0_new_records.py", run, "--attachments"]
+    if a.apply:
+        att_argv.append("--apply")
+    steps.append(run_step("ingest_l0_new_attachments", att_argv, a.timeout))
+
+    # ── ②c 存量缺字节回填（2026-10-20 补）───────────────────────────────
+    # 缺陷：`store_l0_attachments.py` **不在任何 engine 清单**里（layers.yaml / kb_pipeline
+    #   SYNC_SPEC 都没有它）⇒ 最后一次真跑是 2026-10-09，之后登记为 metadata_only 的
+    #   30 个 token **永远不会有人来下字节**。接进 L0 每日对齐后，每轮自动补齐。
+    #   幂等：本地已有字节就跳过；只对 status 不 gone/retracted 的行生效。
+    store_argv = [KBPY, "l8/store_l0_attachments.py", run]
+    if a.apply:
+        store_argv.append("--apply")
+    steps.append(run_step("store_l0_attachments", store_argv, a.timeout))
+
     # ── ③ 删除：立碑后真删（P1；用户裁定 (a) 真删+碑）──────────────────
     # ★ 2026-10-02 修（我自己的 bug，与 daily_health 那次同类）：
     #   `removed` 原先在下面才定义，这里先用 ⇒ UnboundLocalError。

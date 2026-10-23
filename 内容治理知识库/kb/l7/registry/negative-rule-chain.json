@@ -1,0 +1,80 @@
+{
+ "at": "2026-10-20 12:00:14",
+ "purpose": "负面样本图库 L0→L7 分层同步状态（Owner 2026-10-20 要求：每层跟上一层同步）",
+ "layers": {
+  "L0": {
+   "what": "图片字节",
+   "path": "kb/l0/attachments/负面样本",
+   "count": 339,
+   "status": "synced",
+   "judge": "kb/l8/check_image_coverage.py"
+  },
+  "L1": {
+   "what": "OCR 文本 + 画面读数",
+   "path": "kb/l1/2_内部正负样本库/media_*.json",
+   "ocr_images": 339,
+   "vision_images": 339,
+   "status": "synced",
+   "judge": "同上"
+  },
+  "L2": {
+   "what": "媒体单元（并入画面读数）",
+   "path": "kb/l2/units.jsonl",
+   "active_media_units": 132,
+   "with_vision": 129,
+   "retired_old_units": 128,
+   "status": "synced",
+   "judge": "kb/l7/scripts/l2_gate.py（C1–C5 全过）",
+   "note": "旧媒体单元退役不删（kb/l2/retired_units.jsonl）"
+  },
+  "L3": {
+   "what": "负面样本规则（N-1.x）",
+   "path": "kb/l3/candidates/negative_rules.jsonl",
+   "rules": 476,
+   "kinds": {
+    "point": 52,
+    "observation": 245,
+    "brief": 35,
+    "advice": 105,
+    "non_substantive": 39
+   },
+   "item_map": "kb/l3/candidates/negative_item_map.jsonl（796 条，逐条回指规则）",
+   "evidence_to_l2": "416/476 条回指 L2 媒体单元",
+   "status": "synced",
+   "judge": "kb/l8/check_negative_rule_coverage.py"
+  },
+  "L4": {
+   "what": "定稿（逐字搬运，未改写）",
+   "path": "kb/l4/canonical/negative_rule.jsonl",
+   "rules": 437,
+   "excluded": "39 条 non_substantive（客套话）按 Owner 决定**不进 L4**，仍留 L3 可审计",
+   "status": "synced",
+   "judge": "kb/l7/scripts/l4_gate.py（C1–C6 全过）"
+  },
+  "L5": {
+   "what": "P0 模式导出",
+   "status": "not_applicable",
+   "reason": "负面样本规则全部 REVIEW 级，无 P0 可导出"
+  },
+  "L6": {
+   "what": "检索索引",
+   "status": "synced",
+   "docs": 476,
+   "anchor": "条款号 N-1.x",
+   "how": "kb/.work/l6_build.py 把规则当独立文档索引（BM25+向量）；不占 SCOPE 名额",
+   "judge": "kb/l7/scripts/l6_gate.py（只读 4 项全过，含 negative_rule_docs 计数校验）",
+   "note": "索引里 rule 文档与 L2 单元分开计数：counts.usable 只算 L2，counts.negative_rule_docs=476"
+  },
+  "L7": {
+   "what": "跨层登记",
+   "status": "this_file",
+   "note": "本条即 L7 registry；报告侧由引擎层引用 N 条款"
+  }
+ },
+ "pipeline_wiring": {
+  "L2": "l2_split_run → l2_resync_media_vision",
+  "L3": "l3_distill_run → l3_reject_ledger_rebuild → l3_negative_rules",
+  "L4": "l4_article → l4_promote_negative_rules",
+  "L6": "l6_build（读 L3 规则文件，自动并入）"
+ }
+}

@@ -6,7 +6,7 @@ kb_class: [措辞表达库]
 tier: L1
 topic: 未登记规则码
 kind: fact
-summary: "[W-1.56] 判为「禁用/必须修改」（P1·未定级）：命中表达 0 条、证据单元 3 条；处理方式是「（禁用）适合所有乳房形态、一定不疼、一定不损伤。」。状态 provisional、verification 已归纳。"
+summary: "[W-1.56] 判为「禁用/必须修改」（P0·未定级）：命中表达 0 条、证据单元 3 条；处理方式是「（禁用）适合所有乳房形态、一定不疼、一定不损伤。」。状态 provisional、verification 已归纳。"
 owner: 法务
 half_life_days: 180
 valid_until: 2027-03-28
@@ -14,7 +14,7 @@ effective_from: 2026-09-29
 evidence_level: L1
 data_level: L2
 sensitivity_level: L2
-created_at: 2026-10-16
+created_at: 2026-10-22
 asks:
   - W-1.56 判什么、命中什么算违规
   - W-1.56 应该怎么改（合规替代写法）
@@ -28,7 +28,7 @@ source:
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblqUTAKFkWheU49"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblqUTAKFkWheU49
   record_ids: [recvuNf8jlRMlk]
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l3/candidates/rules.jsonl#r-e919fda20cd2f95e"
   confidence: 确定
@@ -39,7 +39,7 @@ pii:
 rule_id: r-e919fda20cd2f95e
 article_no: W-1.56
 rule_code: ""
-p_level: P1
+p_level: P0
 risk_level: 未定级
 risk_level_raw: Critical
 risk_level_note: 源库 kb/l3 的 risk_level 为 unknown/空 —— 未做人工定级；本视图不据 P 级反推，故标未定级
@@ -53,7 +53,7 @@ kb_type: wording
 
 # [W-1.56] 措辞表达库规则（3 条证据）
 
-**条款号**：W-1.56　|　**规则码**：（未登记）　|　**rule_id**：`r-e919fda20cd2f95e`　|　**判定**：P1 · 未定级
+**条款号**：W-1.56　|　**规则码**：（未登记）　|　**rule_id**：`r-e919fda20cd2f95e`　|　**判定**：P0 · 未定级
 
 ## 规则原文（照抄新库，未改写）
 

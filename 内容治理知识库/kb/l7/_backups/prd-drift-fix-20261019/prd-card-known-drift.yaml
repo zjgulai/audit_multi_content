@@ -1,0 +1,97 @@
+# prd-card-known-drift.yaml —— **真实卡面**按 PRD §17 / §5.3.3 量出来的**存量读数**登记
+#
+# ── 为什么要有它（2026-10-19）
+#
+# `prd17_check.py`（§17 字数）与 `prd533_check.py`（§5.3.3 字数/位置/依据/语言）两把尺
+# 建好当天**没有任何东西在跑它们**：
+#   · `ci/run_gates.py` 的 **20 道**闸门里，PRD 相关 **0 道**；
+#   · `watch_review_readiness.py` 对 `prd17|prd533|prd532` **0 命中**。
+# 本库口径（AGENTS.md）：**判据不接线 = 注释**。⇒ 接进 CI，闸门 id `prd_card_conformance`。
+#
+# ── 本件登记什么：每个夹具**当前**被量出来的读数
+#
+# 判据口径与 `l4-known-duplicates.yaml` / `perf-known-drift.yaml` **同款**（存量登记、只对变差变红）：
+#   · 读数 **>** 登记值        ⇒ 变差了 ⇒ 闸门记 **WARN**（退出码 3；非阻断，不改 runner 退出码）
+#   · 读数 **<** 登记值        ⇒ 变好了 ⇒ 通过，但**提示下调本件**（不许静默变绿）
+#   · 未登记的超限              ⇒ WARN
+#   · 逐条四格缺一（位置/原因/依据/建议）或结论行不合 §5.3.4 措辞 ⇒ WARN
+#   ⇒ 只会因为「比登记时更差」响，**不会**因为「存量本来就不合规」天天响。
+#     为什么这条纪律必不可少：§17 的 C1（≥3 档 ≤100 字）今天实测就超（见 known_conflicts），
+#     若按「超限即红」接线，CI 第一天就必红 ⇒ 红灯变噪音 ⇒ 又回到「没人看」。
+#
+# ── 边界（写清楚，免得被误用）
+#   · 本件**不判内容对不对**，只判**卡面版式**合不合 PRD §17 / §5.3.3。
+#   · 读数由 `kb/l8/prd_card_conformance.py` 现算；本件只存「上次接受的读数」，不改任何行为。
+#   · 夹具跑的是 **P0 快路真产者**（`kb/l5/p0_fastpath.py`），不是手搓样张 ——
+#     手搓样张只能证明「尺子会算」，证明不了「我们出得对不对」。
+#   · ⚠️ `report-ref` 用**固定假链接**：§17 口径 `visible_no_url` 会剥掉链接，
+#     不填则卡片印占位话术（≈40 字）会被当成正文量进去 ⇒ 读数虚高 40 字。
+
+meta:
+  file: kb/l7/registry/prd-card-known-drift.yaml
+  answers: "真实卡面按 PRD §17 / §5.3.3 量出来是多少；哪些超限是**已登记**的存量"
+  checker: kb/l8/prd_card_conformance.py
+  registered_at: '2026-10-19'
+  owner: 刘华丽
+  rulers:
+    prd17: kb/l8/prd17_check.py        # 真源 kb/l7/registry/prd17-limits.yaml（sheet XWnpiN rev 96）
+    prd533: kb/l8/prd533_check.py      # 真源 kb/l7/registry/prd533-constraints.yaml（PRD 正文 rev 248）
+  fixture_ref: 'https://momcozy-in.feishu.cn/docx/ZzReportRefZz20261019'   # 固定假链接（会被口径剥掉）
+
+# ── 夹具：跑真产者、量真卡面 ────────────────────────────────────────────────────
+fixtures:
+  - id: F1_block_1
+    why: '单条 BLOCK 卡 ⇒ §17 走「BLOCK/1-2条」档（≤200，per_item）'
+    text: '这款吸奶器绝对是最好用的，妈妈值得拥有。'
+    registered:
+      state: BLOCK
+      issues: 1
+      scope: item            # per_item：按条量
+      limit: 200
+      chars: 153
+      over: 0
+      fields: {描述: 12, 原因: 32, 建议: 19}
+
+  - id: F2_block_5
+    why: >
+      5 条 / **4 个类别** ⇒ §17 走「BLOCK/≥3」档（≤100，整卡）。
+      选 4 个类别是**故意的**：C1 说「分类数 ≥5 必超、4 类贴线」，这条夹具就是那条线本身。
+    text: '绝对是最好的，销量第一，宝宝独留车内，无人看护下水，儿童出镜无授权，AI 生成未标注。'
+    registered:
+      state: BLOCK
+      issues: 5
+      scope: message         # 整卡量
+      limit: 100
+      chars: 108
+      over: 8
+    known_conflict: C1
+
+# ── 已登记的定量冲突（**不是「还没做」，是「做到也满足不了」**）──────────────────
+known_conflicts:
+  - id: C1
+    where: 'PRD §17「BLOCK/REVIEW ≥3」≤100 字（整卡）'
+    measured_at: '2026-10-19（夹具 F2）'
+    reading: '整卡 108 字 / 上限 100 ⇒ 超 8 字'
+    why: >
+      这 100 字里同时要塞：结论行（≈20 字）+ 每个类别一行（≈14 字/行）+ 报告链接行（≈20 字）
+      + 收尾句（≈9 字）。4 个类别时刚好 108 字 ⇒ 第 5 个类别必爆。
+    detail_in: kb/l7/registry/prd17-limits.yaml::known_conflicts[C1]
+    status: '待 Owner 裁定（要么放宽上限，要么砍掉分类汇总的行粒度）'
+  - id: C2
+    where: 'PRD §5.3.3「修改建议 ≤30 字」 vs Owner 2026-10-17「建议写全」'
+    measured_at: '2026-10-19'
+    reading: 'F1 的建议 18 字（合规）；但真单里「写全」的建议实测每条 512 字'
+    detail_in: kb/l7/registry/prd533-constraints.yaml::conflicts
+    # ★★ 已裁（2026-10-19，Owner）：「审查报告中，修改建议你写了200多字，修改建议 ≤30 字」
+    #   ⇒ 30 字为准，**卡面与报告同一把尺**；2026-10-17 的「写全」在**这一格**上失效
+    #     （它当时治的「只留前 120 字＋指路尾巴」那条**仍然有效**，没有回退）。
+    #   本条因此**不再是「待裁」**：闸门可以按 ≤30 硬判（真单实测已压到 28 字）。
+    resolution:
+      decided_at: '2026-10-19'
+      choice: 'PRD 字面 30 字，卡面与报告同一个上限'
+      supersedes: 'Owner 2026-10-17「修改建议都写全」—— 仅限「修改建议」这一格'
+      enforced_at: 'tools/agent/dual_track.mjs::renderMergedItem（两处：head / 报告分支）'
+      measured_after: '真单那条 372 字建议 ⇒ 报告与卡面均为 **28 字**（≤30）'
+      judges: 'test_agent Z49f / Z59 / Z26（反向对照：改回全文 ⇒ 变红）'
+      lock: 'owner-fix-locks.yaml::L20'
+    status: '已裁并落地（2026-10-19）；本闸门可从「只量」改成「按 ≤30 判」'

@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.116 是正例还是反例
   - S-1.116 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-9fa0a2bfca09d221"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 社媒
 reason_category: 品牌一致性
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2vgYXtqmh/原文反馈"
-source_sha256: 5b3e399675d55388a5fad6459aea031c6f07078f40f5c744bf1be7e8fe380ce5
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXtqmh
+anchor: "#负面样本/recvw7XJiS0LMV/具体原因/分析"
+source_sha256: 141d249fb3c9ed50e7422b9ae9476d9de1079d9eecf6b649575ac6216b7919b1
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XJiS0LMV
 sample_body: "【审核 · 2026-08-11 00:21 · 刘芳】【终审--@[已脱敏]   】辛苦看看产品陈列的调整； **项目：**乌兹别克陈列指引—四面中岛柜（无抽屉） **设计要求:根据陈列需求表格进行陈列设计，结合货架实际情况进行产品陈列调整** **方案说明：** 1. **兹别克站点优先摆放渠道主推爆款 s12、m9、m5；** 2. **目前陈列第一标准遵循消费者购买习惯，同类以及关联品类集中排布，方便挑选，小件物品尤主推相关搭配销售品靠近主推品且不放置在底层不易观察到的货架（体积过小更容易忽视）；** 3. **包装配色统一、规避撞色属于品牌视觉形象美化，优先级会稍置后选购逻辑；** 4. **产品出样下方对应相应产品包装；** 设计稿件： ![Image](img_v3_0214e_eb085267-010e-44a0-a5d7-6e7eef8e279g) ![Image](img_v3_0214e_c76cdc7f-da65-4cf2-af1a-4d1c6dacbabg) ![Image](img_v3_0214e_6f1ffd27-1eb4-41e1-83fc-e2569e6d43eg) ![Image](img_v3_0214e_3429c258-e2e8-4d27-a17d-0494b0e2c13g) ![Image](img_v3_0214e_7c00dc7a-6134-496d-b1c5-cc76233c37fg) ![Image](img_v3_0214e_6e928e39-4a94-4871-be89-c00772f4cc3g) ![Image](img_v3_0214e_6d28bffb-3bdb-44d3-a5cf-a52d9efabaeg) ![Image](img_v3_0214e_fce7f06c-affe-44d5-a89d-e0c02355f2fg) ![Image](img_v3_0214e_6c36473b-91bb-4b68-abbb-7badf0dd965g) ![Image](img_v3_0214e_33789262-14fc-4d08-a736-83e353ea1dfg)"
 reason_analysis: "【品牌一致性】图片 1. 兹别克站点优先摆放渠道主推爆款 s12、m9、m5。 原因：2. **目前陈列第一标准遵循消费者购买习惯，同类以及关联品类集中排布，方便挑选，小件物品尤主推相关搭配销售品靠近主推品且不放置在底层不易观察到的货架（体积过小更容易忽视）；** 【问题要点】 1. 1. 兹别克站点优先摆放渠道主推爆款 s12、m9、m5 2. 2. 目前陈列第一标准遵循消费者购买习惯，同类以及关联品类集中排布，方便挑选，小件物品尤主推相关搭配销售品靠近主推品且不放置在底层不易观察到的货架（体积过小更容易忽视） 3. 3. 包装配色统一、规避撞色属于品牌视觉形象美化，优先级会稍置后选购逻辑 4. 4. 产品出样下方对应相应产品包装 5. 【终审--@[已脱敏]   】辛苦看看产品陈列的调整"
 advice: ""
@@ -95,8 +95,8 @@ advice: ""
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2vgYXtqmh/原文反馈`
-- 指纹：`5b3e399675d55388a5fad6459aea031c6f07078f40f5c744bf1be7e8fe380ce5`
+- 锚点：`#负面样本/recvw7XJiS0LMV/具体原因/分析`
+- 指纹：`141d249fb3c9ed50e7422b9ae9476d9de1079d9eecf6b649575ac6216b7919b1`
 - 原因归类：品牌一致性　|　素材类型：图片
 
 > 案例只作参照，不构成规则。

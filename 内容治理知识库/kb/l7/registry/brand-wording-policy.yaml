@@ -1,0 +1,60 @@
+# 品牌写法一致性 / 口号写法 —— **能判什么、判不了什么**（Owner 2026-10-20 裁定后登记）
+#
+# Owner 原话：「定下『品牌写法一致性 / 口号地道度』算可判条款」。
+# 本件登记这条裁定的**落地边界**：哪一半进了条款（可判），哪一半**在这个引擎里判不了**（并说明为什么）。
+# 判据在哪：`kb/l3/candidates/rules.jsonl` 的 `rule_id: r-953aea516fc7ae54`（**W-1.57**，rule_code `BR-01`）。
+meta:
+  at: '2026-10-20'
+  by: 'Owner（内容治理）＋执行会话'
+  owner_quote: '定下「品牌写法一致性 / 口号地道度」算可判条款'
+  evidence_source:
+    doc: '《Momcozy 品牌文案与字体应用规范》'
+    l0_record: 'kb/l0/3_措辞表达库/feishu_doc__RMTWdHAjFoCI7Ax9VTKcLg0KnSc.json'
+    revision: 153
+    url: 'https://momcozy-in.feishu.cn/wiki/QX0Yw2neriOdA3k1giBciQDsn2c'
+    why: '该规范逐字要求「统一 Momcozy 品牌传播中文案层级、大小写、字体搭配及信息强调方式」，并把 Headline 大小写原则 / Brand Keyword 原则划归 Brand/VI 负责 —— 这是**可引的品牌侧依据**，不是我们的经验判断'
+
+judgeable:
+  - id: BR-01
+    clause: W-1.57
+    subject: 品牌名字标的**字符级**错误写法（数字替换字母 / 品牌名中插入空格）
+    rule_text: '命中 M0m222／momc0zy／m0mcozy／mom cozy 一类写法 ⇒ 判「品牌写法不一致」；改为登记写法 momcozy（全小写、一个词、无空格），并核对原图实物字标'
+    p_level: P2（层内口径；L5 富化侧按来源表细化成 P1，两者并存是既有行为，不是这次引入的）
+    taxonomy: 品牌信任与声誉
+    verified_by: '引擎实测（`with_kb_evidence.py --text "…M0m222"`）出 risk_item：article_no=W-1.57 ｜ anchor=#l.3-19 ｜ sha=bafe1b20… ｜ 命中片段=M0m222'
+    reverse_control: '把 `M0m222` 改成 `momcozy` ⇒ 规则层 0 命中（实测）'
+
+not_judgeable:
+  - what: **大小写不一致**
+    why: >
+      引擎在匹配前做 `norm()`：NFKC + 空白折叠 + **casefold**（`kb/l5/registry/l5.json::normalization`
+      与 `kb/l7/skills/kb-content-review/scripts/review.py::norm` 同一口径）。
+      大小写被抹平后 `MomCozy` 与 `momcozy` 是同一个串 ⇒ 任何「大小写不一致」的字面判据都**不可能命中**。
+    verdict: 不做假条款。要做，得先改归一化口径（会同时影响 1019 条既有规则，属单独一批 + Owner 点头）。
+  - what: **口号「地道度」**（英语是否地道/美国人读不读得懂）
+    why: >
+      ① 库里没有任何「英语够不够地道」的条款，也不该有 —— 它不可逐字判定；
+      ② 而且**与本库正例冲突**：`S-1.101` / `S-1.109`（Witt 瑞典 2C 展会海报，**正例**）逐字写着
+         「Slogan: Evolving for **Mom and Cozy**（**与需求方确认过使用这个 slogan**）」——
+         即该口号是品牌侧确认使用的既定写法。把它判成「不地道」等于用模型直觉推翻品牌侧确认。
+    verdict: >
+      「地道度」这一层**落成语义判断（模型侧），不作为条款、不作为 BLOCK 依据**；
+      可判的替代口径是**「标语必须逐字使用品牌侧登记写法」**——但它的判据是「与登记清单比对」，
+      需要先把**登记清单**落成可读数据（见 recommendations）。
+
+recommendations:
+  - id: R1
+    what: 把 `BR-01` 登记进受控词表（`kb/l7/registry/l7.json::vocabulary`）⇒ 卡片「类别」不再落「未分类」
+    why: >
+      实测：规则命中了，但 `classify()` 里 `rule_code=BR-01` 不在 `code_map`、`rule_text` 也没命中
+      既有 `keyword_map` ⇒ 落「未分类-未分类」。规则自带的 `taxonomy_category` 已写进 L3 行，
+      但引擎这条路的分类走的是受控词表 ⇒ 词表不认，卡片就不显示。
+    cost: '改受控词表属口径文件（closure），要件 Owner 点头；不改不影响「有没有条款」，只影响卡片显示成哪一类'
+  - id: R2
+    what: 把「标语登记清单」落成数据（如 `kb/l7/registry/brand-slogan-registry.yaml`：登记写法 + 来源 + 确认人/时间）
+    why: 有了清单，「素材里的标语与登记写法不一致」才**可判**（字面比对即可），而不是靠「地道不地道」
+    cost: '要品牌侧给清单与确认记录；清单外的新标语只能转人工（这与「不许编」同一条纪律）'
+  - id: R3
+    what: 若要判「大小写」，先评估改 `norm()` 为 case-sensitive 的影响面
+    why: 现有 1019 条规则全部在 casefold 口径下标定；直接改会让命中率整体变化
+    cost: '要做的是「加一类大小写敏感规则」而不是「改全局归一化」，需单独设计 + 全量回归'

@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.30 是正例还是反例
   - S-1.30 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-2c3eeb2835ad1c08"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 展会
 reason_category: 品牌一致性
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2wE9MuxVI/原文反馈"
-source_sha256: e97489effbe981ce1b9e99da1550fcd455cce2b565fe98771913b7dfa0b708e8
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MuxVI
+anchor: "#负面样本/recvw7XIUg4Vll/具体原因/分析"
+source_sha256: 9162a6b0c6a4dd08649123e82497dbf506aaf23e5b57c8eb7ad1d99362fe34b5
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XIUg4Vll
 sample_body: "【审核 · 2026-09-08 20:26 · 李新】【初审-@[已脱敏]  】辛苦看看这个呀:YouAreTheBest: **项目名：Momcozy 用户运营 海报-标准 【9.8】#ASKVIC活动海报** **设计需求：Vic官方肖像置于右侧，左侧设置三个浅粉色问题，避免与人物及中心文字重叠。** **重点突出 Ask Midwife Vic 和三个具体问题** 设计稿件： ![Image](img_v3_0215b_02460b40-9b7c-4003-bfab-2375c017d6eg)  momcozy C-SECTION BIRTH & RECOVERY Ask Midwife Vic Preparing for a C-section- or recovering from one? Can I have a vaginal birth after a C-section? What should I expect in the first 24 hours after a C-section? ? What about scar care? 10+ years in birth & postnatal care"
 reason_analysis: "【品牌一致性】文案 设计需求：Vic官方肖像置于右侧，左侧设置三个浅粉色问题，避。 原因：避免与人物及中心文字重叠 【问题要点】 1. 设计需求：Vic官方肖像置于右侧，左侧设置三个浅粉色问题，避免与人物及中心文字重叠 2. 重点突出 Ask Midwife Vic 和三个具体问题 3. 【初审-@[已脱敏]  】辛苦看看这个呀"
 advice: ""
@@ -96,8 +96,8 @@ What about scar care?
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2wE9MuxVI/原文反馈`
-- 指纹：`e97489effbe981ce1b9e99da1550fcd455cce2b565fe98771913b7dfa0b708e8`
+- 锚点：`#负面样本/recvw7XIUg4Vll/具体原因/分析`
+- 指纹：`9162a6b0c6a4dd08649123e82497dbf506aaf23e5b57c8eb7ad1d99362fe34b5`
 - 原因归类：品牌一致性　|　素材类型：文字
 
 > 案例只作参照，不构成规则。

@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 90
-created_at: 2026-10-16
-valid_until: 2027-01-14
+created_at: 2026-10-22
+valid_until: 2027-01-20
 asks:
   - "Momcozy | Leading the Way in Breastfeeding Comfort | Momcozy 里有哪些品线/类目/型号"
   - 这个品线的卖点与描述边界是什么
@@ -29,7 +29,7 @@ source:
   kind: feishu
   ref: url__https____support.momcozy.com_
   fingerprint: f46766bfc74c5a76d9a4f1c928fe427dcbde514863b52f68e9f8d6c961b33c4a
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l2/units.jsonl#db967bc3fc06cd920ff6"
   confidence: 确定

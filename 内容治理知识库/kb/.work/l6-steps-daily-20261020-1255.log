@@ -1,0 +1,62 @@
+### scope :: kb/kbpy .work/l6_scope.py daily-20261020-1255-L6 --apply
+[apply] 证据件已写 → kb/.work/l6_scope.json（reconcile_ok=False, run_id=daily-20261020-1255-L6）
+L2 单元 14978 → 库口径可用 6524 → SCOPE.txt 收窄后 5918（对账 FAIL）
+对账 l2_total   : got=14978 baseline=14978 ok=True
+对账 kept       : got=6524 baseline=7122 ok=False
+  ❌ **基准落伍**：l3_stats.json 的 kept=7122 不等于库口径可用数 6524；该基准出自 kb/.work/l3_distill2.py（2026-09-29/30 四处修订一条都没有）
+     ⇒ 拿它当边界就是拿旧口径自证旧口径。**本对账判 FAIL，不判 PASS。**
+过滤分布 got={'wording|metadata': 5229, 'wording|metadata_unknown_field': 127, 'external_standard|metadata': 345, 'external_standard|quality_flag': 1575, 'external_standard|oversize_gt_8000': 103, 'internal_sample|l2_invalidated': 200, 'internal_sample|oversize_gt_8000': 15, 'product_desc|out_of_scope_kb': 54, 'external_standard|l2_unit_retired': 96, 'wording|oversize_gt_8000': 80, 'wording|l2_unit_retired': 365, 'internal_sample|l2_unit_retired': 264, 'unknown|out_of_scope_kb': 1}
+过滤分布 exp={'wording|metadata': 5229, 'wording|metadata_unknown_field': 127, 'external_standard|metadata': 345, 'external_standard|quality_flag': 1661, 'product_desc|out_of_scope_kb': 54, 'internal_sample|out_of_scope_table': 386, 'unknown|out_of_scope_kb': 1, 'external_standard|rule_eligible_false': 53}（同源于落伍基准 ⇒ 不等是预期的，见上）
+语言构成：{'中英混排': 1692, '英文/拉丁': 3760, '中文': 454, '无字母': 12}
+kb_type：{'wording': 1858, 'external_standard': 2892, 'internal_sample': 1168}
+范围：按 kb/l6/SCOPE.txt 取子集：6580 条指定，命中可用单元 5918 条，未命中 662
+### scope EXIT=1
+### build :: kb/kbpy .work/l6_build.py daily-20261020-1255-L6 --apply
+可用单元数 5918 != 上次记录 6047（差 -129），范围口径变了。
+  先确认这是 L2/L3 的**合法**增长，再加 --accept-scope-delta 重跑；差额会写进 registry 的 scope.scope_delta。
+  不要改这个判断里的数字 —— 它是防口径静默漂移的护栏。
+### build EXIT=1
+### bench :: kb/kbpy .work/l6_bench.py daily-20261020-1255-L6 --apply
+/Users/lute/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+kb/l6/retriever.py:308: UserWarning: The model sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 now uses mean pooling instead of CLS embedding. In order to preserve the previous behaviour, consider either pinning fastembed version to 0.5.1 or using `add_custom_model` functionality.
+  self.model = TextEmbedding(model_name=self.meta["model"], **kw)
+单元数 6523｜BM25 词表 zh 194773 / en 41208｜索引加载 8167.6 ms
+BM25 查询（20 条 × 5 次）：p50 1.711 ms｜p95 13.052 ms｜max 16.093 ms｜吞吐 584.4 q/s
+  单词条 p50 0.402 ms｜3+ 词条 p50 2.651 ms｜平均扫描倒排项 1069.4
+向量 p50 42.243 ms（冷启动加载模型 1205.2 ms）｜hybrid p50 43.414 ms
+对照 L5：BM25 单查询中位 1.711 ms；L5 扫 1MB 是 631.605 ms（约 369 倍）。自实现倒排不是瓶颈，本批不需要换实现或换库（jieba / rank_bm25 未安装，也未因此缺能力）。
+### bench EXIT=0
+### integrity :: kb/kbpy .work/l6_integrity.py daily-20261020-1255-L6 --apply
+Traceback (most recent call last):
+  File "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/.work/l6_integrity.py", line 323, in <module>
+    t = units[uid].get("text") or ""
+KeyError: '01f03483c4234bf14e7f'
+### integrity EXIT=1
+### selftest :: kb/kbpy .work/l6_selftest.py daily-20261020-1255-L6 --apply
+/Users/lute/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+kb/l6/retriever.py:308: UserWarning: The model sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 now uses mean pooling instead of CLS embedding. In order to preserve the previous behaviour, consider either pinning fastembed version to 0.5.1 or using `add_custom_model` functionality.
+  self.model = TextEmbedding(model_name=self.meta["model"], **kw)
+自验写入 kb/l6/selftest.json｜已判断 7/14 条查询
+  A_zh   bm25_only: hit@3 1.0 p@3 0.889｜vector_only: hit@3 1.0 p@3 0.444｜hybrid: hit@3 1.0 p@3 0.667
+  A_en   bm25_only: hit@3 1.0 p@3 0.778｜vector_only: hit@3 0.667 p@3 0.222｜hybrid: hit@3 1.0 p@3 0.556
+  A_all  bm25_only: hit@3 1.0 p@3 0.833｜vector_only: hit@3 0.833 p@3 0.333｜hybrid: hit@3 1.0 p@3 0.611
+  B_zh   bm25_only: hit@3 None p@3 None｜vector_only: hit@3 None p@3 None｜hybrid: hit@3 None p@3 None
+  B_en   bm25_only: hit@3 0.0 p@3 0.0｜vector_only: hit@3 0.0 p@3 0.0｜hybrid: hit@3 0.0 p@3 0.0
+  B_all  bm25_only: hit@3 0.0 p@3 0.0｜vector_only: hit@3 0.0 p@3 0.0｜hybrid: hit@3 0.0 p@3 0.0
+  原始分对照（A 组 vs B 组，中位）：
+    A: BM25 原始分 21.0414｜余弦 0.6754
+    B: BM25 原始分 10.0611｜余弦 0.3936
+  B 组行为：
+    bm25_only: 返回结果=True｜Top1 相关 0/1｜Top1 分数中位 B=0.016393 vs A=0.02459
+    vector_only: 返回结果=True｜Top1 相关 0/1｜Top1 分数中位 B=0.016393 vs A=0.023636
+    hybrid: 返回结果=True｜Top1 相关 0/1｜Top1 分数中位 B=0.016393 vs A=0.042593
+总耗时 14.7s
+### selftest EXIT=0
+### report :: kb/kbpy .work/l6_report.py daily-20261020-1255-L6 --apply --skill kb-recall
+[apply] 台账 → kb/l6/runs/daily-20261020-1255-L6.json（顶层 skill=kb-recall）
+已生成 kb/l6/runs/daily-20261020-1255-L6.json / .report.md / .ops.log
+run verdict = FAIL
+### report EXIT=0
+L6 DONE

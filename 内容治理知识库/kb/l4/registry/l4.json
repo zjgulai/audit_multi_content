@@ -1,6 +1,6 @@
 {
  "kb_version": "v0",
- "run_id": "daily-20261016-0330-L4",
+ "run_id": "20260923-1445",
  "layer": "L4 定稿与发布层（本批只做条款号分配）",
  "canonical": {
   "state": "定稿按形态分文件落盘，共 4 个文件 1242 条（wording_entry 56 / wording_revision_pair 453 / sample_case 358 / scoped_clause 375）；聚合文件 canonical/rules.jsonl 保持 0 字节（版本纪律 C6）",
@@ -54,6 +54,19 @@
     "source": "kb/l3/candidates/external_standard.jsonl",
     "duplicate_source_rows": 123,
     "source_rows_actual": null
+   },
+   "negative_rule": {
+    "path": "kb/l4/canonical/negative_rule.jsonl",
+    "lines": 437,
+    "bytes": 1980330,
+    "sha256": "727ebb120e528dd732cc3b1576539f0cff0cd3b6e2a22786dcbcb4d962b538cb",
+    "source_rows": 437,
+    "source": "kb/l3/candidates/negative_rules.jsonl",
+    "duplicate_source_rows": 0,
+    "source_rows_actual": 437,
+    "form": "negative_sample_rule",
+    "segment": "N-1.x（Owner 2026-10-20 批准的新条款号段，独立于 W/S/E 体系）",
+    "promoted_at_run": "daily-20261020-1255-L4"
    }
   },
   "legacy_path": "kb/l4/canonical/rules.jsonl",
@@ -197,14 +210,15 @@
      "r-d7290a0ee59c58ef": "W-1.53",
      "r-ddf0f8360c7b53a7": "W-1.54",
      "r-e879231d61c9bd08": "W-1.55",
-     "r-e919fda20cd2f95e": "W-1.56"
+     "r-e919fda20cd2f95e": "W-1.56",
+     "r-953aea516fc7ae54": "W-1.57"
     },
-    "count": 56,
+    "count": 57,
     "range": [
      "W-1.1",
-     "W-1.56"
+     "W-1.57"
     ],
-    "next_seq": 57,
+    "next_seq": 58,
     "block_label": "entry（词条/命中片段型）",
     "change": "unchanged_existing"
    },
@@ -4859,8 +4873,8 @@
    ],
    "X_segments": "不得分配（blocked_policy）",
    "output_rows_note": "20260924-1512：L3 candidates/sample_cases.jsonl 已源头去重 562→358（见 kb/l3/registry/l3.json 的 dedup），故原本「1446 行含 204 行逐字节重复」的口径作废：输出行 = 1242 = 509 规则 + 358 sample_case + 375 scoped_clause，重复 0。",
-   "assigned": 4569,
-   "newly_assigned": 0,
+   "assigned": 4570,
+   "newly_assigned": 1,
    "reused_from_ledger": 4569,
    "segments": 6
   },
@@ -5148,7 +5162,7 @@
   "form_block_status": "★已废止（自 20260924-1320），仅供历史留痕；落段一律走 block_by_library → seg_of()"
  },
  "reproduce": {
-  "how": "kb/kbpy .work/l4_article.py daily-20261016-0330-L4",
+  "how": "kb/kbpy .work/l4_article.py 20260923-1445",
   "expect": "同一份 kb/l3 候选重跑：① 号码映射（assignments 与各段 assigned）完全一致 ② 追加 0 行 ③ 各候选件逐字节不变。★ 但 ledger 里的 `inputs` / `numbering.totals` 会随本次运行更新（它们记录「本次跑了什么」，本来就是每次不同）—— 所以**别把「l4.json 逐字节不变」当幂等判据**，判据是上面三条；no_reuse 的不变式是「号码映射」那一条。",
   "ledger": "kb/l4/registry/l4.json 的 numbering.issued 是唯一台账；后续批次只能在其上追加，不得改写已发号码",
   "merge_rule": "★ 本脚本只做**合并式**更新：不认识的 numbering 键与不属于本次分配范围的段（W-3/S-1/E-1）一律原样保留。禁止退回整份重建（20260930-1550 事故）。"
@@ -9735,7 +9749,8 @@
   "r-2f333e23ced1d524": "E-2.126",
   "r-6430cde694cab5b7": "E-2.127",
   "r-9961b7d19cdd81e6": "E-2.128",
-  "r-fbbd2396bcd0c136": "E-2.129"
+  "r-fbbd2396bcd0c136": "E-2.129",
+  "r-953aea516fc7ae54": "W-1.57"
  },
  "inputs": {
   "candidates": [
@@ -9743,8 +9758,8 @@
     "path": "kb/l3/candidates/rules.jsonl",
     "idkey": "rule_id",
     "kb_type": "wording",
-    "lines": 1018,
-    "uniq": 509
+    "lines": 1019,
+    "uniq": 510
    },
    {
     "path": "kb/l3/candidates/external_standard.jsonl",
@@ -9768,31 +9783,31 @@
     "uniq": 3458
    }
   ],
-  "rules": 4569,
+  "rules": 4570,
   "by_source": {
-   "kb/l3/candidates/rules.jsonl": 509,
+   "kb/l3/candidates/rules.jsonl": 510,
    "kb/l3/candidates/external_standard.jsonl": 129,
    "kb/l3/candidates/sample_cases.jsonl": 473,
    "kb/l3/candidates/scoped_clauses.jsonl": 3458
   },
   "append_report": {
    "kb/l3/candidates/rules.jsonl": {
-    "base_lines": 1018,
-    "base_sha256": "d4a9607befd7ad7b8b4474e87e58abce7b4ea87eaa1ed78667e44d36026f581d",
-    "appended_this_run": 0,
-    "lines_after": 1018,
+    "base_lines": 1019,
+    "base_sha256": "94c09aac37cab94c01305d9ea3ebc84f05cf888efe54f827ac99f34b21d2a7b0",
+    "appended_this_run": 1,
+    "lines_after": 1020,
     "old_lines_byte_identical": true
    },
    "kb/l3/candidates/external_standard.jsonl": {
     "base_lines": 129,
-    "base_sha256": "f04e772a796e1a154448064761b36bd9b3f11b0fdd106a85ce53ee0b63b84a0d",
+    "base_sha256": "e441489583ca8d875bd77d7d297223aad78de1c3f7bf0428e76fbdbf3e2c3f74",
     "appended_this_run": 0,
     "lines_after": 129,
     "old_lines_byte_identical": true
    },
    "kb/l3/candidates/sample_cases.jsonl": {
     "base_lines": 946,
-    "base_sha256": "15a785902cfa79d016745a3124227581b8ba425ea386b2f88fb73bccdac59db8",
+    "base_sha256": "0c0d22910f6132b012214137565f1694022e8e7336c7a17deccdb8dc13e5d474",
     "appended_this_run": 0,
     "lines_after": 946,
     "old_lines_byte_identical": true
@@ -9805,9 +9820,9 @@
     "old_lines_byte_identical": true
    }
   },
-  "base_lines": 1018,
-  "base_sha256": "d4a9607befd7ad7b8b4474e87e58abce7b4ea87eaa1ed78667e44d36026f581d",
-  "appended_this_run": 0,
+  "base_lines": 1019,
+  "base_sha256": "94c09aac37cab94c01305d9ea3ebc84f05cf888efe54f827ac99f34b21d2a7b0",
+  "appended_this_run": 1,
   "prefix_unchanged": true,
   "l3_distiller_version": "l3-0.2",
   "scheme_version": "article-no-2",
@@ -9815,6 +9830,7 @@
    "E-1(台账沿用)": 3458,
    "E-2(台账沿用)": 129,
    "S-1(台账沿用)": 316,
+   "W-1(block_by_library+别名(entry→wording_entry))": 1,
    "W-1(台账沿用)": 56,
    "W-2(台账沿用)": 453,
    "W-3(台账沿用)": 157

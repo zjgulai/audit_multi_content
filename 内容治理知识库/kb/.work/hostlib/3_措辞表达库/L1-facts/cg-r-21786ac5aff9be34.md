@@ -6,7 +6,7 @@ kb_class: [措辞表达库]
 tier: L1
 topic: M05
 kind: fact
-summary: "[M05] 判为「需按建议改写」（P2·未定级）：命中表达 5 条、证据单元 45 条、覆盖记录 15 条；处理方式是「「hospital grade,hospital-grade」→ 删除/替换为：效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸」。状态 provisional、verification 已归纳。"
+summary: "[M05] 判为「禁用/必须修改」（P1·未定级）：命中表达 5 条、证据单元 45 条、覆盖记录 15 条；处理方式是「「hospital grade,hospital-grade」→ 删除/替换为：效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸」。状态 provisional、verification 已归纳。"
 owner: 法务 + 渠道负责人
 half_life_days: 180
 valid_until: 2027-03-28
@@ -14,7 +14,7 @@ effective_from: 2026-09-29
 evidence_level: L1
 data_level: L2
 sensitivity_level: L2
-created_at: 2026-10-16
+created_at: 2026-10-22
 asks:
   - M05 判什么、命中什么算违规
   - M05 应该怎么改（合规替代写法）
@@ -31,7 +31,7 @@ source:
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
   record_ids: [recvuJYdObBgjg, recvuJYdObE8HQ, recvuJYdObLAH7, recvuJYdObLR6F, recvuJYdObN3eh, recvuJYdObWZ2t, recvuJYdObap8j, recvuJYdObjwvt, recvuJYdObm8DM, recvuJYdObopeN, recvuJYdObrjds, recvuJYdObv3UM, recvuJYdObx5aF, recvuJYeGRNKlW, recvuJYeGRNQ4L]
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l3/candidates/rules.jsonl#r-21786ac5aff9be34"
   confidence: 确定
@@ -42,7 +42,7 @@ pii:
 rule_id: r-21786ac5aff9be34
 article_no: W-1.11
 rule_code: M05
-p_level: P2
+p_level: P1
 risk_level: 未定级
 risk_level_raw: High
 risk_level_note: 源库 kb/l3 的 risk_level 为 unknown/空 —— 未做人工定级；本视图不据 P 级反推，故标未定级
@@ -56,7 +56,7 @@ kb_type: wording
 
 # [M05] 措辞表达库：命中「hospital grade」等 5 类表达
 
-**条款号**：W-1.11　|　**规则码**：M05　|　**rule_id**：`r-21786ac5aff9be34`　|　**判定**：P2 · 未定级
+**条款号**：W-1.11　|　**规则码**：M05　|　**rule_id**：`r-21786ac5aff9be34`　|　**判定**：P1 · 未定级
 
 ## 规则原文（照抄新库，未改写）
 

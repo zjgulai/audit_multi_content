@@ -1,0 +1,228 @@
+{
+ "decision": {
+  "state": "REVIEW",
+  "decision": "REVIEW",
+  "confidence": null,
+  "review_id": "rv-20261023-172431",
+  "content_id": "AUTO-947f8d6d7149",
+  "content_id_basis": "指纹兜底：本单 `--no-publish-to-feishu`，不发飞书故不发业务号（不是漏发）",
+  "content_version": "947f8d6d71493669cf4ba3fd7b2a21b30a2c7189ef11db3742b6bee0f9430771",
+  "issue_count": 0,
+  "summary": "【审查结论：REVIEW】共发现 0 处需人工确认。\n\n**本次没有发现内容问题**（0 处）。下面是**覆盖缺口**说明 —— 缺的是**库覆盖**，不是素材有问题：\n\n**覆盖缺口说明（不是内容问题）**：本次素材的**文字层逐字命中 0 条**，但覆盖判据不成立（没有「既被规则引用、又达门限」的单元）——**这不是素材有问题，是库对该题材没有可依据的条款**。\n   原因：依据侧检索到 5 条命中，最高 BM25 61.475（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。\n   依据：`kb/l7/registry/l7.json` 的 `retrieval.gate.coverage_bm25_min=16.0`（覆盖判据标定值；覆盖信号不成立时**不得输出 PASS**）\n   建议：转人工复核后再定；补素材无用（缺的是库覆盖）。\n\n**库内命中（读数）** —— 检索命中了 5 条，逐条列出**原文与直链**：\n\n1. `#l.1-1`｜BM25 61.475｜external_standard\n   命中原文（逐字）：[p1] 协和专家 孕产大百科 要紧的问题先解决， 让您的不放心变放心 北京协和医院 妇产科、儿科、营养科专家团队 马良坤、丁国芳、李宁 主编 江苏凤凰科学技术出版社 全国百佳图书出版单位 [p2] 新生儿喂荞 宝宝变化 妈妈变化 常见病与用药 汉竹 • 亲亲乐读系列 每月胎教 倒 协和专家 孕产大百科 XIE HE\n   直链：https://hapa8fkuicz.feishu.cn/wiki/KMRgwlBuAi3gOzkIMHTcCmwcn6e\n2. `#l.2782-2982`｜BM25 54.0708｜external_standard\n   命中原文（逐字）：(800) 370-2943 (information specialist hotline) vN'ww.nichd.nih.gov Information and support on health Enuresis Research& Development Center P.O. Box 2114 Oceans\n   直链：https://momcozy-in.feishu.cn/wiki/HLJCwEyCYi2cbskGRPYc04aSnwS\n3. `#l.1-11`｜BM25 52.1125｜external_standard\n   命中原文（逐字）：宝此阶段的视觉技能 自己喜欢的玩具，您应该好 宝宝从出生开始，视觉就 好地表扬他。 一直在发展，现在他已经能 宝宝此阶段的手指和手 够判断1米以外东西的大小 现在宝宝已经会用手指抓 了。比如，他知道从一米外 东西了，能用食指和大拇指 滚过来的球看起来会越来越 准确无误地抓起东西来。宝大。看看宝宝是如何用胳膊 宝宝的注意\n   直链：https://hapa8fkuicz.feishu.cn/wiki/HBVpwOTQni9h8Zk7SQVcvdC5nod\n4. `#l.1-1`｜BM25 52.1092｜external_standard\n   命中原文（逐字）：[p1] DK科学育儿小百科 0&#126;6个月 CHILD DEVELOPMENT: YOUR BABY FROM BIRTH TO 6 MONTHS • 新生儿特征 • 第一次体检 •早产儿 • 双胞胎 •宝宝的个性 • 母乳喂养 •人工喂养 • 发育检测 •预防针 • 婴儿按摩 ［英］凯蒂•霍兰德（Katy Hollan\n   直链：https://hapa8fkuicz.feishu.cn/wiki/AD26wCxzsiyJzUkqREgcg0X8nDd\n5. `#l.3306-3435`｜BM25 48.9884｜external_standard\n   命中原文（逐字）：feeding, 26-9 fontanelles, 10 games, 42, 46, 51, 55, 58-9, 62-5 gender differences, 20-1 genes, 20, 62 genitals, 11, 12 grasp reflex, 13, 54 growth charts, 55 h\n   直链：https://momcozy-in.feishu.cn/wiki/TsCLw5uU2iOOUlkEcvqcbHqgnpd\n\n> ⚠️ 上面是**读数**：命中的**大多是别人的素材样本 / 外部材料，不是覆盖本素材的条款**，**不得据此当 PASS 依据**，也不得当作「本素材已合规」的证明。\n\n建议转 @法务（未配置） @北美同事（未配置） 复核。",
+  "risk_items": [
+   {
+    "risk_type": "覆盖缺口",
+    "priority_tier": "转人工",
+    "action": "库对该题材没有可依据的条款 ⇒ 转人工看**覆盖**（不是发现了内容问题）",
+    "category": "覆盖",
+    "sub": "知识库覆盖缺口",
+    "reason": "依据侧检索到 5 条命中，最高 BM25 61.475（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。",
+    "severity": "REVIEW",
+    "reason_code": "coverage_not_covered",
+    "coverage": {
+     "covered": false,
+     "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+     "rule_cited_unit_hits": 0,
+     "safe_vocabulary_hits": 0,
+     "coverage_bm25_min": 16.0,
+     "bm25_max": 61.475,
+     "top_hit_anchor": "#l.1-1",
+     "top_hit_excerpt": "[p1] 协和专家 孕产大百科 要紧的问题先解决， 让您的不放心变放心 北京协和医院 妇产科、儿科、营养科专家团队 马良坤、丁国芳、李宁 主编 江苏凤凰科学技术出版社 全国百佳图书出版单位 [p2] 新生儿喂荞 宝宝变化 妈妈变化 常见病与用药 汉竹 • 亲亲乐读系列 每月胎教 倒 协和专家 孕产大百科 XIE HE "
+    },
+    "coverage_gap": true
+   }
+  ],
+  "next_owners": [
+   "法务",
+   "医学顾问"
+  ],
+  "fails_closed": true,
+  "refusal": {
+   "state": "NEEDS_INPUT",
+   "detail": "依据侧拒答（fail-closed）",
+   "fails_closed": true,
+   "reason_code": "coverage_not_covered",
+   "coverage": {
+    "covered": false,
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "rule_cited_unit_hits": 0,
+    "safe_vocabulary_hits": 0,
+    "coverage_bm25_min": 16.0,
+    "bm25_max": 61.475,
+    "top_hit_anchor": "#l.1-1",
+    "top_hit_excerpt": "[p1] 协和专家 孕产大百科 要紧的问题先解决， 让您的不放心变放心 北京协和医院 妇产科、儿科、营养科专家团队 马良坤、丁国芳、李宁 主编 江苏凤凰科学技术出版社 全国百佳图书出版单位 [p2] 新生儿喂荞 宝宝变化 妈妈变化 常见病与用药 汉竹 • 亲亲乐读系列 每月胎教 倒 协和专家 孕产大百科 XIE HE "
+   },
+   "human": "依据侧检索到 5 条命中，最高 BM25 61.475（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。"
+  },
+  "gate": null
+ },
+ "evidence_meta": {
+  "run_id": "20261023-172426",
+  "findings": 0,
+  "state": "REVIEW",
+  "fails_closed": true,
+  "refusal": {
+   "state": "NEEDS_INPUT",
+   "detail": "依据侧拒答（fail-closed）",
+   "fails_closed": true,
+   "reason_code": "coverage_not_covered",
+   "coverage": {
+    "covered": false,
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "rule_cited_unit_hits": 0,
+    "safe_vocabulary_hits": 0,
+    "coverage_bm25_min": 16.0,
+    "bm25_max": 61.475,
+    "top_hit_anchor": "#l.1-1",
+    "top_hit_excerpt": "[p1] 协和专家 孕产大百科 要紧的问题先解决， 让您的不放心变放心 北京协和医院 妇产科、儿科、营养科专家团队 马良坤、丁国芳、李宁 主编 江苏凤凰科学技术出版社 全国百佳图书出版单位 [p2] 新生儿喂荞 宝宝变化 妈妈变化 常见病与用药 汉竹 • 亲亲乐读系列 每月胎教 倒 协和专家 孕产大百科 XIE HE "
+   },
+   "human": "依据侧检索到 5 条命中，最高 BM25 61.475（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。"
+  },
+  "report_path": null,
+  "source": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py",
+  "findings_source": {
+   "mode": "live",
+   "path": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py"
+  },
+  "kb_hits": [
+   {
+    "anchor": "#l.1-1",
+    "bm25": 61.475,
+    "kb_type": "external_standard",
+    "source_sha256": "9f3431e5c25cce983b179f47874a575a480dd4452b3e6d8c91b03ab05562c724",
+    "excerpt": "[p1] 协和专家 孕产大百科 要紧的问题先解决， 让您的不放心变放心 北京协和医院 妇产科、儿科、营养科专家团队 马良坤、丁国芳、李宁 主编 江苏凤凰科学技术出版社 全国百佳图书出版单位 [p2] 新生儿喂荞 宝宝变化 妈妈变化 常见病与用药 汉竹 • 亲亲乐读系列 每月胎教 倒 协和专家 孕产大百科 XIE HE",
+    "url": "https://hapa8fkuicz.feishu.cn/wiki/KMRgwlBuAi3gOzkIMHTcCmwcn6e"
+   },
+   {
+    "anchor": "#l.2782-2982",
+    "bm25": 54.0708,
+    "kb_type": "external_standard",
+    "source_sha256": "d2d5326f566b23cfa9b4558cc1cef84795e5f6339a8ba3cd98c1823e79287604",
+    "excerpt": "(800) 370-2943 (information specialist hotline) vN'ww.nichd.nih.gov Information and support on health Enuresis Research& Development Center P.O. Box 2114 Oceans",
+    "url": "https://momcozy-in.feishu.cn/wiki/HLJCwEyCYi2cbskGRPYc04aSnwS"
+   },
+   {
+    "anchor": "#l.1-11",
+    "bm25": 52.1125,
+    "kb_type": "external_standard",
+    "source_sha256": "b49a7730dd8cbcdc4ac2dfd48c85613646bf0dd4755bf74d50545ca07c55e820",
+    "excerpt": "宝此阶段的视觉技能 自己喜欢的玩具，您应该好 宝宝从出生开始，视觉就 好地表扬他。 一直在发展，现在他已经能 宝宝此阶段的手指和手 够判断1米以外东西的大小 现在宝宝已经会用手指抓 了。比如，他知道从一米外 东西了，能用食指和大拇指 滚过来的球看起来会越来越 准确无误地抓起东西来。宝大。看看宝宝是如何用胳膊 宝宝的注意",
+    "url": "https://hapa8fkuicz.feishu.cn/wiki/HBVpwOTQni9h8Zk7SQVcvdC5nod"
+   },
+   {
+    "anchor": "#l.1-1",
+    "bm25": 52.1092,
+    "kb_type": "external_standard",
+    "source_sha256": "ca95f67920ebcbccaeea5234303340bc94fb989c1cb2011d7a31cbf0bf8018fe",
+    "excerpt": "[p1] DK科学育儿小百科 0~6个月 CHILD DEVELOPMENT: YOUR BABY FROM BIRTH TO 6 MONTHS • 新生儿特征 • 第一次体检 •早产儿 • 双胞胎 •宝宝的个性 • 母乳喂养 •人工喂养 • 发育检测 •预防针 • 婴儿按摩 ［英］凯蒂•霍兰德（Katy Hollan",
+    "url": "https://hapa8fkuicz.feishu.cn/wiki/AD26wCxzsiyJzUkqREgcg0X8nDd"
+   },
+   {
+    "anchor": "#l.3306-3435",
+    "bm25": 48.9884,
+    "kb_type": "external_standard",
+    "source_sha256": "69d6d89af595d23e8725a3fe1699a410af988b2a0bd801ba36f95f005b1a717a",
+    "excerpt": "feeding, 26-9 fontanelles, 10 games, 42, 46, 51, 55, 58-9, 62-5 gender differences, 20-1 genes, 20, 62 genitals, 11, 12 grasp reflex, 13, 54 growth charts, 55 h",
+    "url": "https://momcozy-in.feishu.cn/wiki/TsCLw5uU2iOOUlkEcvqcbHqgnpd"
+   }
+  ],
+  "layer_preflight": {
+   "base": "20261023-172409",
+   "ok": true,
+   "red_total": 0,
+   "mode": "enforced",
+   "details": {
+    "L4": {
+     "run": "20261023-172409-L4",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L4": "session-8474adf9-a89b-4099-b7b9-a599fd3922e8"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L5": {
+     "run": "20261023-172409-L5",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L5": "session-8474adf9-a89b-4099-b7b9-a599fd3922e8"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L6": {
+     "run": "20261023-172409-L6",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L6": "session-8474adf9-a89b-4099-b7b9-a599fd3922e8"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L7": {
+     "run": "20261023-172409-L7",
+     "exit": 0,
+     "red": 0,
+     "yellow": 0,
+     "skill_sessions": {
+      "L7": "session-8474adf9-a89b-4099-b7b9-a599fd3922e8"
+     },
+     "pass": true,
+     "note": ""
+    }
+   }
+  },
+  "position": {
+   "value": "中部，图 1 第 10 处",
+   "supplied_by": "reviewer(cli)",
+   "note": "复核人按 Owner 2026-10-20 令写入（四形态）"
+  },
+  "decision_owner": {
+   "skill": "图片安全审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check",
+    "图片安全审查"
+   ]
+  },
+  "image_skill_gate": {
+   "ok": true,
+   "expected": "图片安全审查",
+   "owner": "图片安全审查",
+   "checks": [
+    "送审原图可读：1 张",
+    "skill 就绪：/Users/lute/.dsh/skills/图片安全审查",
+    "本会话观测到成功加载（loaded）"
+   ],
+   "warnings": [],
+   "load": {
+    "verdict": "loaded",
+    "calls": [
+     {
+      "callId": "call_00_ET_AHfwRXH0TrUEgG0Q84gB7990",
+      "seq": 48,
+      "verdict": "loaded",
+      "excerpt": "<skill_content name=\"图片安全审查\">\n<skill_resources>\nBase directory for this skill: /Users/lute/.dsh/skills/图片安全审查\nResolve re"
+     }
+    ]
+   }
+  },
+  "publish": {
+   "mode": "disabled_by_caller",
+   "published": false,
+   "reason": "disabled_by_caller"
+  },
+  "report_url": null,
+  "report_url_kind": null
+ }
+}

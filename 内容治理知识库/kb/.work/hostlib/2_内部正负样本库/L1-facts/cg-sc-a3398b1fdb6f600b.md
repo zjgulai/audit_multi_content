@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.121 是正例还是反例
   - S-1.121 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-a3398b1fdb6f600b"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 其他
 reason_category: 措辞表达
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2wE9MyVS0/原文反馈"
-source_sha256: c0d0a8a7de2709f86e83f6949a94a3da373ece2239d76c494e4089303ad1da6c
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MyVS0
+anchor: "#负面样本/recvw7XJiS19RM/具体原因/分析"
+source_sha256: b3dc75f5bb5faba4188f1b0b114a6ec4d5783735158c68735fa7da928175be89
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XJiS19RM
 sample_body: "【审核 · 2026-08-18 23:50 · 林曼雅】【终审-@[已脱敏] 】麻烦看看呀:YouAreTheBest: **项目名：T31 套图 调整** **设计要求：修改文案，替换了宝宝** ![Image](img_v3_0214m_ec9597bd-410c-4c86-b5eb-e74d4781627g)  Certified Comfort Worry-FreeWear 3M Tegaderm Hypoallergenic Material Soft Touch Long-Lasting Fit Skin-Friendly Contact momcozy Wearable Thermometer 3M Adhesive sticker"
 reason_analysis: "【措辞表达】文案 设计要求：修改文案，替换了宝宝。 【问题要点】 1. 设计要求：修改文案，替换了宝宝 2. 【终审-@[已脱敏] 】麻烦看看呀"
 advice: ""
@@ -91,8 +91,8 @@ sticker
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2wE9MyVS0/原文反馈`
-- 指纹：`c0d0a8a7de2709f86e83f6949a94a3da373ece2239d76c494e4089303ad1da6c`
+- 锚点：`#负面样本/recvw7XJiS19RM/具体原因/分析`
+- 指纹：`b3dc75f5bb5faba4188f1b0b114a6ec4d5783735158c68735fa7da928175be89`
 - 原因归类：措辞表达　|　素材类型：文字
 
 > 案例只作参照，不构成规则。

@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.86 是正例还是反例
   - S-1.86 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-73fff7acf43836ed"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 其他
 reason_category: unknown
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2vgYXxCMv/原文反馈"
-source_sha256: 689256c63047b2784701755fb831359477dfab55b58afd04f13c4582ed585e55
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXxCMv
+anchor: "#负面样本/recvw7XJiSyehR/具体原因/分析"
+source_sha256: e9bf74063c0eb063bb189e80a238b0966b8edb534ed57d5699dd75b1d9b582e1
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XJiSyehR
 sample_body: "【审核 · 2026-09-04 00:20 · 董希】初审@[已脱敏] ，再看看呀 项目需求：paruu老品优化-银质因为存在差评问题，在原图片增加提醒&补充对比说明情况  设计稿件 ![Image](img_v3_02156_58e6c835-ab59-4f77-bee4-c29d2086667g) ![Image](img_v3_02156_1cd664e5-ac73-42a8-8755-0573ddd1ebcg) ![Image](img_v3_02156_cf77cf71-a308-4811-9d5f-eb45f5c49cag) ![Image](img_v3_02156_cf91247d-82c8-450f-9c86-ad2267910ccg)  ![Image](img_v3_02156_7efc85bd-bbe8-4d09-84bf-ec8accb2dd1g)  ![Image](img_v3_02156_f32c3a30-9fa1-4459-b61e-a1b6bb96161g)"
 reason_analysis: "【审核问题】图片 项目需求：paruu老品优化-银质因为存在差评问题，在原图片。 原因：项目需求：paruu老品优化-银质因为存在差评问题，在原图片增加提醒&补充对比说明情况 【问题要点】 1. 项目需求：paruu老品优化-银质因为存在差评问题，在原图片增加提醒&补充对比说明情况 2. 初审@[已脱敏] ，再看看呀"
 advice: "优化-银质因为存在差评问题，在原图片增加提醒&补充对比说明情况"
@@ -89,8 +89,8 @@ advice: "优化-银质因为存在差评问题，在原图片增加提醒&补充
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2vgYXxCMv/原文反馈`
-- 指纹：`689256c63047b2784701755fb831359477dfab55b58afd04f13c4582ed585e55`
+- 锚点：`#负面样本/recvw7XJiSyehR/具体原因/分析`
+- 指纹：`e9bf74063c0eb063bb189e80a238b0966b8edb534ed57d5699dd75b1d9b582e1`
 - 原因归类：unknown　|　素材类型：图片
 
 > 案例只作参照，不构成规则。

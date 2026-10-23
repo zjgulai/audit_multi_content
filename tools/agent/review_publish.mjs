@@ -54,40 +54,116 @@ const execFileP = promisify(execFile);
  */
 export const REPORT_SHARE_ENTITY = 'tenant_readable';
 
+/** 权限两步里有界重试的等待（毫秒；`0` 给自证用）。 */
+function _permSleep(ms) {
+  return new Promise((r) => { setTimeout(r, ms); });
+}
+
+/**
+ * 这一步的错误**值不值得补一次**？
+ *
+ * 与 `_transientFailureOf`（建文档那一步）**分开写**，因为判据不同：
+ *   · 设置权限那一步的 `99991672 / permission denied / 131006` 是**资源或 scope 没开** ——
+ *     补一百次也一样，必须让人去加协作者/补 scope（「有权限就不许说没权限」的反面：
+ *     没权限也别浪费三轮去证明它）；
+ *   · 空输出 / 超时 / 被杀 / 网络类 ⇒ 偶发，值得补。
+ */
+function _permTransientOf(e, errText) {
+  if (e?.killed || e?.signal) return true;
+  const t = String(errText ?? '').trim();
+  if (!t) return true;
+  if (/"type"\s*:\s*"validation"/.test(t)) return false;
+  if (/99991672|permission denied|Access denied|Forbidden|131006|not\s*found/i.test(t)) return false;
+  return /ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up|timed out|rate.?limit|429|50[023]/i.test(t);
+}
+
 /**
  * 把一份云文档设成「组织内可阅读」并**回读确认**。
  *
  * @param {string} docId docx token（`docs +create` 回的 `document_id`）
- * @param {{run?:Function, timeoutMs?:number}} [opts] `run` 可注入 —— 自证时不碰真库
- * @returns {Promise<{ok:boolean, detail:string, got?:string}>}
+ * @param {{run?:Function, timeoutMs?:number, attempts?:number}} [opts] `run` 可注入 —— 自证时不碰真库
+ * @returns {Promise<{ok:boolean, kind:string, detail:string, got?:string}>}
+ *
+ * ── ★★ 2026-10-20 改（Owner：「报告模版又乱了，怎么一会一个样子，到底是谁在改模版？」）
+ *
+ * 真单查出来的病灶**不在模版**：18:59 那一单 `docs +create` **成功**
+ * （云文档 `I3NHdhLmKoGffrx8QOLcpMkSnsh` 已建、正文齐全），失败的是**回读权限**这一步 ——
+ * 报错全文只有 `Command failed: … drive +permission-get-setting`（stderr 空、无 killed/signal）。
+ * 而当时这一步**只试一次、失败即判「没建成」** ⇒ 调用方弃用自己那份、回落成库侧那份
+ * （`kb/l7/review-engine/core/feishu_publish.py` 的**另一套版式**：问题分类汇总/完整清单）
+ * ⇒ 人点开看到的报告「一会儿一个样」。
+ * 复核（同一条命令重跑那支文档）：**回读成功、`link_share_entity = tenant_readable`** ——
+ * 权限其实早就设上了，坏的只是那一次**读**。
+ *
+ * ⇒ 三件事：① 设权限与回读**各有界重试**（默认 3 轮，`SHOUHENG_PERM_ATTEMPTS` 可调）；
+ *   ② 失败**分成三类**，别再糊成一句「没建成」：
+ *      · `unverified` —— patch 回执成功、**只是回读验不成** ⇒ 交给调用方**照用自己那份**
+ *        （权限未核验要如实标，见 `publishReportDocOnce`）；
+ *      · `mismatch` —— 回读**读得出来、就是不达标**（如 `closed`）⇒ 验得清，链接不给；
+ *      · `patch_failed` —— 连设置都没成 ⇒ 链接不给；
+ *   ③ `unverified` 只可能在 **patch 回执成功之后**出现 —— 它不是「猜权限设上了」。
  */
 export async function ensureTenantReadable(docId, opts = {}) {
   const id = String(docId ?? '').trim();
-  if (!id) return { ok: false, detail: '没给 document_id，无法设权限' };
+  if (!id) return { ok: false, kind: 'no_id', detail: '没给 document_id，无法设权限' };
   const run = opts.run ?? ((bin, args, o) => execFileP(bin, args, o));
   const timeout = opts.timeoutMs ?? P0_DOC.timeoutMs;
   const base = ['--profile', P0_DOC.profile];
-  try {
-    await run(P0_DOC.bin, [...base, 'drive', 'permission.public', 'patch', '--token', id, '--type', 'docx',
-      '--data', JSON.stringify({ link_share_entity: REPORT_SHARE_ENTITY }),
-      '--as', 'bot', '--yes'], { timeout, maxBuffer: 4 << 20 });
-  } catch (e) {
-    return { ok: false,
-             detail: `设可见范围失败：${(String(e?.stderr ?? '').trim() || String(e?.message ?? e)).slice(0, 200)}` };
-  }
-  try {
-    const { stdout } = await run(P0_DOC.bin, [...base, 'drive', '+permission-get-setting',
-      '--token', id, '--type', 'docx', '--as', 'bot'], { timeout, maxBuffer: 4 << 20 });
-    let got = '';
-    try { got = JSON.parse(String(stdout))?.data?.permission_public?.link_share_entity ?? ''; } catch { got = ''; }
-    if (got !== REPORT_SHARE_ENTITY) {
-      return { ok: false, got, detail: `回读不是 ${REPORT_SHARE_ENTITY}（读到 ${got || '空'}）⇒ 链接不写进表` };
+  const attempts = Math.max(1, Math.floor(Number(
+    opts.attempts ?? process.env.SHOUHENG_PERM_ATTEMPTS ?? 3) || 3));
+  const backoff = Math.max(0, Math.floor(Number(process.env.SHOUHENG_PERM_BACKOFF_MS ?? 300) || 0));
+  let got = '';
+  let readUnknown = '';
+  let rounds = 0;
+  for (let n = 1; n <= attempts; n += 1) {
+    rounds = n;
+    // ① 设权限（幂等；每轮都重设一次 —— 回读失败最常见的成因就是"设了但没落地"）
+    try {
+      await run(P0_DOC.bin, [...base, 'drive', 'permission.public', 'patch', '--token', id, '--type', 'docx',
+        '--data', JSON.stringify({ link_share_entity: REPORT_SHARE_ENTITY }),
+        '--as', 'bot', '--yes'], { timeout, maxBuffer: 4 << 20 });
+    } catch (e) {
+      // ⚠️ 「有没有吐字」只看 **stderr/stdout** —— node 的 `Command failed: <cmd>` **恒非空**。
+      //   拿 `e.message` 判「有输出」会把偶发失败误判成确定性、**一次都不补**
+      //   （2026-10-19 在 `_transientFailureOf` 上踩过一次；2026-10-20 我在这一支上又踩了一次，
+      //     G1/G1b 当场变红才抓到）。
+      const rawErr = String(e?.stderr ?? '').trim() || String(e?.stdout ?? '').trim();
+      const shown = rawErr || String(e?.message ?? e);
+      if (!_permTransientOf(e, rawErr) || n === attempts) {
+        return { ok: false, kind: 'patch_failed', got,
+                 attempts: n, detail: `设可见范围失败：${shown.slice(0, 200)}` };
+      }
+      if (backoff) await _permSleep(backoff * n);
+      continue;
     }
-    return { ok: true, got, detail: `可见范围 = ${got}` };
-  } catch (e) {
-    return { ok: false,
-             detail: `回读权限失败：${(String(e?.stderr ?? '').trim() || String(e?.message ?? e)).slice(0, 200)}` };
+    // ② 回读确认（「接口成功 ≠ 数据落下来」）
+    try {
+      const { stdout } = await run(P0_DOC.bin, [...base, 'drive', '+permission-get-setting',
+        '--token', id, '--type', 'docx', '--as', 'bot'], { timeout, maxBuffer: 4 << 20 });
+      got = '';
+      try { got = String(JSON.parse(String(stdout))?.data?.permission_public?.link_share_entity ?? ''); } catch { got = ''; }
+      if (got === REPORT_SHARE_ENTITY) {
+        return { ok: true, got, kind: 'ok', attempts: n,
+                 detail: `可见范围 = ${got}` + (n === 1 ? '' : `（补第 ${n} 轮才读到）`) };
+      }
+      readUnknown = got ? '' : '回读没读出可见范围（stdout 里没有 link_share_entity）';
+    } catch (e) {
+      const rawErr = String(e?.stderr ?? '').trim() || String(e?.stdout ?? '').trim();
+      const shown = rawErr || String(e?.message ?? e);
+      readUnknown = `回读权限失败：${shown.slice(0, 200)}`;   // ← 给人看的用全文
+      // 确定性回读错（scope 没开之类）⇒ 补也一样，直接收尾成"验不成"。
+      // ⚠️ 判重试喂的是 **rawErr**（"有没有吐字"），不是 `shown` —— 理由同上一条 catch。
+      if (!_permTransientOf(e, rawErr)) break;
+    }
+    if (backoff && n < attempts) await _permSleep(backoff * n);
   }
+  // 走到这里 = patch 回执都成功过，问题只在「验」
+  if (got && got !== REPORT_SHARE_ENTITY) {
+    return { ok: false, kind: 'mismatch', got, attempts: rounds,
+             detail: `回读不是 ${REPORT_SHARE_ENTITY}（读到 ${got}）⇒ 链接不写进表` };
+  }
+  return { ok: false, kind: 'unverified', got, attempts: rounds, transient: true,
+           detail: `权限**已设置但回读未验成**（${readUnknown || '未知原因'}）⇒ 不能断言"点得开"` };
 }
 
 /**
@@ -202,11 +278,25 @@ async function publishReportDocOnce(f, opts = {}) {
     }
     // ★★ 2026-10-16（Owner：「所有上审查报告…权限跟随飞书云文档」）：
     //   建完**立刻**把可见范围设成「组织内可阅读」并**回读确认**。
-    //   回读不过 ⇒ **不给 url**（宁可空着，也不给一个点不开的链接）——
-    //   这一条与「报告出不来就照实说原因」同一条纪律。
+    // ★★ 2026-10-20 收窄（Owner：「必须按照我要求的报告模版输出」）：
+    //   原话是「回读不过 ⇒ 一律不给 url」。但在 18:59 那一单里，**回读失败 ≠ 权限没设上**
+    //   （事后重跑同一条命令读到的就是 `tenant_readable`）—— 而"不给 url"的后果是
+    //   调用方回落成库侧那份，**报告换了模版**。⇒ 只有「看得见的坏」才不给链接：
+    //     · `mismatch`（读得出、就是不达标）/ `patch_failed`（没设成）⇒ 不给（点不开的链接比空格更坏）；
+    //     · `unverified`（patch 回执成功、只是没验成）⇒ 给，但**必须标注"权限未核验"**。
     const docId = j?.data?.document?.document_id ?? '';
     const perm = await ensureTenantReadable(docId, { run });
     if (!perm.ok) {
+      // ★★ 2026-10-20（真单 18:59）：`unverified` 若照旧 `url:null`，调用方会回落成库侧那份
+      //   （`kb/l7/review-engine/core/feishu_publish.py` 的「问题分类汇总/完整清单」版式）
+      //   ⇒ 人点开看到的报告"一会儿一个样"。形状优先：交回自己这份，并把"未核验"写在明面上。
+      //   ⚠️ 只放行 `unverified` —— 那一种**已经 patch 成功过**，不是"猜权限设上了"。
+      if (perm.kind === 'unverified') {
+        console.log(`[review_publish] ⚠️ 报告云文档 ${docId || '?'} ⇒ 链接照用（保住报告模版）`
+          + `｜${perm.detail}`);
+        return { ok: true, url, share: 'unverified',
+                 detail: `云文档已建（${docId || '?'}）｜**权限未核验**：${perm.detail}` };
+      }
       return { ok: false, url: null,
         detail: `云文档已建但**权限没设成组织内可阅读** ⇒ 链接不写进表：${perm.detail}` };
     }
@@ -281,9 +371,11 @@ export const MACHINE_FIELDS = Object.freeze([
  * ── 边界一个字没松
  *   · `HUMAN_FIELDS`（人工复核人／复核结论／sign-off 人／审核人／发布时间）**照旧一个字都不碰**，
  *     哪怕它空着也不替人下笔；
- *   · 其余机器列（内容 ID／送审问题／内容类型／渠道／产品线／送审版本／**报告链接**）照旧「**只补空**」——
- *     那条规则要防的是「模型先写进去的『未指定』把真值永久挡住」，以及报告链接那种
- *     **只该被第一次写进去**的值（复跑不许把旧链接改掉）；
+ *   · 其余机器列（内容 ID／内容类型／渠道／产品线／送审版本）照旧「**只补空**」——
+ *     那条规则要防的是「模型先写进去的『未指定』把真值永久挡住」；
+ *     ★ 2026-10-21 更正：这一段原先还列着 `报告链接`（「只该被第一次写进去」）——
+ *       Owner 要求「重审重跑、不许复用上次结论」之后它**已挪进** `OVERWRITABLE_FIELDS`，
+ *       理由见那里。
  *   · 值**没变就不写**（免得一次「什么都没变」被记成一次写入、把 `unchanged` 报成 `updated`）。
  */
 export const CONCLUSION_DERIVED_FIELDS = Object.freeze([
@@ -307,11 +399,34 @@ export const CONCLUSION_DERIVED_FIELDS = Object.freeze([
  * ── 边界一个字没松
  *
  *   · `HUMAN_FIELDS` 照旧一个字都不碰；
- *   · 其余的机器列（内容 ID／内容类型／渠道／产品线／送审版本／**报告链接**）照旧「只补空」——
- *     尤其**报告链接**：它只该被第一次写进去，复跑不许把旧链接换掉（那会让新报告成孤儿）；
+ *   · 其余的机器列（内容 ID／内容类型／渠道／产品线／送审版本）照旧「只补空」；
  *   · 值没变就不写。
+ *
+ * ── ★★ 2026-10-21 再把 `报告链接` 挪进来（Owner 逐字：「**我要的是重审重跑，不允许复用上次结论**」）
+ *
+ *   改之前它属「只补空」，理由是 2026-10-06 那次的「新报告成孤儿」
+ *   （`previousReportLink` 那段头注逐字记着）。而配合 `tools.mjs` 的 P0 快路**复用旧报告、
+ *   本次不建文档**，两处合起来的效果是：
+ *
+ *     同一张图**第二次**送审 ⇒ `Agent 结论` 按本单重判（REVIEW→BLOCK 之类），
+ *     而「报告链接」这一格**仍指向第一次那份** ⇒ 人点开读到的**是上一次的结论与时间戳**。
+ *
+ *   这不再是「孤儿文档」问题，而是「表里那一格指向的不是本单」——
+ *   与 `CONCLUSION_DERIVED_FIELDS` 那条理由①**同一个形状**（行内两套口径）。
+ *   ⇒ 现在送审那条路**每次都出本单自己的报告**（`tools.mjs` 的 `p0ReportOutcome` 钉着），
+ *     这一格就跟着本单走；旧的云文档仍在（只是没人再指向它），不丢。
+ *
+ *   ⚠️ 三条不许松：
+ *     ① **本单没出成报告时不清空**（`rowFieldsOf` 没拿到链接就**不写这一格** ⇒ 旧链接留原处），
+ *        那一眼由回执的 `report_detail` 说出来（「本单报告没出成，下面这个链接是上一次的」）；
+ *     ② 只读前置（`allowPublish=false`）那条路**不建文档**，写进来的仍是既有的那份；
+ *     ③ `HUMAN_FIELDS` 照旧一个字都不碰。
  */
-export const OVERWRITABLE_FIELDS = Object.freeze([...CONCLUSION_DERIVED_FIELDS, '送审问题']);
+export const OVERWRITABLE_FIELDS = Object.freeze([
+  ...CONCLUSION_DERIVED_FIELDS, '送审问题',
+  // 报告链接：每次送审都出本单自己的报告 ⇒ 这一格必须跟着本单走（见上面那段）
+  '报告链接',
+]);
 
 /** 把飞书那几种字段形状摊平成可比较的字符串（文本数组 / 数字 / 链接 / 选项）。 */
 function plainOf(v) {
@@ -553,12 +668,33 @@ export function statusOf(conclusion) {
  */
 export function conclusionOf(answer) {
   const s = String(answer ?? '');
-  const S = 'PASS|REVIEW|BLOCK|NEEDS_INPUT';
-  const m = s.match(new RegExp(
+  // ★★ 2026-10-21（四态）：`Agent 结论` 这一格必须收得下第 2 态 `PASS+SUGGEST`
+  //   （PRD §5.3.2 四态；旧字面 `SUGGEST` 一并收，归一到 `PASS+SUGGEST` —— 历史行还带着它）。
+  //   ⚠️ `PASS\\+SUGGEST` 必须排在 `PASS` 前面，否则前缀匹配把它截成 PASS。
+  const S = 'PASS\\+SUGGEST|PASS|REVIEW|BLOCK|NEEDS_INPUT|SUGGEST';
+  // ★★ 2026-10-22（Paruu 真单）：**合并结论优先，且允许标签里带括号**。
+  //   病灶：链写的是
+  //     `**本 skill 分级结论（4A＋4B＋图文一致性合并，取更保守一侧）**：**REVIEW**`
+  //   —— 括号把「结论」与「：」隔开，下面那条通用式要求「结论」**直接**跟冒号 ⇒ 返回 null
+  //   ⇒ `Agent 结论` 不写 ⇒ 表行停在链写的 PASS（而卡片是 REVIEW）⇒ 同一单两个结论又出现。
+  //   判据：① 先认「分级/合并/最终/综合 结论」（可带 `（…）`/`[…]` 说明，允许粗体）；
+  //        ② 再回落原有的通用式（`【审查结论：X】` / `结论：X` / `状态：X` / `state=` …）。
+  //   为什么合并结论优先：同一份回答里常有「4A 库侧 PASS」与「skill 合并 REVIEW」两行，
+  //   表要记的是**后者**（人拿到的结论是后者）。
+  const tail = '\\s*(?:（[^）]{0,80}）|\\[[^\\]]{0,80}\\])?\\s*\\**\\s*[：:]\\s*\\**\\s*`?\\s*(' + S + ')';
+  // ★ 回滚开关：`SHOUHENG_CONCLUSION_MERGED=0` ⇒ 只走旧通用式（分级/合并结论不再优先）。
+  //   ⚠️ 关了它就回到「括号夹在『结论』与『：』之间 ⇒ 返回 null」那个缺陷，仅用于应急回滚。
+  const mergedOn = String(process.env.SHOUHENG_CONCLUSION_MERGED ?? '1').trim() !== '0';
+  const merged = mergedOn
+    ? s.match(new RegExp('(?:本\\s*skill\\s*)?(?:分级|合并|最终|综合)\\s*结论' + tail))
+    : null;
+  const m = merged || s.match(new RegExp(
     '(?:【\\s*审查结论\\s*[：:]|审查结论\\s*[：:]|结论\\s*[：:]|判定\\s*[：:]'
     + '|状态\\s*[：:]|state\\s*=\\s*|引擎最终输出\\s*[：:])'
     + '\\s*\\**\\s*`?\\s*(' + S + ')'));
-  return m ? m[1] : null;
+  if (!m) return null;
+  // 旧字面归一：表里只留四态值（`PASS+SUGGEST`），不留一个与它同义的 `SUGGEST`。
+  return m[1] === 'SUGGEST' ? 'PASS+SUGGEST' : m[1];
 }
 
 /** 把要写的字段拼成一行（只带**有值**的机器字段；空值不写，免得覆盖成空）。 */
@@ -684,7 +820,8 @@ export async function previousReportLink(contentId) {
 }
 
 export async function ensureReviewRow(row, { ctx = { actor: 'shouheng/review-gate' }, dryRun = false,
-                                           since = null, question = null } = {}) {
+                                           since = null, question = null,
+                                           chainContentId = null } = {}) {
   const T = reviewTable();
   if (!T) {
     return { ok: false, action: 'skipped',
@@ -702,6 +839,9 @@ export async function ensureReviewRow(row, { ctx = { actor: 'shouheng/review-gat
   //     拿两个不同的 ID 去「幂等」，结果是**同一个内容两行** —— 而重复行比缺行更难发现。
   //     所以判据放在**行为**上：链要是自己写了，那一行一定出现在它这次跑的这段时间窗里。
   //     时间窗优先、内容 ID 兜底，两个都不中才新建。
+  //   ★ 2026-10-22：**第三把锁 = 链的 `content_id`**（`chainContentId`）——
+  //     链与我们的内容 ID 算法不同（`AD-…` vs `AUTO-…`），问句也不同，前两把都可能不中；
+  //     中不中就是「同一单两行、两个结论」。判据见下面 `chainCid` 那一段。
   let found = null;
   if (since) {
     try {
@@ -717,8 +857,20 @@ export async function ensureReviewRow(row, { ctx = { actor: 'shouheng/review-gat
       const mine = String(question ?? '').trim();
       const qOf = (it) => String(it?.fields?.['送审问题'] ?? '').trim();
       const sameQ = (a, b) => a && b && (a === b || a.includes(b) || b.includes(a));
+      // ①b 链自己建的那一行：**按链的内容 ID 认**（2026-10-22 事故）。
+      //   链发布用的是它自己算的 `content_id`（实测 `AD-20261022-021`），我们这边是
+      //   `AUTO-<sha(送审文本)>`；问句也不同（链写的是它的审核任务）。
+      //   ⇒ 问句认不出、内容 ID 兜底也认不出 ⇒ **同一张图两行、两个结论**
+      //   （BM04/BM01 那一单：链行 `PASS` ／ 守衡行 `REVIEW`，同一张图两个结论对外）。
+      //   机读旁挂里带着链的 `content_id`（`res.review.content_id`）—— 拿它当**第三把锁**。
+      //   边界：只在**本次时间窗**里认，且必须**全等**（不猜、不模糊匹配）。
+      const chainCid = String(chainContentId ?? '').trim();
       found = (mine ? fresh.find((it) => sameQ(qOf(it), mine)) : null)
-           // 退路：窗口里**只有**一行，且它没写问句（链可能不写这一格）—— 那才认它
+           // 退路一：链那一行（内容 ID 全等）
+           ?? (chainCid
+                 ? fresh.find((it) => String(it?.fields?.['内容 ID'] ?? '').trim() === chainCid)
+                 : null)
+           // 退路二：窗口里**只有**一行，且它没写问句（链可能不写这一格）—— 那才认它
            ?? (fresh.length === 1 && !qOf(fresh[0]) ? fresh[0] : null);
     } catch (e) {
       return { ok: false, action: 'skipped', detail: `列表抛异常：${e?.message ?? e}` };

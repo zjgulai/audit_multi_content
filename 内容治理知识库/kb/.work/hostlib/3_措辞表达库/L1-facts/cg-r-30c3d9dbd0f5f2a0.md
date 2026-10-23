@@ -6,7 +6,7 @@ kb_class: [措辞表达库]
 tier: L1
 topic: 未登记规则码
 kind: fact
-summary: "[W-2.73] 判为「禁用/必须修改」（P1·未定级）：命中表达 10 条、证据单元 18 条；处理方式是「「染发和烫发：经皮肤吸收的量很低（整体论述基调）」→「参照法国权威指南及预防原则，修订文章整体基调：虽目前没有直接证据表明哺乳期偶尔染发/烫发会对婴儿造成」」。状态 provisional、verification 已归纳。"
+summary: "[W-2.73] 判为「需按建议改写」（P2·未定级）：命中表达 10 条、证据单元 18 条；处理方式是「「染发和烫发：经皮肤吸收的量很低（整体论述基调）」→「参照法国权威指南及预防原则，修订文章整体基调：虽目前没有直接证据表明哺乳期偶尔染发/烫发会对婴儿造成」」。状态 provisional、verification 已归纳。"
 owner: 法务
 half_life_days: 180
 valid_until: 2027-03-28
@@ -14,7 +14,7 @@ effective_from: 2026-09-29
 evidence_level: L1
 data_level: L2
 sensitivity_level: L2
-created_at: 2026-10-16
+created_at: 2026-10-22
 asks:
   - W-2.73 判什么、命中什么算违规
   - W-2.73 应该怎么改（合规替代写法）
@@ -29,7 +29,7 @@ source:
   ref: "https://momcozy-in.feishu.cn/base/SKkkbdZi9aRuMzs7ob0cpSYHnQg?table=tbl8AI00JZO1iZtp"
   fingerprint: SKkkbdZi9aRuMzs7ob0cpSYHnQg/tbl8AI00JZO1iZtp
   record_ids: [recvoAhrwb9GQu, recvoAhrwbKsyB, recvoAhrwbLp7I, recvoAhrwbaIiC, recvoAhrwby8mR, recvoyJ6L934IH, recvoyJ6L96qVG, recvoyJ6L9MQrj, recvoyJ6L9N5nL, recvoyJ6L9SYw8, recvoyJ6L9jpJJ, recvoyJ6L9mvXI, recvoyJ6L9q0Qy, recvoyJ6L9taVz, recvs3QvHRXhWj, recvs40EGMDJKM, recvs41fDLytLf, recvs41gwAKiTj]
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l3/candidates/rules.jsonl#r-30c3d9dbd0f5f2a0"
   confidence: 确定
@@ -40,7 +40,7 @@ pii:
 rule_id: r-30c3d9dbd0f5f2a0
 article_no: W-2.73
 rule_code: ""
-p_level: P1
+p_level: P2
 risk_level: 未定级
 risk_level_raw: Medium
 risk_level_note: 源库 kb/l3 的 risk_level 为 unknown/空 —— 未做人工定级；本视图不据 P 级反推，故标未定级
@@ -54,7 +54,7 @@ kb_type: wording
 
 # [W-2.73] 措辞表达库：命中「染发和烫发：经皮肤吸收的量很低（整体论述基调）」等 10 类表达
 
-**条款号**：W-2.73　|　**规则码**：（未登记）　|　**rule_id**：`r-30c3d9dbd0f5f2a0`　|　**判定**：P1 · 未定级
+**条款号**：W-2.73　|　**规则码**：（未登记）　|　**rule_id**：`r-30c3d9dbd0f5f2a0`　|　**判定**：P2 · 未定级
 
 ## 规则原文（照抄新库，未改写）
 

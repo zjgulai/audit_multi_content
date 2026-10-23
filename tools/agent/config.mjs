@@ -77,18 +77,40 @@ function loadLarkCred() {
   return { appId: j.app_id, appSecret: j.app_secret };
 }
 
+/**
+ * 模型端点用哪把密钥。
+ *
+ * ★ 2026-10-22 加 `SHOUHENG_LLM_API_KEY`（Owner 当场同意把端点换到中转站）：
+ *   一把 key 同时决定「打哪个地址」与「用谁的额度」。若把中转站的 key 写进 `DEEPSEEK_API_KEY`，
+ *   两件事就绑死了 —— 想切回 DeepSeek 就得把 key 改回去，而**改 key 是没有判据的动作**
+ *   （改错了只表现为 401，读起来像「端点坏了」）。
+ *   ⇒ 独立一把：**先认 `SHOUHENG_LLM_API_KEY`（环境变量 → 凭据库），再退回 `DEEPSEEK_API_KEY`**。
+ *   这就是唯一能让「地址 + 额度」一起切、且一键能切回来的形状。
+ */
 function loadLlmKey() {
-  return process.env.DEEPSEEK_API_KEY
-      || readDshCredential('DEEPSEEK_API_KEY')
-      || (() => { throw new Error('未找到 DEEPSEEK_API_KEY（环境变量与 DSH 凭据库均无）'); })();
+  const fromS = process.env.SHOUHENG_LLM_API_KEY;
+  if (fromS) return { key: fromS, source: 'SHOUHENG_LLM_API_KEY（环境变量）' };
+  const credS = readDshCredential('SHOUHENG_LLM_API_KEY');
+  if (credS) return { key: credS, source: 'SHOUHENG_LLM_API_KEY（凭据库）' };
+  const fromD = process.env.DEEPSEEK_API_KEY;
+  if (fromD) return { key: fromD, source: 'DEEPSEEK_API_KEY（环境变量）' };
+  const credD = readDshCredential('DEEPSEEK_API_KEY');
+  if (credD) return { key: credD, source: 'DEEPSEEK_API_KEY（凭据库）' };
+  throw new Error('未找到 SHOUHENG_LLM_API_KEY / DEEPSEEK_API_KEY（环境变量与 DSH 凭据库均无）');
 }
+
+const _llmKey = loadLlmKey();
 
 export const config = {
   lark: loadLarkCred(),
   llm: {
-    apiKey: loadLlmKey(),
+    apiKey: _llmKey.key,
+    /** 这把 key 从哪儿来（**只放变量名，不放值**）—— 端点换了要一眼看得出来 */
+    apiKeySource: _llmKey.source,
     baseUrl: process.env.SHOUHENG_LLM_BASE_URL || 'https://api.deepseek.com',
     // deepseek-flash：快且便宜，适合群聊高频对话；复杂任务可切 deepseek-v4-pro
+    //   ★ 但**画面层别用 pro**：2026-10-22 实测它对一张纯蓝合成图编出「一人低头看手机、
+    //     屏幕上是微信红包详情页」——这种幻觉在读数里读起来跟真的一样（§2.4.1）。
     model: process.env.SHOUHENG_LLM_MODEL || 'deepseek-flash',
     /** 单会话保留的最大历史轮数（超出后由记忆层压缩） */
     maxTurns: Number(process.env.SHOUHENG_MAX_TURNS || 24),
@@ -181,6 +203,10 @@ export function describeConfig() {
     llmModel: config.llm.model,
     llmBaseUrl: config.llm.baseUrl,
     llmKeyLen: config.llm.apiKey.length,
+    // ★ 2026-10-22：端点可以换了，「这把 key 是谁的」必须上横幅 —— 否则
+    //   「地址是 DeepSeek、key 是中转站的」这种错配只表现为 401，读起来像端点坏了。
+    //   只打来源名，**不打值**。
+    llmKeyFrom: config.llm.apiKeySource,
     allowedChats: config.allowedChats.length ? config.allowedChats : '(不限)',
     requireMentionInGroup: config.requireMentionInGroup,
     maxTurns: config.llm.maxTurns,

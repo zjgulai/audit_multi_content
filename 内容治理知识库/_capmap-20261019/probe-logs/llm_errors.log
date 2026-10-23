@@ -1,0 +1,23 @@
+L1–L5：失败描述（离线；只用本机回环）
+
+  ✅ L1 链走到最深（三跳都留着）
+  ✅ L5 真实事件回归：摘要里答得出 ENOTFOUND / getaddrinfo / 主机名
+  ✅ L2 层名 = DNS，且 chain[0].layer 同值
+  ✅ L2b 双栈 AggregateError.errors 也要展开（ECONNREFUSED → TCP）
+  ✅ L2c 自引用的 cause 不许死循环（环检测）
+  ✅ L2d 层名映射表逐条对得上
+  ✅ L2e 不认识的 code 回 null（不许硬凑成某一层）
+  ✅ L4 成功路径不产出 error/chain/attempts
+  ✅ L4b 成功路径照常回正文
+  ✅ L4c 成功**不落**失败记录（llm_failures.jsonl 没有新增）
+  ✅ L2f HTTP 401 → layer=HTTP 且 chain[0].layer=HTTP
+  ✅ L6 HTTP 401 **不可重试**（补发 5 次也是白试 → 不入队）
+  ✅ L3b 不可重试的失败只尝试 1 次
+  ✅ L3 重试耗尽：四次尝试的错**都留着**（原先只剩最后一次）
+  ✅ L6b HTTP 5xx **可重试**（网络恢复后值得补）
+  ✅ L2g HTTP 5xx 的层名也是 HTTP
+  ✅ L7 失败落盘：每次失败**恰好一行**（401 一行 + 500 一行 = 2）
+  ✅ L7b 每行都有 chain[0].layer，且都在封闭集合里
+  ✅ L7c 行里带 attempts / model / key_fp，且**不含密钥原文**
+
+✅ llm_errors 19/19 项通过（临时目录 llm_errors_z6FB2f；真 llm_failures.jsonl 未被触碰）

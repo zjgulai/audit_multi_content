@@ -1,0 +1,53 @@
+### distill :: kb/kbpy l8/l3_distill_run.py daily-20261020-1255-L3 --apply
+L2 单元 14978 → 可用 7122
+   wording            metadata                 5229
+   external_standard  quality_flag             1661
+   internal_sample    out_of_scope_table       386
+   external_standard  metadata                 345
+   wording            metadata_unknown_field   127
+   product_desc       out_of_scope_kb          54
+   external_standard  rule_eligible_false      53
+   unknown            out_of_scope_kb          1
+[外部标准] clause 单元判为可蒸 3035 条 ⇒ scoped_clause 候选（拒绝台账逐条带实测理由）
+
+取数对账: {'l2_total': 14978, 'filtered_out': 7856, 'kept': 7122, 'used_in_rules': 959, 'used_in_cases': 677, 'explicitly_rejected': 2450, 'unaccounted': 3035, 'reject_caliber': 'C', 'case_cited_source': 'read'}
+[治理字段] kb/kb_governance.py 已派生 509 行：档位={'C': 508, 'A': 1}
+[规则维度] kb/l3/kb_rule_dimensions.py 已派生 509 行：risk_level={'Critical': 56, 'High': 112, 'Medium': 217, 'Low': 123, 'unknown': 1} ｜ modality={'text': 509}
+[规则维度] 范围缺口（**源侧缺口，非本步失败**）：{'content_type': 509, 'channel': 40}
+[规则归类] 注册表 v1-20261017：盖 509 条 / 表外 0 条 ｜ p_level 变更 376 条 ｜ 冲突 0
+  ⏭ 闸①b 内容同一性：kb/l3/candidates/rules.jsonl 的 509 条按 `evidence_digest` 逐条比对**全等** ⇒ **不重写**（重写只会抹掉下游追加的字段，且本文件被 workflow_check.py 按前 N 行 sha 钉死）
+  ⚠ 闸③ 两边口径不同（唯一 unit_id vs 行数（30 行解析不出 unit_id ⇒ 回落行数））⇒ 退回行数比
+  ⛔ 拒写（闸③ 骤减护栏）：kb/l3/rejected.jsonl —— 行数骤减 5214 → 2480（降 52%，护栏阈值 20%；口径=行数（口径不一致 ⇒ 保守回落））
+     → 确认这是有意的就设 KB_L3_ALLOW_DROP=1 重跑；否则先查引擎的筛选口径
+[外部标准] scoped_clause：本轮判为可蒸 3035 条｜其中文件里没有的 0 条 ⇒ 6916 ⇒ 6916 行｜写入结果 unchanged
+[去重] @l3_distill_run.py/manifest_l3 候选 509 行 → 追加 0 行（新增 0 / 变更 0 / **跳过同内容重复 509**）；last_seen 刷新 509
+规则 509（新 0 / unchanged 509）| 拒绝 2480
+  形态: {'entry': 56, 'revision_pair': 453}
+  support_count: {102: 1, 6: 3, 36: 1, 153: 1, 9: 1, 54: 1, 27: 1, 114: 1, 12: 1, 45: 2, 48: 1, 51: 1, 4: 8, 3: 26, 2: 8, 1: 447, 246: 1, 18: 1, 74: 1, 47: 1, 57: 1}
+  拒绝: {'no_clause_text': 43, 'entry_not_used': 30, 'clause_not_actionable': 331, 'no_rule_derivable': 1552, 'sample_only_no_verdict': 392, 'absorbed_as_reason': 132}
+### distill EXIT=0
+### rejectedledger :: kb/kbpy l8/l3_reject_ledger_rebuild.py daily-20261020-1255-L3 --apply
+[重算] 单元 14970 = 规则引用 959 ∪ 样例引用 3319 ∪ **拒绝(C) 5485** ∪ 范围外 5207 → 14970
+       互斥校验：拒绝∩规则 0 | 拒绝∩样例 0 | 拒绝∩范围外 0（都应为 0）
+       口径：C = 进了门 − 规则用 − 样例用（Owner 2026-10-08 裁定）；被门剔掉的 7849 条**不进本台账**，现算见 l3_rejected_status.py --out-of-scope
+       reason 分布：{'条款不可判定或已被同库其它条款覆盖，': 4155, '本单元进了蒸馏但未产出规则（样本型：': 696, '登记型字段值（元数据），不含可判定内': 578, '条款文本不可判定：非自然语言条款（页': 56}
+[转换] ① 归档 OK：kb/l3/rejected.jsonl
+         → kb/l3/_archive/daily-20261020-1255-L3-split/rejected.jsonl
+         3692695 B ｜ 5214 行 ｜ sha256 7aa36c0f0bfcff19377514b9c3d297cad9c2ef48c5eb58ebc51e8e269c36749c
+[转换] ② 作废声明已追加：kb/l3/rejected.history.jsonl
+[转换] ③ 快照已写：kb/l3/rejected.jsonl 5214 → 5485 行（口径 C；被门剔掉的 7849 条**不在其中**，用 --out-of-scope 现算）
+[转换] ④ 留痕：kb/l3/runs/daily-20261020-1255-L3-reject-rebuild.json
+[回滚] 如需回滚：cp kb/l3/_archive/daily-20261020-1255-L3-split/rejected.jsonl kb/l3/rejected.jsonl
+### rejectedledger EXIT=0
+### negrules :: kb/kbpy l8/l3_negative_rules.py daily-20261020-1255-L3 --apply
+负面样本规则蒸馏 ｜ 记录 184 ｜ 规则 476（要点 52 / 记录级 0）｜ 图片覆盖 339/339
+  按码： {'N-00': 108, 'N-01': 197, 'N-02': 67, 'N-03': 75, 'N-04': 19, 'N-05': 10}
+  动作： {'prohibit': 344, 'replace': 132}
+  源数据： {'records_without_category': 51, 'items_total': 630, 'advice_items': 166}
+已写 kb/l3/candidates/negative_rules.jsonl（476 条）/ kb/l3/candidates/negative_image_map.jsonl（339 张）/ kb/l3/registry/negative_rules.json
+### negrules EXIT=0
+### report :: kb/kbpy .work/l3_report.py daily-20261020-1255-L3 --apply --skill kb-clause-extractor
+[apply] 台账 → kb/l3/runs/daily-20261020-1255-L3.json（顶层 skill=kb-clause-extractor）
+报告已写出 | 规则 1018 | rejected 5485 | 失败 0 | 自检 全通过
+### report EXIT=0
+L3 DONE

@@ -56,6 +56,10 @@ EXPECT = os.path.join(KB, "l7/registry/l0-expected-diffs.yaml")
 ROW = re.compile(r"^\[(?P<name>[^\]]+)\]\s+飞书=(?P<f>\d+)\s+L0=(?P<l>\d+)\s+一致=(?P<same>\d+)"
                  r"\s+飞书多=(?P<of>\d+)\s+L0多=(?P<ol>\d+)\s+值变=(?P<ch>\d+)\s*$")
 FAIL = re.compile(r"^\[拉取失败\]\s+(?P<name>\S+?)\s+(?P<tid>\S+?):")
+#: ★ 2026-10-19：对齐器多打的一行 —— 只有飞书有的**记录 id + 快照路径**。
+#:   闸门要判的是「这几条是不是**都被 filter 排除**」，不是「一共几条」——
+#:   条数只是那个判据的**影子**（2026-10-18 周更就是被影子打停的）。
+IDS = re.compile(r"^\[only-feishu-ids\]\s*(?P<json>\{.*\})\s*$")
 TOTALS = re.compile(r"一致\s+(?P<same>\d+)\s*\|\s*飞书多\s+(?P<of>\d+)\s*\|\s*L0多\s+(?P<ol>\d+)"
                     r"\s*\|\s*值变\s+(?P<ch>\d+)\s*\|\s*拉取失败\s+(?P<pf>\d+)")
 
@@ -86,24 +90,181 @@ def _rec(ok, real, n_exp):
         print("[warn] run_record 没写成：%r" % (exc,), file=sys.stderr)
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# ★ 2026-10-19：`filter_assert` —— 声明内差异的判据从「**数条数**」换成「**逐条复算**」
+# ══════════════════════════════════════════════════════════════════════════
+# 为什么非换（2026-10-18 真事故）：EX-1 写的是「材料收集 only_feishu expected 11」，
+#   而它真正该核的是「这 N 条是不是**都被 `kb/l0/registry/kb.json → filter` 排除**」
+#   （filter 只收「材料审核状态 == 通过」）。**条数只是那个判据的影子**：
+#   源侧只要多一条未审核材料，影子就变 ⇒ 闸门判红 ⇒ 整轮停在 L0（L1–L7 一周没跑）。
+#   ⇒ 有 `filter_assert` 时就按逐条复算判；**读不到数据就回退计数**（fail-closed）。
+def _judge_by_filter(info, spec):
+    """逐条复算：只有飞书有的那些记录，是否**都已被 filter 排除**。
+
+    返回 `(state, n_bad, why)`：
+
+      · `True`  ⇒ 全部被排除 ⇒ **声明内**（条数变了也不红 —— 条数只是这个判据的影子）
+      · `False` ⇒ 有记录**不该被排除** ⇒ 真差异（残差 = 违规条数）
+      · `None`  ⇒ **判不了**（快照/字段缺）⇒ 调用方**必须回退计数** ——
+        「无法证明干净」≠「证明干净」，这是 fail-closed 的唯一方向。
+
+    `spec` 形如 `{"field": "材料审核状态", "not_in": ["通过"]}`：
+    「值不在 not_in 里」= 被 filter 排除 = 它本来就不该入库。
+    """
+    if not isinstance(spec, dict) or not spec.get("field"):
+        return None, 0, "声明里没有 filter_assert.field"
+    fld = str(spec.get("field"))
+    if not isinstance(info, dict) or not info.get("snap"):
+        return None, 0, "对齐器没给出快照路径（拿不到逐条字段）"
+    ids = info.get("ids") or []
+    if not ids:
+        return None, 0, "对齐器没给出 only_feishu 的记录 id"
+    recs = {}
+    try:
+        with io.open(info["snap"], encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                r = json.loads(line)
+                rid = r.get("record_id") or r.get("recordId")
+                if rid:
+                    recs[str(rid)] = r
+    except Exception as e:                                    # noqa: BLE001
+        return None, 0, "快照读不到（%r）" % (e,)
+    bad = {str(x) for x in (spec.get("not_in") or [])}
+    n_bad, missing = 0, 0
+    for rid in ids:
+        rec = recs.get(str(rid))
+        if rec is None or fld not in rec:
+            missing += 1
+            continue
+        v = rec.get(fld)
+        vals = v if isinstance(v, list) else ([] if v is None else [v])
+        if any(str(x) in bad for x in vals):
+            n_bad += 1
+    if missing:
+        return None, n_bad, "%d 条在快照里查不到／没有 `%s` 字段" % (missing, fld)
+    if n_bad:
+        return False, n_bad, "%d 条 `%s` 命中 not_in=%s" % (n_bad, fld, sorted(bad))
+    return True, 0, "%d 条 `%s` 均不在 %s" % (len(ids), fld, sorted(bad))
+
+
+def _expected_verdict(act, exp, kind, fs_state=None, fs_bad=0, fs_why="", had_spec=False):
+    """一条声明的判定 → `(verdict, residual, is_fewer)`。
+
+    **`filter_assert` 优先于条数**：`only_feishu` 带它时，`act` 只用于展示与回退。
+    `fs_state is None`（判不了）⇒ 走原来的计数判据，并把「为什么没按 filter 判」写进 verdict ——
+    不许静默回退。
+    """
+    if kind == "only_feishu" and fs_state is True:
+        return ("预期内（**按 filter 逐条复算**：%s）" % fs_why, 0, act < exp)
+    if kind == "only_feishu" and fs_state is False:
+        return ("**有 %d 条不满足 filter ⇒ 真差异**（%s）" % (fs_bad, fs_why),
+                max(1, fs_bad), False)
+    resid = max(0, act - exp)
+    _na = (" ｜ ⚠️ filter 复算判不了（%s）⇒ **已回退计数**" % fs_why) if had_spec else ""
+    if resid:
+        return ("**实际多于预期 → 真差异**" + _na, resid, False)
+    if act < exp:
+        return ("⚠️ 少于预期，请复核声明" + _na, 0, True)
+    return ("预期内" + _na, 0, False)
+
+
+def _selftest():
+    """反向对照：`filter_assert` 的四种形状**逐条喂**（不跑对账器、不碰飞书、零网络）。"""
+    import tempfile
+    ok = fail = 0
+
+    def chk(name, cond, extra=""):
+        nonlocal ok, fail
+        if cond:
+            ok += 1
+            print("  ✅ %s %s" % (name, extra))
+        else:
+            fail += 1
+            print("  ❌ %s %s" % (name, extra))
+
+    spec = {"field": "材料审核状态", "not_in": ["通过"]}
+    with tempfile.TemporaryDirectory() as t:
+        def snap(rows):
+            p = os.path.join(t, "x.ndjson")
+            with io.open(p, "w", encoding="utf-8") as fh:
+                for r in rows:
+                    fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+            return p
+
+        # ① 全部未审核 ⇒ 声明内；**条数 11 → 12 也不红**（这正是 2026-10-18 打停周更的形状）
+        p = snap([{"record_id": "r%d" % i, "材料审核状态": []} for i in range(12)])
+        st, nb, why = _judge_by_filter({"snap": p, "ids": ["r%d" % i for i in range(12)]}, spec)
+        v, resid, _ = _expected_verdict(12, 11, "only_feishu", st, nb, why, True)
+        chk("① 12 条全部未审核 ⇒ 声明内、真差异 0（**条数变了也不红**）",
+            st is True and resid == 0 and "按 filter 逐条复算" in v, v)
+
+        # ② 反向对照：有一条 = 通过 ⇒ 必须判真差异（放宽**不许吞掉真差异**）
+        p = snap([{"record_id": "r0", "材料审核状态": ["通过"]}]
+                 + [{"record_id": "r%d" % i, "材料审核状态": []} for i in range(1, 12)])
+        st, nb, why = _judge_by_filter({"snap": p, "ids": ["r%d" % i for i in range(12)]}, spec)
+        v, resid, _ = _expected_verdict(12, 11, "only_feishu", st, nb, why, True)
+        chk("② 有 1 条「通过」⇒ 必须判**真差异**（吞掉真差异 ⇒ 本条精确变红）",
+            st is False and resid >= 1, v)
+
+        # ③ fail-closed：快照缺 / 字段缺 ⇒ 判不了 ⇒ **回退计数**（条数多了照样红）
+        st, nb, why = _judge_by_filter({"snap": "/tmp/不存在-%d.ndjson" % os.getpid(),
+                                        "ids": ["r0"]}, spec)
+        v, resid, _ = _expected_verdict(12, 11, "only_feishu", st, nb, why, True)
+        chk("③ 快照读不到 ⇒ 判不了 ⇒ **回退计数**且条数多了仍红（不许放行）",
+            st is None and resid == 1 and "已回退计数" in v, v)
+        p = snap([{"record_id": "r0"}])                       # 快照里没有该字段
+        st, nb, why = _judge_by_filter({"snap": p, "ids": ["r0"]}, spec)
+        chk("③b 快照里没有该字段 ⇒ 同样回退计数（无法证明 ≠ 证明干净）", st is None, why)
+
+        # ④ 没写 filter_assert 的声明 ⇒ 行为一个字不变
+        v, resid, _ = _expected_verdict(11, 11, "only_feishu")
+        chk("④ 无 filter_assert ⇒ 原计数判据不变（11 == 11 ⇒ 预期内、真差异 0）",
+            resid == 0 and v == "预期内", v)
+        v, resid, _ = _expected_verdict(12, 11, "only_feishu")
+        chk("④b 无 filter_assert + 条数多了 ⇒ 仍判真差异（没声明的一律老规矩）", resid == 1, v)
+
+        # ⑤ 对齐器没给 ids 行（老版本 / 解析失败）⇒ 判不了 ⇒ 回退计数
+        st, nb, why = _judge_by_filter(None, spec)
+        chk("⑤ 对齐器没给 ids 行 ⇒ 判不了 ⇒ 回退计数", st is None, why)
+    print("\n自证：通过 %d / 失败 %d" % (ok, fail))
+    return 0 if fail == 0 else 1
+
+
 def main():
     ap = argparse.ArgumentParser(description="L0 层闸门（判定档）")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--quiet", action="store_true")
+    ap.add_argument("--selftest", action="store_true",
+                    help="反向对照：filter 复算的四种形状逐条喂（不跑对账器、不碰飞书）")
     args = ap.parse_args()
+    if args.selftest:
+        return _selftest()
 
     # ---- 1. 跑库内对账器（--check 只读档）
     p = subprocess.run([KBPY, REPORTER, "--check"], cwd=ROOT,
                        capture_output=True, text=True, timeout=900)
     raw = (p.stdout or "") + (p.stderr or "")
 
-    tables, failed, totals = {}, [], None
+    tables, failed, totals, ids_by_table = {}, [], None, {}
     for line in raw.splitlines():
-        m = ROW.match(line.strip())
+        s = line.strip()
+        m = IDS.match(s)
+        if m:
+            try:
+                _d = json.loads(m.group("json"))
+            except Exception:                                 # noqa: BLE001
+                _d = None
+            if isinstance(_d, dict) and _d.get("table"):
+                ids_by_table[str(_d["table"])] = _d
+            continue
+        m = ROW.match(s)
         if m:
             tables[m.group("name")] = {k: int(m.group(k)) for k in ("f", "l", "same", "of", "ol", "ch")}
             continue
-        m = FAIL.match(line.strip())
+        m = FAIL.match(s)
         if m:
             failed.append({"name": m.group("name"), "table_id": m.group("tid")})
             continue
@@ -130,22 +291,30 @@ def main():
     for e in expected:
         tbl, kind = e.get("table"), e.get("kind")
         exp = int(e.get("expected", 0) or 0)
+        _spec = e.get("filter_assert")
+        _had = isinstance(_spec, dict) and bool(_spec.get("field"))
+        fs_state, fs_bad, fs_why = None, 0, ""
         if kind == "only_feishu":
             act = (tables.get(tbl) or {}).get("of", 0)
+            # ★ 2026-10-19：有 `filter_assert` ⇒ 判「这几条是否都被 filter 排除」，不再数条数。
+            if _had:
+                fs_state, fs_bad, fs_why = _judge_by_filter(ids_by_table.get(tbl), _spec)
         elif kind == "pull_failed":
             act = sum(1 for f in failed if f["name"] == tbl)
         else:
             act = 0
         covered.add((tbl, kind))
-        resid = max(0, act - exp)
-        verdict = "预期内" if resid == 0 and act == exp else ("**实际多于预期 → 真差异**" if resid else "⚠️ 少于预期，请复核声明")
+        verdict, resid, _fewer = _expected_verdict(
+            act, exp, kind, fs_state=fs_state, fs_bad=fs_bad, fs_why=fs_why, had_spec=_had)
         rows.append({"id": e.get("id"), "table": tbl, "kind": kind,
                      "actual": act, "expected": exp, "residual": resid,
                      "verdict": verdict, "owner_action": e.get("owner_action", ""),
+                     "filter_assert": ("按 filter 复算" if fs_state is not None
+                                       else ("判不了→回退计数" if _had else None)),
                      "reason": (e.get("reason") or "").strip()})
         if resid:
             real_diffs.append(rows[-1])
-        elif act < exp:
+        elif _fewer:
             fewer.append(rows[-1])
 
     # ---- 4. 有没有**没被声明覆盖**的差异（新表 / 新类目）

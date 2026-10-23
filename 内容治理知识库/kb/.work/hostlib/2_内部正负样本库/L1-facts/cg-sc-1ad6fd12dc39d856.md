@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.17 是正例还是反例
   - S-1.17 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-1ad6fd12dc39d856"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 社媒
 reason_category: 品牌一致性
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2vgYXFN2g/原文反馈"
-source_sha256: 15797ddc786fef73540d36c194a9772aaed7f86000d4bc4ced10a60c4ec75f73
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXFN2g
+anchor: "#负面样本/recvw7XIUgWZi1/具体原因/分析"
+source_sha256: c119472528ae601038204a40e3edd143035373805092532710687ab070bca11f
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XIUgWZi1
 sample_body: "【审核 · 2026-09-15 23:35 · 陈东墨】【终审-@[已脱敏]   】麻烦看看这个呀:YouAreTheBest: **项目名：社媒海报*1** **设计需求：** 修改把人物和镜子里的自己方向一致 设计稿件: ![Image](img_v3_0215i_78c0a8fa-631c-4484-be34-336d63aff57g)"
 reason_analysis: "【品牌一致性】图片 【终审-@[已脱敏]   】麻烦看看这个呀。 【问题要点】 1. 【终审-@[已脱敏]   】麻烦看看这个呀 2. 修改把人物和镜子里的自己方向一致"
 advice: ""
@@ -78,8 +78,8 @@ advice: ""
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2vgYXFN2g/原文反馈`
-- 指纹：`15797ddc786fef73540d36c194a9772aaed7f86000d4bc4ced10a60c4ec75f73`
+- 锚点：`#负面样本/recvw7XIUgWZi1/具体原因/分析`
+- 指纹：`c119472528ae601038204a40e3edd143035373805092532710687ab070bca11f`
 - 原因归类：品牌一致性　|　素材类型：图片
 
 > 案例只作参照，不构成规则。

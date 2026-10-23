@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.110 是正例还是反例
   - S-1.110 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-9ac9abcc8e4671c5"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 社媒
 reason_category: unknown
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2wE9MtYyv/原文反馈"
-source_sha256: 19db7e945cf0f7aa25e81806290c712a99017613872d700e559e7746fad6331e
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MtYyv
+anchor: "#负面样本/recvw7XJiS5ORS/具体原因/分析"
+source_sha256: a32064f58d96ef28eddaa4d16a3c98141a71f08957bbab11f6bf71c3819482da
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XJiS5ORS
 sample_body: "【审核 · 2026-09-17 02:49 · 闫琪雯】【终审-@[已脱敏] 】姐姐看看这个呀:YouAreTheBest: **项目名：法国社媒设计微调** **设计需求：**不修改插画设计，需求方那边想要把插画缩小～，大面积留白，最后一张改底色。 ![Image](img_v3_0215j_1b94ea28-0ee8-46ae-b769-f83b83123e9g) ![Image](img_v3_0215j_7c156c7b-887b-4906-8041-9d27847bab7g) ![Image](img_v3_0215j_22e7aa28-cb72-4713-ba06-0f3713e3b68g) ![Image](img_v3_0215j_55d2173b-9eaf-40af-b9af-1c3aba38f19g)  Dans Mon Téléphone, Il N'Y A Pas Que Bébé. 20.38 • 3 829 Albums Voyage 57 Paysages 189 Pique-nique 82 Gens & Lieux Moi 245 MOMCOZY"
 reason_analysis: "【审核问题】文案 【终审-@[已脱敏] 】姐姐看看这个呀。 【问题要点】 1. 【终审-@[已脱敏] 】姐姐看看这个呀 2. 设计需求：不修改插画设计，需求方那边想要把插画缩小～，大面积留白，最后一张改底色"
 advice: ""
@@ -95,8 +95,8 @@ MOMCOZY
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2wE9MtYyv/原文反馈`
-- 指纹：`19db7e945cf0f7aa25e81806290c712a99017613872d700e559e7746fad6331e`
+- 锚点：`#负面样本/recvw7XJiS5ORS/具体原因/分析`
+- 指纹：`a32064f58d96ef28eddaa4d16a3c98141a71f08957bbab11f6bf71c3819482da`
 - 原因归类：unknown　|　素材类型：文字
 
 > 案例只作参照，不构成规则。

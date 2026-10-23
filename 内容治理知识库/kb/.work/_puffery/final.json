@@ -1,0 +1,159 @@
+[
+ {
+  "text": "我们最好的吸奶器",
+  "expect": "expect_clear",
+  "why": "主观最高级·中文",
+  "state": null,
+  "codes": [],
+  "pats": []
+ },
+ {
+  "text": "最佳选择",
+  "expect": "expect_clear",
+  "why": "主观最高级·中文",
+  "state": null,
+  "codes": [],
+  "pats": []
+ },
+ {
+  "text": "Our pump is the best on the market",
+  "expect": "expect_clear",
+  "why": "主观最高级·英文 best",
+  "state": null,
+  "codes": [],
+  "pats": []
+ },
+ {
+  "text": "Super strong suction for busy moms",
+  "expect": "expect_clear",
+  "why": "夸张词·super",
+  "state": null,
+  "codes": [],
+  "pats": []
+ },
+ {
+  "text": "超级静音吸奶器，超强吸力",
+  "expect": "expect_clear",
+  "why": "夸张词·超级/超强",
+  "state": null,
+  "codes": [],
+  "pats": []
+ },
+ {
+  "text": "最强电机",
+  "expect": "expect_clear",
+  "why": "夸张词·最强",
+  "state": null,
+  "codes": [],
+  "pats": []
+ },
+ {
+  "text": "100% safe for your baby",
+  "expect": "expect_keep",
+  "why": "安全承诺 100% safe",
+  "state": "BLOCK",
+  "codes": [
+   "H05",
+   "V02"
+  ],
+  "pats": [
+   "100%",
+   "100% safe",
+   "\\b100\\s*%\\s*(safe|safety)\\b"
+  ]
+ },
+ {
+  "text": "The safest pump for every mom",
+  "expect": "expect_keep",
+  "why": "安全承诺 safest",
+  "state": "BLOCK",
+  "codes": [
+   "H05"
+  ],
+  "pats": [
+   "\\b(safest|perfect|zero[\\s-]?risk|risk[\\s-]?free)\\b",
+   "safest"
+  ]
+ },
+ {
+  "text": "zero risk pumping",
+  "expect": "expect_keep",
+  "why": "安全承诺 zero risk",
+  "state": "BLOCK",
+  "codes": [
+   "H05"
+  ],
+  "pats": [
+   "\\b(safest|perfect|zero[\\s-]?risk|risk[\\s-]?free)\\b",
+   "zero risk"
+  ]
+ },
+ {
+  "text": "最安全的选择",
+  "expect": "expect_keep",
+  "why": "安全承诺 最安全",
+  "state": "BLOCK",
+  "codes": [
+   "H05",
+   "V02"
+  ],
+  "pats": [
+   "最\\s*(安全|低价|便宜|有效|快|大|高|省)",
+   "最安全"
+  ]
+ },
+ {
+  "text": "Best-selling breast pump",
+  "expect": "expect_keep",
+  "why": "需依据 销量宣称",
+  "state": "BLOCK",
+  "codes": [
+   "M03"
+  ],
+  "pats": [
+   "best-selling"
+  ]
+ },
+ {
+  "text": "排名第一的吸奶器",
+  "expect": "expect_keep",
+  "why": "需依据 排名宣称",
+  "state": "BLOCK",
+  "codes": [
+   "H05",
+   "V02",
+   "V03"
+  ],
+  "pats": [
+   "(排名|销量|全网|行业|品类|国内|全球|世界|亚洲)\\s*第一",
+   "排名第一",
+   "第一"
+  ]
+ },
+ {
+  "text": "第一名的吸奶器",
+  "expect": "expect_keep",
+  "why": "需依据 排名宣称",
+  "state": "BLOCK",
+  "codes": [
+   "H05",
+   "V02"
+  ],
+  "pats": [
+   "第一",
+   "第一\\s*(品牌|选择|名|款|位)"
+  ]
+ },
+ {
+  "text": "fits all breast shapes",
+  "expect": "expect_keep",
+  "why": "绝对化适配",
+  "state": "BLOCK",
+  "codes": [
+   "H05"
+  ],
+  "pats": [
+   "fits all breast shapes"
+  ]
+ }
+]

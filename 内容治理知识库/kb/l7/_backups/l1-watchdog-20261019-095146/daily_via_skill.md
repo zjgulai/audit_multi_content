@@ -1,0 +1,155 @@
+# 日更任务书 · 逐层走 skill（由 `kb/l8/daily_via_skill.sh` 交给 headless agent）
+
+你是这次日更的执行者。目标：**L0 与飞书侧源对齐 → 逐层更新 L1–L6 → L7 跨层闸门**，
+并且**每一层都要真的用 `skill` 工具加载该层的 skill 再执行**。
+
+## 为什么必须"真的加载"（不是走过场）
+
+库里有一把尺子 `kb/l7/scripts/skill_invocation_audit.py`，它核的是**三方一致**：
+**声明的 skill（`layers.yaml`）= 记账（`kb/l7/runs/<RUN>.json`）= 层侧落章（`kb/lx/runs/<RUN>*.json` 的 `skill` 字段）**。
+
+★ **2026-10-05 实测的关键区别**：只跑编排器 + 申报 `--invoked`，落章仍是**预演件**时，
+  审计会记 `observed_skills: []` 并注明「**读不到任何非预演落章 ⇒ 无观测值，退回注册表声明**」
+  ⇒ 那是 `registry_echo`（**声明**），不是 `agent_reported`（**观测**）。
+  **日更要写档，所以必须落非预演的章**：每层按该 skill 的「写档档位」带 `--apply` 跑。
+
+## 铁律（违反即停，不要硬试）
+
+1. **层 → skill 的映射现读 `kb/l7/registry/layers.yaml` 的 `skill:` 字段** —— 不许手抄、不许凭记忆。
+   ⚠️ **L1 有两个 skill**（`kb-ingest-extractor` + `kb-media-extractor`），**两个都要加载**。
+2. **先闸门、后引擎**：每层先跑只读闸门；**闸门红即停**，不许带着坏输入往下走。
+3. **每层只记一次账**：
+   ```
+   sh kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only <Lx> --run <BASE>-<Lx> \
+     --invoked <本层 skill-id> --skill-session <Lx>=<你的会话标识>
+   ```
+   不带 `--invoked` ⇒ 审计记成 `registry_echo`（= 没调 skill）。
+4. **L7 单独跑**（它是跨层闸门、不是层主；塞进 `--only` 会被代码级硬拒）。
+5. **不许放宽任何判据**。别为了让结果变绿去改闸门、改 expected、改历史 run 记录。
+   认不出来 / 缺料 ⇒ **如实报告**，那是结论，不是失败。
+6. **不许动** `~/.dsh/skills/**` 与 `kb/l7/skills/**`（装机位与库内真源，已设只读）。
+
+## 步骤
+
+BASE 由调用方给（形如 `daily-20261005-0830`）。要跑的层由调用方给。
+
+1. 读 `kb/l7/registry/layers.yaml`，逐层列出 `skill:` 与 `engine:`（**这是唯一真源**）。
+2. 逐层执行（L0 起）：
+   - ① 用 **`skill` 工具**加载本层 skill；
+   - ② 跑本层**只读闸门**（`kb/l7/scripts/lx_gate.py`），红即停；
+   - ③ 按本层 `engine:` 清单跑引擎（**带 `--apply`**），
+     并确保**层侧落章带 `--skill <本层 skill-id>`**。
+     ★ **`engine:` 清单就是日更的放行清单**（2026-10-09 定口径，Owner 批）：
+     **在清单里 = 日更自动跑（带 `--apply`）；不在清单里 = 只走人工档**。
+     依据：`kb/l7/registry/layers.yaml` 的 `meta.skill_binding_note` 原文 ——
+     「**引擎由该层 skill 按本表 `engine` 跑，不在别处复制引擎清单**」
+     ⇒ skill 是**规程**，`engine:` 是**这条规程要跑的那批脚本**，两者不是二选一。
+     ⚠️ `kb-l0-feishu` 正文里的 `--check / --sync / --full` 档位表，是**人工执行该层流程时的深度**
+     （该层 `skill_note` 限 `--check` / `--sync`、**禁 `--full`**），**不是日更的档位** ——
+     日更不走阶段流程，走 `engine:` 清单；两者口径不一致时**以 `engine:` 清单为准**。
+     ⇒ **要控制日更写什么，改 `engine:` 清单；改档位表对日更无效。**
+     这也是「阶段 5–8（非记录/图片字节/视频/链接）不在 L0 清单里 ⇒ 那几类不走日更」的机制
+     —— **是边界，不是遗漏**（2026-10-09 实测：当天 L0 只跑了清单里的 4 个引擎）。
+     ⚠️ 本条**只适用于日更**：人工按阶段执行时档位表照旧（阶段 3–8 仍需人放行）。
+   - ④ 记账（上面铁律 3 那条命令）。
+3. 全部层跑完后：
+   - **③ 全链体检（★ 不许漏）**：`sh kb/kbpy l7/scripts/daily_health.py`
+     —— 这是脚本版的第 ③ 步，产出**日报**（人要看的那个出口）。
+     脚本版有它、这里没有 ⇒ 就是功能退化。**跑完核它的 mtime 是本次的。**
+   - 对每个 `<BASE>-<Lx>` 跑 `skill_invocation_audit.py --run <BASE>-<Lx>`，**四条必须红 0**；
+     ⚠️ 那四条**只覆盖 L4–L7** —— L0/L1/L2/L3 不被它核。
+   - **③b L0–L3 的 skill 证据核验（★ 2026-10-05 用户裁定补的尺子，别漏）**：
+     `python3 kb/l8/l0_l3_skill_evidence.py --base <BASE>` —— **必须退出 0 / 红 0**。
+     它用的是**同一把尺子**（`layers.yaml` 声明 vs 层侧落章 `skill` 字段 + `applied` 非预演），
+     只是量到原审计没覆盖的那四层。红 ⇒ 回去补那一层的 skill 加载与落章。
+   - **③c 重建 L1 索引（★ 2026-10-08 加，治「必然漂移」）**：
+     ```
+     python3 kb/l1/index/rebuild_l1_index.py --write --run <BASE>
+     ```
+     然后**立刻复跑 `--check`，必须 `[OK]`**（陈旧 / 虚报 / 缺段 / 多余 四查全清）。
+     · **为什么非它不可**：`kb/l1/index/l1.jsonl` 是**全量重建**产物（`layers.yaml` L1 的 `write_mode` 原话：
+       「manifest_l1.jsonl append-only；资源 json 就地覆盖；**index/l1.jsonl 全量重建**」），
+       而它在编排器里**只被登记成只读闸门**（`kb_pipeline.py:91` 的 `GATE_WHITELIST`），
+       launchd 与全库**没有任何自动流程**调 `--write` ⇒ 源一变它就漂，`--check` 天天红、没人修。
+       实测（2026-10-08）：多余 3 段、重建 14707 → 15114，mtime 停在 10-02 而源已到 10-08。
+     · ⚠️ **两个不许**：**不许**把 `kb_pipeline.py:91` 的 `["--check"]` 改成 `["--write"]`
+       —— 那是「只读闸门白名单」，改了会让**每天的全链体检去写库**；
+       **不许**把它塞进 `kb_pipeline.py` 的 `SYNC_SPEC` —— `--via-skill` 档下 runner **不跑** `SYNC_SPEC` 的引擎。
+     · 它不在「写前必须归档」红线清单里（`_sync_drill.py:64` 的 GUARD 只有 l2/l3 那四个），
+       且脚本自带原子替换（`.tmp` + `os.replace`），**跑它没有副作用**。
+     · 放在**全部层跑完之后**（不是 L1 那一步之后）：L1 的源会被后续步骤再写（如 `drill_links_2levels.py` 写 `kb/l1/sources`），
+       跑早了等于白跑。
+   - 跑 `sh kb/kbpy l7/scripts/freshness.py` 并**原样贴出结论**。
+4. 收尾报告（**必须打印这几项，缺一项算没做完**）：
+   - 每层的：闸门结论 / 产物变化数 / 落章文件路径 / 是否**非预演**；
+   - **③ 体检的三个产物 mtime**（上面那条判据）；
+   - 四条审计的结论行；
+   - **L1 索引的 `--check` 结论行**（③c；必须是 `[OK]`，不是就说明重建没跑或跑错了）；
+   - `freshness.py` 的结论行；
+   - **一条明确的总结**：这次日更是「全成功 / 停在第几层 / 为什么停」。
+
+## ★ 功能等价：脚本版有的，这里一步都不能少（2026-10-05 用户裁定后补）
+
+**这条是本任务书的验收底线**：`com.kb.pipeline-daily`（脚本版 `daily_sync.py`）已停用，
+本任务**替代**它 ⇒ **脚本版做的每一步，这里都必须有对应**。缺一步就是**功能退化**，不是简化。
+
+★ **2026-10-09 更正并落地**：此前那句"已停用"**只是声明** —— 实测两个日更 03:30 **同刻都在跑**
+（旧版 L0 `03:30:18` ／ 新版 `03:36:21`）。现已**真正 `bootout`**，**只跑本任务书这一条**。
+下线前先补了对应表里原先写错的那一行（见下表「逐层 `observe(...)`」）。
+
+`daily_sync.py` 的步骤与本任务书的对应关系（**照它逐条核，别凭印象**）：
+
+| 脚本版 | 做什么 | 本任务书 |
+|---|---|---|
+| ① `l0_daily_sync.py` | L0 与飞书对齐（可写：新增入库 / 删除立碑后真删） | 步骤 2（L0） |
+| ② `kb_pipeline.py --sync --only Lx --apply` ×L1..L6 | 逐层写档 | 步骤 2（L1–L6） |
+| **③ `daily_health.py`** | **L0–L7 全链只读体检 → 日报**（`kb/l7/reports/<日期>-daily-health.md` + `daily-health-latest.json`） | **步骤 3（★ 别漏！）** |
+| ③b L7 观测 | L7 也落新鲜度观测 | 步骤 2（L7 那一趟） |
+| 逐层 `observe(...)` | 每层落新鲜度观测（写 sidecar `kb/l7/registry/layer_run_freshness.json`） | **由驱动收尾落**：`kb/l8/observe_layers.py --snapshot`（跑前）＋ `--land`（跑后）。★ **原先这里写「由各层引擎/编排器随写档落」，实测不成立** —— `kb_pipeline.py` 里 `layer_freshness` 命中 **0**；sidecar 八层的 `note` 全写着「daily_sync.py 写档后落的真实观测（修复1）」。**2026-10-09 已按此接线** |
+| `l0_write_guard()` | **L0 未对齐 ⇒ 跳过 L1–L6 写档**（用户裁定 2026-10-03：「先把 L0 跟飞书侧对齐，再执行其他层的」） | 由 L0 那一趟的**只读闸门 `l0_gate.py`** 等价覆盖，且**更严**：`L0多`/`值变` 明写「**不允许豁免**」、未声明的 `pull_failed` 判红，**外加** `manifest 未登记的 L0 记录文件`。判据等价，但**性质不同** —— 脚本版是**代码强制**（同进程判完直接跳过写档），本任务书是**约束 agent「闸门红即停」** |
+
+★ **判据（跑完必须自己核一遍）**：这三个产物的 mtime 必须是**本次**的 ——
+`kb/l7/reports/daily-health-latest.json`、`kb/l7/reports/<今天>-daily-health.md`、
+`kb/l7/reports/l0-daily-sync-latest.json`。**任何一个停在旧时间 ⇒ 那一步没做，回去补。**
+
+★ **日更摘要（2026-10-09 加，Owner 裁定「推荐 A」）由驱动出，不用你做**：
+`kb/l8/daily_digest.py <BASE> --push` 会读本轮各 run 报告，出
+`kb/l8/runs/<BASE>-digest.md`（口径照 `kb-l0-feishu` 的 `coverage-matrix.md`：
+**12 类 × 四态**，每类一行 = 类型 + 状态 + 条数 + 原因码），并**推守衡私聊**。
+背景（别再踩）：实测日更**原先什么都不推** —— `daily_health.py` 自己写着
+「要接告警请读 `daily-health-latest.json`」，而从来没人接。
+**你不需要、也不要自己再拼一份摘要或再推一次**（会重复打扰）。
+
+## 停手条件（命中即停、如实报告，不要绕路）
+
+- 任何一层闸门红；
+- **user 身份不可用**（L0 的回落链路会失败，见 `kb/l7/registry/l0-expected-diffs.yaml` 登记的失效模式）。
+
+## ★ 驱动已做的事（不要重复做）—— 2026-10-05 预演实测补
+
+1. **认领已由驱动完成**（`kb_loop_claim.py claim` + EXIT trap 释放）。
+   ⇒ **你不要再 claim**；看到「已被占着」是**正常的**（那是驱动自己持着），**不是停手信号**。
+2. **`KB_PIPELINE_RUN_ID` 由驱动注入**（`stamp_meta.py:41` 读它）。
+   不注入 ⇒ 落章的 `pipeline_run_id` 写 `None` ⇒ 审计 E2 查不到该 RUN。
+
+## ★ L0 的写档路径（2026-10-05 预演实测，**不要走错**）
+
+- **L0 不在编排器的写档白名单里**：`kb_pipeline.py:293` `SYNC_ALLOWED = ["L1"…"L6"]`。
+  跑 `--sync --only L0 --apply` 会被**代码级拒绝**；能绕过它的是 `--allow-beyond-policy`，
+  而那个 flag 的 help 明写「**只准人用**」⇒ **你不许加**（铁律 5）。
+  ⇒ L0 的正确写档路径就是 **`kb/kbpy l7/scripts/l0_daily_sync.py`**（库的设计如此）。
+- **但 `l0_daily_sync.py` 不写带 `skill` 的落章**（实测：全文无 `--skill`、不调 `reconcile_l0_feishu`）。
+  ⇒ 只跑它，`kb/l0/runs/` 里**不会有本 RUN 的带 skill 落章** ⇒ 审计 E2 红 / E5 黄
+    ⇒ 退回 `registry_echo`（正是本任务书开头警告的那件事）。
+  ⇒ **必须补一步**：用 `kb/l8/reconcile_l0_feishu.py --skill kb-l0-feishu`（或等价落章引擎）
+    为本 RUN 落一枚**带 `skill` 的非预演章**。
+
+
+## 你现在可以用的现成件
+
+- 编排器：`kb/kbpy l7/scripts/kb_pipeline.py`（`--check` 只读体检 / `--sync --only Lx --apply` 写档）
+- L0 日更：`kb/kbpy l7/scripts/l0_daily_sync.py`（L0 对齐 + 入库，写操作）
+- 闸门：`kb/kbpy l7/scripts/l0_gate.py` … `l7_gate.py`
+- 审计：`kb/kbpy l7/scripts/skill_invocation_audit.py --run <RUN>`
+- L1 索引（③c）：`python3 kb/l1/index/rebuild_l1_index.py --check | --write --run <RUN>`
+- 新鲜度：`kb/kbpy l7/scripts/freshness.py`

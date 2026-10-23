@@ -43,11 +43,16 @@ LAYERS_YAML="$ROOT/kb/l7/registry/layers.yaml"
 PY="${KB_PY:-/usr/bin/python3}"
 
 BASE=""; SESSION=""; LAYERS="L4,L5,L6,L7"; DO_CLAIM=1; DRY=0; TWO_PHASE=0
+# ★ 用 `${SKILL_CHECK:-}`：直接写 `SKILL_CHECK=""` 会把**环境变量**覆盖成空串（实测踩过：
+#   `SKILL_CHECK=图片安全审查 bash …` 传进来，脚本自己一句空赋值就把它抹了，闸门只查了层 skill 四个，
+#   判定主体那个**没查**，而日志看起来一切正常）。
+SKILL_CHECK="${SKILL_CHECK:-}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --base) BASE="${2:-}"; shift 2 ;;
     --session) SESSION="${2:-}"; shift 2 ;;
     --layers) LAYERS="${2:-}"; shift 2 ;;
+    --skill-check) SKILL_CHECK="${SKILL_CHECK:+$SKILL_CHECK }${2:-}"; shift 2 ;;
     --no-claim) DO_CLAIM=0; shift ;;
     --two-phase) TWO_PHASE=1; shift ;;   # 两段档：①单独过闸门 ②记账（默认关 —— 实测纯重复，白烧 ~58 s）
     --dry-inventory) DRY=1; shift ;;
@@ -156,6 +161,39 @@ if [ "$DO_CLAIM" = "1" ] && [ "$DRY" = "0" ]; then
     say "⛔ 认领未成功（exit=${rc}）—— 别的会话在跑这条循环，本次不跑。原文："
     tail -3 /tmp/preflight-claim.out
     exit 3
+  fi
+fi
+
+# ── ⓪b skill 就绪（2026-10-21 加）：防「skill **静默消失**」──────────────────────
+#   病灶（本机实测）：某 skill 的 SKILL.md 落成「信封态」（stat 比内容多 4096），
+#   harness 的 dsh-fs-local 读它抛 `FS_NOT_TEXT: binary file` ⇒ 该 skill 被跳过、
+#   **不进会话 catalog** ⇒ `skill` 工具报 `unknown or no longer available`。
+#   后果不是报错，是**静默降级**：评审照跑、报告照发，判定主体一次都没加载过。
+#   实测日志（2026-10-21 09:56/10:03/10:09/10:12 同一条）见 kb/l8/assert_skill_ready.py 头注释。
+#   判据：本层声明的 skill（现读 layers.yaml，不抄第二份）+ 调用方用 `--skill-check` 点名的
+#   （典型是**判定主体**，如 `--skill-check 图片安全审查`）。红 ⇒ exit 4，停在层闸门之前。
+if [ "$DRY" = "0" ] && [ "${KB_SKILL_READY_OFF:-}" != "1" ]; then
+  SK_ARGS=()
+  while IFS=' ' read -r _L _S; do
+    [ -n "${_S:-}" ] && SK_ARGS+=(--skill "$_S")
+  done <<EOF
+$MAP
+EOF
+  for extra in ${SKILL_CHECK:-}; do
+    case " ${SK_ARGS[*]:-} " in
+      *" $extra "*) : ;;
+      *) SK_ARGS+=(--skill "$extra") ;;
+    esac
+  done
+  if [ ${#SK_ARGS[@]} -gt 0 ]; then
+    if "$PY" kb/l8/assert_skill_ready.py "${SK_ARGS[@]}" --quiet >/tmp/preflight-skill.out 2>&1; then
+      say "⓪b skill 就绪 ✅（$(( ${#SK_ARGS[@]} / 2 )) 个：本层 skill + 点名的判定主体）"
+    else
+      say "⛔ skill 就绪闸门红（exit=4）—— 有 skill 在 harness 侧**读不到**，不许往下跑："
+      "$PY" kb/l8/assert_skill_ready.py "${SK_ARGS[@]}" || true
+      say "   这不是数据缺陷，是文件落盘成了信封态/坏 frontmatter；修法见 kb/l8/assert_skill_ready.py 头注释。"
+      exit 4
+    fi
   fi
 fi
 

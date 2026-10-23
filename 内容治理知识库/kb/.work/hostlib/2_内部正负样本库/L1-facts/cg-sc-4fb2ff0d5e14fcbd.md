@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.58 是正例还是反例
   - S-1.58 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-4fb2ff0d5e14fcbd"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 其他
 reason_category: unknown
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2vgYXDw75/原文反馈"
-source_sha256: 2e19064e09a3323e1050cab857ab6755e6819586dbcefd1d2affbc619866cc2c
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXDw75
+anchor: "#负面样本/recvw7XJiSwPxW/具体原因/分析"
+source_sha256: 523c95350e9b73fec58ef2b97e60d050e2e5e4ed9447b2c237ff46befd5a9819
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XJiSwPxW
 sample_body: "【项目方 · 2026-09-16 21:13】@[已脱敏]  ![Image](img_v3_0215j_c073befe-df91-4f70-8ef3-5f7d3d75510g) 这张要不要挪一挪位置，现在有两个吸奶器被裁到～  【审核 · 2026-09-16 21:13 · 陈东墨】@[已脱敏]  ![Image](img_v3_0215j_531bbc1e-cf2c-41dd-bfe7-dea4d10cf4bg) 已调整~麻烦再看看"
 reason_analysis: "【审核问题】图片。 @[已脱敏]  已调整~麻烦再看看"
 advice: 调整~麻烦再看看
@@ -82,8 +82,8 @@ advice: 调整~麻烦再看看
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2vgYXDw75/原文反馈`
-- 指纹：`2e19064e09a3323e1050cab857ab6755e6819586dbcefd1d2affbc619866cc2c`
+- 锚点：`#负面样本/recvw7XJiSwPxW/具体原因/分析`
+- 指纹：`523c95350e9b73fec58ef2b97e60d050e2e5e4ed9447b2c237ff46befd5a9819`
 - 原因归类：unknown　|　素材类型：图片
 
 > 案例只作参照，不构成规则。

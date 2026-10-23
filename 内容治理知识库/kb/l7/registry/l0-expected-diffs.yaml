@@ -12,7 +12,17 @@ expected:
 - id: EX-1
   table: 材料收集
   kind: only_feishu
-  expected: 10
+  expected: 11
+  filter_assert:
+    field: 材料审核状态
+    not_in:
+    - 通过
+  # ★★ 2026-10-19（Owner 同意「做 ②」）：**判据从「数条数」换成「逐条复算」**。
+  #   条数只是这个判据的**影子**：飞书侧多一条未审核材料，`expected` 就对不上 ⇒ 闸门假红 ⇒
+  #   整轮停在 L0（2026-10-18 周更正是这么停的，L1–L7 一周没跑）。
+  #   有 `filter_assert` 以后：这 N 条只要**全部** `材料审核状态 ≠ 通过` 就判「预期内」，
+  #   `expected` 退化为**参考值**（仍打印，供人看漂移）。
+  #   ⚠️ 读不到快照／字段／ids ⇒ **回退计数**（fail-closed，不放行）。
   reason: '`kb/l0/registry/kb.json → filter` 声明：只收「材料审核状态 == 通过」的记录； 未命中者按 `excluded_policy` **只在 runs/<run_id>.json 留痕，不登记资源、不进库目录、不进索引**。 所以它们在飞书侧存在、在 L0 不存在 —— 这是**声明的结果**，不是漏抓。
 
     '
@@ -20,8 +30,12 @@ expected:
   - kb/l0/registry/kb.json → filter（operator == / value 通过 / changed_at 20260930-0410）
   - kb/l0/registry/kb.json → excluded_policy（原因枚枚举与去向）
   - kb/l8/runs/20260930-0150-batch-notes.json → live_verification.the_10（逐条说明这 10 条为何不是缺口）
+  - kb/l8/runs/daily-20261018-0330-L0-l0-align.json → 材料收集 only_feishu 11 条（ids：recvvg2wL26SAU / recvvg2wL2EnC0 / recvvg2wL2qE3K / recvvhI3yZULdA / recvvhv1cwO2Ry / recvvlGAKpUVF9 / recvvlGUajvYY0 / recvvlO5gFdyzx / recvvlspM5RDoj / recvvltvfBsoDP / reczz28OIQJHQ6jH）
+  - kb/l8/_stage/feishu-align/daily-20261018-0330-L0/tblMGtPfe8ZUsEdP.ndjson → 11 条 材料审核状态=null（逐条核过）
   declared_at: '2026-09-30'
-  owner_action: 无需动作（按声明预期）。**仅当条数从 10 变化时**重新评估：多了 = 飞书侧新增了未通过的记录；少了 = 有人清了或改了状态。
+  redeclared_at: '2026-10-19'
+  redeclare_reason: '飞书侧新增 1 条未审核材料 reczz28OIQJHQ6jH（材料审核状态=[]）⇒ 10 → 11；11 条全部未审核，按 filter 仍不入库（不是准入缺陷，也不是漏抓）。'
+  owner_action: 无需动作（按声明预期）。**仅当条数从 11 变化时**重新评估：多了 = 飞书侧新增了未通过的记录；少了 = 有人清了或改了状态。
 known_comparator_defect:
 - id: CD-1
   file: kb/l8/align_l0_feishu.py

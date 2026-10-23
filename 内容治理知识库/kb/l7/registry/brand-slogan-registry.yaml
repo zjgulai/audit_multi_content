@@ -1,0 +1,43 @@
+# 品牌标语（slogan）登记清单 —— 「标语是否按登记写法」的**唯一比对源**
+#
+# 为什么有它（Owner 2026-10-20 裁定「口号地道度算可判条款」后的落地口径）：
+#   「英语地不地道」不可逐字判定，也不该由模型直觉推翻品牌侧确认（见 `brand-wording-policy.yaml`
+#   的 not_judgeable 第 2 条：库内正例 S-1.101 / S-1.109 逐字写着「与需求方确认过使用这个 slogan」）。
+#   可判的替代口径是：**素材里的标语必须与这里登记的写法一致；不一致 ⇒ 转品牌侧核对**。
+#
+# ⚠️ 本件**目前只有一条**，是有证据的那一条。**不许为了让规则好用而补编标语**：
+#   清单外的标语 ⇒ 一律 `unregistered_action: 转人工`（见文末 policy）。
+meta:
+  at: '2026-10-20'
+  by: '执行会话（依 Owner 裁定登记口径）'
+  status: partial
+  status_note: '待品牌侧补全：目前只登记了库内有正例证据的那一条；补全前，清单外标语的判定口径 = 转人工'
+  registry_owner: '品牌 / VI（与《Momcozy 品牌文案与字体应用规范》同归属）'
+  evidence_doc:
+    name: 'Momcozy 品牌文案与字体应用规范'
+    l0_record: 'kb/l0/3_措辞表达库/feishu_doc__RMTWdHAjFoCI7Ax9VTKcLg0KnSc.json'
+    revision: 153
+    url: 'https://momcozy-in.feishu.cn/wiki/QX0Yw2neriOdA3k1giBciQDsn2c'
+
+slogans:
+  - id: SL-01
+    canonical: 'Evolving for Mom and Cozy'
+    # 素材上可按字标规范全小写呈现（实拍/字标常见 momcozy 小写），**但不得改词**
+    accepted_renditions:
+      - 'Evolving for Mom and Cozy'
+      - 'Evolving for mom and cozy'
+    forbidden_variants: []            # 目前**没有**已确认的错写形态 —— 不编
+    evidence:
+      - 'kb/l3/candidates/sample_cases.jsonl ｜ S-1.101（正例，Witt 瑞典 2C 展会海报）：「Slogan: Evolving for Mom and Cozy（与需求方确认过使用这个 slogan）」'
+      - 'kb/l3/candidates/sample_cases.jsonl ｜ S-1.109（正例，同项目）'
+    confirmed_by: '需求方（原文「与需求方确认过使用这个 slogan」）'
+    note: '写法差异（大小写）**不判**：引擎 norm() 会 casefold（见 brand-wording-policy.yaml not_judgeable 第 1 条）'
+
+policy:
+  registered: '与 canonical / accepted_renditions 一致 ⇒ 不判（属既定写法）'
+  deviates: '出现同一 slogans 的改写（改词/增删词/错拼）⇒ REVIEW，转品牌侧核对，并请其更新本清单'
+  unregistered: '素材里出现清单外的标语 ⇒ REVIEW（转品牌侧确认后才可放行）；**不许**用「地道/不地道」下结论'
+  unregistered_action: '转人工'
+  judgeable_rule: '本清单本身**不直接命中**；命中的是字面规则（如 BR-01 品牌名写法）。'
+                  '要让「标语不一致」成为字面可判规则，需要品牌侧先给出**错写形态**或**标准比对算法**'
+                  '（例如逐词比对），届时应新增一条 L3 规则并登记证据，而不是把清单当规则用。'

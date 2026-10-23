@@ -211,8 +211,8 @@
  },
  "p0_policy": {
   "p0_rules": 63,
-  "p0_fastpath_rules": 17,
-  "rule": "★ `p_level=P0` 与「进 P0 快路」**不是同一件事**：快路集合 = `kb/l5/p0_patterns.jsonl`（现 17 条，法务签字台账 `kb/l5/registry/p0-legal-signoff-ledger.json`）；`p_level=P0` 是本表口径的优先级档（63 条）。表里这 17 条一律锁 P0（表跟随引擎），其余 46 条 P0 由评审链**规则层**命中并判 BLOCK，不走 ≤1s 快路、依据标「不可逐字回源」。",
+  "p0_fastpath_rules": 19,
+  "rule": "★ `p_level=P0` 与「进 P0 快路」**不是同一件事**：快路集合 = `kb/l5/p0_patterns.jsonl`（当前 19 条：主选取 17 条 + Owner 批准的 M01/M02 boundary-only 两条；常规增补查法务签字台账 `kb/l5/registry/p0-legal-signoff-ledger.json`）；`p_level=P0` 是本表口径的优先级档（63 条）。原锁定的 17 条一律锁 P0（表跟随引擎），其余 46 条 P0 由评审链**规则层**命中并判 BLOCK，不走 ≤1s 快路、依据标「不可逐字回源」。",
   "locked_to_engine": [
    "E-2.124",
    "E-2.125",
@@ -232,7 +232,7 @@
    "W-1.8",
    "W-1.9"
   ],
-  "warning": "实测（2026-10-17 落库后当天复核）：`kb/.work/l5_export.py` 的 P0 选取口径是 `p_level==\"P0\"`，但它读的是 **manifest 富化的合成视图**（`kb_ledger.rules_enriched_view_multi`），而富化对 515 条规则**覆盖**了规则行的 p_level ⇒ 导出侧看到的是 P0=45（28 来自 manifest ＋ 17 条无富化的外部标准），按 atomic/authority 门槛筛后**仍是 17 条**，与现表一致。⇒ 快路本次**没有任何扩容**；「改成表值后 19 条」只在**把表值同步进 manifest** 时才会发生（本件没做，见 dual_axis）。守卫仍保留并已做**反向对照**：把 p0_patterns.jsonl 移走后跑 --apply ⇒ 退出码 4、逐条打印 17 条「新增」、一个文件都没写（实测 sha 复原一致）。"
+  "warning": "历史读数（2026-10-17）：当时导出 17 条；2026-10-21 Owner 确认将 M01/M02 的边界规则名作为 boundary-only 项加入导出（不收宽泛字面触发词），当前为 19 条。旧版 l5_gate 仍只复算 17 条，导致误阻断；2026-10-21 已修闸门：读取导出器登记的 boundary-only 码，从 L3 候选复算并按 rule_id 集合比对。该例外不改变一般 P0 准入或法务签字要求。"
  },
  "exceptions": [
   {
@@ -6646,7 +6646,7 @@
  "dual_axis": {
   "state": "known",
   "what": "★ 本次落库后，库里 `p_level` 有**两个读者、两种取数**：① 评审链规则层（`kb/l7/skills/kb-content-review/scripts/review.py::load_rules`）读 `kb/l3/candidates/rules.jsonl` **逐行 last-wins**，不吃富化 ⇒ 看到本次的表值（509 条：P0 40 / P1 137 / P2 213 / P3 119，与表内 rules 部分逐档一致）；② L5 侧（`l5_export` / `l5_prep` / `l5_report`）读 `kb_ledger.rules_enriched_view*`，**manifest_l3 的富化会覆盖规则行的 p_level** ⇒ 仍看到旧值（P0 22 等）。",
-  "why_not_unified_today": "把表值同步进 manifest 会连带改变 `kb/l7/scripts/l5_gate.py::_p0_recompute` 的可复算条数（expected 17 → 19），那是**阻断闸门**；快路扩容另有法务签字台账约束。⇒ 本件按「不动工作流」口径**只写规则行**，把双轴**显式登记在这里**，不静默。",
+  "why_not_unified_today": "本件仍按「不动工作流」口径只写规则行，双轴显式登记在这里。旧版 L5 闸门对 17→19 的差异判红；2026-10-21 已将 boundary-only M01/M02 纳入逐条复算，当前预期与导出均为 19。一般快路扩容仍须法务签字。",
   "impact_of_engine_axis": {
    "severity_flips": 26,
    "review_to_block": 23,
@@ -6694,11 +6694,11 @@
    "P2": 213,
    "P3": 119
   },
-  "p0_patterns_after": 17,
+  "p0_patterns_after": 19,
   "gates": {
    "workflow_smoke": "exit 0 契约齐",
    "ci_run_gates_core": "与基线同（红 l0 属既存、perf_bench 属基础设施）",
-   "l5_gate": "ok（p0_recompute 17/17）"
+   "l5_gate": "ok（p0_recompute 19/19，rule_id 集合核对；2026-10-21）"
   }
  },
  "taxonomy_provenance": {

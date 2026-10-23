@@ -1,0 +1,26 @@
+{
+  "meta": {
+    "file": "kb/l7/review-engine/knowledge-base/vision-providers.json",
+    "title": "已登记的多模态 provider（视觉 / OCR）",
+    "registered_at": "2026-10-20",
+    "owner": "刘华丽",
+    "why": "2026-10-20 一次真实图片审查暴露：`--coverage` 要手填 provider/provider_version/content_hash/status 四段，而 content_hash 是文件 sha256 —— 手抄必然抄错或漏抄，于是「agent 自己看过图」这件事**没有任何机器可核的落点**，引擎只能回 NEEDS_INPUT（`incomplete_coverage:image,ocr`），与图片内容无关。本件把「谁能为某个模态作证」登记成**代码会读的数据**，`--image` 便能把「真读过这几张图」换成实算 sha256 的 coverage 申报。",
+    "read_by": "kb/l7/review-engine/core/with_kb_evidence.py::load_vision_providers / _coverage_from_images",
+    "wiring_note": "**声明了就必须有代码读**：本文件由 `_coverage_from_images()` 实读；不读它就不许往这里加键（否则接线审计会把它记成「声明了但代码从不读」）。",
+    "honesty_note": "本件登记的 provider 里，`evidence_level=declaration` 的那一类是**模型自报**（agent 自己读图、自己说读完了），证据级**低于**独立 OCR provider。结论里必须始终标明出处，不许当强证据用。",
+    "boundary": "本件只是「谁可以作证」的清单，**不改变**任何闸门：模态仍要拿到四段佐证才算 complete，`_coverage_for()` 的判定口径一个字没动（已知缺陷见 `kb/l7/registry/report-output-contract.yaml::known_defect_20261020_coverage_status_unchecked`）。"
+  },
+  "providers": [
+    {
+      "id": "agent-inline-vision",
+      "display_name": "Agent 内联视觉（模型自报）",
+      "kind": "inline-agent",
+      "evidence_level": "declaration",
+      "default_provider_version": "unknown",
+      "modalities": ["image", "ocr"],
+      "contract": "kb/l7/review-engine/knowledge-base/multimodal-provider-contract.json",
+      "note": "调用方（agent 本体）直接读图并给出图画读数与图上文字。与独立 OCR provider 的区别：没有独立可复现的流水线，provider_version 只是模型名。**只适用于完整读过图的情形** —— 遮挡/太小/只看局部时不许用它申报（当前判据不分辨 status 取值，用了等于把「没读全」伪装成「读全了」）。",
+      "usage": "kb/kbpy l7/review-engine/core/with_kb_evidence.py --text … --image <图文件> [--vision-provider-version <模型名>]"
+    }
+  ]
+}

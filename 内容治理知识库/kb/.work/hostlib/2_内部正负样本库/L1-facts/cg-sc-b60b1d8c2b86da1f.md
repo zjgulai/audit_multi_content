@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.141 是正例还是反例
   - S-1.141 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-b60b1d8c2b86da1f"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 社媒
 reason_category: unknown
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2vgYXond0/原文反馈"
-source_sha256: b282183f1b202af7325160837c3e6b2e5b12b1ba9f7595fcd96f4bef8a92a314
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXond0
+anchor: "#负面样本/recvw7XJiSp4TP/具体原因/分析"
+source_sha256: 9797741f3a84206da9b50c7f673cfbfa433fbd63f1992220fda572f2528323ae
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XJiSp4TP
 sample_body: "【审核 · 2026-08-19 01:49 · 蓝涵】终审-@[已脱敏] 】麻烦看看呀:YouAreTheBest: **项目名：**日本社媒 提需0817-1（选择法兰尺寸改吸奶器） **设计要求：**将产品中的air1和M9 换成S9pro 和S12pro 单只抠图（基于之前的设计规范，只替换产品和更改标题大小写） **设计稿件：** ![Image](img_v3_0214m_f55907e8-2aab-466a-ba56-a8a9225aea0g)"
 reason_analysis: "【审核问题】图片 设计要求：将产品中的air1和M9 换成S9pro 和S12。 【问题要点】 1. 设计要求：将产品中的air1和M9 换成S9pro 和S12pro 单只抠图（基于之前的设计规范，只替换产品和更改标题大小写） 2. 终审-@[已脱敏] 】麻烦看看呀"
 advice: 换成S9pro 和S12pro 单只抠图（基于之前的设计规范，只替换产品和更改标题大小写）
@@ -81,8 +81,8 @@ advice: 换成S9pro 和S12pro 单只抠图（基于之前的设计规范，只�
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2vgYXond0/原文反馈`
-- 指纹：`b282183f1b202af7325160837c3e6b2e5b12b1ba9f7595fcd96f4bef8a92a314`
+- 锚点：`#负面样本/recvw7XJiSp4TP/具体原因/分析`
+- 指纹：`9797741f3a84206da9b50c7f673cfbfa433fbd63f1992220fda572f2528323ae`
 - 原因归类：unknown　|　素材类型：图片
 
 > 案例只作参照，不构成规则。

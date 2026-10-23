@@ -1,21 +1,23 @@
 {
  "patterns": 17,
- "keyword": 211,
- "regex": 28,
+ "keyword": 201,
+ "regex": 35,
  "whitelist": 17,
  "no_pattern": [],
  "excluded": {
-  "non_P0": 610,
+  "non_P0": 593,
   "P0_but_authority_insufficient": 5,
   "P0_admitted_by_allowlist": 10,
-  "P0_but_inductive": 6
+  "P0_but_inductive": 6,
+  "P0_unenriched": 17
  },
- "p0_total": 28,
+ "p0_total": 45,
  "selected": 17,
  "term_basis": {
-  "verbatim_source": 142,
-  "equivalent_of": 51,
-  "verbatim_rule_text": 18
+  "verbatim_source": 135,
+  "boundary_of_code": 5,
+  "equivalent_of": 45,
+  "verbatim_rule_text": 16
  },
  "dropped_ungrounded": 0,
  "match_terms": {
@@ -281,11 +283,6 @@
     "anchor": "疏通乳腺管"
    },
    {
-    "term": "疏通堵奶",
-    "basis": "verbatim_source",
-    "anchor": "疏通堵奶"
-   },
-   {
     "term": "疗法",
     "basis": "verbatim_source",
     "anchor": "疗法"
@@ -299,11 +296,6 @@
     "term": "解决堵奶",
     "basis": "verbatim_source",
     "anchor": "解决堵奶"
-   },
-   {
-    "term": "诊断",
-    "basis": "verbatim_source",
-    "anchor": "诊断"
    },
    {
     "term": "避免乳头损伤",
@@ -321,14 +313,14 @@
     "anchor": "预防乳头损伤"
    },
    {
-    "term": "预防乳腺炎",
-    "basis": "verbatim_source",
-    "anchor": "预防乳腺炎"
-   },
-   {
     "term": "预防堵奶",
     "basis": "verbatim_source",
     "anchor": "预防堵奶"
+   },
+   {
+    "term": "医疗功效声明(治疗/治愈/诊断/疏通堵奶/治疗或预防乳腺炎;边界允许:缓解涨奶 ease/relieve engorgement、降低堵奶风险 reduce the risk of clogged、支持奶阵 let-down)",
+    "basis": "boundary_of_code",
+    "anchor": "医疗功效声明(治疗/治愈/诊断/疏通堵奶/治疗或预防乳腺炎;边界允许:缓解涨奶 ease/relieve engorgement、降低堵奶风险 reduce the risk of clogged、支持奶阵 let-down)"
    }
   ],
   "H02": [
@@ -378,11 +370,6 @@
     "anchor": "mehr milch"
    },
    {
-    "term": "more milk",
-    "basis": "verbatim_source",
-    "anchor": "more milk"
-   },
-   {
     "term": "más leche",
     "basis": "verbatim_source",
     "anchor": "más leche"
@@ -428,19 +415,9 @@
     "anchor": "增产催奶"
    },
    {
-    "term": "催乳",
-    "basis": "verbatim_rule_text",
-    "anchor": "催乳"
-   },
-   {
     "term": "催奶",
     "basis": "verbatim_rule_text",
     "anchor": "催奶"
-   },
-   {
-    "term": "增产",
-    "basis": "verbatim_rule_text",
-    "anchor": "增产"
    },
    {
     "term": "增加奶量",
@@ -451,6 +428,11 @@
     "term": "奶量提升",
     "basis": "equivalent_of:increase milk supply",
     "anchor": "increase milk supply"
+   },
+   {
+    "term": "催乳/增产/奶量产出承诺(含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim,无 FDA/临床证据);放松叙事+限定语(natural let-down/may help)走 M07 语境守卫",
+    "basis": "boundary_of_code",
+    "anchor": "催乳/增产/奶量产出承诺(含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim,无 FDA/临床证据);放松叙事+限定语(natural let-down/may help)走 M07 语境守卫"
    }
   ],
   "H03": [
@@ -498,6 +480,11 @@
     "term": "医学证明",
     "basis": "verbatim_source",
     "anchor": "医学证明"
+   },
+   {
+    "term": "未经备案的临床/科学背书",
+    "basis": "verbatim_rule_text",
+    "anchor": "未经备案的临床/科学背书"
    }
   ],
   "H04": [
@@ -547,11 +534,6 @@
     "anchor": "ob-gyn recommended"
    },
    {
-    "term": "专家推荐",
-    "basis": "verbatim_rule_text",
-    "anchor": "专家推荐"
-   },
-   {
     "term": "专家认证推荐",
     "basis": "equivalent_of:recommended by 100+ experts",
     "anchor": "recommended by 100+ experts"
@@ -565,6 +547,11 @@
     "term": "医生推荐",
     "basis": "equivalent_of:ob-gyn recommended",
     "anchor": "ob-gyn recommended"
+   },
+   {
+    "term": "无据的医生/专家推荐背书",
+    "basis": "boundary_of_code",
+    "anchor": "无据的医生/专家推荐背书"
    }
   ],
   "H05": [
@@ -659,6 +646,11 @@
     "term": "FDA 通过",
     "basis": "verbatim_source",
     "anchor": "FDA 通过"
+   },
+   {
+    "term": "FDA 表述错误(吸奶器为 cleared/registered,非 approved/certified)",
+    "basis": "verbatim_rule_text",
+    "anchor": "FDA 表述错误(吸奶器为 cleared/registered,非 approved/certified)"
    }
   ],
   "H07": [
@@ -666,16 +658,6 @@
     "term": "indolore",
     "basis": "verbatim_source",
     "anchor": "indolore"
-   },
-   {
-    "term": "no pain",
-    "basis": "verbatim_source",
-    "anchor": "no pain"
-   },
-   {
-    "term": "pain-free",
-    "basis": "verbatim_source",
-    "anchor": "pain-free"
    },
    {
     "term": "painlessly",
@@ -713,19 +695,9 @@
     "anchor": "pain-free"
    },
    {
-    "term": "pain relief",
-    "basis": "verbatim_rule_text",
-    "anchor": "pain relief"
-   },
-   {
     "term": "relieve pain",
     "basis": "equivalent_of:pain relief",
     "anchor": "pain relief"
-   },
-   {
-    "term": "without pain",
-    "basis": "verbatim_rule_text",
-    "anchor": "without pain"
    },
    {
     "term": "不痛",
@@ -743,9 +715,9 @@
     "anchor": "无痛"
    },
    {
-    "term": "缓解疼痛",
-    "basis": "verbatim_rule_text",
-    "anchor": "缓解疼痛"
+    "term": "疼痛功效承诺(pain-free/no pain/without pain/pain relief/less pain/缓解疼痛等;吸奶疼痛因人而异,只可讲 comfort/gentle 舒适与缓解胀满不适 discomfort)",
+    "basis": "boundary_of_code",
+    "anchor": "疼痛功效承诺(pain-free/no pain/without pain/pain relief/less pain/缓解疼痛等;吸奶疼痛因人而异,只可讲 comfort/gentle 舒适与缓解胀满不适 discomfort)"
    }
   ],
   "H08": [
@@ -803,6 +775,11 @@
     "term": "秒杀",
     "basis": "verbatim_source",
     "anchor": "秒杀"
+   },
+   {
+    "term": "无数据支撑的违法对比 / 贬低竞品",
+    "basis": "verbatim_rule_text",
+    "anchor": "无数据支撑的违法对比 / 贬低竞品"
    }
   ],
   "H09": [
@@ -845,6 +822,16 @@
     "term": "还原婴儿吮吸",
     "basis": "equivalent_of:模拟复制宝宝",
     "anchor": "模拟复制宝宝"
+   },
+   {
+    "term": "智能闭环/仿生虚假宣称(自动识别节奏、模拟/复制宝宝、饱腹反馈、降低奶量焦虑);W1当前为用户主动调节+保存程序,非闭环生理识别",
+    "basis": "verbatim_rule_text",
+    "anchor": "智能闭环/仿生虚假宣称(自动识别节奏、模拟/复制宝宝、饱腹反馈、降低奶量焦虑);W1当前为用户主动调节+保存程序,非闭环生理识别"
+   },
+   {
+    "term": "智能闭环/仿生虚假宣称(自动识别节奏、模拟/复制宝宝、饱腹反馈、降低奶量焦虑);只允许“参考自然哺乳节奏的设计思路/inspired by”表达",
+    "basis": "boundary_of_code",
+    "anchor": "智能闭环/仿生虚假宣称(自动识别节奏、模拟/复制宝宝、饱腹反馈、降低奶量焦虑);只允许“参考自然哺乳节奏的设计思路/inspired by”表达"
    }
   ],
   "M03": [
@@ -985,11 +972,6 @@
   ],
   "V02": [
    {
-    "term": "最佳",
-    "basis": "verbatim_source",
-    "anchor": "最佳"
-   },
-   {
     "term": "纯天然",
     "basis": "verbatim_source",
     "anchor": "纯天然"
@@ -1000,22 +982,7 @@
     "anchor": "绝对化用语"
    },
    {
-    "term": "100%",
-    "basis": "equivalent_of:最佳",
-    "anchor": "最佳"
-   },
-   {
-    "term": "最好",
-    "basis": "equivalent_of:最佳",
-    "anchor": "最佳"
-   },
-   {
     "term": "最安全",
-    "basis": "equivalent_of:最佳",
-    "anchor": "最佳"
-   },
-   {
-    "term": "第一",
     "basis": "equivalent_of:最佳",
     "anchor": "最佳"
    }
@@ -1025,21 +992,6 @@
     "term": "无依据的销量/排名宣称",
     "basis": "verbatim_source",
     "anchor": "无依据的销量/排名宣称"
-   },
-   {
-    "term": "排名第一",
-    "basis": "equivalent_of:排名宣称",
-    "anchor": "排名宣称"
-   },
-   {
-    "term": "销量第一",
-    "basis": "equivalent_of:排名宣称",
-    "anchor": "排名宣称"
-   },
-   {
-    "term": "销量领先",
-    "basis": "equivalent_of:排名宣称",
-    "anchor": "排名宣称"
    }
   ],
   "V04": [

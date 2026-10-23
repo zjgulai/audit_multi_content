@@ -1,0 +1,138 @@
+# PRD §17「附录：结论模板速查」的字数限制 —— **唯一真源**
+#
+# 取数：飞书 PRD（docx `PXfBdjTwFokEQixtmTscqm7knNh`）§17 的内嵌表
+#       spreadsheet `B1aUs2Vuah8YwjtwWO6cr5MFnUd` / sheet `XWnpiN`，
+#       拉取时刻 2026-10-19 ｜ revision 96 ｜ 实测 `A1:D7`。
+# 两侧共用：守衡 `agent/prd17.mjs` 读它；知识库 `kb/l8/prd17_check.py` 读它。
+# **不许在别处再抄一份数字**（抄出去的第二份必然过期）。
+meta:
+  source: 'PRD §17 结论模板速查（sheet XWnpiN，rev 96，拉取于 2026-10-19）'
+  prd_ref: '§17'
+  fetched_at: '2026-10-19'
+  revision: 96
+  why_single_source: '两仓都要量同一把尺；数字写在两处，迟早一处改一处不改'
+
+# ── 字数口径（PRD 原文只写「≤N 字」，**没写怎么数**）────────────────────────────
+# 这是**解释**，不是 PRD 原文，所以要摆明：
+#   visible_no_url ：去掉 http(s) 链接、去掉 markdown 标记（`*` `> ` `|` `【】` `→`）、去空白后的字符数。
+#                    理由：链接是机器产物（一条 docx 链接 ≈ 55 字符），把它数进去等于让
+#                    「BLOCK ≥3 ≤100 字」在**任何**实现下都不可能满足。
+counting:
+  # ★★ 2026-10-19 Owner 两次澄清，最终规则（**机器可判**，不靠人列例外）：
+  #   ① 「最后的字数限制是针对**每一条问题**」
+  #   ② 「下面两个写了逐条，**没写的就是整张卡**」（指 REVIEW/BLOCK 1-2 那两行）
+  #   ⇒ 规则：**`format` 里含「逐条」⇒ 按条量（per_item）；不含 ⇒ 按整卡量（message）**。
+  #     落到本表：REVIEW 1-2条 / BLOCK 1-2条 / SUGGEST ⇒ per_item；
+  #               PASS / REVIEW ≥3 / BLOCK ≥3 ⇒ message。
+  #   ⚠️ 第一版我按**整张卡**量，把「1-2 条 ≤200」读成「两条加起来 ≤200」—— 判定整片翻转，已纠正。
+  scope_rule: 'format 含「逐条」⇒ per_item；否则 ⇒ message（由 format 字段自动判定）'
+  rule: visible_no_url
+  strip_urls: true
+  strip_markdown: true
+  strip_whitespace: true
+  # ── 「链接那一行整行不计入」—— Owner 2026-10-19 裁定（C1 的处置）──────────────────
+  # Owner 逐字：「「链接那行不计入字数」，同意」。
+  # 为什么需要它：C1 那档（BLOCK/REVIEW ≥3 ≤100 字，整卡）的固定开销里，链接那**一行**
+  #   剥掉 URL 之后仍剩行首标签（实测本库卡面 `查看完整问题清单与修改建议：`＝14 字），
+  #   而 PRD 里链接是「附加物」不是正文 ⇒ 让这一行参与计数，等于让它跟正文抢配额。
+  # ★ 排除条件**三条同时成立**（机器可判，不靠人列例外）：
+  #   ① 该行含 `http(s)://`；
+  #   ② **剥掉链接后的可见字数 ≤ `link_line_label_max`** —— 即这一行**只剩标签**；
+  #   ③ 该行**不含** `link_line_markers` 里的结论标记。
+  # ⚠️ ②③ 是**故意收紧**的，别当成多余：
+  #   · F1（逐条 BLOCK 1 条）的 **依据行**也含链接，剥掉后仍剩 **35 字**（库名+条款号+「（链接：）」）
+  #     ⇒ 超 `link_line_label_max` ⇒ **照旧计入**。若改成「含链接就整行免」，
+  #     一条 30+ 字的依据会被凭空抹掉 —— 那是在**放宽「依据必须给出」**，不是放宽字数。
+  #   · 结论行若带内联链接（`【审查结论：BLOCK】… 详见 https://…`），③ 命中 ⇒ **照旧计入**，
+  #     并记一条 `link_line_hazards`（fail-closed：宁可多数，不可漏数）。
+  exclude_link_line: true
+  link_line_label_max: 20
+  link_line_markers: ['【', '结论']
+  alternatives_measured:
+    all_chars: '含链接、含标记、含空白（最严）'
+    cjk_only: '只数中文字符（最松）'
+  note: >
+    成交口径已定：`visible_no_url` ＋ `exclude_link_line`（Owner 2026-10-19 先后裁定 scope_rule 与
+    「链接那行不计入」）。换口径只改这一处，两仓同时生效（守衡 `agent/prd17.mjs`／知识库 `kb/l8/prd17_check.py`）。
+
+# ── 上限表（逐字取 PRD §17 那张表）──────────────────────────────────────────────
+rows:
+  - {state: PASS,    issue_range: '—',    format: '一句话总结 + 转 sign-off/brief方',                          limit: 50}
+  # ★ Owner 2026-10-19 补充：「逐条的还有 SUGGEST」⇒ 这一行同样按条量（format 含「逐条列建议」自动判）。
+  # ✅ **这一行是尺子，按 PRD §17 保留**：SUGGEST 一旦落卡，就必须 ≤150 字/条（per_item）。
+  # ⚠️ **但「怎么算落卡」今天变过一次，别按旧话反推**（本段 16:45 改；上一版写「已接线、可取」——
+  #    那句在 20 分钟前是真的，已被当天的第二轮口径覆盖）：
+  #   · **先**（PRD §5.3.2 **rev 96** ＋ Owner 裁定①）：`decision` 可取 `SUGGEST`（四态）
+  #     ⇒ `review_engine.DECISIONS` 收进 SUGGEST、`tiering` P3 ⇒ `suggest`、渲染出 SUGGEST 结论行。
+  #   · **后**（PRD §5.3.2 **rev 101**）：**`SUGGEST` 不进 `decision`**，它是 **PASS 的附属标签**
+  #     （`review_engine.py::FORMER_STATE_AS_LABEL`；`render_summary('SUGGEST', …)` 现在**硬拒**
+  #     并抛 ValueError；同向三处：§6.3 规则4 / §10.1 三值 / §11.2 三态准确率）。
+  #     ⇒ 建议走 `decision=PASS` ＋ `risk_items` 里 P3 的条目，渲染成「建议（不阻断，随 PASS 流转）」附段。
+  #   ⇒ **本行现在不是「活的判据」，是「尺子备着」**：等 rev 101 口径真落定后，
+  #      若建议仍然逐条印在卡上，就按这一档量（per_item ≤150）；若印成附段，则不按 `decision` 档量。
+  #   ✅ **16:46 已收口（我写这段时还在动，故留这一行）**：`prd532-states.yaml` 同批升到 **rev 101**
+  #      （`revision: 101` / `supersedes_revision: 96`，rev 96 的「四态并联」读法作废），
+  #      `workflow_smoke` 的 S7 也随之转绿 ⇒ **口径与登记件现在一致**，不再有「谁对」的问题。
+  #   ⇒ 要动四态，改的是 `review_engine.DECISIONS`／`tiering`／守衡 `mergedState` 三处 ＋ 那份登记件，
+  #      **不许**只改这段注释就算完（同日已经因此返工过一次）。
+  - {state: SUGGEST, issue_range: '任意', format: '逐条列建议 + 不阻断说明',                                    limit: 150}
+  - {state: REVIEW,  issue_range: '1-2条', format: '逐条：维度+位置+问题+原因+依据+转人工',                     limit: 200}
+  - {state: REVIEW,  issue_range: '≥3',   format: '分类汇总 + 报告链接 + 转人工',                              limit: 100}
+  - {state: BLOCK,   issue_range: '1-2条', format: '逐条：维度+位置+问题+原因+依据+修改建议',                   limit: 200}
+  - {state: BLOCK,   issue_range: '≥3',   format: '分类汇总 + 报告链接 + 请修改',                              limit: 100}
+
+# ── 两条实测冲突：**C1 / C2 均已消解（2026-10-19）**，本节只留痕────────────────────────
+# 本节标题原来写「已实测的两条硬冲突（不是『还没做』，是『做到也满足不了』）」—— 两句都过头了：
+#   · C2 于 16:05 被 `prd533-constraints.yaml::X1` 的「修改建议 ≤30 字」裁定消解（逐条实测 153 ≤ 200）；
+#   · C1 于本轮被 Owner「链接那行不计入字数，同意」裁定消解（整卡 108 → **94** ≤ 100）。
+# ⇒ 现在**没有开着的冲突**。留痕理由：两条都是「先量出来 > 再改口径」换来的，
+#   删了原话，就没人知道为什么这一档要单独为链接开一个例外。
+known_conflicts:
+  - id: C1
+    row: 'BLOCK/REVIEW ≥3（≤100 字）'
+    status: '**已消解（2026-10-19）** —— Owner 选了 option②「链接那行不计入字数」'
+    resolution: >
+      Owner 2026-10-19 逐字：「「链接那行不计入字数」，同意」⇒ 落成
+      `counting.exclude_link_line = true`（三条排除条件见 `counting` 段），两仓同读这一处。
+    measured_after: >
+      `F2_block_5`（BLOCK 5 条 / 4 个类别，整卡）**108 → 94 字 / 上限 100** ⇒ **余 6 字，合规**
+      （排除的那一行 `查看完整问题清单与修改建议：` ＝ 14 字；URL 本就被 `strip_urls` 剥掉）。
+      同批反向对照：`F1_block_1`（逐条，**依据行也含链接**）**153 字一动不动** ——
+      因为依据行剥掉链接后仍剩 35 字 > `link_line_label_max`，**照旧计入**。
+      这就是「放宽的是链接标签那一行，不是放宽『依据必须给出』」的证据。
+    why_this_option: >
+      另两条被否的代价：①「只数中文」会**同时放宽所有档**（含 PASS ≤50），影响面远超 C1；
+      ③「≥5 类压一行」要推翻 Owner 已定的「每类一行」，是改版式不是改口径。
+      ②影响面最小、且与 PRD「链接是附加物」的定位一致。
+    residual_risk: >
+      **只剩一种形状会误判**：链接与正文挤在同一行。此时若该行剥后仍 ≤20 字且不含结论标记，
+      整行被排除 ⇒ 可能少数。已用 `link_line_hazards` 兜（结论标记同行 ⇒ **不排除**＋报 hazard），
+      但「普通正文与链接同行且很短」这种形状仍无判据 ⇒ 见 `prd-card-known-drift.yaml` 的 WARN 口径。
+    options_not_chosen:
+      - '口径改为「只数中文」（实测 BLOCK≥3 70 字 / REVIEW≥3 86 字，都合规）—— 影响全部档位'
+      - '分类汇总在 ≥5 类时压成一行（与 Owner 已定的「每类一行」冲突）'
+  - id: C2
+    row: 'BLOCK/REVIEW 1-2条（≤200 字，**按条量**）'
+    status: '**已消解（2026-10-19）** —— 不再等 Owner 裁定；本行只留痕，不许按 history 段动手'
+    resolved_by: 'kb/l7/registry/prd533-constraints.yaml::conflicts[X1].resolution'
+    resolution: >
+      Owner 2026-10-19 逐字：「审查报告中，修改建议你写了200多字，修改建议 ≤30 字」⇒
+      「修改建议」取 **≤30 字**，且**卡面与报告同一把尺**；Owner 2026-10-17「建议都写全」
+      **仅在这一格被推翻**（出处 `X1.supersedes`）。全文不丢：留在结构化 JSON
+      （`review_findings.json`）与本地留底 `merged-*.full.md`，报告格只留一句 ≤30 字动作。
+    why_resolved: >
+      原冲突是「真单长度建议（≈300 字）⇒ 每条 512 字 > 200」。建议压到 ≤30 后，逐条六格
+      （维度+位置+问题+原因+依据+建议）实测 **描述 12 / 原因 32 / 建议 19 ⇒ 整条 153 字**
+      （`prd-card-known-drift.yaml::fixtures[F1]`；`python3 kb/l8/prd_card_conformance.py` 现算）
+      ⇒ **153 ≤ 200，冲突不成立**。
+    judges: ['tools/test_agent.mjs::Z49f', 'tools/test_agent.mjs::Z59', 'tools/test_agent.mjs::Z26']
+    lock: 'owner-fix-locks.yaml::L20'
+    history_not_current: >
+      ★ **下面三段是 2026-10-19 14:37 的原写法，早于 16:05 的 X1 裁定，已作废 —— 不许按它动手。**
+      留档理由：这一格是**推翻过一条更早裁定**换来的，删了原话，那次推翻就无迹可查。
+      原 why：逐条那一块含六格，「依据」必须带飞书直链、「修改建议」按 Owner 2026-10-17 的裁定
+      必须写全（当时明确取消了 120 字截断）⇒ 实测夹具那种短建议每条 111~120 字（✅），
+      真单长度建议约 300 字 ⇒ 每条 512 字（❌ 超 312）。
+      原 impact：'夹具合规、真单几乎必然超 —— 两条路只能选一条（见原 options）'。
+      原 options：① 卡上建议截断（如 ≤120 字）＋「全文见报告」② ≤200 只约束「骨架」不含建议正文
+      ③ 1-2 条时也改成「分类汇总 + 报告链接」—— **三条一条都没采用**，采用的是 X1 的 ≤30 字。

@@ -6,7 +6,7 @@ kb_class: [措辞表达库]
 tier: L1
 topic: 未登记规则码
 kind: fact
-summary: "[W-2.277] 判为「禁用/必须修改」（P1·未定级）：命中表达 4 条、证据单元 4 条；处理方式是「「ACOG建议，尽量避免两次妊娠间隔短于6个月（生育间隔建议来源）」→「删除ACOG的生育间隔建议引用，改引WHO建议：推荐两次妊娠间隔至少24个月，间隔小于6」。状态 provisional、verification 已归纳。"
+summary: "[W-2.277] 判为「需按建议改写」（P2·未定级）：命中表达 4 条、证据单元 4 条；处理方式是「「ACOG建议，尽量避免两次妊娠间隔短于6个月（生育间隔建议来源）」→「删除ACOG的生育间隔建议引用，改引WHO建议：推荐两次妊娠间隔至少24个月，间隔小于6」。状态 provisional、verification 已归纳。"
 owner: 法务
 half_life_days: 180
 valid_until: 2027-03-28
@@ -14,7 +14,7 @@ effective_from: 2026-09-29
 evidence_level: L2
 data_level: L2
 sensitivity_level: L2
-created_at: 2026-10-16
+created_at: 2026-10-22
 asks:
   - W-2.277 判什么、命中什么算违规
   - W-2.277 应该怎么改（合规替代写法）
@@ -29,7 +29,7 @@ source:
   ref: "https://momcozy-in.feishu.cn/base/SKkkbdZi9aRuMzs7ob0cpSYHnQg?table=tbl8AI00JZO1iZtp"
   fingerprint: SKkkbdZi9aRuMzs7ob0cpSYHnQg/tbl8AI00JZO1iZtp
   record_ids: [recvoAhrwbf2d9, recvoyJ6L9knMm, recvoyJ6L9u882, recvuNn6ejF4WP]
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l3/candidates/rules.jsonl#r-a1a9c278662bcad2"
   confidence: 确定
@@ -43,7 +43,7 @@ corroborated_by:
 rule_id: r-a1a9c278662bcad2
 article_no: W-2.277
 rule_code: ""
-p_level: P1
+p_level: P2
 risk_level: 未定级
 risk_level_raw: Medium
 risk_level_note: 源库 kb/l3 的 risk_level 为 unknown/空 —— 未做人工定级；本视图不据 P 级反推，故标未定级
@@ -57,7 +57,7 @@ kb_type: wording
 
 # [W-2.277] 措辞表达库：命中「ACOG建议，尽量避免两次妊娠间隔短于6个月（生育间隔建议来源）」等 4 类表达
 
-**条款号**：W-2.277　|　**规则码**：（未登记）　|　**rule_id**：`r-a1a9c278662bcad2`　|　**判定**：P1 · 未定级
+**条款号**：W-2.277　|　**规则码**：（未登记）　|　**rule_id**：`r-a1a9c278662bcad2`　|　**判定**：P2 · 未定级
 
 ## 规则原文（照抄新库，未改写）
 

@@ -1,65 +1,47 @@
-# at=2026-10-16T09:23:21.896Z
-# base=20261016-1721 ｜ answer 长度=4077
+# at=2026-10-23T12:21:15.335Z
+# base=20261023-202025 ｜ answer 长度=2367
 本次按美国市场口径审查（PRD 第一阶段范围）。
 
-## 我实际走的审核流程（4 步，命令已返回即结束）
+## ③b 转述（引擎原样输出）
 
-1. **用 `skill` 工具真加载四个层 skill**：`kb-canonical-lookup`（L4）· `kb-p0-check`（L5）· `kb-recall`（L6）· `kb-check`（L7）。
-2. **按素材模态取判定主体**：本单是「图片 / 图上文字」⇒ 加载 `图片安全审查`（装载目录名，中文）。
-3. **跑唯一入口命令**（`kb/l8/review_run.sh`，带 `--material-file` / `--token` 同一路径、`--content-type image`、两条 `image`/`ocr` 的 `macos-vision` 覆盖申报、`--decision-owner` 与 `--loaded-skill` 同报 `图片安全审查`）。它内部按顺序做三件事：
-   - **① 四层前置 L4→L5→L6→L7** —— 四层各一 RUN（`20261016-1721-L4…-L7`）、四道审计**红 0**、全绿；
-   - **② 自命中检查**（确定性，只报事实、不判三态）；
-   - **③ 出结论**（唯一有权产出三态的地方）＋ 默认发布飞书。
-4. **照抄 ③b 转述模板**（下面第二段），不再跑任何命令。
-
-**输入边界**：素材是「读图」得来 —— 文字层是本机 OCR 逐字读出（14 行，另摘除水印 2 行）；**涉及画面的结论只能依据守衡给的画面读数**（该读数：影棚场景、粉色蛋形设备＋圆形显示屏、白色硬壳收纳包、透明喇叭罩与硅胶配件、手机显示控制界面；**画面中无人体使用**；品牌合作信息、画面外情节、具体月龄、声音**读数没覆盖** ⇒ 这几项**未测**，不作判定）。
-
----
-
-## 引擎结论（③b 转述，照抄）
-
-状态：REVIEW ｜ 问题数：0 ｜ 置信度：None
-摘要：【审查结论：REVIEW】共发现 0 处需人工确认。
-
-**本次没有发现内容问题**（0 处）。下面是**覆盖缺口**说明 —— 缺的是**库覆盖**，不是素材有问题：
-
-**覆盖缺口说明（不是内容问题）**：本次素材的**文字层逐字命中 0 条**，但覆盖判据不成立（没有「既被规则引用、又达门限」的单元）——**这不是素材有问题，是库对该题材没有可依据的条款**。
-   原因：依据侧检索到 5 条命中，最高 BM25 37.0084（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。
-   依据：`kb/l7/registry/l7.json` 的 `retrieval.gate.coverage_bm25_min=16.0`（覆盖判据标定值；覆盖信号不成立时**不得输出 PASS**）
-   建议：转人工复核后再定；补素材无用（缺的是库覆盖）。
-
-**库内命中（读数）** —— 检索命中了 5 条，逐条列出**原文与直链**：
-
-1. `#l.1-1`｜BM25 37.0084｜wording
-   命中原文（逐字）：Momcozy M9 Mobile Flow™ Wearable Breast Pump | Shop Momcozy CA Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbr
-   直链：https://ca.momcozy.com/products/momcozy-mobile-flow-hands-free-breast-pump?variant=47796181303483
-2. `#l.1-1`｜BM25 36.9898｜wording
-   命中原文（逐字）：M9 Mobile Hands-free Breast Pump | Personalised Pumping - EU Autumn Sale-Final Hours: Shop Now ! Switch to your local store for faster shipping, local pricing,
-   直链：https://eu.momcozy.com/products/momcozy-mobile-flow-hands-free-breast-pump
-3. `#广告文案明细/recvuJYdOb6Fgr/Primary Text`｜BM25 36.8633｜wording
-   命中原文（逐字）：Big Member Sale: 20% Off Mobile Style | Mobile Style™ Wearable Breast Pump | Momcozy Hotseller - M6 Breast Milk Pump | Code BDMS20 Saves 20% | Upgrade Mobile St
-   直链：https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJYdOb6Fgr
-4. `#广告文案明细/recvuJYdObHV0W/Primary Text`｜BM25 36.3838｜wording
-   命中原文（逐字）：Momcozy Official | Mobile Style™ Wearable Breast Pump | Momcozy Hotseller - M6 Breast Milk Pump | Optimal Rhythm, Increasing Milk Supply | Comfort/ Discreet/ Po
-   直链：https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJYdObHV0W
-5. `#l.1-1`｜BM25 35.5728｜wording
-   命中原文（逐字）：M9 Mobile Hands-free Breast Pump | Personalised Pumping ⏰️ Autumn Sale Extended: Final Hours Shop Now Switch to your local store for faster shipping, local pric
-   直链：https://uk.momcozy.com/products/momcozy-mobile-flow-hands-free-breast-pump
-
-> ⚠️ 上面是**读数**：命中的**大多是别人的素材样本 / 外部材料，不是覆盖本素材的条款**，**不得据此当 PASS 依据**，也不得当作「本素材已合规」的证明。
-
-建议转 @法务（未配置） @北美同事（未配置） 复核。
+```
+状态：PASS ｜ 问题数：0 ｜ 置信度：0.93
+摘要：【审查结论：PASS】未发现已知底线风险，可转交 @sign-off 责任人（未配置） 进行 sign-off。
 层前置：ok=None mode=None
-判定主体：图片安全审查 ｜ mode=declared
-  ● 条款号 ? ｜ 依据侧检索到 5 条命中，最高 BM25 37.0084（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。
+判定主体：视频安全审查 ｜ mode=declared
 
----
+【飞书那一步没有做】published=false ｜ 原因 disabled_by_caller
+```
 
-## ② 自命中检查 + 必须一并转述的边界
+- 本单编号 `BASE=20261023-202025`｜`run_id=20261023-202038`｜`review_id=rv-20261023-202041`｜内容 ID `AUTO-6e0a120486be`
+- 四层前置：L4→L5→L6→L7 各一 RUN，**四道审计红 0**；L4/L5/L6 各 1 条黄、L7 黄 0 —— **黄是预演落章，机制证据，不等于真落盘**
+- 判定主体申报：`视频安全审查`（`mode=declared, declared_by=agent`），加载申报为 kb-canonical-lookup / kb-p0-check / kb-recall / kb-check / 视频安全审查 五个
+- ② 自命中检查：**未命中**（素材归一化 501 字，扫过 207 条反例/禁区，阈值 ratio≥0.9 且 run≥80）—— 无条款号、anchor、sha 可给，因为确实没命中
+- P0 命中 0 ｜ 风险项 0 ｜ 候选 0 ｜ 唯一规则命中 `W-1.30`（`matched_fragments: "suction levels"`，anchor `#品线内容边界规则库/recvuJP2Ot474u/边界内容`，`source_sha256 5a740e9d29e4a9defa82e99066118cb7a118d1d55a21b0e109f6a0aa0257d000`）—— 该条是**正面提示词（安全词，不参与降级）**，不是问题项，引擎也没把它记进 findings
 
-- **自命中检查：未命中**（素材归一化字符 185 ｜ 扫过条款 209 条 ｜ 阈值 ratio≥0.9 且 run≥80）—— 所以本单**没有**「素材自己命中反例/禁区条款」那一档，不存在把它登记为 findings 的情形。
-- 四段溯源：本单**没有可引用的条款号**（引擎给的是 `条款号 ?`）；命中的 5 条是**检索读数**，每条带 `anchor` + BM25 + `source_sha256`（见上），L0 逐字与 `entry_url` 直链已列在上表 —— 但**它们不构成本素材的覆盖条款**。
-- **边界（逐字守住）**：`未命中 ≠ 合规`｜`status=error` = **没查成 ≠ 没命中**（本单自命中是 clean 的「未命中」）｜引擎 `NEEDS_INPUT` = **拒答 ≠ 通过**｜黄 `E5`（预演落章）= 机制证据，不等于真落盘。
-- 本单形状要说清：**引擎顶层 `state=REVIEW`（问题数 0）**，同时**依据侧 `refusal.state=NEEDS_INPUT`、原因码 `coverage_not_covered`** ⇒ 合起来是「**覆盖缺口、转人工看覆盖**」，**不是**「素材没问题」，也**不是**放行。按原因码口径：`coverage_not_covered` 缺的是**知识库**，**补素材没用**，所以我不请你补东西。
-- **飞书那一步**：本次 `published=false`，脚本原话是「⚠️ 飞书发布失败（退出码 1）—— **结论有效，但没发出去**」（飞书侧返回 `800030005 not_found`）。按手册这段**由守衡侧负责**，我不去调 `lark-cli` 补写表行，如实转述「没发出去」。
-- 机读旁挂已落：`kb/.work/last_review_result.json`（守衡侧从它读问题数量 / 置信度 / 库侧三态）。
+## 必须先说清的一处口径冲突（我不替你吞掉）
+
+**事实**：本单素材是**视频**（22.4MB / 39.414 秒 / 守衡本机 `macos-vision` 抽帧 8 帧 OCR，**转写没跑成**），素材文件第一行逐字就是「视频本体 —— 本机直读」。**但**你在「第 0 条之二」里把 `--content-type text` 定死并注明「本单没有图/视频」。我按你的命令**逐字照抄**跑了 `text`（结论见上），没有自行改成 `video`。
+
+后果是**它不是免费的**，引擎自己写出来了：
+
+| 项 | 实际 | 含义 |
+|---|---|---|
+| `coverage` | `text=complete`；`image/video/ocr/asr/keyframes` 全部 `not_applicable` | 视频模态闸门**根本没触发**（这正是手册里说的「静默降级比报错更坏」那种形状） |
+| 负面样本层 | `not_run`：**本单不是图片/视频（或正文里没有画面读数/图内文字）⇒ 负面样本规则层没跑** | 181 条反例/禁区条款**一条都没比对** |
+| 画面 / 音轨 | 未测 | 转写失败 ⇒ 口播零覆盖；8 帧 OCR 之外的视觉内容零覆盖 |
+
+⇒ **PASS 只对「8 帧 OCR 文字」成立**；对「这条视频整体能不能发」应记 **未测**，**不得据此当通过依据**（未命中 ≠ 合规；`text` 档的 PASS 也不覆盖画面与口播）。
+
+## 另外两件必须报的事
+
+1. **飞书表行本次没落**：`published=false`，原因 `disabled_by_caller`。我没有传 `--no-publish-to-feishu`（怀疑是回归测试环境的固定行为，**未核实**）。按手册表行归守衡侧、不许我自己调 `lark-cli` 补写，所以本单目前**没有表行**——需要守衡侧确认那个 `disabled_by_caller` 是不是预期的。
+2. **这是同一份素材的第 2 次审查**：上一轮 `BASE=20261023-161956` 结论 **NEEDS_INPUT**。旧 RUN 的报告/层记账/表行一律未动，本次只新增。
+
+## 我的推荐
+
+**推荐 ①：补齐 ASR/转写后，按 `--content-type video` 重跑一单**（`--coverage` 申报 video/keyframes/ocr/asr，image 视情况），而不是把这条 `text` PASS 当成视频通过。
+
+- **为什么**：这是一支产品演示视频（App 控制、模式/吸力档位、泵奶记录与统计），风险主要落在**画面**（产品用法、屏幕上未经核验的数据如 `Total: 157.5oz`、日志记录画面）与**口播**上，而这两层本单是 0 覆盖；负面样本规则层也没跑。
+- **代价与前提**：得先把转写修好（转写是本轮唯一失败的环节）；补不齐就会 fail-closed 成 `NEEDS_INPUT`（按手册，这是设计行为，不是库覆盖缺口），并且会新增一单/一行，需要和这单的 `text` 结论分开记账。
+- **不推荐**直接把这单的 `text` 改成 `video` 重跑：在 ASR 缺失的情况下只会得到一次 `NEEDS_INPUT`，白烧一单，结论仍是「未测」。

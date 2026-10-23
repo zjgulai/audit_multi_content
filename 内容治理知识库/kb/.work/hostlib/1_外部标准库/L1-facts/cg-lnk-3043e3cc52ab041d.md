@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - 《（标题未取到）url__hapa8fkuicz》里关于某个主题是怎么写的
   - 这条外部材料的原文与出处是什么

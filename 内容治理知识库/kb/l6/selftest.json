@@ -1,6 +1,6 @@
 {
- "run_id": "daily-20261016-0330-L6",
- "generated_at": "2026-10-16 03:47:12",
+ "run_id": "20260923-1440",
+ "generated_at": "2026-10-20 13:45:20",
  "modes": [
   "bm25_only",
   "vector_only",
@@ -8,24 +8,24 @@
  ],
  "how_to_read": "hit_at_3 = Top3 里至少一条与查询意图相关；precision_at3 = 相关条数/3。A 组测检索能力，B 组测拒答行为。判断为人工逐条给出，缺判断记 unknown 不算命中。三种模式都不带相关性阈值，一律返回 Top-N —— 因此 B 组是否拒答要按返回结果是否相关来读，而不是按有没有返回结果来读。",
  "query_count": 14,
- "judged_count": 6,
+ "judged_count": 7,
  "summary": {
   "A_zh": {
    "bm25_only": {
-    "queries": 2,
-    "hit": 2,
+    "queries": 3,
+    "hit": 3,
     "hit_rate_at3": 1.0,
-    "precision_at3": 0.833
+    "precision_at3": 0.889
    },
    "vector_only": {
-    "queries": 2,
-    "hit": 2,
+    "queries": 3,
+    "hit": 3,
     "hit_rate_at3": 1.0,
-    "precision_at3": 0.5
+    "precision_at3": 0.444
    },
    "hybrid": {
-    "queries": 2,
-    "hit": 2,
+    "queries": 3,
+    "hit": 3,
     "hit_rate_at3": 1.0,
     "precision_at3": 0.667
    }
@@ -41,13 +41,13 @@
     "queries": 3,
     "hit": 2,
     "hit_rate_at3": 0.667,
-    "precision_at3": 0.444
+    "precision_at3": 0.222
    },
    "hybrid": {
     "queries": 3,
     "hit": 3,
     "hit_rate_at3": 1.0,
-    "precision_at3": 0.778
+    "precision_at3": 0.556
    }
   },
   "B_zh": {
@@ -92,22 +92,22 @@
   },
   "A_all": {
    "bm25_only": {
-    "queries": 5,
-    "hit": 5,
+    "queries": 6,
+    "hit": 6,
     "hit_rate_at3": 1.0,
-    "precision_at3": 0.8
+    "precision_at3": 0.833
    },
    "vector_only": {
-    "queries": 5,
-    "hit": 4,
-    "hit_rate_at3": 0.8,
-    "precision_at3": 0.467
+    "queries": 6,
+    "hit": 5,
+    "hit_rate_at3": 0.833,
+    "precision_at3": 0.333
    },
    "hybrid": {
-    "queries": 5,
-    "hit": 5,
+    "queries": 6,
+    "hit": 6,
     "hit_rate_at3": 1.0,
-    "precision_at3": 0.733
+    "precision_at3": 0.611
    }
   },
   "B_all": {
@@ -148,7 +148,7 @@
    "top1_relevant": 0,
    "any_relevant_in_top3": 0,
    "b_top1_score_median": 0.016393,
-   "a_top1_score_median": 0.02459,
+   "a_top1_score_median": 0.023636,
    "b_top1_score_max": 0.016393,
    "a_top1_score_min": 0.016393
   },
@@ -158,35 +158,37 @@
    "top1_relevant": 0,
    "any_relevant_in_top3": 0,
    "b_top1_score_median": 0.016393,
-   "a_top1_score_median": 0.048028,
+   "a_top1_score_median": 0.042593,
    "b_top1_score_max": 0.016393,
    "a_top1_score_min": 0.02459
   }
  },
  "raw_score_comparison": {
   "A": {
-   "bm25_max_median": 22.9745,
-   "cosine_max_median": 0.7401,
+   "bm25_max_median": 21.0414,
+   "cosine_max_median": 0.6754,
    "bm25_max_values": {
-    "医生推荐背书": 34.1885,
-    "绝对安全承诺": 27.3744,
-    "FDA approved claims": 22.9745,
-    "more milk supply": 16.7894,
-    "best-selling": 15.7073
+    "催奶增产": 18.9337,
+    "医生推荐背书": 36.3917,
+    "绝对安全承诺": 29.5593,
+    "FDA approved claims": 23.1491,
+    "more milk supply": 17.0596,
+    "best-selling": 15.7645
    },
    "cosine_max_values": {
+    "催奶增产": 0.632,
     "医生推荐背书": 0.8818,
     "绝对安全承诺": 0.6336,
-    "FDA approved claims": 0.7401,
-    "more milk supply": 0.8117,
-    "best-selling": 0.5905
+    "FDA approved claims": 0.7172,
+    "more milk supply": 0.7808,
+    "best-selling": 0.6005
    }
   },
   "B": {
-   "bm25_max_median": 10.0756,
+   "bm25_max_median": 10.0611,
    "cosine_max_median": 0.3936,
    "bm25_max_values": {
-    "python asyncio tutorial": 10.0756
+    "python asyncio tutorial": 10.0611
    },
    "cosine_max_values": {
     "python asyncio tutorial": 0.3936
@@ -200,7 +202,7 @@
    "group": "A",
    "why": "库里有 H02 增产/奶量承诺的处置与命中片段",
    "raw_scores": {
-    "bm25_max": 18.0476,
+    "bm25_max": 18.9337,
     "cosine_max": 0.632
    },
    "note": "2、3、7 是「删除 more milk/增产催奶/催产素/长期奶量」的修改建议，6 是该规则的触发原因，四条直接对题；1、4、5 是泌乳/催产素术语规范化的专家修订，属同一知识域但不是「增产承诺」本身。",
@@ -264,53 +266,53 @@
      "top3": [
       {
        "rank": 1,
-       "unit_id": "115c7ea5b20a67b77a72",
-       "anchor": "#W1卖点表达边界（品线反馈0910）/recvuNf8jlCiOn/建议表达（合规话术）",
-       "table": "W1卖点表达边界（品线反馈0910）",
-       "score": 0.02381,
-       "sources": {
-        "vector": 3
-       },
-       "segment_index": 0,
-       "segment_count": 1,
-       "char_offset": 0,
-       "excerpt": "（禁用）温热治疗堵奶/乳腺炎、触发催产素、提高长期奶量。",
-       "relevance": "unknown"
-      },
-      {
-       "rank": 2,
-       "unit_id": "926ac5ca340c9e242676",
-       "anchor": "#广告文案明细/recvuJYdOb1fOj/命中原因",
-       "table": "广告文案明细",
-       "score": 0.023438,
-       "sources": {
-        "vector": 4
-       },
-       "segment_index": 0,
-       "segment_count": 2,
-       "char_offset": 0,
-       "excerpt": "H02 催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫；M07 效率/漏奶/奶流/移除量/短时排乳类claim需W1自身对照数据（当前仅内部测试或外部研究",
-       "relevance": "unknown"
-      },
-      {
-       "rank": 3,
-       "unit_id": "a494e31e49e878cfb324",
-       "anchor": "#广告文案明细/recvuJYdObLnyQ/命中原因",
-       "table": "广告文案明细",
+       "unit_id": "278b6aff0aafb5b310c9",
+       "anchor": "#品线内容边界规则库/recvuJP1dD7yNW/边界内容",
+       "table": "品线内容边界规则库",
        "score": 0.023077,
        "sources": {
         "vector": 5
        },
        "segment_index": 0,
-       "segment_count": 2,
+       "segment_count": 1,
        "char_offset": 0,
-       "excerpt": "H02 催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫；M07 效率/漏奶/奶流/移除量/短时排乳类claim需W1自身对照数据（当前仅内部测试或外部研究",
+       "excerpt": "催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫",
+       "relevance": "unknown"
+      },
+      {
+       "rank": 2,
+       "unit_id": "edd44950f3aea3e2b95a",
+       "anchor": "#品线内容边界规则库/recvuJP1dD7yNW/触发原因",
+       "table": "品线内容边界规则库",
+       "score": 0.022727,
+       "sources": {
+        "vector": 6
+       },
+       "segment_index": 0,
+       "segment_count": 1,
+       "char_offset": 0,
+       "excerpt": "催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫",
+       "relevance": "相关"
+      },
+      {
+       "rank": 3,
+       "unit_id": "3db49273026dc107607a",
+       "anchor": "#品线内容边界规则库/recvuJP1dD7yNW/检测关键词",
+       "table": "品线内容边界规则库",
+       "score": 0.022059,
+       "sources": {
+        "vector": 8
+       },
+       "segment_index": 1,
+       "segment_count": 3,
+       "char_offset": 228,
+       "excerpt": "prevent mastitis, mastitis treatment, clogged duct cure, 乳腺炎, 堵奶, 通乳, 催乳, 下奶, 追奶, 回奶, 增奶, 增产, 提升奶量, 追奶量, more milk, 增加奶量, 提高奶量, 奶量增长, 催奶, 发奶, 增多奶量, trigger oxyt",
        "relevance": "unknown"
       }
      ],
-     "relevant_in_top3": 0,
-     "hit_at_3": null,
-     "top1_score": 0.02381,
+     "relevant_in_top3": 1,
+     "hit_at_3": true,
+     "top1_score": 0.023077,
      "lists_used": [
       "vector"
      ]
@@ -322,10 +324,10 @@
        "unit_id": "3db49273026dc107607a",
        "anchor": "#品线内容边界规则库/recvuJP1dD7yNW/检测关键词",
        "table": "品线内容边界规则库",
-       "score": 0.03887,
+       "score": 0.043487,
        "sources": {
         "bm25_zh": 10,
-        "vector": 26
+        "vector": 8
        },
        "segment_index": 1,
        "segment_count": 3,
@@ -335,40 +337,40 @@
       },
       {
        "rank": 2,
-       "unit_id": "6fed2dc0dbb8a03e2b30",
-       "anchor": "#广告文案明细/recvuJYdObkQXU/命中原因",
-       "table": "广告文案明细",
-       "score": 0.037433,
+       "unit_id": "278b6aff0aafb5b310c9",
+       "anchor": "#品线内容边界规则库/recvuJP1dD7yNW/边界内容",
+       "table": "品线内容边界规则库",
+       "score": 0.038541,
        "sources": {
-        "bm25_zh": 42,
+        "bm25_zh": 37,
+        "vector": 5
+       },
+       "segment_index": 0,
+       "segment_count": 1,
+       "char_offset": 0,
+       "excerpt": "催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫",
+       "relevance": "unknown"
+      },
+      {
+       "rank": 3,
+       "unit_id": "edd44950f3aea3e2b95a",
+       "anchor": "#品线内容边界规则库/recvuJP1dD7yNW/触发原因",
+       "table": "品线内容边界规则库",
+       "score": 0.038352,
+       "sources": {
+        "bm25_zh": 36,
         "vector": 6
        },
        "segment_index": 0,
        "segment_count": 1,
        "char_offset": 0,
-       "excerpt": "H02 催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫",
-       "relevance": "unknown"
-      },
-      {
-       "rank": 3,
-       "unit_id": "d9e184d2772523a7651e",
-       "anchor": "#广告文案明细/recvuJYeGR6F4W/命中原因",
-       "table": "广告文案明细",
-       "score": 0.036674,
-       "sources": {
-        "bm25_zh": 45,
-        "vector": 7
-       },
-       "segment_index": 0,
-       "segment_count": 1,
-       "char_offset": 0,
-       "excerpt": "H02 催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫",
-       "relevance": "unknown"
+       "excerpt": "催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫",
+       "relevance": "相关"
       }
      ],
-     "relevant_in_top3": 0,
-     "hit_at_3": null,
-     "top1_score": 0.03887,
+     "relevant_in_top3": 1,
+     "hit_at_3": true,
+     "top1_score": 0.043487,
      "lists_used": [
       "bm25_zh",
       "vector"
@@ -382,7 +384,7 @@
    "group": "A",
    "why": "库里有检测关键词「医生推荐/医师推荐/专家推荐」与触发原因",
    "raw_scores": {
-    "bm25_max": 34.1885,
+    "bm25_max": 36.3917,
     "cosine_max": 0.8818
    },
    "note": "1 是触发原因「无据的医生/专家推荐背书」、4 是检测关键词、5 是边界内容，三条直接对题；2 是「未经备案的临床/科学背书」、3 是「等级背书用语需核实认证」，属背书大类但非医生推荐；6 讲的是就医处置、7 讲医院/NICU 场景，只碰了「医生/医院」这个词。",
@@ -476,8 +478,8 @@
       },
       {
        "rank": 3,
-       "unit_id": "861b1bc3ea3021b43b57",
-       "anchor": "#品线内容边界规则库/recvuJP2Ot5BZl/触发原因",
+       "unit_id": "a16e2d8683e1e9326b7e",
+       "anchor": "#品线内容边界规则库/recvuJP2Ot5BZl/边界内容",
        "table": "品线内容边界规则库",
        "score": 0.02027,
        "sources": {
@@ -487,7 +489,7 @@
        "segment_count": 1,
        "char_offset": 0,
        "excerpt": "涉及医院/NICU 场景，需核实临床适用性声明",
-       "relevance": "不相关"
+       "relevance": "unknown"
       }
      ],
      "relevant_in_top3": 2,
@@ -536,10 +538,10 @@
        "unit_id": "2fc44ed2a269587b0e00",
        "anchor": "#品线内容边界规则库/recvuJP1dD4jGX/触发原因",
        "table": "品线内容边界规则库",
-       "score": 0.04097,
+       "score": 0.04122,
        "sources": {
         "bm25_zh": 9,
-        "vector": 18
+        "vector": 17
        },
        "segment_index": 0,
        "segment_count": 1,
@@ -564,7 +566,7 @@
    "group": "A",
    "why": "库里有 H07 检测关键词「无痛吸奶」",
    "raw_scores": {
-    "bm25_max": 32.3326,
+    "bm25_max": 33.0958,
     "cosine_max": 0.7408
    },
    "note": "3 是含「无痛吸奶」的检测关键词、5 是 Pain-Free Pumping 的改写示例，两条对题；其余是广告名称（靠 bigram「吸奶」命中）、手挤奶/吸奶器的专家修订，与「无痛承诺」无关。 另有一条「吸奶时乳头不应有夹痛/拉扯感」的专家修订，属吸奶疼痛话题但不是「无痛承诺」，记弱相关。",
@@ -628,53 +630,53 @@
      "top3": [
       {
        "rank": 1,
-       "unit_id": "115c7ea5b20a67b77a72",
-       "anchor": "#W1卖点表达边界（品线反馈0910）/recvuNf8jlCiOn/建议表达（合规话术）",
-       "table": "W1卖点表达边界（品线反馈0910）",
-       "score": 0.02,
+       "unit_id": "6a886f110e911e53da0a",
+       "anchor": "#l.1-6",
+       "table": "l.1-6",
+       "score": 0.016393,
        "sources": {
-        "vector": 15
+        "vector": 1
        },
-       "segment_index": 0,
-       "segment_count": 1,
-       "char_offset": 0,
-       "excerpt": "（禁用）温热治疗堵奶/乳腺炎、触发催产素、提高长期奶量。",
+       "segment_index": 8,
+       "segment_count": 9,
+       "char_offset": 3879,
+       "excerpt": "ber ein durchdachtes Werkzeug, das den Alltag spürbar erleichtert. Sorry, we couldn't load the review There was a problem filtering reviews. Please reload the p",
        "relevance": "unknown"
       },
       {
        "rank": 2,
-       "unit_id": "cc26fc89813087a7fce8",
-       "anchor": "#广告文案明细/recvuJYdObP1co/修改建议",
-       "table": "广告文案明细",
-       "score": 0.019481,
+       "unit_id": "881ea37e1d1b36668711",
+       "anchor": "#h.Draft V2- 9.3 Pending Momcozy Review",
+       "table": "h.Draft V2- 9.3 Pending Momcozy Review",
+       "score": 0.016129,
        "sources": {
-        "vector": 17
+        "vector": 2
        },
-       "segment_index": 0,
-       "segment_count": 2,
-       "char_offset": 0,
-       "excerpt": "删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述 ▸ 删除 more",
+       "segment_index": 10,
+       "segment_count": 16,
+       "char_offset": 3317,
+       "excerpt": "Because when I'm already being pulled in a million different directions, the last thing I want is for pumping to feel like another uncomfortable thing that I ha",
        "relevance": "unknown"
       },
       {
        "rank": 3,
-       "unit_id": "2aca7fd69c15fb548e0b",
-       "anchor": "#广告文案明细/recvuJYdOb5q3i/命中原因",
-       "table": "广告文案明细",
-       "score": 0.017442,
+       "unit_id": "bb2bd89af073181e1c00",
+       "anchor": "#l.1-76",
+       "table": "l.1-76",
+       "score": 0.015873,
        "sources": {
-        "vector": 26
+        "vector": 3
        },
-       "segment_index": 1,
-       "segment_count": 2,
-       "char_offset": 181,
-       "excerpt": "H02 催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫；H07 疼痛功效承诺（pain-free/no pain/without pain/pain re",
+       "segment_index": 25,
+       "segment_count": 27,
+       "char_offset": 3745,
+       "excerpt": "红糖即可。 ★** 功双 気基酸。 此粥不但能帮助新妈妈催乳， 还能提供新生儿发育所需的 [p349] 318 0,-43 协和专家孕产大百科 剖宫产妈妈如何坐月子 剖宫产不同于自然分娩，由于手术造成了一定的创伤，所以经历了剖宫产的新妈妈在产后护理及坐月子的 时候，要注意的事项会很多。 伤口的护理不可大意。饮食要十分谨",
        "relevance": "unknown"
       }
      ],
      "relevant_in_top3": 0,
      "hit_at_3": null,
-     "top1_score": 0.02,
+     "top1_score": 0.016393,
      "lists_used": [
       "vector"
      ]
@@ -683,56 +685,53 @@
      "top3": [
       {
        "rank": 1,
-       "unit_id": "cc26fc89813087a7fce8",
-       "anchor": "#广告文案明细/recvuJYdObP1co/修改建议",
-       "table": "广告文案明细",
-       "score": 0.033369,
+       "unit_id": "59aaa138abb8211fca96",
+       "anchor": "#品线内容边界规则库/recvuJP1LV8KLr/检测关键词",
+       "table": "品线内容边界规则库",
+       "score": 0.02459,
        "sources": {
-        "bm25_zh": 48,
-        "vector": 17
+        "bm25_zh": 1
        },
-       "segment_index": 0,
-       "segment_count": 2,
-       "char_offset": 0,
-       "excerpt": "删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述 ▸ 删除 more",
-       "relevance": "unknown"
+       "segment_index": null,
+       "segment_count": null,
+       "char_offset": null,
+       "excerpt": "eliminates pain, pain-free, no pain ever, completely painless, 100% pain, 完全不痛, 零疼痛, 无痛, 无痛吸奶, painlessly, painless, pain relief, relieve pain, relieves pain, r",
+       "relevance": "相关"
       },
       {
        "rank": 2,
-       "unit_id": "2aca7fd69c15fb548e0b",
-       "anchor": "#广告文案明细/recvuJYdOb5q3i/命中原因",
+       "unit_id": "367a39e272206d930157",
+       "anchor": "#广告文案明细/recvuJYdOb4mFS/修改建议",
        "table": "广告文案明细",
-       "score": 0.026644,
+       "score": 0.024194,
        "sources": {
-        "bm25_zh": 103,
-        "vector": 26
+        "bm25_zh": 2
        },
-       "segment_index": 1,
-       "segment_count": 2,
-       "char_offset": 181,
-       "excerpt": "H02 催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫；H07 疼痛功效承诺（pain-free/no pain/without pain/pain re",
+       "segment_index": null,
+       "segment_count": null,
+       "char_offset": null,
+       "excerpt": "删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述",
        "relevance": "unknown"
       },
       {
        "rank": 3,
-       "unit_id": "273b11dc86c72c8566ea",
-       "anchor": "#广告文案明细/recvuJYdObdUlb/命中原因",
+       "unit_id": "47453fc83566f743d449",
+       "anchor": "#广告文案明细/recvuJYdObBXtD/修改建议",
        "table": "广告文案明细",
-       "score": 0.026332,
+       "score": 0.02381,
        "sources": {
-        "bm25_zh": 105,
-        "vector": 27
+        "bm25_zh": 3
        },
-       "segment_index": 1,
-       "segment_count": 2,
-       "char_offset": 181,
-       "excerpt": "H02 催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫；H07 疼痛功效承诺（pain-free/no pain/without pain/pain re",
+       "segment_index": null,
+       "segment_count": null,
+       "char_offset": null,
+       "excerpt": "删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述",
        "relevance": "unknown"
       }
      ],
-     "relevant_in_top3": 0,
-     "hit_at_3": null,
-     "top1_score": 0.033369,
+     "relevant_in_top3": 1,
+     "hit_at_3": true,
+     "top1_score": 0.02459,
      "lists_used": [
       "bm25_zh",
       "vector"
@@ -746,7 +745,7 @@
    "group": "A",
    "why": "库里有「绝对安全/完全安全/零风险」类检测关键词",
    "raw_scores": {
-    "bm25_max": 27.3744,
+    "bm25_max": 29.5593,
     "cosine_max": 0.6336
    },
    "note": "1、6、7 是「删除 safest/100% safe/zero risk」的修改建议，2 是该规则的触发原因，四条对题；3、4 是名为「整体效果」的广告名称，5 是儿童安全门栏、8 是含乳安全提示，都属于「安全」但完全不同的事。",
@@ -825,32 +824,32 @@
       },
       {
        "rank": 2,
-       "unit_id": "4beaf8c51715498baa3f",
-       "anchor": "#品线内容边界规则库/recvuJP1dDumuM/边界内容",
-       "table": "品线内容边界规则库",
-       "score": 0.021127,
+       "unit_id": "52573b58174354f076ed",
+       "anchor": "#l.1-65",
+       "table": "l.1-65",
+       "score": 0.016393,
        "sources": {
-        "vector": 11
+        "vector": 1
        },
-       "segment_index": 0,
-       "segment_count": 1,
-       "char_offset": 0,
-       "excerpt": "虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按2026-09-09口径放开，海外广告允许，不再判险）",
+       "segment_index": 9,
+       "segment_count": 10,
+       "char_offset": 3975,
+       "excerpt": "r, to soak your aching feet. If you’ve already had some brief dips in the hot tub, there’s probably no Is Hot Stuff Not So Hot? C onsidering cuddling up with an",
        "relevance": "unknown"
       },
       {
        "rank": 3,
-       "unit_id": "6bd4e7315823e42ef28d",
-       "anchor": "#品线内容边界规则库/recvuJP1dDumuM/检测关键词",
-       "table": "品线内容边界规则库",
-       "score": 0.018987,
+       "unit_id": "63779beeabf041992300",
+       "anchor": "#l.1-2",
+       "table": "l.1-2",
+       "score": 0.016129,
        "sources": {
-        "vector": 19
+        "vector": 2
        },
-       "segment_index": 0,
-       "segment_count": 2,
-       "char_offset": 0,
-       "excerpt": "safest, most safe, 100% safe, 100% painless, zero risk, guaranteed safe, perfect pump, 最安全, 唯一, 百分百安全, 零风险, 完美, fits all breast shapes, fits every breast, all b",
+       "segment_index": 8,
+       "segment_count": 10,
+       "char_offset": 3245,
+       "excerpt": "intuicyjny ekran wyświetlacza i automatyczne wyłączanie po 30 minutach gwarantują bezstresowe sesje. ·Długie Zasilanie i Cicha Praca. Akumulator o pojemności 13",
        "relevance": "unknown"
       }
      ],
@@ -881,38 +880,36 @@
       },
       {
        "rank": 2,
-       "unit_id": "4beaf8c51715498baa3f",
-       "anchor": "#品线内容边界规则库/recvuJP1dDumuM/边界内容",
-       "table": "品线内容边界规则库",
-       "score": 0.041127,
+       "unit_id": "013407bfc66962d3c7a5",
+       "anchor": "#广告文案明细/recvuJYdOb1B8v/修改建议",
+       "table": "广告文案明细",
+       "score": 0.02459,
        "sources": {
-        "bm25_zh": 15,
-        "vector": 11
+        "bm25_zh": 1
        },
-       "segment_index": 0,
-       "segment_count": 1,
-       "char_offset": 0,
-       "excerpt": "虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按2026-09-09口径放开，海外广告允许，不再判险）",
-       "relevance": "unknown"
+       "segment_index": null,
+       "segment_count": null,
+       "char_offset": null,
+       "excerpt": "删除 safest/100% safe/zero risk/perfect 等虚假安全承诺，以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺（best/#1/No.1 排名最高级已放开）",
+       "relevance": "相关"
       },
       {
        "rank": 3,
        "unit_id": "784b39bfc2ccdc57aa2f",
        "anchor": "#广告文案明细/recvuJYdObE80Z/修改建议",
        "table": "广告文案明细",
-       "score": 0.03783,
+       "score": 0.024194,
        "sources": {
-        "bm25_zh": 2,
-        "vector": 50
+        "bm25_zh": 2
        },
-       "segment_index": 0,
-       "segment_count": 1,
-       "char_offset": 0,
+       "segment_index": null,
+       "segment_count": null,
+       "char_offset": null,
        "excerpt": "删除 safest/100% safe/zero risk/perfect 等虚假安全承诺，以及 fits all breast shapes/one size fits all/一定不损伤/适合所有胸型等绝对化适配承诺（best/#1/No.1 排名最高级已放开）",
        "relevance": "相关"
       }
      ],
-     "relevant_in_top3": 2,
+     "relevant_in_top3": 3,
      "hit_at_3": true,
      "top1_score": 0.041699,
      "lists_used": [
@@ -928,8 +925,8 @@
    "group": "A",
    "why": "库里有「FDA approved/certified」检测关键词与豁免词",
    "raw_scores": {
-    "bm25_max": 22.9745,
-    "cosine_max": 0.7401
+    "bm25_max": 23.1491,
+    "cosine_max": 0.7172
    },
    "note": "1 是「FDA 表述错误（吸奶器是 cleared/registered 而非 approved）」的触发原因，3 是 FDA 检测关键词，4 是 FDA Approved→FDA-cleared 的改写示例，三条直接对题；2 讲未经备案的临床/科学背书，与 FDA 沾边但不是 FDA；5 是鱼类汞含量的 FDA/EPA 膳食建议，只碰了 FDA 这个词。",
    "modes": {
@@ -992,8 +989,8 @@
      "top3": [
       {
        "rank": 1,
-       "unit_id": "3cb8d721d7d71f434e42",
-       "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/检测关键词",
+       "unit_id": "1d99fd947d541c9474da",
+       "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/触发原因",
        "table": "品线内容边界规则库",
        "score": 0.02459,
        "sources": {
@@ -1002,41 +999,41 @@
        "segment_index": 0,
        "segment_count": 1,
        "char_offset": 0,
-       "excerpt": "FDA approved, FDA certified, FDA 认证, FDA 批准, FDA 通过",
+       "excerpt": "FDA 表述错误（吸奶器为 cleared/registered，非 approved/certified）",
        "relevance": "相关"
       },
       {
        "rank": 2,
-       "unit_id": "af2b9b5f556eb911640e",
-       "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/豁免词",
+       "unit_id": "2fc44ed2a269587b0e00",
+       "anchor": "#品线内容边界规则库/recvuJP1dD4jGX/触发原因",
        "table": "品线内容边界规则库",
-       "score": 0.024194,
+       "score": 0.019231,
        "sources": {
-        "vector": 2
+        "vector": 18
        },
        "segment_index": 0,
        "segment_count": 1,
        "char_offset": 0,
-       "excerpt": "FDA cleared, FDA-cleared, FDA registered, FDA 注册",
-       "relevance": "unknown"
+       "excerpt": "未经备案的临床/科学背书",
+       "relevance": "弱相关"
       },
       {
        "rank": 3,
-       "unit_id": "1d99fd947d541c9474da",
-       "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/触发原因",
-       "table": "品线内容边界规则库",
-       "score": 0.02381,
+       "unit_id": "b9be51c34b39ada36a27",
+       "anchor": "#l.1-1",
+       "table": "l.1-1",
+       "score": 0.016129,
        "sources": {
-        "vector": 3
+        "vector": 2
        },
-       "segment_index": 0,
-       "segment_count": 1,
-       "char_offset": 0,
-       "excerpt": "FDA 表述错误（吸奶器为 cleared/registered，非 approved/certified）",
-       "relevance": "相关"
+       "segment_index": 8,
+       "segment_count": 9,
+       "char_offset": 3535,
+       "excerpt": "Is It Really 'FDA Approved'? | FDA An official website of the United States government Federal government websites often end in .gov or .mil. Before sharing sen",
+       "relevance": "unknown"
       }
      ],
-     "relevant_in_top3": 2,
+     "relevant_in_top3": 1,
      "hit_at_3": true,
      "top1_score": 0.02459,
      "lists_used": [
@@ -1047,56 +1044,56 @@
      "top3": [
       {
        "rank": 1,
-       "unit_id": "3cb8d721d7d71f434e42",
-       "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/检测关键词",
+       "unit_id": "1d99fd947d541c9474da",
+       "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/触发原因",
        "table": "品线内容边界规则库",
-       "score": 0.04918,
+       "score": 0.048784,
        "sources": {
-        "bm25_en": 1,
+        "bm25_en": 2,
         "vector": 1
        },
        "segment_index": 0,
        "segment_count": 1,
        "char_offset": 0,
-       "excerpt": "FDA approved, FDA certified, FDA 认证, FDA 批准, FDA 通过",
+       "excerpt": "FDA 表述错误（吸奶器为 cleared/registered，非 approved/certified）",
        "relevance": "相关"
       },
       {
        "rank": 2,
-       "unit_id": "1d99fd947d541c9474da",
-       "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/触发原因",
-       "table": "品线内容边界规则库",
-       "score": 0.048003,
+       "unit_id": "ac1b214ccb8855d4e60a",
+       "anchor": "#l.1-21",
+       "table": "l.1-21",
+       "score": 0.029514,
        "sources": {
-        "bm25_en": 2,
-        "vector": 3
+        "bm25_en": 4,
+        "vector": 12
        },
-       "segment_index": 0,
-       "segment_count": 1,
-       "char_offset": 0,
-       "excerpt": "FDA 表述错误（吸奶器为 cleared/registered，非 approved/certified）",
-       "relevance": "相关"
+       "segment_index": 2,
+       "segment_count": 9,
+       "char_offset": 784,
+       "excerpt": "ments won’t cure an otherwise deceptive ad, particularly where the deception concerns claims about the health-related benefits of a product. [58] Example 47: An",
+       "relevance": "unknown"
       },
       {
        "rank": 3,
-       "unit_id": "a4424c8206b8e8a6bcc8",
-       "anchor": "#品线内容边界规则库/recvuJP1LVW6E0/边界内容",
-       "table": "品线内容边界规则库",
-       "score": 0.047247,
+       "unit_id": "e772918fd9b93eec5341",
+       "anchor": "#l.1-2",
+       "table": "l.1-2",
+       "score": 0.025677,
        "sources": {
-        "bm25_en": 3,
-        "vector": 4
+        "bm25_en": 42,
+        "vector": 3
        },
-       "segment_index": 0,
-       "segment_count": 1,
-       "char_offset": 0,
-       "excerpt": "FDA 表述错误（吸奶器为 cleared/registered，非 approved/certified）",
+       "segment_index": 1,
+       "segment_count": 9,
+       "char_offset": 493,
+       "excerpt": "o federal quality standards. The FDA also approves generic drugs and biosimilar medications for patient use. Biosimilars and generics are FDA-approved medicines",
        "relevance": "unknown"
       }
      ],
-     "relevant_in_top3": 2,
+     "relevant_in_top3": 1,
      "hit_at_3": true,
-     "top1_score": 0.04918,
+     "top1_score": 0.048784,
      "lists_used": [
       "bm25_en",
       "vector"
@@ -1110,7 +1107,7 @@
    "group": "A",
    "why": "库里有 U03:hospital / M05:hospital-grade 命中片段",
    "raw_scores": {
-    "bm25_max": 17.1259,
+    "bm25_max": 17.3088,
     "cosine_max": 0.6885
    },
    "note": "1、2、5、6、7 分别是 M05:hospital grade 命中片段、hospital/medical grade 检测关键词、该表述的修改建议与改写示例，全部对题；3 是 HSA 资格广告、4 是德语标题，都不含该表述。",
@@ -1174,21 +1171,6 @@
      "top3": [
       {
        "rank": 1,
-       "unit_id": "9f37bfde3a67139feecb",
-       "anchor": "#广告文案明细/recvuJYdObFeLc/命中片段",
-       "table": "广告文案明细",
-       "score": 0.02381,
-       "sources": {
-        "vector": 3
-       },
-       "segment_index": 0,
-       "segment_count": 1,
-       "char_offset": 0,
-       "excerpt": "H05:perfect pump / U03:hospital",
-       "relevance": "unknown"
-      },
-      {
-       "rank": 2,
        "unit_id": "266a3a2b27855e3a4453",
        "anchor": "#l.1-1",
        "table": "l.1-1",
@@ -1203,7 +1185,7 @@
        "relevance": "unknown"
       },
       {
-       "rank": 3,
+       "rank": 2,
        "unit_id": "99d863e69386fdae4491",
        "anchor": "#l.1-3",
        "table": "l.1-3",
@@ -1216,11 +1198,26 @@
        "char_offset": 3620,
        "excerpt": "mmended！ Definitely better output with my own setting . 2 mins stimulation at level 7 then 10 mins expression at level 7.Then 2 mins stimulation then 10 mins ex",
        "relevance": "unknown"
+      },
+      {
+       "rank": 3,
+       "unit_id": "90c72ad62159cb79283e",
+       "anchor": "#风险文案改写建议库（分型号分渠道）/recvuNn6ejnm5D/风险原句示例",
+       "table": "风险文案改写建议库（分型号分渠道）",
+       "score": 0.015873,
+       "sources": {
+        "vector": 3
+       },
+       "segment_index": 0,
+       "segment_count": 1,
+       "char_offset": 0,
+       "excerpt": "【前】Hospital-grade pump used in NICU / trusted in hospitals 【后】Without clinical-use documents, drop hospital/NICU mentions; use specs (mmHg, modes, dB). 【原因】无临床适",
+       "relevance": "相关"
       }
      ],
-     "relevant_in_top3": 0,
-     "hit_at_3": null,
-     "top1_score": 0.02381,
+     "relevant_in_top3": 1,
+     "hit_at_3": true,
+     "top1_score": 0.016393,
      "lists_used": [
       "vector"
      ]
@@ -1229,22 +1226,6 @@
      "top3": [
       {
        "rank": 1,
-       "unit_id": "9f37bfde3a67139feecb",
-       "anchor": "#广告文案明细/recvuJYdObFeLc/命中片段",
-       "table": "广告文案明细",
-       "score": 0.034299,
-       "sources": {
-        "bm25_en": 83,
-        "vector": 3
-       },
-       "segment_index": 0,
-       "segment_count": 1,
-       "char_offset": 0,
-       "excerpt": "H05:perfect pump / U03:hospital",
-       "relevance": "unknown"
-      },
-      {
-       "rank": 2,
        "unit_id": "99d863e69386fdae4491",
        "anchor": "#l.1-3",
        "table": "l.1-3",
@@ -1257,6 +1238,22 @@
        "segment_count": 10,
        "char_offset": 3620,
        "excerpt": "mmended！ Definitely better output with my own setting . 2 mins stimulation at level 7 then 10 mins expression at level 7.Then 2 mins stimulation then 10 mins ex",
+       "relevance": "unknown"
+      },
+      {
+       "rank": 2,
+       "unit_id": "65ce113feef861498b81",
+       "anchor": "#l.1-3",
+       "table": "l.1-3",
+       "score": 0.024884,
+       "sources": {
+        "bm25_en": 48,
+        "vector": 4
+       },
+       "segment_index": 7,
+       "segment_count": 10,
+       "char_offset": 2932,
+       "excerpt": "lief™ : Gently ease discomfort and express milk for moms with enlarged breasts Expression Mode : Slow and steady suckling pattern for milk expression. Mixed Mod",
        "relevance": "unknown"
       },
       {
@@ -1278,7 +1275,7 @@
      ],
      "relevant_in_top3": 0,
      "hit_at_3": null,
-     "top1_score": 0.034299,
+     "top1_score": 0.024901,
      "lists_used": [
       "bm25_en",
       "vector"
@@ -1292,8 +1289,8 @@
    "group": "A",
    "why": "库里有 H02:increasing milk supply 命中片段",
    "raw_scores": {
-    "bm25_max": 16.7894,
-    "cosine_max": 0.8117
+    "bm25_max": 17.0596,
+    "cosine_max": 0.7808
    },
    "note": "1 是 increase/boost more milk 的正则、2 是 clinically proven to increase supply 的改写示例、3 是 more milk 表述 tricky 的判定理由、5/8 是命中片段、7 是 More Milk Less Stress 改写示例，均对题；4 是同规则的建议表达（更高吸乳效率/减少漏奶），6 是「不必过度收集乳汁」的专家修订，都只是沾边。",
    "modes": {
@@ -1356,24 +1353,9 @@
      "top3": [
       {
        "rank": 1,
-       "unit_id": "ff2411eaf09d2459c5bb",
-       "anchor": "#广告文案明细/recvuJYdObLnyQ/命中片段",
-       "table": "广告文案明细",
-       "score": 0.02459,
-       "sources": {
-        "vector": 1
-       },
-       "segment_index": 0,
-       "segment_count": 1,
-       "char_offset": 0,
-       "excerpt": "H02:increase milk supply,more milk / M07:better milk flow",
-       "relevance": "相关"
-      },
-      {
-       "rank": 2,
-       "unit_id": "ab48363a38d4bd7dabb7",
-       "anchor": "#广告文案明细/recvuJYdOb1fOj/命中片段",
-       "table": "广告文案明细",
+       "unit_id": "94e649f2f330ca318b9d",
+       "anchor": "#W1卖点表达边界（品线反馈0910）/recvuNf8jlAJ4z/判定理由",
+       "table": "W1卖点表达边界（品线反馈0910）",
        "score": 0.024194,
        "sources": {
         "vector": 2
@@ -1381,28 +1363,43 @@
        "segment_index": 0,
        "segment_count": 1,
        "char_offset": 0,
-       "excerpt": "H02:increase milk supply,more milk / M07:better milk flow",
+       "excerpt": "品线在 Base 明细记录（UK-1 More Milk 广告）评论反馈：more milk 表述 tricky，用放松/自然奶阵叙事替代承诺。",
        "relevance": "相关"
       },
       {
-       "rank": 3,
-       "unit_id": "ec8aa40b6b158aecb065",
-       "anchor": "#广告文案明细/recvuJYdObIJvQ/命中片段",
-       "table": "广告文案明细",
-       "score": 0.023438,
+       "rank": 2,
+       "unit_id": "0b43574e51c425f58b97",
+       "anchor": "#W1卖点表达边界（品线反馈0910）/recvuNf8jlt712/建议表达（合规话术）",
+       "table": "W1卖点表达边界（品线反馈0910）",
+       "score": 0.02381,
        "sources": {
-        "vector": 4
+        "vector": 3
        },
        "segment_index": 0,
        "segment_count": 1,
        "char_offset": 0,
-       "excerpt": "H02:more milk",
+       "excerpt": "（禁用）帮助更快奶阵、提高奶量、提高排空效率。",
        "relevance": "unknown"
+      },
+      {
+       "rank": 3,
+       "unit_id": "afd092848d0130a2e347",
+       "anchor": "#专家修订汇总表/recvoyJ6L9BYPB/修订位置（原文引用）",
+       "table": "专家修订汇总表",
+       "score": 0.016393,
+       "sources": {
+        "vector": 1
+       },
+       "segment_index": 0,
+       "segment_count": 1,
+       "char_offset": 0,
+       "excerpt": "【前】可在亲喂之后或两餐之间用吸奶器收集多余乳汁并储存 【后】改为：根据实际需求，可在亲喂后吸出约1顿量的乳汁储存备用，无需过度收集 【原因】不需要收集全部多余乳汁，仅吸出1顿的量即可",
+       "relevance": "弱相关"
       }
      ],
-     "relevant_in_top3": 2,
+     "relevant_in_top3": 1,
      "hit_at_3": true,
-     "top1_score": 0.02459,
+     "top1_score": 0.024194,
      "lists_used": [
       "vector"
      ]
@@ -1411,56 +1408,56 @@
      "top3": [
       {
        "rank": 1,
-       "unit_id": "ff2411eaf09d2459c5bb",
-       "anchor": "#广告文案明细/recvuJYdObLnyQ/命中片段",
-       "table": "广告文案明细",
-       "score": 0.048028,
+       "unit_id": "94e649f2f330ca318b9d",
+       "anchor": "#W1卖点表达边界（品线反馈0910）/recvuNf8jlAJ4z/判定理由",
+       "table": "W1卖点表达边界（品线反馈0910）",
+       "score": 0.036694,
        "sources": {
-        "bm25_en": 4,
-        "vector": 1
-       },
-       "segment_index": 0,
-       "segment_count": 1,
-       "char_offset": 0,
-       "excerpt": "H02:increase milk supply,more milk / M07:better milk flow",
-       "relevance": "相关"
-      },
-      {
-       "rank": 2,
-       "unit_id": "ab48363a38d4bd7dabb7",
-       "anchor": "#广告文案明细/recvuJYdOb1fOj/命中片段",
-       "table": "广告文案明细",
-       "score": 0.048003,
-       "sources": {
-        "bm25_en": 3,
+        "bm25_en": 60,
         "vector": 2
        },
        "segment_index": 0,
        "segment_count": 1,
        "char_offset": 0,
-       "excerpt": "H02:increase milk supply,more milk / M07:better milk flow",
+       "excerpt": "品线在 Base 明细记录（UK-1 More Milk 广告）评论反馈：more milk 表述 tricky，用放松/自然奶阵叙事替代承诺。",
        "relevance": "相关"
       },
       {
-       "rank": 3,
-       "unit_id": "5ff80f5422e3f9c107ce",
-       "anchor": "#广告文案明细/recvuJYdObHV0W/命中片段",
-       "table": "广告文案明细",
-       "score": 0.042388,
+       "rank": 2,
+       "unit_id": "3149c7d352b014b4d59c",
+       "anchor": "#l.1-3",
+       "table": "l.1-3",
+       "score": 0.02885,
        "sources": {
-        "bm25_en": 7,
-        "vector": 15
+        "bm25_en": 13,
+        "vector": 6
        },
-       "segment_index": 0,
-       "segment_count": 1,
-       "char_offset": 0,
-       "excerpt": "H02:increasing milk supply / M03:hotseller",
+       "segment_index": 8,
+       "segment_count": 9,
+       "char_offset": 3811,
+       "excerpt": "he charge may not last all day. Willow Go Wearable breast pump is an app connected and controlled. It is made to fit in your bra and hands-free pump. 4. Baby Bu",
+       "relevance": "unknown"
+      },
+      {
+       "rank": 3,
+       "unit_id": "babd6196a9b4f586a4c1",
+       "anchor": "#l.1-1",
+       "table": "l.1-1",
+       "score": 0.026084,
+       "sources": {
+        "bm25_en": 12,
+        "vector": 22
+       },
+       "segment_index": 4,
+       "segment_count": 9,
+       "char_offset": 1655,
+       "excerpt": "8 Best Pumps to Increase Milk Supply Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether Toys Bottle ",
        "relevance": "unknown"
       }
      ],
-     "relevant_in_top3": 2,
+     "relevant_in_top3": 1,
      "hit_at_3": true,
-     "top1_score": 0.048028,
+     "top1_score": 0.036694,
      "lists_used": [
       "bm25_en",
       "vector"
@@ -1474,8 +1471,8 @@
    "group": "A",
    "why": "库里有 M03:bestseller / Best-Selling 广告原文",
    "raw_scores": {
-    "bm25_max": 15.7073,
-    "cosine_max": 0.5905
+    "bm25_max": 15.7645,
+    "cosine_max": 0.6005
    },
    "note": "1、5、6 是 M03:best-selling 的命中片段，直接对题；2、3、4 是广告名称，不含 best-selling，是被 bigram/向量邻域带进来的。 新出现两条同款广告名称，同样不含 best-selling。",
    "modes": {
@@ -1538,9 +1535,9 @@
      "top3": [
       {
        "rank": 1,
-       "unit_id": "6c26f477626ac7a58f48",
-       "anchor": "#广告文案明细/recvuJYdObopeN/广告名称",
-       "table": "广告文案明细",
+       "unit_id": "nr-0ee2434ef558cd8e",
+       "anchor": "N-1.206",
+       "table": "N-1.206",
        "score": 0.016393,
        "sources": {
         "vector": 1
@@ -1548,13 +1545,13 @@
        "segment_index": 0,
        "segment_count": 1,
        "char_offset": 0,
-       "excerpt": "自适应搜索广告-Gelsey-Sale-Search-欧",
-       "relevance": "不相关"
+       "excerpt": "尽可能把重点产品、主打产品放在最优的位置，比如我们品牌的拳头产品所放的位置肯定要比配件或小品类的位置要好一些，单价高的产品位置要比单价低的产品的位置要好一些",
+       "relevance": "unknown"
       },
       {
        "rank": 2,
-       "unit_id": "7ad6dbe92585624af427",
-       "anchor": "#广告文案明细/recvuJYdObz5mN/广告名称",
+       "unit_id": "ab4bce6f4c6a9ab12453",
+       "anchor": "#广告文案明细/recvuJYdObL82h/广告名称",
        "table": "广告文案明细",
        "score": 0.016129,
        "sources": {
@@ -1568,8 +1565,8 @@
       },
       {
        "rank": 3,
-       "unit_id": "23c0a6cba64c74151229",
-       "anchor": "#广告文案明细/recvuJYdObE8HQ/广告名称",
+       "unit_id": "0e9967cc518b38cf1e17",
+       "anchor": "#广告文案明细/recvuJYdObrjds/广告名称",
        "table": "广告文案明细",
        "score": 0.015873,
        "sources": {
@@ -1653,7 +1650,7 @@
    "group": "B",
    "why": "语料里 汽车/保养/机油/轮胎 命中 0",
    "raw_scores": {
-    "bm25_max": 11.223,
+    "bm25_max": 10.9462,
     "cosine_max": 0.6199
    },
    "note": "B 组：命中的都是含「周期/一次/多久」的孕产与哺乳内容（月经周期、吸奶时长、超声时间窗、精子生成周期），与汽车保养无关。 新出现一条吸力档位调节的专家修订，与汽车保养无关。",
@@ -1662,9 +1659,9 @@
      "top3": [
       {
        "rank": 1,
-       "unit_id": "6124e5624ab36e96842b",
-       "anchor": "#负面样本/recvw7XIUgP5bC/具体原因/分析",
-       "table": "负面样本",
+       "unit_id": "1f90b19b7c965cc4de2a",
+       "anchor": "#l.1-4",
+       "table": "l.1-4",
        "score": 0.016393,
        "sources": {
         "bm25_zh": 1
@@ -1672,14 +1669,14 @@
        "segment_index": null,
        "segment_count": null,
        "char_offset": null,
-       "excerpt": "具体原因/分析: 【措辞表达】文案 【终审-@吴礼芳 】姐姐再看看调整了吸奶器比例大小后的呀。 【问题要点】 1. 【终审-@吴礼芳 】姐姐再看看调整了吸奶器比例大小后的呀 2. 设计要求头图需要将M5 smart吸奶器/M6吸奶器/清洗机/MW05+冻奶壶/收腹带/哺乳内衣融入场景，希望效果： 3. 终审修改：吸奶器",
+       "excerpt": "以分泌油脂以润滑乳头 和乳晕。当宝宝吸吮乳头时，你会发 现这种润滑是多么重要。这些迹象表 明，身体正在提前做准备事实上， 很早就在做准备了。 着床出血。30%的女性在受精卵 着床后会有少量出血。一般发生在预 期的月经之前（一般是怀孕后6~12 天），看上去应该是浅粉或粉色（不 会像月经那么红）。 疲惫。极度疲惫让你感觉",
        "relevance": "unknown"
       },
       {
        "rank": 2,
-       "unit_id": "1f90b19b7c965cc4de2a",
-       "anchor": "#l.1-4",
-       "table": "l.1-4",
+       "unit_id": "6124e5624ab36e96842b",
+       "anchor": "#负面样本/recvw7XIUgP5bC/具体原因/分析",
+       "table": "负面样本",
        "score": 0.016129,
        "sources": {
         "bm25_zh": 2
@@ -1687,7 +1684,7 @@
        "segment_index": null,
        "segment_count": null,
        "char_offset": null,
-       "excerpt": "以分泌油脂以润滑乳头 和乳晕。当宝宝吸吮乳头时，你会发 现这种润滑是多么重要。这些迹象表 明，身体正在提前做准备事实上， 很早就在做准备了。 着床出血。30%的女性在受精卵 着床后会有少量出血。一般发生在预 期的月经之前（一般是怀孕后6~12 天），看上去应该是浅粉或粉色（不 会像月经那么红）。 疲惫。极度疲惫让你感觉",
+       "excerpt": "具体原因/分析: 【措辞表达】文案 【终审-@吴礼芳 】姐姐再看看调整了吸奶器比例大小后的呀。 【问题要点】 1. 【终审-@吴礼芳 】姐姐再看看调整了吸奶器比例大小后的呀 2. 设计要求头图需要将M5 smart吸奶器/M6吸奶器/清洗机/MW05+冻奶壶/收腹带/哺乳内衣融入场景，希望效果： 3. 终审修改：吸奶器",
        "relevance": "unknown"
       },
       {
@@ -1747,17 +1744,17 @@
       },
       {
        "rank": 3,
-       "unit_id": "63779beeabf041992300",
+       "unit_id": "e34225b84f44933cb8ae",
        "anchor": "#l.1-2",
        "table": "l.1-2",
        "score": 0.015873,
        "sources": {
         "vector": 3
        },
-       "segment_index": 7,
+       "segment_index": 6,
        "segment_count": 10,
-       "char_offset": 2804,
-       "excerpt": "intuicyjny ekran wyświetlacza i automatyczne wyłączanie po 30 minutach gwarantują bezstresowe sesje. ·Długie Zasilanie i Cicha Praca. Akumulator o pojemności 13",
+       "char_offset": 2375,
+       "excerpt": "dy, Australii, Arabii Saudyjskiej, Francji, Niemiec i niektórych państw UE, w tym darmowa wysyłka w przypadku kwalifikujących się zamówień. Dla innych krajów, p",
        "relevance": "unknown"
       }
      ],
@@ -1775,9 +1772,9 @@
        "unit_id": "5491b782fbf961891447",
        "anchor": "#l.1-86",
        "table": "l.1-86",
-       "score": 0.029214,
+       "score": 0.029907,
        "sources": {
-        "bm25_zh": 18,
+        "bm25_zh": 14,
         "vector": 1
        },
        "segment_index": 17,
@@ -1791,9 +1788,9 @@
        "unit_id": "1facc67c8ba7fdea5a2e",
        "anchor": "#l.1-9",
        "table": "l.1-9",
-       "score": 0.020285,
+       "score": 0.020545,
        "sources": {
-        "bm25_zh": 49,
+        "bm25_zh": 46,
         "vector": 30
        },
        "segment_index": 14,
@@ -1807,9 +1804,9 @@
        "unit_id": "349c3154b5047e271664",
        "anchor": "#l.1-70",
        "table": "l.1-70",
-       "score": 0.019487,
+       "score": 0.019255,
        "sources": {
-        "bm25_zh": 98,
+        "bm25_zh": 104,
         "vector": 16
        },
        "segment_index": 0,
@@ -1821,7 +1818,7 @@
      ],
      "relevant_in_top3": 0,
      "hit_at_3": null,
-     "top1_score": 0.029214,
+     "top1_score": 0.029907,
      "lists_used": [
       "bm25_zh",
       "vector"
@@ -1835,7 +1832,7 @@
    "group": "B",
    "why": "语料里 基金/定投/股票/理财 命中 0",
    "raw_scores": {
-    "bm25_max": 10.436,
+    "bm25_max": 10.9466,
     "cosine_max": 0.3952
    },
    "note": "B 组：全是母乳喂养/生理术语的专家修订段落，库里没有基金/股票内容（0 命中）。 新出现一条德语折扣标题（15% Rabatt），无关。",
@@ -1957,10 +1954,10 @@
        "unit_id": "c06f3a976788fd0cb607",
        "anchor": "#专家修订汇总表/recvoyJ6L9AH7O/修订位置（原文引用）",
        "table": "专家修订汇总表",
-       "score": 0.023903,
+       "score": 0.025026,
        "sources": {
-        "bm25_zh": 13,
-        "vector": 38
+        "bm25_zh": 7,
+        "vector": 39
        },
        "segment_index": 0,
        "segment_count": 1,
@@ -1973,10 +1970,10 @@
        "unit_id": "dcab6a8470e3383b513a",
        "anchor": "#l.1-43",
        "table": "l.1-43",
-       "score": 0.023215,
+       "score": 0.022657,
        "sources": {
-        "bm25_zh": 21,
-        "vector": 32
+        "bm25_zh": 24,
+        "vector": 33
        },
        "segment_index": 18,
        "segment_count": 24,
@@ -2002,7 +1999,7 @@
      ],
      "relevant_in_top3": 0,
      "hit_at_3": false,
-     "top1_score": 0.023903,
+     "top1_score": 0.025026,
      "lists_used": [
       "bm25_zh",
       "vector"
@@ -2016,7 +2013,7 @@
    "group": "B",
    "why": "语料无钢琴考级内容（仅「推荐」这类通用词重叠）",
    "raw_scores": {
-    "bm25_max": 6.9771,
+    "bm25_max": 7.1283,
     "cosine_max": 0.615
    },
    "note": "B 组：靠「推荐」这个通用词命中了推荐背书规则、豁免词、婴语/抱姿专家修订等，与钢琴考级无关。",
@@ -2028,9 +2025,9 @@
        "unit_id": "4863e708ef573cd9cdd7",
        "anchor": "#品线内容边界规则库/recvuJP1dDAX79/检测关键词",
        "table": "品线内容边界规则库",
-       "score": 0.024194,
+       "score": 0.02459,
        "sources": {
-        "bm25_zh": 2
+        "bm25_zh": 1
        },
        "segment_index": null,
        "segment_count": null,
@@ -2043,9 +2040,9 @@
        "unit_id": "dcbe0ffa1f84d60a41fe",
        "anchor": "#广告文案明细/recvuJYdObV6eR/修改建议",
        "table": "广告文案明细",
-       "score": 0.02381,
+       "score": 0.024194,
        "sources": {
-        "bm25_zh": 3
+        "bm25_zh": 2
        },
        "segment_index": null,
        "segment_count": null,
@@ -2058,9 +2055,9 @@
        "unit_id": "b46fc211f15f844dd6e2",
        "anchor": "#广告文案明细/recvuJYdObvEQK/修改建议",
        "table": "广告文案明细",
-       "score": 0.023438,
+       "score": 0.02381,
        "sources": {
-        "bm25_zh": 4
+        "bm25_zh": 3
        },
        "segment_index": null,
        "segment_count": null,
@@ -2071,7 +2068,7 @@
      ],
      "relevant_in_top3": 0,
      "hit_at_3": false,
-     "top1_score": 0.024194,
+     "top1_score": 0.02459,
      "lists_used": [
       "bm25_zh"
      ]
@@ -2138,9 +2135,9 @@
        "unit_id": "9da7eb5e16e8a83989a7",
        "anchor": "#l.1-44",
        "table": "l.1-44",
-       "score": 0.032522,
+       "score": 0.031754,
        "sources": {
-        "bm25_zh": 1,
+        "bm25_zh": 4,
         "vector": 2
        },
        "segment_index": 8,
@@ -2154,9 +2151,9 @@
        "unit_id": "900ae391b5bf7ea1565c",
        "anchor": "#l.1-38",
        "table": "l.1-38",
-       "score": 0.030886,
+       "score": 0.030282,
        "sources": {
-        "bm25_zh": 9,
+        "bm25_zh": 12,
         "vector": 1
        },
        "segment_index": 23,
@@ -2170,9 +2167,9 @@
        "unit_id": "4863e708ef573cd9cdd7",
        "anchor": "#品线内容边界规则库/recvuJP1dDAX79/检测关键词",
        "table": "品线内容边界规则库",
-       "score": 0.024194,
+       "score": 0.02459,
        "sources": {
-        "bm25_zh": 2
+        "bm25_zh": 1
        },
        "segment_index": null,
        "segment_count": null,
@@ -2183,7 +2180,7 @@
      ],
      "relevant_in_top3": 0,
      "hit_at_3": false,
-     "top1_score": 0.032522,
+     "top1_score": 0.031754,
      "lists_used": [
       "bm25_zh",
       "vector"
@@ -2197,7 +2194,7 @@
    "group": "B",
    "why": "语料里 hiking/boots 命中 0",
    "raw_scores": {
-    "bm25_max": 11.2122,
+    "bm25_max": 11.1855,
     "cosine_max": 0.5251
    },
    "note": "B 组：全是吸奶器广告文案与卖点话术，「冬季徒步靴」在库里没有任何对应内容（hiking/boots 在语料里 0 命中）。",
@@ -2221,7 +2218,7 @@
       },
       {
        "rank": 2,
-       "unit_id": "64251dce552760a13225",
+       "unit_id": "17b14e90fd6e9e007d5c",
        "anchor": "#素材/recvw7XJiSp4TP/图片素材/#img.1",
        "table": "素材",
        "score": 0.016129,
@@ -2236,7 +2233,7 @@
       },
       {
        "rank": 3,
-       "unit_id": "08553a709bdbc6f123a9",
+       "unit_id": "390171cd02a8062218e6",
        "anchor": "#素材/recvw7XJiSzmOO/图片素材/#img.1",
        "table": "素材",
        "score": 0.015873,
@@ -2335,9 +2332,9 @@
        "unit_id": "17a106fae98de3cbfb6c",
        "anchor": "#l.1-37",
        "table": "l.1-37",
-       "score": 0.030214,
+       "score": 0.030622,
        "sources": {
-        "bm25_en": 11,
+        "bm25_en": 9,
         "vector": 2
        },
        "segment_index": 2,
@@ -2351,9 +2348,9 @@
        "unit_id": "18ea30cfcca87d53bbdc",
        "anchor": "#l.1-179",
        "table": "l.1-179",
-       "score": 0.026257,
+       "score": 0.025987,
        "sources": {
-        "bm25_en": 25,
+        "bm25_en": 27,
         "vector": 9
        },
        "segment_index": 1,
@@ -2379,7 +2376,7 @@
    "group": "B",
    "why": "语料里 python/asyncio 命中 0",
    "raw_scores": {
-    "bm25_max": 10.0756,
+    "bm25_max": 10.0611,
     "cosine_max": 0.3936
    },
    "note": "B 组：命中 ASMR unboxing、吸奶器说明书、法伯睡眠宝典、专家证言，与 python/asyncio 无关（语料里 0 命中）。 新出现一条专家证言广告名称，无关。",
@@ -2558,7 +2555,7 @@
    "group": "B",
    "why": "语料无马拉松训练内容（仅 how/to/for 这类功能词重叠）",
    "raw_scores": {
-    "bm25_max": 10.508,
+    "bm25_max": 10.5409,
     "cosine_max": 0.6512
    },
    "note": "B 组：命中的是「How to Use Momcozy M5 Smart」「假胯宽居家训练」「0-5 岁身体活动指南」等，都不是马拉松训练；只有 how/to/training 这类词面重叠。",
@@ -2712,9 +2709,9 @@
        "unit_id": "0482ff01112ac9d1a269",
        "anchor": "#l.1-189",
        "table": "l.1-189",
-       "score": 0.024497,
+       "score": 0.024411,
        "sources": {
-        "bm25_en": 47,
+        "bm25_en": 48,
         "vector": 6
        },
        "segment_index": 1,

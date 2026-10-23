@@ -62,6 +62,10 @@ SOURCE_READONLY = KB / "l7/registry/source-readonly.yaml"
 REPORTS = KB / "l7/reports"
 NODE_HELPER = KB / ".work/write_via_node.mjs"
 PROFILE = "dsh-kb"
+# ★ 2026-10-19 第二轮（PRD §5.3.2 **rev 101**）：`SUGGEST` **不是结论态**，是 PASS 的附属标签。
+#   所以落表放行集回到**三态 + 拒答**：`decision` 只会是 PASS / REVIEW / BLOCK（NEEDS_INPUT 拒发）。
+#   同一张表行里「有若干条建议」这件事由 `suggest_count` 那一格承担，**不靠多一个状态值**。
+#   ⚠️ 改前（同日早些）这里含 `SUGGEST`（四态口径），那是对 rev 96 的读法，已被 rev 101 覆盖。
 STATUS_PASS = {"PASS", "REVIEW", "BLOCK"}
 
 #: 「报告链接」门槛 —— **PRD §5.3.4 / §8.3 / §17** 四处同口径：
@@ -148,6 +152,21 @@ def _open_report_link(token: str) -> None:
               % (REPORT_LINK_SHARE, (out or p.stderr or "")[:220]))
         print("      ⇒ 这份报告链接对非协作者**打不开**。核验："
               "`python3 kb/l8/check_report_link_validity.py`")
+
+
+#: 位置四形态的**形状判据**（与 `kb/l8/material_evidence_gate.py::R3` 同一口径；
+#: 唯一真源是 `kb/l7/registry/prd533-constraints.yaml` 的 `location` 段）。
+#: 只判「像不像合规位置」的**形状**，不判内容对不对。
+_RE_LOC_FIGURE = re.compile(r"^图\s*\d+\s*第\s*\d+\s*处$")
+_RE_LOC_VIDEO = re.compile(r"^视频\s*\d{1,2}:\d{2}$")
+_RE_LOC_TEXT = re.compile(r"^正文第\s*\d+\s*段$")
+_RE_AREA_PREFIX = re.compile(r"^(?:图片)?(?:顶部|中部|底部|左侧|右侧)[，,]\s*")
+
+
+def _loc_ok(loc):
+    """位置是否属四形态（区域前缀版也算合规：`图片顶部，图 1 第 3 处`）。"""
+    s = _RE_AREA_PREFIX.sub("", str(loc or "").strip()).strip()
+    return bool(_RE_LOC_FIGURE.match(s) or _RE_LOC_VIDEO.match(s) or _RE_LOC_TEXT.match(s))
 
 
 def destinations() -> dict:
@@ -434,6 +453,16 @@ def render(rev: dict, meta: dict) -> str:
             _cm = ""
         if _cm:
             L += ["- " + _cm]
+        # ★★ 2026-10-20（缺陷：渲染层**从不印位置**）：`risk_items[].location` 一直算得出来，
+        #   但本渲染器一个字都没读过它 ⇒ 读者拿不到「问题在哪」。Owner 2026-10-20 令明确要求
+        #   「位置要写尽详细具体位置」，因此这里把它印出来；**不合格形状就地标记**，
+        #   不许让裸「图 1」看起来像合规位置（判据形状与出口闸 R3 同一口径）。
+        _loc = str(it.get("location") or "").strip()
+        if _loc:
+            L += ["- 位置：%s%s" % (_loc, "" if _loc_ok(_loc) else
+                                    "　⚠️ **形状不合规**（缺「第 X 处」；按 Owner 2026-10-20 令判红）")]
+        else:
+            L += ["- 位置：—（引擎未给，**不许当已定位**）"]
         L += ["- 命中：%s" % str(it.get("original_text") or "").replace("\n", " ")]
         L += ["- 条款号：**%s** ｜ 规则码：%s" % (ev.get("article_no") or "（无）", it.get("rule_code") or "—")]
         L += ["- 依据：库 %s ｜ anchor `%s` ｜ source_sha256 `%s…`"

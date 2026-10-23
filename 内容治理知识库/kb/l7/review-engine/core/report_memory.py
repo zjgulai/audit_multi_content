@@ -71,8 +71,8 @@ def taxonomy_groups(risk_items) -> tuple[dict, int]:
     return groups, unnamed
 
 
-def taxonomy_section_lines(risk_items, heading: str = "## 按 11 类汇总（附加视图）") -> list:
-    """渲染「按 11 类分组」那一段（表格：类别 / 条数 / 最高优先级 / 条款号）。
+def taxonomy_section_lines(risk_items, heading: str = "## 按所属类别汇总（12 类，附加视图）") -> list:
+    """渲染「**按所属类别（12 类）**分组」那一段（表格：类别 / 条数 / 最高优先级 / 条款号）。
 
     没有一条挂上 11 类时**返回空列表**（整段不出现，不输出空表当结论）。
     """
@@ -126,12 +126,12 @@ def render_markdown(result: Dict[str, Any]) -> str:
         #     ③ 连 basis 都没有（老形状：`rule_engine` 的「产品事实审批」、
         #        `with_kb_evidence` 的「覆盖缺口」）⇒ **逐字退回** `risk_type`
         #        （与守衡 `dual_track` 那条「引擎给了就照搬、没给才回落」同一条纪律）
-        if item.get("risk_category"):
-            key = item["risk_category"]
-        elif item.get("risk_category_basis"):
-            key = "未标注维度"
-        else:
-            key = item.get("risk_type") or item.get("category") or "未分类"
+        # ★★ 2026-10-19（Owner：「**报告要同步 卡上 12 类呀，整个知识库都要同步**」）——
+        #   分组轴从 **A2 四维**（`risk_category`）换成 **A3 12 类**（`taxonomy_category`）。
+        #   为什么：卡面逐条首行、卡面分类汇总、守衡那份报告**早就是 A3**，
+        #   只有库侧这份报告还在按四维分组 ⇒ 一份报告两种分类，读者只能怀疑哪个对。
+        #   盖不到 A3 的条目落 **`未归类`**（12 类的兜底类，**不编一个类**）。
+        key = str(item.get("taxonomy_category") or "").strip() or "未归类"
         groups[key].append(item)
     lines = [
         f"# 内容审核报告 {result.get('review_id', '')}",
@@ -158,18 +158,27 @@ def render_markdown(result: Dict[str, Any]) -> str:
                 #   否则细分信息就真丢了 —— 改前它是分组标题，改后那个位置变成了维度。
                 #   PRD §5.3 的展示形态本就是 `【维度-细分】`：分组给维度、这条给细分，两格各就各位。
                 f"{index}. **{item.get('risk_id', '')}**【{item.get('risk_type') or item.get('category') or '未分类'}】（{item.get('priority_tier', '')} / {item.get('severity', '')}）"
-                # ★ 2026-10-17：11 类标签。取不到就**不印这一格**（不写「未分类」冒充分类）
-                + (f"｜11 类：{item.get('taxonomy_category')}"
-                   + (f" / {item.get('taxonomy_subcategory')}" if item.get('taxonomy_subcategory') else "")
-                   if item.get("taxonomy_category") else ""),
+                # ★ 2026-10-19：分组标题已经是**所属类别**（12 类）⇒ 这一格只补**所属子类**，
+                #   不再重复印一遍类别（同一件事说两遍）。子类没有就不印这一格。
+                + (f"｜所属子类：{item.get('taxonomy_subcategory')}"
+                   if (item.get("taxonomy_subcategory") and item.get("taxonomy_category")) else ""),
                 f"   - 位置：{item.get('location', '未定位')}",
                 f"   - 原文/观察：{item.get('original_text') or item.get('observation') or '未提供'}",
+                *([f"   - 历史规则意见（非本素材原文；{item.get('history_attribution') or '归属见溯源'}）：{item.get('history_rule_text')}\n"
+                   f"     源记录：{(item.get('evidence') or {}).get('l0_entry_url') or item.get('evidence_url') or '未提供'}"]
+                  if item.get("history_rule_text") else []),
+                *([f"   - 历史审核完整分析（来源记录 {item.get('history_record_id') or '未知'}；{item.get('history_scope') or '历史意见'}，非本素材原文）：\n{item.get('history_analysis')}\n"
+                   f"     源记录：{(item.get('evidence') or {}).get('l0_entry_url') or item.get('evidence_url') or '未提供'}"]
+                  if item.get("history_analysis") else []),
+                *([f"   - 历史源建议（来源记录 {item.get('history_record_id') or '未知'}；非本素材原文）：{item.get('history_advice')}\n"
+                   f"     源记录：{(item.get('evidence') or {}).get('l0_entry_url') or item.get('evidence_url') or '未提供'}"]
+                  if item.get("history_advice") else []),
                 f"   - 原因：{item.get('reason', '')}",
                 f"   - 建议：{item.get('suggestion', '')}",
                 f"   - 证据：{item.get('evidence_url') or item.get('evidence_id') or '缺失'}",
                 "",
             ])
-    # ★ 2026-10-17：11 类汇总段（附加视图，排在 PRD 维度分组之后，不动既有结构）
+    # ★ 2026-10-19：分组的轴已是 12 类 ⇒ 这一段（按 12 类汇总）与上面的分组**同一套口径**，不是附加视图了
     lines.extend(taxonomy_section_lines(result.get("risk_items") or []))
     lines.extend([
         "## 决策轨迹",
@@ -180,6 +189,16 @@ def render_markdown(result: Dict[str, Any]) -> str:
         f"- 版本门禁：{json.dumps(result.get('version_gate', {}), ensure_ascii=False)}",
         f"- 覆盖状态：{json.dumps(result.get('coverage', {}), ensure_ascii=False)}",
     ])
+    _image_audit = ((result.get("decision_trace") or {}).get("image_identity")
+                    if isinstance(result.get("decision_trace"), dict) else None)
+    if isinstance(_image_audit, dict):
+        lines.extend([
+            "- 图片身份层：%s；检测 %s 条，新增 %s 条，升级 %s 条" % (
+                "已检查" if _image_audit.get("checked") else "未测",
+                _image_audit.get("detected", 0), _image_audit.get("added", 0),
+                _image_audit.get("upgraded", 0)),
+            "- 图片规则命中：%s" % json.dumps(_image_audit.get("hits") or [], ensure_ascii=False),
+        ])
     return "\n".join(lines) + "\n"
 
 

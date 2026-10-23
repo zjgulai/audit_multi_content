@@ -1,0 +1,626 @@
+{
+  "exporter_version": "l5-0.1",
+  "kb_version": "v0",
+  "selection": {
+    "p_level": "P0",
+    "rule_kind": "atomic",
+    "authority": [
+      "expert",
+      "legal"
+    ],
+    "code_allowlist": [
+      "H01",
+      "H03",
+      "H06",
+      "H08",
+      "V01",
+      "V02",
+      "V03",
+      "V04",
+      "V05",
+      "V06"
+    ],
+    "code_allowlist_note": "上游 authority=inferred 但证据逐字可溯的 P0 红线，按码准入（2026-09-23 补 H06）；不是放宽 authority 门槛"
+  },
+  "rule_code_uniqueness": "rule_code 在全套规则里不唯一（品线内容边界规则库复用 H01-H09/M01-M07/U01-U04 码，authority=inferred 已按门槛排除）；入选集合内部已校验无重码，变体表按 rule_code 查表安全",
+  "excluded": {
+    "non_P0": 593,
+    "P0_but_authority_insufficient": 5,
+    "P0_admitted_by_allowlist": 10,
+    "P0_but_inductive": 6,
+    "P0_but_no_enrich": 17
+  },
+  "p0_disposition": [
+    {
+      "rule_id": "r-106e4c5b6475d0e3",
+      "rule_code": "H07",
+      "disposition": "excluded",
+      "reason": "P0_but_authority_insufficient",
+      "why": "authority=inferred 不在 (expert,legal)，且码 'H07' 不在 P0_CODE_ALLOWLIST=['H01', 'H03', 'H06', 'H08', 'V01', 'V02', 'V03', 'V04', 'V05', 'V06'] 里 ⇒ 按门槛排除"
+    },
+    {
+      "rule_id": "r-0823b2d08a7e4ec2",
+      "rule_code": "H08",
+      "disposition": "included",
+      "reason": "P0_admitted_by_allowlist",
+      "why": "authority=inferred 低于门槛，但码在 P0_CODE_ALLOWLIST=['H01', 'H03', 'H06', 'H08', 'V01', 'V02', 'V03', 'V04', 'V05', 'V06'] 里，按显式准入放进（H06 的注释说明了为什么）"
+    },
+    {
+      "rule_id": "r-15a607c4457c8b55",
+      "rule_code": "H06",
+      "disposition": "included",
+      "reason": "P0_admitted_by_allowlist",
+      "why": "authority=inferred 低于门槛，但码在 P0_CODE_ALLOWLIST=['H01', 'H03', 'H06', 'H08', 'V01', 'V02', 'V03', 'V04', 'V05', 'V06'] 里，按显式准入放进（H06 的注释说明了为什么）"
+    },
+    {
+      "rule_id": "r-16cac1c85580f8f7",
+      "rule_code": "H03",
+      "disposition": "included",
+      "reason": "P0_admitted_by_allowlist",
+      "why": "authority=inferred 低于门槛，但码在 P0_CODE_ALLOWLIST=['H01', 'H03', 'H06', 'H08', 'V01', 'V02', 'V03', 'V04', 'V05', 'V06'] 里，按显式准入放进（H06 的注释说明了为什么）"
+    },
+    {
+      "rule_id": "r-b8aea07e90a86b59",
+      "rule_code": "H02",
+      "disposition": "excluded",
+      "reason": "P0_but_authority_insufficient",
+      "why": "authority=inferred 不在 (expert,legal)，且码 'H02' 不在 P0_CODE_ALLOWLIST=['H01', 'H03', 'H06', 'H08', 'V01', 'V02', 'V03', 'V04', 'V05', 'V06'] 里 ⇒ 按门槛排除"
+    },
+    {
+      "rule_id": "r-9b672eff05199974",
+      "rule_code": "H04",
+      "disposition": "excluded",
+      "reason": "P0_but_authority_insufficient",
+      "why": "authority=inferred 不在 (expert,legal)，且码 'H04' 不在 P0_CODE_ALLOWLIST=['H01', 'H03', 'H06', 'H08', 'V01', 'V02', 'V03', 'V04', 'V05', 'V06'] 里 ⇒ 按门槛排除"
+    },
+    {
+      "rule_id": "r-b10ee2b8361c8a3d",
+      "rule_code": "H01",
+      "disposition": "included",
+      "reason": "P0_admitted_by_allowlist",
+      "why": "authority=inferred 低于门槛，但码在 P0_CODE_ALLOWLIST=['H01', 'H03', 'H06', 'H08', 'V01', 'V02', 'V03', 'V04', 'V05', 'V06'] 里，按显式准入放进（H06 的注释说明了为什么）"
+    },
+    {
+      "rule_id": "r-3b6c3c82dc667295",
+      "rule_code": "H05",
+      "disposition": "excluded",
+      "reason": "P0_but_authority_insufficient",
+      "why": "authority=inferred 不在 (expert,legal)，且码 'H05' 不在 P0_CODE_ALLOWLIST=['H01', 'H03', 'H06', 'H08', 'V01', 'V02', 'V03', 'V04', 'V05', 'V06'] 里 ⇒ 按门槛排除"
+    },
+    {
+      "rule_id": "r-7489e156a5d2c7b2",
+      "rule_code": "H09",
+      "disposition": "excluded",
+      "reason": "P0_but_authority_insufficient",
+      "why": "authority=inferred 不在 (expert,legal)，且码 'H09' 不在 P0_CODE_ALLOWLIST=['H01', 'H03', 'H06', 'H08', 'V01', 'V02', 'V03', 'V04', 'V05', 'V06'] 里 ⇒ 按门槛排除"
+    },
+    {
+      "rule_id": "r-30d3b9b54135fa04",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_inductive",
+      "why": "rule_kind=inductive（非 atomic）—— 由多条证据归纳出的模式，不进「命中即 BLOCK」的确定性匹配器"
+    },
+    {
+      "rule_id": "r-e919fda20cd2f95e",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_inductive",
+      "why": "rule_kind=inductive（非 atomic）—— 由多条证据归纳出的模式，不进「命中即 BLOCK」的确定性匹配器"
+    },
+    {
+      "rule_id": "r-3b3460eab4528002",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_inductive",
+      "why": "rule_kind=inductive（非 atomic）—— 由多条证据归纳出的模式，不进「命中即 BLOCK」的确定性匹配器"
+    },
+    {
+      "rule_id": "r-1cf94543649842a0",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_inductive",
+      "why": "rule_kind=inductive（非 atomic）—— 由多条证据归纳出的模式，不进「命中即 BLOCK」的确定性匹配器"
+    },
+    {
+      "rule_id": "r-039822ed5c8e3448",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_inductive",
+      "why": "rule_kind=inductive（非 atomic）—— 由多条证据归纳出的模式，不进「命中即 BLOCK」的确定性匹配器"
+    },
+    {
+      "rule_id": "r-478f43899bcb5b8a",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_inductive",
+      "why": "rule_kind=inductive（非 atomic）—— 由多条证据归纳出的模式，不进「命中即 BLOCK」的确定性匹配器"
+    },
+    {
+      "rule_id": "r-03ec44de7eb8fb64",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-0d1e46b923cbf9f8",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-12fe094401654cb2",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-29bf2758f44d19de",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-659431b7cda22110",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-6e212146ea9a1bcf",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-7c0d541cb506ce30",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-8334d7fba8f6d436",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-a05639d323f9cd51",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-a16f7c8d40677bbb",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-a37db2c994b08fbe",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-ad80c02af1e44287",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-b4c492f9a4b00b33",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-e36cb8bd701d99d7",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-e61c58d5be723832",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-f28af88b8656e01c",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-f86b6172f13eb9da",
+      "rule_code": "",
+      "disposition": "excluded",
+      "reason": "P0_but_no_enrich",
+      "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失） ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"
+    },
+    {
+      "rule_id": "r-1bd7d4b564bb8663",
+      "rule_code": "V02",
+      "disposition": "included",
+      "reason": "P0_admitted_by_allowlist",
+      "why": "authority=inferred 低于门槛，但码在 P0_CODE_ALLOWLIST=['H01', 'H03', 'H06', 'H08', 'V01', 'V02', 'V03', 'V04', 'V05', 'V06'] 里，按显式准入放进（H06 的注释说明了为什么）"
+    },
+    {
+      "rule_id": "r-242c9de1bf755dca",
+      "rule_code": "V04",
+      "disposition": "included",
+      "reason": "P0_admitted_by_allowlist",
+      "why": "authority=inferred 低于门槛，但码在 P0_CODE_ALLOWLIST=['H01', 'H03', 'H06', 'H08', 'V01', 'V02', 'V03', 'V04', 'V05', 'V06'] 里，按显式准入放进（H06 的注释说明了为什么）"
+    },
+    {
+      "rule_id": "r-2f333e23ced1d524",
+      "rule_code": "V03",
+      "disposition": "included",
+      "reason": "P0_admitted_by_allowlist",
+      "why": "authority=inferred 低于门槛，但码在 P0_CODE_ALLOWLIST=['H01', 'H03', 'H06', 'H08', 'V01', 'V02', 'V03', 'V04', 'V05', 'V06'] 里，按显式准入放进（H06 的注释说明了为什么）"
+    },
+    {
+      "rule_id": "r-6430cde694cab5b7",
+      "rule_code": "V06",
+      "disposition": "included",
+      "reason": "P0_admitted_by_allowlist",
+      "why": "authority=inferred 低于门槛，但码在 P0_CODE_ALLOWLIST=['H01', 'H03', 'H06', 'H08', 'V01', 'V02', 'V03', 'V04', 'V05', 'V06'] 里，按显式准入放进（H06 的注释说明了为什么）"
+    },
+    {
+      "rule_id": "r-9961b7d19cdd81e6",
+      "rule_code": "V01",
+      "disposition": "included",
+      "reason": "P0_admitted_by_allowlist",
+      "why": "authority=inferred 低于门槛，但码在 P0_CODE_ALLOWLIST=['H01', 'H03', 'H06', 'H08', 'V01', 'V02', 'V03', 'V04', 'V05', 'V06'] 里，按显式准入放进（H06 的注释说明了为什么）"
+    },
+    {
+      "rule_id": "r-fbbd2396bcd0c136",
+      "rule_code": "V05",
+      "disposition": "included",
+      "reason": "P0_admitted_by_allowlist",
+      "why": "authority=inferred 低于门槛，但码在 P0_CODE_ALLOWLIST=['H01', 'H03', 'H06', 'H08', 'V01', 'V02', 'V03', 'V04', 'V05', 'V06'] 里，按显式准入放进（H06 的注释说明了为什么）"
+    },
+    {
+      "rule_id": "r-37b49eadb72d7dc2",
+      "rule_code": "H02",
+      "disposition": "included",
+      "reason": "passed_threshold",
+      "why": "P0 且 atomic 且 authority 达门槛（或经白名单）"
+    },
+    {
+      "rule_id": "r-3055901e5877f981",
+      "rule_code": "H04",
+      "disposition": "included",
+      "reason": "passed_threshold",
+      "why": "P0 且 atomic 且 authority 达门槛（或经白名单）"
+    },
+    {
+      "rule_id": "r-7baf7ceb47b2e5bc",
+      "rule_code": "H05",
+      "disposition": "included",
+      "reason": "passed_threshold",
+      "why": "P0 且 atomic 且 authority 达门槛（或经白名单）"
+    },
+    {
+      "rule_id": "r-d7290a0ee59c58ef",
+      "rule_code": "H07",
+      "disposition": "included",
+      "reason": "passed_threshold",
+      "why": "P0 且 atomic 且 authority 达门槛（或经白名单）"
+    },
+    {
+      "rule_id": "r-006445396c95aa10",
+      "rule_code": "H09",
+      "disposition": "included",
+      "reason": "passed_threshold",
+      "why": "P0 且 atomic 且 authority 达门槛（或经白名单）"
+    },
+    {
+      "rule_id": "r-4f309d6ebde80283",
+      "rule_code": "M03",
+      "disposition": "included",
+      "reason": "passed_threshold",
+      "why": "P0 且 atomic 且 authority 达门槛（或经白名单）"
+    },
+    {
+      "rule_id": "r-e879231d61c9bd08",
+      "rule_code": "U04",
+      "disposition": "included",
+      "reason": "passed_threshold",
+      "why": "P0 且 atomic 且 authority 达门槛（或经白名单）"
+    }
+  ],
+  "p0_disposition_note": "每条 P0 的处置与原因；**无原因丢弃 = 0**（批次16 0-4）",
+  "variant_policy": {
+    "literal_from_source": "全部取自源侧规则 evidence 的「命中片段/检测关键词」，按「；」(L3 跨记录连接符) 与「,，」(源侧单元格内并列) 切开后逐条成 pattern",
+    "synonym_family": "同一语义族的等价说法，且必须出现在该规则的 suggested_replacement / rule_text 的表述范围内",
+    "regex": "处理词形变化（复数/时态/连字符/中英变体）与「场景+消除暗示」组合式命中",
+    "no_new_knowledge": "每条 pattern 都回指已存在的 rule_id；未引入源里没有的事实",
+    "word_level_grounding": "逐词给出 basis：verbatim_source（逐字来自该规则的命中片段）/verbatim_rule_text（逐字来自该规则的 rule_text 或建议替换）/ equivalent_of:<锚点词>（同一词的另一种语言或连字符写法，锚点词必须是该规则自己写过的词）。三种都对不上 → 判为凭空，不进匹配表，记进 variant_sources.dropped_ungrounded"
+  },
+  "term_grounding": {
+    "clear blocked": "verbatim_source",
+    "clear clogged": "verbatim_source",
+    "clear residual milk": "verbatim_source",
+    "clogged duct treatment": "verbatim_source",
+    "cure engorgement": "verbatim_source",
+    "cure mastitis": "verbatim_source",
+    "diagnos": "verbatim_source",
+    "engorgement treatment": "verbatim_source",
+    "fix clogged": "verbatim_source",
+    "heal": "verbatim_source",
+    "heat therapy for clogged": "verbatim_source",
+    "heat therapy for mastitis": "verbatim_source",
+    "nipple damage prevention": "verbatim_source",
+    "plugged duct treatment": "verbatim_source",
+    "prevent clogged": "verbatim_source",
+    "prevent mastitis": "verbatim_source",
+    "prevent nipple damage": "verbatim_source",
+    "prevent plugged": "verbatim_source",
+    "prevents mastitis": "verbatim_source",
+    "prevents nipple damage": "verbatim_source",
+    "reduce nipple damage": "verbatim_source",
+    "reduces nipple damage": "verbatim_source",
+    "reduces residual milk": "verbatim_source",
+    "remedy": "verbatim_source",
+    "remove residual milk": "verbatim_source",
+    "stop mastitis": "verbatim_source",
+    "thermal therapy": "verbatim_source",
+    "treat clogged": "verbatim_source",
+    "treat engorgement": "verbatim_source",
+    "treat mastitis": "verbatim_source",
+    "treat plugged": "verbatim_source",
+    "unblock ducts": "verbatim_source",
+    "unclog ducts": "verbatim_source",
+    "warmth treats clogged": "verbatim_source",
+    "warmth treats mastitis": "verbatim_source",
+    "乳头损伤预防": "verbatim_source",
+    "五区对应乳腺": "verbatim_source",
+    "五条乳腺管": "verbatim_source",
+    "减少乳头损伤": "verbatim_source",
+    "加热治疗": "verbatim_source",
+    "排残奶": "verbatim_source",
+    "根治乳腺炎": "verbatim_source",
+    "残余奶": "verbatim_source",
+    "残留乳汁": "verbatim_source",
+    "治愈乳腺炎": "verbatim_source",
+    "治疗乳腺炎": "verbatim_source",
+    "治疗堵奶": "verbatim_source",
+    "治疗涨奶": "verbatim_source",
+    "热敷治疗": "verbatim_source",
+    "热敷疏通": "verbatim_source",
+    "热敷通奶": "verbatim_source",
+    "疏通乳腺管": "verbatim_source",
+    "疏通堵奶": "verbatim_source",
+    "疗法": "verbatim_source",
+    "解决乳腺炎": "verbatim_source",
+    "解决堵奶": "verbatim_source",
+    "诊断": "verbatim_source",
+    "避免乳头损伤": "verbatim_source",
+    "防止乳头损伤": "verbatim_source",
+    "预防乳头损伤": "verbatim_source",
+    "预防乳腺炎": "verbatim_source",
+    "预防堵奶": "verbatim_source",
+    "augmente la production de lait": "verbatim_source",
+    "boost supply": "verbatim_source",
+    "easier let-down": "verbatim_source",
+    "easier letdown": "verbatim_source",
+    "improve pumping efficiency": "verbatim_source",
+    "increase milk supply": "verbatim_source",
+    "increases milk production": "verbatim_source",
+    "increasing milk supply": "verbatim_source",
+    "mehr milch": "verbatim_source",
+    "more milk": "verbatim_source",
+    "más leche": "verbatim_source",
+    "plus de lait": "verbatim_source",
+    "producción de leche": "verbatim_source",
+    "support faster let-down": "verbatim_source",
+    "triggers letdown": "verbatim_source",
+    "boost milk": "equivalent_of:boost supply",
+    "maximize milk": "equivalent_of:more milk",
+    "milk supply boost": "equivalent_of:boost supply",
+    "下奶": "equivalent_of:增产催奶",
+    "催乳": "verbatim_rule_text",
+    "催奶": "verbatim_rule_text",
+    "增产": "verbatim_rule_text",
+    "增加奶量": "equivalent_of:increase milk supply",
+    "奶量提升": "equivalent_of:increase milk supply",
+    "clinical studies show": "verbatim_source",
+    "clinically proven": "verbatim_source",
+    "clinically tested": "verbatim_source",
+    "clinically validated": "verbatim_source",
+    "scientifically proven": "verbatim_source",
+    "临床证明": "verbatim_source",
+    "临床试验证实": "verbatim_source",
+    "临床验证": "verbatim_source",
+    "医学证明": "verbatim_source",
+    "ibclc-recommended": "verbatim_source",
+    "ob-gyn recommended": "verbatim_source",
+    "recommended by 100+ experts": "verbatim_source",
+    "doctor recommended": "equivalent_of:ob-gyn recommended",
+    "doctor-recommended": "equivalent_of:ob-gyn recommended",
+    "expert recommended": "equivalent_of:recommended by 100+ experts",
+    "expert-recommended": "equivalent_of:recommended by 100+ experts",
+    "expert-tuned": "verbatim_rule_text",
+    "pediatrician recommended": "equivalent_of:ob-gyn recommended",
+    "专家推荐": "verbatim_rule_text",
+    "专家认证推荐": "equivalent_of:recommended by 100+ experts",
+    "专家调校": "verbatim_rule_text",
+    "医生推荐": "equivalent_of:ob-gyn recommended",
+    "perfect pump": "verbatim_source",
+    "100% safe": "verbatim_rule_text",
+    "100%safe": "equivalent_of:100% safe",
+    "fits all breast shapes": "verbatim_rule_text",
+    "one size fits all": "verbatim_rule_text",
+    "risk-free": "equivalent_of:zero risk",
+    "safest": "verbatim_rule_text",
+    "zero risk": "verbatim_rule_text",
+    "一定不损伤": "verbatim_rule_text",
+    "完全安全": "equivalent_of:100% safe",
+    "绝对安全": "equivalent_of:safest",
+    "适合所有胸型": "verbatim_rule_text",
+    "零风险": "equivalent_of:zero risk",
+    "FDA approved": "verbatim_source",
+    "FDA certified": "verbatim_source",
+    "FDA 批准": "verbatim_source",
+    "FDA 认证": "verbatim_source",
+    "FDA 通过": "verbatim_source",
+    "indolore": "verbatim_source",
+    "no pain": "verbatim_source",
+    "pain-free": "verbatim_source",
+    "painlessly": "verbatim_source",
+    "sans douleur": "verbatim_source",
+    "say goodbye to cold, painful": "verbatim_source",
+    "schmerzfrei": "verbatim_source",
+    "sin dolor": "verbatim_source",
+    "zero pain": "verbatim_source",
+    "free of pain": "equivalent_of:pain-free",
+    "pain relief": "verbatim_rule_text",
+    "relieve pain": "equivalent_of:pain relief",
+    "without pain": "verbatim_rule_text",
+    "不痛": "equivalent_of:无痛",
+    "告别疼痛": "equivalent_of:缓解疼痛",
+    "无痛": "verbatim_rule_text",
+    "缓解疼痛": "verbatim_rule_text",
+    "10x better": "verbatim_source",
+    "10x more": "verbatim_source",
+    "beats medela": "verbatim_source",
+    "beats willow": "verbatim_source",
+    "better than elvie": "verbatim_source",
+    "better than medela": "verbatim_source",
+    "better than willow": "verbatim_source",
+    "完胜": "verbatim_source",
+    "比.*好": "verbatim_source",
+    "碾压": "verbatim_source",
+    "秒杀": "verbatim_source",
+    "mimics baby’s natural nursing": "verbatim_source",
+    "baby-like suckling": "equivalent_of:mimics baby",
+    "imitates baby": "equivalent_of:mimics baby",
+    "mimic baby": "equivalent_of:mimics baby",
+    "mimics a baby": "equivalent_of:mimics baby",
+    "模仿婴儿": "equivalent_of:模拟复制宝宝",
+    "模拟婴儿吸吮": "equivalent_of:模拟复制宝宝",
+    "还原婴儿吮吸": "equivalent_of:模拟复制宝宝",
+    "28% faster": "verbatim_source",
+    "28% more": "verbatim_source",
+    "best-selling": "verbatim_source",
+    "bestseller": "verbatim_source",
+    "hotseller": "verbatim_source",
+    "top rated": "verbatim_source",
+    "top-rated": "verbatim_source",
+    "trusted by 6 million": "verbatim_source",
+    "trusted by 6m": "verbatim_source",
+    "painful pumping": "verbatim_source",
+    "clogged ducts": "verbatim_rule_text",
+    "sore breasts": "equivalent_of:sore",
+    "sore nipples": "equivalent_of:sore",
+    "儿童独留车内": "verbatim_source",
+    "反向安装错误": "verbatim_source",
+    "安全座椅装副驾": "verbatim_source",
+    "成人未系安全带": "verbatim_source",
+    "未使用安全座椅": "verbatim_source",
+    "单独留在车内": "equivalent_of:儿童独留车内",
+    "坐在大人腿上": "equivalent_of:安全座椅装副驾",
+    "坐在成人腿上": "equivalent_of:安全座椅装副驾",
+    "未坐安全座椅": "equivalent_of:未使用安全座椅",
+    "没坐安全座椅": "equivalent_of:未使用安全座椅",
+    "没有安全座椅": "equivalent_of:未使用安全座椅",
+    "没系安全带": "equivalent_of:成人未系安全带",
+    "独自留在车内": "equivalent_of:儿童独留车内",
+    "最佳": "verbatim_source",
+    "纯天然": "verbatim_source",
+    "绝对化用语": "verbatim_source",
+    "100%": "equivalent_of:最佳",
+    "最好": "equivalent_of:最佳",
+    "最安全": "equivalent_of:最佳",
+    "第一": "equivalent_of:最佳",
+    "无依据的销量/排名宣称": "verbatim_source",
+    "排名第一": "equivalent_of:排名宣称",
+    "销量第一": "equivalent_of:排名宣称",
+    "销量领先": "equivalent_of:排名宣称",
+    "危险行为示范": "verbatim_source",
+    "怀抱乘车": "verbatim_source",
+    "无人看护下水": "verbatim_source",
+    "趴睡": "verbatim_source",
+    "驾驶时怀抱": "equivalent_of:怀抱乘车",
+    "未成年人未经授权出镜": "verbatim_source",
+    "隐私暴露": "verbatim_source",
+    "儿童出镜": "equivalent_of:未成年人未经授权出镜",
+    "孩子出镜": "equivalent_of:未成年人未经授权出镜",
+    "AI 深度合成内容未标识": "verbatim_source",
+    "AI生成未标注": "equivalent_of:AI 深度合成内容未标识",
+    "未标注AI": "equivalent_of:AI 深度合成内容未标识",
+    "未经备案的临床/科学背书": "verbatim_rule_text"
+  },
+  "whitelist_policy": {
+    "negation": [
+      "\\b(not|never|no)\\s+(better|best|safer|safest|superior|more\\s+effective)\\b[^.]{0,30}",
+      "\\b(did|do|does|will|would|can|could|shall|should|is|are|was|were|has|have|had|wo|ca|sha)\\s*n['’]?t\\b[^.]{0,20}\\b(treat|cure|heal|pain|milk)\\b",
+      "\\b(did|do|does|will|would|can|could|shall|should|is|are|was|were|has|have|had)\\s+not\\b[^.]{0,20}\\b(treat|cure|heal|pain|milk)\\b",
+      "\\bcannot\\b[^.]{0,20}\\b(treat|cure|heal|pain|milk)\\b",
+      "\\b(does\\s*n[o']?t|do\\s+not|does\\s+not|not\\s+intended\\s+to|never|no\\s+claim)\\b[^.]{0,40}\\b(treat|cure|heal|pain|milk)\\b",
+      "(不能|不可以|无法|并非|不是|不做|不会|不具|未经|尚缺乏|缺乏|没有|严禁|禁止|无需|无须|无证据|无依据|无临床|无科学|无任何|没有任何)[^。]{0,20}(治疗|治愈|预防|无痛|增产|催奶|催乳|堵奶|乳腺炎|临床|证明|科学)",
+      "^\\s*(DO\\s+NOT\\s+SAY|Do\\s+not\\s+say|禁用表达|禁用词|禁止表达|禁止使用|禁用|禁止|不允许|不得使用|违规表述|违规词|高危词)\\s*[:：][^。！？!?]{0,200}"
+    ],
+    "quotation": [
+      "[「『\\\"“][^」』\\\"”]{0,80}[」』\\\"”]",
+      "\\b(per|according\\s+to|as\\s+stated\\s+in|cited\\s+from)\\b[^.]{0,30}",
+      "^(依据|来源|原文|条款)[:：]"
+    ],
+    "rule_specific_allowed": {
+      "H05": [],
+      "H07": [
+        "comfort",
+        "gentle",
+        "discomfort",
+        "缓解胀满不适",
+        "舒适",
+        "温和"
+      ],
+      "H02": [
+        "relaxation",
+        "relax",
+        "natural let-down",
+        "放松",
+        "自然奶阵"
+      ],
+      "H04": [
+        "free ibclc service",
+        "免费 ibclc 服务"
+      ],
+      "H06": [
+        "FDA cleared",
+        "FDA-cleared",
+        "FDA registered",
+        "FDA 注册"
+      ]
+    },
+    "why": "没有例外清单，误报会把 BLOCK 精确率（PRD 要求 ≥95%）拉下来"
+  },
+  "normalization": {
+    "unicode": "NFKC",
+    "whitespace": "collapse",
+    "casefold": true,
+    "note": "匹配前统一做 NFKC + 空白折叠 + casefold，抵消全角/大小写/多空格差异"
+  },
+  "match_note_enum": [
+    "BLOCK"
+  ]
+}

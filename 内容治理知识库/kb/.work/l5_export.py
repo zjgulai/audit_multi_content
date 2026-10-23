@@ -102,6 +102,14 @@ VARIANTS = {
         #   它唯一多出来的检出就是「最好」。要不要给 V02 收窄/并档，等法务与 Owner 定。
         "synonym": ["100%", "第一", "最好", "最安全"],
         "regex": [],
+        # ★★ 2026-10-19（Owner 裁定 A，逐字）：「美国市场是可以超级、最好这些夸张词的 ⇒ 这类词不再判断为问题」。
+        #   本轮**只出列主观最高级**，不是整族放开：
+        #     · 出列：`最佳`（VARIANTS literal ＋ 源侧 forbidden_expression 里也有）、`最好`（synonym）。
+        #     · 留下：`纯天然`（成分事实宣称，可验证）、`100%`（绝对化量化宣称）、
+        #             `最安全`（安全承诺，婴儿用品高风险）、`第一`（排名宣称，需依据；V03 也管这一族）。
+        #   ⚠️ 出列走导出处的 `exclude` 机制（唯一实现）。只从这里删词**无效** ——
+        #      `最佳` 还来自 src_frags（源侧 forbidden_expression），导出时会被补回来。
+        "exclude": ["最佳", "最好"],
     },
     'V03': {   # 无依据的销量/排名宣称（PRD §7.3 一票否决项）
         "literal": ["无依据的销量/排名宣称", "排名宣称"],
@@ -205,18 +213,26 @@ VARIANTS = {
                   #   但摘它属另一刀，且与 `reason` 同批的那次改动绑在一起 ⇒ 留给法务逐条确认。
                   #   ⚠️ 若将来要恢复：把 `好|` 加回下面这一行，重跑
                   #   `kb/.work/l5_export.py --apply`（旧表留档见 `kb/l5/runs/*.p0_patterns.superseded.jsonl`）。
-                  r"最\s*(佳|优|强|安全|低价|便宜|有效|快|大|高|省|舒适)",   # 「多」不入列：最多=at most，是事实不是绝对化；「好」已按 2026-09-09 口径出列
+                  # ★★ 2026-10-19（Owner 裁定 A）：**主观最高级整族出列** —— `最佳/最优/最强/最舒适` 摘掉。
+                  #   口径：美国市场 puffery，不可验证的主观夸张不判问题（`super strong`/`the best`/`最强`）。
+                  #   留下的都**可验证**：`最安全`（安全承诺）、`最有效/最快/最大/最高/最省`（效果与性能可测）、
+                  #   `最低价/最便宜`（价格可核）—— 这三类在 FTC 下照样要 substantiation。
+                  r"最\s*(安全|低价|便宜|有效|快|大|高|省)",
                   r"(排名|销量|全网|行业|品类|国内|全球|世界|亚洲)\s*第一",
                   r"第一\s*(品牌|选择|名|款|位)",
-                  r"最佳",
                   r"纯\s*天然",
                   r"100\s*%\s*(安全|有效|无痛|无副作用|纯|天然|放心|保障|满意)",
                   r"(?:\bno\.?\s*1|#\s*1)\b",   #  在 # 前不成立，故 #1 分支不带前置边界
-                  r"\bbest\b"],
+                  # ★★ 2026-10-19：`\bbest\b` 出列（主观最高级）。
+                  #   `best-selling` **仍然会拦** —— 走的是 M03（需依据的销量宣称），不是这里；
+                  #   `#1 / No.1` 也**保留**（可验证的排名宣称，需依据），见上面那一条。
+                  ],
     },
     "H03": {   # 未经备案的临床/科学背书（PRD #L478「功效宣称」→ 一票否决域）
         # 零新增词：禁用写法逐字存在于该规则 forbidden_expression
         # （源：品线内容边界规则库 recvuJP1dD4jGX，严格限制红线/高危），src_frags 自动取到。
+        # ★ 2026-10-21：**规则自己的边界表述**另外登记在 `BOUNDARY_TERMS`（见上方常量），
+        #   不走本表 —— 本表的纪律是「只列源侧命中片段」，边界表述不是命中片段。
         "literal": [], "synonym": [],
     },
     "H08": {   # 无数据支撑的违法对比 / 贬低竞品（PRD #L478「广告用语」→ 一票否决域）
@@ -536,9 +552,18 @@ P0_CODE_ALLOWLIST = {"H06", "H01", "H03", "H08", "V01", "V02", "V03", "V04", "V0
 #   效力范围：H01 的 72 个触发词（中文 33）从「P1→转人工」变为「命中即 BLOCK、零延迟直返」。
 #   回退：删掉本集合里的 "H01" 并重跑 l5_export.py --apply。
 P0 = [r for r in latest.values() if r["p_level"] == "P0"]
-_sel_base = [r for r in P0 if r["rule_kind"] == "atomic" and r["authority"] in ("expert", "legal")]
+# ★ 2026-10-17：**缺富化字段不许再 KeyError**（实测缺陷，不是预防性改动）。
+#   病灶：外部标准候选件里有 123 条**没有** manifest 富化行（无 `rule_kind` / `authority`）；
+#   一旦有哪条被标成 `p_level=P0`（本次人工重标即产生 17 条），下面这行 `r["rule_kind"]`
+#   直接 **KeyError 崩掉整个导出** —— 而崩溃路径**在守卫之前**，看起来就像「守卫生效了」。
+#   实测：`python3 kb/.work/l5_export.py --apply <RUN>` 当日确实是这条 traceback。
+#   口径（**不放松任何门槛**）：没有富化的行**进不了 P0 快路**（它连 atomic/authority 都判不了），
+#   但必须**被计数、被列出来**（`exc["P0_but_no_enrich"]`），不许静默消失。
+_P0_ENRICHED = [r for r in P0 if "rule_kind" in r and "authority" in r]
+_P0_NO_ENRICH = [r for r in P0 if r not in _P0_ENRICHED]
+_sel_base = [r for r in _P0_ENRICHED if r["rule_kind"] == "atomic" and r["authority"] in ("expert", "legal")]
 _sel_codes = {r.get("rule_code") for r in _sel_base if r.get("rule_code")}
-_sel_extra = [r for r in P0
+_sel_extra = [r for r in _P0_ENRICHED
               if r["rule_kind"] == "atomic"
               and (r.get("rule_code") or "") in P0_CODE_ALLOWLIST
               and (r.get("rule_code") or "") not in _sel_codes]
@@ -554,6 +579,12 @@ for r in latest.values():
     code = (r.get("rule_code") or "").strip()
     if r["p_level"] != "P0":
         exc["non_P0"] += 1
+    elif "rule_kind" not in r or "authority" not in r:
+        exc["P0_but_no_enrich"] += 1
+        p0_disposition.append({"rule_id": rid, "rule_code": code, "disposition": "excluded",
+                               "reason": "P0_but_no_enrich",
+                               "why": "manifest_l3 里没有该 rule_id 的富化行（rule_kind/authority 缺失）"
+                                      " ⇒ 判不了 atomic/authority，故不进快路（**不是**门槛放宽的结果）"})
     elif r["rule_kind"] != "atomic":
         exc["P0_but_inductive"] += 1
         p0_disposition.append({"rule_id": rid, "rule_code": code, "disposition": "excluded",
@@ -588,6 +619,58 @@ print(f"  [处置留痕] P0 共 {len(p0_disposition)} 条 = 入选 {len(_p0_inc)
       f"（**每条都有 reason/why，无原因丢弃 = 0**）")
 assert len(_p0_inc) == len(sel), (len(_p0_inc), len(sel))
 
+# ══════════════════════════════════════════════════════════════════════════════
+# ★★ 2026-10-17：**P0 快路不许被静默扩容**（fail-closed 守卫）
+# ══════════════════════════════════════════════════════════════════════════════
+# 为什么加（不是预防性设计 —— 它是本次数据落库**测出来的**直接后果）：
+#   本文件的 P0 选取口径是 `p_level == "P0"`，而 `p_level` 的**人工重标**
+#   （`kb/l3/registry/rule-taxonomy.json`，2026-10-17 落库）把 P0 从 28 条改到 63 条
+#   ⇒ 同一份 `_sel_base` 门槛下，可导出条数从 **17 变 19**（多出 W-1.49 / W-1.5）。
+#   而 `p0_patterns.jsonl` 是 **≤1s 命中即 BLOCK、置信度 1.0** 的那张表，
+#   它另有一份法务逐条签字台账（`kb/l5/registry/p0-legal-signoff-ledger.json`）。
+#   ⇒ 让它跟着 `p_level` 自动长，等于「改一次分类顺手把红线扩了」，且没有人会被问到。
+# 口径（两句话）：
+#   · 导出集合与**现表**（`kb/l5/p0_patterns.jsonl`）不一致 ⇒ **拒写**，除非显式
+#     `--accept-p0-expansion`（人点头）或环境变量 `KB_P0_ACCEPT_EXPANSION=1`；
+#   · 拒写时把**多了哪几条 / 少了哪几条**逐条打出来（article_no + rule_id），
+#     并把它们写进 runs 产物 ⇒ 不是一句「不一致」，是可直接拿去签字的清单。
+def _current_pattern_ids():
+    p = f"{L5}/p0_patterns.jsonl"
+    out = set()
+    if os.path.exists(p):
+        for line in open(p, encoding="utf-8"):
+            if line.strip():
+                try:
+                    out.add(json.loads(line).get("rule_id"))
+                except ValueError:
+                    pass
+    return out
+
+
+_cur_ids = _current_pattern_ids()
+_new_ids = {r.get("rule_id") for r in sel}
+_added, _removed = sorted(_new_ids - _cur_ids), sorted(_cur_ids - _new_ids)
+_accept = ("--accept-p0-expansion" in sys.argv) or os.environ.get("KB_P0_ACCEPT_EXPANSION") == "1"
+p0_expansion_guard = {"current": len(_cur_ids), "computed": len(_new_ids),
+                      "added": _added, "removed": _removed, "accepted": bool(_accept)}
+if (_added or _removed) and not _accept:
+    print("⛔ 拒写（P0 快路扩容守卫）：本次可导出 %d 条 ≠ 现表 %d 条"
+          % (len(_new_ids), len(_cur_ids)))
+    for _rid in _added:
+        _r = latest.get(_rid) or {}
+        print("   ＋ 新增 %s ｜ %s ｜ p_level=%s"
+              % (_r.get("article_no"), _rid, _r.get("p_level")))
+    for _rid in _removed:
+        _r = latest.get(_rid) or {}
+        print("   － 移除 %s ｜ %s ｜ p_level=%s"
+              % (_r.get("article_no"), _rid, _r.get("p_level")))
+    print("   → 快路是「命中即 BLOCK + 置信度 1.0」，另有法务签字台账；扩容必须人点头。")
+    print("   → 确认要扩：`python3 kb/.work/l5_export.py --apply --accept-p0-expansion`"
+          "（并同步补 `p0-legal-signoff-ledger.json`）")
+    print("   → 不扩：本次**不写任何产物**；p_level 的人工重标仍在 L3 生效（规则层判 BLOCK），"
+          "两条轴互不牵连。")
+    raise SystemExit(4)
+
 # 变体表按 rule_code 查表，因此入选规则的 rule_code 必须唯一，否则会把 A 规则的变体套到 B 规则上。
 # （全套 1018 条里 rule_code 并不唯一：品线内容边界规则库复用同一套码 H01-H09/M01-M07/U01-U04，但那些是
 #  authority=inferred，已被门槛排除；这里只校验入选集合内部不重码。）
@@ -598,11 +681,170 @@ assert not dups, dups
 code_collision_note = ("rule_code 在全套规则里不唯一（品线内容边界规则库复用 H01-H09/M01-M07/U01-U04 码，"
                        "authority=inferred 已按门槛排除）；入选集合内部已校验无重码，变体表按 rule_code 查表安全")
 
-# ---------- 生成模式
+#: 规则自己的**边界表述**（源字段「触发原因」/「边界内容」，逐字，一字未改）。
+#   为什么要有这一格（2026-10-21，Owner 验收）：Owner 是**按规则库的「触发原因」列逐条送审**的，
+#   于是「这句话命不命中自己那条规则」本身就成了验收口径。而 P0 词表原先只收「检测关键词」，
+#   边界表述从来没进过 ⇒ H03 `未经备案的临床/科学背书`、H06 `FDA 表述错误（…）`、
+#   H08 `无数据支撑的违法对比 / 贬低竞品`、H09 `智能闭环/仿生虚假宣称（…）` 四条送审回来是 PASS。
+#   溯源：四句逐字来自 L0「品线内容边界规则库」（recvuJP1dD4jGX / recvuJP1LVW6E0 / recvuJP1LVUEBx /
+#   recvuJYdOb61lT）的触发原因字段；H03/H06/H08 也落在各自 `rule_text` 的「边界：…」段里，
+#   H09 落在 `reason` 里 —— 故 `grounding()` 的 rule 池自本日起含 `reason`。
+#   ⚠️ 代价（明写）：`禁用表达：<边界表述>` 这类清单行也会 BLOCK；取不漏一侧。
+BOUNDARY_TERMS = {
+    "H03": ["未经备案的临床/科学背书"],
+    "H06": ["FDA 表述错误（吸奶器为 cleared/registered，非 approved/certified）"],
+    "H08": ["无数据支撑的违法对比 / 贬低竞品"],
+    "H09": ["智能闭环/仿生虚假宣称（自动识别节奏、模拟/复制宝宝、饱腹反馈、降低奶量焦虑）；"
+            "W1当前为用户主动调节+保存程序，非闭环生理识别"],
+}
+
+#: 规则名 / 边界表述：逐字出现即命中，**否定白名单一律不豁免**（它是规则名，不是被否定的宣称）。
+#   病灶（2026-10-21 实测）：H03 的边界表述「未经备案的临床/科学背书」整句落在否定白名单
+#   `(…|未经|…)[^。]{0,20}(…|临床|…)` 的跨度里（「未经」+「备案的」+「临床」）⇒ 只加词仍 0 命中。
+#   消费方：`kb/l5/matcher.py` 的 `compile_patterns()` / `_line_hits()`（不是注释，是判据）。
+WHITELIST_EXEMPT = {"H03": ["未经备案的临床/科学背书"]}
+
+# ★★ 2026-10-21（Owner：「这四条都是命中 P0 的，建议呢？」）：**边界表述按规则自动派生**，
+#   不再一条条登记。判据：`kb/l3/candidates/rules.jsonl` 里 `p_level=P0` 且 `rule_text`
+#   形如「边界：<表述>；触发词：…」的，把 `<表述>` 逐字作为**该 rule_code 的匹配项**。
+#   为什么：Owner 是按规则库「触发原因」列逐条送审的，于是「这句话命不命中自己那条规则」
+#   就是验收口径；手工登记过 4 条，第 5 条照样会漏 ⇒ 改成按规则派生。
+#   ⚠️ 缺口必须可见：若某个 rule_code **整族没进快路**（如 M01/M02），这里会打印出来，
+#      不静默 —— 那属于「放宽导出门槛」的另一件事，得单独裁。
 def norm(s):
     s = unicodedata.normalize("NFKC", s or "")
     return re.sub(r'\s+', ' ', s).strip()
 
+# ★★ 2026-10-21（修一个 **生成器跑不起来** 的真缺陷）：`norm` 原先定义在下面「生成模式」段，
+#   而这段 `BOUNDARY_BY_CODE`（10-21 加的）在它**之前**就调用 `norm` ⇒ 只要带 `--apply`
+#   就在这一行 `NameError: name 'norm' is not defined`，**整个导出器一次都跑不成**。
+#   影响不止本次：10-21 之后对 `p0_patterns.jsonl` 的改动**不可能是导出物**（只能是手改表）。
+#   修法：把 `norm` 提到这段之前 —— 它的实现不依赖任何东西。
+_BND_RE = re.compile(r"^\s*边界：(.+?)；触发词")
+BOUNDARY_BY_CODE = {}
+for _r in latest.values():
+    if _r.get("p_level") != "P0":
+        continue
+    _m = _BND_RE.match(_r.get("rule_text") or "")
+    if _m:
+        BOUNDARY_BY_CODE.setdefault(_r.get("rule_code"), set()).add(norm(_m.group(1)))
+
+
+
+
+#: ★★ 2026-10-21（Owner：「这是未标注来源的效果数据声明吗？」→「补」）：
+#   **效果百分比宣称的形态**（不是再枚举字面词）。
+#   病灶：P0 词表里这类全是字面（`28% faster`/`30% more milk`/`trusted by 6 million`），
+#   于是 `95% of users saw results in 2 weeks` 这种同族写法直接穿过去（实测快路 hit=False）。
+#   口径：L3 `rule_code=M03 / p_level=P0` 边界「未标注来源的效果数据声明」，处理口径逐字
+#   「效果百分比/销量/评分声称需附测试来源与口径，否则删除（**折扣百分比不在此列**）」
+#   ⇒ 正则抓形态，白名单按括号里那句话把**折扣与成分占比**排除掉。
+EFFECT_DATA_REGEX = [
+    r"\b\d+(?:\.\d+)?\s*%\s*(?:more|less|fewer|faster|slower|better|stronger|longer|quicker|higher|lower)\b",
+    r"\b\d+(?:\.\d+)?\s*%\s*(?:increase|decrease|reduction|improvement|boost|lift)\b",
+    r"\b\d+(?:\.\d+)?\s*%\s*of\s+(?:users|moms|mothers|customers|participants|women|people|parents|babies|infants)\b"
+    r"[^.!?]{0,40}\b(?:saw|see|noticed|reported|experienced|felt|found|had|achieved|got|recommend|love|prefer)\b",
+    r"\b\d+(?:\.\d+)?\s*x\s+(?:more|faster|better|stronger|longer|quicker)\b",
+    r"\b(?:twice|two\s+times|three\s+times|\d+\s+times)\s+as\s+(?:fast|much|many|effective|strong)\b",
+    r"\b\d+(?:\.\d+)?\s*%[^.!?]{0,40}\bin\s+(?:just\s+|only\s+)?\d+(?:\.\d+)?\s*(?:days?|weeks?|months?|hours?)\b",
+    r"\d+(?:\.\d+)?\s*%\s*的?\s*(?:用户|妈妈|宝妈|产妇|消费者|受试者|客户)",
+    r"\d+(?:\.\d+)?\s*%\s*(?:提升|提高|增加|减少|降低|更快|更好|有效|改善)",
+    r"(?:提升|提高|增加|减少|降低)(?:了)?\s*\d+(?:\.\d+)?\s*%",
+]
+
+#: 折扣 / 成分占比 —— **不是效果宣称**（PRD 处理口径原文「折扣百分比不在此列」）。
+EFFECT_DATA_WHITELIST = [
+    r"\b\d+(?:\.\d+)?\s*%\s*(?:off|discount|sale|savings?|coupon|promo|code)\b",
+    r"\b(?:save|saving|save\s+up\s+to|discount)\s*(?:up\s*to\s*)?\d+(?:\.\d+)?\s*%",
+    r"\b(?:off|discount|sale|coupon|promo|code)\b[^.!?]{0,20}\d+(?:\.\d+)?\s*%",
+    r"\d+(?:\.\d+)?\s*%\s*(?:off|折扣|优惠)",
+    r"(?:折扣|优惠|立减|满减)[^。]{0,12}\d+(?:\.\d+)?\s*%",
+    r"\b\d+(?:\.\d+)?\s*%\s*(?:cotton|wool|polyester|silicone|steel|plastic|bamboo|bpa|water|ingredients?|recycled)\b",
+    r"\d+(?:\.\d+)?\s*%\s*(?:棉|羊毛|聚酯|硅胶|不锈钢|食品级|成分)",
+]
+
+
+#: ★★ 2026-10-21（Owner：「吸奶器m5.pro 是全美国销量no.1…销量1万台」送审却回 REVIEW）：
+#   **销量/排名宣称的形态**（V03「无依据的销量/排名宣称」，E-2.126）。
+#   病灶：V03 只有 4 个字面（销量第一/排名第一/销量领先/无依据的销量排名宣称），
+#   `全美国销量no.1`、`销量1万台`、`2 million units sold` 这类**同族写法**全穿过去（实测快路 hit=False）。
+# ★★ 2026-10-21（修一个**假阴性**）：上面这批正则原先写成 `\\b`（raw string 里是两个反斜杠）
+#   ⇒ 编出来的是「字面反斜杠 + b」，**一条都命不中**。实测：把生成的表与手改后的表逐条比，
+#   生成侧 V03 的 7 条正则全是 `\\b…` 形态，而表里那 3 条数量类正则是 `\b…`（能命中）。
+#   效果是「词在表里、判据永远不触发」，而报告上看不出来（没有命中就是没有命中）。
+#   改成单反斜杠；判据：`p0_fastpath --text "sold 6 million units"` 必须命中 V03。
+SALES_RANK_REGEX = [
+    r"(?:\bno\.?\s*1\b|\B#\s*1\b|\bnumber\s*one\b)",
+    r"(?:销量|销售|出货|售出|累计|全美|全球|全国|全网|美国|北美)[^。，,；;]{0,8}(?:第一|冠军|领先|no\.?\s*1|#\s*1)",
+    r"(?:第一|冠军|榜首)[^。，,；;]{0,6}(?:销量|品牌|排名|名)",
+    r"(?:销量|销售|出货|售出|累计销量)(?:已|达|达到|超过|超|突破|破)?\s*\d+(?:\.\d+)?\s*(?:万|亿|千|百万|million|k|w)?\s*(?:台|件|个|套|units?|pcs)?",
+    r"\b(?:sold|shipped)\s+(?:over\s+|more\s+than\s+)?\d+(?:\.\d+)?\s*(?:million|k|m|units?|pcs)?\b",
+    r"\b(?:best[- ]?selling|top[- ]?seller|number[- ]one)\b",
+    r"\b\d+(?:\.\d+)?\s*(?:million|k|m)\s*(?:units?|pcs)?\s*(?:sold|shipped)\b",
+]
+
+
+# ============================================================================
+# 2026-10-21（Owner 裁定 A）：排名/最高级一族退出 P0
+# ============================================================================
+# Owner 原话：「虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按2026-09-09口径放开，
+#   海外广告允许，不再判险）==》既然放开了，为什么还写出来问题？」
+# 裁定：best / #1 / No.1 / 最佳 / 最好 / 最高级 不再判险、不进问题清单；
+#   「第一 / 销量第一」这类中文事实性排名也不阻断，只留一句「需补可核验依据」的非阻断提示
+#   （提示在 kb/l5/p0_fastpath.py 的 RANK_ADVISORY_RX）。
+#
+# 为什么需要这张表（三处来路，都实测过）：
+#   1) 10-19 那次「最佳/最好出列」只过滤 literal/synonym（exclude 机制），正则没出列
+#      => H05 的 (?:\bno\.?\s*1|#\s*1)\b、最(...|高|...) 照旧命中；
+#   2) 10-21 把规则自己的边界表述（含「...放开，不再判险」这句）逐字灌进了 patterns
+#      => 说明「已放开」的句子成了「它没放开」的证据；
+#   3) V02/V03 另有 最佳/最好/第一/#1 的独立词条 => 同一条被三条规则各报一次。
+#
+# 代价（明写）：PRD §7.3 第 3 条把「最、第一、最佳…」列为绝对化用语 P0（10-09 据此作废过
+#   09-09 的放开）。本轮 Owner 把口径收窄到排名/最高级一族；100% / 纯天然 / 最安全
+#   仍在 P0，一个字没松。数量类宣称（销量 100 万台 / sold 6 million）仍在 V03。
+RELAXED_RULING = ("owner-2026-10-21-A（排名/最高级一族退出 P0；中文事实性排名降为非阻断提示）"
+                  "＋ owner-2026-10-22-B（裸「100%」退出 P0，降为非阻断提示；"
+                  "带限定词的 100% safe/安全/有效/天然 仍由 H05 判 P0）")
+RELAXED_TERMS = {
+    "H05": ["虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按2026-09-09口径放开，"
+            "海外广告允许，不再判险）"],
+    "V02": ["最佳", "最好", "第一", "100%"],
+    "V03": ["排名第一", "销量第一", "销量领先"],
+}
+RELAXED_REGEX = {
+    "H05": {
+        "drop": [r"(?:\bno\.?\s*1|#\s*1)\b",
+                 r"(排名|销量|全网|行业|品类|国内|全球|世界|亚洲)\s*第一",
+                 r"第一\s*(品牌|选择|名|款|位)",
+                 r"最佳", r"\bbest\b"],
+        "replace": {
+            r"最\s*(佳|优|强|安全|低价|便宜|有效|快|大|高|省|舒适)":
+                r"最\s*(优|强|安全|低价|便宜|有效|快|大|省|舒适)",
+            r"最\s*(安全|低价|便宜|有效|快|大|高|省)":
+                r"最\s*(安全|低价|便宜|有效|快|大|省)",
+        },
+    },
+    "V03": {
+        "drop": [r"(?:\bno\.?\s*1\b|\B#\s*1\b|\bnumber\s*one\b)",
+                 r"(?:销量|销售|出货|售出|累计|全美|全球|全国|全网|美国|北美)[^。，,；;]{0,8}(?:第一|冠军|领先|no\.?\s*1|#\s*1)",
+                 r"(?:第一|冠军|榜首)[^。，,；;]{0,6}(?:销量|品牌|排名|名)",
+                 r"\b(?:best[- ]?selling|top[- ]?seller|number[- ]one)\b"],
+        "replace": {},
+    },
+}
+#: 边界表述里出现这些字样 => 它是口径说明（说「这东西放开了」），不是触发词
+RELAXED_BND_RE = r"放开|不再判险"
+
+
+def _squash(s):
+    return "".join(str(s or "").split())
+
+
+def _sq_set(xs):
+    return {_squash(x) for x in xs}
+
+# ---------- 生成模式
 patterns, no_pattern = [], []
 
 
@@ -632,11 +874,20 @@ for r in sorted(sel, key=lambda x: str(x.get("rule_code"))):
     # 不切开就会拼出一个源里不存在的长串（如 "recommended by 100+ experts;ob-gyn recommended"），
     # 导致该片段永远匹配不上。切分只是拆回源侧本来就并列的片段，不新增词。
     src_frags = [norm(x) for x in re.split(r'[,，;；]', r["forbidden_expression"]) if norm(x)]
-    lit = sorted({norm(x) for x in (src_frags + v["literal"]) if norm(x)})
-    syn = sorted({norm(x) for x in v.get("synonym", []) if norm(x)})
+    # ★★ 2026-10-19（Owner 裁定）：**显式出列**（VARIANTS 的 `exclude`）。
+    #   为什么需要这个机制、而不是直接把词从 literal/synonym 删掉：
+    #   `src_frags` 来自**源侧** `forbidden_expression`（飞书源只读，删不掉），
+    #   只改 VARIANTS 的词会被 src_frags 在导出时补回来 ⇒ 看着改了、其实没生效。
+    #   出列的词**保留痕迹**：写进 `variant_sources.dropped_by_ruling`，报告/核查看得见，不是静默消失。
+    _excl = {norm(x) for x in (v.get("exclude") or []) if norm(x)}
+    src_frags = [x for x in src_frags if x not in _excl]
+    lit = sorted({norm(x) for x in (src_frags + v["literal"]) if norm(x) and norm(x) not in _excl})
+    syn = sorted({norm(x) for x in v.get("synonym", []) if norm(x) and norm(x) not in _excl})
     rx = v.get("regex", [])
     pool_source = norm(r["forbidden_expression"]).casefold()
-    pool_rule = norm((r.get("rule_text") or "") + " " + (r.get("suggested_replacement") or "")).casefold()
+    # ★ 2026-10-21：`reason` 也进 rule 池 —— H09 的边界表述逐字住在 `reason` 里（不在 rule_text）
+    pool_rule = norm((r.get("rule_text") or "") + " " + (r.get("suggested_replacement") or "")
+                     + " " + (r.get("reason") or "")).casefold()
 
     # ---- 词级溯源：逐词给 basis，凭空的词不进匹配表
     match_terms, dropped = [], []
@@ -646,6 +897,49 @@ for r in sorted(sel, key=lambda x: str(x.get("rule_code"))):
             dropped.append(term)
             continue
         match_terms.append({"term": term, "basis": basis, "anchor": anchor})
+    # ★ 2026-10-21：边界表述直接进匹配表（溯源由 BOUNDARY_TERMS 那张表本身承担，见其注释）
+    bnd = sorted({norm(x) for x in (BOUNDARY_TERMS.get(code) or []) if norm(x)}
+                 | set(BOUNDARY_BY_CODE.get(code) or set()))
+    for _t in bnd:
+        match_terms.append({"term": _t, "basis": "verbatim_rule_text", "anchor": _t})
+    # ★ 2026-10-21：效果百分比**形态**（见 EFFECT_DATA_REGEX 注释）—— 只挂在该 rule_code 上
+    if code == "M03":
+        rx = list(rx) + [x for x in EFFECT_DATA_REGEX if x not in rx]
+    if code == "V03":
+        rx = list(rx) + [x for x in SALES_RANK_REGEX if x not in rx]
+
+    # 2026-10-21 裁定 A：出列排名/最高级一族（见文件上方 RELAXED_* 常量）
+    _rel_t = {norm(x) for x in RELAXED_TERMS.get(code) or []}
+    _rel_dropped = {"terms": [], "regex": []}
+    _bnd_relaxed = {b for b in bnd if re.search(RELAXED_BND_RE, b)}
+    _drop_terms = set(_rel_t) | _bnd_relaxed
+    if _drop_terms:
+        _hit_t = [t for t in (list(lit) + list(syn)
+                              + [m["term"] for m in match_terms] + list(bnd))
+                  if t in _drop_terms]
+        _rel_dropped["terms"] = sorted(set(_hit_t))
+        lit = [x for x in lit if x not in _drop_terms]
+        syn = [x for x in syn if x not in _drop_terms]
+        match_terms = [m for m in match_terms if m["term"] not in _drop_terms]
+        bnd = [x for x in bnd if x not in _drop_terms]
+    # 2026-10-21 裁定 A：正则出列 / 收窄（同上 RELAXED_REGEX）
+    _rr = RELAXED_REGEX.get(code) or {}
+    _drop_rx = _sq_set(_rr.get("drop") or [])
+    _rep_rx = {_squash(k): v for k, v in (_rr.get("replace") or {}).items()}
+    _rx_new = []
+    for _x in rx:
+        _k = _squash(_x)
+        if _k in _drop_rx:
+            _rel_dropped["regex"].append(_x)
+            continue
+        if _k in _rep_rx:
+            _rel_dropped["regex"].append(_x)
+            _x = _rep_rx[_k]
+        _rx_new.append(_x)
+    rx = _rx_new
+    _relax_note = {"ruling": RELAXED_RULING,
+                   "removed_terms": sorted(set(_rel_dropped["terms"])),
+                   "removed_regex": sorted(set(_rel_dropped["regex"]))}
     plist = [m["term"] for m in match_terms]
     # 去重：已被更长的词覆盖的短词不再重复计入 keyword
     plist = [p for p in plist if not any(p != q and p in q for q in plist)]
@@ -674,8 +968,10 @@ for r in sorted(sel, key=lambda x: str(x.get("rule_code"))):
         patterns=plist,
         match_terms=match_terms,
         regex_patterns=rx,
-        whitelist=wl,
+        whitelist=(wl + (list(EFFECT_DATA_WHITELIST) if code == "M03" else [])),
         whitelist_allowed_expressions=wl_note,
+        # ★ 2026-10-21：规则名/边界表述（逐字出现即命中，白名单不豁免）—— 见上方常量注释
+        whitelist_exempt_terms=list(WHITELIST_EXEMPT.get(code) or []),
         suggested_replacement=norm(r["suggested_replacement"]),
         match_note="BLOCK",
         # ★ 2026-10-15：PRD §6.5 的「适用内容类型」与「生效版本」（口径见文件上方两段注释）。
@@ -684,10 +980,67 @@ for r in sorted(sel, key=lambda x: str(x.get("rule_code"))):
         p_level=r["p_level"], authority=r["authority"],
         evidence_units=r["evidence_units"],
         variant_sources={"literal_from_source": lit, "synonym_family": syn, "regex": rx,
-                         "dropped_ungrounded": dropped},
+                         "dropped_ungrounded": dropped,
+                         "boundary_from_source": bnd,
+                         # 2026-10-19：按裁定出列的词（源侧仍有，本表不再匹配）—— 可核、不静默
+                         "dropped_by_ruling": sorted(_excl),
+                         # 2026-10-21 裁定 A：出列的排名/最高级一族（可核、不静默）
+                         "relaxed_by_ruling": _relax_note},
     ))
     if dropped:
         print(f"  ! {code} 剔除无溯源的词 {dropped}")
+
+# ★★ 2026-10-21（Owner 裁定）：**边界表述「单收」族** —— 只收规则名，不收字面触发词。
+#   背景：M01（静音程度夸大）/ M02（吸力夸大用语）整族因 authority=inferred 被 `_sel_base` 排除，
+#   于是「把规则名送审」永远 MISS（实测）；而它们的字面词（静音 / 吸力 / dB / suction）在素材里
+#   太常见，整族放进来误伤面太大。折中（Owner 选项）：**只把边界表述挂进去**。
+#   判据：`p_level=P0` 且 `rule_text` 有「边界：…；触发词：」段，且该 rule_code **没有任何**导出行的。
+BOUNDARY_ONLY_CODES = ("M01", "M02")
+_wl_shared = (list(WHITELIST_COMMON["negation_patterns"])
+              + list(WHITELIST_COMMON["quotation_patterns"])
+              + list(WHITELIST_COMMON.get("benign_superlative_patterns") or []))
+for _code in BOUNDARY_ONLY_CODES:
+    if any(p["rule_code"] == _code for p in patterns):
+        continue
+    _terms = sorted(BOUNDARY_BY_CODE.get(_code) or [])
+    if not _terms:
+        continue
+    _pick = None
+    for _r in latest.values():
+        if _r.get("rule_code") != _code or _r.get("p_level") != "P0":
+            continue
+        if not _BND_RE.match(_r.get("rule_text") or ""):
+            continue
+        if _pick is None or (str(_r.get("article_no") or "").strip()
+                             and not str(_pick.get("article_no") or "").strip()):
+            _pick = _r
+    if _pick is None:
+        continue
+    patterns.append(dict(
+        pattern_id="p-" + hashlib.sha1(f"{EXPORTER_VERSION}|{_pick['rule_id']}".encode()).hexdigest()[:16],
+        rule_id=_pick["rule_id"], rule_code=_code,
+        article_no=(str(_pick.get("article_no") or "").strip() or None),
+        article_no_source=(("kb/l3/candidates/rules.jsonl#article_no")
+                           if str(_pick.get("article_no") or "").strip() else None),
+        anchor=_pick["anchor"], source_sha256=(_pick["evidence_units"][0] or {}).get("source_sha256"),
+        type="keyword", patterns=_terms,
+        match_terms=[{"term": t, "basis": "verbatim_rule_text", "anchor": t} for t in _terms],
+        regex_patterns=[], whitelist=list(_wl_shared), whitelist_allowed_expressions=[],
+        whitelist_exempt_terms=[],
+        suggested_replacement=norm(_pick.get("suggested_replacement") or ""),
+        match_note="BLOCK", content_type=[P0_CONTENT_TYPE],
+        rule_version=RULE_VERSION_BY_CODE.get(_code, RULE_VERSION_START),
+        p_level=_pick["p_level"], authority=_pick.get("authority"),
+        evidence_units=_pick["evidence_units"],
+        variant_sources={"literal_from_source": [], "synonym_family": [], "regex": [],
+                         "dropped_ungrounded": [], "boundary_from_source": _terms,
+                         "boundary_only_from": "Owner 2026-10-21：只收规则名，不收字面触发词"},
+    ))
+    print("  + 边界表述单收族：%s（只收规则名 %d 条）" % (_code, len(_terms)))
+
+_orphan = sorted(set(BOUNDARY_BY_CODE) - {p["rule_code"] for p in patterns})
+if _orphan:
+    print("  ! P0 边界表述无法落地（整族未进快路，需 Owner 单独裁）：%s" % _orphan)
 
 # ---------- 落盘
 with open(f"{L5}/p0_patterns.jsonl", "w", encoding="utf-8") as fh:

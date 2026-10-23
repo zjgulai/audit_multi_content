@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.29 是正例还是反例
   - S-1.29 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-2bf75bc4da94e26d"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 社媒
 reason_category: 原则性错误
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2vgYXGd0U/原文反馈"
-source_sha256: b051ef6db37874dbf79f34e4ad83e08b6b608a0c28a21524dcef4977ca4425d7
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXGd0U
+anchor: "#负面样本/recvw7XIUgK7Tp/具体原因/分析"
+source_sha256: 490e637bf66843a82defddb6a36de35ddb8b244530070d4d0f5ba670985f0a26
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XIUgK7Tp
 sample_body: "【审核 · 2026-09-03 01:26 · 李诗萍】【终审-@[已脱敏] 】麻烦看看呀:YouAreTheBest: **项目名：欧洲社媒(德国)Schedule 9.03 Baby Thermometer** **设计要求：** 图1：妈妈抱着哭泣的宝宝。宝宝看起来很不舒服。清晰地展示佩戴在宝宝身上的 Momcozy 智能婴儿体温计。在场景周围添加一些婴儿必需品 图2：妈妈正在安抚她的宝宝。添加简单的图标icon，分别代表喂养、睡眠、舒适度和体温。 图3：妈妈轻轻抚摸宝宝的额头。添加一个简短的温度趋势图 图4：展示智能手机屏幕上的温度趋势图和宝宝身上的温度计。添加3个卖点 图5：宝宝快乐地玩耍或休息，妈妈继续她的日常活动。添加一份简短的检查清单。 图6：幸福的妈妈拥抱着宝宝。巧妙地展示体温计，并将产品和应用程序作为辅助元素。  **设计稿件：** ![Image](img_v3_02155_53df5820-cc35-46c7-9046-a25b04830c0g) ![Image](img_v3_02155_c22199cd-e411-482b-9e06-4a58119486cg) ![Image](img_v3_02155_c20f65c0-7352-4d22-a8f0-865d262e0c9g) ![Image](img_v3_02155_64466e49-8eba-42b9-ba91-aa5f55764a6g) ![Image](img_v3_02155_d0dcdb0e-507f-49c9-aebd-e390ffb749fg) ![Image](img_v3_02155_19ed1e54-5f16-4bb9-908b-0c31d090e62g)  --- 其他审核者反馈 ---  [2026-09-02 14:14 李诗萍] 【初审-@[已脱敏] 】麻烦看看呀:YouAreTheBest: **项目名：欧洲社媒(德国)Schedule 9.03 Baby Thermometer** **设计要求：** 图1：妈妈抱着哭泣的宝宝。宝宝看起来很不舒服。清晰地展示佩戴在宝宝身上的 Momcozy 智能婴儿体温计。在场景周围添加一些婴儿必需品 图2：妈妈正在安抚她的宝宝。添加简单的图标icon，分别代表喂养、睡眠、舒适度和体温。 图 --- [2026-09-02 16:51 张悦] 这个宝宝这么大应该没有抓物能力 ![Image](img_v3_02155_dfcfc23b-453f-40ef-bcff-05dae8e20bfg) --- [2026-09-02 17:26 李诗萍] 【终审-@[已脱敏] 】麻烦看看呀:YouAreTheBest: **项目名：欧洲社媒(德国)Schedule 9.03 Baby Thermometer** **设计要求：** 图1：妈妈抱着哭泣的宝宝。宝宝看起来很不舒服。清晰地展示佩戴在宝宝身上的 Momcozy 智能婴儿体温计。在场景周围添加一些婴儿必需品 图2：妈妈正在安抚她的宝宝。添加简单的图标icon，分别代表喂养、睡眠、舒适度和体温。   17:31 an Milo v 105 100.4 95.9 85 98.6 Dein Baby fühlt sich warm an. Jetzt möchtest du nicht nur vermuten. Du möchtest wissen. MOMCOZY  Wenn es deinem Baby gut geht, geht es auch dir ein bisschenbesser. momcozY  Feeding Sleep Comfort Temperature Du kennst dein Baby. Und trotzdem ist es manchmal schwer zzu wissen, was los ist. momcozy  Mehr Überblick. Weniger Kontrollieren. • Temperatur im Blick • Symptome dokumentiert • Baby versorgt • Alltag weitermachen ma COZY momcozy momcozy"
 reason_analysis: "【原则性错误】图片 图1 【终审-@[已脱敏] 】麻烦看看呀。 【问题要点】 1. 【终审-@[已脱敏] 】麻烦看看呀 2. 图1：妈妈抱着哭泣的宝宝 3. 宝宝看起来很不舒服 4. 清晰地展示佩戴在宝宝身上的 Momcozy 智能婴儿体温计 5. 在场景周围添加一些婴儿必需品"
 advice: ""
@@ -149,8 +149,8 @@ momcozy
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2vgYXGd0U/原文反馈`
-- 指纹：`b051ef6db37874dbf79f34e4ad83e08b6b608a0c28a21524dcef4977ca4425d7`
+- 锚点：`#负面样本/recvw7XIUgK7Tp/具体原因/分析`
+- 指纹：`490e637bf66843a82defddb6a36de35ddb8b244530070d4d0f5ba670985f0a26`
 - 原因归类：原则性错误　|　素材类型：图片
 
 > 案例只作参照，不构成规则。

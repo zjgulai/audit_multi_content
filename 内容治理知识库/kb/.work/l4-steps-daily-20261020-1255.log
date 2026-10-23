@@ -1,0 +1,110 @@
+### ledgerrepair :: kb/kbpy .work/l4_ledger_repair.py daily-20261020-1255-L4
+[dry-run] l4_ledger_repair.py 未落盘。
+[dry-run] 本脚本会写入：kb/l4/registry/l4.json（补回 article-no-2 方案键与缺的已发号段）、kb/l4/runs/daily-20261020-1255-L4-ledger-repair.json
+[dry-run] 加 --apply 才落盘。只补缺、不改已发号；逐号对账不过则拒绝写。
+现库台账 run_id=daily-20261019-1003-L4｜issued 段 ['E-1', 'E-2', 'S-1', 'W-1', 'W-2', 'W-3']
+归档台账 scheme_version=article-no-2｜issued 段 ['E-1', 'S-1', 'W-1', 'W-2', 'W-3']｜assignments 1242
+现库 canonical：1917 行
+逐号对账：一致 1242｜不符 0｜归档查不到 675
+★逐号对账不通过 → 拒绝落盘（归档不是现库的正确台账，不得用它修复）
+    ('clause.jsonl', 'r-06b5f92f2232ec0d', 'E-2.5')
+    ('clause.jsonl', 'r-3cbe7cca4fbd7b3f', 'E-2.32')
+    ('clause.jsonl', 'r-f7cf08e7828f2aae', 'E-2.120')
+    ('clause.jsonl', 'r-a16f7c8d40677bbb', 'E-2.87')
+    ('clause.jsonl', 'r-ad80c02af1e44287', 'E-2.93')
+    ('clause.jsonl', 'r-e61c58d5be723832', 'E-2.110')
+    ('clause.jsonl', 'r-a37db2c994b08fbe', 'E-2.89')
+    ('clause.jsonl', 'r-27b4636b8be795e4', 'E-2.21')
+    ('clause.jsonl', 'r-d8ed24d58ff4d282', 'E-2.105')
+    ('clause.jsonl', 'r-6e212146ea9a1bcf', 'E-2.58')
+### ledgerrepair EXIT=3
+### article :: kb/kbpy .work/l4_article.py daily-20261020-1255-L4 --apply
+骨架：kb/l4/canonical、registry、runs 就绪｜迁移 canonical：早已迁过，跳过
+  kb/l3/candidates/rules.jsonl：1018 行 → 唯一 rule_id 509 条（kb_type=wording）
+  kb/l3/candidates/external_standard.jsonl：129 行 → 唯一 rule_id 129 条（kb_type=external_standard）
+  kb/l3/candidates/sample_cases.jsonl：946 行 → 唯一 case_id 473 条（kb_type=internal_sample）
+  kb/l3/candidates/scoped_clauses.jsonl：6916 行 → 唯一 clause_id 3458 条（kb_type=external_standard）
+候选规则合计 4569 条（跨 4 个源）
+台账里已发出的条款号：4569 个（本批首次分配时应为 0）
+逐段落段依据：{'E-1(台账沿用)': 3458, 'E-2(台账沿用)': 129, 'S-1(台账沿用)': 316, 'W-1(台账沿用)': 56, 'W-2(台账沿用)': 453, 'W-3(台账沿用)': 157}
+首次分配 0 条｜沿用台账 4569 条｜分段：{'E-1': 3458, 'E-2': 129, 'S-1': 316, 'W-1': 56, 'W-2': 453, 'W-3': 157}
+  kb/l3/candidates/rules.jsonl：追加 0 行｜1018 → 1018 行｜旧行逐字节未变：True
+  kb/l3/candidates/external_standard.jsonl：追加 0 行｜129 → 129 行｜旧行逐字节未变：True
+  kb/l3/candidates/sample_cases.jsonl：追加 0 行｜946 → 946 行｜旧行逐字节未变：True
+  kb/l3/candidates/scoped_clauses.jsonl：追加 0 行｜6916 → 6916 行｜旧行逐字节未变：True
+追加合计 0 行
+registry 重写
+registry → kb/l4/registry/l4.json｜耗时 1.2s
+层落章 → kb/l4/runs/daily-20261020-1255-L4-article.json
+### article EXIT=0
+### negrules :: kb/kbpy l8/l4_promote_negative_rules.py daily-20261020-1255-L4 --apply
+L3 候选 → 剔除 non_substantive 39 条 → 待定稿 437 条 ｜ 条款号重复 0
+已定稿：kb/l4/canonical/negative_rule.jsonl（437 行 / 1980330 bytes）；注册表已登记 negative_rule
+### negrules EXIT=0
+### fixrepromote :: kb/kbpy .work/fix_l4_repromote.py daily-20261020-1255-L4 --apply
+L2 单元表: 14970
+[继承] 治理字段继承（批次18 乙）：
+    wording_entry          继承   56 行 /   365 处字段 ｜ 无历史行（留空待 D 补）0 行
+    wording_revision_pair  继承  453 行 /  2265 处字段 ｜ 无历史行（留空待 D 补）0 行
+    sample_case            继承  473 行 /  1419 处字段 ｜ 无历史行（留空待 D 补）0 行
+    scoped_clause          继承  375 行 /  1125 处字段 ｜ 无历史行（留空待 D 补）3083 行
+    clause                 继承  123 行 /   369 处字段 ｜ 无历史行（留空待 D 补）6 行
+
+★ C9_no_field_regression —— 相对现 canonical，下列字段会**回退**：
+    clause                 anchor（键消失）  × 123 条
+    clause                 baseline_date（键消失）  × 123 条
+    clause                 never_resets_on_regeneration（键消失）  × 123 条
+    sample_case            baseline_date（键消失）  × 473 条
+    sample_case            never_resets_on_regeneration（键消失）  × 473 条
+    sample_case            superseded_at（键消失）  × 87 条
+    sample_case            superseded_by（键消失）  × 87 条
+    sample_case            superseded_reason（键消失）  × 87 条
+    sample_case            supersedes（键消失）  × 87 条
+    scoped_clause          baseline_date（键消失）  × 375 条
+    scoped_clause          never_resets_on_regeneration（键消失）  × 375 条
+    wording_entry          baseline_date（键消失）  × 56 条
+    wording_entry          never_resets_on_regeneration（键消失）  × 56 条
+    wording_revision_pair  baseline_date（键消失）  × 453 条
+    wording_revision_pair  never_resets_on_regeneration（键消失）  × 453 条
+  （C9 只报不在这里拦 —— 统一由下面的「判据闸门」一次拦，见 crits_passed 之后）
+  [算] wording_entry              56 行    563575 B  d5a09ea811bcdbf8  (源 56 行)
+  [算] wording_revision_pair     453 行   2246987 B  cdb8e83008551d10  (源 453 行)
+  [算] sample_case               473 行   1852364 B  72af02eaaca533a3  (源 946 行)
+  [算] scoped_clause            3458 行  22215152 B  9f04009a17091ecf  (源 6916 行)
+  [算] clause                    129 行    383584 B  0d93c542fe87ea7a  (源 129 行)
+[C8] 本次基座 = kb/l7/_backups/batch17-20261002-1120/l4-c8-base/l4.json（**本次运行开始时**的快照）
+
+判据: 6/9 通过 {'C1_article_no_unique': True, 'C2_cite_triple_complete': True, 'C3_body_nonempty': True, 'C4_verbatim_with_candidates': True, 'C5_evidence_resolvable': False, 'C6_evidence_rule_eligible': True, 'C7_kb_version_v0': True, 'C8_idempotent': False, 'C9_no_field_regression': False}
+★ 判据未全过：C5_evidence_resolvable、C8_idempotent、C9_no_field_regression
+→ **已拒绝 --apply，未落盘**。gate 原文：「判据 C1–C9 全过才写 canonical；任一条不过则不得写、不得晋升。」
+  处置：先修掉上面每一条的根因再重跑；或由人显式加 `--accept-criteria-failure` 承担后果。
+### fixrepromote EXIT=2
+### integrity :: kb/kbpy .work/l4_integrity.py daily-20261020-1255-L4
+[FAIL] frozen_layers
+        kb/l0: 4781 文件/2,935,425,072 字节/最后修改 2026-10-20 13:01:50  tree_sha256=0e4adf01f3e1292e 与 L5 基线一致=True
+        kb/l1: 6554 文件/1,651,938,189 字节/最后修改 2026-10-20 13:41:15  tree_sha256=825672ba098d9aab 与 L5 基线一致=False
+        kb/l2: 974 文件/288,089,814 字节/最后修改 2026-10-20 13:41:32  tree_sha256=83e4cdf01009d1d2 与 L5 基线一致=False
+[FAIL] l3_append_only
+        行数 1018 → 1018｜追加 0 行｜前 1018 行逐字节未变=True（哈希 e7d566f25f16677b，与 L6 存档一致=False）
+        追加块新增字段 无｜变化的既有字段 []｜状态全为 provisional=True
+[FAIL] article_numbers
+        509/509 条有条款号｜每库 {'wording': 509}｜分段 {"W-1": [56, "1~56"], "W-2": [453, "1~453"]}
+        重复 无｜跳号 无｜前缀/段号不匹配 0/0｜旧号复用 0
+[PASS] reproducible
+        重跑追加 0 行｜映射一致=True｜变更文件 无
+[PASS] canonical_state
+        kb/l4/canonical/rules.jsonl 0 字节｜kb/l3/canonical 还在=False｜迁移说明存在=True 且指向 L4=True
+[PASS] version_discipline
+        versions 行 0｜kb_version ['v0']
+[FAIL] ledger_coverage
+        台账 4569 个号码｜各段 next_seq 正确=True
+[PASS] article_no_is_not_version
+        发布/冻结字段命中 {'release_id': 0, 'frozen_at': 0, 'stable_at': 0, 'published_at': 0, 'version': 0}｜status {'provisional': 509}
+
+自检总计：FAIL
+### integrity EXIT=1
+### report :: kb/kbpy .work/l4_report.py daily-20261020-1255-L4 --apply --skill kb-canonical-lookup
+[apply] 落盘台账 → kb/l4/runs/daily-20261020-1255-L4.json + .report.md + .ops.log（顶层 skill=kb-canonical-lookup）
+run verdict = FAIL
+### report EXIT=0
+L4 DONE

@@ -1,0 +1,281 @@
+{
+  "review_id": "20261021-154414",
+  "content_id": "text-d561ef9e44eb",
+  "content_id_basis": "指纹（依据侧不发业务号，发号真源 = kb/l7/review-engine/core/content_id.py）",
+  "content_type": "image",
+  "content_version": "d561ef9e44eb77a3284844d400bffad16d72d858d48ca86f1614cc6ad98a783e",
+  "content_hash": "d561ef9e44eb77a3284844d400bffad16d72d858d48ca86f1614cc6ad98a783e",
+  "agent_version": "kb-content-review@1.3.0",
+  "rule_version": "article-no-2+l3-0.2+rules.jsonl@82fbcf5abca1adfe",
+  "knowledge_version": "v0",
+  "version_binding": {
+    "review_id": "20261021-154414",
+    "content_id": null,
+    "content_id_form": "AD-YYYYMMDD-NNN（PRD §5.4）",
+    "content_id_note": "本入口（依据侧）**不发业务号** —— 发号要读飞书表，而依据侧不该为此访问飞书。业务号由发号方在发飞书那一刻发：`kb/l7/review-engine/core/content_id.py`（唯一实现）。",
+    "content_fingerprint": "text-d561ef9e44eb",
+    "content_hash": "d561ef9e44eb77a3284844d400bffad16d72d858d48ca86f1614cc6ad98a783e",
+    "content_version": "d561ef9e44eb77a3284844d400bffad16d72d858d48ca86f1614cc6ad98a783e",
+    "agent_version": "kb-content-review@1.3.0",
+    "rule_version": "article-no-2+l3-0.2+rules.jsonl@82fbcf5abca1adfe",
+    "knowledge_version": "v0",
+    "sources": {
+      "content_hash": "送审文本 utf-8 的 sha256",
+      "agent_version": "kb/l7/skills/kb-content-review/SKILL.md → frontmatter.version",
+      "rule_version": "kb/l7/registry/l7.json → article_no_source.scheme_version ＋ kb/l3/registry/l3.json → distiller_version ＋ kb/l3/candidates/rules.jsonl 的 sha256[:16]",
+      "knowledge_version": "kb/l7/registry/l7.json → kb_version"
+    }
+  },
+  "decision": "REVIEW",
+  "decision_raw": "REVIEW",
+  "confidence": "未标定（本入口逐条给 高/中/低；全局数值置信度属裁决侧）",
+  "input_manifest": {
+    "text": "【对方这条消息里附了图，共 1 张。下面每一格是**两条读数**：① **本机 OCR 读出的图内文字**（逐字，可能有识别错误；也可能读不全）；② **画面读数**（一个吃图的视觉模型看那张图写下的、只陈述看得见的：场景 / 人物（含是否婴幼儿）/ 物品是否在用 / 可见商标 / 画面线索）。②是**模型给的读数，不是原图**：涉及画面的结论**只能依据它**，并写明「画面结论依据的是这份读数」；**读数里没写的（月龄、声音、这张图之外的情节）不许推断**；②**没读到**时如实说「画面这一层未测」，**不许**说成「画面没问题」。所以：可以按这两条读数做文案、宣称、产品使用、人物行为与场景层面的判定，但凡读数没覆盖的部分，都要把边界写出来。】\n【图 1 指纹 sha256=872429127cb3eb3b7b28acc5d533cffa0c27e39419b0eb94fc866787fc2d3050】\n【图 1 内文字｜20 行，另摘除水印 6 行（不是素材内容）】\nMistake 03\nSharing\nyour bed\nThe baby can be trapped，\ncovered by bedding, or\naccidentally rolled onto by\nparents.\nAAP Recommendation\nShare Your Room，\nnot your bed\nKeep baby in their own\ncrib or bassinet nearby\nparents' bed for at least\nthefirst 6months.\n【/图 1】\n【图 1 画面读数（视觉模型的读数，**不是原图**；涉及画面的结论只能依据这一格）】\n- 场景：卧室\n- 人物：婴幼儿 · 穿连体衣躺在大床上 · 睡姿：仰卧；成人 · 侧躺在大床上闭眼；婴幼儿 · 穿连体衣躺在婴儿床内 · 睡姿：仰卧；成人 · 侧躺在大床上闭眼\n- 物品：大床与枕头被褥（正在被使用）（朝向：看不清）；木质婴儿床（正在被使用）（朝向：正放）；婴儿床内白色床垫（正在被使用）（朝向：正放）；右上角小盆栽与浅色方盒（朝向：正放）\n- 可见标识：有文字，认不清；有文字，认不清；有文字，认不清\n- 图上文字用的是什么文字：中英混排\n- 画面线索：婴幼儿与成人同床出镜；婴幼儿处于睡眠场景；画面多处重复水印文字；插画式人物，非实拍\n- 读数自报看不清的：水印文字逐字内容；画面外情节；人物真实身份\n【/图 1 画面读数】\n【★ 这是**送审素材**：不管对方写没写「审一下」，都要走 kb_review_chain，把上面这段读数当输入交进去 —— 只回一段「我读到了什么」不算回答。连「这里没有可判内容」这种结论也必须由链给出，不由你替它下。】\n\n【图片 1 的图内文字（本机 OCR，已摘除水印）】\nMistake 03\nSharing\nyour bed\nThe baby can be trapped，\ncovered by bedding, or\naccidentally rolled onto by\nparents.\nAAP Recommendation\nShare Your Room，\nnot your bed\nKeep baby in their own\ncrib or bassinet nearby\nparents' bed for at least\nthefirst 6months.\n（本机 OCR 另读到 6 行**水印/印章类文字**，已从检索文本中摘除，**不要把它们当素材内容**；摘除明细见日志与报告，需要核对时由人调取。）",
+    "sha256": "d561ef9e44eb77a3284844d400bffad16d72d858d48ca86f1614cc6ad98a783e",
+    "modality": [
+      "image"
+    ]
+  },
+  "coverage": {
+    "text": "not_applicable",
+    "image": "complete",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "本批只送审 image 一种模态；其余模态不适用（不是缺口）。本块是报告契约要求的覆盖状态，不等于 OCR/ASR/关键帧流水线已执行 —— 后者见 trace。"
+  },
+  "risk_items": [
+    {
+      "risk_id": "nr-e9a668d63635960c",
+      "risk_type": "负面样本-N-02",
+      "risk_category": null,
+      "risk_category_basis": "类别「负面样本」不在政策件里（既非 map 也非 unmapped）⇒ **不编**",
+      "taxonomy_category": "产品安全与高危使用场景",
+      "taxonomy_subcategory": null,
+      "taxonomy_basis": {
+        "version": "2026-10-21",
+        "source": "kb/l7/registry/negative-taxonomy-map.json",
+        "matched_by": "overrides_n02",
+        "confidence": "high",
+        "why": "正文逐字：「画面是宝宝跟爸爸同床，并且睡在柔软的枕头上（画面是新手爸爸带婴儿错误睡觉，呈现危险的错误场景）」。A3 该类 meaning 逐字含「趴睡」「怀抱乘车」。"
+      },
+      "priority_tier": "P2",
+      "priority_tier_basis": "规则行 p_level=P2",
+      "layer": "负面样本规则（N-1.x）",
+      "p_level": "P2",
+      "risk_level": null,
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "顶部，图 1 第 2 处",
+      "original_text": "",
+      "reason": "相似历史审核意见（point·参考）：匹配分 1.00（画面 1.00 / 文字 0.74）｜仅文字相近｜⚠️ 非本单素材逐字命中｜该历史意见未指定图号，按**记录级意见**展示；不代表本图独立判定",
+      "suggestion": "",
+      "verbatim_verified": false,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "内部正负样本库（负面样本规则·历史审核意见）",
+        "article_no": "N-1.307",
+        "anchor": "#负面样本/recvw7XIUgXEvk/具体原因/分析",
+        "source_sha256": "1d95d1f1236b6f33daf9a9e5c4216cf4346ee8bdee2218fb247e766632244e76",
+        "excerpt": ""
+      },
+      "source": "kb-content-review",
+      "evidence_gap": "历史审核意见：命中是**相似召回**，不是本单素材的逐字命中；规则原文见 history_rule_text（蒸馏时逐字取自源记录字段）"
+    },
+    {
+      "risk_id": "nr-a939d945205fc827",
+      "risk_type": "负面样本-N-02",
+      "risk_category": null,
+      "risk_category_basis": "类别「负面样本」不在政策件里（既非 map 也非 unmapped）⇒ **不编**",
+      "taxonomy_category": "产品安全与高危使用场景",
+      "taxonomy_subcategory": null,
+      "taxonomy_basis": {
+        "version": "2026-10-21",
+        "source": "kb/l7/registry/negative-taxonomy-map.json",
+        "matched_by": "overrides_n02",
+        "confidence": "high",
+        "why": "正文逐字：「左侧标注错误项：婴儿侧睡」。婴儿睡姿属该类的危险场景示范。"
+      },
+      "priority_tier": "P2",
+      "priority_tier_basis": "规则行 p_level=P2",
+      "layer": "负面样本规则（N-1.x）",
+      "p_level": "P2",
+      "risk_level": null,
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "顶部，图 1 第 2 处",
+      "original_text": "",
+      "reason": "相似历史审核意见（point·参考）：匹配分 1.00（画面 1.00 / 文字 0.74）｜仅文字相近｜⚠️ 非本单素材逐字命中｜该历史意见未指定图号，按**记录级意见**展示；不代表本图独立判定",
+      "suggestion": "",
+      "verbatim_verified": false,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "内部正负样本库（负面样本规则·历史审核意见）",
+        "article_no": "N-1.312",
+        "anchor": "#负面样本/recvw7XIUgXEvk/具体原因/分析",
+        "source_sha256": "1d95d1f1236b6f33daf9a9e5c4216cf4346ee8bdee2218fb247e766632244e76",
+        "excerpt": ""
+      },
+      "source": "kb-content-review",
+      "evidence_gap": "历史审核意见：命中是**相似召回**，不是本单素材的逐字命中；规则原文见 history_rule_text（蒸馏时逐字取自源记录字段）"
+    },
+    {
+      "risk_id": "nr-51123a4e2beedb1a",
+      "risk_type": "负面样本-N-02",
+      "risk_category": null,
+      "risk_category_basis": "类别「负面样本」不在政策件里（既非 map 也非 unmapped）⇒ **不编**",
+      "taxonomy_category": "产品安全与高危使用场景",
+      "taxonomy_subcategory": null,
+      "taxonomy_basis": {
+        "version": "2026-10-21",
+        "source": "kb/l7/registry/negative-taxonomy-map.json",
+        "matched_by": "overrides_n02",
+        "confidence": "high",
+        "why": "正文逐字：「建议：同房不同床，宝宝睡独立婴儿床」。同睡场景属该类高危使用场景。"
+      },
+      "priority_tier": "P2",
+      "priority_tier_basis": "规则行 p_level=P2",
+      "layer": "负面样本规则（N-1.x）",
+      "p_level": "P2",
+      "risk_level": null,
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "顶部，图 1 第 2 处",
+      "original_text": "",
+      "reason": "相似历史审核意见（advice·参考）：匹配分 1.00（画面 1.00 / 文字 0.74）｜仅文字相近｜⚠️ 非本单素材逐字命中｜该历史意见未指定图号，按**记录级意见**展示；不代表本图独立判定",
+      "suggestion": "建议：同房不同床，宝宝睡独立婴儿床",
+      "verbatim_verified": false,
+      "fact_or_inference": "事实",
+      "confidence": "低",
+      "evidence": {
+        "library": "内部正负样本库（负面样本规则·历史审核意见）",
+        "article_no": "N-1.364",
+        "anchor": "#负面样本/recvw7XIUgXEvk/具体原因/分析",
+        "source_sha256": "1d95d1f1236b6f33daf9a9e5c4216cf4346ee8bdee2218fb247e766632244e76",
+        "excerpt": ""
+      },
+      "source": "kb-content-review",
+      "evidence_gap": "历史审核意见：命中是**相似召回**，不是本单素材的逐字命中；规则原文见 history_rule_text（蒸馏时逐字取自源记录字段）"
+    },
+    {
+      "risk_id": "nr-ad6acdbed54cbf20",
+      "risk_type": "负面样本-N-02",
+      "risk_category": null,
+      "risk_category_basis": "类别「负面样本」不在政策件里（既非 map 也非 unmapped）⇒ **不编**",
+      "taxonomy_category": "产品安全与高危使用场景",
+      "taxonomy_subcategory": null,
+      "taxonomy_basis": {
+        "version": "2026-10-21",
+        "source": "kb/l7/registry/negative-taxonomy-map.json",
+        "matched_by": "overrides_n02",
+        "confidence": "high",
+        "why": "正文逐字：「推荐方案：硬质平整干净婴儿床，宝宝睡在婴儿床，无枕头、松散毯子等杂物」—— 婴儿睡眠环境安全。"
+      },
+      "priority_tier": "P2",
+      "priority_tier_basis": "规则行 p_level=P2",
+      "layer": "负面样本规则（N-1.x）",
+      "p_level": "P2",
+      "risk_level": null,
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "顶部，图 1 第 2 处",
+      "original_text": "",
+      "reason": "相似历史审核意见（advice·参考）：匹配分 1.00（画面 1.00 / 文字 0.74）｜仅文字相近｜⚠️ 非本单素材逐字命中｜该历史意见未指定图号，按**记录级意见**展示；不代表本图独立判定",
+      "suggestion": "推荐方案：硬质平整干净婴儿床，宝宝睡在婴儿床，无枕头、松散毯子等杂物，插画直观对比",
+      "verbatim_verified": false,
+      "fact_or_inference": "事实",
+      "confidence": "低",
+      "evidence": {
+        "library": "内部正负样本库（负面样本规则·历史审核意见）",
+        "article_no": "N-1.365",
+        "anchor": "#负面样本/recvw7XIUgXEvk/具体原因/分析",
+        "source_sha256": "1d95d1f1236b6f33daf9a9e5c4216cf4346ee8bdee2218fb247e766632244e76",
+        "excerpt": ""
+      },
+      "source": "kb-content-review",
+      "evidence_gap": "历史审核意见：命中是**相似召回**，不是本单素材的逐字命中；规则原文见 history_rule_text（蒸馏时逐字取自源记录字段）"
+    }
+  ],
+  "issue_count": 4,
+  "report_url": null,
+  "next_action": "建议转复核责任人复核。",
+  "next_owners": [
+    "复核责任人"
+  ],
+  "sla": {},
+  "version_gate": {
+    "reviewed_hash": "d561ef9e44eb77a3284844d400bffad16d72d858d48ca86f1614cc6ad98a783e",
+    "release_hash": null,
+    "note": "本入口不掌握发布版本；发布/送审版本比对属裁决侧（review_engine.py:115-119），此处不代替它下结论"
+  },
+  "decision_trace": {
+    "reasons": [
+      "findings_present_without_block"
+    ],
+    "confidence_status": "not_calibrated_by_this_entry",
+    "evaluated_at": "2026-10-21T15:44:24",
+    "decided_by": "kb-content-review/scripts/review.py（依据侧自身分支，:709-715）",
+    "note": "本报告不重算结论；三态由上表 decision_raw 原样带出",
+    "tier_trace": {
+      "P0": 0,
+      "P1": 0,
+      "P2": 4,
+      "P3": 0,
+      "未标层": 0
+    },
+    "confidence_route": {
+      "applies": false,
+      "band": null,
+      "calibrated": false,
+      "why": "依据侧**不合成全局数值置信度**（逐条给 高/中/低）⇒ 没有可切三档的数。PRD §6.6 的数值分档与标注在**裁决侧**生效：见 `review_engine.decide()` → `decision_trace.confidence_route`；策略真源 `kb/l7/registry/confidence-policy.json`。",
+      "handled_by": "kb/l7/review-engine/core/review_engine.py::decide()"
+    },
+    "image_identity": {
+      "checked": true,
+      "detected": 0,
+      "added": 0,
+      "upgraded": 0,
+      "hits": [
+        {
+          "article_no": "N-1.307",
+          "rule_id": "nr-e9a668d63635960c",
+          "match_rank": 2,
+          "attribution": "record_level"
+        },
+        {
+          "article_no": "N-1.312",
+          "rule_id": "nr-a939d945205fc827",
+          "match_rank": 2,
+          "attribution": "record_level"
+        },
+        {
+          "article_no": "N-1.324",
+          "rule_id": "nr-3ae3984219314ce2",
+          "match_rank": 2,
+          "attribution": "record_level"
+        },
+        {
+          "article_no": "N-1.364",
+          "rule_id": "nr-51123a4e2beedb1a",
+          "match_rank": 2,
+          "attribution": "record_level"
+        },
+        {
+          "article_no": "N-1.365",
+          "rule_id": "nr-ad6acdbed54cbf20",
+          "match_rank": 2,
+          "attribution": "record_level"
+        }
+      ]
+    }
+  },
+  "unmet_citation": []
+}

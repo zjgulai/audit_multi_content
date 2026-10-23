@@ -1,0 +1,53 @@
+  ✅ A1 假凭据能装载（base_url 生效）
+  ✅ A2 describeKb 不含 key 明文
+  ✅ A3 describeKb 只露尾部 6 位（够核对、不够复原）
+  ✅ A4 凭据文件不存在 → 报错点名路径 + 给出两条补救途径
+  ✅ A5 凭据字段不全 → 点名缺 base_url / api_key
+  ✅ A6 凭据不是合法 JSON → 报「不是合法 JSON」（不伪装成「没配」）
+  ✅ B1 scoreKind=bm25 → 顺序可信（查询词 ≥3 字走这条，实测 score 是真的 BM25）
+  ✅ B2 scoreKind=positional → 顺序**不可信**（查询词 <3 字走 like 回退，score 是词频）
+  ✅ B3 ★ null → 不可信（拿不到 scoreKind 时必须保守）
+  ✅ B4 ★ undefined → 不可信
+  ✅ B5 ★ 大小写变体 "BM25" → 不可信（判据不做善意容错：认错一个字就是错判一批）
+  ✅ B6 ★ 没见过的引擎 "cosine" → 不可信（未来服务端换实现，默认掉进安全侧）
+  ✅ B7 ★ 中文 3 字查询的提示里不再出现「中文」这个错因（分叉轴是长度）
+  ✅ B8 bm25 的提示明确说「顺序可用」
+  ✅ B9 ★ positional 的提示说清了「3 个字符」这个真因，并给出改写建议
+  ✅ B10 positional 的 score 含义是「词频」而不是「序号」
+  ✅ B11 ★ 查询词长度按码点算：「无痛」=2 给提示、「吸奶器」=3 不给、英文 "no"=2 也给
+  ✅ B12 长度提示里带上了原查询词与建议（模型看完知道该怎么改）
+  ✅ B13 ★ ping 连不上时 ok=false 且 quotaCost=0（探活不该动配额）
+  ✅ B14 ★ ping 失败不写本地账本（否则 1000/天 会被免费探活吃掉）
+  ✅ B15 ★ healthCheck 第 0 步是免费探活（不是拿一次检索去试）
+  ✅ C1 空 query → BAD_REQUEST（在发请求之前就拦掉）
+  ✅ C2 纯空格 query → BAD_REQUEST
+  ✅ D1 ★ 未收到服务端回报时 source=none 且 usedPerDay=null（未知 ≠ 0）
+  ✅ D2 ★ quotaState 不再提供 `used` 别名（别名正是把 41 当余额的入口）
+  ✅ D3 ★ 配额快照路径落在 SHOUHENG_STATE_DIR 下（惰性解析，不是 import 期定死）
+  ✅ D4 ★★ 旧格式本地账本 {date,used:41} 被当作「不认识」→ source=none（不再拿本地数当真值）
+  ✅ D5 ★★ absorbQuota 吸收响应里的 quota（usedPerDay=292，不是本地数的 41）
+  ✅ D6 ★ remaining = limitPerDay - usedPerDay（708），且带上 asOf 供审计
+  ✅ D7 ★ usedPerMinute 原样透传（本地数不出全调用方的分钟用量）
+  ✅ D8 absorbQuota 对没有 quota 字段的响应**什么都不做**（不清零、不猜）
+  ✅ D9 ★★ 跨进程可见：另一个 node 进程读到服务端快照 usedPerDay=292
+  ✅ D10 快照文件里存的是服务端口径（有 source/usedPerDay，没有 used）
+  ✅ D11 服务端回报 usedPerDay=1000 → canSpend(1) 为 false
+  ✅ D12 ★ 配额已满 → QUOTA_EXHAUSTED（不是 NETWORK：证明它发请求前就拦住了）
+  ✅ G1 ★ contentHash 变了 → 指纹变（库真更新了）
+  ✅ G2 ★★ createdAt 变了但 contentHash 没变 → 指纹**不变**（重同步但内容没变；这也证明 createdAt 没被写进指纹）
+  ✅ G3 docCount 变了 → 指纹也变（条数增减是另一种更新）
+  ✅ G4 对端没给 contentHash → 记 NO_HASH（退回只看 docCount，必须说出来）
+  ✅ G5 指纹与子库顺序无关（排序后拼接）
+  ✅ E1 kb_search 已注册
+  ✅ E2 kb_status 已注册
+  ✅ E3 ★ 两个新工具都是 scope=read（只发外部只读 GET，不写业务数据）
+  ✅ E4 ★★ 配额用尽时 kb_search 返回 is_untested=true（而不是空 hits）
+  ✅ E5 ★★ 并且**不含**任何 hits 字段 —— 空数组会被读成「查过了，没有」
+  ✅ E6 话术里明确写了「不是没命中」
+  ✅ E7 kb_status 报 connected=false 且带上原因
+  ✅ F1 ★ 新凭据 shouheng-kb.json 被既有 secretPathHit 拦住（守衡读不到自己的凭据）
+  ✅ F2 ★ 反向对照：仓内普通文件**不**被拦（否则这道闸门把日常读能力一起关了）
+
+✅ kb_client 自证 49/49 项通过
+   （全程离线；假凭据 base_url=http://127.0.0.1:9，临时目录 /var/folders/zs/72vynnhj1437_t1444_sr7jc0000gn/T/kb_test_0J7Upn）
+   （真凭据、真配额账本、真知识库**一次都没被碰过**）

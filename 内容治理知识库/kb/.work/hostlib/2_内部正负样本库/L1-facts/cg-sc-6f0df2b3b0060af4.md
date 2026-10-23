@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.81 是正例还是反例
   - S-1.81 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-6f0df2b3b0060af4"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 其他
 reason_category: 品牌一致性
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2vgYXEzDz/原文反馈"
-source_sha256: 19a856f685dd79efa02dabf6e64fe2b9c3548815cf9086688f7d68f6f7d8328f
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXEzDz
+anchor: "#负面样本/recvw7XJiSwf3z/具体原因/分析"
+source_sha256: 1252321de650918663a16547fa681b2fca345c74956b187ae44990c8b58afd45
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XJiSwf3z
 sample_body: "【审核 · 2026-09-01 01:21 · 郅笑颜】**【终审**@[已脱敏]** 】 麻烦帮忙看看呀~**:YouAreTheBest: **项目名：品牌标准物料设计** **设计要求：产品手册里部分图片调整+文案更改** ![Image](img_v3_02153_4cce0368-c0a2-4b0d-ae30-677e49310beg)"
 reason_analysis: "【品牌一致性】图片 【终审@[已脱敏] 】 麻烦帮忙看看呀~YouAreTheBes。"
 advice: "调整+文案更改**"
@@ -77,8 +77,8 @@ advice: "调整+文案更改**"
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2vgYXEzDz/原文反馈`
-- 指纹：`19a856f685dd79efa02dabf6e64fe2b9c3548815cf9086688f7d68f6f7d8328f`
+- 锚点：`#负面样本/recvw7XJiSwf3z/具体原因/分析`
+- 指纹：`1252321de650918663a16547fa681b2fca345c74956b187ae44990c8b58afd45`
 - 原因归类：品牌一致性　|　素材类型：图片
 
 > 案例只作参照，不构成规则。

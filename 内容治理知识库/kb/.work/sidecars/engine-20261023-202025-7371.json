@@ -1,0 +1,472 @@
+{
+ "decision": {
+  "review_id": "rv-20261023-202041",
+  "content_id": "AUTO-6e0a120486be",
+  "content_id_basis": "指纹兜底：本单 `--no-publish-to-feishu`，不发飞书故不发业务号（不是漏发）",
+  "content_version": "6e0a120486be537352f6e53c2a793501ab163eb4078adc9a00f44ef34665108b",
+  "agent_version": "local-core-0.1.0",
+  "rule_version": "unfrozen",
+  "knowledge_version": "unfrozen",
+  "decision": "PASS",
+  "confidence": 0.93,
+  "summary": "【审查结论：PASS】未发现已知底线风险，可转交 @sign-off 责任人（未配置） 进行 sign-off。",
+  "issue_count": 0,
+  "issue_count_including_candidates": 0,
+  "candidate_count": 0,
+  "issue_count_basis": "issue_count（0 = 库内依据，**与分类汇总同一个数**，见 PRD §5.4）= 完整清单 0 − 非权威候选 0；候选无库内条款号、只作排查线索，不构成依据",
+  "issue_summary_by_category": {},
+  "risk_items": [],
+  "report_url": null,
+  "next_action": "转 sign-off 负责人确认送审版本与发布版本一致",
+  "next_owners": [
+   "Sign-off 负责人"
+  ],
+  "sla": {
+   "priority": "any",
+   "target": "1 business day",
+   "escalate_to": [
+    "项目统筹",
+    "Sign-off 负责人"
+   ],
+   "timezone": "America/Los_Angeles",
+   "clock_rules": [
+    "Start the clock when the required input manifest is complete.",
+    "Pause the clock while waiting for missing submitter material.",
+    "Record timezone and business-calendar version with each SLA event.",
+    "SLA breach never changes the decision automatically."
+   ]
+  },
+  "version_gate": {},
+  "coverage": {
+   "text": "complete",
+   "image": "not_applicable",
+   "audio": "not_applicable",
+   "video": "not_applicable",
+   "ocr": "not_applicable",
+   "asr": "not_applicable",
+   "keyframes": "not_applicable",
+   "note": "声明模态：text；未拿到 provider 佐证的模态记 incomplete（缺口，不是不适用）"
+  },
+  "decision_trace": {
+   "reasons": [
+    "no_known_blocking_or_review_risk"
+   ],
+   "confidence_status": "heuristic_not_calibrated",
+   "evaluated_at": "2026-10-23T12:20:41.619314+00:00",
+   "tier_trace": {
+    "P0": 0,
+    "P1": 0,
+    "P2": 0,
+    "P3": 0,
+    "p0_confirmed_blocking": 0,
+    "p0_without_evidence": 0,
+    "p3_advice_only": true,
+    "p0_confidence_flow": false
+   },
+   "confidence_route": {
+    "applies": true,
+    "band": "direct",
+    "range": ">= 0.85",
+    "effect": "keep",
+    "annotate": null,
+    "decision_before": "PASS",
+    "decision": "PASS",
+    "why": "PRD v1.3 §6.6：≥0.85 直接输出结论（BLOCK / SUGGEST / PASS）",
+    "p0_override": false,
+    "fail_open": false,
+    "warning": null,
+    "thresholds": {
+     "direct": 0.85,
+     "confirm": 0.6
+    },
+    "calibrated": false,
+    "thresholds_source": "kb/l7/registry/confidence-policy.json"
+   },
+   "confidence_derivation": {
+    "kind": "derived",
+    "base": 0.93,
+    "cat_bonus": 0.0,
+    "ev_penalty": 0.0,
+    "unc_p0_penalty": 0.0,
+    "raw": 0.93,
+    "clamped_to_keep_decision": null,
+    "final": 0.93,
+    "note": "**只让值有分布、不改结论**（截断到本结论自己的档）；动 0.90/0.70 两条线是下一步，先用 kb/l8/calibrate_confidence.py 量代价。"
+   },
+   "decision_before_confidence_flow": "PASS"
+  },
+  "suggestions": [],
+  "suggest_count": 0,
+  "suggest_label": false
+ },
+ "evidence_meta": {
+  "run_id": "20261023-202038",
+  "findings": 0,
+  "state": "PASS",
+  "report_path": null,
+  "material_facets": {
+   "product_line": "",
+   "channel": "",
+   "from": {},
+   "all_product_lines": [],
+   "all_channels": [],
+   "anchors_used": 0
+  },
+  "trace": {
+   "p0": {
+    "engine": "kb/l5/matcher.py",
+    "exit_code": 0,
+    "total_elapsed_ms": 58.79,
+    "engine_elapsed_ms": 21.179,
+    "hits": []
+   },
+   "rules": {
+    "engine": "kb/l3/candidates/rules.jsonl",
+    "kb_type_filter": null,
+    "rules_scanned": 639,
+    "hits": [
+     {
+      "rule_id": "r-724b26ecb1dee9c4",
+      "article_no": "W-1.30",
+      "rule_code": "安全词",
+      "taxonomy_category": "商品信息与Listing准确性",
+      "taxonomy_subcategory": "规格与参数表述",
+      "p_level": "P1",
+      "risk_level": "Low",
+      "authority": null,
+      "kb_type": "wording",
+      "authority_source_table": null,
+      "matched_fragments": [
+       "suction levels"
+      ],
+      "anchor": "#品线内容边界规则库/recvuJP2Ot474u/边界内容",
+      "source_sha256": "5a740e9d29e4a9defa82e99066118cb7a118d1d55a21b0e109f6a0aa0257d000",
+      "rule_text": "边界：客观功能/真实认证关键词（正面提示，不参与降级）；触发词：suction level, suction levels, adjustable suction, 9 levels, 10 levels, hands-free, wearable, portable, rechargeable, wireless, BPA-free, food-grade silicone, food grade, FDA cleared, FDA-cleared, FDA registered, easy to clean, dishwasher safe, dishwasher-safe, quiet mode, low noise, low-decibel, reduces pain, less pain, gentle, comfort",
+      "suggested_replacement": ""
+     }
+    ]
+   },
+   "units": {
+    "engine": "kb/l6/retriever.py",
+    "l6_mode": "vector_plus_bm25",
+    "semantic_recall": true,
+    "bm25_max": 188.2996,
+    "cosine_max": 0.0,
+    "used_vector": false,
+    "no_semantic_annotation": null,
+    "top_bm25": [
+     {
+      "source": "bm25_en",
+      "unit_id": "274c574d92413eb9cdc7",
+      "anchor": "#h.Draft V2",
+      "table": "h.Draft V2",
+      "kb_type": "internal_sample",
+      "source_sha256": "4911b2bc5dc43db8daec4550309b3c55e17b041fe159074aaa00f44e9a4962c5",
+      "raw_bm25": 188.2996,
+      "excerpt": "<table><colgroup><col/><col/><col/><col/></colgroup><tbody><tr><td><b>Draft</b></td><td><b>Script</b></td><td><b>钛动反馈</b></td><td><b>客户反馈</b></td></tr><tr><td><"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "45bad6d3ddcd743a24e8",
+      "anchor": "#h.Draft V3待审核",
+      "table": "h.Draft V3待审核",
+      "kb_type": "internal_sample",
+      "source_sha256": "37f976528d289173bc86ffed74beb8d8f92894dbf55619e546ce5df3c4fd0d6a",
+      "raw_bm25": 163.0817,
+      "excerpt": "👀<br/><b>Tag:</b><br/>#wearablepumps #momcozybreastpump #pumpingmom #pumpingtips #ad<br/><b>@momcozy_breastfeeding</b><br/><b>@momcozyofficial</b></td><td>[00:0"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "e567e6646c50b850c281",
+      "anchor": "#h.Draft V1- 8.29 Pending Momcozy Review",
+      "table": "h.Draft V1- 8.29 Pending Momcozy Review",
+      "kb_type": "internal_sample",
+      "source_sha256": "66f9d9d5632a4c9872597af8e3ee35a3d264d824a5a11a78090c56e91f21e427",
+      "raw_bm25": 156.3386,
+      "excerpt": "<table><colgroup><col/><col/><col/><col/></colgroup><tbody><tr><td><b>Draft</b></td><td><b>Script</b></td><td><b>钛动反馈</b></td><td><b>客户反馈</b></td></tr><tr><td><"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "4128a72fb5c7f5963e76",
+      "anchor": "#l.1-35",
+      "table": "l.1-35",
+      "kb_type": "external_standard",
+      "source_sha256": "9f3431e5c25cce983b179f47874a575a480dd4452b3e6d8c91b03ab05562c724",
+      "raw_bm25": 152.3005,
+      "excerpt": "过程简单、 穿刺前不需麻醉、不需住院，也没有想象中那么疼。 [p172] PART 2孕中期。 -141 唐氏筛查报告单怎么看 唐氏筛查报告单主要看两部分，第一部分是甲胎蛋白（AFP）、人绒毛膜促性腺激素（HCG）和游离雌三醇 （uE3）的浓度是否在正常范围内，第二部分是唐氏儿的风险计算结果。 AFP（甲胎蛋白）：AF"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "881ea37e1d1b36668711",
+      "anchor": "#h.Draft V2- 9.3 Pending Momcozy Review",
+      "table": "h.Draft V2- 9.3 Pending Momcozy Review",
+      "kb_type": "internal_sample",
+      "source_sha256": "66f9d9d5632a4c9872597af8e3ee35a3d264d824a5a11a78090c56e91f21e427",
+      "raw_bm25": 151.8232,
+      "excerpt": "Because when I'm already being pulled in a million different directions, the last thing I want is for pumping to feel like another uncomfortable thing that I ha"
+     }
+    ],
+    "vector_rows": [],
+    "adopted": [
+     {
+      "source": "bm25_en",
+      "unit_id": "274c574d92413eb9cdc7",
+      "anchor": "#h.Draft V2",
+      "table": "h.Draft V2",
+      "kb_type": "internal_sample",
+      "source_sha256": "4911b2bc5dc43db8daec4550309b3c55e17b041fe159074aaa00f44e9a4962c5",
+      "raw_bm25": 188.2996,
+      "excerpt": "<table><colgroup><col/><col/><col/><col/></colgroup><tbody><tr><td><b>Draft</b></td><td><b>Script</b></td><td><b>钛动反馈</b></td><td><b>客户反馈</b></td></tr><tr><td><",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "45bad6d3ddcd743a24e8",
+      "anchor": "#h.Draft V3待审核",
+      "table": "h.Draft V3待审核",
+      "kb_type": "internal_sample",
+      "source_sha256": "37f976528d289173bc86ffed74beb8d8f92894dbf55619e546ce5df3c4fd0d6a",
+      "raw_bm25": 163.0817,
+      "excerpt": "👀<br/><b>Tag:</b><br/>#wearablepumps #momcozybreastpump #pumpingmom #pumpingtips #ad<br/><b>@momcozy_breastfeeding</b><br/><b>@momcozyofficial</b></td><td>[00:0",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "e567e6646c50b850c281",
+      "anchor": "#h.Draft V1- 8.29 Pending Momcozy Review",
+      "table": "h.Draft V1- 8.29 Pending Momcozy Review",
+      "kb_type": "internal_sample",
+      "source_sha256": "66f9d9d5632a4c9872597af8e3ee35a3d264d824a5a11a78090c56e91f21e427",
+      "raw_bm25": 156.3386,
+      "excerpt": "<table><colgroup><col/><col/><col/><col/></colgroup><tbody><tr><td><b>Draft</b></td><td><b>Script</b></td><td><b>钛动反馈</b></td><td><b>客户反馈</b></td></tr><tr><td><",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "4128a72fb5c7f5963e76",
+      "anchor": "#l.1-35",
+      "table": "l.1-35",
+      "kb_type": "external_standard",
+      "source_sha256": "9f3431e5c25cce983b179f47874a575a480dd4452b3e6d8c91b03ab05562c724",
+      "raw_bm25": 152.3005,
+      "excerpt": "过程简单、 穿刺前不需麻醉、不需住院，也没有想象中那么疼。 [p172] PART 2孕中期。 -141 唐氏筛查报告单怎么看 唐氏筛查报告单主要看两部分，第一部分是甲胎蛋白（AFP）、人绒毛膜促性腺激素（HCG）和游离雌三醇 （uE3）的浓度是否在正常范围内，第二部分是唐氏儿的风险计算结果。 AFP（甲胎蛋白）：AF",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "881ea37e1d1b36668711",
+      "anchor": "#h.Draft V2- 9.3 Pending Momcozy Review",
+      "table": "h.Draft V2- 9.3 Pending Momcozy Review",
+      "kb_type": "internal_sample",
+      "source_sha256": "66f9d9d5632a4c9872597af8e3ee35a3d264d824a5a11a78090c56e91f21e427",
+      "raw_bm25": 151.8232,
+      "excerpt": "Because when I'm already being pulled in a million different directions, the last thing I want is for pumping to feel like another uncomfortable thing that I ha",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     }
+    ],
+    "discarded": [],
+    "gate": {
+     "bm25_raw_min": 8.0,
+     "vector_cosine_min": 0.6,
+     "use_raw_scores_only": true,
+     "why_not_rrf": "RRF 分恒为 1/(60+k)，实测 Top1 恒在 0.016393，A 组与 B 组看起来一样高，没有区分度，不能当门限",
+     "why_single_threshold_not_enough": "实测 BM25 原始分在 A/B 两组有重叠（A 组最低 5.32 < B 组最高 10.02），所以门限只用于「够不够格当参考」，要成为「依据」还必须同时命中规则层",
+     "measured": {
+      "bm25_raw": {
+       "A_group_min": 5.32,
+       "A_group_median": 12.76,
+       "B_group_median": 6.44,
+       "B_group_max": 10.02,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      },
+      "cosine": {
+       "A_group_min": 0.512,
+       "A_group_median": 0.669,
+       "B_group_median": 0.384,
+       "B_group_max": 0.569,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      }
+     },
+     "threshold_reasoning": "BM25 门限取 8.0：落在 A 组最低(5.32)与 B 组最高(10.02)之间、贴近两组中位之间，偏保守；余弦门限取 0.60：实测它是唯一能把 B 组全部挡在外面的取值（B 组最高 0.569），代价是 A 组丢 2 条；即便如此门限仍单独不可靠，必须叠加「同时命中规则层」才算依据",
+     "below_threshold_label": "参考",
+     "above_threshold_without_rule_hit": "仍只能标参考，不得作为依据",
+     "coverage_bm25_min": 16.0,
+     "coverage_reasoning": "PASS 必须建立在「知识库认识这个主题」之上，覆盖信号二选一：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ coverage_bm25_min(=16.0)。16.0 = 依据门限的 2 倍：实测 A 组中位 12.76 / 最高 23.16，B 组最高 10.02，取 16 能把实测 B 组全部挡在外面。覆盖信号不成立 → 拒答，不得输出 PASS。"
+    }
+   },
+   "coverage": {
+    "safe_vocabulary_hits": [
+     "W-1.30"
+    ],
+    "rule_cited_unit_hits": [],
+    "same_source_unit_hits": [],
+    "case_unit_hits": [],
+    "case_clause_pool": 176,
+    "rule_cited_anchor_pool": 965,
+    "rule_cited_resource_pool": 49,
+    "coverage_bm25_min": 16.0,
+    "covered_by": "safe_vocabulary",
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "covered": true
+   },
+   "negative_rules": {
+    "engine": "kb/l3/candidates/negative_rules.jsonl",
+    "hits": [],
+    "not_run": "本单不是图片/视频（或正文里没有画面读数/图内文字）⇒ 负面样本规则层没跑",
+    "not_subject": [],
+    "not_subject_count": 0,
+    "not_substantive": [],
+    "not_substantive_count": 0,
+    "attribution_gate": "subject_or_record_level_anchored"
+   },
+   "elapsed_ms": 2316.2,
+   "perf": {
+    "p0_match_ms": 58.8,
+    "rule_layer_ms": 33.9,
+    "unit_layer_ms": 2063.2,
+    "assemble_ms": 144.1,
+    "content_type": "text",
+    "text_bytes": 952,
+    "threshold_s": 10
+   },
+   "risk_category": {
+    "with_dimension": 0,
+    "unmapped_or_pending": 0,
+    "policy": "kb/l7/registry/risk-category-policy.json"
+   },
+   "taxonomy": {
+    "with_class": 0,
+    "without_class": 0,
+    "policy": "kb/l3/registry/rule-taxonomy.json（人工口径，Owner 采用；非源字段）"
+   }
+  },
+  "source": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py",
+  "findings_source": {
+   "mode": "live",
+   "path": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py"
+  },
+  "kb_hits": [
+   {
+    "anchor": "#h.Draft V2",
+    "bm25": 188.2996,
+    "kb_type": "internal_sample",
+    "source_sha256": "4911b2bc5dc43db8daec4550309b3c55e17b041fe159074aaa00f44e9a4962c5",
+    "excerpt": "<table><colgroup><col/><col/><col/><col/></colgroup><tbody><tr><td><b>Draft</b></td><td><b>Script</b></td><td><b>钛动反馈</b></td><td><b>客户反馈</b></td></tr><tr><td><",
+    "url": "https://biu6ihvvco.feishu.cn/wiki/M3tWwmh8xi4V3EkKPITcIaAknRc"
+   },
+   {
+    "anchor": "#h.Draft V3待审核",
+    "bm25": 163.0817,
+    "kb_type": "internal_sample",
+    "source_sha256": "37f976528d289173bc86ffed74beb8d8f92894dbf55619e546ce5df3c4fd0d6a",
+    "excerpt": "👀<br/><b>Tag:</b><br/>#wearablepumps #momcozybreastpump #pumpingmom #pumpingtips #ad<br/><b>@momcozy_breastfeeding</b><br/><b>@momcozyofficial</b></td><td>[00:0",
+    "url": "https://biu6ihvvco.feishu.cn/wiki/Ws8Gwp4t0inTxlktBGAcVG7qnNe"
+   },
+   {
+    "anchor": "#h.Draft V1- 8.29 Pending Momcozy Review",
+    "bm25": 156.3386,
+    "kb_type": "internal_sample",
+    "source_sha256": "66f9d9d5632a4c9872597af8e3ee35a3d264d824a5a11a78090c56e91f21e427",
+    "excerpt": "<table><colgroup><col/><col/><col/><col/></colgroup><tbody><tr><td><b>Draft</b></td><td><b>Script</b></td><td><b>钛动反馈</b></td><td><b>客户反馈</b></td></tr><tr><td><",
+    "url": "https://biu6ihvvco.feishu.cn/wiki/WCpUwlELIi6sDlkyPN7cZ1vonQf"
+   },
+   {
+    "anchor": "#l.1-35",
+    "bm25": 152.3005,
+    "kb_type": "external_standard",
+    "source_sha256": "9f3431e5c25cce983b179f47874a575a480dd4452b3e6d8c91b03ab05562c724",
+    "excerpt": "过程简单、 穿刺前不需麻醉、不需住院，也没有想象中那么疼。 [p172] PART 2孕中期。 -141 唐氏筛查报告单怎么看 唐氏筛查报告单主要看两部分，第一部分是甲胎蛋白（AFP）、人绒毛膜促性腺激素（HCG）和游离雌三醇 （uE3）的浓度是否在正常范围内，第二部分是唐氏儿的风险计算结果。 AFP（甲胎蛋白）：AF",
+    "url": "https://hapa8fkuicz.feishu.cn/wiki/KMRgwlBuAi3gOzkIMHTcCmwcn6e"
+   },
+   {
+    "anchor": "#h.Draft V2- 9.3 Pending Momcozy Review",
+    "bm25": 151.8232,
+    "kb_type": "internal_sample",
+    "source_sha256": "66f9d9d5632a4c9872597af8e3ee35a3d264d824a5a11a78090c56e91f21e427",
+    "excerpt": "Because when I'm already being pulled in a million different directions, the last thing I want is for pumping to feel like another uncomfortable thing that I ha",
+    "url": "https://biu6ihvvco.feishu.cn/wiki/WCpUwlELIi6sDlkyPN7cZ1vonQf"
+   }
+  ],
+  "layer_preflight": {
+   "base": "20261023-202025",
+   "ok": true,
+   "red_total": 0,
+   "mode": "enforced",
+   "details": {
+    "L4": {
+     "run": "20261023-202025-L4",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L4": "session-28cd2370-5f63-491c-ba45-1b65109adf8a"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L5": {
+     "run": "20261023-202025-L5",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L5": "session-28cd2370-5f63-491c-ba45-1b65109adf8a"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L6": {
+     "run": "20261023-202025-L6",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L6": "session-28cd2370-5f63-491c-ba45-1b65109adf8a"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L7": {
+     "run": "20261023-202025-L7",
+     "exit": 0,
+     "red": 0,
+     "yellow": 0,
+     "skill_sessions": {
+      "L7": "session-28cd2370-5f63-491c-ba45-1b65109adf8a"
+     },
+     "pass": true,
+     "note": ""
+    }
+   }
+  },
+  "position": {
+   "value": null,
+   "supplied_by": null,
+   "note": "未提供 ⇒ 依据层用默认位置（图片会是裸「图 1」，出口闸 R3 判红）"
+  },
+  "decision_owner": {
+   "skill": "视频安全审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check",
+    "视频安全审查"
+   ]
+  },
+  "publish": {
+   "mode": "disabled_by_caller",
+   "published": false,
+   "reason": "disabled_by_caller"
+  },
+  "report_url": null,
+  "report_url_kind": null
+ }
+}

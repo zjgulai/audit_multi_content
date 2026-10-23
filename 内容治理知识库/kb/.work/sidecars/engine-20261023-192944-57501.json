@@ -1,0 +1,206 @@
+{
+ "decision": {
+  "state": "REVIEW",
+  "decision": "REVIEW",
+  "confidence": null,
+  "review_id": "rv-20261023-192958",
+  "content_id": "AUTO-650e8ea31fad",
+  "content_id_basis": "指纹兜底：本单 `--no-publish-to-feishu`，不发飞书故不发业务号（不是漏发）",
+  "content_version": "650e8ea31fadf5992b8c79e18f8074421f801abaad1f0d6e136d0379b4f329e2",
+  "issue_count": 0,
+  "summary": "【审查结论：REVIEW】共发现 0 处需人工确认。\n\n**本次没有发现内容问题**（0 处）。下面是**覆盖缺口**说明 —— 缺的是**库覆盖**，不是素材有问题：\n\n**覆盖缺口说明（不是内容问题）**：本次素材的**文字层逐字命中 0 条**，但覆盖判据不成立（没有「既被规则引用、又达门限」的单元）——**这不是素材有问题，是库对该题材没有可依据的条款**。\n   原因：依据侧检索到 5 条命中，最高 BM25 68.2987（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。\n   依据：`kb/l7/registry/l7.json` 的 `retrieval.gate.coverage_bm25_min=16.0`（覆盖判据标定值；覆盖信号不成立时**不得输出 PASS**）\n   建议：转人工复核后再定；补素材无用（缺的是库覆盖）。\n\n**库内命中（读数）** —— 检索命中了 5 条，逐条列出**原文与直链**：\n\n1. `#亚马逊!（续）`｜BM25 68.2987｜external_standard\n   命中原文（逐字）：I started crying in joy when I was able to make a bottle to leave the house for once. They finally gave me hope that I can rebuild my storage supply and feed my\n   直链：https://momcozy-in.feishu.cn/sheets/BX0QshqWThhY6HtDEFCcnMpsnRc?sheet=SWMYUF\n2. `#l.1211-1338`｜BM25 65.8891｜external_standard\n   命中原文（逐字）：them to make her meaning clear. All her own work Of course, her speech production is by no means perfect yet, and her first words may only be intelligible to cl\n   直链：https://momcozy-in.feishu.cn/wiki/LTeew0XkmiJB43kGIoLcWo61n6b\n3. `#l.1-2`｜BM25 65.3728｜wording\n   命中原文（逐字）：gainst your skin. The temperature stays comfortable and safe, never getting too hot or causing burns. How Heat Fits Into Wearable Pumps Most heated breast pumps\n   直链：https://momcozy.com/blogs/breastfeeding/heated-breast-pump-guide\n4. `#来源：FB已授权内容，FB社群内用户自发内，IG等social media内容!（续）`｜BM25 65.2279｜external_standard\n   命中原文（逐字）：and gentle massage work wonders to keep me comfortable, especially on cold days like today. I love how it mimics my natural rhythm and makes the whole pumping p\n   直链：https://momcozy-in.feishu.cn/sheets/BX0QshqWThhY6HtDEFCcnMpsnRc?sheet=SWMYUF\n5. `#l.1-444`｜BM25 65.0901｜external_standard\n   命中原文（逐字）：sure you have all the addresses (or email addresses) ready to roll. You can even print out address labels in advance, if you’re pretty sure you won’t want to ha\n   直链：https://momcozy-in.feishu.cn/wiki/Btr9wQIyCiQziukBSsicAo5hnOd\n\n> ⚠️ 上面是**读数**：命中的**大多是别人的素材样本 / 外部材料，不是覆盖本素材的条款**，**不得据此当 PASS 依据**，也不得当作「本素材已合规」的证明。\n\n建议转 @法务（未配置） @北美同事（未配置） 复核。",
+  "risk_items": [
+   {
+    "risk_type": "覆盖缺口",
+    "priority_tier": "转人工",
+    "action": "库对该题材没有可依据的条款 ⇒ 转人工看**覆盖**（不是发现了内容问题）",
+    "category": "覆盖",
+    "sub": "知识库覆盖缺口",
+    "reason": "依据侧检索到 5 条命中，最高 BM25 68.2987（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。",
+    "severity": "REVIEW",
+    "reason_code": "coverage_not_covered",
+    "coverage": {
+     "covered": false,
+     "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+     "rule_cited_unit_hits": 0,
+     "safe_vocabulary_hits": 0,
+     "coverage_bm25_min": 16.0,
+     "bm25_max": 68.2987,
+     "top_hit_anchor": "#亚马逊!（续）",
+     "top_hit_excerpt": "I started crying in joy when I was able to make a bottle to leave the house for once. They finally gave me hope that I can rebuild my storage supply and feed my"
+    },
+    "coverage_gap": true
+   }
+  ],
+  "next_owners": [
+   "法务",
+   "医学顾问"
+  ],
+  "fails_closed": true,
+  "refusal": {
+   "state": "NEEDS_INPUT",
+   "detail": "依据侧拒答（fail-closed）",
+   "fails_closed": true,
+   "reason_code": "coverage_not_covered",
+   "coverage": {
+    "covered": false,
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "rule_cited_unit_hits": 0,
+    "safe_vocabulary_hits": 0,
+    "coverage_bm25_min": 16.0,
+    "bm25_max": 68.2987,
+    "top_hit_anchor": "#亚马逊!（续）",
+    "top_hit_excerpt": "I started crying in joy when I was able to make a bottle to leave the house for once. They finally gave me hope that I can rebuild my storage supply and feed my"
+   },
+   "human": "依据侧检索到 5 条命中，最高 BM25 68.2987（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。"
+  },
+  "gate": null
+ },
+ "evidence_meta": {
+  "run_id": "20261023-192955",
+  "findings": 0,
+  "state": "REVIEW",
+  "fails_closed": true,
+  "refusal": {
+   "state": "NEEDS_INPUT",
+   "detail": "依据侧拒答（fail-closed）",
+   "fails_closed": true,
+   "reason_code": "coverage_not_covered",
+   "coverage": {
+    "covered": false,
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "rule_cited_unit_hits": 0,
+    "safe_vocabulary_hits": 0,
+    "coverage_bm25_min": 16.0,
+    "bm25_max": 68.2987,
+    "top_hit_anchor": "#亚马逊!（续）",
+    "top_hit_excerpt": "I started crying in joy when I was able to make a bottle to leave the house for once. They finally gave me hope that I can rebuild my storage supply and feed my"
+   },
+   "human": "依据侧检索到 5 条命中，最高 BM25 68.2987（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。"
+  },
+  "report_path": null,
+  "source": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py",
+  "findings_source": {
+   "mode": "live",
+   "path": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py"
+  },
+  "kb_hits": [
+   {
+    "anchor": "#亚马逊!（续）",
+    "bm25": 68.2987,
+    "kb_type": "external_standard",
+    "source_sha256": "f112478a951861c9c702dd17ca408059f5aad9bb0d9e5e53d28f0eb112fe05ec",
+    "excerpt": "I started crying in joy when I was able to make a bottle to leave the house for once. They finally gave me hope that I can rebuild my storage supply and feed my",
+    "url": "https://momcozy-in.feishu.cn/sheets/BX0QshqWThhY6HtDEFCcnMpsnRc?sheet=SWMYUF"
+   },
+   {
+    "anchor": "#l.1211-1338",
+    "bm25": 65.8891,
+    "kb_type": "external_standard",
+    "source_sha256": "f1c6aa4718ace5d2b44d8ca5f1dfd882944d0e7145bc68017fe715a1995460a4",
+    "excerpt": "them to make her meaning clear. All her own work Of course, her speech production is by no means perfect yet, and her first words may only be intelligible to cl",
+    "url": "https://momcozy-in.feishu.cn/wiki/LTeew0XkmiJB43kGIoLcWo61n6b"
+   },
+   {
+    "anchor": "#l.1-2",
+    "bm25": 65.3728,
+    "kb_type": "wording",
+    "source_sha256": "cf9f15657f4193f318dc251230e12697b372c6346a13ae5e1b79b46b0e207561",
+    "excerpt": "gainst your skin. The temperature stays comfortable and safe, never getting too hot or causing burns. How Heat Fits Into Wearable Pumps Most heated breast pumps",
+    "url": "https://momcozy.com/blogs/breastfeeding/heated-breast-pump-guide"
+   },
+   {
+    "anchor": "#来源：FB已授权内容，FB社群内用户自发内，IG等social media内容!（续）",
+    "bm25": 65.2279,
+    "kb_type": "external_standard",
+    "source_sha256": "f112478a951861c9c702dd17ca408059f5aad9bb0d9e5e53d28f0eb112fe05ec",
+    "excerpt": "and gentle massage work wonders to keep me comfortable, especially on cold days like today. I love how it mimics my natural rhythm and makes the whole pumping p",
+    "url": "https://momcozy-in.feishu.cn/sheets/BX0QshqWThhY6HtDEFCcnMpsnRc?sheet=SWMYUF"
+   },
+   {
+    "anchor": "#l.1-444",
+    "bm25": 65.0901,
+    "kb_type": "external_standard",
+    "source_sha256": "4b7fd1d7387ebf00cd9eb8c820b0bb3bac001652c6106fe3cfbe8dabff69ae8e",
+    "excerpt": "sure you have all the addresses (or email addresses) ready to roll. You can even print out address labels in advance, if you’re pretty sure you won’t want to ha",
+    "url": "https://momcozy-in.feishu.cn/wiki/Btr9wQIyCiQziukBSsicAo5hnOd"
+   }
+  ],
+  "layer_preflight": {
+   "base": "20261023-192944",
+   "ok": true,
+   "red_total": 0,
+   "mode": "enforced",
+   "details": {
+    "L4": {
+     "run": "20261023-192944-L4",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L4": "session-266afe90-9f26-402f-9168-5ccae98eb0b0"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L5": {
+     "run": "20261023-192944-L5",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L5": "session-266afe90-9f26-402f-9168-5ccae98eb0b0"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L6": {
+     "run": "20261023-192944-L6",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L6": "session-266afe90-9f26-402f-9168-5ccae98eb0b0"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L7": {
+     "run": "20261023-192944-L7",
+     "exit": 0,
+     "red": 0,
+     "yellow": 0,
+     "skill_sessions": {
+      "L7": "session-266afe90-9f26-402f-9168-5ccae98eb0b0"
+     },
+     "pass": true,
+     "note": ""
+    }
+   }
+  },
+  "position": {
+   "value": null,
+   "supplied_by": null,
+   "note": "未提供 ⇒ 依据层用默认位置（图片会是裸「图 1」，出口闸 R3 判红）"
+  },
+  "decision_owner": {
+   "skill": "文案合规审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check",
+    "文案合规审查"
+   ]
+  },
+  "publish": {
+   "mode": "disabled_by_caller",
+   "published": false,
+   "reason": "disabled_by_caller"
+  },
+  "report_url": null,
+  "report_url_kind": null
+ }
+}

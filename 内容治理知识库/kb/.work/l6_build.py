@@ -133,6 +133,36 @@ if prev_scope is not None and len(kept) != prev_scope and not accept_delta:
         f"差额会写进 registry 的 scope.scope_delta。\n"
         f"  不要改这个判断里的数字 —— 它是防口径静默漂移的护栏。"
     )
+# ── ★ 2026-10-20（Owner 决定）：把负面样本规则（N-1.x）并入 L6 索引 ─────────────
+#   为什么：同图指纹只覆盖「原图」（图内文字逐字/行重合）；**改版图、换语言、截图裁剪**
+#     要靠 BM25+向量相似度把规则拉回来。规则正文自带问题描述 + 画面线索，正好当检索文档。
+#   边界（三条，都不是顺手放宽）：
+#     ① 只加进**索引**，不动 L2/L3 一个字；
+#     ② **不经 SCOPE 白名单** —— 白名单是 L2 单元的「人工核定」口径，规则不是 L2 单元
+#        （真源：kb/l6/SCOPE.txt 头注），硬塞 476 个 rule_id 进去会污染那份清单；
+#     ③ id 用 `rule_id`、anchor 用**条款号**（N-1.x）⇒ 检索命中即回源到 L3/L4。
+_rule_docs = []
+_rules_path = "kb/l3/candidates/negative_rules.jsonl"
+if os.path.exists(_rules_path):
+    _n_rules = 0
+    for _l in open(_rules_path, encoding="utf-8"):
+        if not _l.strip():
+            continue
+        _r = json.loads(_l)
+        _txt = " ".join([_r.get("rule_text") or ""] + list(_r.get("visual_cues") or []))
+        if not _txt.strip():
+            continue
+        _rule_docs.append({
+            "unit_id": _r["rule_id"], "kb_type": "internal_sample",
+            "anchor": _r["article_no"], "source_sha256": None,
+            "text": _txt, "heading_path": "负面样本规则",
+            "rule_kind": _r.get("rule_kind"), "rule_code": _r.get("rule_code"),
+            "negative_rule": True,
+        })
+        _n_rules += 1
+    kept = list(kept) + _rule_docs
+    print(f"并入负面样本规则文档 {_n_rules} 条（N-1.x；不占 SCOPE 名额）")
+
 p0_ids = SL.p0_evidence_unit_ids()
 p0_in_scope = p0_ids & {u["unit_id"] for u in kept}
 unit_by_id = {u["unit_id"]: u for u in kept}
@@ -434,7 +464,9 @@ reg = {
     "kb_version": "v0", "run_id": RUN, "mode": "vector_plus_bm25",
     "mode_note": "必装项已完成：本地 ONNX 多语模型可用（真实握手通过），向量与 BM25 双索引都落盘",
     "retrieval_capability": cap,
-    "scope": {"usable_units": len(kept), "source": "kb/l2/units.jsonl 经 L3 口径过滤",
+    "scope": {"usable_units": len(kept) - len(_rule_docs),
+              "negative_rule_docs": len(_rule_docs),
+              "source": "kb/l2/units.jsonl 经 L3 口径过滤（+ 负面样本规则文档另计）",
               "filter_distribution": {f"{k[0]}|{k[1]}": v for k, v in FILTER.items()},
               "scope_file": "kb/l6/SCOPE.txt" if scope_file_info else None,
               "scope_file_info": scope_file_info,
@@ -496,7 +528,9 @@ reg = {
         #   现在两个数都按**索引行**算（与 `index/l6.jsonl`、`bm25/docs.jsonl` 同行数口径），
         #   并把「重复行」单列成 `duplicate_unit_id_rows` —— 让那个异常**有名字**，
         #   而不是伪装成 86 条失败。
-        "usable": len(kept),
+        # 口径：`usable` 只算 **L2 单元**（口径与闸门复算一致）；规则文档另计
+        "usable": len(kept) - len(_rule_docs),
+        "negative_rule_docs": len(_rule_docs),
         "usable_distinct_unit_ids": len({u["unit_id"] for u in kept}),
         "duplicate_unit_id_rows": len(kept) - len({u["unit_id"] for u in kept}),
         "bm25_indexed": sum(1 for r in idx if r["bm25"]["indexed"]),
@@ -517,7 +551,8 @@ did_work = bool(new_rows) or tok_work > 0 or bm_files_changed or vec_files_chang
 if did_work:
     with open(f"{L6}/runs/build_runs.jsonl", "a", encoding="utf-8") as fh:
         fh.write(json.dumps({
-            "run_id": RUN, "at": time.strftime("%Y-%m-%d %H:%M:%S"), "usable": len(kept),
+            "run_id": RUN, "at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "usable": len(kept) - len(_rule_docs), "negative_rule_docs": len(_rule_docs),
             "bm25_tokenized": tok_work, "bm25_docs": len(docs), "units_segmented": units_segmented,
             "vector_segments_new_or_changed": len(new_rows), "vector_segments_reused": len(keep_rows),
             "vector_segments_total": len(all_rows), "embedding_calls": embed_calls,

@@ -1,0 +1,155 @@
+{
+  "review_id": "20261019-171603",
+  "content_id": "text-541334c6f941",
+  "content_id_basis": "指纹（依据侧不发业务号，发号真源 = kb/l7/review-engine/core/content_id.py）",
+  "content_type": "text",
+  "content_version": "541334c6f9417f560453a63a25f03cd21ff3946fc46d4b26a08a2b12c649686d",
+  "content_hash": "541334c6f9417f560453a63a25f03cd21ff3946fc46d4b26a08a2b12c649686d",
+  "agent_version": "kb-content-review@1.3.0",
+  "rule_version": "article-no-2+l3-0.2+rules.jsonl@e7d566f25f16677b",
+  "knowledge_version": "v0",
+  "version_binding": {
+    "review_id": "20261019-171603",
+    "content_id": null,
+    "content_id_form": "AD-YYYYMMDD-NNN（PRD §5.4）",
+    "content_id_note": "本入口（依据侧）**不发业务号** —— 发号要读飞书表，而依据侧不该为此访问飞书。业务号由发号方在发飞书那一刻发：`kb/l7/review-engine/core/content_id.py`（唯一实现）。",
+    "content_fingerprint": "text-541334c6f941",
+    "content_hash": "541334c6f9417f560453a63a25f03cd21ff3946fc46d4b26a08a2b12c649686d",
+    "content_version": "541334c6f9417f560453a63a25f03cd21ff3946fc46d4b26a08a2b12c649686d",
+    "agent_version": "kb-content-review@1.3.0",
+    "rule_version": "article-no-2+l3-0.2+rules.jsonl@e7d566f25f16677b",
+    "knowledge_version": "v0",
+    "sources": {
+      "content_hash": "送审文本 utf-8 的 sha256",
+      "agent_version": "kb/l7/skills/kb-content-review/SKILL.md → frontmatter.version",
+      "rule_version": "kb/l7/registry/l7.json → article_no_source.scheme_version ＋ kb/l3/registry/l3.json → distiller_version ＋ kb/l3/candidates/rules.jsonl 的 sha256[:16]",
+      "knowledge_version": "kb/l7/registry/l7.json → kb_version"
+    }
+  },
+  "decision": "REVIEW",
+  "decision_raw": "REVIEW",
+  "confidence": "未标定（本入口逐条给 高/中/低；全局数值置信度属裁决侧）",
+  "input_manifest": {
+    "text": "喇叭罩贴合乳房后通过吸吮形成负压，乳头罩可替换为软边款。",
+    "sha256": "541334c6f9417f560453a63a25f03cd21ff3946fc46d4b26a08a2b12c649686d",
+    "modality": [
+      "text"
+    ]
+  },
+  "coverage": {
+    "text": "complete",
+    "image": "not_applicable",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "本批只送审 text 一种模态；其余模态不适用（不是缺口）。本块是报告契约要求的覆盖状态，不等于 OCR/ASR/关键帧流水线已执行 —— 后者见 trace。"
+  },
+  "risk_items": [
+    {
+      "risk_id": "r-a7b2b833ef7bb856",
+      "risk_type": "表述与术语准确性-术语与口径",
+      "risk_category": "措辞表达",
+      "risk_category_basis": "类别「表述与术语准确性」⇒ 措辞表达（软判（按 §6.2/§5.2 语义归类）：PRD §6.2 P3「措辞规范、用词不精准」）",
+      "taxonomy_category": "母婴知识内容准确性",
+      "taxonomy_subcategory": "内容形式与表达规范",
+      "taxonomy_basis": "v1-20261017",
+      "priority_tier": "P3",
+      "priority_tier_basis": "规则行 p_level=P3",
+      "layer": "规则层",
+      "p_level": "P3",
+      "risk_level": "Low",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "吸吮",
+      "reason": "逐字命中「吸吮」：专业哺乳术语使用不规范。（p_level=P3 risk_level=Low authority=None，来源表 None）",
+      "suggestion": "",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-2.287",
+        "anchor": "#专家修订汇总表/recvoyJ6L90ajy/修订位置（原文引用）",
+        "source_sha256": "a1ca07523aae2ce18616d646c78c5db213bf4280853c57d0bf11de162d533e84",
+        "excerpt": "吸吮"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-2.287 条 @ #专家修订汇总表/recvoyJ6L90ajy/修订位置（原文引用） @ a1ca07523aae",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-2.287"
+    },
+    {
+      "risk_id": "r-df1b71423703c6f7",
+      "risk_type": "表述与术语准确性-术语与口径",
+      "risk_category": "措辞表达",
+      "risk_category_basis": "类别「表述与术语准确性」⇒ 措辞表达（软判（按 §6.2/§5.2 语义归类）：PRD §6.2 P3「措辞规范、用词不精准」）",
+      "taxonomy_category": "母婴知识内容准确性",
+      "taxonomy_subcategory": "哺乳与泌乳",
+      "taxonomy_basis": "v1-20261017",
+      "priority_tier": "P3",
+      "priority_tier_basis": "规则行 p_level=P3",
+      "layer": "规则层",
+      "p_level": "P3",
+      "risk_level": "Low",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "乳头罩",
+      "reason": "逐字命中「乳头罩」：专业术语使用不规范。（p_level=P3 risk_level=Low authority=None，来源表 None）",
+      "suggestion": "",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-2.389",
+        "anchor": "#专家修订汇总表/recvoyJ6L9wMdH/修订位置（原文引用）",
+        "source_sha256": "cf15f727085a102c23e994a1bd5abbed2f473ce940527f1803980fb4d0aa005d",
+        "excerpt": "乳头罩"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-2.389 条 @ #专家修订汇总表/recvoyJ6L9wMdH/修订位置（原文引用） @ cf15f727085a",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-2.389"
+    }
+  ],
+  "issue_count": 2,
+  "report_url": null,
+  "next_action": "建议转复核责任人复核。",
+  "next_owners": [
+    "复核责任人"
+  ],
+  "sla": {},
+  "version_gate": {
+    "reviewed_hash": "541334c6f9417f560453a63a25f03cd21ff3946fc46d4b26a08a2b12c649686d",
+    "release_hash": null,
+    "note": "本入口不掌握发布版本；发布/送审版本比对属裁决侧（review_engine.py:115-119），此处不代替它下结论"
+  },
+  "decision_trace": {
+    "reasons": [
+      "findings_present_without_block"
+    ],
+    "confidence_status": "not_calibrated_by_this_entry",
+    "evaluated_at": "2026-10-19T17:16:12",
+    "decided_by": "kb-content-review/scripts/review.py（依据侧自身分支，:709-715）",
+    "note": "本报告不重算结论；三态由上表 decision_raw 原样带出",
+    "tier_trace": {
+      "P0": 0,
+      "P1": 0,
+      "P2": 0,
+      "P3": 2,
+      "未标层": 0
+    },
+    "confidence_route": {
+      "applies": false,
+      "band": null,
+      "calibrated": false,
+      "why": "依据侧**不合成全局数值置信度**（逐条给 高/中/低）⇒ 没有可切三档的数。PRD §6.6 的数值分档与标注在**裁决侧**生效：见 `review_engine.decide()` → `decision_trace.confidence_route`；策略真源 `kb/l7/registry/confidence-policy.json`。",
+      "handled_by": "kb/l7/review-engine/core/review_engine.py::decide()"
+    }
+  },
+  "unmet_citation": []
+}

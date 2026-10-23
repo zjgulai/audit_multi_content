@@ -1,0 +1,44 @@
+{
+ "meta": {
+  "file": "kb/l7/registry/case-taxonomy-map.json",
+  "what_it_is": "案例层（L4 canonical/sample_case.jsonl，polarity=反例）的「原因分类」→ A3 12 类 的映射表。写入方：kb/l7/skills/kb-content-review/scripts/review.py::case_taxonomy()；同口径再被 kb/l8/report_conformance.py 读取。",
+  "why": "案例层条目此前**从不带 A3 分类** ⇒ 报告里落「未归类」。Owner 2026-10-20 逐字：「未归类问题：2 个，不属于所属类别12类中的吗？图片提取规则的时候要归类」",
+  "source": "kb/l3/registry/rule-taxonomy.json（12 类真源）＋ kb/l4/canonical/sample_case.jsonl（reason_category 实测分布）",
+  "owner_quote": "未归类问题：2 个，不属于所属类别12类中的吗？图片提取规则的时候要归类",
+  "created_at": "2026-10-20",
+  "authority": "Owner-adopted（分类口径是判断，不是 PRD 原文；PRD §5.3 只给四维，A3 12 类是 Owner 2026-10-19 采用的本库口径）",
+  "boundary": "本表只解决「一条案例属于 12 类中的哪一类」，**不解决**「这条案例是不是本单素材里的字」——后者由 kb/l8/material_evidence_gate.py 的 R1/R2 管。",
+  "previously_undecided": "kb/l7/registry/risk-category-policy.json 原把「原则性错误 / 文化禁忌」列为「不编，留空待裁」；Owner 2026-10-20 要求必须归类 ⇒ 本表给出落点，并在 risk-category-policy.json 里同步销账。"
+ },
+ "fallback": {
+  "taxonomy_category": "未归类",
+  "why": "映射表里没有的分类（含 unknown / 未分类 / 空值）一律落兜底类，**不编**"
+ },
+ "map": {
+  "原则性错误": {
+   "taxonomy_category": "品牌信任与声誉",
+   "basis": "案例正文是**设计/创意方向**的要求与评审反馈（实测 S-1.195：「德国社媒贴…图1: 不同族裔的妈妈们…」），既不是受监管宣称，也不是产品事实错误 ⇒ A3 里落「品牌信任与声誉」（调性/一致性）。"
+  },
+  "文化禁忌": {
+   "taxonomy_category": "北美本地化与标签要求",
+   "basis": "文化语境与本地化是同一件事的两面；A3 里只有这一类的 meaning 覆盖「美国市场表达/育儿语境」（rule-taxonomy.json 该类 meaning 逐字）。"
+  },
+  "审核问题": {
+   "taxonomy_category": "平台与渠道政策",
+   "basis": "实测量的是「提交/审核环节的形式与流程意见」；A3 该类含子类「素材提交与形式规范」。"
+  },
+  "品牌一致性": {
+   "taxonomy_category": "品牌信任与声誉",
+   "basis": "同名语义；A3 该类含子类「品牌口号与价值主张」。"
+  },
+  "措辞表达": {
+   "taxonomy_category": "北美本地化与标签要求",
+   "basis": "A3 没有独立的「措辞」类；该类 meaning 明确含「美国市场表达」，是措辞类案例在 A3 的唯一落点。"
+  },
+  "合规红线": {
+   "taxonomy_category": "合规与受监管宣称",
+   "basis": "类别名即语义；A3 该类即「法律法规与法定要求 + 受监管宣称」。"
+  }
+ },
+ "reverse_control": "把 review.py::case_taxonomy() 的调用摘掉 ⇒ kb/l8/report_conformance.py --selftest 的 R1b 与 kb/l8/material_evidence_gate.py --selftest 的 F 组必须变红（本表不是装饰）。"
+}

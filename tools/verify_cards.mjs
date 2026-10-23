@@ -38,6 +38,7 @@ const {
   build, validateCard, renderText, shapeOf, sampleCards, lintCopy,
   TONE, TEMPLATES, BACKGROUND_STYLES,
 } = await import(path.join(CARDS_DIR, 'index.mjs'));
+const { applyVerdictLine } = await import(path.join(CARDS_DIR, 'envelope.mjs'));
 const cardsSrc = fs.readFileSync(path.join(CARDS_DIR, 'cards.mjs'), 'utf8');
 const cardsMod = await import(path.join(CARDS_DIR, 'cards.mjs'));
 
@@ -636,6 +637,19 @@ head('J 信封 · 解析、上限执行、以及「标记不许漏进群」');
    *  判据三层（缺一层都不算）：能不能换 · 换了块在不在 · 原内容丢没丢。＋两条反向对照。
    */
   {
+    // 已经有结论块的卡也必须展开正文组。此前 early-return 保留了模型默认的
+    // expanded:false，最终消息只有「共发现 N 处」，问题和建议藏在折叠区。
+    const block = '【审查结论：REVIEW】共发现 1 处需人工确认。\n1.【产品安全】顶部，图 1 第 2 处\n建议：同房不同床，宝宝睡独立婴儿床';
+    const present = { title: '【审查结论：REVIEW】共发现 1 处需人工确认。',
+      groups: [{ title: '逐条问题', content: block, expanded: false }] };
+    const applied = applyVerdictLine('evidence', present, {
+      state: 'REVIEW', line: '【审查结论：REVIEW】共发现 1 处需人工确认。', from: 'chain', block,
+    });
+    if (applied.action !== 'already' || applied.data.groups?.[0]?.expanded !== true
+        || !applied.data.groups[0].content.includes('同房不同床')) {
+      no('J11b4 已存在的逐条块必须展开并保留知识库建议', JSON.stringify(applied));
+    } else ok('J11b4 已存在的逐条块默认展开，具体问题与建议可见');
+
     const V53 = { state: 'BLOCK', line: '【审查结论：BLOCK】共发现 6 处必须修改。', from: 'chain',
       block: '【审查结论：BLOCK】共发现 6 处必须修改。\n知识库侧 3 条 ／ 模型侧 3 条\n\n'
            + '1.【合规】素材正文  —— **模型侧**（无库内依据）\n   原因：FDA 批准表述\n'
@@ -668,52 +682,58 @@ head('J 信封 · 解析、上限执行、以及「标记不许漏进群」');
       no('J11b2 第一组不许带计数占位（发过「· 0」）', JSON.stringify(groups[0]?.count));
     } else ok('J11b2 第一组不许带计数占位（发过「· 0」）');
     // ══════════════════════════════════════════════════════════════════════════
-    // ★★ J11b3（2026-10-16，FIX-033；Owner 原话：「出现了两个『逐条问题』定位下问题」）
-    //    **组标题与组内容的首行不许逐字相同。**
+    // ★★ J11b3（2026-10-16 FIX-033 起，2026-10-21 **整条翻面**）
+    //    **≥3 汇总块不许折进任何一组** —— 卡上那一段与模版逐字一致，中间没有小标题。
     // ══════════════════════════════════════════════════════════════════════════
-    //   病灶是两条改动叠在一起（各自都对）：
-    //     · 2026-10-14 组标题改成「逐条问题」（治的是「组标题『审查结论』与块首行重复」）；
-    //     · 2026-10-15 ≥3 的块首行**也**变成「逐条问题」（Owner 给的 PRD §5.3.3 逐字格式件）。
-    //   而评审单卡面**恒定** evidence（`cardKind → evidence`，Owner 2026-10-13：
-    //   「群里与私聊必须一样」）⇒ **每一张 ≥3 的评审卡**都连着印两个「逐条问题」。
-    //   真单 `om_x100b6223f22efcacdff84ca547c51b4`（2026-10-16 01:20，台账第 1210 行）。
-    //
-    //   ⚠️ 去重在 `blockRows(block, title)` 里做，判据是「**逐字等于组标题**」，
-    //     不是「删掉『逐条问题』这四个字」—— 没有组标题的载体（reasoning 卡 / 表行 /
-    //     报告）照旧保留这一行，那是 Owner 给的格式件。
-    //   ⚠️ 为什么这条判据单列：J11b 只断言**标题**，J11c2 只比**形状**（tag 与标题列表）
-    //     ⇒ 内容首行多一行这种「两个词连印」在两层判据之间漏了过去。
+    //   上一版钉的是「组标题与组内容首行不许逐字相同」（治「两个『逐条问题』」）——
+    //   它修对了重复，却**留着那个折层本身**：卡上仍是
+    //     【审查结论：REVIEW】… ␤ `逐条问题`（组标题）␤ `· …类问题：N 个`
+    //   而 Owner 2026-10-21 给的**正确模版**（`docx/CvIldNhUSoxv7DxpzwdcKUcjnfr`）是
+    //     `内容审查报告` ␤ 结论行 ␤ `· …类问题：N 个` —— **没有那一行**。
+    //   ⇒ 现在：≥3 走 `body` 正文格（不折、无标题）；<3 的逐条块**照旧折**
+    //     （它长、需要收起，而模版第二节本来就叫「问题清单」）。
+    //   ⚠️ 为什么这三条要单列：J11b 只断言**组标题**、J11c2 只比**形状** ⇒
+    //     「多出一个小标题」正好落在这两层判据之间。
     {
-      // ★★ 2026-10-19 第三次（Owner：「按照下面的格式优化，目前是写的一行」）：
-      //   **每类一行**、`· <维度>类问题：N 个`、行间不空行。
+      // 夹具用**存量形状**（块里还带着那一行）—— 线上飞出过的就是它。
       const SUM_BLOCK = '【审查结论：REVIEW】共发现 5 处需人工确认。\n\n'
         + '逐条问题\n· 合规类问题：3 个\n· 措辞表达类问题：2 个\n\n'
         + '→ 查看完整问题清单与修改建议：https://feishu.cn/review/x\n\n'
         + '建议转 @法务（未配置） 复核。';
       const V53_SUM = { state: 'REVIEW', line: '【审查结论：REVIEW】共发现 5 处需人工确认。',
                         from: 'chain', block: SUM_BLOCK };
-      const rSum = toCardOrText('模型这一轮没给卡片块，只写了些话。', { verdict53: V53_SUM });
-      const gSum = (rSum.data?.groups ?? [])[0];
-      const firstOf = (t) => String(t ?? '').split('\n').map((l) => l.trim()).find(Boolean) ?? '';
-      const firstLine = firstOf(gSum?.content);
-      if (!gSum) {
-        no('J11b3 ≥3 的评审单：逐条块必须在第一组', 'groups 是空的');
-      } else if (gSum.title === firstLine) {
-        no('J11b3 组标题与组内容首行不许是同一个词（卡上会连印两个「逐条问题」）',
-           `组标题=「${gSum.title}」 内容首行=「${firstLine}」`);
-      } else ok(`J11b3 ≥3 的评审单：组标题「${gSum.title}」与内容首行「${firstLine}」不重复`);
-      // 去重只许剥**那一行**：汇总行必须还在（顺手剥多了就是把内容删了）
-      if (!/· .*类问题：\d+ 个/.test(String(gSum?.content ?? ''))) {
-        no('J11b3b 去重只剥那一个标题行，汇总行必须留着',
-           String(gSum?.content ?? '').slice(0, 120));
-      } else ok('J11b3b 去重之后汇总行仍在');
-      // ★ 反向对照（本仓纪律）：把组标题参数拿掉（＝回到修复前的行为），
-      //   那一行**真的会**出现在这一格的首行 —— 若它不出现，说明 J11b3 恒绿。
-      const rawFirst = firstOf(blockRows(SUM_BLOCK));
-      if (rawFirst !== VERDICT_GROUP_TITLE) {
-        no('J11b3c 反向对照：不去重时首行就是组标题（否则 J11b3 恒绿）',
-           `实际首行「${rawFirst}」`);
-      } else ok('J11b3c 反向对照：不去重时首行正是组标题 ⇒ J11b3 咬得住');
+      const rSum = toCardOrText('模型这一轮没给卡片块，只写了些话。', { verdict53: V53_SUM,
+        imageAnalysis: '图 1｜OCR 20 行；视觉模型读数：卧室，婴幼儿与成人同床，婴儿睡姿仰卧。' });
+      const panels = (rSum.card?.body?.elements ?? []).filter((e) => e?.tag === 'collapsible_panel');
+      const cardText = JSON.stringify(rSum.card ?? {});
+      if (panels.length !== 0) {
+        no('J11b3 ≥3 汇总块不许折进任何一组（卡上会多一行「逐条问题」）',
+           `折叠组 ${panels.length} 个：${panels.map((p) => p.header?.title?.content).join(' / ')}`);
+      } else if (cardText.includes(VERDICT_GROUP_TITLE)) {
+        no('J11b3 ≥3 汇总块的卡面不许出现「逐条问题」', cardText.slice(0, 160));
+      } else ok('J11b3 ≥3 汇总块落在正文格里，卡面上一个字都没有「逐条问题」');
+      // 只剥那一行、别剥多了：汇总行与链接行都必须还在（剥多了就是把内容删了）
+      const bodySum = String(rSum.data?.body ?? '');
+      if (!/· .*类问题：\d+ 个/.test(bodySum) || !/→ 查看完整问题清单与修改建议/.test(bodySum)) {
+        no('J11b3b 剥掉的只有那一行：汇总行与链接行必须留着', bodySum.slice(0, 160));
+      } else ok('J11b3b 剥掉的只有那一行：汇总行与链接行都在');
+      // ★ 2026-10-22（Owner：「输出的卡片不展示 视觉分析与 OCR」）：
+      //   夹具**照样塞** imageAnalysis —— 判据要证明的是「卡面对这个入参彻底不认」，
+      //   而不是「没给时不印」（后者是恒真的）。
+      if (/视觉分析与 OCR/.test(bodySum) || /视觉模型读数/.test(bodySum)) {
+        no('J11b3d 卡面不许再展示「视觉分析与 OCR」（Owner 2026-10-22）', bodySum.slice(-240));
+      } else ok('J11b3d 卡面不再展示视觉分析与 OCR（给了入参也不印）');
+      // ★ 反向对照（本仓纪律）：**<3 的逐条块必须照旧折起来** ——
+      //   若这条不成立，说明是「一刀切把折叠去掉了」，而不是「按形状分流」。
+      const SMALL_BLOCK = '【审查结论：REVIEW】共发现 1 处需人工确认。\n\n'
+        + '1.【合规-医疗宣称】正文第 1 段\n   原因：未证实\n   建议：删掉';
+      const rSmall = toCardOrText('模型这一轮没给卡片块，只写了些话。',
+        { verdict53: { state: 'REVIEW', line: SMALL_BLOCK.split('\n')[0], from: 'chain', block: SMALL_BLOCK } });
+      const pSmall = (rSmall.card?.body?.elements ?? []).filter((e) => e?.tag === 'collapsible_panel');
+      if (pSmall.length !== 1 || pSmall[0].header?.title?.content !== VERDICT_GROUP_TITLE) {
+        no('J11b3c 反向对照：<3 的逐条块必须照旧折成一组（证明是分流、不是一刀切）',
+           `折叠组 ${pSmall.length} 个：${pSmall.map((p) => p.header?.title?.content).join(' / ')}`);
+      } else ok('J11b3c 反向对照：<3 的逐条块照旧折成「逐条问题」一组');
     }
     // ★★ 2026-10-13（Owner：「群聊里跟私聊的格式不一样？」）：**评审单的形状由代码定** ——
     //   模型自拟的分组/结论格/块外正文**都不上卡**（它们仍是这一轮的回复正文，

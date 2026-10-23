@@ -54,6 +54,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import inspect
 import json
 import os
 import plistlib
@@ -610,11 +611,14 @@ def check_freshness():
         "reason": "数据层超期 ⇒ 评审链 ②c 复判仍会超期 ⇒ 拒答",
         "exit": rc,
         "stale_items": lines[:6],
-        "fix": "**受控自愈会自动接手**：本巡检在「认领空闲 ＋ 日更没在跑 ＋ 无活锁」时"
-               "会踢一次日更（`launchctl kickstart -k gui/<uid>/com.kb.pipeline-daily-skill`），"
-               "跑完（~15 分钟）新鲜度应恢复；动作与结果都进 `kb/.work/freshness-heal.ndjson`。"
-               "若当日连续 3 次都没救回来（上限），说明不是「日更没跑」而是别处红了 ——"
-               " 那时人去看那份台账与日更日志 `~/Library/Logs/kb-pipeline-skill/out.log`。",
+        "fix": "**陈旧不再自动踢整链**（2026-10-20 Owner 定 ①，实测依据见 heal_decision() 开头）："
+               "周更模式下踢整链补不回某一层的红，反而会在排期前抢跑、占认领、"
+               "把行的运行时间戳刷成「像跑过了」。"
+               "**下一步**：`sh kb/kbpy l7/scripts/freshness.py` 看是哪一层落后，"
+               "再看该层 `runs/` 里那份记录的 `verdict`（`run_verdict_gate_red=true` 就是"
+               "「跑到了底但闸门判红」）⇒ 红在哪一层就修哪一层。"
+               "**只有**「周更这一轮没跑成」（`check_weekly_run_ran`）才会受控自愈补跑，"
+               "动作与结果进 `kb/.work/freshness-heal.ndjson`。",
     }
 
 
@@ -630,8 +634,12 @@ WEEKLY_GRACE_H = 12.0
 WEEKLY_COVER_H = 24.0
 
 
-def check_weekly_run_ran(now=None, path=None):
+def check_weekly_run_ran(now=None, path=None, kb_root=None):
     """**这一轮该跑的那趟，跑了没有**（2026-10-16 加；阈值放宽到 8 天之后的兜底）。
+
+    ★ 2026-10-19 收紧（改动单 C）：② 从「任意一层跑过」改为 **L1–L7 每一层都要有
+      一次跑成的 RUN**。原先把 L0 单独跑过也算「整轮跑成」—— 10-18 停在 L0 的实测形状
+      因此一直绿。`kb_root` 可注入，供自证用临时 KB（不碰真库）。
 
     为什么必须有它：Owner 2026-10-16 裁定① 把日更改**周更**（每周日 03:30），
     同时把陈旧阈值 24h → 8 天（`layer_freshness.STALE_AFTER`）。**放宽阈值 = 同时放宽了保护**：
@@ -641,7 +649,7 @@ def check_weekly_run_ran(now=None, path=None):
 
     ★ 三件事同时成立才报红，缺一件都必须是 True／None（不许当红）：
       ① 最近一个排期时刻已过 + 宽限 `WEEKLY_GRACE_H`；
-      ② 从该时刻**往前 `WEEKLY_COVER_H` 起**，各层落章里**没有任何一次跑成的 RUN**；
+      ② 从该时刻**往前 `WEEKLY_COVER_H` 起**，**L1–L7 每一层**都必须有一次跑成的 RUN；
       ③ 排期读得到（读不到 ⇒ **未测**）。
     ★ 「跑成了」用的是**同一把尺子** `layer_freshness.judge()` 的 `change_state`
       （`produced_changes` / `no_new_input`）—— 本件**不新造第二个陈旧判据**；
@@ -661,28 +669,36 @@ def check_weekly_run_ran(now=None, path=None):
                                  WEEKLY_GRACE_H),
                       "last_due": due.isoformat()}
 
-    per_layer, newest = {}, None
+    kb_root = KB_DIR if kb_root is None else kb_root
+    per_layer = {}
     for L in ("L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7"):
         try:
-            j = _lf_judge(KB_DIR, L)
+            j = _lf_judge(kb_root, L)
         except Exception:                                       # noqa: BLE001
             continue
         ra = j.get("run_at")
         if ra and j.get("change_state") in ("produced_changes", "no_new_input"):
             per_layer[L] = ra
-            newest = ra if newest is None else max(newest, ra)
     cover_from = (due - datetime.timedelta(hours=WEEKLY_COVER_H)).timestamp()
-    if newest is not None and newest >= cover_from:
-        return True, {"note": "这一轮跑过了（最近一次跑成 %s）"
+    # ★ 2026-10-19：**必跑集 = L1–L7**（数据层；L0 可因令牌/流程跳过，不进必跑集）。
+    #   原先只要**任意一层**跑成就算 —— L0 在 10-18 单独跑过，于是「停在 L0」被当成
+    #   「整轮跑成」，周更兜底一直绿。缺哪层就点名哪层。
+    required = ("L1", "L2", "L3", "L4", "L5", "L6", "L7")
+    missing = [L for L in required if L not in per_layer or per_layer[L] < cover_from]
+    if not missing:
+        newest = max(per_layer[L] for L in required)
+        return True, {"note": "这一轮跑过了（L1–L7 最近一次跑成最晚 %s）"
                               % time.strftime("%m-%d %H:%M", time.localtime(newest)),
                       "last_due": due.isoformat(), "newest_success_at": newest}
+    newest = max(per_layer.values()) if per_layer else None
     return False, {
         "reason": "**%s 那一轮没跑成** —— 排期时刻已过 %.1f 小时，而自那之前 %gh 起，"
-                  "各层落章里**没有任何一次跑成的 RUN**。"
+                  "L1–L7 里**有层没有跑成的 RUN**：缺 %s。"
                   % (due.strftime("%m-%d %H:%M"), (now - due).total_seconds() / 3600.0,
-                     WEEKLY_COVER_H),
+                     WEEKLY_COVER_H, "、".join(missing)),
         "last_due": due.isoformat(),
         "newest_success_at": newest,
+        "missing_layers": missing,
         "detail": "各层最近一次跑成的时刻："
                   + ("、".join("%s %s" % (k, time.strftime("%m-%d %H:%M", time.localtime(v)))
                                for k, v in sorted(per_layer.items())) or "（一层都没有）"),
@@ -1003,7 +1019,7 @@ def check_report_link_permissions():
 
 # ────────────────────────────────────────────── L1 索引：重建有没有被执行（非阻断）
 
-L1_INDEX_STALE_H = float(os.environ.get("KB_L1_INDEX_STALE_H") or 25)
+L1_INDEX_STALE_H = float(os.environ.get("KB_L1_INDEX_STALE_H") or 8 * 24)  # 8 天：一个周更周期 + 1 天（2026-10-19 对齐周更；原 25h 按日更写）
 L1_INDEX = os.path.join(ROOT, "kb", "l1", "index", "l1.jsonl")
 # ★ 2026-10-10 加：L5 落章存在性（可注入，供自证用临时目录，**不碰真库**）。
 #   路径可注入：`KB_L5_STAMP_DIR` / `KB_L5_RUN_RECORDS` —— 只为**离线复现与自证**，
@@ -1026,7 +1042,7 @@ def _l1_index_verdict(mtime, now, threshold_h=None):
 
 
 def check_l1_index_rebuilt(now=None):
-    """`kb/l1/index/l1.jsonl` 有没有被**重建**过（阈值 25h = 一个日更周期 + 1h）。
+    """`kb/l1/index/l1.jsonl` 有没有被**重建**过（阈值 8 天 = 一个周更周期 + 1 天）。
 
     ★ 为什么要它（2026-10-08）：这本索引是**全量重建**产物（`layers.yaml` L1 的 `write_mode`
       原话：「manifest_l1.jsonl append-only；资源 json 就地覆盖；**index/l1.jsonl 全量重建**」），
@@ -1034,14 +1050,16 @@ def check_l1_index_rebuilt(now=None):
       ⇒ launchd 与全库**没有任何自动流程**调 `--write` ⇒ **源一变它就漂**，
       `--check` 天天红、没人修。实测（2026-10-08）：mtime 停在 10-02 12:51 而源已到 15:33；
       多余 3 段僵尸；重建 14707 → 15114。
-      ⇒ 治法是把重建**接进日更任务书**（`kb/l8/daily_via_skill.md` 步骤 ③c）。
-      **本条就是那条接线的防线**：任务书是**给 agent 的指令、不是代码**，
-      agent 漏做**不会报错** —— 这条 25h 的巡检是「漏做了会有人知道」的那一环。
+      ⇒ 治法是把重建**接进周更驱动**（`kb/l8/daily_via_skill.sh`；2026-10-19 起由驱动在 agent 结束后**确定性执行**，不再依赖 agent 记得）。
+      **本条就是那条接线的防线**：驱动那一步失败 / 被跳过时，
+      这条巡检是「漏做了会有人知道」的那一环。
 
-    ★ 阈值为什么 25h 而不是 24h：重建**一天一次**。白天源变过、索引 mtime 比源旧，
-      那是日更批处理的**固有语义**，不是漂移，**不该告警**。
-      超过一个日更周期还没重建，才是「那一步没被执行」。
-      ⇒ 所以本判据**只看 mtime、不跑 `--check`** —— 跑内容检查会整天误报。
+    ★ 阈值为什么是 8 天而不是 25h（2026-10-19 改）：排期 2026-10-16 已由日更改**周更**
+      （每周日 03:30），`layer_freshness.STALE_AFTER` 同步 24h → 8 天。重建在周更收尾做，
+      一周一次 ⇒ 阈值必须是「一个周更周期 + 1 天余量」。原先 25h 是按日更写的，
+      周更后会**天天误报**（即使重建成功）。
+      ⇒ 所以本判据**只看 mtime、不跑 `--check`** —— 跑内容检查会整天误报；
+         `--check` 的内容结论以 `rebuild_l1_index.py --check` 自身为准。
 
     ★ **非阻断**：`kb/l6/` 里引用 `l1/index` 的处数 = **0**（实测）⇒ 它**不在检索路径上**，
       是审计投影。它坏不坏不影响此刻能不能评审，只影响「拿索引当分母的对账数字」。
@@ -1055,22 +1073,25 @@ def check_l1_index_rebuilt(now=None):
     stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime(mtime))
     if ok:
         return True, {"age_h": round(age_h, 2), "threshold_h": L1_INDEX_STALE_H, "mtime": stamp}
+    _age_txt = ("%.1f 天" % (age_h / 24.0)) if age_h >= 48 else ("%.1f 小时" % age_h)
+    _th_txt = ("%g 天" % (L1_INDEX_STALE_H / 24.0)) if L1_INDEX_STALE_H >= 48 else ("%gh" % L1_INDEX_STALE_H)
     return False, {
-        "reason": f"L1 索引已有 **{age_h:.1f} 小时**没重建（阈值 {L1_INDEX_STALE_H:g}h）"
-                  "—— 日更任务书步骤 ③c 没有被执行",
+        "reason": f"L1 索引已有 **{_age_txt}**没重建（阈值 {_th_txt}）"
+                  "—— 周更任务书步骤 ③c 没有被执行（或驱动那一步没跑成）",
         "before": stamp,
         "detail": "它是**审计投影**（实测 `kb/l6/` 引用 `l1/index` 0 处，**不在检索路径上**），"
-                  "**不影响此刻能不能评审**；但 `--check` 会一直红（源变过、索引没跟上），"
-                  "且任何拿它当分母的对账数字会偏。",
+                  "**不影响此刻能不能评审**；若源变过而索引没跟上，`--check` 会红"
+                  "（本判据只看 mtime，不代替内容检查）；拿它当分母的对账数字会偏。",
         "fix": " ① 立刻补一次："
                "`python3 kb/l1/index/rebuild_l1_index.py --write --run manual-$(date +%Y%m%d-%H%M)`"
                "\n        ② 立刻确认：`python3 kb/l1/index/rebuild_l1_index.py --check` —— **必须 `[OK]`**"
-               "\n        ③ 若连着两天都是这条 ⇒ 说明任务书那条指令**没被 agent 执行**，"
-               "改成在 `kb/l8/daily_via_skill.sh` 里加一步 shell（确定性执行，不依赖 agent 记得）。",
+               "\n        ③ 若连着**两轮周更**都是这条 ⇒ 驱动里的 `L1_INDEX` 那一步没跑成："
+               "先查 `kb/l8/daily_via_skill.sh` 的日志 `L1_INDEX=` 行；驱动已确定性执行，"
+               "别再依赖 agent 记得。",
     }
 
 
-# ────────────────────────────────────────────── 受控自愈（陈旧 ⇒ 踢一次日更）
+# ──────────────────────────── 受控自愈（**周更这一轮没跑成** ⇒ 踢一次补跑）
 
 def _pid_alive(pid):
     """pid 还在不在。判据与 `kb_pipeline.lock_state()` 同款（那里是锁口径的真源）。"""
@@ -1117,11 +1138,11 @@ def job_running(label):
 
 def heal_decision(*, freshness_stale, claim_free, job_running_pid, lock_alive,
                   last_heal_ts=0.0, attempts_today=0, now_ts=None,
-                  kick_sig=(), last_kick_sig=(), ):
+                  kick_sig=(), last_kick_sig=(), weekly_missed=False, ):
     """**纯函数**：这一次要不要踢日更（自证里正反两面逐条喂样本）。
 
     六道前置缺一不可 —— 每一道拦的都是一种真实碰撞：
-      · 新鲜度没问题 ⇒ 根本不该有动作；
+      · 新鲜度没问题 **且** 这一轮跑成了 ⇒ 根本不该有动作；
       · 认领槽被占 ⇒ 有会话在跑这条循环，**不许抢**（库规）；
       · 日更已在跑 ⇒ 不重复踢；
       · `kb/.work/.kb.lock` 持有者活着 ⇒ 有人在写库，不抢；
@@ -1133,10 +1154,30 @@ def heal_decision(*, freshness_stale, claim_free, job_running_pid, lock_alive,
         代价：真换了层的陈旧会**立刻**放行（签名变了 ⇒ 允许再踢），所以这一道只压"原地重踢"。
       · 冷却 ⇒ 距上次动作太近时不重复。
     冷却**放最后**：它是"时间还不够"，与"这一轮已经踢过"是两件事，报出来的话不一样。
+
+    ★★ 2026-10-19（Owner：「我需要的是你解决问题」）—— **周更这一轮没跑成**也进自愈。
+      原先唯一触发条件是「新鲜度红」，而新鲜度阈值是 **8 天** ⇒ 周更失败后最长约 **2 天**没人兜；
+      实测 10-19：10:00:11 推了「周更：这一轮没跑成」，10:03:57 才**有人**手敲
+      `launchctl kickstart` 补跑（自愈台账 `kb/.work/freshness-heal.ndjson` 最后一条停在
+      2026-10-13 —— **那天没有自愈**）。⇒ 加 `weekly_missed` 这个触发因，**五道前置一道不减**；
+      「同一轮」签名由主循环给（`weekly-missed@<排期时刻>`）⇒ 同一轮只踢一次，不会重试风暴。
     """
     now_ts = time.time() if now_ts is None else now_ts
-    if not freshness_stale:
-        return False, "新鲜度没问题 ⇒ 不自愈"
+    # ★★ 2026-10-20（Owner 定 ①，实测依据见下）：**陈旧不再单独触发整链重跑**。
+    #   只认「周更这一轮没跑成」——那一轮是排期漏跑，补跑能真正补上；
+    #   而「层陈旧」在周更模式下**踢整链补不回来**：
+    #     · 陈旧阈值 8 天 > 周更周期 7 天 ⇒ 一旦判陈旧，下一次排期必在 7 天以内；
+    #     · 实测 2026-10-20：12:16 因「陈旧（L7）」踢了整链，13:45 那条链**停在 L6**
+    #       （`integrity` 崩 + `scope` 基线落伍），白跑 12–24 分钟、占掉认领，
+    #       还把 L6/L7 的运行时间戳刷新成「像跑过了」。
+    #   ⇒ 陈旧的正确处置是**告警 + 人看红在哪一层**，不是抢在排期前重跑一遍整链。
+    if not weekly_missed:
+        if freshness_stale:
+            return False, ("陈旧只告警、**不踢整链**（周更模式）：周更周期 7 天 < 陈旧阈值 8 天 "
+                           "⇒ 陈旧出现时下一次排期必在 7 天内；此时重跑整链会在排期前抢跑，"
+                           "而且它解决不了「某一层红」（2026-10-20 实测那轮停在 L6）。"
+                           "要看红在哪一层：`sh kb/kbpy l7/scripts/freshness.py` ＋ 该层 run 记录")
+        return False, "新鲜度没问题、这一轮也跑成了 ⇒ 不自愈"
     if not claim_free:
         return False, "认领槽被占（有会话在跑这条循环）⇒ 不抢"
     if job_running_pid is True:
@@ -1150,14 +1191,53 @@ def heal_decision(*, freshness_stale, claim_free, job_running_pid, lock_alive,
     # ★ 按**集合**比较，不是按元组：签名是「哪些层陈旧」，与报告顺序无关
     #   （首版写成 `tuple(a) == tuple(b)` ⇒ 顺序不同就判成"换了一轮"，⑰c 精确抓到）。
     if kick_sig and set(kick_sig) == set(last_kick_sig):
-        return False, (f"这一轮陈旧（{'、'.join(kick_sig)}）**已经踢过一次日更** ⇒ 不再重踢"
-                       f"（日更每天一轮，同一轮里踢第二次不会换结果）⇒ 等它跑完；"
-                       f"若踢过仍陈旧，人看 `~/Library/Logs/kb-pipeline-skill/out.log`")
+        return False, (f"这一轮（{'、'.join(kick_sig)}）**已经踢过一次** ⇒ 不再重踢"
+                       f"（同一轮里踢第二次不会换结果）⇒ 等它跑完；"
+                       f"若踢过仍没解决，人看 `~/Library/Logs/kb-pipeline-skill/out.log`")
     if last_heal_ts and (now_ts - last_heal_ts) < HEAL_COOLDOWN_MIN * 60:
         mins = (now_ts - last_heal_ts) / 60.0
         return False, f"距上次自愈 {mins:.0f} 分钟（< {HEAL_COOLDOWN_MIN:.0f}）⇒ 等它跑完"
-    return True, ("陈旧（%s） ＋ 认领空闲 ＋ 日更未在跑 ＋ 无活锁 ⇒ 踢一次日更"
-                  % ("、".join(kick_sig) if kick_sig else "层集合未解析"))
+    if weekly_missed:
+        _cause = (("陈旧（%s）＋" % ("、".join(kick_sig) if kick_sig else "层集合未解析"))
+                  if freshness_stale else "")
+        return True, ("%s**周更这一轮没跑成** ＋ 认领空闲 ＋ 作业未在跑 ＋ 无活锁 "
+                      "⇒ **踢一次补跑**（一周才一次机会，不能等到下周）" % _cause)
+    # ★ 2026-10-20：这一行**不可达**（`not weekly_missed` 已在函数开头早退）。
+    #   留着按 **fail-closed** 写：万一有人把上面那条早退删掉，这里也**不许**静默变成「允许踢」。
+    return False, "未命中任何自愈触发因（陈旧不再触发整链重跑）⇒ 只告警，不踢"
+
+
+def heal_causes(fresh_ok, wk_ok):
+    """**纯函数**：这一轮的自愈触发因（主循环与自证**共用同一份逻辑**）。
+
+    ★ 2026-10-19：把触发条件从 `main()` 里**抽出来**。为什么非抽不可 —— 原先这段是内联的，
+      自证只能 grep 源码；而 grep 的那串字面量**就写在自证自己的正文里** ⇒ 判据自满。
+      实测：把 `main()` 的触发退回「只认新鲜度」，⑰q **照样绿**（那是我第一版，当场抓到）。
+      ⇒ 现在主循环真调这个函数，自证喂的也是它，改坏任一处都会精确变红。
+    ★★ 2026-10-20（Owner 定 ①）：**触发因只剩 `weekly_missed`**。
+      `freshness_stale` 仍如实返回（告警正文要用它），但它**不再是触发因** ——
+      陈旧只告警、不踢整链。理由写死在 `heal_decision()` 开头那段（含 10-20 实测）。
+      判据形状没变：这条仍是一个纯函数，主循环与自证喂**同一份**逻辑（⑰q 钉着）。
+    """
+    return {"freshness_stale": fresh_ok is False,
+            "weekly_missed": wk_ok is False,
+            #: 陈旧但周更没漏 ⇒ **只告警**（不是触发；显式给个名字，免得下一个人再猜）
+            "stale_only": (fresh_ok is False) and (wk_ok is not False),
+            "triggered": (wk_ok is False)}
+
+
+def heal_sig(fresh_ok, fs_detail, wk_ok, wk_detail):
+    """**纯函数**：「这一轮」的自愈签名 —— 同一轮只踢一次就靠它。
+
+    · 陈旧因 ⇒ 陈旧的层集合（`_stale_layers`，只取层号，不含会变的字节数）；
+    · 周更因 ⇒ `weekly-missed@<排期时刻>`：**同一槽只算一轮**，下一个周末自动换了签名。
+    两者同时命中 ⇒ 两个签名都在（任一变化都算新的一轮）。
+    """
+    sig = tuple(_stale_layers(fs_detail)) if fresh_ok is False else ()
+    if wk_ok is False:
+        _due = (wk_detail or {}).get("last_due") if isinstance(wk_detail, dict) else None
+        sig = tuple(sig) + ("weekly-missed@%s" % (_due or "?"),)
+    return sig
 
 
 def _stale_layers(detail):
@@ -1421,14 +1501,25 @@ def selftest():
     #   抢正在写库的锁 / 抖动 / 停不下来），任何一条写反了都会变成"该自愈时不自愈"
     #   或"不该动时乱动" —— 后者会在别人跑评审时抢库。
     NOW = 1_800_000_000.0          # 固定时刻，判据里不许出现"现在几点"
-    base = dict(freshness_stale=True, claim_free=True, job_running_pid=False,
+    # ★ 2026-10-20（Owner 定 ①）：触发因只剩「周更这一轮没跑成」⇒ 正例喂 `weekly_missed=True`。
+    #   `freshness_stale=True` 单独**不再**触发（见 ⑧a2），所以这些前置用例都带 weekly_missed。
+    base = dict(freshness_stale=True, weekly_missed=True, claim_free=True, job_running_pid=False,
                 lock_alive=False, last_heal_ts=0.0, attempts_today=0, now_ts=NOW)
     go, why = heal_decision(**base)
-    chk("⑧ 正例：陈旧＋认领空闲＋日更没在跑＋无活锁 ⇒ 踢一次", go is True, why)
+    chk("⑧ 正例：周更这一轮没跑成＋认领空闲＋日更没在跑＋无活锁 ⇒ 踢一次补跑", go is True, why)
 
-    # ⑧a 新鲜度没问题 ⇒ 不许动（否则"每天踢一次"变成常态）
-    g, w2 = heal_decision(**{**base, "freshness_stale": False})
-    chk("⑧a 反向对照：新鲜度没问题 ⇒ 不自愈", g is False, w2)
+    # ⑧a 既没陈旧、周更也跑成了 ⇒ 不许动（否则"每天踢一次"变成常态）
+    g, w2 = heal_decision(**{**base, "freshness_stale": False, "weekly_missed": False})
+    chk("⑧a 反向对照：新鲜度没问题、这一轮也跑成了 ⇒ 不自愈", g is False, w2)
+    # ⑧a2 ★★ 2026-10-20：**陈旧单独不许触发整链重跑**（今天实测它会把链停在 L6）。
+    #   反向对照在 ⑧a3：把 weekly_missed 打开 ⇒ 必须放行 —— 证明 ⑧a2 的拒绝来自
+    #   "陈旧不算触发因"，不是"这道闸总拒"。
+    _g_a2, _w_a2 = heal_decision(**{**base, "weekly_missed": False})
+    chk("⑧a2 ★ 只有陈旧、周更没漏 ⇒ **不踢整链**，理由点明「陈旧只告警」",
+        _g_a2 is False and "不踢整链" in _w_a2, _w_a2)
+    _g_a3, _w_a3 = heal_decision(**{**base, "weekly_missed": True})
+    chk("⑧a3 反向对照：同一条件把「周更没跑成」打开 ⇒ 必须踢（拒绝来自触发因，不是总拒）",
+        _g_a3 is True, _w_a3)
     # ⑧b 认领被占 ⇒ 不许抢（库规：同一时间只准一个会话跑这条循环）
     g, w2 = heal_decision(**{**base, "claim_free": False})
     chk("⑧b 反向对照：认领槽被占 ⇒ 不抢", g is False, w2)
@@ -1495,16 +1586,16 @@ def selftest():
         import shutil
         shutil.rmtree(tmpd, ignore_errors=True)
 
-    # ⑭ L1 索引重建判据（2026-10-08 加）：阈值只认「**超过**一个日更周期」，
-    #    且「文件不在」必须与「没重建」分得开 —— 两者混了，修的人会去修错的东西。
-    #    先喂纯函数（离线、不碰盘）：
+    # ⑭ L1 索引重建判据（2026-10-08 加；2026-10-19 随周更把阈值改 8 天）：
+    #    只认「**超过**一个周更周期」，且「文件不在」必须与「没重建」分得开 ——
+    #    两者混了，修的人会去修错的东西。先喂纯函数（离线、不碰盘）：
     T = 1780000000.0                                     # 任取一个固定时刻
     chk("⑭a 1 小时前重建过 ⇒ True", _l1_index_verdict(T - 3600, T)[0] is True)
-    chk("⑭b 恰 25h（等于阈值）⇒ True —— 判据是「**超过**」才红，不是「达到」",
-        _l1_index_verdict(T - 25 * 3600, T)[0] is True)
-    chk("⑭c 26h（刚过一个日更周期没重建）⇒ False", _l1_index_verdict(T - 26 * 3600, T)[0] is False)
-    chk("⑭d 反向对照：6 天没重建（2026-10-08 的真实形状）⇒ False",
-        _l1_index_verdict(T - 6 * 24 * 3600, T)[0] is False)
+    chk("⑭b 恰 192h（8 天，等于阈值）⇒ True —— 判据是「**超过**」才红，不是「达到」",
+        _l1_index_verdict(T - 192 * 3600, T)[0] is True)
+    chk("⑭c 193h（8 天 + 1h，刚过一个周更周期没重建）⇒ False",
+        _l1_index_verdict(T - 193 * 3600, T)[0] is False)
+    chk("⑭d 反向对照：9 天没重建 ⇒ False", _l1_index_verdict(T - 9 * 24 * 3600, T)[0] is False)
     chk("⑭e mtime 为 None（文件不在）⇒ None（**未测**），不许判成「没重建」",
         _l1_index_verdict(None, T)[0] is None)
     chk("⑭f 阈值可传（自证口不依赖 env）", _l1_index_verdict(T - 30 * 3600, T, threshold_h=40)[0] is True)
@@ -1518,10 +1609,10 @@ def selftest():
         _fd, _tmp_idx = tempfile.mkstemp(suffix=".jsonl")
         os.close(_fd)
         _now = time.time()
-        os.utime(_tmp_idx, (_now - 30 * 3600, _now - 30 * 3600))
+        os.utime(_tmp_idx, (_now - 200 * 3600, _now - 200 * 3600))
         L1_INDEX = _tmp_idx
         _ro, _rd = check_l1_index_rebuilt(now=_now)
-        chk("⑭g 真函数：30h 前重建过 ⇒ False，且 reason 与 **fix** 都在"
+        chk("⑭g 真函数：200h 前重建过 ⇒ False，且 reason 与 **fix** 都在"
             "（带不出修法的红等于没红）",
             _ro is False and isinstance(_rd, dict) and bool(_rd.get("reason")) and bool(_rd.get("fix")),
             f"ok={_ro}")
@@ -1682,7 +1773,11 @@ def selftest():
 
     # ⑰ 「同一轮陈旧不重踢」＋ 阻断级冷却＝一天一条（2026-10-10，Owner 定）。
     #    形状：当天实测同一条陈旧被踢 3 次、报警 6 次 —— 这两条判据就是压它的。
-    _HK = dict(freshness_stale=True, claim_free=True, job_running_pid=False, lock_alive=False)
+    #    ★ 2026-10-20（Owner 定 ①）：**陈旧单独已不是触发因**，所以这里的正例必须
+    #      带 `weekly_missed=True` 才可能放行 —— 这一组判据量的是「同一轮/冷却」那几道闸，
+    #      不是「什么算触发」（那条归 ⑧a2/⑧a3/⑰q 管）。
+    _HK = dict(freshness_stale=True, weekly_missed=True, claim_free=True,
+               job_running_pid=False, lock_alive=False)
     chk("⑰a 首次（没有历史签名）⇒ 允许踢",
         heal_decision(**_HK, kick_sig=("L1",), last_kick_sig=())[0] is True)
     chk("⑰b ★ 同一轮（层集合一样）⇒ **拒绝重踢**，且理由点明「已经踢过一次」",
@@ -1713,8 +1808,57 @@ def selftest():
         abs(BLOCKING_COOLDOWN_H - 24.0) < 1e-9, f"BLOCKING_COOLDOWN_H={BLOCKING_COOLDOWN_H}")
     chk("⑰k 非阻断冷却仍是 6h（两类不许被一起改掉）", abs(COOLDOWN_H - 6.0) < 1e-9, f"COOLDOWN_H={COOLDOWN_H}")
     _src2 = open(__file__, encoding="utf-8").read()
-    chk("⑰l 接线：主循环把签名传进 heal_decision，且成功后记住它（拆任一处 ⇒ 本条红）",
-        "kick_sig=_kick_sig, last_kick_sig=_last_sig" in _src2 and "_remember_heal(sig=_kick_sig)" in _src2)
+    # ★★★ ⑰l/⑰q/⑰r（2026-10-19 改写）：**接线判据不许自己满足自己**。
+    #   原先 ⑰l 写的是 `"kick_sig=_kick_sig, last_kick_sig=_last_sig" in _src2`，
+    #   而那串字面量**就写在这条判据自己的正文里** ⇒ 恒真。⑰q 初版也是同一形状，
+    #   实测：把 `main()` 的触发退回「只认新鲜度」，⑰q 照样绿。
+    #   ⇒ 改写两件：① 触发与签名抽成纯函数（`heal_causes`/`heal_sig`），自证**功能性地**喂；
+    #     ② 源码接线判据只扫 `main()` 的正文（`inspect.getsource`），扫不到自证自己。
+    _main_src = inspect.getsource(main)
+    chk("⑰l 接线：`main()` 正文里把签名传给 heal_decision，且成功后记住它（拆任一处 ⇒ 本条红）",
+        "kick_sig=_kick_sig, last_kick_sig=_last_sig" in _main_src
+        and "_remember_heal(sig=_kick_sig)" in _main_src)
+    chk("⑰m 正例：**只有**周更没跑成（新鲜度还是绿的）也要踢"
+        "（改回「只认新鲜度」⇒ 本条与 ⑰q 精确变红）",
+        heal_decision(**{**base, "freshness_stale": False},
+                      kick_sig=("weekly-missed@x",))[0] is True)
+    chk("⑰n 反向对照：周更没跑成但**认领被占** ⇒ 不抢（五道前置一道不减）",
+        heal_decision(**{**base, "freshness_stale": False, "claim_free": False},
+                      kick_sig=("weekly-missed@x",))[0] is False)
+    _o1 = heal_decision(**{**base, "freshness_stale": False},
+                        kick_sig=("weekly-missed@x",), last_kick_sig=("weekly-missed@x",))
+    chk("⑰o 同一轮只踢一次：排期时刻相同 ⇒ 拒绝重踢，且理由点明「已经踢过一次」",
+        _o1[0] is False and "已经踢过一次" in _o1[1], _o1[1])
+    chk("⑰p 反向对照：**换了排期槽**（下一个周末）⇒ 立刻放行"
+        "（证明 ⑰o 的红来自「同一轮」，不是这道闸总拒）",
+        heal_decision(**{**base, "freshness_stale": False},
+                      kick_sig=("weekly-missed@y",), last_kick_sig=("weekly-missed@x",))[0] is True)
+    # 10-19 的真实形状逐条喂 **纯函数**：新鲜度绿、周更没跑成 ⇒ 必须 triggered，且只报周更因。
+    # ★ 2026-10-20（Owner 定 ①）改写：**触发因只剩周更**。原来 `heal_causes(False, False)`
+    #   断言「陈旧也触发」⇒ 现在必须是 False，并由 `stale_only` 如实标出来（告警要用，但不踢）。
+    chk("⑰q **功能**接线：触发因由 `heal_causes()` 算 —— 10-19 形状（周更没跑成）⇒ triggered；"
+        "10-20 形状（只有陈旧）⇒ **不 triggered 但 `stale_only`**"
+        "（改回「陈旧也触发」或「只看新鲜度」⇒ 本条精确变红）",
+        heal_causes(True, False) == {"freshness_stale": False, "weekly_missed": True,
+                                     "stale_only": False, "triggered": True}
+        and heal_causes(True, True)["triggered"] is False
+        and heal_causes(False, True)["freshness_stale"] is True
+        and heal_causes(False, True)["triggered"] is False
+        and heal_causes(False, True)["stale_only"] is True
+        and heal_causes(False, False)["triggered"] is True)
+    chk("⑰r 签名由 `heal_sig()` 算：周更因带排期时刻，换槽 ⇒ 签名变"
+        "（这是「同一轮只踢一次」的凭据）",
+        heal_sig(True, None, False, {"last_due": "2026-10-18T03:30:00+08:00"})
+        == ("weekly-missed@2026-10-18T03:30:00+08:00",)
+        and heal_sig(True, None, False, {"last_due": "2026-10-25T03:30:00+08:00"})
+        != heal_sig(True, None, False, {"last_due": "2026-10-18T03:30:00+08:00"})
+        and heal_sig(True, None, False, None) == ("weekly-missed@?",)
+        and heal_sig(False, {"stale_items": ["· **L7 …"]}, True, None) == ("L7",))
+    chk("⑰s 源码接线：`main()` 正文里真的用 `heal_causes()` 的结论当触发、并用 `heal_sig()` 算签名"
+        "（把 `if _hc[\"triggered\"]:` 退回 `if fresh_ok is False:` ⇒ 本条精确变红；"
+        "扫的是 `main()`，扫不到自证自己）",
+        "heal_causes(" in _main_src and "heal_sig(" in _main_src
+        and '_hc["triggered"]' in _main_src)
 
     # ⑱ 回归基线漂移（2026-10-12 加）：**非阻断**项 —— 三态分得开，且判据有反向对照。
     #    为什么它是非阻断：它说的是「改了上游、三态变了」，不是「此刻跑不跑得起来」；
@@ -1963,15 +2107,121 @@ def selftest():
     _w_ok, _w_d = check_weekly_run_ran(_dt.datetime(2026, 10, 11, 6, 0, tzinfo=_tz), _p_week)
     chk("㉓f 排期时刻才过 2.5h（宽限 %gh 内）⇒ True（**机器睡过去、醒来补跑**不许误报）"
         % WEEKLY_GRACE_H, _w_ok is True, str((_w_d or {}).get("note"))[:70])
-    _r_ok, _r_d = check_weekly_run_ran(_fri, _p_week)
-    chk("㉓g 这一轮真跑过（真库：最近一次跑成的 RUN 覆盖了这个排期时刻）⇒ True",
-        _r_ok is True, str((_r_d or {}).get("note"))[:70])
-    _m_ok, _m_d = check_weekly_run_ran(_dt.datetime(2026, 10, 26, 12, 0, tzinfo=_tz), _p_week)
-    chk("㉓h **真造一次「没跑」**（时间推到 10-26，真库最近一次跑成在 10-16）⇒ False，"
-        "且 reason 点名排期时刻、fix 给得出能跑的命令",
-        _m_ok is False and "10-25 03:30" in str((_m_d or {}).get("reason"))
-        and "kickstart" in str((_m_d or {}).get("fix")),
-        str((_m_d or {}).get("reason"))[:90])
+    # ㉓g–㉓k 夹具：**不再拿真库当输入**（真库会被 daily_health 记录/未来周更改变，
+    # 旧写法 ㉓h 的「真库最近跑成在 10-16」是个时间炸弹）。临时 KB 只造判据要的落章。
+    import tempfile as _tf3, json as _json3, shutil as _sh3
+    def _mk_week_kb(runs):
+        _root = _tf3.mkdtemp(prefix="kb-week-")
+        for _L, _spec in runs.items():
+            _d = os.path.join(_root, _L.lower(), "runs")
+            os.makedirs(_d, exist_ok=True)
+            with open(os.path.join(_d, _spec["run_id"] + ".json"), "w", encoding="utf-8") as _fh:
+                _json3.dump(_spec, _fh)
+        return _root
+
+    _full = {L: {"run_id": "daily-20261016-0330-%s" % L,
+                 "at": "2026-10-16T04:18:00",
+                 "source": "pipeline_sync",
+                 "change_state": "produced_changes",
+                 "input_watermark": "x"} for L in ("L1", "L2", "L3", "L4", "L5", "L6", "L7")}
+    _kb_full = _mk_week_kb(_full)
+    try:
+        _r_ok, _r_d = check_weekly_run_ran(_fri, _p_week, kb_root=_kb_full)
+        chk("㉓g 整轮 L1–L7 都跑成 ⇒ True（夹具 KB，不再拿真库当输入）",
+            _r_ok is True, str((_r_d or {}).get("note"))[:70])
+    finally:
+        _sh3.rmtree(_kb_full, ignore_errors=True)
+
+    _kb_l0 = _mk_week_kb({"L0": {"run_id": "daily-20261016-0330-L0",
+                                 "at": "2026-10-16T03:35:00",
+                                 "source": "pipeline_sync",
+                                 "change_state": "produced_changes",
+                                 "input_watermark": "x"}})
+    try:
+        _j_ok, _j_d = check_weekly_run_ran(_fri, _p_week, kb_root=_kb_l0)
+        chk("㉓j 只 L0 跑成（10-18 停在 L0 的真实形状）⇒ False，且 missing_layers 点名 L1–L7",
+            _j_ok is False
+            and set((_j_d or {}).get("missing_layers") or []) == {"L1", "L2", "L3", "L4", "L5", "L6", "L7"},
+            str((_j_d or {}).get("reason"))[:90])
+    finally:
+        _sh3.rmtree(_kb_l0, ignore_errors=True)
+
+    _kb_empty = _tf3.mkdtemp(prefix="kb-week-empty-")
+    try:
+        _m_ok, _m_d = check_weekly_run_ran(_dt.datetime(2026, 10, 26, 12, 0, tzinfo=_tz),
+                                           _p_week, kb_root=_kb_empty)
+        chk("㉓h **真造一次「没跑」**（夹具 KB 里没有任何 L1–L7 落章）⇒ False，"
+            "且 reason 点名排期时刻、fix 给得出能跑的命令",
+            _m_ok is False and "10-25 03:30" in str((_m_d or {}).get("reason"))
+            and "kickstart" in str((_m_d or {}).get("fix")),
+            str((_m_d or {}).get("reason"))[:90])
+    finally:
+        _sh3.rmtree(_kb_empty, ignore_errors=True)
+
+    # ㉓k C1 反测：`_latest_run_record` 必须跳过**不是层运行**的记录
+    #    （`daily_health` 只读体检 / `l0_daily` 只读门 / 预演档 / **别的层的记账**）。
+    #    真库里 L7 的 run_at 就是被这些记录顶新的；删掉过滤器 ⇒ 本条精确变红。
+    import layer_freshness as _lf_mod
+    _kb_rec = _tf3.mkdtemp(prefix="kb-rec-")
+    try:
+        _d = os.path.join(_kb_rec, "l7", "runs")
+        os.makedirs(_d)
+        with open(os.path.join(_d, "20261019-0950.json"), "w", encoding="utf-8") as _fh:
+            _json3.dump({"run_id": "20261019-0950", "at": "2026-10-19T09:50:27",
+                         "source": "l0_daily"}, _fh)
+        with open(os.path.join(_d, "20261019-0946-L7.json"), "w", encoding="utf-8") as _fh:
+            _json3.dump({"run_id": "20261019-0946-L7", "at": "2026-10-19T09:46:58",
+                         "source": "pipeline_sync",
+                         "verdict": "全走完（预演 · 未落盘 · 非执行证据）"}, _fh)
+        with open(os.path.join(_d, "20261019-0935.json"), "w", encoding="utf-8") as _fh:
+            _json3.dump({"run_id": "20261019-0935", "at": "2026-10-19T09:35:00",
+                         "source": "daily_health"}, _fh)
+        with open(os.path.join(_d, "daily-20261018-0330-L0.json"), "w", encoding="utf-8") as _fh:
+            _json3.dump({"run_id": "daily-20261018-0330-L0", "at": "2026-10-18T03:35:41",
+                         "source": "pipeline_sync",
+                         "verdict": "停在 L0 闸门红：exit=1 ｜ 退出码：1"}, _fh)
+        with open(os.path.join(_d, "daily-20261016-0330-L7.json"), "w", encoding="utf-8") as _fh:
+            _json3.dump({"run_id": "daily-20261016-0330-L7", "at": "2026-10-16T04:18:00",
+                         "source": "pipeline_sync", "change_state": "produced_changes",
+                         "input_watermark": "x"}, _fh)
+        _now2 = time.time()
+        os.utime(os.path.join(_d, "daily-20261016-0330-L7.json"), (_now2 - 300, _now2 - 300))
+        os.utime(os.path.join(_d, "20261019-0946-L7.json"), (_now2 - 200, _now2 - 200))
+        os.utime(os.path.join(_d, "20261019-0950.json"), (_now2 - 100, _now2 - 100))
+        os.utime(os.path.join(_d, "daily-20261018-0330-L0.json"), (_now2 - 50, _now2 - 50))
+        os.utime(os.path.join(_d, "20261019-0935.json"), (_now2, _now2))
+        _m, _rec, _p, _rej = _lf_mod._latest_run_record(_kb_rec, "L7")
+        chk("㉓k `_latest_run_record` 跳过只读体检 / L0 门 / 预演档 / 别的层的记账（只认真运行）",
+            os.path.basename(_p or "") == "daily-20261016-0330-L7.json"
+            and (_rec or {}).get("change_state") == "produced_changes",
+            f"picked={os.path.basename(_p or '')}")
+    finally:
+        _sh3.rmtree(_kb_rec, ignore_errors=True)
+
+    # ㉓l L7 例外：周更/日更驱动的 L7 预演记录**就是**它的真运行（只读闸门）；
+    #    放过它，否则 judge 会回退到很久以前的记录、把 run_lower_bound 拉到过去 ⇒ 误判陈旧。
+    _kb_l7prev = _tf3.mkdtemp(prefix="kb-l7prev-")
+    try:
+        _d = os.path.join(_kb_l7prev, "l7", "runs")
+        os.makedirs(_d)
+        with open(os.path.join(_d, "20261019-0946-L7.json"), "w", encoding="utf-8") as _fh:
+            _json3.dump({"run_id": "20261019-0946-L7", "at": "2026-10-19T09:46:58",
+                         "source": "pipeline_sync",
+                         "verdict": "全走完（预演 · 未落盘 · 非执行证据）"}, _fh)
+        with open(os.path.join(_d, "daily-20261019-1003-L7.json"), "w", encoding="utf-8") as _fh:
+            _json3.dump({"run_id": "daily-20261019-1003-L7", "at": "2026-10-19T10:45:26",
+                         "source": "pipeline_sync",
+                         "verdict": "全走完（预演 · 未落盘 · 非执行证据）",
+                         "extra": {"layers": ["L7"]}}, _fh)
+        _now3 = time.time()
+        os.utime(os.path.join(_d, "20261019-0946-L7.json"), (_now3 - 100, _now3 - 100))
+        os.utime(os.path.join(_d, "daily-20261019-1003-L7.json"), (_now3, _now3))
+        _m, _rec, _p, _rej = _lf_mod._latest_run_record(_kb_l7prev, "L7")
+        chk("㉓l L7 例外：`daily-` 开头的 L7 预演记录算真运行（不放行 ⇒ 回退旧记录、误判陈旧）",
+            os.path.basename(_p or "") == "daily-20261019-1003-L7.json",
+            f"picked={os.path.basename(_p or '')}")
+    finally:
+        _sh3.rmtree(_kb_l7prev, ignore_errors=True)
     _ident = "nxt - (nxt - " + "datetime.timedelta(days=1))"
     chk("㉓i **恒等式回归**：凭据前瞻的「更新周期」不许再写成 `nxt - (nxt - 1 天)`"
         "（它恒等于 24h，从来没读过排期 —— 周更当场把这句话变成假话）",
@@ -2297,7 +2547,7 @@ def main():
     l1idx = []
     if idx_ok is not True:
         d = idx_detail if isinstance(idx_detail, dict) else {"reason": str(idx_detail)}
-        l1idx.append({"title": ("L1 索引：**日更的 ③c 没被执行**" if idx_ok is False
+        l1idx.append({"title": ("L1 索引：**周更的 ③c 没被执行**" if idx_ok is False
                                 else "L1 索引：**未测**（索引文件不在）"), **d})
 
     # ★ 令牌寿命：同样**非阻断** —— 此刻能跑，但撑不到下次日更就会复发。
@@ -2374,22 +2624,33 @@ def main():
         if isinstance(hz_detail, dict) else None,
     }
 
-    # ★★ 受控自愈（2026-10-07）：陈旧 ⇒ **在五道前置全过时踢一次日更**。
+    # ★★ 受控自愈（2026-10-07；**2026-10-20 Owner 定 ① 改触发面**）：
+    #   **只认「周更这一轮没跑成」**，在五道前置全过时踢一次补跑。
+    #   陈旧（`fresh_ok=False`）**不再触发**：周更周期 7 天 < 陈旧阈值 8 天 ⇒
+    #   陈旧出现时下一次排期必在 7 天内；此时踢整链是抢跑，且补不回某一层的红
+    #   （2026-10-20 实测：12:16 因「陈旧（L7）」踢的那轮 13:45 **停在 L6**）。
+    #   陈旧仍进告警正文（`check_freshness` 的 fix 写清下一步），但不自动动手。
     #   放在告警**之前**：这样同一条告警里就能写清「我做了什么、成了没成」，
     #   而不是等下一次巡检才说 —— 人看到的是一句话，不是两半。
     heal_items, heal_rec = [], None
     cd = dict(checks)
     fresh_ok = cd.get("新鲜度", (True, {}))[0]
     claim_ok = cd.get("认领", (True, {}))[0]
-    if fresh_ok is False:
+    _hc = heal_causes(fresh_ok, wk_ok)
+    if _hc["triggered"]:
         jr_pid, jr_why = job_running(DAILY_SKILL_LABEL)
         lock_on, lock_why = kb_lock_alive()
         last_ts, n_today = _heal_state()
         # ★ 2026-10-10：算「本轮陈旧的层集合」当签名，并读回「上一轮踢的是哪个集合」。
-        _fs_detail = cd.get("新鲜度", (True, {}))[1]
-        _kick_sig = _stale_layers(_fs_detail)
+        # ★★ 2026-10-19（Owner：「我需要的是你解决问题」）：**周更这一轮没跑成**也触发自愈。
+        #   原先是「新鲜度红」才动，而新鲜度阈值 8 天 ⇒ 周更失败后要等约 2 天才有人兜；
+        #   10-19 实测就是**人**在 10:03 手敲 kickstart 补的（自愈台账最后一条停在 10-13）。
+        #   触发条件与签名都走**纯函数**（`heal_causes` / `heal_sig`），自证喂同一份逻辑。
+        _kick_sig = heal_sig(fresh_ok, cd.get("新鲜度", (True, {}))[1], wk_ok, wk_detail)
         _last_sig, _last_sig_at = _heal_sig_state()
-        go, why = heal_decision(freshness_stale=True, claim_free=(claim_ok is not False),
+        go, why = heal_decision(freshness_stale=_hc["freshness_stale"],
+                                weekly_missed=_hc["weekly_missed"],
+                                claim_free=(claim_ok is not False),
                                 job_running_pid=jr_pid, lock_alive=lock_on,
                                 last_heal_ts=last_ts, attempts_today=n_today,
                                 kick_sig=_kick_sig, last_kick_sig=_last_sig)

@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.82 是正例还是反例
   - S-1.82 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-6f6ab6a73b5faa9d"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 展会
 reason_category: unknown
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2vgYXZ4nD/原文反馈"
-source_sha256: 06805cdaf2bc76476755af370962401752b2a1adac0ffe7efc9c5745f7d22900
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXZ4nD
+anchor: "#负面样本/recvw7XJiSslM3/具体原因/分析"
+source_sha256: 17b44f38b458caaa74e1b2abc60715e067b14a926c6d7ccbe5c023e52b87384e
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XJiSslM3
 sample_body: "【审核 · 2026-09-14 20:39 · 姚棉元】【终审-@[已脱敏] 】辛苦姐姐看看这个呀:YouAreTheBest: **项目信息** **项目名：**澳洲展会AI海报需求 **设计要求：** ![Image](img_v3_0215h_25230eb7-249c-4551-8d00-60a54c75699g) 原图⬆️ - 仅修改原图中的产品（奶瓶刷→储奶袋）、尺寸扩展为800m w* 300mm H **设计稿** ![Image](img_v3_0215h_39485a02-11ba-4bd0-ad14-b4aea529c82g) ![Image](img_v3_0215h_45eab37a-1d29-4e6f-82e5-c353c092f68g)"
 reason_analysis: "【审核问题】图片 【终审-@[已脱敏] 】辛苦姐姐看看这个呀。 【问题要点】 1. 【终审-@[已脱敏] 】辛苦姐姐看看这个呀 2. - 仅修改原图中的产品（奶瓶刷→储奶袋）、尺寸扩展为800m w* 300mm H"
 advice: ""
@@ -82,8 +82,8 @@ advice: ""
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2vgYXZ4nD/原文反馈`
-- 指纹：`06805cdaf2bc76476755af370962401752b2a1adac0ffe7efc9c5745f7d22900`
+- 锚点：`#负面样本/recvw7XJiSslM3/具体原因/分析`
+- 指纹：`17b44f38b458caaa74e1b2abc60715e067b14a926c6d7ccbe5c023e52b87384e`
 - 原因归类：unknown　|　素材类型：图片
 
 > 案例只作参照，不构成规则。

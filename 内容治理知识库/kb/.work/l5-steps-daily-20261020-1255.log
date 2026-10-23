@@ -1,0 +1,41 @@
+### prep :: kb/kbpy .work/l5_prep.py daily-20261020-1255-L5 --apply
+基线：候选规则 1018 行 sha256=e7d566f25f16677b
+[归一] 读入 1018 行 → 按 rule_id 取最新后 509 条（同一 rule_id 有多行：上游重建后遗留的旧行）
+[幂等守卫·历史] manifest_l3 里已有 509 个 rule_id 的富化行且 evidence_digest 相同（**不受 rules.jsonl 被覆盖影响**）→ 本次追加 509 → 0 行
+[富化去向] 本轮富化 0 条**只落 `manifest_l3`**（唯一真源）；`rules.jsonl` 保持派生件形态（生行，由上游重建）——不追加。读者走 `kb_ledger.rules_enriched_view`。
+[去重] @l5_prep.py/manifest_l3 候选 0 行 → 追加 0 行（新增 0 / 变更 0 / **跳过同内容重复 0**）
+追加 0 行 | 最新 509 条
+  rule_kind: {'atomic': 483, 'inductive': 26}
+  authority: {'expert': 416, 'inferred': 93}
+  p_level: {'P0': 22, 'P1': 476, 'P3': 4, 'P2': 7}
+### prep EXIT=0
+### export :: kb/kbpy .work/l5_export.py daily-20261020-1255-L5 --apply
+[来源] 措辞候选 + 外部标准候选合成视图 → 共 638 个 rule_id
+[富化] 生行 1147 行 / 638 个 rule_id ｜ 从 manifest_l3 补齐 515 条 ｜ 无富化 123 ｜ 陈旧 0
+P0 45 条 → 入选 17（其中准入白名单 10） | 排除 {'non_P0': 593, 'P0_but_authority_insufficient': 5, 'P0_admitted_by_allowlist': 10, 'P0_but_inductive': 6, 'P0_but_no_enrich': 17}
+  [处置留痕] P0 共 45 条 = 入选 17 + 排除 28（**每条都有 reason/why，无原因丢弃 = 0**）
+入选集合 rule_code 唯一性检查：PASS
+模式 17 条 | keyword 式 209 | regex 式 26 | 有白名单 17 | 无法生成 0
+词级溯源 {'verbatim_source': 141, 'equivalent_of': 50, 'verbatim_rule_text': 18} | 剔除凭空词 0
+### export EXIT=0
+### bench :: kb/kbpy .work/l5_bench.py daily-20261020-1255-L5 --apply
+single_primary_text         39 字符 /       1 行  min=   0.087 ms  median=   0.088 ms  max=   0.090 ms  命中规则=  ✅（hard_under_1s）
+single_with_hit            751 字符 /       1 行  min=   1.941 ms  median=   2.215 ms  max=   3.399 ms  命中规则=H02  ✅（hard_under_1s）
+batch_ad_copy            129.5 KB /     464 行  min= 708.296 ms  median= 725.919 ms  max= 727.710 ms  命中规则=H02,H04,H05,H07,H09,M03,U04  ✅（hard_under_1s）
+large_doc_1mb           1035.8 KB /    3712 行  min=5846.763 ms  median=6127.825 ms  max=6150.539 ms  命中规则=H02,H04,H05,H07,H09,M03,U04  ❌（per_pattern_le_120ms）
+冷启动（读模式表 + 编译正则）：9.714 ms（一次性）
+
+单条文案摊薄耗时：1.5645 ms/条（725.919 ms ÷ 464 条）
+验收：FAIL → /Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/l5/benchmark.json
+### bench EXIT=1
+### report :: kb/kbpy .work/l5_report.py daily-20261020-1255-L5 --apply --skill kb-p0-check
+[富化] 生行 1147 行 / 638 个 rule_id ｜ 从 manifest_l3 补齐 515 条 ｜ 无富化 123 ｜ 陈旧 0
+⚠️ P0 规则缺富化字段（rule_kind/authority）共 17 条：['r-03ec44de7eb8fb64', 'r-0d1e46b923cbf9f8', 'r-12fe094401654cb2', 'r-29bf2758f44d19de', 'r-659431b7cda22110', 'r-6e212146ea9a1bcf', 'r-7c0d541cb506ce30', 'r-8334d7fba8f6d436'] …
+   ⇒ 按 `l5_export.py:539` 同一口径：**进不了 P0 快路**（判不了 atomic/authority），但逐条列进 run 产物 `p0_no_enrich`，**不静默消失**。
+[apply] 台账 → kb/l5/runs/daily-20261020-1255-L5.json（顶层 skill=kb-p0-check）
+Traceback (most recent call last):
+  File "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理/kb/.work/l5_report.py", line 559, in <module>
+    A(f"| {e['rule_code'] or '（空码）'} | `{e['rule_id']}` | {e['rule_kind']} | {e['authority']} | {e['authority_source_table']} |")
+KeyError: 'authority_source_table'
+### report EXIT=1
+L5 DONE

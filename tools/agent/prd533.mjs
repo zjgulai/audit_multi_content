@@ -6,7 +6,7 @@
  *   本文件**不写死任何上限/模式** —— 写死就是第二份口径。
  *
  * 四条约束（PRD 逐字）：
- *   ① 单条问题：描述 ≤50 字、原因 ≤50 字、修改建议 ≤30 字
+ *   ① 单条问题：描述 ≤50 字、原因 ≤50 字、修改建议 ≤60 字（Owner 2026-10-21 调整）
  *   ② 位置：必须精确到「图 N 第 X 处」「视频 00:12」「正文第 X 段」
  *   ③ 依据：必须写「《文档名》第 X 条」或「规则 ID」，禁止写「相关法规」
  *   ④ 语言：客观、指令式；禁止「可能」「建议可以考虑」等废话（REVIEW 边界说明除外）
@@ -14,9 +14,7 @@
  * ★ 与 §17 的关系：§17 管**整条/每条消息**的字数，§5.3.3 管**每条问题里每个字段**的字数。
  *   两把尺互补，都读各自的 registry。
  *
- * ★ 本模块**只给读数、不阻断**：实测有三处与 Owner 既有裁定**直接冲突**
- *   （最硬的一条：`修改建议 ≤30 字` vs Owner 2026-10-17「建议都写全」，真单建议实测 372 字），
- *   冲突登记在 registry 的 `conflicts` X1/X2/X3，等 Owner 裁。
+ * ★ 本模块**只给读数、不阻断**。修改建议上限以 registry 的 Owner 2026-10-21 覆盖值为准。
  */
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -125,6 +123,15 @@ export function countAdviceChars(text) {
   return stripForCount(text).replace(ADVICE_PUNCT_RE, '').length;
 }
 
+/** 字段上限从唯一 registry 读取，提示词、渲染与验收共用同一数值。 */
+export function fieldLimit(key) {
+  const row = loadConstraints().fields.find((f) => f.key === key);
+  if (!row) throw new Error(`[prd533] registry 缺少字段上限：${key}`);
+  return Number(row.limit);
+}
+
+export const ADVICE_MAX = fieldLimit('advice');
+
 /** 每条问题里**逐字段**的字数判定。 */
 export function checkFields(item = {}) {
   const C = loadConstraints();
@@ -159,7 +166,16 @@ export function checkLocation(location) {
  * ⚠️ 没给模态 ⇒ `skipped: true`（**不判**，与调用方未升级时行为一致，不许静默判红或判绿）。
  * ⚠️ 与字数限制无关：本函数只判形态，不碰 `fields` 的任何上限。
  */
-const MODALITY_PATTERN = { image: 'figure', video: 'video', text: 'text' };
+// ★★ 2026-10-22（Owner 裁定「给面板形态开口子」）：图片多认两种形态 ——
+//   `figure_area`（图片顶部，图 1 第 3 处）与 `figure_panel`（图 1 上方面板 / 图 1 主视觉）。
+//   后者是**画面面板上的发现**：它没有图内文字行号可写，硬编「第 X 处」就是编造读数。
+//   三个 id 都登记在真源 `prd533-constraints.yaml` 里 —— 本文件只写「哪些 id 属于哪个模态」，
+//   不复制正则（复制一份就会各自漂）。
+const MODALITY_PATTERN = {
+  image: ['figure', 'figure_area', 'figure_panel'],
+  video: ['video'],
+  text: ['text'],
+};
 export function checkLocationFor(location, modality) {
   const C = loadConstraints();
   const s = String(location ?? '').trim();
@@ -168,14 +184,15 @@ export function checkLocationFor(location, modality) {
     return { ok: true, skipped: true, modality: String(modality ?? '') || null, pattern: null,
       value: s, expected: null };
   }
-  const p = (C.location || []).find((x) => x.id === want) || null;
-  if (!p) {
+  const ids = Array.isArray(want) ? want : [want];
+  const cands = ids.map((id) => (C.location || []).find((x) => x.id === id)).filter(Boolean);
+  if (!cands.length) {
     return { ok: false, skipped: false, modality, pattern: null, value: s,
       expected: '（登记件里没有这一形态，检查配置）' };
   }
-  let ok = false;
-  try { ok = new RegExp(p.regex).test(s); } catch { ok = false; }
-  return { ok, skipped: false, modality, pattern: ok ? p.id : null, value: s, expected: p.sample };
+  const hit = cands.find((p) => { try { return new RegExp(p.regex).test(s); } catch { return false; } }) || null;
+  return { ok: !!hit, skipped: false, modality, pattern: hit ? hit.id : null, value: s,
+    expected: cands.map((p) => p.sample).join(' / ') };
 }
 
 /** 依据是否写了「《文档名》第 X 条」或「规则 ID」，且没有「相关法规」这类空话。 */
@@ -237,14 +254,14 @@ export function selftest() {
   console.log('\n=== PRD §5.3.3 输出字数与格式硬约束 自证 ===');
 
   const C = loadConstraints();
-  eq('① 三个字段上限 = 50/50/30（PRD 逐字）',
-    C.fields.map((f) => `${f.key}=${f.limit}`), ['description=50', 'reason=50', 'advice=30']);
+  eq('① 三个字段上限 = 50/50/60（建议上限由 Owner 2026-10-21 调整）',
+    C.fields.map((f) => `${f.key}=${f.limit}`), ['description=50', 'reason=50', 'advice=60']);
   eq('①b 真源带 PRD 版本（可回溯）', typeof C.revision, 'number');
 
   // ② 字段字数：贴线合规、超一字就红
   eq('② 描述恰好 50 字 ⇒ 合规', checkFields({ description: '字'.repeat(50) }).rows[0].ok, true);
   eq('②b 描述 51 字 ⇒ 超 1', checkFields({ description: '字'.repeat(51) }).rows[0].over, 1);
-  eq('②c 建议 31 字 ⇒ 超 1（上限 30 比另两格更紧）', checkFields({ advice: '字'.repeat(31) }).rows[2].over, 1);
+  eq('②c 建议 61 字 ⇒ 超 1（上限 60）', checkFields({ advice: '字'.repeat(61) }).rows[2].over, 1);
   // 反向对照：同一段 31 字放进「原因」那格 ⇒ 合规（证明逐字段各自判定）
   eq('②d 反向对照：同样 31 字放进原因 ⇒ 合规', checkFields({ reason: '字'.repeat(31) }).rows[1].ok, true);
 
@@ -283,6 +300,15 @@ export function selftest() {
   eq('⑥c 图片 + 「图 1 第 2 处」⇒ 过', checkLocationFor('图 1 第 2 处', 'image').ok, true);
   eq('⑥d 图片 + 「正文第 7 段」⇒ 红（2026-10-19 真单现场）',
     checkLocationFor('正文第 7 段', 'image').ok, false);
+  // ★★ 2026-10-22：面板形态与区域形态都要过；面板形态带「第 X 处」必须红
+  eq('⑥c2 图片 + 「图 1 上方面板」⇒ 过（面板类发现）',
+    checkLocationFor('图 1 上方面板', 'image').ok, true);
+  eq('⑥c3 图片 + 「图片顶部，图 1 第 3 处」⇒ 过（区域前缀形态）',
+    checkLocationFor('图片顶部，图 1 第 3 处', 'image').ok, true);
+  eq('⑥c4 图片 + 「图 1 上方面板 第 3 处」⇒ 红（面板上不许编行号）',
+    checkLocationFor('图 1 上方面板 第 3 处', 'image').ok, false);
+  eq('⑥c5 图片 + 「图 1 随便写」⇒ 红（面板名是闭集）',
+    checkLocationFor('图 1 随便写', 'image').ok, false);
   eq('⑥e 视频 + 「视频 00:12」⇒ 过', checkLocationFor('视频 00:12', 'video').ok, true);
   eq('⑥f 视频 + 「[00:12]」⇒ 红（模型侧旧形状）', checkLocationFor('[00:12]', 'video').ok, false);
   eq('⑥g 文字 + 「正文第 3 段」⇒ 过', checkLocationFor('正文第 3 段', 'text').ok, true);

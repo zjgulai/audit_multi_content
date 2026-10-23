@@ -1,0 +1,49 @@
+{
+ "run_id": "daily-20261018-0330-L0",
+ "at": "2026-10-18T03:35:41",
+ "source": "pipeline_sync",
+ "trigger": "--sync --via-skill L0",
+ "skills": [
+  "kb-pipeline",
+  "kb-l0-feishu"
+ ],
+ "commands": [
+  "kb/kbpy l7/scripts/kb_pipeline.py --sync --via-skill --only L0 --run daily-20261018-0330-L0 --invoked kb-l0-feishu --skill-session L0=session-8c4bb04c-9dff-4c36-a64c-96cfd4d91c3d"
+ ],
+ "products": [],
+ "verdict": "停在 L0 闸门红：exit=1 ｜ 退出码：1",
+ "human_involved": true,
+ "extra": {
+  "via_skill": true,
+  "skill_invoked_by": "agent",
+  "skill_evidence": "agent_reported",
+  "skill_evidence_note": "该 RUN 在 kb/<层>/runs/ 里**读不到任何非预演落章**⇒ 无观测值，退回注册表声明（skill_evidence=registry_echo）",
+  "observed_skills": [],
+  "observed_skills_sources": [],
+  "layers": [],
+  "layer_skills": [],
+  "declared_layer_skills": {},
+  "layer_skills_uniq": [],
+  "invoked_reported": [
+   "kb-l0-feishu"
+  ],
+  "skill_sessions": {
+   "L0": "session-8c4bb04c-9dff-4c36-a64c-96cfd4d91c3d"
+  },
+  "human_involved_basis": "--invoked 已上报（agent 按层 skill 走过）",
+  "verdict_basis": "层侧无落章或中途停下 → 退回现状文案",
+  "layer_stamps_applied": [],
+  "layer_stamps_dry": [],
+  "layer_stamps_unknown": [],
+  "write_gate": {
+   "id": null,
+   "resolved": false,
+   "layers_authorized": null,
+   "unauthorized_layers": [
+    "L0"
+   ],
+   "readonly_declared": [],
+   "msg": "**未带 --write-gate 凭据** → 本次按「各层只许只读档」对待；层引擎不得带 --apply。凭据表见 kb/l7/registry/write-gate.yaml"
+  }
+ }
+}

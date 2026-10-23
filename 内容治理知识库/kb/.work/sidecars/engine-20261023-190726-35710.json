@@ -1,0 +1,206 @@
+{
+ "decision": {
+  "state": "REVIEW",
+  "decision": "REVIEW",
+  "confidence": null,
+  "review_id": "rv-20261023-190737",
+  "content_id": "AUTO-cc793521f9a1",
+  "content_id_basis": "指纹兜底：本单 `--no-publish-to-feishu`，不发飞书故不发业务号（不是漏发）",
+  "content_version": "cc793521f9a10b681a2c248ef9ac884585e14c7445a3ee4a9de0fd9cda5075ba",
+  "issue_count": 0,
+  "summary": "【审查结论：REVIEW】共发现 0 处需人工确认。\n\n**本次没有发现内容问题**（0 处）。下面是**覆盖缺口**说明 —— 缺的是**库覆盖**，不是素材有问题：\n\n**覆盖缺口说明（不是内容问题）**：本次素材的**文字层逐字命中 0 条**，但覆盖判据不成立（没有「既被规则引用、又达门限」的单元）——**这不是素材有问题，是库对该题材没有可依据的条款**。\n   原因：依据侧检索到 5 条命中，最高 BM25 269.3426（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。\n   依据：`kb/l7/registry/l7.json` 的 `retrieval.gate.coverage_bm25_min=16.0`（覆盖判据标定值；覆盖信号不成立时**不得输出 PASS**）\n   建议：转人工复核后再定；补素材无用（缺的是库覆盖）。\n\n**库内命中（读数）** —— 检索命中了 5 条，逐条列出**原文与直链**：\n\n1. `#关键方案!A1:T202`｜BM25 269.3426｜external_standard\n   命中原文（逐字）：[row=1] ,关键方案,,,,关键文档,,,,,,,,,,,,,, [row=2] ,NO,内容,文档,,NO,内容,文档,,,,,,,,,,,, [row=3] ,1,再营销方案,Wellness 1 再营销规划 ,,1,专家内容整理,Wellness 1 吸奶器专家记录表 ,,,,,,,,,,,, [row=4\n   直链：https://momcozy-in.feishu.cn/sheets/BX0QshqWThhY6HtDEFCcnMpsnRc?sheet=SWMYUF\n2. `#l.1-1`｜BM25 161.3434｜wording\n   命中原文（逐字）：Momcozy Air 1 Ultra-slim Wearable Breast Pump | Momcozy CA Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush\n   直链：https://ca.momcozy.com/products/momcozy-air-1-ultra-slim-breast-pump?variant=47796531986619\n3. `#l.1-1`｜BM25 159.5594｜wording\n   命中原文（逐字）：V1 Pro Hands-Free Breast Pump | Hospital-grade Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether To\n   直链：https://momcozy.com/products/v1-pro-hospital-grade-wearable-breast-pump\n4. `#l.1-1`｜BM25 153.1441｜wording\n   命中原文（逐字）：V1 Pro Hospital-Grade Wearable Breast Pump | Hands-Free CA Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush\n   直链：https://ca.momcozy.com/products/v1-pro-hospital-grade-wearable-breast-pump\n5. `#亚马逊!A1:T389`｜BM25 152.9179｜external_standard\n   命中原文（逐字）：[row=1] ,https://alidocs.dingtalk.com/i/nodes/kDnRL6jAJMDXrrRxuXg1Lo7xVyMoPYe1?utm_scene=person_space,,,,,,,,,,,,,,,,,, [row=2] ,亚马逊,独立站,TGT ,N =82,,,,,,,,,,,,,\n   直链：https://momcozy-in.feishu.cn/sheets/BX0QshqWThhY6HtDEFCcnMpsnRc?sheet=SWMYUF\n\n> ⚠️ 上面是**读数**：命中的**大多是别人的素材样本 / 外部材料，不是覆盖本素材的条款**，**不得据此当 PASS 依据**，也不得当作「本素材已合规」的证明。\n\n建议转 @法务（未配置） @北美同事（未配置） 复核。",
+  "risk_items": [
+   {
+    "risk_type": "覆盖缺口",
+    "priority_tier": "转人工",
+    "action": "库对该题材没有可依据的条款 ⇒ 转人工看**覆盖**（不是发现了内容问题）",
+    "category": "覆盖",
+    "sub": "知识库覆盖缺口",
+    "reason": "依据侧检索到 5 条命中，最高 BM25 269.3426（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。",
+    "severity": "REVIEW",
+    "reason_code": "coverage_not_covered",
+    "coverage": {
+     "covered": false,
+     "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+     "rule_cited_unit_hits": 0,
+     "safe_vocabulary_hits": 0,
+     "coverage_bm25_min": 16.0,
+     "bm25_max": 269.3426,
+     "top_hit_anchor": "#关键方案!A1:T202",
+     "top_hit_excerpt": "[row=1] ,关键方案,,,,关键文档,,,,,,,,,,,,,, [row=2] ,NO,内容,文档,,NO,内容,文档,,,,,,,,,,,, [row=3] ,1,再营销方案,Wellness 1 再营销规划 ,,1,专家内容整理,Wellness 1 吸奶器专家记录表 ,,,,,,,,,,,, [row=4"
+    },
+    "coverage_gap": true
+   }
+  ],
+  "next_owners": [
+   "法务",
+   "医学顾问"
+  ],
+  "fails_closed": true,
+  "refusal": {
+   "state": "NEEDS_INPUT",
+   "detail": "依据侧拒答（fail-closed）",
+   "fails_closed": true,
+   "reason_code": "coverage_not_covered",
+   "coverage": {
+    "covered": false,
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "rule_cited_unit_hits": 0,
+    "safe_vocabulary_hits": 0,
+    "coverage_bm25_min": 16.0,
+    "bm25_max": 269.3426,
+    "top_hit_anchor": "#关键方案!A1:T202",
+    "top_hit_excerpt": "[row=1] ,关键方案,,,,关键文档,,,,,,,,,,,,,, [row=2] ,NO,内容,文档,,NO,内容,文档,,,,,,,,,,,, [row=3] ,1,再营销方案,Wellness 1 再营销规划 ,,1,专家内容整理,Wellness 1 吸奶器专家记录表 ,,,,,,,,,,,, [row=4"
+   },
+   "human": "依据侧检索到 5 条命中，最高 BM25 269.3426（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。"
+  },
+  "gate": null
+ },
+ "evidence_meta": {
+  "run_id": "20261023-190734",
+  "findings": 0,
+  "state": "REVIEW",
+  "fails_closed": true,
+  "refusal": {
+   "state": "NEEDS_INPUT",
+   "detail": "依据侧拒答（fail-closed）",
+   "fails_closed": true,
+   "reason_code": "coverage_not_covered",
+   "coverage": {
+    "covered": false,
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "rule_cited_unit_hits": 0,
+    "safe_vocabulary_hits": 0,
+    "coverage_bm25_min": 16.0,
+    "bm25_max": 269.3426,
+    "top_hit_anchor": "#关键方案!A1:T202",
+    "top_hit_excerpt": "[row=1] ,关键方案,,,,关键文档,,,,,,,,,,,,,, [row=2] ,NO,内容,文档,,NO,内容,文档,,,,,,,,,,,, [row=3] ,1,再营销方案,Wellness 1 再营销规划 ,,1,专家内容整理,Wellness 1 吸奶器专家记录表 ,,,,,,,,,,,, [row=4"
+   },
+   "human": "依据侧检索到 5 条命中，最高 BM25 269.3426（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。"
+  },
+  "report_path": null,
+  "source": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py",
+  "findings_source": {
+   "mode": "live",
+   "path": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py"
+  },
+  "kb_hits": [
+   {
+    "anchor": "#关键方案!A1:T202",
+    "bm25": 269.3426,
+    "kb_type": "external_standard",
+    "source_sha256": "f112478a951861c9c702dd17ca408059f5aad9bb0d9e5e53d28f0eb112fe05ec",
+    "excerpt": "[row=1] ,关键方案,,,,关键文档,,,,,,,,,,,,,, [row=2] ,NO,内容,文档,,NO,内容,文档,,,,,,,,,,,, [row=3] ,1,再营销方案,Wellness 1 再营销规划 ,,1,专家内容整理,Wellness 1 吸奶器专家记录表 ,,,,,,,,,,,, [row=4",
+    "url": "https://momcozy-in.feishu.cn/sheets/BX0QshqWThhY6HtDEFCcnMpsnRc?sheet=SWMYUF"
+   },
+   {
+    "anchor": "#l.1-1",
+    "bm25": 161.3434,
+    "kb_type": "wording",
+    "source_sha256": "f9adde2b844ffd8d33fabd268365e055c285980e5f0dc6826c5dc71ebb77c31e",
+    "excerpt": "Momcozy Air 1 Ultra-slim Wearable Breast Pump | Momcozy CA Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush",
+    "url": "https://ca.momcozy.com/products/momcozy-air-1-ultra-slim-breast-pump?variant=47796531986619"
+   },
+   {
+    "anchor": "#l.1-1",
+    "bm25": 159.5594,
+    "kb_type": "wording",
+    "source_sha256": "185c2ea4551483460f5be2d0393033fae5dbaf9a709412e1186b9cc1412909ac",
+    "excerpt": "V1 Pro Hands-Free Breast Pump | Hospital-grade Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether To",
+    "url": "https://momcozy.com/products/v1-pro-hospital-grade-wearable-breast-pump"
+   },
+   {
+    "anchor": "#l.1-1",
+    "bm25": 153.1441,
+    "kb_type": "wording",
+    "source_sha256": "2ef1b5a8c702080eb93c7e02295c867e34b58a31ee121dc8d8c9e2eeba9c68b2",
+    "excerpt": "V1 Pro Hospital-Grade Wearable Breast Pump | Hands-Free CA Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush",
+    "url": "https://ca.momcozy.com/products/v1-pro-hospital-grade-wearable-breast-pump"
+   },
+   {
+    "anchor": "#亚马逊!A1:T389",
+    "bm25": 152.9179,
+    "kb_type": "external_standard",
+    "source_sha256": "f112478a951861c9c702dd17ca408059f5aad9bb0d9e5e53d28f0eb112fe05ec",
+    "excerpt": "[row=1] ,https://alidocs.dingtalk.com/i/nodes/kDnRL6jAJMDXrrRxuXg1Lo7xVyMoPYe1?utm_scene=person_space,,,,,,,,,,,,,,,,,, [row=2] ,亚马逊,独立站,TGT ,N =82,,,,,,,,,,,,,",
+    "url": "https://momcozy-in.feishu.cn/sheets/BX0QshqWThhY6HtDEFCcnMpsnRc?sheet=SWMYUF"
+   }
+  ],
+  "layer_preflight": {
+   "base": "20261023-190726",
+   "ok": true,
+   "red_total": 0,
+   "mode": "enforced",
+   "details": {
+    "L4": {
+     "run": "20261023-190726-L4",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L4": "session-6858b898-881e-49af-8c35-3507f0220766"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L5": {
+     "run": "20261023-190726-L5",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L5": "session-6858b898-881e-49af-8c35-3507f0220766"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L6": {
+     "run": "20261023-190726-L6",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L6": "session-6858b898-881e-49af-8c35-3507f0220766"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L7": {
+     "run": "20261023-190726-L7",
+     "exit": 0,
+     "red": 0,
+     "yellow": 0,
+     "skill_sessions": {
+      "L7": "session-6858b898-881e-49af-8c35-3507f0220766"
+     },
+     "pass": true,
+     "note": ""
+    }
+   }
+  },
+  "position": {
+   "value": null,
+   "supplied_by": null,
+   "note": "未提供 ⇒ 依据层用默认位置（图片会是裸「图 1」，出口闸 R3 判红）"
+  },
+  "decision_owner": {
+   "skill": "文案合规审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check",
+    "文案合规审查"
+   ]
+  },
+  "publish": {
+   "mode": "disabled_by_caller",
+   "published": false,
+   "reason": "disabled_by_caller"
+  },
+  "report_url": null,
+  "report_url_kind": null
+ }
+}

@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.127 是正例还是反例
   - S-1.127 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-a7a0ee74a600c04a"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 社媒
 reason_category: 原则性错误
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2wE9MO7nE/原文反馈"
-source_sha256: f865fde0918c02270e45789d6190dafb8d1fc3b153619b87d3c68ace69f497d6
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MO7nE
+anchor: "#负面样本/recvw7XIUgZO5T/具体原因/分析"
+source_sha256: 6d34444482b915dce06d3e0158c5d24a2e4e1d27a92039d3c20ffb858dd32c76
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XIUgZO5T
 sample_body: "【审核 · 2026-09-16 19:28 · 赵乐萱】【终审-@[已脱敏]  】麻烦看看呀:YouAreTheBest: **项目名：婴幼儿社媒—光线对婴儿睡眠的影响** **设计需求：** 图1：配图熟睡的宝宝 图2:  简单插画流程图 图3:  配图宝宝脸部特写，睁着大眼睛 图4:  常见光源展示：白炽灯、电视、电脑、手机 图5：妈妈抱着宝宝在太阳底下 图6:  宝宝熟睡后，妈妈准备关掉暖色调的灯光 **设计稿件：** ![Image](img_v3_0215j_80ee37b3-4b4a-44c1-babf-2326e790c93g) ![Image](img_v3_0215j_b4adf381-62ac-46b9-8840-2722dd334b8g) ![Image](img_v3_0215j_f7cb7617-d27b-4cee-bf3f-d9758c4843bg) ![Image](img_v3_0215j_b7597577-5227-4535-8597-bb388eba63dg) ![Image](img_v3_0215j_6e55bf0d-eed1-4b8f-b19d-dfdd0365f12g) ![Image](img_v3_0215j_e74496dd-9cff-436d-bef9-b11e7715e1eg)  At Night Hours before bedtime • Use softer, warmer light and keep play calm as bedtime approaches. At bedtime • Try to keep baby's sleeping space as dark and quiet as possible. • If you room-share, avoid TV and bright screens once baby is asleep. For night feeds and diaper changes • Keep lights low, voices quiet, and interactions brief. Reference: What you need to know about sleep for your child. (2022). American Family Physician, 105(2), online.  01 Light is important for sleep Newborn sleep is naturally fragmented because the day-night rhythm is still developing. Around 6-12 weeks, babies begin to tell day from night. Light is an important time cue to develop the day-night rhythm. During the day Light signals the brain to suppress melatonin, helping us stay alert. light Eyes Retina RHT Retino-hypothalamic tract SCN Suprachiasmatic nucleus Excited Melatonin Pineal body At night Melatonin production rises, helping us feel sleepy."
 reason_analysis: "【原则性错误】文案 图1 【终审-@[已脱敏]  】麻烦看看呀。 【问题要点】 1. 【终审-@[已脱敏]  】麻烦看看呀 2. 图1：配图熟睡的宝宝 3. 图2:  简单插画流程图 4. 图3:  配图宝宝脸部特写，睁着大眼睛 5. 图4:  常见光源展示：白炽灯、电视、电脑、手机"
 advice: ""
@@ -139,8 +139,8 @@ helping us feel sleepy.
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2wE9MO7nE/原文反馈`
-- 指纹：`f865fde0918c02270e45789d6190dafb8d1fc3b153619b87d3c68ace69f497d6`
+- 锚点：`#负面样本/recvw7XIUgZO5T/具体原因/分析`
+- 指纹：`6d34444482b915dce06d3e0158c5d24a2e4e1d27a92039d3c20ffb858dd32c76`
 - 原因归类：原则性错误　|　素材类型：文字
 
 > 案例只作参照，不构成规则。

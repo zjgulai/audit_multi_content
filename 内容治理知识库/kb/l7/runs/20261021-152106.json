@@ -1,0 +1,27 @@
+{
+ "run_id": "20261021-152106",
+ "at": "2026-10-21T15:21:06",
+ "source": "review_machine",
+ "trigger": "吸奶器m5.pro 是全美国销量no.1 的吸奶器，销量1万台",
+ "skills": [
+  "kb-content-review",
+  "审查裁决"
+ ],
+ "commands": [
+  "kb-content-review/scripts/review.py --text …",
+  "l7/review-engine/core/review_engine.py decide()"
+ ],
+ "products": [],
+ "verdict": "BLOCK ｜ issue_count=1",
+ "human_involved": false,
+ "content_id": "TEST-SALES-2",
+ "confidence": 0.95,
+ "extra": {
+  "decision_owner": {
+   "skill": null,
+   "mode": "waived_by_caller",
+   "reason": "调用方显式声明不记判定主体（--allow-no-decision-owner）"
+  },
+  "loaded_skills": []
+ }
+}

@@ -1,0 +1,86 @@
+{
+  "review_id": "20261019-185345",
+  "content_id": "text-cd45dc4403bf",
+  "content_id_basis": "指纹（依据侧不发业务号，发号真源 = kb/l7/review-engine/core/content_id.py）",
+  "content_type": "text",
+  "content_version": "cd45dc4403bf15d07d25456152ad74e6f513e6f3580c57fa17cf7eba1d50c27c",
+  "content_hash": "cd45dc4403bf15d07d25456152ad74e6f513e6f3580c57fa17cf7eba1d50c27c",
+  "agent_version": "kb-content-review@1.3.0",
+  "rule_version": "article-no-2+l3-0.2+rules.jsonl@e7d566f25f16677b",
+  "knowledge_version": "v0",
+  "version_binding": {
+    "review_id": "20261019-185345",
+    "content_id": null,
+    "content_id_form": "AD-YYYYMMDD-NNN（PRD §5.4）",
+    "content_id_note": "本入口（依据侧）**不发业务号** —— 发号要读飞书表，而依据侧不该为此访问飞书。业务号由发号方在发飞书那一刻发：`kb/l7/review-engine/core/content_id.py`（唯一实现）。",
+    "content_fingerprint": "text-cd45dc4403bf",
+    "content_hash": "cd45dc4403bf15d07d25456152ad74e6f513e6f3580c57fa17cf7eba1d50c27c",
+    "content_version": "cd45dc4403bf15d07d25456152ad74e6f513e6f3580c57fa17cf7eba1d50c27c",
+    "agent_version": "kb-content-review@1.3.0",
+    "rule_version": "article-no-2+l3-0.2+rules.jsonl@e7d566f25f16677b",
+    "knowledge_version": "v0",
+    "sources": {
+      "content_hash": "送审文本 utf-8 的 sha256",
+      "agent_version": "kb/l7/skills/kb-content-review/SKILL.md → frontmatter.version",
+      "rule_version": "kb/l7/registry/l7.json → article_no_source.scheme_version ＋ kb/l3/registry/l3.json → distiller_version ＋ kb/l3/candidates/rules.jsonl 的 sha256[:16]",
+      "knowledge_version": "kb/l7/registry/l7.json → kb_version"
+    }
+  },
+  "decision": "PASS",
+  "decision_raw": "PASS",
+  "confidence": "未标定（本入口逐条给 高/中/低；全局数值置信度属裁决侧）",
+  "input_manifest": {
+    "text": "Momcozy Contact-Free Smart Baby Monitor (BM08)\n\nProduct Type\nThe BM08 is a cutting-edge momcozy smart baby monitor . Designed as a next-generation video baby monitor , it goes far beyond a traditional baby monitor camera to act as an AI-powered, contact-free digital assistant for your nursery (Note: NOT A MEDICAL DEVICE and not intended to diagnose medical conditions/SIDS) .\nCore Selling Points\nWidely praised as a top contender for the best baby monitor , this smart baby monitor is powered by advanced contact-free mmWave sensing to detect baby's motion and generate sleep activity logs without any wearables. It features true AI cry detection that distinguishes real crying from background noise and automatically plays soft white noise to soothe your little one. The 2K HD video offers an 8x digital zoom to see every tiny detail.\n\n—— 来源（美国站）：https://momcozy.com/products/momcozy-contact-free-smart-baby-monitor\n\n【待读的链接】\nhttps://momcozy.com/products/momcozy-contact-free-smart-baby-monitor",
+    "sha256": "cd45dc4403bf15d07d25456152ad74e6f513e6f3580c57fa17cf7eba1d50c27c",
+    "modality": [
+      "text"
+    ]
+  },
+  "coverage": {
+    "text": "complete",
+    "image": "not_applicable",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "本批只送审 text 一种模态；其余模态不适用（不是缺口）。本块是报告契约要求的覆盖状态，不等于 OCR/ASR/关键帧流水线已执行 —— 后者见 trace。"
+  },
+  "risk_items": [],
+  "issue_count": 0,
+  "report_url": null,
+  "next_action": "转 sign-off 责任人确认送审版本与发布版本一致",
+  "next_owners": [
+    "sign-off 责任人"
+  ],
+  "sla": {},
+  "version_gate": {
+    "reviewed_hash": "cd45dc4403bf15d07d25456152ad74e6f513e6f3580c57fa17cf7eba1d50c27c",
+    "release_hash": null,
+    "note": "本入口不掌握发布版本；发布/送审版本比对属裁决侧（review_engine.py:115-119），此处不代替它下结论"
+  },
+  "decision_trace": {
+    "reasons": [
+      "no_findings_and_kb_covers_topic"
+    ],
+    "confidence_status": "not_calibrated_by_this_entry",
+    "evaluated_at": "2026-10-19T18:53:47",
+    "decided_by": "kb-content-review/scripts/review.py（依据侧自身分支，:709-715）",
+    "note": "本报告不重算结论；三态由上表 decision_raw 原样带出",
+    "tier_trace": {
+      "P0": 0,
+      "P1": 0,
+      "P2": 0,
+      "P3": 0,
+      "未标层": 0
+    },
+    "confidence_route": {
+      "applies": false,
+      "band": null,
+      "calibrated": false,
+      "why": "依据侧**不合成全局数值置信度**（逐条给 高/中/低）⇒ 没有可切三档的数。PRD §6.6 的数值分档与标注在**裁决侧**生效：见 `review_engine.decide()` → `decision_trace.confidence_route`；策略真源 `kb/l7/registry/confidence-policy.json`。",
+      "handled_by": "kb/l7/review-engine/core/review_engine.py::decide()"
+    }
+  },
+  "unmet_citation": []
+}

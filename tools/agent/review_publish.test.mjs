@@ -129,6 +129,32 @@ t('内容 ID = AUTO-<sha256(送审文本去尾空白) 前 12 位>，与链算的
   eq(rp.contentIdOf(''), null, '空文本没有内容 ID');
 });
 
+/* ★★ 2026-10-22（Paruu 真单）：结论行有两种写法，判据必须都认 —— 而且**合并结论优先**。
+ *   病灶：链写的是 `**本 skill 分级结论（4A＋4B＋图文一致性合并，取更保守一侧）**：**REVIEW**`，
+ *   括号把「结论」与「：」隔开 ⇒ 旧正则返回 null ⇒ 表行不写 `Agent 结论` ⇒ 停在链写的 PASS
+ *   （而卡片是 REVIEW）—— 同一单两个结论又出现。
+ *   变异自证：把 `merged` 那一段删掉 ⇒ 第一条与第二条精确变红。 */
+t('★ 结论行：`分级/合并结论（…）：X` 要认，且优先于 `【审查结论：PASS】`', () => {
+  eq(rp.conclusionOf('**本 skill 分级结论（4A＋4B＋图文一致性合并，取更保守一侧）**：**REVIEW**'),
+     'REVIEW', '带括号的分级结论行没认出来 —— 表行会停在链的 PASS');
+  eq(rp.conclusionOf('【审查结论：PASS】\n\n**合并结论：REVIEW**（本 skill 定级）'),
+     'REVIEW', '同时出现引擎行与合并行时必须取合并结论');
+  // 反向对照：没有可识别形状的句子 ⇒ null（不许猜成 PASS/REVIEW）
+  eq(rp.conclusionOf('链给出的结论是 REVIEW，但这句没有冒号'), null, '没有契约形状的句子不许认');
+});
+
+t('回滚开关：`SHOUHENG_CONCLUSION_MERGED=0` ⇒ 回到旧式（分级结论不再优先）', () => {
+  const old = process.env.SHOUHENG_CONCLUSION_MERGED;
+  try {
+    process.env.SHOUHENG_CONCLUSION_MERGED = '0';
+    eq(rp.conclusionOf('**本 skill 分级结论（4A＋4B）**：**REVIEW**'), null,
+       '开关关掉后仍优先了分级结论');
+  } finally {
+    if (old === undefined) delete process.env.SHOUHENG_CONCLUSION_MERGED;
+    else process.env.SHOUHENG_CONCLUSION_MERGED = old;
+  }
+});
+
 t('结论 → 状态：**三态不许进这一格**，机器只落「待审」（PRD §8.2 逐字）', () => {
   // ★★ 2026-10-15（Owner）：「状态按照 prd：待审 / 已修改 / 已发布，现在填的错的」。
   //   PRD §8.2 逐字：「… Agent 结论、置信度、问题数量、问题分类汇总、报告链接 /
@@ -173,6 +199,22 @@ t('★ 免责句/否定句里的三态词**不许**被当成结论（fail-open �
   eq(rp.conclusionOf('【审查结论：REVIEW】共发现 2 处需人工确认。'), 'REVIEW', 'PRD §5.3 结论行');
   eq(rp.conclusionOf('**结论：BLOCK**（红线命中）'), 'BLOCK', '`结论：` 行');
   eq(rp.conclusionOf('状态：NEEDS_INPUT'), 'NEEDS_INPUT', '`状态：` 行');
+});
+
+// ★★ 2026-10-21（四态）：`Agent 结论` 这一格必须收得下四态第 2 态 `PASS+SUGGEST`。
+//   改之前它**抽不出来**（`S` 里没有这一态）⇒ 这一格回 null、不写 —— 一单「有建议、无强制问题」
+//   在表里就成了空白，卡片与表行对不上（与 2026-10-07 那次「表里 NEEDS_INPUT ↔ 卡 REVIEW」同一个病）。
+//   反向对照两条：旧字面 `SUGGEST` **必须归一到** `PASS+SUGGEST`（不许原样进表、也不许当抽不到）；
+//   而 `PASS+SUGGEST` 不许被截成 `PASS`（前缀匹配顺序）。
+t('★ 四态：`PASS+SUGGEST` 抽得出来、旧字面归一、且不被截成 PASS', () => {
+  eq(rp.conclusionOf('【审查结论：PASS+SUGGEST】发现 1 处建议优化，不阻断发布。'), 'PASS+SUGGEST',
+     '四态第 2 态没抽出来 —— 表里会留一格空白');
+  eq(rp.conclusionOf('状态：PASS+SUGGEST'), 'PASS+SUGGEST',
+     'PASS+SUGGEST 被前缀截成了 PASS（`PASS\\+SUGGEST` 必须排在 `PASS` 前面）');
+  eq(rp.conclusionOf('【审查结论：SUGGEST】发现 1 处建议优化，不阻断发布。'), 'PASS+SUGGEST',
+     '旧字面没归一（表里就会出现 `SUGGEST` 这个不在四态里的值）');
+  eq(rp.conclusionOf('【审查结论：PASS】未发现已知底线风险，可转交 @陈静姝 进行 sign-off。'), 'PASS',
+     '反向对照：真 PASS 不许被误读成 PASS+SUGGEST');
 });
 
 t('要写的字段只含**机器那一侧**；人填的格子一个都不进去', () => {
@@ -349,6 +391,48 @@ await ta('反向对照·同一窗口里是**别人的**那一行 → 不许去�
   }, { since: Date.now() - 60_000, question: '审一下这张图能过吗？' });
   eq(r.action, 'created', `窗口里那一行不是这一单的，必须自己新建（实际 ${r.action}）`);
   eq(c.hit('appTableRecord.batchUpdate'), 0, '不许改别人的行');
+});
+
+/* ★★ 2026-10-22 真单（BM04/BM01 婴儿监视器对比图）：**同一张图两行、两个结论**。
+ *   链发布时用它自己算的内容 ID（实测 `AD-20261022-021`），我们这边算的是
+ *   `AUTO-<sha(送审文本)>`；送审问题也不同（链写的是它的审核任务，我们写的是原文＋媒材链接）
+ *   ⇒ 前两把锁都不中 ⇒ 守衡**新建了第二行**。
+ *   后果不是多一行，是**表里同一张图同时挂着 PASS 与 REVIEW**（链行 PASS ／ 守衡行 REVIEW）。
+ *   修法：把机读旁挂里的 `content_id` 当**第三把锁**（本次时间窗内、全等）。
+ *   变异自证：去掉 `chainCid` 那一段 ⇒ 本组精确变红（会 `created`）。 */
+await ta('★ 链自己建过这一行（内容 ID 与我们不同）⇒ 必须补它，不许再建第二行', async () => {
+  const rows = [{ record_id: 'recCHAIN', fields: {
+    '写入时间': Date.now(),
+    '送审问题': '请按图片安全审查 skill 对本次附图执行完整审查。',
+    '内容 ID': 'AD-20261022-021',          // ← 链的内容 ID（不是我们的 AUTO-…）
+    'Agent 结论': 'PASS', '问题数量': 0, '置信度': 0.93,
+    '问题分类汇总': '【审查结论：PASS】未发现已知底线风险…',
+  } }];
+  const { sent, c } = install({ rows });
+  const r = await rp.ensureReviewRow({
+    contentId: rp.contentIdOf(IMG_TEXT), question: '[图片](https://example/file/x)',
+    contentType: '图片/视频', conclusion: 'REVIEW', issueCount: 0, confidence: 0.93,
+    summary: '引擎 PASS 与最终结论 REVIEW 不一致',
+  }, { since: Date.now() - 60_000, question: '[图片](https://example/file/x)',
+       chainContentId: 'AD-20261022-021' });
+  eq(r.action, 'updated', `必须认链那一行（实际 ${r.action}）：${r.detail}`);
+  eq(c.hit('appTableRecord.batchCreate'), 0, '**一行都不许新建**（两行 = 两个结论）');
+  const patch = sent.updated[0].fields;
+  eq(patch['Agent 结论'], 'REVIEW', '结论跟着本轮合并结论走（链行原来记的是引擎 PASS）');
+  eq(patch['问题分类汇总'], '引擎 PASS 与最终结论 REVIEW 不一致');
+  ok_(!('内容 ID' in patch), '内容 ID 是链算的，不许被我们的 AUTO- 覆盖');
+
+  // 反向对照：不传 chainContentId 时**照旧不认**（防止第三把锁变成「窗口里谁都能认」）
+  const rows2 = [{ record_id: 'recCHAIN2', fields: {
+    '写入时间': Date.now(), '送审问题': '请按图片安全审查 skill 对本次附图执行完整审查。',
+    '内容 ID': 'AD-20261022-099', 'Agent 结论': 'PASS' } }];
+  const inst2 = install({ rows: rows2 });
+  const r2 = await rp.ensureReviewRow({
+    contentId: 'AUTO-nomatch', question: '[图片](https://example/file/y)',
+    conclusion: 'REVIEW', issueCount: 0, summary: 's',
+  }, { since: Date.now() - 60_000, question: '[图片](https://example/file/y)' });
+  eq(r2.action, 'created', '没给链的内容 ID ⇒ 不许去动窗口里那一行');
+  eq(inst2.c.hit('appTableRecord.batchUpdate'), 0, '反向对照必须真的没有发生改写');
 });
 
 await ta('反向对照·算不出内容 ID 时**照样要写**（这条保证不能被算 ID 绑架）', async () => {
@@ -655,6 +739,105 @@ await ta('F1d `SHOUHENG_P0_DOC_ATTEMPTS=1` ⇒ 不补（紧急回滚口子）', 
   } finally {
     if (old === undefined) delete process.env.SHOUHENG_P0_DOC_ATTEMPTS;
     else process.env.SHOUHENG_P0_DOC_ATTEMPTS = old;
+  }
+});
+
+/* ── 4g. 「回读验不成」≠「没建成」：不许因此换掉报告模版（Owner 2026-10-20）────
+ * Owner 原话：「守衡输出的报告模版又乱了，怎么一会一个样子，到底是谁在改模版？」
+ *   「**必须按照我要求的报告模版输出**」。
+ *
+ * 真单（18:59，4 条 REVIEW）：`docs +create` **成功**（云文档 `I3NHdh…` 已建、正文齐全），
+ *   失败的是**回读权限**这一步 —— 报错全文只有 `Command failed: … drive +permission-get-setting`
+ *   （stderr 空、无 killed/signal）。旧版把这类当"确定性失败"⇒ **一次都不补** ⇒ `url:null`
+ *   ⇒ 调用方回落成库侧那份（`feishu_publish.py` 的「问题分类汇总/完整清单」版式）
+ *   ⇒ 人点开看到的报告**换了模版**。
+ *   复核：事后重跑同一条命令读到的就是 `tenant_readable` —— 权限早设上了，坏的只是那次**读**。
+ *
+ * ★ 变异自证（这条判据必须咬得住）：
+ *   · 把 `publishReportDocOnce` 里 `unverified` 那一支删掉（回到 `ok:false`）⇒ **G1 精确变红**；
+ *   · 把 `mismatch` 也放行成 `ok:true` ⇒ **G2 精确变红**（读得出来就是不达标，给链接＝给一个点不开的）；
+ *   · 把 `ensureTenantReadable` 的轮数写死 1 ⇒ **G1 的红读次数断言变红**。
+ */
+console.log('\n═══ 4g. 回读验不成 ≠ 没建成（不许换报告模版）═══');
+process.env.SHOUHENG_PERM_BACKOFF_MS = '0';        // 自证不睡觉
+
+/** 桩：`docs +create` 永远成；patch 可设成败；回读按剧本回放（默认每轮都抛）。 */
+const stubPerm = ({ readback = [], patchThrows = null } = {}) => {
+  const calls = { create: 0, patch: 0, read: 0 };
+  const run = async (_bin, args) => {
+    if (args.includes('+create')) {
+      calls.create += 1;
+      return { stdout: JSON.stringify({ ok: true, data: { document: {
+        document_id: `DocPerm${calls.create}`,
+        url: `https://example.invalid/docx/DocPerm${calls.create}` } } }) };
+    }
+    if (args.includes('permission.public')) {
+      calls.patch += 1;
+      if (patchThrows) {
+        throw Object.assign(new Error('Command failed: lark-cli drive permission.public patch'),
+          { stderr: patchThrows });
+      }
+      return { stdout: '{"ok":true}' };
+    }
+    if (args.includes('+permission-get-setting')) {
+      const step = readback[Math.min(calls.read, Math.max(0, readback.length - 1))] ?? { throws: true, stderr: '' };
+      calls.read += 1;
+      if (step.throws) {
+        throw Object.assign(new Error('Command failed: lark-cli drive +permission-get-setting'),
+          { stderr: step.stderr ?? '' });
+      }
+      return { stdout: JSON.stringify({ data: { permission_public: { link_share_entity: step.value ?? '' } } }) };
+    }
+    return { stdout: '{}' };
+  };
+  return { run, calls };
+};
+
+await ta('G1 ★ 回读每轮都抛（stderr 空）⇒ 仍用**自己那份**、且如实标「权限未核验」', async () => {
+  const { run, calls } = stubPerm({ readback: [{ throws: true, stderr: '' }] });
+  const r = await rp.publishReportDoc(MD_TMP, { run });
+  eq(r.ok, true, '「验不成」不等于「没建成」—— 判失败就会把模版换成库侧那套（18:59 那一单）');
+  ok_(/DocPerm1/.test(r.url), '要交回**自己这份**文档的链接，不许换产者');
+  eq(r.share, 'unverified', '必须如实标「权限未核验」，不许假装已核验');
+  ok_(/权限未核验/.test(r.detail), 'detail 要写清未核验，人看日志别被糊过去');
+  eq(calls.read, 3, '回读必须先补到 3 轮才收尾（默认次数；写死 1 ⇒ 这条精确变红）');
+  eq(calls.create, 1, '不许为了绕过回读失败去**再建一份**（那会多出孤儿文档）');
+});
+await ta('G1b 回读第 1 次抛、第 2 次成 ⇒ 正常成立，且 detail 写明是补出来的', async () => {
+  const { run, calls } = stubPerm({ readback: [{ throws: true, stderr: '' }, { value: 'tenant_readable' }] });
+  const r = await rp.publishReportDoc(MD_TMP, { run });
+  eq(r.ok, true, '补一次就该成');
+  eq(r.share, undefined, '补成了就不该再带「未核验」');
+  eq(calls.read, 2, '补一次就读到了 ⇒ 收手');
+  ok_(/补第 2 轮才读到/.test(r.detail), 'detail 要说清这次是补出来的');
+});
+await ta('G2 ★ 反向对照：回读**读得出来就是不达标**（closed）⇒ 必须判失败、不给链接', async () => {
+  const { run, calls } = stubPerm({ readback: [{ value: 'closed' }] });
+  const r = await rp.publishReportDoc(MD_TMP, { run });
+  eq(r.ok, false, '读得出来就是不达标 ⇒ 给链接等于给一个点不开的东西');
+  eq(r.url, null, '不许编链接');
+  ok_(/链接不写进表/.test(r.detail), '要给出「链接不写进表」的结论');
+  eq(calls.read, 3, '这种也补满 3 轮（权限设置可能只是没落地）');
+});
+await ta('G3 ★ 反向对照：patch 确定性失败（99991672）⇒ 判失败，且**不重试**', async () => {
+  const { run, calls } = stubPerm({ readback: [{ value: 'tenant_readable' }], patchThrows: 'permission denied (99991672)' });
+  const r = await rp.publishReportDoc(MD_TMP, { run });
+  eq(r.ok, false, '设置都没成 ⇒ 不许当成功（更不许拿"验不成"那一支放行）');
+  eq(calls.patch, 1, '99991672 = 资源/scope 没开，补一百次也一样 ⇒ 只许试 1 次');
+  ok_(/99991672|permission denied/.test(r.detail), '把 CLI 原话带出来（区分缺资源权限 / 缺 scope）');
+});
+await ta('G4 `SHOUHENG_PERM_ATTEMPTS=1` ⇒ 不补（紧急回滚口子），但**仍不换模版**', async () => {
+  const old = process.env.SHOUHENG_PERM_ATTEMPTS;
+  process.env.SHOUHENG_PERM_ATTEMPTS = '1';
+  try {
+    const { run, calls } = stubPerm({ readback: [{ throws: true, stderr: '' }] });
+    const r = await rp.publishReportDoc(MD_TMP, { run });
+    eq(calls.read, 1, '回滚口子生效 ⇒ 只回读 1 次');
+    eq(r.ok, true, '但「不补」不等于「换模版」—— 照旧交回自己那份');
+    eq(r.share, 'unverified', '照旧标未核验');
+  } finally {
+    if (old === undefined) delete process.env.SHOUHENG_PERM_ATTEMPTS;
+    else process.env.SHOUHENG_PERM_ATTEMPTS = old;
   }
 });
 

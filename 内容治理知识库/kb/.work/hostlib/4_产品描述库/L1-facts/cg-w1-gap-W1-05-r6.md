@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 90
-created_at: 2026-10-16
-valid_until: 2027-01-14
+created_at: 2026-10-22
+valid_until: 2027-01-20
 asks:
   - W1 验证缺口里 W1-05 的内容是什么
   - W1-05 这个卖点/术语的口径与边界是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-sheet
   ref: "https://momcozy-in.feishu.cn/wiki/EsCdw2A7tiz67Rk8LgMce2TAnEh?sheet=5Iotao"
   fingerprint: "1e52110270c041c2#05_验证缺口#row=6"
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/.work/sources/w1-evidence.json#05_验证缺口/row=6"
   confidence: 确定

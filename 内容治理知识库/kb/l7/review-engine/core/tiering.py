@@ -231,7 +231,18 @@ def decide_effect(tiers) -> tuple[str, str]:
     for t in TIER_ORDER:                      # P0 → P3，第一个出现的就是最高
         if t in seen:
             if t == "P3" and all(x == "P3" for x in seen):
-                return "none", "仅 P3 命中 ⇒ 只出建议，不改结论（PRD §6.3 执行规则3）"
+                # ★★ 2026-10-19 第二轮（PRD §5.3.2 **rev 101** 原文，Owner 当天改的口径）：
+                #   「SUGGEST｜非强制性问题（措辞优化、轻微常识瑕疵等）。**作为 PASS 的附属标签**，
+                #     不阻断流程。｜**随 PASS 一起流转，提示内容方。**」
+                #   同向的还有三处：§6.3 执行规则4「只有 SUGGEST 时，**最终状态为 PASS**（附 SUGGEST 建议）」、
+                #   §10.1 `decision`：PASS / REVIEW / BLOCK（三值）、§11.2「准确率 = **三态**结论一致数」。
+                #   ⇒ 回到 `none`：P3 **不改结论**（结论仍是 PASS）。
+                #   ⚠️ 「不改结论」≠「不留痕」：P3 必须产出**建议集**
+                #      （`review_engine` 的 `suggestions[]` / `suggest_label`），否则四态统计里那个
+                #      「PASS＋建议」的桶永远恒 0 —— 那与「P3 没有产者」是同一个病。
+                #   ⚠️ 同日早些时候这里曾被改成 `suggest`（SUGGEST 当第四态），
+                #      那个读法已被 rev 101 覆盖，留痕见 `prd532-states.yaml::conflict_decision.superseded_by`。
+                return "none", "仅 P3 命中 ⇒ 结论不变（PASS 附建议；PRD §5.3.2 rev101 / §6.3 规则4）"
             return effect_of(t), "最高层级=%s ⇒ effect=%s（PRD §6.3 执行规则4）" % (t, effect_of(t))
     return "review", "层级不在 P0–P3 内 ⇒ 保守取 review"
 

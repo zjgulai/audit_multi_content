@@ -12,10 +12,10 @@
 
 ## 为什么需要它（正则是确定的，但会被人改坏）
 
-11 条 P0 模式是确定性正则，**正则不会自己坏**；但改模式表、改词表、改 `rule_code→article_no`
+当前登记的 P0 模式是确定性正则，**正则不会自己坏**；但改模式表、改词表、改 `rule_code→article_no`
 接线，任何一次都可能让某条红线**静默不命中** —— 而 P0 漏放的后果是**红线直接发出去**。
 现存的 `p0_fastpath.py --selftest` 证明的是「**判据不是恒真**」（自证），
-**没有任何东西定期证明「这 11 条对真实的红线表达仍然命中」**。本件补的就是这一格。
+**没有任何东西定期证明「这些模式对真实的红线表达仍然命中」**。本件补的就是这一格。
 
 ## ★ 用例从哪来（**不自己编**）
 
@@ -53,6 +53,42 @@ MISS_LIMIT = 0
 #: 反向对照用的无关文本（**不许**命中任何 P0 模式）
 NEGATIVE = "今天天气不错，我们去公园走走吧。"
 
+#: `regex_patterns` 的正例 —— **正则不是「逐字词」**，`match_terms` 收不到它们，
+#: 光靠上面那条路径等于「这批正则没有任何回归守着」。2026-10-21 加（效果百分比形态）。
+REGEX_CASES = {
+    # 2026-10-21：销量/排名宣称的形态（V03）
+    # ★★ 2026-10-21（Owner 裁定 A）：**排名/最高级一族退出 P0** ⇒
+    #   `#1 breast pump in the US` 从正例**挪到反向对照**（见下面 `REGEX_NEGATIVES`）。
+    #   留着它当正例 ⇒ 本回归恒红，而那正是「放开之后还判」的旧口径在拦。
+    #   留下的是**数量类**（销量 1 万台 / 累计销量 500 万台）—— 它们要的是可核验依据，不受这次放开影响。
+    "V03": ["吸奶器m5.pro 是全美国销量no.1 的吸奶器，销量1万台",
+            "累计销量突破 500 万台"],
+    "M03": ["95% of users saw results in 2 weeks",
+            "30% more milk in just 2 weeks",
+            "98% 的用户反馈有效",
+            "提升 30% 的奶量"],
+}
+
+#: 正则的**反向对照**：折扣 / 成分占比 / 纯时长 —— 必须**不**命中该规则。
+REGEX_NEGATIVES = {
+    "V03": ["Ships in 2 weeks.",
+            "M5 Pro 双泵吸奶器，主机重 260 克，配件可拆洗",
+            # ★ 2026-10-21 裁定 A：排名/最高级不判 P0 —— 这三条必须 **MISS**
+            #   （它们现在只走 `p0_fastpath.RANK_ADVISORY_RX` 的非阻断提示）
+            "#1 breast pump in the US",
+            "The best breast pump for new moms.",
+            "全美销量第一的吸奶器。"],
+    "M03": ["Save 20% off with code MOM20.",
+            "95% cotton, 5% spandex.",
+            "The discount is 15% and delivery in 2 weeks."],
+    # ★★ 2026-10-22（Owner 裁定 B）：裸「100%」出列 P0 —— 这几条必须**不**命中 V02。
+    #   正例一侧不受影响：带限定词的 `100% safe` 仍由 H05 命中（在 REGEX_CASES / match_terms 里）。
+    "V02": ["Nipple Cream 100%",
+            "100% cotton",
+            "100% BPA-free",
+            "Made with 100% recycled packaging"],
+}
+
 
 def _p0():
     """真调 P0 引擎（**不重写第二份匹配逻辑** —— 判据必须与被测对象同一把尺子）。"""
@@ -71,11 +107,18 @@ def positive_cases(patterns_path=PATTERNS):
         for t in (p.get("match_terms") or []):
             if not isinstance(t, dict):
                 continue
-            if (t.get("basis") or "") != "verbatim_source":
+            # ★ 2026-10-21：`verbatim_rule_text` 也收 —— 它们**逐字取自规则自己的边界/处理字段**
+            #   （如 H03 的边界表述「未经备案的临床/科学背书」，源字段「边界内容」），
+            #   同样属于「P0 规则应命中」；不收的话这类新增词**永远没有回归守着**。
+            #   实测（宽化前）：19 条 verbatim_rule_text 词 **19/19 命中** ⇒ 不引入假红。
+            # ★ 2026-10-22：`boundary_of_code` 也收 —— 它逐字取自**同码**规则的边界段，
+            #   同样是「P0 规则应命中」的表达（Owner 2026-10-21 送审的那句就在这一档）。
+            if (t.get("basis") or "") not in ("verbatim_source", "verbatim_rule_text", "boundary_of_code"):
                 continue
             term = (t.get("term") or "").strip()
             if term:
                 terms.append(term)
+        terms = terms + list(REGEX_CASES.get(p.get("rule_code")) or [])
         out.append({"rule_code": p.get("rule_code"), "rule_id": p.get("rule_id"),
                     "article_no": p.get("article_no"), "terms": terms})
     return out
@@ -120,17 +163,26 @@ def regression(patterns_path=PATTERNS, p0mod=None):
         per.append({"rule_code": c["rule_code"], "article_no": c["article_no"],
                     "cases": len(c["terms"]), "hit": ok})
     # 反向对照：无关文本不许命中
+    # 正则的反向对照（折扣/成分/纯时长）：命中即为**误伤**，必须 0
+    regex_neg_bad = []
+    for code, texts in REGEX_NEGATIVES.items():
+        for t in texts:
+            cs = codes_of(m.evaluate(t)) or set()
+            if code in cs:
+                regex_neg_bad.append(t)
     neg_res = m.evaluate(NEGATIVE)
     neg_codes = codes_of(neg_res)
     return {"patterns": len(cases), "total_cases": total, "hit": total - missed, "missed": missed,
             "no_case": no_case, "engine_odd": engine_odd, "per": per,
             "neg_hit": (None if neg_codes is None else len(neg_codes)),
+            "regex_neg_bad": regex_neg_bad,
             "miss_rate": (missed / total) if total else None}
 
 
 def run():
     print("P0 层定期回归测试 —— PRD §16「P0 层定期回归测试」/ §15「P0 层漏报率 = 0」")
-    print("★ 用例 = 每条模式的 `match_terms` 里 basis=verbatim_source 的**逐字源表达**（不自己编）\n")
+    print("★ 用例 = 每条模式的 `match_terms` 里 basis=verbatim_source / verbatim_rule_text 的"
+          "**逐字源表达**（不自己编；后者=规则自己的边界/处理字段，2026-10-21 起纳入）\n")
     r = regression()
     for x in r["per"]:
         flag = "✅" if x["hit"] == x["cases"] else "❌"
@@ -145,8 +197,11 @@ def run():
           % (r["total_cases"], r["hit"], r["missed"],
              ("%.4f" % r["miss_rate"]) if r["miss_rate"] is not None else "—"))
     print("反向对照（无关文本）：命中 %s（必须是 0）" % r["neg_hit"])
-    ok = (r["missed"] <= MISS_LIMIT and r["neg_hit"] == 0 and not r["no_case"] and not r["engine_odd"])
-    print("结论：%s" % ("✅ 通过 —— 11 条红线对逐字源表达**全部仍命中**，漏报率 0"
+    print("反向对照（折扣/成分/纯时长）：误伤 %d（必须是 0）%s"
+          % (len(r["regex_neg_bad"]), ("：" + "；".join(r["regex_neg_bad"])) if r["regex_neg_bad"] else ""))
+    ok = (r["missed"] <= MISS_LIMIT and r["neg_hit"] == 0 and not r["no_case"]
+          and not r["engine_odd"] and not r["regex_neg_bad"])
+    print("结论：%s" % (("✅ 通过 —— %d 条模式的逐字源表达**全部仍命中**，漏报率 0" % r["patterns"])
                        if ok else
                        "❌ **未通过** —— 见上面逐条：未命中 %d ／ 无正例 %d ／ 无关文本误命中 %s"
                        % (r["missed"], len(r["no_case"]), r["neg_hit"])))
@@ -163,12 +218,14 @@ def selftest():
 
     m = _p0()
     r = regression(p0mod=m)
-    ck("① 11 条模式全部被回归覆盖（无「无正例」的空档）", not r["no_case"] and not r["engine_odd"],
+    ck("① %d 条模式全部被回归覆盖（无「无正例」的空档）" % r["patterns"], not r["no_case"] and not r["engine_odd"],
        "no_case=%s odd=%d" % (r["no_case"], len(r["engine_odd"])))
     ck("①b 用例数 > 0（挡住「一条用例都没取到」的假绿）", r["total_cases"] > 0, "n=%d" % r["total_cases"])
     ck("② 逐字源表达全部命中（漏报率 0）", r["missed"] == 0,
        "missed=%d / %d" % (r["missed"], r["total_cases"]))
     ck("③ 反向对照：无关文本**不许命中**（判据不是恒真）", r["neg_hit"] == 0, "neg_hit=%s" % r["neg_hit"])
+    ck("③b 反向对照：折扣/成分占比**不许**被当成效果宣称", not r["regex_neg_bad"],
+       "误伤=%s" % r["regex_neg_bad"])
     # ④ 变异测试：把一条正例**改坏**（加一个不该命中的词）⇒ 判据必须精确变红
     import tempfile
     pats = [json.loads(l) for l in io.open(PATTERNS, encoding="utf-8") if l.strip()]

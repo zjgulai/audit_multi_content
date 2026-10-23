@@ -229,8 +229,18 @@ ${REGISTRY.map((r) => {
 所以**写坏了不会丢话**，但会丢格式 —— 想清楚再选类型。`;
 }
 
-/** 构建一条完整的 system message（未来若要注入动态上下文，加在这里） */
-export function buildSystemPrompt(extra = '') {
+/** 机制问答的运行时事实；只在问流程时注入，压过会话里过期的能力描述。 */
+export const REVIEW_WORKFLOW_QA_CONTEXT = `# 当前内容审核流程事实（优先于历史对话）
+回答文字、图片、链接审核怎么工作时，以这段当前实现为准。若前文说法与这里冲突，明确更正旧说法，不要为了保持答案一致而重复它。
+- 文字：原文进入内容审核链；问流程本身不启动审核链。
+- 图片：图片会做本机 OCR 和画面读数，审核链收到图上文字读数及相关覆盖信息；不要说成只看文字消息，也不要把画面读数夸成完整视觉审核。
+- 纯链接：外部网页由受限读取器读取公网 HTTP(S) HTML/纯文本页面，抓取可读正文后送入同一审核链；飞书文档链接走飞书只读接口读正文（docx/表格/多维表格/知识库节点），同样进这一条链；失败时不形成审核结论、不判 PASS，也不写审核业务记录。
+- 飞书云空间附件（pptx/pdf/xlsx 等）按红线**不下载**：说清楚「这是附件、按红线不取」，并给替代路径（贴正文 / 转成飞书文档 / 发 docx 链接）；不许说成「没权限」「能力还没做」，也不许拿 DNS 当原因。
+- 飞书文档链接以飞书只读接口读到的正文为准（工作区副本只是补充对照）。不要把 URL 字符串说成页面审核对象，也不要把旧回答当作当前实现证据。`;
+
+/** 构建一条完整的 system message。 */
+export function buildSystemPrompt(extra = '', { workflowQuestion = false } = {}) {
   const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false });
-  return `${SYSTEM_PROMPT}\n\n${cardContract()}\n\n# 当前时间\n${now}（Asia/Shanghai）${extra ? `\n\n${extra}` : ''}`;
+  return `${SYSTEM_PROMPT}\n\n${cardContract()}\n\n# 当前时间\n${now}（Asia/Shanghai）${extra ? `\n\n${extra}` : ''}`
+    + (workflowQuestion ? `\n\n${REVIEW_WORKFLOW_QA_CONTEXT}` : '');
 }

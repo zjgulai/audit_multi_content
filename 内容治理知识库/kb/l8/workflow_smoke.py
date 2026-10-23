@@ -42,6 +42,7 @@ import json
 import os
 import re
 import subprocess
+from pathlib import Path
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -74,10 +75,22 @@ PRD53 = os.environ.get("KB_PRD53") or os.path.expanduser(
 _PRd_PASS_RE = re.compile(r"^【审查结论：PASS】未发现已知底线风险，可转交 @\S[^\n]*进行 sign-off")
 _PRd_REVIEW_RE = re.compile(r"^【审查结论：REVIEW】共发现 \d+ 处需人工确认。$")
 _PRd_BLOCK_RE = re.compile(r"^【审查结论：BLOCK】共发现 \d+ 处必须修改。$")
+# ★★ 2026-10-19 第二轮（PRD §5.3.2 **rev 101**）：**`【审查结论：SUGGEST】` 这一行是非法的**。
+#   rev 101 原文：「SUGGEST｜…**作为 PASS 的附属标签**，不阻断流程。｜随 PASS 一起流转，提示内容方。」
+#   ⇒ 建议只能以**附段**形式跟在 PASS 结论行之后；一旦出现 SUGGEST 结论行，卡面就又是第四态。
+#   ⚠️ 同日早些时候这里反过来 —— 有一条 `_PRd_SUGGEST_RE` **认**这一行（rev 96 的读法）。
+#      现在它被撤掉，而且**留下一个负样本**（见 S7 的样本 8）：
+#      kb 必须判它**不合规**；守衡若仍判合规 ⇒ 记「跨仓待同步」读数（**不判红** ——
+#      那是另一会话的未提交工作区，改单在交付件里；多认一个不再产出的词当前无害）。
+#   撤销这条正则的**判据**：S7 样本 8 ＋ 反向对照 R7e（把旧版产者塞回去 ⇒ S7 必须红）。
 
 
 def kb_prd_conforms(line):
-    """kb 侧对 PRD §5.3 三句的合规判定（返回 bool）。三态各有各的判据，别混成一条。"""
+    """kb 侧对 PRD §5.3 各句的合规判定（返回 bool）。**三态各有各的判据，第四态不存在**。
+
+    ★ 2026-10-19 第二轮（rev 101）：`【审查结论：SUGGEST】…` **不是**合规行 ——
+      它走到最后那个 `return False`。这是有意的：SUGGEST 是 PASS 的标签，不是结论。
+    """
     t = str(line or "").strip()
     if t.startswith("【审查结论：PASS】"):
         return bool(_PRd_PASS_RE.match(t))
@@ -110,7 +123,10 @@ SIDECAR_REQUIRED_NORMAL = ("issue_count", "kb_hits", "facets", "decision_owner",
 _SPLIT_FIELDS = ("candidate_count", "issue_count_including_candidates")
 _SPLIT_SINCE = "2026-10-12T13:1"
 CHAIN_SKILLS = ("L4", "L5", "L6", "L7")
-CLAUSE_RE = re.compile(r"[EWSU]-\d+\.\d+")
+# ★ 2026-10-20：把 **N**（负面样本规则段）并进来 —— 否则含 N-1.x 的报告会被判「缺条款号」。
+#   N-1.x 是 2026-10-20 经 Owner 批准的新条款号段（W/S/E/U 之外），判据必须认它，
+#   否则「报告里真有条款号」会被读成「没有」。反向对照（R2）照旧：用它把条款号抠掉就必须红。
+CLAUSE_RE = re.compile(r"[EWSUN]-\d+\.\d+")
 
 
 def _run(cmd, timeout=180):
@@ -356,6 +372,36 @@ def _kb_pass_summary():
                       "PASS", [], 0.9, ["smoke"])["summary"]
 
 
+def _kb_suggest_summary():
+    """拿**引擎真输出**的「PASS ＋ 建议」摘要（PRD §5.3.2 rev101：SUGGEST 是 PASS 的附属标签）。
+
+    ★ 2026-10-19 第二轮：这一支改口径 —— 输入端是**两样**都喂：
+      · 一条 P3（非强制）条目 ⇒ 结论必须仍是 **PASS**，建议走**附段**；
+      · 返回的是 `_result` 的**真输出**（不是手搓），所以 S7 量的是「我们真的会这么出」。
+    改前（同日早些，rev 96 读法）这一支返回的是 `【审查结论：SUGGEST】发现 N 处建议优化…`，
+    那种行现在是非法的（见 `kb_prd_conforms` 的注释与 S7 样本 8）。
+    """
+    core = os.path.join(KB, "l7/review-engine/core")
+    if core not in sys.path:
+        sys.path.insert(0, core)
+    import review_engine as RE                                  # noqa: PLC0415
+    p3 = [{
+        "risk_id": "SMOKE-S7-P3",
+        "risk_type": "措辞表达-口语化",
+        "priority_tier": "P3",
+        "status": "confirmed",
+        "action": "advice",
+        "location": "正文第 2 段",
+        "evidence_id": "《内部样本库 v0》第 W-2.1 条",
+        "reason": "措辞偏口语",
+        "suggestion": "改为「高效便捷」",
+        "original_text": "超级好用",
+        "severity": "SUGGEST",
+    }]
+    return RE._result({"review_id": "SMOKE-S7-SUGGEST", "content_id": "SMOKE-S7-SUGGEST"},
+                      "PASS", p3, 0.95, ["suggest_only_non_mandatory"])["summary"]
+
+
 def _shouheng_conforms(lines):
     """把若干行交给**守衡自己的** `conforms()` 判，返回等长的布尔表。
 
@@ -396,10 +442,19 @@ def s7_prd_line():
         pass_line = str(_kb_pass_summary()).split("\n")[0]       # PRD §5.3.1 的**真输出**
     except Exception as e:                                      # noqa: BLE001
         return False, d, "拿不到引擎 PASS 真输出：%r" % e
+    try:
+        suggest_line = str(_kb_suggest_summary()).split("\n")[0]  # 真输出：PASS＋建议（rev101）
+    except Exception as e:                                      # noqa: BLE001
+        return False, d, "拿不到引擎「PASS＋建议」真输出：%r" % e
     d["真输出的结论行（REVIEW）"] = first
     d["真输出的结论行（PASS）"] = pass_line
-    # ── 样本：三态全覆盖（真输出 × 2 ＋ 手写合规 × 2 ＋ **违规** × 3）──────────
+    d["真输出的结论行（PASS＋建议）"] = suggest_line
+    # ── 样本：**三态 ＋ 一个标签**（真输出 × 3 ＋ 手写合规 × 3 ＋ **违规** × 4）──────
     #   违规样本必须**两把尺子都判不合规**；真输出必须**两把尺子都判合规**。
+    #   ★ 2026-10-19 第二轮（rev 101）：7 = 真输出「PASS＋建议」的**结论行**（必须仍判 PASS 行）；
+    #     8 = `【审查结论：SUGGEST】…` —— 这一行在 rev101 里**非法**，kb 必须判不合规。
+    #     守衡今天仍认它（另一会话未提交的工作区）⇒ 第 8 位**只由 kb 判**，
+    #     守衡的判定进 `待同步` 读数，**不参与「两把尺子一致」的比较**（否则红在我不可写的那一侧）。
     samples = [first,                                            # 0 真输出 REVIEW（带候选）
                pass_line,                                        # 1 真输出 PASS
                "【审查结论：REVIEW】共发现 1 处需人工确认。",        # 2 合规 REVIEW
@@ -409,26 +464,43 @@ def s7_prd_line():
                # ↓ PASS 缺了 PRD 要求的措辞 —— 必须判**不合规**
                "【审查结论：PASS】未发现问题。",
                # ↓ BLOCK 少了句号 / 换了措辞 —— 必须判**不合规**
-               "【审查结论：BLOCK】共发现 2 处需修改"]
-    must_be_ok = [0, 1, 2, 3]
+               "【审查结论：BLOCK】共发现 2 处需修改",
+               suggest_line,                                     # 7 真输出「PASS＋建议」的结论行
+               # ↓ rev101 起这一行**非法**（SUGGEST 只是标签）：kb 必须判不合规
+               "【审查结论：SUGGEST】发现 1 处建议优化，不阻断发布。"]
+    must_be_ok = [0, 1, 2, 3, 7]
     must_be_bad = [4, 5, 6]
+    #: 第 8 位：kb 侧必须判**不合规**（rev101）；守衡侧若仍判合规 ⇒ 记「跨仓待同步」读数。
+    FORBIDDEN_LINE = 8
     try:
         ok_sh = _shouheng_conforms(samples)
     except Exception as e:                                      # noqa: BLE001
         return True, d, "未测：拿不到守衡那把尺子（%r）—— 不计红" % e
     ok_kb = [bool(kb_prd_conforms(x)) for x in samples]
     d["两把尺子判定"] = {"守衡 conforms": ok_sh, "kb 正则": ok_kb}
-    d["真输出合规"] = {"REVIEW": ok_sh[0], "PASS": ok_sh[1]}
+    d["真输出合规"] = {"REVIEW": ok_sh[0], "PASS": ok_sh[1],
+                       "PASS＋建议": ok_sh[7] if len(ok_sh) > 7 else None}
     bad = []
     for i in must_be_ok:                                        # ① 真输出/合规样本必须过
         if not ok_sh[i]:
             bad.append("样本 %d 过不了守衡 conforms：%r" % (i, samples[i][:70]))
-    if ok_sh != ok_kb:                                          # ② 口径必须一致（三态都算）
+    _cmp_ok = [i for i in range(len(samples)) if i != FORBIDDEN_LINE]
+    if [ok_sh[i] for i in _cmp_ok] != [ok_kb[i] for i in _cmp_ok]:   # ② 口径必须一致（三态都算）
         bad.append("两把尺子判定不一致（守衡 %s ／ kb %s）——口径漂了" % (ok_sh, ok_kb))
     for i in must_be_bad:                                       # ③ 违规样本不许被判合规
         if ok_sh[i] or ok_kb[i]:
             bad.append("反向对照失效：样本 %d 竟被判合规：%r" % (i, samples[i][:70]))
-    return (not bad), d, "；".join(bad)
+    # ④ 非法行（rev101 起 SUGGEST 不是结论态）：**kb 必须判不合规**；守衡若仍认 ⇒ 记待同步、**不计红**
+    if ok_kb[FORBIDDEN_LINE]:
+        bad.append("样本 %d `【审查结论：SUGGEST】…` 被 kb 判成**合规** —— "
+                   "第四态从结论行这条路长回来了（rev101：SUGGEST 只是 PASS 的标签）" % FORBIDDEN_LINE)
+    d["守衡是否仍认 SUGGEST 结论行"] = bool(ok_sh[FORBIDDEN_LINE])
+    _pending = ""
+    if ok_sh[FORBIDDEN_LINE]:
+        _pending = ("跨仓待同步：守衡 `conforms()` 仍把 `【审查结论：SUGGEST】…` 判合规"
+                    "（KB 侧已判不合规；那一处在另一会话工作区，改单见交付件）"
+                    "—— 当前无害：KB 不再产出这一行")
+    return (not bad), d, "；".join([x for x in [("；".join(bad)), _pending] if x])
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -462,15 +534,23 @@ def _parser_flags(src):
     return out
 
 
-def _shouheng_cmd_template():
+def _shouheng_cmd_template(ctype=None, image_paths=None):
     """跑守衡那把 `reviewCmdTemplate()`（只读、不碰守衡运行态），拿**真渲染**出来的模板。
 
     为什么不静态解析 `tools.mjs` 源码：**渲染结果才是 agent 真看到的东西** ——
     素材路径是内联进去的，静态解析看不出内联到底有没有生效。
+
+    ★ 2026-10-21（P1a）：渲染两档 —— text 档（不给 ctype）与 image 档（ctype=image ＋ 一张图）。
+      图单的 `--image` / `--position` 只出现在图单模板里；只渲染 text 档会把它们判成
+      「守衡有、手册没有」的假漂移（R8f 会红）。两档并集才是「模板能给的旗标全集」。
     """
+    if ctype:
+        _args = "%s, %s" % (json.dumps(str(ctype)), json.dumps([str(x) for x in (image_paths or [])]))
+    else:
+        _args = "undefined, []"
     script = ("import { reviewCmdTemplate } from %s;"
-              "process.stdout.write(reviewCmdTemplate('/tmp/S8-PROBE-MATERIAL.txt'));"
-              % json.dumps(TOOLS_MJS))
+              "process.stdout.write(reviewCmdTemplate('/tmp/S8-PROBE-MATERIAL.txt', %s));"
+              % (json.dumps(TOOLS_MJS), _args))
     pr = subprocess.run(["node", "--input-type=module", "-e", script],
                         capture_output=True, text=True, timeout=60)
     if pr.returncode != 0:
@@ -490,8 +570,13 @@ def _bash_syntax_ok(cmd_text):
     return p.returncode == 0, (p.stderr or "").strip()[:140]
 
 
-def _s8_judge(pb_text, tpl_text, parser_src, tpl_present=True):
-    """纯函数：三段文本进、结论出（**反向对照直接喂变异样本，不碰盘**）。"""
+def _s8_judge(pb_text, tpl_text, parser_src, tpl_present=True, extra_tpls=()):
+    """纯函数：三段文本进、结论出（**反向对照直接喂变异样本，不碰盘**）。
+
+    ★ 2026-10-21（P1a）：`extra_tpls` = 守衡模板的**其它档**渲染结果（图单档）。
+      旗标集合取**并集** —— 图单的 `--image` / `--position` 只出现在图单模板里，
+      只拿 text 档比会把它们判成假漂移。反向对照（R8a）要同时变异每一档。
+    """
     d, bad = {}, []
     parser = _parser_flags(parser_src)
     d["review_run.sh 认得的旗标"] = " ".join(sorted(parser)) or "（一个都没解析出来）"
@@ -512,8 +597,11 @@ def _s8_judge(pb_text, tpl_text, parser_src, tpl_present=True):
         d["守衡侧模板"] = "未测：跨仓件不在（**不计红**，但记在读数里）"
         return (not bad), d, ("；".join(bad) if bad else "未测：跨仓件不在 —— 手册那几条已判，其余不判")
     tpl = tpl_text or ""
-    tpl_flags = set(_FLAG_RE.findall(_fenced_bash(tpl)))
-    d["守衡侧模板长度"] = "%d 字" % len(tpl)
+    _tpls = [tpl] + [str(x or "") for x in (extra_tpls or ())]
+    tpl_flags = set()
+    for _t in _tpls:
+        tpl_flags |= set(_FLAG_RE.findall(_fenced_bash(_t)))
+    d["守衡侧模板长度"] = "%d 字（%d 档）" % (len(tpl), len(_tpls))
     d["守衡模板旗标"] = " ".join(sorted(tpl_flags)) or "（没找到 ```bash 块）"
     unk2 = sorted(tpl_flags - parser)
     if unk2:
@@ -525,8 +613,12 @@ def _s8_judge(pb_text, tpl_text, parser_src, tpl_present=True):
     if pb_flags and tpl_flags and pb_flags != tpl_flags:
         bad.append("两处模板旗标集合不一致（手册独有 %s ／ 守衡独有 %s）—— 同一事实漂了"
                    % (sorted(pb_flags - tpl_flags), sorted(tpl_flags - pb_flags)))
-    # ③ 照抄能跑：取消注释 + 替占位符之后必须过 `bash -n`
-    ok_syn, err = _bash_syntax_ok(_fenced_bash(tpl) or _fenced_bash(pb_text))
+    # ③ 照抄能跑：取消注释 + 替占位符之后必须过 `bash -n`（每一档都要过）
+    ok_syn, err = True, ""
+    for _t in _tpls:
+        ok_syn, err = _bash_syntax_ok(_fenced_bash(_t) or _fenced_bash(pb_text))
+        if not ok_syn:
+            break
     d["照抄后 bash -n"] = "过" if ok_syn else ("不过：%s" % err)
     if not ok_syn:
         bad.append("模板照抄跑不起来（bash -n 不过）：%s" % err)
@@ -547,9 +639,280 @@ def s8_playbook():
         return _s8_judge(pb, "", pr, tpl_present=False)
     try:
         tpl = _shouheng_cmd_template()
+        tpl_img = _shouheng_cmd_template('image', ['/tmp/S8-PROBE-IMAGE.jpg'])
     except Exception as e:                                      # noqa: BLE001
         return _s8_judge(pb, "", pr, tpl_present=False) if "node" in repr(e) else (False, {}, repr(e))
-    return _s8_judge(pb, tpl, pr, tpl_present=True)
+    return _s8_judge(pb, tpl, pr, tpl_present=True, extra_tpls=(tpl_img,))
+
+
+def s9_owner_locks():
+    """**S9 · Owner 修复锁**（2026-10-19 Owner：「修复问题要落库，避免重复修复」）。
+
+    查三件事，任一不成立即红：
+      ① 锁指向的判据文件还在、② 判据 ID 还在该文件正文里、
+      ③ 自 `coverage_since` 起的每条 `fix_*` 都挂上了锁。
+
+    ★ 为什么值得占一格：修复记录（`report-output-contract.yaml`，98 条）是**流水账**，
+      没有人能一眼看出「这条 Owner 意见现在由哪把尺守着、那把尺还在不在」。
+      同一个问题被报两次在本库发生过多次 —— 而**判据被删/被改名是最安静的回归**：
+      代码照旧跑，只是没人守了。
+    """
+    # ⚠️ 本文件里 `KB` / `KB_ROOT` 是**字符串**（不是 Path）—— 第一版直接 `KB / "kbpy"`，
+    #   S9 当场崩：`TypeError: unsupported operand type(s) for /: 'str' and 'str'`。
+    #   判据自己崩掉最误导人（看着像"红灯"，其实是尺子坏了），所以这里显式转 Path。
+    kb_dir = Path(KB) if not isinstance(KB, Path) else KB
+    kb_root = Path(ROOT) if not isinstance(ROOT, Path) else ROOT   # 本文件的根叫 ROOT（不是 KB_ROOT）
+    cmd = ["sh", str(kb_dir / "kbpy"), "l8/owner_locks_check.py"]
+    try:
+        r = subprocess.run(cmd, cwd=str(kb_root), capture_output=True, text=True, timeout=120)
+    except Exception as e:                                  # noqa: BLE001
+        return False, {}, "跑不起来：%r" % e
+    out = (r.stdout or "") + (r.stderr or "")
+    locks_yaml = kb_dir / "l7/registry/owner-fix-locks.yaml"
+    n_locks = len(re.findall(r"^  - id: L", locks_yaml.read_text(encoding="utf-8"), re.M))
+    ok = r.returncode == 0
+    detail = {"退出码": r.returncode, "锁条数": n_locks,
+              "结论": "全绿" if ok else "有锁失效或漏挂"}
+    if not ok:
+        detail["明细"] = [x.strip() for x in out.splitlines() if x.strip().startswith("·")][:6]
+    return ok, detail, ("" if ok else "修复锁失效/漏挂（见明细）")
+
+
+def s11_strfix():
+    """S11 串图修复锁（2026-10-20 加）：**归属判据在、陈旧已清、且都没被改回去**。
+
+    两道判据各跑一次（都自带反向对照，缺一不叫锁）：
+
+      · `kb/l8/check_attribution_gate.py` —— 用户发的那张 Giveaway 长图**不得**再被当成
+        BJs/Costco/品牌日 三条记录的「依据」（它是附图、且跨内容不同的记录），
+        反向对照钉住「单图独占记录仍能引用」；
+      · `kb/l8/check_gone_pruned.py` —— L0 标了 `gone` 的记录，L2/L6 一条都不许留
+        （实测曾留 441 / 237 条，召回把它们排到前面 ⇒ 点开是不存在的记录）。
+
+    为什么必须进冒烟：这两件都是**抑制**装置 —— 它们坏掉时系统不会报错，只会悄悄回到
+    旧行为（串图 / 死链）。判据不进链 = 注释。
+    """
+    d = {"判据": ["kb/l8/check_attribution_gate.py", "kb/l8/check_gone_pruned.py"]}
+    bad = []
+    for name in ("check_attribution_gate.py", "check_gone_pruned.py"):
+        p = os.path.join(KB, "l8", name)
+        if not os.path.exists(p):
+            bad.append("%s 不在" % name)
+            continue
+        try:
+            out = subprocess.run([sys.executable, p], capture_output=True, text=True, timeout=120)
+        except Exception as e:                                  # noqa: BLE001
+            bad.append("%s 跑不起来：%r" % (name, e))
+            continue
+        d[name] = "rc=%d" % out.returncode
+        if out.returncode != 0:
+            bad.append("%s rc=%d：%s" % (name, out.returncode,
+                                         (out.stdout or out.stderr or "").strip().splitlines()[-1:][0]
+                                         if (out.stdout or out.stderr) else ""))
+    return (not bad), d, ("；".join(bad) if bad else "")
+
+
+def s10_material_evidence():
+    """S10 出口闸：**最近一单报告的每条证据都必须落在「本单素材」里**（2026-10-20 加）。
+
+    为什么单开一段（真单驱动）：S4 只核「条款号/指纹/直链**三件在不在**」，
+    `citation_integrity` 只核「摘录能不能**回到某条 L0 记录**」——
+    两者都绿的那一单（2026-10-20 图片单），报告里照样出现了**这张图里没有的**
+    「1.挂式衣架: 磨砂亚克力材质…」（来自另一条历史审核记录）。
+    ⇒ 缺的是第三条轴：**是不是这一单素材里的字**。判据 = `kb/l8/material_evidence_gate.py`
+      （它自带 6 条自证，其中 4 条是反向对照）。
+
+    ★ 取不到守衡逐条记录（换机器 / 没装守衡）⇒ **未测，不计红** —— 与 S7 缺件同档。
+    """
+    d = {"判据": "kb/l8/material_evidence_gate.py"}
+    gate = os.path.join(KB, "l8", "material_evidence_gate.py")
+    if not os.path.exists(gate):
+        return False, d, "判据不在（%s）" % gate
+    try:
+        out = subprocess.run([sys.executable, gate, "--latest", "--json"],
+                             capture_output=True, text=True, timeout=60)
+    except Exception as e:                                     # noqa: BLE001
+        return False, d, "跑不起来：%r" % e
+    if out.returncode == 0 and "未测" in (out.stdout or ""):
+        d["状态"] = "未测"
+        return True, d, "未测：没有守衡逐条记录 —— 不计红"
+    try:
+        res = json.loads(out.stdout or "{}")
+    except Exception:                                          # noqa: BLE001
+        return False, d, "输出不是 JSON：%s" % (out.stdout or out.stderr or "")[:120]
+    d["形态"] = res.get("modality")
+    d["核了"] = res.get("checked_items")
+    d["红"] = len(res.get("fails") or [])
+    if res.get("legacy_record"):
+        d["存量记录"] = "判据建立之前的记录 ⇒ 只报不红（真红看 --strict）"
+    fails = list(res.get("fails") or []) + list(res.get("known_drift") or [])
+    # ★ 判红口径以**闸门自己的退出码**为准（存量记录它退 0、真红退 3），
+    #   这里不许自己再判一遍 —— 否则会绕过 `--strict`/存量登记那套口径。
+    if out.returncode == 3:
+        d["明细"] = ["%s:%s %s" % (f.get("rule"), f.get("item"), f.get("msg")) for f in fails[:4]]
+        return False, d, "最近一单有 %d 处「证据对不上本单素材」" % len(fails)
+    if fails:
+        d["明细（存量，不改红）"] = ["%s:%s %s" % (f.get("rule"), f.get("item"), f.get("msg")) for f in fails[:4]]
+    return True, d, ""
+
+
+def s12_rerun(script_text=None):
+    """S12 重跑契约（2026-10-20 加）：**同一单跑完之后还能再跑**，而且「第几次」说得清。
+
+    为什么单开一段（Owner 2026-10-20 原话：「同一单跑完还必须支持重新跑」）：
+
+      · 评审链**从来没有禁止过重跑**（换一个 `--base` 就是新 RUN），
+        但**也没有任何东西保证它不被挡住** —— 谁哪天顺手加一句「已存在就跳过」，
+        盘上不会有任何东西变红。而这件事的代价是**一单重跑不了**，且现场看不出原因。
+      · 重跑还必须**认得出**：同一份素材第 2 次跑，盘上多一份 RUN、表里多一行，
+        若没有 `rerun_seq / rerun_of / rerun_prev_state` 三个字段，
+        人问「这次跟上次一样吗」只能靠肉眼比两份报告。
+
+    三条判据（缺一条这一档就不算数）：
+
+      ① **接线**：`review_run.sh` 开跑前真的调了 `rerun_ledger.py --check-base`，
+         拒答路（库忙 / 闸门红）也真的记了账（否则那些轮次不算数，序号会偏小）；
+      ② **判据自证**：`rerun_ledger.py --selftest` 全绿（它自带反向对照，见该件）；
+      ③ **契约本身**（喂真台账文件，不碰线上）：一条**已跑完**的记录在案时，
+         换新 BASE 跑同一份素材 ⇒ **不许**判冲突，且 `rerun_seq=2 / rerun_of=上一轮`；
+         同一个 BASE 再跑 ⇒ **必须**判冲突（这条挡的是「同一 RUN 跑两遍」的双计）。
+
+    ★ 反向对照由 `--selftest` 的 R12 喂一份「拆掉接线」的脚本文本 —— 那一路必须红。
+    """
+    d = {"判据": "kb/l8/rerun_ledger.py"}
+    bad = []
+
+    script = Path(KB) / "l8/review_run.sh"
+    ledger = Path(KB) / "l8/rerun_ledger.py"
+    if not ledger.exists():
+        return False, d, "kb/l8/rerun_ledger.py 不在（判据丢了）"
+    if script_text is None:
+        if not script.exists():
+            return False, d, "kb/l8/review_run.sh 不在（接线对象丢了）"
+        script_text = script.read_text(encoding="utf-8", errors="replace")
+
+    # ① 接线（**只认真实调用点**，不认注释里提到过它）
+    n_check = script_text.count('rerun_ledger.py" --check-base')
+    n_rec = script_text.count('rerun_ledger.py" --record')
+    d["接线"] = {"开跑前判": n_check, "记账": n_rec}
+    if n_check < 1:
+        bad.append("review_run.sh 没接「开跑前判」（--check-base）")
+    if n_rec < 1:
+        bad.append("review_run.sh 没接「记账」（--record）")
+
+    # ② 判据自证（它自带反向对照）
+    try:
+        r = subprocess.run([sys.executable, str(ledger), "--selftest"],
+                           capture_output=True, text=True, timeout=120)
+        tail = (r.stdout or "").strip().splitlines()[-1:] or [""]
+        d["自证"] = tail[0].strip()
+        if r.returncode != 0:
+            bad.append("rerun_ledger --selftest rc=%d" % r.returncode)
+    except Exception as e:                                  # noqa: BLE001
+        bad.append("rerun_ledger --selftest 跑不起来：%r" % e)
+
+    # ③ 契约（真台账文件，落在临时目录）
+    import tempfile
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            lp = os.path.join(td, "seq.ndjson")
+            sha = "e5b61501"
+            with open(lp, "w", encoding="utf-8") as f:
+                f.write(json.dumps({"at": "2026-10-20T17:03:15", "base": "DONE-1",
+                                    "text_sha8": sha, "state": "REVIEW"}, ensure_ascii=False) + "\n")
+
+            def _chk(base):
+                out = subprocess.run([sys.executable, str(ledger), "--check-base", base,
+                                      "--text-sha8", sha, "--ledger", lp],
+                                     capture_output=True, text=True, timeout=60)
+                return json.loads((out.stdout or "{}").strip() or "{}")
+
+            newb = _chk("NEW-2")          # 已跑完的单，换新 BASE 重跑
+            sameb = _chk("DONE-1")        # 同一个 BASE 再跑
+            d["重跑读数"] = {"新BASE": newb, "同BASE": sameb}
+            if newb.get("same_base") is not False:
+                bad.append("换新 BASE 重跑竟被判成冲突（把重跑挡死了）")
+            if newb.get("rerun_seq") != 2 or newb.get("rerun_of") != "DONE-1":
+                bad.append("重跑没认出「第 2 次 / 上一轮 DONE-1」（重跑留痕失效）")
+            if sameb.get("same_base") is not True:
+                bad.append("同一个 BASE 再跑没被判冲突（同一 RUN 跑两遍会双计）")
+    except Exception as e:                                  # noqa: BLE001
+        bad.append("契约自查跑不起来：%r" % e)
+
+    return (not bad), d, ("；".join(bad) if bad else "")
+
+
+def s13_negative_image_hitrate():
+    """S13 库内反面案例图命中率（2026-10-20 加）。
+
+    Owner 原话：「339 张图……我这边飞书侧发图片，就应该命中规则」＋
+    「所有修复必须落库，避免这个问题反复修复」。
+
+    为什么必须有这一段（当天实测的病）：这条链上三道门（收窄 / 归属 / 打分上限）
+    **都是当天为了修别的 bug 加的**，每一道都静默吞掉命中，而**没有任何尺子在量
+    "改完还剩几张能命中"** —— 于是"修串图"把命中率打到 5%，谁都不知道。
+    本段读 `kb/l8/check_negative_image_hitrate.py` 的读数（真引擎抽样），
+    红了 = 有库内反面案例图发出去拿不到意见。
+
+    ★ 没读数 / 读数超过 7 天 ⇒ **未测，不计红**（与 S6/S10 同档）；
+      未测不是通过，也不许悄悄当绿的替代品。
+    """
+    d = {"判据": "kb/l8/check_negative_image_hitrate.py"}
+    art = os.path.join(KB, ".work", "negative_image_hitrate.json")
+    if not os.path.exists(art):
+        d["状态"] = "未测"
+        return True, d, ("未测：没有读数（跑 `python3 kb/l8/check_negative_image_hitrate.py "
+                         "--write-artifact`）")
+    try:
+        import time as _t
+        r = json.load(open(art, encoding="utf-8"))
+        age_d = (_t.time() - os.path.getmtime(art)) / 86400.0
+    except Exception as e:                                     # noqa: BLE001
+        return False, d, "读数文件读不了：%r" % e
+    d.update({"at": r.get("at"), "抽": r.get("checked"), "命中": r.get("hit"),
+              "图总数": r.get("images"), "H1缺规则": r.get("h1_missing"),
+              "反向对照误命中": (r.get("controls") or {}).get("unrelated_text")})
+    if age_d > 7:
+        d["状态"] = "未测"
+        return True, d, "未测：读数 %.1f 天前的（超过 7 天不算绿）" % age_d
+    if r.get("verdict") != "PASS":
+        d["漏"] = (r.get("miss") or [])[:4]
+        return False, d, ("最近一次读数**未过**：抽 %s 张命中 %s，漏 %s 张"
+                          % (r.get("checked"), r.get("hit"), len(r.get("miss") or [])))
+    return True, d, ""
+
+
+def s14_negative_image_identity():
+    """S14 图身份命中（生产形态：**重压缩过的库内图** → 真引擎，2026-10-21 加）。
+
+    与 S13 的分工：S13 量「库内 OCR → 引擎」（库内夹具）；S14 量「**图本身** → 引擎」
+    —— 把库内图缩 80% + JPEG70（模拟飞书 IM 重压缩），走 `review.py --image` 的图身份层，
+    每张都必须命中**它自己**的可引用规则。反向对照：库外噪声图必须 0 命中。
+    ★ 没读数 / 超过 7 天 ⇒ 未测（不计红）。
+    """
+    d = {"判据": "kb/l8/check_negative_image_identity.py"}
+    art = os.path.join(KB, ".work", "negative_image_identity.json")
+    if not os.path.exists(art):
+        d["状态"] = "未测"
+        return True, d, ("未测：没有读数（跑 `python3 kb/l8/check_negative_image_identity.py "
+                         "--write-artifact`）")
+    try:
+        import time as _t
+        r = json.load(open(art, encoding="utf-8"))
+        age_d = (_t.time() - os.path.getmtime(art)) / 86400.0
+    except Exception as e:                                     # noqa: BLE001
+        return False, d, "读数文件读不了：%r" % e
+    d.update({"at": r.get("at"), "抽": r.get("checked"), "命中": r.get("hit"),
+              "图总数": r.get("images"), "可引图": r.get("citable_images"),
+              "不可引图": r.get("noncitable_images"),
+              "反向对照误命中": (r.get("controls") or {}).get("unrelated_image_hits")})
+    if age_d > 7:
+        d["状态"] = "未测"
+        return True, d, "未测：读数 %.1f 天前的（超过 7 天不算绿）" % age_d
+    if r.get("verdict") != "PASS":
+        d["漏"] = (r.get("miss") or [])[:4]
+        return False, d, ("最近一次读数**未过**：抽 %s 张命中 %s" % (r.get("checked"), r.get("hit")))
+    return True, d, ""
 
 
 CHECKS = [
@@ -558,8 +921,14 @@ CHECKS = [
     ("S3 红线快路契约（P0 ≤1s 那条）", s3_fastpath),
     ("S4 报告溯源契约（条款号/指纹/直链）", s4_report),
     ("S5 落章契约（四层齐 + 带 skill）", s5_stamp),
-    ("S7 PRD §5.3 结论行跨仓契约（真输出过对方的尺子）", s7_prd_line),
+    ("S7 PRD §5.3 结论行跨仓契约（三态＋标签，真输出过对方的尺子）", s7_prd_line),
     ("S8 执行手册契约（模板能照抄 / flag 真存在 / 两处不漂）", s8_playbook),
+    ("S9 Owner 修复锁（判据还在、今天的修复都挂锁）", s9_owner_locks),
+    ("S11 串图修复锁（归属判据在、陈旧已清、反向对照都在）", s11_strfix),
+    ("S10 出口闸（报告每条证据都落在本单素材里）", s10_material_evidence),
+    ("S12 重跑契约（同一单跑完还能再跑；同 BASE 不许跑第二遍）", s12_rerun),
+    ("S13 库内反面案例图命中率（发图必须命中库内意见）", s13_negative_image_hitrate),
+    ("S14 图身份命中（重压缩图 → 真引擎；发图必须命中它自己的规则）", s14_negative_image_identity),
 ]
 
 
@@ -715,6 +1084,10 @@ def reverse_controls():
     #   · R7a 把上个缺陷**真造一遍**（候选粘在结论行尾巴上）⇒ S7 必须红；
     #   · R7b 把 kb 那把尺子**放松**成子串式 ⇒ 「两把尺子一致」必须红；
     #   · R7c 跨仓件指到不存在的路径 ⇒ 必须报「未测」且**不计红**。
+    #   · R7d（2026-10-12 补）PASS 真输出缺 PRD 措辞 ⇒ 必须红（三态里那一态也有牙）；
+    #   · R7e（2026-10-19 补；rev101 改写）**旧版产者复线 ⇒ 必须红** ——
+    #     同日早些时候 S7 把 `【审查结论：SUGGEST】…` 当**合规样本**喂过（rev96 读法），
+    #     这一条钉的就是「第四态不许从产者那一侧复线」：真输出一变回那个形状，S7 当场红。
     try:
         _saved_fn = globals().get("_kb_summary_with_candidates")
         _saved_re = globals().get("_PRd_REVIEW_RE")
@@ -741,6 +1114,17 @@ def reverse_controls():
             _r7d[0] is False, str(_r7d[2])[:90])
         if _saved_pass is not None:
             globals()["_kb_pass_summary"] = _saved_pass
+        # R7e：**把旧版产者塞回去**（真输出又变成 `【审查结论：SUGGEST】…`）⇒ S7 必须红
+        #   ★ 2026-10-19 第二轮（rev101）：SUGGEST 只是 PASS 的标签，那一行是**非法行**。
+        #     这一条钉的是「第四态不许从产者那一侧复线」：
+        #     真人真事 —— 同日早些时候 `_kb_suggest_summary` 就是那个形状，kb 与守衡当时还都认它。
+        _saved_sug = globals().get("_kb_suggest_summary")
+        globals()["_kb_suggest_summary"] = lambda: "【审查结论：SUGGEST】发现 2 处建议优化，不阻断发布。"
+        _r7e = s7_prd_line()
+        chk("R7e 旧版产者复线（真输出又是 `【审查结论：SUGGEST】…`）⇒ S7 必须红",
+            _r7e[0] is False, str(_r7e[2])[:90])
+        if _saved_sug is not None:
+            globals()["_kb_suggest_summary"] = _saved_sug
         globals()["PRD53"] = "/nonexistent/prd53.mjs"
         _r7c = s7_prd_line()
         chk("R7c 跨仓件不在 ⇒ 报「未测」且**不计红**（缺件 ≠ 坏件）",
@@ -755,6 +1139,23 @@ def reverse_controls():
         if _saved_p53 is not None:
             globals()["PRD53"] = _saved_p53
 
+    # ── R12 反向对照（2026-10-20 加，S12 的两半各喂一次**真变异**）──────────
+    #   ① 把 `review_run.sh` 的重跑接线**真拆掉**（喂一份删掉两处调用的文本）⇒ S12 必须红；
+    #   ② 真文本 ⇒ 必须绿（防止判据宽到把正常接线也判红 —— 那会让"修好了"变成噪音）。
+    #   两半都走**纯文本注入**，不碰盘上任何一个文件。
+    try:
+        _real = (Path(KB) / "l8/review_run.sh").read_text(encoding="utf-8", errors="replace")
+        _cut = _real.replace('rerun_ledger.py" --check-base', 'REMOVED --check-base')
+        _cut = _cut.replace('rerun_ledger.py" --record', 'REMOVED --record')
+        _r12a = s12_rerun(script_text=_cut)
+        chk("R12a 把重跑接线从 review_run.sh 拆掉 ⇒ S12 必须红（判据有牙）",
+            _r12a[0] is False and "没接" in str(_r12a[2]), str(_r12a[2])[:90])
+        _r12b = s12_rerun(script_text=_real)
+        chk("R12b 真实脚本文本 ⇒ S12 必须绿（别把正常接线判红）",
+            _r12b[0] is True, str(_r12b[2])[:90])
+    except Exception as e:                                      # noqa: BLE001
+        chk("R12 S12 反向对照（拆接线必须红 / 真文本必须绿）", False, repr(e))
+
     # ── R8 反向对照（2026-10-16 加，S8 的每一半各喂一次**真变异**）──────────
     #   全部走**纯函数** `_s8_judge`：喂变异字符串，**不碰盘上任何一个文件**。
     #   为什么这么写：S8 的三条判据（旗标真存在 ／ 两处不漂 ／ 照抄能跑）
@@ -763,6 +1164,8 @@ def reverse_controls():
         _pb = open(PLAYBOOK_MD, encoding="utf-8").read()
         _pr = open(REVIEW_RUN_SH, encoding="utf-8").read()
         _tpl = _shouheng_cmd_template() if os.path.exists(TOOLS_MJS) else None
+        _tpl_img = (_shouheng_cmd_template('image', ['/tmp/S8-PROBE-IMAGE.jpg'])
+                    if _tpl else None)
         if _tpl is None:
             chk("R8 S8 反向对照（跨仓件不在 ⇒ 未测不计红）",
                 _s8_judge(_pb, "", _pr, tpl_present=False)[0] is True)
@@ -770,10 +1173,11 @@ def reverse_controls():
             _e = _s8_judge(_pb, "", _pr, tpl_present=False)
             chk("R8e 跨仓件不在 ⇒ 报「未测」且**不计红**（缺件 ≠ 坏件）",
                 _e[0] is True and "未测" in str(_e[2]), str(_e[2])[:70])
-            _ok0 = _s8_judge(_pb, _tpl, _pr)
+            _ok0 = _s8_judge(_pb, _tpl, _pr, extra_tpls=(_tpl_img,))
             chk("R8f 正向：盘上真件必须**绿**（判据不是恒红 —— 恒红和恒绿一样废）",
                 _ok0[0] is True, str(_ok0[2])[:80])
-            _a = _s8_judge(_pb, _tpl.replace("--material-file", "--text"), _pr)
+            _a = _s8_judge(_pb, _tpl.replace("--material-file", "--text"), _pr,
+                           extra_tpls=(_tpl_img.replace("--material-file", "--text"),))
             chk("R8a 守衡模板退回 `--text`（丢掉身份凭据）⇒ S8 必须红",
                 _a[0] is False, str(_a[2])[:90])
             # ⚠️ 变异必须打在**围栏块里**：`--content-type` 在正文（第 38 行）也出现过一次，

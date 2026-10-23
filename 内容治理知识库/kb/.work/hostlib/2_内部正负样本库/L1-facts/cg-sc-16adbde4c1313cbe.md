@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.14 是正例还是反例
   - S-1.14 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-16adbde4c1313cbe"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 其他
 reason_category: 原则性错误
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2vgYXFMuj/原文反馈"
-source_sha256: 6b1429d6339fd45a1ff833846152a5268e83d17f36c448903795c1d72c6ffded
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXFMuj
+anchor: "#负面样本/recvw7XJiSifVQ/具体原因/分析"
+source_sha256: c4c0c03a74f020e9cd4b5090049a3f87d67629433704bbb2cf2ec8cd4e0a9b27
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XJiSifVQ
 sample_body: "【审核 · 2026-07-27 22:44 · 饶雨诗】【终审-@[已脱敏]   】姐帮忙看看呀:YouAreTheBest: ** 项目名：7.30【会员杂志更新设计】-打破壁垒：母乳喂养倡导领导者的洞见与解决方案 **  **设计要求：**  封面：设计一张母乳喂养，并且展示专家所在的机构图标（NAPS、The Baby Academy、Pumpspotting）  正文：放对应的专家图，下方小字说明专家的信息，直接使用blog里的专家图  图片：1·新手妈妈抱着宝宝，与泌乳顾问坐在家中或诊室温柔沟通             2·几位不同状态的新手妈妈在明亮温馨的空间里围坐交流，有人抱宝宝，有人认真倾听，中间可以有一位专业顾问引导。整体色调用柔粉、米白、奶油色，突出 被理解、被支持、不孤单 的感觉。 ![Image](img_v3_02140_b1c717b4-91a0-43a3-9070-1f7cb6fe44ag)  **设计稿件：** ![Image](img_v3_02140_323a4a9c-f5ed-4cb3-b0a2-763342ea52dg)"
 reason_analysis: "【原则性错误】图片 封面 【终审-@[已脱敏]   】姐帮忙看看呀。 【问题要点】 1. 【终审-@[已脱敏]   】姐帮忙看看呀 2. 封面：设计一张母乳喂养，并且展示专家所在的机构图标（NAPS、The Baby Academy、Pumpspotting） 3. 正文：放对应的专家图，下方小字说明专家的信息，直接使用blog里的专家图 4. 图片：1·新手妈妈抱着宝宝，与泌乳顾问坐在家中或诊室温柔沟通 5. 2·几位不同状态的新手妈妈在明亮温馨的空间里围坐交流，有人抱宝宝，有人认真倾听，中间可以有一位专业顾问引导"
 advice: 可以有一位专业顾问引导
@@ -90,8 +90,8 @@ advice: 可以有一位专业顾问引导
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2vgYXFMuj/原文反馈`
-- 指纹：`6b1429d6339fd45a1ff833846152a5268e83d17f36c448903795c1d72c6ffded`
+- 锚点：`#负面样本/recvw7XJiSifVQ/具体原因/分析`
+- 指纹：`c4c0c03a74f020e9cd4b5090049a3f87d67629433704bbb2cf2ec8cd4e0a9b27`
 - 原因归类：原则性错误　|　素材类型：图片
 
 > 案例只作参照，不构成规则。

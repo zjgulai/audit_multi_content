@@ -111,25 +111,39 @@ def max_run(a: str, b: str) -> int:
 
 
 def load_clauses():
-    out = []
+    """读 L4 定稿里的反例/禁区条款。
+
+    ★★ 2026-10-20：**先按 `article_no` 折叠（取最后一行），再挡掉 `superseded`/`retired`** ——
+    与 `kb/l7/scripts/l4_gate.py::read_last_per_key` 同口径。顺序不能反：
+    退役/销号是**追加一行**写的，先把退役行滤掉再折叠，剩下的原行（anchor 已死）会留在池里，
+    退役等于没生效（2026-10-20 实测 20 条 `#正面和负面样本/recvw2…` 正是这个形状）。
+    """
+    rows = []
     with open(CLAUSES, encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
             if not line:
                 continue
-            d = json.loads(line)
-            # ★★ 已销号的条款**不许再当依据**（2026-10-14 加，与 `review.py::load_case_clauses` 同一口径）。
-            #   为什么：销号只写标记（`status=superseded`），而这里原先**不读 `status`** ⇒
-            #   被销的号（anchor 已死）照样参与自命中比对。孪生号正文逐字相同、anchor 是活的
-            #   ⇒ 挡掉被销那一侧**不丢发现**，只去掉重复与死链。
-            if str(d.get("status") or "").strip().lower() == "superseded":
-                continue
-            if d.get("polarity") == "反例" or str(d.get("semantics") or "").startswith("禁区"):
-                txt = {
-                    "sample_body": norm(d.get("sample_body")),
-                    "advice": norm(d.get("advice")),
-                }
-                out.append((d, txt))
+            rows.append(json.loads(line))
+    _folded, _order = {}, []
+    for d in rows:
+        k = str(d.get("article_no") or "").strip() or ("#%d" % len(_order))
+        if k not in _folded:
+            _order.append(k)
+        _folded[k] = d
+    out = []
+    for k in _order:
+        d = _folded[k]
+        # 已销号 / 已退役的条款**不许再当依据**（销号 2026-10-14；退役 2026-10-20 补）：
+        # 它们那一侧的 anchor 往往是死的（旧代 `#正面和负面样本/recvw2…`，201 个 record 0 个还在）。
+        if str(d.get("status") or "").strip().lower() in ("superseded", "retired"):
+            continue
+        if d.get("polarity") == "反例" or str(d.get("semantics") or "").startswith("禁区"):
+            txt = {
+                "sample_body": norm(d.get("sample_body")),
+                "advice": norm(d.get("advice")),
+            }
+            out.append((d, txt))
     return out
 
 

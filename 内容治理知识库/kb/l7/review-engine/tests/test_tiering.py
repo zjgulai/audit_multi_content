@@ -72,10 +72,21 @@ class TieringModuleTests(unittest.TestCase):
         self.assertTrue(T.confidence_flow_applies("P1"))
 
     def test_highest_tier_wins(self):
-        """PRD §6.3 执行规则4：多条命中按最高优先级输出（P0+P2 ⇒ BLOCK）。"""
+        """PRD §6.3 执行规则4：多条命中按最高优先级输出（P0+P2 ⇒ BLOCK）。
+
+        ★ 2026-10-19 第二轮（PRD §5.3.2 **rev 101**）：**仅 P3 ⇒ `none`**（结论不变）。
+          rev 101 原文：「SUGGEST｜…**作为 PASS 的附属标签**，不阻断流程。｜随 PASS 一起流转，提示内容方。」
+          ＋ §6.3 规则4「只有 SUGGEST 时，**最终状态为 PASS**（附 SUGGEST 建议）」。
+          ⇒ P3 **不改结论**；它的痕迹落在 `suggestions[]`（见下面那条 decide 用例），不在 `effect` 上。
+          ⚠️ 同日早些时候这里断言过 `suggest`（把 SUGGEST 当第四态），那是 rev 96 的读法，已作废。
+        """
         self.assertEqual(T.decide_effect(["P0", "P2"])[0], "block")
         self.assertEqual(T.decide_effect(["P1", "P2"])[0], "review")
         self.assertEqual(T.decide_effect(["P3"])[0], "none")
+        # ★ 反向对照（单调性）：P3 与任何更重的层级同时出现 ⇒ 仍由更重的那层定结论
+        self.assertEqual(T.decide_effect(["P3", "P1"])[0], "review")
+        self.assertEqual(T.decide_effect(["P3", "P2"])[0], "review")
+        self.assertEqual(T.decide_effect(["P3", "P0"])[0], "block")
 
 
 class DecideRegressionTests(unittest.TestCase):
@@ -125,15 +136,24 @@ class TierDecisionTests(unittest.TestCase):
         self.assertEqual(r["decision_trace"]["tier_trace"]["P2"], 1)
 
     def test_p3_advice_only_does_not_change_conclusion(self):
-        """★ PRD §6.3 执行规则3：P3 **只输出建议，不改变 PASS/BLOCK 结论**。
+        """★ **只有 P3 ⇒ 结论 PASS ＋ 建议集**（PRD §5.3.2 rev101：SUGGEST 是 PASS 的附属标签）。
 
-        改前 P3 只要 action=review 就会把整单拖成 REVIEW —— 与执行规则3 相反。
+        这条用例的**防护意图一个字没改**：P3 是「非强制」层，**不许把整单拖成 REVIEW/BLOCK**
+        （改前 P3 只要被填了 action=review 就会把结论拖成 REVIEW —— 与 §6.3 执行规则3 相反）。
+        变的只是「干净那一档」的**落点与其痕迹**：
+          · 落点：`decision` 仍是 **PASS**（不是第四态）；
+          · 痕迹：`suggestions[]` 非空、`suggest_count ≥ 1`、`suggest_label` 为 True ——
+            这三条就是「四态统计」第二个桶（PASS＋建议）的判定式，缺了它那个桶永远恒 0。
         """
         p = load("pass.json")
         p["risk_items"] = [item("P3", action="review", severity="REVIEW")]
         r = decide(p)
-        self.assertEqual(r["decision"], "PASS", "P3 不该改变结论")
-        self.assertIn("p3_advice_only_not_counted", r["decision_trace"]["reasons"])
+        self.assertEqual(r["decision"], "PASS", "只有 P3 时结论仍是 PASS（SUGGEST 是标签不是态）")
+        self.assertNotIn(r["decision"], ("REVIEW", "BLOCK", "SUGGEST"),
+                         "P3 既不许把整单拖成 REVIEW/BLOCK，也不许变成第四个 decision 值")
+        self.assertGreaterEqual(r["suggest_count"], 1, "P3 必须留下建议集，否则「PASS 附建议」等于 PASS")
+        self.assertTrue(r["suggest_label"], "PASS ＋ 建议 ⇒ 标签为 True（四态第二个桶的判定式）")
+        self.assertIn("suggest_only_non_mandatory", r["decision_trace"]["reasons"])
         self.assertTrue(r["decision_trace"]["tier_trace"]["p3_advice_only"])
 
     def test_p3_does_not_rescue_a_review(self):
@@ -275,10 +295,21 @@ class ConfidenceFlowTests(unittest.TestCase):
         self.assertEqual(rr["effect"], "force_review")
 
     def test_p3_advice_does_not_trigger_confidence_downgrade(self):
-        """P3 只出建议、不改结论（§6.3 执行规则3）—— 分流也不许把它拉成 REVIEW。"""
+        """只有 P3 ⇒ **PASS ＋ 建议**，**置信度分流也不许把它拉成 REVIEW**（§5.3.2：不阻断）。
+
+        ★ 2026-10-19 第二轮（PRD §5.3.2 rev101：SUGGEST 是 PASS 的附属标签）：
+          落点回到 **PASS**（同日早些时候曾落 SUGGEST，那是 rev 96 读法），防护意图一个字没改 ——
+          PASS／建议都属 §6.6「直接输出结论」那一档（0.90–0.99），分流不改结论。
+          同时钉住**标签仍在**：结论是 PASS 但 `suggest_label` 必须为 True，否则
+          「PASS 附建议」在数据上退化成「PASS」，「四态」第二个桶就永远数不出来。
+        """
         p = load("pass.json")
         p["risk_items"] = [item("P3", action="review")]
-        self.assertEqual(decide(p)["decision"], "PASS")
+        r = decide(p)
+        self.assertEqual(r["decision"], "PASS")
+        self.assertTrue(r["suggest_label"], "PASS 带建议 ⇒ 标签为 True")
+        self.assertGreaterEqual(r["confidence"], 0.90, "PASS／建议应落在直接出结论那一档")
+        self.assertNotEqual(r["decision"], "REVIEW", "分流把不阻断的建议拉成了 REVIEW")
 
     def test_summary_gets_the_prd_annotation_and_is_idempotent(self):
         """标注语逐字取 PRD §6.6；重复追加不叠加。"""

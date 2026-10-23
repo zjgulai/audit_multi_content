@@ -466,6 +466,14 @@ export function turnDiff(d = {}) {
 export function evidence(d = {}) {
   const els = [];
   if (d.verdict) els.push(md(s(d.verdict)));
+  // ★★ 2026-10-21（Owner 给了正确模版）：**`body` 是正文格 —— 不折、不带标题**。
+  //   用途是 PRD §5.3.2/§5.3.3 的「≥3 只出分类汇总 ＋ 报告链接」那一块：
+  //   模版里它是「结论行 → `· …类问题：N 个` → 链接 → 动作行」，中间**没有小标题**。
+  //   原先它一律被塞进一个标题叫「逐条问题」的折叠组 ⇒ 群里那一段凭空多出一行
+  //   （Owner 贴出来的坏形状就是它）。信封层 `applyVerdictLine` 依 `isSummaryOnlyBlock()`
+  //   把这一支送进 `body`；**<3 的逐条块照旧走 `groups`**（它长，需要折）。
+  const _body = s(d.body).replace(/[（(]\s*未填\s*[）)]/g, '').trim();
+  if (_body) els.push(md(_body));
   // ★ 2026-10-15：**没有分组、也没有 `content` 时，不许造一个空组**。
   //   原先这里无条件造 `[{title:'证据', content: s(d.content)}]` —— `d.content` 缺省时
   //   `s()` 把它变成空串 ⇒ 多出一个**空折叠区**（标题「证据」、点开什么都没有）。

@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.57 是正例还是反例
   - S-1.57 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-4dbec2111dcb29fb"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 社媒
 reason_category: 品牌一致性
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2vgYXnf4K/原文反馈"
-source_sha256: ad3e81bd2b042dc0d15fd4f3f11864f2be21af9ae78eedce01631b0835b82247
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXnf4K
+anchor: "#负面样本/recvw7XJiS5DGY/具体原因/分析"
+source_sha256: 7374779a6c7985a533a05296c51baab1734ddaa8734b0cc8267df859e66388e1
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XJiS5DGY
 sample_body: '【审核 · 2026-07-29 01:57 · 饶雨诗】【终审-@[已脱敏]   】姐麻烦看看呀:YouAreTheBest: **项目名：欧洲社媒7.31** **设计要求：** 母乳喂养月倒计时互动:以"a littlewin that no one saw,but meanteverything"为主题,收集妈妈在喂养路上的小胜利:第 一次顺利latch、第一次在外面喂奶、第一次不再自责、第一 次把自己也放进清单里 1·英国：#FCE4E2，单纯文字贴即可 2·法国：#F8EEE8 作图灵感：妈妈的手记 / Carnet de maman 整体形式： 单页日记拼贴，像妈妈在一天结束后写下的几件小事。 背景： 使用法国账号常用的浅米粉色 #F8EEE8，搭配奶油白纸张、酒红色或陶土色文字。 画面元素： 中间放一张有轻微撕边效果的“日记纸”。 四个小胜利用手写字体呈现，并搭配简单线稿：月亮、爱心、咖啡杯、外出包等。 可以加入手绘下划线、圆圈和小星星，但不要做成规整清单。 右下角留一块空白纸条，写互动引导，象征等待妈妈们补上自己的故事。 视觉感觉： 安静、真实、有生活痕迹，避免做成明显的品牌宣传海报。 **设计稿件：** ![Image](img_v3_02141_c2968ef3-ed59-4c82-b73d-8d38acfd777g) ![Image](img_v3_02141_7f8ad474-ef95-406b-b376-88cdedd7c47g)'
 reason_analysis: '【品牌一致性】图片 可以加入手绘下划线、圆圈和小星星，但不要做成规整清单。 原因：避免做成明显的品牌宣传海报 【问题要点】 1. 可以加入手绘下划线、圆圈和小星星，但不要做成规整清单 2. 【终审-@[已脱敏]   】姐麻烦看看呀 3. 母乳喂养月倒计时互动:以"a littlewin that no one saw,but 4. meanteverything"为主题,收集妈妈在喂养路上的小胜利:第 5. 一次顺利latch、第一次在外面喂奶、第一次不再自责、第一'
 advice: 可以加入手绘下划线、圆圈和小星星，但不要做成规整清单
@@ -101,8 +101,8 @@ meanteverything"为主题,收集妈妈在喂养路上的小胜利:第
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2vgYXnf4K/原文反馈`
-- 指纹：`ad3e81bd2b042dc0d15fd4f3f11864f2be21af9ae78eedce01631b0835b82247`
+- 锚点：`#负面样本/recvw7XJiS5DGY/具体原因/分析`
+- 指纹：`7374779a6c7985a533a05296c51baab1734ddaa8734b0cc8267df859e66388e1`
 - 原因归类：品牌一致性　|　素材类型：图片
 
 > 案例只作参照，不构成规则。

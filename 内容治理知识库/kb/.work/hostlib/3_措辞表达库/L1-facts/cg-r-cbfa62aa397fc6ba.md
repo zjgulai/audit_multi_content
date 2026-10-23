@@ -14,7 +14,7 @@ effective_from: 2026-09-29
 evidence_level: L1
 data_level: L2
 sensitivity_level: L2
-created_at: 2026-10-16
+created_at: 2026-10-22
 asks:
   - M04 判什么、命中什么算违规
   - M04 应该怎么改（合规替代写法）
@@ -31,7 +31,7 @@ source:
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
   record_ids: [recvuJYdObEl6L, recvuJYdObiHYe, recvuMGgT9Nh0s, recvuMGgT9PURK]
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l3/candidates/rules.jsonl#r-cbfa62aa397fc6ba"
   confidence: 确定

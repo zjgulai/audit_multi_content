@@ -6,7 +6,7 @@ kb_class: [措辞表达库]
 tier: L1
 topic: 未登记规则码
 kind: fact
-summary: "[W-2.203] 判为「禁用/必须修改」（P1·未定级）：命中表达 1 条、证据单元 1 条；处理方式是「在第二产程描述中补充'Laboring Down'策略说明，尤其针对使用无痛硬膜外的妈妈，明确宫口开全不等于立刻用力，建议等待胎儿娩出反射（FER）出现后再顺势」。状态 provisional、verification 待验证。"
+summary: "[W-2.203] 判为「需按建议改写」（P2·未定级）：命中表达 1 条、证据单元 1 条；处理方式是「在第二产程描述中补充'Laboring Down'策略说明，尤其针对使用无痛硬膜外的妈妈，明确宫口开全不等于立刻用力，建议等待胎儿娩出反射（FER）出现后再顺势」。状态 provisional、verification 待验证。"
 owner: 法务
 half_life_days: 180
 valid_until: 2027-03-28
@@ -14,7 +14,7 @@ effective_from: 2026-09-29
 evidence_level: L1
 data_level: L2
 sensitivity_level: L2
-created_at: 2026-10-16
+created_at: 2026-10-22
 asks:
   - W-2.203 判什么、命中什么算违规
   - W-2.203 应该怎么改（合规替代写法）
@@ -29,7 +29,7 @@ source:
   ref: "https://momcozy-in.feishu.cn/base/SKkkbdZi9aRuMzs7ob0cpSYHnQg?table=tbl8AI00JZO1iZtp"
   fingerprint: SKkkbdZi9aRuMzs7ob0cpSYHnQg/tbl8AI00JZO1iZtp
   record_ids: [recvoyJ6L91q0x]
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l3/candidates/rules.jsonl#r-71a0e5eafa7b9f37"
   confidence: 确定
@@ -40,7 +40,7 @@ pii:
 rule_id: r-71a0e5eafa7b9f37
 article_no: W-2.203
 rule_code: ""
-p_level: P1
+p_level: P2
 risk_level: 未定级
 risk_level_raw: Medium
 risk_level_note: 源库 kb/l3 的 risk_level 为 unknown/空 —— 未做人工定级；本视图不据 P 级反推，故标未定级
@@ -54,7 +54,7 @@ kb_type: wording
 
 # [W-2.203] 措辞表达库：命中「孕妈可以跟着宫缩节奏，主动向下用力娩出宝宝（第二产程描述）」等 1 类表达
 
-**条款号**：W-2.203　|　**规则码**：（未登记）　|　**rule_id**：`r-71a0e5eafa7b9f37`　|　**判定**：P1 · 未定级
+**条款号**：W-2.203　|　**规则码**：（未登记）　|　**rule_id**：`r-71a0e5eafa7b9f37`　|　**判定**：P2 · 未定级
 
 ## 规则原文（照抄新库，未改写）
 

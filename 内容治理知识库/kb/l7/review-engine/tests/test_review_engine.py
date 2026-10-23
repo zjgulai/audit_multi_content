@@ -85,6 +85,13 @@ class CandidateAuthorityTests(unittest.TestCase):
     @staticmethod
     def _evidenced(**over):
         it = {"risk_id": "r-1", "risk_type": "功效宣称", "priority_tier": "P1",
+              # ★ 2026-10-19：真 `risk_items` **带 `risk_category`**（`review.py` 返回前统一盖章，
+              #   真单实测 4/4 都有）—— 夹具必须跟着，否则分类汇总只能落「未标注维度」桶，
+              #   量不到 PRD §5.3.4 那一行。维度取值与 `risk-category-policy.json` 一致（功效宣称 ⇒ 合规）。
+              "risk_category": "合规",
+              # ★ 2026-10-19（A3 12 类）：真 `risk_items` 带 `taxonomy_category`
+              "taxonomy_category": "合规与受监管宣称",
+              "taxonomy_subcategory": "生理功效与效果承诺",
               "status": "confirmed", "action": "review", "location": "全文",
               "original_text": "more milk", "reason": "库内规则命中",
               "evidence": {"library": "措辞表达库", "article_no": "W-1.18",
@@ -148,7 +155,13 @@ class CandidateAuthorityTests(unittest.TestCase):
         self.assertEqual(r["issue_count"], 4)
         self.assertEqual(r["issue_count_including_candidates"], 5)
         self.assertEqual(r["candidate_count"], 1)
-        self.assertIn("· 功效宣称类问题：4 个", r["summary"])      # 只有库内依据那一类
+        # ★★ 2026-10-19（Owner：分类汇总必须跟 PRD §5.3 对齐）：轴是**四维**、形状是 §5.3.4 的一行。
+        # ★★ 2026-10-19：轴 = **A3 12 类**，形状 = 每类一行
+        self.assertIn("· 合规与受监管宣称类问题：4 个", r["summary"])
+        # A1 库内类别与 A2 四维都**不许**再出现在汇总行里
+        self.assertNotIn("功效宣称类", r["summary"])
+        self.assertNotIn("合规类问题", r["summary"])
+        self.assertNotRegex(r["summary"], r"个 · [^\n]*类问题：")
         # ① 候选那一类**不许**出现在分类汇总里（否则 PRD §5.4 的等式就破了）
         self.assertNotIn("Absolute or ranking claim", r["summary"])
         # ② 但合计那行必须说清候选有多少、且不构成依据

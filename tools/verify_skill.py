@@ -73,6 +73,92 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SKILL = os.path.join(ROOT, "agent-skills", "内容合规审查", "SKILL.md")
+WORKFLOW_SKILL = os.path.join(ROOT, "agent-skills", "飞书内容审核工作流", "SKILL.md")
+RUNTIME_KB_ROOT = "/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理"
+
+# Each group is a behavior promise the workflow skill must make explicit. The
+# verifier checks durable anchors rather than requiring one exact prose style.
+WORKFLOW_REQUIREMENTS = [
+    ("代码路由判据", ("review_gate.mjs", "isSubmission", "mechanismQuestion", "chainInput")),
+    ("审核链接线", ("agent.mjs", "kb_review_chain")),
+    ("文字输入流程", ("文字",)),
+    ("图片输入流程", ("图片",)),
+    ("链接输入流程", ("链接",)),
+    ("问答与送审分流", ("问答", "送审")),
+    ("业务状态与判定层分离", ("DP0–DP4", "PASS", "SUGGEST", "REVIEW", "BLOCK")),
+    ("失败态不能变成通过", ("未测", "不可读", "不得", "PASS")),
+    ("skill 不会自动驱动运行时", ("不会在运行时自动装载",)),
+]
+
+
+def workflow_contract_errors(md):
+    """Return named workflow promises that are missing from the project skill."""
+    text = str(md or "")
+    return [name for name, anchors in WORKFLOW_REQUIREMENTS
+            if not all(anchor in text for anchor in anchors)]
+
+
+def workflow_file_errors(path=WORKFLOW_SKILL, require_tracked=True):
+    """Read the workflow skill and check tracked state plus behavior anchors."""
+    if not os.path.exists(path):
+        return ["文件不存在"]
+    if require_tracked:
+        state, rel = tracking_state(path, tracked_set())
+        if state != "tracked":
+            return ["文件未入库" if state == "untracked" else "git 读数未测"]
+    try:
+        with open(path, encoding="utf-8") as f:
+            return workflow_contract_errors(f.read())
+    except Exception as e:
+        return ["文件无法读取：%s" % e]
+
+
+def runtime_kb_advice_errors():
+    """The active Shouheng KB is outside this checkout; verify its live code, not a stale mirror."""
+    script = os.path.join(RUNTIME_KB_ROOT, "kb", "l8", "history_advice_selftest.py")
+    review = os.path.join(RUNTIME_KB_ROOT, "kb", "l7", "skills", "kb-content-review",
+                          "scripts", "review.py")
+    if not os.path.isfile(script) or not os.path.isfile(review):
+        return ["守衡实际加载的知识库副本或 advice 自证缺失"]
+    try:
+        with open(review, encoding="utf-8") as f:
+            source = f.read()
+        if "源记录未给改法 ⇒ 按禁止/打回处理" in source:
+            return ["守衡实际加载副本仍把缺失建议误写成禁止/打回"]
+        env = dict(os.environ)
+        env["KB_ENTRY"] = "selftest"
+        env["KB_INTERP_OK"] = "1"
+        p = subprocess.run([sys.executable, script], cwd=RUNTIME_KB_ROOT, env=env,
+                           capture_output=True, text=True, timeout=60)
+        if p.returncode != 0:
+            return ["守衡实际加载副本 advice 自证失败：%s" % (p.stdout + p.stderr)[-600:]]
+        if "history_advice_selftest PASS (3/3)" not in p.stdout:
+            return ["守衡实际加载副本 advice 自证没有输出通过读数：%s" % (p.stdout + p.stderr)[-600:]]
+        return []
+    except Exception as e:
+        return ["守衡实际加载副本 advice 自证未测：%s" % e]
+
+
+def run_workflow_controls():
+    """Prove the consistency checker accepts complete docs and rejects gaps."""
+    sample = "\n".join(anchor for _, anchors in WORKFLOW_REQUIREMENTS for anchor in anchors)
+    cases = [
+        ("完整契约样本", sample, []),
+        ("缺少代码路由判据", sample.replace("mechanismQuestion\n", ""), ["代码路由判据"]),
+        ("缺少图片流程", sample.replace("图片\n", ""), ["图片输入流程"]),
+        ("缺少问答分流", sample.replace("问答\n", ""), ["问答与送审分流"]),
+        ("失败态可以冒充通过", sample.replace("不得\n", ""), ["失败态不能变成通过"]),
+    ]
+    bad = []
+    for name, md, expected in cases:
+        got = workflow_contract_errors(md)
+        if got == expected:
+            print("  ✅ %s" % name)
+        else:
+            print("  ❌ %s：得到 %s，预期 %s" % (name, got, expected))
+            bad.append(name)
+    print("工作流规程反向对照 %d 项 · 不通过 %d 项" % (len(cases), len(bad)))
+    return 1 if bad else 0
 
 # 规程承诺的字段：第一条命中的规则生效（顺序敏感 —— `--json` 那条必须先判，
 # 否则人类可读形态的字段要求会套到 JSON 输出上，变成假红）
@@ -241,7 +327,18 @@ def main():
     verbose = "--verbose" in argv
 
     if "--controls" in argv:
-        return run_controls()
+        a = run_controls()
+        b = run_workflow_controls()
+        return 1 if a or b else 0
+    if "--workflow-controls" in argv:
+        return run_workflow_controls()
+    if "--workflow-check" in argv:
+        errors = workflow_file_errors()
+        if errors:
+            print("❌ 飞书工作流 skill 不满足契约：%s" % "、".join(errors))
+            return 2 if "文件未入库" in errors or "git 读数未测" in errors else 1
+        print("✅ 飞书工作流 skill 与代码路由、三类输入及失败态契约一致")
+        return 0
 
     probe = "--target" in argv
     if probe:
@@ -262,6 +359,17 @@ def main():
     print("═══ 规程自证 · %s ═══" % rel)
     print("S0 ✅ 验的对象在版本库里")
     print("抽出 %d 个 bash 块" % len(bs))
+
+    workflow_errors = workflow_file_errors()
+    if workflow_errors:
+        print("❌ 飞书工作流 skill 不满足契约：%s" % "、".join(workflow_errors))
+        return 2 if "文件未入库" in workflow_errors or "git 读数未测" in workflow_errors else 1
+    print("S1 ✅ 飞书工作流 skill 与代码路由、三类输入及失败态契约一致")
+    runtime_advice_errors = runtime_kb_advice_errors()
+    if runtime_advice_errors:
+        print("S2 ❌ 守衡实际加载的知识库副本：%s" % "；".join(runtime_advice_errors))
+        return 1
+    print("S2 ✅ 守衡实际加载的知识库副本 advice 自证通过")
 
     if probe:
         # ★ 探测模式到此为止，一条命令都不跑。理由见文件头「--target 只做探测」。

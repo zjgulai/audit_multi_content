@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - "《DK科学育儿小百科 做个好爸爸 (（英）斯坦福著, (英)特雷茜·柯德里奇(Tracey Godridge)著 etc.) (z-library.sk, 1lib.sk, z-lib.sk).pdf》里关于某个主题是怎么写的"
   - 这条外部材料的原文与出处是什么

@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.115 是正例还是反例
   - S-1.115 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-9f3f9f625bab2a25"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 社媒
 reason_category: unknown
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2wE9MHgxV/原文反馈"
-source_sha256: df73f3ac55a889528c7923cae54911ad5cf124cf16eb52881b6c3d5a4198220b
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MHgxV
+anchor: "#负面样本/recvw7XJiSk3jg/具体原因/分析"
+source_sha256: 55b4be5064ee07429128f4eadc9732007a0cfc20a6f9701c1702b0f49c099f85
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XJiSk3jg
 sample_body: "【审核 · 2026-08-18 00:34 · 吴礼芳】@[已脱敏] 同理，婴幼儿品线的社媒，也不要按个人山头的方式存放  --- 其他审核者反馈 ---  [2026-08-13 14:35 闫琪雯] :Loudspeaker:插播一条 【用户运营2025.11-2026.8｜Figma 子页分区整理】 跟大家同步下用户运营 Figma 子页整理安排： 目前已经划分好 6 个分区板块（EDM / 社群 / 社区 / 会员 / 杂志 / 草稿），辛苦大家把各自过往的设计素材，迁移归类到对应分区内，示例如下： ![Image](img_v3_0214h_4de057c9-3595-448a-958a --- [2026-08-17 16:34 吴礼芳] @[已脱敏] 同理，婴幼儿品线的社媒，也不要按个人山头的方式存放  EDM运营 社群运营 社区运营 会员杂志 Wa ตะแอม 2  社群运营组（5） 社区运营组（5） EDM运营组（5） 会员运营组（5）"
 reason_analysis: 【审核问题】文案 同理，婴幼儿品线的社媒，也不要按个人山头的方式存放。
 advice: ""
@@ -92,8 +92,8 @@ EDM运营组（5）
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2wE9MHgxV/原文反馈`
-- 指纹：`df73f3ac55a889528c7923cae54911ad5cf124cf16eb52881b6c3d5a4198220b`
+- 锚点：`#负面样本/recvw7XJiSk3jg/具体原因/分析`
+- 指纹：`55b4be5064ee07429128f4eadc9732007a0cfc20a6f9701c1702b0f49c099f85`
 - 原因归类：unknown　|　素材类型：文字
 
 > 案例只作参照，不构成规则。

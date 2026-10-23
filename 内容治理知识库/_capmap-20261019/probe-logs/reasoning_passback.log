@@ -1,0 +1,13 @@
+
+═══ P0：思考模式 reasoning_content 必须回传（2026-09-30）═══
+  ✅ toLlmMessages 出口必须带上 reasoning_content（接线，不是纯函数）
+  ✅ 没有 reasoning_content 时**不许凭空造**这个字段
+[agent] · 思维链超回传预算：11000 字 → 裁到 6000 字（只为控制上下文；已发出的正文不受影响）
+  ✅ 超限的思维链必须被裁到上限，并留下可核对的标记
+  ✅ 未超限的思维链必须**原样**返回，不许顺手改一个字
+  ✅ 缺少 / 非字符串 / 空的 reasoning_content 一律返回空对象
+  ✅ SHOUHENG_REASONING_PASSBACK=0 必须整块关掉（子进程验，真 env）
+  ✅ 默认（不设 env）是**开**——协议要求，不该靠人去记着打开
+  ✅ maxChars 必须是一个正数上限
+
+═══ 合计：通过 8 / 失败 0 ═══

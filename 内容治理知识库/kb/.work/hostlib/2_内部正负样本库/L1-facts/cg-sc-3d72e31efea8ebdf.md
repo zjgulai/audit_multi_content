@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.39 是正例还是反例
   - S-1.39 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-3d72e31efea8ebdf"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: EDM
 reason_category: unknown
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2vgYXAdeU/原文反馈"
-source_sha256: 749f055431bf05e0fb863fa4409c2ea1565efea2b3d2adb1c2e83564d6781868
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXAdeU
+anchor: "#负面样本/recvw7XIUg06K0/具体原因/分析"
+source_sha256: f897d05e45f9509e580e35ec85f21c19d3d02a2ba4e9d55dce233a7bb85f4558
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XIUg06K0
 sample_body: "【审核 · 2026-09-23 18:40 · 饶雨诗】【终审-@[已脱敏] 】姐姐麻烦看看呀:YouAreTheBest: ～ **项目名：10.7 秋促EDM** **项目背景：**秋促活动主题EDM，以EN语言为初稿，宣传momcozy秋季促销活动， 展现趴玩探索与日常看护产品使用场景 **设计需求：**头图与尾图：体现趴玩探索与日常看护的室内场景，为宝宝打造安心、舒适的居家成长空间， 建议选择露出例如奶瓶清洗机、餐椅、摇椅、爬爬垫、监视器等产品 （本次设计选择了爬爬垫和餐椅产品） 只需要头图与尾图 **设计稿件：** ![Image](img_v3_0215q_266e2360-2f1f-4a34-b786-26974e8a652g)"
 reason_analysis: "【审核问题】图片 建议选择露出例如奶瓶清洗机、餐椅、摇椅、爬爬垫、监视器等产品。 【问题要点】 1. 建议选择露出例如奶瓶清洗机、餐椅、摇椅、爬爬垫、监视器等产品 2. 只需要头图与尾图 3. 【终审-@[已脱敏] 】姐姐麻烦看看呀 ～ 4. 项目背景：秋促活动主题EDM，以EN语言为初稿，宣传momcozy秋季促销活动， 5. 展现趴玩探索与日常看护产品使用场景"
 advice: 建议选择露出例如奶瓶清洗机、餐椅、摇椅、爬爬垫、监视器等产品
@@ -89,8 +89,8 @@ advice: 建议选择露出例如奶瓶清洗机、餐椅、摇椅、爬爬垫、
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2vgYXAdeU/原文反馈`
-- 指纹：`749f055431bf05e0fb863fa4409c2ea1565efea2b3d2adb1c2e83564d6781868`
+- 锚点：`#负面样本/recvw7XIUg06K0/具体原因/分析`
+- 指纹：`f897d05e45f9509e580e35ec85f21c19d3d02a2ba4e9d55dce233a7bb85f4558`
 - 原因归类：unknown　|　素材类型：图片
 
 > 案例只作参照，不构成规则。

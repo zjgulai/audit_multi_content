@@ -73,6 +73,11 @@ const len = (x) => [...s(x)].length;
  * ★ 判据要引它 —— `verify_cards.mjs` 的 J11b3 断言「组标题与组内容首行不许逐字相同」，
  *   两边必须是**同一个**字符串；判据里抄第二份字面量，改名那天判据就假绿了。
  * ★ 2026-10-16（FIX-033）：它同时是 `blockRows` 的去重依据（见下）。
+ * ★★ 2026-10-21（Owner 给了正确模版）：它**只用于 1–2 条那条逐条支**。
+ *   ≥3 的汇总块已经**不折组**（`isSummaryOnlyBlock()` ⇒ 走 `body` 正文格），
+ *   所以群里那张 ≥3 的卡上**根本不会出现「逐条问题」这三个字**
+ *   —— 模版里那一行位置上是 `· …类问题：N 个`，一个字都不许插在前面。
+ *   ⇒ 判据仍要它（<3 那一支），但**不许**再拿它去断言 ≥3 的卡面。
  */
 export const VERDICT_GROUP_TITLE = '逐条问题';
 
@@ -93,9 +98,10 @@ export const VERDICT_GROUP_TITLE = '逐条问题';
  *     台账 `PMO/logs/ws_outbound.jsonl` 第 1210 行；离线复原与该行 43 字逐字一致）。
  *
  *   ⚠️ 剥的判据是「**逐字等于组标题**」，不是「删掉『逐条问题』这四个字」——
- *     所以：1–2 条那条路（块首行是 `1.【合规】…`）一个字不动；
- *     没有组标题的载体（`reasoning` 卡、表行 `问题分类汇总`、报告）**照旧保留这一行**，
- *     Owner 2026-10-15 给的逐字格式里它必须在。
+ *     所以：1–2 条那条路（块首行是 `1.【合规】…`）一个字不动。
+ *   ★★ 2026-10-21（Owner 正确模版）：**源侧已经不再产那一行了**（`dual_track.renderMerged`），
+ *     这里保留去重是因为**存量的块**还带着它 —— 新旧块落到卡面上必须是同一个形状。
+ *     现在「逐条问题」只出现在 **<3 那一条支的组标题**上，别处一个字都不该有。
  *   ⚠️ 不给 `title` ⇒ 一个字都不剥（默认无操作，老调用点行为不变）。
  *
  * ⚠️ 只动**卡面**：`verdict.block` 本身不改（报告、留痕、日志里仍是全份）——
@@ -104,6 +110,25 @@ export const VERDICT_GROUP_TITLE = '逐条问题';
  * @param {string|null} title 这一组要用的**组标题**（给了才去重）
  * @returns {string}
  */
+/**
+ * **这一块是不是「≥3 只出分类汇总」那一支**（PRD §5.3.2/§5.3.3）。
+ *
+ * ★★ 2026-10-21（Owner 给了正确模版 `docx/CvIldNhUSoxv7DxpzwdcKUcjnfr`）：
+ *   ≥3 的块**不再折进一组**（那一组的标题会在群里印出一行模版里没有的字），
+ *   直接作为卡片正文。判据只认**形状**，不认某一次输入：
+ *     · 有 `· <类>类问题：N 个`（汇总行）／`·（本次没有并进任何逐条）`；
+ *     · 且**没有**逐条条目（`1.【…】`）。
+ *   ⚠️ 为什么用形状而不是加一个布尔参数：块是**从模型回复里抠出来的**（`conclusionBlock(answer)`），
+ *     一路没有携带任何结构化标记 —— 加参数就得改五个调用点，而漏改一处就静默走错分支。
+ */
+export function isSummaryOnlyBlock(block) {
+  const t = String(block ?? '');
+  if (!t.trim()) return false;
+  if (/^\s*\d+\s*[.、]\s*【/m.test(t)) return false;        // 逐条条目 ⇒ 不是汇总路
+  return /^\s*·\s*(?:[^\n]*类问题|未归类问题)[：:]\s*\d+\s*个/m.test(t)
+      || /^\s*·（本次没有并进任何逐条）/m.test(t);
+}
+
 export function blockRows(block, title = null) {
   const lines = String(block ?? '').split('\n');
   // 只认**第一行**是不是结论行（PRD §5.3 的形状），中间出现的三态词一律不动
@@ -298,7 +323,35 @@ export function applyVerdictLine(kind, data, verdict) {
     }
     // `groups` 型（如 evidence 卡）：块作为**第一组**，默认展开 —— 它是这条结论的正文，不是附录。
     const groups = Array.isArray(out.groups) ? out.groups : [];
-    if (JSON.stringify(groups).includes(verdict.block)) return { ...r, block: { action: 'already', slot: bs } };
+    // ══════════════════════════════════════════════════════════════════════════
+    // ★★ 2026-10-21（Owner 给了**正确的模版**，逐行比对我们那份卡）：
+    //   **≥3 汇总块不折进任何一组**，直接作为卡片正文。
+    // ══════════════════════════════════════════════════════════════════════════
+    //   病灶（Owner 贴的那段逐字就是卡上看到的）：
+    //     【审查结论：REVIEW】共发现 3 处需人工确认。
+    //     逐条问题                       ← 这不是块里的字，是**这一组的折叠标题**
+    //     · …类问题：1 个
+    //   结论行在卡抬头那一格，紧接着冒出 `逐条问题` —— 而模版（与 PRD §5.3.2）是
+    //   结论行**直接**接 `· …类问题：N 个`。折一层 = 中间凭空多一行。
+    //   ⇒ ≥3（只出分类汇总那一支）走 `body` 正文格；<3 的逐条块**照旧折起来**
+    //     （它长、它需要收起，而模版的第二节本来就叫「问题清单」）。
+    //   ⚠️ 剥标题仍传 `VERDICT_GROUP_TITLE`：历史块里可能还带着那一行（存量），
+    //     按「逐字等于组标题」剥掉，所以新旧块落到卡面上**同一个形状**。
+    if (isSummaryOnlyBlock(verdict.block)) {
+      const bodyText = blockRows(verdict.block, VERDICT_GROUP_TITLE);
+      const curBody = s(out.body);
+      if (curBody.includes(bodyText)) return { ...r, data: out, block: { action: 'already', slot: 'body' } };
+      out.body = curBody ? `${bodyText}\n\n${curBody}` : bodyText;
+      return { ...r, data: out, block: { action: 'forced', slot: 'body' } };
+    }
+    const existingBlockIdx = groups.findIndex((g) => String(g?.content ?? '').includes(verdict.block));
+    if (existingBlockIdx >= 0) {
+      // 结论块可能已由模型放进 groups。默认 groups 是折叠的；若这里直接 early-return，
+      // 群里只显示结论数字，逐条问题和知识库建议就只能手动点开。命中结论块的组是正文，
+      // 必须展开；其它组仍保留原状态。
+      const visibleGroups = groups.map((g, i) => i === existingBlockIdx ? { ...g, expanded: true } : g);
+      return { ...r, data: { ...out, groups: visibleGroups }, block: { action: 'already', slot: bs } };
+    }
     // ★ 2026-10-08 两处改动（Owner：「PRD §5.3 结论块 · 0 是什么意思？**为什么要带 prd**？」）：
     //   ① **不再给 `count: 0`** —— 那是漏填的占位，印出来是「· 0」，而同一块正文写着
     //      「共发现 3 处必须修改」⇒ 标题说 0、正文说 3（10/07–10/08 连发多张卡）。
@@ -1198,6 +1251,11 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null, machi
     const applied = applyVerdictLine(kd, data, verdict53);
     data = applied.data;
     if (applied.moved) moved.push(applied.moved);
+    // ★ 2026-10-22（Owner：「输出的卡片不展示 视觉分析与 OCR」）：
+    //   原先这里把 `imageAnalysis`（OCR 行数 + 视觉模型读数）追加到评审卡正文/分组里。
+    //   整块撤掉 —— 卡面只留「结论 / 分类汇总 / 逐条 / 报告链接」。
+    //   ⚠️ 视觉分析照样要做、照样是出结论的前置（`visual_checklist.mjs` 缺项 ⇒ NEEDS_INPUT）；
+    //     读数的落点是 `📥 读到｜…` 日志、会话记忆、报告附录 —— 只是不上卡。
     // ══════════════════════════════════════════════════════════════════════════
     // ★★ 2026-10-15：**权威结论行占抬头，模型那句原话降到正文首行**
     //    （真单第 7 张 PASS 卡：`query-answer` 的结论格是 `verdict`，**抬头不是它**）

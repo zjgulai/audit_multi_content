@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.119 是正例还是反例
   - S-1.119 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-a22bc6c97cb83a0b"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 社媒
 reason_category: 原则性错误
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2vgYXDXMl/原文反馈"
-source_sha256: 13c8ff2e48a4766d079f6cc9dd365997018b70ea2cb7eedd535661c8a2dde0db
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYXDXMl
+anchor: "#负面样本/recvw7XJiSxcMC/具体原因/分析"
+source_sha256: e34ee4bcf3d46f5ead7b0b7f6d573a76db67dd92e07feacda3642de7e62caee7
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XJiSxcMC
 sample_body: "【审核 · 2026-08-19 01:28 · 闫琪雯】【终审-@[已脱敏] 】姐姐帮忙看看呀:YouAreTheBest: **项目名：加拿大返校-吸奶器内衣主推** **设计要求：** 头图：真实家庭场景，突出吸奶器-主视觉位置 尾图：插图-礼物盒迸发出各种产品，结合各款式内衣，不对某款做出特别突出（需置入以下四款内衣：HF020 黑色/ HF022 黑色豹纹/ FB046 杏仁色/ FB021 咖色） **设计稿件：** ![Image](img_v3_0214m_e8d35a2a-4302-48ae-beae-f15ea1830eag)"
 reason_analysis: "【原则性错误】图片 尾图：插图-礼物盒迸发出各种产品，结合各款式内衣，不对某款做。 【问题要点】 1. 尾图：插图-礼物盒迸发出各种产品，结合各款式内衣，不对某款做出特别突出（需置入以下四款内衣：HF020 黑色/ HF022 黑色豹纹/ FB046 杏仁色/ FB021 咖色） 2. 【终审-@[已脱敏] 】姐姐帮忙看看呀 3. 头图：真实家庭场景，突出吸奶器-主视觉位置"
 advice: ""
@@ -80,8 +80,8 @@ advice: ""
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2vgYXDXMl/原文反馈`
-- 指纹：`13c8ff2e48a4766d079f6cc9dd365997018b70ea2cb7eedd535661c8a2dde0db`
+- 锚点：`#负面样本/recvw7XJiSxcMC/具体原因/分析`
+- 指纹：`e34ee4bcf3d46f5ead7b0b7f6d573a76db67dd92e07feacda3642de7e62caee7`
 - 原因归类：原则性错误　|　素材类型：图片
 
 > 案例只作参照，不构成规则。

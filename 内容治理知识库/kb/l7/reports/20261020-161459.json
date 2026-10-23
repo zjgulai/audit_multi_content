@@ -1,0 +1,84 @@
+{
+  "review_id": "20261020-161459",
+  "content_id": "text-8a0bac75b489",
+  "content_id_basis": "指纹（依据侧不发业务号，发号真源 = kb/l7/review-engine/core/content_id.py）",
+  "content_type": "image",
+  "content_version": "8a0bac75b4899b176185a590403dc65ad63f41ef22d311d3b903835bec997647",
+  "content_hash": "8a0bac75b4899b176185a590403dc65ad63f41ef22d311d3b903835bec997647",
+  "agent_version": "kb-content-review@1.3.0",
+  "rule_version": "article-no-2+l3-0.2+rules.jsonl@e7d566f25f16677b",
+  "knowledge_version": "v0",
+  "version_binding": {
+    "review_id": "20261020-161459",
+    "content_id": null,
+    "content_id_form": "AD-YYYYMMDD-NNN（PRD §5.4）",
+    "content_id_note": "本入口（依据侧）**不发业务号** —— 发号要读飞书表，而依据侧不该为此访问飞书。业务号由发号方在发飞书那一刻发：`kb/l7/review-engine/core/content_id.py`（唯一实现）。",
+    "content_fingerprint": "text-8a0bac75b489",
+    "content_hash": "8a0bac75b4899b176185a590403dc65ad63f41ef22d311d3b903835bec997647",
+    "content_version": "8a0bac75b4899b176185a590403dc65ad63f41ef22d311d3b903835bec997647",
+    "agent_version": "kb-content-review@1.3.0",
+    "rule_version": "article-no-2+l3-0.2+rules.jsonl@e7d566f25f16677b",
+    "knowledge_version": "v0",
+    "sources": {
+      "content_hash": "送审文本 utf-8 的 sha256",
+      "agent_version": "kb/l7/skills/kb-content-review/SKILL.md → frontmatter.version",
+      "rule_version": "kb/l7/registry/l7.json → article_no_source.scheme_version ＋ kb/l3/registry/l3.json → distiller_version ＋ kb/l3/candidates/rules.jsonl 的 sha256[:16]",
+      "knowledge_version": "kb/l7/registry/l7.json → kb_version"
+    }
+  },
+  "decision": "NEEDS_INPUT",
+  "decision_raw": "拒答",
+  "confidence": "未标定（本入口逐条给 高/中/低；全局数值置信度属裁决侧）",
+  "input_manifest": {
+    "text": "【对方这条消息里附了图，共 1 张。下面每一格是**两条读数**：① **本机 OCR 读出的图内文字**（逐字，可能有识别错误；也可能读不全）；② **画面读数**（一个吃图的视觉模型看那张图写下的、只陈述看得见的：场景 / 人物（含是否婴幼儿）/ 物品是否在用 / 可见商标 / 画面线索）。②是**模型给的读数，不是原图**：涉及画面的结论**只能依据它**，并写明「画面结论依据的是这份读数」；**读数里没写的（月龄、声音、这张图之外的情节）不许推断**；②**没读到**时如实说「画面这一层未测」，**不许**说成「画面没问题」。所以：可以按这两条读数做文案、宣称、产品使用、人物行为与场景层面的判定，但凡读数没覆盖的部分，都要把边界写出来。】\n【图 1 指纹 sha256=2e3055b1a305a32ad52d3465bebf8683babb84bc1ad5b1e3f425bcaf81eee2d9】\n【图 1 内文字｜29 行】\nMOmCOZY\nMomcozy Mom and More\nYour Chance To Min\nA Momcozy W1\nWearable Breast Pump\nGiveaway 4\nJoin the Momcozy Fans Club\nfor weekly rewards and real\nnom support.\nEasy to Join.\nRewards to Win.\ncomment. pksy. or tharea post\nfc chirv.es c win wecky rewrds\nReal Moms. Real Support.\nfrom moms whove been there too，\nHow to enter\n1.Join the group\nioin tho Momcory Fara Chb\n2.Find the featured post\nsoction at the top cfthe Facobook group\n3.Enter the giveaway\nFind the #MamAndMare giveanay Poot\nand folkow the instructions to onter.\nAlready a member？\ngiveaway post\ncin & Hind tne owiww.y\nWherever you are in motherhood，\nthere's a place for you here.\nJon other moms、\n【/图 1】\n【图 1 画面读数（视觉模型的读数，**不是原图**；涉及画面的结论只能依据这一格）】\n- 场景：其他（室内居家场景，具体房间看不清）\n- 人物：成人 · 穿家居服侧躺，手放头侧；婴幼儿 · 躺卧，旁边有成人手持手机；成人 · 两人并排坐沙发交谈\n- 物品：粉色圆形吸奶器主机与配件；手持智能手机（正在被使用）；粉色家居服与沙发\n- 可见标识：有文字，认不清；有标识，认不清\n- 图上文字用的是什么文字：英文\n- 画面线索：婴幼儿出镜；成人手持手机贴近婴幼儿；产品图与人物同框展示\n- 读数自报看不清的：具体房间类型；文字逐字内容；品牌合作信息；画面外情节\n【/图 1 画面读数】\n【★ 这是**送审素材**：不管对方写没写「审一下」，都要走 kb_review_chain，把上面这段读数当输入交进去 —— 只回一段「我读到了什么」不算回答。连「这里没有可判内容」这种结论也必须由链给出，不由你替它下。】\n\n【图片 1 的图内文字（本机 OCR）】\nMOmCOZY\nMomcozy Mom and More\nYour Chance To Min\nA Momcozy W1\nWearable Breast Pump\nGiveaway 4\nJoin the Momcozy Fans Club\nfor weekly rewards and real\nnom support.\nEasy to Join.\nRewards to Win.\ncomment. pksy. or tharea post\nfc chirv.es c win wecky rewrds\nReal Moms. Real Support.\nfrom moms whove been there too，\nHow to enter\n1.Join the group\nioin tho Momcory Fara Chb\n2.Find the featured post\nsoction at the top cfthe Facobook group\n3.Enter the giveaway\nFind the #MamAndMare giveanay Poot\nand folkow the instructions to onter.\nAlready a member？\ngiveaway post\ncin & Hind tne owiww.y\nWherever you are in motherhood，\nthere's a place for you here.\nJon other moms、",
+    "sha256": "8a0bac75b4899b176185a590403dc65ad63f41ef22d311d3b903835bec997647",
+    "modality": [
+      "image"
+    ]
+  },
+  "coverage": {
+    "text": "not_applicable",
+    "image": "complete",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "本批只送审 image 一种模态；其余模态不适用（不是缺口）。本块是报告契约要求的覆盖状态，不等于 OCR/ASR/关键帧流水线已执行 —— 后者见 trace。"
+  },
+  "risk_items": [],
+  "issue_count": 0,
+  "report_url": null,
+  "next_action": "补齐证据后重新提交。",
+  "next_owners": [],
+  "sla": {},
+  "version_gate": {
+    "reviewed_hash": "8a0bac75b4899b176185a590403dc65ad63f41ef22d311d3b903835bec997647",
+    "release_hash": null,
+    "note": "本入口不掌握发布版本；发布/送审版本比对属裁决侧（review_engine.py:115-119），此处不代替它下结论"
+  },
+  "decision_trace": {
+    "reasons": [
+      "no_rule_hit_and_no_coverage_signal"
+    ],
+    "confidence_status": "not_calibrated_by_this_entry",
+    "evaluated_at": "2026-10-20T16:15:01",
+    "decided_by": "kb-content-review/scripts/review.py（依据侧自身分支，:709-715）",
+    "note": "本报告不重算结论；三态由上表 decision_raw 原样带出",
+    "tier_trace": {
+      "P0": 0,
+      "P1": 0,
+      "P2": 0,
+      "P3": 0,
+      "未标层": 0
+    },
+    "confidence_route": {
+      "applies": false,
+      "band": null,
+      "calibrated": false,
+      "why": "依据侧**不合成全局数值置信度**（逐条给 高/中/低）⇒ 没有可切三档的数。PRD §6.6 的数值分档与标注在**裁决侧**生效：见 `review_engine.decide()` → `decision_trace.confidence_route`；策略真源 `kb/l7/registry/confidence-policy.json`。",
+      "handled_by": "kb/l7/review-engine/core/review_engine.py::decide()"
+    }
+  },
+  "unmet_citation": []
+}

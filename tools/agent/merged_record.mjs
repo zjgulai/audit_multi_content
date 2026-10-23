@@ -47,7 +47,7 @@ const SIDE_OF = Object.freeze({
  * @param {object} a
  * @param {Array}  a.items        `mergeFindings()` 的产物（**与渲染同一批**，不是另一份）
  * @param {Array}  a.itemsMeta    `renderMerged()` 交回来的逐条元数据（来源侧/截断真相）
- * @param {string} a.state        合并态（PASS/SUGGEST/REVIEW/BLOCK/NEEDS_INPUT）
+ * @param {string} a.state        合并态（四态：PASS/PASS+SUGGEST/REVIEW/BLOCK；另加拒答 NEEDS_INPUT）
  * @param {string} a.line         结论行（PRD §5.3 逐字）
  * @param {number} a.total        卡内条目数
  * @param {object} [a.kb]         库侧读数（state/issueCount/coverageGap…）
@@ -66,21 +66,35 @@ export function buildMergedRecord({
 } = {}) {
   const list = Array.isArray(items) ? items : [];
   const meta = Array.isArray(itemsMeta) ? itemsMeta : [];
-  const byIndex = new Map(meta.map((m) => [m.index, m]));
+  // 渲染会过滤候选条目；元数据里的 display index 因此不一定等于源条目序号。
+  // 先按 source_index 对齐，兼容旧记录/测试夹具里的 index。
+  const byIndex = new Map(meta.map((m) => [
+    Number.isInteger(m.source_index) ? m.source_index : m.index, m,
+  ]));
 
   const rows = list.map((f, i) => {
     const m = byIndex.get(i) ?? {};
     const src = f?.source ?? m.source ?? null;
+    // ★★ 2026-10-22：**判定主体（图片安全审查 skill）判出的条目要能单独数出来。**
+    //   它们按模型侧形状进合并（`source='model'`，合并语义不变），但**不是**
+    //   `model_side.mjs` 那一遍的产物 —— 记录里混成一体，下一轮就答不出
+    //   「这 5 条是模型侧写的，还是 skill 判的」。
+    const isSkill = f?.origin_track === 'skill';
     // 依据「怎么来的」：登记的美国外部标准（registry）/ 模型自写可核 URL（model-url）/
     // 域外被挡下（non-us）/ 什么都没有（none）。`kind` 由 `ext_basis` 判，不在这层判。
     const kind = m.basis_kind
-      ?? (f?.model?.source || f?.model?.source_url ? 'cited' : (src === 'model' ? 'none' : null));
+      ?? (isSkill ? 'skill_report'
+        : (f?.model?.source || f?.model?.source_url ? 'cited' : (src === 'model' ? 'none' : null)));
     return {
       index: i + 1,
       id: `F-${String(i + 1).padStart(2, '0')}`,
+      displayed: !!m.index || m.index === 0,
+      omitted_reason: (m.index === 0 || m.index) ? null
+        : ((f?.model?.basis_missing || f?.basis_missing)
+          ? '缺少可核依据或素材原文锚点，未进入卡片/问题清单' : '渲染时未进入卡片/问题清单'),
       // ── 这一条**是谁报的**（摘掉卡面标记之后，答案就在这三行里）──────────────
       source: src,                     // kb | model | both | both-conflict
-      side: src ? (SIDE_OF[src] ?? src) : null,
+      side: isSkill ? 'skill' : (src ? (SIDE_OF[src] ?? src) : null),
       // ── 这一条**回不回得了源** ────────────────────────────────────────────
       basis_kind: kind,                // registry | model-url | non-us | none | cited | null
       basis_cited: m.basis_cited ?? null,

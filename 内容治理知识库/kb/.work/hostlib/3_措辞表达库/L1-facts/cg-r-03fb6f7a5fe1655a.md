@@ -14,7 +14,7 @@ effective_from: 2026-09-29
 evidence_level: L1
 data_level: L2
 sensitivity_level: L2
-created_at: 2026-10-16
+created_at: 2026-10-22
 asks:
   - W-1.3 判什么、命中什么算违规
   - W-1.3 应该怎么改（合规替代写法）
@@ -28,7 +28,7 @@ source:
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblqUTAKFkWheU49"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblqUTAKFkWheU49
   record_ids: [recvuNf8jlqZH1]
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l3/candidates/rules.jsonl#r-03fb6f7a5fe1655a"
   confidence: 确定

@@ -1,0 +1,59 @@
+[preflight 11:18:33] 认领成功：RT-20261021-IMG-ID
+[preflight 11:18:33] ⓪b skill 就绪 ✅（4 个：本层 skill + 点名的判定主体）
+[preflight 11:18:33] ② L4 闸门(自带)+引擎(预演)+记账 … invoked=kb-canonical-lookup session=test-image-id
+[preflight 11:18:35] ② L4 记账完成 → kb/l7/runs/RT-20261021-IMG-ID-L4.json
+[preflight 11:18:35] ③ L4 审计 …
+[preflight 11:18:35] ③ L4 审计 exit=0（红 0）
+[preflight 11:18:35] ② L5 闸门(自带)+引擎(预演)+记账 … invoked=kb-p0-check session=test-image-id
+[preflight 11:18:38] ② L5 记账完成 → kb/l7/runs/RT-20261021-IMG-ID-L5.json
+[preflight 11:18:38] ③ L5 审计 …
+[preflight 11:18:38] ③ L5 审计 exit=0（红 0）
+[preflight 11:18:38] ② L6 闸门(自带)+引擎(预演)+记账 … invoked=kb-recall session=test-image-id
+[preflight 11:18:40] ② L6 记账完成 → kb/l7/runs/RT-20261021-IMG-ID-L6.json
+[preflight 11:18:40] ③ L6 审计 …
+[preflight 11:18:40] ③ L6 审计 exit=0（红 0）
+[preflight 11:18:40] ② L7 闸门(自带)+引擎(预演)+记账 … invoked=kb-check session=test-image-id
+[preflight 11:18:40] ② L7 记账完成 → kb/l7/runs/RT-20261021-IMG-ID-L7.json
+[preflight 11:18:40] ③ L7 审计 …
+[preflight 11:18:40] ③ L7 审计 exit=0（红 0）
+[preflight 11:18:40] ✅ 四层前置全绿（L4–L7 各一 RUN，四道审计红 0）｜BASE=RT-20261021-IMG-ID
+[preflight 11:18:40]    下一步：出结论 —— with_kb_evidence.py --require-layer-preflight RT-20261021-IMG-ID --decision-owner <判定主体>
+[preflight 11:18:40] 已释放认领 RT-20261021-IMG-ID
+===== ② 自命中检查（确定性；它只报事实，不判三态）=====
+自命中检查：未命中
+  素材归一化字符 459 ｜ 扫过条款 207 条 ｜ 阈值 ratio≥0.9 且 run≥80
+===== ③ 引擎结论（唯一有权产出三态的地方）=====
+{
+ "state": "NEEDS_INPUT",
+ "decision": "NEEDS_INPUT",
+ "summary": "【审查结论：NEEDS_INPUT】图片单专项闸门未过（fail-closed，原因码 skill_not_loaded）：skill 就绪：/Users/lute/.dsh/skills/图片安全审查；本会话**没有成功的** skill(图片安全审查) 调用：本会话日志里**没有** skill('图片安全审查') 的调用记录 ⇒ 没加载过",
+ "issue_count": 0,
+ "image_skill_gate": {
+  "ok": false,
+  "expected": "图片安全审查",
+  "owner": "图片安全审查",
+  "checks": [
+   "skill 就绪：/Users/lute/.dsh/skills/图片安全审查",
+   "本会话**没有成功的** skill(图片安全审查) 调用：本会话日志里**没有** skill('图片安全审查') 的调用记录 ⇒ 没加载过"
+  ],
+  "warnings": [],
+  "load": {
+   "verdict": "no_call",
+   "calls": []
+  },
+  "reason_code": "skill_not_loaded"
+ },
+ "next_action": "图片单必须先让「图片安全审查」在 harness 侧**读得到**、并用 skill 工具**真的加载过**，再重跑本命令；文件坏了（信封态/坏 frontmatter）看 kb/l8/assert_skill_ready.py 头注释的修法。"
+}
+
+===== ③b 转述模板（照抄这一段即可，不必再跑任何命令）=====
+状态：NEEDS_INPUT ｜ 问题数：0 ｜ 置信度：None
+摘要：【审查结论：NEEDS_INPUT】图片单专项闸门未过（fail-closed，原因码 skill_not_loaded）：skill 就绪：/Users/lute/.dsh/skills/图片安全审查；本会话**没有成功的** skill(图片安全审查) 调用：本会话日志里**没有** skill('图片安全审查') 的调用记录 ⇒ 没加载过
+层前置：ok=None mode=None
+
+【飞书那一步没有做】published=false ｜ 原因 未说明
+⇒ 这**由守衡侧负责**，不是你的活。**不许**自己调 lark-cli 去补写表。
+
+★ 本次没有拿到可用的三态结论（NEEDS_INPUT）—— 如实回「未能得出结论 + 下面的原因」，
+  **这不是「请你补充信息」**：上面若是 `coverage_not_covered` / `evidence_side_refused`，缺的是**知识库或系统接线**，补素材也没用。
+  **不许**自己判三态、**不许**自己写飞书表（实测有单子就是这么把时间烧掉的）。

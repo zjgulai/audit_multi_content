@@ -1,0 +1,542 @@
+{
+ "meta": {
+  "file": "kb/l7/registry/taxonomy-derive.json",
+  "purpose": "把 **A3 12 类/58 子类** 映射到「报告用的 PRD 四维」与「优先级档位」，供**模型侧条目**（以及库侧缺档的条目）取默认值 —— Owner 2026-10-19：「问题总览里优先级和维度不允许为空，模型侧输出的可以参照知识库侧的分类和优先级来定」",
+  "why_here": "映射必须**只有一份**：模型侧在守衡仓，报告在守衡仓与 kb 两处渲染；各写一份必然漂移（本库栽过多次）",
+  "source": {
+   "taxonomy": "kb/l3/registry/rule-taxonomy.json",
+   "rules": [
+    "kb/l3/candidates/rules.jsonl",
+    "kb/l3/candidates/external_standard.jsonl"
+   ]
+  },
+  "generated_at": "2026-10-19",
+  "authority": "AI-proposed / owner-adopted（**不是** PRD 原文；class→维度 是判断，subclass→优先级 是从 638 条规则算出来的）",
+  "boundary": "本表只给**默认值**：库侧条目一旦自带 `priority_tier` / `risk_category`，一律以自带值为准，本表不覆盖。",
+  "model_side_cap": "P0 只由规则红线给 ⇒ 本表对**模型侧**只用于 P1/P2/P3（取到 P0 时按 P1 用，并留 basis 说明）。",
+  "category_to_dimension_note": "模型侧 7 个类目（`model_side.mjs` 的 `CATEGORIES`）→ PRD 四维的兜底映射。只在该条**没有** `risk_category` 也**没有**可用的 A3 类别时才用 —— Owner 2026-10-19：「问题总览中有优先级和维度为空……这里不允许为空」。"
+ },
+ "class_to_dimension": {
+  "合规与受监管宣称": {
+   "dimension": "合规",
+   "basis": "含义：法律法规与法定要求 + 受监管管制的产品宣称 ⇒ 合规"
+  },
+  "产品安全与高危使用场景": {
+   "dimension": "消费者安全",
+   "basis": "含义：产品或用法本身带来的健康风险、危险行为示范 ⇒ 消费者安全"
+  },
+  "商品信息与Listing准确性": {
+   "dimension": "产品描述",
+   "basis": "含义：规格参数/功能部件/页面描述与实物是否一致（只判“对不对”）⇒ 产品描述"
+  },
+  "证据与实质证明": {
+   "dimension": "合规",
+   "basis": "含义：宣称有没有依据、证据够不够硬（FTC substantiation 口径）⇒ 合规"
+  },
+  "推广与价格透明": {
+   "dimension": "合规",
+   "basis": "含义：促销话术施压、价格表述是否清楚 ⇒ 合规"
+  },
+  "背书与披露透明": {
+   "dimension": "合规",
+   "basis": "含义：专家背书是否成立、披露是否如实 ⇒ 合规"
+  },
+  "品牌信任与声誉": {
+   "dimension": "措辞表达",
+   "basis": "含义：slogan 调性、竞品贬低（不违法但伤品牌，多为建议类）⇒ 措辞表达"
+  },
+  "权利、肖像、隐私与AI": {
+   "dimension": "消费者安全",
+   "basis": "含义：未成年人出镜与隐私、AI 生成未标识 ⇒ 消费者安全（涉人安全与知情）"
+  },
+  "平台与渠道政策": {
+   "dimension": "合规",
+   "basis": "含义：平台侧投放与素材规则 ⇒ 合规"
+  },
+  "北美本地化与标签要求": {
+   "dimension": "措辞表达",
+   "basis": "含义：美国市场表达/计量单位/育儿语境（兼标签法定要求）⇒ 措辞表达"
+  },
+  "母婴知识内容准确性": {
+   "dimension": "措辞表达",
+   "basis": "含义：母婴科普事实对不对，兼收措辞表达类问题 ⇒ 措辞表达"
+  },
+  "未归类": {
+   "dimension": null,
+   "basis": "兜底类：不归入上述 11 类 ⇒ 维度留空（不蒙一个）"
+  }
+ },
+ "subclass_priority": {
+  "产品安全与高危使用场景 / 儿童乘车与居家防护": {
+   "p_level": "P0",
+   "counts": {
+    "P0": 1
+   },
+   "basis": "该子类 1 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "产品安全与高危使用场景 / 危险行为示范与模仿风险": {
+   "p_level": "P0",
+   "counts": {
+    "P0": 1
+   },
+   "basis": "该子类 1 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "北美本地化与标签要求 / 标签与包装法定要求": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 1
+   },
+   "basis": "该子类 1 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "合规与受监管宣称 / 临床与科学背书宣称": {
+   "p_level": "P0",
+   "counts": {
+    "P0": 1,
+    "P1": 1
+   },
+   "basis": "该子类 2 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "合规与受监管宣称 / 保险与报销资格宣称": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 1
+   },
+   "basis": "该子类 1 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "合规与受监管宣称 / 医疗与疾病功效宣称": {
+   "p_level": "P0",
+   "counts": {
+    "P0": 5
+   },
+   "basis": "该子类 5 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "合规与受监管宣称 / 无痛、安全与零风险承诺": {
+   "p_level": "P0",
+   "counts": {
+    "P0": 12
+   },
+   "basis": "该子类 12 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "合规与受监管宣称 / 智能与仿生宣称": {
+   "p_level": "P1",
+   "counts": {
+    "P0": 1,
+    "P1": 8
+   },
+   "basis": "该子类 9 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "合规与受监管宣称 / 法定认证与注册表述": {
+   "p_level": "P0",
+   "counts": {
+    "P0": 10
+   },
+   "basis": "该子类 10 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "合规与受监管宣称 / 生理功效与效果承诺": {
+   "p_level": "P1",
+   "counts": {
+    "P0": 1,
+    "P1": 16
+   },
+   "basis": "该子类 17 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "合规与受监管宣称 / 等级与资质背书用语": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 7
+   },
+   "basis": "该子类 7 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "合规与受监管宣称 / 结构功能宣称与免责声明": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 2
+   },
+   "basis": "该子类 2 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "合规与受监管宣称 / 绝对化与最高级用语": {
+   "p_level": "P0",
+   "counts": {
+    "P0": 13
+   },
+   "basis": "该子类 13 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "品牌信任与声誉 / 品牌口号与价值主张": {
+   "p_level": "P3",
+   "counts": {
+    "P3": 3
+   },
+   "basis": "该子类 3 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "品牌信任与声誉 / 竞品对比与贬低": {
+   "p_level": "P1",
+   "counts": {
+    "P0": 1,
+    "P1": 4
+   },
+   "basis": "该子类 5 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "商品信息与Listing准确性 / 产品体验与设计方向表述": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 4
+   },
+   "basis": "该子类 4 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "商品信息与Listing准确性 / 功能与部件描述准确性": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 4
+   },
+   "basis": "该子类 4 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "商品信息与Listing准确性 / 规格与参数表述": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 1
+   },
+   "basis": "该子类 1 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "商品信息与Listing准确性 / 适配与尺码宣称": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 2
+   },
+   "basis": "该子类 2 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "商品信息与Listing准确性 / 防漏与密封宣称": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 2
+   },
+   "basis": "该子类 2 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "平台与渠道政策 / 分地区投放禁令": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 2
+   },
+   "basis": "该子类 2 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "平台与渠道政策 / 平台政策总体合规": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 9
+   },
+   "basis": "该子类 9 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "平台与渠道政策 / 平台标识与授权素材使用": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 1
+   },
+   "basis": "该子类 1 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "平台与渠道政策 / 投放形式与版位限制": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 1
+   },
+   "basis": "该子类 1 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "平台与渠道政策 / 禁止投放品类与场景": {
+   "p_level": "P0",
+   "counts": {
+    "P0": 4
+   },
+   "basis": "该子类 4 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "平台与渠道政策 / 素材提交与形式规范": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 3
+   },
+   "basis": "该子类 3 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "推广与价格透明 / 促销紧迫感与压力话术": {
+   "p_level": "P2",
+   "counts": {
+    "P2": 3
+   },
+   "basis": "该子类 3 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "推广与价格透明 / 折扣与会员活动表述": {
+   "p_level": "P2",
+   "counts": {
+    "P2": 1
+   },
+   "basis": "该子类 1 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "权利、肖像、隐私与AI / AI 生成内容标识": {
+   "p_level": "P0",
+   "counts": {
+    "P0": 1
+   },
+   "basis": "该子类 1 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "权利、肖像、隐私与AI / 未成年人出镜与隐私保护": {
+   "p_level": "P0",
+   "counts": {
+    "P0": 1
+   },
+   "basis": "该子类 1 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "母婴知识内容准确性 / 产后恢复": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 14,
+    "P2": 11,
+    "P3": 9
+   },
+   "basis": "该子类 34 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "母婴知识内容准确性 / 儿童安全与居家防护": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 1,
+    "P3": 1
+   },
+   "basis": "该子类 2 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "母婴知识内容准确性 / 内容形式与表达规范": {
+   "p_level": "P3",
+   "counts": {
+    "P1": 3,
+    "P2": 9,
+    "P3": 15
+   },
+   "basis": "该子类 27 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "母婴知识内容准确性 / 分娩与待产": {
+   "p_level": "P2",
+   "counts": {
+    "P1": 1,
+    "P2": 2,
+    "P3": 1
+   },
+   "basis": "该子类 4 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "母婴知识内容准确性 / 吸奶器使用与母乳储存": {
+   "p_level": "P3",
+   "counts": {
+    "P1": 8,
+    "P2": 19,
+    "P3": 20
+   },
+   "basis": "该子类 47 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "母婴知识内容准确性 / 哺乳与泌乳": {
+   "p_level": "P2",
+   "counts": {
+    "P1": 15,
+    "P2": 58,
+    "P3": 24
+   },
+   "basis": "该子类 97 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "母婴知识内容准确性 / 喂养与辅食营养": {
+   "p_level": "P2",
+   "counts": {
+    "P1": 2,
+    "P2": 16,
+    "P3": 2
+   },
+   "basis": "该子类 20 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "母婴知识内容准确性 / 备孕与受孕": {
+   "p_level": "P2",
+   "counts": {
+    "P1": 1,
+    "P2": 18,
+    "P3": 6
+   },
+   "basis": "该子类 25 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "母婴知识内容准确性 / 妈妈心理与情绪": {
+   "p_level": "P2",
+   "counts": {
+    "P1": 1,
+    "P2": 5,
+    "P3": 2
+   },
+   "basis": "该子类 8 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "母婴知识内容准确性 / 婴幼儿睡眠": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 7,
+    "P2": 5,
+    "P3": 2
+   },
+   "basis": "该子类 14 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "母婴知识内容准确性 / 孕期与产检": {
+   "p_level": "P2",
+   "counts": {
+    "P1": 8,
+    "P2": 20,
+    "P3": 13
+   },
+   "basis": "该子类 41 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "母婴知识内容准确性 / 新生儿护理与就医指征": {
+   "p_level": "P2",
+   "counts": {
+    "P1": 10,
+    "P2": 15,
+    "P3": 6
+   },
+   "basis": "该子类 31 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "母婴知识内容准确性 / 母乳喂养通用建议": {
+   "p_level": "P2",
+   "counts": {
+    "P1": 1,
+    "P2": 5,
+    "P3": 5
+   },
+   "basis": "该子类 11 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "母婴知识内容准确性 / 母乳成分与过敏": {
+   "p_level": "P2",
+   "counts": {
+    "P2": 7,
+    "P3": 4
+   },
+   "basis": "该子类 11 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "母婴知识内容准确性 / 生长发育与里程碑": {
+   "p_level": "P2",
+   "counts": {
+    "P1": 1,
+    "P2": 8,
+    "P3": 4
+   },
+   "basis": "该子类 13 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "母婴知识内容准确性 / 用药与成分安全": {
+   "p_level": "P2",
+   "counts": {
+    "P2": 6,
+    "P3": 2
+   },
+   "basis": "该子类 8 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "母婴知识内容准确性 / 离乳与夜奶": {
+   "p_level": "P2",
+   "counts": {
+    "P1": 3,
+    "P2": 5
+   },
+   "basis": "该子类 8 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "背书与披露透明 / 专家与专业人士背书": {
+   "p_level": "P1",
+   "counts": {
+    "P0": 1,
+    "P1": 7
+   },
+   "basis": "该子类 8 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "背书与披露透明 / 利益关系与资质披露": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 4
+   },
+   "basis": "该子类 4 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "背书与披露透明 / 安全信息与风险披露": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 1
+   },
+   "basis": "该子类 1 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "背书与披露透明 / 视听披露形式要求": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 3
+   },
+   "basis": "该子类 3 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "背书与披露透明 / 达人合作与付费推广披露": {
+   "p_level": "P0",
+   "counts": {
+    "P0": 1
+   },
+   "basis": "该子类 1 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "背书与披露透明 / 限定信息与免责声明（清晰显著）": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 14
+   },
+   "basis": "该子类 14 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "证据与实质证明 / 临床与科学证据要求": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 23
+   },
+   "basis": "该子类 23 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "证据与实质证明 / 效果数据与销量排名宣称": {
+   "p_level": "P0",
+   "counts": {
+    "P0": 9
+   },
+   "basis": "该子类 9 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "证据与实质证明 / 研究方法与统计口径": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 17
+   },
+   "basis": "该子类 17 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "证据与实质证明 / 证据不足与待验证宣称": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 4
+   },
+   "basis": "该子类 4 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  },
+  "证据与实质证明 / 证据局限、限定语与整体印象": {
+   "p_level": "P1",
+   "counts": {
+    "P1": 25
+   },
+   "basis": "该子类 25 条规则的 p_level 众数（并列取更严档）；本表由 rule-taxonomy.json + L3 规则行算出，可复算"
+  }
+ },
+ "category_to_dimension": {
+  "合规": {
+   "dimension": "合规",
+   "basis": "模型侧类目「合规」本身就是 PRD §5.3 的维度名"
+  },
+  "消费者安全": {
+   "dimension": "消费者安全",
+   "basis": "同名词"
+  },
+  "产品描述": {
+   "dimension": "产品描述",
+   "basis": "同名词"
+  },
+  "措辞表达": {
+   "dimension": "措辞表达",
+   "basis": "同名词"
+  },
+  "隐私": {
+   "dimension": "消费者安全",
+   "basis": "隐私/未成年人出镜 ⇒ 消费者安全（涉人风险）"
+  },
+  "AI 披露": {
+   "dimension": "合规",
+   "basis": "AI 生成未标识 ⇒ 合规（披露义务）"
+  },
+  "本地化": {
+   "dimension": "措辞表达",
+   "basis": "计量单位/表达/育儿语境 ⇒ 措辞表达"
+  }
+ }
+}

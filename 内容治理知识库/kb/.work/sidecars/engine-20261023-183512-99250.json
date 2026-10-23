@@ -1,0 +1,206 @@
+{
+ "decision": {
+  "state": "REVIEW",
+  "decision": "REVIEW",
+  "confidence": null,
+  "review_id": "rv-20261023-183524",
+  "content_id": "AUTO-4fd09b266d28",
+  "content_id_basis": "指纹兜底：本单 `--no-publish-to-feishu`，不发飞书故不发业务号（不是漏发）",
+  "content_version": "4fd09b266d28e0cf0e2c9b01ea441ab732d6086e0be9c3341176c620d1410eb2",
+  "issue_count": 0,
+  "summary": "【审查结论：REVIEW】共发现 0 处需人工确认。\n\n**本次没有发现内容问题**（0 处）。下面是**覆盖缺口**说明 —— 缺的是**库覆盖**，不是素材有问题：\n\n**覆盖缺口说明（不是内容问题）**：本次素材的**文字层逐字命中 0 条**，但覆盖判据不成立（没有「既被规则引用、又达门限」的单元）——**这不是素材有问题，是库对该题材没有可依据的条款**。\n   原因：依据侧检索到 5 条命中，最高 BM25 35.2322（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。\n   依据：`kb/l7/registry/l7.json` 的 `retrieval.gate.coverage_bm25_min=16.0`（覆盖判据标定值；覆盖信号不成立时**不得输出 PASS**）\n   建议：转人工复核后再定；补素材无用（缺的是库覆盖）。\n\n**库内命中（读数）** —— 检索命中了 5 条，逐条列出**原文与直链**：\n\n1. `#l.1-1`｜BM25 35.2322｜wording\n   命中原文（逐字）：Air 1 vs M5 Smart: 2026's Ultimate Pump Battle Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether To\n   直链：https://momcozy.com/blogs/breastfeeding/best-wearable-pump-air-1-vs-m5\n2. `#l.1-1`｜BM25 31.6053｜wording\n   命中原文（逐字）：Momcozy Autumn Sale | Up to 60% Off Canada Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether Toys B\n   直链：https://ca.momcozy.com/collections/weekly-deals-ca\n3. `#l.1-1`｜BM25 30.9717｜wording\n   命中原文（逐字）：Slim Pump vs Budget Pump: Which One Fits Your Life? Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teeth\n   直链：https://momcozy.com/blogs/breastfeeding/slim-wearable-pump-vs-budget-app-pump\n4. `#l.1-1`｜BM25 30.5428｜wording\n   命中原文（逐字）：Momcozy Air 1 Wearable Breast Pump - Ultra-Slim On-the-Go Solution ⏰️ Autumn Sale Extended: Final Hours Shop Now Switch to your local store for faster shipping,\n   直链：https://uk.momcozy.com/products/momcozy-air-1-ultra-slim-breast-pump\n5. `#l.1-4`｜BM25 29.3589｜wording\n   命中原文（逐字）：ith low supply, stubborn clogs, or engorgement and need stronger suction (up to -280 mmHg) and specialized modes like Milk Boost™ or Milk Relief™. You value max\n   直链：https://momcozy.com/blogs/breastfeeding/best-wearable-pump-air-1-vs-m5\n\n> ⚠️ 上面是**读数**：命中的**大多是别人的素材样本 / 外部材料，不是覆盖本素材的条款**，**不得据此当 PASS 依据**，也不得当作「本素材已合规」的证明。\n\n建议转 @法务（未配置） @北美同事（未配置） 复核。",
+  "risk_items": [
+   {
+    "risk_type": "覆盖缺口",
+    "priority_tier": "转人工",
+    "action": "库对该题材没有可依据的条款 ⇒ 转人工看**覆盖**（不是发现了内容问题）",
+    "category": "覆盖",
+    "sub": "知识库覆盖缺口",
+    "reason": "依据侧检索到 5 条命中，最高 BM25 35.2322（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。",
+    "severity": "REVIEW",
+    "reason_code": "coverage_not_covered",
+    "coverage": {
+     "covered": false,
+     "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+     "rule_cited_unit_hits": 0,
+     "safe_vocabulary_hits": 0,
+     "coverage_bm25_min": 16.0,
+     "bm25_max": 35.2322,
+     "top_hit_anchor": "#l.1-1",
+     "top_hit_excerpt": "Air 1 vs M5 Smart: 2026's Ultimate Pump Battle Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether To"
+    },
+    "coverage_gap": true
+   }
+  ],
+  "next_owners": [
+   "法务",
+   "医学顾问"
+  ],
+  "fails_closed": true,
+  "refusal": {
+   "state": "NEEDS_INPUT",
+   "detail": "依据侧拒答（fail-closed）",
+   "fails_closed": true,
+   "reason_code": "coverage_not_covered",
+   "coverage": {
+    "covered": false,
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "rule_cited_unit_hits": 0,
+    "safe_vocabulary_hits": 0,
+    "coverage_bm25_min": 16.0,
+    "bm25_max": 35.2322,
+    "top_hit_anchor": "#l.1-1",
+    "top_hit_excerpt": "Air 1 vs M5 Smart: 2026's Ultimate Pump Battle Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether To"
+   },
+   "human": "依据侧检索到 5 条命中，最高 BM25 35.2322（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。"
+  },
+  "gate": null
+ },
+ "evidence_meta": {
+  "run_id": "20261023-183522",
+  "findings": 0,
+  "state": "REVIEW",
+  "fails_closed": true,
+  "refusal": {
+   "state": "NEEDS_INPUT",
+   "detail": "依据侧拒答（fail-closed）",
+   "fails_closed": true,
+   "reason_code": "coverage_not_covered",
+   "coverage": {
+    "covered": false,
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "rule_cited_unit_hits": 0,
+    "safe_vocabulary_hits": 0,
+    "coverage_bm25_min": 16.0,
+    "bm25_max": 35.2322,
+    "top_hit_anchor": "#l.1-1",
+    "top_hit_excerpt": "Air 1 vs M5 Smart: 2026's Ultimate Pump Battle Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether To"
+   },
+   "human": "依据侧检索到 5 条命中，最高 BM25 35.2322（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。"
+  },
+  "report_path": null,
+  "source": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py",
+  "findings_source": {
+   "mode": "live",
+   "path": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py"
+  },
+  "kb_hits": [
+   {
+    "anchor": "#l.1-1",
+    "bm25": 35.2322,
+    "kb_type": "wording",
+    "source_sha256": "70e7404908fb69785090197f8bbaa7aa9c23bf30ad71bcedcc2b4f2319b0f42a",
+    "excerpt": "Air 1 vs M5 Smart: 2026's Ultimate Pump Battle Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether To",
+    "url": "https://momcozy.com/blogs/breastfeeding/best-wearable-pump-air-1-vs-m5"
+   },
+   {
+    "anchor": "#l.1-1",
+    "bm25": 31.6053,
+    "kb_type": "wording",
+    "source_sha256": "1e1ae33b261494706a9915f5c9337339a5c7e4e21ac0db548e3175498dd44925",
+    "excerpt": "Momcozy Autumn Sale | Up to 60% Off Canada Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether Toys B",
+    "url": "https://ca.momcozy.com/collections/weekly-deals-ca"
+   },
+   {
+    "anchor": "#l.1-1",
+    "bm25": 30.9717,
+    "kb_type": "wording",
+    "source_sha256": "2078091126c9ae2a3fb0e257ca6bdfd9066e1c2dbc7b62f32cd610c40badd28d",
+    "excerpt": "Slim Pump vs Budget Pump: Which One Fits Your Life? Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teeth",
+    "url": "https://momcozy.com/blogs/breastfeeding/slim-wearable-pump-vs-budget-app-pump"
+   },
+   {
+    "anchor": "#l.1-1",
+    "bm25": 30.5428,
+    "kb_type": "wording",
+    "source_sha256": "6b99574f19a2bbc4a32911b25f912e6546e159c9f820ede6ee67a8a5e708a9ff",
+    "excerpt": "Momcozy Air 1 Wearable Breast Pump - Ultra-Slim On-the-Go Solution ⏰️ Autumn Sale Extended: Final Hours Shop Now Switch to your local store for faster shipping,",
+    "url": "https://uk.momcozy.com/products/momcozy-air-1-ultra-slim-breast-pump"
+   },
+   {
+    "anchor": "#l.1-4",
+    "bm25": 29.3589,
+    "kb_type": "wording",
+    "source_sha256": "70e7404908fb69785090197f8bbaa7aa9c23bf30ad71bcedcc2b4f2319b0f42a",
+    "excerpt": "ith low supply, stubborn clogs, or engorgement and need stronger suction (up to -280 mmHg) and specialized modes like Milk Boost™ or Milk Relief™. You value max",
+    "url": "https://momcozy.com/blogs/breastfeeding/best-wearable-pump-air-1-vs-m5"
+   }
+  ],
+  "layer_preflight": {
+   "base": "20261023-183512",
+   "ok": true,
+   "red_total": 0,
+   "mode": "enforced",
+   "details": {
+    "L4": {
+     "run": "20261023-183512-L4",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L4": "session-7fa35ef2-18d8-4c45-8d6e-763387144fce"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L5": {
+     "run": "20261023-183512-L5",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L5": "session-7fa35ef2-18d8-4c45-8d6e-763387144fce"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L6": {
+     "run": "20261023-183512-L6",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L6": "session-7fa35ef2-18d8-4c45-8d6e-763387144fce"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L7": {
+     "run": "20261023-183512-L7",
+     "exit": 0,
+     "red": 0,
+     "yellow": 0,
+     "skill_sessions": {
+      "L7": "session-7fa35ef2-18d8-4c45-8d6e-763387144fce"
+     },
+     "pass": true,
+     "note": ""
+    }
+   }
+  },
+  "position": {
+   "value": null,
+   "supplied_by": null,
+   "note": "未提供 ⇒ 依据层用默认位置（图片会是裸「图 1」，出口闸 R3 判红）"
+  },
+  "decision_owner": {
+   "skill": "文案合规审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check",
+    "文案合规审查"
+   ]
+  },
+  "publish": {
+   "mode": "disabled_by_caller",
+   "published": false,
+   "reason": "disabled_by_caller"
+  },
+  "report_url": null,
+  "report_url_kind": null
+ }
+}

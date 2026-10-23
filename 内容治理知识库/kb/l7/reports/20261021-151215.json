@@ -1,0 +1,128 @@
+{
+  "review_id": "20261021-151215",
+  "content_id": "text-4dc2fb6cf1ad",
+  "content_id_basis": "指纹（依据侧不发业务号，发号真源 = kb/l7/review-engine/core/content_id.py）",
+  "content_type": "text",
+  "content_version": "4dc2fb6cf1add2115afeb81dc1a055b33b3c1e72f64cfe0cb2231b31c0f69e50",
+  "content_hash": "4dc2fb6cf1add2115afeb81dc1a055b33b3c1e72f64cfe0cb2231b31c0f69e50",
+  "agent_version": "kb-content-review@1.3.0",
+  "rule_version": "article-no-2+l3-0.2+rules.jsonl@82fbcf5abca1adfe",
+  "knowledge_version": "v0",
+  "version_binding": {
+    "review_id": "20261021-151215",
+    "content_id": null,
+    "content_id_form": "AD-YYYYMMDD-NNN（PRD §5.4）",
+    "content_id_note": "本入口（依据侧）**不发业务号** —— 发号要读飞书表，而依据侧不该为此访问飞书。业务号由发号方在发飞书那一刻发：`kb/l7/review-engine/core/content_id.py`（唯一实现）。",
+    "content_fingerprint": "text-4dc2fb6cf1ad",
+    "content_hash": "4dc2fb6cf1add2115afeb81dc1a055b33b3c1e72f64cfe0cb2231b31c0f69e50",
+    "content_version": "4dc2fb6cf1add2115afeb81dc1a055b33b3c1e72f64cfe0cb2231b31c0f69e50",
+    "agent_version": "kb-content-review@1.3.0",
+    "rule_version": "article-no-2+l3-0.2+rules.jsonl@82fbcf5abca1adfe",
+    "knowledge_version": "v0",
+    "sources": {
+      "content_hash": "送审文本 utf-8 的 sha256",
+      "agent_version": "kb/l7/skills/kb-content-review/SKILL.md → frontmatter.version",
+      "rule_version": "kb/l7/registry/l7.json → article_no_source.scheme_version ＋ kb/l3/registry/l3.json → distiller_version ＋ kb/l3/candidates/rules.jsonl 的 sha256[:16]",
+      "knowledge_version": "kb/l7/registry/l7.json → kb_version"
+    }
+  },
+  "decision": "BLOCK",
+  "decision_raw": "BLOCK",
+  "confidence": "未标定（本入口逐条给 高/中/低；全局数值置信度属裁决侧）",
+  "input_manifest": {
+    "text": "M5 吸奶器的静音设计很安静，夜里泵奶不打扰家人。",
+    "sha256": "4dc2fb6cf1add2115afeb81dc1a055b33b3c1e72f64cfe0cb2231b31c0f69e50",
+    "modality": [
+      "text"
+    ]
+  },
+  "coverage": {
+    "text": "complete",
+    "image": "not_applicable",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "本批只送审 text 一种模态；其余模态不适用（不是缺口）。本块是报告契约要求的覆盖状态，不等于 OCR/ASR/关键帧流水线已执行 —— 后者见 trace。"
+  },
+  "risk_items": [
+    {
+      "risk_id": "r-ddf0f8360c7b53a7",
+      "risk_type": "平台与促销-静音绝对化表述",
+      "risk_category": "合规",
+      "risk_category_basis": "类别「平台与促销」⇒ 合规（软判（按 §6.2/§5.2 语义归类）：PRD §7.1 外部标准库含「平台政策」）",
+      "taxonomy_category": "合规与受监管宣称",
+      "taxonomy_subcategory": "绝对化与最高级用语",
+      "taxonomy_basis": "v1-20261017",
+      "priority_tier": "P0",
+      "priority_tier_basis": "规则行 p_level=P0",
+      "layer": "规则层",
+      "p_level": "P0",
+      "risk_level": "High",
+      "severity": "BLOCK",
+      "status": "confirmed",
+      "action": "block",
+      "location": "全文",
+      "original_text": "静音程度夸大（建议改为 low noise / quiet mo",
+      "reason": "逐字命中「静音」：（来源未给判定理由）（p_level=P0 risk_level=High authority=None，来源表 None）",
+      "suggestion": "可改为（本规则豁免表达）：low noise, quiet mode, low-decibel, silent mode, 静音模式",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.54",
+        "anchor": "#品线内容边界规则库/recvuJP1LV2uxa/边界内容",
+        "source_sha256": "1bf6ceb91a0d404e52dadd28aa2aa63585b57e03f3ac51a55f58635772e903d2",
+        "excerpt": "静音程度夸大（建议改为 low noise / quiet mo"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.54 条 @ #品线内容边界规则库/recvuJP1LV2uxa/边界内容 @ 1bf6ceb91a0d",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.54"
+    }
+  ],
+  "issue_count": 1,
+  "report_url": null,
+  "next_action": "请修改后重新提交。",
+  "next_owners": [
+    "内容方修改责任人"
+  ],
+  "sla": {},
+  "version_gate": {
+    "reviewed_hash": "4dc2fb6cf1add2115afeb81dc1a055b33b3c1e72f64cfe0cb2231b31c0f69e50",
+    "release_hash": null,
+    "note": "本入口不掌握发布版本；发布/送审版本比对属裁决侧（review_engine.py:115-119），此处不代替它下结论"
+  },
+  "decision_trace": {
+    "reasons": [
+      "any_finding_severity_block"
+    ],
+    "confidence_status": "not_calibrated_by_this_entry",
+    "evaluated_at": "2026-10-21T15:12:18",
+    "decided_by": "kb-content-review/scripts/review.py（依据侧自身分支，:709-715）",
+    "note": "本报告不重算结论；三态由上表 decision_raw 原样带出",
+    "tier_trace": {
+      "P0": 1,
+      "P1": 0,
+      "P2": 0,
+      "P3": 0,
+      "未标层": 0
+    },
+    "confidence_route": {
+      "applies": false,
+      "band": null,
+      "calibrated": false,
+      "why": "依据侧**不合成全局数值置信度**（逐条给 高/中/低）⇒ 没有可切三档的数。PRD §6.6 的数值分档与标注在**裁决侧**生效：见 `review_engine.decide()` → `decision_trace.confidence_route`；策略真源 `kb/l7/registry/confidence-policy.json`。",
+      "handled_by": "kb/l7/review-engine/core/review_engine.py::decide()"
+    },
+    "image_identity": {
+      "checked": false,
+      "detected": 0,
+      "added": 0,
+      "upgraded": 0,
+      "hits": []
+    }
+  },
+  "unmet_citation": []
+}

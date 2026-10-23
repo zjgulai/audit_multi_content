@@ -1,0 +1,75 @@
+# PRD §17「附录：结论模板速查」的字数限制 —— **唯一真源**
+#
+# 取数：飞书 PRD（docx `PXfBdjTwFokEQixtmTscqm7knNh`）§17 的内嵌表
+#       spreadsheet `B1aUs2Vuah8YwjtwWO6cr5MFnUd` / sheet `XWnpiN`，
+#       拉取时刻 2026-10-19 ｜ revision 96 ｜ 实测 `A1:D7`。
+# 两侧共用：守衡 `agent/prd17.mjs` 读它；知识库 `kb/l8/prd17_check.py` 读它。
+# **不许在别处再抄一份数字**（抄出去的第二份必然过期）。
+meta:
+  source: 'PRD §17 结论模板速查（sheet XWnpiN，rev 96，拉取于 2026-10-19）'
+  prd_ref: '§17'
+  fetched_at: '2026-10-19'
+  revision: 96
+  why_single_source: '两仓都要量同一把尺；数字写在两处，迟早一处改一处不改'
+
+# ── 字数口径（PRD 原文只写「≤N 字」，**没写怎么数**）────────────────────────────
+# 这是**解释**，不是 PRD 原文，所以要摆明：
+#   visible_no_url ：去掉 http(s) 链接、去掉 markdown 标记（`*` `> ` `|` `【】` `→`）、去空白后的字符数。
+#                    理由：链接是机器产物（一条 docx 链接 ≈ 55 字符），把它数进去等于让
+#                    「BLOCK ≥3 ≤100 字」在**任何**实现下都不可能满足。
+counting:
+  # ★★ 2026-10-19 Owner 两次澄清，最终规则（**机器可判**，不靠人列例外）：
+  #   ① 「最后的字数限制是针对**每一条问题**」
+  #   ② 「下面两个写了逐条，**没写的就是整张卡**」（指 REVIEW/BLOCK 1-2 那两行）
+  #   ⇒ 规则：**`format` 里含「逐条」⇒ 按条量（per_item）；不含 ⇒ 按整卡量（message）**。
+  #     落到本表：REVIEW 1-2条 / BLOCK 1-2条 / SUGGEST ⇒ per_item；
+  #               PASS / REVIEW ≥3 / BLOCK ≥3 ⇒ message。
+  #   ⚠️ 第一版我按**整张卡**量，把「1-2 条 ≤200」读成「两条加起来 ≤200」—— 判定整片翻转，已纠正。
+  scope_rule: 'format 含「逐条」⇒ per_item；否则 ⇒ message（由 format 字段自动判定）'
+  rule: visible_no_url
+  strip_urls: true
+  strip_markdown: true
+  strip_whitespace: true
+  alternatives_measured:
+    all_chars: '含链接、含标记、含空白（最严）'
+    cjk_only: '只数中文字符（最松）'
+  note: '成交口径待 Owner 确认；换口径只改这一处，两仓同时生效'
+
+# ── 上限表（逐字取 PRD §17 那张表）──────────────────────────────────────────────
+rows:
+  - {state: PASS,    issue_range: '—',    format: '一句话总结 + 转 sign-off/brief方',                          limit: 50}
+  # ★ Owner 2026-10-19 补充：「逐条的还有 SUGGEST」⇒ 这一行同样按条量（format 含「逐条列建议」自动判）。
+  # ⚠️ 但**本库当前不产出 SUGGEST**：结论只有三态 ＋ 拒答态，
+  #    SUGGEST 登记在 `prd-v1.3-alignment.yaml::deliberately_not_followed.items[A]`（会断守衡链 + PRD 自相矛盾）。
+  #    ⇒ 这行是**尺子先备好**：真要启用四态时，字数判定自动生效，不需要再改这里。
+  - {state: SUGGEST, issue_range: '任意', format: '逐条列建议 + 不阻断说明',                                    limit: 150}
+  - {state: REVIEW,  issue_range: '1-2条', format: '逐条：维度+位置+问题+原因+依据+转人工',                     limit: 200}
+  - {state: REVIEW,  issue_range: '≥3',   format: '分类汇总 + 报告链接 + 转人工',                              limit: 100}
+  - {state: BLOCK,   issue_range: '1-2条', format: '逐条：维度+位置+问题+原因+依据+修改建议',                   limit: 200}
+  - {state: BLOCK,   issue_range: '≥3',   format: '分类汇总 + 报告链接 + 请修改',                              limit: 100}
+
+# ── 已实测的两条硬冲突（不是「还没做」，是「做到也满足不了」）─────────────────────
+known_conflicts:
+  - id: C1
+    row: 'BLOCK/REVIEW ≥3（≤100 字）'
+    why: >
+      PRD §5.3.3/§5.3.4 同时要求「结论行 + 分类汇总（每类一行）+ 报告链接 + 收尾句」，
+      这几项**都在这 100 字里**。实测：结论行 ≈20 字、每类一行 ≈14 字、
+      链接行 ≈7 字、收尾 ≈9~16 字 ⇒ **4 个分类时已经 ≈100 字**，第 5 个分类必超。
+    impact: '分类数 ≥5 的素材必然超 100 字；4 类时只能贴线过'
+    options:
+      - '口径改为「只数中文」（实测 BLOCK≥3 70 字 / REVIEW≥3 86 字，都合规）'
+      - '链接那行不计入字数（PRD 里链接是「附加物」不是正文）'
+      - '分类汇总在 ≥5 类时压成一行（与 Owner 已定的「每类一行」冲突，需 Owner 同意）'
+  - id: C2
+    row: 'BLOCK/REVIEW 1-2条（≤200 字，**按条量**）'
+    why: >
+      逐条那一块含六格，其中「依据」必须带飞书直链、「修改建议」按 Owner 2026-10-17 的裁定
+      必须**写全**（当时明确取消了 120 字截断）。
+      **实测（按条量）**：夹具那种短建议 ⇒ 每条 111~120 字（✅）；
+      而**真单样长度的建议**（取真报告 F-01 的建议原文，约 300 字）⇒ **每条 512 字**（❌ 超 312）。
+    impact: '夹具合规、真单几乎必然超 —— 两条路只能选一条（见 options）'
+    options:
+      - '卡上建议截断（如 ≤120 字）＋「全文见报告」——**推翻** Owner 的「建议写全」'
+      - '≤200 只约束「骨架」（结论行 + 各格标签），不约束库规原文与建议正文'
+      - '1-2 条时卡面也改成「分类汇总 + 报告链接」，逐条只在报告里出'

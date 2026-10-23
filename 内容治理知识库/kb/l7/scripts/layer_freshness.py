@@ -21,7 +21,10 @@
 
 ## 新口径（裁定 A）
 
-    新鲜 ⟺ 该层最近一次**成功** RUN 在 `STALE_AFTER` 内（**阈值只有这一处**，见文件中的常量）
+    新鲜 ⟺ 该层最近一次**跑到底的** RUN 在 `STALE_AFTER` 内（**阈值只有这一处**，见文件中的常量）
+            —— 注意「跑到底」≠「判绿」：`停在半路` 的 RUN 不算（`ABORT_MARKS`），
+               但 `FAIL` / `未过`（跑到了底、闸门判红）**仍算跑过**，只是在输出里点名
+               `run_verdict_gate_red`。两个轴不许混（2026-10-20 Owner 定 ②）。
             且（ change_state == "produced_changes"
                  或 (change_state == "no_new_input" 且 input_watermark == 上游当前水位) ）
 
@@ -69,6 +72,21 @@ STALE_AFTER = 8 * 86400
 #: 给人看的写法 —— 判据文案里**只引用它**，别在别处再抄一遍「24h／8 天」（抄出去的第二份必然过期）。
 STALE_AFTER_HUMAN = ("%g 天" % (STALE_AFTER / 86400.0) if STALE_AFTER >= 2 * 86400
                      else "%g 小时" % (STALE_AFTER / 3600.0))
+
+#: ── 「这一跑算不算跑过」的两级记号（2026-10-20 加，Owner 定 ①+②）────────────────
+#: 本判据只问一件事：**有没有跑到底**。两级必须分开，不许并成一级 ——
+#:   · `ABORT_MARKS`：链路把自己**停在半路**（`停在 L6 闸门红：exit=1`）⇒ **不算跑过**，
+#:     回落更早那份记录（否则一次中止的 RUN 会把新鲜度刷绿，人就以为「跑过了」）；
+#:   · `GATE_RED_MARKS`：跑到了底、但闸门判红（`FAIL` / `未过`）⇒ **仍算跑过**
+#:     （新鲜度只问跑没跑，红绿另由闸门报），但必须在输出里点名 `run_verdict_gate_red`。
+#: ★★ 为什么**不许**把 `FAIL` 也当「没跑过」（2026-10-20 按活库算过一遍）：
+#:    L5 最近几份、L6 最近三份记录的 verdict 都是 `FAIL`，而那个 FAIL 是**判据性假红**
+#:    （`l6_scope.py` 拿落伍的 `l3_stats.json` 当基线）。若把它们一起算「没跑过」，
+#:    L5 立刻退回 **8.07 天前**、L6 退回 **11.0 天前** ⇒ 直接陈旧转红 ⇒
+#:    **一个闸门 bug 被放大成新鲜度告警风暴**，并会让自愈反复踢整链。
+#:    「跑没跑」与「判没判红」是两个轴；混在一起就是本库栽过的红线互相拖累。
+ABORT_MARKS = ("停在", "闸门红", "中止", "aborted", "not_run", "未执行")
+GATE_RED_MARKS = ("FAIL", "未过", "失败")
 
 #: 每层的**上游**水位来源（库根相对路径）。
 #: ★ 只列**上游**，不列本层自己的产物 —— 列自己的产物就等于自证。
@@ -187,11 +205,30 @@ def make_fields(kb_root: str, layer: str, *, change_state: str,
 
 
 def _latest_run_record(kb_root: str, layer: str):
-    """该层 `runs/` 里**最新**的一份落章（按 mtime）：返回 `(mtime, dict|None, path)`。"""
+    """该层 `runs/` 里**最新的一份真运行落章**（按 mtime）：返回 `(mtime, dict|None, path, rejects)`。
+
+    ★ 2026-10-19：**跳过不是「层运行」的记录**。为什么：
+      就绪巡检每 30 分钟跑一次 `freshness.py` → `daily_health.py`，后者会往
+      `kb/l7/runs/` 写一条 `source=daily_health` 的记账；`l0_gate.py` 会写
+      `source=l0_daily` 的只读门记录；`kb_pipeline --sync --via-skill` 的**预演档**
+      会写 `verdict=全走完（预演 · 未落盘 · 非执行证据）` 的记录。
+      原先只按 mtime 取最新 ⇒ L7 的 `run_at` 被这些记录顶新 ⇒
+      `watch_review_readiness.check_weekly_run_ran()` 被喂饱、永远绿。
+      判据不变：**只读体检 / 只读门 / 预演档都不是层运行**，同一把尺子。
+
+    ★ **L7 例外**：L7 是只读**跨层闸门**，它自己的真运行记录本来就带「预演 · 非执行证据」
+      （`daily-<BASE>-L7.json`）。所以对 L7 **放行 `run_id` 以 `daily-` 开头的预演记录**
+      （那是周更/日更驱动的 L7 运行）；只跳过冒烟/测试产生的非 `daily-` 预演档。
+      不放行会让 L7 回退到很久以前的真记录，`_run_lo` 被拉到过去 ⇒ 误判「上游水位已变」。
+
+    ★ 2026-10-20（Owner 定 ②）：**中途中止的 RUN 不算跑过**（`ABORT_MARKS`），回落更早那份；
+      被跳过的每一份都进第 4 个返回值 `rejects`，由 `judge()` 原样暴露 —— **不静默**。
+    """
     d = os.path.join(kb_root, layer.lower(), "runs")
+    rejects = []
     if not os.path.isdir(d):
-        return None, None, None
-    best = None
+        return None, None, None, rejects
+    cand = []
     for fn in os.listdir(d):
         if not fn.endswith(".json"):
             continue
@@ -203,16 +240,41 @@ def _latest_run_record(kb_root: str, layer: str):
             m = os.path.getmtime(p)
         except OSError:
             continue
-        if best is None or m > best[0]:
-            best = (m, p)
-    if best is None:
-        return None, None, None
-    m, p = best
-    try:
-        with open(p, encoding="utf-8") as fh:
-            return m, json.load(fh), p
-    except Exception:                                    # noqa: BLE001
-        return m, None, p
+        cand.append((m, p))
+    cand.sort(key=lambda x: x[0], reverse=True)
+    _skip_sources = {"daily_health", "l0_daily"}
+    _preview_marks = ("预演", "未落盘", "非执行证据", "干跑", "dryrun", "dry_run")
+    for m, p in cand:
+        try:
+            with open(p, encoding="utf-8") as fh:
+                rec = json.load(fh)
+        except Exception:                                # noqa: BLE001
+            return m, None, p, rejects
+        if isinstance(rec, dict):
+            if rec.get("source") in _skip_sources:
+                continue
+            _rid7 = str(rec.get("run_id") or "")
+            _verd = str(rec.get("verdict") or "")
+            # ★ 2026-10-20：**停在中途的 RUN 不算跑过** —— 它没跑到底，产物没写完。
+            if any(k in _verd for k in ABORT_MARKS):
+                rejects.append({"path": os.path.relpath(p, kb_root), "verdict": _verd[:80],
+                                "why": "中止档：链路把自己停在半路（没跑到底）⇒ 不算跑过"})
+                continue
+            _is_preview = any(k in _verd for k in _preview_marks)
+            if _is_preview:
+                # L7 的周更/日更运行记录本身就是「预演 · 非执行证据」（只读闸门）；
+                # 只放行 run_id 以 `daily-` 开头的（其余冒烟/测试预演档不算）。
+                if not (layer == "L7" and _rid7.startswith("daily-")):
+                    continue
+            # ★ L7 的 runs 目录是**混合目录**（kb/l7/runs/ 里有 L0–L7 各层的记账）：
+            #   只认本层（run_id 以 `-L7` 结尾，或 extra.layers 含 L7）。否则 L0 的
+            #   `daily-...-L0.json` 会被当成 L7 的最近一次运行（2026-10-19 实测踩到）。
+            if layer == "L7":
+                _layers = (rec.get("extra") or {}).get("layers") or rec.get("layers") or []
+                if not (_rid7.endswith("-L7") or "L7" in _layers):
+                    continue
+        return m, rec, p, rejects
+    return None, None, None, rejects
 
 
 # ── 测量与落章（批次18 · 第0块）────────────────────────────────────────────────
@@ -347,8 +409,18 @@ def judge(kb_root: str, layer: str, now: float | None = None):
         "watermark_match": None,
     }
 
-    run_m, rec, run_p = _latest_run_record(kb_root, layer)
+    run_m, rec, run_p, run_rejects = _latest_run_record(kb_root, layer)
     out["run_path"] = os.path.relpath(run_p, kb_root) if run_p else None
+    # ★ 2026-10-20（Owner 定 ②）：「跑没跑」与「判没判红」分成两个轴，**都摆出来**：
+    #   · `run_record_rejects`＝被判定「不算跑过」而跳过的记录（目前只有中止档），**不静默**；
+    #   · `run_verdict` / `run_verdict_gate_red`＝这份记录自己怎么判的。
+    #     **红仍算跑过**（新鲜度不越权代替闸门），但红着的事实要看得见 ——
+    #     否则「绿」会被读成「健康」，2026-10-20 就是这么被误读的。
+    out["run_record_rejects"] = run_rejects[:5]
+    out["run_record_rejects_n"] = len(run_rejects)
+    _v_raw = str((rec or {}).get("verdict") or "") if isinstance(rec, dict) else ""
+    out["run_verdict"] = _v_raw or None
+    out["run_verdict_gate_red"] = bool(_v_raw) and any(k in _v_raw for k in GATE_RED_MARKS)
 
     # 落章里声明的执行时间优先（引擎写的 executed_at）；没有就退回落章文件 mtime
     exec_at = None
@@ -634,6 +706,95 @@ def _selftest():
         print("  反测8 下界不被无关run顶大 →",
               "陈旧 ✅" if not r["fresh"] else "新鲜 ❌（下界被更晚的无关 run 顶大了！）")
         ok &= (not r["fresh"])
+
+        # ★ 反测9a/9b（2026-10-19 加）：**`_latest_run_record` 的 L7 例外本身要有尺子**。
+        #   背景：L7 是只读跨层闸门，它自己的周更/日更记账**本来就带「预演 · 非执行证据」**。
+        #   第一版把这类记录一起当"预演档"跳掉 ⇒ L7 回退到 2026-09-30 的旧记录 ⇒
+        #   `run_lower_bound` 被拉到过去 ⇒ 误判「上游水位已变」⇒ freshness 红、**评审链拒答**
+        #   （2026-10-19 当天真踩到，10:57 才补上例外）。
+        #   ⚠️ 例外的**反向对照**也在这里：不许把例外放大成「任何预演都算层运行」。
+        #   原先这个判据的唯一自证在 `watch_review_readiness --selftest` 的 ㉓l 里，
+        #   而那条 selftest **不在任何定时任务里跑** ⇒ 删掉例外，本文件自测照样全绿。
+        _l7d = os.path.join(t, "l7", "runs")
+        os.makedirs(_l7d, exist_ok=True)
+        _now9 = time.time()
+        _old9 = os.path.join(_l7d, "20260930-1740.json")
+        with open(_old9, "w", encoding="utf-8") as fh:
+            json.dump({"run_id": "20260930-1740", "at": "2026-09-30T17:39:28",
+                       "source": "pipeline_sync", "verdict": "全走完",
+                       "extra": {"layers": ["L0", "L7"]}}, fh)
+        os.utime(_old9, (_now9 - 86400 * 19, _now9 - 86400 * 19))     # 19 天前
+        _day9 = os.path.join(_l7d, "daily-20261019-1003-L7.json")
+        with open(_day9, "w", encoding="utf-8") as fh:
+            json.dump({"run_id": "daily-20261019-1003-L7",
+                       "at": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(_now9)),
+                       "source": "pipeline_sync",
+                       "verdict": "全走完（预演 · 未落盘 · 非执行证据）",
+                       "extra": {"layers": ["L7"]}}, fh)
+        _m9, _r9, _p9, _ = _latest_run_record(t, "L7")
+        print("  反测9a L7 放行 daily- 预演 →",
+              "取到日更那条 ✅" if os.path.basename(_p9 or "") == os.path.basename(_day9)
+              else "❌（取到 %s）" % os.path.basename(_p9 or ""))
+        ok &= (os.path.basename(_p9 or "") == os.path.basename(_day9))
+        os.remove(_day9)
+
+        with open(os.path.join(_l7d, "20261019-0946-L7.json"), "w", encoding="utf-8") as fh:
+            json.dump({"run_id": "20261019-0946-L7",
+                       "at": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(_now9)),
+                       "source": "pipeline_sync",
+                       "verdict": "全走完（预演 · 未落盘 · 非执行证据）",
+                       "extra": {"layers": ["L7"]}}, fh)
+        _m9, _r9, _p9, _ = _latest_run_record(t, "L7")
+        print("  反测9b 非 daily- 预演档 →",
+              "跳过、回落旧记录 ✅" if os.path.basename(_p9 or "") == "20260930-1740.json"
+              else "❌（取到 %s —— 例外被放大成「任何预演都算层运行」！）"
+              % os.path.basename(_p9 or ""))
+        ok &= (os.path.basename(_p9 or "") == "20260930-1740.json")
+
+        # ★★ 反测10a/10b（2026-10-20 加，Owner 定 ②）：**「跑没跑」与「判没判红」两个轴**。
+        #   10a 正例：最新一份是**中止档**（`停在 L6 闸门红：exit=1`）⇒ **不算跑过**，
+        #       必须回落更早那份真记录，并把跳过理由带出来（不静默）。
+        #   10b 反向对照：**跑到底但判红**（`FAIL`）⇒ **仍算跑过**（新鲜度不越权代替闸门），
+        #       但输出必须点名 `run_verdict_gate_red=True`。
+        #       若有人把 FAIL 并进 ABORT_MARKS ⇒ 10b 精确变红（并会让 L5/L6 直接退回陈旧：
+        #       实测 L5 会是 8.07 天、L6 是 11.0 天，而那两个 FAIL 是判据性假红）。
+        _l6d = os.path.join(t, "l6", "runs")
+        os.makedirs(_l6d, exist_ok=True)
+        _now10 = time.time()
+        #   夹具时间：本用例落在 反测7 的 `fixture.json`（600 秒前）之后，
+        #   所以两份夹具取 400 秒／60 秒前 —— 保证"回落"落到的是**我造的那份**，不是 fixture。
+        for _fn10, _age10, _v10 in (("daily-20261019-1003-L6.json", 400, "完成"),
+                                    ("daily-20261020-1255-L6.json", 60, "停在 L6 闸门红：exit=1")):
+            _p10 = os.path.join(_l6d, _fn10)
+            with open(_p10, "w", encoding="utf-8") as fh:
+                json.dump({"run_id": os.path.splitext(_fn10)[0], "source": "pipeline_sync",
+                           "verdict": _v10}, fh)
+            os.utime(_p10, (_now10 - _age10, _now10 - _age10))
+        _m10, _r10, _p10, _rej10 = _latest_run_record(t, "L6")
+        print("  反测10a 中止档不算跑过 →",
+              "回落昨天的记录、且带出跳过理由 ✅"
+              if (os.path.basename(_p10 or "") == "daily-20261019-1003-L6.json"
+                  and any("daily-20261020-1255-L6.json" in x.get("path", "") for x in _rej10))
+              else "❌（取到 %s ｜ rejects=%d）" % (os.path.basename(_p10 or ""), len(_rej10)))
+        ok &= (os.path.basename(_p10 or "") == "daily-20261019-1003-L6.json"
+               and any("daily-20261020-1255-L6.json" in x.get("path", "") for x in _rej10))
+
+        # 10b：把中止那份换成「跑到底但判红」，**应当被采用**，并在 judge() 里点名
+        _p10b = os.path.join(_l6d, "daily-20261020-1255-L6.json")
+        with open(_p10b, "w", encoding="utf-8") as fh:
+            json.dump({"run_id": "daily-20261020-1255-L6", "source": "pipeline_sync",
+                       "verdict": "FAIL"}, fh)
+        os.utime(_p10b, (_now10 - 60, _now10 - 60))     # 比 10a 的"完成"那份更新，才可能被选中
+        _m10b, _r10b, _p10b_used, _rej10b = _latest_run_record(t, "L6")
+        _j10b = judge(t, "L6")
+        print("  反测10b 跑到底但判红 →",
+              "仍算跑过＋点名 gate_red ✅"
+              if (os.path.basename(_p10b_used or "") == "daily-20261020-1255-L6.json"
+                  and _j10b.get("run_verdict_gate_red") is True and not _rej10b)
+              else "❌（取到 %s ｜ gate_red=%r ｜ rejects=%d）"
+              % (os.path.basename(_p10b_used or ""), _j10b.get("run_verdict_gate_red"), len(_rej10b)))
+        ok &= (os.path.basename(_p10b_used or "") == "daily-20261020-1255-L6.json"
+               and _j10b.get("run_verdict_gate_red") is True and not _rej10b)
 
     print("\n自测：", "全部通过 ✅" if ok else "**有失败 ❌**")
     return 0 if ok else 1

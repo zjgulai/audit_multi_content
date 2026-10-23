@@ -1,25 +1,25 @@
 {
- "checked_at": "2026-10-16 20:06:59",
+ "checked_at": "2026-10-23 20:20:28",
  "checks": {
   "frozen_layers": {
    "layers": {
     "l0": {
-     "files": 4638,
-     "bytes": 2879107585,
-     "tree_sha256": "267cb65439124e6e4ec69dea926da89630e3d394c2a5c33c039c7bd239bd25d9",
-     "max_mtime": "2026-10-16 04:18:01"
+     "files": 4782,
+     "bytes": 2935425490,
+     "tree_sha256": "c3fdccb4e6f8ab4eefcbd87a1804fd72ddba44b596a697a5770c39aa5040847b",
+     "max_mtime": "2026-10-20 13:44:32"
     },
     "l1": {
-     "files": 6025,
-     "bytes": 1555092589,
-     "tree_sha256": "c251e6240a72d44787bf113e32262a4d84bea054c9bbc5fec1bf366b947950fd",
-     "max_mtime": "2026-10-16 04:01:30"
+     "files": 6555,
+     "bytes": 1651871915,
+     "tree_sha256": "d498da11d083f3fccbaec5489a03310adf7b4bd8e18b78ab59a0c7778715745f",
+     "max_mtime": "2026-10-20 13:52:45"
     },
     "l2": {
-     "files": 968,
-     "bytes": 287022344,
-     "tree_sha256": "0d573a41d555d6c86102ff995069b08360c0b7238fe1241993eb0aaa8c96831e",
-     "max_mtime": "2026-10-16 03:40:05"
+     "files": 977,
+     "bytes": 288408680,
+     "tree_sha256": "102e3d91eb4a969994b47ac25bd0bce2195a9e5815ef069d75ca389429dc6c96",
+     "max_mtime": "2026-10-20 17:04:34"
     }
    },
    "l5_first_write": "2026-09-23 13:22:33",
@@ -27,18 +27,18 @@
    "note": "l0/l1/l2 全部文件最后修改时间早于 l5 首次写入；且记录内容指纹，供后续阶段比对漂移"
   },
   "l3_append_only": {
-   "lines": 1018,
+   "lines": 1020,
    "baseline_lines": 509,
-   "prefix_sha256_16": "033d83f7d3b11e73",
+   "prefix_sha256_16": "7c229e8e750f7b5e",
    "prefix_recipe": "前 509 行以 \\n 连接 + 末尾换行，取 sha256",
-   "prefix_sha256": "033d83f7d3b11e737e09743c56078374e949b5fc2f39fce2dcb7a9f44d21d548",
-   "prep_baseline_sha256": "d4a9607befd7ad7b8b4474e87e58abce7b4ea87eaa1ed78667e44d36026f581d",
+   "prefix_sha256": "7c229e8e750f7b5eb74a736b463c50ead0c000a85880bbf886d52faacd108654",
+   "prep_baseline_sha256": "82fbcf5abca1adfe8f2d5ae9ff44981a0d4a1ccbd8ec2a72f4e91b959dbb0765",
    "byte_identical_to_pre_append": false,
    "stale_note_value": "780d2a432db775e7",
    "stale_note_reproduced": false,
    "stale_note_explain": "阶段早期笔记里的 780d2a432db775e7 用 8 种候选拼接口径都复算不出来，判为口径未记录的旧值；改用前置 A 写入的 before_sha256 作为基线，本次复算逐字节一致",
    "by_version": {
-    "None": 1018
+    "None": 1020
    },
    "structural": {
     "baseline_distiller_version": [
@@ -48,7 +48,7 @@
      "None"
     ],
     "baseline_ids_unique": true,
-    "appended_covers_baseline": true,
+    "appended_covers_baseline": false,
     "baseline_has_expression_fix_pairs": 22,
     "baseline_has_rule_kind": 0,
     "rule_code_filled_in_append": 12,
@@ -58,17 +58,17 @@
     }
    },
    "verdict": "FAIL",
-   "rules_latest_view": 509
+   "rules_latest_view": 510
   },
   "pattern_traceability": {
-   "patterns": 17,
+   "patterns": 19,
    "bad": [],
    "verdict": "PASS",
    "detail": [
     {
      "pattern_id": "p-334cd817a6f78136",
      "rule_code": "H01",
-     "keywords": 62,
+     "keywords": 63,
      "regex": 0,
      "whitelist": 15,
      "shared_sha256": "f452aeddd6ad"
@@ -84,7 +84,7 @@
     {
      "pattern_id": "p-f37fa19956cc92d9",
      "rule_code": "H03",
-     "keywords": 9,
+     "keywords": 10,
      "regex": 0,
      "whitelist": 15,
      "shared_sha256": "baa7cddb96e5"
@@ -101,14 +101,14 @@
      "pattern_id": "p-08487282e2d400fe",
      "rule_code": "H05",
      "keywords": 13,
-     "regex": 12,
+     "regex": 7,
      "whitelist": 15,
      "shared_sha256": "e7aabf747875"
     },
     {
      "pattern_id": "p-485c67cc9af960bf",
      "rule_code": "H06",
-     "keywords": 5,
+     "keywords": 6,
      "regex": 3,
      "whitelist": 15,
      "shared_sha256": "2e8bb36d6edf"
@@ -116,7 +116,7 @@
     {
      "pattern_id": "p-964b3c2e22b48ade",
      "rule_code": "H07",
-     "keywords": 17,
+     "keywords": 18,
      "regex": 3,
      "whitelist": 15,
      "shared_sha256": "1e3bd4c1ca09"
@@ -124,7 +124,7 @@
     {
      "pattern_id": "p-6e9d6acf0040e80d",
      "rule_code": "H08",
-     "keywords": 11,
+     "keywords": 12,
      "regex": 0,
      "whitelist": 15,
      "shared_sha256": "fc3caadb7c52"
@@ -132,7 +132,7 @@
     {
      "pattern_id": "p-d31dfbc932cb84ac",
      "rule_code": "H09",
-     "keywords": 8,
+     "keywords": 9,
      "regex": 3,
      "whitelist": 15,
      "shared_sha256": "67875346a75b"
@@ -140,15 +140,15 @@
     {
      "pattern_id": "p-49015412e02fc955",
      "rule_code": "M03",
-     "keywords": 9,
-     "regex": 0,
-     "whitelist": 15,
+     "keywords": 10,
+     "regex": 9,
+     "whitelist": 22,
      "shared_sha256": "b82926594fb8"
     },
     {
      "pattern_id": "p-4d1fe41caef6e3b1",
      "rule_code": "U04",
-     "keywords": 4,
+     "keywords": 5,
      "regex": 2,
      "whitelist": 15,
      "shared_sha256": "b5de79a05b4f"
@@ -164,7 +164,7 @@
     {
      "pattern_id": "p-788b0c141937affb",
      "rule_code": "V02",
-     "keywords": 7,
+     "keywords": 3,
      "regex": 0,
      "whitelist": 15,
      "shared_sha256": "6671c283609b"
@@ -172,8 +172,8 @@
     {
      "pattern_id": "p-72a5842f108ad9aa",
      "rule_code": "V03",
-     "keywords": 4,
-     "regex": 0,
+     "keywords": 1,
+     "regex": 3,
      "whitelist": 15,
      "shared_sha256": "6671c283609b"
     },
@@ -200,15 +200,31 @@
      "regex": 0,
      "whitelist": 15,
      "shared_sha256": "6671c283609b"
+    },
+    {
+     "pattern_id": "p-cf01c7b9e92fb0b4",
+     "rule_code": "M01",
+     "keywords": 1,
+     "regex": 0,
+     "whitelist": 15,
+     "shared_sha256": "1bf6ceb91a0d"
+    },
+    {
+     "pattern_id": "p-d1cd2f1d1fdba23a",
+     "rule_code": "M02",
+     "keywords": 1,
+     "regex": 0,
+     "whitelist": 15,
+     "shared_sha256": "a240aa6a49af"
     }
    ]
   },
   "no_fabricated_words": {
-   "checked": 211,
+   "checked": 214,
    "basis_distribution": {
-    "verbatim_source": 142,
-    "equivalent_of": 51,
-    "verbatim_rule_text": 18
+    "verbatim_source": 141,
+    "verbatim_rule_text": 28,
+    "equivalent_of": 45
    },
    "dropped_ungrounded": 0,
    "bad": [],
@@ -231,7 +247,7 @@
    "verdict": "PASS"
   },
   "p0_rule_config": {
-   "patterns": 17,
+   "patterns": 19,
    "missing_content_type": [],
    "missing_rule_version": [],
    "content_type_values": [
@@ -244,7 +260,7 @@
   }
  },
  "pattern_traceability_src": {
-  "wording": 509,
+  "wording": 510,
   "external_standard": 129,
   "note": "回指查两个候选件；l3_append_only 的基线仍只看措辞件"
  },

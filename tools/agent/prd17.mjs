@@ -117,12 +117,26 @@ export function rangeOf(n) {
 }
 
 /**
+ * 守衡四态 → 真源 registry 里的档位名。
+ *
+ * ★★ 2026-10-21：四态第 2 态在守衡侧叫 **`PASS+SUGGEST`**（PRD §5.3.2：SUGGEST 是 PASS 的附属），
+ *   而真源 `prd17-limits.yaml` 那一行的 `state:` 写的是 `SUGGEST`（取自 PRD §17 内嵌表 `XWnpiN`）。
+ *   ⇒ **只在这一处映射一次**，别在 `limitOf` / `scopeOf` / `check` 各写一遍。
+ *   ⚠️ 真源不在本仓（`Documents/skill-test/.../内容治理/kb/l7/registry/prd17-limits.yaml`，两仓共读），
+ *     改它要两边一起动 ⇒ 这里认别名，而不是去改真源。
+ */
+export function registryState(state) {
+  const u = String(state || '').toUpperCase();
+  return u === 'PASS+SUGGEST' ? 'SUGGEST' : u;
+}
+
+/**
  * 这一档**量什么**（Owner 2026-10-19 定的机器可判规则）：
  *   `format` 里含「逐条」⇒ `per_item`（每条各自 ≤上限，两条各 200、合计 400 也合规）；
  *   不含 ⇒ `message`（量整条消息）。
  */
 export function scopeOf(state, issueCount) {
-  const st = String(state || '').toUpperCase();
+  const st = registryState(state);
   const { rows } = loadLimits();
   const hit = rows.find((r) => String(r.state).toUpperCase() === st
     && (r.issue_range === '任意' || r.issue_range === '—' || r.issue_range === rangeOf(issueCount)));
@@ -132,7 +146,7 @@ export function scopeOf(state, issueCount) {
 
 /** 这一行的字数上限；查不到返回 `null`（**不猜**一个数）。 */
 export function limitOf(state, issueCount) {
-  const st = String(state || '').toUpperCase();
+  const st = registryState(state);
   const { rows } = loadLimits();
   const hit = rows.find((r) => String(r.state).toUpperCase() === st
     && (r.issue_range === '任意' || r.issue_range === '—' || r.issue_range === rangeOf(issueCount)));

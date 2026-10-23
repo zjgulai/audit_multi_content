@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.36 是正例还是反例
   - S-1.36 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-3ac6b11702ed4ab6"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 其他
 reason_category: unknown
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2wE9MVLwK/原文反馈"
-source_sha256: b094290c486d653bbddb44e5619321f56acf319587c4ad7d7387d2c9f6b045e4
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MVLwK
+anchor: "#负面样本/recvw7XJiSLbtM/具体原因/分析"
+source_sha256: b74c476f516f609164d28bc83b79efd78c0dfaf3c5616b2750214d5988a8730d
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XJiSLbtM
 sample_body: "【项目方 · 2026-07-25 00:58】项目名：T31体温贴 套图1张(高温预警图) 【终审-@[已脱敏]  】帮忙看看呀:YouAreTheBest:  **设计稿件：** ![Image](img_v3_0213t_0f877bfd-bab7-4a1b-beca-68539d58a1dg)  【审核 · 2026-07-25 00:58 · 吴礼芳】@[已脱敏]  ![Image](img_v3_0213t_5f54fe35-417d-4e5a-903e-69a0b15de17g) 确认一下要不要改成华氏度？  Get Alerted When Temperature Runs High Set your alert threshold. Get notified when temperature goes above it. 9:41 Thermometer *I日 60% Cold Alert! Seek Medical Help If Unwell. No More Alerts I Got It Current 33.85°C 30 Usage Time: 03:20 Keep Screen Always On And Each Measurement Lasts No Less Than 3 Minutes. Last 30 Days Real-Time Less Chance to Miss a Fever Catch Changes Sooner More Peace of Mind at Night"
 reason_analysis: 【审核问题】文案 图1 确认一下要不要改成华氏度。
 advice: ""
@@ -105,8 +105,8 @@ Mind at Night
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2wE9MVLwK/原文反馈`
-- 指纹：`b094290c486d653bbddb44e5619321f56acf319587c4ad7d7387d2c9f6b045e4`
+- 锚点：`#负面样本/recvw7XJiSLbtM/具体原因/分析`
+- 指纹：`b74c476f516f609164d28bc83b79efd78c0dfaf3c5616b2750214d5988a8730d`
 - 原因归类：unknown　|　素材类型：文字
 
 > 案例只作参照，不构成规则。

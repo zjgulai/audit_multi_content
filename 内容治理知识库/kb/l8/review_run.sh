@@ -38,9 +38,21 @@ KBPY="$ROOT/kb/kbpy"
 ENGINE="l7/review-engine/core/with_kb_evidence.py"
 
 BASE=""; SESSION=""; OWNER=""; TEXT=""; QUESTION=""; CTYPE="text"
-MATERIAL_FILE=""; REVIEW_TOKEN=""
-EXTRA=(); USER_LOADED=(); COVERAGE=()
-NO_PUBLISH=0
+MATERIAL_FILE=""; REVIEW_TOKEN=""; SCENE_JSON=""
+EXTRA=(); USER_LOADED=(); COVERAGE=(); IMAGES=(); POSITION=""
+# ★★ 2026-10-23：**环境变量闸门** `KB_NO_PUBLISH=1` ⇒ 与 `--no-publish` 逐字等价。
+#   为什么必须要它（不是"顺手加个开关"）：调优期的跑批（守衡测试表 51–100 行）由驱动件起链，
+#   而链的命令行是**守衡侧模板逐字照抄**的（`tools/agent/tools.mjs::reviewCmdTemplate`）——
+#   调用方**没有位置**塞 `--no-publish`。于是每一单都会往**生产结论表**落一行：
+#   实测 2026-10-23 13:28–15:17 那一批落了 AD-20261023-013…032（约 20 行），
+#   而委托方本次明确要求「不要改知识库任务表格」。
+#   ⇒ 闸门放在**发布决策点本身**，比在模板里插一行更靠得住：模板是照抄的文本，这里是唯一判定处。
+#   默认 **0**；判据 `kb/l8/no_publish_env.test.sh`（含反向对照，见该文件）。
+#   ⚠️ 只有**逐字等于 `1`** 才算开 —— 不认 `true`/`yes`/`on`（避免"看着像开、其实没开"）。
+#   ⚠️ 同一改动也打在了工作区那份副本（`<repo>/内容治理知识库/kb/l8/review_run.sh`）——
+#      两份库同时存在是既成事实（`tools/agent/tools.mjs::KB_ROOT` 指的是本份），
+#      只打一份就会出现「判据绿、真跑照样写表」那种最坏形状（2026-10-23 实测踩过一次）。
+NO_PUBLISH="${KB_NO_PUBLISH:-0}"
 
 # ── `--help` 给**真用法**（2026-10-16 加）────────────────────────────────────
 # 为什么加：原先 `-h|--help` 打的是本文件**开头 40 行注释** —— 那段讲的是"为什么有它"，
@@ -55,7 +67,7 @@ review_run.sh —— 评审链「一条命令跑完」：四层前置(L4→L5→
 
 用法：
   bash kb/l8/review_run.sh \
-    --base "$(date +%Y%m%d-%H%M)" \
+    --base "$(date +%Y%m%d-%H%M%S)" \
     --session "${DSH_SESSION_ID:-shouheng-chain-$(date +%s)}" \
     --decision-owner <判定主体：skill 装载目录名（中文，如 图片安全审查）> \
     --loaded-skill  <同一个名字：你刚刚真的加载过它> \
@@ -78,6 +90,11 @@ review_run.sh —— 评审链「一条命令跑完」：四层前置(L4→L5→
   其他  --question "<提问原文>"    提问原文，逐字
         --content-type <值>       text | image | video（默认 text）
         --coverage <模态:provider:版本:内容hash:状态>   可重复；是**申报档**，没真跑过不许填
+        --image <图文件路径>      送审图（可重复）—— 走「图身份层」（pHash/像素相关），
+                                  不依赖 OCR / 图字节 sha；不给 ⇒ 行为与改动前逐字相同
+        --position "<区域，图 N 第 X 处>"  本单证据位置（图片单必填）。格式 = 区域词 + 图 N 第 X 处，
+                                  区域词只许 顶部/中部/底部/左侧/右侧；不给 ⇒ 引擎用默认
+                                  `图片 1（#img.1）`（归一化成裸「图 1」）⇒ 出口闸 R3 判红
         --two-phase | --dry-inventory | --no-publish
   -h, --help                    打印本页
 
@@ -107,9 +124,17 @@ while [ $# -gt 0 ]; do
     #   （与文本构造完全无关 ⇒ 不受"模型怎么组装文本"影响）。
     --token) REVIEW_TOKEN="$2"; shift 2 ;;
     --question) QUESTION="$2"; shift 2 ;;
+    # ★ 2026-10-20：画面读数透传（只影响「负面样本规则 N-1.x」那一层；不给则行为一字不变）
+    --scene-json) SCENE_JSON="$2"; shift 2 ;;
     --content-type) CTYPE="$2"; shift 2 ;;
     --loaded-skill) USER_LOADED+=("--loaded-skill" "$2"); shift 2 ;;
     --coverage) COVERAGE+=("--coverage" "$2"); shift 2 ;;
+    # ★ 2026-10-21：送审图文件（可重复）—— 透传给 with_kb_evidence --image，
+    #   走「图身份层」（pHash/像素相关）。不给 ⇒ 命令行与改动前逐字相同。
+    --image) IMAGES+=("--image" "$2"); shift 2 ;;
+    # ★ 2026-10-21（P1a）：本单证据位置 —— 透传给 with_kb_evidence --position，替代依据层默认的
+    #   `图片 1（#img.1）`（归一化成裸「图 1」，出口闸 R3 点名要红）。不给 ⇒ 行为与改动前逐字相同。
+    --position) POSITION="$2"; shift 2 ;;
     --two-phase) EXTRA+=("--two-phase"); shift ;;
     --dry-inventory) EXTRA+=("--dry-inventory"); shift ;;
     --no-publish) NO_PUBLISH=1; shift ;;   # 透传 --no-publish-to-feishu（不写飞书；见下方 PUB 块）
@@ -145,6 +170,38 @@ fi
 #   ★ rstrip 只去 ASCII 尾空白（`" \t\r\n"`），**不用 `[[:space:]]`** —— 那个看 locale，
 #     两端会对不齐，而对不齐的表现就是**静默拒收**。
 TEXT_SHA8="$(printf '%s' "$TEXT" | /usr/bin/python3 -c 'import sys,hashlib;sys.stdout.write(hashlib.sha256(sys.stdin.read().rstrip(" \t\r\n").encode()).hexdigest()[:8])')"
+
+# ══════════════════════════════════════════════════════════════════════════
+# ★★ 2026-10-20（Owner：「同一单跑完还必须支持重新跑」）——**重跑是合法动作，且要认得出**
+# ══════════════════════════════════════════════════════════════════════════
+# 那条链**从来没有禁止过重跑**：换一个 `--base` 就是新 RUN。但要守住两件事，
+# 而在此之前它们**一件都没有判据**（散文没有失败信号）：
+#   ① **同一个 BASE 不许跑第二次** —— 那是同一个 RUN 跑两遍：层记账会被后跑的覆盖、
+#      `index.jsonl` 会双计（2026-10-03 实测过：同一 RUN 落 2 行、L7 记账被覆盖）。
+#      重跑**必须换新 BASE**；这里**硬拒**（退出码 2 = 用法错，不是「库忙」也不是「闸门红」）。
+#   ② **第几次跑、上一轮是谁、上一轮结论是什么**要写进旁挂 ——
+#      人问「这次跟上次一样吗」不该靠肉眼比两份报告。
+# 判据只有一处：`kb/l8/rerun_ledger.py`（按**素材指纹**认，不按时间认 —— 补发单晚到也不能认错）。
+# 台账**只追加**：`kb/.work/review_seq.ndjson`（回洗等于抹掉证据，库规明禁）。
+RERUN_JSON="$(/usr/bin/python3 "$ROOT/kb/l8/rerun_ledger.py" --check-base "$BASE" --text-sha8 "$TEXT_SHA8" 2>/dev/null || true)"
+if [ -z "$RERUN_JSON" ]; then RERUN_JSON='{}'; fi
+_rerun_field() {   # $1=字段名；读不到就空串（**不编 0/PASS**）
+  printf '%s' "$RERUN_JSON" | /usr/bin/python3 -c 'import sys,json
+d=json.load(sys.stdin); v=d.get(sys.argv[1])
+sys.stdout.write("" if v is None else ("true" if v is True else "false" if v is False else str(v)))' "$1" 2>/dev/null || true
+}
+if [ "$(_rerun_field same_base)" = "true" ]; then
+  echo "[review_run] ⛔ 同一个 BASE（${BASE}）已经跑过 —— **不许在同一个 RUN 上跑第二遍**。" >&2
+  echo "[review_run]    那是同一个 RUN 跑两次：层记账会被覆盖、台账会双计（2026-10-03 实测过）。" >&2
+  echo "[review_run]    重跑请换一个新 BASE（同一份素材可以跑任意多次，见 kb/.work/review_seq.ndjson）。" >&2
+  exit 2
+fi
+RERUN_SEQ="$(_rerun_field rerun_seq)"; RERUN_OF="$(_rerun_field rerun_of)"; RERUN_PREV="$(_rerun_field prev_state)"
+if [ -z "$RERUN_SEQ" ]; then RERUN_SEQ=1; fi
+if [ "$RERUN_SEQ" != "1" ]; then
+  echo "[review_run] ↻ 这是同一份素材的**第 ${RERUN_SEQ} 次**审查（上一轮 BASE=${RERUN_OF:-（未记）}｜上一轮结论=${RERUN_PREV:-（未记）}）" >&2
+  echo "[review_run]    旧 RUN 的产物（报告 / 层记账 / 表行）**一律不动** —— 重跑只新增，不覆盖。" >&2
+fi
 
 # ── 层 → skill：现读 layers.yaml（与 review_preflight.sh / 审计同一口径）──────
 LOADED=()
@@ -186,9 +243,39 @@ esac
 #   ★ 判据一个字没动：这里不改结论、不放宽任何闸门，只是**把已经发生的事写成结构化读数**。
 #   ★ 与 ④ 的旁挂**同一路径同一形状**（守衡只认这一个文件、且只认 `at` 新鲜的）。
 SIDECAR="$ROOT/kb/.work/last_review_result.json"
+
+# ── ★ 2026-10-22（同群并行 · 第 1 批）：**旁挂按单另存一份副本** ──────────────────
+# 为什么（这两份是**固定单文件**，每条链跑完整份覆盖）：
+#   `last_review_result.json` 与 `last_engine_out.json` 每次 `>` 重写。两条链并行时，
+#   后写的那条盖掉先写的 ⇒ 守衡侧「四把锁」判据拒收 ⇒ **本单降级**
+#   （图片单强制 NEEDS_INPUT、文字单逐条依据退回从回答里抠）。
+# 这里**不动原文件**（守衡旧读法一字不变），只把同一份内容**多存一份**到
+#   `kb/.work/sidecars/<标签>-<BASE>-<pid>.json`
+# 守衡并行时按「四把锁」从这堆副本里挑本单那份（`tools.mjs` 的 `pickOwnSidecar`）；
+# **单条跑时只是多一份副本，行为不变** —— 这条是本次改动的硬约束。
+# 判据：守衡侧 `tools/agent/sidecar_pick.test.mjs`（挑本单 / 只有他单必须拒收 / 回退固定文件）。
+# 清理：只留最近 `SIDECAR_KEEP` 份（按 mtime），不设上限会把 `.work` 撑大。
+SIDECAR_DIR="$ROOT/kb/.work/sidecars"
+SIDECAR_KEEP=200
+mirror_sidecar() {   # $1=源文件  $2=标签（review / engine）
+  [ -f "${1:-}" ] || return 0
+  mkdir -p "$SIDECAR_DIR" 2>/dev/null || return 0
+  cp "$1" "$SIDECAR_DIR/${2:-x}-${BASE:-nobase}-$$.json" 2>/dev/null || true
+  # 只留最近 N 份：macOS 的 tail 没有 `-n -N`，用 `tail -n +N` 从第 N 条起删
+  ls -t "$SIDECAR_DIR" 2>/dev/null | tail -n +$((SIDECAR_KEEP + 1)) | while IFS= read -r _f; do
+    rm -f "$SIDECAR_DIR/$_f" 2>/dev/null || true
+  done
+}
 write_refusal_sidecar() {   # $1=原因码  $2=人话原因
-  /usr/bin/python3 - "$SIDECAR" "$BASE" "$OWNER" "$1" "$2" "$TEXT_SHA8" "$REVIEW_TOKEN" <<'PY' > "$SIDECAR" 2>/dev/null || true
+  /usr/bin/python3 - "$SIDECAR" "$BASE" "$OWNER" "$1" "$2" "$TEXT_SHA8" "$REVIEW_TOKEN" "$RERUN_JSON" <<'PY' > "$SIDECAR" 2>/dev/null || true
 import sys, json, time
+# ★★ 2026-10-20：拒答这一轮**也记进重跑台账** —— 否则「库忙/闸门红」那几次不算数，
+#   下一次重跑会被说成「第 1 次」，而人明明已经送过 N 次了（这就是「说不清」）。
+try:
+    _rr = json.loads(sys.argv[8]) if len(sys.argv) > 8 and sys.argv[8].strip() else {}
+    _rr = _rr if isinstance(_rr, dict) else {}
+except Exception:
+    _rr = {}
 sys.stdout.write(json.dumps({
     "at": time.strftime("%Y-%m-%dT%H:%M:%S"),
     "base": sys.argv[2],
@@ -216,10 +303,18 @@ sys.stdout.write(json.dumps({
                   "补素材无用：请先确认库侧为什么没跑成，再重审这一单。"),
     },
     "facets": {},
+    # ★★ 2026-10-20（同一单重跑留痕，与 ④ 那条旁挂同一组字段）
+    "rerun_seq": _rr.get("rerun_seq"),
+    "rerun_of": _rr.get("rerun_of") or None,
+    "rerun_prev_state": _rr.get("prev_state") or None,
     "source": "kb/l8/review_run.sh",
 }, ensure_ascii=False))
 PY
+  # 台账：拒答这一轮同样算「跑过一次」（state=NEEDS_INPUT，原因码进 reason）
+  /usr/bin/python3 "$ROOT/kb/l8/rerun_ledger.py" --record --base "$BASE" \
+      --text-sha8 "$TEXT_SHA8" --state NEEDS_INPUT --reason "$1" >/dev/null 2>&1 || true
   echo "[review_run] 已落**结构化拒答**旁挂（${1}）：$SIDECAR" >&2
+  mirror_sidecar "$SIDECAR" review     # 按单副本（并行时守衡按四把锁挑本单那份）
 }
 
 # ── 计时埋点（2026-10-12 加；**只记时，不碰任何判定、不改任何退出码**）────────────
@@ -330,16 +425,22 @@ ERRTMP="$(mktemp -t review_run_err.XXXXXX)"
 #   ★ 不传此开关 ⇒ PUB 为空数组 ⇒ 命令行与加它之前**逐字相同**。
 PUB=()
 [ "$NO_PUBLISH" = "1" ] && PUB=(--no-publish-to-feishu)
+# 画面读数（2026-10-20）：给了才追加，不给 ⇒ 命令行与加它之前**逐字相同**
+SCENE=()
+[ -n "$SCENE_JSON" ] && SCENE=(--scene-json "$SCENE_JSON")
+# 本单证据位置（2026-10-21 P1a）：给了才追加，不给 ⇒ 引擎走自己的默认位置（行为与改动前逐字相同）
+POS=()
+[ -n "$POSITION" ] && POS=(--position "$POSITION")
 
 ENGINE_RAW="$(mktemp -t review_run_out.XXXXXX)"
 if [ -n "$QUESTION" ]; then
   sh "$KBPY" "$ENGINE" --text "$TEXT" --content-type "$CTYPE" --question "$QUESTION" \
     --require-layer-preflight "$BASE" --decision-owner "$OWNER" \
-    "${LOADED[@]+"${LOADED[@]}"}" "${COVERAGE[@]+"${COVERAGE[@]}"}" "${PUB[@]+"${PUB[@]}"}" --write-report --json >"$ENGINE_RAW" 2>"$ERRTMP"
+    "${LOADED[@]+"${LOADED[@]}"}" "${COVERAGE[@]+"${COVERAGE[@]}"}" "${PUB[@]+"${PUB[@]}"}" "${SCENE[@]+"${SCENE[@]}"}" "${IMAGES[@]+"${IMAGES[@]}"}" "${POS[@]+"${POS[@]}"}" --write-report --json >"$ENGINE_RAW" 2>"$ERRTMP"
 else
   sh "$KBPY" "$ENGINE" --text "$TEXT" --content-type "$CTYPE" \
     --require-layer-preflight "$BASE" --decision-owner "$OWNER" \
-    "${LOADED[@]+"${LOADED[@]}"}" "${COVERAGE[@]+"${COVERAGE[@]}"}" "${PUB[@]+"${PUB[@]}"}" --write-report --json >"$ENGINE_RAW" 2>"$ERRTMP"
+    "${LOADED[@]+"${LOADED[@]}"}" "${COVERAGE[@]+"${COVERAGE[@]}"}" "${PUB[@]+"${PUB[@]}"}" "${SCENE[@]+"${SCENE[@]}"}" "${IMAGES[@]+"${IMAGES[@]}"}" "${POS[@]+"${POS[@]}"}" --write-report --json >"$ENGINE_RAW" 2>"$ERRTMP"
 fi
 RC=$?
 ENGINE_OUT="$(cat "$ENGINE_RAW")"
@@ -353,6 +454,7 @@ T_ENGINE="$(_now)"
 #   ⇒ 与「机读旁挂」同一个套路：**结构化的东西走文件，不走散文**。
 #   落点与旁挂同目录（`kb/.work/`），守衡侧按 `at` 新鲜度采纳。
 cp "$ENGINE_RAW" "$ROOT/kb/.work/last_engine_out.json" 2>/dev/null || true
+mirror_sidecar "$ROOT/kb/.work/last_engine_out.json" engine   # 按单副本（同上，并行时防串）
 [ -s "$ERRTMP" ] && cat "$ERRTMP" >&2
 rm -f "$ERRTMP"
 printf '%s\n' "$ENGINE_OUT"
@@ -526,8 +628,15 @@ PYEOF
 SIDECAR="$ROOT/kb/.work/last_review_result.json"   # 同上（⑦ 的拒答旁挂也写它，同一个文件、同一个形状）
 # ★ 同上：**不许**用 `printf | python3 - <<EOF`（管道会被 heredoc 覆盖 ⇒ stdin 为空）。
 #   这里让 python 直接读引擎落下的那份 stdout 文件。
-/usr/bin/python3 - "$ENGINE_RAW" "$BASE" "$ROOT" "$TEXT" "$TEXT_SHA8" "$REVIEW_TOKEN" <<'PYEOF' > "$SIDECAR"
+/usr/bin/python3 - "$ENGINE_RAW" "$BASE" "$ROOT" "$TEXT" "$TEXT_SHA8" "$REVIEW_TOKEN" "$RERUN_JSON" <<'PYEOF' > "$SIDECAR"
 import os, sys, json, time
+# ★★ 2026-10-20：重跑读数（由 `kb/l8/rerun_ledger.py --check-base` 在开跑前算出，
+#   经 argv[7] 递进来）—— 读不到就是空 dict：第一次跑时它本来就是空的，**不算错**。
+try:
+    _rr = json.loads(sys.argv[7]) if len(sys.argv) > 7 and sys.argv[7].strip() else {}
+    _rr = _rr if isinstance(_rr, dict) else {}
+except Exception:                                          # noqa: BLE001
+    _rr = {}
 raw = open(sys.argv[1], encoding="utf-8", errors="replace").read() if len(sys.argv) > 1 else ""
 base = sys.argv[2] if len(sys.argv) > 2 else ""
 d = None
@@ -682,11 +791,34 @@ out = {
     "facets": facets,
     # ★ 检索命中（原文 + 锚点 + sha + 可点直链）—— 守衡那张卡逐条列它（见上面的说明）
     "kb_hits": kb_hits,
+    # ★★ 2026-10-20（Owner：「同一单跑完还必须支持重新跑」）：**重跑留痕**。
+    #   为什么放在旁挂里：守衡侧 `readReviewSidecar()` 是**整份透传** ⇒
+    #   只要这里写了，人被问「这次跟上次一样吗」时守衡答得出来；
+    #   而**卡面一个字都不加**（Owner 2026-10-13：口径读数不上卡）。
+    #   `rerun_seq` 第一次跑就是 1（不是 0）；`rerun_of` 第一次为空（None，不编）。
+    "rerun_seq": _rr.get("rerun_seq"),
+    "rerun_of": _rr.get("rerun_of") or None,
+    "rerun_prev_state": _rr.get("prev_state") or None,
     "source": "kb/l8/review_run.sh",
 }
+# ── 台账记账（只追加）：这一轮跑过了，下一轮才认得出「第几次」──
+#   ⚠️ 写不成**不许**让这一单失败（评审结论比台账重要），但**要出声**到 stderr
+#      （stdout 是旁挂本体，一个字都不能掺）。
+try:
+    _lp = os.path.join(sys.argv[3], "kb", ".work", "review_seq.ndjson")
+    _lp = os.environ.get("KB_REVIEW_SEQ_LEDGER") or _lp
+    _row = {"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "base": base,
+            "text_sha8": sys.argv[5], "state": state,
+            "content_id": pick("content_id"), "reason": None}
+    with open(_lp, "a", encoding="utf-8") as _f:
+        _f.write(json.dumps(_row, ensure_ascii=False) + "\n")
+except Exception as _e:                                    # noqa: BLE001
+    import sys as _sys
+    _sys.stderr.write("[review_run] ⚠ 重跑台账没写成（不影响本单）：%s\n" % _e)
 print(json.dumps(out, ensure_ascii=False))
 PYEOF
 echo "[review_run] 机读旁挂已写：$SIDECAR" >&2
+mirror_sidecar "$SIDECAR" review     # 按单副本（并行时守衡按四把锁挑本单那份）
 T_SIDECAR="$(_now)"
 # 引擎拒答（NEEDS_INPUT / 退出码 3）时 JSON 仍在 stdout —— 如实转述为「结论未知」
 case "$RC" in

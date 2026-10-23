@@ -29,6 +29,7 @@ import path from 'node:path';
 import { buildMergedRecord, RECORD_SCHEMA } from './merged_record.mjs';
 import { writeMergedRecord } from './merged_report.mjs';
 import { renderMerged, renderMergedItem, clipToLimit } from './dual_track.mjs';
+import { countAdviceChars, ADVICE_MAX } from './prd533.mjs';
 
 /** 一条模型侧条目（无外部标准 ⇒ `basis_kind: 'none'`，也**没有**条款号 ⇒ 回不了源）。 */
 const MODEL_ITEM = Object.freeze({
@@ -162,4 +163,57 @@ test('⑦ 字数压缩：超限才截，且**不留半截引号**（Owner 那句
   const same = clipToLimit('很短的一句', 50, { hasReport: false });
   assert.equal(same.truncated, false);
   assert.equal(same.text, '很短的一句');
+});
+
+test('⑧ 过滤候选后按源下标关联元数据，知识库依据不会错挂到相邻问题', () => {
+  const omitted = { ...MODEL_ITEM, description: '内容缺少可核锚点', excerpt: '', basis_missing: true,
+    model: { ...MODEL_ITEM.model, basis_missing: true } };
+  const rd = renderMerged([omitted, KB_ITEM], { state: 'REVIEW' });
+  assert.equal(rd.itemsMeta.length, 1, '无依据模型项应过滤，库侧项应保留');
+  assert.equal(rd.itemsMeta[0].source_index, 1, '保留项必须带原始来源下标');
+  assert.equal(rd.itemsMeta[0].source, 'kb');
+  const rec = buildMergedRecord({ items: [omitted, KB_ITEM], itemsMeta: rd.itemsMeta,
+    state: 'REVIEW', line: rd.line, total: rd.total });
+  assert.equal(rec.items[0].displayed, false);
+  assert.equal(rec.items[1].displayed, true);
+  assert.equal(rec.items[1].source, 'kb');
+  assert.ok(rec.items[1].basis_card?.includes('momcozy-in.feishu.cn'), 'KB 的原始出处元数据必须仍挂在 KB 项');
+  assert.notEqual(rec.items[0].basis_kind, 'registry', 'KB 依据元数据不能错挂到被过滤的模型项');
+});
+
+test('⑨ 素材原文**不再是**「依据」：没有外部标准时依据格写「无外部依据」，但真实问题不被滤掉', () => {
+  // ★★ 2026-10-22（Owner：「依据文档链接，是需要提供证明这是个问题的外部链接…
+  //   『送审素材原文：「Ask Midwife Vic」』更像是问题描述」）——
+  //   素材原文印在「问题描述 / 命中描述」两处；依据格**只**放外部文档链接，
+  //   没有就如实说没有（且条目**照旧保留**，不因为没链接就把真实问题滤掉）。
+  const typo = { ...MODEL_ITEM, location: '图片顶部，图 1 第 2 处', basis_missing: true,
+    description: '图内英文「thefirst 6months」缺少空格，影响阅读。',
+    excerpt: 'thefirst 6months', model: { ...MODEL_ITEM.model, basis_missing: true } };
+  const rd = renderMerged([typo], { state: 'REVIEW' });
+  assert.equal(rd.total, 1, '真实问题不许被滤掉');
+  assert.equal(rd.displayItems.length, 1);
+  const basisLine = rd.block.split('\n').find((l) => l.includes('依据')) ?? '';
+  assert.doesNotMatch(basisLine, /送审素材原文[：:]/, '依据格不许拿送审素材原文冒充依据');
+  assert.match(basisLine, /无外部依据/, '没有外部文档时必须如实说「无外部依据」');
+  assert.equal(rd.itemsMeta[0].basis_kind, 'material', '记录层仍要答得出「依据来自素材原文」');
+  assert.equal(rd.itemsMeta[0].basis_missing, false);
+});
+
+test('⑩ KB 具体改法先去免责声明，再进入 60 字建议格与报告', () => {
+  const advice = '源记录未提供具体修改建议；此条仅为相似历史参考；建议：删去第 8 处「AAP Recommendation」机构署名。';
+  // ⚠️ 这一条测的是**库侧原文**那条路 —— 夹具里不能带 `advice`（本单生成的改法）：
+  //   2026-10-22 定的是「`adv` 优先」，带了 `advice` 就走到另一支，
+  //   而这一条红的原因（库侧免责声明没被去掉）根本没被测到。
+  const kbItem = { ...KB_ITEM, advice: undefined, location: '图片中部，图 1 第 8 处',
+    kb: { ...KB_ITEM.kb, suggestionLine: advice } };
+  const card = renderMerged([kbItem], { state: 'REVIEW' });
+  const cardLine = card.block.split('\n').find((line) => line.includes('**建议**')) ?? '';
+  assert.match(cardLine, /删去第 8 处「AAP Recommendation」机构署名/);
+  assert.doesNotMatch(cardLine, /源记录未提供|相似历史参考/);
+  assert.ok(countAdviceChars(cardLine) <= ADVICE_MAX, `卡面建议超过 ${ADVICE_MAX} 字：${cardLine}`);
+  const reportItem = renderMergedItem(kbItem, 0, { layout: 'report' });
+  const reportLine = reportItem.split('\n').find((line) => line.includes('**修改建议**')) ?? '';
+  assert.match(reportLine, /删去第 8 处「AAP Recommendation」机构署名/);
+  assert.doesNotMatch(reportLine, /源记录未提供|相似历史参考/);
+  assert.ok(countAdviceChars(reportLine) <= ADVICE_MAX, `报告建议超过 ${ADVICE_MAX} 字：${reportLine}`);
 });

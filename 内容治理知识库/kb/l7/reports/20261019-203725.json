@@ -1,0 +1,124 @@
+{
+  "review_id": "20261019-203725",
+  "content_id": "text-97d2c53810f1",
+  "content_id_basis": "指纹（依据侧不发业务号，发号真源 = kb/l7/review-engine/core/content_id.py）",
+  "content_type": "text",
+  "content_version": "97d2c53810f100e91acd3cba3a915c685d786aa5c197656a85605bf81e6df6df",
+  "content_hash": "97d2c53810f100e91acd3cba3a915c685d786aa5c197656a85605bf81e6df6df",
+  "agent_version": "kb-content-review@1.3.0",
+  "rule_version": "article-no-2+l3-0.2+rules.jsonl@e7d566f25f16677b",
+  "knowledge_version": "v0",
+  "version_binding": {
+    "review_id": "20261019-203725",
+    "content_id": null,
+    "content_id_form": "AD-YYYYMMDD-NNN（PRD §5.4）",
+    "content_id_note": "本入口（依据侧）**不发业务号** —— 发号要读飞书表，而依据侧不该为此访问飞书。业务号由发号方在发飞书那一刻发：`kb/l7/review-engine/core/content_id.py`（唯一实现）。",
+    "content_fingerprint": "text-97d2c53810f1",
+    "content_hash": "97d2c53810f100e91acd3cba3a915c685d786aa5c197656a85605bf81e6df6df",
+    "content_version": "97d2c53810f100e91acd3cba3a915c685d786aa5c197656a85605bf81e6df6df",
+    "agent_version": "kb-content-review@1.3.0",
+    "rule_version": "article-no-2+l3-0.2+rules.jsonl@e7d566f25f16677b",
+    "knowledge_version": "v0",
+    "sources": {
+      "content_hash": "送审文本 utf-8 的 sha256",
+      "agent_version": "kb/l7/skills/kb-content-review/SKILL.md → frontmatter.version",
+      "rule_version": "kb/l7/registry/l7.json → article_no_source.scheme_version ＋ kb/l3/registry/l3.json → distiller_version ＋ kb/l3/candidates/rules.jsonl 的 sha256[:16]",
+      "knowledge_version": "kb/l7/registry/l7.json → kb_version"
+    }
+  },
+  "decision": "REVIEW",
+  "decision_raw": "REVIEW",
+  "confidence": "未标定（本入口逐条给 高/中/低；全局数值置信度属裁决侧）",
+  "input_manifest": {
+    "text": "【图片 1 的图内文字（本机 OCR）】\nMOMCOZY\nPumping,Milk\nStorage，\nReturning to Work：\nIBCLC Tips\nLana Mihaiyu\nIBCLC & Certified Perinatal\nMental Health Provider\nmOmCOZY",
+    "sha256": "97d2c53810f100e91acd3cba3a915c685d786aa5c197656a85605bf81e6df6df",
+    "modality": [
+      "text"
+    ]
+  },
+  "coverage": {
+    "text": "complete",
+    "image": "not_applicable",
+    "audio": "not_applicable",
+    "video": "not_applicable",
+    "ocr": "not_applicable",
+    "asr": "not_applicable",
+    "keyframes": "not_applicable",
+    "note": "本批只送审 text 一种模态；其余模态不适用（不是缺口）。本块是报告契约要求的覆盖状态，不等于 OCR/ASR/关键帧流水线已执行 —— 后者见 trace。"
+  },
+  "risk_items": [
+    {
+      "risk_id": "r-65198e7c3e5b833e",
+      "risk_type": "背书与资质-专业头衔与合作",
+      "risk_category": "合规",
+      "risk_category_basis": "类别「背书与资质」⇒ 合规（软判（按 §6.2/§5.2 语义归类）：PRD §7.3-4「无依据的销量/排名宣称」＋ §5.3 示例的依据例《广告法禁用语》）",
+      "taxonomy_category": "背书与披露透明",
+      "taxonomy_subcategory": "专家与专业人士背书",
+      "taxonomy_basis": "v1-20261017",
+      "priority_tier": "P1",
+      "priority_tier_basis": "规则行 p_level=P1",
+      "layer": "规则层",
+      "p_level": "P1",
+      "risk_level": "Medium",
+      "severity": "REVIEW",
+      "status": "confirmed",
+      "action": "review",
+      "location": "全文",
+      "original_text": "U01:ibclc",
+      "reason": "逐字命中「ibclc」：U01 含泌乳顾问/认证头衔，需核实是否真实合作（p_level=P1 risk_level=Medium authority=None，来源表 None）",
+      "suggestion": "",
+      "verbatim_verified": true,
+      "fact_or_inference": "事实",
+      "confidence": "中",
+      "evidence": {
+        "library": "措辞表达库",
+        "article_no": "W-1.27",
+        "anchor": "#广告文案明细/recvuJYdOb0Jfx/命中片段",
+        "source_sha256": "ac3d74ae9804ea99ac06c8ad1f8d847b213f84215d0ff9d1920091ae6790101e",
+        "excerpt": "U01:ibclc"
+      },
+      "source": "kb-content-review",
+      "evidence_id": "《措辞表达库 v0》第 W-1.27 条 @ #广告文案明细/recvuJYdOb0Jfx/命中片段 @ ac3d74ae9804",
+      "evidence_url": "kb/l3/candidates/rules.jsonl#W-1.27",
+      "merged_articles": [
+        "W-1.48"
+      ]
+    }
+  ],
+  "issue_count": 1,
+  "report_url": null,
+  "next_action": "建议转复核责任人复核。",
+  "next_owners": [
+    "复核责任人"
+  ],
+  "sla": {},
+  "version_gate": {
+    "reviewed_hash": "97d2c53810f100e91acd3cba3a915c685d786aa5c197656a85605bf81e6df6df",
+    "release_hash": null,
+    "note": "本入口不掌握发布版本；发布/送审版本比对属裁决侧（review_engine.py:115-119），此处不代替它下结论"
+  },
+  "decision_trace": {
+    "reasons": [
+      "findings_present_without_block"
+    ],
+    "confidence_status": "not_calibrated_by_this_entry",
+    "evaluated_at": "2026-10-19T20:37:27",
+    "decided_by": "kb-content-review/scripts/review.py（依据侧自身分支，:709-715）",
+    "note": "本报告不重算结论；三态由上表 decision_raw 原样带出",
+    "tier_trace": {
+      "P0": 0,
+      "P1": 1,
+      "P2": 0,
+      "P3": 0,
+      "未标层": 0
+    },
+    "confidence_route": {
+      "applies": false,
+      "band": null,
+      "calibrated": false,
+      "why": "依据侧**不合成全局数值置信度**（逐条给 高/中/低）⇒ 没有可切三档的数。PRD §6.6 的数值分档与标注在**裁决侧**生效：见 `review_engine.decide()` → `decision_trace.confidence_route`；策略真源 `kb/l7/registry/confidence-policy.json`。",
+      "handled_by": "kb/l7/review-engine/core/review_engine.py::decide()"
+    }
+  },
+  "unmet_citation": []
+}

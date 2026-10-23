@@ -12,10 +12,12 @@
 #     `V13_ROWS` / `v13` 字段体现，本件与那边**必须一致**）；其余段落人工维护。
 #
 # 登记时间 2026-10-17（PRD v1.3 落地当天）。
+# 2026-10-19 更新：PRD 已升到 **v1.4**（rev 248）；v1.4 的实质变化只有 2 处（见 `v14_delta`），
+#   另把 10-19 当天按 Owner 口头口径落地的那批（四态/§17/§5.3.3/卡片字段）补登进 `batch_20261019`。
 
 meta:
   file: kb/l7/registry/prd-v1.3-alignment.yaml
-  answers: "PRD v1.3 相对 v1.2 改了什么；知识库跟了哪几条、没跟的为什么"
+  answers: "PRD v1.4（含 v1.3 那批）改了什么；知识库跟了哪几条、没跟的为什么"
   checker: kb/l8/check_prd12_acceptance.py
   checker_note: >
     只机械核 `section_12` 那一段（v1.3 六行覆盖 + 两条已删除条的处置，`--selftest` 17/17）。
@@ -24,6 +26,7 @@ meta:
     PRD 全文（§1–§17）。**明确不含 §5.3.1 问题分类枚举** —— 那一节由另一个会话更新
     （Owner 2026-10-17 划定），本件不对它做任何处置，见 `out_of_scope`。
   registered_at: "2026-10-17"
+  updated_at: "2026-10-19（升至 v1.4 / rev248；补登 10-19 批次）"
   owner: 刘华丽
 
 # ══════════════════════════════════════════════════════════════════
@@ -32,24 +35,33 @@ meta:
 
 prd:
   doc_title: 内容审查 Agent PRD-第一阶段
-  version: v1.3
+  version: v1.4
   wiki_token: NB55wAq8liEOdKkquL2cgtPEnmg
   docx_token: PXfBdjTwFokEQixtmTscqm7knNh
   url: https://momcozy-in.feishu.cn/wiki/NB55wAq8liEOdKkquL2cgtPEnmg
-  revision_id: 223
+  revision_id: 248
   last_edited:
-    at: "2026-10-17 09:02–09:09 (+08)"
-    evidence: "lark-cli docs +history-list --doc PXfBdjTwFokEQixtmTscqm7knNh --profile dsh-kb --as bot"
-    revisions: "221→222→223 连续 6 次编辑，editor_open_id=7618067999336975328"
+    at: "2026-10-19（v1.3 → v1.4 的两次编辑；正文与 rev 223 逐行 diff 仅 2 处，见 v14_delta）"
+    evidence: >
+      `lark-cli docs +fetch --doc PXfBdjTwFokEQixtmTscqm7knNh --doc-format markdown --profile dsh-kb --as bot`
+      ⇒ revision_id 248；与 `_prd-20261019/prd-rev223.txt`（v1.3）diff 仅 2 处。
+      内嵌表 workbook `B1aUs2Vuah8YwjtwWO6cr5MFnUd` 仍为 **revision 96 / modified 2026-10-17T09:06:13Z**
+      （`sheets +workbook-info` 实测）⇒ **10 张表一个字没动**，v1.4 不含任何表格内容变更。
   identity: "bot（--profile dsh-kb），直读通过，未回落 user 身份"
   fetch_command: >
     lark-cli docs +fetch --doc PXfBdjTwFokEQixtmTscqm7knNh --doc-format markdown
     --profile dsh-kb --as bot
   previous:
+    version: v1.3
+    revision_id: 223
+    archive_note: >
+      本地可比对：`_prd-20261019/prd-rev223.txt`（2026-10-19 12:03 抓）；
+      本件 2026-10-17 登记的就是 rev 223 的内容。
+  previous_v12:
     version: v1.2
     revision_id: 36
     archive: kb/l8/_archive/prd-consistency-20261010/PRD-v1.2-全文.md
-    archive_note: "2026-10-10 抓的全文，本地可比对；本件全部 diff 都拿它当基线"
+    archive_note: "2026-10-10 抓的全文，本地可比对；v1.2→v1.3 的 diff 拿它当基线"
   # ★★ 结构变化：正文搬进了**内嵌飞书表格**
   embedded_spreadsheet:
     token: B1aUs2Vuah8YwjtwWO6cr5MFnUd
@@ -77,6 +89,145 @@ prd:
       --sheet-id <id> --profile dsh-kb --as bot --format csv
 
 # ══════════════════════════════════════════════════════════════════
+# **v1.4 相对 v1.3 的实质变化（2026-10-19 现抓现比，只有 2 处）**
+#   为什么这一节必须写明「只有 2 处」：否则下一个人看见版本号从 1.3 跳到 1.4，
+#   会以为有一批新要求没跟 —— 这正是本件存在的理由（免得「不一致」被反复当 bug 发现）。
+# ══════════════════════════════════════════════════════════════════
+
+v14_delta:
+  method: >
+    `docs +fetch`（rev 248）逐行 diff `_prd-20261019/prd-rev223.txt`（v1.3）；
+    10 张内嵌表用 `sheets +workbook-info` 核 revision ⇒ **仍 96，未动**。
+  changes:
+    - where: "首行元信息"
+      old: "**文档版本**：v1.3"
+      new: "**文档版本**：v1.4"
+      kb_impact: "无（版本号本身）"
+    - where: "§10.3 抽检"
+      old: "**每周**抽检已 PASS 内容 ≥100 条或 5%，取高者。"
+      new: "**定期**抽检已 PASS 内容 ≥100 条或 5%，取高者。"
+      kb_impact: >
+        **当前无影响**：本库侧抽检件 `kb/l8/audit_sample.py` 抽的是 `kb/l7/runs/index.jsonl`
+        的**全量**单子（不是「已 PASS 内容」），且**没有排期**（无 CI / launchd 触发）。
+        ⇒ 「每周 → 定期」放宽的是我们没有实现的那条，登记在 `batch_20261019.still_open[抽检]`。
+        ⚠️ 顺带记下 §11.2 仍写「以人工复核和**每周**抽检为金标准」—— PRD 自身两处不一致（v1.4 未改）。
+  unchanged_note: >
+    除上述 2 处，v1.4 正文与 v1.3 **逐字相同** —— 包括 §1.2/§4/§5.1×2/§10.1/§11.2 的「三态」残留
+    （见 `prd_internal_conflicts`）。⇒ 「对照更新的 PRD」这条，真正的差异主体仍是 v1.3 那批。
+
+# ══════════════════════════════════════════════════════════════════
+# **2026-10-19 当天批次：按 Owner 口头口径落了什么、还剩什么**
+#   注意：这批**不是 v1.4 带来的**，是 Owner 当天在对话里给的裁定（四态取 ①、卡片按 PRD 字段、12 类）。
+# ══════════════════════════════════════════════════════════════════
+
+batch_20261019:
+  landed:
+    - id: 四态定义与格式层
+      what: >
+        `prd532-states.yaml`（§5.3.2 sheet `xcdTpv` 逐字）；两仓结论行解析器接受 SUGGEST
+        （守衡 `agent/prd53.mjs`；KB `prd53_format.test.py`）；`review_engine.DECISIONS` 加 SUGGEST；
+        只有 P3 ⇒ SUGGEST；`feishu_publish.STATUS_PASS` 收进 SUGGEST。
+      ref: kb/l7/registry/prd532-states.yaml::landing
+    - id: 冲突 K 裁定
+      what: >
+        Owner 取 **①**（`decision` 可取 `SUGGEST`）。§6.3 规则 4「只有 SUGGEST 时最终状态为 PASS」
+        被本裁定覆盖 —— 登记在 `prd532-states.yaml::conflict_decision`。
+      ref: changes[A].owner_ruling_20261019
+    - id: §17 字数
+      what: >
+        真源 `prd17-limits.yaml`（sheet `XWnpiN` rev 96）＋ 两侧判据（KB `kb/l8/prd17_check.py`、
+        守衡 `agent/prd17.mjs`）；口径按 Owner 两次澄清定成「format 含『逐条』⇒ 按条量，否则整卡量」。
+      ref: kb/l7/registry/prd17-limits.yaml
+    - id: §5.3.3 硬约束
+      what: >
+        真源 `prd533-constraints.yaml`（PRD **正文** rev 248）＋ 两侧判据
+        （KB `kb/l8/prd533_check.py`、守衡 `agent/prd533.mjs`）。
+      ref: kb/l7/registry/prd533-constraints.yaml
+    - id: 卡片字段收口
+      what: >
+        卡面去掉「锚点」「L0 逐字」两行、建议恒非空（`kb/l5/advice_book.py` 兜底 10 条 P0 改法）；
+        三条产者同批改（`p0_fastpath._prd_block` / `review.py::render` / `review_engine._item_lines`）。
+      ref: 交付-卡片按PRD字段收口-20261019.md
+    - id: 判据接线（本轮补）
+      what: >
+        `prd_card_conformance` 进 `ci/run_gates.py` core（**非阻断**）：
+        跑**真产者**出的真卡面，按 §17/§5.3.3 量，判据是**存量登记**
+        （`kb/l7/registry/prd-card-known-drift.yaml`）—— 只对「比登记时更差」响。
+        接之前：**20 道**闸门 0 道 PRD、就绪巡检 0 命中 ⇒ 两把尺建成即闲置。
+      ref: kb/l8/prd_card_conformance.py
+  still_open:
+    - id: 结论行前缀
+      what: >
+        PRD §5.3.4 样张是 `【PASS】/【SUGGEST】/【REVIEW】/【BLOCK】`；
+        我们全链仍是 `【审查结论：X】`（`p0_fastpath.py:669/1066`、`review_engine.py:836`、
+        守衡 `prd53.mjs::LINE_RE`+`conforms()`）。
+      why_open: >
+        原来卡在「A（四态）没落」，A 已于 10-19 落地 ⇒ **那个理由已失效**；
+        现在的代价明摆着：两仓、297 份存量报告判据、回归基线 100 条要同批改。
+      ref: deliberately_not_followed.items[C]
+    - id: §10.2 四态分布统计 / §15「统计」验收项
+      what: >
+        `bitable_stats.py:107` 仍是 `TRI_STATE = [PASS, REVIEW, BLOCK]`；
+        「已审内容数 = content_id + version + stage 去重」**未核到实现**。
+      ref: changes[I]
+    - id: §10.1 记录字段
+      what: >
+        结论表 18 个字段里**没有 `content_stage`**（brief/final_content）；`decision` 落在
+        自由文本「Agent 结论」；`review_id` 未落表（只在引擎 JSON）。
+        实测：`base +field-list --base-token RY2UbCRjXaeeWwscUPScVN5AnQc --table-id tblCXPQVzfFWWCon`。
+      note: "`状态` 是**工作流状态** select（待审/已修改/已发布），不是结论列 —— 别拿它当 decision。"
+    - id: §11 四态准确率
+      what: >
+        回归集 100 条期望态仍是三态（BLOCK 44 / REVIEW 23 / PASS 13 / 拒答 20），
+        **SUGGEST 样本 0 条**；`audit_sample.py --score` 仍算三态一致率
+        ⇒ PRD §11.1「整体四态准确率 ≥90%」**当前量不出来**。
+    - id: 抽检（§10.3）
+      what: >
+        `audit_sample.py` 抽的是 runs 全量，不是「已 PASS 内容 ≥100 条或 5%」；
+        且无排期（未接 CI / launchd）。
+    - id: §9 人工复核回流
+      what: "`return-flow.yaml` 只有口径；`return-flow.ndjson` **0 行** —— 回流一次没跑过。"
+    - id: PRD 内嵌表正文不进库
+      what: >
+        L1 快照（`daily-20261019-1003-L0__L1-prd-content-review-agent.md`）里
+        §5.2/§5.3.2/§6.2/§6.6/§10.2/§12/§13/§15/§16/§17 **标题下为空**、`<sheet>` 占位 0
+        ⇒ 周更再抓一遍也抓不到。今天那几份 registry 是**人工抄的真源**。
+      ref: known_gaps[GAP-PRD-SHEET]
+    - id: PRD 自身未改齐
+      what: >
+        §1.2/§4/§5.1×2/§10.1/§11.2 仍写「三态」；§5.3.1 仍是 **8 类**而库与卡已按 Owner 口径走 **12 类**；
+        §10.3「定期」vs §11.2「每周抽检」；§14 留了个空标题。
+      note: "这是 PRD 侧的事，但会让「KB 与 PRD 不一致」被反复当 bug 发现 —— 建议走《反馈单》。"
+
+# ══════════════════════════════════════════════════════════════════
+# **2026-10-19 当天第二次修订：PRD §5.3.2 sheet rev 96 → rev 101**
+#   Owner 当天贴来新版原文：「SUGGEST｜…**作为 PASS 的附属标签**，不阻断流程。｜随 PASS 一起流转，提示内容方。」
+#   拉表核对：sheet `xcdTpv` revision **101**，`A1:C5`，**四行全改**、列头「动作」→「系统流转动作」、
+#   PASS 定义新增「可包含 SUGGEST 建议」。快照：`_prd-20261019/sheet-xcdTpv-rev101.json`。
+#
+#   ⇒ `changes[A].owner_ruling_20261019`（裁定 ①：decision 可取 SUGGEST）**被 PRD 自身修订覆盖**，
+#     按 AP14 留痕作废（`prd532-states.yaml::conflict_decision.superseded_by`），不静默改写。
+#   ⇒ 当前口径 = **三值 ＋ 一个标签 ＋ 四个桶**：
+#      decision ∈ {PASS, REVIEW, BLOCK}（+ 拒答 NEEDS_INPUT）；SUGGEST = PASS 的标签
+#      （判定式 `decision=PASS ∧ suggest_count>0`）；统计仍出四个桶（PASS／PASS+建议／REVIEW／BLOCK）。
+#      唯一真源：`prd532-states.yaml::label_semantics`。
+#   ⇒ 落地流水：`report-output-contract.yaml::fix_20261019_prd532_suggest_as_pass_label`
+#      （取代 `fix_20261019_prd532_four_states_wiring`，后者按 rev 96 口径，已作废）。锁：`owner-fix-locks.yaml::L24`。
+#   ⇒ 仍未对齐：守衡 `prd53.mjs` / `dual_track.mjs` / `prd17.mjs` 三处（另一会话工作区，改单见交付件）。
+#
+# ══════════════════════════════════════════════════════════════════
+# **2026-10-22 复核：sheet `xcdTpv` rev 101 → rev 107**（真源已升，`prd532-states.yaml` 现以 107 为准）
+#   16:40（UTC+8）直接拉远端：表头改「主状态 / 定义 / **附属信息** / **动作**」，**只剩三行**
+#   （PASS／REVIEW／BLOCK）；**SUGGEST 不再占行**，只作 PASS 的「附属信息」（可附带 SUGGEST（如措辞优化建议））；
+#   正文 §5.3.2 新增「SUGGEST 规则」两行（仅 P3／P2 轻微瑕疵触发、在 PASS 结论下单独列一段「优化建议」）。
+#   ⇒ 口径不变（三值 ＋ 一个标签 ＋ 四个桶），**变的是形状**：标签从「一行」降成「一格」。
+#   ⇒ 上一版判据为什么没发现：A2c 比的是**两个本地文件**（真源 revision vs 当天快照），一起陈旧即互相印证
+#      ⇒ 恒绿。现补 `kb/l8/prd532_check.py --live`（比远端）＋闸门 `prd532_live`（本机 launchd 每日 14:00 触发）。
+#   ⇒ PRD 侧顺带修掉了 rev101 时期登记的冲突 S1：§5.3.4 已改成「PASS + SUGGEST（≤150字）」样张、
+#      §17「结论模板速查」现为空节 —— 我方那条「样张仍印【SUGGEST】」的登记已标 `closed_by_rev107`。
+#   留痕：`交付-PRD532-rev107远端漂移与判据-20261022.md` / 快照 `_prd-20261022/`。
+#
+# ══════════════════════════════════════════════════════════════════
 # 十处实质变化（逐条带出处；disposition = 本轮处置）
 #   followed  = 已按 v1.3 落
 #   partial   = 部分落（落哪半、留哪半，写在 note 里）
@@ -100,7 +251,25 @@ changes:
       - kb/l5/p0_fastpath.py                        # §5.3 逐条块与结论行
       - kb/l7/review-engine/core/tiering.py         # P3 = 只出建议、不改结论
       - kb/l7/registry/regression-set.yaml          # 100 条期望态：BLOCK44/REVIEW23/PASS13/拒答20
-    disposition: recorded
+    disposition: followed          # 2026-10-19：两批均已落（定义/格式层 + 决策层）；四态贯通见 batch_20261019
+    batch2_landed_20261019: >
+      **第二批也已落**（同日）：`review_engine.DECISIONS` 加 `SUGGEST`（:53）；
+      只有 P3 命中 ⇒ SUGGEST（`tiering.py:233`，`decide_effect(["P3"])` 由 `none` → `suggest`）；
+      `render_summary` 加 SUGGEST 分支（「发现 N 处建议优化，不阻断发布。」）；
+      `feishu_publish.STATUS_PASS` 收进 SUGGEST（:66）；守衡 `mergedState` 四态单调（BLOCK ＞ REVIEW ＞ SUGGEST ＞ PASS）。
+      ⇒ 本条的 `why_not_this_round` 三条理由**已逐条失效**（守衡已同批改、K 已裁定、§5.3.1 已按 12 类统一）。
+      **仍未落的两半**（不在本条内、单列）：§10.2 四态分布统计、§15 四态口径 —— 见 `batch_20261019.still_open`。
+    owner_ruling_20261019: >
+      Owner 2026-10-19 把 §5.3.2 四态定义与边界**原文**发来，要求「同步到知识库」并「今天到修复要落库」
+      ⇒ 从「故意不做」改为**分两批做**。
+      **第一批（已落）**：① 四态定义与边界落成真源 `kb/l7/registry/prd532-states.yaml`
+      （PRD sheet `xcdTpv` rev 96 逐字，含四态动作与边界）；② 格式层打通 ——
+      守衡 `agent/prd53.mjs` 的 `STATES` / `LINE_RE` / `conforms` 接受 `SUGGEST`
+      （判据 `prd53_format` ②g/②g2/②g3/②g4，含三条反向对照）；③ §17 的 SUGGEST 档（≤150 字/条，按条量）此前已落。
+      **第二批（2026-10-19 同日已落）**：`review_engine.DECISIONS`、`feishu_publish.STATUS_PASS`、
+      `tiering.py`（P3 ⇒ SUGGEST）、`render_summary` SUGGEST 分支、守衡 state 合并与派单话术。
+      **卡口**：定义级冲突 K —— `decision` 能不能取 `SUGGEST`？**Owner 已裁定取 ①**，
+      见 `kb/l7/registry/prd532-states.yaml::conflict_decision`。
     why_not_this_round: >
       ① **单方面落会断链**：守衡侧 `agent/prd53.mjs` 的 `STATES` 只认三态、
       `LINE_RE` 只匹配 `【审查结论：(PASS|REVIEW|BLOCK)】`；知识库一旦输出 SUGGEST，
@@ -317,13 +486,58 @@ prd_internal_conflicts:
 
 deliberately_not_followed:
   items:
-  - {id: A, what: "四态 SUGGEST", why: "会断守衡链 + PRD 自相矛盾 + 与 §5.3.1 会话交叉"}
-  - {id: C, what: "结论行前缀 【X】", why: "守衡 conforms() 逐字正则，会判不合规"}
-  - {id: D, what: "字数硬约束校验", why: "新判据须带反向对照，独立成块；且存量报告可能成片超标"}
+  - id: A
+    what: "四态 SUGGEST"
+    status: >
+      **2026-10-19 已不在此列** —— 两批都已落（`changes[A].disposition = followed`）。
+      留这一行只为让「曾经故意不做、现在做了」有痕，免得下一个人按旧结论反推。
+  - id: C
+    what: "结论行前缀 【审查结论：X】 → 【X】"
+    why: >
+      **原来的理由已失效**：当初写的是「A 不改 ⇒ 改了守衡 conforms() 会判不合规」，
+      而 A 已于 2026-10-19 落地、守衡 `prd53.mjs` 也同批改过。
+      现在仍是 PRD §5.3.4 与实产出之间**唯一**的字面差异，不改的真实原因只剩**成本**：
+      两仓（KB 三处 + 守衡 `LINE_RE`/`conforms()`）+ 297 份存量报告的判据 + 回归基线 100 条要同批改。
+    status: '未改（成本原因，非技术阻塞）；登记在 `batch_20261019.still_open[结论行前缀]`'
+  - id: D
+    what: "字数硬约束校验"
+    old_why: "新判据须带反向对照，独立成块；且存量报告可能成片超标"
+    status: >
+      **2026-10-19 已落地**（Owner：「prd 中 17 写了的结论模版字数限制，你同步知识库了吗？」）。
+      不再是「故意不跟」——现在两仓都有这把尺，真源 `kb/l7/registry/prd17-limits.yaml`
+      （PRD §17 sheet `XWnpiN` rev 96）：守衡 `agent/prd17.mjs`、知识库 `kb/l8/prd17_check.py`，
+      判据 `test_agent.mjs::Z55`（含反向对照）。
+    still_open: >
+      **只读数、不阻断**：实测超限是**定量冲突**而不是漏改。
+      **① 仍待裁**：REVIEW ≥3 整卡 125 字 vs 上限 100（分类汇总+链接+转人工的固定开销就有 ≈100；
+      `prd_card_conformance.py` 现算 BLOCK ≥3 = 108 / 100，超 8）⇒ 登记在
+      `prd17-limits.yaml::known_conflicts[C1]`，等 Owner 一句话（放宽上限 / 链接不计 / 汇总压一行）。
+      **② 已消解，不再等裁**：原写「逐条档上『修改建议写全』（Owner 2026-10-17 裁定）与
+      『每条 ≤200 字』直接冲突（真单长度建议 ⇒ 每条 512 字）」—— Owner 2026-10-19 把
+      「修改建议」定成 **≤30 字**（卡面与报告同一把尺），压完单条实测 **153 字 ≤ 200**，冲突不成立。
+      出处：`prd533-constraints.yaml::conflicts[X1].resolution`；`prd17-limits.yaml::known_conflicts[C2]`
+      已同步标成「已消解」。
+      ⇒ **现在只剩 ① 一条等裁定**；**不许再引 ② 当「建议可以写全文」的依据**（那是被推翻的旧口径）。
   - {id: E, what: "撤 §5.4 的 PRD 锚", why: "会牵动 report-output-contract 多处 prd_ref，须成批改（契约本身保留）"}
   - {id: H, what: "§15 验收口径", why: "依赖 A/C/D"}
   - {id: I, what: "删 PASS 误放率 / REVIEW 召回率 / 负担降 50%", why: "**建议不跟**：这两项是拦漏放的读数，见 changes[I].risk"}
   - {id: J, what: "P3 → 强制 SUGGEST", why: "依赖 A"}
+  - id: K
+    what: "PRD §5.3.4 逐条六格里的「维度」（= A2 四维：合规／消费者安全／产品描述／措辞表达）"
+    why: >
+      **Owner 2026-10-19 明文改口径**：「**报告要同步 卡上 12 类呀，整个知识库都要同步**」。
+      卡面与知识库统一到 **A3 12 类**（`kb/l3/registry/rule-taxonomy.json`）后：
+      这一格的**值**换成「所属类别」、**字段名**也改成 `所属类别`；
+      库侧报告里那行 `- 维度：**…**` **整行撤掉**，由 `- 所属类别 / 所属子类：**…**` 承担。
+      差异点：① 字段名从「维度」变「所属类别」；② 12 类与四维**不是同一个划分**
+      （例：某条四维=消费者安全，其所属类别=合规与受监管宣称）⇒ 同一条在两套轴上的读数不同。
+    data_kept: >
+      `risk_category` / `risk_category_basis`（四维）**仍在机读 JSON 里** —— 路由与统计还在用；
+      撤掉的只是**报告里那一行字**。
+    consequence: >
+      报告与卡片都只讲 12 类（一个轴）。若要回到 PRD 字面，需同时改回：
+      守衡 `merged_report` 的「发现 N（…）」行 / 总览表第 3 列 / 分组标题 / 逐条那一格，
+      以及库侧 `review.py` 的那行与 `report_memory.py` 的分组键。
   consequence: >
     本轮之后，知识库仍按 **三态 + 拒答态** 出结论，置信度仍 0.90/0.70，
     结论行仍 `【审查结论：X】`。**与 PRD v1.3 的差异点已全部在此登记**，

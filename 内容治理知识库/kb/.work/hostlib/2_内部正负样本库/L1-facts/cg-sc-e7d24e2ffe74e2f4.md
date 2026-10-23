@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.178 是正例还是反例
   - S-1.178 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-e7d24e2ffe74e2f4"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 社媒
 reason_category: 合规红线
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2wE9MnpNS/原文反馈"
-source_sha256: 4c07f7f1af5d29b1ec8c01bdd05f7d067f8fa9478ee2d330bd08e08787997c20
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MnpNS
+anchor: "#负面样本/recvwHbaKavxPT/原文反馈"
+source_sha256: 9157eafb7fdbd4508655783363dcf51839b65a4034b5ea716c75610f0772f2f5
+resource_id: bitable__tbld8qE92YaY38Yz__recvwHbaKavxPT
 sample_body: "【审核 · 2026-07-25 03:21 · 蓝涵】【终审-@[已脱敏] 】帮忙看看呀:YouAreTheBest: **项目名**: P21实际有效负压小游戏 **设计要求**:  连线小游戏：连出 100% 实际有效负压。让用户从左联线到右边，最后得到吸奶量很多的效果。 最左侧：画一个大大的、可爱的卡通宝宝嘟起嘴唇的侧面像虚影，实影是P21 中间：Airtight Seal、Raw Motor Horsepower Only、Focused suction、 Structural Support、Feeling stronger suction ( actually less suction)、Ultra-Soft Flimsy Material 👉 最右侧：最终收益 (The Result) 视觉画面： 一瓶满爆满、甚至快溢出来的卡通奶瓶，旁边放一个一脸满足、微笑的妈妈。 **设计稿件：** ![Image](img_v3_0213t_32a4df4b-5fbc-4d49-b137-13df0ec73abg)  The Pumping Puzzle Challenge: Connect for Actual Effective Vacuum! Airtight Seal Raw Motor Horsepower Only Focused suction Structural Support Feeling stronger suction (actually less suction) Ultra-Soft Flimsy Material - 180 150 120 90 60 Paruu"
 reason_analysis: "【合规红线】视频 P21 【终审-@[已脱敏] 】帮忙看看呀。 【问题要点】 1. 【终审-@[已脱敏] 】帮忙看看呀 2. 项目名P21实际有效负压小游戏 3. 连线小游戏：连出 100% 实际有效负压 4. 让用户从左联线到右边，最后得到吸奶量很多的效果"
 advice: ""
@@ -96,8 +96,8 @@ Paruu
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2wE9MnpNS/原文反馈`
-- 指纹：`4c07f7f1af5d29b1ec8c01bdd05f7d067f8fa9478ee2d330bd08e08787997c20`
+- 锚点：`#负面样本/recvwHbaKavxPT/原文反馈`
+- 指纹：`9157eafb7fdbd4508655783363dcf51839b65a4034b5ea716c75610f0772f2f5`
 - 原因归类：合规红线　|　素材类型：视频
 
 > 案例只作参照，不构成规则。

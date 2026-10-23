@@ -14,7 +14,7 @@ effective_from: 2026-09-29
 evidence_level: L1
 data_level: L2
 sensitivity_level: L2
-created_at: 2026-10-16
+created_at: 2026-10-22
 asks:
   - 安全词 判什么、命中什么算违规
   - 安全词 应该怎么改（合规替代写法）
@@ -29,7 +29,7 @@ source:
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblD1MiUK1v5fdjD"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblD1MiUK1v5fdjD
   record_ids: [recvuJP2Ot474u]
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l3/candidates/rules.jsonl#r-724b26ecb1dee9c4"
   confidence: 确定

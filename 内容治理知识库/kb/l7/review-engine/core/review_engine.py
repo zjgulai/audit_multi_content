@@ -44,7 +44,18 @@ CONFIDENCE_POLICY_SOURCE = ("kb/l7/registry/confidence-policy.json"
                             if _CONF_POLICY.get("from_policy_file")
                             else "PRD §6.6 默认值（政策文件读不到：%s）" % _CONF_POLICY.get("note"))
 
+# ★★ 2026-10-19 第二轮（PRD §5.3.2 **rev 101**，Owner 当天改的口径）：
+#   **SUGGEST 不 `decision` 的取值** —— 它是 PASS 的**附属标签**。
+#   原文：「SUGGEST｜非强制性问题…。**作为 PASS 的附属标签**，不阻断流程。｜随 PASS 一起流转，提示内容方。」
+#   同向三处：§6.3 规则4「只有 SUGGEST 时最终状态为 PASS（附 SUGGEST 建议）」、
+#            §10.1 `decision` 三值、§11.2「准确率 = 三态一致数 ÷ 总审查数」。
+#   ⇒ 落法：`decision` 三值 ＋ **`suggestions[]` / `suggest_count` / `suggest_label`**；
+#      统计口径仍是「四态」= **四个桶**（PASS ／ PASS＋建议 ／ REVIEW ／ BLOCK），不是四个 `decision` 值。
+#   ⚠️ 同日早些时候这里收过 `SUGGEST`（当第四态），已被 rev 101 覆盖；
+#      留痕：`prd532-states.yaml::conflict_decision.superseded_by`。
 DECISIONS = {"PASS", "REVIEW", "BLOCK", "NEEDS_INPUT"}
+#: 曾经被当成结论态、现在**只作标签**的词。出现在 `decision` 里就算违约（给下游与判据一个可喊的名字）。
+FORMER_STATE_AS_LABEL = {"SUGGEST": "PASS 的附属标签（PRD §5.3.2 rev101）"}
 REQUIRED_FIELDS = {
     "review_id",
     "content_id",
@@ -81,6 +92,46 @@ def _evidence_complete(item: Dict[str, Any]) -> bool:
 
 def _category(item: Dict[str, Any]) -> str:
     return str(item.get("risk_type") or item.get("category") or "未分类")
+
+
+#: A3 的兜底类名（12 类里的第 12 个；真源 `kb/l3/registry/rule-taxonomy.json`）。
+TAX_UNCLASSED = "未归类"
+
+
+def _tax_category(item: Dict[str, Any]) -> str:
+    """**所属类别**（A3 12 类）；盖不到 ⇒ `未归类`（兜底类，**不编**）。
+
+    ★★ 2026-10-19（Owner：「所属类别/所属子类」统一到 A3 12 类）：
+      改前卡面首行印 **A1**（`risk_type`）、汇总印 **A2 四维**；两者都不是 Owner 指定的那套。
+    """
+    return str((item or {}).get("taxonomy_category") or "").strip() or TAX_UNCLASSED
+
+
+def _tax_label(item: Dict[str, Any]) -> str:
+    """`<所属类别>-<所属子类>`（卡面逐条首行）；子类没有就只印类别。"""
+    cat = _tax_category(item)
+    sub = str((item or {}).get("taxonomy_subcategory") or "").strip()
+    return ("%s-%s" % (cat, sub)) if sub and cat != TAX_UNCLASSED else cat
+
+
+_TAX_CLASSES = None
+
+
+def _taxonomy_classes() -> List[str]:
+    """A3 的 12 类**顺序**（真源 `kb/l3/registry/rule-taxonomy.json`）；读不到 ⇒ 空表（不编顺序）。"""
+    global _TAX_CLASSES
+    if _TAX_CLASSES is None:
+        _TAX_CLASSES = []
+        try:
+            _p = Path(__file__).resolve().parents[3] / "l3" / "registry" / "rule-taxonomy.json"
+            with open(_p, encoding="utf-8") as fh:
+                reg = json.load(fh)
+            _TAX_CLASSES = [str(c.get("name") or "").strip()
+                            for c in (reg.get("classes") or []) if str(c.get("name") or "").strip()]
+        except Exception as _e:                                     # noqa: BLE001
+            print("[taxonomy] ⚠ 12 类注册表读不到 ⇒ 汇总顺序退回字典序：%s" % _e,
+                  file=__import__("sys").stderr)
+    return _TAX_CLASSES
 
 
 # ── ★★ 2026-10-12：非权威候选（`rule_engine.scan_text()` 的产出）──────────────
@@ -306,6 +357,21 @@ def decide(payload: Dict[str, Any], report_url: str | None = None) -> Dict[str, 
             reasons.append("p1_semantic_layer")
         if p2_items:
             reasons.append("p2_commonsense_layer")
+    elif p3_items:
+        # ★★ 2026-10-19 第二轮（PRD §5.3.2 **rev 101**）：**只有 P3 ⇒ 结论仍是 PASS，附建议**。
+        #   原文：「SUGGEST｜…作为 PASS 的附属标签，不阻断流程。｜随 PASS 一起流转，提示内容方。」
+        #   §6.3 执行规则4 同向：「只有 SUGGEST 时，最终状态为 PASS（**附 SUGGEST 建议**）」。
+        #   ⚠️ 与同日早些时候那一版的差别：那版把结论改成 `SUGGEST`（第四态）；rev 101 覆盖了它。
+        #      现在结论落 **PASS**，但建议**必须留在产物里**（`suggestions[]` / `suggest_label`，
+        #      在 `_result` 之后统一挂，见本函数尾部）—— 否则「PASS 附建议」在数据上等于「PASS」，
+        #      四态统计里第二个桶永远恒 0。
+        #   置信度：仍属 §6.6「直接输出结论」档（0.90–0.99），与 PASS 同一档，**分流不改结论**。
+        decision = "PASS"
+        _base = 0.93
+        _raw = _base + _cat_bonus - _ev_penalty
+        _lo, _hi = 0.90, 0.99
+        confidence = round(min(_hi, max(_lo, _raw)), 2)
+        reasons = ["suggest_only_non_mandatory"]
     else:
         decision = "PASS"
         _base = 0.93
@@ -313,9 +379,6 @@ def decide(payload: Dict[str, Any], report_url: str | None = None) -> Dict[str, 
         _lo, _hi = 0.90, 0.99
         confidence = round(min(_hi, max(_lo, _raw)), 2)
         reasons = ["no_known_blocking_or_review_risk"]
-        if p3_items:
-            # PASS 但带建议 —— 明写出来，免得读者以为「一条都没命中」
-            reasons.append("p3_advice_only_not_counted")
 
     # ── 置信度分流（2026-10-10 接线 · 目标 11 · PRD §6.6）────────────────────────
     # 改前：三档策略**没有任何位置**（任务拆解 目标 11 现状原文：「无」）。
@@ -333,7 +396,7 @@ def decide(payload: Dict[str, Any], report_url: str | None = None) -> Dict[str, 
         reasons.append("confidence_flow_forced_review:%s" % cf["band"])
         decision = cf["decision"]
 
-    return _result(payload, decision, items, confidence, reasons,
+    _res = _result(payload, decision, items, confidence, reasons,
                    report_url, tier_trace=tier_trace, confidence_route=cf,
                    decision_before_confidence_flow=decision_before_cf,
                    conf_derivation={
@@ -348,6 +411,47 @@ def decide(payload: Dict[str, Any], report_url: str | None = None) -> Dict[str, 
                        "note": "**只让值有分布、不改结论**（截断到本结论自己的档）；"
                                "动 0.90/0.70 两条线是下一步，先用 kb/l8/calibrate_confidence.py 量代价。",
                    })
+    # 建议字段（`suggestions` / `suggest_count` / `suggest_label`）由 `_result` 统一挂 ——
+    # 它是**唯一出口**，NEEDS_INPUT、P0 快路等其它返回路径也都从这里过，不会漏。
+    return _res
+
+
+def _suggestions(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """把 `priority_tier=P3` 的条目收成**建议集**（PRD §5.3.2 rev101：SUGGEST 是 PASS 的附属标签）。
+
+    为什么不复用 `_item_lines` 的四要素形状：问题条目要「原因 / 依据」（要溯源），
+    而建议是**非强制**的改法提示 —— 硬塞依据行会让「没有依据」这件事看起来像缺陷。
+    §17 对这一段的要求也只有「逐条列建议 + 不阻断说明」。
+
+    返回逐条 dict（**机读**，报表/统计/看板直接取，不用解析文本）：
+    `{i, tier, label, location, advice, reason}`
+    """
+    out: List[Dict[str, Any]] = []
+    for i, it in enumerate([x for x in items
+                            if str(x.get("priority_tier") or "") == "P3"], start=1):
+        out.append({
+            "i": i,
+            "tier": "P3",
+            "label": _tax_label(it),
+            "location": str(it.get("location") or "").strip() or "未定位",
+            "advice": str(it.get("suggestion") or "").strip(),
+            "reason": str(it.get("reason") or "").strip(),
+        })
+    return out
+
+
+def _suggestion_lines(items: List[Dict[str, Any]]) -> List[str]:
+    """建议集 → 卡面/报告里的**建议段**逐条文本（每条一行，≤150 字口径见 §17）。"""
+    lines: List[str] = []
+    for i, it in enumerate([x for x in items
+                            if str(x.get("priority_tier") or "") == "P3"], start=1):
+        loc = str(it.get("location") or "").strip() or "未定位"
+        adv = str(it.get("suggestion") or "").strip()
+        why = str(it.get("reason") or "").strip()
+        tail = ("，建议：%s" % adv) if adv else (
+            ("，问题：%s（建议按维度口径改写）" % why) if why else "，建议：按维度口径改写")
+        lines.append("%d.【%s】%s%s" % (i, _tax_label(it), loc, tail))
+    return lines
 
 
 def _result(
@@ -376,6 +480,13 @@ def _result(
     categories = Counter(_category(item) for item in _counted)
     _cand_n = sum(1 for item in items if is_candidate(item))   # 非权威候选条数（见下方拆解）
     _advice_n = sum(1 for item in items if item.get("action") == "advice")   # P3 建议（不进问题数）
+    # ★★ 2026-10-19（Owner：「必须给建议」）：**在渲染之前**把库内没给的建议补进数据 ——
+    #   卡（`render_summary`）与报告 / 表 / 下游（`risk_items`）读的是**同一格**，
+    #   只在渲染层补一句会造成「卡上有、报告没有」的两端不一致。
+    _backfilled = _backfill_advice(items, only_block=(decision == "BLOCK"))
+    if _backfilled:
+        print("[review_engine] 建议兜底补入 %d 条（库内无原话改法，按 kb/l5/advice_book.py 给）"
+              % _backfilled, file=__import__("sys").stderr)
     summary = render_summary(decision, items, categories, report_url)
     # ★ PRD §6.6：0.70–0.89 标注「建议人工确认」；<0.70 标注「不确定，建议人工重点看」。
     #   P0 命中时不适用分流 ⇒ `annotate_summary` 原样返回（一个字不改）。
@@ -451,12 +562,29 @@ def _result(
             "decision_before_confidence_flow": decision_before_confidence_flow or decision,
         },
     }
+    # ── SUGGEST 作为 **PASS 的附属标签**（PRD §5.3.2 rev101）━━━━━━━━━━━━━━━━━━━━━━
+    #   三条字段各管一件事，缺一条就有一半看不见：
+    #     `suggestions[]`  —— 建议本体（逐条：层级/维度/位置/建议/原因）。**任何结论下都挂**
+    #                         （§6.3 规则2：「同一内容可同时有 BLOCK 和 SUGGEST」，最终状态取 BLOCK）。
+    #     `suggest_count`  —— 建议条数（统计用；与 `issue_count` **不是一个数**：
+    #                         问题数只算库内依据、不含 advice，这一条数的是 advice）。
+    #     `suggest_label`  —— **只在 `decision=PASS` 且建议非空** 时为 True。
+    #                         它就是「四态」第二个桶的判定式：`PASS+SUGGEST ≡ decision=PASS ∧ suggest_label`。
+    #   ⚠️ 不许写成「有建议就 True」：§5.3.2 说的是 **PASS 的**附属标签；
+    #      BLOCK 单里带建议**不叫 SUGGEST**（§6.3 规则2 最终状态就是 BLOCK）。
+    result["suggestions"] = _suggestions(result.get("risk_items") or [])
+    result["suggest_count"] = len(result["suggestions"])
+    result["suggest_label"] = bool(result["suggest_count"]) and result.get("decision") == "PASS"
     return result
 
 
 def _next_action(decision: str) -> str:
     return {
         "PASS": "转 sign-off 负责人确认送审版本与发布版本一致",
+        # ★ 2026-10-19 第二轮：`SUGGEST` **不再是结论态**（PRD §5.3.2 rev101：PASS 的附属标签）。
+        #   这一条**保留**只为兼容存量旧 JSON 的重渲染（那些老产物里 `decision` 可能是 SUGGEST）；
+        #   新产物不会再走到它。措辞照 PRD 的动作列：「随 PASS 一起流转，提示内容方」。
+        "SUGGEST": "随 PASS 一起流转、提示内容方按建议优化（不阻断流程，PRD §5.3.2 rev101）",
         "REVIEW": "转法务、医学、专家或北美本地同事人工复核",
         "BLOCK": "修改内容后以新版本重新提交",
         "NEEDS_INPUT": "补齐素材、权限、SKU、版本或证据后重新提交",
@@ -623,7 +751,8 @@ def _item_lines(index: int, item: Dict[str, Any], *, want_suggestion: bool) -> L
             return md_text_safe(s)
         except Exception:                                  # noqa: BLE001
             return str(s if s is not None else "")         # 拿不到就原样，不静默改内容
-    out = [f"{index}.【{_category(item)}】{loc}，{_quote_label}：{_safe(quote)}"]
+    # ★★ 2026-10-19（Owner：「所属类别/所属子类」统一到 A3 12 类）：首行标签改用 A3。
+    out = [f"{index}.【{_tax_label(item)}】{loc}，{_quote_label}：{_safe(quote)}"]
     # ★ 2026-10-12：候选条目在**逐条**这一层也要认出来 —— 否则下面「依据」那行会印成
     #   `（来源未给库名）/（来源未给条款号）/（来源未给链接）`，读者只看到"空了"，看不到"为什么空"。
     _ci = candidate_item_note(item)
@@ -632,10 +761,18 @@ def _item_lines(index: int, item: Dict[str, Any], *, want_suggestion: bool) -> L
     out += [f"  **原因**：{_safe(reason)}",
             f"  **依据**：{_evidence_line(item)[len('依据：'):]}"]
 
-    anchor = str(ev.get("anchor") or "").strip()
-    sha = str(ev.get("source_sha256") or "").strip()
-    if anchor or sha:
-        out.append(f"  **锚点**：{anchor or '（来源未给锚点）'}｜source_sha256：{sha or '（来源未给指纹）'}")
+    # ★★ 2026-10-19（Owner 逐字：「**去掉锚点**」＋「**卡片信息必须按照 PRD 字段执行**」）——
+    #   **逐条块不再输出 `**锚点**：…#sha` 那一行**（这一处与 `kb/l5/p0_fastpath.py`
+    #   的 `_prd_block` 是同一批改，两处都是守衡卡片的产者，只改一处会剩一条腿）。
+    #   为什么删：锚点是**库内坐标**（`#广告文案明细/rec…/命中片段`），业务侧读不懂也不该读；
+    #   PRD §5.3.3/§5.3.4 的逐条字段只有【维度-子类】位置·原文·原因·依据（含链接）·建议。
+    #   ⚠️ **溯源没有丢**：`evidence.anchor` / `evidence.source_sha256` 仍在
+    #      `risk_items` / 报告 JSON / `_evidence_line` 的定位链路里（`l0_locate` 用的就是它），
+    #      `kb/l8/e2e_acceptance.py` 的四段溯源与 `workflow_smoke` S4 读的也是**报告与 JSON**，
+    #      不是这张卡。删的是**卡上那一行**，不是证据。
+    #   ⚠️ 别把 `_evidence_line` 里那串「原始出处：https://…」当锚点顺手删了 ——
+    #      那是 PRD「依据…（链接）」里的**链接**，是必填格。
+
     # ★★ 2026-10-14（Owner 裁定）：**逐条块不再输出 `**判定**` 行**。
     #   口径：PRD §5.3 的逐条模板只有 `原因` / `依据` /（BLOCK 才有）`建议`，
     #   三态只出现在**结论行** `【审查结论：X】` 一处 —— 逐条再挂一个「判定」，
@@ -646,9 +783,100 @@ def _item_lines(index: int, item: Dict[str, Any], *, want_suggestion: bool) -> L
     sug = str(item.get("suggestion") or "").strip()
     # BLOCK 的「建议」是 PRD §5.3.3 的必备项 ⇒ 没有也要把「没有」写出来；
     # REVIEW 的模板里没有这一行 ⇒ 有才写（库规：一个格，一行，没有就不写）。
-    if sug or want_suggestion:
-        out.append(f"  **建议**：{sug or '（来源未给修改建议）'}")
+    #
+    # ★★ 2026-10-19（Owner：「**必须给建议**」）：**不再印「（来源未给修改建议）」**。
+    #   改前这一格是两个取值口（`item.suggestion` → 占位符），实测 17 条 P0 模式里 10 条
+    #   走到占位符 ⇒ 收卡人看完还是不知道改什么。现在第三个口 = 兜底改法表
+    #   `kb/l5/advice_book.py`（与 P0 快路**同一份**，不各写一套）。
+    if sug:
+        out.append(f"  **建议**：{sug}")
+    elif want_suggestion:
+        _adv, _src = _fallback_advice(item)
+        # ⚠️ 卡上**不加来源说明**（PRD §5.3.3/§5.3.4 的「建议」就一格，且 ≤30 字）；
+        #   出处落在数据里（`suggestion_source`，见 `_backfill_advice`）与报告 JSON，
+        #   与 P0 快路那一侧同口径（那边标在**报告**的「建议」格尾，卡上同样干净）。
+        out.append(f"  **建议**：{_adv}")
     return out
+
+
+def _backfill_advice(items: List[Dict[str, Any]], *, only_block: bool = True) -> int:
+    """把「建议」补进**数据**（不只是渲染）—— 卡与报告才可能逐字一致。
+
+    ★ 2026-10-19（Owner：「必须给建议」）。为什么要补在数据层：
+      改前 `item["suggestion"]` 为空时，**卡**上印占位符、**报告**（`risk_items`）里也是空 ——
+      现在若只在渲染层给一句，就会出现「卡上有建议、报告里没有」的两端不一致
+      （本库为这类形状返工过：⑥f 就是钉这个的）。所以在这一层补，
+      `render_summary`（卡）与 `risk_items`（报告 / 表 / 下游）**读同一格**。
+
+    - `only_block=True`（默认）只补 **BLOCK** 单：PRD §5.3.4 的 REVIEW 模板里**没有**逐条
+      「建议」那一行（改法是 `建议转 @… 复核。`），给 REVIEW 逐条补建议＝改 PRD 版式。
+    - 只补 `action != 'advice'` 的条目（P3 建议行的 `suggestion` 是它自己的正文，不动）；
+    - **已有建议一个字不改**（库内原话优先）；
+    - 补进来的那句同时记 `suggestion_source`（`p0_advice_book:<CODE>` / `generic_*`），
+      让人查得到「这句是库规原文还是我们按边界给的」。
+
+    @returns 补了几条（写日志用，不改变结论）。
+    """
+    n = 0
+    for item in items or []:
+        if not isinstance(item, dict) or item.get("action") == "advice":
+            continue
+        if only_block and str(item.get("action") or "").lower() != "block":
+            continue
+        if str(item.get("suggestion") or "").strip():
+            continue
+        adv, src = _fallback_advice(item)
+        if not str(adv or "").strip():
+            continue
+        item["suggestion"] = adv
+        item["suggestion_source"] = src
+        n += 1
+    return n
+
+
+_ADVICE_BOOK = None
+
+
+def _advice_book():
+    """兜底改法表（唯一来源 = `kb/l5/advice_book.py`）。加载失败 ⇒ 空壳（不静默：打日志）。"""
+    global _ADVICE_BOOK
+    if _ADVICE_BOOK is not None:
+        return _ADVICE_BOOK
+    try:
+        import importlib.util as _ilu                        # noqa: PLC0415
+        _kb = Path(__file__).resolve().parents[3]            # …/kb
+        _p = _kb / "l5" / "advice_book.py"
+        _spec = _ilu.spec_from_file_location("kb_advice_book_re", str(_p))
+        _mod = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)
+        _ADVICE_BOOK = _mod
+    except Exception as e:                                  # noqa: BLE001
+        import sys as _sys                                  # noqa: PLC0415
+        print("[advice_book] ⚠ 兜底改法表加载失败 ⇒ 建议降级为通用句：%s" % e, file=_sys.stderr)
+
+        class _Empty:
+            @staticmethod
+            def fallback(rule_code=None, rule_id=None, hits=()):
+                return ("删去命中的违规表述后再提交。", "generic_no_book")
+
+        _ADVICE_BOOK = _Empty()
+    return _ADVICE_BOOK
+
+
+def _fallback_advice(item: Dict[str, Any]) -> tuple:
+    """这一条的兜底改法 → `(text, source)`。
+
+    ★ 取键：评审链的 `risk_item` **只有 `risk_id`（= rule_id）**（见
+      `review.py::_finding_to_risk_item`），没有 `rule_code` ⇒ 必须两把键都传，
+      兜底表按 `rule_id → rule_code` 归一（`advice_book.code_of`）。只传一个键，
+      这一侧就永远取不到表（"接了一半"是本库栽过多次的形状）。
+    """
+    ev = item.get("evidence") if isinstance(item.get("evidence"), dict) else {}
+    hits = [str(item.get("original_text") or "").strip(),
+            str(ev.get("excerpt") or "").strip()]
+    return _advice_book().fallback(rule_code=item.get("rule_code"),
+                                   rule_id=item.get("risk_id") or item.get("rule_id"),
+                                   hits=[h for h in hits if h])
 
 
 def render_summary(decision: str, items: List[Dict[str, Any]], categories: Counter, report_url: str | None) -> str:
@@ -661,8 +889,34 @@ def render_summary(decision: str, items: List[Dict[str, Any]], categories: Count
       判据存在，但没盖住出事的那一跳（AGENTS.md §2.4）。现在两边一起改：
       这里出对的措辞，那里把后半句也断言上。
     """
+    if decision == "SUGGEST":
+        # ★★ 2026-10-19 第二轮（PRD §5.3.2 **rev 101**）：**SUGGEST 不是结论态**，不许再渲染结论行。
+        #   硬失败而不是"悄悄降级"：这一行要是还能印出来，卡面就又长出第四态，
+        #   而 `decision` 三值、统计四桶的口径会被它悄悄破掉（最坏的一种：看不出来）。
+        raise ValueError(
+            "SUGGEST 不是结论态：PRD §5.3.2（rev 101）把它定为「**PASS 的附属标签**」"
+            "（`decision` 只取 PASS / REVIEW / BLOCK，+ 拒答 NEEDS_INPUT）。"
+            "要出建议请走 `decision=PASS` ＋ `risk_items` 里 `priority_tier=P3` 的条目 —— "
+            "`render_summary` 会把它们渲染成「建议（不阻断，随 PASS 流转）」附段。"
+            "留痕：kb/l7/registry/prd532-states.yaml::conflict_decision.superseded_by。"
+        )
     if decision == "PASS":
-        return f"【审查结论：PASS】未发现已知底线风险，可转交 {_at('pass_signoff')} 进行 sign-off。"
+        head = f"【审查结论：PASS】未发现已知底线风险，可转交 {_at('pass_signoff')} 进行 sign-off。"
+        # ★★ 2026-10-19 第二轮（PRD §5.3.2 rev101）：PASS 定义原文「**可包含 SUGGEST 建议**」，
+        #   动作「随 PASS 一起流转，提示内容方」。
+        #   ⇒ 结论行**恒为 PASS**，建议作为**附段**（不另起结论行、不派单、不进问题数）。
+        #   §17 对这一段的要求：「逐条列建议 + 不阻断说明」≤150 字/条（按条量）——
+        #   所以每条只写「维度 + 位置 + 建议」，不硬塞「原因 / 依据」两行（那是问题条目的事）。
+        adv = [i for i in items if str(i.get("priority_tier") or "") == "P3"]
+        if not adv:
+            return head
+        return "\n".join([
+            head,
+            "",
+            "建议（不阻断，随 PASS 流转，共 %d 条）：" % len(adv),
+            "",
+            "\n\n".join(_suggestion_lines(adv)),
+        ])
     if decision == "NEEDS_INPUT":
         return "【审查结论：NEEDS_INPUT】当前素材、版本或证据不完整，补齐后再审。"
 
@@ -732,33 +986,34 @@ def render_summary(decision: str, items: List[Dict[str, Any]], categories: Count
     #   写的是 `· {k}类问题：{v} 个`，两边不一致，而实测发出去的那条正是缺字这一版。
     #   同时把**子类归并到大类**（`平台与促销-促销紧迫感表述` ⇒ `平台与促销`）——
     #   PRD 的例子是 `合规类问题：3 个`，按大类计。
-    _agg = Counter()
-    for _c, _n in categories.items():
-        _agg[str(_c).split("-")[0].split("－")[0].strip() or "未分类"] += _n
-    # ★ 2026-10-12：**候选规则**那一类要就地标出来 —— 它的分类名是规则的英文标题
-    #   （`Health or safety outcome claim lacks approved substantiation`），
-    #   混在中文大类里读者只会当成"又一个库内分类"。计数**一个不改**（契约字段照旧），
-    #   只把「这一类是候选」这件事写在它自己那一行上。
-    _cand_cats = {_cat_key(_category(i)) for i in items if is_candidate(i)}
-    # ★★ 2026-10-14（Owner 第二次裁定，**推翻我上一轮的做法**）：**汇总行之间不空行**。
-    #   PRD §5.3.2 / §5.3.3 的 ≥3 块逐字是（`␤` = 空行）：
-    #       【审查结论：REVIEW】共发现 5 处需人工确认。
-    #       ␤
-    #       · 合规类问题：3 个          ← 这三行
-    #       · 消费者安全类问题：1 个     ← **紧挨着**
-    #       · 措辞表达类问题：1 个      ← 中间没有空行
-    #       ␤
-    #       → 查看完整问题清单与修改建议：…
-    #       ␤
-    #       建议转 @法务 @医学顾问 复核。
-    #   Owner 原话：「问题大于等于3个 …… 输出的卡片逐条问题是不空行的」——
-    #   而卡片上那一组（`逐条问题`）装的**就是**这段汇总（`blockRows(verdict.block)`）。
-    #   ⇒ 空行只在**结论行之后**与**链接/动作行之前**。
-    #   （<3 的逐条路径**相反**：那一条 PRD 明确每条之间空一行，见上面的 `blocks`。）
+    #
+    # ★★ 2026-10-19（Owner：「问题数量≥3 时要有分类汇总 `· 合规类：X 个 · 消费者安全类：X 个
+    #   · 措辞类：X 个`……卡片所有的回复必须跟 PRD 5.3 对齐」）—— **这一格的轴改成 PRD 四维**：
+    #   上面那条 2026-10-06 的口径按的是**库内类别**（`功效宣称` / `平台与促销` …），
+    #   与 PRD §5.3 的维度**不是一套**；而这一单的卡上印出 `· 功效宣称类问题：4 个`，
+    #   与 Owner 要的那一行对不上。轴的口径**只读** `item["risk_category"]`
+    #   （由 `review.py` 统一盖章，唯一真源 `risk-category-policy.json`），取不到落
+    #   `未标注维度` 桶（与 `risk_category.UNMAPPED_BUCKET` 同一个词），**不猜**。
+    #   形状照 PRD §5.3.4：**一行**、`·` 分隔、`<维度>类：N 个`；条数降序 → 并列按四维顺序
+    #   → 未标注维度压最后。
+    #   ⚠️ 候选不计入这一行（`categories` 那份本来就是只含库内依据的计数，口径不变）；
+    #      候选的合计说明仍由下一段的 `candidate_note(items)` 独立一行承担。
+    # ★★ 2026-10-19（Owner：「所属类别/所属子类」统一到 A3 12 类）：汇总轴从 **A2 四维**
+    #   换成 **A3**（`taxonomy_category`）—— 与逐条首行、规则行、报告同一套；盖不到的落 `未归类`。
+    _counted = [i for i in items if i.get("action") != "advice" and not is_candidate(i)]
+    _tax_agg = Counter()
+    for _i in _counted:
+        _tax_agg[_tax_category(_i)] += 1
+    if not _tax_agg:                       # 兜底：没有条目时与老行为一致（按传入的类别数）
+        for _c, _n in categories.items():
+            _tax_agg[str(_c).split("-")[0].split("－")[0].strip() or TAX_UNCLASSED] += _n
+    _tax_order = {n: i for i, n in enumerate(_taxonomy_classes())}
+    # 顺序照 12 类注册表的固定次序；未归类压最后
+    _tax_keys = sorted(_tax_agg, key=lambda k: (k == TAX_UNCLASSED, _tax_order.get(k, 99), k))
     lines.append("")
-    lines.extend(f"· {category}类问题：{count} 个"
-                 + ("（**候选规则**·无库内依据）" if category in _cand_cats else "")
-                 for category, count in _agg.items())
+    # ★ 形状（Owner 2026-10-19 给的格式）：**每类一行**，行间不空行；兜底写 `· 未归类问题：N 个`。
+    lines.extend("· %s问题：%d 个"
+                 % (k if k == TAX_UNCLASSED else k + "类", _tax_agg[k]) for k in _tax_keys)
     # 候选的合计说明行（逐条路径与汇总路径**共用一句**，见 `candidate_note`）
     _cn = candidate_note(items)
     if _cn:

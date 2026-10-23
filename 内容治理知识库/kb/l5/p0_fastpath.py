@@ -63,6 +63,126 @@ CANON_DIR = os.path.join(KB, "l4/canonical")
 L0_RECORDS = os.path.join(KB, "l0/records")
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# 2026-10-21（Owner：「审查报告中不能出现后台语言」）
+# ══════════════════════════════════════════════════════════════════════════
+# 三样东西**不许**上报告：正则源码、规则码（H05/M07…）、库内相对路径（kb/…）。
+# 判断只认形状，不改判定：命中的是哪个词、理由是什么，都是原样。
+_RELAX_NOTE_RE = re.compile(r"[（(][^）)]*(?:放开|不再判险|允许)[^）)]*[）)]")
+_RULE_CODE_HEAD_RE = re.compile(r"^\s*[A-Z]\d{2}\s*[:：]?\s*")
+
+
+def _hit_text(m, limit=40):
+    """命中的**真实文字**（不是正则源码）。
+
+    `matched[]` 里两格：`pattern` 是**规则侧写法**（正则命中时就是一整条正则），
+    `text` 是**真正被命中的那段字**（匹配器的 `m.group(0)`）。
+    报告写「逐字命中」⇒ 只能用 `text`；取不到才退回 `pattern`（老收据没有 `text`）。
+    """
+    m = m or {}
+    t = str(m.get("text") or "").strip() or str(m.get("pattern") or "").strip()
+    t = t.replace("`", "")
+    return (t[:limit] + "…") if len(t) > limit else t
+
+
+def _business_reason(text, code=None):
+    """「原因」的业务版：去规则码前缀、去括号里的口径说明，**判定理由一个字不改**。
+
+    实测那种自相矛盾的印法（2026-10-21 报告 F-02）：
+        `H05 虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按2026-09-09口径放开，
+         海外广告允许，不再判险）`
+    —— 把「已放开」的口径原样印在一条 P0 的「原因」里，读者只能读出矛盾。
+    """
+    s = str(text or "").strip()
+    if not s:
+        return "（来源未给判定理由）"
+    s = _RULE_CODE_HEAD_RE.sub("", s)
+    s = _RELAX_NOTE_RE.sub("", s).strip()
+    s = re.sub(r"\s{2,}", " ", s).strip(" ；;，,、")
+    return s or "（来源未给判定理由）"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 2026-10-21（Owner 裁定 A 的另一半）：**排名/销量宣称 = 非阻断提示**
+# ══════════════════════════════════════════════════════════════════════════
+# 裁定原文：「『第一 / 销量第一』这类中文事实性排名仍按『需补可核验依据』提示（**不阻断**）」。
+# 为什么它不进 findings：三态只由 P0 命中决定；提示改了结论就等于换个名字继续拦。
+# 为什么它不能一个字不说：美国平台（Amazon/FTC）对「#1 best seller」「销量第一」要求可核实依据，
+#   全静默等于把这条风险从系统里删掉（本项目：漏放是真红线）。
+# ⇒ 只出现在**回执与 P0 报告**的一段话里，不计入问题数、不改结论。
+RANK_ADVISORY_RX = [
+    r"(?:\bno\.?\s*1\b|\B#\s*1\b|\bnumber[\s-]?one\b)",
+    r"\b(?:best[- ]?selling|top[- ]?seller|bestseller|number[- ]one)\b",
+    r"(?:排名|销量|全网|行业|品类|国内|全球|世界|亚洲|全美)\s*第一",
+    r"第一\s*(?:品牌|选择|名|款|位)",
+    r"(?:第一|冠军|榜首)[^。，,；;]{0,6}(?:销量|品牌|排名|名)",
+    r"最\s*(?:佳|好|高)",
+]
+_RANK_ADV_RE = re.compile("|".join(RANK_ADVISORY_RX), re.IGNORECASE)
+
+
+def _advisories(text):
+    """素材里出现的**排名/销量宣称**（非阻断提示；去重、最多 3 条）。"""
+    seen = []
+    for m in _RANK_ADV_RE.finditer(str(text or "")):
+        t = m.group(0).strip()
+        if t and t.lower() not in [x.lower() for x in seen]:
+            seen.append(t)
+        if len(seen) >= 3:
+            break
+    return seen
+
+
+def _advisory_line(advisories):
+    if not advisories:
+        return ""
+    return ("另（**不阻断**）：素材里还有%s这类排名/销量宣称 —— 美国平台会要求可核验的依据，"
+            "建议发布前补一句来源与口径。**这条不算问题、也不影响上面的结论**。"
+            % "、".join("「%s」" % x for x in advisories))
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 2026-10-22（Owner 裁定 B）：**裸「100%」= 非阻断提示**
+# ══════════════════════════════════════════════════════════════════════════
+# 病灶（生产实测，`om_x100b62aff6a2c22ccfd45eeca787bff`，2026-10-22 15:30）：
+#   一张 momcozy 秋促组合图，本机 OCR 在右侧画面那支 Nipple Cream 管身上只读到一行「100%」
+#   （紧跟其后是一行更小的英文，放大 10 倍仍不可辨）⇒ V02 的裸词命中 ⇒ 整单 BLOCK。
+# 为什么裸「100%」不该是 P0（Owner：「医学安全类的绝对词才报 P0」）：
+#   · `100% safe / 100% 安全 / 100% 天然` 是**宣称** ⇒ H05 正则兜着，仍是 P0；
+#   · `100% cotton / BPA-free / recycled` 是**成分与材质事实** ⇒ 不该红线；
+#   · 光秃秃一个 `100%` **判不了** —— 机器手上没有它后面的限定词，任何结论都是猜。
+# 为什么不能一个字不说（与排名族那半同一条理由）：美国平台对百分比宣称要依据；
+#   但「提示」不进 findings、不计条数、不改三态。
+BARE_PERCENT_ADVISORY_RX = [r"(?<![A-Za-z0-9])100\s*%(?![A-Za-z0-9])"]
+_BARE_PCT_RE = re.compile("|".join(BARE_PERCENT_ADVISORY_RX), re.IGNORECASE)
+_PCT_QUALIFIED_RE = re.compile(
+    r"100\s*%\s*(?:safe|safety|安全|有效|无痛|无副作用|纯|天然|放心|保障|满意)", re.IGNORECASE)
+
+
+def _percent_notes(text):
+    """素材里出现的**裸 100%**（后面没有限定词）—— 非阻断提示；去重、最多 3 条。"""
+    s = str(text or "")
+    seen = []
+    for m in _BARE_PCT_RE.finditer(s):
+        if _PCT_QUALIFIED_RE.match(s[m.start():m.start() + 40]):
+            continue          # 带限定词的属 H05 的 P0，不在这里再报一次
+        t = m.group(0).strip()
+        if t and t.lower() not in [x.lower() for x in seen]:
+            seen.append(t)
+        if len(seen) >= 3:
+            break
+    return seen
+
+
+def _percent_note_line(notes):
+    if not notes:
+        return ""
+    return ("另（**不阻断**）：素材里出现%s，但它后面**没有可判的限定词**（成分／安全／疗效）—— "
+            "本机读数判不了它是什么，请按原图或文案确认，并准备可核验的依据。"
+            "**这条不算问题、也不影响上面的结论**。"
+            % "、".join("「%s」" % x for x in notes))
+
+
 def _load_matcher():
     """复用 kb/l5/matcher.py 的 match() —— 一份模式表、一套匹配逻辑。"""
     p = os.path.join(HERE, "matcher.py")
@@ -70,6 +190,40 @@ def _load_matcher():
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
+
+
+_ADVICE_BOOK = None
+_TAX_ORDER = None
+
+
+def _advice_book():
+    """「建议」兜底改法的**唯一来源** = `kb/l5/advice_book.py`（同一目录，按路径加载）。
+
+    ★ 2026-10-19（Owner 逐字：「**必须给建议**」）：改前这一格只有两个取值口
+      （L3 `fix_pairs` / 模式表 `suggested_replacement`），而 17 条 P0 模式里 **10 条**
+      两者皆空 ⇒ 卡上印「（来源未给修改建议）」。兜底表补的就是这 10 条。
+      ⚠️ 加载失败**不许静默**：回一个同签名空壳（给通用句），并把原因打到 stderr ——
+         「兜底表没装上」与「兜底表说没有」必须长得不一样。
+    """
+    global _ADVICE_BOOK
+    if _ADVICE_BOOK is not None:
+        return _ADVICE_BOOK
+    try:
+        p = os.path.join(HERE, "advice_book.py")
+        spec = importlib.util.spec_from_file_location("p0_advice_book", p)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _ADVICE_BOOK = mod
+    except Exception as e:                                # noqa: BLE001
+        print("[advice_book] ⚠ 兜底改法表加载失败 ⇒ 建议降级为通用句：%s" % e, file=sys.stderr)
+
+        class _Empty:                                     # 最小空壳：签名与真模块一致
+            @staticmethod
+            def fallback(rule_code=None, rule_id=None, hits=()):
+                return ("删去命中的违规表述后再提交。", "generic_no_book")
+
+        _ADVICE_BOOK = _Empty()
+    return _ADVICE_BOOK
 
 
 _L4_INDEX = None            # rule_id → 记录（**唯一键**；实测 632 组）
@@ -200,6 +354,29 @@ def _l0_verbatim(anchor):
     }
 
 
+def _verbatim_with_url(hit, rule):
+    """L0 逐字 + **可点直链**；L0 定位不到时，用条款自带的 `resource_id` 还原原件地址。
+
+    ★★ 2026-10-19（Owner：「**依据文档链接**要带飞书源侧链接」，例：
+      `依据文档链接：《知识库》第 E-2.124 条 ← 命中「100%」` —— 这一格没有链接）：
+      PRD §7.3 那类的 anchor 是 `#h.7. 知识库与规则体系 / 7.3 一票否决项…`，
+      **不是记录级坐标** ⇒ `_l0_verbatim()` 找不到 L0 记录 ⇒ `entry_url=None`
+      ⇒ 卡上与报告那一格的链接全丢。而这条规则自己带着
+      `resource_id = url__momcozy_in.feishu.cn_wiki_NB55…`（**原件的飞书地址**）。
+      ⇒ 只补这一格，**不编**：还原不出就保持 null，`note` 里如实说它是缺的。
+    """
+    vb = _l0_verbatim(hit.get("anchor")) or {}
+    if vb.get("entry_url"):
+        return vb
+    url = _resource_url((rule or {}).get("resource_id"))
+    if url:
+        vb = dict(vb)
+        vb["entry_url"] = url
+        vb["entry_url_from"] = "条款 resource_id（原件地址；L0 记录级坐标未命中）"
+        vb.pop("note", None)
+    return vb
+
+
 #: `pattern_id → 条款号`（模式表自带那一格）。懒加载一次，跟 `_L3_INDEX` 同一套做法。
 _ART_INDEX = None
 
@@ -304,7 +481,11 @@ def evaluate(text, report_ref=""):
             # ★ 2026-10-10：主键改用 rule_id（唯一）；rule_code 在 L4 里一对多 ⇒ 只作回落
             "clause": _l4_clause(rule_id=h.get("rule_id"), rule_code=rc),
             # 段④：L0 逐字 + 直链
-            "verbatim": _l0_verbatim(h.get("anchor")),
+            # ★★ 2026-10-19（Owner：「依据文档链接要带飞书源侧链接」—— 例
+            #   `依据文档链接：《知识库》第 E-2.124 条 ← 命中「100%」` 这一格没有链接）：
+            #   L0 定位不到记录时（PRD §7.3 那条 `#h.7. …` 就是这种）`entry_url` 是 null；
+            #   而规则自带 `resource_id`（= 原件的飞书地址）⇒ 由它还原一条，**不编**。
+            "verbatim": _verbatim_with_url(h, _l3_rule(h.get("rule_id"))),
             # ★ PRD §5.3.3 逐条格式要的两格（2026-10-06 加）：
             #   `【类别-子类】` 与 `原因 / 库名 / 版本`。两者都不在 P0 模式表里，
             #   分别从**受控词表**（l7.json 的 vocabulary）与 **L3 规则**（按 rule_id 查）取。
@@ -312,6 +493,9 @@ def evaluate(text, report_ref=""):
             "_l3": _l3_rule(h.get("rule_id")),
         })
 
+    out["advisories"] = _advisories(text)
+    # ★ 2026-10-22（Owner 裁定 B）：裸「100%」—— 不进 findings、不改三态，只出一句提示。
+    out["percent_notes"] = _percent_notes(text)
     out["state"] = "BLOCK"
     out["findings"] = findings
     out["issue_count"] = len(findings)
@@ -322,7 +506,7 @@ def evaluate(text, report_ref=""):
     out["facets"] = _facets_of(findings, text)
     out["product_line"] = out["facets"].get("product_line") or ""
     out["channel"] = out["facets"].get("channel") or ""
-    out["rendered"] = _render(text, findings, report_ref)
+    out["rendered"] = _render(text, findings, report_ref, advisories=out.get("advisories"))
     return out
 
 
@@ -446,6 +630,12 @@ def _l3_rule(rule_id):
                             "rule_code": d.get("rule_code"),
                             "fix_pairs": d.get("expression_fix_pairs") or [],
                             "resource_id": d.get("resource_id"),
+                            # ★★ 2026-10-19（Owner：「所属类别/所属子类 参考桌面 xlsx 的 12 类」）：
+                            #   **所属类别/所属子类 = A3 12 类**（真源 `kb/l3/registry/rule-taxonomy.json`
+                            #   ← 桌面 `规则清单-P0-P3-按等级-20261016.xlsx`；638 条逐条带这两格，
+                            #   实测 1147/1147 非空）。卡面逐条首行与 ≥3 汇总都改读这两格。
+                            "taxonomy_category": d.get("taxonomy_category"),
+                            "taxonomy_subcategory": d.get("taxonomy_subcategory"),
                         }
     return _L3_INDEX.get(rule_id)
 
@@ -504,6 +694,9 @@ def _resource_url(resource_id):
 #   **`external_standard`** ⇒ 命中它的条款一律渲染成 `《external_standard v0…》`
 #   （Owner 2026-10-14 截图里那个「（来源未给库名）」就是它的近亲）。
 #   ⇒ 两种写法都认；**认不出就不猜**（保留原样，让人一眼看见）。
+#: 12 类里的兜底类名（Owner 2026-10-19 指定的口径；与 `rule-taxonomy.json` 的 classes 一致）。
+TAX_UNCLASSED = "未归类"
+
 _LIB_NAME = {"wording": "措辞表达库", "samples": "内部正负样本库",
              "external": "外部标准库", "external_standard": "外部标准库",
              "product": "产品描述库", "product_info": "产品描述库"}
@@ -520,12 +713,27 @@ def _suggestion_for(finding, article_no=None):
     ★ 判据是「按**命中片段**挑」，不是「截断了事」：L3 规则的 `expression_fix_pairs`
       每条都带 `fragment`（违规片段）与 `fix`（怎么改）。命中的是 `increase milk supply`，
       就该给那一组的改法。挑不到才退回首组，并**写明还有几组** —— 不假装这就是全部。
+
+    ★★ 2026-10-19（Owner 逐字：「**必须给建议**」）—— **这一格从此恒不返回空**，并返回出处：
+      取值顺序（前三档都是**库内原话**，第四档才是我方兜底）：
+        ① 按命中片段匹配到的 `fix_pairs`　　　　→ `l3_fix_pair`
+        ② 该码首组 `fix_pairs`　　　　　　　　　→ `l3_fix_pair_first`
+        ③ 模式表 `suggested_replacement`　　　　→ `pattern_suggested_replacement`
+        ④ **兜底改法表**（`kb/l5/advice_book.py`）→ `p0_advice_book:<CODE>` ／ `generic_from_hit`
+      改前第 ④ 档不存在，直接印「（来源未给修改建议）」—— 实测 10/17 条 P0 码落在那一档，
+      收卡人看完仍不知道改什么。
+
+    @returns `(text, source)`；`source` 是机读来源标记（写进 JSON 与报告，不上卡）。
     """
     rule = finding.get("_l3") or {}
     pairs = rule.get("fix_pairs") or []
-    hit_frags = [str(m.get("pattern") or "") for m in (finding.get("matched") or [])]
+    # ★ 2026-10-21：正则命中时 `pattern` 是正则源码，不是文本片段 ⇒ 优先用 `text`
+    hit_frags = [(str(m.get("text") or "") if m.get("kind") == "regex" else str(m.get("pattern") or ""))
+                 for m in (finding.get("matched") or [])]
+
     def norm(x):
         return str(x or "").lower().replace(" ", "")
+
     for p in pairs:
         frag = str(p.get("fragment") or "")
         for h in hit_frags:
@@ -533,10 +741,18 @@ def _suggestion_for(finding, article_no=None):
                 continue
             a, b2 = norm(frag), norm(h)
             if a and (a in b2 or b2 in a):
-                return _with_pointer(str(p.get("fix") or "").strip() or "（该组未给改法）", pairs, article_no)
+                return (_with_pointer(str(p.get("fix") or "").strip() or "（该组未给改法）",
+                                      pairs, article_no), "l3_fix_pair")
     if pairs:
-        return _with_pointer(str(pairs[0].get("fix") or "").strip(), pairs, article_no, first=True)
-    return (finding.get("suggested_replacement") or "（来源未给修改建议）")[:300]
+        return (_with_pointer(str(pairs[0].get("fix") or "").strip(), pairs, article_no, first=True),
+                "l3_fix_pair_first")
+    sr = str(finding.get("suggested_replacement") or "").strip()
+    if sr:
+        return (sr[:300], "pattern_suggested_replacement")
+    # ④ 库内**确实没有**原话 ⇒ 兜底表（唯一来源）；它**也不许**返回空。
+    return _advice_book().fallback(rule_code=finding.get("rule_code"),
+                                   rule_id=finding.get("rule_id"),
+                                   hits=hit_frags)
 
 
 def _with_pointer(fix, pairs, article_no, first=False):
@@ -553,12 +769,15 @@ def _with_pointer(fix, pairs, article_no, first=False):
     """
     if len(pairs) <= 1:
         return fix
-    how = "按首组给出" if first else "按命中片段给出"
-    return "%s（本码共 %d 组修订建议，此处%s；全量见 kb/l3/candidates/rules.jsonl#%s）" % (
-        fix, len(pairs), how, article_no or "（无条款号）")
+    # ★★ 2026-10-21（Owner：「审查报告中不能出现后台语言」）：改前这一句是
+    #   `（本码共 12 组修订建议，此处按首组给出；全量见 kb/l3/candidates/rules.jsonl#W-1.33）`
+    #   —— 「本码」「kb/l3/…jsonl#」是库内坐标，业务侧读不懂也点不开。
+    #   全量**一个字符没丢**：它就在「依据」那一格指向的条款里（可点飞书直链）。
+    return "%s（这条条款下另有 %d 组改法，本次按%s给出；全量见「依据」里的条款）" % (
+        fix, len(pairs), "首组" if first else "命中片段")
 
 
-def _five_three_block(findings, report_ref=""):
+def _five_three_block(findings, report_ref="", text="", advisories=None):
     """PRD §5.3.3 的**逐条块**（问题数 1–2 时逐条输出；≥3 时分类汇总 + 报告链接）。
 
     ★ 2026-10-06 加。事故：Owner 拿 PRD §5.3.3 的模板对照守衡发出去的 BLOCK 卡片 ——
@@ -576,6 +795,8 @@ def _five_three_block(findings, report_ref=""):
     """
     n = len(findings)
     L = ["【审查结论：BLOCK】共发现 %d 处必须修改。" % n, ""]
+    # ★ 2026-10-22（Owner 裁定 B）：裸「100%」的非阻断提示 —— 两档都要印（它在哪一档都不是问题）。
+    _pct = _percent_note_line(_percent_notes(text))
     if n >= 3:
         # PRD §5.3.3「≥3 个时只输出分类汇总 + 报告链接」
         # ★ 计数只走 `_summary_lines`（= `_summary_counts`）—— 与报告同一份，见那里的注释。
@@ -584,10 +805,18 @@ def _five_three_block(findings, report_ref=""):
         L.append("→ 查看完整问题清单与修改建议：%s" % (
             report_ref or "（报告在**回执之后**补，稍后单独发；补到之前这一格不填）"))
         L.append("")
+        if _pct:
+            L.append(_pct)
+            L.append("")
         L.append("请修改后重新提交。")
         return L
 
-    L.extend(_prd_block(_item_fields(findings)))
+    L.extend(_prd_block(_item_fields(findings, text)))
+    _adv = _advisory_line(advisories)
+    for _note in (_adv, _pct):
+        if _note:
+            L.append(_note)
+            L.append("")
     L.append("请修改后重新提交。")
     return L
 
@@ -608,13 +837,19 @@ def _basis_line(lib, ver, art, entry_url):
     """
     if entry_url:
         return "《%s %s（试用版，未发布）》第 %s 条（链接：%s）" % (lib, ver, art, entry_url)
-    return ("《%s %s（试用版，未发布）》第 %s 条"
-            "（链接：未定位到飞书直链；库内路径 kb/l3/candidates/rules.jsonl#%s）"
-            % (lib, ver, art, art))
+    # ★★ 2026-10-21（Owner：「审查报告中不能出现后台语言」）：
+    #   改前这一行印 `（链接：未定位到飞书直链；库内路径 kb/l3/candidates/rules.jsonl#W-1.33）`
+    #   —— 库内相对路径业务侧点不开，PRD §5.3.3 要的也是 `（链接：https://…）`。
+    #   取不到就**只说取不到**；按条款号回源这件事由「依据」那两格（库名+条款号）承担。
+    return ("《%s %s（试用版，未发布）》第 %s 条（链接：未定位到飞书直链）" % (lib, ver, art))
 
 
-def _item_fields(findings):
+def _item_fields(findings, text=""):
     """每条问题的**六格内容** —— 回执与报告**唯一的抽取点**。
+
+    `text` = 这一单的**素材原文**（链送进来的那份，带 `【图片 N …】`/`【视频 N …】` 块头）。
+      2026-10-20 加：位置那一格要按块给形态，就得看原文；只给 `findings` 时位置回落
+      `正文第 N 段`（与改前逐字一致，夹具/老调用方行为不变）。
 
     ★ 2026-10-06 加，起因是 Owner 现场报：「守衡说 3 个问题，云文档里只落 1 个」。
       **实测云文档里三条都在**（三个独立 `<p>`），但**读起来像一条**，根因是版式：
@@ -650,14 +885,31 @@ def _item_fields(findings):
                or rule.get("article_no") or "（来源未给条款号）")
         # ★ 链接：L0 逐字回源的 `entry_url` 优先；没有就用条款的 `resource_id` 现接一条。
         _entry = (vb or {}).get("entry_url") or _resource_url(rule.get("resource_id")) or ""
+        _adv, _adv_src = _suggestion_for(f, art)
+        # ★★ 2026-10-19（Owner：「所属类别/所属子类」统一到 A3 12 类）：
+        #   卡面逐条首行与 ≥3 汇总都读这两格；**取不到就落 `未归类`**（12 类里的兜底类，
+        #   不是我自己造的桶名）—— 12 类名与子类名的真源是 `kb/l3/registry/rule-taxonomy.json`。
+        _tax = str(rule.get("taxonomy_category") or f.get("taxonomy_category") or "").strip() or TAX_UNCLASSED
+        _taxsub = str(rule.get("taxonomy_subcategory") or f.get("taxonomy_subcategory") or "").strip()
         items.append({
             "n": i,
             "code": f.get("rule_code") or "（来源未给规则码）",
+            # ⚠️ `category` = **A1 库内 8 类词表**（内部分类/路由用）——**不再上卡**；
+            #   上卡的是下面的 `taxonomy_category` / `taxonomy_subcategory`（A3 12 类）。
             "category": f.get("_category") or "未分类-未分类",
-            "quote": "、".join("`%s`" % m.get("pattern") for m in (f.get("matched") or [])[:6]) or "—",
-            "reason": rule.get("reason") or "（来源未给判定理由）",
+            "taxonomy_category": _tax,
+            "taxonomy_subcategory": _taxsub,
+            # ★★ 2026-10-19：位置按 **PRD §5.3.3** 精确到段（「正文第 X 段」），不再是写死的「全文」。
+            "position": _position_of(f, text),
+            # ★★ 2026-10-21（Owner：报告里不许出现后台语言）：原先印的是 `pattern`
+            #   —— 正则命中时那是一条**正则源码**，却被写成「逐字命中」。改成真命中文字。
+            "quote": "、".join(dict.fromkeys(_hit_text(m) for m in (f.get("matched") or [])[:6])) or "—",
+            # ★★ 2026-10-21：去规则码前缀与括号里的口径说明（见 `_business_reason`）。
+            "reason": _business_reason(rule.get("reason"), f.get("rule_code")),
             "article_no": art,
             "basis": _basis_line(lib, rule.get("kb_version") or "v0", art, _entry),
+            # ⚠️ 这一格**只进报告与 JSON**（四段溯源要用），**不印上卡** ——
+            #   PRD §5.3.3/§5.3.4 的逐条字段只有【维度-子类】位置·原文·原因·依据·建议。
             "anchor": "%s｜source_sha256：%s" % (
                 f.get("anchor") or "（来源未给锚点）",
                 f.get("source_sha256") or "（来源未给指纹）"),
@@ -666,10 +918,104 @@ def _item_fields(findings):
             #   没有这一行、三态只在结论行一处。**没有任何下游读它**（`grep verdict`：
             #   只有 `_prd_block` / `_doc_block` 两个渲染点，均已同步删除）⇒ 直接去掉这一格，
             #   不留「渲染删了、数据还在」的半截状态。
-            "advice": _suggestion_for(f, art),
+            "advice": _adv,
+            "advice_source": _adv_src,
             "entry_url": _entry,
         })
     return items
+
+
+# ── 位置：按**素材块**给形态（PRD §5.3.3 的三形态之一）──────────────────────────
+#
+# ★★ 2026-10-20（Owner 选「先修位置再验证」）：改前只有一种形态 `正文第 N 段`，
+#   不管素材是文案、图还是视频 —— 2026-10-19 那张**图片单**因此印出「正文第 7 段」，
+#   而素材里根本没有"正文"。
+#   现在按**块**判：链送进来的素材原文本身带块头（`【图片 N …】` / `【视频 N …】`），
+#   命中行的行号落在哪个块里，就按那个块的形态给：
+#     · 图片块 ⇒ `图 N 第 X 处`（X = 该 finding 在这张图里的第几处命中，从 1 数）
+#     · 视频块 ⇒ 该行若带帧时间码（`[12.3s]` 或 `[00:12]`）⇒ `视频 MM:SS`；
+#                没带（音轨转写没有词级时间戳）⇒ 如实回落 `正文第 N 段`
+#     · 其余（纯文案）⇒ `正文第 N 段`（与 2026-10-19 版逐字一致）
+#   ⚠️ 这是**读出来的坐标**，不是编的：块头与行号都是链自己送进来的原文。
+#     没有块头（老旁挂 / 夹具只给裸文本）⇒ 一律回落 `正文第 N 段`，行为与改前一致。
+_IMG_HEAD = re.compile(r"^【\s*图(?:片)?\s*(\d+)[^】]*】")
+_VID_HEAD = re.compile(r"^【\s*视频\s*(\d+)[^】]*】")
+_FRAME_TC = re.compile(r"\[(\d+(?:\.\d+)?)\s*s?\]|\[(\d{1,2}):(\d{2})\]")
+
+
+def _material_blocks(text):
+    """把素材原文按块头切段：`[{"kind","index","start","end"}]`（行号 1 起、闭区间）。"""
+    lines = (text or "").split("\n")
+    out, cur = [], {"kind": "text", "index": None, "start": 1, "end": 0}
+    for i, raw in enumerate(lines, start=1):
+        mi, mv = _IMG_HEAD.match(raw), _VID_HEAD.match(raw)
+        if not (mi or mv):
+            continue
+        cur["end"] = i - 1
+        if cur["end"] >= cur["start"]:
+            out.append(cur)
+        cur = ({"kind": "img", "index": int(mi.group(1)), "start": i, "end": 0} if mi
+               else {"kind": "video", "index": int(mv.group(1)), "start": i, "end": 0})
+    cur["end"] = len(lines)
+    if cur["end"] >= cur["start"]:
+        out.append(cur)
+    return out
+
+
+def _frame_second(line):
+    """一行里的帧时间码 ⇒ 秒（读不出返回 None）。"""
+    m = _FRAME_TC.search(line or "")
+    if not m:
+        return None
+    if m.group(1) is not None:
+        return int(float(m.group(1)))
+    return int(m.group(2)) * 60 + int(m.group(3))
+
+
+def _position_of(finding, text=""):
+    """**位置**（PRD §5.3.3 三形态之一：`图 N 第 X 处` / `视频 MM:SS` / `正文第 N 段`）。
+
+    ★ 2026-10-19 加「精确到段」；★ 2026-10-20 加**按素材块给形态**（见上面那段头注）。
+      规矩四条：
+        · 取不到行号（老旁挂/夹具没带 `line`）⇒ 如实回落 `全文`；
+        · 行号落在**图片块**里 ⇒ `图 N 第 X 处`（同图多处 ⇒ `第 X、Y 处`）；
+        · 行号落在**视频块**里且该行带时间码 ⇒ `视频 MM:SS`；
+        · 其余 ⇒ `正文第 N 段`（多处 ⇒ `正文第 N、M 段`，最多列 3 个）。
+    """
+    lines = []
+    for m in (finding.get("matched") or []):
+        ln = m.get("line")
+        if isinstance(ln, int) and ln > 0:
+            lines.append(ln)
+    uniq = sorted(set(lines))
+    if not uniq:
+        return "全文"
+    blocks = _material_blocks(text) if text else []
+    src = (text or "").split("\n")
+    by_img, vids, txt = {}, [], []
+    for ln in uniq:
+        b = next((x for x in blocks if x["start"] <= ln <= x["end"]), None)
+        if b and b["kind"] == "img":
+            by_img.setdefault(b["index"], []).append(ln)
+        elif b and b["kind"] == "video":
+            sec = _frame_second(src[ln - 1]) if 0 <= ln - 1 < len(src) else None
+            if sec is None:
+                txt.append(ln)
+            else:
+                vids.append("视频 %02d:%02d" % (sec // 60, sec % 60))
+        else:
+            txt.append(ln)
+    out = []
+    for idx in sorted(by_img):
+        ks = list(range(1, len(by_img[idx]) + 1))
+        out.append("图 %d 第 %s 处" % (idx, "、".join(str(k) for k in ks[:3])
+                                      + ("等" if len(ks) > 3 else "")))
+    out.extend(vids)
+    if txt:
+        shown = txt[:3]
+        out.append("正文第 %s 段" % ("、".join(str(x) for x in shown)
+                                     + ("等" if len(txt) > len(shown) else "")))
+    return "；".join(out) if out else "全文"
 
 
 _DIM = None
@@ -701,16 +1047,35 @@ def _load_dimension():
 
 
 def _summary_key(f):
-    """一条命中的**汇总分组键**：PRD §5.3 的四维；未映射的落桶（桶名与另两处**同一个词**）。
+    """一条命中的**汇总分组键** —— 2026-10-19 起 = **A3 12 类**（`taxonomy_category`）。
 
-    `_category` 的形态是「类别-子类」（`_vocabulary()` 给的）⇒ 取 `-` 前那段再问维度。
-    取不到维度模块 ⇒ 退回**库内类别**（= 改前行为），告警已在 `_load_dimension()` 里打过。
+    ★★ 2026-10-19（Owner：「所属类别/所属子类 参考桌面 xlsx 的 12 类…… 统一到 A3」）：
+      改前这里按 **A2 PRD 四维**分（`risk_category`），而逐条首行印的是 **A1 8 类词表** ——
+      同一张卡上两套轴。现在两处都取 **A3**（`taxonomy_category`，真源
+      `kb/l3/registry/rule-taxonomy.json` ← 桌面 xlsx，638 条逐条带这两格）。
+      取不到（模型侧条目、反例/案例层 sc-…）⇒ 落 **`未归类`**（12 类里的兜底类，**不是我造的桶名**）。
     """
-    cat = (f.get("_category") or "未分类-未分类").split("-")[0]
-    m = _load_dimension()
-    if not m:
-        return cat
-    return m.dimension_of(cat)[0] or m.UNMAPPED_BUCKET
+    rule = f.get("_l3") or {}
+    return (str(rule.get("taxonomy_category") or f.get("taxonomy_category") or "").strip()
+            or TAX_UNCLASSED)
+
+
+def _taxonomy_order():
+    """A3 的 12 类**展示顺序**（真源 `kb/l3/registry/rule-taxonomy.json` 的 classes 次序）。
+
+    读不到 ⇒ 只保证「未归类压最后」，其余按字典序（**不编一套顺序**）。
+    """
+    global _TAX_ORDER
+    if _TAX_ORDER is None:
+        _TAX_ORDER = []
+        try:
+            with open(os.path.join(KB, "l3/registry/rule-taxonomy.json"), encoding="utf-8") as fh:
+                reg = json.load(fh)
+            _TAX_ORDER = [str(c.get("name") or "").strip()
+                          for c in (reg.get("classes") or []) if str(c.get("name") or "").strip()]
+        except Exception as e:                            # noqa: BLE001
+            print("[taxonomy] ⚠ 12 类注册表读不到 ⇒ 汇总顺序退回字典序：%s" % e, file=sys.stderr)
+    return _TAX_ORDER
 
 
 def _summary_counts(findings):
@@ -732,36 +1097,67 @@ def _summary_counts(findings):
 
 
 def _summary_lines(findings):
-    """分类汇总的**行**（回执与报告共用同一份文本）。"""
-    m = _load_dimension()
-    bucket = m.UNMAPPED_BUCKET if m else None
-    # 「未标注维度」压到最后：排序**不另写一份四维词表**（那会是第二份口径）。
-    return ["· %s类问题：%d 个" % (c, k)
-            for c, k in sorted(_summary_counts(findings).items(),
-                               key=lambda kv: (bucket is not None and kv[0] == bucket))]
+    """分类汇总（回执与报告共用同一份文本）—— **PRD §5.3.4 的 ≥3 样张形状**。
+
+    ★ 形状逐字照 PRD：**一行**、`·` 分隔、`<维度>类：N 个`
+      （样张原文：`· 合规类：X 个 · 消费者安全类：X 个 · 措辞类：X 个` —— 没有「问题」二字）。
+      改前是**每类一行**且写成「· X类问题：N 个」：那是 2026-10-12 按 §5.3.2 的理解写的，
+      而 §5.3.2 那张表（内嵌表格 `xcdTpv`）里其实**只有 状态/定义/动作 三列**，没有分类汇总样张；
+      真正的样张在 §5.3.4 —— 2026-10-19 对着 PRD 正文核出来的。
+    ★ 顺序：条数降序 → 并列时按政策件四维顺序（合规/消费者安全/产品描述/措辞表达）→
+      「未标注维度」桶**压最后**（既不丢、也不并进任何一类；桶名取 `risk_category.UNMAPPED_BUCKET`，
+      **不另写第二份四维词表**）。
+    """
+    bucket = TAX_UNCLASSED
+    order = {name: i for i, name in enumerate(_taxonomy_order())}
+    counts = _summary_counts(findings)
+    # 顺序照 12 类注册表的固定次序；「未归类」压最后（都没登记时按字典序，不编顺序）
+    keys = sorted(counts, key=lambda x: (x == bucket, order.get(x, 99), x))
+    # ★ 形状（Owner 2026-10-19 第三次给的格式）：**每类一行**，行间不空行。
+    #   兜底类写成 `· 未归类问题：N 个`（它就是 12 类里的兜底，不叫「未归类类问题」）。
+    return ["· %s问题：%d 个" % (k if k == bucket else k + "类", counts[k]) for k in keys]
 
 
 def _prd_block(items):
     """PRD §5.3.3 的逐条块（**回执**用）。**版式逐字照 PRD，不许改**：
-    `N.【类别-子类】…` ＋ 缩进两格的 `**原因**/依据/锚点/建议`。
+    `N.【类别-子类】位置，逐字命中 原文` ＋ 缩进两格的 `**原因**/依据/建议`。
 
     ★★ 2026-10-14（Owner 裁定）：**`**判定**` 那一行已删** —— PRD §5.3 的逐条模板
       只有 原因 / 依据 /（BLOCK 才有）建议，三态只出现在**结论行** `【审查结论：X】`；
       逐条再挂一个「判定」会让同一张卡上出现两个「判定」，业务侧分不清哪个是结论。
       `_item_fields()` 那份数据里的 `fact_or_inference` / `confidence` **仍在**（只改版式）。
 
+    ★★ 2026-10-19（Owner 逐字，两条）：「**去掉锚点**」「**L0 逐字去掉，飞书链接中依据中已经存在**」
+      ＋「**卡片信息必须按照 PRD 字段执行**」。
+      改前这一块印 **五行**（原因/依据/**锚点**/建议/**L0 逐字（可点直链）**），其中后两行是
+      **库内坐标与重复链接**，PRD §5.3.3/§5.3.4 的逐条字段里**没有它们**：
+        · 「锚点」`#表名/rec…/命中片段｜source_sha256：…` 是**回源坐标**，业务侧读不懂；
+          实测它还印着一整段 PRD 小节标题（`#h.7. 知识库与规则体系 / 7.3 一票否决项…`）；
+        · 「L0 逐字（可点直链）」与上一行「依据」里的 `（链接：…）`**同一个 URL**，印两遍。
+      ⇒ 卡片逐条**只留 PRD 那五格**：【维度-子类】位置 · 原文 · 原因 · 依据（含链接）· 建议。
+      ⚠️ **溯源没有丢**：`anchor` / `source_sha256` / `entry_url` 仍在 `_item_fields()` 的数据里，
+        仍进 **JSON**、仍进 **报告**（`_doc_block` 的「锚点 + 指纹」「L0 逐字（可点直链）」两行
+        与 `_provenance()` 的四段溯源表**一个字没动**）—— 少的是**卡上**那两行，不是证据。
+        （判据：`kb/l8/e2e_acceptance.py` 的四段溯源、`workflow_smoke` S4 读的都是**报告与 JSON**，
+         不是卡片；这两把尺子本批复跑过。）
+
     ★ 判据（selftest ②③④）逐字盯着这个版式，改它就会红 —— 这是故意的。
-      ④ 另有一条**反向对照**：逐条块里一旦再冒出 `**判定**：`，精确变红。
+      ④ 另有三条**反向对照**：逐条块里一旦再冒出 `**判定**：` / `**锚点**：` / `L0 逐字`，精确变红。
     """
     L = []
     for it in items:
-        L.append("%d.【%s】全文，逐字命中 %s" % (it["n"], it["category"], it["quote"]))
+        # ★★ 2026-10-19（Owner：「所属类别/所属子类」统一到 A3 12 类）：
+        #   首行标签从 **A1 8 类词表**（`绝对化与安全承诺-绝对化用语`）改成
+        #   **A3 12 类**（`合规与受监管宣称-绝对化与最高级用语`）—— 与规则行、报告、汇总同一套。
+        #   子类取不到就只印类别（不编一个子类出来）。
+        _label = it.get("taxonomy_category") or TAX_UNCLASSED
+        if it.get("taxonomy_subcategory"):
+            _label += "-" + it["taxonomy_subcategory"]
+        L.append("%d.【%s】%s，逐字命中 %s"
+                 % (it["n"], _label, it.get("position") or "全文", it["quote"]))
         L.append("  **原因**：%s" % it["reason"])
         L.append("  **依据**：%s" % it["basis"])
-        L.append("  **锚点**：%s" % it["anchor"])
         L.append("  **建议**：%s" % it["advice"])
-        if it["entry_url"]:
-            L.append("  L0 逐字（可点直链）：%s" % it["entry_url"])
         L.append("")
     return L
 
@@ -775,16 +1171,28 @@ def _doc_block(items):
       · **每格一行**（`- **原因**：…`）：markdown 的无序列表飞书认，渲染成项目符号，
         不再是一堵 1000+ 字的字墙。
       **内容一字不改**（全部取自 `_item_fields`），改的只是排版 —— 这是与回执对齐的前提。
+
+    ★★ 2026-10-19：报告这一版**保留**「锚点 + 指纹」与「L0 逐字（可点直链）」两行
+      （删的只是**卡片**上那两行 —— 报告是回源件，四段溯源在这里）；
+      同时补两处：① `- **位置**：` 与卡片同一格值（PRD §5.3.3「位置精确到段」）；
+      ② 建议若来自**兜底表**（不是库内原话），在格尾如实标出来源 ——
+         卡上不许带标记（PRD 五格），报告里必须带（否则读者会以为那是库规原文）。
     """
     L = []
     for it in items:
         L.append("### 问题 %d ｜ %s ｜ %s" % (it["n"], it["code"], it["category"]))
         L.append("")
+        L.append("- **位置**：%s" % (it.get("position") or "全文"))
         L.append("- **命中（逐字）**：%s" % it["quote"])
         L.append("- **原因**：%s" % it["reason"])
         L.append("- **依据**：%s" % it["basis"])
         L.append("- **锚点 + 指纹**：%s" % it["anchor"])
-        L.append("- **建议**：%s" % it["advice"])
+        src = str(it.get("advice_source") or "")
+        note = ""
+        if src.startswith("p0_advice_book") or src.startswith("generic_"):
+            note = "（改法来源：%s —— **库内没有原话改法**，按条款边界给的，不是库规原文）" % (
+                "P0 兜底改法表 p0_advice_book" if src.startswith("p0_advice_book") else "按命中表述给出的通用改法")
+        L.append("- **建议**：%s%s" % (it["advice"], note))
         if it["entry_url"]:
             L.append("- **L0 逐字（可点直链）**：%s" % it["entry_url"])
         L.append("")
@@ -870,7 +1278,7 @@ def _report_md(text, findings, generated_at=""):
       ③ **值**：每格的正文全部来自 `_item_fields`（回执那套版式也取同一份）。
       ⇒ 判据 ⑥e/⑥f 逐条盯着这三件事（selftest）。
     """
-    items = _item_fields(findings)
+    items = _item_fields(findings, text)
     L = ["# 内容审查报告（P0 快路 · 红线拦截）", ""]
     L.append("【审查结论：BLOCK】共发现 %d 处必须修改。" % len(findings))
     L.append("")
@@ -934,13 +1342,14 @@ def _write_report(path, content):
     return path
 
 
-def _render(text, findings, report_ref=""):
+def _render(text, findings, report_ref="", advisories=None):
     """回执正文（PRD §5.3.3）。**这条路是 ≤1s 的** —— 所以它不许做任何 IO。
 
     ★ `report_ref`（2026-10-06）：报告在回执**之后**生成 ⇒ 这里只**填**链接、不等它。
       为空（还没补上）就照实写「稍后补」，见 `_five_three_block` —— **不编链接**。
     """
-    L = list(_five_three_block(findings, report_ref))
+    L = list(_five_three_block(findings, report_ref, text,
+                               advisories=advisories or _advisories(text)))
     L.append("")
     L.append("---")
     L.append("")
@@ -962,11 +1371,25 @@ def selftest():
     样本是**真实素材**（2026-10-06 08:57 那一单的原话），不是编的。
     """
     import re
+    import json as _json_
     P, F = [], []
 
     def chk(name, cond, extra=""):
         (P if cond else F).append(name)
         print("  %s %s%s" % ("✅" if cond else "❌", name, ("  " + extra) if extra else ""))
+
+    def _sum_keys(text):
+        """从回执/报告里取分类汇总 `[(维度, 计数)]` —— 口径 = **每类一行** `· <维度>类问题：N 个`。
+
+        ★ 判据只认这一种形状，且**只认行首**：形状一变（例如又缩成一行用 `·` 分隔），
+          取到的就是 `[]` ⇒ ⑥e/⑥e2/⑥g3 立刻红（那正是要看见的信号）。
+        """
+        out = []
+        for ln in str(text).split("\n"):
+            m2 = re.match(r"^· (.+?)类问题：(\d+) 个$", ln.strip())
+            if m2:
+                out.append((m2.group(1), int(m2.group(2))))
+        return out
 
     # ① 真实素材：必须命中，且渲染出 PRD §5.3.3 的逐条块
     TEXT = "这段 listing 文案能不能发：Our M5 breast pump is doctor recommended and helps increase milk supply in 3 days."
@@ -979,7 +1402,7 @@ def selftest():
         repr(r.split("\n")[0]))
     chk("③ 尾部动作 = 「请修改后重新提交。」", "请修改后重新提交。" in r)
 
-    # ④ 逐条四要素：每条必须齐【类别-子类】/ 原因 / 依据 / 锚点+sha / 判定 / 建议
+    # ④ 逐条四要素：每条必须齐【类别-子类】/ 原因 / 依据 / 建议
     # ★ 判据**不许崩**：表头一旦不合规（正是要抓的那种情形），
     #   原先这里 re.search(...).group(1) 会抛 AttributeError ——
     #   表现是「自证退 1」，但**后面 ④–⑧ 一条都没跑**：看的人只知道红了、
@@ -991,9 +1414,11 @@ def selftest():
         "%s vs %s" % (n, res.get("issue_count")))
     DETAIL = re.findall(r"^\d+\.【[^】]+】[^\n]*\n(?:  [^\n]*\n?)+", r, re.M)
     chk("④ 每条都渲染出逐条块", len(DETAIL) == n, "实测 %d 条" % len(DETAIL))
-    want = ("  **原因**：", "  **依据**：《", "  **锚点**：", "  **建议**：")
+    # ★★ 2026-10-19（Owner：「去掉锚点」「L0 逐字去掉」）：PRD 逐条五格 =
+    #   【维度-子类】位置 · 原文 · 原因 · 依据（含链接）· 建议 ⇒ **三行**（原因/依据/建议）。
+    want = ("  **原因**：", "  **依据**：《", "  **建议**：")
     miss = [w.strip() for d in DETAIL for w in want if w not in d]
-    chk("④ 每条四要素齐全（原因/依据/锚点/建议）", not miss, "缺：%s" % miss)
+    chk("④ 每条三要素齐全（原因/依据/建议）", not miss, "缺：%s" % miss)
     # ★★ 2026-10-14（Owner 裁定）：逐条块里**不许再有 `**判定**` 行** ——
     #   PRD §5.3 逐条模板只有 原因/依据/（BLOCK 才有）建议，三态只在结论行一处。
     #   这条是**反向对照**：谁把那一行加回来，这里精确变红（而不是只在人眼里看着不对）。
@@ -1002,15 +1427,55 @@ def selftest():
     chk("④ 逐条块不再出现 `**判定**` 行（三态只在结论行）",
         not re.search(r"^\s+\*\*判定\*\*：", r, re.M),
         "命中：%s" % re.findall(r"^\s+\*\*判定\*\*：[^\n]*", r, re.M)[:2])
+    # ★★ 2026-10-19（Owner 两条裁定，**各有反向对照**）：
+    #   · 卡上**不许**再出现「锚点」那一行（库内坐标，业务侧读不懂；PRD 字段里没有它）
+    #   · 卡上**不许**再出现「L0 逐字（可点直链）」那一行（与「依据」里的链接**同一个 URL**）
+    _anch = re.findall(r"^\s+\*\*锚点\*\*：[^\n]*", r, re.M)
+    chk("④2 卡上不再有 `**锚点**` 行（Owner 2026-10-19）", not _anch, "命中：%s" % _anch[:2])
+    _l0 = re.findall(r"^\s*L0 逐字（可点直链）[:：][^\n]*", r, re.M)
+    chk("④3 卡上不再有 `L0 逐字（可点直链）` 行（与依据里的链接重复）", not _l0, "命中：%s" % _l0[:2])
+    #   反向对照：把这两行**真造回**卡上 ⇒ ④2/④3 必须精确变红（否则它们只是注释）。
+    _rmut = r.replace("  **依据**：", "  **锚点**：#自证/recX/命中片段｜source_sha256：deadbeef\n"
+                                   "  **依据**：", 1).replace(
+                        "  **建议**：", "  L0 逐字（可点直链）：https://example.invalid/x\n  **建议**：", 1)
+    chk("④4 反向对照：把锚点/L0 逐字塞回卡上 ⇒ ④2/④3 会红",
+        bool(re.findall(r"^\s+\*\*锚点\*\*：[^\n]*", _rmut, re.M))
+        and bool(re.findall(r"^\s*L0 逐字（可点直链）[:：][^\n]*", _rmut, re.M)))
+    # ★★ 2026-10-19（Owner：「**必须给建议**」）：建议那一格**不许是占位符**。
+    #   这个坑是 Owner 拿真卡指出来的（`**建议**：（来源未给修改建议）`）：17 条 P0 里 10 条落到那。
+    _fake = re.findall(r"^\s+\*\*建议\*\*：(（来源未给|（两侧都没给|（无）|$)", r, re.M)
+    chk("④5 建议不是占位符（「来源未给…」/空）", not _fake, "命中：%s" % _fake[:2])
+    _adv_lines = re.findall(r"^\s{2}\*\*建议\*\*：(.*)$", r, re.M)
+    chk("④6 每条建议都有正文（条数对得上）",
+        len(_adv_lines) == n and all(x.strip() for x in _adv_lines),
+        "%d 行 / %d 条 ｜ %r" % (len(_adv_lines), n, _adv_lines[:1]))
+    #   反向对照：把建议打回占位符 ⇒ ④5/④6 必须红。
+    _amut = re.sub(r"^(  \*\*建议\*\*：).*$", r"\1（来源未给修改建议）", r, count=1, flags=re.M)
+    chk("④7 反向对照：建议写回占位符 ⇒ ④5 会红",
+        bool(re.findall(r"^\s+\*\*建议\*\*：(（来源未给)", _amut, re.M)))
 
-    # ⑤ 类别-子类是**受控词表**里的取值，不是自造
+    # ⑤ 类别-子类是**A3 12 类**的受控取值，不是自造
+    #   ★★ 2026-10-19（Owner：「所属类别/所属子类 统一到 A3 12 类」）：判据从 A1 8 类词表
+    #   换成 A3 注册表（`kb/l3/registry/rule-taxonomy.json`：12 类 + 58 子类）。
     cats = re.findall(r"^\d+\.【([^】]+)】", r, re.M)
-    known = set(_vocabulary().values())
-    chk("⑤ 类别-子类取自受控词表（不自造）", all(c in known for c in cats), str(cats))
-    chk("⑤ 词表读到了映射（H02/H04 都认得出）",
-        _vocabulary().get("H02") == "功效宣称-催乳与通乳宣称"
-        and _vocabulary().get("H04") == "背书与资质-医生专家推荐",
-        "H02=%s ｜ H04=%s" % (_vocabulary().get("H02"), _vocabulary().get("H04")))
+    try:
+        _reg = _json_.load(open(os.path.join(KB, "l3/registry/rule-taxonomy.json"), encoding="utf-8"))
+        _known_cls = {str(c.get("name") or "").strip() for c in (_reg.get("classes") or [])}
+        _known_sub = set((_reg.get("subclass_to_category") or {}))
+    except Exception:                                         # noqa: BLE001
+        _known_cls, _known_sub = set(), set()
+    chk("⑤ 12 类注册表可用（否则下面两条是空转）", len(_known_cls) == 12 and len(_known_sub) == 58,
+        "classes=%d ｜subclasses=%d" % (len(_known_cls), len(_known_sub)))
+    _bad = []
+    for c in cats:
+        head, _, tail = c.partition("-")
+        if head not in _known_cls or (tail and tail not in _known_sub):
+            _bad.append(c)
+    chk("⑤ 逐条 `【所属类别-所属子类】` 取自 A3 注册表（不自造）", not _bad and bool(cats),
+        "越界：%s ｜实测：%s" % (_bad, cats))
+    chk("⑤b 首行标签**不再是 A1 8 类词表**（那是内部分类，不上卡）",
+        not any(c in set(_vocabulary().values()) for c in cats),
+        "仍出现 A1 标签：%s" % [c for c in cats if c in set(_vocabulary().values())])
 
     # ⑥ 来路与边界**一条都没被 §5.3 的格式挤掉**（这是 Owner 现场定的硬口径）
     chk("⑥ 边界：明说未跑四层与评审链", "未跑 L4→L5→L6→L7 层前置与评审链" in r)
@@ -1092,37 +1557,61 @@ def selftest():
     n_rcpt = int((re.search(r"共发现 (\d+) 处", rcpt) or [0, -1])[1])
     chk("⑥e 三处条数一致：回执 / 报告 / findings（≥3 那条分支）",
         n_big == 3 and n_big == n_doc == n_rcpt, "findings=%s 报告=%s 回执=%s" % (n_big, n_doc, n_rcpt))
-    sum_rcpt = sum(int(x) for x in re.findall(r"类问题：(\d+) 个", rcpt))
-    sum_doc = sum(int(x) for x in re.findall(r"类问题：(\d+) 个", rep))
+    sum_rcpt = sum(n for _, n in _sum_keys(rcpt))
+    sum_doc = sum(n for _, n in _sum_keys(rep))
     chk("⑥e 分类汇总计数之和 == 条数（两端各算一次，必须都等于 N）",
         sum_rcpt == n_big and sum_doc == n_big, "回执和=%s 报告和=%s N=%s" % (sum_rcpt, sum_doc, n_big))
+    # ★★ 2026-10-19：汇总形状照 **PRD §5.3.4**（一行 `· X类：N 个 · Y类：M 个`）。
+    #   形状变了就必须有判据跟着变 —— 否则 `_sum_keys` 只是自己哄自己。
+    # ★★ 2026-10-19 第三次（Owner 逐字：「按照下面的格式优化，目前是写的一行」＋
+    #   `· <类>类问题：N 个` 每类一行）——
+    _sum_rows = [ln for ln in rcpt.split("\n") if ln.startswith("· ")]
+    _row_re = r"^· [^·\n，]+类问题：\d+ 个$"
+    chk("⑥e2 汇总形状 = 每类一行 `· <维度>类问题：N 个`（Owner 2026-10-19 给的格式）",
+        bool(_sum_rows) and all(re.match(_row_re, ln) for ln in _sum_rows),
+        str(_sum_rows[:3]))
+    chk("⑥e2b 汇总行之间不空行（Owner 2026-10-14 裁定）",
+        bool(re.search(r"个\n· ", rcpt)) or len(_sum_rows) == 1,
+        "行数=%d" % len(_sum_rows))
+    #   反向对照：缩成一行（`· 合规类问题：1 个 · 消费者安全类问题：1 个`）⇒ ⑥e2 必须红。
+    _one_line = "· 合规类问题：1 个 · 消费者安全类问题：1 个"
+    chk("⑥e3 反向对照：缩回一行 ⇒ ⑥e2 会红",
+        not re.match(_row_re, _one_line),
+        repr(_one_line))
 
     # ══ ⑥g **分组键 = 维度**（PRD §5.3.2；Owner 2026-10-12 批准「推荐 ①」）══════════
     #    改前两端印的是**库内类别**：「· 功效宣称类问题：1 个」；
     #    PRD §5.3.2 的逐字示例是「· 合规类问题：3 个」—— 分的是 **§5.3 四维**。
     #    ★ 这是**判据**，所以这里可以写死四维字面量（被测量的生产码不许写 —— 它只读政策件）。
-    _FOUR = {"合规", "消费者安全", "产品描述", "措辞表达"}
     _m = _load_dimension()
-    chk("⑥g 维度模块可用（否则下面三条是空转）", bool(_m), "得到 %r" % (_m,))
-    _keys = sorted({_summary_key(f) for f in (big.get("findings") or [])}) if _m else []
-    chk("⑥g2 汇总键 ∈ 四维 ∪ {桶名}（不出现库内类别）",
-        bool(_keys) and set(_keys) <= (_FOUR | {_m.UNMAPPED_BUCKET}), "得到 %r" % (_keys,))
-    _kr = re.findall(r"· ([^·\n]+?)类问题：", rcpt)
-    _kd = re.findall(r"· ([^·\n]+?)类问题：", rep)
+    chk("⑥g 维度模块可用（报告「维度」格仍走 A2）", bool(_m), "得到 %r" % (_m,))
+    _keys = sorted({_summary_key(f) for f in (big.get("findings") or [])})
+    chk("⑥g2 汇总键 ∈ A3 12 类 ∪ {未归类}（不再出现 A1 库内类别 / A2 四维）",
+        bool(_keys) and set(_keys) <= (_known_cls | {"未归类"}), "得到 %r" % (_keys,))
+    _kr = [k for k, _ in _sum_keys(rcpt)]
+    _kd = [k for k, _ in _sum_keys(rep)]
     chk("⑥g3 两端的分组键**逐字一致**（同一口径，不是各分各的）",
         bool(_kr) and sorted(set(_kr)) == sorted(set(_kd)),
         "回执 %r ｜ 报告 %r" % (_kr, _kd))
-    _legacy = re.findall(r"· (功效宣称|绝对化与安全承诺|背书与资质|平台与促销|婴幼儿安全与场景)类问题：",
+    _legacy = re.findall(r"· (功效宣称|绝对化与安全承诺|背书与资质|平台与促销|婴幼儿安全与场景)类",
                          rcpt)
-    chk("⑥g3b 回执里不再出现库内类别键（改前那套）", not _legacy,
-        "命中的库内类别键 %r" % (_legacy,))
-    # ⑥g4 **反向对照**：桶名不许与任何一个真维度重名 ——
-    #      重名 ⇒ 未映射的类别会被并进那个真维度（把「不知道」当「合规」，本库最坏的一类）。
-    chk("⑥g4 桶名与四维不重名（反向对照）",
-        bool(_m) and _m.UNMAPPED_BUCKET not in _FOUR, "得到 %r" % (getattr(_m, "UNMAPPED_BUCKET", None),))
-    chk("⑥g4b 桶名与评审链那一端**同一个词**（两端不各写一份）",
-        bool(_m) and _m.UNMAPPED_BUCKET == "未标注维度",
-        "得到 %r" % (getattr(_m, "UNMAPPED_BUCKET", None),))
+    chk("⑥g3b 回执里不再出现 A1 库内类别键", not _legacy, "命中的库内类别键 %r" % (_legacy,))
+    _legacy_dim = re.findall(r"· (合规|消费者安全|产品描述|措辞表达)类问题", rcpt)
+    chk("⑥g3c 回执里不再出现 A2 四维键（汇总已切 A3）", not _legacy_dim,
+        "命中的四维键 %r" % (_legacy_dim,))
+    # ⑥g4 **反向对照**：兜底类名 `未归类` 不许与 12 类里任何一个真类重名 ——
+    #      重名 ⇒ 未归类的条目会被并进那个真类（把「不知道」当「合规与受监管宣称」，本库最坏的一类）。
+    #    兜底类 `未归类` **本来就是 12 类里的第 12 个**（Owner 的口径）——
+    #    所以这条反过来说：它在注册表里**恰好出现一次**、且是**最后一个**（兜底位），
+    #    真类（前 11 个）与它不重名。
+    _cls_list = [str(c.get("name") or "").strip() for c in (_reg.get("classes") or [])]
+    chk("⑥g4 兜底类 `未归类` 在注册表里恰好一次且排最后（反向对照）",
+        bool(_cls_list) and _cls_list[-1] == TAX_UNCLASSED
+        and _cls_list.count(TAX_UNCLASSED) == 1,
+        "12 类：%r" % (_cls_list,))
+    chk("⑥g4b 真类（前 %d 个）与兜底类不重名" % (len(_cls_list) - 1),
+        bool(_cls_list) and TAX_UNCLASSED not in _cls_list[:-1],
+        "真类：%r" % (_cls_list[:-1],))
 
     # ══ ⑨ 产品线 / 渠道（Owner 2026-10-06：「从知识库命中产品线和渠道的都填写进去」）════
     #    ★ 2026-10-06 改口径（准入闸）：命中的记录**是规则样本** —— 那条 `广告文案明细` 记录
@@ -1159,17 +1648,25 @@ def selftest():
     _clean = evaluate("吸奶器静音设计，夜里不吵醒宝宝，续航 8 小时")
     chk("⑨b 反向对照：未命中 ⇒ 没有产品线/渠道可写（不是编一个）",
         (_clean.get("hit") is False) and not _clean.get("product_line") and not _clean.get("channel"))
-    # ⑥f **值**逐字一致：同一条问题的六格内容，两种版式里必须**一字不差**
+    # ⑥f **值**逐字一致：同一条问题的各格内容，两种版式里必须**一字不差**
     #    （版式允许不同：回执 `  **原因**：`、报告 `- **原因**：`；**值**不许不同）
     #    ★ 这一条**只能用 n≤2 的样本**验：PRD §5.3.3 规定 ≥3 条时**回执只出分类汇总**
     #      ⇒ 那条分支上回执**本来就没有逐条内容**，拿它比是错的（第一版就写错了，判据当场红）。
     #      所以：**条数/计数**在 ≥3 分支上验（⑥e），**逐条的值**在 n≤2 分支上验（⑥f）。
+    #    ★★ 2026-10-19：两端比的格子**收窄到卡上真有的那几格**（原因 / 依据 / 位置 / 建议）。
+    #      `anchor` 已经从**卡**上撤掉（Owner：「去掉锚点」）⇒ 它还在数据里、还在报告里，
+    #      所以改成**单向**断言：报告必须带着它（溯源不许丢），卡不许带（另由 ④2 钉住）。
     items_small = _item_fields(res.get("findings") or [])
     rep_small = _report_md(TEXT, res.get("findings") or [], "")
+    _both = tuple(k for k in ("reason", "basis", "advice", "position"))
     diffs = [it["n"] for it in items_small
-             if not all(v and v in r and v in rep_small
-                        for v in (it["reason"], it["basis"], it["anchor"], it["advice"]))]
-    chk("⑥f 两端每格的值逐字一致（原因/依据/锚点/建议；n≤2 样本）", not diffs, "对不上的第 %s 条" % diffs)
+             if not all(v and v in r and v in rep_small for v in (it[k] for k in _both))]
+    chk("⑥f 两端每格的值逐字一致（位置/原因/依据/建议；n≤2 样本）", not diffs, "对不上的第 %s 条" % diffs)
+    chk("⑥f3 锚点与指纹**只进报告、不进卡**（溯源没丢，只是不上卡）",
+        all(it["anchor"] and it["anchor"] in rep_small and it["anchor"] not in r
+            for it in items_small),
+        "报告里有=%s 卡上有=%s" % ([it["anchor"] in rep_small for it in items_small],
+                                [it["anchor"] in r for it in items_small]))
     # ⑥f2 反向对照：把报告里某一格的**值**改掉 ⇒ ⑥f 必须失配
     #      （第一版改的是条目**标题**，而 ⑥f 比的是**值** ⇒ 反向对照自己不红，等于没验。
     #        反向对照必须打在**判据真正读的那个量**上。）
@@ -1177,6 +1674,99 @@ def selftest():
     tampered = rep_small.replace(v0, "（反向对照：此处被改过）", 1)
     chk("⑥f2 反向对照：报告里改掉一格的值 ⇒ ⑥f 会红",
         (v0 in rep_small) and (v0 not in tampered))
+
+    # ══ ⑪ 建议兜底表（2026-10-19，Owner：「必须给建议」）══════════════════════
+    #    「建议」这一格现在有第四个取数口 = `kb/l5/advice_book.py`（库内没原话时的那一句）。
+    #    它自己的自证（长度 ≤30 字、非占位符、出处不许空、反向对照）在那边跑；
+    #    这里钉**接线**：表真被调起来了吗？落到了哪一档？
+    _ab = _advice_book()
+    chk("⑪ 兜底改法表**装上了**（不是空壳）", hasattr(_ab, "ADVICE") and bool(getattr(_ab, "ADVICE", None)),
+        "表内 %d 条" % len(getattr(_ab, "ADVICE", {}) or {}))
+    _srcs = [it.get("advice_source") for it in items_small]
+    chk("⑪2 每条建议都带来源标记（机读，写进 JSON/报告）",
+        all(bool(x) for x in _srcs), str(_srcs))
+    _placeholder = [it["n"] for it in items_small if "来源未给修改建议" in str(it["advice"])]
+    chk("⑪3 逐条数据里不再有「（来源未给修改建议）」", not _placeholder, str(_placeholder))
+    #    素材换过两次，每次都是**口径变了**、不是为了让闸门变绿：
+    #      · 最初那一句靠 `最好` 命中 —— 2026-10-19 裁定「超级/最好这类夸张词不算问题」后**不再命中**
+    #        （钉在下面 ⑪7 反向对照里）；
+    #      · 之后改用裸 `100%`（V02 独有、且 V02 的 suggested_replacement 为空才会落到兜底表）——
+    #        ★★ 2026-10-22（Owner 裁定 B）：裸 `100%` 也出列 P0 了（管身小字把整单压成 BLOCK 那次），
+    #        它现在是**非阻断提示**（钉在下面 ⑪7c/⑪7d），也不能再当本组的正例。
+    #    ⑪4/⑪5/⑪6 钉的是「**兜底**改法表 + 位置精确到段 + 卡面印出」这条接线 ⇒ 素材必须
+    #    **只命中一条规则、且那条规则没有 L3 修订建议**（否则走 l3_fix_pair，⑪4 的前提就没了）。
+    #    现在的正例是 `儿童出镜`（V05 未成年人未经授权出镜，实测 advice_source=p0_advice_book:V05）。
+    #    断言语义一个字没改。
+    _single = evaluate("画面里是儿童出镜的实拍图。")
+    _single_items = _item_fields(_single.get("findings") or [])
+    chk("⑪4 单规则素材（「儿童出镜」，V05 独有）落到兜底表，且建议非占位符",
+        bool(_single_items) and _single_items[0]["advice_source"].startswith("p0_advice_book:")
+        and "来源未给" not in _single_items[0]["advice"],
+        "%s ⇒ %r" % (_single_items[0]["advice_source"] if _single_items else "—",
+                      _single_items[0]["advice"] if _single_items else "—"))
+    chk("⑪5 位置按 PRD 精确到段（不再是写死的「全文」）",
+        bool(_single_items) and re.match(r"^正文第 \d+ 段$", _single_items[0]["position"]),
+        "%r" % (_single_items[0]["position"] if _single_items else "—"))
+    _single_r = _single.get("rendered") or ""
+    chk("⑪6 单规则卡面上，位置那一段真的印出来了",
+        bool(_single_items) and ("】%s，逐字命中" % _single_items[0]["position"]) in _single_r,
+        _single_r.split("\n")[2] if len(_single_r.split("\n")) > 2 else "")
+
+    # ★★ 2026-10-19（Owner 裁定 A）：**放开的那一族必须真的不命中** —— 把这次口径改动钉成判据。
+    #   素材就是上面改前用的那句（含 `最好`）。谁把 `最佳/最好/最(佳|优|强)` 或 `\bbest\b`
+    #   加回 `kb/.work/l5_export.py` 的 H05/V02，这条就**精确变红**。
+    #   同时这也是 ⑪4/⑪5/⑪6 改素材的反向对照：证明换词不是为了让闸门变绿而挑的。
+    _puff = evaluate("这款吸奶器绝对是最好用的，妈妈值得拥有。")
+    chk("⑪7 反向对照：主观最高级「最好」不再判 P0（Owner 2026-10-19 裁定 A）",
+        _puff.get("hit") is False,
+        "hit=%s codes=%s" % (_puff.get("hit"),
+                             sorted({f.get("rule_code") for f in (_puff.get("findings") or [])})))
+    # 同一条裁定下**保留族**必须照旧命中 —— 否则上面 ⑪7 可以靠「整族全放开」蒙混过去。
+    _keep = evaluate("这款吸奶器 100% safe，零风险。")
+    chk("⑪7b 反向对照：保留族（100% safe／零风险）仍判 P0",
+        _keep.get("hit") is True,
+        "hit=%s codes=%s" % (_keep.get("hit"),
+                             sorted({f.get("rule_code") for f in (_keep.get("findings") or [])})))
+
+    # ★★ 2026-10-22（Owner 裁定 B）：**裸「100%」出列 P0** —— 两半都要钉住。
+    #   病灶（生产实测 `om_x100b62aff6a2c22ccfd45eeca787bff`）：管身小字一个 `100%` ⇒ 整单 BLOCK。
+    _barepct = evaluate("Nipple Cream 100%")
+    chk("⑪7c 裸「100%」不再判 P0（Owner 2026-10-22 裁定 B）",
+        _barepct.get("hit") is False,
+        "hit=%s codes=%s" % (_barepct.get("hit"),
+                             sorted({f.get("rule_code") for f in (_barepct.get("findings") or [])})))
+    _withpct = evaluate("成分纯天然，Nipple Cream 100%")
+    _pn = _withpct.get("percent_notes") or []
+    chk("⑪7d 同句另有一条 P0 时，裸 100% 只进**非阻断提示**（不进 findings、不计条数）",
+        _withpct.get("hit") is True and _pn == ["100%"]
+        # ⚠️ 只看**命中片段**（matched[].text），不看整行原文：`line_text` 本来就包含那一行里的
+        #    所有字（含这个 100%），拿它判会**恒红** —— 本仓「判据指向无关方向」的同一个形状。
+        and all("100%" not in json.dumps([mm.get("text") for mm in (f.get("matched") or [])],
+                                         ensure_ascii=False)
+                for f in (_withpct.get("findings") or [])),
+        "hit=%s notes=%s codes=%s" % (_withpct.get("hit"), _pn,
+             sorted({f.get("rule_code") for f in (_withpct.get("findings") or [])})))
+
+    # ★★ 2026-10-20（Owner 选「先修位置再验证」）：**位置按素材块给三形态之一**。
+    #   素材形状照链的真实送法：块头一行 + 块体若干行（`review_gate.chainInput`）。
+    #   ⑪8 图片块 ⇒ `图 N 第 X 处`；⑪9 视频块带时间码 ⇒ `视频 MM:SS`；
+    #   ⑪10 反向对照：同样一句素材、**去掉块头** ⇒ 必须回落 `正文第 N 段`
+    #        （证明是"读块"在起作用，不是恒真）。
+    _img = "【图片 1 的图内文字（本机 OCR）】\n画面里是儿童出镜的实拍图。"
+    _img_it = _item_fields(evaluate(_img).get("findings") or [], _img)
+    chk("⑪8 图片块里的命中 ⇒ 位置按「图 N 第 X 处」",
+        bool(_img_it) and re.match(r"^图 1 第 \d+ 处$", _img_it[0]["position"]),
+        "%r" % (_img_it[0]["position"] if _img_it else "—"))
+    _vid = "【视频 1｜a.mp4｜12.0s｜关键帧 1/1 帧读成功】\n画面上的字（按时间码）：\n[00:07] 画面里是儿童出镜的实拍图。"
+    _vid_it = _item_fields(evaluate(_vid).get("findings") or [], _vid)
+    chk("⑪9 视频块里带时间码的行 ⇒ 位置按「视频 MM:SS」",
+        bool(_vid_it) and re.match(r"^视频 \d{2}:\d{2}$", _vid_it[0]["position"]),
+        "%r" % (_vid_it[0]["position"] if _vid_it else "—"))
+    _bare = "画面里是儿童出镜的实拍图。"
+    _bare_it = _item_fields(evaluate(_bare).get("findings") or [], _bare)
+    chk("⑪10 反向对照：去掉块头 ⇒ 回落「正文第 N 段」（块解析不是恒真）",
+        bool(_bare_it) and re.match(r"^正文第 \d+ 段$", _bare_it[0]["position"]),
+        "%r" % (_bare_it[0]["position"] if _bare_it else "—"))
 
     # ⑦ 反向对照：喂一句干净文案必须**不命中**（否则上面那些绿都是空转）
     clean = evaluate("吸奶器静音设计，夜里不吵醒宝宝，续航 8 小时")

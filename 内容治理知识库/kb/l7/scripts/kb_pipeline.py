@@ -264,11 +264,17 @@ LOCK = os.path.join(KB, ".work", ".kb.lock")
 #   同一事实写两处，第二处必然过期；故改为**只读 layers.yaml**，本表只声明「怎么调」。
 SYNC_SPEC = {
     "L1": [{"script": "kb/l8/ocr_attachments.py", "args": ["RUN"], "apply": "--apply"}],
-    "L2": [{"script": "kb/l8/l2_split_run.py", "args": ["RUN"], "apply": "--apply"}],
+    "L2": [{"script": "kb/l8/l2_split_run.py", "args": ["RUN"], "apply": "--apply"},
+           # 2026-10-20：媒体单元重切（把 L1 新写的画面读数并进 L2）。幂等：无变化不写。
+           {"script": "kb/l8/l2_resync_media_vision.py", "args": ["RUN"], "apply": "--apply"}],
     # L3：l3_distill_run.py 已于 P0-3 补 --apply 干跑档（闸门早于 RUN 解析与任何写盘）——
     # 判据见 layers.yaml 的 L3 行 `dry_run: true`，不再在本表重复声明。
-    "L3": [{"script": "kb/l8/l3_distill_run.py", "args": ["RUN"], "apply": "--apply"}],
-    "L4": [{"script": "kb/.work/l4_article.py", "args": ["RUN"], "apply": "--apply"}],
+    "L3": [{"script": "kb/l8/l3_distill_run.py", "args": ["RUN"], "apply": "--apply"},
+           # 2026-10-20：负面样本规则（N-1.x）。产物是**独立语料**，不碰 rules.jsonl。
+           {"script": "kb/l8/l3_negative_rules.py", "args": ["RUN"], "apply": "--apply"}],
+    "L4": [{"script": "kb/.work/l4_article.py", "args": ["RUN"], "apply": "--apply"},
+           # 2026-10-20：负面样本规则定稿（N-1.x，逐字搬运；non_substantive 不进 L4）
+           {"script": "kb/l8/l4_promote_negative_rules.py", "args": ["RUN"], "apply": "--apply"}],
     "L5": [{"script": "kb/.work/l5_prep.py", "args": ["RUN"], "apply": "--apply"},
            {"script": "kb/.work/l5_export.py", "args": ["RUN"], "apply": "--apply"}],
     "L6": [{"script": "kb/.work/l6_build.py", "args": ["RUN"], "apply": "--apply"}],

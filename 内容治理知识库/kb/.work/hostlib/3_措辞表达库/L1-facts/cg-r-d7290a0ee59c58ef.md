@@ -1,12 +1,12 @@
 ---
 id: cg-r-d7290a0ee59c58ef
-title: "[H07] 措辞表达库：命中「indolore」等 17 类表达"
+title: "[H07] 措辞表达库：命中「indolore」等 18 类表达"
 collection: 3_措辞表达库
 kb_class: [措辞表达库]
 tier: L1
 topic: H07
 kind: fact
-summary: "[H07] 判为「需按建议改写」（P2·未定级）：命中表达 17 条、证据单元 153 条、覆盖记录 51 条；处理方式是「「schmerzfrei」→ 删除/替换为：效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ 删除 pain-free/no p」。状态 provisional、verification 已归纳。"
+summary: "[H07] 判为「禁用/必须修改」（P0·未定级）：命中表达 18 条、证据单元 153 条、覆盖记录 51 条；处理方式是「「schmerzfrei」→ 删除/替换为：效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ 删除 pain-free/no p」。状态 provisional、verification 已归纳。"
 owner: 法务 + 医学顾问
 half_life_days: 180
 valid_until: 2027-03-28
@@ -14,7 +14,7 @@ effective_from: 2026-09-29
 evidence_level: L1
 data_level: L2
 sensitivity_level: L2
-created_at: 2026-10-16
+created_at: 2026-10-22
 asks:
   - H07 判什么、命中什么算违规
   - H07 应该怎么改（合规替代写法）
@@ -31,7 +31,7 @@ source:
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
   record_ids: [recvuJYdOb1u94, recvuJYdOb4mFS, recvuJYdOb51ix, recvuJYdOb5q3i, recvuJYdOb61lT, recvuJYdOb8ymj, recvuJYdObBEgd, recvuJYdObBXtD, recvuJYdObBmKV, recvuJYdObHNts, recvuJYdObIPpF, recvuJYdObIwQE, recvuJYdObJwyY, recvuJYdObL82h, recvuJYdObLJw8, recvuJYdObNnmA, recvuJYdObP1co, recvuJYdObSL8s, recvuJYdObSUez, recvuJYdObTQn7, recvuJYdObUDHi, recvuJYdObUxlz, recvuJYdObZhZx, recvuJYdObdUlb, recvuJYdObfMKS, recvuJYdObieEH, recvuJYdObjggC, recvuJYdObjyfK, recvuJYdObljap, recvuJYdObm7Dz, recvuJYdObpg4Q, recvuJYdObsLNZ, recvuJYdObsngh, recvuJYdObttao, recvuJYdObz5mN, recvuJYdObzUa2, recvuJYeGR9DAV, recvuJYeGRDtZE, recvuJYeGREusl, recvuJYeGRFs0N, recvuJYeGRNiOr, recvuJYeGROaz8, recvuJYeGRP4oA, recvuJYeGRbttZ, recvuJYeGRhsaS, recvuJYeGRlglf, recvuJYeGRm1Pq, recvuJYeGRpxID, recvuJYeGRyStK, recvuMGgT9p2zx, recvuMGgT9pH6N]
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l3/candidates/rules.jsonl#r-d7290a0ee59c58ef ∪ kb/l5/p0_patterns.jsonl#p-964b3c2e22b48ade"
   confidence: 确定
@@ -42,7 +42,7 @@ pii:
 rule_id: r-d7290a0ee59c58ef
 article_no: W-1.53
 rule_code: H07
-p_level: P2
+p_level: P0
 risk_level: 未定级
 risk_level_raw: Critical
 risk_level_note: 源库 kb/l3 的 risk_level 为 unknown/空 —— 未做人工定级；本视图不据 P 级反推，故标未定级
@@ -54,15 +54,15 @@ form: entry
 kb_type: wording
 ---
 
-# [H07] 措辞表达库：命中「indolore」等 17 类表达
+# [H07] 措辞表达库：命中「indolore」等 18 类表达
 
-**条款号**：W-1.53　|　**规则码**：H07　|　**rule_id**：`r-d7290a0ee59c58ef`　|　**判定**：P2 · 未定级
+**条款号**：W-1.53　|　**规则码**：H07　|　**rule_id**：`r-d7290a0ee59c58ef`　|　**判定**：P0 · 未定级
 
 ## 规则原文（照抄新库，未改写）
 
 规则码 H07：命中「indolore；indolore,sans douleur；no pain,painless；pain-free；painlessly；sans douleur；say goodbye to cold, painful；schmerzfrei」判定为违规；处理：「schmerzfrei」→ 删除/替换为：效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ 删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述；「sans douleur」→ 删除/替换为：删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛；依据：M03 未标注来源的效果数据声明；H07 疼痛功效承诺（pain-free/no pain/without pain/pain relief/less pain/缓解疼痛等；吸奶疼痛因人而异，只可讲 comfort/gentle 舒适与缓解
 
-## 命中表达（17 条；来源：l5 P0 匹配器 p-964b3c2e22b48ade）
+## 命中表达（18 条；来源：l5 P0 匹配器 p-964b3c2e22b48ade）
 
 - `indolore`
 - `no pain`
@@ -81,6 +81,7 @@ kb_type: wording
 - `告别疼痛`
 - `无痛`
 - `缓解疼痛`
+- `疼痛功效承诺（pain-free/no pain/without pain/pain relief/less pain/缓解疼痛等；吸奶疼痛因人而异，只可讲 comfort/gentle 舒适与缓解胀满不适 discomfort）`
 
 ### 正则形态
 

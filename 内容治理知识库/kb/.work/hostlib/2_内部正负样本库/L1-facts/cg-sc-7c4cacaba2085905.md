@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.95 是正例还是反例
   - S-1.95 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-7c4cacaba2085905"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 其他
 reason_category: unknown
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2wE9MCaay/原文反馈"
-source_sha256: dc050536bf58032f7b6196f89250c88151fce0fbb589674063d2c423044b2b7f
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MCaay
+anchor: "#负面样本/recvw7XJiSyehR/具体原因/分析"
+source_sha256: e9bf74063c0eb063bb189e80a238b0966b8edb534ed57d5699dd75b1d9b582e1
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XJiSyehR
 sample_body: "【审核 · 2026-09-04 00:20 · 董希】初审@[已脱敏] ，再看看呀 项目需求：paruu老品优化-银质因为存在差评问题，在原图片增加提醒&补充对比说明情况  设计稿件 ![Image](img_v3_02156_58e6c835-ab59-4f77-bee4-c29d2086667g) ![Image](img_v3_02156_1cd664e5-ac73-42a8-8755-0573ddd1ebcg) ![Image](img_v3_02156_cf77cf71-a308-4811-9d5f-eb45f5c49cag) ![Image](img_v3_02156_cf91247d-82c8-450f-9c86-ad2267910ccg)  ![Image](img_v3_02156_7efc85bd-bbe8-4d09-84bf-ec8accb2dd1g)  ![Image](img_v3_02156_f32c3a30-9fa1-4459-b61e-a1b6bb96161g)  Understanding Real Silver Oxidation/Sulfidation A Natural Silver Reaction Dark spots occur naturally over time when silver is exposed to air or different water qualities. This is a common characteristic of genuine silver. ジャンハンド Poriu Easy Cleaning & Care Oxidation will not affect product performance. Simply mix baking soda with a few drops of water, gently scrub, and rinse to restore shine instantly.  Understanding Real Silver Oxidation/Sulfidation Poriu A Natural Silver Reaction Dark spots occur naturally over time when silver is exposed to air or different water qualities. This is a common characteristic of genuine silver. Easy Cleaning & Care Oxidation will not affect product performance. Simply mix baking soda with a few drops of water, gently scrub, and rinse to restore shine instantly.  Dual-Layer Core Design Top 999 Silver Layer Paruu Middle mm Brass Layer (Micro-Battery Core) Bottom 999 Silver Layer Dark spots are a natural result of silver oxidation/sulfidation-while brass helps protect silver, mild tarnishing over time is normal and expected."
 reason_analysis: "【审核问题】文案 项目需求：paruu老品优化-银质因为存在差评问题，在原图片。 原因：项目需求：paruu老品优化-银质因为存在差评问题，在原图片增加提醒&补充对比说明情况 【问题要点】 1. 项目需求：paruu老品优化-银质因为存在差评问题，在原图片增加提醒&补充对比说明情况 2. 初审@[已脱敏] ，再看看呀"
 advice: "优化-银质因为存在差评问题，在原图片增加提醒&补充对比说明情况"
@@ -124,8 +124,8 @@ tarnishing over time is normal and expected.
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2wE9MCaay/原文反馈`
-- 指纹：`dc050536bf58032f7b6196f89250c88151fce0fbb589674063d2c423044b2b7f`
+- 锚点：`#负面样本/recvw7XJiSyehR/具体原因/分析`
+- 指纹：`e9bf74063c0eb063bb189e80a238b0966b8edb534ed57d5699dd75b1d9b582e1`
 - 原因归类：unknown　|　素材类型：文字
 
 > 案例只作参照，不构成规则。

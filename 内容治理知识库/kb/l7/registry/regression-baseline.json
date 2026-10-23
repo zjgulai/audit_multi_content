@@ -1,8 +1,8 @@
 {
  "schema": "kb-regression-baseline/1",
- "captured_at": "2026-10-12T14:16:32+0800",
- "captured_from": "kb/.work/regression-20261012-issuesem.jsonl",
- "why": "2026-10-12 重采：Owner 裁定 `issue_count` **只算库内依据**（候选不计入）。三态逐条未变（100/100），但基线里存的每 case `issue_count` 是旧口径 ⇒ 重采使存量数字与现行口径一致；不变式「旧数 − 新数 == candidate_n」100/100 成立。 ｜ 首采缘起：2026-10-12 首采：旧 `expected` 是从**历史 `*.review.md` 里刮出来的当时的结论**（`kb/l8/build_regression_set.py`，按同一素材留最早一份去重），**不是改动前引擎的结论** ⇒ 拿它当断言，等于把「引擎这一年的演进」全报成回归。实测 13/80 条漂移里 12 条属此类。",
+ "captured_at": "2026-10-23T10:27:01+0800",
+ "captured_from": "kb/.work/regression-run-20261023.jsonl",
+ "why": "2026-10-23 重采：两条上游改动（均已采用/已在库）＋ 一次覆盖判据修复。① 2026-10-17 kb/l3/registry/rule-taxonomy.json 的 p_level 重标（dual_axis.impact_of_engine_axis: severity_flips=26 / review_to_block=23）⇒ 5 条 solid 的严重度变了：RC-0735daa0b79c U01/W-1.48 P3→P1（PASS→REVIEW）；RC-4d2c823edcca M01/W-1.5 P2→P0（REVIEW→BLOCK）；RC-3580274a6626 与 RC-8a55c138738b 的 M01/W-1.54 P1→P0 ＋ M04/W-1.16 P1→P2；RC-de8ad438d9fb 同前两条 ＋ U02/W-1.15 P3→P1。命中集合一字未变，只有严重度变 ⇒ 不是匹配逻辑回归。② 2026-10-14 题材闸门 kb/l7/review-engine/core/case_theme.py 只认中文主题词 ⇒ 纯英文素材 RC-aeee8c26dfe1 的 5 条案例依据被挡 ⇒ REVIEW→PASS（该代价写在交付-销重复条款号与题材闸门与表一致-20261014.md §②）。③ 同批修了覆盖判据的 fail-open：review.py 的 direct 支路要求「锚点同名 且 source_sha256 相同」、same_source 不认位置型锚点（#l.*/#h.*）；修前自查另量到 5 条 REVIEW→PASS（假覆盖），修后全部回到 REVIEW。残余与待裁见 交付-回归漂移归因与覆盖判定锚点同源-20261023.md §七（M01 静音表述疑似误伤；英文素材 0 依据 PASS）。 ｜ 首采缘起：2026-10-12 首采：旧 `expected` 是从**历史 `*.review.md` 里刮出来的当时的结论**（`kb/l8/build_regression_set.py`，按同一素材留最早一份去重），**不是改动前引擎的结论** ⇒ 拿它当断言，等于把「引擎这一年的演进」全报成回归。实测 13/80 条漂移里 12 条属此类。",
  "reading": "同源读法：三态 = `decision.decision`；条目 = `decision.risk_items`（见 `kb/l8/regression_run.py` 文件头）。",
  "n_solid": 80,
  "cases": {
@@ -23,7 +23,7 @@
    "issue_count": 0
   },
   "RC-0735daa0b79c": {
-   "state": "PASS",
+   "state": "REVIEW",
    "issue_count": 1
   },
   "RC-aa7fa8055662": {
@@ -31,7 +31,7 @@
    "issue_count": 1
   },
   "RC-4d2c823edcca": {
-   "state": "REVIEW",
+   "state": "BLOCK",
    "issue_count": 1
   },
   "RC-21e27c950bfd": {
@@ -88,11 +88,11 @@
   },
   "RC-38909e1f8b7b": {
    "state": "REVIEW",
-   "issue_count": 5
+   "issue_count": 3
   },
   "RC-fe8e15d0450b": {
    "state": "BLOCK",
-   "issue_count": 2
+   "issue_count": 1
   },
   "RC-3c5604a24185": {
    "state": "BLOCK",
@@ -108,11 +108,11 @@
   },
   "RC-434b405b8a4f": {
    "state": "BLOCK",
-   "issue_count": 4
+   "issue_count": 3
   },
   "RC-2e282c905d53": {
    "state": "REVIEW",
-   "issue_count": 5
+   "issue_count": 1
   },
   "RC-fb7a590bc017": {
    "state": "BLOCK",
@@ -144,7 +144,7 @@
   },
   "RC-aa0e997a0151": {
    "state": "BLOCK",
-   "issue_count": 2
+   "issue_count": 1
   },
   "RC-acaa743e5ece": {
    "state": "BLOCK",
@@ -160,15 +160,15 @@
   },
   "RC-9b7a0b369e67": {
    "state": "BLOCK",
-   "issue_count": 4
+   "issue_count": 1
   },
   "RC-e375a3f76f0e": {
    "state": "REVIEW",
-   "issue_count": 5
+   "issue_count": 1
   },
   "RC-4d0581cd9ea4": {
    "state": "REVIEW",
-   "issue_count": 6
+   "issue_count": 3
   },
   "RC-b2390ccfe4f8": {
    "state": "BLOCK",
@@ -188,7 +188,7 @@
   },
   "RC-9c650330d0b0": {
    "state": "BLOCK",
-   "issue_count": 8
+   "issue_count": 7
   },
   "RC-88703b45e041": {
    "state": "BLOCK",
@@ -216,11 +216,11 @@
   },
   "RC-160a343ee259": {
    "state": "BLOCK",
-   "issue_count": 12
+   "issue_count": 11
   },
   "RC-f464dd705a40": {
    "state": "BLOCK",
-   "issue_count": 10
+   "issue_count": 9
   },
   "RC-2ba880a99ed7": {
    "state": "BLOCK",
@@ -235,15 +235,15 @@
    "issue_count": 3
   },
   "RC-8a55c138738b": {
-   "state": "REVIEW",
+   "state": "BLOCK",
    "issue_count": 3
   },
   "RC-de8ad438d9fb": {
-   "state": "REVIEW",
+   "state": "BLOCK",
    "issue_count": 3
   },
   "RC-3580274a6626": {
-   "state": "REVIEW",
+   "state": "BLOCK",
    "issue_count": 3
   },
   "RC-bab2edd68023": {
@@ -256,71 +256,71 @@
   },
   "RC-7fd345760ffe": {
    "state": "REVIEW",
-   "issue_count": 5
+   "issue_count": 1
   },
   "RC-3f95f2e55f5a": {
    "state": "REVIEW",
-   "issue_count": 5
+   "issue_count": 1
   },
   "RC-53a4e85faf9b": {
    "state": "REVIEW",
-   "issue_count": 5
+   "issue_count": 3
   },
   "RC-aeee8c26dfe1": {
-   "state": "REVIEW",
-   "issue_count": 5
+   "state": "PASS",
+   "issue_count": 0
   },
   "RC-ecf67146fd0c": {
    "state": "REVIEW",
-   "issue_count": 5
+   "issue_count": 0
   },
   "RC-2694cc2ea7e0": {
    "state": "REVIEW",
-   "issue_count": 4
+   "issue_count": 0
   },
   "RC-91c69b0a8286": {
    "state": "REVIEW",
-   "issue_count": 5
+   "issue_count": 0
   },
   "RC-deaba19ba907": {
    "state": "BLOCK",
-   "issue_count": 4
+   "issue_count": 2
   },
   "RC-db3a96f77756": {
    "state": "BLOCK",
-   "issue_count": 4
+   "issue_count": 2
   },
   "RC-82dc86434f04": {
    "state": "BLOCK",
-   "issue_count": 6
+   "issue_count": 4
   },
   "RC-343e1164bb64": {
    "state": "BLOCK",
-   "issue_count": 4
+   "issue_count": 2
   },
   "RC-0f1b167eb191": {
    "state": "REVIEW",
-   "issue_count": 5
+   "issue_count": 1
   },
   "RC-353dce943720": {
    "state": "REVIEW",
-   "issue_count": 5
+   "issue_count": 0
   },
   "RC-7c58dd16d9e6": {
    "state": "REVIEW",
-   "issue_count": 5
+   "issue_count": 0
   },
   "RC-438f21d94cd9": {
    "state": "REVIEW",
-   "issue_count": 5
+   "issue_count": 0
   },
   "RC-ecacc677b638": {
    "state": "REVIEW",
-   "issue_count": 4
+   "issue_count": 3
   },
   "RC-bfb2359bac62": {
    "state": "REVIEW",
-   "issue_count": 4
+   "issue_count": 2
   },
   "RC-0467e7eee62c": {
    "state": "BLOCK",

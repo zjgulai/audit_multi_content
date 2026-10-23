@@ -30,8 +30,13 @@ import * as asr from './agent/asr.mjs';
 // ★ 2026-10-16：**媒材链接**（送审问题那一格里的图/视频链接）的启动自检 —— 见下面横幅那一条
 import * as mediaLink from './agent/media_link.mjs';
 import { handleMessage, flushSeen, loadedTools, status, mediaWithoutChain } from './agent/agent.mjs';
+// ★ 链的上限只认一个出处（`tools.mjs` 的 `KB_REVIEW_TIMEOUT_MS`）：进度消息里那句
+//   「到 N 分钟还没结论我会停下来」必须跟真实闸门一致 —— 写死一个数字就是第二份真相。
+import { KB_REVIEW_TIMEOUT_MS } from './agent/tools.mjs';
+// ★ 2026-10-20：单实例闸门 —— 防「重启窗口里两个守衡同时在线」（同一条消息答两遍／两单并行）
+import * as singleInstance from './agent/single_instance.mjs';
 // ★ 拒收账本的**唯一**取路径口（可被 SHOUHENG_IDENTITY_REJECT_LOG 覆盖）—— 从它定义处导入
-import { identityRejectCount } from './agent/tools.mjs';
+import { identityRejectCount, KB_ROOT } from './agent/tools.mjs';
 import { nonUsCiteCount } from './agent/ext_basis.mjs';
 import { toCardOrText } from './reply-cards/envelope.mjs';
 import { deriveVerdictLine } from './agent/prd53.mjs';
@@ -255,6 +260,27 @@ async function onMessage(data) {
   if (LARK_DOC_RE.test(preview)) void baselineWatch('link', chatId);
 
   const t0 = Date.now();
+  // ★★ 2026-10-23（Owner 原话：「守衡处理中都 8 分钟了，还没回复」）—— **中途说一声**。
+  //   病灶：那一单在链里**静默了 9 分 9 秒**（4B 联网核查的请求发出去就不回来），
+  //   群里从头到尾只有那张「⏳ 处理中…」。它既不说进度、也不说卡点，读的人只能猜「是不是死了」。
+  //   口径：
+  //     · 只发**一条**（到点一次），不轮询、不刷屏；
+  //     · 跑完/出错/超时都会 `clearTimeout`，所以正常情况下群里**看不到**这条；
+  //     · 说的必须是**真话**：卡在哪、还会不会继续等、等不到会怎样 —— 与那句
+  //       「请重新发送原图」「请在…证据齐全后重新审核」是同一类错误的解药：
+  //       **把读者能做与不能做的事分开写清**。
+  const PROGRESS_MS = Number(process.env.SHOUHENG_PROGRESS_PING_MS || 5 * 60_000);
+  const progressTimer = PROGRESS_MS > 0
+    ? setTimeout(() => {
+        void replyTo(chatId, msg.message_id,
+          `【⏳ 还在跑】这一单已经跑了 ${Math.round(PROGRESS_MS / 60000)} 分钟，慢在知识库比对那一步。\n`
+          + `有结论我立刻回你；到 ${Math.round(KB_REVIEW_TIMEOUT_MS / 60000)} 分钟还没结论，`
+          + '我会停下来把卡在哪写清楚，并自动排进补发队列。\n'
+          + '你不用催，也不用重发这张图 —— 卡点在我这侧。',
+          msg.chat_type, 'chain-progress').catch(() => {});
+      }, PROGRESS_MS)
+    : null;
+  if (progressTimer && typeof progressTimer.unref === 'function') progressTimer.unref();
   let result;
   try {
     result = await handleMessage(data, {
@@ -276,12 +302,14 @@ async function onMessage(data) {
       tIngressOrigin: ingress.origin,
     });
   } catch (e) {
+    clearTimeout(progressTimer);
     counters.failed++;
     log(`   ✗ 内核异常: ${e?.stack ?? e?.message ?? e}`);
     await safeSend(chatId, `我处理这条消息时内部出错了，没能回答。\n\n错误：${e?.message ?? e}\n\n（已记录，这是我的问题。）`,
                    'error-fallback', msg.chat_type);
     return;
   }
+  clearTimeout(progressTimer);   // 跑完了就别再发进度（发了就是假读数）
   const ms = Date.now() - t0;
 
   if (!result.reply) {
@@ -394,6 +422,10 @@ async function onMessage(data) {
   //   而形态决策仍然只在 `replyTo` 一处做（§2.5）—— 这里只是**递读数**，不定形态。
   const sent = await replyTo(chatId, msg.message_id, result.reply, msg.chat_type, 'reply',
     { verdict53: result.meta?.verdict53 ?? null,
+      // ★ 2026-10-22（Owner：「输出的卡片不展示 视觉分析与 OCR」）：
+      //   `imageAnalysis` **不再往下传** —— 与 2026-10-13 撤 `mediaRead` 同一条口径：
+      //   读数留在日志、会话记忆、报告附录，**都不上卡**；留一个没人读的入参
+      //   就是「传了但没人接」那个病（§2.4.4），所以内核那一格也一并撤了。
       // ⚠️ 2026-10-13：`mediaRead` **不再往下传** —— 媒材读数按 Owner 的要求不上卡了
       //   （`envelope.toCardOrText` 那个入参也一并撤掉，免得留下一个没人读的入参）。
       //   读数本身没丢：内核的 `📥 读到｜…` 日志、会话记忆、报告附录三处都在。
@@ -404,6 +436,24 @@ async function onMessage(data) {
   //   于是「未跑专项审查 / 仍需转对应专项复核」这句话**守衡答得出来**，只是不上卡。
   if (sent.ok) { counters.replied++; log(`   ✓ 已发送 ${sent.messageIds.filter(Boolean).join(', ')} [${sent.mode}]`); }
   else { counters.failed++; log(`   ✗ 发送失败: ${sent.error}`); }
+
+  // ★★ 2026-10-21（Owner：「P0 红线问题必须 10 秒内回」）——
+  //   **P0 确定性命中那一路的用户实测延迟**（消息 `create_time` → 卡片发出去为止）。
+  //
+  //   为什么这条读数非有不可（AGENTS.md §2.4：写进文档的上限必须能指出哪一行在量它）：
+  //     · 旧世界里 P0 单 p50 **62.1 s**（min 27.3 / max 382），而**没有任何一行**在量它 ——
+  //       `group_response_ms` 量的是「⏳ 处理中」那张回执（≤5 s 那条），不是结论；
+  //     · 现在命中即停后续审查、直接出结论卡（`result.meta.p0Direct`），这条路必须自带读数，
+  //       否则「10 秒」就只是一句话（本仓禁的形状）。
+  //   ⚠️ `verdict` 只在**真发出去了**之后才算数：没发出去时写 `FAIL`（那不是"快"，是没送到）。
+  //   ⚠️ 起点用 `create_time`（飞书服务端盖的），来源写进 `ingress=` —— 两个来源不许混着说。
+  if (result.meta?.p0Direct) {
+    const directMs = Date.now() - ingress.at;
+    const okNow = directMs <= 10000 && sent.ok;
+    log(`[metric] direct_answer_ms=${directMs} prd_limit_ms=10000`
+      + ` verdict=${okNow ? 'pass' : 'FAIL'} stage=p0-direct`
+      + ` ingress=${ingress.origin} sent=${sent.ok ? 'ok' : 'fail'} chat=${chatId}`);
+  }
 }
 
 /**
@@ -743,29 +793,59 @@ async function pendingWatch(reason, chatId) {
 
 /* ─────────────────────── 事件注册 ─────────────────────── */
 
+// ★★ 2026-10-22：**非消息事件也必须「走完」计数**。
+//
+//   病灶（本轮审计发现，还没出过事故，但一定会）：`restart_shouheng.sh` 的「正在处理中」
+//   判据是 `events > handled+skipped+failed+uncaught`（「有事件还没走完 ⇒ 现在重启会掐断它」）。
+//   而下面三个 handler 原先**只 `events++`、从不记任何 done** ⇒ 只要收到过一次
+//   `bot.added` / `bot.deleted` / `card.action.trigger`，`events` 就永远比 `done` 多 1，
+//   闸门从此**永久**报「有 1 条还没走完、现在重启会掐断它」，也就永远拒绝重启 ——
+//   下一个人只能被迫 `--force-inflight`，而那个开关存在的意义正是「不该被日常用到」。
+//
+//   三个事件的归属（按它们到底做了什么分，不是按名字）：
+//     · `bot.added`  → 会发一句欢迎语（真干了活）⇒ `handled++`
+//     · `bot.deleted`→ 只记日志（无事可做）    ⇒ `skipped++`
+//     · `card.action.trigger` → 只记日志       ⇒ `skipped++`
+//   两个删除/交互的分支都用 `try/finally` 记在**同一个 finally** 里：
+//   中途抛异常也照样销账 —— 否则「崩了的那个事件」会把闸门永久卡死（比不计数更糟）。
+//   判据在 `tools/verify_shouheng_ops.py` 的 **I 段**（含反向对照）。
 const handlers = {
   'im.message.receive_v1': onMessage,
 
   'im.chat.member.bot.added_v1': async (d) => {
     counters.events++; dumpRaw('im.chat.member.bot.added_v1', d);
-    log(`★ 被拉进群 chat=${d?.chat_id}`);
-    const info = await feishu.getChatInfo(d?.chat_id);
-    await safeSend(d?.chat_id,
-      `我是守衡，已加入「${info?.name ?? '本群'}」。\n\n` +
-      `我会在这个群里做的事：回答问题、查工作区里的资料、记住我们聊过的上下文。\n` +
-      `@我 就能叫我。不 @ 我不会插话。`, 'greeting', 'group');
+    try {
+      log(`★ 被拉进群 chat=${d?.chat_id}`);
+      const info = await feishu.getChatInfo(d?.chat_id);
+      await safeSend(d?.chat_id,
+        `我是守衡，已加入「${info?.name ?? '本群'}」。\n\n` +
+        `我会在这个群里做的事：回答问题、查工作区里的资料、记住我们聊过的上下文。\n` +
+        `@我 就能叫我。不 @ 我不会插话。`, 'greeting', 'group');
+      counters.handled++;                    // 欢迎语发出去了 = 这条事件走完了
+    } catch (e) {
+      counters.failed++;                     // 发不出去也要销账，并把原因留成读数
+      log('⚠ 欢迎语没发出去（这条事件仍算走完）:', e?.message ?? e);
+    }
   },
 
   'im.chat.member.bot.deleted_v1': async (d) => {
     counters.events++; dumpRaw('im.chat.member.bot.deleted_v1', d);
-    log(`★ 被移出群 chat=${d?.chat_id}`);
+    try {
+      log(`★ 被移出群 chat=${d?.chat_id}`);
+    } finally {
+      counters.skipped++;                    // 无事可做，但不能不销账
+    }
   },
 
   'card.action.trigger': async (d) => {
     counters.events++; dumpRaw('card.action.trigger', d);
-    log(`★ 卡片交互 ${JSON.stringify(d).slice(0, 400)}`);
-    // 卡片交互的回调应答需要返回 toast，这里先只记录；
-    // 等真正做出交互卡片的业务场景时再接（不预先写没有调用方的代码）。
+    try {
+      log(`★ 卡片交互 ${JSON.stringify(d).slice(0, 400)}`);
+      // 卡片交互的回调应答需要返回 toast，这里先只记录；
+      // 等真正做出交互卡片的业务场景时再接（不预先写没有调用方的代码）。
+    } finally {
+      counters.skipped++;                    // 同上：记了日志就等于这条走完了
+    }
   },
 };
 
@@ -774,10 +854,31 @@ const handlers = {
 log('='.repeat(74));
 log('守衡 · 常驻入口 v3');
 for (const [k, v] of Object.entries(describeConfig())) log(`  ${k.padEnd(24)} = ${v}`);
+log(`  知识库根(KB_ROOT)       = ${KB_ROOT}`);
+// ★ 2026-10-21：这一行是**事故驱动**加的。判据改在本仓 `内容治理知识库/`，而守衡读的是 KB_ROOT ——
+//   群里复测仍 PASS，排查绕了一圈。库路径不许只活在 `tools.mjs:1235` 那一行常量里。
 log(`  tools                 = ${loadedTools().join(', ')}`);
 log(`  事件落盘              = ${path.relative(REPO_ROOT, EVENT_DUMP)}`);
 if (DUMP_ONLY) log('  ⚠ --dump-only：只落盘，不回复');
 log('='.repeat(74));
+
+/* ───────────── 单实例闸门（2026-10-20 加）─────────────
+ * 为什么放在**建连之前**：`--dump-only` 也要占名额（它同样写 ws_events.jsonl），
+ * 而真正要防的是「两个进程同时连着飞书」。放到 `ws.start()` 之后，
+ * 两个实例已经开始收事件了，闸门就只是事后通知。
+ *
+ * 判据与反向对照：`agent/single_instance.mjs` ＋ `agent/single_instance.test.mjs`（16/16）。
+ * 退出码 75 = ex_tempfail：launchd `KeepAlive{SuccessfulExit:false}` 只在**非零**退出时拉起，
+ * 于是新实例会在 `ThrottleInterval`（10s）后重试 —— **等旧的走干净**，而不是并排跑。
+ */
+const single = singleInstance.acquire();
+if (!single.ok) {
+  log(`✗ 另一个守衡还活着（${single.why}）—— 本进程不启动，退 ${singleInstance.EXIT_ANOTHER_INSTANCE}`);
+  log('  为什么必须这样：两个实例同时在线 ⇒ 同一条消息被答两遍、两条链并行开两单、去重表互相覆盖。');
+  process.exit(singleInstance.EXIT_ANOTHER_INSTANCE);
+}
+log(single.degraded ? `  ⚠ 单实例闸门降级：${single.why}`
+                    : `  单实例闸门            = 已占位（pid ${process.pid}）`);
 
 const dispatcher = new Lark.EventDispatcher({}).register(handlers);
 const ws = new Lark.WSClient({
@@ -815,7 +916,17 @@ async function shutdown(sig) {
   log(`\n收到 ${sig}，正在收尾…`);
   flushSeen();                                  // 把去重表落盘，重启后不会重复回话
   log(`本次统计：事件 ${counters.events} / 已回答 ${counters.handled} / 已发送 ${counters.replied} / 跳过 ${counters.skipped} / 失败 ${counters.failed} / 未捕获 ${counters.uncaught}`);
-  try { await ws.stop?.(); } catch {}
+  // ★ 2026-10-20（单实例闸门的配套）：**先把长连接关掉，再释放名额**。
+  //   顺序反了就是白做这道闸：名额一放，接班进程立刻起来建连，
+  //   而这边 `ws.stop()` 还没返回 —— 两条连接并存的那几秒，同一个事件会被两边各处理一次，
+  //   正是这道闸要防的东西。
+  //   但也不能无限等：`ws.stop()` 在有链在飞时可能拖很久，拖住就等于把接班进程饿死
+  //   ⇒ 8 秒上限，超时就照常释放并退出（那时本进程已经不再处理任何事）。
+  try {
+    await Promise.race([ws.stop?.(), new Promise((r) => setTimeout(r, 8000))]);
+  } catch {}
+  const rel = singleInstance.release();
+  if (!rel.ok) log(`  ⚠ 单实例名额没释放成：${rel.why}`);
   process.exit(0);
 }
 /* ─────────── 未捕获异常：计数 + 越线在群里自报（**不退出**） ─────────── */

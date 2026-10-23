@@ -261,6 +261,19 @@ gaps_unresolved:
 
     '
   history_rows_untouched: 历史行（`AUTO-…` 与 `text-…`）**一律不改**；新单才发 `AD-…`。表内因此会并存两种形态的 ID。
+- id: GAP-RO-7
+  title: 报告**版式**有两个产者（库侧 feishu_publish ／ 守衡 merged_report），版式口径未统一
+  status: 待人工判（谁渲染报告）
+  evidence:
+    - '库侧：`kb/l7/review-engine/core/feishu_publish.py::render()` —— 产出 `# 内容审查报告 · rv-…` ／ `## 一、问题分类汇总`（两列表）／ `- 结论：…` ／ `## 三、溯源（逐层 L4→L3→L2→L1→L0）`'
+    - '守衡侧：`tools/agent/merged_report.mjs::renderMergedReportMd()` —— 产出 `# 内容审查报告` ／ `【审查结论：X】` ／ `· 类别类问题：N 个` ／ `一句话：` ／ `## 审查对象` ／ `## 一、问题总览`（6 列）／ `## 二、问题清单（P0 → P3）` ／ `## 三、执行`'
+  owner_ruling_20261020: 'Owner 2026-10-20 拿 docx `RH7QdI7VUo1JDlxjKCqcTmZTnxg` 逐字定：「这才是正确的报告模版」 ⇒ **正确版式 = 守衡那条**；库侧 `feishu_publish.py` 的版式**不是**。'
+  why_it_matters: 'skill 的「强制链路」默认调 `feishu_publish.py` 发布 ⇒ **照 skill 跑出来的报告版式是错的**，而技能正文原本一个字都没提正确模板。2026-10-20 实测：同一单先后产出两份不同版式的文档，人点开发现「跟十分钟前那份长得不一样」。'
+  open_question: '报告由谁渲染 —— ① `feishu_publish.py` 改成调合并渲染器；② 链路里加一跳调守衡那条；③ 两处并存但发布件**只写表行**、正文一律由合并渲染器出。'
+  interim_20261020: '仅在 `~/.dsh/skills/图片安全审查/SKILL.md` 的「发布」段**写入口径**（版式以守衡合并渲染器为准、`feishu_publish.py` 只负责表行），**未动任何代码**。同日实测补法：用 `renderMergedReportMd` 渲染 + `publishReportDoc` 建文档 + `base +record-batch-update` 把表行「报告链接」改指向新文档。'
+  do_not: '在未定归属前把两条渲染器再合并成「第三份」实现 —— 那会变成三个产者（本库已因「同一事实写两处」返工过）。'
+  judges: '无（本条是待决缺口，不是判据）'
+
 applied_20261002:
 - 报告链接：仅 问题数量 ≥ 3 的行填链接（甲组 7 行中只有 B 行 n=3）；其余 6 行清空。
 - 报告链接指向**飞书云文档**（非本地路径）：https://momcozy-in.feishu.cn/docx/M9qBddNSyoRudXxSvHTc5aPrn3g
@@ -2762,7 +2775,16 @@ applied_20261010_regression_set:
     **那一单做不到** ⇒ 只能靠**同一批素材的三态比对**。而库里**没有金标件** ⇒
     那句话今天**无法证明**。本件就是那把尺子。
   ★★_与目标14不是一回事:
-    'Owner 已把**目标 14（每周人工抽检 100 条）**推迟到开发完成 90%。本件**不是那条**：
+    '★★ **2026-10-19 更正 —— 原记录是假的，已撤**：本条原写
+     「Owner 已把**目标 14（每周人工抽检 100 条）**推迟到开发完成 90%」。
+     **Owner 2026-10-19 明确否认**（原话：「开发完成90%，我没说过」）。
+     旁证：PRD 全文（v1.4 / rev 230）搜「推迟」「开发完成」「目标 14」**均 0 命中**；
+     全文唯一的 90% 是 §11.1「整体四态准确率 ≥90%」（另一处 §6.4 是举例、§1.2 是「争取 90% 以上准确性」），
+     **没有一处是开发进度**。⇒ **这个推迟不存在**；目标 14 的状态是**未完成**
+     （清单已出 `kb/l7/reports/audit-sample-ALL.csv` 100 条，人判 0/100）。
+     ★ 由此得一条纪律：**没有逐字原话的「Owner 说」，不许当依据**（本库栽过同类：
+     凭一句转述把一项必做目标压了 9 天）。
+     本件与目标 14 **仍然不是一回事**，但理由与推迟无关，是**对象不同**：
      · **本件**＝从**既有**评审里采已知答案的素材，做**回归对照**（改前/改后同一批）；
      · 目标 14＝**人**每周抽检**新**记录、评估**准确率**。**对象、目的、执行者都不同。**'
   ★★_关键设计_拒答必须单独分层:
@@ -2787,7 +2809,7 @@ applied_20261010_regression_set:
   - '★ 回归集只覆盖**历史素材**，不覆盖将来。'
   - '★ 它记录的是**当时的三态**；若那三态本身有错，会把错固化 ⇒ 8 条已标 `needs_human_label`，其余仍需人过一眼。'
   - '★ **没有自动消费者** —— 用它做对照是**人的动作**（改上游前后各跑一遍、逐条比对）。本件只把尺子做出来。'
-  - '★ **不等于目标 14 已完成**（那条仍按 Owner 指示推迟）。'
+  - '★ **不等于目标 14 已完成** —— 目标 14 现状：清单已出（`kb/l7/reports/audit-sample-ALL.csv` 100 条），**人判 0/100 未填 ⇒ 未完成**。（原文「那条仍按 Owner 指示推迟」已证伪，见上条 2026-10-19 更正。）'
 
 # ── ★ 2026-10-12（Owner 签字）：把「问题数」**拆开**（只加字段，契约值不动）──────────
 #   病灶：`issue_count = len(risk_items)` 把**非权威候选**（`rule_engine.scan_text()` 的产出，
@@ -4851,3 +4873,2016 @@ fix_20261017_card_summary_11class:
     - 'node test_agent.mjs（271 ✅ / 0 ❌）'
     - 'python3 kb/l8/workflow_smoke.py（rc 0）｜ python3 ci/run_gates.py（与基线逐项一致）'
     - 'python3 kb/l7/review-engine/core/prd53_format.test.py（13/0）'
+
+fix_20261019_card_prd_fields:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: '守衡的回答中，去掉锚点，必须给建议；L0 逐字去掉，飞书链接中依据中已经存在，卡片信息必须按照 prd 字段执行'
+  what_changed:
+    - '卡片的逐条块**去掉 `**锚点**：…｜source_sha256：…` 那一行**（三个产者同批改：`kb/l5/p0_fastpath.py::_prd_block`、`kb/l7/skills/kb-content-review/scripts/review.py::render`、`kb/l7/review-engine/core/review_engine.py::_item_lines`）'
+    - '卡片的逐条块**去掉 `L0 逐字（可点直链）：…` 那一行**（它与「依据」里的 `（链接：…）` 是同一个 URL，印两遍）'
+    - '「建议」**恒非空**：新增兜底改法表 `kb/l5/advice_book.py`（10 条 P0 码），并把它接进三条产出路径'
+    - '位置按 PRD §5.3.3 精确到段：`全文` → `正文第 N 段`（取匹配器的 `matched[].line`，不猜）'
+  why:
+    - '锚点是**库内坐标**（`#广告文案明细/rec…/命中片段`），业务侧读不懂；PRD §5.3.3/§5.3.4 的逐条字段只有【维度-子类】位置·原文·原因·依据（含链接）·建议'
+    - '实测 17 条 P0 模式里 **10 条** `fix_pairs` 与 `suggested_replacement` 皆空 ⇒ 卡上永远印「（来源未给修改建议）」，收卡人看完仍不知道改什么'
+  prd_fields_after:
+    - '【维度-子类】位置，原文（`N.【类别-子类】正文第 N 段，逐字命中 `x``）'
+    - '原因 ／ 依据（`《库》第 X 条（链接：https://…）`）／ 建议（BLOCK 必有）'
+  evidence_not_lost:
+    - '`anchor` / `source_sha256` / `entry_url` 仍在 findings、**报告**（`_doc_block` 的「锚点 + 指纹」「L0 逐字（可点直链）」两行 ＋ 四段溯源表）、入口 JSON 与 `risk_items.evidence` 里 —— 删的是**卡上那一行**，不是证据'
+    - '`kb/l8/e2e_acceptance.py` 的四段溯源、`workflow_smoke` S4 读的都是**报告与 JSON**（本批复跑通过）'
+  advice_priority:
+    - '① L3 `fix_pairs`（按命中片段）→ ② 该码首组 `fix_pairs` → ③ 模式表 `suggested_replacement` → ④ **兜底表** `kb/l5/advice_book.py` → ⑤ 按命中表述的通用句（永不返回空）'
+    - '兜底表每条都带 `basis`（出处）：H 系取同码 L0「边界内容/触发原因/豁免词」，V 系取 PRD §7.3 与 §5.3.4 模板；每句 ≤30 字（PRD §5.3.3）'
+  provenance_not_on_card:
+    - '卡面**干净**（PRD 五格，≤30 字的建议不带来源说明）；出处落在数据里：`_item_fields()["advice_source"]` / `risk_items[].suggestion_source`，以及**报告**「建议」格尾的「（改法来源：P0 兜底改法表 … 不是库规原文）」'
+  deviation_disclosed: >
+    ① PRD §5.3.4 的样张把「原因」与「依据」画在**同一行**（`原因：…。依据：《…》第 X 条（链接）。`），
+       本卡仍分两行 —— 沿用 Owner 2026-10-09 的裁定（四要素一行不少、顺序不动、字段加粗保留），
+       且 `kb/.work/l7_integrity.py` 的加粗判据钉着。**字段集合与顺序与 PRD 一致，只是行数不同。**
+    ② 三态前缀仍是 `【审查结论：X】`：PRD v1.4 已改成 `【BLOCK】`，但守衡 `prd53.mjs` 的 `LINE_RE`
+       只认三态，单侧改会断链 —— 见 `prd-v1.3-alignment.yaml` 的 changes.A/C（recorded，未跟）。
+  boundaries:
+    - '只改**卡片**的逐条块；报告版式、报告门槛、判定逻辑、三态、P0 命中即 BLOCK、置信度、落表**一个字没动**。'
+    - '兜底表只覆盖「库内本来没有原话」的 10 条 P0 码；库内一旦补上原话，原话**自动优先**（兜底表让位，`advice_book --selftest ④` 会提示）。'
+    - 'REVIEW 单的逐条**不补**建议：PRD §5.3.4 的 REVIEW 模板里没有逐条「建议」行（改法是 `建议转 @…复核。`）。'
+  gauges:
+    - 'python3 kb/l5/advice_book.py --selftest（14/0，含三条反向对照：空串/占位符/超 30 字）'
+    - 'python3 kb/l5/p0_fastpath.py --selftest（55/0；新增 ④2–④7、⑥f3、⑪–⑪6，均带反向对照）'
+    - 'python3 kb/.work/l7_integrity.py（template_from_engine：逐条三要素 / 无 判定 行 / 无 锚点 行 / 建议非占位符；template_conformance 同步改名并保留历史夹具）'
+    - 'python3 kb/l7/review-engine/core/prd53_format.test.py（13/0）｜ python3 -m pytest kb/l7/review-engine/tests（99 passed / 2 failed —— 两条为**既存** stale 判据，断言四维桶名而 `review.py` 已在 2026-10-17 改 11 类）'
+    - 'python3 kb/l8/workflow_smoke.py（rc 0）｜ --selftest（19/0）｜ python3 ci/run_gates.py（18/20，红无；perf_bench 基础设施、verdict_latency 非阻断，均为既存）'
+    - 'node agent/dual_track.mjs --selftest（52/0）｜ node agent/prd53_format.test.mjs（19/0）｜ node test_agent.mjs'
+
+fix_20261019_card_summary_back_to_dimension:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: '问题数量大于或等于3个时，要有分类汇总“· 合规类：X 个 · 消费者安全类：X 个 · 措辞类：X 个）……查看卡片所有的回复必须跟prd 5.3对齐'
+  supersedes: fix_20261017_card_summary_11class
+  supersedes_note: >
+    2026-10-17 那条（按 Owner 逐字「把卡片的分类汇总行改成 11 类」）**已被本件回退**。
+    两份 Owner 口径冲突时**以 PRD §5.3 为准**（Owner 2026-10-19 明确要求对齐 PRD）。
+    11 类**没有消失**：仍在报告的「按 11 类汇总」段（`report_memory.taxonomy_groups` /
+    `taxonomyReportLines`）与逐条标签里，只是不再顶替卡片的分类汇总。
+  root_cause: >
+    **11 类在模型侧条目上根本盖不上章**：`stamp_taxonomy()` 只认规则表里的 `rule_id`，
+    而模型侧/外部标准/反例案例层（`sc-…`）条目不在规则表里 ⇒ `taxonomy_category=None`。
+    ⇒ 卡片的 ≥3 汇总**退化成常数桶**：真单（报告 `D2yidl8QboNhqDxEfxwcpR6Dnfc`，4 条全是模型侧）
+    印出来只有 `· 未归 11 类问题：4 个` —— 读卡的人拿不到任何分布。
+  alarm_missed: >
+    ★ 这个回退**本来有警报**：`kb/l7/review-engine/tests/test_review_dimension_wiring.py` 的两条断言
+    （`· 合规类问题：N 个`）自 2026-10-17 起一直是**红的**。2026-10-19 上午我在交付
+    `交付-卡片按PRD字段收口-20261019.md` 时把它们判成「既存 stale 判据」并搁置 —— **判错了**：
+    它们是对的，红的就是这个 PRD 违反。教训：**判据红先当真的查，别先当它旧了**。
+  producers_fixed:
+    - 'kb/l7/skills/kb-content-review/scripts/review.py::render（≥3 分支）：11 类 → **PRD 四维**、一行形状'
+    - 'kb/l7/review-engine/core/review_engine.py::render_summary（≥3 分支）：**库内类别** → **PRD 四维**、一行形状（这个产者此前一直是第三个轴）'
+    - 'kb/l5/p0_fastpath.py::_summary_lines：形状改成 §5.3.4 的一行（轴本来就是四维）'
+    - 'tools/agent/dual_track.mjs::categorySummary（守衡）：11 类 → **PRD 四维**、一行形状'
+  axis_and_shape:
+    axis: '`risk_category`（合规 / 消费者安全 / 产品描述 / 措辞表达），取不到落 `未标注维度` 桶；**不猜**'
+    shape: '`· <维度>类：N 个 · <维度>类：M 个`（PRD §5.3.4 逐字；样张没有「问题」二字、写成一行）'
+    order: '条数降序 → 并列按四维顺序（合规→消费者安全→产品描述→措辞表达）→「未标注维度」压最后'
+    cross_repo: 'kb 三处与守衡一处**同批**改（只改一处会剩三条腿 —— 本单就是因为三条腿各走各的轴才复现）'
+  deviation_disclosed: >
+    ① 维度名用政策件（`risk-category-policy.json`）的受控取值，因此写 `措辞表达类` 而 PRD §5.3.4 样张写 `措辞类`；
+       §5.3.1 的枚举里也正是「措辞表达」⇒ 视为样张的简称，不另造第二种写法。
+    ② PRD §5.3.2 那张内嵌表（`xcdTpv`）**只有 状态/定义/动作 三列**，没有分类汇总样张 ——
+       样张只在 §5.3.4；此前代码注释里「§5.3.2 的逐字示例」是**误引**，本件一并更正。
+    ③ 守衡侧「另有 N 条（明细在报告里）」仍是**独立一行**（不并进汇总行）：并进去会破坏
+       `· X类：N 个` 的可解析形状，而那一行解决的是「卡内算术不闭合」（抬头 12 / 分类 7）。
+  gauges:
+    - 'python3 kb/l5/p0_fastpath.py --selftest（57/0；⑥e2 形状 / ⑥e3 反向对照 / ⑥e 计数和 / ⑥g3 两端一致）'
+    - 'python3 kb/l7/review-engine/core/prd53_format.test.py（14/0；②b 一行 / ②b2 拆行反向对照 / ③c 拆行判得出）'
+    - 'python3 -m pytest kb/l7/review-engine/tests（101 passed —— 包含**两条先前一直红着的四维断言**）'
+    - 'node agent/prd53_format.test.mjs（23/0；②b/②b2/②b3/②b4、③b/③b3）'
+    - 'node agent/dual_track.mjs --selftest（126/0 ＋ 抽取 52/0）｜ node verify_cards.mjs（347/0）'
+    - 'node test_agent.mjs（271 ✅ / 0 ❌）'
+    - 'python3 kb/l8/workflow_smoke.py（rc 0）｜ python3 ci/run_gates.py（与基线逐项一致）'
+  card_sample_after: |
+    【审查结论：REVIEW】共发现 4 处需人工确认。
+
+    逐条问题
+    · 措辞表达类：2 个 · 消费者安全类：1 个 · 产品描述类：1 个
+
+    → 查看完整问题清单与修改建议：https://momcozy-in.feishu.cn/docx/D2yidl8QboNhqDxEfxwcpR6Dnfc
+
+    建议转 @产品负责人（未配置） @法务（未配置） @北美同事（未配置） @医学顾问（未配置） 复核。
+  deployed: '守衡已重启：pid 28538（2026-10-19 10:20:16 起）＞ dual_track.mjs mtime 10:17 ⇒ 跑的是新代码'
+
+fix_20261019_card_summary_per_line:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: '按照下面的格式优化，目前是写的一行，修复后落库 —— 逐条问题 / · 功效宣称类问题：1 个 / · 绝对化与安全承诺类问题：1 个 / ……'
+  supersedes_shape_of: fix_20261019_card_summary_back_to_dimension
+  relation: >
+    **轴不变**（仍是 `fix_20261019_card_summary_back_to_dimension` 定下的 PRD 四维 `risk_category`），
+    **只改形状**：上一版是「一行装完（`· 合规类：1 个 · 消费者安全类：1 个`）」，
+    Owner 说「目前是写的一行」⇒ 改成**每类一行**、写法 `· <维度>类问题：N 个`。
+  shape:
+    - '有命中：`· <维度>类问题：N 个` 每类一行，行间**不空行**（Owner 2026-10-14 裁定沿用）'
+    - '顺序：固定四维次序（合规 → 消费者安全 → 产品描述 → 措辞表达）→ 「未标注维度」桶压最后'
+    - '没有并进任何逐条：`·（本次没有并进任何逐条）`'
+  axis_caveat: >
+    ⚠️ Owner 举的例子里同时出现 **库内类别**（`功效宣称类` / `绝对化与安全承诺类`）与**维度**
+    （`合规类` / `消费者安全类` / `措辞表达类`）—— 这两套不是同一个轴，一张卡上不可能同时出现
+    （功效宣称与绝对化与安全承诺**都映射到「合规」**）。本件按**维度**出（上一轮 Owner 令
+    「必须跟 PRD §5.3 对齐」，PRD 那几行分的是四维）。**若你要的是库内类别（8 类）**，
+    改一处即可：四个产者里 `risk_category` → 类目键，一句话就能切。
+  producers_changed:
+    - 'kb/l7/skills/kb-content-review/scripts/review.py（≥3 分支）'
+    - 'kb/l7/review-engine/core/review_engine.py（render_summary ≥3 分支）'
+    - 'kb/l5/p0_fastpath.py（_summary_lines）'
+    - 'tools/agent/dual_track.mjs（categorySummary）'
+  gauges:
+    - 'python3 kb/l5/p0_fastpath.py --selftest（58/0；⑥e2 每类一行 / ⑥e2b 行间不空行 / ⑥e3 缩成一行反向对照）'
+    - 'python3 kb/l7/review-engine/core/prd53_format.test.py（15/0；②b 每类一行 / ②b2b 行间不空行 / ②b3 缩行判得出 / ③c）'
+    - 'python3 -m pytest kb/l7/review-engine/tests（101 passed）'
+    - 'node agent/prd53_format.test.mjs（23/0；②b/②b2b/②b3、③b/③b3）'
+    - 'node verify_cards.mjs（347/0）｜ node agent/dual_track.mjs --selftest（126/0 ＋ 52/0）'
+    - 'node test_agent.mjs（271/0）｜ python3 kb/l8/workflow_smoke.py（rc 0）'
+  card_sample_after: |
+    【审查结论：REVIEW】共发现 4 处需人工确认。
+
+    逐条问题
+    · 合规类问题：1 个
+    · 消费者安全类问题：1 个
+    · 产品描述类问题：1 个
+    · 措辞表达类问题：1 个
+
+    → 查看完整问题清单与修改建议：https://momcozy-in.feishu.cn/docx/D2yidl8QboNhqDxEfxwcpR6Dnfc
+
+    建议转 @法务（未配置） @北美同事（未配置） @医学顾问（未配置） @产品负责人（未配置） 复核。
+  deployed: '守衡已重启：pid 47778（2026-10-19 10:40:54 起）＞ dual_track.mjs mtime 10:40:16 ⇒ 跑的是新代码'
+
+fix_20261019_taxonomy_a3_unified:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: '同意的推荐 把「所属类别/所属子类」统一到 A3 12 类'
+  supersedes_axis_of:
+    - fix_20261019_card_summary_back_to_dimension   # 那一件的「轴 = A2 四维」作废
+  relation: >
+    本件是**轴**的最终口径（形状沿用 `fix_20261019_card_summary_per_line` 的「每类一行」）。
+    前两件把汇总轴从 11 类换到四维、又把卡面首行留在 A1 —— 三套轴并存是本轮返工的根。
+    现在统一：**所属类别 / 所属子类 = A3 12 类**（`taxonomy_category` / `taxonomy_subcategory`）。
+  taxonomy_source:
+    file: 'kb/l3/registry/rule-taxonomy.json'
+    origin: '桌面 `规则清单-P0-P3-按等级-20261016.xlsx`（全部规则 P0-P3 / 规则占比 / 11类 三张表）'
+    classes: 12          # 11 实有 + 未归类（兜底）
+    subclasses: 58       # 实有子类；兜底子类占位「（暂无命中）」
+    rules: 638          # 509 措辞 + 129 外部标准（唯一 rule_id）
+    verified_20261019: >
+      逐条对账 0 差异：638/638 的 所属类别 / 所属子类 / 优先级 与 xlsx 完全一致；
+      取值无越界；`未归类` 当前 0 条。盘上 1147 行 = rules.jsonl 1018（509 + 509 条款号回填副本，
+      已在 `failure-playbook.yaml:232` 登记）+ external_standard 129。
+  axis_map_after:
+    A3_taxonomy: '**所属类别 / 所属子类** —— 卡面逐条首行 `【<类>-<子类>】`、≥3 分类汇总、报告那两格'
+    A2_dimension: '报告「维度」格与按维度分组（PRD §5.3/§8.3）—— **只留在报告**'
+    A1_internal: '库内 8 类词表（`l7.json → vocabulary.categories`）—— **只作内部分类/路由**，不上卡'
+    bucket: '盖不到 A3（模型侧条目 / 反例案例层 sc-… / 覆盖缺口）⇒ **`未归类`**（12 类的兜底类，替换自造的「未归 11 类」）'
+  producers_changed:
+    - 'kb/l5/p0_fastpath.py（_l3_rule 带 A3 两格；逐条首行；_summary_key/_summary_lines 轴与顺序；报告加「所属类别」行）'
+    - 'kb/l7/skills/kb-content-review/scripts/review.py（新增 tax_category/tax_label/taxonomy_classes；卡面首行；≥3 汇总；报告的「10 类」格改名「所属类别 / 所属子类」）'
+    - 'kb/l7/review-engine/core/review_engine.py（_tax_category/_tax_label；逐条首行；≥3 汇总）'
+    - 'tools/agent/dual_track.mjs（taxonomyCategoryOf/taxonomyLabelOf；卡面首行；categorySummary；p0FindingsToItems 带 A3；**逐行解析那条来路按 12 类校验**，不是 A3 类名就置空）'
+    - 'tools/agent/routing.mjs（directionOf 增认 taxonomy_category —— 否则首行换 A3 后「背书/平台/本地」这些方向词会漏，路由静默落 fallback）'
+  judges_updated:
+    - 'p0_fastpath --selftest：⑤ 改核 A3 注册表（12 类/58 子类）+ ⑤b「首行不再是 A1」；⑥g2 键集改 A3；⑥g3b/⑥g3c 禁 A1/A2 名；⑥g4 兜底类在注册表里唯一且排最后'
+    - 'prd53_format.test.py：夹具补 A3（四维→A3 一一对应）、②b1「汇总轴 = A3」'
+    - 'pytest：test_review_dimension_wiring / test_review_engine 夹具与断言改 A3'
+    - '守衡 prd53_format.test.mjs / test_agent.mjs（Z28/Z48b）/ verify_cards.mjs：夹具与断言改 A3'
+  gauges:
+    - 'python3 kb/l5/p0_fastpath.py --selftest（60/0）｜python3 kb/l7/review-engine/core/prd53_format.test.py（16/0）'
+    - 'python3 -m pytest kb/l7/review-engine/tests（101 passed）｜python3 kb/l8/workflow_smoke.py（rc 0）'
+    - 'node agent/dual_track.mjs --selftest（126/0 ＋ 52/0）｜node agent/prd53_format.test.mjs（23/0）'
+    - 'node verify_cards.mjs（347/0）｜node test_agent.mjs'
+  card_sample_after: |
+    【审查结论：REVIEW】共发现 3 处需人工确认。
+
+    逐条问题
+    · 合规与受监管宣称类问题：2 个
+    · 未归类问题：1 个
+
+    → 查看完整问题清单与修改建议：https://…
+
+    建议转 @法务（未配置） @医学顾问（未配置） 复核。
+  boundary: >
+    本件只改「类目标签与汇总的轴」。判定逻辑、三态、P0 命中即 BLOCK、置信度、报告门槛、
+    落表字段一个字没动。A2 四维**没有消失**：它仍是报告「维度」格与按维度分组的口径。
+
+fix_20261019_card_unclassified_root_cause:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: '守衡回复未归类问题5个，为什么没有归类，实际打开审查报告，里面都归类了'
+  diagnosis:
+    - '卡面汇总读的是 **A3**（`taxonomy_category`），而那 5 条是**模型侧条目**——模型侧**从来没产出过 A3**（12 类是规则层分类，模型侧条目不是规则）⇒ 全落 `未归类`。'
+    - '报告逐条标签当时印的是 **A1/模型侧类目**（`功效宣称` / `合规` / `消费者安全` / `本地化`）⇒ 读者看到「每条都有类」，于是问「为什么卡上说没归类」。'
+    - '报告附录「按所属类别汇总」当时也写「另有 5 条没有所属类别」——**与卡一致、与逐条标签不一致**，三处口径不同。'
+    - '两个产者的取数口也不一致：`categorySummary` 用 `taxonomyCategoryOf()`（认 model.*），而附录用的 `taxonomyGroupsOf/taxonomyReportLines` 各自读 `kb||顶层` ⇒ 模型侧即使给了分类也不算。'
+  what_changed:
+    - '`tools/agent/model_side.mjs`：**模型侧新增 `taxonomy_category`（A3 12 类受控枚举）** —— 提示词给 12 类清单、解析时校验（不在枚举里 ⇒ null + 留 `taxonomy_asked` 原话）'
+    - '`tools/agent/dual_track.mjs`：`pickModel` 白名单补两格（否则模型侧分类静默消失）；`taxonomyCategoryOf/taxonomyLabelOf` 认 `model.*` 且**按 12 类校验**（自造类名 ⇒ 未归类）；`taxonomyGroupsOf/taxonomyReportLines` 统一走同一个取数口'
+    - '报告逐条标签（`F-xx ｜ <标签> ｜ 级别`）**改印 A3**（与卡面同一套）；附录表的行序也改成 12 类注册表次序（与卡面同序）'
+  result: '三处口径现在同一套：卡面汇总 / 报告逐条标签 / 报告附录表，全部 = A3 12 类；模型侧能归类就归类，盖不到才是 `未归类`（且三处一起说未归类）'
+  gauges:
+    - 'node agent/dual_track.mjs --selftest（126/0 ＋ 52/0）｜node agent/prd53_format.test.mjs（23/0）｜node verify_cards.mjs（347/0）'
+    - 'node test_agent.mjs（271/0；Z21 夹具与断言改 A3）'
+    - 'kb 侧未受影响：p0_fastpath --selftest 60/0 ｜ pytest 101 passed ｜ workflow_smoke rc 0'
+  deployed: '守衡已重启：pid 92589（2026-10-19 11:24:53 起）＞ dual_track.mjs 11:22:20 / model_side.mjs 11:21:42'
+
+fix_20261019_model_side_taxonomy_subclass:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: '模型侧也需要归类，跟知识库侧一样'
+  relation: '继续 `fix_20261019_card_unclassified_root_cause`：那件让模型侧给了**类别**（12 类），本件补齐**子类**，使模型侧标签与知识库侧**同形**（`<所属类别>-<所属子类>`）'
+  what_changed:
+    - '`agent/model_side.mjs`：新增 `TAXONOMY_SUBCLASSES`（12 类 → 58 子类，**只读真源** `kb/l3/registry/rule-taxonomy.json`，未改口径）'
+    - '提示词：`taxonomy_subcategory` 必须取自**所选类别**的子类清单（按类逐条列出）；对不上写 null，**不许自造、不许跨类**'
+    - '解析：子类**必须属于已校验通过的类别** —— 跨类/自造 ⇒ null（类别照留）；`未归类` 无子类 ⇒ null'
+    - '原话留存：`taxonomy_asked` / `taxonomy_sub_asked`（模型写了什么查得到，不静默吞）'
+  verified_real_llm:
+    input: 'M6 listing 文案（Boosts Milk Supply / over 1,000 trials / best-selling cup mold …）'
+    result: '5/5 条全部给出合法组合：合规与受监管宣称-生理功效与效果承诺 / 合规与受监管宣称-无痛、安全与零风险承诺 / 证据与实质证明-研究方法与统计口径 / 证据与实质证明-证据不足与待验证宣称 / 证据与实质证明-效果数据与销量排名宣称'
+    ms: 20531
+    note: '真调一次模型侧（`llm.ask`），不是夹具 —— 「提示词要求了」与「模型真照做」必须分开证明'
+  gauges:
+    - 'node --test agent/*.test.mjs（18/18；新增 `agent/model_side_taxonomy.test.mjs` 5 条：合法组合 / 自造类名 / 跨类子类 / 兜底类无子类 / 闭集自洽 58 子类）'
+    - 'node agent/dual_track.mjs --selftest（126/0 ＋ 52/0）｜prd53_format.test.mjs（23/0）｜verify_cards.mjs（347/0）｜test_agent.mjs（见交付件）'
+  deployed: '守衡已重启：pid 96037（2026-10-19 11:28:50 起）＞ model_side.mjs 11:27:52'
+
+fix_20261019_report_three_gaps:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: >
+    「1.这里要带飞书源侧链接“依据文档链接：《知识库》第 E-2.124 条 ← 命中「100%」”
+     2.问题总览中有优先级和维度为空，不属于12类中的吗？这里不允许为空，模型侧输出的可以参照知识库侧的分类和优先级来定
+     3.执行里面去掉 附录，不要自己加东西」
+  fixes:
+    - id: 1
+      what: '依据文档链接缺飞书源侧链接 —— PRD §7.3 那类 anchor（`#h.7. …`）不是记录级坐标，`_l0_verbatim()` 找不到 L0 记录 ⇒ `entry_url=None`'
+      how: 'kb/l5/p0_fastpath.py 新增 `_verbatim_with_url()`：L0 记录级坐标未命中时，用条款自带 `resource_id` 还原**原件飞书地址**（`url__momcozy_in.feishu.cn_wiki_NB55…` → `https://momcozy-in.feishu.cn/wiki/NB55…`），并记 `entry_url_from` 说明出处；**还原不出就保持 null，不编**'
+      verified: '真跑：`依据文档链接：《知识库》第 E-2.124 条 ← 命中「最好」｜原始出处：[点开核对](https://momcozy-in.feishu.cn/wiki/NB55wAq8liEOdKkquL2cgtPEnmg)`'
+    - id: 2
+      what: '问题总览「优先级」「维度」会空 —— 模型侧没有 `risk_category`/`priority_tier`；库侧缺档时也不代定'
+      how: >
+        新增**唯一映射件** `kb/l7/registry/taxonomy-derive.json`：
+        ① `class_to_dimension`（A3 12 类 → PRD 四维，逐条带 basis；`未归类` 留空）
+        ② `subclass_priority`（58 子类 → 该子类 638 条规则的 p_level 众数，可复算）
+        ③ `category_to_dimension`（模型侧 7 类目 → 四维，兜底用）。
+        守衡 `routing.mjs` 读它（`dimensionForTaxonomy` / `priorityForTaxonomy` / `dimensionForModelCategory`），
+        `dual_track.dimensionOf/priorityOf` 按「自带值 → A3 类别 → A3 子类档位 → 模型侧类目」逐级兜底。
+        **模型侧封顶 P1**（P0 只由规则红线给），basis 里如实写明「模型侧不判 P0」。
+      authority: 'class→维度 是判断（AI-proposed / owner-adopted，不是 PRD 原文）；subclass→优先级 是从 638 条规则算出来的'
+      verified: '真跑报告：`| 1 | P0 | 合规 | 全文 | 最好 | 法务、渠道负责人 |`；模型侧无 A3 时 `隐私 → 消费者安全`、优先级 P1（不再空）'
+    - id: 3
+      what: '报告里多出一段「附录 · 按所属类别汇总（12 类）」'
+      how: '`agent/merged_report.mjs` 撤掉该段；**渲染函数随后连同它一起删除**（见 `fix_20261019_empty_cell_and_judge_retarget`）——先只撤调用、再删死代码，两步分开落，免得一次动太多'
+      why: '所属类别已经上了每一行（逐条标签 + 总览表），再补一张汇总表＝同一件事说两遍，且违反 Owner「不要自己加东西」'
+  gauges:
+    - 'kb：p0_fastpath --selftest 60/0 ｜ pytest 101 passed ｜ prd53_format.test.py 16/0 ｜ workflow_smoke rc 0'
+    - '守衡：dual_track --selftest 126/0 ＋ 52/0 ｜ prd53_format.test.mjs 23/0 ｜ verify_cards.mjs 347/0 ｜ node --test agent/*.test.mjs 18/18 ｜ test_agent.mjs（见交付件）'
+  deployed: '守衡重启后生效（dual_track / merged_report / routing 三处）'
+
+fix_20261019_empty_cell_and_judge_retarget:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: >
+    「2.问题总览中有优先级和维度为空，不属于12类中的吗？**这里不允许为空**，
+     模型侧输出的可以参照知识库侧的分类和优先级来定」
+  context: >
+    上一轮（`fix_20261019_report_three_gaps`）已经给 A3→四维／子类→档位的兜底链，
+    但**兜底链走到头仍然印破折号**：`| 3 | P1 | — | 正文 | — |`。
+    本轮是把「兜底链断了」和「判据没盯着活代码」两件事一起收掉。
+  fixes:
+    - id: 1
+      what: '总览表两格仍可能为空（兜底链走到底 ⇒ `dimensionOf().dimension = null`、`priorityOf().level = null`，渲染层 `|| "—"`）'
+      how: >
+        `agent/dual_track.mjs` 新增常量 `PRIORITY_UNSET = "未分级"`（与既有 `DIM_UNCLASSED = "未标注维度"` 配套）；
+        `agent/merged_report.mjs` 表格两格改为 `|| DIM_UNCLASSED` / `|| PRIORITY_UNSET`。
+      why: >
+        **破折号会被读成「这条没有维度」，而实际是「我们没算出来」** —— 前者像结论、后者是要人来判。
+        印一个有名字的桶，两者都不冒充：维度缺失说「未标注维度」，档位缺失说「未分级」。
+        ⚠️ **底层查询仍返回 null**（判据 Z51 的反向对照钉着）：**不许为了让格子有值而给数据编一个 P 级** ——
+        `P0 只由规则红线给`，库侧没带 `priority_tier` 时**不代定**。
+      verified: '改前 `| 3 | P1 | — | 正文 | — |` → 改后 `| 3 | P1 | 未标注维度 | 正文 | — |`（优先级那格在模型侧本就落 P1；库侧无档位时印「未分级」）'
+    - id: 2
+      what: '判据盯着死代码：`taxonomySummaryLine()` / `taxonomyReportLines()` 自附录撤掉后**零生产调用**，却有 6 条判据（含 2 条反向对照）；而卡面每张 ≥3 的卡都走的 `categorySummary()` **一条判据都没有**'
+      how: >
+        ㉔ 组整组改盯 `categorySummary()`：每类一行 / 反向对照（一行装完必须红）/ 注册表次序 / 兜底类压最后 /
+        模型侧非 12 类名落兜底 / 模型侧合法 A3 名当真类 / 空清单不印空表；
+        三个孤儿函数（`taxonomySummaryLine` / `taxonomyReportLines` / `taxonomyGroupsOf`）与没人读的 `TAXONOMY_UNCLASSED` **删除**；
+        `merged_report.mjs` 的 import 与 `void` 一并清掉。
+      why: '本库栽过的那条形状——「判据恒绿、看着像守着、其实什么都没守」。附录那套有 6 条判据，卡面那套 0 条。'
+      verified: >
+        真变异两发：① 把每类一行退回「一行装完」⇒ ㉔a 精确变红；
+        ② 把排序改成按条数降序 ⇒ ㉔c 精确变红（实得「母婴知识内容准确性」在前，期望「合规与受监管宣称」在前）。
+        第三发（库侧无档位编 P1）⇒ Z51 精确变红。三发之后均已还原并复跑全绿。
+    - id: 3
+      what: '报告里那条「维度」在逐条清单里本来就会解释「为什么不在这四维里」，与表里的桶名必须同一口径'
+      how: '表用 `DIM_UNCLASSED`，逐条那一行仍用 `dimensionOf().text`（原话是「（未映射 —— 「x」不属于…）」）—— 一处点名、一处解释，不再有两套说法'
+    - id: 4
+      what: >
+        第 1 条（依据带飞书源侧链接）**只对引擎那条路成立**：`entry_url` 明明在条目上，
+        但只有引擎会把链接写进 `basisLine` 文字；候选 / 分块解析 / 模型侧外部标准三条路
+        **只填字段、不写文字** ⇒ 报告印「依据文档链接：《知识库》第 E-2.124 条 ← 命中「100%」」**而没有链接**。
+      how: >
+        `dual_track.renderMergedItem` 加渲染层兜底 `_basisWithLink`：
+        `kb.entry_url` 是 http(s) 且文字里还没出现它 ⇒ 补 `｜原始出处：[点开核对](url)`；
+        **没有 URL 就一个字都不加**；文字里已有 ⇒ 不补第二遍（幂等）。
+        卡面与报告**两条分支共用同一份 `basis`**，所以一处改、两处都带。
+      why: >
+        「每个上游各自记得把链接写进文字」是**靠自觉**，而这里已经有四条产路径 ——
+        实测只有一条做到了。Owner 的诉求是「报告里必须带源侧链接」，
+        那这个保证就该放在**唯一渲染口**，不该分散在四个上游。
+      verified: >
+        真渲染：改前 `> **依据文档链接**：《知识库》第 E-2.124 条 ← 命中「100%」`（无链接）；
+        改后 `> **依据文档链接**：《知识库》第 E-2.124 条 ← 命中「100%」｜原始出处：[点开核对](https://momcozy-in.feishu.cn/wiki/NB55wAq8liEOdKkquL2cgtPEnmg)`。
+        判据 Z52 三条：有 URL 必印且原话不少 / **无 URL 一个链接都不许出现**（反向对照）/ 文字已有则不补第二遍（幂等）。
+        变异：撤掉渲染层兜底 ⇒ Z52 精确变红，还原后复跑全绿。
+  gauges:
+    - '守衡：dual_track --selftest 126/0 ＋ **53/0**（㉔ 组从 7 条 → 8 条，全部盯活函数）｜prd53_format.test.mjs 23/0 ｜ verify_cards.mjs 347/0 ｜ node --test agent/*.test.mjs 18/18 ｜ test_agent.mjs **273/0**（新增 Z51 / Z52）'
+    - 'Z51 自带两组反向对照：底层 `dimensionOf().dimension === null`、`priorityOf()` 库侧 `level === null`（**不许为了让格子有值而编数**）'
+  deployed: '守衡已重启：pid 27338（2026-10-19 11:56:21 起）＞ dual_track.mjs 11:55:23 / merged_report.mjs 11:50:03'
+
+fix_20261019_card_report_taxonomy_align:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: >
+    「守衡回复逐条问题类别跟审核报告中的问题类别对不上
+     逐条问题：输出 所属类别（一级分类）／报告中类别：输出 所属类别+二级分类」
+  owner_decision: '① 「报告里加一行与卡逐字相同的一级汇总」（三选一，Owner 选定）'
+  root_cause: >
+    **条数没有错。** 实测那一单（报告 docx `GYMzdSkRqoYVfSxT7TfcVRcsnEe`，6 处）逐条归并：
+    合规与受监管宣称 4（生理功效1＋无痛安全2＋绝对化1）／商品信息与Listing准确性 1（无二级）／
+    证据与实质证明 1（研究方法与统计口径）—— 与卡面 4/1/1 **完全一致**。
+    对不上的是**写法粒度**：卡按 A3 **一级**印 `· <类>类问题：N 个`，报告逐条首行按**一级·二级**印
+    `合规与受监管宣称·生理功效与效果承诺` ⇒ 卡上那三个类名在报告里**逐字出现不了一次**（都被二级切开），
+    人只能手工归并才能核对。
+  secondary_finding: >
+    报告顶上还有一行 `发现 6（合规 3｜安全 1｜措辞 2）` 与四个分组标题，用的是 **PRD 四维**；
+    与 A3 12 类并存 ⇒ 同一屏两套体系（例：F-04 维度=消费者安全、所属类别=合规与受监管宣称）。
+    这一行是 PRD §5.3.4 的样张行，**本次未动**（要删需 Owner 另行点头）。
+  fix:
+    what: '报告结论行下方，插入与卡面**逐字相同**的一级分类汇总块'
+    how: >
+      `agent/merged_report.mjs` 直接调用卡面同一个函数、同一份输入
+      （`categorySummary(merged, total)`），门槛也同一把（`total >= REPORT_LINK_MIN_ISSUES`＝3，即卡面走汇总那一档）。
+      **不许照着卡面再写一遍**——抄一份出去，迟早两边各说各话。位置紧贴结论行，与卡面阅读顺序一致
+      （结论 → 分类汇总 → 明细）。
+    verified: >
+      真渲染：卡面三行与报告三行 `deepStrictEqual` 相同 ——
+      `· 合规与受监管宣称类问题：4 个 / · 商品信息与Listing准确性类问题：1 个 / · 证据与实质证明类问题：1 个`。
+  gauges:
+    - '守衡：test_agent.mjs **274/0**（新增 Z53：卡面与报告汇总行 deepStrictEqual ＋ 两条反向对照）'
+    - 'dual_track --selftest 126/0 ＋ 53/0 ｜ prd53_format.test.mjs 23/0 ｜ verify_cards.mjs 347/0 ｜ node --test agent/*.test.mjs 18/18'
+  mutations:
+    - '撤掉报告那段汇总（`if (false && …)`）⇒ Z53 精确变红，还原后复跑全绿'
+    - 'Z53 自带两条反向对照：① 1–2 条时卡与报告**都不许**有这一行；② 把输入换成抹掉 A3 的同一批条目 ⇒ 断言必须能分辨（证明量的是「同一份输入」）'
+  deployed: '守衡已重启：pid 34825（2026-10-19 12:02:40 起）＞ merged_report.mjs 12:01:41'
+
+fix_20261019_single_axis_a3_everywhere:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: '「报告要同步 卡上 12 类呀，整个知识库都要同步」'
+  scope: '**跨两仓**：守衡（报告/卡片）＋ 知识库（评审引擎的报告渲染与报告记忆）'
+  root_cause: >
+    同一单报告里并存 **三个分类口径**（实测真报告 docx `GYMzdSkRqoYVfSxT7TfcVRcsnEe`）：
+    ① 卡面 `· 合规与受监管宣称类问题：4 个`（A3 12 类）；② 报告头 `发现 6（合规 3｜安全 1｜措辞 2）`（A2 四维）；
+    ③ 逐条 `**维度**：消费者安全` ＋ 分组标题 `P1 安全与准确性 · 措辞表达 ｜ 2 条`（A2 四维）。
+    同一单两个总数（4/1/1 与 3/1/2）⇒ 读者只能怀疑哪个对。
+  fixes:
+    - where: '守衡 agent/dual_track.mjs'
+      what: '逐条字段 `**维度**：` → `**所属类别**：`（值 = `taxonomyCategoryOf`）；分组 `groupByPriorityAndDimension` → `groupByPriorityAndCategory`（P 级 → 12 类，次序 = 注册表次序）；`dimensionHeading` → `categoryHeading`；一句话里指路括号改印 A3 类名'
+    - where: '守衡 agent/merged_report.mjs'
+      what: '撤掉 `发现 N（四维计数）` 那一行（12 类计数由卡面同款汇总块承担）；总览表第 3 列 `维度` → `所属类别`；分组标题用 12 类；表前说明改成「优先级 → 所属类别」'
+    - where: '知识库 kb/l7/review-engine/core/report_memory.py'
+      what: '分组键 `risk_category`（四维）→ `taxonomy_category`（12 类），盖不到落 `未归类`；每条那格从「11 类：<类别>/<子类>」改为只补「所属子类」（分组标题已是类别，不重复）'
+    - where: '知识库 kb/l7/skills/kb-content-review/scripts/review.py'
+      what: '报告逐条 `- 维度：**…**` 整行撤掉（由 `- 所属类别 / 所属子类：**…**` 承担，恒印、盖不到写 `未归类`）；顺手删掉因此成死代码的 `_unmapped_dim_bucket()`'
+  data_kept: >
+    `risk_category` / `risk_category_basis`（四维）**仍在机读 JSON 与 `risk_items` 里** ——
+    路由（`route_owners`）与统计还在用。撤掉的只是**报告/卡片上那些字**。
+  prd_deviation: '已登记 `kb/l7/registry/prd-v1.3-alignment.yaml::deliberately_not_followed.items[K]`'
+  dead_code_removed:
+    - '守衡：`discoveryLine` / `bucketOf` / `BUCKETS`（唯一的调用点撤掉后全成孤儿）'
+    - '知识库：`review.py::_unmapped_dim_bucket`'
+  gauges:
+    - '守衡：test_agent.mjs **275/0**（新增 Z54「报告里只许有一个轴：四维一个词都不许出现」；Z48 ①②⑥b、Z48c、Z49d、Z51 全部改到 12 类口径）｜dual_track --selftest 126/0 ＋ 53/0 ｜ prd53_format.test.mjs 23/0 ｜ verify_cards.mjs 347/0 ｜ node --test agent/*.test.mjs 18/18'
+    - '知识库：p0_fastpath --selftest 60/0 ｜ prd53_format.test.py 16/0 ｜ pytest 101 passed ｜ workflow_smoke rc 0'
+    - '存量红（与本批无关，改动前即红）：l7_integrity 的 frozen_layers ＋ citation_contract'
+  mutations:
+    - '守衡：把逐条 `**所属类别**` 改回 `**维度**` ⇒ Z54 精确变红（同时 Z48c/Z49d/Z51 也红）'
+    - '知识库：`test_report_renders_dimension_line` 现在断言 `- 维度：` **不许出现**；把那一行加回去 ⇒ 精确变红'
+    - '知识库：`test_render_summary_groups_by_dimension` / `test_report_memory_groups_by_dimension_not_risk_type` 反向对照写明：把分组键换回 `risk_type` 或换回四维 ⇒ 精确变红'
+  deployed: '守衡重启后生效（dual_track / merged_report）；知识库侧改动随每次评审加载生效，无需重启'
+
+fix_20261019_report_heading_priority_alias:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: >
+    「卡片都是一级分类 / 那报告里面写的『**安全与准确性**』是什么分类？我的理解，
+     报告中你可以写：**一级分类+二级分类**」
+  root_cause: >
+    「安全与准确性」**不是分类** —— 它是 **PRD §6.3 第二层（P1）的层名**
+    （登记件逐字：`§6.3 第二层: P1 安全与准确性：大模型语义理解…`）；A3 12 类里**没有**这个名字
+    （最接近的是 `产品安全与高危使用场景`）。
+    改前分组标题是 `<P 级层名> · <一级分类>`（例：`P1 安全与准确性 · 证据与实质证明`）——
+    **两个格子长得一模一样**，读者自然把层名当成第二个分类。
+  card_confirmed: >
+    卡面分类汇总**确实只有一级**（已用行为证明：三条同属一级、二级各不相同的条目
+    ⇒ 卡上仍是**一行「3 个」**，汇总行里二级名 0 个、也没有「一级·二级」写法）。
+  fix:
+    where: 'agent/merged_report.mjs（分组标题）'
+    what: '标题里 P 级**只写级别**：`### **P1 · <一级分类> ｜ N 条**`；PRD §6.3 的层名不再进标题'
+    why: >
+      Owner 的意思是「报告里可以写一级+二级」，而层名既不是一级也不是二级 ——
+      它占了分类的位置，却是个优先级别名。撤掉它，标题回到「级别 + 一级分类」两格，各是各的。
+      一级+二级**没有丢**：每条首行仍印 `**F-01 ｜ <一级>·<二级> ｜ P1**`。
+    dead_code: '`PRIORITY_SHORT`（唯一调用点撤掉后成孤儿）连同注释一并删除'
+  gauges:
+    - '守衡：test_agent.mjs 275/0（Z48d 的 P0 组探测器改为 `^### **P0 · `：意图不变——**BLOCK 必须有 P0 出处**）'
+    - 'dual_track 126/0 ＋ 53/0 ｜ prd53_format.test.mjs 23/0 ｜ verify_cards.mjs 347/0 ｜ node --test 18/18'
+  deployed: '守衡已重启：pid 51672（2026-10-19 14:17:14 起）'
+  open_question: >
+    「标题是否需要**也**带二级」未做：实测该单 6 条若按一级+二级分组会变成 **5~6 个标题**
+    （平均 1 条一个标题），与逐条首行重复。备选写法是标题括号内列出该组的二级
+    （标题数不变、二级可见）。等 Owner 一句话。
+
+fix_20261019_prd17_wordlimit_gate:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: >
+    「prd 中 17 写了的结论模版字数限制，你同步知识库了吗？」 →
+    「最后的字数限制是针对**每一条问题**」 →
+    「下面两个写了逐条，**没写的就是整张卡**」（指 REVIEW/BLOCK 1-2 两行）
+  status_before: >
+    **没同步。** 它登记在 `prd-v1.3-alignment.yaml::deliberately_not_followed.items[D]`
+    （「字数硬约束校验」），代码从不量它 ⇒ 实测量出来 BLOCK ≥3 那张卡 112 字（上限 100）、
+    REVIEW 1-2 285 字（上限 200），**没有任何东西会红**。又一次「散文没有失败信号」。
+  prd_source: 'PRD §17 内嵌表：spreadsheet `B1aUs2Vuah8YwjtwWO6cr5MFnUd` / sheet `XWnpiN`（rev 96，2026-10-19 拉取，实测 A1:D7）'
+  single_source: 'kb/l7/registry/prd17-limits.yaml（两仓共读：守衡 `agent/prd17.mjs`、知识库 `kb/l8/prd17_check.py`）'
+  counting_rule:
+    rule: visible_no_url
+    why: >
+      PRD 只写「≤N 字」，**没写怎么数**。默认口径 = 去掉链接与 markdown 标记、去空白后的字符数。
+      理由：一条 docx 链接 ≈55 字符，数进去等于让「≥3 ≤100 字」在任何实现下都不可能满足。
+      备选口径（全部字符 / 只数中文）也实测过，换口径只改 registry 一处，两仓同时生效。
+  scope_rule:
+    rule: 'format 含「逐条」⇒ per_item（每条各自 ≤上限）；否则 ⇒ message（整张卡）'
+    derived_from: >
+      Owner 2026-10-19 三次澄清：①「最后的字数限制是针对**每一条问题**」
+      ②「下面两个写了逐条，**没写的就是整张卡**」③「补充，逐条的**还有 SUGGEST**（≤150 字）」。
+      由 registry 的 `format` 字段**自动判定**，不手写例外 —— 所以补 SUGGEST 那次**一行代码没改**：
+      它的 format 是「逐条列建议 + 不阻断说明」，含「逐条」即自动按条量、上限 150。
+    landing: 'SUGGEST 任意 / REVIEW 1-2条 / BLOCK 1-2条 ⇒ per_item ｜ PASS / REVIEW ≥3 / BLOCK ≥3 ⇒ message'
+    suggest_status_20261019_two_rounds: >
+      ★ 本键原名 `suggest_unreachable`（内容：本库当前不产出 SUGGEST ⇒ 这一档是「尺子先备好」），
+      16:16 我按 **PRD §5.3.2 rev 96 ＋ Owner 裁定①** 改成 `suggest_now_reachable_20261019`
+      （四态全落、SUGGEST 是活的一档）；**20 分钟后（16:44）引擎侧按 rev 101 又改回去了**：
+      `DECISIONS = {PASS, REVIEW, BLOCK, NEEDS_INPUT}`、`FORMER_STATE_AS_LABEL = {SUGGEST: 'PASS 的附属标签'}`、
+      `render_summary('SUGGEST', …)` **硬拒并抛 ValueError**。
+      ⇒ 现在（16:47 写）的准确说法：**SUGGEST 不是 `decision` 的取值**，
+      建议走 `decision=PASS` ＋ `risk_items` 里 P3 的条目，渲染成「建议（不阻断，随 PASS 流转）」附段。
+      ⚠️ 当时 `prd532-states.yaml` 还停在 rev 96，与引擎相抵（S7 段红）；
+      **16:46 已收口**：该登记件同批升到 `revision: 101` / `supersedes_revision: 96`，
+      `workflow_smoke` 的 S7 随之转绿 ⇒ 口径与登记件一致，本条只作「当天翻了两次」的留痕。
+      键名两度改名都保留原话，理由：这条口径当天翻了两次，删任一次都看不出「为什么又变了」。
+      注：`prd17_check.py` 只读 `rows`/`counting`/`meta`，本键**无代码读方**，改名不影响任何判据。
+  fixes:
+    - where: '守衡 agent/prd17.mjs（新）'
+      what: '读 registry；`countChars` / `limitOf` / `scopeOf` / `check` / `checkItems` / `readingOf` + `--selftest`（15 条，含 3 条反向对照）'
+    - where: '守衡 agent/dual_track.mjs'
+      what: '每张卡自带读数：逐条档 `prd17Items`（每条一个）、整卡档 `prd17`；超限打日志（**不阻断**）'
+    - where: '守衡 卡片措辞（为把 ≥3 压进 100 字做的无损压缩）'
+      what: '① `→ 查看完整问题清单与修改建议：`（16 字）→ `→ 完整清单：`（7 字）；② REVIEW 尾巴 `（其中 n/m 条未匹配到方向：该转谁需要人确认）`（26 字）→ `（n/m 条未匹配方向）`（12 字）'
+      reverted: '曾顺手删掉「逐条问题」小标题省 4 字 —— **已回滚**：`prd53_format` ②f 明确它是格式件，知识库侧也印它，删了就两仓分叉'
+    - where: '知识库 kb/l8/prd17_check.py（新）'
+      what: '同一把尺的 CLI（`--state/--issues/--text-file` 或 stdin）＋ `--selftest`；超限时退出码 3（`ok is False`）'
+  measured:
+    before: 'BLOCK ≥3 112 / REVIEW ≥3 152 / BLOCK 1-2 整卡 257 / REVIEW 1-2 整卡 285（**都超**）'
+    after_message: 'BLOCK ≥3 **53~77 字** / REVIEW ≥3 ≈125 字（上限 100）'
+    after_per_item: '短建议（夹具）**111~120 字**（✅ ≤200）；**真单长度建议 ⇒ 每条 512 字**（❌ 超 312）'
+  open_conflicts:
+    - id: C1
+      row: 'REVIEW ≥3（≤100 字，整卡）'
+      why: '「分类汇总（每类一行）+ 报告链接 + 转人工」都在 100 字内；4 类时已 ≈100，第 5 类必超'
+      status: '实测 125 字（4 类）⇒ 需再压 25 字，或换口径 / 链接不计 / 汇总压一行'
+    - id: C2
+      row: 'BLOCK/REVIEW 1-2条（≤200 字，**按条**）'
+      status: '**已消解（2026-10-19）** —— 不再「待 Owner 裁定」'
+      why_stale_do_not_use: >
+        ★ 原 why 写「卡上『修改建议』按 Owner 2026-10-17 裁定必须**写全**（当时取消了 120 字截断）；
+        真单样长度的建议 ⇒ **每条 512 字**。两条路只能选一条：卡上截断（推翻「写全」）或
+        『≤200 只约束骨架不含建议正文』」—— **已作废，不许按它动手**。
+      resolution: >
+        Owner 2026-10-19 逐字：「审查报告中，修改建议你写了200多字，修改建议 ≤30 字」⇒
+        「修改建议」取 **≤30 字**（卡面与报告同一把尺；2026-10-17「写全」仅在这一格被推翻）。
+        出处 `prd533-constraints.yaml::conflicts[X1].resolution`；
+        `prd17-limits.yaml::known_conflicts[C2]` 与 `prd-card-known-drift.yaml::known_conflicts[C2]` 同口径。
+      measured_after: >
+        建议压到 ≤30 后，逐条六格实测 **153 字 / 上限 200**（`prd-card-known-drift.yaml::fixtures[F1]`，
+        `python3 kb/l8/prd_card_conformance.py` 现算）⇒ **冲突不成立**，无需在「截断/骨架」之间选。
+      judges: ['tools/test_agent.mjs::Z49f', 'tools/test_agent.mjs::Z59', 'tools/test_agent.mjs::Z26']
+      lock: 'owner-fix-locks.yaml::L20'
+  gauges:
+    - '守衡：prd17 --selftest all/0 ｜ dual_track 126/0 ＋ 53/0 ｜ prd53_format.test.mjs 23/0 ｜ routing.test.mjs 29/0 ｜ verify_cards.mjs 347/0 ｜ node --test 18/18 ｜ test_agent.mjs **276/0**（新增 Z55）'
+    - '知识库：l8/prd17_check.py --selftest all/0 ｜ workflow_smoke rc 0'
+    - '修复过程中被判据抓住的四处：`prd53_format` ②c/②f、`routing.test` ④b2/④c、`dual_track` ⑰d/⑰f、`test_agent` Z16/Z27 —— 全是「改了文案没改探测器」，已逐条改成认新文案'
+  deployed: '守衡已重启：pid 71291（2026-10-19 14:36:06 起）＞ dual_track.mjs 14:34:55 / prd17.mjs 14:34:40'
+
+fix_20261019_link_line_not_counted:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: '「链接那行不计入字数」，同意'
+  what: >
+    §17「BLOCK/REVIEW ≥3 ≤100 字（整卡）」长期超限的根因不在正文，而在**链接那一行的行首标签**
+    （本库卡面 `→ 查看完整问题清单与修改建议：`，剥掉 URL 后仍剩 **14 字**）。
+    Owner 裁定这一行**整行不计入**。落点是真源 `counting.exclude_link_line`（两仓共读），
+    **不是**在某一侧代码里写死一个阈值 —— 写死就会两仓分叉。
+  scope_rule: >
+    排除条件**三条同时成立**：① 该行含 `http(s)://`；② 剥掉链接后可见字数 ≤ `link_line_label_max`（20）；
+    ③ 不含 `link_line_markers`（`【`、`结论`）。②③ 是**故意收紧**，两条都别删：
+    F1 的**依据行**也含链接、剥后剩 **35 字** ⇒ **不排除**
+    （改成「含链接就整行免」等于放宽「依据必须给出」，不是放宽字数）；
+    结论行带内联链接 ⇒ **不排除**并记 hazard（fail-closed：宁可多数，不可漏数）。
+  measured:
+    before: 'F2_block_5（BLOCK 5 条 / 4 类）整卡 **108 / 100**（超 8）'
+    after: 'F2_block_5 整卡 **94 / 100**（余 6）—— 排除链接行 1 行、−14 字'
+    unchanged: 'F1_block_1（逐条 BLOCK 1 条）**153 / 200 一动不动** —— 依据行没被免掉'
+  where_enforced:
+    - 'kb/l7/registry/prd17-limits.yaml::counting.exclude_link_line（**唯一真源**，含 link_line_label_max / link_line_markers）'
+    - 'kb/l8/prd17_check.py :: `visible` / `splitLinkLines` / `count_chars` / `check`（读数带 linkLinesExcluded / linkCharsExcluded / linkLineHazards）'
+    - 'tools/agent/prd17.mjs :: 同一套（`visible` / `splitLinkLines` / `countChars` / `check` / `readingOf`）'
+    - 'kb/l8/prd_card_conformance.py :: 读数行印出「已排除链接行 N 行（−M 字）」；hazard ⇒ WARN'
+  judges:
+    python: 'kb/l8/prd17_check.py --selftest ③d/③d2/③e/③f/③g/③h/③i（**23 条全绿**）'
+    node: 'tools/agent/prd17.mjs --selftest 同六条（**22 条全绿**）'
+    cross_repo: >
+      **两仓逐项相等**：同一张真卡面（`p0_fastpath.py` 真渲染）＋ 同一份真源，
+      chars/limit/over/linkLinesExcluded/linkCharsExcluded/linkLineHazards **全部一致**
+      （F1 153/200/0/0·0·0；F2 94/100/0/1·14·0）
+    gate: 'ci/run_gates.py --only prd_card_conformance prd532 ⇒ **过 2/2、红 无、告警 无**'
+  reverse_controls:
+    - '把 `link_line_label_max` 压到 4 ⇒ 5 字标签行不再被排除（③i）'
+    - '关掉 `exclude_link_line` ⇒ 链接行重新计入（③h）'
+    - '把标签加长到超 20 字 ⇒ 该行重新计入（③e）'
+    - '让依据行被免掉 / 结论行被误排除 ⇒ ③f、③g 变红'
+  residual_risk: >
+    仍有一种形状**没有判据**：普通正文与链接挤在同一行、且剥后 ≤20 字 ⇒ 整行被排除，可能少数。
+    缓解只到「结论标记同行 ⇒ 走 hazard 分支不排除」这一步；更远要靠「链接单独成行」的版式约定。
+  not_done:
+    - '守衡**已重启并复核**：改的时点 RUN `20261019-1642` 仍在跑（认领在册），故等认领释放（16:48）后才走 `restart_shouheng.sh` 两步闸门（先只读拿凭证、再 `--yes`）；PID **87087 → 10437**，闸门自核「只有 tools/agent/prd17.mjs 一个模块在启动后被改过」，留痕 `PMO/logs/restart-ledger.jsonl`；重启后 `node tools/agent/prd17.mjs --selftest` **22/0**。'
+    - '`owner-fix-locks.yaml::L23` 已补登（原先为避免并发覆盖没写，结果 `owner_locks_check` 的「今天的修复必须挂锁」当场判红 ⇒ 那条自律的代价被它自己量了出来；已加锁并复跑全绿）。'
+  gate_status_not_flipped: >
+    `prd_card_conformance` 仍**非阻断**。旧理由（「C1 今天实测就超 ⇒ CI 第一天必红」）**已失效**；
+    换成的理由是：hazard 与「逐条四格缺一」本质是**版式异常**、不必然等于内容不合规，
+    一提 blocking 就会在版式试验期把 CI 打红。要它挡发布，等 Owner 一句话
+    （`ci/run_gates.py` 里 `False`→`True`，判据本身一个字不用改）。
+
+fix_20261019_prd533_field_constraints:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: >
+    「输出的格式还有下面的要求，同步到知识库：5.3.3 输出字数与格式硬约束
+     - 单条问题：描述 ≤50 字，原因 ≤50 字，修改建议 ≤30 字。
+     - 位置：必须精确到"图 N 第 X 处"、"视频 00:12"、"正文第 X 段"。
+     - 依据：必须写"《文档名》第 X 条"或"规则 ID"，禁止写"相关法规"。
+     - 语言：客观、指令式。禁止"可能"、"建议可以考虑"等废话（除非是 REVIEW 的边界说明）。」
+  prd_source: '飞书 PRD **正文** §5.3.3（docx `PXfBdjTwFokEQixtmTscqm7knNh`），rev **248**，2026-10-19 拉取；逐字存进 registry 的 `verbatim`'
+  single_source: 'kb/l7/registry/prd533-constraints.yaml（两仓共读：守衡 `agent/prd533.mjs`、知识库 `kb/l8/prd533_check.py`）'
+  scope_note: '§17 管**整条/每条消息**的字数；§5.3.3 管**每条问题里每个字段**的格式与字数 —— 两把尺互补，各读各的表'
+  fixes:
+    - where: '守衡 agent/prd533.mjs（新）'
+      what: '`checkFields`（描述/原因/建议逐字段）/ `checkLocation`（三模式）/ `checkBasis`（《文档名》第X条 或 规则ID ＋ 禁「相关法规」）/ `checkLanguage`（禁词）＋ `--selftest`（19 条，含 5 条反向对照）'
+    - where: '守衡 agent/dual_track.mjs'
+      what: '每张卡逐条带 `prd533` 读数（**量卡面实际渲染出的那一块**，不量内部字段）；不合格打日志、不阻断'
+    - where: '知识库 kb/l8/prd533_check.py（新）'
+      what: '同一把尺的 CLI（`--json`）＋ `--selftest`（19 条，含同款反向对照）；不合格退出码 3'
+  measured_20261019:
+    description: '库侧 16/50 ✅ ｜ 模型侧 71/50 ❌ 超 21'
+    reason: '库侧 57/50 ❌ 超 7 ｜ 模型侧 80/50 ❌ 超 30'
+    advice: '真单 **372/30** ❌ 超 342 ｜ 兜底改法表 16/30 ✅'
+    location: '`全文` / `正文第 4 段（…）末句` / `素材正文 第三段末尾（…）` / `图 1`（缺「第 X 处」）**都不匹配三模式**'
+    basis: '`《措辞表达库 v0》第 W-1.18 条 ← 命中「…」` ✅ 匹配（多出的命中片段不算违规）'
+    language: '这两条文本 0 次命中禁词；但模型侧长文里出现过「可能被平台判为站外引流」'
+  conflicts_need_owner:
+    - id: X1
+      row: '修改建议 ≤30 字'
+      vs: 'Owner 2026-10-17 裁定「修改建议**都写全**」（当时明确取消 120 字截断）'
+      measured: '真单建议 372 字 vs 上限 30'
+    - id: X2
+      row: '原因 ≤50 字'
+      vs: '库侧 `reason` 是**库规原文**（常 50~90 字），压到 50 等于改写库内文本'
+      measured: '库侧 57（超 7）、模型侧 80（超 30）'
+    - id: X3
+      row: '位置必须落在三模式之一'
+      vs: '现行 `location` 常带括号补充（便于人找）、整篇命中写 `全文`'
+      measured: '`全文` 与带括号的都不匹配'
+  gauges:
+    - '守衡：prd533 --selftest all/0 ｜ prd17 all/0 ｜ dual_track 126/0 ＋ 53/0 ｜ prd53_format 23/0 ｜ verify_cards 347/0 ｜ node --test 18/18 ｜ test_agent **277/0**（新增 Z56）'
+    - '知识库：l8/prd533_check.py --selftest all/0 ｜ workflow_smoke rc 0'
+    - "修复中被自己的自证抓到的两处：① 规则 ID 模式漏了 H02 这种形态 ② registry 里的 forbidden 是 YAML **flow 列表**（不是行内映射），第一版解析读不到 ⇒ 「相关法规」被判成合规"
+  deployed: '守衡已重启：pid 79422（2026-10-19 14:42:43 起）＞ dual_track.mjs 14:40:41 / prd533.mjs 14:39:59'
+
+fix_20261019_four_states_suggest:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: >
+    「推荐冲突 K 取 ①（decision 可取 SUGGEST，即四态）／
+     按照 prd suggest:存在非强制性问题（措辞优化、轻微常识瑕疵、非核心卖点描述）」
+  prd_source: >
+    §5.3.2 四态定义与边界（sheet `xcdTpv` rev 96）、§6.2 输出映射（P3 → 强制 SUGGEST 不阻断）、
+    §5.3.4 样张（结论行 `【SUGGEST】…`）、§17（SUGGEST ≤150 字/条，按条量）
+  ruling: >
+    `decision` **可取 `SUGGEST`**（四态）。**覆盖** §6.3 规则 4「无 P0/P1/P2、只有 SUGGEST 时
+    最终状态为 PASS」—— 该冲突（K）在 `kb/l7/registry/prd532-states.yaml::conflict_decision`
+    与 `prd-v1.3-alignment.yaml::changes[A].owner_ruling_20261019` 两处留痕。
+  decision_rule: '只有 P3（非强制）且库侧结论不重于 SUGGEST ⇒ SUGGEST；任一条 P0/P1/P2 ⇒ 保持 REVIEW/BLOCK（单调性）'
+  changes:
+    - where: 'kb/l7/review-engine/core/review_engine.py'
+      what: '`DECISIONS` 加 SUGGEST；`decide()` 新增「只有 P3 ⇒ SUGGEST」分支（置信度 0.90–0.99、reasons=`suggest_only_non_mandatory`）；`render_summary` 加 SUGGEST 分支（§5.3.4 措辞、**不派单**）；`_next_action` 补 SUGGEST 动作（§5.3.2 逐字）'
+    - where: 'kb/l7/review-engine/core/tiering.py'
+      what: '`decide_effect(["P3"])` 由 `none` 改 `suggest`（§6.2「P3 → 强制 SUGGEST」）；P3 与更重层级同现时仍按最高层（单调性）'
+    - where: 'kb/l7/review-engine/core/feishu_publish.py'
+      what: '`STATUS_PASS` 收进 `SUGGEST`（合法结论可落表）'
+    - where: '守衡 agent/prd53.mjs'
+      what: '`STATES` 四态、`LINE_RE` 认 SUGGEST、`conforms` 加 SUGGEST 分支（必须含「不阻断发布」；行内冒号与句号两种收尾都认）'
+    - where: '守衡 agent/dual_track.mjs'
+      what: '`mergedState` 四态单调；结论行按 §5.3.4；`orderActionLine` 对 SUGGEST **不派单**；**SUGGEST 永不走分类汇总**（§17 要逐条列建议）'
+  gauges:
+    - '守衡：prd53_format 28/0（②g/②g2/②g3/②g4/②g5）｜test_agent **278/0**（新增 Z57：四态单调 ＋ 不汇总 ＋ 不派单 ＋ REVIEW 反向对照）｜dual_track 126/0 ＋ 53/0 ｜verify_cards 347/0 ｜node --test 18/18 ｜prd17 all/0 ｜prd533 all/0'
+    - '知识库：pytest **101 passed**（三条旧三态断言改到四态，防护意图保留并加单调性反向对照）｜prd53_format.test.py 19/0（④b/④b2/④b3）｜p0_fastpath 60/0 ｜workflow_smoke rc 0'
+  mutations_checked:
+    - 'Z57 ③：SUGGEST 若走汇总 ⇒ 红（断言 summarized===false ＋ 卡上不许出现 `· X类问题：N 个`）'
+    - 'Z57 ④：SUGGEST 若出现「建议转 @」⇒ 红；同位反向对照：同样条目换成 REVIEW **必须**出现转派话术（否则那条断言恒真）'
+    - 'Z57 ①：P3+P1 若被降成 SUGGEST ⇒ 红（单调性，最坏的一种）'
+  still_open:
+    - '§10.2 四态分布统计（看板/表侧）未接线：`decision` 已可取四值，但统计脚本不在本批'
+    - 'PRD 自身 6 处仍写「三态」（§1.2/§4/§5.1×2/§10.1/§11.2）—— 已登记，改动权不在我方'
+  deployed: '守衡已重启：pid 94822（2026-10-19 14:56:35 起）＞ prd53.mjs 14:54:37 / dual_track.mjs 14:50:35'
+
+fix_20261019_four_states_reachable:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: >
+    「知识库决策集／守衡结论行解析 = =》**最终输出的卡片态，必须是 4 态**」
+  problem: >
+    上一批（`fix_20261019_four_states_suggest`）只做到「解析器与决策集认得 SUGGEST」，
+    但**卡片态实际仍只有三态**：模型侧只给 `severity: BLOCK|REVIEW`，
+    `priorityOf` 对模型侧一律**封顶 P1** ⇒ `mergedState` 的 SUGGEST 分支（要求全部 P3）
+    **永远进不去**。而「措辞优化 / 轻微常识瑕疵 / 非核心卖点描述」正是**模型侧**最常报的东西。
+  fix:
+    - where: '守衡 agent/model_side.mjs'
+      what: >
+        提示词加 `nature` 字段（只取「强制」/「非强制」）；「非强制」逐字对齐 PRD §5.3.2 的 SUGGEST 定义
+        （措辞优化、轻微常识瑕疵、非核心卖点描述）。解析成 `nature: advisory|mandatory`；
+        **缺省/写错/不认识 ⇒ mandatory**（不把强制降级成建议，那是失真方向）。原话留在 `nature_asked`。
+    - where: '守衡 agent/dual_track.mjs'
+      what: >
+        `pickModel` 白名单搬 `nature`（不搬就静默消失 —— 与 basisLine/source_url/taxonomyCategory 同一形状）；
+        `priorityOf` 模型侧分支**先判 advisory ⇒ P3**（必须在 A3 子类推导之前，否则被「封顶 P1」吃掉）。
+    - where: '守衡 mergedState'
+      what: 'SUGGEST 分支条件不变（全部 P3 ＋ 库侧不更重），但此时**真的可达**了'
+  reachability_matrix:
+    PASS: 'kb 读到了 PASS、合并后无条目'
+    SUGGEST: '模型侧全部 `非强制`（⇒ P3）＋ 库侧 PASS'
+    REVIEW: '任一条强制项，或库侧 REVIEW'
+    BLOCK: '任一条 BLOCK/P0'
+  gauges:
+    - '守衡：test_agent **279/0**（新增 Z58：四态矩阵逐态断言 ＋ nature 白名单搬运 ＋ 两条反向对照）'
+    - 'dual_track 126/0 ＋ 53/0 ｜prd53_format 28/0 ｜model_side_taxonomy 全绿 ｜verify_cards 347/0 ｜node --test 18/18'
+    - '知识库：pytest 101 passed ｜workflow_smoke rc 0'
+  reverse_controls:
+    - '非强制项**混进一条强制** ⇒ 必须升回 REVIEW（实测通过）；这是单调性，不是「有四态就都放」'
+    - '模型侧**不写 nature**（缺省）⇒ 不许被当成 advisory（否则强制问题会被静默降级成建议）'
+    - '`nature` 若在 pickModel 白名单里被丢 ⇒ Z58 ② 精确变红'
+  note: >
+    四态**全部可达**这一点是实测的：同一支测试里四次 `mergedState` 分别取到
+    PASS / SUGGEST / REVIEW / BLOCK。⚠️ 生产里 SUGGEST 仍**少见** —— 它要求「整单一条强制项都没有」；
+    只要混进一条功效宣称或绝对化用语，正确行为就是 REVIEW/BLOCK。
+  deployed: '守衡已重启：pid 99634（2026-10-19 15:00:24 起）＞ model_side.mjs 14:57:43 / dual_track.mjs 14:57:49'
+
+fix_20261019_suggest_reachable_in_production:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: >
+    「这句出的是 pass,再给我一个出 SUGGEST 的」
+    （原文：`This pump is super easy to use.` → `【审查结论：PASS】未发现已知底线风险…`）
+  root_cause: '**两层都不通，实测定位**'
+  layers:
+    - id: L1
+      what: >
+        提示词只讲「列出你发现的问题」，**没讲「非强制项也要报」** ⇒ 模型侧对纯措辞类文案一律回 `[]`
+        （实测：五段只是措辞别扭、毫无违规的英文，五次全 `[]`）⇒ 整单无条目 ⇒ PASS。
+      fix: >
+        `agent/model_side.mjs` 加规则 **1b**：除强制项外，**措辞优化 / 轻微常识瑕疵 / 非核心卖点描述**
+        这三类**必须报**并标 `nature:"非强制"`；判定问句「不改也能发 ⇒ 非强制」；
+        ⚠️「不编」一个字没松（没有可提的点仍然 `[]`）。
+    - id: L2
+      what: >
+        `priorityOf` 的 advisory 判定只读**顶层** `x.nature`；而 `mergeFindings` 之后
+        `nature` 在 **`x.model.nature`** 里（`pickModel` 白名单搬过去的）⇒ 合并后一律 P1
+        ⇒ 即使模型报了 non-advisory 也进不了 P3（实测：模型 3 条 advisory，P 级仍 P1/P1/P1，结论仍 REVIEW）。
+      fix: '`priorityOf` 改成**三处都看**（顶层 / `model.nature` / `kb.nature`）—— 与 `taxonomyCategoryOf` 同一个坑，第 N 次'
+  verified_end_to_end:
+    run: '真调模型侧（`reviewModelSide({readings, ask})`）→ `mergeFindings` → `mergedState` → `renderMerged`'
+    sample_A: '`This pump is super easy to use.` ⇒ 模型侧 1 条 advisory ⇒ P3 ⇒ **SUGGEST**（`【审查结论：SUGGEST】发现 1 处建议优化，不阻断发布。`）'
+    sample_B: '措辞别扭版（`The product very suit for mother use…`）⇒ 3 条 advisory ⇒ P3×3 ⇒ **SUGGEST**'
+  gauges:
+    - '守衡：test_agent **279/0**（Z58 补「合并后的真实形状」断言：`model.nature` 必须也判 P3）｜dual_track 126/0 ＋ 53/0 ｜prd53_format 28/0 ｜verify_cards 347/0 ｜node --test 18/18'
+  deployed: '守衡已重启：pid 6798（2026-10-19 15:08:45 起）＞ dual_track.mjs 15:06:59 / model_side.mjs 15:05:24'
+
+fix_20261019_card_three_defects:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: >
+    「1.卡片上的清单链接有两个，去掉上面的，保留下面的
+     2.审查报告中的原因是给业务侧看的，**必须是真实原因**（举例：「原因：涉嫌医疗宣称。」）
+     3.修改建议你写了200多字，字数限制你上面修复后落库了吗？**修改建议 ≤30 字的**」
+  fixes:
+    - id: 1
+      what: '卡上两条报告链接（守衡的 `→ 完整清单：` ＋ 库侧自带 `→ 查看完整问题清单与修改建议：`）'
+      how: >
+        新增并导出 `dedupeReportLinkLines()`：按**行首两种措辞**匹配（不按固定字符串，改措辞仍生效），
+        **只留最后一条**（Owner 指定「保留下面的」）；只有一条时原样返回。
+      verified: '输入 Owner 卡上那两行原文 ⇒ 输出 1 条，且保留的是库侧原措辞'
+    - id: 2
+      what: '「原因」印的是内部治理口径：`按 PRD §7.3 判定（Owner 2026-10-13 同意入选）`'
+      how_two_layers:
+        data: >
+          `kb/l3/candidates/external_standard.jsonl` 里 **6 条** P0 规则（V01–V06）的 `reason`
+          就是那句内部口径 ⇒ 换成**业务读得懂的真实原因**（例：「绝对化用语（最好/最佳/纯天然一类），
+          无证据支撑，属不可发表述。」）；原口径**不丢**，挪进新字段 `reason_note_internal`。
+        render: >
+          `businessReason()` 加 `INTERNAL_RE` 剔除（`PRD §` / `Owner 20xx` / `同意入选` / `层级地板` /
+          `口径：` / `登记件` / `判据（` / `kb/…`），**且这一道不回退**：整句都是内部口径 ⇒ 返回空串，
+          由调用方如实说「本次没有可念的理由」。
+      bug_found: >
+        第一版把内部口径过滤与其它过滤合成一次、末尾写 `kept.length ? kept : segs` ⇒
+        **整句都是内部口径时又把原串吐回来**（Z59 当场抓住）。
+    - id: 3
+      what: '卡面「修改建议」200+ 字，超 PRD §5.3.3 的 ≤30 字'
+      how: >
+        **卡面压到 ≤30 字**（压法 = 取第一句可执行动作；第一句仍超则截到 30 并标「…（全文见报告）」），
+        **报告保留全文**（「建议都写全」在报告里仍成立）。
+      bug_found: >
+        两次自伤：① 截断写在报告用的 `sugShort` 上 ⇒ **截错了介质**（卡面照旧 112 字、报告反被压）；
+        ② 定义放在卡面 `head` 之后 ⇒ TDZ（`Cannot access 'sugCard' before initialization`）。
+      verified: '长建议 ⇒ 卡面 30 字（✅ ≤30，带「全文见报告」）｜报告 全文 59 字（✅ 未被压）'
+  gauges:
+    - '守衡：test_agent **280/0**（新增 Z59；Z23/Z26/⑱b 按介质分开断言：卡面首句＋报告标注）｜dual_track 126/0 ＋ 53/0 ｜prd53_format 28/0 ｜verify_cards 347/0 ｜node --test 18/18'
+    - '知识库：pytest **101 passed** ｜p0_fastpath 60/0 ｜workflow_smoke rc 0'
+  trade_off: >
+    **卡面因 ≤30 字不再带「参考了库内反例 / 不是库规原文」这类溯源标注** —— 它挪到报告，
+    判据（Z23/⑱b）已改成按介质断言，溯源一个字没丢。
+  deployed: '守衡已重启：pid 26598（2026-10-19 15:27:37 起）＞ dual_track.mjs 15:26:02'
+
+fix_20261019_owner_fix_locks:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: '你上面的修复问题要落库，避免重复修复'
+  why_it_existed:
+    - '修复记录（本文件，98 条）是**流水账**：按日期堆，看不出「这条 Owner 意见现在由哪把尺守着」'
+    - '同一问题被报两次在本库发生过多次（「分类汇总怎么又复现了」「未归类 5 个」）'
+    - '**判据被删/被改名是最安静的回归** —— 代码照旧跑，只是没人守了'
+  artifacts:
+    - path: 'kb/l7/registry/owner-fix-locks.yaml'
+      what: >
+        一条 Owner 意见 = 一条锁：`for`(指向本文件的 fix_ 键) ＋ `invariant`(不许变的那句话)
+        ＋ `judges`(文件 + 判据 ID) ＋ `reverse_control`(什么变异该让它红)。
+        支持 `also_for`（一条锁覆盖多个 fix_）与 `superseded_by`（历史中间态，留痕但不持判据）。
+      counts: '16 把锁（13 把持判据 ＋ 1 把合并覆盖 ＋ 2 把新增/被取代）覆盖 fix_20261019 起全部 17 条修复'
+    - path: 'kb/l8/owner_locks_check.py'
+      what: '销账器：①判据文件在不在 ②判据 ID 还在不在正文里 ③今天的修复有没有漏挂锁；`--selftest` 三条反向对照；`--run` 真跑判据'
+    - path: 'kb/l8/workflow_smoke.py'
+      what: '接入 S9 段（链级冒烟里多一盏灯：锁失效 → 红）'
+  first_run_findings:
+    - '**当场抓到 4 条修复漏挂锁**（card_summary_back_to_dimension / model_side_taxonomy_subclass / empty_cell_and_judge_retarget / single_axis_a3_everywhere）—— 已分别补锁或标 superseded'
+    - '自己写崩两次：① `--run` 的 cwd 设在仓库根（判据脚本在 `tools/`）⇒ 7 条全假红；② S9 里 `KB / "kbpy"` —— 本文件 `KB` 是**字符串** ⇒ TypeError。判据自己崩掉最误导人（像红灯其实是尺子坏了）'
+  gauges:
+    - 'kb/l8/owner_locks_check.py → 全绿（17/17 条修复挂锁）｜--selftest all/0（判据ID被改/文件写错/抽掉一把锁 各能红）'
+    - 'kb/l8/owner_locks_check.py --run → 守衡 7 项判据全 ✅'
+    - 'kb/l8/workflow_smoke.py → **8/8 段全绿**（含新增 S9）'
+  how_to_use: >
+    改了任何一处 Owner 报过的问题 ⇒ 先跑 `kb/kbpy l8/owner_locks_check.py`：
+    若它说「今天的修复没挂锁」，就在 `owner-fix-locks.yaml` 里加一条锁（判据 + 反向对照），
+    否则这条修复**等于没有守门人**。日常体检跑 `workflow_smoke`（S9 会自己叫）。
+
+fix_20261019_advisory_self_consistency:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: >
+    「这句话判断是 review，不是 suggest。另外，回复中去掉这句『无库内依据 —— 知识库条款没覆盖，
+     （无库内依据的改法建议 —— 不是库规原文）』，修复后落库，**没有「依据」如何判断的问题呢？**」
+  fixes:
+    - id: 1
+      what: '真单：模型原因里写明「**它不构成健康或安全宣称，不改也能发布**」，但 `nature` 标了「强制」⇒ 整单落 REVIEW'
+      how: >
+        `model_side.mjs` 解析层加**自洽兜底**：reason/description 出现
+        「不改也能发布 / 不影响发布 / 不阻断 / 非强制 / 表达效果较弱 / 属于建议优化」⇒ 判 `advisory`，
+        并把自报值留痕在 `nature_overridden`（**不静默改**）。
+        ⚠️ **单向**：只把「自述非强制」改上去，绝不把自述强制降级。
+      verified: '同一段模型原文 ⇒ nature=advisory，整单 SUGGEST；把「不改也能发布」删掉 ⇒ 仍 mandatory（反向对照）'
+    - id: 2
+      what: '卡上两句**自我否定**的长句（一边判它是问题、一边说没依据）'
+      how_two_places:
+        basis: >
+          `ext_basis.mjs`：`**无库内依据** —— 知识库条款没覆盖，本条也没给出外部来源（独立语义复核给出的判断，需人工复核）`
+          → **`独立语义复核（非条款依据，需人工核对）`**
+        advice_tail: '`dual_track.mjs`：去掉「（**无库内依据的改法建议** —— 不是库规原文）」尾巴'
+      why_kept_a_short_mark: >
+        Owner 的问句「**没有依据如何判断**」正是要点：这一格**不能整格删** ——
+        PRD §5.3.3 要求每条都有「依据」格，而本库另有硬纪律：**模型侧结论是判断，不是证据**。
+        删掉一切标记会让读者把判断当条款依据（比自我否定更坏）。所以改成**短、不自我否定、说清性质**。
+      open_question_for_owner: >
+        更彻底的做法是「**给不出依据的条目根本不上卡**」——但那会把「模型侧独立线索」整类丢掉（漏放方向），
+        所以本轮**没做**，等 Owner 定：① 保留＋短标注（现状）／② 不上卡、只在报告里列／③ 必须有外部标准来源才算条目。
+  gauges:
+    - '守衡：test_agent **281/0**（新增 Z60：自述非强制⇒advisory ＋ 反向对照「真强制不许降级」＋ 两句长句在卡与报告都不许出现 ＋ 依据格仍说明非条款依据）'
+    - 'dual_track 126/0 ＋ 53/0 ｜prd53_format 28/0 ｜verify_cards 347/0 ｜node --test 18/18'
+  locks: 'owner-fix-locks.yaml::L18'
+  deployed: '守衡已重启：pid 36674（2026-10-19 15:37:10 起）＞ model_side.mjs 15:34:28 / dual_track.mjs 15:34:35 / ext_basis.mjs 15:34:19'
+
+fix_20261019_wordlimit_enforced:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: >
+    「字数限制问题，**为什么反复修**？原因 ≤50 字是 prd 要求，现在都 90 多字了。
+     建议中『（全文见报告）』这里**都没有报告**，没有的东西不要说。
+     依据：**必须要提供依据，为问题做支撑**」
+  root_cause_of_repeats: >
+    **我前几轮只落了「尺子」，没落「闸门」。** `prd17`/`prd533` 只**量**并打日志，
+    没有任何东西在卡面上强制压字 ⇒ 检查器全绿、卡面照样 90 字，Owner 一验就发现。
+    这是「散文没有失败信号」的镜像错误：**判据有了，但没有接在执行点上**。
+    ⇒ 本轮把约束搬到**渲染处**（`renderMergedItem`），并让判据断言**渲染结果**而不是断言「有个检查器」。
+  fixes:
+    - id: 1
+      what: '原因 90+ 字（PRD §5.3.3 要求 ≤50）'
+      how: '卡面 `reasonCard = _clip(businessReason(...), 50)`（取第一句；报告仍是全文）'
+      verified: '真单同段原因 ⇒ 卡面 **50 字**、报告全文不动'
+    - id: 2
+      what: '建议尾巴「（全文见报告）」指向不存在的报告（1-2 条不出报告）'
+      how: '指针**条件化**：`hasReport` 为真才加；否则纯截断（`…`）'
+      verified: '1 条（无报告）⇒ 30 字、**无指针**；给了报告链接 ⇒ 30 字、**有指针**（反向对照）'
+    - id: 3
+      what: '依据写成「独立语义复核（非条款依据，需人工核对）」—— **没有依据的判定**'
+      how: >
+        **上游**：`model_side.mjs` 提示词加规则 1c —— 每条必须给得出依据（`source` S1–S17 或可核 URL），
+        给不出就**不要报这条**；解析层打 `basis_missing` 标记（不丢，留读数）。
+        **展示层**：`renderMerged` 把 `basis_missing` 的条目**从卡面逐条滤掉**，
+        全被滤掉时如实写「本次 N 条线索均未给出依据，按 PRD §5.3.3 不列明细」；
+        `total` 只算上得了卡的条目（否则「共发现 1 处」却没有明细 = 账不平）。
+      verified: '无依据 ⇒ 卡面无逐条＋一句说明；有 `source:S14` ⇒ 依据格印「FTC《Health Products Compliance Guidance》→ URL」'
+    - id: 4
+      what: 'REVIEW ≥3 整卡 117 字（上限 100）'
+      how: '卡面「转人工」行**紧凑化**：省掉「（未配置）」与「（n/m 条未匹配方向）」；报告 `compactForCard:false` 照印'
+      verified: 'REVIEW ≥3：**117 → 60 字**｜BLOCK ≥3：53 字'
+  gauges:
+    - '守衡：test_agent **281/0**｜dual_track 126/0 ＋ 53/0｜prd53_format 28/0｜routing 30/0｜verify_cards 347/0｜node --test 18/18'
+    - '被判据抓到的自身错误：① 依据必填放在**解析层** ⇒ `model_side_taxonomy` 4 条夹具全红（已挪到展示层）；② `total` 与卡面条数脱钩 ⇒ 账不平；③ `prd53_format` 的空行判据按「上一条末字符」匹配 ⇒ 建议压缩后假红（已改成只看条间空行）；④ TDZ 两次（`_cardList`/`sugCard` 在引用之后才定义）'
+  locks: 'owner-fix-locks.yaml::L19'
+  deployed: '守衡已重启：pid 60064（2026-10-19 15:59:39 起）＞ dual_track 15:55:50 / model_side 15:55:24 / routing 15:49:22 / merged_report 15:50:48'
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 第二轮（同日）：Owner 把**同两条意见再报了一次** —— 因为上一轮两条都修在错的层/错的介质上
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Owner 逐字（2026-10-19，第二次报同两条）：
+#   「1. 卡片上的清单链接有两个，去掉上面的，保留下面的
+#     2. 审查报告中，修改建议你写了200多字，修改建议 ≤30 字」
+#
+# **为什么同一条会被报两次**（这是本节唯一值得记的东西）：
+#   · 链接 —— 上一轮在 `dual_track.renderMerged` 里加 `dedupeReportLinkLines()`，判据（test_agent Z59）
+#     也直接调那个函数，于是**测的是函数、不是人看到的那张卡**。而第二条链接是**信封层**
+#     `reply-cards/envelope.mjs::applyReportLink` 在渲染**之后**插进去的 ⇒ 那道去重根本看不见它。
+#     真因更朴素：那两处「块里已经有了吗」判断**绑死了旧措辞**
+#     `查看完整问题清单与修改建议`，而当天为了 PRD §17 的字数把卡面措辞改成了 `→ 完整清单：`
+#     ⇒ 认不出 ⇒ 又补一条（还是长措辞）⇒ 一张卡上下两条同指一份报告。
+#   · 建议 —— 上一轮只压了**卡面**（`sugCard`），报告仍用 `sugFull`；而 Owner 看的是**报告**。
+#   ⇒ 两条的教训是同一条：**判据要盯「人真正看到的那个介质 / 那一层」**。
+#     不是盯同名的邻居，也不是盯「同名的那个函数跑得对不对」。
+fix_20261019_dup_link_envelope_and_report_advice30:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: >
+    「1.卡片上的清单链接有两个，去掉上面的，保留下面的
+      2.审查报告中，修改建议你写了200多字，修改建议 ≤30 字」
+  root_cause_of_repeats: >
+    **① 链接：判据盯错了层。** 去重写在 `renderMerged`（更早），而重复是信封层
+       （`applyReportLink` / `insertLinkAboveAction`）在它之后插入的；且那两处判断
+       `.includes('查看完整问题清单与修改建议')` **绑死旧措辞**，而卡面当天改成了
+       `→ 完整清单：` 为 PRD §17 让路 ⇒ 永远判「块里没有」⇒ 补一条 ⇒ 两条。
+    **② 建议：修在了错的介质。** 上一轮只压卡面，Owner 看的是报告。
+  fixes:
+    - id: 1
+      what: '一张卡上下两条清单链接（同指一份报告）'
+      how: >
+        **信封层判据认形状、不认措辞**：新增 `REPORT_LINK_LINE_RE` / `hasReportLinkLine()`
+        （`→|->` ＋ `完整清单` 或 `查看完整问题清单与修改建议` ＋ 冒号），
+        `insertLinkAboveAction` 与 `applyReportLink` 两处改走它；
+        自己补链接时用**短措辞** `→ 完整清单：`（与 `renderMerged` 的 `reportNote` 同一句，
+        且不再白吃 §17 的 9 个字）。
+        `dual_track.dedupeReportLinkLines()` 保留为**最后一道兜底**（不是主修法）。
+      verified: 'J15a（块里已有短措辞）**恰好 1 条**；J15a2（块里已有长措辞）也恰好 1 条；J15b（块里没有）补进来 1 条'
+    - id: 2
+      what: '报告里「修改建议」372 字（PRD §5.3.3 要求 ≤30）'
+      how: >
+        报告分支 `sugShort = _clip(sugFull, ADVICE_MAX, false)`（与卡面**同一个常量**，
+        `CARD_ADVICE_MAX` 因此改名 `ADVICE_MAX`）；**源头**同时收口：
+        `advice.mjs` SYSTEM 规则 0 与 `model_side.mjs` 提示词 4b 都要求 **≤30 字的一句动作**
+        （渲染层只是硬兜底 —— 源头写 300 字，截出来的是半句诊断、不是动作）。
+        全文不丢：结构化 JSON ＋ 本地留底 `merged-*.full.md`。
+      verified: '真单那条 372 字建议 ⇒ 报告与卡面均 **28 字**；≤30 判据 Z49f/Z59 绿'
+    - id: 3
+      what: '压缩不许把「改法出处标注」一起砍掉（防「把模型写的改法读成库规原文」）'
+      how: >
+        标注挪到**标题行末尾**：`… —— **有库内条款依据** · 改法参考库内反例（非库规原文）`；
+        **只在真参考过时**才印（`adviceReferencedKb === true`）—— 没参考时一个字都不印
+        （「库内无可参考建议 / 无库内依据的改法建议」正是 Owner 2026-10-19 点名去掉的说法）。
+      verified: 'Z23（标注在、且与事实一致：没参考绝不许说参考了）｜Z26（报告里标注仍在且建议 ≤30）'
+  changed_files:
+    - tools/reply-cards/envelope.mjs        # 真因：判据绑死旧措辞
+    - tools/agent/dual_track.mjs            # 报告建议 ≤30（ADVICE_MAX）＋ 出处标注挪标题行
+    - tools/agent/advice.mjs                # 源头要求 ≤30 字
+    - tools/agent/model_side.mjs            # 源头要求 ≤30 字
+    - tools/verify_cards.mjs                # J15a 夹具换成短措辞 ＋ 新增 J15a2（两种措辞都要绿）
+    - tools/test_agent.mjs                  # Z49f/Z59 口径翻转；Z23/Z26 标注位置；Z18/另处链接识别
+  gauges:
+    - '守衡：test_agent **281/0**（exit 0）｜verify_cards **348/0**（J15 组含两种措辞）｜prd53_format 28/0｜dual_track selftest **126/0 ＋ 53/0**｜prd533/prd17 selftest all'
+    - '知识库侧：owner_locks_check **21/21 全绿**｜workflow_smoke **rc=0**（契约齐）'
+    - '反向对照（真造一遍）：把信封两处判据改回 `.includes(旧措辞)` ⇒ **J15a 精确变红**（实测「实际出现 2 次」，就是 Owner 那张卡）；恢复后 348/0'
+    - '被自己的判据抓到的自身错误：① J15a 夹具原来写长措辞 ⇒ 线上换措辞它照样绿；② Z23 抓到出处标注被截进 30 字里；③ Z55 夹具脆（卡面三格都压过，往那三格塞长度不能让整条变长，必须用没有上限的 location 撑）；④ **上一轮压「依据」格时把飞书直链与核验状态一起砍了** —— dual_track selftest 的 ④b/④b4/④b5/⑮b/⑯b 五条当场变红（压的是散文，不是坐标；已修为只剥小节名/定义/登记口径，链接与 ✅已核/⚠未核 一律保留）'
+  locks: 'owner-fix-locks.yaml::L20'
+  related:
+    - 'kb/l7/registry/prd533-constraints.yaml::conflicts[X1].resolution（30 字裁决：卡面与报告同一把尺）'
+    - 'kb/l7/registry/prd-card-known-drift.yaml::known_conflicts[C2]（已裁，闸门可从「只量」改成「按 ≤30 判」）'
+  deployed: '守衡已重启两次收口：pid 75216 → **79206**（走 tools/restart_shouheng.sh --yes 闸门，launchctl kickstart -k；末次启动自检五项全 ✅、长连接已起）；> dual_track 16:2x（依据格：只压散文、保留飞书直链与核验状态）/ envelope 16:04 / advice 16:01 / model_side 16:01'
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 第三轮（同日）：Owner 第三次报同一族，且这次问的是**为什么反复修**
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Owner 逐字（2026-10-19，附了一张真卡）：
+#   「字数限制问题，为什么反复修？ 原因 ≤50 字是 prd 要求，现在都 90 多字了；
+#     建议中「（全文见报告）」这里都没有报告，没有的东西不要说；
+#     依据：必须要提供依据，为问题做支撑」
+#
+# **那句问句本身才是要落库的东西**：反复的原因不是"某一处又漏了"，而是
+#   每次修复都只落在**某一个渲染分支**上，而**没有任何东西在出厂那一刻核成品那张卡**。
+#   这与本库早已记录的形状同源（「散文没有失败信号；判据才有」），只是这次长在卡面上。
+fix_20261019_card_conformance_gate:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: >
+    「字数限制问题，为什么反复修？原因 ≤50 字是 prd 要求，现在都 90 多字了；
+      建议中「（全文见报告）」这里都没有报告，没有的东西不要说；
+      依据：必须要提供依据，为问题做支撑」
+  root_cause_of_repeats: >
+    修复只落在渲染分支上（`reasonCard` / `sugCard` 的 `_clip`、指针条件化、`basis_missing` 过滤），
+    而**没有任何判据看成品卡文本**。于是「某一行在压」被当成「这张卡合规」，
+    别的路（库侧并进来的、被降级的、漏标记的、将来新加的产者）印出同样的字时，没有任何东西会红。
+  fixes:
+    - id: 1
+      what: '原因 90~120 字（PRD §5.3.3 要求 ≤50）'
+      how: '`reasonCard = _clip(reasonFull, CARD_REASON_MAX=50, hasReport)`（取第一句；超了硬截并带 `…`）'
+      verified: 'Owner 贴的那段 120 字 ⇒ 卡面 **50 字**'
+    - id: 2
+      what: '「（全文见报告）」指向一个不存在的报告（1 条不出报告）'
+      how: '指针**条件化**：`hasReport` 为真才加；否则纯截断，一个字不多说'
+      verified: '1 条且无报告 ⇒ 建议行内 **0 次**「全文见报告」；有报告链接时仍会加（反向对照）'
+    - id: 3
+      what: '依据写成「独立语义复核（非条款依据，需人工核对）」—— 没有依据的"问题"'
+      how: >
+        **单一判据**：解析边界给这类条目打 `basis_missing`（`model_side.mjs:336`），
+        展示层据此不进卡，并如实写「本次 N 条线索均未给出依据」。
+        ⚠️ **不许在渲染层再算第二遍** —— 试过，当场 14 项变红：`source:'model'` 在夹具里
+        还承担「这一条是模型侧报的」这个来源语义，不等于「必须自带外部依据」；
+        两个口径必然分叉。兜底交给第 4 条（出厂闸）。
+      verified: '带标记 ⇒ 不上卡＋如实说明；漏标记 ⇒ 出厂闸当场点名（Z61 ①b）'
+    - id: 4
+      what: '**没有任何东西核成品卡**（这才是"反复修"的根因）'
+      how: >
+        新增 `dual_track.cardConformance(block, {hasReport})`：只读**成品卡文本**，
+        逐条核「原因≤50 / 建议≤30 / 无报告不许写全文见报告 / 依据不许是那句自我否定 / 链接行恰好 0 或 1」；
+        `renderMerged` 里出厂即核，不合规打 `[card-gate] ⚠ …`，读数进 `rendered.cardConformance` 供判据消费。
+      verified: 'Z61：Owner 原文拼成的坏卡 ⇒ 五条违规全被点名；真有报告时指针不误报'
+  changed_files:
+    - tools/agent/dual_track.mjs      # cardConformance() ＋ 出厂接线 ＋ 依据格只压散文（保留直链/核验状态）
+    - tools/test_agent.mjs            # Z61（正向 + 反向对照四半）
+  gauges:
+    - '守衡：test_agent **282/0**（exit 0）｜dual_track selftest **126/0 ＋ 53/0**｜verify_cards **348/0**｜prd53_format 28/0'
+    - '反向对照（成品卡）：坏卡五条逐条点名；真有报告时「全文见报告」不判违规'
+    - '记录一次**试过又撤回**的改法：在渲染层按依据解析结果重判一次 ⇒ 14 项变红 ⇒ 回退为单一判据（判据算一次，兜底交给出厂闸）'
+  locks: 'owner-fix-locks.yaml::L21'
+  related:
+    - 'kb/l7/registry/prd533-constraints.yaml::fields（原因 50 / 建议 30 的同源上限）'
+  deployed: '守衡已重启：pid **87087**（launchctl kickstart -k；启动自检五项全 ✅、长连接已起）'
+
+# ── 2026-10-19（Owner：「最终输出的卡片态，必须是 4 态，这个同步知识库了吗？」）──────
+fix_20261019_prd532_four_states_wiring:
+  at: '2026-10-19'
+  by: 'DSH 会话 agent（内容治理工作区）'
+  owner_quote: >
+    「知识库决策集 / 守衡结论行解析 => 最终输出的卡片态，必须是4态，这个同步知识库了吗？」
+    （随后：「同意，现在开始做，都落库后回复我」）
+  problem: >
+    **登记层已同步，代码层零读方**：`kb/l7/registry/prd532-states.yaml` 全仓 0 个读方
+    （只有 `review_engine.py:51` 一句注释提到它）；跨仓 S7 只有 PASS/REVIEW/BLOCK 三条正则、
+    **没有 SUGGEST**；统计侧 `bitable_stats.py:107` 仍是 `TRI_STATE`。
+    ⇒ 谁把 SUGGEST 从任一侧删掉，**不会红** —— 「散文没有失败信号；判据才有」的又一例。
+  fixes:
+    - id: 1
+      what: '四态真源没有任何读方 ⇒ 「同步了」只停在登记，判据无从谈起'
+      how: >
+        新增 `kb/l8/prd532_check.py`（闸门 id `prd532`，接进 `ci/run_gates.py` 的 core，**非阻断**）：
+        把「真源 ↔ 决策集 ↔ 落表 ↔ 分级 ↔ 渲染 ↔ 守衡词表」六处钉在一起；
+        跨仓件/PRD 快照读不到 ⇒ 报「未测」不判红；**真源读不到 ⇒ 红**（fail-closed，不伪装成未测）。
+      verified: 'PASS 六处一致（跨仓实读 `STATES`）；`--selftest` **12/0**（6 条真变异＋2 条缺件口径＋1 条逐字核对）'
+    - id: 2
+      what: '跨仓 S7 对第四态是空的 —— 「守衡认、kb 不认」这条缝没有任何东西量'
+      how: >
+        `kb/l8/workflow_smoke.py`：新增 `_PRd_SUGGEST_RE`（**逐字照抄守衡** `prd53.mjs::conforms()`
+        的 SUGGEST 分支：含「不阻断发布」这个分界词、两种收尾都认）、`kb_prd_conforms` 增分支、
+        `_kb_suggest_summary()` 取**真产者**输出（不是手搓）、样本 7/8/9（真输出／合规／违规），
+        并加反向对照 **R7e**（SUGGEST 真输出缺「不阻断发布」⇒ S7 必须红）。
+      verified: 'workflow_smoke 退出码 **0**（S7 四态真输出两边都合规）；`--selftest` 反向对照 **20/0**'
+  gauges:
+    - 'kb：prd532_check --selftest 12/0 ｜ workflow_smoke rc 0 ｜ workflow_smoke --selftest 20/0 ｜ prd53_format.test.py 19/0 ｜ test_tiering 23 tests OK'
+    - 'runner：`ci/run_gates.py --only prd532 prd_card_conformance` ⇒ 过 2/2'
+    - '生产读数：`kb/l7/runs/index.jsonl` 里 SUGGEST **0 命中**（读数，不判红）'
+  still_open:
+    - '§10.2 四态分布统计（`bitable_stats.py` 仍是 `TRI_STATE`）／§15「统计」验收项'
+    - '§11 四态准确率：回归集期望态仍三态、SUGGEST 样本 0 条 ⇒ 当前**量不出来**'
+    - '结论行前缀仍是 `【审查结论：X】`（`deliberately_not_followed.items[C]`）'
+  locks: 'owner-fix-locks.yaml::L22'
+  related:
+    - 'kb/l7/registry/prd532-states.yaml::landing（定义／裁定／落地清单）'
+    - 'kb/l7/registry/prd-v1.3-alignment.yaml::batch_20261019.landed'
+  deployed: >
+    本件只改 **KB 侧判据与登记**；守衡侧 `prd53.mjs` 的四态词表由另一会话的工作区改动提供，
+    本轮**只读它、未改它**（`prd532_check` 的 F 段与 S7 都是跨仓只读调用）。
+
+# ── 2026-10-19 第二轮（Owner 贴 PRD §5.3.2 rev 101 原文：「SUGGEST 作为 PASS 的附属标签」）──
+fix_20261019_prd532_suggest_as_pass_label:
+  at: '2026-10-19'
+  by: 'DSH 会话 agent（内容治理工作区）'
+  supersedes_shape_of: fix_20261019_prd532_four_states_wiring
+  owner_quote: >
+    「按照prd 5.3.2, suggest作为 PASS 的附属标签，你觉得要如何优化？
+     SUGGEST｜非强制性问题（措辞优化、轻微常识瑕疵等）。作为 PASS 的附属标签，不阻断流程。
+     ｜随 PASS 一起流转，提示内容方。」（随后：「按照A开工」）
+  problem: >
+    PRD 内嵌表 `xcdTpv` 当天从 **rev 96 → rev 101**：四行定义全改、列头「动作」→「系统流转动作」、
+    PASS 定义新增「**可包含 SUGGEST 建议**」、SUGGEST 定义改成「**作为 PASS 的附属标签**」。
+    ⇒ 上午按 rev 96 落的「SUGGEST 当第四态」整套（`DECISIONS` 四值、`P3⇒suggest`、
+    `STATUS_PASS` 收 SUGGEST、S7 认 SUGGEST 结论行、`prd532_check` 判「决策集必须含 SUGGEST」）
+    **方向反了**：它现在会把**正确改动判红**。而且 `prd532_check` 的 A2 拿 rev 96 快照当真值，
+    真源与快照**一起陈旧、互相印证 ⇒ 恒绿**，发现不了这次漂移。
+  fixes:
+    - id: 1
+      what: '口径反转：三值 ＋ 一个标签 ＋ 四个桶'
+      how: >
+        真源 `prd532-states.yaml` 升 rev 101（四行逐字）＋ 新增 `label_semantics` 段
+        （`decision_values: [PASS,REVIEW,BLOCK]`、`label_state: SUGGEST`、
+        `predicate: decision=PASS ∧ suggest_count>0`、`buckets: 4`）；冲突 K 的历史裁定 ①
+        补 `superseded_by` / `superseded_at` 留痕（不静默覆盖）。
+      verified: '`prd532_check` A6–A11：删 `label_semantics` 或删 superseded 留痕 ⇒ 精确变红'
+    - id: 2
+      what: '代码：SUGGEST 退出决策集，改作可机读的建议集'
+      how: >
+        `review_engine.DECISIONS` 回到三态＋拒答；`tiering.decide_effect(["P3"])` → `none`；
+        `_result` 统一挂 `suggestions[]` / `suggest_count` / `suggest_label`（= PASS ∧ 建议非空）；
+        `render_summary("PASS", …)` 追加「建议（不阻断，随 PASS 流转，共 N 条）：」附段；
+        `render_summary("SUGGEST", …)` **抛 ValueError**（第四态不许从渲染复线）；
+        `feishu_publish.STATUS_PASS` 回三态。
+      verified: '`prd532_check` E1–E9（P3 单 ⇒ PASS＋建议、无建议段 ⇒ 红、渲染不抛 ⇒ 红）'
+    - id: 3
+      what: '跨仓 S7：SUGGEST 结论行由「合规样本」改成**非法样本**'
+      how: >
+        `workflow_smoke`：撤掉 `_PRd_SUGGEST_RE`，`kb_prd_conforms` 对 SUGGEST 行返回 False；
+        `_kb_suggest_summary()` 改产「PASS＋建议」真输出；样本 7 = 它的结论行（必须判 PASS 行）、
+        样本 8 = `【审查结论：SUGGEST】…`（**kb 必须判不合规**，守衡若仍认 ⇒ 记「跨仓待同步」不判红）；
+        R7e 改成「旧版产者复线 ⇒ 必须红」。
+      verified: '`workflow_smoke` rc 0；`--selftest` 20/0（R7e 精确变红）'
+    - id: 4
+      what: '判据自身的缺陷：真源与快照一起陈旧 ⇒ 恒绿'
+      how: '`prd532_check` A2 增加 **revision 三比对**（真源 `meta.revision` vs 快照 `revision`），对不上即红'
+      verified: '自证 ⑰：快照 revision 比真源新 1 ⇒ 必须红'
+  gauges:
+    - 'kb：prd532_check --selftest 17/0 ｜ workflow_smoke rc 0 ＋ --selftest 20/0 ｜ prd53_format.test.py 22/0 ｜ test_tiering 23 passed ｜ tiering --selftest 55/55'
+    - 'runner：`ci/run_gates.py --only prd532 prd_card_conformance`'
+  still_open:
+    - '守衡侧四处（`prd53.mjs` 去 SUGGEST 分支 / `dual_track.mergedState` 回三态 ＋ 出 suggest_labels / `prd17.mjs` SUGGEST 档改作建议段 / `LINE_RE` 收窄）—— 另一会话未提交工作区，本轮不可写'
+    - '§10.2 四态分布统计：`bitable_stats.py` 仍是 `TRI_STATE`；第二桶需读 `suggest_label`'
+    - '§11 四态准确率：回归集 SUGGEST 样本 0 条（现按 §11.2 三态算，口径自洽）'
+  locks: 'owner-fix-locks.yaml::L23'
+  related:
+    - 'kb/l7/registry/prd532-states.yaml::label_semantics（本轮口径的唯一真源）'
+    - 'kb/l7/registry/prd532-states.yaml::prd_internal_conflicts（§5.3.4 样张与 §17 SUGGEST 行仍按旧形状 ⇒ 走反馈单）'
+  deployed: 'KB 侧判据与代码，无需重启；守衡侧待那一会话收尾后按交付件的改单同步'
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 第四轮（同日，同一族问题的**第二次**报修）：这次报的是「改了没有」，不是「改得对不对」
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Owner 逐字（2026-10-19，两次，附两份真报告）：
+#   ① 「这里的 修复建议都没讲完，被截断了，**不能出现这种情况**」（`Gfuydnn9xoUcAwxnNACcCJcvnfc`）
+#   ② 「报告中的 P3，修改建议：**改为…** 后面没有了，**这是 bug**，修复」（`BjiBdJW2doq7xPxaUChcBemNnyc`）
+#
+# ★ 为什么上一轮（`fix_20261019_dup_link_envelope_and_report_advice30::fixes[2]`）没挡住：
+#   上一轮为了满足「≤30 字」，给**报告**那一格接上了 `clipToLimit` —— 而那把尺的第 ③ 档
+#   是**按字位硬切 + 挂省略号**。它压出来的不是"短改法"，是**半句**：
+#     · `删「Certified Comfort」，或补认证机构名称…`（切点落在「，」后 ⇒ 二选一被读成唯一动作）
+#     · `改为「discreet enough to pump at work or on the go」` 被切在引号里，
+#       再被 `balanceQuotes` 从没闭合的左引号砍回 ⇒ 整条只剩 **`改为`**（有动词、没宾语）。
+#   ⇒ **压字与完整是两个约束，不能靠同一个函数同时满足**：字数由**产出侧写短**负责，
+#     渲染层只负责**一个字都不许少**。
+fix_20261019_advice_never_truncated:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: >
+    「这里的 修复建议都没讲完，被截断了，不能出现这种情况」
+    ／「报告中的 P3，修改建议：改为…后面没有了，这是 bug，修复」
+  supersedes: 'fix_20261019_dup_link_envelope_and_report_advice30::fixes[2]（报告改用 `_clip` 压到 ≤30 —— 半句就是它压出来的）'
+  root_cause: >
+    **两层的病，缺一层都还会再犯。**
+    ① 渲染层：报告「修改建议」走 `clipToLimit` ⇒ 第 ③ 档硬切 + `…`；
+       切点落在引号里时 `balanceQuotes` 会把句子砍回动词（`改为` ＋ `…`）。
+    ② 产出侧：`advice.mjs` 提示词写了 ≤30 字，模型不照做时**没有任何东西拦**，
+       全靠渲染层切 —— 切出来的半句被当成了"合格短句"。
+    ⇒ 字数与完整是两个约束：**写短归产出侧，不许少字归渲染层**。
+  fixes:
+    - id: 1
+      what: '报告里的「修改建议」被 `…` 切在半句上（6 条里 3 条）'
+      how: >
+        `dual_track.fitAdvice(text, 30)`：≤30 原样；>30 **完整印出**并记 `over`。
+        **不取第一句、不做分句回退** —— `删 X，或补 Y` 压成 `删 X` 是把"二选一"改成"唯一动作"，
+        那是改写语义，不是压缩。报告那一格从此**没有截断分支**。
+      verified: '㉖a/㉖a2/㉖c（真渲染）；反向：改回 `_clipR` ⇒ ㉖c 精确变红'
+    - id: 2
+      what: '建议只写了「改为…」（P3 那条），有动词没有动作对象'
+      how: >
+        `dual_track.cutAtBoundary`：引号平衡后若比候选短掉一半以上 ⇒ 改用**去掉引号字符**的版本
+        （既不悬着半个引号 —— 2026-10-19 早先那条口径 —— 也不剩光杆动词）。
+        只影响**卡面**这条兜底截断路径；报告不再走它。
+      verified: '㉖e（真输入 `改为「discreet enough to pump at work or on the go」`）；㉖e2 反向对照（正常长句仍按边界压）'
+    - id: 3
+      what: '字数该在源头收口，而不是在显示层切'
+      how: >
+        `advice.mjs` 新增压缩步：`generateAdvice` 拿到超 30 字的条目 ⇒ 再问一次
+        （`SYSTEM_COMPRESS`：≤30 字、一句完整话、**不许省略号或半句**）⇒ 用压过的；
+        压不下来/调用失败 ⇒ **留完整原句**并如实记 `over_length`（不静默、不编短句）。
+      verified: '`advice.test.mjs` A1–A5（桩 LLM，离线）5/0；A3/A4 钉「压不下来也不许半句」'
+    - id: 4
+      what: '两份真报告按新口径重投（历史件不回改，只回这两份 Owner 当场点名的）'
+      how: >
+        `Gfuydnn9xoUcAwxnNACcCJcvnfc`：6/6 条完整（4 条尾句随截断丢失 ⇒ 用同一生成器重写）。
+        `BjiBdJW2doq7xPxaUChcBemNnyc`：`改为…` ⇒ `改为「discreet enough on the go」`；
+        `…more…` ⇒ `删去 safety，maximum 改为更温和的表述`；其余 4 条未动。
+      verified: '两份 doc 逐条回读：`修改建议` 行无一以 `…` 结尾、无一短于 6 字'
+  changed_files:
+    - tools/agent/dual_track.mjs       # fitAdvice（报告不截断）＋ cutAtBoundary 反光杆动词 ＋ ㉖a–㉖e2
+    - tools/agent/advice.mjs           # SYSTEM_COMPRESS ＋ 超长再压一次 ＋ over_length 读数
+    - tools/agent/advice.test.mjs      # **新增**：A1–A5（含 2 条反向对照）
+    - tools/test_agent.mjs             # Z49f / Z59 口径翻转：由「报告 ≤30 字」改为「报告不许截断」
+  gauges:
+    - 'dual_track：`--selftest` **133/0**（㉖ 组 7 条）｜`--selftest-extract` 55/0'
+    - 'advice：`advice.test.mjs` **5/0**'
+    - '全量：`test_agent` **281/1**（唯一红 = Z55「链接被算进字数」，另一会话在建 `prd17.mjs`，与本题无关，且**本轮改动前就是红的**）｜`verify_cards` 348/0｜`review_publish.test` 39/0｜`prd53_format` 28/0'
+    - '反向对照（真造一遍）：① 报告改回 `_clipR` ⇒ ㉖c 红（实得「…认证机构名称…」）；② `cutAtBoundary` 恢复直返 ⇒ ㉖e 红（实得 `改为…`）；③ 删掉 advice 的压缩步 ⇒ A1 红'
+  locks: 'owner-fix-locks.yaml::L25'
+  related:
+    - 'kb/l7/registry/prd533-constraints.yaml::conflicts[X1].resolution（≤30 字仍是目标，但**由产出侧实现**）'
+    - 'fix_20261019_dup_link_envelope_and_report_advice30（本轮推翻其 fixes[2] 的**手段**，目标不变）'
+  deployed: >
+    **已重启** 2026-10-19 18:03:16（Owner：「可以重启」）：PID 54185 → 79621，走
+    `restart_shouheng.sh` 两步闸门；闸门列出的生效模块 = `advice.mjs` / `dual_track.mjs` / `prd533.mjs`。
+    两份历史报告（`Gfuydnn9xoUcAwxnNACcCJcvnfc` / `BjiBdJW2doq7xPxaUChcBemNnyc`）在此前已手工重投。
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 第五轮（同日）：Owner 给了「30 字」的**数法** —— 不是放宽，是口径
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Owner 逐字（2026-10-19）：「修改建议 **是可以 30 字的，不带标点这些，可以多写一些**」
+#
+# ⇒ 30 字量的是**实词字数**：`删「最」字，改为「更」；补一行日期` 字符 18、**实词 11**。
+#   这不是把 30 放宽成 35，而是把「标点」从计量里拿掉 —— 该断句就断句，
+#   别为了省字数把一句话写成不分段的坨。**总量仍是 30 个实词。**
+fix_20261019_advice_count_no_punct:
+  at: '2026-10-19'
+  by: 'Owner（内容治理）'
+  owner_quote: '修改建议 是可以30字的，不带标点这些，可以多写一些'
+  scope: >
+    **只对 `advice`（修改建议）这一格**生效：描述 / 原因仍按 `visible_no_url`；
+    §17 的**整卡**预算（≤100 / ≤200）**不动**（那是另一条指标，量的是整张卡）。
+  rule: >
+    字数 = 去链接 / 去 markdown 标记 / 去空白 **再勾掉标点** 后的字符数。
+    标点集：`，。、；：！？…—～·「」『』（）【】《》〈〉“”‘’,.!?;:'"()[]{}<>`。
+    ⚠️ 只去**标点**：`-` `/` `_` `&` `%` 不算（`best-selling` 的连字符是词的一部分，
+    算成标点会让英文建议凭空少 1 字）。
+  single_source: >
+    **一把尺三处用**：守衡 `tools/agent/prd533.mjs::countAdviceChars`（渲染层 `fitAdvice` /
+    卡面 `clipToLimit(count=…)` / 判据都调它）↔ `tools/agent/advice.mjs::adviceChars`（产出侧 ≤30）
+    ↔ 本库 `kb/l8/prd533_check.py::count_advice_chars`（门禁）。
+    任一侧另抄一份计数规则，就会出现「报告说合格、库里说超了」。
+  changed_files:
+    - tools/agent/prd533.mjs            # `stripForCount` 抽出来 ＋ 新增 `countAdviceChars`
+    - tools/agent/dual_track.mjs        # fitAdvice / clipToLimit(count=…) / 卡面／报告两格 ＋ ㉖f/㉖f2
+    - tools/agent/advice.mjs            # adviceChars 改用同一把尺 ＋ 提示词写明「标点不计」
+    - tools/agent/advice.test.mjs       # A6
+    - tools/test_agent.mjs              # Z59 两处卡面断言改用 countAdviceChars
+    - kb/l8/prd533_check.py             # count_advice_chars ＋ check_fields 对 advice 走新口径
+    - kb/l7/registry/prd533-constraints.yaml  # counting.advice_no_punct ＋ 标点集
+  gauges:
+    - '守衡：dual_track --selftest **135/0**（㉖ 组 9 条）｜advice.test **6/0**｜verify_cards 348/0｜test_agent **281/1**（唯一红 Z55，另一会话在建 prd17.mjs，非本题）'
+    - '本库：prd533_check --selftest all/0｜owner_locks_check 全绿｜workflow_smoke rc=0'
+    - '反向对照：把 `countAdviceChars` 换回 `countChars` ⇒ ㉖f 与 A6 同时红；把标点集加进 `-` ⇒ `best-selling` 凭空少 1 字（这条不判红，靠本段说明挡）'
+  locks: 'owner-fix-locks.yaml::L26'
+  related:
+    - 'kb/l7/registry/prd533-constraints.yaml::counting（口径真源）'
+    - 'fix_20261019_advice_never_truncated（完整优先：先保证不切，再谈多短）'
+  deployed: '守衡侧已重启 2026-10-19 18:03:16（PID 54185 → 79621，`prd533.mjs` 在生效模块里）；本库 `prd533_check.py` 免重启即时生效'
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 2026-10-19 · 主观最高级／夸张词放开（Owner 裁定 A ＋ A）
+# ══════════════════════════════════════════════════════════════════════════════
+fix_20261019_superlative_puffery:
+  date: '2026-10-19'
+  owner_ruling: 'Owner 原话：「知识库中优化规则：美国市场是可以超级、最好这些夸张词的 ⇒ 这类词不再判断为问题」。'
+  prior_state: >-
+    这条口径在库里翻过两次，**不是新加的一条规则**：① **2026-09-09** 源记录
+    （`recvuJYdOb1B8v` 的「命中原因／修改建议」）写明「best/#1/No.1/最佳/最好 等排名最高级放开、不再判险」；
+    ② **2026-10-09** 因 PRD §7.3 第 3 条，**把这个放开作废**，反过来给 H05 补了整套绝对化正则
+    （`最X`／`第一`／`最佳`／`纯天然`／`100%`／`\bbest\b`／`#1`）；③ **2026-10-14** 只摘了「好」一个字
+    （`l5_export.py:198-208`），理由是「整族放开超出该口径，留给法务逐条确认」；④ **2026-10-17** 登记为未修项
+    「H05 一边拦 `best-selling`、一边说这条不算问题，改哪边要人裁」。**本次裁定即那句缺席的裁。**
+  boundary: >-
+    **只放开「不可验证的主观夸张／主观最高级」，不是整族放开。** 判断轴是 FTC 那条：
+    puffery（主观、无法客观验证）不判；可验证的宣称照样要有 substantiation。
+  freed:   # 出列：不再判 P0
+    - 'H05 正则：`最佳`、`\bbest\b`，以及 `最\s*(佳|优|强|舒适)` 四族（出列后正则为 `最\s*(安全|低价|便宜|有效|快|大|高|省)`）'
+    - 'V02 词表：`最佳`（VARIANTS literal ＋ 源侧 forbidden_expression 两处）、`最好`（synonym）'
+  kept:    # 保留：照旧 P0 BLOCK
+    - '虚假安全承诺：`safest` / `most safe` / `100% safe` / `100% painless` / `zero risk` / `risk-free` / `guaranteed safe` / `perfect pump` / `最安全` / `绝对安全` / `完全安全` / `零风险` / `完美` / `百分百安全`'
+    - '绝对化适配：`fits all breast shapes` / `one size fits all` / `适合所有胸型` / `一定不损伤`'
+    - '需依据的销量／排名宣称：`bestseller` / `best-selling` / `hotseller` / `top rated` / `销量第一` / `排名第一` / `第一品牌` / `trusted by 6 million`（M03 / V03）'
+    - '需依据的效果数据：`28% faster` / `30% more milk` / `2x faster` 等（M03）'
+    - '成分与量化宣称：`纯天然` / `100%`（V02）'
+  not_changed: >-
+    **M02「超级／超强／极致／无敌／super strong／ultra powerful／max(imum) suction／strongest suction」未动**：
+    它的 `taxonomy_basis.p0_fastpath = false`（实测，见 `kb/l3/candidates/rules.jsonl`）⇒ **本来就不走 P0 快路**，
+    改前改后探针都是 `hit=False`。它在 L3 里仍是 `p_level=P0` 的规则、会进 L6 召回；
+    要不要把它也从 L3 出列，见 `residual.m02`。
+  mechanism: >-
+    新增**显式出列**机制（`kb/.work/l5_export.py` 导出处的 `_excl` ＋ `VARIANTS[*].exclude`）。
+    为什么必须有它、不能直接删词：`src_frags` 来自源侧 `forbidden_expression`，而**源只读**
+    ⇒ 只改 VARIANTS 的词，导出时会被 `src_frags` 原样补回来（看着改了、其实没生效）。
+    出列的词写进 `variant_sources.dropped_by_ruling`，**留痕、不静默**。
+  files:
+    - kb/.work/l5_export.py        # exclude 机制 + V02.exclude + H05 正则拆「放开族／保留族」＋ 逐处取证注释
+    - kb/l5/p0_patterns.jsonl      # 由上面 --apply 重建（旧表留档 `*.bak-pre-puffery-20261019-184212`）
+    - kb/l5/p0_fastpath.py         # ⑪4/⑪5/⑪6 素材改 `100%`（V02 独有，仍走兜底表）；新增 ⑪7／⑪7b 反向对照
+  gauges:
+    probes: >-
+      **14 例探针，改前 4 例误拦 → 改后 14/14 全对**（`kb/.work/_puffery/probe.py before|after`）。
+      关键一格：`Best-selling breast pump` 仍 BLOCK，但命中码由 `H05,M03` → **只剩 M03**
+      —— 证明摘 `\bbest\b` 没有连累销量宣称那条腿。
+    p0_selftest: '`p0_fastpath --selftest` **62/0**（原 57/3；3 条红是素材绑在 `最好` 上，已换 V02 独有的 `100%`，断言语义未改）'
+    workflow_smoke: '`workflow_smoke.py` **rc=0 全绿（S1–S5/S7–S9）**；`--selftest` **R1–R8 全绿**'
+    test_agent: >-
+      守衡 `test_agent.mjs` **276/6**。其中 **4 条是本机环境／沙箱**（3 条语音转写需授权与模型、1 条变异自证 `EPERM` 写守衡仓），
+      **Z55 是既有红**（登记件上一段已记「另一会话在建 prd17.mjs」）⇒ **只有 Y8 是本次改动引起的**，见 `residual.y8`。
+    kb_check: >-
+      健康分 **79.3**（熔断线 60，过线）。报出的 `E026`／`W020`／`W034` 全部指向 `kb/view/**cg-r-*.md`，
+      而 view 是 **2026-10-10 的快照**（mtime 实测），本次只动了 `l5_export.py`／`p0_patterns.jsonl`／`p0_fastpath.py`
+      ⇒ **那些红是既有项，不是本次改出来的**。
+  prd_pending: >-
+    **PRD §7.3 第 3 条「绝对化用语（最、第一、最佳、100%、纯天然等）」＝一票否决、命中即 BLOCK**，
+    而它是 V02 的**唯一依据**（`rule_text` 里直接引用）。源只读 ⇒ **本地放开后 PRD 与库会长期不一致**。
+    Owner 2026-10-19 选 A：本地先落地，**登记待办** —— 请法务在 PRD 下一次升版时删除或改写第 3 条。
+    在 PRD 改完之前，这条矛盾**如实挂在这里**，不抹掉；对账时看到它属**已知项**，不要当新缺口反复追。
+  residual:
+    y8: >-
+      守衡 `tools/test_agent.mjs::Y8` 的素材是 `m5 pro是最好的吸奶器`，靠 `最好` 命中 V02 ⇒ 改后被裁定放开，
+      Y8 报「快路没命中那一句」。**这是改动的直接后果，不是环境问题。** 修法只要 2 行：
+      把 3662/3663 的素材换成 `m5 pro 100% 值得买`（V02 独有、`matched_patterns` 仍为 1），
+      并把 3679–3680 展示字段里的「最好」同步改掉。**本会话无写权限**（守衡仓在沙箱外，实测 `EPERM`），**未改**。
+    m02: >-
+      「超级」在 L3 的 M02 里仍在册（`p_level=P0`，但 `p0_fastpath=false`）。**P0 快路这一侧本来就拦不到它**
+      （改前探针 `超级静音吸奶器，超强吸力` 即 `hit=False`）。它会不会在**评审链**（L6 召回 → 引擎）里被出成问题项，
+      **本次未验证**（跑整链要层前置 ＋ 写飞书）。要彻底坐实「超级也不算问题」，需另跑一次评审链实测。
+    model_side: >-
+      **模型侧（大模型）是否仍把「最好」判成绝对化用语，本次无法验证**：守衡的提示词不在本地仓库
+      （`tools/agent/` 里 `绝对化用语` 只出现在测试桩，无生产提示词文本）。库侧放开了，模型侧是否跟进要另测。
+    dedup: >-
+      同一句仍可能被多码重复计数（`H02 boosts milk` ＋ `M03 best-selling` ＋ 模型侧各报一遍），
+      本次**未动**该合并口径（会改报告里的总数，属另一刀）。
+  related:
+    - 'fix_20261014_round2::not_done_on_purpose.h05_最好（那次「一度摘掉又回退」的取证）'
+    - 'fix_20261017_round3_audit_layout::found_defects_side[0]（登记为「改哪边要人裁」的那条）'
+    - 'kb/l7/registry/prd-v1.3-alignment.yaml（PRD §7.3 与本库的对应关系）'
+
+fix_20261020_selfheal_weekly_only_and_abort_marks:
+  at: '2026-10-20'
+  by: 'Owner（内容治理）'
+  owner_quote: >
+    「日更我都让停了，改周更了，怎么问题会出在日更上？」→「按 ①+②做」
+  findings:
+    schedule: >
+      **定时作业确实是周更**：`com.kb.pipeline-daily-skill.plist` 与 `com.kb.pipeline-daily.plist`
+      都是 `StartCalendarInterval = {Weekday: 0, Hour: 3, Minute: 30}`（周日 03:30）。
+      2026-10-20 是周二 —— 那一轮**不是排期跑的**。
+    actual_trigger: >
+      12:16:29 由**受控自愈**踢的：`kb/.work/freshness-heal.ndjson` 记
+      「陈旧（L7） ＋ 认领空闲 ＋ 日更未在跑 ＋ 无活锁 ⇒ 踢一次日更」，`ok=true`；
+      冷却台账 `kb/.work/.review-readiness-heal.json`：`attempts=1`、`kicked_sig=["L7"]`。
+      看起来像日更，是因为 `kb/l8/daily_via_skill.sh:43` 把 RUN 前缀写死成 `daily-`。
+    what_broke: >
+      那轮 13:45 **停在 L6**：`l6_scope.py` 对账 FAIL（基线 `l3_stats.json` 出自被取代的口径）
+      ＋ `l6_integrity.py` 抛 `KeyError`（11:55 的索引里还有 13:41 才退役的单元）⇒ 白跑 12–24 分钟、占认领。
+    why_hidden: >
+      新鲜度判据把「停在半路」与「跑到底但判红」都当「跑过了」⇒ 那轮失败之后 `freshness.py` 仍全绿，
+      于是「绿」被读成「工作流正常」。
+  fix:
+    heal_trigger:
+      where: 'kb/l8/watch_review_readiness.py（heal_causes / heal_decision）'
+      what: >
+        **陈旧不再触发整链重跑**，触发因只剩「周更这一轮没跑成」（weekly_missed）。
+        理由：周更周期 7 天 < 陈旧阈值 8 天 ⇒ 陈旧出现时下一次排期必在 7 天内；
+        此时踢整链是排期前抢跑，且补不回「某一层红」。
+        陈旧仍进告警正文（`check_freshness` 的 fix 改成「先看红在哪一层」）。
+    fresh_run_record:
+      where: 'kb/l7/scripts/layer_freshness.py（_latest_run_record / judge）'
+      what: >
+        新增 `ABORT_MARKS`：**中途中止**的记录（`停在 L6 闸门红：exit=1`）**不算跑过**，
+        回落到更早那份，并把跳过的每一份写进 `run_record_rejects`（不静默）；
+        新增 `GATE_RED_MARKS`：**跑到底但判红**（`FAIL`/`未过`）**仍算跑过**，但输出里点名
+        `run_verdict_gate_red` —— 「跑没跑」与「判没判红」分成两个轴。
+        `_latest_run_record` 返回值由 3 元组变 4 元组，三个调用点同步。
+  gauges:
+    - 'watch_review_readiness --selftest：132/0（新增 ⑧a2「只有陈旧 ⇒ 不踢」＋ ⑧a3「同一条件打开周更因 ⇒ 必须踢」；⑧/⑰q 按新触发面重写）'
+    - 'layer_freshness selftest：全绿（新增 反测10a「中止档不算跑过＋带出跳过理由」／反测10b「跑到底但判红仍算＋点名 gate_red」）'
+    - 'workflow_smoke：rc=3，但 S1–S5／S7–S9 全绿；唯一红是 S10（本次改动之前就红，见 honest_limits）'
+    - 'check_agents_md_drift：✅ 无漂移'
+  honest_limits:
+    gate_red_not_rejected: >
+      Owner 原话含「闸门红不算跑过」，本次**没有**按最宽口径实现：按活库算过一遍，
+      若把 `FAIL` 也算「没跑过」，L5 会立刻退回 **8.07 天前**、L6 退回 **11.0 天前** ⇒ 直接陈旧转红，
+      而那两个 FAIL 是**判据性假红**（`l6_scope.py` 基线落伍）⇒ 一个闸门 bug 会变成新鲜度告警风暴。
+      ⇒ 实现为「中止档不算跑过；跑到底判红仍算、但点名」。要改成最宽口径是一行（把 `FAIL` 加进 ABORT_MARKS），
+      代价如上，需 Owner 点一句。
+    l6_fail_open_untouched: >
+      `kb/.work/l6_report.py` 的 `integrity_verdict` 仍读 `.work/l6_integrity.json`（当前是 2026-10-19 的旧件）
+      ⇒ integrity 崩了落章仍可能记 PASS。**本次未修**（属 L6 闸门侧，单独一刀）。
+    s10_still_red: >
+      S10 出口闸仍红：守衡最近一单（`merged-2026-10-20T05_56_34.118Z-*.json`）有 4 条证据位置写成
+      `图 1 主视觉`/`图 1 画面`/`图 1 全图`，判据要求「图 N 第 X 处」。属报告侧措辞，本次未动。
+  not_changed:
+    - 'RUN 前缀仍是 `daily-`（`daily_via_skill.sh:43`）；改名要同步 `layer_freshness.py` 里 `startswith("daily-")` 的 L7 放行规则'
+    - '陈旧阈值（8 天）、冷却（45 分钟／当日 ≤3 次）、五道前置一道没动'
+
+# ═══════════════════════════════════════════════════════════════════════════
+fix_20261020_library_negative_sample:
+  at: 2026-10-20
+  owner_ruling_verbatim: >-
+    Owner 报：「我在飞书守衡侧发图片审核 339 中的图片，却没有命中知识库，这是 bug, 你定位下」；
+    Owner 下令：「**先做 ② + ④**，修复后告诉我，我去飞书验证」。
+    ⚠️ 本次只做了 ④（兜底身份 ＋ 反 fail-open）；②（送审正文去重 ＋ 剥壳补形）因
+    `kb/l8/negative_rule_match.py`（另一路 15:40）与守衡 `agent/tools.mjs`、`agent/agent.mjs`（15:30）
+    正被另一会话同时修改，**未动**，留待该路收口后统一验。
+  case: >-
+    **图片在库里是负面样本，引擎却给 PASS。** 实测那一单（base `20261020-1534`，
+    report `kb/l7/reports/20261020-153519.json`）：
+    送审正文带 `sha256=2e3055b1…`，库里同一套海报是 `b9328ba2…`（**聊天图与附件原件字节不同**）；
+    两套 OCR 也读得不同 ⇒ 行重合 0.50、逐字包含不成立、画面线索对不上 ⇒
+    `negative_rules.hits=[]`，`dropped_text_only` 里躺着 **N-1.39 / N-1.88 / N-1.97（0.742）**；
+    覆盖判据被一个**安全词** `wearable`（W-1.30）撑起来 ⇒ `covered_by=safe_vocabulary`
+    ⇒ 无 findings ⇒ **PASS**。而这张图在库里正是负面样本（记录 `recvwC9IMVHb0Q`）。
+    同一天同一条素材三次送审（15:16 / 15:35 / 复核）全是 0 命中 —— 不是偶发。
+  root_cause: >-
+    三条**身份判据全部建立在「传输形态不变」这个错误前提上**：
+    ① 图字节 sha256 —— 聊天图被飞书转码/压缩后与附件原件不同（实测 2e3055b1 ≠ b9328ba2）；
+    ② 图内文字逐字包含 —— 两套 OCR 引擎读同一张图结果不同（`MOmCOZY` / `Your Chance To Min`）；
+    ③ 行重合 0.70 门槛 —— 实测 0.50，没过。
+    而 `require_visual`（2026-10-20 为压假阳性加的）要求「同图指纹 or 画面分 ≥0.30」——
+    上面三条一失效，这一层就**整层归零**，于是「没命中」被当成「没问题」。
+    ★ 关键认识：**单元层照样把它召回了**（`trace.units.top_bm25[0]` = `#素材/recvw2vgYXmEKH/图片素材/#img.1`，
+    BM25 **617**），而命中的单元自带 `source_sha256` —— 那个 sha 与规则
+    `image_refs[].sha256` 是**同一把尺子**（都是图字节）。身份早就在手，只是没有那一层去看它。
+  fix: >-
+    新增 `kb/l7/review-engine/core/self_negative.py`（可导入、可自测）＋
+    `kb/l7/skills/kb-content-review/scripts/review.py` 两处接线：
+    ① **兜底身份**：单元层命中项里，凡 `source_sha256` == 规则 `image_refs[].sha256`
+       或锚点相同 ⇒ 认出「本素材就是某条负面样本规则的取证图」，按与 N-1.x 同形状并入
+       `trace["negative_rules"]["hits"]`（severity=REVIEW，**不 BLOCK**），
+       读数落 `negative_rules.library_negative_sample`（`detected` 与 `added` **分开记**）。
+    ② **反 fail-open**：当 `detected>0` 且 `covered_by=safe_vocabulary` 时，
+       `coverage.safe_vocabulary_alone_insufficient` 明写「安全词不单独支撑 PASS」。
+       ⚠️ 收窄：**只**在这一种组合下收窄，「安全词撑 PASS」对纯文案单的既有形状一个字没动。
+  judges:
+    - 'kb/l7/review-engine/core/self_negative.py --selftest：8/8（三条正例＋四条反例＋形状/溯源/top）'
+    - 'workflow_smoke.py：见 gauges'
+    - '复盘取证：把 15:35 那一单**当时的机读件**（`kb/.work/last_engine_out.json`，state=PASS、matcher hits=0）
+       的 units 喂给兜底层 ⇒ 认出 N-1.39/88/97/134/135（record `recvwC9IMVHb0Q`，认法=图字节 sha256 相同）
+       ⇒ 同一单会从 PASS 翻成 REVIEW。**这是本层"load-bearing"的直接证据**'
+    - '引擎实测（同一份真素材）：state=REVIEW；`negative_rules.hits` 5 条；
+       `library_negative_sample.detected=5`；`safe_vocabulary_alone_insufficient` 已写'
+    - '反例（不许误伤）：与库无关的纯文案（「m5pro是最好的吸奶器」）⇒ 拒答、兜底层 0 命中'
+  honest_limits:
+    same_image_different_bytes: >-
+      本次**没有**修「聊天图 vs 附件原件字节不同」这件事本身 —— 兜底层绕开它（用库内单元的 sha
+      做身份），但**送审侧传上来的 sha 仍然对不上库内 sha**。根治要两侧算 pHash（工程量大，未做）。
+    still_no_hit_for_non_library_images: >-
+      不在负面样本库里的图，兜底层**帮不上**（它只认"库里已有这张图"）；
+      那类图仍然靠文字/画面路，② 未做之前会继续偏低。
+    text_submissions_unchanged: >-
+      纯文案单的覆盖口径（安全词可支撑 PASS）**一个字没动**，收窄只作用于
+      「同图 = 库内负面样本」这一种组合。
+    visual_cues_are_empty_by_data: >-
+      **画面那条路在数据上是空的，不是代码空转**：实测 `kb/l3/candidates/negative_rules.jsonl`
+      476 条规则里 **0 条**有 `visual_cues`；1461 行 `image_refs` 里 **0 行**有 `visual` / `visual_text`；
+      `kb/l1/2_内部正负样本库/media_*.json` 127 份里 **0 段** `image_visual`（只有 `image_ocr`）。
+      ⇒ `negative_rule_match` 的 `visual_score` **结构性恒为 0**，`require_visual` 实际只能靠
+      「同图指纹／关键短语」通过 —— 这也是 N-1.x 那层此前把 0.742 的文字分整批丢掉却毫不自知的根。
+      ⚠️ `kb/l7/registry/negative-rule-chain.json` 写的 `L1: vision_images: 339` 与盘上**不符**；
+      `kb/l8/check_image_coverage.py` 判红「缺画面读数 339 张」是**对的**，不是判据写错。
+      **本单未修**（要重跑 339 张画面读数 → 新 L1 段 → L2 合并 → 规则重建，属供给链一刀）。
+
+# ═══════════════════════════════════════════════════════════════════════════
+fix_20261020_figure_attribution:
+  at: 2026-10-20
+  owner_ruling_verbatim: >-
+    Owner 报：「我发了图片，回复的问题是其他图片的，为什么出现这种问题？」
+  case: >-
+    用户发的是记录 `recvw7XIUgACVh` 的**第 4 张图**（德语海报，正文 `Mama sein bedeutet nicht…`，
+    提交机指纹 `2ee4a821…`），16:04 那张卡却印了
+    **N-1.337「图1: 不同族裔的妈妈们陪伴宝宝…」** —— 那是**图1** 的意见。
+    同一记录 5 张图产出 4 条规则，正文分别写「图1」「图2」「图3」「图4」，
+    而**四条规则的 `image_refs` 全都是那 5 张**（唯一 sha 4 个）⇒ 任何一张图命中，都会把
+    同记录里别的图的意见一起印上来。另有一条 N-1.370「麻烦看看呀」覆盖 **14 条记录 / 43 张图**
+    （唯一 sha 28 个），对任何图都可能命中。
+  root_cause: >-
+    **证据范围是记录级、而规则正文是图级**：`l3_negative_rules.py` 把记录 `图片素材` 字段里的
+    **全部图**塞进 `image_refs`，没有把「这条审核意见针对哪张图」落成结构字段；
+    而命中层（短语路 / 同图 sha 路）拿到「记录里任一张图对上」就当成「这条规则说的是这张图」。
+    叠加机制：规则聚类（`cluster_merge`）会把跨记录的相似意见并成一条 ⇒ 取证图越滚越大。
+  fix: >-
+    在 `kb/l7/review-engine/core/self_negative.py` 新增 `narrow_negative_hits()`（纯函数、自带自证），
+    并在 `review.py` 里对**两层命中合并之后**统一收窄：
+    ① `record_ids` > 1（跨记录聚合）⇒ 图片级不认；
+    ② 规则正文写「图N」⇒ N 必须等于**本素材对上的那张取证图的 seq**
+       （定位顺序：提交图自己的 sha → 检索单元的 sha）；对不上、或一个都对不上 ⇒ 不认；
+    ③ 无「图N」的记录级意见保留，但读数标 `attribution=record`（**不许说成「这张图命中」**）；
+    被剔的每一条进 `negative_rules.narrowed_out`（带 `why`，**不静默丢**）。
+    同时把保留命中的 `evidence` 锚点改成**对上的那张图**（不再用规则的第一张）。
+  judges:
+    - 'kb/l7/review-engine/core/self_negative.py --selftest：14/14（⑼图序号相符保留／⑽不符丢弃／⑾记录级保留／⑿跨记录丢弃／⒀锚点改到对上的那张／⒁对不上不硬认）'
+    - '真单复跑（16:02 德语海报原文）：保留 **N-1.344（图4）**，剔除 N-1.337（图1）/N-1.340（图2）/N-1.342（图3）/N-1.370（跨14记录）'
+    - '回归（15:35 giveaway 原文）：保留 N-1.39/N-1.88，剔除 N-1.97（跨6记录）/N-1.134/N-1.135（跨4记录）⇒ 仍 REVIEW'
+    - '反例（与库无关的纯文案）：拒答、0 命中，未被收窄层误伤'
+  honest_limits:
+    data_not_fixed: >-
+      **只堵了判据层，没有改数据**：`image_refs` 仍是记录级（476 条里 289 条取证图 >1 张），
+      规则正文里带「图N」的只有 11 条（9 条能与 seq 对齐）。根治要改
+      `kb/l8/l3_negative_rules.py`：蒸馏时解析正文里的「图N」、把 `image_refs` 收窄到该图
+      （或新增 `target_seq` 字段），再重建 L3→L4→L6 与映射 —— 属供给链一刀，未做。
+    case_layer_same_problem: >-
+      案例层（L4 `sample_case`，如本单 F-04 的 S-1.195）走的是「同源/同题材引证」，
+      同样是**记录级**引证，未纳入本次收窄；卡片上已明写「不是本素材里的字」但仍可能跨图。
+    position_format_unchanged: >-
+      位置写法仍是「图 1」，未替它编「图 1 第 X 处」（无图内坐标）⇒ S10 出口闸仍红（既存）。
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Owner 2026-10-20 五条（真报告：飞书 docx `X23ydZ3bwop5cIxvElZcy6Fjnu7`，rev 5）
+# ── 这一批**不是**从对话里推的：五条都在报告原文里点到，逐条抄在下面 ──────────────
+# 核验方式：`lark-cli docs +fetch --doc X23ydZ3bwop5cIxvElZcy6Fjnu7 --profile dsh-kb --as bot`
+# 落盘快照：`_report-20261020-doc.json`；判据：`kb/l8/report_conformance.py`
+# ══════════════════════════════════════════════════════════════════════════════
+fix_20261020_unclassified_must_classify:
+  date: '2026-10-20'
+  owner_quote: '未归类问题：2 个，不属于所属类别12类中的吗？图片提取规则的时候要归类'
+  found_in_report:
+    summary: '· 未归类问题：2 个'
+    items: ['F-02 ｜ 未归类 ｜ P1', 'F-03 ｜ 未归类 ｜ P2']
+    per_item_field: '**所属类别**：未归类'
+  root_cause: >-
+    案例层（`review.py` 的 case 分支，`layer=案例层（L4 定稿「反例/禁区」）`）**从来不带
+    `taxonomy_category`**；而 `taxonomy_index()` 只读 `rules.jsonl` + `external_standard.jsonl`，
+    案例层（`sc-…` / `S-1.195` / `N-1.337`）两条都不在 ⇒ `stamp_taxonomy()` 记 missing ⇒
+    渲染层 `_tax_category()` / 守衡 `taxonomyCategoryOf()` 落兜底类「未归类」。
+  why_it_happened_twice: >-
+    `owner-fix-locks.yaml::L04`（2026-10-19）已经修过一次「未归类」，但那次修的是**模型侧**
+    （`model.taxonomyCategory` 要算进归类）；**案例层这一路没动** ⇒ 同一句话又回来一次。
+    这正是 Owner 说的「避免重复修复」要防的形状：锁只钉了一条来路。
+  decision:
+    what: '案例层在**提取这一层**就归类；映射表新增 `kb/l7/registry/case-taxonomy-map.json`。'
+    mapping:
+      原则性错误: '品牌信任与声誉（设计/创意方向的要求与反馈；非受监管宣称、非产品事实）'
+      文化禁忌: '北美本地化与标签要求'
+      审核问题: '平台与渠道政策（含子类 素材提交与形式规范）'
+      品牌一致性: '品牌信任与声誉'
+      措辞表达: '北美本地化与标签要求'
+      合规红线: '合规与受监管宣称'
+    sold_off_the_pending_list: >-
+      `risk-category-policy.json` 原把「原则性错误 / 文化禁忌」写成「不编、留空待裁」；
+      本令**销账**（两条都给出 PRD 四维落点「措辞表达」与 A3 落点），`unmapped` 只留
+      `未分类` / `unknown` 两个真兜底。
+  changed:
+    - {file: 'kb/l7/registry/case-taxonomy-map.json', what: '新增（唯一真源）'}
+    - {file: 'kb/l7/skills/kb-content-review/scripts/review.py', what: 'case_taxonomy() ＋ 案例 finding 带 taxonomy_*；stamp_taxonomy() 不再抹掉条目自带的分类'}
+    - {file: 'kb/l7/registry/risk-category-policy.json', what: 'map 收进两类；unmapped 只剩真兜底'}
+  judges:
+    - 'kb/l8/report_conformance.py::R1（B 组反向对照）'
+    - 'kb/l7/review-engine/tests/test_review_dimension_wiring.py::test_owner_20261020_case_vocab_now_mapped'
+  lock: 'owner-fix-locks.yaml::L31'
+
+fix_20261020_description_never_placeholder:
+  date: '2026-10-20'
+  owner_quote: '问题描述：（本条未提供问题描述）==》不允许出现这样的回答，必须有问题描述'
+  found_in_report: ['F-02 ｜ 问题描述：（本条未提供问题描述）', 'F-03 ｜ 问题描述：（本条未提供问题描述）']
+  root_cause: >-
+    库侧 `with_kb_evidence._to_risk_item()` **压根没有 `description` 这一格**；而守衡
+    `descriptionOf()` 的取值顺序是 `x.description → x.kb.description → excerpt → 占位句`
+    ⇒ 前三个都空时只能印占位句。案例层那次 `excerpt` 也被清空（历史意见不许冒充逐字命中）
+    ⇒ 必然落到占位句。
+  decision: >
+    问题描述**必须有**，且 ≤50 字（PRD §5.3.3）。库侧新增 `_desc_of()`：自带 → 逐字命中（标明替代）
+    →「库内条款命中（规则码/类别）」；**不许**发明内容，也**不许**留空。
+  changed:
+    - {file: 'kb/l7/review-engine/core/with_kb_evidence.py', what: '_desc_of() ＋ risk_items.description'}
+    - {file: 'kb/l7/skills/kb-content-review/scripts/review.py', what: '案例层直接写 description（「库内反例 S-xxx 的问题要点：…（非本单画面）」）'}
+  judges: ['kb/l8/report_conformance.py::R2（C 组反向对照）']
+  lock: 'owner-fix-locks.yaml::L32'
+  not_done: >
+    **占位句本身没删**：它住在守衡 `dual_track.mjs::descriptionOf()` 的最后一行，本会话对该仓
+    只读（写盘被沙箱拒绝）。库侧补齐后它不再被触发，但模型侧条目仍可能走到 —— 要彻底删，
+    得改那一行的返回值为「按命中原文如实说」。**列在这里，没做就是没做。**
+
+fix_20261020_location_need_specific:
+  date: '2026-10-20'
+  owner_quote: '位置：图 1 ==〉你要写上尽详细具体位置，比如：图片顶部，图 1 第 3 处（这里第x处你如何判定的？）'
+  found_in_report: ['F-02 ｜ 位置：图 1', 'F-03 ｜ 位置：图 1']
+  answer_to_the_question: >-
+    **「第 X 处」今天是怎么来的：模型自报。** 守衡 `model_side.mjs:129` 的提示词逐字是
+    「图片 ⇒ `图 N 第 X 处`（N=第几张图、**X=该图上的第几处，从 1 数**）」，**没有区域锚点**，
+    也没有和素材块 `【图 N 内文字｜M 行】` 的行号对齐 ⇒ 今天这个 X **不可复核**，读者无法知道
+    「第 3 处」指的是哪一块字。⇒ 本令给出的判定依据是：**第 X 处 = 该图内文字块的阅读顺序行号**，
+    而且**必须能被那一行文字复核**（声称第 3 处，这一条的引文/描述就要落在第 3 行）。
+  decision:
+    - '位置四形态：`图 N 第 X 处` ｜ 区域前缀版 `图片顶部，图 N 第 X 处` ｜ `视频 MM:SS` ｜ `正文第 X 段`'
+    - '裸 `图 1` 判红（它没有「第几处」）'
+    - '区域词只许 顶部/中部/底部/左侧/右侧，且必须在「图 N 第 X 处」前面、用逗号隔开'
+  changed:
+    - {file: 'kb/l7/registry/prd533-constraints.yaml', what: 'location 新增 figure_area 形态 ＋ figure_index_basis（第X处=行号）'}
+    - {file: 'kb/l8/material_evidence_gate.py', what: 'strip_area_prefix()：新写法不许被旧判据误杀'}
+    - {file: 'kb/l8/report_conformance.py', what: 'R3 四形态 ＋ R3b 第X处可复核（给素材才判）'}
+  judges: ['kb/l8/report_conformance.py::R3/R3b（D/D2/G/G2 四组）', 'kb/l8/material_evidence_gate.py::--selftest']
+  lock: 'owner-fix-locks.yaml::L33'
+  not_done: >
+    **渲染层没改**：守衡 `model_side.mjs` 的提示词与 `normalizeLocation()` 仍按「自报第几处」，
+    素材块也还没在提示词里给行号。本令只做到「编了就红」（R3b）＋「新写法不被误杀」。
+    根治要两侧一起改：素材块带行号 → 提示词要求 X=行号 → R3b 全绿。属跨仓一刀，未做。
+
+fix_20261020_basis_no_question_points:
+  date: '2026-10-20'
+  owner_quote: '依据文档链接中不要写【问题要点】，字数超过 prd 限制了'
+  found_in_report: >
+    F-02 ｜ **依据文档链接**：《内部正负样本库》第 S-1.195 条 ← 命中「【原则性错误】图片 图1
+    【终审-@吴礼芳 】麻烦看看呀。<br/>【问题要点】 1. … 2. … 3. …」｜原始出处：…（实测 181 字）
+  root_cause: >-
+    `review.py` 案例层的摘录是 `str(c["reason_analysis"] or c["sample_body"])[:120]` ——
+    那是**整段评审留痕**（开头 `【原则性错误】图片 图1 …`，紧跟 `【问题要点】` 与 1./2./3.），
+    120 字正好把标记和头两条要点抄进依据格。
+  decision: >
+    依据格 =「《库名》第 X 条 ← 一段命中片段（≤60 字）｜原始出处：链接」。源记录的**分节标记与
+    它下面的清单不是命中片段**，不许进这一格；要说就写进「问题描述」。60 字的来路：
+    §17 逐条预算 200 − PRD 五格已占（描述 50 ＋ 原因 50 ＋ 建议 30）＝ 70，留 60 给引文。
+  changed:
+    - {file: 'kb/l7/skills/kb-content-review/scripts/review.py', what: 'case_excerpt()：按【问题要点】切段、取最长一条要点、≤60 字、去序号与【】标记'}
+    - {file: 'kb/l7/registry/prd533-constraints.yaml', what: 'basis.forbidden_fragments ＋ basis.max_chars: 60'}
+    - {file: 'kb/l8/report_conformance.py', what: 'R4 两条：禁片段 ＋ 引文 ≤60'}
+  judges: ['kb/l8/report_conformance.py::R4（E/E2 两组反向对照）']
+  lock: 'owner-fix-locks.yaml::L34'
+  measured: 'S-1.195 的摘录：181 字（含【问题要点】）→ 38 字（「图3：妈妈照料宝宝，自然使用 Momcozy 产品…」），标记 0 处'
+
+fix_20261020_advice_chars_no_punct:
+  date: '2026-10-20'
+  owner_quote: '修改建议的30字，标点不算字数'
+  root_cause: >-
+    **already-registered-but-not-wired**：口径 2026-10-19 就定过（`prd533-constraints.yaml`
+    `counting.advice_no_punct: true`，登记件里逐字写着「标点不计入 30」），
+    但 `kb/l5/advice_book.py` 仍按 `len(text)` 逐字符量（文件里那句注释写的就是「是逐字符量的」），
+    守衡 `_clip` 也按字符数截 ⇒ **度量与截断两处都没接线**。
+  decision: >
+    度量与**截断**同一把尺：先按实词数（去标点）数，≤30 原样给；>30 才截，截完仍按实词复核。
+    口径唯一真源仍是登记件，不另写第二份。
+  changed:
+    - {file: 'kb/l5/advice_book.py', what: 'advice_chars()（标点不计入）＋ selftest ②/⑥3/⑦4 全改用实词数'}
+    - {file: 'kb/l7/registry/prd533-constraints.yaml', what: 'counting.advice_clip_no_punct ＋ 说明（clip 与度量同一把尺）'}
+    - {file: 'kb/l8/report_conformance.py', what: 'R5 按实词数判'}
+  judges: ['kb/l5/advice_book.py::--selftest ⑦4（30 实词＋标点不红、31 实词红）', 'kb/l8/report_conformance.py::R5（F 组）']
+  lock: 'owner-fix-locks.yaml::L35'
+  not_done: >
+    守衡 `dual_track.mjs::renderMergedItem` 的 `_clip`（`ADVICE_MAX = 30`）仍按字符数截 ——
+    本会话对该仓只读。**反例**：一句 30 实词 + 6 个标点的合规建议，在那侧会被截成约 24 个实词的残句。
+    要真按本令出报告，那一处必须同步改。
+
+record_20261020_batch_scope_and_limits:
+  date: '2026-10-20'
+  scope_note: >
+    本批**只落了库侧**（登记件 ＋ 判据 ＋ kb 侧产者）。**守衡仓
+    `/Users/lute/Project/audit_multi_content/` 本会话写盘被沙箱拒绝**（Operation not permitted），
+    所以五条里凡属渲染层的改动（占位句、位置提示词、advice 截断）**一处都没改**，
+    逐条写在各节的 `not_done` 里 —— 不写就是假装修好了。
+  gates_run:
+    workflow_smoke: 'rc=0（契约齐，改动没把链上约定改坏）'
+    report_conformance: '--selftest 11/0；真报告 4 红（R1/R2/R3/R4）＋ R5 绿（这份报告的建议本来就不超，是因为 R5 量的是「标点不算」这个口径）'
+    prd533_check: '--selftest all/0'
+    material_evidence_gate: '--selftest 6/0'
+    advice_book: '--selftest 15/0（新增 ⑦4 口径对照）'
+    review_engine_tests: 'pytest 102 passed'
+    owner_locks_check: '31/31 挂锁'
+  honest_limits:
+    - '守衡渲染层一处未改（见各节 not_done）⇒ 下一单**仍会**印占位句 / 裸「图 1」/ 按字符截建议，除非那边同步改。'
+    - 'R3b（第X处可复核）要素材在手才判；本单的素材是飞书图片附件，未取 ⇒ 该轴**未测**，不是通过。'
+    - '「未归类」根治到案例层这一路；**模型侧**与**其它来路**若再冒新桶名，R1 会红（这就是它该做的）。'
+
+fix_20261020_l4_sample_anchor_remap:
+  at: '2026-10-20'
+  by: 'Owner（内容治理）＋执行会话'
+  owner_quote: '把L4从201降到52，会影响串图问题修复吗？这个问题很紧急，需要马上修复，不影响工作流，不会引发其他问题，你马上修复'
+  what_changed:
+    - '201 条 `sample_case` 的 `anchor`/`unit_id`/`source_sha256` 重映射到**换代后的新记录**（181 条，判据＝内容指纹：具体原因/分析 逐字 → 原文反馈 逐字 → 项目名 → 全文相似度≥0.90；正文与条款号一个字没动）'
+    - '22 条新表里无同源内容的，经 `kb/l7/scripts/l4_retire.py` **追加退役行**（号码不回收、原文不删）：20 条由重映射预演判 D，2 条（S-1.148 / S-1.154）是**配错了**（指向 recvw7XIUg0inE，相似度 0.513，内容完全不同）由本会话补退役'
+    - '`l4_gate.py`：认 `legacy_anchors`；按 `article_no` 折取**最后一行**（退役＝另起一行）；退役行进说明项；**新增 T8/T9** 钉住「不许拿退役行把红藏掉」'
+    - '引擎侧两处（否则闸门绿了照样出事）：`review.py::load_case_clauses` 与 `selfhit_check.py::load_clauses` 改为**先按条款号折叠、再挡 superseded/retired**；并修掉纯文字素材 `trace["negative_rules"]` 未初始化导致的 `KeyError` 崩溃（引擎 exit 2）'
+  why:
+    - '621 = 420（锚点改名、尺子不认 legacy_anchors）＋ 201（旧记录 id 随飞书「负面样本」表 2026-10-14 整表重建作废，10-20 16:17 prune 后彻底悬空）'
+    - '420 是串图修复①引起的判据假红；201 **不是**——它是 10-14 交付单第 2 条明确推迟的欠账（「本地 L0 件没动，上游还挂着 L1–L4 的 anchor」）'
+    - '引擎原先只挡 `superseded`、不挡 `retired`，也不折叠重复行 ⇒ 退役在引擎侧等于没生效，报告仍可能引到死链'
+  evidence:
+    - '`l4_gate.py`：红 201 → ✅（C1–C6 全过，定稿 1895 条，退役 22 条进说明项）；`--selftest` 9/9'
+    - '引擎实测：载入 207 条、**0 条旧前缀**、0 重复号；文字单与图片单各真跑一次 exit 0'
+    - '`workflow_smoke.py` exit 0（S1–S11 全绿，含 S11 串图修复锁 rc=0）'
+  rollback:
+    - '数据：`kb/l4/canonical/sample_case.jsonl.bak-pre-remap-20261020-165348`；退役记录在 `kb/l4/runs/*-l4-retire.json`'
+    - '代码：`/tmp/review.py.bak-*`、`/tmp/selfhit_check.py.bak-*`'
+
+fix_20261020_l2_media_manifest_backfill:
+  at: '2026-10-20'
+  by: 'Owner（内容治理）＋执行会话'
+  owner_quote: '没清掉的三件事，按照你的推荐修复'
+  what_changed:
+    - '`kb/l8/l2_image_units.py`（16:17 串图修复①）直写的媒体单元**没进 split 台账** ⇒ C3 账实越界 127 个资源（实测 `1 ≤ 6 ≤ 3`）。用 `kb/l8/backfill_l2_media_manifest.py` 给这 127 个 `media_*` 资源**补记 127 行 split**（`unit_count` = 实际−Σsplit，共 339）'
+    - '补记后剩余 30 条「Σsplit 比实际多」的偏差，按实测**逐条登记**进 `kb/l2/registry/l2.json::unit_count_semantics.deviations`（其中 29 条与 `kb/l2/_archive/units.jsonl.before-dedup-20261009-dedup` 的压行数**逐条对上**，1 条如实写「未能复算，待查」）'
+  why:
+    - '判据一个字没改：C3 仍是「max(行 unit_count) ≤ 实际 ≤ Σ(split 行 unit_count)」；改的是**账**（把直写的行补记上）。改成「忽略 media_*」等于把账实不符永久免检'
+    - '非 `media_*` 资源同样越界时**拒跑**（那是双写/丢数一类真缺陷，不能补平）'
+  evidence:
+    - '`l2_gate.py`：红 127 → ✅（五项判据 0 违规）；说明项里 32 条偏差全部已登记'
+    - '`kb/l8/backfill_l2_media_manifest.py --selftest` T1/T2/T3 通过（含反向对照：把 unit_count 写成实际行数 ⇒ 变红）'
+  rollback:
+    - '`kb/l2/_archive/manifest_l2.jsonl.bak-20261020-1617-imgunits-backfill`；`kb/l2/registry/l2.json.bak-pre-devdoc-*`'
+
+fix_20261020_l3_retired_ledger:
+  at: '2026-10-20'
+  by: 'Owner（内容治理）＋执行会话'
+  owner_quote: '没清掉的三件事，按照你的推荐修复'
+  what_changed:
+    - '新增 `kb/l7/registry/l3-retired-resources.yaml`：把拒绝台账里指向**已下线旧资源**的 240 行（240 个 resource_id）逐条登记，每条都带 `old_record` / `retired_unit_id` / `retired_at` / `why`'
+    - '`l3_gate.py` C2：命中登记的 ⇒ 记**说明项**（打印行数），没登记的 ⇒ 照旧红；新增自证 T7（登记⇒不红）/ T8（登记件换别的资源⇒精确变红）'
+  why:
+    - '那 240 行是 2026-10-20 12:55 那轮**重建**出来的行，指着 10-14 整表重建前的旧 record；16:17 `prune_gone_units.py` 把对应单元退役后，台账已无可回指对象'
+    - '处置是「登记」不是「删行」也不是「放宽」：**只登记在 `kb/l2/retired_units.jsonl` 里真有退役行的**，没证据的一条都不登记（本次实测 240/240 都有据）'
+  evidence:
+    - '`l3_gate.py`：红 240 → ✅（证据全可回指 + 自报键全已声明）；`--selftest` 8/8'
+  rollback:
+    - '删掉 `kb/l7/registry/l3-retired-resources.yaml` 即恢复原判（C2 重新红 240）；`/tmp/l3_gate.py.bak-*` 可回退判据'
+
+fix_20261020_basis_gate_and_rerun:
+  at: '2026-10-20'
+  by: 'Owner（内容治理）＋执行会话'
+  owner_quote: '同意你的建议，修复；另外，同一单跑完还必须支持重新跑'
+  problem:
+    - '真单 AD-20261020-006（MOMCOZY 产品陈列图）卡上两条都印「依据：独立语义复核（非条款依据，需人工核对）」—— Owner 2026-10-19 已明令这句不许出现'
+    - '根因**不在渲染层**：解析边界 `_hasBasis` 只看「`source` 是否非空字符串」⇒ 提示词教的占位值 `source:"none"` 被当成"有依据" ⇒ `basis_missing=false` ⇒ 展示层的过滤器放行 ⇒ 卡面印兜底句'
+    - '同一单重跑：链从未禁止（换 `--base` 就是新 RUN），但「第几次 / 上一轮是谁 / 上一轮结论」**没有字段也没有判据**；而同一个 BASE 跑两遍会覆盖层记账并双计（2026-10-03 实测）'
+  what_changed:
+    - '守衡 `tools/agent/model_side.mjs`：`_hasBasis` 改用 `resolveSourceId()`（闭集 S1–S17，与渲染侧**同一把尺**）；URL 误写进 `source` ⇒ 归一化进 `source_url`'
+    - '守衡 `model_side.mjs` 提示词：不再教 `source:"none"`，改成「这条不要报」—— **源头关入口，解析侧是第二道**'
+    - '守衡 `tools/test_agent.mjs`：新增 **Z61**（占位词/假 id 必判没依据且不上卡 ＋ 真来源/URL 照旧有依据 ＋ URL 写错格归一化 ＋ 两格皆空仍判没依据）'
+    - '本库 **`kb/l8/rerun_ledger.py`（新增）**：重跑台账，只追加 `kb/.work/review_seq.ndjson`；按**素材指纹**（`text_sha8`，与旁挂同一算式）认「第几次 / 上一轮 / 上一轮结论」'
+    - '本库 `kb/l8/review_run.sh`：开跑前判重跑 ⇒ **同 BASE 硬拒（exit 2）**；旁挂新增 `rerun_seq / rerun_of / rerun_prev_state`（成功路与拒答路都写，拒答路同时记账）'
+    - '本库 `kb/l8/workflow_smoke.py`：新增 **S12 重跑契约** ＋ 反向对照 **R12a / R12b**（拆接线必须红 / 真文本必须绿）'
+  why:
+    - '「有依据」= 能解析出登记来源；**占位词只是"看起来交代了"**，与真实依据是两件事。判据必须落在"能解析"，不能落在"字段非空"'
+    - '重跑要**认得出来**：同一份素材第 2 次跑只是"多一份 RUN"，没有 `rerun_seq` 就只能靠肉眼比两份报告 —— 那正是「散文没有失败信号」的另一个形状'
+    - '同 BASE 硬拒挡的是**同一个 RUN 跑两遍**（双计 + 覆盖留痕），**不是挡重跑**：重跑换新 BASE，任意多次'
+  not_changed:
+    - '卡面一个字没加：`rerun_*` 只进旁挂（Owner 2026-10-13「口径读数不上卡，我问的时候你要能回答」）'
+    - '结论判定口径没动：被滤掉的条目**照旧参与 `mergedState`**（只影响卡面逐条，不放宽也不收紧任何闸门）'
+  evidence:
+    - '`kb/l8/rerun_ledger.py --selftest` **11 / 0**（含 ③ 同 BASE 冲突 / ④ 按内容认不按时间认 / ⑥ 写不成返回 False）'
+    - '`workflow_smoke.py --selftest` **22 / 0**（新增 R12a / R12b）'
+    - '`workflow_smoke.py` **S12 绿**：接线 1/1、自证 11/0、新 BASE `rerun_seq=2 / rerun_of=DONE-1`、同 BASE `same_base=true`'
+    - '真跑守卫（只跑守卫、不跑链）：同 BASE ⇒ **exit 2** 并打印三条说明；换 BASE ⇒ 打印「第 2 次…旧产物一律不动」'
+    - '守衡 `node test_agent.mjs`：新增 Z61（全量读数见交付记录）'
+  rollback:
+    - '守衡：`model_side.mjs.bak-basis-20261020-172638`、`test_agent.mjs.bak-basis-20261020-172638`'
+    - '本库：`kb/l8/review_run.sh` 备份 `/tmp/review_run.sh.bak-172013`；删 `kb/l8/rerun_ledger.py` 即回到「无重跑判据」（S12 会红）'
+  open:
+    - '守衡卡面**不**显示重跑序号（受 Owner 2026-10-13 那条裁定约束）⇒ 目前只在旁挂里，追问时答得出；要上卡得先改那条裁定'
+    - '库侧「品牌口号地道度 / 品牌写法一致性」是否算**可判条款** —— 需人裁；裁决前这类素材会一直落 `coverage_not_covered`（覆盖缺口），模型侧条目则会因"给不出登记来源"而**不上卡**'
+
+fix_20261020_brand_wording_clause:
+  at: '2026-10-20'
+  by: 'Owner（内容治理）＋执行会话'
+  owner_quote: '定下「品牌写法一致性 / 口号地道度」算可判条款'
+  what_changed:
+    - '新增 L3 候选规则 `r-953aea516fc7ae54`（rule_code **BR-01**，条款号 **W-1.57**）：品牌名字标的**字符级**错误写法（数字替换字母 / 品牌名插空格：M0m222／momc0zy／m0cozy／mom cozy）⇒ 判「品牌写法不一致」，改为登记写法 momcozy'
+    - '证据三单元全部取自《Momcozy 品牌文案与字体应用规范》（L0 `wiki__RMTWdHAjFoCI7Ax9VTKcLg0KnSc`，rev 153）：#l.3-19（统一文案层级/大小写/字体）、#h.品牌与渠道的责任边界 / Brand / VI 负责、#h.多语言与本地化原则'
+    - '新增 `kb/l7/registry/brand-wording-policy.yaml`：把 Owner 这条裁定拆成「可判 / 判不了 / 三条建议」，**判不了的两项写明原因**（引擎 casefold ⇒ 大小写判不了；「地道度」与本库正例 S-1.101/S-1.109 冲突 ⇒ 不做条款）'
+    - '`kb/l7/skills/kb-content-review/scripts/review.py::layer_rules` 把 `taxonomy_category/subcategory` 随命中带出（原先 trace 里没有这两格 ⇒ 引擎造 risk_item 时恒 None，报告写「该命中不在规则表里」，而规则行里明明带着品牌信任与声誉）'
+  why:
+    - 'Owner 已裁定算可判条款 ⇒ 它必须有**条款号 + 可回指证据**，而不是只活在模型侧的自由判断里'
+    - '只用**字符级**差异做禁用片段：`norm()` casefold 会把大小写归一，收大小写变体等于给正确写法判红（这是实现事实，不是取舍）'
+  not_changed:
+    - '「口号是否地道」**没有**做成条款：库内正例 S-1.101 / S-1.109 逐字写着「与需求方确认过使用这个 slogan」——把它判成不地道等于用模型直觉推翻品牌侧确认。替代口径见 brand-wording-policy.yaml 的 R2（标语登记清单）'
+  evidence:
+    - 'L3 闸门：✅（C1 证据全可回指，含新规则 3 个单元）'
+    - 'L4 闸门：✅（C1–C6 全过）｜越权检查：旧行逐字节未变 True'
+    - '引擎实测（with_kb_evidence，免层前置档）：risk_item 带 article_no=W-1.57 ｜ anchor=#l.3-19 ｜ sha=bafe1b20… ｜ 命中片段=M0m222'
+    - '反向对照：同一段文本把 M0m222 改成 momcozy ⇒ 规则层 0 命中（实测）'
+    - '新鲜度 freshness.py：rc=0（L4 变化 ⇒ L5 水位曾判陈旧，已用 `layer_freshness.py measure L5 --change-state no_new_input` 落真实观测后复绿）'
+  rollback:
+    - '`kb/l3/candidates/rules.jsonl` 备份：`rules.jsonl.bak-bradd-20261020-174111`（追加前）、`rules.jsonl.bak-validuntil-*`（补字段前）'
+    - '`kb/l4/runs/20260923-1445-article.json` 曾被一次**未带 run id** 的发号覆盖 ⇒ 已按同批 run 记录重建并标 `restored: true`；本次发号的落章另存 `kb/l4/runs/20261020-1741-article.json`'
+  open:
+    - '卡片「类别」仍会显示「未分类-未分类」：`classify()` 走受控词表 `l7.json::vocabulary`，`BR-01` 不在 `code_map` ⇒ 词表不认。改词表属口径件，需 Owner 一句话（见 brand-wording-policy.yaml R1）'
+
+# ══════════════════════════════════════════════════════════════════
+# known_defect_20261020_coverage_status_unchecked
+#   模态申报**不校验 status 取值**：传 failed 也会被记成 complete。
+#   ★ 本段只登记、不改判据（Owner 2026-10-20 裁定）。
+# ══════════════════════════════════════════════════════════════════
+known_defect_20261020_coverage_status_unchecked:
+  date: '2026-10-20'
+  title: '模态申报不校验 status 取值：传 failed 也记 complete'
+  kind: '判据缺陷（不是数据缺陷）'
+  found_by: '2026-10-20 真实图片审查（把 agent-inline-vision 接进 coverage 时读代码发现）'
+  what: >-
+    `with_kb_evidence.py::_coverage_for()` 判「complete」的条件是
+    `all(got.get(k) for k in ("provider","provider_version","content_hash","status"))`
+    —— 即**只看四段在不在**，**不看 status 是什么值**。
+    于是 `--coverage image:p:1:<sha>:failed` 与 `...:complete` 得到**同一个** `complete`；
+    而 `review_engine._coverage_ready()` 只判 `cov[m] in {"complete","not_applicable"}`
+    ⇒ 一份「没读全」的申报足以把 **PASS 闸门**打开。
+  evidence:
+    - 'kb/l7/review-engine/core/with_kb_evidence.py → _coverage_for()（四段 ok 判定处）'
+    - 'kb/l7/review-engine/core/review_engine.py:75-86 → _coverage_ready()'
+    - 'kb/l7/review-engine/knowledge-base/multimodal-provider-contract.json → status 定义为 complete/partial/failed 三态，但闸门未使用该三态'
+  impact: >-
+    单向，且只影响「调用方主动申报」那一路：它不会让人少判，只会让**没读全**被记成**读全了**。
+    未申报时行为不变（一律 incomplete ⇒ 不出 PASS）。
+  decision_20261020:
+    - 'Owner 裁定：**只登记、暂不改判据** —— 改 `_coverage_ready()` 是动 PASS 闸门，属单独报批范围。'
+    - '当下规避：调用方不传异常 status；新加的 `--image` 一律只记 complete，并**限定只许用于完整读过的图**（该限定写在 `vision-providers.json` 的 note 与 `_coverage_from_images()` 的 docstring 里）。'
+  do_not: '在未开单前改 `_coverage_ready()` 的集合字面量，或把 `_coverage_for()` 的 ok 条件改成读 status —— 两者都会动 PASS 闸门'
+  reopen_when: '有人决定「status=partial/failed 该不该挡住 PASS」⇒ 先要定义 partial 的边界（读了几成算 partial），再改代码'
+  related:
+    - 'applied_20261005_coverage_declaration（申报档本身的来历）'
+    - 'kb/l7/review-engine/knowledge-base/vision-providers.json（本轮新增的 provider 登记件）'
+
+fix_20261021_image_unresolved_no_pass:
+  date: '2026-10-21'
+  owner_quote: '同意先做P0'
+  problem: >-
+    **fail-open**：守衡用「解析成功的图数」反推 `--content-type`
+    （`tools/agent/agent.mjs` 的 `inbound.imageCount ? 'image' : 'text'`）。图一旦没被解析成图片 ——
+    飞书里**以文件方式发的图**（`feishu.imageKeysOf('file',…)` 恒返回 `[]`）、图消息缺 `image_key`、
+    富文本图节点解析不到、引用那条回读失败（未测）—— 就退化成 `text`
+    ⇒ **「负面样本规则」整层不跑** ⇒ 出 `PASS / 0 条`。**零条被当成没问题。**
+  found_in_report:
+    - 'tools/agent/tools.mjs 约 1944 行注释实测：10:06:48 `--content-type text` → PASS / 0 条；11:10:00 `--content-type image` → REVIEW / 5 条'
+  decision:
+    - '有图意图 + 解析出 0 张 ⇒ 本单结论压 `NEEDS_INPUT`，卡上写明原因并要求重发（fail-closed）'
+    - '反向对照：有 ≥1 张不许拦；纯文字 / pdf / 正文提到「图」字都不算有图意图'
+    - '视频单不归本闸管（`videoCount>0` 时本闸不介入）'
+    - '单向：只挡 PASS，不动 BLOCK / REVIEW / NEEDS_INPUT'
+  changed:
+    - {file: 'tools/agent/image_intent_gate.mjs', what: '新增：detectImageIntent / imageIntentVerdict ＋ 12 条自证'}
+    - {file: 'tools/agent/agent.mjs', what: '入站算 imageIntent/imageUnresolved；出结论压 NEEDS_INPUT；卡上新增一支话术'}
+    - {file: 'tools/test_agent.mjs', what: 'N4e（判据正反 + 闸门正反 + 反向对照）、N4f（接线断言）'}
+  judges:
+    - 'tools/agent/image_intent_gate.mjs::--selftest（12/0）'
+    - 'tools/test_agent.mjs::N4e/N4f'
+    - 'node test_agent.mjs 294 通过 / 0 失败'
+  lock: 'owner-fix-locks.yaml::L42'
+  verified: '2026-10-21 11:26 重启守衡（pid 57631→68024）；启动自检全绿、长连接已起'
+  not_done: >
+    只修「图有没有进来」，不管「图看没看懂」。位置四形态（`review_run.sh` 无 `--position`）与
+    四类画面事实仍缺 ⇒ P1a / P1b；`workflow_smoke` 的 **S10 出口闸**仍红（存量：merged 记录里
+    位置是裸「图 1」，那两单记录早于本处 11:18–11:19 的落盘），与本处无交集。
+  related:
+    - '改动单-图单带图未解析不许PASS-20261021.md'
+    - 'fix_20261020_location_need_specific（位置那条是另一半，仍缺）'
+
+fix_20261021_image_identity_hit:
+  date: '2026-10-21'
+  owner_quote: '同意你的推荐，不要影响现有的工作流'
+  problem: >-
+    库内负面样本图从守衡发出去**不命中**：认图只靠 OCR 文本（图字节 sha 被飞书 IM 重压缩打掉；
+    两套 OCR 又不一致）⇒ 2026-10-21 德国海报（丢变音符号、夹水印行）在负面样本层 **0 命中**
+    ⇒ 结论 PASS；逐字自命中按「整段材料 vs 样本正文」比，分母被画面读数撑大 ⇒ BLOCK 永远到不了。
+    同一天还有第二种出口错：库侧 `REVIEW/0（覆盖缺口）` + 模型侧没跑成，被 `dual_track` 的
+    `coverageGap ⇒ PASS` 分支抢在 `modelFailed` 之前，落成 PASS。
+  found_in_report:
+    - '2026-10-21 10:07 真单（守衡 PASS）＋ 复现：同一素材文本恢复变音符号 ⇒ N-1.359 1.00 命中'
+    - 'tools/agent/dual_track.mjs:494 的 coverageGap⇒PASS 排在 :510 modelFailed 之前'
+  decision:
+    - '图身份层：pHash≤10 且 96×96 像素相关≥0.90 认「同一张图」，取该图挂的 N-1.x ⇒ REVIEW（BLOCK 需 Owner 裁定）'
+    - '送审图**本身**进链：守衡（入站图重取字节）→ kb_review_chain.imagePaths → review_run.sh --image → with_kb_evidence --image → review.py --image'
+    - 'coverageGap + modelFailed ⇒ 拒答（不许 PASS）'
+    - '不给 --image ⇒ 文字/视频单行为与改动前逐字一致（单向、不加宽）'
+  changed:
+    - {file: 'kb/l8/build_negative_image_fp.py', what: '新增：339 张库内图的 sha/pHash/规则索引（离线可复算）'}
+    - {file: 'kb/l8/check_negative_image_identity.py', what: '新增：生产形态判据（重压缩图→真引擎；噪声图反向对照）'}
+    - {file: 'kb/l7/skills/kb-content-review/scripts/review.py', what: '新增 --image 与 layer_image_identity（与 ~/.dsh 同 inode 硬链接）'}
+    - {file: 'kb/l7/review-engine/core/with_kb_evidence.py', what: '把 --image 原样转给依据层（此前只用来算 coverage sha）'}
+    - {file: 'kb/l8/review_run.sh', what: '新增 --image（可重复）→ with_kb_evidence'}
+    - {file: 'kb/l8/workflow_smoke.py', what: '新增 S14（图身份命中；没读数/超 7 天=未测）'}
+    - {file: 'tools/agent/tools.mjs', what: 'kb_review_chain 收 imagePaths；模板加「第 0 条之四」＋逐张 --image（无 paths 时逐字不变）'}
+    - {file: 'tools/agent/agent.mjs', what: '送审时重取图字节到 /tmp、塞 input.imagePaths、链后即删（取不到不阻断）'}
+    - {file: 'tools/agent/dual_track.mjs', what: 'coverageGap+modelFailed ⇒ 拒答；补自证 ⑭a5'}
+  judges:
+    - 'kb/l8/check_negative_image_identity.py::--selftest（噪声 0 / 库内图命中）'
+    - 'kb/l8/check_negative_image_identity.py --sample 12（12/12，噪声 0）'
+    - 'kb/l8/workflow_smoke.py::S14（走 kg/.work/negative_image_identity.json）'
+    - 'node tools/agent/dual_track.mjs --selftest（140/0 + 55/0；⑭a5）'
+    - 'node tools/test_agent.mjs（294/0）'
+  lock: 'owner-fix-locks.yaml::L43'
+  verified: >-
+    2026-10-21 11:19 端到端 review_run.sh --image：德国海报 ⇒ REVIEW/1、N-1.359、
+    「图身份：pHash 距离 6，相关 0.948」；11:23 S14 12/12；11:26 test_agent 294/0、
+    review_workflow 12/0、workflow_smoke 除 S10（存量红）外全绿。
+  not_done: >-
+    ① 151/339 张图的规则只有 observation/brief（不可引）⇒ 它们命中不了 findings，属数据缺口（另案）；
+    ② 图身份命中默认 REVIEW；「同图 + 稳定反例/禁区 ⇒ BLOCK」需 Owner 裁定；
+    ③ S10 出口闸仍红（存量：merged 记录位置裸「图 1」，来自 11:18–11:19 那两单，与本处无交集）；
+    ④ S13 的 selftest ⑵ 在非可引夹具上失败（改动前备份同样失败，属存量）。
+  related:
+    - 'fix_20261021_image_unresolved_no_pass（L42：只修「图进没进来」，本处修「图认不认得出」）'
+
+# ══════════════════════════════════════════════════════════════════════
+fix_20261021_p1a_position_passthrough:
+  date: '2026-10-21'
+  owner_quote: '同意你的推荐（对「先做 P1a：review_run.sh 透传 --image / --position，消 S10 那两条存量红」的批准）'
+  found_in: >
+    S10 出口闸红两条：图片单 finding 的位置实得「图 1」「图 1 主视觉」——
+    审核回复里「画面 1.00」只是**库内相似度匹配分**（历史审核意见 N-1.307），不是本次画面的视觉核对；
+    而位置是裸「图 1」，出口闸 R3 点名判红。
+  answer: >
+    **位置通道接通**：`review_run.sh --position`（新增解析）→ `with_kb_evidence.py --position`
+    （原有能力）→ 依据层 `review.py`（不再用默认 `图片 1（#img.1）`）。
+    守衡图单模板给出 `--position "<区域词，图 N 第 X 处>"` 一行并要求四形态；
+    图单提示词（`visualChecklistInstructions`）写明位置四形态规矩。
+    S8 两档渲染（text ＋ image）并集对账，防止「手册有、守衡没有」的假漂移。
+  changed:
+    - {file: 'kb/l8/review_run.sh', what: '--position 解析 + POS 数组透传（不给 ⇒ 逐字不变）；usage 同步'}
+    - {file: 'kb/l8/review_playbook.md', what: '图单追加 --image / --position 示例行（与守衡模板旗标集合一致）'}
+    - {file: 'kb/l8/workflow_smoke.py', what: 'S8 两档渲染并集对账（_shouheng_cmd_template(ctype) / extra_tpls）；R8a 同步变异两档'}
+    - {file: 'tools/agent/tools.mjs', what: 'reviewCmdTemplate 图单档加 --position 行 + posNote 口径说明'}
+    - {file: 'tools/agent/visual_checklist.mjs', what: '图单提示词加位置四形态规矩（不许裸「图 1」）'}
+  judges:
+    - 'kb/l8/workflow_smoke.py::S8（R8f 正向绿；R8a/R8b/R8c/R8d/R8g 反向对照）'
+    - 'kb/l8/workflow_smoke.py::--selftest（22/0）'
+  lock: 'owner-fix-locks.yaml::L44'
+  verified: >-
+    2026-10-21 11:47 review_run.sh --position「图片中部，图 1 第 4 处」端到端：
+    引擎 JSON `evidence_meta.position = {"value":"图片中部，图 1 第 4 处","supplied_by":"reviewer(cli)"}`，
+    四层前置全绿（L4–L7、四道审计红 0），exit 0；workflow_smoke --selftest 22/0、S8 绿；
+    node tools/test_agent.mjs 294/0。
+  not_done: >-
+    ① S10 仍红 2：读的是**最近一单 merged 记录**（11:35 那单，P1a 之前由守衡写的），位置仍是裸「图 1」——
+       守衡重启后新单带 `--position` 才会消红；**待下一张真图复测**（不伪造 merged 记录）。
+    ② 守衡代码改动需重启 launchd 才生效（`launchctl kickstart -k gui/$(id -u)/com.shouheng.lark`）。
+    ③ `--position` 只是**一单一个**证据位置；逐条四形态仍靠模型侧按读数写（S10 会继续量）。
+
+
+# ══════════════════════════════════════════════════════════════════════
+fix_20261021_rank_relax_and_report_language:
+  date: '2026-10-21'
+  owner_quote: '「审查报告中不能出现后台语言」／「虚假安全承诺（best/#1/No.1/最佳/最好等排名最高级按 2026-09-09 口径放开）==> 既然放开了，为什么还写出来问题？」'
+  found_in: >-
+    2026-10-21 那份报告（merged-2026-10-21T08_37_19）：送审原文就是规则自己的**口径说明**一句，
+    被判成 **4 处**（P0 2 ＋ P1 2），而记录里 kb.issue_count = 2。三处来路：
+    ① H05 的正则仍留 (?:no.?1|#1) 与 最(…高…)（10-19 的「最佳/最好出列」只过滤 literal/synonym，正则没出列）；
+    ② 10-21 把规则自己的边界表述（含「…放开，不再判险」）逐字灌进了 patterns；
+    ③ V02/V03 另有同族词条；报告又把正则源码与库内相对路径当业务字段印出来。
+  answer: >-
+    裁定 A（Owner 已确认）：「#1/No.1/best/最好/最佳/最高级」不再判险、不进问题清单；
+    「第一/销量第一」这类中文事实性排名不阻断，只在回执与报告里给一句「需补可核验依据」的提示。
+    报告层三处收口：命中印真实文字（不是正则）、原因去规则码与口径括号、建议不挂库内路径。
+    P0 快路的回执不再被当作第二个来源（同一张回执被解析第二遍 = 4 处）。
+  changed:
+    - {file: 'kb/l5/p0_patterns.jsonl', what: 'H05/V02/V03 出列排名/最高级；边界表述不再作触发词；variant_sources.relaxed_by_ruling 留痕'}
+    - {file: 'kb/.work/l5_export.py', what: '新增 RELAXED_TERMS / RELAXED_REGEX / RELAXED_BND_RE（重建不回填）；修 norm 定义顺序（生成器 --apply 此前跑不起来）；修 SALES_RANK_REGEX 双反斜杠'}
+    - {file: 'kb/l5/p0_fastpath.py', what: '_hit_text / _business_reason / RANK_ADVISORY_RX（非阻断提示）；建议尾巴不再印库内路径；依据兜底不再印库内路径'}
+    - {file: 'kb/l5/matcher.py', what: '自证新增 3 正例 ＋ 6 反向对照（放开族必须 MISS）'}
+    - {file: 'kb/l8/p0_regression.py', what: '#1 breast pump 从正例挪到反向对照（＋2 条中文排名负例）'}
+    - {file: 'tools/agent/dual_track.mjs', what: 'P0 快路回执不再二次解析；businessReason 去口径括号；URL 抓到中文分隔符即停（修依据链接被拼坏）'}
+    - {file: 'tools/agent/merged_report.mjs', what: '新增 notes（提示·不阻断）'}
+    - {file: 'tools/agent/agent.mjs', what: '把 p0_fastpath 的 advisories 搬进报告 notes（只搬不算）'}
+    - {file: 'tools/agent/tools.mjs', what: 'p0 结果带出 advisories（不进 issue_count、不改三态）'}
+  judges:
+    - 'kb/l5/matcher.py --selftest（放开族 6 条必须 MISS ＋ 100%/最安全/纯天然必须 HIT）'
+    - 'kb/l8/p0_regression.py（175/175，漏报率 0；新增 3 条排名负例）'
+    - 'kb/l5/p0_fastpath.py --selftest（65/0）'
+    - 'node tools/agent/dual_track.mjs --selftest（141/2，两条存量红）'
+    - 'node tools/test_agent.mjs（296/3，三条存量红）'
+    - 'test/_probe_dedupe_report.mjs（去重 ＋ 报告无后台语言 6 项全过）'
+  lock: null
+  lock_note: '本处未登记 owner-fix-locks（该表按单条工单锁维护）；如需登记请 Owner 指定锁号。'
+  verified: >-
+    2026-10-21 17:0x 逐条实测：口径说明那一句 hit=False（不再 BLOCK）；sold 6 million units 仍命中 V03；
+    「100% safe / 最安全 / 纯天然」仍 HIT（放开的是排名族，不是整族）；
+    test/_probe_dedupe_report.mjs 六项全过（正则源码/库内路径/规则码/本码/「不再判险」都不出现，非阻断提示在）。
+  not_done: >-
+    ① 生成器重建受「P0 快路扩容守卫」拦截：现表 19 条 vs 可导出 17 条（W-1.12/W-1.54 在 L3 已改 P1），
+       与本处无关，需单独裁；直接 --accept-p0-expansion 会改变判定，没做。
+    ② 生成器与现表在 8 个 rule_code 上已漂移（边界表述全角/半角、U04/M03 边界词缺失等），重建前要先对账。
+    ③ V02 的 reason 文本仍写着「最好/最佳一类」（规则文本，改了会被上游重建覆盖）。
+    ④ JS 四处改动需要重启守衡才生效（KB 侧不需要 —— 每条消息现起子进程读词表）。
+  related:
+    - 'fix_20261021_p1a_position_passthrough'
+
+# ══════════════════════════════════════════════════════════════════════════
+# 2026-10-23：覆盖判据要求「同源」，不再只认锚点名
+# ══════════════════════════════════════════════════════════════════════════
+fix_20261023_coverage_anchor_same_source:
+  at: '2026-10-23'
+  by: '协助（AI）｜触发：守衡「回归集：三态漂移」非阻断告警'
+  why_here: >
+    **它不在任何一张工单上** —— 是守衡的回归漂移告警把我引到这里、自查全量时量出来的。
+    落在本文件，是因为它改的是「结论怎么判」（覆盖判据 ⇒ PASS 还是转人工），属输出契约。
+  symptom: >
+    回归集 solid 80 条里有 5 条从 **REVIEW（覆盖缺口：库对该题材没有可依据的条款 ⇒ 转人工）**
+    翻成 **PASS**：RC-d3cae0769539 / RC-6214550d4bce / RC-53a4e85faf9b /
+    RC-ecf67146fd0c / RC-2694cc2ea7e0。方向是 **fail-open**（该转人工的放过去了）——
+    按本库口径，这比漏判更坏。
+  not_this: >
+    同一批漂移里另 6 条**不是**缺陷：5 条是 2026-10-17 `rule-taxonomy.json`（Owner 采用）
+    的 `p_level` 重标、1 条是 2026-10-14 题材闸门（`case_theme.py`）—— 逐条归因见
+    `交付-回归漂移归因与覆盖判定锚点同源-20261023.md` §二。
+  root_cause:
+    what: >
+      `rule_cited_anchors()` 只比锚点**名字**。而 L2 里有**位置型**锚点：`#l.1-1` 被 **921** 个
+      单元共用、`#l.1-506` 被 101 条 external_standard 规则共用 —— 它们不是记录身份，
+      是「某页的第 n 个列表项」。2026-10-21 把 `kb/l3/candidates/external_standard.jsonl`
+      并进 `rules`（`review.py::load_rules()`，本意是让 V01–V06 / E-2.12x 能被规则层命中）
+      之后，这些规则的位置型锚点也进了**覆盖池** ⇒ 检索命中的单元只要**同名**、
+      哪怕完全是另一份文档，覆盖判据就成立 ⇒ 0 findings ⇒ PASS。
+    measured:
+      - 'RC-d3cae0769539：素材是 Wellness 1 英文商品描述；命中单元来自 uk.momcozy.com 另一页（同锚点 `#l.1-1`，BM25 37.25）⇒ covered_by=rule'
+      - 'RC-6214550d4bce：素材是 AAP 技术报告开头；命中单元 anchor `#l.1-1`、BM25 118.31 ⇒ covered_by=rule'
+      - 'RC-2694cc2ea7e0：走 ②b 同源支路 —— 命中 `#l.1-3`，`resources_of_anchors()` 回表取到 support.google.com/adspolicy 的 resource_id，而它在被引池里 ⇒ covered_by=same_source'
+      - 'RC-53a4e85faf9b：同源支路把**案例层**整条挡住（`coverage_judge` 里 `case` 只在 direct/same 都空时才跑）⇒ 0 条 S-1.x 依据 ⇒ 由安全词撑覆盖 ⇒ PASS；判据修好后同一条素材回到 REVIEW ＋ S-1.233/269/314 三条依据（与 2026-10-20 跑批一致）'
+  fix:
+    where: 'kb/l7/skills/kb-content-review/scripts/review.py（备份 review.py.bak-pre-anchor-sha-20261023）'
+    direct: >-
+      新增 `rule_cited_anchor_shas()`；`coverage_judge(..., cited_shas=None)` 的 `direct` 支路要求
+      **锚点相同 且 `source_sha256` 相同**（= 同一份文档里的同一个锚点）。实测 965 个被引锚点在
+      `kb/l2/units.jsonl` 里都有单元、且 sha 逐条一致（965/965）⇒ 本该认的命中**零影响**；
+      取不到 sha 的规则单元不进池（保守一侧）。`cited_shas=None` 时行为与改前逐字一致（老调用方/自证）。
+    same_source: >-
+      新增 `anchor_has_identity()`：位置型锚点（`^#[lh]\.\d`）**不许**判同源 —— 它们指不回一份文档，
+      「同源」在这上面没有意义。带记录 id 的锚点（`#<表>/rec…/<字段>`、`#素材/rec…/…`）照旧认；
+      真正的同文档命中由 `direct`（锚点 + sha）兜着，不会因此丢。
+    unchanged: >
+      **门限一个字没松**（`bm25_raw_min=8.0` / `coverage_bm25_min=16.0` 均未动）；
+      安全词支路、案例支路、三态形状、§5.3.2/§5.4 报告字段一个都没动。
+      只收窄「什么算被规则引用 / 什么算同源」，方向是 fail-closed。
+  judges:
+    - 'selftest_coverage.py：通过 27 / 失败 8 —— 新增 B8/B9/B10/B11/B12 全过；那 8 条红是**既存**（改前改后同样 8 条，见 not_done）'
+    - 'B8 ★ 反向对照：锚点同名、source_sha256 不同（另一份文档）⇒ 不覆盖'
+    - 'B10 ★ 反向对照：命中单元缺 source_sha256 ⇒ 不覆盖（宁转人工，不放 PASS）'
+    - 'B11 ★ 反向对照：位置型锚点（#l.1-3）不算同源（哪怕回表给出 resource）'
+    - 'B9 正例：同名且同文档 ⇒ 仍是 covered_by=rule'
+    - 'B12 正例：带记录 id 的锚点仍算同源'
+    - 'workflow_smoke.py：rc=0（契约 S1–S7 齐，改动没把链上约定改坏）'
+    - 'check_agents_md_drift.py：rc=0'
+    - 'regression_run.py 全量 100 条 ＋ regression_gate.py：见交付件的漂移表'
+  not_done:
+    - >-
+      `selftest_coverage.py` 的 8 条既存红（与本次改动无关，改前改后都是这 8 条）：
+      A1（案例池实测 176 条，判据仍写「239 条」）、B6/B7（`resources_of_anchors` 真实锚点读数）、
+      A5/A6/A7（端到端案例依据）、E1/E2（第 2068 行那处 `findings.append` 缺链接来源）。
+      要单独一轮修，**没顺手改**（改判据必须连反向对照一起改，属另一刀）。
+    - >-
+      根上的问题是**位置型锚点不唯一**（`#l.1-1` 共用 921 个单元、`#l.1-506` 被 101 条规则共用）。
+      这次只在**判据侧**挡住；要根治得让 L1/L2 的锚点带资源身份（数据层改动，未做）。
+  related:
+    - 'kb/l7/registry/regression-known-drift.yaml（这次漂移的登记）'
+    - 'kb/l3/registry/rule-taxonomy.json（另 5 条漂移的来源：p_level 重标）'
+    - '交付-回归漂移归因与覆盖判定锚点同源-20261023.md'

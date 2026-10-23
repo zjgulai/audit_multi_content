@@ -1,0 +1,254 @@
+{
+ "run_id": "daily-20261019-1003-L7",
+ "at": "2026-10-19 10:43:26",
+ "legs": [
+  {
+   "leg": "① 环境与版本纪律",
+   "ok": true,
+   "detail": {
+    "env": {
+     "装载位": "12:08:04",
+     "生成器": "11:26:57 408a6d079312b66f 73520B",
+     "l7/review.py": "10:39:29 30c162be32635cec 152545B",
+     "hostlib": "10:34:58",
+     "l7/reports": "10:30:17"
+    },
+    "version": {
+     "l4_canonical_bytes": 0,
+     "versions_rows": 0,
+     "kb_version": "v0"
+    }
+   }
+  },
+  {
+   "leg": "② 权威库 l0~l6 未被改动",
+   "ok": false,
+   "detail": {
+    "layers": {
+     "l0": {
+      "tree_sha256_16": "09e20749d69bc299",
+      "match_L5_baseline": true,
+      "files": 4692
+     },
+     "l1": {
+      "tree_sha256_16": "21919dab446af7ec",
+      "match_L5_baseline": true,
+      "files": 6183
+     },
+     "l2": {
+      "tree_sha256_16": "3be70095220ab1e9",
+      "match_L5_baseline": true,
+      "files": 970
+     }
+    },
+    "l3_lines": 1018,
+    "l3_base1018_matches_L6": false,
+    "l3_whole1527_matches_L4": false
+   }
+  },
+  {
+   "leg": "③ 前序产物哈希（45 项）",
+   "ok": false,
+   "detail": {
+    "checked": 45,
+    "mismatch": [
+     "kb/l3/candidates/rules.jsonl",
+     "kb/l4/registry/l4.json",
+     "kb/l5/p0_patterns.jsonl",
+     "kb/l5/index/l5.jsonl",
+     "kb/l5/registry/l5.json",
+     "kb/l5/matcher.py",
+     "kb/l5/benchmark.json",
+     "kb/l6/runs/build_runs.jsonl",
+     "kb/l6/vectors/vectors.jsonl",
+     "kb/l6/vectors/matrix.npy",
+     "kb/l6/vectors/meta.json",
+     "kb/l6/index/l6.jsonl",
+     "kb/l6/registry/l6.json",
+     "kb/l6/selftest.json",
+     "kb/l6/benchmark.json",
+     "kb/l7/skills/kb-content-review/SKILL.md",
+     "kb/l7/output_template.md",
+     "kb/l7/registry/l7.json",
+     "kb/l7/selftest_a_block.md",
+     "kb/l7/skills/kb-content-review/scripts/review.py"
+    ]
+   }
+  },
+  {
+   "leg": "④ 分层库 → 生成器 → 视图",
+   "ok": true,
+   "detail": {
+    "generator_stdout": [
+     "[gen] 明文落盘：509 个 md（node 读回断言全部通过）",
+     "[gen] 明文落盘：1 个 md（node 读回断言全部通过）"
+    ],
+    "md_total": 510,
+    "enveloped": 0,
+    "loader_readback": {
+     "entries": 509,
+     "entries_fm_ok": 453,
+     "entries_kb_class_ok": 453
+    },
+    "E001": null,
+    "E046": null,
+    "health": 76.5,
+    "installed_view_md": 542,
+    "installed_view_enveloped": 0
+   }
+  },
+  {
+   "leg": "⑤ 装载位 → 加载器（读工具+体检）",
+   "ok": true,
+   "detail": {
+    "files": 559,
+    "md": 542,
+    "enveloped_md": 0,
+    "entries": 509,
+    "fm_ok": 453,
+    "kb_class_ok": 453,
+    "E001": null,
+    "E046": null,
+    "health": 79.3,
+    "dims": {
+     "新鲜度": 1,
+     "三件套完整率": 1,
+     "一致性": 1,
+     "孤岛率": 0.9386617100371747,
+     "幻觉率": 0.22119815668202766,
+     "覆盖率": 0.9210526315789473,
+     "利用率": 0.2270450751252087
+    },
+    "collections": [
+     {
+      "id": "3_措辞表达库",
+      "count": 538,
+      "status": "derived"
+     }
+    ],
+    "search": [
+     [
+      "W-2.1",
+      111,
+      true
+     ],
+     [
+      "乳腺组织",
+      1,
+      true
+     ],
+     [
+      "合规替代",
+      509,
+      true
+     ],
+     [
+      "量子纠缠配色调参",
+      0,
+      true
+     ]
+    ],
+    "code_hist": {
+     "W014": 510,
+     "E030": 1,
+     "W020": 2297,
+     "W021": 10,
+     "W034": 29,
+     "E026": 451
+    }
+   }
+  },
+  {
+   "leg": "⑥ 文档可见性（agent 能否读到）",
+   "ok": false,
+   "detail": {
+    "md_total": 10887,
+    "enveloped": 811,
+    "buckets": {
+     "其他": 300,
+     "他人/临时 .work": 1,
+     "他人产物 hostlib": 510
+    },
+    "other": [
+     "./改动单-视频类出依据-且不影响工作流-20261009.md",
+     "./交付-审查报告改审计报告模式-20261017.md",
+     "./_rt-link-02-text.md",
+     "./交付-规则分类现状台账-20261017.md",
+     "./交付-结论按11类输出-20261017.md"
+    ]
+   }
+  },
+  {
+   "leg": "⑦ 消费侧 skill 可用",
+   "ok": true,
+   "detail": {
+    "files": [
+     "README.md",
+     "SKILL.md",
+     "references",
+     "categories.md",
+     "protocols.md",
+     "scripts",
+     "review.py",
+     "risk_category.py",
+     "selftest_coverage.py"
+    ],
+    "enveloped_md": [],
+    "review_py_plaintext_write_patch": true,
+    "review_py_runnable": true,
+    "entry_gate_blocks_unmarked_calls": true,
+    "entry_gate_rc": 2,
+    "review_py_runnable_with_KB_ENTRY": true,
+    "real_entry": "kb/l7/review-engine/core/with_kb_evidence.py",
+    "real_entry_rc": 0,
+    "help": [
+     "usage: with_kb_evidence.py [-h] --text TEXT [--content-id CONTENT_ID]"
+    ]
+   }
+  },
+  {
+   "leg": "⑧ 工作台与服务",
+   "ok": false,
+   "detail": {
+    "workbench_4317": "200",
+    "kb_hostlib_4508_health": "200",
+    "launchd_jobs": "0"
+   }
+  },
+  {
+   "leg": "⑨ 写入侧（ingest 闸门 + 落盘通道）",
+   "ok": true,
+   "detail": {
+    "gate": "  [E026] 内容质量分 52.1 < 60（长度 0.4/20 · 密度 5/30 · 去重 20/20 · 语言 26.7/30）",
+    "landed": [],
+    "landed_enveloped": 0
+   }
+  },
+  {
+   "leg": "⑩ 依据直链完整性（E 组：出口 + 经包装层之后都必须有飞书直链）",
+   "ok": false,
+   "detail": {
+    "selftest": "kb/l7/skills/kb-content-review/scripts/selftest_coverage.py",
+    "rc": 1,
+    "summary": "自证：通过 23 / 失败 7",
+    "failed": [
+     "· 失败：A1 只收 `polarity=反例` 且 `reason_category≠unknown` ⇒ 实测 239 条（296 − 57）",
+     "· 失败：A6 ★★ 端到端：依据里**真的出现条款号**（S-…）—— 改前依据栏是空的",
+     "· 失败：A7 端到端：那条依据带锚点 + source_sha256 + **L0 飞书直链**（四段齐了前三段）",
+     "· 失败：E1 ★ 静态·**每一个** `findings.append` 出口都带链接来源（l0_entry_url 或非空 verbatim_source）",
+     "· 失败：E2 反向对照：抹掉第 1060 行出口的直链 ⇒ E1 **精确**报出它（且只报它）",
+     "· 失败：E3 ★★ 动态·逐条：跨 3 条主路的**每一条** finding 都带可点直链"
+    ],
+    "why": "卡片读的是包装层产出的 risk_items，不是 findings —— 判据必须落在那一层"
+   }
+  }
+ ],
+ "verdict": "FAIL",
+ "failed_legs": [
+  "② 权威库 l0~l6 未被改动",
+  "③ 前序产物哈希（45 项）",
+  "⑥ 文档可见性（agent 能否读到）",
+  "⑧ 工作台与服务",
+  "⑩ 依据直链完整性（E 组：出口 + 经包装层之后都必须有飞书直链）"
+ ]
+}

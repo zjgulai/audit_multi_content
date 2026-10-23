@@ -1,0 +1,242 @@
+# PRD §5.3.2「定义与边界」—— **唯一真源（rev 107）**
+#
+# 取数：飞书 PRD 内嵌 spreadsheet `B1aUs2Vuah8YwjtwWO6cr5MFnUd` / sheet **`xcdTpv`**，
+#       拉取 **2026-10-22 16:40 +0800** ｜ revision **107** ｜ 实测 `A1:D4`（表头 4 列 ＋ 3 行主状态）
+#       快照：`_prd-20261022/sheet-xcdTpv-rev107.json`（逐字，含 `values` 与 `annotated_csv`）
+#
+# ⚠️ **同一张表三天内三版，别混用**（全史见 `meta.revision_history`）：
+#     rev 96  —— 四态并列：SUGGEST 占自己一行，动作「提示内容方，不阻断流程，随 PASS 一起进入下一步」
+#     rev 101 —— SUGGEST 写成「作为 PASS 的附属标签」，**仍占一行**
+#     rev 107 —— **SUGGEST 不再是表里的一行**：表头改「主状态 / 定义 / 附属信息 / 动作」，
+#                只剩 PASS／REVIEW／BLOCK 三个主状态；SUGGEST 只出现在 PASS 的「附属信息」列
+#                （「可附带 SUGGEST（如措辞优化建议）」）与 §5.3.2 正文的「SUGGEST 规则」段。
+#   ⇒ 本文件以 **rev 107** 为准。rev 96 / rev 101 的写法作废，留痕见 `meta.revision_history`、
+#     `conflict_decision.superseded_by`、`landing.batch2_done_20261019.superseded_at`。
+#
+# 两侧共用：守衡 `tools/agent/prd53.mjs`、知识库 `kb/l7/review-engine/core/`。
+meta:
+  prd_ref: '§5.3.2'
+  sheet: {token: 'B1aUs2Vuah8YwjtwWO6cr5MFnUd', sheet_id: 'xcdTpv'}
+  fetched_at: '2026-10-22'
+  fetched_at_local: '2026-10-22 16:40 +0800'
+  revision: 107
+  supersedes_revision: 101
+  snapshot: '_prd-20261022/sheet-xcdTpv-rev107.json'
+  docx:
+    token: 'PXfBdjTwFokEQixtmTscqm7knNh'
+    version_line: 'v1.4'
+    chars: 7303
+    bytes: 16523
+    sha256: '969d3d899097583f2213dc03be0268ea3a1b2a8845e0a120fbb9362d54304f8b'
+    snapshot: '_prd-20261022/prd-raw_content-20261022.txt'
+    api: 'docx/v1/documents/{token}/raw_content（只读；未调用任何 download/medias）'
+  revision_history:
+    - revision: 96
+      date: '2026-10-19 上午'
+      shape: '状态 / 定义 / 动作 —— **四行**（PASS、SUGGEST、REVIEW、BLOCK 各一行）'
+      snapshot: '_prd-20261019/sheet-xcdTpv.json'
+      reading: '四态并列 ⇒ 当时的读法：SUGGEST 可以是「最终态」（冲突 K 的读法 ①）'
+      superseded_by: 101
+    - revision: 101
+      date: '2026-10-19 下午'
+      shape: '状态 / 定义 / **系统流转动作** —— 仍是四行，但 SUGGEST 那行写成「作为 PASS 的附属标签」'
+      snapshot: '_prd-20261019/sheet-xcdTpv-rev101.json'
+      reading: '⇒ 三值 ＋ 一个标签 ＋ 四个统计桶（当时落成的口径）'
+      superseded_by: 107
+    - revision: 107
+      date: '2026-10-22（本轮拉到）'
+      shape: '主状态 / 定义 / **附属信息** / 动作 —— **三行**（PASS、REVIEW、BLOCK），SUGGEST 不再占行'
+      snapshot: '_prd-20261022/sheet-xcdTpv-rev107.json'
+      reading: '⇒ 同一个口径被 PRD 自己**改得更彻底**：标签从「一行」降为「PASS 的一格」'
+      discovered_by: '本会话直接拉远端（`sheets/v2/.../values/xcdTpv!A1:D4`），不是从旧快照推的'
+
+# ── 主状态（逐字，rev 107，四列全录）────────────────────────────────────────────
+#   「附属信息」是 rev 107 新增的一列 —— SUGGEST 现在**只活在这一列里**（PASS 行）。
+states:
+  - id: PASS
+    definition: '未发现已知底线风险，或仅有无伤大雅的错别字。'
+    attached: '可附带 SUGGEST（如措辞优化建议）'
+    action: '转 sign-off / brief 提交方；SUGGEST 提示内容方参考'
+    blocks_flow: false
+  - id: REVIEW
+    definition: '存在边界模糊、需专业判断的问题（如医疗暗示、复杂场景安全）。'
+    attached: '可附带具体风险点'
+    action: '转法务/医学/专家/北美复核'
+    blocks_flow: true
+    boundary: '**需专业判断**：我们判不了、也不该硬判的那一类'
+  - id: BLOCK
+    definition: '命中明确红线（P0 级），或 P1/P2 中证据确凿的违规。'
+    attached: '可附带修改建议'
+    action: '返回内容方修改后重新提交'
+    blocks_flow: true
+    boundary: '**证据确凿**：有条款与逐字命中支撑，不是"看着像"'
+
+# ── §5.3.2 正文的「SUGGEST 规则」段（rev 107 新增到正文里，不在表内）───────────────
+#   出处：docx raw_content 第 170–172 行（快照 `_prd-20261022/prd-raw_content-20261022.txt`）
+suggest_rule:
+  source: 'PRD §5.3.2 正文「SUGGEST 规则」'
+  text:
+    - '仅由 P3 层级（措辞与表达）或 P2 中轻微瑕疵触发。'
+    - '飞书/系统回复时，在 PASS 结论下单独列一段“优化建议”。'
+  why_it_matters: >
+    rev 107 把「SUGGEST 由谁产」与「它长在哪」写进了正文：产者是 P3（＋ P2 轻微瑕疵），
+    形状是「PASS 结论下单独一段」。这两句与表里 PASS 行「可附带 SUGGEST」是同一件事，
+    也正是 `tiering.decide_effect(["P3"]) → none` 与 `render_summary("PASS", …)` 追加附段的原文依据。
+
+# ── 标签语义（三版合一后的**判据锚**）────────────────────────────────────────────
+#   为什么必须有这一段：96 与 101、101 与 107 的差都**只在语义/形状层**（都还叫「四态」），
+#   光看「态齐不齐」三种读法都过得去。这一段把「三值 ＋ 标签 ＋ 四桶」钉成机器可读的形状，
+#   `kb/l8/prd532_check.py` 的 A6–A9 逐条核它；删掉它，「三值/四态混着用」会当场红。
+label_semantics:
+  why: >
+    §5.3.2 rev107：SUGGEST 不进「主状态」列，只作 PASS 的「附属信息」（可附带 SUGGEST）；
+    §6.3 执行规则4「只有 SUGGEST 时，**最终状态为 PASS**（附 SUGGEST 建议），不阻断流转」；
+    §10.1 `decision`：PASS / REVIEW / BLOCK；§11.2「准确率 = **三态**结论一致数 ÷ 总审查数」；
+    §10.2 注「SUGGEST **随 PASS 流转**，不计入人工复核工单，但可在多维表中查看」。
+    五处同向 ⇒ `decision` 三值 ＋ 一个标签。
+  decision_values: [PASS, REVIEW, BLOCK]
+  non_prd_extra: [NEEDS_INPUT]                 # 拒答态（fail-closed），**不是 PRD 的态**
+  label_state: SUGGEST                         # 只作标签，不进 decision，**也不占主状态行**
+  label_not_a_row: true                        # rev 107：它已经从表里那一行降成 PASS 的一格
+  predicate: 'decision == PASS and suggest_count > 0'   # 「PASS＋SUGGEST」桶的判定式
+  buckets: 4                                   # §10.2「汇总四态结论」= 四个统计桶
+  buckets_named: [PASS, 'PASS+SUGGEST', REVIEW, BLOCK]
+  produced_by:
+    engine: 'review_engine.decide() → suggestions[] / suggest_count / suggest_label'
+    card: 'render_summary("PASS", …) 追加「建议（不阻断，随 PASS 流转，共 N 条）：」附段'
+    publish: '表行照常落 PASS；建议条数进 suggest_count 那一格（不靠多一个状态值）'
+
+# ── §5.3.4 各状态输出模板（rev 107 现场读数；**SUGGEST 不是结论模板**）─────────────
+#   注：rev 107 的 docx 里 SUGGEST 已经**没有自己的样张**了 —— 换成了「PASS + SUGGEST」那一档，
+#   这正是 rev101 时期登记的 PRD 内部冲突 S1 被 PRD 侧自己修掉的地方。
+templates:
+  PASS: '【PASS】未发现已知底线风险。可转交 @<sign-off 责任人> sign-off。（≤50 字）'
+  PASS_SUGGEST: >
+    【PASS】未发现底线风险，但发现 1 处优化建议：
+    【措辞表达】正文第 2 段“超级好用”偏口语。建议：改为“高效便捷”。
+    可转交 @<sign-off 责任人> sign-off。（≤150 字）
+  REVIEW: '【REVIEW】发现 N 处需人工确认：1.【类-子类】位置"…"。原因：…。依据：《…》第 X 条（链接）。建议转 @… 复核。（≤200 字）'
+  BLOCK: '【BLOCK】发现 N 处必须修改：1.【类-子类】位置"…"。原因：…。依据：《…》第 X 条（链接）。建议：改为"…"。（≤200 字）'
+  SUGGEST: >
+    ⚠️ **不是结论模板**：建议以「附段」形式跟在 PASS 结论行之后
+    （`建议（不阻断，随 PASS 流转，共 N 条）：` ＋ 逐条「维度 + 位置 + 建议」）。
+    rev 107 起 PRD 连「PASS + SUGGEST」这一档样张都给了（见 `PASS_SUGGEST`），
+    并且 §17 附录「结论模板速查」现为**空节**（2026-10-22 实测）—— 旧的字数表不再在 §17 里。
+
+# ── 已知的 PRD 内部冲突 —— K（**rev 101/107 已消解**）──────────────────────────────
+conflict_decision:
+  id: K
+  clash: >
+    §5.3.2（rev 96）把 SUGGEST 列进**状态**并给了动作；§17 样张的结论行是 `【SUGGEST】…`；
+    而 §6.3 规则 4 写「无 P0/P1/P2 明确违规，**只有 SUGGEST 时，最终状态为 PASS**」，
+    §10.1 的 `decision` 字段又只写三值 ⇒ 到底 `decision` 能不能取 `SUGGEST`？
+  readings:
+    '①': 'decision 四值（SUGGEST 是最终态）—— 与 §6.3 规则 4 字面冲突'
+    '③': 'decision 三值 ＋ 新增 suggest_count / suggestions 字段 —— 两处原文都不推翻'
+  owner_ruling_20261019: >
+    **当时取 ①**（`decision` 可取 `SUGGEST`）。Owner 2026-10-19 逐字：「推荐冲突 K 取 ①（decision 可取 SUGGEST，
+    即四态）／按照 prd suggest:存在非强制性问题（措辞优化、轻微常识瑕疵、非核心卖点描述）」。
+    该裁定曾覆盖 §6.3 规则 4。
+  superseded_by: >
+    PRD §5.3.2 **rev 101**（同日 Owner 改表）：「SUGGEST…**作为 PASS 的附属标签**」＋ PASS「**可包含 SUGGEST 建议**」；
+    随后 **rev 107**（2026-10-22 实测）把 SUGGEST 从表行**整行删掉**、只留 PASS 的「附属信息」列
+    （「可附带 SUGGEST（如措辞优化建议）」），并在正文补了「SUGGEST 规则」段（仅 P3／P2 轻微瑕疵触发、
+    在 PASS 结论下单独列一段「优化建议」）。
+    与 §6.3 规则4 / §10.1 三值 / §11.2 三态准确率 / §10.2「随 PASS 流转」四处同向。
+  superseded_at: '2026-10-19（rev101）／2026-10-22 复核（rev107）'
+  supersede_reason: >
+    rev 101 把「SUGGEST 是态还是标签」在 PRD 侧写死（标签）；rev 107 又把它从「一行」降成「一格」。
+    裁定 ① 是对 rev 96 的读法，PRD 一改它就没有解释对象了 ⇒ 按 AP14 留痕作废，不静默覆盖。
+    当前口径 = 读法 ③ 的加强版：`decision` 三值 ＋ `suggestions[]` / `suggest_count` / `suggest_label`，
+    且 SUGGEST **不占主状态行**。
+  our_recommendation: '③（已采纳，rev 101 落地，rev 107 复核仍成立）'
+  why_now: >
+    同一天里 Owner 先问「卡片态必须是 4 态」，随后贴来 rev 101 的原文。
+    两者**不矛盾**：4 态是**统计桶**（§10.2），不是 `decision` 四值。这条解释已写进 `label_semantics`。
+    2026-10-22 再核一次：PRD 三处仍写「四态」（§6.3「汇总四态结论」、§11.1「整体四态准确率」），
+    而取值口径仍是三值（§10.1、§11.2「三态结论一致数」）⇒ 「四态 = 统计桶」这个解释继续成立。
+
+# ── PRD 自身仍未改齐的地方（改动权不在我方）──────────────────────────────────
+prd_internal_conflicts:
+  - id: S1
+    status: closed_by_rev107
+    what: >
+      原登记（rev101 时期）：§5.3.4 样张仍给 SUGGEST 一行 `【SUGGEST】发现 1 处建议优化，不阻断发布：…`；
+      §17 字数表也仍给 SUGGEST 单列一行（任意问题数 / 逐条列建议 + 不阻断说明 / ≤150 字）。
+    closed_evidence: >
+      2026-10-22 实测 docx raw_content：§5.3.4 已改成「PASS（≤50字）／**PASS + SUGGEST（≤150字）**」
+      两档样张，正文样张是 `【PASS】未发现底线风险，但发现 1 处优化建议：` ＋ 建议行 ＋
+      `可转交 @… sign-off。` —— **不再有 `【SUGGEST】` 结论行**；
+      §17「附录：结论模板速查」现在是**空节**（快照 `_prd-20261022/prd-raw_content-20261022.txt` 第 503–505 行）。
+    our_reading: 'PRD 侧已按 rev 101 的方向改齐；我方不回改 PRD，本条只作留痕。'
+  - id: S2
+    status: open
+    what: '「三态」「四态」两种说法仍并存：§1.2 / §5.3 等处写三态，§6.3「汇总四态结论」、§11.1「整体四态准确率」写四态'
+    live_evidence_20261022: >
+      §6.3 末行「汇总四态结论」；§11.1「整体四态准确率 ≥ 90%」＋「SUGGEST 不纳入硬性准确率考核」；
+      §11.2「准确率 = 三态结论一致数 ÷ 总审查数」；§10.1 `decision：PASS / REVIEW / BLOCK`。
+    our_reading: '「三态」= decision 取值数；「四态」= 统计桶数（PASS／PASS+建议／REVIEW／BLOCK）'
+    owner_action: '走《反馈单》给 PRD 作者；不改 PRD'
+
+# ── 远端漂移的守卫（2026-10-22 加：这条判据是「怎么发现 rev107 的」那件事的产物）─────
+drift_guard:
+  judge: 'kb/l8/prd532_check.py --live'
+  what_it_does: '把**远端** sheet 逐字与 revision 一起拉下来，喂给同一套 A2 逐字核对 ＋ A2c revision 比对'
+  trigger: 'ci/run_gates.py 的 `prd532_live` 闸门（core；非阻断）；真触发者是本机 launchd `com.kb.gates`（每日 14:00）与 CI 四份配置'
+  why_needed: >
+    2026-10-22 之前的判据只比**两个本地文件**（真源 meta.revision vs `_prd-20261019/…rev101.json`），
+    两个一起陈旧就互相印证 ⇒ 恒绿。实测：PRD 已经走到 rev 107，`prd532_check` 仍报
+    「PASS（三值＋标签＋四桶 六处一致）」、退出码 0 —— **绿证明的是库内一致，不是跟今天的 PRD 一致**。
+  untested_never_green: '拉不到远端（无网/无凭据/接口失败）⇒ 记「未测」并明说，**不判红、也不许当成通过**'
+
+# ── 落地状态 ────────────────────────────────────────────────────────────────
+landing:
+  batch1_done:
+    - '定义与边界落成真源（本文件）'
+    - '格式层：两侧结论行解析器同时接受 SUGGEST（守衡 `prd53.mjs`；知识库判据同口径）'
+    - '§17 字数限制含 SUGGEST 一档（≤150 字/条，per-item）——见 `prd17-limits.yaml`'
+  batch2_done_20261019:
+    decision: '知识库 `review_engine.DECISIONS` 加 `SUGGEST`；只有 P3 ⇒ SUGGEST；`tiering.decide_effect(["P3"])` → `suggest`'
+    render: '`render_summary` 加 SUGGEST 分支（§5.3.4 样张：「发现 N 处建议优化，不阻断发布。」；**不派单**）'
+    publish: '`feishu_publish.STATUS_PASS` 收进 `SUGGEST`'
+    shouheng: '`mergedState` 四态单调（BLOCK ＞ REVIEW ＞ SUGGEST ＞ PASS）'
+    superseded_at: '2026-10-19'
+    superseded_by: 'PRD §5.3.2 rev 101 —— 本批按 rev 96 把 SUGGEST 当第四态，已回退（见 batch3）'
+  batch3_done_20261019_rev101:
+    source: 'PRD sheet `xcdTpv` rev 101 逐字（快照 `_prd-20261019/sheet-xcdTpv-rev101.json`）'
+    truth: '三值 ＋ 一个标签 ＋ 四个桶（`label_semantics`）'
+    engine:
+      - '`review_engine.DECISIONS` = PASS / REVIEW / BLOCK / NEEDS_INPUT（**去掉 SUGGEST**）'
+      - '`tiering.decide_effect(["P3"])` → `none`（P3 不改结论）'
+      - '`review_engine` 新增 `suggestions[]` / `suggest_count` / `suggest_label`（PASS ∧ 建议非空）'
+      - '`render_summary("PASS", …)` 追加「建议（不阻断，随 PASS 流转，共 N 条）：」附段'
+      - '`render_summary("SUGGEST", …)` **硬失败**（第四态不许从渲染这条路长回来）'
+      - '`feishu_publish.STATUS_PASS` 回到三态（建议条数走 `suggest_count` 那一格）'
+    judges:
+      - '`kb/l8/prd532_check.py`（闸门 id `prd532`，非阻断）：A–G 七面；`--selftest` 17 条真变异'
+      - '`kb/l8/workflow_smoke.py::S7`：`【审查结论：SUGGEST】` 由「合规样本」改成**违规样本**；R7e 反向对照同步改'
+      - '`prd53_format.test.py` ④b：PASS＋建议附段（含 3 条反向对照）'
+      - '`tests/test_tiering.py`：P3 ⇒ PASS ＋ 建议集'
+    pending_cross_repo:
+      - '守衡 `tools/agent/prd53.mjs`：`STATES` 去 SUGGEST、`conforms()` 的 SUGGEST 分支改成**拒绝**、`LINE_RE` 收窄'
+      - '守衡 `tools/agent/dual_track.mjs::mergedState`：四态单调回三态 ＋ 产出 `suggest_labels`'
+      - '守衡 `tools/agent/prd17.mjs`：SUGGEST 那一档改作「建议段 ≤150 字/条」'
+      - '说明：那三处在**另一会话的未提交工作区**，本轮不可写；KB 侧判据已按 A 口径，F 段对「守衡仍含 SUGGEST」报**跨仓待同步**、不判红（缺三态才红）'
+  batch4_done_20261022_rev107:
+    source: 'PRD sheet `xcdTpv` rev 107 逐字（快照 `_prd-20261022/sheet-xcdTpv-rev107.json`，本轮**直接拉远端**）'
+    truth_changes:
+      - '`states` 从四行改成**三行**（PASS／REVIEW／BLOCK），每行新增 `attached`（附属信息列）'
+      - 'PASS 定义回到「未发现已知底线风险，**或仅有无伤大雅的错别字**。」（rev101 曾删掉这半句）'
+      - 'SUGGEST 的原文依据改成两处：PASS 的「附属信息」列 ＋ §5.3.2 正文「SUGGEST 规则」段（见 `suggest_rule`）'
+      - '`label_semantics.label_not_a_row: true` —— 它连「一行」都不是了'
+    judges:
+      - '`kb/l8/prd532_check.py` 升 rev107：A1 判「主状态 = 三行」且 **SUGGEST 不许出现在 states 里**；A2 逐字核 `定义/附属信息/动作` 三列；A2c revision 比对保留'
+      - '新 `--live` 档：把**远端**表喂进同一套逐字/revision 核对（拉不到 ⇒ 未测）'
+      - '`ci/run_gates.py` 增 `prd532_live`（core；非阻断；真触发者 = 每日 14:00 的 `com.kb.gates`）'
+    kb_side: '引擎/渲染/落表一个字未改 —— rev107 与 rev101 在**代码口径**上是同一件事（三值＋标签），改的只是真源与判据'
+  still_open:
+    - '§10.2 四态分布统计：`bitable_stats.py:107` 仍是 `TRI_STATE = [PASS, REVIEW, BLOCK]` —— 需要改成四桶（PASS／PASS+建议／REVIEW／BLOCK），其中第二桶读 `suggest_label`'
+    - '§11 四态准确率：回归集 100 条期望态仍是三态、SUGGEST 样本 0 条 ⇒ 现按「三态准确率」算，符合 §11.2 原文；若要报四桶分布，需先补样本'
+    - '结论行前缀：PRD §5.3.4 样张是 `【PASS】…`，我们全链仍是 `【审查结论：X】`（`deliberately_not_followed.items[C]`）'
+    - '守衡侧四处改动（见 `batch3_done_20261019_rev101.pending_cross_repo`）等那一会话收尾后同步'
+  blocking_question: null

@@ -342,6 +342,29 @@ BYPASS = [
 #   本文件   —— 它必须写出这些模式才能测它们（下面 C2 就是拿它们喂自己）。
 ALLOWED_CODE = {"tools/restart_shouheng.sh", "tools/verify_shouheng_ops.py"}
 
+# ★★ 2026-10-22：`launchctl kickstart|bootout|unload|stop` 要**看目标**，不是看动词。
+#
+#   真误报（本仓已存在）：`tools/session_distill/deploy_skill_growth.sh` 用
+#   `launchctl bootout gui/$(id -u)/com.kb.skill-growth` 装它**自己的** launchd 作业 ——
+#   与守衡无关，却被 C1 报成「把守衡卸下/停掉」。一个会把「装别的作业」说成「停守衡」的
+#   检查器，会让人开始不看这条报告（§2.1.1 的教训：误报比不报更糟）。
+#
+#   收窄的边界（两条，缺一条就是挖洞）：
+#     ① 点名了守衡（label / 进程名 / 启动器）⇒ **一律报**；
+#     ② 没点名守衡、**也没点名别的作业** ⇒ 仍然报（目标不明 = 按可疑处理，
+#        这样 `launchctl bootout gui/501/$LABEL` 这种变量写法照样被抓住）。
+#   `pkill` / `kill` 两条模式本来就带 `ws_daemon`，不受影响。
+SHOUHENG_IDS = ("com.shouheng", "ws_daemon", "run_shouheng.sh")
+# 「点名了另一个作业」：`com.kb.*` / `com.workbench.*` …（排除守衡自己）
+OTHER_JOB_LABEL = re.compile(r"com\.(?!shouheng)[a-z0-9][a-z0-9-]*")
+
+
+def _launchctl_touches_shouheng(line):
+    """这一行 launchctl 命令是不是冲着守衡去的（判断规则见上面那段注释）。"""
+    if any(tok in line for tok in SHOUHENG_IDS):
+        return True
+    return not OTHER_JOB_LABEL.search(line)
+
 
 def _code_lines(text):
     """两个扫描器共用一条读法：**整行注释不算代码**。
@@ -356,7 +379,15 @@ def _code_lines(text):
 
 
 def scan_bypass(text):
-    return [why for i, ln in _code_lines(text) for rx, why in BYPASS if re.search(rx, ln)]
+    hits = []
+    for i, ln in _code_lines(text):
+        for rx, why in BYPASS:
+            if not re.search(rx, ln):
+                continue
+            if rx.startswith(r"launchctl") and not _launchctl_touches_shouheng(ln):
+                continue          # 点名了别的 launchd 作业 —— 不是守衡，不报
+            hits.append(why)
+    return hits
 
 
 def scan_bash_trap(text):
@@ -520,6 +551,28 @@ def spawned_scripts(out):
     return mods
 
 
+
+def launched_scripts(out):
+    """闸门「另（启动器）」那一段列出的启动器（2026-10-23 新增）。
+
+    为什么单列一类：launchd 执行的**不是**图里的任何一个模块，而是 plist 里
+    ProgramArguments 指的那个启动器（`tools/run_shouheng.sh`）。它改了之后
+    「重启会生效」原本报「无」—— 而它就是接着要被执行的文件。
+    """
+    mods, inside = [], False
+    for line in out.splitlines():
+        if "另（启动器）" in line:
+            inside = True
+            continue
+        if inside:
+            if line.startswith("  ─"):
+                break
+            t = line.strip()
+            if t.startswith("tools/") and t.endswith(".sh"):
+                mods.append(t)
+    return mods
+
+
 # ── B7 用：spawn 段的**原始**条目（不过滤后缀 —— 要看的就是后缀）──────────
 #
 # 定位方式是**表头自己声明的条数**，不是缩进。
@@ -604,6 +657,24 @@ check("B7b", _fake_ents is not None and len(_fake_ents) == 2
       and nonscript_entries(_fake_ents) == ["PMO/logs/lark_writes.jsonl"],
       "反向对照：喂含日志文件的坏样本必须被认出来（2026-10-06 真实误报的形状）")
 
+
+# ── B8 ★ 2026-10-23 加：**启动器**也必须在读数里 ─────────────────────────
+#
+# 真事故：改完 `tools/run_shouheng.sh` 走闸门，它报的是
+#   「重启会生效  无 —— 启动之后没有任何被 import 的模块或被调起的脚本被改过
+#     （那这次重启不带来任何运行时变化，先想清楚为什么还要重启）」
+# 而那个文件正是 launchd 要执行的 —— 读数比输入小，方向还劝人别重启。
+rc, out = run_gate("--check", "--since=0")
+la_all = launched_scripts(out)
+check("B8", rc == 0 and "tools/run_shouheng.sh" in la_all and len(la_all) >= 1,
+      f"--since=0 → 列出启动器 {len(la_all)} 个（含 plist ProgramArguments 指的 run_shouheng.sh）")
+rc, out = run_gate("--check", "--since=9999999999")
+check("B8b", rc == 0 and not launched_scripts(out),
+      "反向对照：启动器那段也必须按时间过滤，不是一张常量表")
+# B8c：整段「无」的判定必须把三类都算进去 —— 否则「无」会在一类有变化时照样出现
+check("B8c", "启动器" in GATE.read_text(encoding="utf-8"),
+      "闸门的「无变化」那句话必须提到启动器这一类（三类都空才许说「无」）")
+
 # ── C 不许绕过闸门 ──────────────────────────────────────────────────────
 print("\nC 绕过闸门的写法（全仓可执行代码）")
 offenders = []
@@ -625,6 +696,13 @@ check("C4", not scan_bypass('# 用 launchctl kickstart -k 重启\n'),
       "反向对照：整行注释里提它 → 不报（注释不可能被执行）")
 check("C5", len(scan_bypass('echo ok  # launchctl kickstart\n')) == 1,
       "已知盲区（与 F 共用）：行尾注释仍会被扫到 —— 宁可偶尔吵，不可漏")
+# ★★ 2026-10-22 三条：launchctl 要看**目标**（C1 曾把「装别的 launchd 作业」误报成停守衡）
+check("C6", len(scan_bypass('launchctl bootout gui/501/com.shouheng.lark\n')) == 1,
+      "反向对照：点名守衡的 bootout ⇒ 必报")
+check("C7", scan_bypass('launchctl bootout "gui/$(id -u)/com.kb.skill-growth"\n') == [],
+      "反向对照（成对）：点名**别的** launchd 作业 ⇒ 不报（这就是那条真误报的形状）")
+check("C8", len(scan_bypass('launchctl bootout "gui/$(id -u)/$LABEL"\n')) == 1,
+      "反向对照：没点名任何作业（变量目标）⇒ 仍按可疑报 —— 收窄不许把洞挖出来")
 
 def keepalive_ok(raw):
     """崩了真的会被拉起来吗？判据只有一条：`KeepAlive.SuccessfulExit` 必须是 False。
@@ -1000,6 +1078,57 @@ try:
           "接线：`ws_daemon.mjs` 里 `nonUsCiteLine()` 有定义（且体里真读账本），**心跳里真的调了它**")
 except Exception as _e:
     check("J5", False, f"读 ws_daemon.mjs 抛了：{_e}")
+
+# ── I 事件计数必须成对（否则重启闸门永久报「在用」）───────────────────────
+#
+# 病灶（2026-10-22 审计发现，还没出事故，但一定会）：
+#   `restart_shouheng.sh` 的「正在处理中」判据是 `events > handled+skipped+failed+uncaught`；
+#   而 `ws_daemon.mjs` 里 `bot.added` / `bot.deleted` / `card.action.trigger` 三个 handler
+#   原先**只 `events++`、从不记任何 done** ⇒ 收到过一次这类事件，`events` 就永远比 `done` 多 1，
+#   闸门从此**永久**报「有 1 条还没走完、现在重启会掐断它」，也就永远拒绝重启。
+#   「闸门成砖头」与「闸门被绕过」是同一件事的两面：两条路都会让 §2.7 那道门失效。
+print("\nI 事件计数必须成对（否则重启闸门永久报「在用」）")
+
+_DONE_TOKENS = ("counters.handled++", "counters.skipped++",
+                "counters.failed++", "counters.uncaught++")
+
+
+def unaccounted_events(text):
+    """每个 `counters.events++` 后面（到下一个 events++ 之前）都必须出现一次「走完」计数。
+
+    为什么窗口取「到下一个 events++」：`counters.events++` 在本文件里**只在事件入口**出现，
+    所以这个窗口恰好就是那一个 handler 的体。不做语法分析也能吃得准，且不会因为
+    以后挪了缩进/换了写法就失效（本仓有过「判据按行号对齐、重构即红」的教训）。
+    """
+    lines = text.splitlines()
+    starts = [i for i, ln in enumerate(lines) if "counters.events++" in ln]
+    bad = []
+    for n, i in enumerate(starts):
+        end = starts[n + 1] if n + 1 < len(starts) else len(lines)
+        if not any(any(tok in ln for tok in _DONE_TOKENS) for ln in lines[i:end]):
+            bad.append(i + 1)          # 1-based 行号，便于人去找
+    return bad
+
+
+try:
+    _dae2 = (ROOT / "tools" / "ws_daemon.mjs").read_text(encoding="utf-8")
+    _bad = unaccounted_events(_dae2)
+    check("I1", not _bad,
+          "`ws_daemon.mjs` 里每个 `counters.events++` 都有配对的「走完」计数"
+          f"（没配对 {len(_bad)} 处" + (f"：第 {_bad} 行）" if _bad else "）"))
+    # 反向对照①：喂「只 events++、不销账」的坏样本 ⇒ 必须报出那一行
+    check("I2", unaccounted_events("x() { counters.events++; log('a'); }\n") == [1],
+          "反向对照：只 events++ 不销账 ⇒ 报出 1 处")
+    # 反向对照②：喂「配对」的样本 ⇒ 必须闭嘴（否则这条判据恒红，等于没有）
+    check("I3", unaccounted_events("a() { counters.events++; counters.skipped++; }\n") == [],
+          "反向对照（成对）：events++ 与 skipped++ 在一起 ⇒ 不报")
+    # 反向对照③：本仓当前是不是**真的**有三种非消息事件？少一类就说明这段判据在替不存在的代码作证
+    _kinds = sum(1 for k in ("im.chat.member.bot.added_v1", "im.chat.member.bot.deleted_v1",
+                             "card.action.trigger") if k in _dae2)
+    check("I4", _kinds == 3,
+          f"注释点名的三类非消息事件 handler 都在（{_kinds}/3）")
+except Exception as _e:
+    check("I1", False, f"读 ws_daemon.mjs 抛了：{_e}")
 
 # ── H 结论行自己不许撒谎（反向对照，全在内存里，不碰盘）─────────────────
 print("\nH 结论行自己不许撒谎（未测 ≠ 通过 ≠ 红）")

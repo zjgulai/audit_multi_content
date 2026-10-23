@@ -1,0 +1,877 @@
+{
+ "decision": {
+  "review_id": "rv-20261023-174530",
+  "content_id": "AUTO-8302f507b5f5",
+  "content_id_basis": "指纹兜底：本单 `--no-publish-to-feishu`，不发飞书故不发业务号（不是漏发）",
+  "content_version": "8302f507b5f599013fb1ab93b1337f6583daaec82ea70dcc093c5f00210c6773",
+  "agent_version": "local-core-0.1.0",
+  "rule_version": "unfrozen",
+  "knowledge_version": "unfrozen",
+  "decision": "BLOCK",
+  "confidence": 0.99,
+  "summary": "【审查结论：BLOCK】共发现 2 处必须修改。\n\n1.【合规与受监管宣称-医疗与疾病功效宣称】全文，命中：treat, cure, heal, remedy, diagnos,\n  **原因**：逐字命中「treat」：（来源未给判定理由）（p_level=P0 risk_level=Critical authority=None，来源表 None）\n  **依据**：《措辞表达库 v0》第 W-1.43 条 ← （来源未给命中片段）（L0 逐字核对：no_excerpt）｜原始出处：https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblD1MiUK1v5fdjD&record=recvuJP1dDHb7E\n  **建议**：可改为（本规则豁免表达）：treat yourself, doesn't treat, does not treat, do not treat, not intended to treat, not to treat, not a treatment, not a medical device, not intended to cure, doesn't cure, cannot cure, can't cure, 不用于治疗, 不是治疗, 不能治疗, 不可治疗, 不可以治疗, 不能治愈, 无法治疗, 并非治疗, relieve engorgement, relieves engorgement, relieving engorgement, engorgement relief, ease engorgement, eases engorgement, easing engorgement, soothe engorgement, soothes engorgement, soulage les engorgements, soulager les engorgements, reduce the risk of clogged, reduces the risk of clogged, reducing the risk of clogged, reduce the risk of plugged, risk of clogged ducts, risk of plugged ducts, or cure, or treat, cannot treat, can't treat, does not cure, do not cure, won't cure\n\n2.【合规与受监管宣称-绝对化与最高级用语】全文，命中：M01:whisper,whisper-quiet\n  **原因**：逐字命中「quiet」：H02 催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫；M01 静音程度夸大（建议改为 low noise / quiet mode）（p_level=P0 risk_level=Critical authority=None，来源表 None）\n  **依据**：《措辞表达库 v0》第 W-1.5 条 ← （来源未给命中片段）（L0 逐字核对：no_excerpt）｜原始出处：https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJYdOb1Rm1\n  **建议**：记录级改法：静音表述改客观参数（as low as 48 dB），避免 whisper/silent/ultra-quiet 绝对化\n\n3.【未归类】text characters 5210-5214，命中：treat\n  ⚠️ **非权威候选规则命中**（无库内条款号，源规则已被 `kb/l3/candidates/rules.jsonl` 取代）—— 只作排查线索，**不构成依据**\n  **原因**：命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认\n  **依据**：《（来源未给库名）》第 （来源未给条款号） 条 ← （来源未给命中片段）｜原始出处：（L0 未定位到飞书直链，库内路径 （来源未给链接））\n  **建议**：检查证据、免责声明、渠道政策和产品事实后再决定\n\n4.【未归类】text characters 5219-5222，命中：cure\n  ⚠️ **非权威候选规则命中**（无库内条款号，源规则已被 `kb/l3/candidates/rules.jsonl` 取代）—— 只作排查线索，**不构成依据**\n  **原因**：命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认\n  **依据**：《（来源未给库名）》第 （来源未给条款号） 条 ← （来源未给命中片段）｜原始出处：（L0 未定位到飞书直链，库内路径 （来源未给链接））\n  **建议**：检查证据、免责声明、渠道政策和产品事实后再决定\n\n5.【未归类】text characters 11422-11430，命中：Sponsored\n  ⚠️ **非权威候选规则命中**（无库内条款号，源规则已被 `kb/l3/candidates/rules.jsonl` 取代）—— 只作排查线索，**不构成依据**\n  **原因**：命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认\n  **依据**：《（来源未给库名）》第 （来源未给条款号） 条 ← （来源未给命中片段）｜原始出处：（L0 未定位到飞书直链，库内路径 （来源未给链接））\n  **建议**：检查证据、免责声明、渠道政策和产品事实后再决定\n\n6.【未归类】text characters 21499-21507，命中：Affiliate\n  ⚠️ **非权威候选规则命中**（无库内条款号，源规则已被 `kb/l3/candidates/rules.jsonl` 取代）—— 只作排查线索，**不构成依据**\n  **原因**：命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认\n  **依据**：《（来源未给库名）》第 （来源未给条款号） 条 ← （来源未给命中片段）｜原始出处：（L0 未定位到飞书直链，库内路径 （来源未给链接））\n  **建议**：检查证据、免责声明、渠道政策和产品事实后再决定\n\n7.【未归类】text characters 23048-23056，命中：affiliate\n  ⚠️ **非权威候选规则命中**（无库内条款号，源规则已被 `kb/l3/candidates/rules.jsonl` 取代）—— 只作排查线索，**不构成依据**\n  **原因**：命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认\n  **依据**：《（来源未给库名）》第 （来源未给条款号） 条 ← （来源未给命中片段）｜原始出处：（L0 未定位到飞书直链，库内路径 （来源未给链接））\n  **建议**：检查证据、免责声明、渠道政策和产品事实后再决定\n\n8.【未归类】text characters 5867-5868，命中：#1\n  ⚠️ **非权威候选规则命中**（无库内条款号，源规则已被 `kb/l3/candidates/rules.jsonl` 取代）—— 只作排查线索，**不构成依据**\n  **原因**：命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认\n  **依据**：《（来源未给库名）》第 （来源未给条款号） 条 ← （来源未给命中片段）｜原始出处：（L0 未定位到飞书直链，库内路径 （来源未给链接））\n  **建议**：检查证据、免责声明、渠道政策和产品事实后再决定\n\n9.【未归类】text characters 5870-5873，命中：Best\n  ⚠️ **非权威候选规则命中**（无库内条款号，源规则已被 `kb/l3/candidates/rules.jsonl` 取代）—— 只作排查线索，**不构成依据**\n  **原因**：命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认\n  **依据**：《（来源未给库名）》第 （来源未给条款号） 条 ← （来源未给命中片段）｜原始出处：（L0 未定位到飞书直链，库内路径 （来源未给链接））\n  **建议**：检查证据、免责声明、渠道政策和产品事实后再决定\n\n10.【未归类】text characters 8366-8369，命中：BEST\n  ⚠️ **非权威候选规则命中**（无库内条款号，源规则已被 `kb/l3/candidates/rules.jsonl` 取代）—— 只作排查线索，**不构成依据**\n  **原因**：命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认\n  **依据**：《（来源未给库名）》第 （来源未给条款号） 条 ← （来源未给命中片段）｜原始出处：（L0 未定位到飞书直链，库内路径 （来源未给链接））\n  **建议**：检查证据、免责声明、渠道政策和产品事实后再决定\n\n11.【未归类】text characters 9372-9375，命中：Best\n  ⚠️ **非权威候选规则命中**（无库内条款号，源规则已被 `kb/l3/candidates/rules.jsonl` 取代）—— 只作排查线索，**不构成依据**\n  **原因**：命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认\n  **依据**：《（来源未给库名）》第 （来源未给条款号） 条 ← （来源未给命中片段）｜原始出处：（L0 未定位到飞书直链，库内路径 （来源未给链接））\n  **建议**：检查证据、免责声明、渠道政策和产品事实后再决定\n\n12.【未归类】text characters 9962-9965，命中：Best\n  ⚠️ **非权威候选规则命中**（无库内条款号，源规则已被 `kb/l3/candidates/rules.jsonl` 取代）—— 只作排查线索，**不构成依据**\n  **原因**：命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认\n  **依据**：《（来源未给库名）》第 （来源未给条款号） 条 ← （来源未给命中片段）｜原始出处：（L0 未定位到飞书直链，库内路径 （来源未给链接））\n  **建议**：检查证据、免责声明、渠道政策和产品事实后再决定\n\n13.【未归类】text characters 9980-9981，命中：#1\n  ⚠️ **非权威候选规则命中**（无库内条款号，源规则已被 `kb/l3/candidates/rules.jsonl` 取代）—— 只作排查线索，**不构成依据**\n  **原因**：命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认\n  **依据**：《（来源未给库名）》第 （来源未给条款号） 条 ← （来源未给命中片段）｜原始出处：（L0 未定位到飞书直链，库内路径 （来源未给链接））\n  **建议**：检查证据、免责声明、渠道政策和产品事实后再决定\n\n14.【未归类】text characters 17973-17976，命中：best\n  ⚠️ **非权威候选规则命中**（无库内条款号，源规则已被 `kb/l3/candidates/rules.jsonl` 取代）—— 只作排查线索，**不构成依据**\n  **原因**：命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认\n  **依据**：《（来源未给库名）》第 （来源未给条款号） 条 ← （来源未给命中片段）｜原始出处：（L0 未定位到飞书直链，库内路径 （来源未给链接））\n  **建议**：检查证据、免责声明、渠道政策和产品事实后再决定\n\n15.【未归类】text characters 18015-18018，命中：best\n  ⚠️ **非权威候选规则命中**（无库内条款号，源规则已被 `kb/l3/candidates/rules.jsonl` 取代）—— 只作排查线索，**不构成依据**\n  **原因**：命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认\n  **依据**：《（来源未给库名）》第 （来源未给条款号） 条 ← （来源未给命中片段）｜原始出处：（L0 未定位到飞书直链，库内路径 （来源未给链接））\n  **建议**：检查证据、免责声明、渠道政策和产品事实后再决定\n\n＋ **其中 13 处来自非权威候选规则**（源规则已被 `kb/l3/candidates/rules.jsonl` 取代） —— 无库内条款号，只作排查线索，**不构成依据**。\n\n请修改后重新提交。",
+  "issue_count": 2,
+  "issue_count_including_candidates": 15,
+  "candidate_count": 13,
+  "issue_count_basis": "issue_count（2 = 库内依据，**与分类汇总同一个数**，见 PRD §5.4）= 完整清单 15 − 非权威候选 13；候选无库内条款号、只作排查线索，不构成依据",
+  "issue_summary_by_category": {
+   "功效宣称-疾病治疗宣称": 1,
+   "平台与促销-静音绝对化表述": 1
+  },
+  "risk_items": [
+   {
+    "risk_id": "r-b10ee2b8361c8a3d",
+    "risk_type": "功效宣称-疾病治疗宣称",
+    "risk_category": "合规",
+    "risk_category_basis": "类别「功效宣称」⇒ 合规（硬引 PRD：PRD §7.3-2「医疗功效宣称（治疗、预防疾病等）」；§5.3 示例逐字『【合规-医疗宣称】』）",
+    "taxonomy_category": "合规与受监管宣称",
+    "taxonomy_subcategory": "医疗与疾病功效宣称",
+    "taxonomy_basis": "v1-20261017",
+    "priority_tier": "P0",
+    "priority_tier_basis": "规则行 p_level=P0",
+    "p_level": "P0",
+    "status": "confirmed",
+    "tier_action": "block",
+    "action": "block",
+    "location": "全文",
+    "description": "逐字命中「treat, cure, heal, remedy, diagnos,」（以命中原文代描述",
+    "original_text": "treat, cure, heal, remedy, diagnos,",
+    "history_rule_text": "",
+    "history_analysis": "",
+    "history_advice": "",
+    "history_record_id": "",
+    "history_scope": "",
+    "history_attribution": "",
+    "reason": "逐字命中「treat」：（来源未给判定理由）（p_level=P0 risk_level=Critical authority=None，来源表 None）",
+    "suggestion": "可改为（本规则豁免表达）：treat yourself, doesn't treat, does not treat, do not treat, not intended to treat, not to treat, not a treatment, not a medical device, not intended to cure, doesn't cure, cannot cure, can't cure, 不用于治疗, 不是治疗, 不能治疗, 不可治疗, 不可以治疗, 不能治愈, 无法治疗, 并非治疗, relieve engorgement, relieves engorgement, relieving engorgement, engorgement relief, ease engorgement, eases engorgement, easing engorgement, soothe engorgement, soothes engorgement, soulage les engorgements, soulager les engorgements, reduce the risk of clogged, reduces the risk of clogged, reducing the risk of clogged, reduce the risk of plugged, risk of clogged ducts, risk of plugged ducts, or cure, or treat, cannot treat, can't treat, does not cure, do not cure, won't cure",
+    "rule_code": "H01",
+    "authoritative": null,
+    "authority": null,
+    "superseded_by": null,
+    "fact_or_inference": "事实",
+    "confidence": "中",
+    "evidence": {
+     "library": "措辞表达库",
+     "article_no": "W-1.43",
+     "anchor": "#品线内容边界规则库/recvuJP1dDHb7E/检测关键词",
+     "source_sha256": "f452aeddd6adf8ab4601996f1482912a0ebef2f8d7bd7f211e216087a1d16c81",
+     "excerpt": "treat, cure, heal, remedy, diagnos,",
+     "l0_entry_url": "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblD1MiUK1v5fdjD&record=recvuJP1dDHb7E"
+    },
+    "source": "kb-content-review",
+    "evidence_id": "《措辞表达库 v0》第 W-1.43 条 @ #品线内容边界规则库/recvuJP1dDHb7E/检测关键词 @ f452aeddd6ad",
+    "evidence_url": "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblD1MiUK1v5fdjD&record=recvuJP1dDHb7E",
+    "evidence_source": "L0 源记录直链（飞书）",
+    "severity": "low",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "r-0ffc53715dfa4e43",
+    "risk_type": "平台与促销-静音绝对化表述",
+    "risk_category": "合规",
+    "risk_category_basis": "类别「平台与促销」⇒ 合规（软判（按 §6.2/§5.2 语义归类）：PRD §7.1 外部标准库含「平台政策」）",
+    "taxonomy_category": "合规与受监管宣称",
+    "taxonomy_subcategory": "绝对化与最高级用语",
+    "taxonomy_basis": "v1-20261017",
+    "priority_tier": "P0",
+    "priority_tier_basis": "规则行 p_level=P0",
+    "p_level": "P0",
+    "status": "confirmed",
+    "tier_action": "block",
+    "action": "block",
+    "location": "全文",
+    "description": "逐字命中「M01:whisper,whisper-quiet」（以命中原文代描述）",
+    "original_text": "M01:whisper,whisper-quiet",
+    "history_rule_text": "",
+    "history_analysis": "",
+    "history_advice": "",
+    "history_record_id": "",
+    "history_scope": "",
+    "history_attribution": "",
+    "reason": "逐字命中「quiet」：H02 催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫；M01 静音程度夸大（建议改为 low noise / quiet mode）（p_level=P0 risk_level=Critical authority=None，来源表 None）",
+    "suggestion": "记录级改法：静音表述改客观参数（as low as 48 dB），避免 whisper/silent/ultra-quiet 绝对化",
+    "rule_code": "M01",
+    "authoritative": null,
+    "authority": null,
+    "superseded_by": null,
+    "fact_or_inference": "事实",
+    "confidence": "中",
+    "evidence": {
+     "library": "措辞表达库",
+     "article_no": "W-1.5",
+     "anchor": "#广告文案明细/recvuJYdOb1Rm1/命中片段",
+     "source_sha256": "c77f576dcc392cb3e763e6462d0259e50fb039f924a4af8e100321197e5be577",
+     "excerpt": "M01:whisper,whisper-quiet",
+     "l0_entry_url": "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJYdOb1Rm1"
+    },
+    "source": "kb-content-review",
+    "evidence_id": "《措辞表达库 v0》第 W-1.5 条 @ #广告文案明细/recvuJYdOb1Rm1/命中片段 @ c77f576dcc39",
+    "evidence_url": "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN&record=recvuJYdOb1Rm1",
+    "evidence_source": "L0 源记录直链（飞书）",
+    "severity": "low",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "US-CLAIM-HEALTH-001:5210",
+    "risk_type": "Health or safety outcome claim lacks approved substantiation",
+    "priority_tier": "P0",
+    "severity": "critical",
+    "status": "uncertain",
+    "context_status": "confirmed",
+    "action": "review",
+    "location": "text characters 5210-5214",
+    "original_text": "treat",
+    "reason": "命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认",
+    "suggestion": "检查证据、免责声明、渠道政策和产品事实后再决定",
+    "evidence_id": "TEXT:5210:5215",
+    "rule_id": "US-CLAIM-HEALTH-001",
+    "channel": "",
+    "authoritative": false,
+    "authority": "seed-rules(非规则真源)",
+    "superseded_by": "kb/l3/candidates/rules.jsonl",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "US-CLAIM-HEALTH-001:5219",
+    "risk_type": "Health or safety outcome claim lacks approved substantiation",
+    "priority_tier": "P0",
+    "severity": "critical",
+    "status": "uncertain",
+    "context_status": "confirmed",
+    "action": "review",
+    "location": "text characters 5219-5222",
+    "original_text": "cure",
+    "reason": "命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认",
+    "suggestion": "检查证据、免责声明、渠道政策和产品事实后再决定",
+    "evidence_id": "TEXT:5219:5223",
+    "rule_id": "US-CLAIM-HEALTH-001",
+    "channel": "",
+    "authoritative": false,
+    "authority": "seed-rules(非规则真源)",
+    "superseded_by": "kb/l3/candidates/rules.jsonl",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "US-ENDORSEMENT-001:11422",
+    "risk_type": "Creator or expert endorsement has missing disclosure or substantiation",
+    "priority_tier": "P0",
+    "severity": "high",
+    "status": "uncertain",
+    "context_status": "confirmed",
+    "action": "review",
+    "location": "text characters 11422-11430",
+    "original_text": "Sponsored",
+    "reason": "命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认",
+    "suggestion": "检查证据、免责声明、渠道政策和产品事实后再决定",
+    "evidence_id": "TEXT:11422:11431",
+    "rule_id": "US-ENDORSEMENT-001",
+    "channel": "",
+    "authoritative": false,
+    "authority": "seed-rules(非规则真源)",
+    "superseded_by": "kb/l3/candidates/rules.jsonl",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "US-ENDORSEMENT-001:21499",
+    "risk_type": "Creator or expert endorsement has missing disclosure or substantiation",
+    "priority_tier": "P0",
+    "severity": "high",
+    "status": "uncertain",
+    "context_status": "confirmed",
+    "action": "review",
+    "location": "text characters 21499-21507",
+    "original_text": "Affiliate",
+    "reason": "命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认",
+    "suggestion": "检查证据、免责声明、渠道政策和产品事实后再决定",
+    "evidence_id": "TEXT:21499:21508",
+    "rule_id": "US-ENDORSEMENT-001",
+    "channel": "",
+    "authoritative": false,
+    "authority": "seed-rules(非规则真源)",
+    "superseded_by": "kb/l3/candidates/rules.jsonl",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "US-ENDORSEMENT-001:23048",
+    "risk_type": "Creator or expert endorsement has missing disclosure or substantiation",
+    "priority_tier": "P0",
+    "severity": "high",
+    "status": "uncertain",
+    "context_status": "confirmed",
+    "action": "review",
+    "location": "text characters 23048-23056",
+    "original_text": "affiliate",
+    "reason": "命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认",
+    "suggestion": "检查证据、免责声明、渠道政策和产品事实后再决定",
+    "evidence_id": "TEXT:23048:23057",
+    "rule_id": "US-ENDORSEMENT-001",
+    "channel": "",
+    "authoritative": false,
+    "authority": "seed-rules(非规则真源)",
+    "superseded_by": "kb/l3/candidates/rules.jsonl",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "US-PLATFORM-ABSOLUTE-001:5867",
+    "risk_type": "Absolute or ranking claim requires context and proof",
+    "priority_tier": "P1",
+    "severity": "high",
+    "status": "uncertain",
+    "context_status": "confirmed",
+    "action": "review",
+    "location": "text characters 5867-5868",
+    "original_text": "#1",
+    "reason": "命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认",
+    "suggestion": "检查证据、免责声明、渠道政策和产品事实后再决定",
+    "evidence_id": "TEXT:5867:5869",
+    "rule_id": "US-PLATFORM-ABSOLUTE-001",
+    "channel": "",
+    "authoritative": false,
+    "authority": "seed-rules(非规则真源)",
+    "superseded_by": "kb/l3/candidates/rules.jsonl",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "US-PLATFORM-ABSOLUTE-001:5870",
+    "risk_type": "Absolute or ranking claim requires context and proof",
+    "priority_tier": "P1",
+    "severity": "high",
+    "status": "uncertain",
+    "context_status": "confirmed",
+    "action": "review",
+    "location": "text characters 5870-5873",
+    "original_text": "Best",
+    "reason": "命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认",
+    "suggestion": "检查证据、免责声明、渠道政策和产品事实后再决定",
+    "evidence_id": "TEXT:5870:5874",
+    "rule_id": "US-PLATFORM-ABSOLUTE-001",
+    "channel": "",
+    "authoritative": false,
+    "authority": "seed-rules(非规则真源)",
+    "superseded_by": "kb/l3/candidates/rules.jsonl",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "US-PLATFORM-ABSOLUTE-001:8366",
+    "risk_type": "Absolute or ranking claim requires context and proof",
+    "priority_tier": "P1",
+    "severity": "high",
+    "status": "uncertain",
+    "context_status": "confirmed",
+    "action": "review",
+    "location": "text characters 8366-8369",
+    "original_text": "BEST",
+    "reason": "命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认",
+    "suggestion": "检查证据、免责声明、渠道政策和产品事实后再决定",
+    "evidence_id": "TEXT:8366:8370",
+    "rule_id": "US-PLATFORM-ABSOLUTE-001",
+    "channel": "",
+    "authoritative": false,
+    "authority": "seed-rules(非规则真源)",
+    "superseded_by": "kb/l3/candidates/rules.jsonl",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "US-PLATFORM-ABSOLUTE-001:9372",
+    "risk_type": "Absolute or ranking claim requires context and proof",
+    "priority_tier": "P1",
+    "severity": "high",
+    "status": "uncertain",
+    "context_status": "confirmed",
+    "action": "review",
+    "location": "text characters 9372-9375",
+    "original_text": "Best",
+    "reason": "命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认",
+    "suggestion": "检查证据、免责声明、渠道政策和产品事实后再决定",
+    "evidence_id": "TEXT:9372:9376",
+    "rule_id": "US-PLATFORM-ABSOLUTE-001",
+    "channel": "",
+    "authoritative": false,
+    "authority": "seed-rules(非规则真源)",
+    "superseded_by": "kb/l3/candidates/rules.jsonl",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "US-PLATFORM-ABSOLUTE-001:9962",
+    "risk_type": "Absolute or ranking claim requires context and proof",
+    "priority_tier": "P1",
+    "severity": "high",
+    "status": "uncertain",
+    "context_status": "confirmed",
+    "action": "review",
+    "location": "text characters 9962-9965",
+    "original_text": "Best",
+    "reason": "命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认",
+    "suggestion": "检查证据、免责声明、渠道政策和产品事实后再决定",
+    "evidence_id": "TEXT:9962:9966",
+    "rule_id": "US-PLATFORM-ABSOLUTE-001",
+    "channel": "",
+    "authoritative": false,
+    "authority": "seed-rules(非规则真源)",
+    "superseded_by": "kb/l3/candidates/rules.jsonl",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "US-PLATFORM-ABSOLUTE-001:9980",
+    "risk_type": "Absolute or ranking claim requires context and proof",
+    "priority_tier": "P1",
+    "severity": "high",
+    "status": "uncertain",
+    "context_status": "confirmed",
+    "action": "review",
+    "location": "text characters 9980-9981",
+    "original_text": "#1",
+    "reason": "命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认",
+    "suggestion": "检查证据、免责声明、渠道政策和产品事实后再决定",
+    "evidence_id": "TEXT:9980:9982",
+    "rule_id": "US-PLATFORM-ABSOLUTE-001",
+    "channel": "",
+    "authoritative": false,
+    "authority": "seed-rules(非规则真源)",
+    "superseded_by": "kb/l3/candidates/rules.jsonl",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "US-PLATFORM-ABSOLUTE-001:17973",
+    "risk_type": "Absolute or ranking claim requires context and proof",
+    "priority_tier": "P1",
+    "severity": "high",
+    "status": "uncertain",
+    "context_status": "confirmed",
+    "action": "review",
+    "location": "text characters 17973-17976",
+    "original_text": "best",
+    "reason": "命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认",
+    "suggestion": "检查证据、免责声明、渠道政策和产品事实后再决定",
+    "evidence_id": "TEXT:17973:17977",
+    "rule_id": "US-PLATFORM-ABSOLUTE-001",
+    "channel": "",
+    "authoritative": false,
+    "authority": "seed-rules(非规则真源)",
+    "superseded_by": "kb/l3/candidates/rules.jsonl",
+    "evidence_complete": true
+   },
+   {
+    "risk_id": "US-PLATFORM-ABSOLUTE-001:18015",
+    "risk_type": "Absolute or ranking claim requires context and proof",
+    "priority_tier": "P1",
+    "severity": "high",
+    "status": "uncertain",
+    "context_status": "confirmed",
+    "action": "review",
+    "location": "text characters 18015-18018",
+    "original_text": "best",
+    "reason": "命中美国市场规则候选，需要结合上下文、证据和适用范围人工确认",
+    "suggestion": "检查证据、免责声明、渠道政策和产品事实后再决定",
+    "evidence_id": "TEXT:18015:18019",
+    "rule_id": "US-PLATFORM-ABSOLUTE-001",
+    "channel": "",
+    "authoritative": false,
+    "authority": "seed-rules(非规则真源)",
+    "superseded_by": "kb/l3/candidates/rules.jsonl",
+    "evidence_complete": true
+   }
+  ],
+  "report_url": null,
+  "next_action": "修改内容后以新版本重新提交",
+  "next_owners": [
+   "内容提交方"
+  ],
+  "sla": {
+   "priority": "P0",
+   "target": "immediate",
+   "escalate_to": [
+    "项目统筹",
+    "内容提交方"
+   ],
+   "timezone": "America/Los_Angeles",
+   "clock_rules": [
+    "Start the clock when the required input manifest is complete.",
+    "Pause the clock while waiting for missing submitter material.",
+    "Record timezone and business-calendar version with each SLA event.",
+    "SLA breach never changes the decision automatically."
+   ]
+  },
+  "version_gate": {},
+  "coverage": {
+   "text": "complete",
+   "image": "not_applicable",
+   "audio": "not_applicable",
+   "video": "not_applicable",
+   "ocr": "not_applicable",
+   "asr": "not_applicable",
+   "keyframes": "not_applicable",
+   "note": "声明模态：text；未拿到 provider 佐证的模态记 incomplete（缺口，不是不适用）"
+  },
+  "decision_trace": {
+   "reasons": [
+    "confirmed_p0"
+   ],
+   "confidence_status": "heuristic_not_calibrated",
+   "evaluated_at": "2026-10-23T09:45:30.571926+00:00",
+   "tier_trace": {
+    "P0": 7,
+    "P1": 8,
+    "P2": 0,
+    "P3": 0,
+    "p0_confirmed_blocking": 2,
+    "p0_without_evidence": 0,
+    "p3_advice_only": true,
+    "p0_confidence_flow": false
+   },
+   "confidence_route": {
+    "applies": false,
+    "band": null,
+    "effect": "keep",
+    "annotate": null,
+    "decision": "BLOCK",
+    "why": "PRD §6.6 明文「P0 层级规则不适用置信度分流，命中即 BLOCK」",
+    "p0_override": true,
+    "calibrated": false,
+    "thresholds_source": "kb/l7/registry/confidence-policy.json"
+   },
+   "confidence_derivation": {
+    "kind": "derived",
+    "base": 0.95,
+    "cat_bonus": 0.04,
+    "ev_penalty": 0.0,
+    "unc_p0_penalty": 0.06,
+    "raw": 0.99,
+    "clamped_to_keep_decision": null,
+    "final": 0.99,
+    "note": "**只让值有分布、不改结论**（截断到本结论自己的档）；动 0.90/0.70 两条线是下一步，先用 kb/l8/calibrate_confidence.py 量代价。"
+   },
+   "decision_before_confidence_flow": "BLOCK"
+  },
+  "suggestions": [],
+  "suggest_count": 0,
+  "suggest_label": false
+ },
+ "evidence_meta": {
+  "run_id": "20261023-174524",
+  "findings": 2,
+  "state": "BLOCK",
+  "report_path": null,
+  "material_facets": {
+   "product_line": "",
+   "channel": "",
+   "from": {},
+   "all_product_lines": [],
+   "all_channels": [],
+   "anchors_used": 0,
+   "records_skipped": [
+    {
+     "anchor": "#品线内容边界规则库/recvuJP1dDHb7E/检测关键词",
+     "table": "品线内容边界规则库",
+     "why": "素材原文**不在**该记录里 ⇒ 它是命中记录（规则样本/依据），**不是本素材** ⇒ 不采信它的品线/平台（那是那条样本自己的投放属性）"
+    },
+    {
+     "anchor": "#广告文案明细/recvuJYdOb1Rm1/命中片段",
+     "table": "广告文案明细",
+     "why": "素材原文**不在**该记录里 ⇒ 它是命中记录（规则样本/依据），**不是本素材** ⇒ 不采信它的品线/平台（那是那条样本自己的投放属性）"
+    }
+   ]
+  },
+  "trace": {
+   "p0": {
+    "engine": "kb/l5/matcher.py",
+    "exit_code": 0,
+    "total_elapsed_ms": 113.71,
+    "engine_elapsed_ms": 57.168,
+    "hits": []
+   },
+   "rules": {
+    "engine": "kb/l3/candidates/rules.jsonl",
+    "kb_type_filter": null,
+    "rules_scanned": 639,
+    "hits": [
+     {
+      "rule_id": "r-0ffc53715dfa4e43",
+      "article_no": "W-1.5",
+      "rule_code": "M01",
+      "taxonomy_category": "合规与受监管宣称",
+      "taxonomy_subcategory": "绝对化与最高级用语",
+      "p_level": "P0",
+      "risk_level": "Critical",
+      "authority": null,
+      "kb_type": "wording",
+      "authority_source_table": null,
+      "matched_fragments": [
+       "quiet"
+      ],
+      "anchor": "#广告文案明细/recvuJYdOb1Rm1/命中片段",
+      "source_sha256": "c77f576dcc392cb3e763e6462d0259e50fb039f924a4af8e100321197e5be577",
+      "rule_text": "规则码 M01：命中「cicha；quiet；silencieux；silenciosa,silencioso；ultra-quiet,whisper,whisper-quiet；whisper,whisper-quiet」判定为违规；处理：「whisper,whisper-quiet」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 静音表述改客观参数（as low as 48 dB），避免 whisper/silent/ultra-quiet 绝对化；「cicha」→ 删除/替；依据：H02 催乳/增产/奶量产出承诺（含裸 more milk、催产素、长期奶量、裸奶阵/排空功效claim，无 FDA/临床证据）；放松叙事+限定语（natural let-down/may help）走 M07 语境守卫；M01 静音程度夸",
+      "suggested_replacement": "「whisper,whisper-quiet」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 静音表述改客观参数（as low as 48 dB），避免 whisper/silent/ultra-quiet 绝对化；「cicha」→ 删除/替换为：静音表述改客观参数（as low as 48 dB），避免 whisper/silent/ultra-quiet 绝对化；「whisper,whisper-quiet」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 静音表述改客观参数（as low as 48 dB），避免 whisper/silent/ultra-quiet 绝对化；「cicha」→ 删除/替换为：静音表述改客观参数（as low as 48 dB），避免 whisper/silent/ultra-quiet 绝对化；「silencieux」→ 删除/替换为：删除 pain-free/no pain/without pain/pain relief/less pain/无痛/缓解疼痛等疼痛功效承诺（含 sans douleur/schmerzfrei/sin dolor），只保留 comfort/gentle 与缓解胀满不适 discomfort 的表述 ▸ 静音表述改客观参数（as low as 48 dB），避免 whisper/silent/ultra-quiet 绝对化；「whisper,whisper-quiet」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 静音表述改客观参数（as low as 48 dB），避免 whisper/silent/ultra-quiet 绝对化；「whisper,whisper-quiet」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 静音表述改客观参数（as low as 48 dB），避免 whisper/silent/ultra-quiet 绝对化 ▸ 效果百分比/销量/评分声称需附测试来源与口径，否则删除（折扣百分比不在此列） ▸ 删除限时/最后机会等压力话术（真实活动以折扣规则表为准） ▸ 吸力表述改客观参数（up to -300 mmHg、15 adjustable levels），删除 maximum/strongest；「whisper,whisper-quiet」→ 删除/替换为：删除 more milk/增产催奶/催产素/长期奶量/裸奶阵排空承诺；合规替代为放松叙事+限定语，如 relaxation supports your natural let-down, which may help your flow（因为放松，自然奶阵可能更顺畅），只描述自然生理过程、不承诺产品带来结果；faster let-down/提高排空效率在拿到W1自身对照数据前禁用 ▸ 静音表述改客观参数（as low as 48 dB），避免 whisper/silent/ultra-quiet 绝对化（另 10 组同码修订建议见证据单元）"
+     },
+     {
+      "rule_id": "r-b10ee2b8361c8a3d",
+      "article_no": "W-1.43",
+      "rule_code": "H01",
+      "taxonomy_category": "合规与受监管宣称",
+      "taxonomy_subcategory": "医疗与疾病功效宣称",
+      "p_level": "P0",
+      "risk_level": "Critical",
+      "authority": null,
+      "kb_type": "wording",
+      "authority_source_table": null,
+      "matched_fragments": [
+       "treat",
+       "cure"
+      ],
+      "anchor": "#品线内容边界规则库/recvuJP1dDHb7E/边界内容",
+      "source_sha256": "f452aeddd6adf8ab4601996f1482912a0ebef2f8d7bd7f211e216087a1d16c81",
+      "rule_text": "边界：医疗功效声明（治疗/治愈/诊断/疏通堵奶/治疗或预防乳腺炎；边界允许：缓解涨奶 ease/relieve engorgement、降低堵奶风险 reduce the risk of clogged、支持奶阵 let-down）；触发词：treat, cure, heal, remedy, diagnos, 治疗, 治愈, 诊断, 疗法, 根治, unclog, unclog ducts, unblock ducts, clear clogged, clear blocked, fix clogged, treat clogged, treat plugged, treat engorgement, cure engorgement, cure mastitis, treat mastitis, prevent mastitis, prevents mastitis, prevent clogged, prevent plugged, stop mastitis, engorgement treatment, clogged duct treatment, plugged duct treatment, 疏通堵奶, 疏通乳腺, 通乳腺, 解决堵奶, 治疗堵奶, 预防堵奶, 治疗涨奶, 治疗乳腺炎, 预防乳腺炎, 治愈乳腺炎, 解决乳腺炎, 根治乳腺炎, heat therapy for mastitis, heat therapy for clogged, warmth treats clogged, warmth treats mastitis, thermal therapy, residual milk, remove residual milk, reduces residual milk, clear residual milk, prevent nipple damage, reduce nipple damage, prevents nipple damage, reduces nipple damage, nipple damage prevention, 热敷治疗, 热敷通奶, 加热治疗, 热敷疏通, 通堵奶, 疏通乳腺管, 排残奶, 残余奶, 残留乳汁, 五条乳腺管, 五区对应乳腺, 预防乳头损伤, 减少乳头损伤, 防止乳头损伤, 避免乳头损伤, 乳头损伤预防；豁免：treat yourself, doesn't treat, does not treat, do not treat, not intended to treat, not to treat, not a treatment, not a medical device, not intended to cure, doesn't cure, cannot cure, can't cure, 不用于治疗, 不是治疗, 不能治疗, 不可治疗, 不可以治疗, 不能治愈, 无法治疗, 并非治疗, relieve engorgement, relieves engorgement, relieving engorgement, engorgement relief, ease engorgement, eases engorgement, easing engorgement, soothe engorgement, soothes engorgement, soulage les engorgements, soulager les engorgements, reduce the risk of clogged, reduces the risk of clogged, reducing the risk of clogged, reduce the risk of plugged, risk of clogged ducts, risk of plugged ducts, or cure, or treat, cannot treat, can't treat, does not cure, do not cure, won't cure",
+      "suggested_replacement": ""
+     },
+     {
+      "rule_id": "r-724b26ecb1dee9c4",
+      "article_no": "W-1.30",
+      "rule_code": "安全词",
+      "taxonomy_category": "商品信息与Listing准确性",
+      "taxonomy_subcategory": "规格与参数表述",
+      "p_level": "P1",
+      "risk_level": "Low",
+      "authority": null,
+      "kb_type": "wording",
+      "authority_source_table": null,
+      "matched_fragments": [
+       "hands-free",
+       "wearable",
+       "portable",
+       "wireless",
+       "BPA-free",
+       "gentle",
+       "comfort"
+      ],
+      "anchor": "#品线内容边界规则库/recvuJP2Ot474u/边界内容",
+      "source_sha256": "5a740e9d29e4a9defa82e99066118cb7a118d1d55a21b0e109f6a0aa0257d000",
+      "rule_text": "边界：客观功能/真实认证关键词（正面提示，不参与降级）；触发词：suction level, suction levels, adjustable suction, 9 levels, 10 levels, hands-free, wearable, portable, rechargeable, wireless, BPA-free, food-grade silicone, food grade, FDA cleared, FDA-cleared, FDA registered, easy to clean, dishwasher safe, dishwasher-safe, quiet mode, low noise, low-decibel, reduces pain, less pain, gentle, comfort",
+      "suggested_replacement": ""
+     }
+    ]
+   },
+   "units": {
+    "engine": "kb/l6/retriever.py",
+    "l6_mode": "vector_plus_bm25",
+    "semantic_recall": true,
+    "bm25_max": 3963.162,
+    "cosine_max": 0.0,
+    "used_vector": false,
+    "no_semantic_annotation": null,
+    "top_bm25": [
+     {
+      "source": "bm25_en",
+      "unit_id": "717e7ca055c29beeb033",
+      "anchor": "#l.1-3",
+      "table": "l.1-3",
+      "kb_type": "wording",
+      "source_sha256": "8824915ba5cc320357d0326346d25b1e7fd68d116ac63e72dbcab0333648edbd",
+      "raw_bm25": 3963.162,
+      "excerpt": "u bedienen & leicht zu reinigen Food-grade Silicone & BPA-frei Fernüberwachung per Smartphone Zahnbürste + Ersatzbürstenkopf EUR 0.55 is the average cost per kg"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "c9a1643433baf4aeab50",
+      "anchor": "#l.1-9",
+      "table": "l.1-9",
+      "kb_type": "wording",
+      "source_sha256": "8824915ba5cc320357d0326346d25b1e7fd68d116ac63e72dbcab0333648edbd",
+      "raw_bm25": 3224.1234,
+      "excerpt": "uktionen!! Älskar denna & använder den väldigt mycket Translated from Swedish by Amazon Product summary presents key product information Product Summary: Momcoz"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "cac5ab7224ccc9557109",
+      "anchor": "#l.1-1",
+      "table": "l.1-1",
+      "kb_type": "wording",
+      "source_sha256": "8824915ba5cc320357d0326346d25b1e7fd68d116ac63e72dbcab0333648edbd",
+      "raw_bm25": 3036.715,
+      "excerpt": "Momcozy M5 Smart Breast Pump with App 2 Pack Grey : Amazon.de: Baby Products To move between items, use your keyboard's up or down arrows. Select the department"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "7b8f67be2132d49d70bc",
+      "anchor": "#l.1-2",
+      "table": "l.1-2",
+      "kb_type": "wording",
+      "source_sha256": "8824915ba5cc320357d0326346d25b1e7fd68d116ac63e72dbcab0333648edbd",
+      "raw_bm25": 2993.5822,
+      "excerpt": "tent. See 1 options with no featured offers {\"desktop_buybox_group_1\":[{\"displayPrice\":\"HKD 1,554.81\",\"priceAmount\":1554.81,\"currencySymbol\":\"HKD\",\"integerValue"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "ef409f95e695f1ceb1d2",
+      "anchor": "#l.1-1",
+      "table": "l.1-1",
+      "kb_type": "wording",
+      "source_sha256": "fac9f460268feec110f99ac7a8cef601aa0339be254638c4a4967eb2b2370943",
+      "raw_bm25": 2896.7945,
+      "excerpt": "Momcozy M5 Smart Wearable Pump – Bluetooth App Control | CA Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush"
+     }
+    ],
+    "vector_rows": [],
+    "adopted": [
+     {
+      "source": "bm25_en",
+      "unit_id": "717e7ca055c29beeb033",
+      "anchor": "#l.1-3",
+      "table": "l.1-3",
+      "kb_type": "wording",
+      "source_sha256": "8824915ba5cc320357d0326346d25b1e7fd68d116ac63e72dbcab0333648edbd",
+      "raw_bm25": 3963.162,
+      "excerpt": "u bedienen & leicht zu reinigen Food-grade Silicone & BPA-frei Fernüberwachung per Smartphone Zahnbürste + Ersatzbürstenkopf EUR 0.55 is the average cost per kg",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "c9a1643433baf4aeab50",
+      "anchor": "#l.1-9",
+      "table": "l.1-9",
+      "kb_type": "wording",
+      "source_sha256": "8824915ba5cc320357d0326346d25b1e7fd68d116ac63e72dbcab0333648edbd",
+      "raw_bm25": 3224.1234,
+      "excerpt": "uktionen!! Älskar denna & använder den väldigt mycket Translated from Swedish by Amazon Product summary presents key product information Product Summary: Momcoz",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "cac5ab7224ccc9557109",
+      "anchor": "#l.1-1",
+      "table": "l.1-1",
+      "kb_type": "wording",
+      "source_sha256": "8824915ba5cc320357d0326346d25b1e7fd68d116ac63e72dbcab0333648edbd",
+      "raw_bm25": 3036.715,
+      "excerpt": "Momcozy M5 Smart Breast Pump with App 2 Pack Grey : Amazon.de: Baby Products To move between items, use your keyboard's up or down arrows. Select the department",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "7b8f67be2132d49d70bc",
+      "anchor": "#l.1-2",
+      "table": "l.1-2",
+      "kb_type": "wording",
+      "source_sha256": "8824915ba5cc320357d0326346d25b1e7fd68d116ac63e72dbcab0333648edbd",
+      "raw_bm25": 2993.5822,
+      "excerpt": "tent. See 1 options with no featured offers {\"desktop_buybox_group_1\":[{\"displayPrice\":\"HKD 1,554.81\",\"priceAmount\":1554.81,\"currencySymbol\":\"HKD\",\"integerValue",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     },
+     {
+      "source": "bm25_en",
+      "unit_id": "ef409f95e695f1ceb1d2",
+      "anchor": "#l.1-1",
+      "table": "l.1-1",
+      "kb_type": "wording",
+      "source_sha256": "fac9f460268feec110f99ac7a8cef601aa0339be254638c4a4967eb2b2370943",
+      "raw_bm25": 2896.7945,
+      "excerpt": "Momcozy M5 Smart Wearable Pump – Bluetooth App Control | CA Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush",
+      "verdict": "≥ 门限",
+      "reason": "原始分过门限 → 可作参考/待规则层确认"
+     }
+    ],
+    "discarded": [],
+    "gate": {
+     "bm25_raw_min": 8.0,
+     "vector_cosine_min": 0.6,
+     "use_raw_scores_only": true,
+     "why_not_rrf": "RRF 分恒为 1/(60+k)，实测 Top1 恒在 0.016393，A 组与 B 组看起来一样高，没有区分度，不能当门限",
+     "why_single_threshold_not_enough": "实测 BM25 原始分在 A/B 两组有重叠（A 组最低 5.32 < B 组最高 10.02），所以门限只用于「够不够格当参考」，要成为「依据」还必须同时命中规则层",
+     "measured": {
+      "bm25_raw": {
+       "A_group_min": 5.32,
+       "A_group_median": 12.76,
+       "B_group_median": 6.44,
+       "B_group_max": 10.02,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      },
+      "cosine": {
+       "A_group_min": 0.512,
+       "A_group_median": 0.669,
+       "B_group_median": 0.384,
+       "B_group_max": 0.569,
+       "source": "kb/l6/selftest.json → raw_score_comparison"
+      }
+     },
+     "threshold_reasoning": "BM25 门限取 8.0：落在 A 组最低(5.32)与 B 组最高(10.02)之间、贴近两组中位之间，偏保守；余弦门限取 0.60：实测它是唯一能把 B 组全部挡在外面的取值（B 组最高 0.569），代价是 A 组丢 2 条；即便如此门限仍单独不可靠，必须叠加「同时命中规则层」才算依据",
+     "below_threshold_label": "参考",
+     "above_threshold_without_rule_hit": "仍只能标参考，不得作为依据",
+     "coverage_bm25_min": 16.0,
+     "coverage_reasoning": "PASS 必须建立在「知识库认识这个主题」之上，覆盖信号二选一：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ coverage_bm25_min(=16.0)。16.0 = 依据门限的 2 倍：实测 A 组中位 12.76 / 最高 23.16，B 组最高 10.02，取 16 能把实测 B 组全部挡在外面。覆盖信号不成立 → 拒答，不得输出 PASS。"
+    }
+   },
+   "coverage": {
+    "safe_vocabulary_hits": [
+     "W-1.30"
+    ],
+    "rule_cited_unit_hits": [],
+    "same_source_unit_hits": [],
+    "case_unit_hits": [],
+    "case_clause_pool": 176,
+    "rule_cited_anchor_pool": 965,
+    "rule_cited_resource_pool": 49,
+    "coverage_bm25_min": 16.0,
+    "covered_by": "safe_vocabulary",
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "covered": true
+   },
+   "negative_rules": {
+    "engine": "kb/l3/candidates/negative_rules.jsonl",
+    "hits": [],
+    "not_run": "本单不是图片/视频（或正文里没有画面读数/图内文字）⇒ 负面样本规则层没跑",
+    "not_subject": [],
+    "not_subject_count": 0,
+    "not_substantive": [],
+    "not_substantive_count": 0,
+    "attribution_gate": "subject_or_record_level_anchored"
+   },
+   "elapsed_ms": 4735.2,
+   "perf": {
+    "p0_match_ms": 113.8,
+    "rule_layer_ms": 190.4,
+    "unit_layer_ms": 4252.9,
+    "assemble_ms": 156.1,
+    "content_type": "text",
+    "text_bytes": 23243,
+    "threshold_s": 10
+   },
+   "risk_category": {
+    "with_dimension": 2,
+    "unmapped_or_pending": 0,
+    "policy": "kb/l7/registry/risk-category-policy.json"
+   },
+   "taxonomy": {
+    "with_class": 2,
+    "without_class": 0,
+    "policy": "kb/l3/registry/rule-taxonomy.json（人工口径，Owner 采用；非源字段）"
+   }
+  },
+  "source": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py",
+  "findings_source": {
+   "mode": "live",
+   "path": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py"
+  },
+  "kb_hits": [
+   {
+    "anchor": "#l.1-3",
+    "bm25": 3963.162,
+    "kb_type": "wording",
+    "source_sha256": "8824915ba5cc320357d0326346d25b1e7fd68d116ac63e72dbcab0333648edbd",
+    "excerpt": "u bedienen & leicht zu reinigen Food-grade Silicone & BPA-frei Fernüberwachung per Smartphone Zahnbürste + Ersatzbürstenkopf EUR 0.55 is the average cost per kg",
+    "url": "https://www.amazon.de/dp/B0G1MW5TB6/"
+   },
+   {
+    "anchor": "#l.1-9",
+    "bm25": 3224.1234,
+    "kb_type": "wording",
+    "source_sha256": "8824915ba5cc320357d0326346d25b1e7fd68d116ac63e72dbcab0333648edbd",
+    "excerpt": "uktionen!! Älskar denna & använder den väldigt mycket Translated from Swedish by Amazon Product summary presents key product information Product Summary: Momcoz",
+    "url": "https://www.amazon.de/dp/B0G1MW5TB6/"
+   },
+   {
+    "anchor": "#l.1-1",
+    "bm25": 3036.715,
+    "kb_type": "wording",
+    "source_sha256": "8824915ba5cc320357d0326346d25b1e7fd68d116ac63e72dbcab0333648edbd",
+    "excerpt": "Momcozy M5 Smart Breast Pump with App 2 Pack Grey : Amazon.de: Baby Products To move between items, use your keyboard's up or down arrows. Select the department",
+    "url": "https://www.amazon.de/dp/B0G1MW5TB6/"
+   },
+   {
+    "anchor": "#l.1-2",
+    "bm25": 2993.5822,
+    "kb_type": "wording",
+    "source_sha256": "8824915ba5cc320357d0326346d25b1e7fd68d116ac63e72dbcab0333648edbd",
+    "excerpt": "tent. See 1 options with no featured offers {\"desktop_buybox_group_1\":[{\"displayPrice\":\"HKD 1,554.81\",\"priceAmount\":1554.81,\"currencySymbol\":\"HKD\",\"integerValue",
+    "url": "https://www.amazon.de/dp/B0G1MW5TB6/"
+   },
+   {
+    "anchor": "#l.1-1",
+    "bm25": 2896.7945,
+    "kb_type": "wording",
+    "source_sha256": "fac9f460268feec110f99ac7a8cef601aa0339be254638c4a4967eb2b2370943",
+    "excerpt": "Momcozy M5 Smart Wearable Pump – Bluetooth App Control | CA Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush",
+    "url": "https://ca.momcozy.com/products/m5-smart-wearable-breast-pump-upgraded-with-app-control?variant=47796813922491"
+   }
+  ],
+  "layer_preflight": {
+   "base": "20261023-174509",
+   "ok": true,
+   "red_total": 0,
+   "mode": "enforced",
+   "details": {
+    "L4": {
+     "run": "20261023-174509-L4",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L4": "session-e390146c-4d15-4057-a486-4df0ebafb78c"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L5": {
+     "run": "20261023-174509-L5",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L5": "session-e390146c-4d15-4057-a486-4df0ebafb78c"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L6": {
+     "run": "20261023-174509-L6",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L6": "session-e390146c-4d15-4057-a486-4df0ebafb78c"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L7": {
+     "run": "20261023-174509-L7",
+     "exit": 0,
+     "red": 0,
+     "yellow": 0,
+     "skill_sessions": {
+      "L7": "session-e390146c-4d15-4057-a486-4df0ebafb78c"
+     },
+     "pass": true,
+     "note": ""
+    }
+   }
+  },
+  "position": {
+   "value": null,
+   "supplied_by": null,
+   "note": "未提供 ⇒ 依据层用默认位置（图片会是裸「图 1」，出口闸 R3 判红）"
+  },
+  "decision_owner": {
+   "skill": "文案合规审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check",
+    "文案合规审查"
+   ]
+  },
+  "publish": {
+   "mode": "disabled_by_caller",
+   "published": false,
+   "reason": "disabled_by_caller"
+  },
+  "report_url": null,
+  "report_url_kind": null
+ }
+}

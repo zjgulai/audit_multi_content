@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { config, LOG_DIR } from './config.mjs';
+import * as scene from './scene.mjs';
 
 export const stats = {
   calls: 0, retries: 0, failures: 0,
@@ -230,8 +231,15 @@ export async function chat(messages, { tools, model = config.llm.model, maxToken
         return { ok: true, message: choice.message, finishReason: choice.finish_reason, usage: res.json.usage };
       }
 
-      const code = res.json?.error?.code ?? res.status;
-      const msg  = res.json?.error?.message ?? res.raw?.slice(0, 300) ?? `HTTP ${res.status}`;
+      // ★ 2026-10-22：换端点时实测到**第二种错误体**：中转站回 `{"error":"Invalid API key"}`
+      //   —— `error` 是**字符串**，不是 DeepSeek 的 `{code,message}` 对象。
+      //   原来这里只读 `.error.message`，于是整段原始 JSON 被当成"原因"塞进日志，
+      //   读的人得自己从 JSON 里把那句话挑出来；写进群里更难读。
+      //   两种形状都认：字符串就原样用，对象就取 message。
+      const errField = res.json?.error;
+      const code = errField?.code ?? res.json?.code ?? res.status;
+      const msg  = (typeof errField === 'string' ? errField : errField?.message)
+                ?? res.raw?.slice(0, 300) ?? `HTTP ${res.status}`;
       const retryable = RETRYABLE_STATUS.has(res.status);
       attempts.push({ n: attempt + 1, kind: 'http', status: res.status, code: String(code),
                       layer: 'HTTP', error: `HTTP ${res.status} code=${code}` });
@@ -280,7 +288,7 @@ function finishFailure({ error, layer, chain, attempts, retryable, model, baseUr
 
 /** 便捷：纯文本问答，无工具 */
 export async function ask(prompt, { system, maxTokens = 800, model = config.llm.model,
-                                   temperature = 0.2, thinking = null } = {}) {
+                                   temperature = 0.2, thinking = null, imagePaths = [] } = {}) {
   // ★★ 2026-10-16（Owner：「检查为什么每次跑的结果都不一样」→「先只降温度到 0」）：
   //   原先这里把温度**写死 0.2**，于是同一条素材两次跑出的问题**零重合**
   //   （实测：同图两次，一次 3 条、一次 2 条，一条都不重）。
@@ -289,15 +297,33 @@ export async function ask(prompt, { system, maxTokens = 800, model = config.llm.
   //     谁的温度要紧，谁自己写出来（可 grep 到）。
   const messages = [];
   if (system) messages.push({ role: 'system', content: system });
-  messages.push({ role: 'user', content: prompt });
-  let r = await chat(messages, { model, maxTokens, temperature, ...(thinking ? { thinking } : {}) });
-  if (!r.ok && thinking) {
-    // 端点不认 `thinking`（4xx）⇒ **退回一次不带它的** —— 与 `scene.mjs` 同一条纪律：
-    // 不许因为一个可选参数把整条读数丢掉。
-    console.log(`[llm] ⚠️ 端点不认 thinking 参数 ⇒ 退回带思考的那次请求（${String(r.error).slice(0, 80)}）`);
-    r = await chat(messages, { model, maxTokens, temperature });
+  const imageList = Array.isArray(imagePaths) ? imagePaths.slice(0, 4) : [];
+  const prepared = [];
+  try {
+    const content = [{ type: 'text', text: String(prompt ?? '') }];
+    for (const imagePath of imageList) {
+      const original = scene.assertTempPath(imagePath);
+      const small = await scene.shrinkForModel(original);
+      prepared.push(small);
+      const bytes = fs.readFileSync(small.path);
+      if (!bytes.length) throw new Error(`图片为空，模型侧无法审查：${original}`);
+      if (bytes.length > 8 * 1024 * 1024) throw new Error(`图片超过模型输入上限：${original}`);
+      const ext = path.extname(small.path).toLowerCase();
+      const mime = ({ '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif',
+        '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg' })[ext] ?? 'image/jpeg';
+      content.push({ type: 'image_url', image_url: { url: `data:${mime};base64,${bytes.toString('base64')}` } });
+    }
+    messages.push({ role: 'user', content: imageList.length ? content : String(prompt ?? '') });
+    let r = await chat(messages, { model, maxTokens, temperature, ...(thinking ? { thinking } : {}) });
+    if (!r.ok && thinking) {
+      // 端点不认 thinking（4xx）⇒ 退回一次不带该可选参数；多模态原图仍保留。
+      console.log(`[llm] ⚠️ 端点不认 thinking 参数 ⇒ 退回一次不带该参数（${String(r.error).slice(0, 80)}）`);
+      r = await chat(messages, { model, maxTokens, temperature });
+    }
+    return r.ok ? (r.message?.content ?? '') : `〔LLM 调用失败〕${r.error}`;
+  } finally {
+    for (const item of prepared) item.cleanup?.();
   }
-  return r.ok ? (r.message?.content ?? '') : `〔LLM 调用失败〕${r.error}`;
 }
 
 /**

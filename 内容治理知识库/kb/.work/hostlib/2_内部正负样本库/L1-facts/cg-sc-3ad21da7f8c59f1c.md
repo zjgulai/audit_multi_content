@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.37 是正例还是反例
   - S-1.37 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-3ad21da7f8c59f1c"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 展会
 reason_category: unknown
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2wE9MXvZi/原文反馈"
-source_sha256: 903a19b9b995c4c00717859d019b1169aaa14e547910a163df96c3d13fb97578
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MXvZi
+anchor: "#负面样本/recvw7XJiSNTFQ/具体原因/分析"
+source_sha256: 59ade0b6c242472631e69d11169e8d228e9dacf476b805526845ba5a3db8a7ed
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XJiSNTFQ
 sample_body: "【审核 · 2026-08-15 02:51 · 韦化】【终审-@[已脱敏]】麻烦看看呀:YouAreTheBest: **项目名：中东吸奶器易拉宝修改** **设计要求：**修改一：产品替换 修改二：每个吸奶器的下边放上名称 **设计稿件：** ![Image](img_v3_0214i_15e00052-dfc1-4f50-8e95-6b1ebb28bbfg)  momcozy Global No.1 Wearable breast pump* M5 Smart Wearable Breast Pump 1omcozY Air 1 Ultra-slim Breast Pump M9 Mobile Flow Hands-Free Breast Pump momcoz Wellness 1 Warm-Massage BICasL PUmO * Based On Global Market Share Of Wearable Breast Pumps, Grand View Research 2024."
 reason_analysis: "【审核问题】文案 设计要求：修改一：产品替换。 【问题要点】 1. 设计要求：修改一：产品替换 2. 【终审-@[已脱敏]】麻烦看看呀 3. 修改二：每个吸奶器的下边放上名称"
 advice: ""
@@ -97,8 +97,8 @@ Breast Pumps, Grand View Research 2024.
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2wE9MXvZi/原文反馈`
-- 指纹：`903a19b9b995c4c00717859d019b1169aaa14e547910a163df96c3d13fb97578`
+- 锚点：`#负面样本/recvw7XJiSNTFQ/具体原因/分析`
+- 指纹：`59ade0b6c242472631e69d11169e8d228e9dacf476b805526845ba5a3db8a7ed`
 - 原因归类：unknown　|　素材类型：文字
 
 > 案例只作参照，不构成规则。

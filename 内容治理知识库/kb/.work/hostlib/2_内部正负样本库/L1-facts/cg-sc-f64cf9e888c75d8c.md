@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.196 是正例还是反例
   - S-1.196 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-f64cf9e888c75d8c"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: 社媒
 reason_category: 品牌一致性
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2vgYX8LZb/原文反馈"
-source_sha256: 7cdb629f161ca552f020be7c9ee0f21bee1c42f03d4ececbb0b4b23c7e804a3a
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2vgYX8LZb
+anchor: "#负面样本/recvw7XIUgPt8L/具体原因/分析"
+source_sha256: 24cb5ff56dcebcf2b46937e707bd117bdd20712eb95c1449b922a6b4124f043d
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XIUgPt8L
 sample_body: "【审核 · 2026-09-23 01:08 · 姚棉元】【终审-@[已脱敏] 】麻烦看看呀:YouAreTheBest: **项目名： 美国 Walmart 10 月会员日（仅线上）** **项目背景：** - **项目目标：**配合 10 月 3–11 日 Momcozy 在 [Walmart.com](https://walmart.com/) 的限时促销（精选产品 20% OFF），通过品牌自有社媒做活动曝光，为 Walmart 渠道引流，向用户快速传达 “Momcozy 可在 Walmart 购买、精选产品限时八折、活动仅 9 天、前往 [Walmart.com](https://walmart.com/) 选购” 四个信息。 - **用户场景：**美国市场的孕期及新手妈妈、婴幼儿家庭在快速浏览 Instagram / Facebook 时，被限时折扣吸引，经 Story 链接贴纸或 CTA 跳转 [Walmart.com](https://walmart.com/) 下单。 - **渠道与位置：**Instagram Story 1080×1920 共 4 张（底部需预留链接贴纸与 CTA 安全区）、Facebook 1080×1080 共 1 张。 - **核心卖点与信息层级：**20% OFF 为第一视觉重点，产品为第二，活动日期 OCT 3–11 为第三；品类覆盖吸奶器、背带、暖奶器等（Breast Pumps, Baby Carriers, Bottle Warmers & More）。 **设计要求：** - **数量与尺寸**：共 5 张 ——Facebook 1080×1080 ×1；Instagram Story 1080×1920 ×4；同组产品、5 个不同场景。 - **促销主视觉（活动产品陈列）** - **四个产品主视觉场景（产品相同、情境不同）： **清洗机、尿布桶、暖奶器、吸奶器 - **文案： ** 20% OFF / Select Momcozy Essentials  Breast Pumps, Baby Carriers, Bottle Warmers & More OCT 3–11 **设计稿：** ![Image](img_v3_0215p_42cc9084-f2d5-4f29-83aa-1686143f88ag) 产品组合陈列两个排版二选一~~"
 reason_analysis: "【品牌一致性】图片 【终审-@[已脱敏] 】麻烦看看呀。 【问题要点】 1. 【终审-@[已脱敏] 】麻烦看看呀 2. - 项目目标：配合 10 月 3–11 日 Momcozy 在 Walmart.com 的限时促销（精选产品 20% OFF），通过品牌自有社媒做活动曝光，为 Walmart 渠道引流，向用户快速传达 3. - 用户场景：美国市场的孕期及新手妈妈、婴幼儿家庭在快速浏览 Instagram / Facebook 时，被限时折扣吸引，经 Story 链接贴纸或 CTA 跳转 Walmart.com 下单 4. - 渠道与位置：Instagram Story 1080×1920 共 4 张（底部需预留链接贴纸与 CTA 安全区）、Facebook 1080×1080 共 1 张 5. - 核心卖点与信息层级：20% OFF 为第一视觉重点，产品为第二，活动日期 OCT 3–11 为第三"
 advice: ""
@@ -93,8 +93,8 @@ OCT 3–11
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2vgYX8LZb/原文反馈`
-- 指纹：`7cdb629f161ca552f020be7c9ee0f21bee1c42f03d4ececbb0b4b23c7e804a3a`
+- 锚点：`#负面样本/recvw7XIUgPt8L/具体原因/分析`
+- 指纹：`24cb5ff56dcebcf2b46937e707bd117bdd20712eb95c1449b922a6b4124f043d`
 - 原因归类：品牌一致性　|　素材类型：图片
 
 > 案例只作参照，不构成规则。

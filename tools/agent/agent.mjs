@@ -26,11 +26,23 @@ import { SCENE_MAX_EDGE } from './scene.mjs';
 import * as mediaLink from './media_link.mjs';
 // ★ 2026-10-09：OCR 水印摘除（Owner 看出图内文字里的用户名是水印）——见该模块头注
 import { stripOcrWatermark } from './ocr_watermark.mjs';
+// ★ 2026-10-21（Owner）：图单的视觉核对清单 —— 「加载了 skill」不等于「执行了它那道视觉核对」
+import { checkVisualChecklist, checkImageSkillWorkflow } from './visual_checklist.mjs';
+// ★★ 2026-10-21（Owner 批准 P0）：**看到图、但一张都没解析出来 ⇒ 不许出 PASS**。
+//   病灶（实测）：模态是用「解析出的图数」**猜**的 —— 图一旦没被解析成图片
+//   （飞书里**以文件方式发的图** `msgType='file'`、图消息缺 image_key、富文本图节点解析不到、
+//    引用那条回读失败），`--content-type` 就退化成 `text` ⇒ **「负面样本规则」整层不跑**
+//   ⇒ 出 `PASS / 0 条`。同一份图，只差这一个词（`tools.mjs` 约 1944 行记着实测）。
+//   判据在 `image_intent_gate.mjs`（纯函数，12 条自证）；本文件只负责**接线与拒答**。
+import { detectImageIntent, imageIntentVerdict } from './image_intent_gate.mjs';
+// ★★ 2026-10-22：判定主体（图片安全审查 skill）判在**散文**里的问题，抽成结构化条目 ——
+//   否则它们一条都上不了卡（实测那张 11478 字的回答，5 条实质问题全被卡丢掉）。
+import { skillFindingsOf } from './skill_findings.mjs';
 import * as video from './video.mjs';
 import { TOOL_SCHEMAS, executeTool, runtimeContext, toolNames, claimStatus, facetsFromMaterial,
-         beginChainTurn, chainMemoStats, beginP0Turn, p0MemoRead,
+         beginChainTurn, setChainTurnImagePaths, chainMemoStats, beginP0Turn, p0MemoRead,
          beginChainAnswerTurn, chainAnswerRead,
-         runP0Preflight } from './tools.mjs';
+         runP0Preflight, p0Precheck, withAgentTurnContext, setAgentTurnContext } from './tools.mjs';
 import { detectTruncation, annotateTruncation, tailOf, collapseToolMessages, clipToolOutput,
          TOOL_OUTPUT_MAX_CHARS } from './truncate.mjs';
 import { parentIdOf, alreadyInHistory, buildQuoteBlock } from './thread.mjs';
@@ -38,12 +50,15 @@ import * as reviewGate from './review_gate.mjs';
 import { mergeFindings, mergedState, kbFindingsOf, kbCoveredOf, renderMerged, mergeSummary, kbSideOf,
          mergedConfidence, kbNoReadingOf, REPORT_LINK_MIN_ISSUES, evidenceBlock,
          p0HitOf } from './dual_track.mjs';
-import { renderMergedReportMd, publishMergedReport, writeMergedRecord } from './merged_report.mjs';
+import { renderMergedReportMd, publishMergedReport, writeMergedRecord,
+         shouldPublishMergedReport } from './merged_report.mjs';
 // ★ 2026-10-19（Owner 裁定「1→2→3 全做」的第 1 步）：逐条结构化记录的**唯一生产者**。
 //   它把「这一条是模型侧还是库侧 / 回不回得了源 / 哪一格被截了几字」落盘 ——
 //   卡面随后就能把那句「无库内依据 · 建议转人工」摘掉，而**问的时候仍然答得出来**。
 import { buildMergedRecord } from './merged_record.mjs';
-import { reviewModelSide, readingsForModelSide } from './model_side.mjs';
+import { reviewModelSide, readingsForModelSide, SYSTEM as MODEL_SIDE_SYSTEM,
+         buildPrompt as buildModelSidePrompt, canonicalImageAuditRequest } from './model_side.mjs';
+import { reviewImageOnce } from './image_review_cache.mjs';
 import * as ocrGate from './ocr_claim_gate.mjs';
 import { generateAdvice } from './advice.mjs';
 import * as reviewPublish from './review_publish.mjs';
@@ -95,6 +110,215 @@ export function flushSeen() {
       console.warn(`[seen] 去重表落盘失败（第 1 次）：${e.code ?? e.message} —— 本次运行仍按内存去重，但重启后可能重复回话`);
     }
   }
+}
+
+/**
+ * Pick the §5.3 verdict for the final reply. An incomplete image workflow is a
+ * hard stop: never recover an older verdict from P0, the review chain, or the
+ * model reply after the image gate has deliberately withheld its verdict.
+ */
+export function finalVerdict53ForTurn({ gateResult = null, p0Payload = null,
+                                        toolTrace = [], chainAnswer = null,
+                                        reply = '' } = {}) {
+  if (gateResult?.imageReviewIncomplete) return null;
+  return gateResult?.verdict53
+    ?? (p0Payload
+      ? deriveVerdictLine({ replyText: reply, reviewedByTool: true,
+                            answer: p0Payload.answer, p0Fastpath: p0Payload.p0Fastpath })
+      : (toolTrace.some((x) => x.tool === 'kb_review_chain' && x.ok)
+        ? deriveVerdictLine({ replyText: reply, reviewedByTool: true,
+                              answer: chainAnswer?.answer ?? '',
+                              p0Fastpath: chainAnswer?.p0Fastpath ?? null })
+        : null));
+}
+
+/* ─────────── 图单：画面这一半到底读没读到 + 拿不到结论时对**人**怎么说 ───────────
+ *
+ * ── 为什么必须有这两件（2026-10-22 19:36 生产实测，Owner 当场把回复截图甩回来）
+ *   那一单的真实回话是：
+ *     「这张图片的完整审查流程没有完成，暂不出 PASS / REVIEW / BLOCK 结论。
+ *      视觉核对的结论没写清：场景关系（判"未测"但没给原因）。**请重新发送原图**，…」
+ *   三处都不对：
+ *     ① 判据错杀（真因）—— 报告第七节写的是表格 `| 场景关系 | 未测 | 同上 |`，
+ *        「同上」指的是上一行那句理由。判据把它当「没给原因」⇒ 整份合格报告被判成没跑完。
+ *        （判据侧已改，见 `visual_checklist.mjs` 的 `resolveAnaphora`）
+ *     ② **卡点在我这一侧**：同一单的画面读数是「没读到（画面模型 HTTP 402 Insufficient Balance）」，
+ *        跟对方发的那张图一点关系都没有 —— 而回复让人**重发原图**。他重发了四次，四次同一句。
+ *     ③ 把判据的原话（「判"未测"但没给原因」「逐面板视觉核对」）直接甩进了群里。
+ *   ⇒ 判据错杀修在判据里；**话术**修在这里：说清"没测完 ≠ 没问题"、卡在哪、以及
+ *     **现在重发没用**。这两件都必须是可被单测直接调用的纯函数 ——
+ *     一版只活在 `runSubmissionGate` 里的话术，判据够不着（§2.4.7 那条教训）。
+ */
+
+/**
+ * 这一单的**画面读数**怎么了。三态要分得开（读数里没写 ≠ 没看）：
+ *   · 读到了            ⇒ 不进结果
+ *   · 读了没读到/报错   ⇒ `{index, why, human}`
+ *   · 这一单没跑画面层  ⇒ `{index, why:'画面层没有跑', human:'画面层这一单没跑'}`
+ * `skipped` 是**按设计**不跑（例如非图片那类），不算缺口。
+ */
+export function sceneFaultsOf(inbound) {
+  const out = [];
+  for (const im of (Array.isArray(inbound?.images) ? inbound.images : [])) {
+    if (!im) continue;
+    const sc = im.scene;
+    if (sc && sc.skipped) continue;
+    const index = Number.isFinite(im.index) ? im.index : null;
+    if (!sc) { out.push({ index, why: '画面层没有跑', human: '画面层这一单没跑' }); continue; }
+    if (sc.ok === false) {
+      const why = String(sc.error ?? '画面读数失败');
+      out.push({ index, why, human: humanizeSceneError(why) });
+    }
+  }
+  return out;
+}
+
+/** 把画面层的报错压成一句人话 —— 整段 JSON 不许甩进群里（群友读不懂，也没必要读）。 */
+export function humanizeSceneError(err) {
+  const s = String(err ?? '').trim();
+  if (!s) return '原因未给';
+  const bits = [];
+  const code = s.match(/HTTP\s*(\d{3})/)?.[1];
+  if (code) bits.push(`HTTP ${code}`);
+  // ★ 2026-10-22 换端点时实测的两种错误体（都是「谁的问题」不同、处置也不同）：
+  //   · 401 `{"error":"Invalid API key"}` —— 密钥不对：改 key，不是等额度；
+  //   · 403 `{"error":{"code":"model_not_allowed"}}` —— 这把 key 不许用这个模型名：改模型名。
+  //   与「额度不足」混在一起说，会让人去充值一个根本不缺钱的账户（或反过来）。
+  if (/invalid api key|unauthorized|authentication/i.test(s)) bits.push('密钥无效');
+  else if (/model_not_allowed|not allowed for this api key/i.test(s)) bits.push('这个模型名不被允许');
+  else if (/insufficient[_\s]?balance|insufficient_quota|余额不足|额度不足/i.test(s)) bits.push('额度不足');
+  else {
+    const msg = s.match(/"message"\s*:\s*"([^"]{1,60})"/)?.[1];
+    if (msg) bits.push(msg);
+  }
+  if (bits.length) return bits.join(' · ');
+  return s.replace(/\s+/g, ' ').slice(0, 60);
+}
+
+/**
+ * 图单拿不到三态结论时，**群里那句人话**。
+ *
+ * 四条硬约束（每一条都对着一次真事故）：
+ *   ① 先说清「**没测完 ≠ 没问题**」—— 否则这句话读起来像一次放行；
+ *   ② **不许把卡点说成对方的素材**：画面读数没读到是我这一侧的端点，重发同一张图不会有不同结果；
+ *   ③ 不带判据术语（「判"未测"但没给原因」「逐面板」这类是**内部**说法，进日志与留底件，
+ *      不进群 —— 与「库内命中（读数）不进卡」同一条）；
+ *   ④ 不承诺自动化（没有重跑队列就是没有）—— 只说**人**能怎么办。
+ *
+ * @param {{visualGate?:object, imageWorkflowGate?:object, sceneFaults?:Array}} o
+ */
+export function imageWithholdReply({ visualGate = null, imageWorkflowGate = null, sceneFaults = [] } = {}) {
+  const faults = (Array.isArray(sceneFaults) ? sceneFaults : []).filter(Boolean);
+  const why = [];
+  if (faults.length) {
+    const detail = faults
+      .map((f) => `${f.index ? `图 ${f.index} ` : ''}${f.human || f.why || '原因未给'}`)
+      .join('；');
+    why.push(`**画面这一层我没读到**（${detail}）⇒ 姿势、产品状态、场景关系、隐私这些画面事实只能记「未测」`);
+  }
+  const missing = Array.isArray(visualGate?.missing) ? visualGate.missing : [];
+  if (missing.length) why.push(`五类画面事实里还有 ${missing.length} 类没写：${missing.join('、')}`);
+  const weak = Array.isArray(visualGate?.weakItems) ? visualGate.weakItems : [];
+  if (weak.length) why.push(`这几项只给了结论、没写依据或原因：${weak.map((x) => x && x.label).filter(Boolean).join('、')}`);
+  if (imageWorkflowGate && imageWorkflowGate.ok === false) {
+    const n = Array.isArray(imageWorkflowGate.missing) ? imageWorkflowGate.missing.length : 0;
+    why.push(`图片安全审查的流程没走完${n ? `（缺 ${n} 个环节）` : ''}`);
+  }
+  const sceneBlocked = faults.length > 0;
+  return [
+    '这张图的审查这一轮**没有做完**，所以**暂不出 PASS / REVIEW / BLOCK** —— 不是「没问题」，是**没测完**。',
+    `卡在哪：${why.join('；') || '判定报告没有交齐'}`,
+    sceneBlocked
+      ? '怎么办：**现在重发同一张图结果一样** —— 卡点是我这一侧的画面读数，不是你的图。等端点恢复你再发一次，我把画面这一半补上再给结论。'
+      : '怎么办：**不用重发图** —— 缺的是我这份判定报告本身，不是你的素材。要我按同一张图重跑，你说一声。',
+  ].join('\n');
+}
+
+/**
+ * 图单**根本没跑完**（链没跑成 / 超时 / 画面那一半没做成）时，群里那句人话。
+ *
+ * ★★ 2026-10-23 实测（Owner 当场把这句话甩回来）：
+ *   ```
+ *   本轮图片审查证据未通过：本轮没有可核对的知识库引擎 JSON；图片审查状态未验证。
+ *   暂不出 PASS / REVIEW / BLOCK；请在原图和图片安全审查 skill 的本会话执行证据齐全后重新审核。
+ *   ```
+ *   三处都错：
+ *     ① **把内部读数当理由**：「知识库引擎 JSON」「skill 的本会话执行证据」是**我们的**字段名，
+ *        对方读完不知道自己该做什么 —— 与「库内命中（读数）不进卡」同一条纪律；
+ *     ② **把要求甩给对方**：「请在…证据齐全后重新审核」＝ 让对方去做一件**他做不到**的事
+ *        （那些字段只有我这一侧能产生）；
+ *     ③ **没说清"停在哪、还等不等"** —— 那一单在链上静默了 9 分 9 秒（4B 联网核查挂死），
+ *        而这句话读起来像"这一单审完了、没过"。
+ *
+ *   ⇒ 四段式，一段都不能省：
+ *     ① 结论状态（没审完 ≠ 没问题，仍保留「暂不出 PASS / REVIEW / BLOCK」这四个字）；
+ *     ② **卡在哪一跳**（用人话说，时长按真实读数）；
+ *     ③ **我这边已经做了什么**（补发队列是真有的，才能说；不许承诺没有的自动化）；
+ *     ④ **对方要不要动手**（不用重发同一张图 —— 卡点在我这侧）。
+ *
+ * @param {{chainRan?:boolean, chainMs?:number, reason?:string, modelSideFailed?:boolean}} o
+ */
+export function imageUnfinishedReply({ chainRan = true, chainMs = 0, reason = '', modelSideFailed = false } = {}) {
+  const mins = Math.max(1, Math.round(Number(chainMs || 0) / 60000));
+  const head = '这张图**没审完**，所以**暂不出 PASS / REVIEW / BLOCK** —— 不是「没问题」，是**没测完**。';
+  if (!chainRan || modelSideFailed) {
+    const where = modelSideFailed
+      ? `画面这一半没做成（${humanizeSceneError(reason)}）`
+      : `知识库比对那一步卡住了：4B 联网核查的请求发出去 ${mins} 分钟没有响应，我把这一单停了`;
+    return [
+      head,
+      `卡在哪：${where}。`,
+      '我这边：这一单**已经自动排进补发队列**，恢复后我按**同一张图**重跑，结果回在这里 —— 你不用再催。',
+      '要你做的：**不用重发这张图**（卡点在我这侧，重发同一张结果一样）。',
+    ].join('\n');
+  }
+  return [
+    head,
+    `卡在哪：知识库那一步没交出可以核对的读数（${humanizeSceneError(reason) || '原因未给'}）。`,
+    '我这边：已按原图排进补发队列，结果回在这里。',
+    '要你做的：**不用重发这张图**。',
+  ].join('\n');
+}
+
+/** Require positive, current KB evidence before any image review state can be published. */
+export function imageEvidenceFailure(result, imageCount = 0, modelSide = null) {
+  if (!(Number(imageCount) > 0)) return null;
+  // ★★ 2026-10-22（Owner 现场那一单：图 + @守衡）—— **P0 确定性命中时这道闸不适用。**
+  //
+  //   病灶（生产实测，`om_x100b62aff6a2c22ccfd45eeca787bff`）：刘华丽 发了一张 momcozy 产品图
+  //   ＋ @守衡（正文为空）。库侧 P0 快路命中 V02／E-2.124，`dual.rendered` 里 BLOCK 已经备好，
+  //   而本函数却判「本轮没有可核对的知识库引擎 JSON」⇒ 强制 NEEDS_INPUT ⇒ 群里只收到
+  //   一句「本轮图片审查证据未通过……请重新发送原图」。**一个已确定的 BLOCK 被自己的闸门藏掉。**
+  //   为什么是判据本身错、而不是读数缺：
+  //     ① 这一路**按设计就不会有**引擎 JSON —— PRD §6.3「P0 命中即停止后续审查」，
+  //        L4→L7 与评审链根本没跑；拿一份「按 PRD 不该存在」的产物当缺证据，
+  //        等于让每张命中 P0 的图单都必然拒答（§2.4.5 那种「两个各自都对的部件撞车」）。
+  //     ② P0 的读数**自带**条款号 / 锚点 / source_sha256 / 报告链接，且只出 BLOCK ——
+  //        这道闸防的是「没读过库就说合规（PASS）」，P0 只可能更保守，不存在那个风险。
+  if (result?.p0_fastpath && typeof result.p0_fastpath === 'object') return null;
+  if (!modelSide || modelSide.ok !== true || modelSide.skipped) {
+    return `模型侧原图视觉/语义审查未完成${modelSide?.error ? `：${modelSide.error}` : ''}`;
+  }
+  const engine = result?.engine;
+  if (!engine || typeof engine !== 'object') {
+    return '本轮没有可核对的知识库引擎 JSON；图片审查状态未验证';
+  }
+  const gate = engine.image_skill_gate ?? engine.evidence_meta?.image_skill_gate
+    ?? engine.review?.image_skill_gate;
+  if (!gate || typeof gate !== 'object') {
+    return '本轮引擎结果没有图片 skill 闸门读数；不能确认原图与完整 skill 已执行';
+  }
+  if (gate.ok !== true) {
+    const checks = Array.isArray(gate.checks) ? gate.checks.filter(Boolean).join('；') : '';
+    return checks || `图片 skill 闸门未通过（${gate.reason_code ?? '原因未提供'}）`;
+  }
+  const loaded = gate.load?.verdict === 'loaded' || gate.load?.verdict === 'success';
+  if (!loaded) return '图片安全审查 skill 的本会话真实加载读数缺失或未通过';
+  const state = String(engine.state ?? engine.decision?.state ?? engine.decision?.verdict ?? '').toUpperCase();
+  if (state === 'NEEDS_INPUT') {
+    return String(engine.summary ?? engine.decision?.summary ?? '知识库引擎拒绝给出本轮图片结论');
+  }
+  return null;
 }
 
 /* ─────────────────── 串行化：每个会话一把锁 ─────────────────── */
@@ -369,6 +593,11 @@ export async function readInboundContent(msg, {
     }
   }
 
+  // ── ★★ P0（2026-10-21 Owner 批准）：这条消息**意图上**带没带图 ──────────────
+  //   「意图带图」与「解析出几张」是**两件事**：后者为 0 而前者为真，就是下面那个 fail-open。
+  //   这里只做判定，**不碰取图**（取图那一段一个字没改）。
+  const imageIntent = detectImageIntent({ msgType, content, parentNote });
+
   const images = [];
   const todo = keys.slice(0, MAX_IMAGES_PER_MESSAGE);
 
@@ -405,8 +634,15 @@ export async function readInboundContent(msg, {
       } else if (sceneRes?.ok) {
         console.log(`[agent] 🖼 画面读数｜图 ${i + 1}｜${sceneMod.sceneLine(sceneRes)} · ${sceneRes.ms}ms`);
       }
+      // ★ 2026-10-20（知识库侧要求）：把**图片字节的 sha256** 一并带出去。
+      //   为什么：两套 OCR 引擎（守衡 base/ocr_vision vs 知识库 ocr.jxa.js）对同一张图
+      //   给出的文字**不完全相同** ⇒ 逐字比对会失配。而图片字节的 sha 是同一把尺子：
+      //   知识库的媒体单元里存了每张图的 sha256，两边一比就能确认「就是这张图」。
+      let imgSha = null;
+      try { imgSha = createHash('sha256').update(fs.readFileSync(got.path)).digest('hex'); }
+      catch (e) { console.log(`[agent] ⚠️ 图 ${i + 1} 算 sha256 失败：${e?.message ?? e}`); }
       const pushImg = (extra) => images.push({
-        index: i + 1, imageKey: k.imageKey, fromParent, bytes: got.bytes,
+        index: i + 1, imageKey: k.imageKey, fromParent, bytes: got.bytes, sha256: imgSha,
         // ★ 2026-10-16：**把来源消息 id 带出去** —— 落表时要把这张图上传成链接，
         //   而那时读入阶段的临时字节早就删了（用完即删那条纪律），只能凭
         //   「消息 id + image_key」再取一次。这就是那两个键在 `inbound` 里的落点。
@@ -539,6 +775,12 @@ export async function readInboundContent(msg, {
 
   return {
     msgType,
+    /** ★ 2026-10-21（P0）：这条消息**意图上**带没带图（`{hasIntent, why}`）—— 与「解析出几张」分开 */
+    imageIntent,
+    /** ★ 2026-10-21（P0）：有图意图 + 解析出 0 张 ⇒ true（出结论时必须压成 NEEDS_INPUT） */
+    imageUnresolved: imageIntentVerdict({
+      imageIntent, imageCount: keys.length, videoCount: vidKeys.length,
+    }).needInput,
     text,
     parsed: parsed.parsed,
     parseNote: parsed.note ?? null,
@@ -599,7 +841,8 @@ export function buildImageBlock(inbound) {
   const quoted = inbound.fromParent && inbound.parentNote?.kind === 'parent_text' && inbound.parentNote.text
     ? `\n（她引用的那条消息，正文逐字是：${String(inbound.parentNote.text).slice(0, 500)}）`
     : '';
-  const hasScene = (inbound.images ?? []).some((i) => i?.scene?.ok);
+  const imageRows = Array.isArray(inbound.images) ? inbound.images : [];
+  const hasScene = imageRows.some((i) => i?.scene?.ok);
   const parts = [
     `【${src}，共 ${inbound.imageCount} 张。下面每一格是**两条读数**：`
     + `① **本机 OCR 读出的图内文字**（逐字，可能有识别错误；也可能读不全）；`
@@ -617,7 +860,10 @@ export function buildImageBlock(inbound) {
     + `所以：可以按这两条读数做文案、宣称、产品使用、人物行为与场景层面的判定，`
     + `但凡读数没覆盖的部分，都要把边界写出来。${quoted}】`,
   ];
-  for (const im of inbound.images) {
+  for (const im of imageRows) {
+    // ★ 2026-10-20：**图片指纹行**（放在最前）。知识库侧用它确认「就是这张图」——
+    //   OCR 两套引擎文字会不同，sha 不会。
+    if (im.sha256) parts.push(`【图 ${im.index} 指纹 sha256=${im.sha256}】`);
     if (im.failed) {
       parts.push(`【图 ${im.index}】**这一张我读不到**：${im.failed}`
         + (im.placeholder ? '（OCR 自己报的尺寸是 1×1 像素级 —— 这类多是占位图/懒加载图，不是「读不出来」）' : '')
@@ -867,6 +1113,14 @@ export async function runSubmissionGate({
   // ★★ 2026-10-20（Owner 批准 ①）：回执**已经发过**的时刻（ms）。非空 ⇒ 这里不再发第二张。
   // 见下面回执块的头注。
   ackSentAt = null,
+  // ★★ 2026-10-21（Owner）：「P0 红线问题必须 10 秒内回」「一条消息只回一条结论」。
+  //   `true` = 内核在**发回执之前**已经做过一次只读 P0 预判且**命中**（见 `p0Precheck`）⇒
+  //     ① 这里**不发**「⏳ 处理中」回执（结论几秒后自己会到，一张卡就够）；
+  //     ② 模型侧双轨**不起跑**（PRD §6.3「命中即停止后续审查」，实测省 p50 11.8 s）；
+  //     ③ 建议生成那一次 LLM **不跑**（实测省 p50 5.4 s，建议回落库侧原文）。
+  //   ⚠️ 它只影响这三件**副作用与耗时**，不影响任何判定：结论仍由链（`kb_review_chain`）跑，
+  //     实判以 `res.p0_fastpath` 为准；两者不一致时日志会照实说（口径不一致必须看得见）。
+  p0PreHit = false,
   chainRunner = defaultChainRunner,
   // ★ 模型侧那一遍**必须可注入**（2026-10-06）：它默认会真调 LLM。
   //   不注入的话，将来任何一条「带媒材 + 链跑成」的自证用例都会**真打网络** ——
@@ -884,6 +1138,9 @@ export async function runSubmissionGate({
   // ★ 2026-10-09：「建议」那一次调用**必须可注入** —— 它默认真打 LLM；
   //   不注入的话每条含条目的自证都会真调模型（与 modelSideRunner 同一个理由）。
   adviceRunner = generateAdvice,
+  // ★ 2026-10-22：默认改成**分流器**（飞书链接走飞书只读接口，其余走公开网页读数器）。
+  //   事故见 `feishu_link.mjs` 文件头；`readPublicPage` 仍是它内部的一条分支，没有丢。
+  linkReader = reviewGate.readLink,
   force = false,
 } = {}) {
   if (force) return { question, gate: null, chainBlock: '', chainRan: false, chainMs: 0, verdict53: null };
@@ -901,11 +1158,27 @@ export async function runSubmissionGate({
     return { question, gate, chainBlock: '', chainRan: false, chainMs: 0, verdict53: null };
   }
 
-  const input = reviewGate.chainInput({ question, inbound });
+  const hasImageForAudit = Number(inbound?.imageCount ?? 0) > 0
+    || (Array.isArray(inbound?.images) && inbound.images.length > 0);
+  const imageAuditRequest = hasImageForAudit
+    ? canonicalImageAuditRequest(userText === undefined ? inbound?.text : userText)
+    : '';
+  // 图片送审的范围由图片审查 skill 固定为完整审查。群聊 @、私聊提问措辞只留在报告，
+  // 不进入知识库链的判定提示，避免同一张图因会话包装不同而得到不同 KB 结果。
+  const chainQuestion = hasImageForAudit
+    ? '请按图片安全审查 skill 对本次附图执行完整审查，逐项完成全部检查。'
+      + (imageAuditRequest ? `\n对方的具体关注点：${imageAuditRequest}` : '')
+    : question;
+  let input = reviewGate.chainInput({ question: chainQuestion, inbound });
   // ★★ 2026-10-20：**素材模态**（位置那一格要按模态断言；见 `renderMerged` 的 `modality`）。
   //   口径：有视频 ⇒ video；否则有图 ⇒ image；否则 text（与 PRD §5.3.3 的三种位置形态一一对应）。
   const _modality = (Array.isArray(inbound?.videos) && inbound.videos.length) ? 'video'
     : ((Array.isArray(inbound?.images) && inbound.images.length) ? 'image' : 'text');
+  // Carry modality and the full kernel-produced image context with this chain call.
+  // Do not recover either value from process-global state: another Feishu event may
+  // enter while this review is awaiting the DSH tool call.
+  input.contentType = _modality;
+  input.imageContext = buildImageBlock(inbound);
   // ★ 2026-10-12（Owner）：「这一步要 6~30 分钟」**是优化前的旧估计，删掉**。
   //   库里早有同一条裁定（`agent/review_gate.mjs:308`：「去掉时长估计」，
   //   依据是实测一条图 3 分 32 秒、而回执写 6~30 分钟）—— 回执卡那侧已改，
@@ -931,6 +1204,10 @@ export async function runSubmissionGate({
   //    ⚠️ 计时器**不参与任何判定**（与 `review.py` 的 `trace.perf` 同一种做法）。
   let ackAt = ackSentAt ?? null;
   let queued = false;
+  // ★★ 2026-10-21（Owner 当场纠正：「必须先回复处理中，再回复block」）——
+  //   **P0 命中也要先发这张回执**：「处理中」不是结论，两件事不冲突；
+  //   「一条只回一条结论」管的是**不许同一单给出两个三态**。
+  //   （判据仍是 `ackSentAt`：内核那侧已经前置发过 ⇒ 这里不补第二张。）
   if (!ackAt && typeof notify === 'function') {
     // ★ 回执要**分开说**「常态 5 分钟」与「在排队」—— 用一个悲观的大区间把两件事糊在一起，
     //   人会以为每条都要半小时（Owner 2026-10-05 当场就是这么读的：「太长了，不正常」）。
@@ -965,6 +1242,18 @@ export async function runSubmissionGate({
                 + ` ingress=${tIngressOrigin ?? 'handle_entry'}`
                 + ` chat=${gate?.chatId ?? inbound?.chatId ?? '-'}`);
   }
+
+  // Link-only submissions must contribute fetched page text to the same review chain.
+  // A read failure returns a deterministic non-PASS response and skips all review writers.
+  const linkReview = await reviewGate.prepareLinkReview({ gate, input, reader: linkReader });
+  input = linkReview.input;
+  if (linkReview.forcedReply) {
+    console.log(`[agent] ⚠️ 链接正文未读取，拦截审核结论：${linkReview.forcedReply}`);
+    return { question: buildUserTurn({ questionText: question }), gate, chainBlock: '',
+      chainRan: false, chainMs: 0, verdict53: null, forcedReply: linkReview.forcedReply,
+      linkRead: { ok: false, pagesRead: linkReview.pages.length } };
+  }
+  if (linkReview.pages.length) console.log(`[agent] 🔗 链接正文已读取：${linkReview.pages.length} 页，进入审核链`);
   // ── ★★ 2026-10-16：媒材链接 —— **回执之后才起，且不 await** ────────────────────
   //
   //   为什么必须在这里起（三个约束一起决定的，改哪一条都会坏）：
@@ -996,8 +1285,74 @@ export async function runSubmissionGate({
   //   `inbound.text`（含 `@守衡` 这个 mention）当成【素材正文】喂给模型侧。
   //   现场见报告第 1 条：「正文只带了中文账号名 @守衡…建议换成品牌官方英文 handle」。
   const readings = readingsForModelSide(inbound, { userText });
-  const modelSideP = modelSideRunner({ readings, question, ask: llm.ask })
-    .catch((e) => ({ ok: false, findings: [], dropped: [], ms: 0, error: `${e?.message ?? e}` }));
+  // ★★ 2026-10-21（Owner：「P0 红线问题必须 10 秒内回」）——**P0 预判命中 ⇒ 不起模型侧**。
+  //
+  //   为什么敢停：PRD §6.3 第一层写的是「P0 命中即**停止后续审查**，直接输出 BLOCK，
+  //   确保法务红线零延迟拦截」；§6.2 P0 行更写明「**无需大模型推理**，正则/关键词命中即输出」。
+  //   实测（365 轮日志）：这一路 55 单里模型侧 **p50 11.8 s / p90 29.7 s / 最大 52.4 s**，
+  //   而它在这一路上的命中数实测为 0（结论由确定性匹配定，模型侧只可能补条目）。
+  //   ⇒ 停它不是"省事"，是把它从**判定路径**上摘掉；不命中 P0 的单子照旧两轨齐跑。
+  //
+  //   ⚠️ 用 `p0PreHit` 而不是链返回的 `res.p0_fastpath`：模型侧必须与链**同时起跑**（上面那段），
+  //     而链的结论要几十毫秒~几十秒后才回来 —— 那时再决定已经晚了。
+  //     预判与实判用的是**同一份正文 + 同一份模式表**（`p0Precheck` → `p0_fastpath.py`），
+  //     实判仍以链为准：`res.p0_fastpath` 为空而预判命中时，下面会照实记一行（口径不一致要看得见）。
+  // ── ★ 2026-10-21：送审图**落盘后交给链**（图身份层用；不是 OCR 文本）──────────────
+  //   病根：`--image` 此前只被用来申报 coverage（算 sha），**图从未进过评审**
+  //   ⇒ 小语种图（OCR 丢变音符号 / 夹水印行）在负面样本层 0 命中 ⇒ 结论 PASS。
+  //   这里**重新取一次字节**（读入阶段那份临时文件按纪律已删），落到 /tmp 下的本单目录，
+  //   把路径交给 `kb_review_chain`；链跑完（成 / 败 / 超时）一律删。
+  //   边界：取不到就**不带图**，链的其余行为与改动前逐字一致（不阻断送审）。
+  let _imgDir = null;
+  const _imgPaths = [];
+  try {
+    const imgs = Array.isArray(inbound?.images) ? inbound.images : [];
+    const todo = imgs.filter((im) => im && !im.failed && im.msgId && im.imageKey);
+    if (todo.length) {
+      _imgDir = fs.mkdtempSync('/tmp/shouheng-chain-img-');
+      await Promise.all(todo.map((im) => fetchImageForLink(im.msgId, im.imageKey, { dir: _imgDir })
+        .then((r) => { if (r?.path) _imgPaths.push(r.path); })
+        .catch(() => {})));
+    }
+  } catch (e) {
+    console.log(`[agent] ⚠️ 送审图落盘失败（不影响送审）：${e?.message ?? e}`);
+  }
+  input.imagePaths = _imgPaths;
+  setChainTurnImagePaths(_imgPaths);
+  // 图片必须由模型侧直接看到原图。P0 的快速停止只适用于纯文本；图片仍需完成独立视觉/语义复核。
+  const imageModelRequired = Number(inbound?.imageCount ?? 0) > 0;
+  // 图片审查固定走完整审查口径，不让群名、@方式或一句泛化提问改变图片发现。
+  // 原始图片是判定对象；OCR/视觉读数作为辅助；聊天文字保留在用户回复和报告里，
+  // 但不进入可跨会话复用的模型侧审查输入。
+  const modelReadings = imageModelRequired
+    ? readingsForModelSide(inbound, { userText: imageAuditRequest }) : readings;
+  const modelQuestion = imageModelRequired ? imageAuditRequest : question;
+  const runModelSide = () => modelSideRunner({ readings: modelReadings, question: modelQuestion,
+    imagePaths: _imgPaths,
+    requiredImageCount: imageModelRequired ? Number(inbound.imageCount) : 0,
+    ask: llm.ask });
+  const imageInputsComplete = imageModelRequired && _imgPaths.length >= Number(inbound.imageCount);
+  const runImageModelSide = () => reviewImageOnce({
+    imagePaths: _imgPaths,
+    model: `${config.llm.baseUrl}:${config.llm.model}`,
+    contract: `${MODEL_SIDE_SYSTEM}\n${buildModelSidePrompt({ readings: modelReadings,
+      question: modelQuestion, hasImages: true })}`,
+    // OCR/scene-read text can differ between transports. Cache the semantic
+    // image review by pixels + stable policy, not by those variable readings.
+    cacheContract: `${MODEL_SIDE_SYSTEM}\nimage-safety-full-review-v1`,
+    run: runModelSide,
+  });
+  const modelSideP = p0PreHit && !imageModelRequired
+    ? Promise.resolve({ ok: true, findings: [], dropped: [], ms: 0, skipped: 'p0',
+                        raw: '（P0 确定性命中 ⇒ 按 PRD §6.3 未起模型侧）' })
+    : (imageInputsComplete ? runImageModelSide() : runModelSide())
+      .catch((e) => ({ ok: false, findings: [], dropped: [], ms: 0, error: `${e?.message ?? e}` }));
+  const _imgCleanup = () => {
+    if (_imgDir) {
+      try { fs.rmSync(_imgDir, { recursive: true, force: true }); } catch { /* 删不掉不影响结论 */ }
+    }
+    _imgDir = null;
+  };
 
   const t0 = Date.now();
   let res;
@@ -1020,12 +1375,28 @@ export async function runSubmissionGate({
   //     ③ **PASS 门限一个字不改** —— mergedState 要求 kbCovered === true，
   //        而 kbCoveredOf 认不出来时判「没覆盖」（保守一侧）。
   let dual = null;
+  // ★★ 2026-10-21：**这一单是不是 P0 确定性命中而停掉了后续审查**（要活到 `try` 之外 ——
+  //   调用方（`handleMessage`）据此**不再调模型写正文**，读的就是它）。
+  //   实判来自链：`res.p0_fastpath` 非空 ⇔ `p0_fastpath.py` 确定性命中（永远只出 BLOCK）。
+  let p0Stopped = false;
   {
     try {
       // ★ 与链**并行**起跑的那一路（见上面）：`await` 在这里通常已经完成了。
       //   它**不再**以 `chainRan` 为条件 —— 链没跑成时，模型侧那几条就是这一单的全部产出，
       //   掐掉它等于把「有话说」变成「没话说」。
-      const model = await modelSideP;
+      // ★★ 2026-10-21（补一个自己刚挖的坑）：**预判说命中、链却报没命中**时怎么办？
+      //
+      //   上面那行是按 `p0PreHit` 决定「起不起模型侧」的（模型侧必须与链同时起跑，那时
+      //   链还没回来）。所以预判一旦是假阳性，这一单就会**既没回执、也没模型侧** ——
+      //   比改动之前更差，而且用户还要等一条几分钟的链。
+      //   ⇒ 这里补一刀：链**没**报 P0 命中、而模型侧是被预判砍掉的 ⇒ **现在补跑**。
+      //     慢一点，但回到改动前的质量（宁慢勿错：模型侧那几条是这一单的产出一半）。
+      const model = (p0PreHit && !res?.p0_fastpath && !imageModelRequired)
+        ? await modelSideRunner({ readings, question, ask: llm.ask })
+            .catch((e) => ({ ok: false, findings: [], dropped: [], ms: 0, error: `${e?.message ?? e}` }))
+        : await modelSideP;
+      // The source image must remain on disk until the independent model-side request has consumed it.
+      _imgCleanup();
       // ★★ 2026-10-08（第七批）：**优先用链带回来的引擎 JSON**（结构化逐条依据）。
       //   病灶：从 `answer`（模型组织过的散文）正则抠中文 ⇒ 抠不到就退回重建版
       //   「《知识库》（未给条款号）（锚点：—）」⇒ 命中文字 / 条款号 / 锚点 / 飞书直链全丢。
@@ -1037,12 +1408,36 @@ export async function runSubmissionGate({
       //   （实测 123 次双轨：`双轨确认`＋`冲突降 REVIEW` 全为 0）。
       //   链那条来路不吃这一格（它走 `res.engine.risk_items`，见 `_kbFromEngineJson`）。
       // ★★ 2026-10-20：把**素材原文**一起交给库侧条目构造 —— P0 条目的位置要按块给形态。
+      // ★★ 2026-10-22（Owner：「让 skill 判出的实质问题上卡」）：
+      //   **判定主体（图片安全审查 skill）在散文里判出的问题，也要变成条目。**
+      //
+      //   病灶（当天那张 Breastfeeding Month 横幅，实测）：
+      //     链跑了完整 skill 流程，回答 11478 字，第八节逐条列出 5 处实质问题
+      //     （抽奖材料性条款整套缺失 / 无参与入口 / 无活动期 / 易被读成 USBC 官方活动 / 图文对不上）。
+      //     而群里那张卡只显示 **1 条**，且那 1 条是库内负面样本 N-1.360
+      //     （引擎自标「非本单素材逐字命中」）—— 与 skill 判出的那 5 条毫无关系。
+      //     根因：卡内逐条来自双轨合并结果，库侧抽的是**机读旁挂的 `risk_items`**（结构化优先）；
+      //     引擎只给了 3 条负面样本命中，位置/类目全同 ⇒ 压成 1 条；
+      //     而 skill 那 5 条在散文里，**没有结构化产者** ⇒ 一条都没上卡。
+      //
+      //   合并语义**一个字都不改**：这些条目按模型侧形状进 `mergeFindings`
+      //   （仅模型侧 ⇒ 并集、不单独定 BLOCK、不参与 PASS 的成立条件），
+      //   另用 `origin_track:'skill'` 标出来路，日志与落表都分得开。
+      const skill = skillFindingsOf(res?.answer);
+      // ★ 抽不到也必须出声（「空」与「没抽」要长得不一样）——
+      //   判据在 `skill_findings.mjs` 的自证里（7 项，含两条反向对照）。
+      if (skill.findings.length) {
+        console.log(`[agent] 🧩 判定主体核查：${skill.note}`
+          + `｜${skill.findings.map((f) => String(f.location ?? '')).slice(0, 5).join(' / ')}`);
+      } else if (chainRan) {
+        console.log(`[agent] 🧩 判定主体核查：**一条都没上卡** —— ${skill.note}`);
+      }
       const kb = kbFindingsOf(res?.answer, res?.engine, res?.p0_findings, { text: input?.text ?? '' });
       // ★ 库侧的**结构化读数**（2026-10-07）：结论与条数从这里取 —— 不再只靠正则抠中文答案。
       //   病灶（当天实测，已复现）：PRD §5.3.3 规定问题数 ≥3 时库侧只出分类汇总 ⇒
       //   逐条正则抠不到 ⇒ 库侧被读成「0 条」⇒ 合并把**库侧的 BLOCK 降级成 REVIEW**。
       const kbSide = kbSideOf(res);
-      const merged = mergeFindings(kb.findings, model.findings);
+      const merged = mergeFindings(kb.findings, [...model.findings, ...skill.findings]);
       // ── ★★ 2026-10-16：**汉字声称闸**（Owner 当场问的那一行；详见 `ocr_claim_gate.mjs`）──
       //   病灶（第 17 行，实测）：那张**通篇英文**的商品图，本机 OCR 在「控制面板 Cleaning
       //   图标处」「纸盒上印的 30 那一带」读出汉字（置信度 0.3 = 引擎下限；整图 2× 再读汉字归零），
@@ -1186,14 +1581,44 @@ export async function runSubmissionGate({
       const needItems = needIdx.map((i) => merged.items[i]);
       let adviceMap = {};
       let adviceNote = null;
-      try {
-        const ar = await adviceRunner({ items: needItems, readings, question, ask: llm.ask });
-        if (ar && ar.ok) {
-          needIdx.forEach((origI, k) => { if (ar.advice && ar.advice[k]) adviceMap[origI] = ar.advice[k]; });
-          adviceNote = `ok/${ar.ms}ms`;
-        } else adviceNote = `失败（回退，不编）：${ar?.error ?? '未知'}`;
-      } catch (e) { adviceNote = `异常（回退，不编）：${e?.message ?? e}`; }
-      console.log(`[agent] 💡 建议生成：${adviceNote}｜送进去 ${needItems.length} 条（沿用模型侧初稿 ${merged.items.length - needItems.length} 条）｜覆盖 ${Object.keys(adviceMap).length} 条`);
+      // ★★ 2026-10-21（Owner：「P0 红线问题必须 10 秒内回」）—— **P0 确定性命中 ⇒ 不调这次 LLM**。
+      //
+      //   实测（365 轮日志）：这一路 49 次建议生成 **p50 5.4 s / p90 8.6 s / 最大 11.7 s** ——
+      //   单独就顶掉 10 秒预算的一半以上。而 PRD §6.3 说 P0 命中「**停止后续审查**，直接输出 BLOCK」，
+      //   建议生成正是后续审查的一环。
+      //   ⇒ 停掉之后，条目里的「建议」不是空：`renderMergedItem` 的回退链会**原样印库侧建议**
+      //     （P0 的 `p0_findings` 自带库内建议原文，实测卡上是「删除正文中命中的『最安全』或『#1』等词…」
+      //      这种可直接执行的句子），并且**不新增任何措辞**（本处一个字都不编）。
+      //   ⚠️ 只对 P0 命中的单子生效；未命中 P0 的单子照旧「参考库侧建议 → agent 出最终建议」。
+      const p0StoppedLocal = !!res?.p0_fastpath;
+      p0Stopped = p0StoppedLocal;
+      // ★ 口径不一致**必须出声**：预判命中而实判没命中（或反之），说明两次输入/判据不同源 ——
+      //   那种情况下这一单可能"没有回执、也没跑模型侧"，事后必须查得到为什么。
+      if (p0PreHit !== p0StoppedLocal) {
+        console.log(`[agent] ⚠️ P0 预判与实判不一致：预判=${p0PreHit ? '命中' : '未命中'}`
+          + '｜实判=' + (p0StoppedLocal ? '命中' : '未命中')
+          + '｜素材指纹=' + String(res?.p0_fastpath?.mode ?? '—')
+          + ' ⇒ 按**实判**走（预判只影响回执与模型侧是否起跑）');
+      }
+      if (p0Stopped) {
+        adviceNote = '跳过（P0 确定性命中：PRD §6.3「命中即停止后续审查」⇒ 不调模型，'
+          + '建议原样用库侧）';
+      } else {
+        try {
+          const ar = await adviceRunner({ items: needItems,
+            readings: imageModelRequired ? modelReadings : readings,
+            question: imageModelRequired ? '' : question,
+            ask: llm.ask });
+          if (ar && ar.ok) {
+            needIdx.forEach((origI, k) => { if (ar.advice && ar.advice[k]) adviceMap[origI] = ar.advice[k]; });
+            adviceNote = `ok/${ar.ms}ms`
+              + (Array.isArray(ar.rejected_unsupported) && ar.rejected_unsupported.length
+                ? `（拒绝 ${ar.rejected_unsupported.length} 条把「记录未给建议」推成禁止/打回的改法）`
+                : '');
+          } else adviceNote = `失败（回退，不编）：${ar?.error ?? '未知'}`;
+        } catch (e) { adviceNote = `异常（回退，不编）：${e?.message ?? e}`; }
+      }
+      console.log(`[agent] 💡 建议生成：${adviceNote}｜送进去 ${p0Stopped ? 0 : needItems.length} 条（沿用模型侧初稿 ${merged.items.length - needItems.length} 条）｜覆盖 ${Object.keys(adviceMap).length} 条`);
       const itemsWithAdvice = merged.items.map((f, i) => ({
         ...f,
         advice: adviceMap[i] ?? null,
@@ -1285,11 +1710,24 @@ export async function runSubmissionGate({
       //     （没有真条目 ⇒ 建出来是空文档，2026-10-15/16 两次定过"点开没内容的链接比空格更坏"）；
       //   · PRD §5.3.4 / §8.3 与库侧 `REPORT_LINK_MIN_ISSUES = 3` **不因这个开关而改**：
       //     它是**这一次任务**的出数开关，不是新口径。
-      const FORCE_REPORT = /^(1|true|yes|on)$/i.test(String(process.env.SH_FORCE_REPORT ?? '').trim());
-      if (rendered0 && itemsWithAdvice.length > 0
-          && (rendered0.total >= REPORT_LINK_MIN_ISSUES || FORCE_REPORT)) {
-        if (FORCE_REPORT && rendered0.total < REPORT_LINK_MIN_ISSUES) {
-          console.log(`[agent] 📄 SH_FORCE_REPORT=1 ⇒ 本条只有 ${rendered0.total} 条也建报告`
+      // ★★ 2026-10-22（Owner：「报告不展示 图片安全审查 skill 全流程结果」）：
+      //   报告不再装 skill 的六段交付正文 ⇒ 原先为「把全流程正文放进报告」而算的
+      //   `reportVisualGate` / `reportWorkflowGate` / `reportImageEvidenceFailure` /
+      //   `imageSkillReview` 四个读数**一并撤掉**（没有消费者了）。
+      //   ⚠️ 图片审查的**完整性闸门一个字没动**：它在下面落表那一趟由
+      //     `visual_checklist.mjs` 的两道判据把守（缺项 ⇒ NEEDS_INPUT）。
+      //     「报告展不展示 skill 正文」与「skill 有没有真的走完」是两件事。
+      const forceByEnv = /^(1|true|yes|on)$/i.test(String(process.env.SH_FORCE_REPORT ?? '').trim());
+      const reportTotal = Number.isFinite(rendered0?.total) ? rendered0.total : 0;
+      const reportLine = String(rendered0?.line ?? '')
+        || deriveVerdictLine({ mergedState: state, mergedCount: reportTotal })?.line || '';
+      const buildReport = !!rendered0;
+      const reportItems = Array.isArray(rendered0?.displayItems)
+        ? rendered0.displayItems : itemsWithAdvice;
+      if (buildReport && shouldPublishMergedReport({ total: reportTotal,
+        itemCount: reportItems.length, force: forceByEnv })) {
+        if (forceByEnv && reportTotal < REPORT_LINK_MIN_ISSUES) {
+          console.log(`[agent] 📄 SH_FORCE_REPORT=1 ⇒ 本条只有 ${reportTotal} 条也建报告`
             + '（一次性开关，PRD §5.3.4 的 ≥3 门槛没改）');
         }
         try {
@@ -1321,15 +1759,29 @@ export async function runSubmissionGate({
             : [];
           const _args = {
             // ★ 同一批条目 —— 报告与卡片必须逐字同源（今天已因「两处各写一遍」栽过两次）
-            merged: itemsWithAdvice, total: rendered0.total, state, line: rendered0.line,
+            merged: reportItems, total: reportTotal, state, line: reportLine,
             // ★ 卡上撤下来的检索读数 → 报告附录（搬不是砍）
-            hitsBlock: rendered0.hitsBlock ?? null,
+            hitsBlock: rendered0?.hitsBlock ?? null,
             // ★★ 2026-10-09 晚：卡上撤下来的**媒材读数全文**（Owner 点头「放到附录」）
             mediaAppendix: mediaReadAppendix(inbound),
             question, contentId: kbSide?.contentId ?? '', at,
             // ★ 2026-10-17 第二十二轮：审查对象（文案原文 ＋ 图/视频的可点链接）
             material: { text: materialText, media: materialMedia, links: submitLinks },
-            kbGap: rendered0.kbGap, kbTextCount: kb.findings.length,
+            // ★★ 2026-10-21（Owner 裁定 A）：**非阻断提示**（排名/销量宣称需补可核验依据）。
+            //   来路只有一处：`p0_fastpath` 的 `advisories`（它自己也不进 findings、不改三态）。
+            //   ⚠️ 不在这里另算一遍 —— 两份口径各扫一遍，迟早一个说有一个说没有。
+            //   ★★ 2026-10-22（Owner 裁定 B）：**裸「100%」**同样是非阻断提示，但**措辞分开写** ——
+            //     「排名/销量宣称」与「百分号后面没有限定词」是两件事，混成一句话报告会说错话
+            //     （实测那张图：管身小字只有一个「100%」，后面那行更小的英文 OCR 没读出来）。
+            notes: [
+              ...(Array.isArray(res?.advisories) ? res.advisories : []).map(
+                (x) => `素材里出现「${x}」这类排名/销量宣称，美国平台会要求可核验的依据，发布前补一句来源与口径`),
+              ...(Array.isArray(res?.percent_notes) ? res.percent_notes : []).map(
+                (x) => `素材里出现「${x}」，但它后面没有可判的限定词（成分／安全／疗效）—— `
+                       + '本机读数判不了它是什么；请按原图或文案确认，并准备可核验的依据。'
+                       + '**这条不算问题、也不影响结论**'),
+            ],
+            kbGap: rendered0?.kbGap ?? 0, kbTextCount: kb.findings.length,
             modelCount: model?.findings?.length ?? 0,
           };
           const mdFull = renderMergedReportMd(_args);
@@ -1338,7 +1790,7 @@ export async function runSubmissionGate({
             contentId: kbSide?.contentId ?? '', at, archiveMd: mdFull });
           if (pub.ok) {
             reportUrlOverride = pub.url;
-            console.log(`[agent] 📄 合并报告已建（问题数 ${rendered0.total}）：${pub.url}`
+            console.log(`[agent] 📄 合并报告已建（问题数 ${reportTotal}）：${pub.url}`
               + `｜留底（含附录）：${pub.archivePath ?? '(未留)'}`);
           } else {
             console.log(`[agent] ⚠️ 合并报告**没建成**（照实说，不编链接）：${pub.detail}`);
@@ -1359,7 +1811,7 @@ export async function runSubmissionGate({
         const _why = !rendered0 ? 'renderMerged 返回 null（没有可并的条目）'
           : (itemsWithAdvice.length === 0
             ? '没有真条目可并（库侧报了几条但明细抠不出来）⇒ 建出来会是空文档'
-            : `卡内总数 ${rendered0.total} < ${REPORT_LINK_MIN_ISSUES} ⇒ 按 PRD §5.3.4 本就不出报告`
+            : `卡内总数 ${reportTotal} < ${REPORT_LINK_MIN_ISSUES} ⇒ 按 PRD §5.3.4 本就不出报告`
               + '（卡片已逐条平铺，明细不缺）');
         console.log(`[agent] 📄 合并报告：**未建**（${_why}）`
           + `｜卡内总数=${rendered0?.total ?? '—'}｜库侧链接=${_ru ?? '(无)'}`
@@ -1415,7 +1867,14 @@ export async function runSubmissionGate({
       //   实测（Owner 2026-10-08 那张图，日志 `模型侧 没跑成：输出里没有 JSON 数组`）
       //   就是查不下去：不知道是空正文还是散文，也就定不了是加额度还是加解析。
       const modelNote = model.ok
-        ? (model.skipped ? '跳过（文字层为空）' : model.findings.length + ' 条 / ' + model.ms + 'ms')
+        ? (model.skipped
+            // ★★ 2026-10-21：两种「跳过」原因不同，**不许合并成一句话**
+            //   （`skipped='p0'` 是 PRD §6.3 的主动停审；`文字层为空` 是素材侧没字可读）。
+            //   读错原因的后果：事后有人看到「跳过（文字层为空）」会去查 OCR，而真因在判定层。
+            ? (model.skipped === 'p0'
+                ? '**未跑**（P0 确定性命中 ⇒ PRD §6.3「命中即停止后续审查」，不起模型侧）'
+                : `跳过（${model.skipped === true ? '文字层为空' : model.skipped}）`)
+            : model.findings.length + ' 条 / ' + model.ms + 'ms')
         : ('没跑成：' + model.error
            + (model.raw === undefined
              // 连返回都没拿到（调用抛异常 / 传输失败）—— 与「拿到了但没 JSON」不是一回事
@@ -1499,6 +1958,9 @@ export async function runSubmissionGate({
   //   而看不到就会猜（那一张卡就是这么来的）。
   let publishConclusion = null;
   let publishStatus = null;
+  let visualGate = null;
+  let imageWorkflowGate = null;
+  let visualGateRefusal = null;
   try {
     // ★ 结论与两个必录读数**先算好**（`machineNumbers` 需要结论才知道该用哪条口径说明）。
     const chainConclusion = reviewPublish.conclusionOf(res?.answer) ?? (chainRan ? null : 'NEEDS_INPUT');
@@ -1513,6 +1975,38 @@ export async function runSubmissionGate({
       ? (dual.state === '拒答' ? 'NEEDS_INPUT' : dual.state)
       : null;
     let conclusion = mergedConclusion ?? chainConclusion;
+    // ★★ 2026-10-22（Paruu 真单）：**链跑成了、但结论行解析不出 ⇒ 绝不留在 PASS**。
+    //   病灶：链写的是 `**本 skill 分级结论（4A＋4B＋…）**：**REVIEW**`，而 `conclusionOf`
+    //   那时只认「结论」后**直接**跟冒号 ⇒ 返回 null ⇒ 这一格不写 ⇒ 表行停在**链自己写的
+    //   PASS**，而卡片是 REVIEW（同一单两个结论，且错的那一侧是放行态）。
+    //   现在解析器已加「分级/合并结论」优先；这一条是**兜底**：
+    //   解析不出就按 NEEDS_INPUT 记（与「库侧没读数不许 PASS」同一条单向闸 ——
+    //   PASS 是唯一不可挽回的错，读不懂结论时更不许放行）。
+    let conclusionUnparsed = false;
+    // ★ 回滚开关：`SHOUHENG_CONCLUSION_STRICT=0` ⇒ 关掉这条 fail-closed（应急回滚用）。
+    //   ⚠️ 关了它就回到「解析不出 ⇒ 不写结论 ⇒ 行停在链的 PASS」那个放行缺口，**不建议**。
+    const conclusionStrict = String(process.env.SHOUHENG_CONCLUSION_STRICT ?? '1').trim() !== '0';
+    if (conclusionStrict && chainRan && !conclusion) {
+      conclusion = 'NEEDS_INPUT';
+      conclusionUnparsed = true;
+      console.log('[agent] 🚫 链跑成了，但结论行解析不出（没有可识别的「分级/合并结论：X」'
+        + '或「【审查结论：X】」）⇒ 本单按 NEEDS_INPUT 记，不许停在 PASS');
+    }
+    const imageEvidenceReason = imageEvidenceFailure(res, inbound?.imageCount ?? 0, dual?.model);
+    if (imageEvidenceReason) {
+      conclusion = 'NEEDS_INPUT';
+      // ★ 2026-10-23：**群里那句话**换成纯函数生成（原因只进日志/落表，不进群）。
+      //   旧句子把 `imageEvidenceReason` 原样拼进群消息，于是群里读到的是
+      //   「没有可核对的知识库引擎 JSON …… skill 的本会话执行证据」——内部字段名 + 让对方做他做不到的事。
+      visualGateRefusal = imageUnfinishedReply({
+        chainRan,
+        chainMs,
+        reason: imageEvidenceReason,
+        // 模型侧没跑成是**另一类**卡点（画面这一半），措辞要分开
+        modelSideFailed: !(dual?.model && dual.model.ok === true && !dual.model.skipped),
+      });
+      console.log('[agent] 🖼 图片引擎证据缺失/拒绝 ⇒ 强制 NEEDS_INPUT：' + imageEvidenceReason);
+    }
     // ★★ 2026-10-07 加（Owner 同意）—— **库侧没有读数 ⇒ 不许落 PASS**。
     //   为什么（实测，不是假设）：素材「这条社媒文案能不能发：这批婴幼儿用品的文案里写了医用级」
     //     （表行 `recvxlAvpEWMIX`）旁挂没读到 ⇒ 库侧**一个读数都没有**，
@@ -1530,6 +2024,76 @@ export async function runSubmissionGate({
       conclusion = 'NEEDS_INPUT';
       passBlockedByNoReading = true;
     }
+    // ── ★★ 图单：**视觉核对清单缺项 ⇒ 不收**（Owner 2026-10-21）────────────────
+    //   病灶（实测）：那张母婴插画里「奶瓶倒着放」，而 skill 虽已加载、判定主体的回复里
+    //   四类画面事实（婴幼儿姿势／产品状态／场景关系／隐私）**一条都没写** ⇒ 漏检且无人发现。
+    //   判据在 visual_checklist.mjs（纯函数，四类缺一类不收；"有"必须带依据、"未测"必须带原因）。
+    //   只对**带图**的单子生效；文字单、视频单**不碰**（它们另有各自的专项口径）。
+    // ── ★★ P0（2026-10-21 Owner 批准）：**看到了图、一张都没解析出来 ⇒ 本单不收** ─────────
+    //   为什么要它（病灶，实测）：图没被解析成图片时 `imageCount=0` ⇒ 模态被判成 `text`
+    //   ⇒ `--content-type text` ⇒ **「负面样本规则」整层不跑** ⇒ 出 `PASS / 0 条`。
+    //   这是 fail-open 的正面：**零条不是没问题**。宁可当场回一句「图我没取到、请重发」，
+    //   也不许拿一个「没问题」把不该放的物料放出去 —— 放出去的收不回来（与库侧
+    //   「没读数不许 PASS」同一条单向闸，判据各自独立：那条管「库没读到」，这条管「图没进来」）。
+    let imageUnresolvedGate = false;
+    if (inbound?.imageUnresolved) {
+      console.log('[agent] 🖼 带图但一张都没解析出来 ⇒ 本单不许出三态结论：'
+        + String(inbound?.imageIntent?.why ?? '原因未知'));
+      conclusion = 'NEEDS_INPUT';
+      imageUnresolvedGate = true;
+    }
+
+    // ★★ 2026-10-22（Owner 现场那一单：图 + @守衡）—— **P0 确定性命中 ⇒ 图单两道闸门不适用。**
+    //   同一单实测（`om_x100b62aff6a2c22ccfd45eeca787bff`）：库侧 P0 快路 BLOCK（V02／E-2.124）
+    //   与模型侧 2 条合并成 BLOCK、`p0DirectReply` 已备好；而这两道闸门去 P0 的 `answer` 里找
+    //   五类视觉核对与 skill 全流程节 —— 按 PRD §6.3「命中即停止后续审查」，判定主体根本没被调，
+    //   那些节**按设计就不会有** ⇒ 必然缺项 ⇒ 强制 NEEDS_INPUT + 回「证据未通过」拒答：
+    //   **一个已确定的 BLOCK 被自己的闸门藏掉，群里什么三态结论都没有**（§2.4.5 接缝撞车）。
+    //   边界（一个字不松）：只对 `p0_fastpath` 命中生效；P0 只出 BLOCK，
+    //   不存在它把「视觉没核对」的地方放行出去的可能。
+    const p0GateExempt = res?.p0_fastpath && typeof res.p0_fastpath === 'object';
+    // ★★ 2026-10-22（同一形状的第四次）：**画面读数没读到 ⇒ 这一单也不出三态结论。**
+    //   为什么（与 2026-10-21 那条「图没解析出来 ⇒ 不收」同一条单向闸）：
+    //     ① PRD §5.1 把图片的输入写成两半（OCR ＋ 基础视觉）；画面那一半没跑成，
+    //        「图片安全审查」里的**视觉分析**这一步就无从执行 —— 而它照样能写出一份
+    //        格式齐全的清单（07 那单就是：五类全是「未测」）⇒ 结论看起来像"审过了"。
+    //     ② 实测那一单：画面模型端点 **HTTP 402 余额不足**，我们**一眼都没看到图**，
+    //        而链给了 REVIEW（依据是 OCR 文字）。**没看过画面就给画面类结论**，读起来一样。
+    //   边界一个字不松：只挡图单、只挡「画面这一半没读数」；P0 命中照旧豁免
+    //   （PRD §6.3 命中即停止后续审查，那张图本来就不该被看）。
+    const sceneFaults = sceneFaultsOf(inbound);
+    if ((inbound?.imageCount ?? 0) > 0 && chainRan && !p0GateExempt) {
+      // ★ 2026-10-21：把「读数里有姿态异常的容器」一路喂给判据 —— 只看「有没有写四类」不够：
+      //   模型可以照着读数交一份格式齐全的清单，而读数里那个倒着的瓶子一个字不提。
+      const _scenes = (inbound?.images ?? []).map((im) => im?.scene?.scene).filter(Boolean);
+      const _abnormal = _scenes.flatMap((sc) => sceneMod.abnormalContainers(sc));
+      const _sleepPositions = sceneMod.infantSleepReadings(_scenes);
+      visualGate = checkVisualChecklist(String(res?.answer ?? ''), {
+        abnormal: _abnormal,
+        sleepPositions: _sleepPositions,
+      });
+      imageWorkflowGate = checkImageSkillWorkflow(String(res?.answer ?? ''));
+      const imageGateFailures = [visualGate, imageWorkflowGate].filter((g) => g && !g.ok);
+      if (imageGateFailures.length || sceneFaults.length) {
+        const reason = imageGateFailures.map((g) => g.reason).filter(Boolean).join('；');
+        if (imageGateFailures.length) console.log('[agent] 🖼 图片安全审查全流程未完成 ⇒ 本单不收三态结论：' + reason);
+        if (sceneFaults.length) {
+          console.log('[agent] 🖼 画面读数没读到 ⇒ 本单不收三态结论（画面这一半没跑成，不许给画面类结论）：'
+            + sceneFaults.map((f) => `${f.index ? `图 ${f.index} ` : ''}${f.why}`).join('；'));
+        }
+        conclusion = 'NEEDS_INPUT';
+        // ★ 2026-10-22：**群里那句话**由纯函数生成（说清没测完≠没问题、卡点在谁身上、
+        //   现在重发有没有用）。判据原话只进日志与落表，不进群。
+        visualGateRefusal = [visualGateRefusal,
+          imageWithholdReply({ visualGate, imageWorkflowGate, sceneFaults })]
+          .filter(Boolean).join('\n');
+      }
+    } else if ((inbound?.imageCount ?? 0) > 0 && chainRan && p0GateExempt) {
+      // ★ 跳过必须留痕：否则「P0 豁免生效了」与「这两道闸门坏了」在日志里长得一模一样。
+      console.log('[agent] 🖼 P0 确定性命中 ⇒ 视觉核对 / skill 全流程 / 画面读数闸门**不适用**'
+        + '（PRD §6.3 命中即停止后续审查；本单结论由 P0 给，不向被停掉的那一段要清单）');
+    }
+
     const nums = reviewPublish.machineNumbers(res, conclusion, dual?.mergedConf);
 
     // ── 产品线 / 渠道：**先 KB 命中记录，再素材原文兜底**（Owner 2026-10-06）─────────
@@ -1551,7 +2115,28 @@ export async function runSubmissionGate({
     //   ★「不许自相矛盾」的老账都在这儿：P0 命中**不许**写「链已跑完」（它根本没跑链）；
     //     拒答**必须**写原因码（否则看表的人不知道是库的缺口还是调用方的缺口）。
     let summaryText;
-    if (!chainRan) {
+    if (imageUnresolvedGate) {
+      // ★ 2026-10-21（Owner 批准 P0）：**图没进来就不出结论** —— 卡上要写清楚为什么，
+      //   否则人会把它读成「这次没问题」。同时点名该怎么办（重发图）。
+      summaryText = `这条消息**带了图，但一张都没解析出来**（${String(inbound?.imageIntent?.why ?? '原因未知')}）`
+        + '⇒ 本单**不收结论**：图没进来时 `--content-type` 会退化成 `text`，'
+        + '而那样「负面样本规则」那一层**整层不跑** —— **零条不是没问题**。'
+        + '请把图**重发一次**（图片消息，不要用文件方式发），本单随即重跑。';
+    } else if ((visualGate && !visualGate.ok) || (imageWorkflowGate && !imageWorkflowGate.ok) || sceneFaults.length) {
+      // ★ 图片 skill 任一环节未交付：「缺项不收」且直接替换最终回话，不允许旧三态从 chainBlock 漏出。
+      const imageGateReason = [visualGate, imageWorkflowGate].filter((g) => g && !g.ok)
+        .map((g) => g.reason).filter(Boolean).join('；');
+      // ★ 2026-10-22：**画面读数没读到**是另一条缺口 —— 它不在视觉清单里（清单可以是全「未测」），
+      //   所以必须单独写进这一格，否则表里只写「视觉核对没交全」，读的人会以为是对方报告的问题。
+      const sceneReason = sceneFaults.length
+        ? `画面读数没读到（${sceneFaults.map((f) => `${f.index ? `图 ${f.index} ` : ''}${f.why}`).join('；')}）`
+        : '';
+      summaryText = `链已跑完（${Math.round(chainMs / 1000)}s），但**图单的画面这一半没跑成** ⇒ 本单**不收**：`
+        + `${[imageGateReason, sceneReason].filter(Boolean).join('；')}。`
+        + '（判据：完整执行图片安全审查的审核范围、视觉与 OCR、主张拆分、4A 规则符合性、4B 事实准确性、图文一致性，以及五类视觉事实；'
+        + '「有」要带依据、「未测」要带原因；画面读数没读到 ⇒ 画面事实只能是未测，不许拿 OCR 文字冒充。'
+        + '加载了 skill ≠ 完成了全流程。）';
+    } else if (!chainRan) {
       summaryText = `链**没跑成**（${String(res?.error ?? '未知原因').slice(0, 300)}）—— 本行是为了留痕：`
         + '这一单**没有结论**，不是「没问题」。';
     } else if (res?.p0_fastpath) {
@@ -1589,6 +2174,25 @@ export async function runSubmissionGate({
         + (passBlockedByNoReading
             ? ' ⚠️ 链原文里出现 PASS，**已按闸门改记「未判」** —— 没读过库就不许放行（库口径：未命中 ≠ 合规）。'
             : '');
+    } else if (conclusionUnparsed) {
+      // ★★ 2026-10-22（Paruu 真单）：链的回答里结论写法不在解析范围内 ⇒ 这一格必须说明，
+      //   并且**不能**回落成「结论原文见对话与报告」—— 那句话读起来像一次正常结论，
+      //   而实际是「读不懂结论」，比没写更危险。
+      summaryText = `链已跑完（${Math.round(chainMs / 1000)}s）。**链的结论行解析不出**`
+        + '（回答里没有可识别的「分级/合并结论：X」或「【审查结论：X】」写法）'
+        + ' ⇒ 本单按 **NEEDS_INPUT** 记，**不得当通过**；结论原文见对话与报告。';
+    } else if (conclusion && res?.review?.state
+               && String(res.review.state).toUpperCase() !== String(conclusion).toUpperCase()) {
+      // ★★ 2026-10-22（BM04/BM01 真单）：**引擎读数与最终结论不一致时，这一格必须说出来**。
+      //   病灶：链的引擎给 PASS（0 条 / 0.93），链自己的 skill 合并却判 REVIEW（库侧无覆盖），
+      //   而这一格原先只写「结论原文见对话与报告」—— 读表的人看到「0 处 + REVIEW」，
+      //   没有任何东西告诉他这两个数为什么不一样（实测那一行就是这么落表、也是这么被误读的）。
+      //   ⚠️ 不在这里解释原因：覆盖判据是链判的，我们只搬读数（**只搬不算**），
+      //     只写「有差」与「以谁为准」；原因在对话与报告里。
+      summaryText = `链已跑完（${Math.round(chainMs / 1000)}s）。**引擎读数 ${String(res.review.state).toUpperCase()}**`
+        + `（问题 ${res.review.issue_count ?? '—'} 处 ／ 置信度 ${res.review.confidence ?? '—'}），`
+        + `**最终合并结论 ${conclusion}** —— 两者不一致，**以最终结论为准**；`
+        + '差异原因与逐条见对话与报告。';
     } else {
       summaryText = `链已跑完（${Math.round(chainMs / 1000)}s）。结论原文见对话与报告；`
         + '本行由守衡在链返回后核对落表。';
@@ -1642,7 +2246,9 @@ export async function runSubmissionGate({
     const { media: mediaLinks } =
       await mediaLink.awaitLinks(linksP, { log: (s) => console.log(`[agent] ${s}`) });
     const rowQuestion = mediaLink.questionForRow({
-      userText: userText === undefined ? input.question : userText,
+      // `input.question` is the normalized image-review task sent to the chain;
+      // keep the original user turn for the rare caller that omitted userText.
+      userText: userText === undefined ? question : userText,
       media: mediaLinks,
     });
 
@@ -1762,6 +2368,12 @@ export async function runSubmissionGate({
          //   多轮送审时会**认不出上一轮自己写的那一行**，退到内容 ID 兜底、
          //   兜不住就新建一行（同一单两行，正是那一类最难查的脏数据）。
          question: rowQuestion,
+         // ★★ 2026-10-22（BM04/BM01 真单）：**把链的内容 ID 也交给落表** ——
+         //   链与我们的内容 ID 算法不同（链 `AD-20261022-021` / 我们 `AUTO-<sha>`），
+         //   问句也不同；只按这两样认，链自己建的那一行**认不出来** ⇒ 新建第二行
+         //   ⇒ 同一张图两行、两个结论（链行 PASS ／ 守衡行 REVIEW）。
+         //   值取自机读旁挂 `res.review.content_id`（只搬，不猜）。
+         chainContentId: String(res?.review?.content_id ?? '').trim() || null,
          ctx: { actor: 'shouheng/review-gate' } });
     console.log(`[agent] 🧭 落表：${publish?.ok ? publish.action : '失败'}`
       + `${publish?.record_id ? `｜${publish.record_id}` : ''}`
@@ -1811,6 +2423,25 @@ export async function runSubmissionGate({
   return {
     question: buildUserTurn({ questionText: question, chainBlock }),
     gate, chainBlock, chainRan, chainMs, publish,
+    // 结论闸门必须支配最终回话，不能只改落表值。否则 dual.rendered / chainBlock
+    // 仍可能把旧 REVIEW 摘要交给回复模型（真实事故：表=NEEDS_INPUT，飞书却发 REVIEW）。
+    forcedReply: visualGateRefusal,
+    // ★★ 2026-10-21（Owner：「P0 命中就直接先返回结论」「一条只回一条」）——
+    //   **P0 确定性命中 ⇒ 这一轮不调模型**，回复正文＝这张卡自己的 §5.3 块。
+    //
+    //   依据（实测 70 单 P0 命中）：判定 p50 3.3 s 就完成，之后模型还要写 p50 2986 字 /
+    //   p50 ~42 s —— 而那些字**一个字都不上卡**（`envelope.mjs`：评审单的卡面由代码定，
+    //   模型自拟的分组/结论/正文一律不搬）。也就是说这 42 秒对人**没有任何增量**，
+    //   PRD §6.3 那句「命中即停止后续审查」本来就不该让它跑。
+    //
+    //   取值就是卡上要印的那块（`dual.rendered.block`，逐字同源）；拿不到（双轨那一跳异常）
+    //   就退回链自己的 §5.3 回执（`res.answer`，与 `p0_fastpath.py --json` 的 `rendered` 同源）。
+    //   两处都没有才回 `null` ⇒ 那一轮仍会调模型（宁慢勿空）。
+    p0DirectReply: p0Stopped
+      ? (String(dual?.rendered?.block ?? '').trim() || String(res?.answer ?? '').trim() || null)
+      : null,
+    // 与链路暂时失败不同：完整图片审查本身未完成时，禁止后续回落复活旧三态。
+    imageReviewIncomplete: !!visualGateRefusal,
     // ★ 2026-10-08：`dual` 必须**从这里出去** —— 它是「这一单双轨到底做了什么」的唯一读数，
     //   调用方（`handleMessage` 的 meta）与判据都要用。此前它只活在本函数的局部作用域里，
     //   外面拿不到 —— 于是 `Z1` 那条行为级断言连被测对象都取不到。
@@ -1835,7 +2466,7 @@ export async function runSubmissionGate({
     //   现在：抬头、逐条块、以及后面的报告阈值**读同一个变量** = 双轨合并条数。
     //   `deriveVerdictLine` 的第 ⓪ 支（`prd53.mjs`）在拿到合法条数时以它为准；
     //   拿不到（没跑双轨 / 合并 0 条 / 坏读数）就**退回抠链的正文**，行为与改动前逐字相同。
-    verdict53: deriveVerdictLine({
+    verdict53: publishConclusion === 'NEEDS_INPUT' ? null : deriveVerdictLine({
       answer: dual?.rendered?.block ?? res?.answer,
       p0Fastpath: res?.p0_fastpath ?? null,
       // ★★ 更正（2026-10-09）：**这里必须用 `rendered.total`，不是 `merged.items.length`。**
@@ -2069,7 +2700,8 @@ export function mediaReadAppendix(inbound) {
     L.push('');
     L.push('> ⚠️ 这是**逐行碎片** —— 版面的列关系在 OCR 那一步就丢了，**读起来不通顺是正常的**。');
     L.push('> 用途只有一个：核对「当时到底读到了什么字」。**不要把它当素材的排版或正文。**');
-    L.push('> 水印/印章类文字**已摘除**（摘了几行只说条数、不列内容 —— 列出来等于把水印又搬回来）。');
+    L.push('> OCR 判为重复/覆盖式截图层水印的文字已摘除：**不计为素材问题，不据此判 REVIEW**；若水印遮住文字，只说明局部识读受限。');
+    L.push('> 只有原图能确认水印属于最终交付创意内容时，才按成品审查；不能确认时不推断消费者会误认。');
     L.push('');
     for (const i of imgs) {
       if (i.failed) { L.push(`- **图 ${i.index}**：读失败（${i.failed}）`); continue; }
@@ -2193,6 +2825,32 @@ export function p0ShortReplyBlock(res) {
   return res && res.p0_fastpath ? P0_SHORT_REPLY_INSTRUCTION : '';
 }
 
+/**
+ * 主回复那一轮要不要带思考 —— **默认不带**（2026-10-20，Owner：「这个慢的问题必须做优化」）。
+ *
+ * 实测（同输入、同 `max_tokens`，2026-10-20 12:51）：开思考 **11738ms** / 正文 496 字
+ * （reasoning 2123 tok）；关思考 **1978ms** / 正文 493 字 ⇒ **5.9 倍**，产出几乎一致。
+ *
+ * 为什么敢关：这一轮做的是**组装与转述**（素材读数、链的三态结论、逐条建议都已就位），
+ * 判据不在模型这边 —— P0/条款号由引擎给，模型只负责把已有内容说成人话。
+ * 思考主要烧在"怎么措辞"上，对结论没有增益。
+ *
+ * ⚠️ **每次现读 env**，不冻成模块常量：冻了之后自证里改 env 不生效（与 `mediaLinkEnabled`
+ * 同一刻度）。回退：`SHOUHENG_REPLY_THINK=on` ⇒ 恢复带思考（A/B 对照用，不必改代码）。
+ *
+ * @returns {null|{type:'disabled'}} 传给 `llm.chat(..., { thinking })`
+ */
+export function replyThinking() {
+  // ★★ 2026-10-20 **默认保持原状（带思考）** —— Owner：「改东西不要影响现有的工作流」。
+  //   基准确实测到关思考 5.9 倍（11738ms → 1978ms，正文长度几乎一致），但**卡片/报告的
+  //   位置写法要过 `prd533` 与卡面闸门**（"图 1 第 3 处"那种三模式），而思考关掉之后
+  //   模型更容易写自由格式（当天 S10 已经红过一次，虽然那一单是带思考跑的、不能归因）。
+  //   ⇒ 先不上，把开关留成**可 A/B**：`SHOUHENG_REPLY_THINK=off` 才关。
+  //   要正式启用，先跑一单对照（同一素材两次、比卡面 prd533 与 S10），再改默认。
+  const off = /^(off|0|false|no)$/i.test(String(process.env.SHOUHENG_REPLY_THINK ?? '').trim());
+  return off ? { type: 'disabled' } : null;
+}
+
 export function buildUserTurn({ questionText = '', imageBlock = '', videoBlock = '', chainBlock = '' } = {}) {
   // 图块拼在问题**后面**：模型先读人问的话，再读图上的字，顺序与人发消息的顺序一致。
   // 视频块排在最后（它最长），顺序是「她问的话 → 图上的字 → 视频读数」。
@@ -2214,7 +2872,11 @@ export function buildUserTurn({ questionText = '', imageBlock = '', videoBlock =
  *   能端到端跑一遍，而不是只剩源码文本断言（§2.4：名字出现过 ≠ 它拦得住）。
  * @returns {Promise<{reply:string|null, reason?:string, sessionKey?:string, meta?:object}>}
  */
-export async function handleMessage(event, {
+export function handleMessage(event, opts = {}) {
+  return withAgentTurnContext(() => handleMessageInTurn(event, opts));
+}
+
+async function handleMessageInTurn(event, {
   force = false,
   deps = undefined,
   // ★ 目标 19（2026-10-10）：**消息到达时刻**（ms epoch）。由 `ws_daemon.onMessage` 在收到
@@ -2246,7 +2908,13 @@ export async function handleMessage(event, {
   // ★ 2026-10-09：转发给闸门（见那里的注释）—— 不声明就转发 = ReferenceError
   mergedReportRunner = publishMergedReport,
   adviceRunner = generateAdvice,
+  // ★ 2026-10-22：默认改成**分流器**（飞书链接走飞书只读接口，其余走公开网页读数器）。
+  //   事故见 `feishu_link.mjs` 文件头；`readPublicPage` 仍是它内部的一条分支，没有丢。
+  linkReader = reviewGate.readLink,
 } = {}) {
+  // 每条消息先清空上一次的图读数（否则纯文字消息会继承上一条的图）
+  setAgentTurnContext({ imageBlock: '' });
+
   const msg     = event?.message ?? {};
   const sender  = event?.sender ?? {};
   const chatId  = msg.chat_id;
@@ -2301,6 +2969,33 @@ export async function handleMessage(event, {
     }
     return _senderNameForWm;
   };
+  // ── 「这条是不是在对我说话」—— **唯一判据**，回执前置与 §4 共用这一份 ────────────
+  //
+  // ★ 病灶（2026-10-22 实测，群 `oc_49a7…`、消息 `om_x100b62a37c9fc8b4dc0ba2a61cc3e7d`）：
+  //   群里一条**没 @ 守衡**的消息（正文「不应该出现历史审核意见作为依据」）命中送审词
+  //   ⇒ 回执前置先回了「⏳ 处理中…完整审核正在运行，**完成后会在此回复**」；
+  //   随后 §4 判 `not_mentioned` 直接不回复 ⇒ **承诺发出去了、链一次都没起**，
+  //   群里挂着一条「处理中」，而没有任何东西在跑。
+  //   这不是措辞问题，是**回执前置没有过「对我说话」这道门**（AGENTS.md §2.4.2：
+  //   一句对外说过的话，必须指得出哪一行在执行它 —— 那天指不出来）。
+  //
+  // ★ 为什么在这里算：§3 的 mention 还原要等 `readInboundContent`（读图 + OCR + 画面读数，
+  //   实测 5.8 s、抖动到 27.8 s）之后才有，而回执前置的全部意义就是赶在那之前。
+  //   所以先用**只凭消息本身**的一条同名解析取一次读数；拿到正文后（§3）用权威读数覆盖。
+  //   ⚠️ 两处**不许各写一套判据**：`addressedToMe()` 是唯一入口。
+  let _botMentionedProbe;        // undefined = 还没算；true/false = 赶在正文之前的早判
+  let _botMentionedFromInbound;  // §3 拿到正文后的权威读数
+  const addressedToMe = () => {
+    if (chatType !== 'group' || !config.requireMentionInGroup) return true;   // 私聊一律响应
+    if (_botMentionedFromInbound !== undefined) return _botMentionedFromInbound;
+    if (_botMentionedProbe === undefined) {
+      let t = '';
+      try { t = feishu.bodyToText(msg.message_type, msg.content ?? '{}').text ?? ''; } catch { t = ''; }
+      _botMentionedProbe = feishu.isBotMentioned(feishu.resolveMentions(t, msg.mentions ?? []).mentions);
+    }
+    return _botMentionedProbe;
+  };
+
   // ── ★★ 2026-10-20（Owner 批准 ①）：「**回执前置**」──────────────────────────────
   //   病灶（实测 2026-10-20）：回执卡原先要等下面那句 `readInboundContent` 跑完才发 ——
   //   它里面**串着**「下载图 → 画面读数（模型）→ 本机 OCR → 摘水印」，同一步骤本机实测 5.8 s，
@@ -2316,17 +3011,50 @@ export async function handleMessage(event, {
   //     · **不许为了排队提示把回执拖慢**：`claimStatus()` 是外部子进程，这里给 700 ms 封顶，
   //       取不到就按「不排队」说（与闸门里那条 catch 同口径：不谎报）。
   let earlyAckAt = null;
+  // ★★ 2026-10-21（Owner：「P0 红线问题必须 10 秒内回」「一条消息只回一条结论，不能发两条」）
+  //   —— **P0 预判**：命中就**不发**「⏳ 处理中」回执，直接等着出那张结论卡。
+  //
+  //   实测为什么非这样不可（`PMO/logs/ws_daemon.log`，365 轮）：
+  //     · P0 命中单：判定 p50 **3.3 s** 就有结论了，而用户实际等到卡 p50 **62.1 s**；
+  //       差额＝模型写 3000 字正文（p50 ~42 s，**不上卡**）＋ 模型侧双轨（p50 11.8 s）
+  //       ＋ 建议生成（p50 5.4 s）。这三步在 PRD §6.3 里都属「命中后应停止的后续审查」。
+  //     · 停掉之后剩下的只有「判定 → 建报告 → 落表 → 发卡」，4~6 s ⇒ 一张卡就够，
+  //       再先发一张「处理中」等于让人先读一句废话、再读答案（两条消息只对一条结论）。
+  //
+  //   ⚠️ 预判**只决定「发不发回执」**，不决定任何判定：
+  //     判据仍在链里跑（同一份模式表、同一个 CLI）；预判坏了/超时 ⇒ 按未命中算 ⇒ 行为与改动前一致。
+  //   ⚠️ 方向是安全的：预判用的是**与闸门同一份正文**（`bodyToText` ⇒ `chainInput.text`），
+  //     文字单逐字相同，媒材单是它的子集 ⇒ **假命中不可能**（真命中也只影响回执那一条）。
+  let p0PreHit = false;
   if (!force && typeof notify === 'function') {
     let gateEarly = null;
+    let earlyText = '';
     try {
       const parsedEarly = feishu.bodyToText(msg.message_type, msg.content ?? '{}');
+      earlyText = parsedEarly.text ?? '';
       gateEarly = reviewGate.isSubmission({
-        text: parsedEarly.text ?? '',
+        text: earlyText,
         imageCount: feishu.imageKeysOf(msg.message_type, msg.content ?? '{}').length,
         videoCount: feishu.videoKeysOf(msg.message_type, msg.content ?? '{}').length,
       });
     } catch { gateEarly = null; }
     if (gateEarly?.yes) {
+      try { p0PreHit = await p0Precheck(earlyText); } catch { p0PreHit = false; }
+      if (p0PreHit) {
+        // ★★ 2026-10-21（Owner 当场纠正）：「**为什么p0对问题，不回复处理中的卡片状态了？
+        //   必须先回复处理中，再回复block**」——
+        //   「处理中」不是结论，所以它**不违反**「一条消息只回一条结论、不发两条回复」；
+        //   那条口径管的是**结论**（不许同一单给出两个三态）。⇒ 回执照旧**先发**，
+        //   结论卡随后到（P0 命中不调模型，所以两张之间只隔几秒）。
+        //   ⚠️ 这一行只是读数：它记的是「这一单会少做哪三件事」，不是「不发回执」。
+        console.log('[agent] ⚡ P0 预判命中 ⇒ 后续**不调模型**（不起模型侧 / 不生成建议 / 不等正文，'
+          + 'PRD §6.3 命中即停止后续审查）；回执照旧先发'
+          + `（${gateEarly.kind}｜${gateEarly.why}）`);
+      }
+    }
+    // ★ 2026-10-22：**先过「这条是不是在对我说话」这道门**，再决定发不发「处理中」。
+    //   群里没 @ 我的消息，§4 随后会 `not_mentioned` 直接不回复 —— 那就不许先许一个诺。
+    if (gateEarly?.yes && addressedToMe()) {
       let queued = false;
       try {
         const cs = await Promise.race([
@@ -2338,7 +3066,8 @@ export async function handleMessage(event, {
       try {
         await notify(reviewGate.ackMessage({ ...gateEarly, chatId }, { queued }).block);
         earlyAckAt = Date.now();
-        console.log(`[agent] 🧭 回执前置：${gateEarly.kind} —— ${gateEarly.why}｜先回一句，再读素材`);
+        console.log(`[agent] 🧭 回执前置：${gateEarly.kind} —— ${gateEarly.why}｜先回一句，再读素材`
+          + (p0PreHit ? '（P0 命中也照发：处理中不是结论，结论卡随后到）' : ''));
       } catch (e) {
         console.log(`[agent] · 回执前置没发出去（不影响后续）：${e?.message ?? e}`);
       }
@@ -2361,6 +3090,11 @@ export async function handleMessage(event, {
   const mediaReadRaw = describeMediaRead(inbound, { raw: true });
   if (mediaReadRaw) console.log(`[agent] 📥 读到｜${mediaReadRaw.replace(/\n/g, ' ⏎ ')}`);
   const imageBlock = buildImageBlock(inbound);
+  // ★ 2026-10-20：把**本条的图内文字 + 画面读数**挂到全局，给 `kb_review_chain` 用。
+  //   病灶（Owner 实测）：headless 里的模型调送审工具时，`text` 是它**自己转述**的素材
+  //   （实测归一化 533 字，而图内文字有 1300+ 字）⇒ 知识库侧的"同图指纹"对不上、
+  //   画面线索也进不去 ⇒ 负面样本规则 0 命中。读数不能靠模型转述，必须由内核直接递。
+  setAgentTurnContext({ imageBlock: imageBlock || '' });
   const videoBlock = buildVideoBlock(inbound);
   // ★ 判据是「**读成功过**」，不是「读出了内容」：一条视频抽帧成功、音轨里没人说话，
   //   那也是一个**要如实回答的读数**（「画面上这 8 帧没有可读文字、音轨里没人说话」），
@@ -2427,7 +3161,17 @@ export async function handleMessage(event, {
   // 名字的解析与「惰性取数函数」都在上游第 2.5 步（读图之前）—— 这里不再重复一份。
 
   // ── 4. 群聊里「不 @ 不理」，避免刷屏；私聊一律响应
-  if (chatType === 'group' && config.requireMentionInGroup && !botMentioned) {
+  //    ★ 2026-10-22：判据收成 `addressedToMe()`（与回执前置同一份）——
+  //    拿到正文后的 `botMentioned` 是**权威读数**，先交给它覆盖早判，
+  //    免得「回执按早判发了、这里按权威读数不回」，同一个形状再犯一次。
+  _botMentionedFromInbound = botMentioned;
+  if (_botMentionedProbe === true && !botMentioned) {
+    //   这一行是读数，不是兜底：两处用的是同一份正文与同一个 `isBotMentioned`，
+    //   真出现分歧就说明「早判的正文」与「readInboundContent 读出的正文」不是同一份 ——
+    //   那时回执已经发出去了，至少要让这件事在日志里看得见（别又一次「承诺发了、链没起」）。
+    console.log('[agent] ⚠️ 早判说「在对我说话」、权威读数说没有 —— 回执已发出，本单按权威读数不回话');
+  }
+  if (!addressedToMe()) {
     return { reply: null, reason: 'not_mentioned' };
   }  if (config.allowedChats.length && !config.allowedChats.includes(chatId)) {
     return { reply: null, reason: 'chat_not_allowed', meta: { chatId } };
@@ -2597,13 +3341,16 @@ export async function handleMessage(event, {
     //   不清的后果与时 P0 读数那条一模一样 —— 上一单的 `answer` 会被当成这一轮的结论行。
     beginChainAnswerTurn();
     const g = await runSubmissionGate({ inbound, question, userText, notify, chainRunner, publishRunner, modelSideRunner,
-                                    mergedReportRunner, adviceRunner, force,
+                                    mergedReportRunner, adviceRunner, linkReader, force,
                                     // ★ 目标 19：把「消息到达时刻」带进闸门，好量「@ → 回执卡」那一段。
                                     //   没给就退回此刻（并会被标成 origin=handle_entry，不许当 ingress 报）。
                                     tIngress: tIngress ?? Date.now(),
                                     // ★★ 2026-10-20（Owner 批准 ①+②）：回执**已经**在读素材之前发过 ⇒
                                     //   闸门不许再发第二张；来源跟着传，指标行里能看出用的是哪个时刻。
                                     ackSentAt: earlyAckAt,
+                                    // ★★ 2026-10-21（Owner）：P0 预判命中 ⇒ 闸门**不许**补发回执，
+                                    //   也**不许**起模型侧双轨（PRD §6.3：命中即停止后续审查）。
+                                    p0PreHit,
                                     tIngressOrigin });
     const gate = g.gate;
     const chainRan = g.chainRan;
@@ -2683,11 +3430,25 @@ export async function handleMessage(event, {
     const systemPrompt = buildSystemPrompt(
       chatType === 'group'
         ? `\n# 当前场景\n你在群聊「${sess.title ?? chatId}」里，正在回复 ${senderName}。群里其他人也会看到你的回答，所以不要输出私密信息，也不要假设只有一个人在听。`
-        : `\n# 当前场景\n你在与 ${senderName} 私聊。`
+        : `\n# 当前场景\n你在与 ${senderName} 私聊。`,
+      { workflowQuestion: gate?.guard === 'meta-ask' }
     );
 
     const toolTrace = [];
-    let reply = null;
+    const workflowMechanismReply = reviewGate.reviewWorkflowMechanismAnswer(question, gate);
+    if (workflowMechanismReply) console.log('[agent] 🧭 三类审核流程问答：按当前工作流代码直接答复（不起审核链）');
+    let reply = g.forcedReply ?? g.p0DirectReply ?? workflowMechanismReply ?? null;
+    // ★★ 2026-10-21（Owner：「P0 命中就直接先返回结论」「一条消息只回一条结论」）——
+    //   走到这里 `reply` 已非空 ⇒ 下面那个工具循环（`for (…; reply === null; …)`）
+    //   **一次都不会跑**：不调模型、不花那 p50 42 秒，卡面与结论一个字节都不变
+    //   （卡面本来就由代码从 `verdict53` 拼，模型那 3000 字从不上卡）。
+    if (g.forcedReply) appendAssistant(sess, { role: 'assistant', content: g.forcedReply, link_read_failed: true });
+    else if (g.p0DirectReply) {
+      // 记忆里也要有这一条：否则下一轮问「你刚才判了什么」，它只剩链块、没有自己说过的话。
+      appendAssistant(sess, { role: 'assistant', content: g.p0DirectReply });
+      console.log('[agent] ⚡ P0 确定性命中 ⇒ 本回合**不调模型**：回复＝§5.3 结论块原文（'
+        + g.p0DirectReply.length + ' 字）｜卡面仍由代码按 §5.3 拼');
+    }
     let llmError = null;
     let llmFailure = null;             // ★ 整条失败体（layer/chain/attempts/retryable），不只那句 error
     let truncated = false;
@@ -2701,9 +3462,17 @@ export async function handleMessage(event, {
     //   不管它是报错、拒答、库忙还是超时。
     let synthesized = null;            // ★ 走过「兜底合成」的话记下触发原因（tool-iters / empty-length）
 
-    for (let iter = 0; iter < config.llm.maxToolIters; iter++) {
+    for (let iter = 0; reply === null && iter < config.llm.maxToolIters; iter++) {
       const messages = mem.toLlmMessages(sess, systemPrompt);
-      const r = await llm.chat(messages, { tools: TOOL_SCHEMAS });
+      // ★★ 2026-10-20（Owner：「这个慢的问题必须做优化」→ 随后「不要影响现有工作流」）：
+      //   这条**先把开关留着、默认不改行为**（`SHOUHENG_REPLY_THINK=off` 才关思考）。
+      //   实测（同输入、同 max_tokens，2026-10-20 12:51，`/tmp/bench_thinking.mjs`）：
+      //     开思考 **11738ms** / 正文 496 字（reasoning 2123 tok）
+      //     关思考 **1978ms** / 正文 493 字 —— **5.9 倍**，产出几乎一致。
+      //   为什么敢关：这一轮是**组装与转述**（素材读数 + 链结论 + 逐条建议都已就位），
+      //   判据不在模型这边（P0/条款号由引擎给）；思考主要烧在"怎么措辞"上。
+      //   回退开关：`SHOUHENG_REPLY_THINK=on` 改回带思考（A/B 对照用，不必改代码）。
+      const r = await llm.chat(messages, { tools: TOOL_SCHEMAS, thinking: replyThinking() });
 
       if (!r.ok) { llmError = r.error; llmFailure = r; break; }
 
@@ -2898,9 +3667,26 @@ export async function handleMessage(event, {
     }
 
     // ── 7. 压缩与落盘
+    //
+    // ★★ 2026-10-21（Owner：「必须 10 秒内回」）——**P0 直达这一轮不压缩**。
+    //
+    //   病灶（上线后第一单的实测读数，`[metric] direct_answer_ms=32864 … verdict=FAIL`）：
+    //   判定只花 3.3 s，而卡走了 **32 s**。差的不是判定，是这一行 ——
+    //   `mem.compact(sess, llm.summarize)` 要**调模型**把上千条旧消息写成纪要
+    //   （实测 27.7 s，`🗜 历史已压缩（保留 24 轮（1288 条）…）` 就紧挨在发卡之前）。
+    //   而 P0 直达这一轮**压根不调模型**（没有上下文要用）⇒ 压缩在这一轮是**纯亏 28 秒**。
+    //   ⇒ 顺延到下一次真要模型的回合（`compact()` 自带 `messages.length <= triggerAt` 的早退，
+    //     「这一轮没压」不会丢任何东西 —— 它本来就只是"历史太长就摘要"的维护动作）。
+    //   ⚠️ `mem.save(sess)` 照旧：这一轮的问答必须立刻落盘（不然下一轮它会不记得自己判过）。
+    const p0DirectTurn = !!g.p0DirectReply;
     let compacted = false;
-    try { compacted = await mem.compact(sess, llm.summarize); }
-    catch (e) { console.error('[agent] 压缩异常', e?.message ?? e); }
+    if (p0DirectTurn) {
+      console.log('[agent] ⏭ 历史压缩顺延（本回合不调模型 ⇒ 没有上下文要用；'
+        + '下一次需要模型的回合再压）｜当前 ' + (sess.messages?.length ?? 0) + ' 条');
+    } else {
+      try { compacted = await mem.compact(sess, llm.summarize); }
+      catch (e) { console.error('[agent] 压缩异常', e?.message ?? e); }
+    }
     mem.save(sess);
     // 去重表必须**立即**落盘：只在退出时写的话，进程被 kill -9 时这次消息不在表里，
     // launchd 拉起后服务端若重推同一条，守衡会重复回话。
@@ -2978,15 +3764,9 @@ export async function handleMessage(event, {
     //   ⇒ 卡面退回模型那张 `query-answer`（后台词一并上卡）。
     //   ⇒ 现在把 `chainAnswerRead()` 的 `answer` 一起喂进去（与 `p0Memo` 并存、不合并）。
     const chainAnswer = chainAnswerRead();
-    const verdict53Final = g?.verdict53
-      ?? (p0Payload
-           ? deriveVerdictLine({ replyText: reply ?? '', reviewedByTool: true,
-                                 answer: p0Payload.answer, p0Fastpath: p0Payload.p0Fastpath })
-           : ((toolTrace ?? []).some((x) => x.tool === 'kb_review_chain' && x.ok)
-                ? deriveVerdictLine({ replyText: reply ?? '', reviewedByTool: true,
-                                      answer: chainAnswer?.answer ?? '',
-                                      p0Fastpath: chainAnswer?.p0Fastpath ?? null })
-                : null));
+    const verdict53Final = finalVerdict53ForTurn({
+      gateResult: g, p0Payload, toolTrace: toolTrace ?? [], chainAnswer, reply: reply ?? '',
+    });
     if (!g?.verdict53 && verdict53Final) {
       // ★ 2026-10-19：这一行原来恒写「P0 快路命中了」—— 而上面新接的那一支根本没有 P0
       //   （0 命中也会走到这里）。**读数说假话比没有读数更坏**（§2.4.2），按真实来源分三档。
@@ -3106,6 +3886,10 @@ export async function handleMessage(event, {
                      //   凭据是**这一轮真的调成了链**（`toolTrace` 里有一次 `ok` 的
                      //   `kb_review_chain`），不是「回复里出现了一行像 5.3 的字」。
                      verdict53: verdict53Final,
+                     // ★ 2026-10-22（Owner：「输出的卡片不展示 视觉分析与 OCR」）：
+                     //   这一格**整格撤掉** —— 卡面不再带 OCR/画面读数（原先只有图片评审卡才有，
+                     //   现在连那一块也不再传）。读数本身没丢：`📥 读到｜…` 日志、会话记忆、
+                     //   报告附录三处都在；它只是不上卡。
                      // ⚠️ 2026-10-13：**`mediaRead` 这一格撤了** —— 媒材读数按 Owner 的要求不上卡
                      //   （他 2026-10-06 说「视频还是无法读取」，那时读数搬上了卡；
                      //    2026-10-13 他把那一整段贴回来说「这里多余的回复也去掉」。两条相反，以最新为准）。
@@ -3114,6 +3898,13 @@ export async function handleMessage(event, {
                      // ★ 2026-10-16（FIX-044）：P0 前置那条路也要给 —— 它是内核自己跑的
                      //   P0 报告链接（同一个字段、同一个口径：拿不到就是 null，**不编**）。
                      reportLink: g.dual?.reportUrl ?? (p0Preflight?.report || null),
+                     // ★★ 2026-10-21（Owner：「P0 红线问题必须 10 秒内回」）——
+                     //   `p0Direct` = 这一单**没调模型**、回复直接是 §5.3 结论块（P0 确定性命中）。
+                     //   它给 `ws_daemon` 用两次：
+                     //     ① 量**用户实际等多久**（`[metric] direct_answer_ms=…`，从消息 `create_time`
+                     //        量到卡发出去为止 —— PRD §12 给单条文字的口径是 ≤10 s）；
+                     //     ② 事后核「这条路有没有又悄悄开始调模型」（读数在就查得到）。
+                     p0Direct: !!g.p0DirectReply,
                      outbound: { folded: outboundFold.folded, untested: outboundFold.plan.untested } } };
   });
 }

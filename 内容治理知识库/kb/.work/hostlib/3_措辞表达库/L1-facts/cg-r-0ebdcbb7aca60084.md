@@ -6,7 +6,7 @@ kb_class: [措辞表达库]
 tier: L1
 topic: 未登记规则码
 kind: fact
-summary: "[W-2.31] 判为「禁用/必须修改」（P1·未定级）：命中表达 1 条、证据单元 1 条；处理方式是「需结合宝宝摄入量判断。若本身已供需平衡再减少次数，实质是在推进离乳，应说明边界条件」。状态 provisional、verification 待验证。"
+summary: "[W-2.31] 判为「需按建议改写」（P2·未定级）：命中表达 1 条、证据单元 1 条；处理方式是「需结合宝宝摄入量判断。若本身已供需平衡再减少次数，实质是在推进离乳，应说明边界条件」。状态 provisional、verification 待验证。"
 owner: 法务
 half_life_days: 180
 valid_until: 2027-03-28
@@ -14,7 +14,7 @@ effective_from: 2026-09-29
 evidence_level: L1
 data_level: L2
 sensitivity_level: L2
-created_at: 2026-10-16
+created_at: 2026-10-22
 asks:
   - W-2.31 判什么、命中什么算违规
   - W-2.31 应该怎么改（合规替代写法）
@@ -29,7 +29,7 @@ source:
   ref: "https://momcozy-in.feishu.cn/base/SKkkbdZi9aRuMzs7ob0cpSYHnQg?table=tbl8AI00JZO1iZtp"
   fingerprint: SKkkbdZi9aRuMzs7ob0cpSYHnQg/tbl8AI00JZO1iZtp
   record_ids: [recvoAhrwbAzcc]
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l3/candidates/rules.jsonl#r-0ebdcbb7aca60084"
   confidence: 确定
@@ -40,7 +40,7 @@ pii:
 rule_id: r-0ebdcbb7aca60084
 article_no: W-2.31
 rule_code: ""
-p_level: P1
+p_level: P2
 risk_level: 未定级
 risk_level_raw: Medium
 risk_level_note: 源库 kb/l3 的 risk_level 为 unknown/空 —— 未做人工定级；本视图不据 P 级反推，故标未定级
@@ -54,7 +54,7 @@ kb_type: wording
 
 # [W-2.31] 措辞表达库：命中「产后2-3个月：减少吸奶次数要慢慢来」等 1 类表达
 
-**条款号**：W-2.31　|　**规则码**：（未登记）　|　**rule_id**：`r-0ebdcbb7aca60084`　|　**判定**：P1 · 未定级
+**条款号**：W-2.31　|　**规则码**：（未登记）　|　**rule_id**：`r-0ebdcbb7aca60084`　|　**判定**：P2 · 未定级
 
 ## 规则原文（照抄新库，未改写）
 

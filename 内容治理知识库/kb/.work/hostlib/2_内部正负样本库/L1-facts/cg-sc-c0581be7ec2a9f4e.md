@@ -12,8 +12,8 @@ evidence_level: L1
 data_level: L2
 sensitivity_level: L2
 half_life_days: 180
-created_at: 2026-10-16
-valid_until: 2027-04-14
+created_at: 2026-10-22
+valid_until: 2027-04-20
 asks:
   - S-1.150 是正例还是反例
   - S-1.150 的问题要点与原因归类是什么
@@ -28,7 +28,7 @@ source:
   kind: feishu-base
   ref: "https://momcozy-in.feishu.cn/base/Lk3Qb8y2QaVyZns6gprcVNE9nA0?table=tblcbk4XiW6471YN"
   fingerprint: Lk3Qb8y2QaVyZns6gprcVNE9nA0/tblcbk4XiW6471YN
-  captured_at: 2026-10-16
+  captured_at: 2026-10-22
 provenance:
   anchor: "kb/l4/canonical/sample_case.jsonl#sc-c0581be7ec2a9f4e"
   confidence: 确定
@@ -48,9 +48,9 @@ channel: EDM
 reason_category: 品牌一致性
 evidence_strength: 禁区可复现：有完整样本本体 + 原因分析
 promoted_from: provisional
-anchor: "#正面和负面样本/recvw2wE9MjmIp/原文反馈"
-source_sha256: 9eeb8912669a21e3e24a8d08a4c10293ff70d8d92d113dc9c6cd391687e544c4
-resource_id: bitable__tbld8qE92YaY38Yz__recvw2wE9MjmIp
+anchor: "#负面样本/recvw7XIUgkGAb/具体原因/分析"
+source_sha256: 96a6bb6eac8b60dfa9d765806ff9308059f571a1f2e9d53f635cfab9454c6b28
+resource_id: bitable__tbld8qE92YaY38Yz__recvw7XIUgkGAb
 sample_body: "【审核 · 2026-09-20 22:59 · 饶雨诗】【终审-@[已脱敏] 】姐姐麻烦看看呀:YouAreTheBest: **项目名：10.1 秋促-用户运营 EDM** **设计需求：** 头图建议：宝宝与妈妈在客厅、餐厅等居家空间中互动，体现秋日自然光，前景可以摆放核心产品，自选产品即可（这里选了BS03清洗机） 尾图同上类似，只需设计头图尾图 澳洲做春季，并且上方放母乳喂养周logo，其他国家不需要放logo **设计稿件：** 秋季和春季： ![Image](img_v3_0215n_c45f622c-fe7e-4436-bd60-a72b3872d58g) ![Image](img_v3_0215n_69da7304-270a-44cc-9c9b-0db4c35995cg)  MOMCOZY Breast Pumps U-b vonuns Bras Everyday & reeaing Body Pillows Pregnancy Feeding Gear 0-36 Months Autumn Sale: Up to 60% Off Warmth in Every Moment Shop Now Warmth, comfort, and savings for every moment. Shop Autumn Sale momcozy f 1580 N Logan St Ste 660, #30327, Denver, CO 80203-1994, USA Privacy Policy Terms & Conditions Warranty Policy All Rights Reserved © 2026 Momcozy.  mOMCOZY Breast Pumps U-b vonuns Bras Everyday & reeaing Body Pillows Pregnancy Feeding Gear 0-36 Months Breathe & Breastfeed Spring Sale: Up to 60% Off Warmth in Every Moment اخلاء ١-١١٦:4 ٦ -رورا3ة том 10 19 Shop Spring Savings Warmth, comfort, and savings for every moment. Shop Spring Sale momcozy f 1580 N Logan St Ste 660, #30327, Denver, CO 80203-1994, USA Privacy Policy Terms & Conditions Warranty Policy All Rights Reserved © 2026 Momcozy."
 reason_analysis: "【品牌一致性】文案 头图建议：宝宝与妈妈在客厅、餐厅等居家空间中互动，体现秋日自。 【问题要点】 1. 头图建议：宝宝与妈妈在客厅、餐厅等居家空间中互动，体现秋日自然光，前景可以摆放核心产品，自选产品即可（这里选了BS03清洗机） 2. 澳洲做春季，并且上方放母乳喂养周logo，其他国家不需要放logo 3. 【终审-@[已脱敏] 】姐姐麻烦看看呀 4. 尾图同上类似，只需设计头图尾图"
 advice: 建议：宝宝与妈妈在客厅、餐厅等居家空间中互动，体现秋日自然光，前景可以摆放核心产品，自选产品即可（这里选了BS03清洗机）；可以摆放核心产品，自选产品即可（这里选了BS03清洗机）
@@ -143,8 +143,8 @@ All Rights Reserved © 2026 Momcozy.
 
 ## 引用依据
 
-- 锚点：`#正面和负面样本/recvw2wE9MjmIp/原文反馈`
-- 指纹：`9eeb8912669a21e3e24a8d08a4c10293ff70d8d92d113dc9c6cd391687e544c4`
+- 锚点：`#负面样本/recvw7XIUgkGAb/具体原因/分析`
+- 指纹：`96a6bb6eac8b60dfa9d765806ff9308059f571a1f2e9d53f635cfab9454c6b28`
 - 原因归类：品牌一致性　|　素材类型：文字
 
 > 案例只作参照，不构成规则。

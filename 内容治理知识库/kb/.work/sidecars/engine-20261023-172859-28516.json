@@ -1,0 +1,206 @@
+{
+ "decision": {
+  "state": "REVIEW",
+  "decision": "REVIEW",
+  "confidence": null,
+  "review_id": "rv-20261023-172920",
+  "content_id": "AUTO-0d832c39c3b8",
+  "content_id_basis": "指纹兜底：本单 `--no-publish-to-feishu`，不发飞书故不发业务号（不是漏发）",
+  "content_version": "0d832c39c3b899e837db4a8aee018f049e7c0d98771d2fa443806df023f094b0",
+  "issue_count": 0,
+  "summary": "【审查结论：REVIEW】共发现 0 处需人工确认。\n\n**本次没有发现内容问题**（0 处）。下面是**覆盖缺口**说明 —— 缺的是**库覆盖**，不是素材有问题：\n\n**覆盖缺口说明（不是内容问题）**：本次素材的**文字层逐字命中 0 条**，但覆盖判据不成立（没有「既被规则引用、又达门限」的单元）——**这不是素材有问题，是库对该题材没有可依据的条款**。\n   原因：依据侧检索到 5 条命中，最高 BM25 197.7442（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。\n   依据：`kb/l7/registry/l7.json` 的 `retrieval.gate.coverage_bm25_min=16.0`（覆盖判据标定值；覆盖信号不成立时**不得输出 PASS**）\n   建议：转人工复核后再定；补素材无用（缺的是库覆盖）。\n\n**库内命中（读数）** —— 检索命中了 5 条，逐条列出**原文与直链**：\n\n1. `#l.1-50`｜BM25 197.7442｜external_standard\n   命中原文（逐字）：r stays in the room you’ll be in. Some monitors have two receivers so both parents can listen in (or you can keep one receiver in your bedroom and the other in\n   直链：https://momcozy-in.feishu.cn/wiki/OWxvwC0OHiI1F5kvlIGcjHEOn9s\n2. `#l.1-236`｜BM25 196.6228｜external_standard\n   命中原文（逐字）：t thing in the morning. And be wary of any program that does not allow unannounced parent visits. A stimulating atmosphere. Even a 2-month-old can benefit from\n   直链：https://momcozy-in.feishu.cn/wiki/OWxvwC0OHiI1F5kvlIGcjHEOn9s\n3. `#l.1-1`｜BM25 192.9922｜wording\n   命中原文（逐字）：Air 1 vs M5 Smart: 2026's Ultimate Pump Battle Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether To\n   直链：https://momcozy.com/blogs/breastfeeding/best-wearable-pump-air-1-vs-m5\n4. `#l.1-237`｜BM25 185.4149｜external_standard\n   命中原文（逐字）：en, a well-run daycare center Keep in mind, too, that how well the surveillance works will depend on how well you survey it. You’ll need to be committed to reco\n   直链：https://momcozy-in.feishu.cn/wiki/OWxvwC0OHiI1F5kvlIGcjHEOn9s\n5. `#l.1-2`｜BM25 185.0298｜wording\n   命中原文（逐字）：of purchase. Customers are responsible for return shipping costs, and original shipping fees are non-refundable. Clearance items and non-Momcozy branded product\n   直链：https://momcozy.com/collections/wearable-breast-pump/products/m5-smart-wearable-breast-pump-upgraded-with-app-control?variant=45110887514310\n\n> ⚠️ 上面是**读数**：命中的**大多是别人的素材样本 / 外部材料，不是覆盖本素材的条款**，**不得据此当 PASS 依据**，也不得当作「本素材已合规」的证明。\n\n建议转 @法务（未配置） @北美同事（未配置） 复核。",
+  "risk_items": [
+   {
+    "risk_type": "覆盖缺口",
+    "priority_tier": "转人工",
+    "action": "库对该题材没有可依据的条款 ⇒ 转人工看**覆盖**（不是发现了内容问题）",
+    "category": "覆盖",
+    "sub": "知识库覆盖缺口",
+    "reason": "依据侧检索到 5 条命中，最高 BM25 197.7442（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。",
+    "severity": "REVIEW",
+    "reason_code": "coverage_not_covered",
+    "coverage": {
+     "covered": false,
+     "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+     "rule_cited_unit_hits": 0,
+     "safe_vocabulary_hits": 0,
+     "coverage_bm25_min": 16.0,
+     "bm25_max": 197.7442,
+     "top_hit_anchor": "#l.1-50",
+     "top_hit_excerpt": "r stays in the room you’ll be in. Some monitors have two receivers so both parents can listen in (or you can keep one receiver in your bedroom and the other in "
+    },
+    "coverage_gap": true
+   }
+  ],
+  "next_owners": [
+   "法务",
+   "医学顾问"
+  ],
+  "fails_closed": true,
+  "refusal": {
+   "state": "NEEDS_INPUT",
+   "detail": "依据侧拒答（fail-closed）",
+   "fails_closed": true,
+   "reason_code": "coverage_not_covered",
+   "coverage": {
+    "covered": false,
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "rule_cited_unit_hits": 0,
+    "safe_vocabulary_hits": 0,
+    "coverage_bm25_min": 16.0,
+    "bm25_max": 197.7442,
+    "top_hit_anchor": "#l.1-50",
+    "top_hit_excerpt": "r stays in the room you’ll be in. Some monitors have two receivers so both parents can listen in (or you can keep one receiver in your bedroom and the other in "
+   },
+   "human": "依据侧检索到 5 条命中，最高 BM25 197.7442（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。"
+  },
+  "gate": null
+ },
+ "evidence_meta": {
+  "run_id": "20261023-172916",
+  "findings": 0,
+  "state": "REVIEW",
+  "fails_closed": true,
+  "refusal": {
+   "state": "NEEDS_INPUT",
+   "detail": "依据侧拒答（fail-closed）",
+   "fails_closed": true,
+   "reason_code": "coverage_not_covered",
+   "coverage": {
+    "covered": false,
+    "why": "PASS 必须建立在「知识库认识这个主题」之上：① 命中允许表述（安全词）规则；② 单元层 Top3 里有一条既被规则引用、BM25 原始分又 ≥ 16.0（8.0 的 2 倍）；②b 该单元**与被引锚点同源**（父记录 `resource_id` 相同）也算 —— 同一素材的图上文字与原文反馈是同一件东西的两面，把「命中图上文字」判成「没覆盖」在语义上就是错的；②c 命中 **L4 定稿的「反例/禁区」条款**也算（它们是带条款号的 stable 条款，只是 L3 把 sample 类单元蒸成「案例」而不是「规则」⇒ 原先池子里一条都没有）；四者都没有 → 拒答（无命中不等于合规）",
+    "rule_cited_unit_hits": 0,
+    "safe_vocabulary_hits": 0,
+    "coverage_bm25_min": 16.0,
+    "bm25_max": 197.7442,
+    "top_hit_anchor": "#l.1-50",
+    "top_hit_excerpt": "r stays in the room you’ll be in. Some monitors have two receivers so both parents can listen in (or you can keep one receiver in your bedroom and the other in "
+   },
+   "human": "依据侧检索到 5 条命中，最高 BM25 197.7442（覆盖门限 16.0）；但「**既被规则引用、又达到门限**」的单元 0 条 ⇒ 覆盖判据不成立。库口径：**未命中 ≠ 合规**，故**不放行**（不产出 PASS）。"
+  },
+  "report_path": null,
+  "source": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py",
+  "findings_source": {
+   "mode": "live",
+   "path": "/Users/lute/.dsh/skills/kb-content-review/scripts/review.py"
+  },
+  "kb_hits": [
+   {
+    "anchor": "#l.1-50",
+    "bm25": 197.7442,
+    "kb_type": "external_standard",
+    "source_sha256": "d45e9b4d54898eeee8306299c94a5306241373266c5a97361d4b8ac61907faaa",
+    "excerpt": "r stays in the room you’ll be in. Some monitors have two receivers so both parents can listen in (or you can keep one receiver in your bedroom and the other in",
+    "url": "https://momcozy-in.feishu.cn/wiki/OWxvwC0OHiI1F5kvlIGcjHEOn9s"
+   },
+   {
+    "anchor": "#l.1-236",
+    "bm25": 196.6228,
+    "kb_type": "external_standard",
+    "source_sha256": "d45e9b4d54898eeee8306299c94a5306241373266c5a97361d4b8ac61907faaa",
+    "excerpt": "t thing in the morning. And be wary of any program that does not allow unannounced parent visits. A stimulating atmosphere. Even a 2-month-old can benefit from",
+    "url": "https://momcozy-in.feishu.cn/wiki/OWxvwC0OHiI1F5kvlIGcjHEOn9s"
+   },
+   {
+    "anchor": "#l.1-1",
+    "bm25": 192.9922,
+    "kb_type": "wording",
+    "source_sha256": "70e7404908fb69785090197f8bbaa7aa9c23bf30ad71bcedcc2b4f2319b0f42a",
+    "excerpt": "Air 1 vs M5 Smart: 2026's Ultimate Pump Battle Switch to your local store for faster shipping, local pricing, and available offers. Baby Toothbrush & Teether To",
+    "url": "https://momcozy.com/blogs/breastfeeding/best-wearable-pump-air-1-vs-m5"
+   },
+   {
+    "anchor": "#l.1-237",
+    "bm25": 185.4149,
+    "kb_type": "external_standard",
+    "source_sha256": "d45e9b4d54898eeee8306299c94a5306241373266c5a97361d4b8ac61907faaa",
+    "excerpt": "en, a well-run daycare center Keep in mind, too, that how well the surveillance works will depend on how well you survey it. You’ll need to be committed to reco",
+    "url": "https://momcozy-in.feishu.cn/wiki/OWxvwC0OHiI1F5kvlIGcjHEOn9s"
+   },
+   {
+    "anchor": "#l.1-2",
+    "bm25": 185.0298,
+    "kb_type": "wording",
+    "source_sha256": "fdd1d791cbc4f262746270962aec601cedc5037149f4c1113eec1351237c24dc",
+    "excerpt": "of purchase. Customers are responsible for return shipping costs, and original shipping fees are non-refundable. Clearance items and non-Momcozy branded product",
+    "url": "https://momcozy.com/collections/wearable-breast-pump/products/m5-smart-wearable-breast-pump-upgraded-with-app-control?variant=45110887514310"
+   }
+  ],
+  "layer_preflight": {
+   "base": "20261023-172859",
+   "ok": true,
+   "red_total": 0,
+   "mode": "enforced",
+   "details": {
+    "L4": {
+     "run": "20261023-172859-L4",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L4": "session-f5244afc-9849-46be-8249-fe1d45f2e451"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L5": {
+     "run": "20261023-172859-L5",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L5": "session-f5244afc-9849-46be-8249-fe1d45f2e451"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L6": {
+     "run": "20261023-172859-L6",
+     "exit": 0,
+     "red": 0,
+     "yellow": 1,
+     "skill_sessions": {
+      "L6": "session-f5244afc-9849-46be-8249-fe1d45f2e451"
+     },
+     "pass": true,
+     "note": ""
+    },
+    "L7": {
+     "run": "20261023-172859-L7",
+     "exit": 0,
+     "red": 0,
+     "yellow": 0,
+     "skill_sessions": {
+      "L7": "session-f5244afc-9849-46be-8249-fe1d45f2e451"
+     },
+     "pass": true,
+     "note": ""
+    }
+   }
+  },
+  "position": {
+   "value": null,
+   "supplied_by": null,
+   "note": "未提供 ⇒ 依据层用默认位置（图片会是裸「图 1」，出口闸 R3 判红）"
+  },
+  "decision_owner": {
+   "skill": "文案合规审查",
+   "mode": "declared",
+   "declared_by": "agent",
+   "loaded_skills": [
+    "kb-canonical-lookup",
+    "kb-p0-check",
+    "kb-recall",
+    "kb-check",
+    "文案合规审查"
+   ]
+  },
+  "publish": {
+   "mode": "disabled_by_caller",
+   "published": false,
+   "reason": "disabled_by_caller"
+  },
+  "report_url": null,
+  "report_url_kind": null
+ }
+}
