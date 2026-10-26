@@ -401,6 +401,52 @@ PY
     idle)     echo "  正在处理中    无（收到 ${_ev} ／ 走完 ${_done}）" ;;
     *)        echo "  正在处理中    ⚠ 未测（读不到 run-state 的计数）" ;;
   esac
+  # ── 审查链在飞？────────────────────────────────────────────────────────
+  # ★★ 2026-10-26 真事故（那天我自己踩的，两张图永远没等到结论）：
+  #   守衡对一条送审先回执卡、**再由链异步产出结论**。而上面那条判据数的是
+  #   `daemon-run.json` 里「消息有没有走完」—— 回执已发、链还在跑时它可能是平衡的，
+  #   于是闸门在 14:43:34 与 14:55:15 两次**放行**，两次都掐断了正在跑的链；
+  #   两个实例退出时逐字都是 `本次统计：事件 1 / 已回答 0 / 已发送 0`，
+  #   群里那两张图**只有回执、永远没有结论**（链目录留在 /tmp/shouheng-chain-img-*，
+  #   里面只有图、没有结果）。用户看到的就是「守衡怎么不回复了」。
+  # ⇒ 判据必须覆盖**链**，不能只覆盖消息。两个来源取「或」：
+  #   ① 落盘读数 `PMO/shouheng-state/chains-in-flight.json` —— 正解，但它是守护进程
+  #      新写的字段 ⇒ **要等下一次重启才生效**（本次先把产者加上，见 tools.mjs::spawnChain）；
+  #   ② 进程探针 `kb/l8/review_run.sh` —— 链自己会跑这条脚本、argv 里带 RUN 名
+  #      ⇒ 今天立刻就能拦。**探针只是补丁**，别把它当长期真源（链在起脚本之前/之后
+  #      仍有一小段没被盖住，① 才是权威读数）。
+  CHAIN_N=0
+  CHAIN_SRC=""
+  CHAINF="$ROOT/PMO/shouheng-state/chains-in-flight.json"
+  if [ -f "$CHAINF" ]; then
+    CN="$(python3 - "$CHAINF" <<'PY' 2>/dev/null
+import json, sys, time
+try:
+    d = json.load(open(sys.argv[1], encoding='utf-8'))
+except Exception:
+    print(''); raise SystemExit
+n = int(d.get('n') or 0)
+at = str(d.get('at') or '')
+try:
+    import datetime
+    t = datetime.datetime.fromisoformat(at.replace('Z', '+00:00')).timestamp()
+    fresh = (time.time() - t) < 600
+except Exception:
+    fresh = False
+print(n if (n > 0 and fresh) else '')
+PY
+)"
+    if [ -n "${CN:-}" ]; then CHAIN_N="$CN"; CHAIN_SRC="落盘读数"; fi
+  fi
+  CHAIN_PID="$(pgrep -f 'kb/l8/review_run\.sh' 2>/dev/null | head -1)"
+  if [ -z "$CHAIN_SRC" ] && [ -n "${CHAIN_PID:-}" ]; then
+    CHAIN_N=1; CHAIN_SRC="进程探针（pid ${CHAIN_PID}）"
+  fi
+  if [ "$CHAIN_N" != "0" ]; then
+    echo "  审查链在飞    ⚠ **${CHAIN_N} 条链还没出结论**（${CHAIN_SRC}）—— 现在重启 ⇒ 回执已发、结论永远不来"
+  else
+    echo "  审查链在飞    无（落盘读数与进程探针都是 0）"
+  fi
   echo "──────────────────────────────────────────────────────"
   if [ "$CHECK" = "1" ] && [ "$YES" = "0" ]; then echo "  （--check：以上为查看，未做任何动作）"; exit 0; fi
   if [ "$YES" = "0" ]; then
@@ -413,6 +459,15 @@ PY
     echo "    现在 kickstart，它已经发出去的回执就再也等不到答案了 ——"
     echo "    2026-10-17 14:22 真发生过：'本次统计：事件 2 / 已回答 0 / 已发送 0'。"
     echo "    等它回完再重启；确需硬重启就加 --force-inflight。"
+    exit "$EXIT_REFUSED"
+  fi
+  # ★★ 2026-10-26：**链在飞**与「消息在处理中」同罪 —— 今天两张图就是这么丢的。
+  if [ "$CHAIN_N" != "0" ] && [ "$FORCE_INFLIGHT" != "1" ]; then
+    echo "  ✗ 拒绝重启：**有 ${CHAIN_N} 条审查链还没出结论**（${CHAIN_SRC}）。"
+    echo "    链是被 kickstart 掐断的那个 —— 掐了它，回执卡还在群里、结论永远不会来，"
+    echo "    而守衡**不会**自动重试。2026-10-26 实测：两次重启各掐断一条，"
+    echo "    两个实例退出时逐字都是 `本次统计：事件 1 / 已回答 0 / 已发送 0`。"
+    echo "    等结论发出来再重启；确需硬重启就加 --force-inflight（那两单要重发）。"
     exit "$EXIT_REFUSED"
   fi
   if [ -z "$WHY" ]; then

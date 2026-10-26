@@ -101,6 +101,29 @@ function loadLlmKey() {
 
 const _llmKey = loadLlmKey();
 
+/* ───────────── 单次模型请求的墙钟上限（2026-10-26 加） ─────────────
+ *
+ * ★ 为什么非立这个常量不可：事故当天（2026-10-26 10:06–10:18）群里连问两句，
+ *   一句「你好」等了 **683 秒**，回的是「我这边调用模型失败了 … 超时/20 · 1 跳」。
+ *   病灶不是网络，是**两个常量互相打架**：`llm.mjs` 的 `post()` 把单次请求写死 **120 s**，
+ *   而 `maxTokens` 是 **12000** —— 这两个数从来没人一起算过。
+ *
+ *   本机实测（端点 = `~/.dsh/shouheng-llm.env` 的 cliproxy → deepseek-v4.1-flash）：
+ *     · 满预算作答（`max_tokens=12000`，reasoning 7998） **155.9 s** ≈ 77 tok/s；
+ *     · 同一份 19 万 token 的会话上下文，prefill 只要 **8.7 s** ⇒ 慢的是**输出**，不是输入。
+ *
+ *   ⇒ **用满预算的回答在 120 s 上限下不可能成功** —— 这不是「偶发超时」，是结构性必超时；
+ *     而四次重试每次都**从头重新生成**，于是 4×120 s ＝ 683 秒后必然失败。
+ *
+ *   下限取 `maxTokens × 20 ms`（≈50 tok/s 的地板，比实测 77 慢 1.5 倍）+ 30 s 余量；
+ *   再用 `max(120 s, …)` 夹住，避免有人把 maxTokens 调得很小时反而比原来更紧。
+ *   ⚠️ **不许再把它写死 120 s**：那等于「预算给你 12000，但只准花 120 秒」。
+ *   ⚠️ 端点更快时可调小（`SHOUHENG_LLM_TIMEOUT_MS`），但调小之前先量一次满预算耗时。
+ */
+const MAX_TOKENS = Number(process.env.SHOUHENG_MAX_TOKENS || 12000);
+const LLM_TIMEOUT_MS = Number(process.env.SHOUHENG_LLM_TIMEOUT_MS
+  || Math.max(120_000, 30_000 + MAX_TOKENS * 20));
+
 export const config = {
   lark: loadLarkCred(),
   llm: {
@@ -120,7 +143,12 @@ export const config = {
      * 实测 1600/4000 会被思维链吃光 —— finish_reason=length 且正文 0 字。
      * 所以这个值必须给足，且必须配合 finishReason 检查（见 truncate.mjs）。
      */
-    maxTokens: Number(process.env.SHOUHENG_MAX_TOKENS || 12000),
+    maxTokens: MAX_TOKENS,
+    /**
+     * 单次模型请求的墙钟上限（毫秒）。派生依据见文件上方 `LLM_TIMEOUT_MS` 那一大段。
+     * 它必须与 `maxTokens` **一起**被看见：两者相差一大截时，长回答一定会被自己掐死。
+     */
+    timeoutMs: LLM_TIMEOUT_MS,
     /** 工具循环最多迭代几次（防失控） */
     maxToolIters: Number(process.env.SHOUHENG_MAX_TOOL_ITERS || 6),
     /**
@@ -213,6 +241,10 @@ export function describeConfig() {
     // maxTokens 必须进启动横幅：它是「回复被腰斩」的直接成因，
     // 之前 1600 这个值无处可见，事故发生时没人能一眼看出来。
     maxTokens: config.llm.maxTokens,
+    // ★ 2026-10-26：**必须与 maxTokens 并排打出来**。这两者是同一件事的两半
+    //   （预算给多大 vs 允许花多久），分开两处看永远算不出「长回答必被掐死」。
+    //   事故当天横幅里有 maxTokens、没有 timeout ⇒ 没人能一眼看出 120 s < 满预算所需的 156 s。
+    llmTimeoutMs: `${config.llm.timeoutMs}ms（满预算 ${config.llm.maxTokens} tok 实测约需 ${Math.round(config.llm.maxTokens / 77)} s @77 tok/s）`,
     // reasoningPassback 同理（2026-09-30 加）：它决定「每轮请求到底带不带
     // 思维链回传」。这个开关**会改变上行的报文体**，所以它必须和 maxTokens
     // 一样一眼可见 —— 否则一次 A/B 对照做完、忘了改回来，事后没人看得出来。

@@ -72,6 +72,38 @@ export function judgeL5(desc) {
   return { ok: hits.length === 3, why: `摘要里命中 ${hits.join('/') || '无'}：${s}` };
 }
 
+/** L8：`DOMException` 的数字码必须归一名 —— 群里不许再出现「超时/20」。 */
+export function judgeL8(desc) {
+  const c0 = desc?.chain?.[0] ?? {};
+  const s = String(desc?.summary ?? '');
+  const ok = desc?.layer === '超时' && c0.code === 'ABORT_ERR' && c0.layer === '超时'
+          && s.includes('ABORT_ERR') && !s.includes('/20');
+  return { ok, why: `layer=${desc?.layer} code=${c0.code} chain0.layer=${c0.layer}｜${s}` };
+}
+
+/**
+ * L9：**超时只许试 2 次**（不是 4 次），且失败原因要写明「是我方看门狗掐的」。
+ * 为什么是 2：一次超时＝一整份回答从头重算（本机实测满预算 155.9 s）；四连超时＝683 s 白等。
+ */
+export function judgeL9(attempts, errorText) {
+  const n = Array.isArray(attempts) ? attempts.length : 0;
+  const s = String(errorText ?? '');
+  return { ok: n === 2 && s.includes('看门狗'), why: `attempts=${n}（期望 2），error=${s.slice(0, 90)}` };
+}
+
+/** L9b：反向对照 —— 同一份判据喂「四次」**必须红**（证明它不是恒真的）。 */
+export function judgeL9Four(attempts, errorText) {
+  return judgeL9([...attempts, { n: attempts.length + 1 }], errorText);
+}
+
+/** L11：`timeoutMs` 与 `maxTokens` 必须成对（120 s 配 12000 就是「给预算又不准花完」）。 */
+export function judgeL11(cfg) {
+  const t = Number(cfg?.timeoutMs ?? 0);
+  const m = Number(cfg?.maxTokens ?? 0);
+  const need = Math.max(120_000, m * 20);        // ≈50 tok/s 地板 + 30 s 余量（见 config.mjs）
+  return { ok: t >= need, why: `timeoutMs=${t}ms，maxTokens=${m} ⇒ 至少 ${need}ms` };
+}
+
 /* ─────────────────────── 样本 ─────────────────────── */
 
 function mkDeep(host = 'api.deepseek.com') {
@@ -108,7 +140,12 @@ async function withServer(handler, fn) {
   const old = config.llm.baseUrl;
   config.llm.baseUrl = `http://127.0.0.1:${port}`;
   try { return await fn(port); }
-  finally { config.llm.baseUrl = old; await new Promise((r) => srv.close(r)); }
+  finally {
+    config.llm.baseUrl = old;
+    // 「永不回话」的服务器（L9 用）在客户端 abort 后要有人收尾，否则 close 会一直等
+    srv.closeAllConnections?.();
+    await new Promise((r) => srv.close(r));
+  }
 }
 
 const okBody = JSON.stringify({ choices: [{ message: { role: 'assistant', content: '好' }, finish_reason: 'stop' }],
@@ -152,6 +189,23 @@ if (process.argv.includes('--controls')) {
         const d = llm.describeError(mkCycle());
         return d.chain.length > 0 && d.chain.length <= 6;
       })(), ''],
+    // ★ 2026-10-26 加的这三条：把「超时/20」与「超时试 4 次」两个缺陷各造一遍，判据必须精确变红
+    ['C6 数字码不归一（`code:20`）→ L8 必须红',
+      judgeL8({ layer: '超时', summary: '超时/20 · 1 跳 :: This operation was aborted',
+                chain: [{ code: 20, layer: '超时' }] }).ok === false,
+      JSON.stringify(judgeL8({ layer: '超时', summary: '超时/20 · 1 跳', chain: [{ code: 20 }] }))],
+    ['C6b 归一之后（ABORT_ERR）→ L8 必须绿',
+      judgeL8({ layer: '超时', summary: '超时/ABORT_ERR · 1 跳 :: This operation was aborted',
+                chain: [{ code: 'ABORT_ERR', layer: '超时' }] }).ok === true, ''],
+    ['C7 超时试 4 次 → L9 必须红（旧行为必须被这把尺子挡住）',
+      judgeL9Four([{ n: 1 }, { n: 2 }, { n: 3 }], '超时 层失败（我方 300 秒看门狗掐断）').ok === false, ''],
+    ['C7b 超时试 2 次 + 写明看门狗 → L9 必须绿',
+      judgeL9([{ n: 1 }, { n: 2 }], '超时 层失败（我方 300 秒看门狗掐断）：超时/ABORT_ERR').ok === true, ''],
+    ['C8 maxTokens=12000 配 timeoutMs=120000 → L11 必须红（事故当天的原值）',
+      judgeL11({ timeoutMs: 120_000, maxTokens: 12_000 }).ok === false,
+      JSON.stringify(judgeL11({ timeoutMs: 120_000, maxTokens: 12_000 }))],
+    ['C8b maxTokens=12000 配 timeoutMs=270000 → L11 必须绿',
+      judgeL11({ timeoutMs: 270_000, maxTokens: 12_000 }).ok === true, ''],
   ];
   let nf = 0;
   for (const [name, ok, detail] of cases) {
@@ -229,6 +283,50 @@ T('L7c 行里带 attempts / model / key_fp，且**不含密钥原文**',
   lines.every((r) => Array.isArray(r.attempts) && r.model && /^[0-9a-f]{8}$/.test(r.key_fp ?? ''))
   && !JSON.stringify(lines).includes(config.llm.apiKey ?? '\u0000'),
   'key_fp 只有 8 位指纹');
+
+/* ─────────── 2026-10-26 加：超时这一类的三处判据（L8 / L9 / L11） ───────────
+ *
+ * 事故：群里问「你好」，683 秒后回「我这边调用模型失败了 … 超时/20 · 1 跳」。
+ * 三个缺陷各对应一条：
+ *   L8 —— 数字码 `20` 原样进了失败原因（人读不懂、也不在 code 封闭集合里）；
+ *   L9 —— 超时重试 4 次，每次都是一整份回答从头重算（683 s 全部白等）；
+ *   L11 —— `timeoutMs`（写死 120 s）与 `maxTokens`（12000，实测需 155.9 s）从来没人一起算过。
+ *
+ * 全部离线：L9 打的是本机一个**永不回话**的 http 服务器（1.1 s 收工），不花 token。
+ */
+
+// L8：数字码归一名
+const abortDom = Object.assign(new Error('This operation was aborted'), { name: 'AbortError', code: 20 });
+const dAbort = llm.describeError(abortDom);
+T('L8 `AbortError` 的数字码 20 → `ABORT_ERR`，层名仍是超时（群里不许再出现「超时/20」）',
+  judgeL8(dAbort).ok, judgeL8(dAbort).why);
+T('L8b 映射表两边都认（`layerOfCode("ABORT_ERR")` 与数字码归一后同值）',
+  llm.layerOfCode('ABORT_ERR') === '超时' && llm.layerOfCode('TIMEOUT_ERR') === '超时',
+  `ABORT_ERR=${llm.layerOfCode('ABORT_ERR')}｜TIMEOUT_ERR=${llm.layerOfCode('TIMEOUT_ERR')}`);
+
+// L9：超时只试 2 次，且失败原因写明「我方看门狗掐断」
+const hangSrv = await withServer(() => { /* 永不回话：客户端只能被自己的看门狗掐死 */ },
+  () => llm.chat([{ role: 'user', content: 'ping' }], { maxTokens: 8, timeoutMs: 120 }));
+T('L9 我方看门狗超时 ⇒ 只试 2 次（不是 4 次），且原因写明看门狗',
+  judgeL9(hangSrv.attempts, hangSrv.error).ok,
+  `${judgeL9(hangSrv.attempts, hangSrv.error).why}｜layer=${hangSrv.layer}`);
+T('L9c 失败体照旧可重试（超时是「过一会儿也许就通」的那一类 ⇒ 补发队列该收）',
+  hangSrv.retryable === true, `retryable=${hangSrv.retryable}`);
+T('L9d 超时那一行也落了盘，且 attempts 只有 2 条（4 条即旧行为）',
+  (() => {
+    const last = JSON.parse(fs.readFileSync(FAILURES, 'utf8').trim().split('\n').pop());
+    return last.n_attempts === 2 && last.layer === '超时' && last.attempts.every((a) => a.watchdog_ms === 120);
+  })(), 'n_attempts 必须是 2、watchdog_ms 必须是 120');
+
+// L11：超时与预算成对
+T('L11 `timeoutMs` 必须够满预算花完（120 s 配 12000 tok 就是结构性必超时）',
+  judgeL11(config.llm).ok, judgeL11(config.llm).why);
+const banner = (await import('./config.mjs')).describeConfig();
+T('L11b 启动横幅里两者并排可见（只有 maxTokens 没有 timeout ⇒ 没人算得出这条矛盾）',
+  typeof banner.maxTokens === 'number' && typeof banner.llmTimeoutMs === 'string'
+  && banner.llmTimeoutMs.includes(String(config.llm.timeoutMs)),
+  `banner.maxTokens=${banner.maxTokens}｜banner.llmTimeoutMs=${banner.llmTimeoutMs}`);
+
 
 // 判据自己不许撒谎：上面的每一项都真的跑过
 const nFail = results.filter((r) => !r.ok).length;

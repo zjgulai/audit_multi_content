@@ -1819,6 +1819,65 @@
       "$note": "U01 是唯一 15/15 全部可机械复现的规则 —— 因为它的关键词全部是**英文头衔**，没有小语种暴露。这个反例恰好印证了语种缺口的解释。"
     },
     {
+      "rule_key": "T3.4.ranking-superlative",
+      "parent_rule": "M05",
+      "topic": "T3.4",
+      "topic_label": "真实用户 / 社会证明",
+      "modality": "review",
+      "severity": "L1",
+      "disposition": "auto_pass_with_note",
+      "evaluability": "auto",
+      "match": {
+        "keywords": [
+          "顶级",
+          "最佳",
+          "best-selling",
+          "top rated",
+          "top-rated",
+          "number one"
+        ],
+        "patterns": [
+          "(?<!做到)最好(?!\\s*(?:在|先|还是|不要|别|能|可以))",
+          "\\bthe\\s+best\\b(?!\\s*(?:practice|practices|regards|wishes|effort|efforts|of\\s+luck|before|time|interest|known|case|cases))",
+          "\\b#\\s*1\\b",
+          "\\bno\\.?\\s*1\\b",
+          "\\btop\\s*[- ]?\\s*10\\b",
+          "(?:销量|排名|市占率?|口碑|人气)第一"
+        ],
+        "languages": [
+          "en",
+          "zh"
+        ],
+        "qualifier_axis": "comparison"
+      },
+      "downgrade_band": {
+        "keywords": [],
+        "effect": "none"
+      },
+      "evidence_required": "none",
+      "no_external_basis": "本规则不引外部条款：它实现的是**内部已定口径**，不是外部标准要求 —— ① 2026-09-09 口径：best/#1/No.1/最佳/最好等排名最高级**表达放开**；② owner-2026-10-21-A：最高级一族**退出 P0**，降为非阻断提示。本规则只做**归位与提示**（归 T3.4 社会证明），不产生拦截。",
+      "source_legacy": "topic-tree-v1.md §T3.4（本树新增；原文：「放开的是表达，没有归位它的主题 … 否则它进入盲区」）",
+      "detection_layer": "native",
+      "$note": [
+        "★ 补的是 topic-tree-v1.md 自己预告过、但 rules-v1.json 从未实现的盲区。",
+        "树里写明：best/#1/No.1/最佳/最好 按 2026-09-09 口径已放开（表达放行），",
+        "但「规则放开了判定，主题不能跟着消失，否则它进入盲区」—— 应归位 T3.4 社会证明。",
+        "实况（2026-10-26 实测）：26 条里没有任何一条接住「最好」，",
+        "于是「m5 pro是最好的吸奶器」落进 catch_all ⇒ topic_label=未覆盖 ⇒「疑似规则空白」转人工。",
+        "而它既不是规则空白（口径已裁定），也不该转人工（表达已放开）。",
+        "",
+        "★ 为什么 keywords 里**不放**裸「最好」：matcher.find_matches 是",
+        "`if out: return out, 'keyword'` —— keywords 一旦命中就**不再看 patterns**。",
+        "裸词会让下面那条带排除的精确正则永远不生效，于是「最好在收到货后联系客服」",
+        "「尽力做到最好」全被误报（实测复现过）。所以裸词交给 patterns，精确排除：",
+        "  · `(?<!做到)最好(?!在|先|还是|不要|别|能|可以)` —— 排除「做到最好」与副词「最好+动词」；",
+        "  · `\\bthe\\s+best\\b(?!practice|regards|wishes|…)` —— 排除 best practice / best regards。",
+        "",
+        "⚠️ 不是放宽：P0 一票否决项一个字没动；本规则 severity=L1、走附注放行。",
+        "反向对照实测：`the best breast pump for pain relief` 仍 auto_reject 拦截（H07+M05）。"
+      ]
+    },
+    {
       "rule_key": "T7.2.pain-scenario",
       "parent_rule": "U04",
       "topic": "T7.2",

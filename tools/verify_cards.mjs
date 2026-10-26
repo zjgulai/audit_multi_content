@@ -473,6 +473,105 @@ head('J 信封 · 解析、上限执行、以及「标记不许漏进群」');
     else ok('J5 无块时原样透传');
   }
 
+  // J5b ★★ 2026-10-26 二轮（Owner「恢复到 10/22 的输出格式」）：
+  //   漏写开标记、只留下闭合标记时，10-22 的口径是**纯文本原样出门（不造卡）**；
+  //   而孤立的信封标记必须清掉 —— 两件事一起钉，缺一条就是「格式又漂了」或「标记漏到群里」。
+  {
+    const raw = '差异：本次工具状态变化。\n\n| 项 | 值 |\n| --- | --- |\n| 上一次 | kb_status 可调用 |\n| 这一次 | kb_status 不可调用 |\n[[/card]]';
+    const r = toCardOrText(raw);
+    const txt = String(r.text ?? '');
+    if (r.mode !== 'text' || r.card) {
+      no('J5b 漏标记时按 10/22 口径走纯文本（不造卡）', `mode=${r.mode}｜kind=${r.kind}`);
+    } else if (txt.includes('[[/card]]') || !txt.includes('kb_status 可调用') || !txt.includes('kb_status 不可调用')) {
+      no('J5b 纯文本出门时孤立标记清掉、变化前后保留', txt.slice(0, 160));
+    } else ok('J5b 漏标记不造卡：纯文本原样出门，孤立 [[/card]] 已清掉、前后值都在');
+  }
+
+  // 图片审查模型可能漏出卡片信封。★★ 2026-10-26 二轮（Owner「恢复到 10/22 的输出格式」）：
+  //   10-22 的口径是**纯文本原样出门**，发送层不许拿模型自由文本拼卡 ——
+  //   当天上午那一版拼出来的形状是「标题＝首段、正文首行＝同一段」，实测 `oc_7775…` 14:08:19。
+  //   这一条同时钉住两件事：**不造卡**、**内容一字不丢**（丢了话比格式难看更严重）。
+  {
+    const raw = '图片审查结论：未判。\n\n画面观察\n人物抱着婴儿，背景有床。\n\n'
+      + '| 项目 | 读数 |\n| --- | --- |\n| 图上文字 | 未能辨认 |\n\n下一步：请补充原始文案。';
+    const r = toCardOrText(raw);
+    const txt = String(r.text ?? '');
+    if (r.mode !== 'text' || r.card) {
+      no('J5c 图片自由格式答复按 10/22 口径走纯文本（不造卡）',
+         `mode=${r.mode}｜kind=${r.kind}｜${txt.slice(0, 180)}`);
+    } else if (!txt.includes('图片审查结论：未判。') || !txt.includes('未能辨认')
+               || !txt.includes('请补充原始文案')) {
+      no('J5c 纯文本出门时正文一字不许丢', txt.slice(0, 180));
+    } else ok('J5c 图片自由格式答复原样走纯文本：不造卡、正文一字不丢');
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // J5d–J5f ★★ 2026-10-26（Owner 当场贴出三条真回复）：
+  //   「守衡的回复没有按照 prd 和原先的输出模版来回复，定位马上修复」
+  // ══════════════════════════════════════════════════════════════════════════
+  //   真回复（私聊 `oc_7775e2dacb6f2ebc9789cd6e681de5f7`，11:39 / 11:51 / 12:08）逐字长这样：
+  //     `- label = REVIEW / layer = DP3 / release_status = 待放行 / parse_status = ok`
+  //     `coverage = partial；空命中或证据不足时，只能判定为 REVIEW`
+  //   两件事同时坏了，两条都得钉：
+  //     ① 送审单**没有 PRD §5.3 结论行**时，模型那段自由文本被原样当成答复发出去
+  //        （`reviewRequired` 那个模板**写好了却没有任何调用方** —— §2.4 的「传了但没人接」）；
+  //     ② 引擎内部字段名（`label` / `layer` / `DP3` / `parse_status` / `coverage`…）
+  //        进了用户可见正文（判据与清理在 `reply-cards/jargon.mjs`）。
+
+  // J5d 送审单 + 拿不到结论行 ⇒ 固定「审查未完成」模板，且黑话一行都不上卡。
+  {
+    const raw = '第二张图的判定结果和第一张完全一样，我看不出它们是不是同一张：因为我读不了图片内容。\n\n'
+      + '- `label = REVIEW` / `layer = DP3` / `release_status = 待放行` / `parse_status = ok`\n'
+      + '- 命中 **0 条**';
+    // ★ 报告链接一起喂：**换了模板不许把链接丢掉**（Owner 2026-10-09 定的口径，
+    //   `test_agent` Z18 钉着）。实测过：`alert` 那一档原先**一个能放链接的格都没有**
+    //   ⇒ 走固定模板时链接被 `no-slot` 静默丢掉，而走 `query-answer` 时是在的。
+    const DOCX = 'https://momcozy-in.feishu.cn/docx/J5DALERT';
+    const r = toCardOrText(raw, { reviewRequired: true, reportLink: DOCX });
+    const json = JSON.stringify(r.card ?? {});
+    if (r.mode !== 'card' || r.kind !== 'alert'
+        || json.includes('DP3') || json.includes('release_status') || json.includes('parse_status')
+        || json.includes('label = ')) {
+      no('J5d 送审单无结论行 ⇒ 固定「审查未完成」模板',
+         `mode=${r.mode}｜kind=${r.kind}｜${json.slice(0, 180)}`);
+    } else if (!json.includes(DOCX)) {
+      no('J5d 换模板不许丢报告链接', `链接没上卡：${json.slice(0, 180)}`);
+    } else ok('J5d 送审单无 §5.3 结论行走固定模板，引擎黑话一行都没上卡、报告链接仍在卡上');
+  }
+
+  // J5e 卡片字段里的黑话也要摘（按**数据**摘，不能按行摘 —— 按行会把 JSON 摘坏）。
+  {
+    const raw = '[[card:query-answer]]\n' + JSON.stringify({
+      title: '图的判定', verdict: '照它转述。',
+      evidence: ['判定结果：label = REVIEW / layer = DP3 / release_status = 待放行 / parse_status = ok',
+                 '命中 0 条'],
+    });
+    const r = toCardOrText(raw);
+    const json = JSON.stringify(r.card ?? {});
+    if (r.mode !== 'card') no('J5e 卡片字段里的引擎黑话被摘掉', `没有建出卡：${r.reason}`);
+    else if (json.includes('DP3') || json.includes('parse_status') || json.includes('release_status')) {
+      no('J5e 卡片字段里的引擎黑话被摘掉', `卡面仍带黑话：${json.slice(0, 180)}`);
+    } else if (!json.includes('命中')) {
+      no('J5e 摘的是那一行、不是整段', `同一条里另一行也被摘掉了：${json.slice(0, 180)}`);
+    } else ok('J5e 卡片字段里的引擎黑话被逐行摘掉，同组其余内容一字未动');
+  }
+
+  // J5f 反向对照（两条）：**不许**把「像内部读数的正常句子」一起吃掉。
+  //   少了这一条，「不许出现黑话」会悄悄滑成「出现 coverage / DP 这类词就不发」。
+  {
+    const keep = '这段 coverage 说明讲的是覆盖率口径，跟 DP 无关。';
+    const r = toCardOrText(keep);
+    if (!String(r.text ?? '').includes('coverage 说明')) {
+      no('J5f 反向对照：不带赋值的正常句子不许被摘', `被吃掉了：${String(r.text).slice(0, 160)}`);
+    } else ok('J5f 反向对照：不带赋值的正常句子原样保留');
+
+    // 反向对照 ②：**非送审单**不受「审查未完成」模板影响（按 10/22 口径是纯文本，不是卡）。
+    const r2 = toCardOrText('今天的日更跑完了，没问题。');
+    if (r2.mode !== 'text' || r2.kind === 'alert') {
+      no('J5f 反向对照：非送审单不许套审查未完成模板', `mode=${r2.mode}｜kind=${r2.kind}`);
+    } else ok('J5f 反向对照：非送审单仍是纯文本（送审判据没有外溢）');
+  }
+
   // J8 ★ PRD §5.3 结论行进标题时，纯文本渲染**不许叠方括号**（2026-10-06 实发事故）
   //
   //   真事：08:25 那条 PASS 回复，卡片表头是对的（`header.title` 是 raw plain_text），
@@ -682,18 +781,20 @@ head('J 信封 · 解析、上限执行、以及「标记不许漏进群」');
       no('J11b2 第一组不许带计数占位（发过「· 0」）', JSON.stringify(groups[0]?.count));
     } else ok('J11b2 第一组不许带计数占位（发过「· 0」）');
     // ══════════════════════════════════════════════════════════════════════════
-    // ★★ J11b3（2026-10-16 FIX-033 起，2026-10-21 **整条翻面**）
-    //    **≥3 汇总块不许折进任何一组** —— 卡上那一段与模版逐字一致，中间没有小标题。
+    // ★★ J11b3（2026-10-16 FIX-033 起；2026-10-21 **翻面**；2026-10-26 **翻回来**）
+    //    **≥3 汇总块必须折进「逐条问题」这一组** —— Owner 贴的成品第二行就是它。
     // ══════════════════════════════════════════════════════════════════════════
-    //   上一版钉的是「组标题与组内容首行不许逐字相同」（治「两个『逐条问题』」）——
-    //   它修对了重复，却**留着那个折层本身**：卡上仍是
-    //     【审查结论：REVIEW】… ␤ `逐条问题`（组标题）␤ `· …类问题：N 个`
-    //   而 Owner 2026-10-21 给的**正确模版**（`docx/CvIldNhUSoxv7DxpzwdcKUcjnfr`）是
-    //     `内容审查报告` ␤ 结论行 ␤ `· …类问题：N 个` —— **没有那一行**。
-    //   ⇒ 现在：≥3 走 `body` 正文格（不折、无标题）；<3 的逐条块**照旧折**
-    //     （它长、需要收起，而模版第二节本来就叫「问题清单」）。
-    //   ⚠️ 为什么这三条要单列：J11b 只断言**组标题**、J11c2 只比**形状** ⇒
-    //     「多出一个小标题」正好落在这两层判据之间。
+    //   这条路翻过两次，两次都对着同一份模版（`docx/CvIldNhUSoxv7DxpzwdcKUcjnfr`），
+    //   结论相反 —— 记全，免得第三次又从中间开始：
+    //     · 2026-10-16：钉「组标题与组内容首行不许逐字相同」（治卡上连着两个「逐条问题」）；
+    //     · 2026-10-21 晚：判定「模版结论行直接接 `· …类问题：N 个`，中间没有小标题」，
+    //       于是 ≥3 改走 `body` 正文格、卡面不再出现「逐条问题」；
+    //     · 2026-10-26：Owner 贴出三段成品（1 条 / 2 条 / 3 条）逐字说「这是我想要的输出模版」，
+    //       **三段第二行都是「逐条问题」** ⇒ 撤回 10-21 那次分流，两条支都折成这一组。
+    //   ⚠️ 两次说法都对得上各自的证据：10-21 台账里 ≥3 那两条（10:34:36 / 10:51:28）确实没有
+    //     这一行，而 Owner 手上的成品有 —— 说明「10-21 的输出」不止一个版本。
+    //     判据**按用户最后给的形状**钉，并在注释里留下这条分歧，别当它没发生过。
+    //   ⚠️ 这一行**只进组标题**；块文本（表行那一格、`prd53_format` ②b2/②f）里仍然没有它。
     {
       // 夹具用**存量形状**（块里还带着那一行）—— 线上飞出过的就是它。
       const SUM_BLOCK = '【审查结论：REVIEW】共发现 5 处需人工确认。\n\n'
@@ -706,22 +807,32 @@ head('J 信封 · 解析、上限执行、以及「标记不许漏进群」');
         imageAnalysis: '图 1｜OCR 20 行；视觉模型读数：卧室，婴幼儿与成人同床，婴儿睡姿仰卧。' });
       const panels = (rSum.card?.body?.elements ?? []).filter((e) => e?.tag === 'collapsible_panel');
       const cardText = JSON.stringify(rSum.card ?? {});
-      if (panels.length !== 0) {
-        no('J11b3 ≥3 汇总块不许折进任何一组（卡上会多一行「逐条问题」）',
+      if (panels.length !== 1 || panels[0].header?.title?.content !== VERDICT_GROUP_TITLE) {
+        no(`J11b3 ≥3 汇总块必须折进「${VERDICT_GROUP_TITLE}」一组（Owner 2026-10-26 模版第二行）`,
            `折叠组 ${panels.length} 个：${panels.map((p) => p.header?.title?.content).join(' / ')}`);
-      } else if (cardText.includes(VERDICT_GROUP_TITLE)) {
-        no('J11b3 ≥3 汇总块的卡面不许出现「逐条问题」', cardText.slice(0, 160));
-      } else ok('J11b3 ≥3 汇总块落在正文格里，卡面上一个字都没有「逐条问题」');
-      // 只剥那一行、别剥多了：汇总行与链接行都必须还在（剥多了就是把内容删了）
+      } else if (panels[0].expanded !== true) {
+        no('J11b3 ≥3 那一组必须默认展开（它是结论正文，不是附录）', JSON.stringify(panels[0].expanded));
+      } else ok(`J11b3 ≥3 汇总块折进「${VERDICT_GROUP_TITLE}」一组且默认展开`);
+      // 只剥那一行、别剥多了：**组内**必须有汇总行与链接行（剥多了就是把内容删了）
+      const groupSum = String(panels[0]?.elements?.[0]?.content ?? '');
       const bodySum = String(rSum.data?.body ?? '');
-      if (!/· .*类问题：\d+ 个/.test(bodySum) || !/→ 查看完整问题清单与修改建议/.test(bodySum)) {
-        no('J11b3b 剥掉的只有那一行：汇总行与链接行必须留着', bodySum.slice(0, 160));
-      } else ok('J11b3b 剥掉的只有那一行：汇总行与链接行都在');
+      if (!/· .*类问题：\d+ 个/.test(groupSum) || !/→ 查看完整问题清单与修改建议/.test(groupSum)) {
+        no('J11b3b 组内只剩汇总行与链接行、并一个字都没少', groupSum.slice(0, 160));
+      } else ok('J11b3b 组内汇总行与链接行都在，且组里不再重复印「逐条问题」标题');
+      // ★ 反向对照（真判据）：**把汇总块放回 body** ⇒ 上面那条必须变红。
+      //   这一段直接构造「10-21 晚那次分流」的结果，断言判据咬得住它。
+      {
+        const routed = { groups: [], body: SUM_BLOCK };
+        const wouldPass = (Array.isArray(routed.groups) ? routed.groups : []).length === 1;
+        if (wouldPass) {
+          no('J11b3c 反向对照：把汇总块放回 body 必须被判红', '构造出来的反例居然通过了');
+        } else ok('J11b3c 反向对照：把汇总块放回 body 的写法，本判据咬得住（groups 为空 ⇒ 判红）');
+      }
       // ★ 2026-10-22（Owner：「输出的卡片不展示 视觉分析与 OCR」）：
       //   夹具**照样塞** imageAnalysis —— 判据要证明的是「卡面对这个入参彻底不认」，
       //   而不是「没给时不印」（后者是恒真的）。
-      if (/视觉分析与 OCR/.test(bodySum) || /视觉模型读数/.test(bodySum)) {
-        no('J11b3d 卡面不许再展示「视觉分析与 OCR」（Owner 2026-10-22）', bodySum.slice(-240));
+      if (/视觉分析与 OCR/.test(cardText) || /视觉模型读数/.test(cardText)) {
+        no('J11b3d 卡面不许再展示「视觉分析与 OCR」（Owner 2026-10-22）', cardText.slice(-240));
       } else ok('J11b3d 卡面不再展示视觉分析与 OCR（给了入参也不印）');
       // ★ 反向对照（本仓纪律）：**<3 的逐条块必须照旧折起来** ——
       //   若这条不成立，说明是「一刀切把折叠去掉了」，而不是「按形状分流」。
@@ -2041,13 +2152,20 @@ head('K 提示词 · 模型看到的类型清单必须与登记表一致');
     else ok('K2 清单里没有不存在的类型');
   }
 
-  // K3 三条硬约束必须在提示词里逐字出现 —— 它们是模版存在的理由，不能只活在文档里
+  // K3 格式约束必须在提示词里逐字出现。
+  //
+  // ★★ 2026-10-26 二轮（Owner：「输出格式的问题，在 10/22 都是好的，恢复到 10/22 的输出格式」）：
+  //   当天上午这三条钉的是「**每条回复都必须套卡**」那一版口径，它连带的产物是
+  //   `【你好。】／你好。`、整段抬头重复 ＋ 余文进折叠区（实测 `oc_7775…` 14:08 / 12:21）。
+  //   10-22 的口径是**两形态**，这三条跟着翻过来钉 —— 判据的强度没动，钉的内容换成
+  //   10-22 那三条原文（缺任一条，模型就会滑回「每句话套卡」或「块外重复写正文」）。
   const musts = [
     ['结论 ≤60 字', /不超过 60 个字符/],
     ['边界 ≤90 字', /不超过 90 个字符/],
     ['内部记录只进折叠区', /只能进折叠区/],
+    ['两形态：纯文本或卡片', /可以有两种形态/],
+    ['一句话能答完就一句话答完', /一句话能答完的，就一句话答完/],
     ['块外不要重复写正文', /块之外不要重复写正文/],
-    ['不套卡的反向指引', /一句话能答完的，就一句话答完/],
     ['结论要写事实不写排版', /结论是你查到的事实，不是你打算怎么排版/],
   ];
   for (const [name, re] of musts) {
@@ -2106,6 +2224,22 @@ head('K 提示词 · 模型看到的类型清单必须与登记表一致');
 head('L 发送链 · 降级链完整且不重复投递');
 {
   const daemon = fs.readFileSync(path.join(HERE, 'ws_daemon.mjs'), 'utf8');
+
+  // ★★ 2026-10-26 二轮（Owner「恢复到 10/22 的输出格式」）：发送层**不许自己造卡**。
+  //   10-22 的口径是「模型给卡片块就发卡，没给就纯文本」；当天上午那版硬包会产出
+  //   `【你好。】／你好。` 这种「标题＝正文首行」的重复卡（实测 `oc_7775…` 14:08:19）。
+  //   所以这里反过来钉：造卡那个入参不许回来；同时送审单的读数必须照旧交下去。
+  if (/requireTemplate/.test(daemon)) {
+    no('L0 发送层不许自己造卡',
+       'ws_daemon 里还有 requireTemplate 的痕迹（10/22 口径：模型给卡块才发卡）');
+  } else if (!/toCardOrText\(rawReply,\s*\{[^}]*reviewRequired:/s.test(daemon)) {
+    no('L0 replyTo 送审单读数照旧交下去', '正常发送接线没有传 reviewRequired');
+  } else ok('L0 replyTo 不造卡、送审单读数照旧交下去（10/22 格式口径）');
+
+  // 内核异常也属于对用户的回复，必须走同一模板闸门并引用原消息。
+  if (!/catch \(e\) \{\s*clearTimeout\(progressTimer\);[\s\S]{0,700}await replyTo\(chatId, msg\.message_id/.test(daemon)) {
+    no('L0b 异常回复也走登记模板', 'handleMessage 异常出口绕过 replyTo 模板闸门');
+  } else ok('L0b handleMessage 异常回复经 replyTo 套模板并引用原消息');
 
   // L1 卡片降级的目标必须是**同一条引用**里的纯文本，不是新发一条。
   // 新发一条会断开引用，而且和 replyMarkdown 自己的补发叠加 → 群里出现两份回答。

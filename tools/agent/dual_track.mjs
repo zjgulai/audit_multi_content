@@ -629,6 +629,16 @@ export function mergedState({ kbCovered = false, merged = [], kb = null, modelFa
     // ★ 2026-10-21：缺口单 + **模型侧没跑成** ⇒ 同样不许 PASS。
     //   病根（2026-10-21 10:07 真单）：库侧 REVIEW/0（覆盖缺口）+ 模型侧 raw=0（没跑成）
     //   ⇒ 本支抢在下面的 `if (modelFailed)` 之前返回 PASS ⇒ 一张「没审过」的单子被放行。
+    // ★★ 2026-10-26（Owner：「命中 0 条」应当出【PASS】… 一句话，按 PRD 出 pass）——
+    //   **严格 0 条就让 PASS，不再看 `coverageGap` 有没有被标出来。**
+    //   病灶：A 机 14:5x 那条真回复是「命中 0 条」却给了 `REVIEW / 待放行 / coverage = partial`。
+    //   而 `coverageGap` 这个标记是**我们自己的**旁挂字段，引擎换个版本不再写它时，
+    //   这条判据就静默失效（`Number.isFinite(issueCount) && issueCount===0` 才是真凭据）。
+    //   ⚠️ 三条边界仍然收着：① `issueCount` 读不到（null）**不放行**（读不到 ≠ 零条）；
+    //     ② 模型侧没跑成（`modelFailed`）**不放行**；③ `issueCount === 1` 且非覆盖缺口
+    //     ⇒ 那是真有 1 条问题，照旧 REVIEW（下面那一支）。
+    const kbStrictZero = Number.isFinite(kb?.issueCount) && kb.issueCount === 0;
+    if (kbStrictZero && !modelFailed) return 'PASS';
     if (kbZeroCount && kb?.coverageGap === true) {
       // 缺口 + 模型侧没跑成 ⇒ 没审过，拒答（2026-10-21 真单：这一支曾抢在 modelFailed 前放 PASS）
       if (modelFailed) return '拒答';
@@ -1451,6 +1461,29 @@ export function selftest() {
        [/coverage_not_covered/.test(rdCov.block), /没有可依据的条款/.test(rdCov.block)], [false, false]);
   }
 
+  // ── ⑪z 「命中 0 条 ⇒ PRD §5.3.1 一句话 PASS」（Owner 2026-10-26）────────────
+  //   病灶：A 机实发「命中 0 条」却给 `REVIEW / 待放行 / coverage = partial`。
+  //   判据的三条边界各配一条反向对照 —— 只放行**严格 0 条并且两侧都真跑过**的那一档。
+  {
+    const kbRev = (n, extra = {}) => ({ state: 'REVIEW', issueCount: n, ...extra });
+    eq('⑪z1 命中 0 条（库侧 REVIEW/0，连 coverageGap 都没标）⇒ PASS',
+       mergedState({ kbCovered: true, merged: [], kb: kbRev(0) }), 'PASS');
+    eq('⑪z2 命中 0 条 + 覆盖缺口标记 ⇒ 仍 PASS（两只时代形状一致）',
+       mergedState({ kbCovered: true, merged: [], kb: kbRev(0, { coverageGap: true }) }), 'PASS');
+    // 反向对照 ①②：不是 0 条 / 读不到条数 ⇒ 都不许放行（PASS 是唯一的放行态）
+    eq('⑪z3 反向对照：真有 1 条问题（非缺口）⇒ 仍是 REVIEW，不许被 0 条那条放松',
+       mergedState({ kbCovered: true, merged: [], kb: kbRev(1) }), 'REVIEW');
+    eq('⑪z4 反向对照：读不到条数（null）⇒ 不许 PASS（读不到 ≠ 零条）',
+       mergedState({ kbCovered: true, merged: [], kb: kbRev(null) }), 'REVIEW');
+    // 反向对照 ③：模型侧没跑成 ⇒ 库里 0 条也不许放行（没审过的单不许说「可以发」）
+    eq('⑪z5 反向对照：模型侧没跑成（modelFailed）⇒ 0 条也不放行',
+       mergedState({ kbCovered: true, merged: [], kb: kbRev(0), modelFailed: true }) !== 'PASS', true);
+    // 反向对照 ④：库侧拒答 ⇒ 拒答优先，别被 0 条那条抢走
+    eq('⑪z6 反向对照：库侧拒答（refused）⇒ NEEDS_INPUT，0 条也不能翻成 PASS',
+       mergedState({ kbCovered: true, merged: [], kb: { state: 'REVIEW', issueCount: 0, refused: true } }),
+       'NEEDS_INPUT');
+  }
+
   // ⑫ 向后兼容：不给 `kb`（读不到旁挂）时，判据必须与改动前**逐字相同**
   {
     eq('⑫ 反向对照：不给 kb ⇒ PASS 门限与原来一致（覆盖成立才 PASS）',
@@ -1827,7 +1860,8 @@ export function selftest() {
     //   库侧上一批真踩过这个坑 —— 把候选说明接在 PRD 那句**同一行**上，
     //   而 `conforms()` 是 `$` 锚定、`LINE_RE` 取到行尾 ⇒ 判 false、卡面标题不再是 PRD 那句。
     //   ⇒ 那行候选提示**必须独立成行**。这里用**守衡自己的**尺子判，不另抄正则。
-    const _vline = String(rCand.block).split('\n').find((l) => l.includes('【审查结论：')) || '';
+    const _vline = String(rCand.block).split('\n')
+      .find((l) => l.includes('【审查结论：') || /^【(?:PASS\+SUGGEST|PASS|REVIEW|BLOCK)】/.test(l)) || '';
     eq('㉑d 候选提示必须**独立一行**：PRD 那句仍逐字合规、且那句里不许出现候选字样',
        [prd53Conforms(_vline).ok, /非权威候选/.test(_vline)], [true, false]);
     const _glued = '【审查结论：REVIEW】共发现 3 处需人工确认。（另有 3 条非权威候选线索，不构成依据）';
@@ -3014,8 +3048,13 @@ export function selftestExtract() {
       const rebuilt = renderMerged([{ location: '全文', category: '合规', severity: 'REVIEW',
                                       source: 'kb', reason: 'x', kb: { article_no: 'W-1', anchor: '#a/b/c' } }],
                                    { state: 'REVIEW' })?.block ?? '';
-      eq('⑫ 反向对照：拿不到库侧依据行时才退回重建版（且那版**点不开**，故必须能区分）',
-         [/非权威候选线索/.test(rebuilt), /https?:\/\//.test(rebuilt)], [true, false]);
+      // ★ 2026-10-26：卡面那句自造的「非权威候选线索」已按 Owner 要求摘掉（见 ㉒e3），
+      //   但这条判据要证明的**不是那句话**，是「重建版与库侧原话可区分」 ——
+      //   可区分点是**点不点得开**：重建版没有 http(s) 链接（`anchor` 不是链接），
+      //   且它必须仍把「未给条款号」这个事实印出来（依据格不能空着糊过去）。
+      eq('⑫ 反向对照：拿不到库侧依据行时才退回重建版（那版**点不开**，且必须自报「未给条款号」）',
+         [/(?:未给条款号|《知识库》)/.test(rebuilt), /https?:\/\//.test(rebuilt)
+            , /非权威候选线索/.test(rebuilt)], [true, false, false]);
     }
   }
 
@@ -3197,8 +3236,26 @@ export function selftestExtract() {
                                        0, { must: false });
     eq('㉒e2 有号无链接 / 无号无链接 ⇒ 都不许印「有库内条款依据」',
        [/有库内条款依据/.test(weakNoLink), /有库内条款依据/.test(weakNoArt)], [false, false]);
-    eq('㉒e3 它们要如实说「非权威候选线索 · 不构成依据」',
-       [/非权威候选线索/.test(weakNoLink), /非权威候选线索/.test(weakNoArt)], [true, true]);
+    // ★★ 2026-10-26 翻面（Owner 贴出 10/21 样张并定性「这是我想要的模板」）：
+    //   样张里那条外部标准（无条款号、无锚点）行尾是**空的** —— 而我们 10-13 加的
+    //   「非权威候选线索 · 不构成依据（无条款号，回不了源）」是自造兜底措辞，比样张吵。
+    //   ⇒ 卡面**不再印这句**；但「这条回不回得了源」必须仍然答得出来 ——
+    //   证据在合并记录里（`source / basis_kind / basis_missing`，见 ㉒e4），
+    //   而不是靠卡面上这句自我声明。
+    eq('㉒e3 卡面**不再**印自造的「非权威候选线索」尾巴（Owner 2026-10-26 与 10/21 样张对齐）',
+       [/非权威候选线索/.test(weakNoLink), /非权威候选线索/.test(weakNoArt)], [false, false]);
+    // ★ 反向对照（同一条判据的另一半）：**有号＋有链接**的真依据照旧印正向标记 ——
+    //   否则上一条可以被「什么尾巴都不印」这种一刀切弄绿。
+    const strongItem = renderMergedItem({ location: 'x', category: '合规', source: 'kb', severity: 'REVIEW',
+                                          reason: 'r', kb: { article_no: 'W-1.9',
+                                          basisLine: '《措辞表达库 v0》第 W-1.9 条｜原始出处：https://momox.in/x' } },
+                                        0, { must: false });
+    eq('㉒e3b 反向对照：有号＋有链接的真依据**照旧**印「有库内条款依据」',
+       [/有库内条款依据/.test(strongItem), /非权威候选线索/.test(strongItem)], [true, false]);
+    // ★ 信息没有丢：依据那一格照旧把**库侧原话**印出来（`《知识库》（未给条款号）…`）——
+    //   读者据此看得出「这条没有条款号、回不了源」，只是不再由我们在行首替他下判断。
+    eq('㉒e4 摘掉的是那句自我声明，不是事实：依据格必须仍印库侧原话（含「未给条款号」）',
+       [/未给条款号/.test(weakNoArt), /《知识库》/.test(weakNoArt)], [true, true]);
 
     // ── ㉔ 卡面分类汇总（**盯活代码**：`categorySummary()`）──────────────────────────
     //   ★★ 2026-10-19 收口：这一组原先六条**全在验 `taxonomySummaryLine()` / `taxonomyReportLines()`**
@@ -4066,7 +4123,14 @@ export function renderMergedItem(f, i, { must = false, layout = 'card', itemId =
   //   ★ 那「回不回得了源」还看得见吗？看得见 —— **就在下面『依据』那一格里**
   //     （模型侧无外部标准时印「独立语义复核（非条款依据，需人工核对）」）。
   //     首行那个标记是**第二遍**，不是为了信息，是为了醒目 —— 而 Owner 要的正是别再醒目。
-  const origin = _kbWeak ? '**非权威候选线索 · 不构成依据**（无条款号，回不了源）'
+  // ★★ 2026-10-26（Owner 贴出 10/21 样张并定性「这是我想要的模板」）：**无条款号的那条尾巴不印了**。
+  //   样张里外部标准（FDA 那篇）没有「第 X 条」、也没有链接锚点，行尾是**空的**；
+  //   而我们 10-13 给它补了一句「非权威候选线索 · 不构成依据（无条款号，回不了源）」——
+  //   那是**我们自造的兜底措辞**，比样张吵，Owner 逐条对照后要求去掉。
+  //   ⚠️ 去掉的只是**卡面这一句**：「这条回不回得了源」仍逐条落在 `merged-*.json`
+  //     的 `items[].source / basis_kind / basis_missing`，以及报告正文里 —— 信息没丢，只是不上卡。
+  //   ⚠️ 正向标记**一个字没动**：有条款号＋链接就照旧印「—— 有库内条款依据」（㉒e2 钉着）。
+  const origin = _kbWeak ? ''
     : (f.source === 'kb' ? '**有库内条款依据**'
       : (f.source === 'model' ? ''
         : (f.source === 'both-conflict' ? '**两侧都命中 · 结论冲突 ⇒ 已降 REVIEW**'
@@ -4580,6 +4644,10 @@ export function renderMerged(merged, { state, kb = null, kbTextCount = null, mod
   //   ① 必须含「**不阻断发布**」（与 REVIEW 的分界）；② **不出现「需人工确认/必须修改」**；
   //   ③ 措辞判据在 `agent/prd53.mjs::conforms`（`prd53_format` ②g 系列盯着）。
   const suggest = prd53StateOf(state) === 'PASS+SUGGEST';
+  // ★★ 2026-10-26 两轮：上午改写成 PRD §5.3.4 样张字面 `【X】`，下午 Owner
+  //   （「输出格式的问题，在 10/22 都是好的，恢复到 10/22 的输出格式」）**写回 `【审查结论：X】`**
+  //   —— 10-22 那 70 条卡面逐条都是这个前缀。读侧两种都认（`prd53.LINE_RE_PRD`），
+  //   所以上午已落盘的新字面不会读不出来。
   const line = must
     ? `【审查结论：BLOCK】共发现 ${total} 处必须修改。`
     : (suggest

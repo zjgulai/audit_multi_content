@@ -1235,11 +1235,36 @@ export function chainInFlight() { return _chainsInFlight; }
 export function describeChainInFlight(n) { return `同时在跑 ${Number(n ?? 0)} 条链`; }
 
 /**
+ * 把「几条链在飞」**落到盘上**（唯一真源 = 上面的 `_chainsInFlight`）。
+ *
+ * ★★ 2026-10-26 真事故（当天两张图永远没等到结论）：`_chainsInFlight` 原先**只在进程内**，
+ *   于是 `tools/restart_shouheng.sh` 的重启闸门**看不见链**（它只数 `daemon-run.json` 里
+ *   「消息有没有走完」，而回执卡一发、消息就算走完了）⇒ 闸门两次放行、两次掐断链，
+ *   两个实例退出时逐字都是 `本次统计：事件 1 / 已回答 0 / 已发送 0`。
+ *   ⇒ 落盘一份给**进程外**的闸门读；读法见 restart_shouheng.sh（它同时还带一个进程探针兜底，
+ *     因为这一格要等下一次重启才生效）。
+ *
+ * ⚠️ 写盘失败**不许影响起链**（一次评审比一行读数重要）—— 所以整段吞异常、只记一行日志。
+ * ⚠️ 不做「进程退出即清零」——僵尸读数由读侧的新鲜度窗口（600s）兜住；这里只如实写。
+ */
+function writeChainInFlight() {
+  try {
+    const dir = path.join(REPO_ROOT, 'PMO', 'shouheng-state');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'chains-in-flight.json'),
+      JSON.stringify({ n: _chainsInFlight, at: new Date().toISOString(), pid: process.pid }) + '\n');
+  } catch (e) {
+    console.log(`[review] ⚠ 链在飞读数落盘失败（不影响起链）：${e?.message ?? e}`);
+  }
+}
+
+/**
  * **唯一的起链点**。所有 `dsh --profile headless` 都从这里走 ——
  * 计数与 spawn 同源、`--` 落在 `finally` 里（超时 / 抛异常 / 正常结束三条路都减）。
  */
 async function spawnChain(task) {
   _chainsInFlight++;
+  writeChainInFlight();
   try {
     console.log(`[review] 🚀 起链（${describeChainInFlight(_chainsInFlight)}）`);
     return await execFileP('node', [DSH_BIN, '--profile', 'headless', task], {
@@ -1247,6 +1272,7 @@ async function spawnChain(task) {
     });
   } finally {
     _chainsInFlight--;
+    writeChainInFlight();
   }
 }
 
@@ -2118,6 +2144,17 @@ export function reviewCmdTemplate(materialPath, ctype, imagePaths = []) {
     : (isText
       ? '  · `--content-type text` 是**按本单入站内容定死的**（本单没有图/视频）——**逐字照抄**。'
       : '  · `--content-type` = `text` / `image` / `video` 三选一（按素材实际模态）。');
+  // ★★ 2026-10-26 补回（守衡侧把 10-21 的 P1a 丢了 —— S8 判「两处模板旗标集合不一致
+  //   （手册独有 ['--position'] ／ 守衡独有 []）」、L44 判据 `posLine` 失踪）：
+  //   图单必须给 `--position` 一行，且那一行的值**要模型按画面读数填**。
+  //   为什么非有不可：出口闸 R3 只认「图 N 第 X 处」，裸「图 1」判红 ——
+  //   而历史审核意见里的「画面 1.00」是**库内相似度匹配分**，不是本次画面的视觉核对
+  //   （10-21 实测：图片单 finding 的位置实得「图 1」「图 1 主视觉」）。
+  //   口径与库侧手册 `kb/l8/review_playbook.md:63-65` 一致；位置四形态见「第 0 条之四」。
+  const posLine = '  --position "<区域词，图 N 第 X 处>"';
+  const posNote = '  · **只有 `--position` 那一行要你自己填**（其余逐字照抄）：'
+    + '区域词只许 顶部 / 中部 / 底部 / 左侧 / 右侧 之一；`图 N 第 X 处` 的 X = '
+    + '**该图内文字块按阅读顺序的行号**（不是像素坐标、不是相似度分数）——见「第 0 条之四」。';
   const ownerLine = isImage
     ? '  --decision-owner 图片安全审查'
     : '  --decision-owner <第 2 步选中的那个 skill 的装载目录名>';
@@ -2146,6 +2183,9 @@ export function reviewCmdTemplate(materialPath, ctype, imagePaths = []) {
     '  --question "<提问原文，逐字>"',
     ctLine,
     ...covLines,
+    // ★ 2026-10-26 补回图单的 `--position`（守衡侧丢了 10-21 的 P1a）。放**最后**是因为
+    //   它的取值要模型按画面读数填，其余行的值都由本函数写死 ⇒ 让"要填的那一行"显眼。
+    ...(isImage ? [posLine] : []),
   ];
   // 续行符只加在**命令行**上：注释行不参与续行（否则最后一条实命令会被挂上 `\`）。
   const cmdBlock = body.map((line, i) => (i === body.length - 1 ? line : line + ' \\')).join('\n')
@@ -2155,10 +2195,12 @@ export function reviewCmdTemplate(materialPath, ctype, imagePaths = []) {
     '下面这条**就是全部**。`--base` / `--session` / `--material-file` / `--token` / `--coverage`',
     '的取值**都写在命令里**（`$(…)` 就地展开、素材路径已内联），**没有一个需要你先去查、去算、去翻源码**。',
     isImage
-      ? '整条命令里**没有一个值要你自己定**（判定主体与素材路径都已写死）——逐字照抄即可。'
+      ? '整条命令里**只有 `--position` 那一行的值要你自己填**（判定主体与素材路径都已写死）——'
+        + '其余逐字照抄；位置怎么写见「第 0 条之四」。'
       : '整条命令里只有**两个值要你自己定，且都是"选"不是"查"**：',
     ownerNote,
     ctNote,
+    ...(isImage ? [posNote] : []),
     '',
     '```bash',
     cmdBlock,
@@ -2201,6 +2243,21 @@ function imageSkillTaskBlock(imgList) {
     '6. 4B 这一段禁止调用 `web_search`（后端额度耗尽时它**请求发出去就不回来**，整单会静默卡死）——'
       + '改用本机核验链接 + 直判，并**如实写明「本轮未做联网检索」**；不许编造未核验的来源。',
     '7. 不得为提速省略检查；图片安全审查 skill 未加载或完整流程未完成时立即停止并返回 NEEDS_INPUT。',
+    '',
+    // ★★ 2026-10-26 补回（两处判据在守衡侧失踪：L43 的「第 0 条之四」、L44 的「posLine」）。
+    //   ⚠️ 编号只跳到「之三」为止 —— 之二 = 命令模板、之三 = 本执行前置，
+    //   之四本该在 10-21 那一批里补齐，但它**从没进过 git 历史**（`git grep posLine d51bc9f3^` 为空），
+    //   即那一批只落在工作区、后被 10-23「快照同步」覆盖掉 ⇒ 这里按当时的意图重写。
+    '【★ 第 0 条之四 —— 本单的图与位置：`--image` 一行一张 ＋ `--position` 四形态】',
+    '① **图**：命令里 `--image` 是**一行一张原图**，由守衡落盘后自动写入 ——'
+      + '**不要改路径、不要自己另找图、不要只挑一张**（图身份层靠这些路径拿到真图比对 pHash）。',
+    '② **位置**：`--position` 那一行**要你填**，且必须四条都满足：',
+    '  · 区域词只许五个之一：`顶部` / `中部` / `底部` / `左侧` / `右侧`；',
+    '  · `图 N` 的 N = 本单第几张图，**与上面 `--image` 的出现顺序一致**；',
+    '  · `第 X 处` 的 X = **该图内文字块按阅读顺序的行号**（不是像素坐标、不是相似度分数）；',
+    '  · 正确示例：`--position "图片中部，图 1 第 4 处"`。',
+    '③ **不许写裸 `图 1` / `图 1 主视觉`** —— 出口闸 R3 会判红：',
+    '   历史审核意见里的「画面 1.00」是**库内相似度匹配分**，不是本次画面的视觉核对。',
   ].join('\n');
 }
 

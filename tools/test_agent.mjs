@@ -4067,6 +4067,49 @@ await t('Z11 纯判据：由显式条数派生 §5.3 结论行，且派生出来
   assert.strictEqual(blk.conform.ok, true, `派生出来的 BLOCK 行不合 §5.3：${blk.conform.why}`);
 });
 
+// ═══ Z11b · 结论行前缀：**写 10-22 的 `【审查结论：X】`，读两种都认** ═══
+//
+// 两轮，别只记后半段：
+//   · 上午（Owner：「回复没有按照 prd」）把**写出去的**改成了 PRD §5.3.4 样张 `【X】`；
+//   · 下午（Owner：「输出格式的问题，在 10/22 都是好的，恢复到 10/22 的输出格式」）
+//     **写回 `【审查结论：X】`** —— 10-22 那 70 条卡面逐条都是这个前缀。
+//   · **读进来的**两种都认，一个字都不许因为写法读不出来：知识库引擎仍在产旧写法、
+//     上午那批新写法的件也已经落盘了 —— 只认一种，S7 那条跨仓契约（喂的是引擎真输出）
+//     会当场假红。
+await t('Z11b ★★ 结论行前缀：**写 10-22 的 `【审查结论：X】`**，且 PRD 的 `【X】` 也读得进来（反向对照在末两行）', async () => {
+  const P = await import('./agent/prd53.mjs');
+  const T = await import('./agent/dual_track.mjs');
+  // ① 我们**写出去**的四种行都必须带 10-22 的前缀「审查结论：」（这是 Owner 当天下半场选的形状）
+  const outs = [
+    P.passLineFor(),
+    P.verdictLineFor({ state: 'REVIEW', n: 2 }).line,
+    P.verdictLineFor({ state: 'BLOCK', n: 4 }).line,
+    P.verdictLineFor({ state: 'PASS+SUGGEST', n: 1 }).line,
+  ];
+  assert.ok(outs.every((l) => l.startsWith('【审查结论：')),
+    `有行没写 10-22 的前缀（Owner 2026-10-26：「恢复到 10/22 的输出格式」）：${outs.find((l) => !l.startsWith('【审查结论：'))}`);
+  assert.ok(outs.every((l) => /^【审查结论：(PASS\+SUGGEST|PASS|REVIEW|BLOCK)】/.test(l)),
+    `有用例的状态名不在四态里：${outs.join(' ｜ ')}`);
+  // ② 双轨渲染那一跳同样（卡片抬头就是它）
+  const r = T.renderMerged([{ location: '全文', category: '本地化-计量单位', severity: 'REVIEW', source: 'kb' }],
+    { state: 'REVIEW', reportUrlOverride: 'https://x/docx/a' });
+  assert.ok(String(r.line).includes('审查结论：'), `卡片抬头没写 10-22 的前缀：${r.line}`);
+  // ③ 读侧：两种写法都要认得出、且判合同一个结论
+  const legacy = '【审查结论：REVIEW】共发现 2 处需人工确认。';
+  const prd = '【REVIEW】共发现 2 处需人工确认。';
+  assert.deepStrictEqual([P.conforms(legacy).ok, P.conforms(prd).ok], [true, true],
+    '两种写法必须都判合规（只认新式 ⇒ 引擎真输出被自家尺子判红，S7 会假红）');
+  assert.strictEqual(P.conclusionLine(legacy).state, P.conclusionLine(prd).state);
+  // ④ 混排时取**最先出现**的那一行（不是「先试旧式」也不是「先试新式」）
+  assert.strictEqual(P.conclusionLine(`【REVIEW】共发现 1 处需人工确认。\n${legacy}`).line,
+    '【REVIEW】共发现 1 处需人工确认。');
+  assert.strictEqual(P.conclusionLine(`${legacy}\n【BLOCK】共发现 3 处必须修改。`).line, legacy);
+  // ⑤ 反向对照：旧态名 `SUGGEST` 两种前缀下都必须判**不合规**（前缀改了，四态口径没松）
+  assert.deepStrictEqual([P.conforms('【SUGGEST】发现 1 处建议优化，不阻断发布。').ok,
+    P.conforms('【审查结论：SUGGEST】发现 1 处建议优化，不阻断发布。').ok], [false, false],
+    '旧态名 SUGGEST 在某种前缀下被判合规了 —— 四态口径被擦掉了');
+});
+
 await t('Z12 纯判据：**编不出数的时候一个都不许编** —— 六个方向各自可分辨', async () => {
   const P = await import('./agent/prd53.mjs');
   // ★ n=0 单独一条，理由与其它不同：`mergedState()` 里「合并 0 条 + 库侧 REVIEW」
@@ -4480,8 +4523,27 @@ await t('Z20b ★ 行为级：传下去的读数**必须真被用上**（Z20 那
   }).join('\n');
   const sig = (d.match(/async function replyTo\([^)]*\)[^{]*\{/) || [''])[0];
   assert.ok(/reportLink = null/.test(sig), `replyTo 的签名里没有 reportLink：${sig.slice(0, 120)}`);
-  assert.ok(/toCardOrText\(rawReply, \{ verdict53: v53, reportLink \}\)/.test(d),
-    'replyTo 没有把报告链接交给 toCardOrText');
+  // ★★ 2026-10-26：这条原先钉的是**逐字一行**的调用形状
+  //   （`toCardOrText(rawReply, { verdict53: v53, reportLink, requireTemplate: true })`）——
+  //   而当天给这次调用加 `reviewRequired` 之后，那种「照抄一行文案」的判据把它判成红，
+  //   尽管 `reportLink` **仍在这次调用里**。判据要守的是「读数有没有交给那一跳」，
+  //   不是「那一行长什么样」⇒ 改成**在同一次调用的范围内**查三个读数各就各位。
+  const call = (codeOnly(d).match(/toCardOrText\(rawReply,[\s\S]{0,600}?\}\)/) || [''])[0];
+  assert.ok(/reportLink/.test(call), `replyTo 没有把报告链接交给 toCardOrText：${call.slice(0, 200)}`);
+  // ★★ 2026-10-26 二轮（Owner「恢复到 10/22 的输出格式」）：**发送层不许自己造卡** ——
+  //   10-22 的口径是「模型给卡片块就发卡，没给就纯文本原样出门」；当天上午那版硬包出来的
+  //   形状是「标题＝首段、正文首行＝同一段」（实测 `oc_7775…` 14:08:19 `【你好。】／你好。`）。
+  //   这里反过来钉住：造卡那个入参不许回来（形态由模型给不给卡块决定，不许多一处决策点）。
+  assert.ok(!/requireTemplate/.test(call),
+    `发送层又在自己造卡（10/22 格式口径不许）：${call.slice(0, 200)}`);
+  // ★★ 2026-10-26（Owner：「守衡的回复没有按照 prd 和原先的输出模版来回复」）：
+  //   **送审单必须把「这是送审」这条读数交下去** —— 否则拿不到 §5.3 结论行时
+  //   `reviewRequired` 那个固定模板永远不触发，模型那段带 `label = REVIEW / DP3`
+  //   的自由文本就会原样出门（行为级判据在 `verify_cards` 的 J5d）。
+  assert.ok(/reviewRequired:\s*!!reviewOrder/.test(call),
+    `这次调用没有把「送审单」交下去 ⇒ 拿不到结论行时不会走固定模板：${call.slice(0, 200)}`);
+  assert.ok(/reviewOrder:\s*result\.meta\?\.gate\?\.yes === true/.test(codeOnly(d)),
+    'daemon 没把「这一轮是不是送审单」传给 replyTo（meta.gate.yes 是唯一判据，不许从文字里猜）');
   // ★ 2026-10-22：`imageAnalysis` 从这条链上**整个撤掉了**（读数不上卡）——
   //   撤了就要撤干净，否则就是「传了但没人接」那个病。
   assert.ok(!/imageAnalysis/.test(sig), `replyTo 的签名里还留着没人读的 imageAnalysis：${sig.slice(0, 120)}`);
@@ -5417,11 +5479,14 @@ await t('V6 ★ 行为级：「问题数量」列必须与卡里那个数**同�
   //   只认长的那句 ⇒ 这条 `if` 恒假 ⇒ 汇总路数**从来没被判过**（判据假宽，等于没守）。
   if (/(?:→|->)\s*(?:完整清单|查看完整问题清单与修改建议)\s*[：:]\s*https?:\/\//.test(summ)) {
     // ★★ 2026-10-21（Owner 给了正确模版 `docx/CvIldNhUSoxv7DxpzwdcKUcjnfr`）：**翻面** ——
-    //   这一格是 `dual.rendered.block`（卡面与表行逐字同源），而模版与 PRD §5.3.2 的 ≥3 形状是
-    //   「结论行 → `· …类问题：N 个` → 链接 → 动作行」，中间**没有** `逐条问题` 这一行
+    //   这一格是 `dual.rendered.block`，**块文本**里没有 `逐条问题` 这一行
     //   （它是 2026-10-15 给**表行**样例时带进来的，已撤；三条证据见
     //    `PMO/守衡-审查报告对齐正确模版-20261021.md`）。
-    assert.ok(!summ.includes('逐条问题'), '走汇总那一路时：分类汇总前不许有「逐条问题」这一行（模版没有）');
+    // ★★ 2026-10-26：Owner 贴出 10-21 成品说「这是我想要的输出模版」，三段都有 `逐条问题`
+    //   —— 那**一行在卡面上是那一组的折叠标题**（见 V6b），**不是块里的字**：
+    //   卡面走 `groups[0].title`，这一格（表行）走块文本 ⇒ 两边各按各的判，
+    //   所以这条断言**不变**。谁把这一行塞进块文本，prd53_format 的 ②f 与本条都会红。
+    assert.ok(!summ.includes('逐条问题'), '这一格（表行·块文本）里不许有「逐条问题」—— 它只该是卡面的组标题');
     assert.ok(/·\s*[^·\n]{1,18}类问题：\s*\d+\s*个/.test(summ), '要有「· XX类问题：N 个」分类汇总行（每类一行）');
   } else {
     assert.ok(/\d+[.、]\s*【/.test(summ), '没有报告链接时按逐条回落：正文里必须有逐条条目');
@@ -5432,6 +5497,44 @@ await t('V6 ★ 行为级：「问题数量」列必须与卡里那个数**同�
                              ['⚠️', '口径警示行']]) {
     assert.ok(!summ.includes(pat), `「${what}」不许再进这一格（Owner 2026-10-15：只出 PRD 结论）`);
   }
+});
+
+// ═══ V6b · Owner 2026-10-26 贴出 10-21 成品：「这是我想要的输出模版」═══════════════
+//
+// 三段成品（1 条 REVIEW / 2 条 BLOCK / 3 条 REVIEW）**每一段的第二行都是「逐条问题」**：
+//   【审查结论：REVIEW】共发现 3 处需人工确认。
+//   逐条问题                      ← 这一行（卡面上是那一组的折叠标题）
+//   · …类问题：1 个
+//   → 完整清单：https://…
+//   建议转 @产品负责人 @法务 @北美同事 复核。
+//
+// 2026-10-21 晚上曾经把 ≥3 的汇总块挪进 `body`（"结论行直接接分类汇总"），
+// 于是那张卡上**没有**这一行 —— 与 Owner 现在贴的模版正好差一行 ⇒ 本轮撤回那次分流。
+// ⚠️ 只动**卡面包装**：`verdict.block` 一个字没动（表行那一格、`prd53_format` 的
+//    ②b2/②f 判的都是块文本，仍然不含这一行）。
+await t('V6b ★★ 卡面：≥3 的汇总块必须折进「逐条问题」组（Owner 2026-10-26 模版的第二行）', async () => {
+  const E = await import('./reply-cards/envelope.mjs');
+  const T = await import('./agent/dual_track.mjs');
+  const items = [1, 2, 3].map((i) => ({
+    location: `正文第 ${i} 段`, category: '合规与受监管宣称', severity: 'REVIEW', source: 'kb',
+    reason: 'r', suggestion: 's',
+    kb: { article_no: 'W-1.9', entry_url: 'https://x/1', basisLine: '《库》第 W-1.9 条｜原始出处：https://x/1' },
+  }));
+  const r = T.renderMerged(items, { state: 'REVIEW', reportUrlOverride: 'https://x/docx/a' });
+  assert.ok(E.isSummaryOnlyBlock(r.block), `夹具应当是 ≥3 的汇总块，实得：${String(r.block).slice(0, 80)}`);
+  const out = E.applyVerdictLine('evidence', { title: '', verdict: '', groups: [] },
+    { state: 'REVIEW', line: r.line, from: 'chain', block: r.block });
+  const g = out?.data?.groups?.[0];
+  assert.strictEqual(g?.title, E.VERDICT_GROUP_TITLE,
+    `≥3 的卡面必须有「${E.VERDICT_GROUP_TITLE}」这一组（实得 ${JSON.stringify(g?.title)}）`
+    + ' —— Owner 2026-10-26 模版第二行就是它，缺了就是回到 10-21 晚上那次分流');
+  assert.strictEqual(g?.expanded, true, '这一组是结论正文，必须默认展开');
+  assert.ok(/类问题：/.test(String(g?.content)), '组内容应当是「· …类问题：N 个」分类汇总');
+  assert.ok(!/类问题：/.test(String(out?.data?.body ?? '')), '汇总行不许再走 body（走了就没有「逐条问题」这一行）');
+  // ★ 路由读数：`applyVerdictLine` 回来的 `block.slot` 就是这次分流的证据。
+  //   谁把「≥3 走 body」加回来，这里立刻变成 'body' ⇒ 精确变红（本轮变异自证用的就是它）。
+  assert.strictEqual(out?.block?.slot, E.blockSlotOf('evidence'),
+    `≥3 的汇总块必须走进 groups 那一格，实得 ${out?.block?.slot}`);
 });
 
 await t('V7 ★ 行为级：本仓建的合并报告，URL 必须**同时**进卡片与表里那一格', async () => {
@@ -6169,7 +6272,9 @@ await t('Z43 ★★ 收尾动作行的收件人**按问题方向算**，不是�
   assert.ok(/@北美同事/.test(loc), `本地化方向没落到北美同事：${loc}`);
   // ⑤ `prd53.conforms` 只管**结论行**，本改动不许把它碰红
   const { conforms } = await import('./agent/prd53.mjs');
-  const line = (String(blockOf('合规-医疗宣称')).match(/【审查结论：[^\n]*/) ?? [''])[0];
+  // ★ 2026-10-26 两轮：卡面先改成 PRD 字面 `【REVIEW】…`、下午又写回 `【审查结论：REVIEW】…`
+  //   ⇒ 这里取行**两种都要认**（存量件两种都有，只认一种就会读不出结论行）
+  const line = (String(blockOf('合规-医疗宣称')).match(/【(?:审查结论：[^\n]*|(?:PASS\+SUGGEST|PASS|REVIEW|BLOCK)】[^\n]*)/) ?? [''])[0];
   assert.ok(conforms(line).ok, `结论行被碰红了：${conforms(line).why}`);
   // ⑥ 反向对照：喂回**旧常量**，②必须能红 —— 证明它不是恒真
   const OLD_ACTION = '建议转 @内容治理负责人 复核。';

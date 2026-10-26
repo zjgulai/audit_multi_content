@@ -305,8 +305,13 @@ async function onMessage(data) {
     clearTimeout(progressTimer);
     counters.failed++;
     log(`   ✗ 内核异常: ${e?.stack ?? e?.message ?? e}`);
-    await safeSend(chatId, `我处理这条消息时内部出错了，没能回答。\n\n错误：${e?.message ?? e}\n\n（已记录，这是我的问题。）`,
-                   'error-fallback', msg.chat_type);
+    // ★ 2026-10-26：异常出口也必须经过 replyTo 的登记模板闸门。
+    //   之前这里直接 safeSend 纯文本，正常回复已强制套卡、唯独图片/OCR/送审链抛异常时
+    //   绕开模板，正好让用户看到「大多数有模板、失败时又变回随意文本」。
+    //   原消息 id 一并保留，失败说明仍引用触发异常的那条消息。
+    await replyTo(chatId, msg.message_id,
+      `我处理这条消息时内部出错了，没能回答。\n\n错误：${e?.message ?? e}\n\n（已记录，这是我的问题。）`,
+      msg.chat_type, 'error-fallback');
     return;
   }
   clearTimeout(progressTimer);   // 跑完了就别再发进度（发了就是假读数）
@@ -430,7 +435,12 @@ async function onMessage(data) {
       //   （`envelope.toCardOrText` 那个入参也一并撤掉，免得留下一个没人读的入参）。
       //   读数本身没丢：内核的 `📥 读到｜…` 日志、会话记忆、报告附录三处都在。
       // 2026-10-09: 报告链接 —— 与 mediaRead 同级（都进可见格，都不该藏在折叠区里）
-      reportLink: result.meta?.reportLink ?? null });
+      reportLink: result.meta?.reportLink ?? null,
+      // ★★ 2026-10-26：**这一轮是不是送审单** —— 内核的送审闸门读数是唯一判据
+      //   （`meta.gate.yes`，由 `agent.mjs` 算出，不是从文字里猜）。
+      //   拿不到结论行时，`replyTo` 据此改用固定的「审查未完成」模板，
+      //   不让 `label = … / DP3 / coverage = partial` 这类引擎黑话当答复出门。
+      reviewOrder: result.meta?.gate?.yes === true });
   // ⚠️ 2026-10-13：`boundary`（卡脚那条边界）**不再往下传** —— Owner 要求
   //   「整个都隐藏，不要展示在卡片上」。它改走 `dual_track.internalNotes`（记忆侧），
   //   于是「未跑专项审查 / 仍需转对应专项复核」这句话**守衡答得出来**，只是不上卡。
@@ -478,7 +488,10 @@ async function retryWatch(reason) {
     const r = await retryQueue.runTick({
       log,
       answer: (it) => handleMessage(it.event, { force: true }),
-      send: (it, text) => replyTo(it.chat_id, it.message_id, text, it.chat_type, 'resend'),
+      // ★★ 2026-10-26：补发那条路也收「这一轮是不是送审单」的读数（`retry_queue` 从
+      //   `res.meta.gate.yes` 取），否则补发会绕过固定的审查模板 —— 而补发的正是最容易没结论的那一类。
+      send: (it, text, opts) => replyTo(it.chat_id, it.message_id, text, it.chat_type, 'resend',
+                                        opts ?? {}),
     });
     if (r.acted) {
       log(`   · 补发[${reason}] ${r.sent ? '✓ 已补发' : `未发出（${r.why ?? '仍需等待'}）`}，队列剩 ${r.left} 条`);
@@ -571,7 +584,7 @@ function dumpDropped({ messageId, chatId, source, reason, raw }) {
  *   当时它对着一堆内部记录说「✓ 已发送」。
  */
 async function replyTo(chatId, messageId, rawReply, chatType = null, source = 'reply',
-                       { verdict53 = null, reportLink = null } = {}) {
+                       { verdict53 = null, reportLink = null, reviewOrder = false } = {}) {
   // ★ 结论行的**兜底派生**（2026-10-06）：补发队列那一跳（`source='resend'`）走的是
   //   `handleMessage(event, {force:true})`，它**不跑送审闸门**，所以拿不到 `meta.verdict53`。
   //   判据很窄 —— 只有模型自己把一行 5.3 结论**摆在回复最前面**时才认它
@@ -585,7 +598,28 @@ async function replyTo(chatId, messageId, rawReply, chatType = null, source = 'r
   //   旧判据（`test_agent.mjs` 的 Z20）只查了**源码里出现过**
   //   `reportLink: result.meta?.reportLink` 这一行，**没查它真被用上** ——
   //   又一个「名字出现过 ≠ 它拦得住」（§2.4）。现在有行为级判据钉着（Z20b）。
-  const shaped = toCardOrText(rawReply, { verdict53: v53, reportLink });
+  // ★★ 2026-10-26（Owner：「守衡的回复没有按照 prd 和原先的输出模版来回复，定位马上修复」）：
+  //   **送审单在「链没给权威结论行」时不许把模型那段自由文本当答复发出去。**
+  //   实测三条真回复（`oc_7775…` 私聊，11:39 / 11:51 / 12:08）里出现的
+  //   `label = REVIEW / layer = DP3 / release_status = 待放行 / parse_status = ok`
+  //   与 PRD §5.3 的四个状态**一个都不是同一件东西**：§5.3 只认
+  //   `【审查结论：PASS|PASS+SUGGEST|REVIEW|BLOCK】` 那一行，其余全是引擎内部读数。
+  //   `reviewRequired`（`envelope.toCardOrText` 里的固定「审查未完成」模板）此前
+  //   **写好了却没有任何调用方** —— 又一个「名字出现过 ≠ 它拦得住」（§2.4）。
+  //   ⚠️ 只在**送审单 ＋ 拿不到结论行**时开（`reviewOrder && !v53?.line`）：
+  //     有结论行的单子走 `verdict53` 那条路（卡面形状由代码定），
+  //     而 PASS 单「只留一句话结论」那条口径（Owner 2026-10-16）一个字不动。
+  // ★★ 2026-10-26 二轮（Owner：「输出格式的问题，在 10/22 都是好的，恢复到 10/22 的输出格式」）：
+  //   **撤掉「强制模板」那一跳** —— 当天上午那一版在模型漏写卡片块时，把模型自由文本
+  //   硬拼成一张卡：标题＝模型第一段，正文首行又是同一段，余下正文塞进折叠区。实测两单：
+  //     · `oc_7775…` 14:08:19  `【你好。】／你好。／那张德语图…`
+  //     · `oc_7775…` 12:21:56  整段抬头重复 ＋ `（已收起 1 条证据：证据 · 1 条）`
+  //   而 10-22 的形状（`PMO/logs/ws_outbound.jsonl` 当天 92 条）是：
+  //   **模型给了卡片块就发卡，没给就纯文本原样出门** —— 不造卡。
+  //   ⚠️ 送审单那一条**不撤**：`reviewRequired` 走的是已登记的 `alert` 模板，
+  //      字段是 what / impact / retry，不是拿模型原话拼抬头（Owner 当天 12:0x 要的正是这个）。
+  const shaped = toCardOrText(rawReply, { verdict53: v53, reportLink,
+                                          reviewRequired: !!reviewOrder && !v53?.line });
   if (v53) {
     // ★ 措辞不合 5.3 时**出声**：链是结论行的产者，它的措辞会回退，
     //   而回退的表现只是「群里格式不对」—— 那要等到人看见才知道。

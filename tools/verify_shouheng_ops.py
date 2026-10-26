@@ -85,16 +85,28 @@ def verdict(n_fail, up, n_untested):
     return 0, "✅ 全过"
 
 
-def run_gate(*args, consent=None):
+def run_gate(*args, consent=None, live_inflight=False):
     """
     跑闸门。**默认把「同意凭证」指到临时文件**（§2.4.4：自证不许改真状态）。
 
     不指走的话，A1 那一次「不带 --yes」的报告就会往真路径上写一份真凭证 ——
     而那份凭证在 5 分钟内是**能放行一次真重启的**。那不是「无害的残留」，
     那是「跑一次自证就给闸门留了一把钥匙」。
+
+    ★★ 2026-10-26：**`--yes` 那几条默认补 `--force-inflight`**。
+      理由：`--force-inflight` 是闸门自己给的「我知道此刻有东西在飞、把**其余**校验跑完」的
+      开关，而 A6–A11 测的是**留痕与凭证**那几道门，不是「在飞就不许重启」那道。
+      不补会怎样：本机只要有一条消息或一条审查链在跑（今天常态），
+      在飞那条拒绝就会**先**命中 ⇒ A6/A7 的文案对不上、A8 期望的 0 变成 3
+      —— **自证的读数被机器当时的活状态污染**，红的是噪声不是缺陷。
+      （这不是新问题，是「判据与环境耦合」；今天因为链在飞才暴露出来。）
+      ⚠️ 补的是**自证这一侧**：真重启那条路一个字没松 —— 见 A15（专门证明链在飞时**必须拒绝**）。
     """
     env = dict(os.environ)
     env["SHOUHENG_RESTART_CONSENT"] = str(consent or CONSENT_TMP)
+    args = tuple(args)
+    if ("--yes" in args) and not live_inflight and ("--force-inflight" not in args):
+        args = args + ("--force-inflight",)
     p = subprocess.run(["bash", str(GATE), *args], capture_output=True, text=True,
                        timeout=120, env=env)
     return p.returncode, p.stdout + p.stderr
@@ -510,6 +522,27 @@ check("A10", rc == 3 and "PID 对不上" in out, f"PID 变了 → 退出码 {rc}
 write_consent(CONSENT_TMP, digest="0" * 64)
 rc, out = run_gate("--yes", "--why=selftest")
 check("A11", rc == 3 and "读数对不上" in out, f"摘要变了 → 退出码 {rc}（应 3）")
+
+# A15：★★ **链在飞 ⇒ 必须拒绝**（2026-10-26 真事故的判据，反过来证明上面那个补丁没放水）
+#   做法：先取一份新鲜凭证，再**造一条假链**（argv 里带 `kb/l8/review_run.sh`），
+#   然后走 `--yes` 那条路（`live_inflight=True` ⇒ 不补 `--force-inflight`）。
+#   期望：退出码 3、且拒绝理由说的是**链**，不是别的。
+#   ⚠️ 造出来的是**假进程**（`sleep`），本仓一条真链都不碰。
+run_gate()                                   # 取凭证（A13 之后这份是新鲜的）
+_fake_chain = subprocess.Popen(
+    ["bash", "-c", "exec -a 'bash kb/l8/review_run.sh --base SELFTEST-A15' sleep 20"])
+try:
+    time.sleep(1.2)
+    rc, out = run_gate("--yes", "--why=selftest", live_inflight=True)
+    check("A15", rc == 3 and "审查链在飞" in out and "拒绝重启" in out,
+          f"有链在跑 + 凭证有效 ⇒ 必须拒绝（退出码 {rc}）—— 放行就会掐断正在跑的链，"
+          "2026-10-26 两张图就是这么丢的")
+finally:
+    _fake_chain.terminate()
+    try:
+        _fake_chain.wait(timeout=5)
+    except Exception:
+        _fake_chain.kill()
 
 # A12：**`--check` 是纯查看，一个字节都不许落**
 CONSENT_TMP.unlink(missing_ok=True)
@@ -1145,6 +1178,58 @@ check("H6", "✅" in verdict(0, True, 0)[1] and "✅" not in verdict(0, True, 2)
       "只在真的全过时才出现 ✅")
 check("H7", "未测" in verdict(2, True, 1)[1],
       "**有红时也必须报出有未测** —— 否则只看最后一行的人会以为「其余都验过了」")
+
+# ── K 重启闸门必须看得见**正在跑的审查链**（2026-10-26 真事故）────────────
+#
+# 病灶（当天，我自己踩的，两张图永远没等到结论）：
+#   守衡对一条送审**先回执卡**、再由链异步产出结论。而 `restart_shouheng.sh` 原有那条
+#   「正在处理中」判据数的是 `daemon-run.json` 里「**消息**有没有走完」——
+#   回执一发，消息就算走完了，链却还在跑 ⇒ 闸门在 14:43:34 与 14:55:15 两次放行，
+#   两次 kickstart 都掐断了正在跑的链；两个实例退出时逐字都是
+#   `本次统计：事件 1 / 已回答 0 / 已发送 0`，群里那两张图**只有回执、没有结论**，
+#   而守衡**不会**自动重试。用户看到的就是「守衡怎么不回复了」。
+# ⇒ 这一组钉两件事：① 闸门真的读了链的读数（不是只在注释里提过链）；
+#   ② 那个读数真的进**拒绝**分支（「名字出现过 ≠ 它拦得住」）。
+print("\nK 重启闸门必须看得见正在跑的审查链")
+try:
+    _gate = GATE.read_text(encoding="utf-8")
+    _reads = ("chains-in-flight.json" in _gate) and ("kb/l8/review_run" in _gate)
+    _refuses = ('[ "$CHAIN_N" != "0" ]' in _gate) and ("exit \"$EXIT_REFUSED\"" in _gate)
+    check("K1", _reads and _refuses,
+          "闸门既读了链的读数（落盘 + 进程探针），也在**拒绝**分支里用了它")
+    # 反向对照①：把链那一段从闸门正文里抠掉 ⇒ 必须判成「没读」
+    _stripped = "\n".join(ln for ln in _gate.splitlines()
+                           if "CHAIN_N" not in ln and "chains-in-flight" not in ln)
+    check("K2", ("CHAIN_N" not in _stripped) and ("chains-in-flight.json" not in _stripped),
+          "反向对照：把链那几行抠掉 ⇒ K1 的两半都不再成立（判据咬得住，不是恒真）")
+    # 真跑一次：造一个 argv 里带 `kb/l8/review_run.sh` 的假进程 ⇒ 读数必须变「在飞」
+    import subprocess as _sp
+    _dummy = _sp.Popen(["bash", "-c", "exec -a 'bash kb/l8/review_run.sh --base FAKE-K' sleep 25"])
+    try:
+        import time as _t
+        _t.sleep(1.2)
+        _r1 = _sp.run(["bash", str(GATE), "--check"], cwd=str(ROOT),
+                      capture_output=True, text=True, timeout=60)
+        _out1 = _r1.stdout + _r1.stderr
+        check("K3", ("审查链在飞" in _out1) and ("⚠" in _out1.split("审查链在飞", 1)[-1][:40]),
+              "真探针：有链在跑时，闸门的读数行报「审查链在飞 ⚠」")
+    finally:
+        _dummy.terminate()
+        try:
+            _dummy.wait(timeout=5)
+        except Exception:
+            _dummy.kill()
+    # 反向对照②：进程没了 ⇒ 读数必须回到「无」（否则这一格恒红，等于没有）
+    import time as _t2
+    _t2.sleep(0.6)
+    _r2 = _sp.run(["bash", str(GATE), "--check"], cwd=str(ROOT),
+                  capture_output=True, text=True, timeout=60)
+    _out2 = _r2.stdout + _r2.stderr
+    _line2 = next((ln for ln in _out2.splitlines() if "审查链在飞" in ln), "")
+    check("K4", ("审查链在飞" in _out2) and ("无" in _line2),
+          f"反向对照（成对）：没有链在跑 ⇒ 读数回到「无」（实得：{_line2.strip()[:60]}）")
+except Exception as _e:
+    check("K1", False, f"读/跑重启闸门抛了：{_e}")
 
 # ── 结论 ────────────────────────────────────────────────────────────────
 n_fail = sum(1 for _, ok, _ in results if not ok)

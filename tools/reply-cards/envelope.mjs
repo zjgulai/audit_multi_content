@@ -31,6 +31,10 @@ import {
   build, validateCard, renderText, BY_KIND,
 } from './registry.mjs';
 import { lintCopy } from './registry.mjs';
+// ★ 2026-10-26（Owner：「守衡的回复没有按照 prd 和原先的输出模版来回复」）：
+//   判定引擎的内部字段名（`label = …` / `layer = DP3` / `parse_status` / `coverage = partial`…）
+//   在群与私聊里**一个都不许出现**。判据与清理都在 `jargon.mjs`（纯函数、单独自证）。
+import { stripEngineJargon, scrubCardData } from './jargon.mjs';
 // ★ 2026-10-15：对象 → 一行人话，**全仓只有这一份实现**（`cards.mjs::flat1`）。
 //   原先这里自带一份（`${x.label}：${x.value}`），靠注释「改一处必须改两处」守着；
 //   当天卡面修了、这里没修 ⇒ 换卡之后印九个 `undefined`（见 `carryCardText` 注释）。
@@ -73,11 +77,14 @@ const len = (x) => [...s(x)].length;
  * ★ 判据要引它 —— `verify_cards.mjs` 的 J11b3 断言「组标题与组内容首行不许逐字相同」，
  *   两边必须是**同一个**字符串；判据里抄第二份字面量，改名那天判据就假绿了。
  * ★ 2026-10-16（FIX-033）：它同时是 `blockRows` 的去重依据（见下）。
- * ★★ 2026-10-21（Owner 给了正确模版）：它**只用于 1–2 条那条逐条支**。
- *   ≥3 的汇总块已经**不折组**（`isSummaryOnlyBlock()` ⇒ 走 `body` 正文格），
- *   所以群里那张 ≥3 的卡上**根本不会出现「逐条问题」这三个字**
- *   —— 模版里那一行位置上是 `· …类问题：N 个`，一个字都不许插在前面。
- *   ⇒ 判据仍要它（<3 那一支），但**不许**再拿它去断言 ≥3 的卡面。
+ * ★★ 2026-10-21（Owner 给了正确模版）：它只用于 1–2 条那条逐条支。
+ * ★★ 2026-10-26（Owner 贴出 10-21 成品，逐字：「这是我想要的输出模版」）：
+ *   **两条支都用它** —— ≥3 的汇总块也折进这一组（`applyVerdictLine` 里那次
+ *   「≥3 走 body」的改动已撤回）。依据是 Owner 贴的三段成品，每段第二行都是「逐条问题」。
+ *   ⚠️ 10-21 台账里 ≥3 那两条（10:34:36 / 10:51:28）**没有**这一行 —— 两版都在，
+ *     这里按「用户给的形状优先」定：卡上要看得见它。
+ *   ⚠️ 这一行只进**卡面的组标题**；`verdict.block`（表行那一格的正文）里仍然没有它，
+ *     `prd53_format` 的 ②b2/②f 判的就是块文本，不受影响。
  */
 export const VERDICT_GROUP_TITLE = '逐条问题';
 
@@ -132,7 +139,9 @@ export function isSummaryOnlyBlock(block) {
 export function blockRows(block, title = null) {
   const lines = String(block ?? '').split('\n');
   // 只认**第一行**是不是结论行（PRD §5.3 的形状），中间出现的三态词一律不动
-  const isHead = (l) => /^\s*【审查结论\s*[：:]/.test(l);
+  // ★ 2026-10-26：两种写法都认 —— `【X】`（PRD §5.3.4 字面，我们现在写这个）
+  //   与 `【审查结论：X】`（旧字面，引擎答案与存量报告仍是它）。只认一种会把另一种当正文留在块里。
+  const isHead = (l) => /^\s*(?:【审查结论\s*[：:]|【(?:PASS\+SUGGEST|PASS|REVIEW|BLOCK)】)/.test(l);
   const dropLeadingBlanks = () => { while (lines.length && !lines[0].trim()) lines.shift(); };
   dropLeadingBlanks();
   if (lines.length && isHead(lines[0])) lines.shift();
@@ -324,26 +333,21 @@ export function applyVerdictLine(kind, data, verdict) {
     // `groups` 型（如 evidence 卡）：块作为**第一组**，默认展开 —— 它是这条结论的正文，不是附录。
     const groups = Array.isArray(out.groups) ? out.groups : [];
     // ══════════════════════════════════════════════════════════════════════════
-    // ★★ 2026-10-21（Owner 给了**正确的模版**，逐行比对我们那份卡）：
-    //   **≥3 汇总块不折进任何一组**，直接作为卡片正文。
+    // ★★ 2026-10-26（Owner 贴了 10-21 的成品，逐字说「这是我想要的输出模版」）：
+    //   **≥3 的汇总块也折进「逐条问题」这一组**，与 1–2 条那条支同形。
     // ══════════════════════════════════════════════════════════════════════════
-    //   病灶（Owner 贴的那段逐字就是卡上看到的）：
-    //     【审查结论：REVIEW】共发现 3 处需人工确认。
-    //     逐条问题                       ← 这不是块里的字，是**这一组的折叠标题**
-    //     · …类问题：1 个
-    //   结论行在卡抬头那一格，紧接着冒出 `逐条问题` —— 而模版（与 PRD §5.3.2）是
-    //   结论行**直接**接 `· …类问题：N 个`。折一层 = 中间凭空多一行。
-    //   ⇒ ≥3（只出分类汇总那一支）走 `body` 正文格；<3 的逐条块**照旧折起来**
-    //     （它长、它需要收起，而模版的第二节本来就叫「问题清单」）。
+    //   走过一次回头路，两次都对着**同一份模版**，结论相反 —— 记在这里免得再翻第三次：
+    //     · 2026-10-21 晚上：把 ≥3 从组里挪进 `body`，理由是「模版里结论行**直接**接
+    //       `· …类问题：N 个`，中间那行 `逐条问题` 是折叠标题带来的多余一行」；
+    //     · 2026-10-26：Owner 贴的三段成品（1 条 / 2 条 / 3 条）**每一段都有这一行**，
+    //       并且明确说这就是他要的模版 ⇒ 改回折叠组。
+    //   ⚠️ 谁的账都对得上：**10-21 台账里 ≥3 那两条（10:34:36 / 10:51:28）确实没有这一行**，
+    //     所以「10-21 的输出」到底指哪一版，Owner 手上那份与我查到的台账并不完全一致。
+    //     按「用户给的形状优先」落：**卡上要看得见「逐条问题」**。
+    //   ⚠️ 只动**卡面包装**：`verdict.block` 一个字没动 ⇒ 表行那一格（`rendered.block`）
+    //     与 `prd53_format` 的 ②b2/②f 判据都不受影响，那条判的是**块文本**里的那一行。
     //   ⚠️ 剥标题仍传 `VERDICT_GROUP_TITLE`：历史块里可能还带着那一行（存量），
     //     按「逐字等于组标题」剥掉，所以新旧块落到卡面上**同一个形状**。
-    if (isSummaryOnlyBlock(verdict.block)) {
-      const bodyText = blockRows(verdict.block, VERDICT_GROUP_TITLE);
-      const curBody = s(out.body);
-      if (curBody.includes(bodyText)) return { ...r, data: out, block: { action: 'already', slot: 'body' } };
-      out.body = curBody ? `${bodyText}\n\n${curBody}` : bodyText;
-      return { ...r, data: out, block: { action: 'forced', slot: 'body' } };
-    }
     const existingBlockIdx = groups.findIndex((g) => String(g?.content ?? '').includes(verdict.block));
     if (existingBlockIdx >= 0) {
       // 结论块可能已由模型放进 groups。默认 groups 是折叠的；若这里直接 early-return，
@@ -958,14 +962,21 @@ export function applyReportLink(kind, data, reportLink) {
                 + '（PRD §5.3 次序：正文 → 链接 → 动作行；块默认展开、看得见）' };
   }
   const out = { ...data };
-  const slot = ['verdict', 'reasoning', 'wrong', 'verdict_text']
+  // ★★ 2026-10-26：候选格补上 `impact` —— **送审无结论那条路（`alert`）原先一个格都没有**
+  //   ⇒ 报告链接被 `no-slot` 静默丢掉。实测（同一份输入跑两遍）：`reviewRequired:false`
+  //   走 `query-answer` 时链接在卡上，`reviewRequired:true` 走 `alert` 时**链接没了** ——
+  //   而「报告链接必须进卡片可见格」是 Owner 2026-10-09 定的口径（`test_agent` Z18 钉着）。
+  //   为什么挑 `impact` 而不是 `retry`：卡面次序是 发生了什么 → **对你有什么影响** → 你可以，
+  //   链接落在 `impact` 末尾＝**紧挨动作行之上**，与 PRD §5.3 的次序（正文 → 链接 → 动作行）一致。
+  const slot = ['verdict', 'reasoning', 'wrong', 'verdict_text', 'impact', 'retry']
     .find((k) => typeof out[k] === 'string');
   if (!slot) return { data, action: 'no-slot', slot: null, why: `「${kind}」没有能放链接的格` };
   out[slot] = out[slot] ? `${out[slot]}\n\n${line}` : line;
   return { data: out, action: 'forced', slot };
 }
 
-export function toCardOrText(reply, { verdict53 = null, reportLink = null, machineAnswer = false } = {}) {
+export function toCardOrText(reply, { verdict53 = null, reportLink = null, machineAnswer = false,
+                                       reviewRequired = false } = {}) {
   // ★★ 2026-10-13（Owner 三条里的第 1、2 条）：**查证笔记在成形之前就摘掉** ——
   //   放在最前面（早于 `extractCardBlock`）是有意的：那几行若被模型抄进卡片块里，
   //   晚一步摘就摘不到了（块里的是 JSON 字符串，按行认不出来）。
@@ -976,8 +987,72 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null, machi
          why: `回复里混进了我自己的查证笔记（${stripped.removed.length} 行）——`
             + '它不上卡（Owner 2026-10-13：卡片与报告都不显示，只在记忆里），已摘除' }]
     : [];
+  // ★★ 2026-10-26（Owner 贴出的三条真回复）：**内部字段名的赋值行整行摘掉**。
+  //   实测原文（`oc_7775…`，11:51）：
+  //     `- label = REVIEW / layer = DP3 / release_status = 待放行 / parse_status = ok`
+  //   这类行既不是 PRD §5.3 的结论行，也不是业务同事读得懂的话 —— 它是引擎内部读数。
+  //   ⚠️ 摘掉的是**整行**，不是改写成「判定为 REVIEW」：改写等于替模型补一条
+  //     它没被授权下的事实结论（§2.1 证据优先）。摘了什么进 `stripMoved`，日志看得见。
+  //   ⚠️⚠️ 这一步**只能作用在「要发出去的正文」上，绝不能先动 `raw`** ——
+  //     卡片块是一段**单行 JSON**，按行摘会把整段 JSON 一起摘掉（卡片块随之找不到，
+  //     整张卡降级成纯文本）。实测：第一版就写在这里，`verify_cards` 的 J13a3f2/f5/f6、
+  //     J13a3g2/g3、J11c3 六条**精确变红** —— 那几条盯的正是「模型给的卡照用」。
+  //     ⇒ 判据分开：**卡片块**走数据层（下面 `scrubCardData`，坏不了结构）；
+  //       **纯文本**走这里（`plainOut`，在 `!blk` 那一支里用）。
   const raw = s(stripped.text);
+  const plainOut = () => {
+    const j = stripEngineJargon(raw);
+    if (j.removed.length) {
+      stripMoved.push({ field: 'reply', to: '(memory)', chars: j.removed.join('\n').length,
+        why: `正文里混进了判定引擎内部字段（${j.removed.length} 行：`
+           + `${j.removed.slice(0, 2).join(' ｜ ').slice(0, 80)}）——`
+           + '那是内部读数，不是 PRD §5.3 的结论行，已摘除（原文仍在会话记忆与日志里）' });
+    }
+    return j.text;
+  };
   let blk = extractCardBlock(raw);
+
+  /* ★★ 2026-10-26 二轮（Owner：「输出格式的问题，在 10/22 都是好的，恢复到 10/22 的输出格式」）
+   *
+   * ── 这里原先有一段「运行时强制模板」（当天上午加的）：模型没给卡片块时，代码拿模型的
+   *    自由文本硬拼一张 `query-answer` —— 标题＝第一段、正文首行＝同一段，余下塞折叠区。
+   *    实测形状（`PMO/logs/ws_outbound.jsonl`，私聊 `oc_7775…`）：
+   *      14:08:19  `【你好。】` ＋ `你好。` ＋ `那张德语图…`
+   *      12:21:56  整段抬头重复 ＋ `（已收起 1 条证据：证据 · 1 条）`
+   *    而 10-22 的口径是**两形态**：模型给了卡片块就发卡，没给就纯文本原样出门
+   *    （当天 92 条里 `reply` 与 `reply-card` 交替，16:27:31 那条「你好。」就是纯文本）。
+   *    ⇒ 撤掉。`toCardOrText` 不再有「造卡」这条路，形态只由**模型给不给卡块**与
+   *      下面的 `reviewShape`（评审单，卡面形状由代码定，10-13 的口径）决定。
+   *
+   * ⚠️ 撤掉的只是「造卡」，不是「清理」：孤立信封标记与引擎黑话仍由 `plainOut()` 摘
+   *    （`stripEngineJargon` 里带 `CARD_MARK_RE`），所以 11:39 那种漏出来的 `[[/card]]`
+   *    不会跟着纯文本一起出门。
+   * ⚠️ 送审单那一条没撤：`reviewRequired` 是已登记的 `alert` 模板（what / impact / retry），
+   *    不是拿模型原话拼抬头。
+   */
+
+  // 送审是固定 PRD 模板：不能因模型漏卡块或漏抄 5.3 结论，就退化成通用 query-answer。
+  // 有权威结论时统一走 evidence；无权威结论时统一走 alert，明确这单没有可用审查结论。
+  // 不从模型自由文本猜 PASS/REVIEW/BLOCK，避免把未测内容包装成审查结论。
+  if (reviewRequired && !verdict53?.line) {
+    const lines = raw.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+    const what = lines[0] || '本次审查未完成，暂不提供审核结论。';
+    const impactLine = lines.find((x) => /^卡在哪\s*[：:]/.test(x));
+    const retryLine = lines.find((x) => /^(怎么办|你可以)\s*[：:]/.test(x));
+    blk = {
+      kind: 'alert', error: null, before: '', after: '',
+      data: {
+        title: '审查未完成',
+        what,
+        impact: impactLine ? impactLine.replace(/^卡在哪\s*[：:]\s*/, '')
+          : '本轮没有取得可按 PRD 输出的审查结论，不能据此认定合规或放行。',
+        retry: retryLine ? retryLine.replace(/^(怎么办|你可以)\s*[：:]\s*/, '')
+          : '请在审查链路恢复后重新提交本条素材。',
+      },
+    };
+    stripMoved.push({ field: 'cardKind', to: 'alert',
+      why: '送审没有权威 PRD §5.3 结论行 ⇒ 固定使用审查未完成告警模板；不猜结论' });
+  }
 
   /* ★★ 2026-10-12（Owner 现场：「守衡的输出格式变了」）—— **评审单不许以纯文本出门** ──────
    *
@@ -1040,7 +1115,8 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null, machi
   //     · `batch_review_runner` —— 它喂进来的 `raw` 是**链的机器答案**（跑批时没有真人对话），
   //       那一段里全是内部读数，本来就不该上卡 ⇒ 它显式传 `machineAnswer: true`。
   //   实现见下面 `autoCard` 分支里 `useRaw` 那几行。
-  const reviewShape = !!(verdict53 && verdict53.line && verdict53.block) && !!s(raw).trim();
+  const reviewShape = !!(verdict53 && verdict53.line)
+    && !!s(raw).trim() && (reviewRequired || !!verdict53.block);
   const shapeMoved = [];
   if (reviewShape) {
     if (blk) {
@@ -1049,7 +1125,10 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null, machi
                            + ' ⇒ 模型自拟的分组/结论格不上卡（原文仍在会话记忆里）' });
     }
     blk = { kind: 'evidence', error: null, before: '', after: '',
-            data: { verdict: '', groups: [] } };
+            data: { verdict: '', groups: verdict53.block ? [] : [{
+              title: '详细说明', content: blk ? carryCardText(blk.data) || raw : raw,
+              expanded: true,
+            }] } };
   }
 
   const autoCard = !blk && !!(verdict53 && verdict53.line) && !!s(raw).trim();
@@ -1149,7 +1228,7 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null, machi
         dropped: true,
       };
     }
-    const text = leadWithVerdict(raw, verdict53);
+    const text = leadWithVerdict(plainOut(), verdict53);
     return { mode: 'text', text, reason: null, moved: stripMoved, lint: lintCopy(text), dropped: false,
              verdict53: verdict53 ? 'text-lead' : null };
   }
@@ -1336,6 +1415,20 @@ export function toCardOrText(reply, { verdict53 = null, reportLink = null, machi
     //   （`ws_daemon.mjs` 的 `↪ ${m.field} → ${m.to}（${m.why}）`）读的是 `field` / `why`，
     //   于是实测在图片单上打出一行 `↪ undefined → verdict（undefined）`：
     //   看得见「有东西搬进 verdict」，看不见**搬的是什么、为什么**。形状对齐其余搬迁记录。
+    // ★★ 2026-10-26（Owner 贴出的三条真回复）：**卡面数据层再清一遍**。
+    //   原始文本那一层已经摘过（`stripEngineJargon`），但卡片块是一段 JSON ——
+    //   模型可以把 `label = REVIEW / layer = DP3` 直接写进 `evidence[]` 或 `groups[].content`，
+    //   那一层按行摘不了（会摘坏 JSON）。所以在这里按**数据**摘：坏的只是那一行，
+    //   卡片结构一个字不动。实测那条卡片的折叠组里就漏出过整段引擎读数。
+    {
+      const scrubSink = [];
+      data = scrubCardData(data, scrubSink);
+      if (scrubSink.length) {
+        moved.push({ field: 'cardData', to: '(memory)', chars: scrubSink.join('\n').length,
+                     why: `卡片字段里混进了判定引擎内部读数（${scrubSink.length} 行）——`
+                        + `不是 PRD §5.3 的字段，已摘除（原文仍在会话记忆里）` });
+      }
+    }
     v53 = { action: applied.action, slot: applied.slot, why: applied.why,
             from: verdict53?.from ?? null, line: verdict53?.line ?? null,
             // 逐条块的落点也一起带出去 —— 否则日志里只看得到「标题搬了」，

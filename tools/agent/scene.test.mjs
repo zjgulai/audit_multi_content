@@ -26,7 +26,7 @@
  */
 import assert from 'node:assert';
 import { parseScene, sceneBlock, sceneLine, assertTempPath, sceneRead, SCENE_SYSTEM, abnormalContainers, infantSleepReadings } from './scene.mjs';
-import { checkVisualChecklist } from './visual_checklist.mjs';
+import { restatePerPanelSleep, checkVisualChecklist } from './visual_checklist.mjs';
 
 const results = [];
 const check = (id, fn) => {
@@ -246,6 +246,38 @@ check('S5g ★ 多面板睡姿必须在最终睡眠核对项逐面板复述；�
   const complete = checkVisualChecklist(prefix + '婴儿睡眠位置：有（左侧面板婴儿侧卧；右侧面板婴儿仰卧）。', { sleepPositions: rows });
   assert.strictEqual(complete.ok, true, complete.reason);
 });
+check('S5i ★ 逐面板睡姿：模型不写代码搬（且三条边界一条都不许松）', () => {
+  const rows = [
+    { image: '图 1', panel: '右上', position: '仰卧', sleep_scene: true },
+    { image: '图 1', panel: '右下', position: '仰卧', sleep_scene: true },
+  ];
+  const prefix = '婴幼儿姿势：无；产品状态：无；场景关系：无；隐私：无；';
+  const total = `${prefix}婴儿睡眠位置：有（图 1 有婴儿睡眠场景）。`;
+  // 反向对照（正）：先证明**不补就红** —— 否则「补了能过」可能只是闸门本来就绿
+  assert.strictEqual(checkVisualChecklist(total, { sleepPositions: rows }).ok, false,
+    '只写总括的清单本来就该被挡住（这条不成立 ⇒ 本组自证是恒真）');
+  const repaired = restatePerPanelSleep(total, rows);
+  assert.strictEqual(repaired.added.length, 2, '两处逐面板姿势都没搬进来');
+  assert.ok(/右上＝仰卧/.test(repaired.text) && /右下＝仰卧/.test(repaired.text),
+    `补写没有逐面板落在同一行：\n${repaired.text}`);
+  assert.strictEqual(checkVisualChecklist(repaired.text, { sleepPositions: rows }).ok, true,
+    '补写后闸门仍红 ⇒ 搬的位置不对（必须在「婴儿睡眠位置」那一行内）');
+  // 边界③幂等：再跑一遍一个字不加
+  assert.strictEqual(restatePerPanelSleep(repaired.text, rows).added.length, 0, '第二遍又补了一次');
+  // 边界①：读数没有面板 ⇒ 不补（不许凭总括姿势编出「右上/右下」）
+  const noPanel = restatePerPanelSleep(total, [{ image: '图 1', panel: '', position: '仰卧' }]);
+  assert.strictEqual(noPanel.text, total, '读数没有面板却补了逐面板 ⇒ 这是编');
+  assert.strictEqual(checkVisualChecklist(noPanel.text,
+    { sleepPositions: [{ image: '图 1', panel: '', position: '仰卧' }] }).ok, false,
+    '没有面板读数时不该被补绿');
+  // 边界②：核对项本身不存在 ⇒ 不补（不许替模型造出整项）
+  const noItem = '婴幼儿姿势：无；产品状态：无；场景关系：无；隐私：无。';
+  assert.strictEqual(restatePerPanelSleep(noItem, rows).text, noItem, '没有那一项却补了 ⇒ 这是造');
+  // 边界④：模型自己写对了 ⇒ 不补（不许重复印一遍）
+  const done = `${prefix}婴儿睡眠位置：有（右上仰卧；右下仰卧）。`;
+  assert.strictEqual(restatePerPanelSleep(done, rows).added.length, 0, '模型已复述却被再补一遍');
+});
+
 check('S5h ★ 睡姿面板方位同义写法可核对，方位不唯一时仍拒绝猜配', () => {
   const prefix = '婴幼儿姿势：无；婴儿睡眠位置：有（逐面板核对姿势）；'
     + '产品状态：无；场景关系：无；隐私：无；';

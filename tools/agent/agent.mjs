@@ -27,7 +27,7 @@ import * as mediaLink from './media_link.mjs';
 // ★ 2026-10-09：OCR 水印摘除（Owner 看出图内文字里的用户名是水印）——见该模块头注
 import { stripOcrWatermark } from './ocr_watermark.mjs';
 // ★ 2026-10-21（Owner）：图单的视觉核对清单 —— 「加载了 skill」不等于「执行了它那道视觉核对」
-import { checkVisualChecklist, checkImageSkillWorkflow } from './visual_checklist.mjs';
+import { checkVisualChecklist, checkImageSkillWorkflow, restatePerPanelSleep } from './visual_checklist.mjs';
 // ★★ 2026-10-21（Owner 批准 P0）：**看到图、但一张都没解析出来 ⇒ 不许出 PASS**。
 //   病灶（实测）：模态是用「解析出的图数」**猜**的 —— 图一旦没被解析成图片
 //   （飞书里**以文件方式发的图** `msgType='file'`、图消息缺 image_key、富文本图节点解析不到、
@@ -2068,6 +2068,17 @@ export async function runSubmissionGate({
       const _scenes = (inbound?.images ?? []).map((im) => im?.scene?.scene).filter(Boolean);
       const _abnormal = _scenes.flatMap((sc) => sceneMod.abnormalContainers(sc));
       const _sleepPositions = sceneMod.infantSleepReadings(_scenes);
+      // ★★ 2026-10-26（Owner 批准「推荐 A」）：**逐面板睡姿：模型不写，代码搬**。
+      //   病灶：读数逐面板读出了姿势（`图 1 右上：仰卧` / `图 1 右下：仰卧`），
+      //   而模型只交总括 ⇒ 闸门判「未逐面板复述姿势」⇒ 整单不出三态结论（当天 12 次里 6 次）。
+      //   搬的是**读数原文值**，边界三条（无面板读数不补 / 无该项不补 / 已复述不重复补）
+      //   与判据都在 `visual_checklist.mjs::restatePerPanelSleep`；这里只接线 ＋ 留痕。
+      const _restate = restatePerPanelSleep(String(res?.answer ?? ''), _sleepPositions);
+      if (_restate.added.length) {
+        res.answer = _restate.text;
+        console.log('[agent] 🖼 逐面板复述：代码补写 ' + _restate.added.length + ' 处（读数原文值，非新判定）｜'
+          + _restate.detail);
+      }
       visualGate = checkVisualChecklist(String(res?.answer ?? ''), {
         abnormal: _abnormal,
         sleepPositions: _sleepPositions,

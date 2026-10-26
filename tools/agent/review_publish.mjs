@@ -689,7 +689,9 @@ export function conclusionOf(answer) {
     ? s.match(new RegExp('(?:本\\s*skill\\s*)?(?:分级|合并|最终|综合)\\s*结论' + tail))
     : null;
   const m = merged || s.match(new RegExp(
-    '(?:【\\s*审查结论\\s*[：:]|审查结论\\s*[：:]|结论\\s*[：:]|判定\\s*[：:]'
+    // ★ 2026-10-26：加上 PRD §5.3.4 的字面 `【REVIEW】…`（守衡现在写这个）；
+    //   旧的 `【审查结论：X】` 仍然认（引擎答案、存量报告、历史表行都是它）。
+    '(?:【(?:PASS\\+SUGGEST|PASS|REVIEW|BLOCK)】|【\\s*审查结论\\s*[：:]|审查结论\\s*[：:]|结论\\s*[：:]|判定\\s*[：:]'
     + '|状态\\s*[：:]|state\\s*=\\s*|引擎最终输出\\s*[：:])'
     + '\\s*\\**\\s*`?\\s*(' + S + ')'));
   if (!m) return null;

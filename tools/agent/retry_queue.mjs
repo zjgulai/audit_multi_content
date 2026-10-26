@@ -392,7 +392,10 @@ export async function runTick({ answer, send, now = new Date(), file = null, log
   }
 
   let sent = null;
-  try { sent = await send(it, RESEND_PREFIX + res.reply); }
+  // ★★ 2026-10-26：补发也把**「这一轮是不是送审单」**交下去 —— 补发的正是「答失败/没跑成」那一类，
+  //   而那正是最容易拿不到 §5.3 结论行的一类；不交这条读数，补发那条路会退回模型自由文本
+  //   （与 12:21 那张 `query-answer` 同形）。判据仍是内核的 `meta.gate.yes`，不从文字里猜。
+  try { sent = await send(it, RESEND_PREFIX + res.reply, { reviewOrder: res.meta?.gate?.yes === true }); }
   catch (e) { sent = { ok: false, error: `${e?.message ?? e}` }; }
   if (!sent?.ok) {
     it.tries = Number(it.tries ?? 0) + 1;

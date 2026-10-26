@@ -454,6 +454,58 @@ export function checkVisualChecklist(text, opts = {}) {
  * checks were actually returned in this review. This is a fail-closed output contract, not a claim
  * that headings alone prove the underlying analysis is correct.
  */
+/* ═══════════ 逐面板睡姿：模型不写，代码搬（Owner 2026-10-26 批准「推荐 A」）═══════════
+ *
+ * ── 病灶（2026-10-26 真单 `om_x100b62dbe6ca94b8cf023280d301600`，15:00 那张图）
+ *   画面读数**明明逐面板读出了姿势**：
+ *     `图 1 右上：仰卧`、`图 1 右下：仰卧`（`scene.mjs::infantSleepReadings` 有这两行）
+ *   而模型交的核对项只写了总括 —— 闸门原话：
+ *     `画面读数记录了婴儿睡姿（…），视觉核对项未逐面板复述姿势`
+ *   ⇒ 整单被判「图片安全审查全流程未完成」⇒ 三态结论被扣下 ⇒ 群里收到「审查未完成」。
+ *   当天这条闸门触发 **12 次**，其中 **6 次**都是同一个原因 ⇒ 图单几乎出不来 PRD 三态卡。
+ *
+ * ── 为什么「代码搬」在这里是**对的**（不是造证据）
+ *   搬的是**画面读数里的原文值**（面板 + 姿势），与 `renderMerged` 搬库侧依据行、
+ *   `dual_track` 搬结论行**同一条分工**：模型不写，代码搬，**搬的必须是已经拿到的证据**。
+ *   反过来，三条边界一条都不许松 —— 违反任何一条就退回「不补」：
+ *     ① **读数里没有逐面板** （`panel` 为空）⇒ 不补（不许凭一个总括姿势编出「右上/右下」）；
+ *     ② **核对项本身不存在/没判出结论** ⇒ 不补（不许替模型造出整个「婴儿睡眠位置」项）；
+ *     ③ **模型已经逐面板复述过** ⇒ 不补（幂等：跑第二遍一个字不加）。
+ *   ⚠️ 补写**改的是要出门的正文**（走进 `res.answer`，卡上与报告里都看得见），
+ *     并在日志里留一行 `🖼 逐面板复述：代码补写 …` —— 谁的功劳、补了什么，都查得到。
+ */
+export function restatePerPanelSleep(text, sleepPositions = []) {
+  const s = String(text ?? '');
+  const rows = (Array.isArray(sleepPositions) ? sleepPositions : [])
+    .map((x) => ({
+      image: String(x?.image ?? '').trim(),
+      panel: String(x?.panel ?? '').trim(),
+      position: String(x?.position ?? '').trim(),
+    }))
+    // 边界①：读数没给面板 ⇒ 不参与补写（无从"逐面板"）
+    .filter((x) => x.panel && x.position && x.position !== '不适用');
+  if (!rows.length) return { text: s, added: [], detail: '' };
+  const lines = s.split(/\r?\n/);
+  // 边界②：那一项必须**已经存在**（有结论），否则不补
+  const lineIdx = lines.findIndex((ln) => /婴儿睡眠位置/.test(ln) && verdictIn(ln, '婴儿睡眠位置'));
+  if (lineIdx < 0) return { text: s, added: [], detail: '' };
+  const poseAliases = {
+    '仰卧': ['仰卧', '仰躺'], '侧卧': ['侧卧', '侧躺'], '俯卧': ['俯卧', '趴卧'],
+    '看不清': ['看不清', '无法辨认', '无法确认'],
+  };
+  // 判据与闸门同形：以「该类的证据行」为范围、按 `；;|\n` 切分句，面板与姿势必须在同一分句
+  const segs = lines.filter((ln) => /婴儿睡眠位置/.test(ln)).join(' ')
+    .split(/[；;|\n]/).map((x) => x.trim()).filter(Boolean);
+  const missing = rows.filter((r) => !segs.some((seg) => seg.includes(r.panel)
+    && (poseAliases[r.position] ?? [r.position]).some((a) => seg.includes(a))));
+  // 边界③：都复述过了 ⇒ 一个字不加（幂等）
+  if (!missing.length) return { text: s, added: [], detail: '' };
+  const detail = '位置明细：' + missing
+    .map((r) => `${r.image ? `${r.image} ` : ''}${r.panel}＝${r.position}`).join('；') + '。';
+  lines[lineIdx] = `${lines[lineIdx].replace(/\s*$/, '')} ${detail}`;
+  return { text: lines.join('\n'), added: missing, detail };
+}
+
 export function checkImageSkillWorkflow(text) {
   const s = String(text ?? '');
   const stages = [

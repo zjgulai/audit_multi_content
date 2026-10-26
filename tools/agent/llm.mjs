@@ -20,6 +20,18 @@ export const stats = {
 const RETRYABLE_STATUS = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
 
 /**
+ * 重试次数：**两档**，不是一个数（2026-10-26 加）。
+ *
+ * · `MAX_ATTEMPTS = 4` —— 网络/限流类（DNS 抖一下、502、429）：失败得快，重试便宜。
+ * · `MAX_ATTEMPTS_TIMEOUT = 2` —— **超时**类：一次超时＝一整份回答从头重新生成，
+ *   实测满预算 155.9 s ⇒ 四连超时是 683 s 白等（2026-10-26 那单就是这么过去的）。
+ *   而「我方看门狗掐的」这一类，重试从一开始就没用 —— 不够的是预算，不是运气。
+ *   留 1 次，只给「上游/中间层掐断」那种真抖动。
+ */
+const MAX_ATTEMPTS = 4;
+const MAX_ATTEMPTS_TIMEOUT = 2;
+
+/**
  * 压缩纪要的 token 预算。
  *
  * ★ 为什么单独拎出来当常量、还写这么长一段：`900` 这个值**曾经在这里静默地吃掉历史**。
@@ -57,8 +69,24 @@ const LAYER_BY_CODE = Object.freeze({
   DEPTH_ZERO_SELF_SIGNED_CERT: 'TLS', SELF_SIGNED_CERT_IN_CHAIN: 'TLS',
   ERR_TLS_CERT_ALTNAME_INVALID: 'TLS', ERR_SSL_WRONG_VERSION_NUMBER: 'TLS',
   UND_ERR_CONNECT_TIMEOUT: '超时', UND_ERR_HEADERS_TIMEOUT: '超时',
-  UND_ERR_BODY_TIMEOUT: '超时', ABORT_ERR: '超时',
+  UND_ERR_BODY_TIMEOUT: '超时', ABORT_ERR: '超时', TIMEOUT_ERR: '超时',
 });
+
+/**
+ * `DOMException` 的**数字码** → 字符串码（2026-10-26 加）。
+ *
+ * ★ 真事故（2026-10-26 10:14，群里「你好」）：失败原因印成
+ *
+ *     超时/20 · 1 跳 :: This operation was aborted
+ *
+ *   `20` 是 `DOMException` 的**数字** `code`（= `ABORT_ERR`），而 `LAYER_BY_CODE` 的键
+ *   是**字符串**码 ⇒ 查不到 ⇒ 层名靠 `name === 'AbortError'` 兜到「超时」，
+ *   而 `why` 那一格原样印了个 `20`。两处代价：
+ *     ① 人读不懂 `超时/20`（这是排查链上唯一一句给业务人看的话）；
+ *     ② `why` 脱离了「code 封闭集合」这条口径 —— 说出去的话比手上的依据大。
+ *   ⇒ 进 chain 之前先归一名，`why` 只会是 `ABORT_ERR` / `TIMEOUT_ERR` 这种能查的码。
+ */
+const DOM_CODE_NAME = Object.freeze({ 19: 'NETWORK_ERR', 20: 'ABORT_ERR', 23: 'TIMEOUT_ERR' });
 
 export const LAYERS = Object.freeze(['DNS', 'TCP', 'TLS', '超时', 'HTTP', '未知']);
 
@@ -112,6 +140,12 @@ export function describeError(e) {
   }
   const chain = hops.reverse();       // ← 由深到浅
 
+  // 数字码先归一名（`DOMException` 的 `code:20` → `ABORT_ERR`），否则 `why` 会印出 `超时/20`。
+  for (const h of chain) {
+    const name = DOM_CODE_NAME[String(h.code)];
+    if (name) h.code = name;
+  }
+
   // 每一跳自己能说清的层名；`chain[0]` 一格都不会空（它是结论的落点）。
   for (const h of chain) {
     const l = h.code ? layerOfCode(h.code) : null;
@@ -164,10 +198,22 @@ export function keyFingerprint(key = config.llm.apiKey) {
   return crypto.createHash('sha256').update(String(key ?? '')).digest('hex').slice(0, 8);
 }
 
-async function post(pathname, body, { timeoutMs = 120_000 } = {}) {
+/**
+ * 「这一跳是我方看门狗掐的」—— 挂在被 abort 出来的那个错上。
+ *
+ * ★ 为什么要有这个标记（2026-10-26）：`AbortError` 一个名字盖住两种**完全不同**的事故：
+ *   ① **我方**到点主动掐（`timeoutMs` 用完）⇒ 该调的是「预算/超时」，重试也没用；
+ *   ② **上游/中间层**把连接掐了（网关 60 s 断流、负载均衡收走连接）⇒ 该调的是端点，重试有意义。
+ *   原先两者在群里都印成「请求超时」，于是「我们自己的 120 s 太紧」看起来像「网络不好」——
+ *   事故当天正是这样，4 次重试全被自己的看门狗掐死，日志却只写「层=超时」。
+ */
+const WATCHDOG = Symbol.for('shouheng.llm.watchdog');
+
+async function post(pathname, body, { timeoutMs = config.llm.timeoutMs } = {}) {
   const url = `${config.llm.baseUrl.replace(/\/$/, '')}${pathname}`;
   const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  let fired = false;
+  const timer = setTimeout(() => { fired = true; ac.abort(); }, timeoutMs);
   try {
     const r = await fetch(url, {
       method: 'POST',
@@ -179,6 +225,12 @@ async function post(pathname, body, { timeoutMs = 120_000 } = {}) {
     let json = null;
     try { json = JSON.parse(text); } catch { /* 非 JSON 响应 */ }
     return { status: r.status, ok: r.ok, json, raw: text };
+  } catch (e) {
+    // 只有**真的因为看门狗到点**才打标记；`fired` 为 false 时那是上游/外部掐的，不许冒充。
+    if (fired && e && typeof e === 'object') {
+      try { e[WATCHDOG] = { ms: timeoutMs }; } catch { /* 冻结对象：退化为按 name 判 */ }
+    }
+    throw e;
   } finally { clearTimeout(timer); }
 }
 
@@ -207,7 +259,8 @@ function recordUsage(model, usage) {
  *                    error?:string, layer?:string, chain?:Array, attempts?:Array, retryable?:boolean}>}
  */
 export async function chat(messages, { tools, model = config.llm.model, maxTokens = config.llm.maxTokens,
-                                       temperature = 0.3, jsonMode = false, thinking = null } = {}) {
+                                       temperature = 0.3, jsonMode = false, thinking = null,
+                                       timeoutMs = config.llm.timeoutMs } = {}) {
   const body = { model, messages, max_tokens: maxTokens, temperature };
   // ★ 2026-10-16：**思考开关**（形如 `{type:'disabled'}`）。
   //   为什么必须有它：本机模型是**推理模型**，思考与正文共用 `max_tokens`，
@@ -219,11 +272,11 @@ export async function chat(messages, { tools, model = config.llm.model, maxToken
 
   const attempts = [];
   let delay = 800;
-  for (let attempt = 0; attempt <= 3; attempt++) {
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     if (attempt > 0) { stats.retries++; await new Promise((r) => setTimeout(r, delay)); delay *= 2; }
     stats.calls++;
     try {
-      const res = await post('/chat/completions', body);
+      const res = await post('/chat/completions', body, { timeoutMs });
 
       if (res.ok && res.json?.choices?.length) {
         recordUsage(model, res.json.usage);
@@ -250,7 +303,7 @@ export async function chat(messages, { tools, model = config.llm.model, maxToken
                                chain: httpChain(res.status, code, msg), attempts, retryable: false,
                                model, baseUrl: config.llm.baseUrl });
       }
-      if (attempt === 3) {
+      if (attempt + 1 >= MAX_ATTEMPTS) {
         stats.failures++;
         return finishFailure({ error: `重试耗尽 HTTP ${res.status} code=${code}: ${msg}`, layer: 'HTTP',
                                chain: httpChain(res.status, code, msg), attempts, retryable: true,
@@ -259,15 +312,30 @@ export async function chat(messages, { tools, model = config.llm.model, maxToken
     } catch (e) {
       const desc = describeError(e);
       const name = e?.name ?? '';
-      const isTimeout = name === 'AbortError' || /aborted|timeout/i.test(e?.message ?? '');
+      const watchdog = e?.[WATCHDOG] ?? null;      // ← 我方看门狗掐的（不是上游）
+      const isTimeout = !!watchdog || name === 'AbortError' || /aborted|timeout/i.test(e?.message ?? '');
       attempts.push({ n: attempt + 1, kind: 'transport', layer: desc.layer, why: desc.why,
                       code: desc.chain.find((h) => h.code)?.code ?? null,
+                      watchdog_ms: watchdog?.ms ?? null,
                       error: `${isTimeout ? '请求超时' : '网络错误'}: ${e?.message ?? e}` });
-      if (attempt === 3) {
+      // ★★ 2026-10-26：**超时的重试上限单独一档（2 次 ≠ 4 次）**。
+      //   为什么（事故当天的读数）：一次超时＝一整份回答从头重新生成 ——
+      //   实测满预算要 155.9 s。四连超时＝4×120 s＝683 s **全部白等**，然后还是失败；
+      //   而「自己掐的」这一类**重试从一开始就没用**：真正不够的是预算，不是运气。
+      //   ⇒ 看门狗掐的只再试 1 次（给上游抖动留一次机会），其它可重试错误仍是 4 次
+      //     （它们失败得快，重试便宜）。这一条与 `MAX_ATTEMPTS` 一起被
+      //     `llm_errors.test.mjs` 的 L9 钉住，改成 4 次会**精确变红**。
+      const limit = isTimeout ? MAX_ATTEMPTS_TIMEOUT : MAX_ATTEMPTS;
+      if (attempt + 1 >= limit) {
         stats.failures++;
+        const why = isTimeout
+          ? (watchdog
+              ? `我方 ${Math.round(watchdog.ms / 1000)} 秒看门狗掐断（预算 max_tokens=${maxTokens}，不是网络问题）`
+              : '请求超时')
+          : '网络错误';
         return finishFailure({
           // ★ 层名在最前面：`DNS/ENOTFOUND · …`。**不许**再把四种情况写成同一句 `网络错误: fetch failed`。
-          error: `${desc.layer} 层失败（${isTimeout ? '请求超时' : '网络错误'}）：${desc.summary}`,
+          error: `${desc.layer} 层失败（${why}）：${desc.summary}`,
           layer: desc.layer, chain: desc.chain, attempts, retryable: true,
           model, baseUrl: config.llm.baseUrl });
       }

@@ -74,6 +74,41 @@ export function normState(state) {
 const LINE_RE = /【审查结论：(PASS\+SUGGEST|PASS|REVIEW|BLOCK|SUGGEST)】[^\n]*/;
 
 /**
+ * ★★ 2026-10-26 两轮，**结论落定在「写旧字面、两种都认」**：
+ *
+ *   上午（Owner：「守衡的回复没有按照 prd 和原先的输出模版来回复」）把**写出去的**改成了
+ *   PRD §5.3.4 样张字面 `【X】`；下午（Owner：「输出格式的问题，在 10/22 都是好的，
+ *   恢复到 10/22 的输出格式」）**写回 `【审查结论：X】`** —— 那正是 10-22 卡面上的样子
+ *   （`PMO/logs/ws_outbound.jsonl` 当天 70 条卡片逐条都是这个前缀）。
+ *
+ *   两件事因此**分开**，别再把它们合成一条：
+ *     · **写出去的**（卡面 / 报告 / 表行）＝ `【审查结论：X】`（10-22 口径，Owner 2026-10-26 定）；
+ *     · **读进来的**（引擎的答案、存量报告、历史记录、知识库侧的产物）**两种都认** ——
+ *       上午那批已落盘的新字面、以及 KB 侧仍在产的旧字面，谁都不许因为写法读不出来。
+ *
+ * ⚠️ 判据不许只认一种：`conforms()` 两种情况都认（`headPrd ?? headLegacy`），
+ *    而且前缀按**这一行自己的**写法拼回去 —— 这样 S7「拿引擎真输出过守衡那把尺子」
+ *    不会因为两边写法不同就变红。**谁把这条收窄成一种，先看这段注释。**
+ */
+const LINE_RE_PRD = /【(PASS\+SUGGEST|PASS|REVIEW|BLOCK|SUGGEST)】[^\n]*/;
+
+/** 取文本里**最先出现**的那一条结论行（两种写法混在同一段里时，按位置定先后）。 */
+function firstLineMatch(text) {
+  const s = String(text ?? '');
+  const a = LINE_RE.exec(s);
+  const b = LINE_RE_PRD.exec(s);
+  if (!a) return b;
+  if (!b) return a;
+  return (b.index < a.index ? b : a);
+}
+
+/** 这一行是不是一条结论行（不认识内容、只认写法）—— 供发送层认「卡面第一行」用。 */
+export function isConclusionLine(text) {
+  return firstLineMatch(text) !== null;
+}
+
+
+/**
  * 从一段文本里取出**第一行** `【审查结论：…】…`。
  *
  * `state` **已规范化**（旧字面 `SUGGEST` ⇒ `PASS+SUGGEST`）；`token` 是行里**原样**那个词 ——
@@ -83,7 +118,7 @@ const LINE_RE = /【审查结论：(PASS\+SUGGEST|PASS|REVIEW|BLOCK|SUGGEST)】[
  * @returns {{state:string, token:string, line:string, legacy:boolean}|null}
  */
 export function conclusionLine(text) {
-  const m = LINE_RE.exec(String(text ?? ''));
+  const m = firstLineMatch(text);
   if (!m) return null;
   const token = m[1];
   const state = normState(token);
@@ -105,8 +140,18 @@ export function conclusionLine(text) {
  */
 export function conforms(line) {
   const s = String(line ?? '').trim();
-  const head = LINE_RE.exec(s);
-  if (!head) return { ok: false, state: null, why: '整行里没有【审查结论：<态>】标记' };
+  // ★ 两种写法都要认（见 `LINE_RE_PRD` 头注）：`【X】`（PRD §5.3.4 字面，我们现在**写这个**）
+  //   与 `【审查结论：X】`（旧字面，知识库引擎仍在产）。**谁都不许只认一种** ——
+  //   只认新式 ⇒ 引擎的真输出被我们的尺子判不合规（S7 会红，那是假红）。
+  const headPrd = /^【(PASS\+SUGGEST|PASS|REVIEW|BLOCK|SUGGEST)】/.exec(s);
+  const headLegacy = /^【审查结论：(PASS\+SUGGEST|PASS|REVIEW|BLOCK|SUGGEST)】/.exec(s);
+  const head = headPrd ?? headLegacy;
+  if (!head) {
+    return { ok: false, state: null,
+      why: '整行里没有【<态>】或【审查结论：<态>】标记（PRD §5.3.4 的样张是前者）' };
+  }
+  // 前缀按**这一行自己的**写法拼回去 —— 判据只此一处，不许每个态各写一份前缀。
+  const P = headPrd ? '【' : '【审查结论：';
   const token = head[1];
   const state = normState(token);
 
@@ -122,7 +167,7 @@ export function conforms(line) {
     //    `configured: false`，库规要求此时输出「角色名（未配置）」。
     //    第一版写成 `@\S+ 进行 sign-off`，当场把**正确的**夹具判红 —— 会误报的判据比没有更糟，
     //    同一条已经在这套改动里踩过两次了（KB 侧 `l7_integrity.py` 两处）。
-    const ok = /^【审查结论：PASS】未发现已知底线风险，可转交 @\S[^\n]*进行 sign-off/.test(s);
+    const ok = new RegExp(`^${P}PASS】未发现已知底线风险，可转交 @\\S[^\\n]*进行 sign-off`).test(s);
     return { ok, state, why: ok ? '与 §5.3.1 逐字一致' : 'PASS 行必须含「未发现已知底线风险，可转交 @…进行 sign-off」' };
   }
   if (state === 'PASS+SUGGEST') {
@@ -132,15 +177,16 @@ export function conforms(line) {
     //     ② 卡面是「结论行 ＋ 之下逐条」，所以句末是句号而不是冒号。
     //   「不阻断发布」**不许省** —— 那是它与 REVIEW 的唯一分界；
     //   「需人工确认／必须修改」是另外两态的措辞，出现就不合这一态。
-    const ok = /^【审查结论：PASS\+SUGGEST】发现 \d+ 处建议优化，不阻断发布(?:[：:].*|。)?$/.test(s);
+    const ok = new RegExp(`^${P}PASS\\+SUGGEST】发现 \\d+ 处建议优化，不阻断发布(?:[：:].*|。)?$`).test(s);
     return { ok, state, why: ok ? '与 §5.3.4 样张逐字一致（四态第 2 态）'
       : 'PASS+SUGGEST 行必须是「发现 N 处建议优化，不阻断发布：…」（「不阻断发布」是它与 REVIEW 的分界，不许省）' };
   }
   if (state === 'REVIEW') {
-    const ok = /^【审查结论：REVIEW】共发现 \d+ 处需人工确认。$/.test(s);
+    const ok = new RegExp(`^${P}REVIEW】共发现 \\d+ 处需人工确认。$`).test(s);
     return { ok, state, why: ok ? '与 §5.3.2 逐字一致' : 'REVIEW 行必须是「共发现 N 处需人工确认。」' };
   }
-  const ok = /^【审查结论：BLOCK】共发现 \d+ 处必须修改。$/.test(s);
+  const _okBlk = new RegExp(`^${P}BLOCK】共发现 \\d+ 处必须修改。$`).test(s);
+  const ok = _okBlk;
   return { ok, state, why: ok ? '与 §5.3.3 逐字一致' : 'BLOCK 行必须是「共发现 N 处必须修改。」' };
 }
 
@@ -176,7 +222,9 @@ export function leadsWith(text, line) {
  */
 export function conclusionBlock(text) {
   const s = String(text ?? '');
-  const head = LINE_RE.exec(s);
+  // ★ 2026-10-26：两种写法都认（我们自己现在写 `【X】`，引擎答案与存量件是 `【审查结论：X】`）。
+  //   只认旧式 ⇒ 本仓自己产出的块会被判成「没有结论行 ⇒ 没有块」⇒ 报告链接那一行跟着消失。
+  const head = firstLineMatch(s);
   if (!head) return null;
   const rest = s.slice(head.index);
   const m = /\n(?:请修改后重新提交。|建议转[^\n]*复核。)/.exec(rest);
@@ -238,6 +286,11 @@ export function conclusionBlock(text) {
  */
 export function passLineFor({ role = 'sign-off 责任人', handle = null } = {}) {
   const who = handle ? `@${handle}` : `@${role}（未配置）`;
+  // ★ 2026-10-26 二轮：写回 10-22 的字面（Owner：「恢复到 10/22 的输出格式」）。
+  //   上午那版写的是 PRD §5.3.4 样张 `【PASS】…`，已按 Owner 当天下半场的选择撤回 ——
+  //   读侧仍两种都认（`LINE_RE_PRD`），所以存量那些新字面的件不会读不出来。
+  // 2026-10-26 下午（Owner：「输出格式的问题，在 10/22 都是好的，恢复到 10/22 的输出格式」）
+  // ⇒ 写出去仍是旧字面【审查结论：X】（10-22 卡面逐条都是它）；PRD 字面【X】只做读侧兼容。
   return `【审查结论：PASS】未发现已知底线风险，可转交 ${who} 进行 sign-off。`;
 }
 
