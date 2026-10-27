@@ -50,6 +50,17 @@ LOADED_MARK = "<skill_content"
 ERR_UNKNOWN = "unknown or no longer available"
 ERR_NOT_INVOCABLE = "not available for model invocation"
 
+#: 扁平形状（dsh 0.2.x）的 skill 正文**没有** `<skill_content>` 包裹，只有 markdown 正文。
+#: 判据刻意保守（2026-10-27 加）：非错 ＋ **够长** ＋ 以一级标题开头 ＋ 里面有二级标题。
+#: 为什么不用「非空就算过」：那样任何一句回执（"OK" / "loaded"）都会被当成加载成功，
+#: 闸门等于放空 —— 反向对照钉在 `--selftest` ⑫c。
+FLAT_BODY_MIN_CHARS = 200
+
+
+def _looks_like_skill_body(text: str) -> bool:
+    s = (text or "").lstrip()
+    return (len(s) >= FLAT_BODY_MIN_CHARS and s.startswith("# ") and "\n## " in s)
+
 
 def _decompress_zstd(raw_bytes: bytes) -> bytes:
     """解压会话日志。**必须走 stream_reader**。
@@ -109,19 +120,23 @@ def collect(events) -> tuple[dict, dict]:
 
 def result_text(msg: dict) -> tuple[str, bool]:
     """从 tool/result 的 message 里取出 (正文, 是否报错)。"""
-    texts, is_err = [], False
+    texts, is_err = [], bool(msg.get("isError"))
     for block in (msg.get("content") or []):
-        if block.get("type") != "tool-result":
-            continue
-        is_err = is_err or bool(block.get("isError"))
-        for c in (block.get("content") or []):
-            if c.get("type") == "text":
-                texts.append(c.get("text") or "")
+        bt = block.get("type")
+        if bt == "tool-result":            # 嵌套（旧版 0.1.x / 2.0.4）
+            is_err = is_err or bool(block.get("isError"))
+            for c in (block.get("content") or []):
+                if c.get("type") == "text":
+                    texts.append(c.get("text") or "")
+        elif bt == "text":                 # 扁平（新版 0.2.x：`session.v4.jsonl.zstd`）
+            texts.append(block.get("text") or "")
     return "\n".join(texts), is_err
 
 
 def classify(text: str, is_error: bool) -> str:
     if LOADED_MARK in text:
+        return "loaded"
+    if not is_error and _looks_like_skill_body(text):
         return "loaded"
     if ERR_UNKNOWN in text:
         return "error_unknown"
@@ -131,6 +146,67 @@ def classify(text: str, is_error: bool) -> str:
         return "error_other"
     return "pending"
 
+
+#: 会话日志的落盘根**默认值**；`$DSH_SESSIONS_ROOT` 可覆盖（只给自证 / 换机用，不改生产行为）。
+#: ★ 为什么是函数而不是常量：常量在 import 那一刻就定死 ⇒ 自证里再设环境变量**不生效**，
+#:   夹具会静默去搜真实的 `~/.dsh/sessions`（2026-10-27 踩过：⑨ 恒红，且报错完全看不出原因 ——
+#:   它其实"解析到了"一条真会话，只是那条会话里没调过这个 skill）。
+DEFAULT_SESSIONS_ROOT = os.path.join(os.path.expanduser("~"), ".dsh", "sessions")
+
+
+def sessions_root() -> Path:
+    return Path(os.environ.get("DSH_SESSIONS_ROOT") or DEFAULT_SESSIONS_ROOT)
+
+
+def _session_file_by_id(sid: str) -> Path | None:
+    """按 session id 找日志。**不猜文件名** —— 新版换了文件名（`session.v4.jsonl.zstd`），
+    按 id 去根下 `*/<id>/session*.jsonl*` 找，下次再换版本也不会坏。"""
+    if not sid or "/" in sid or "\\" in sid or ".." in sid:  # 带路径成分一律不认
+        return None
+    root = sessions_root()
+    if not root.is_dir():
+        return None
+    hits: list[Path] = []
+    for pat in ("session*.jsonl.zstd", "session*.jsonl.zst", "session*.jsonl"):
+        hits += [p for p in root.glob("*/%s/%s" % (sid, pat)) if p.is_file()]
+    if not hits:
+        return None
+    return max(hits, key=lambda p: p.stat().st_mtime)
+
+
+def resolve_session_path(explicit: str | None = None) -> Path | None:
+    """会话日志路径的**唯一解析口**（2026-10-27 加）。
+
+    为什么需要它（当天两单图片单因此全变成 NEEDS_INPUT，逐单实证）：
+      · dsh **0.1.x**（旧版 2.0.4）**同时**导出 `$DSH_SESSION_JSONL` 与 `$DSH_SESSION_ID`；
+      · dsh **0.2.x**（DSH NEXT 2.0.20-next）**只导出 `$DSH_SESSION_ID`**。同一条探针实测：
+          旧版 `JSONL=[/Users/lute/.dsh/sessions/<cwd>/session-35ed…/session.jsonl.zstd] ID=[session-35ed…]`
+          新版 `JSONL=[]`                                                        `ID=[session-9685…]`
+    图片单的专项闸门要靠这份逐字稿证明「本会话真的加载过 skill」，拿不到就 fail-closed
+    ⇒ 一迁到新版，**每张图片单都成了 NEEDS_INPUT / skill_session_unverified**（不是模型判错，是证据缺）。
+
+    落盘形状**没变**（同目录、同 session id），只是文件名带版本号：
+      旧 `session.jsonl.zstd` ｜ 新 `session.v4.jsonl.zstd`
+    ⇒ 按 session id 去根下 `*/<id>/session*.jsonl*` 找，**不猜文件名**（下次升到 v5 也不会坏）。
+
+    优先级：显式 `--session` ＞ `$DSH_SESSION_JSONL` ＞ 按 `$DSH_SESSION_ID` 解析 ＞ **None**。
+    ★ None = 「未测」，既不是「通过」也不是「失败」；调用方**不许**把它折算成任何三态。
+    """
+    if explicit:
+        p = Path(explicit)
+        if p.is_file():
+            return p
+        # ★ 也吃**裸会话号**：skill 正文里传的就是 `$DSH_SESSION_ID`（2026-10-27 踩过 ——
+        #   `--session session-xxx` 被当成不存在的路径，直接判「未测」，看着像没给会话）。
+        if "/" not in explicit and "session-" in explicit:
+            got = _session_file_by_id(explicit.strip())
+            if got:
+                return got
+        return p
+    env = (os.environ.get("DSH_SESSION_JSONL") or "").strip()
+    if env:
+        return Path(env)
+    return _session_file_by_id((os.environ.get("DSH_SESSION_ID") or "").strip())
 
 def verify(skill: str, session: Path | None) -> dict:
     out = {"skill": skill, "session": str(session) if session else None,
@@ -242,6 +318,83 @@ def selftest() -> int:
     r = verify("文案合规审查", p_ok)
     expect("⑦ 不串台 ⇒ no_call", r["verdict"] == "no_call", r["verdict"])
 
+    # ⑧–⑩ dsh 0.2.x 形状：只有 $DSH_SESSION_ID、没有 $DSH_SESSION_JSONL（2026-10-27 加）
+    #    为什么必须有这三条：迁移到新版后，图片单正是因为这个形状而全成了 NEEDS_INPUT；
+    #    没有这条自证，下次再有人"顺手"把解析口改回只认环境变量，盘上不会有任何东西变红。
+    sess_dir = tmp / "sessions" / "cwd-enc" / "session-968579f1-b2d5-4e62-8b0f-533159a67bff"
+    sess_dir.mkdir(parents=True)
+    # 必须写成**真的 zstd**：`.jsonl.zstd` 后缀会走解压分支，纯文本会被当压缩流而读成 0 条
+    _payload = ("\n".join(ok_lines) + "\n").encode("utf-8")
+    try:
+        import zstandard as _zstd
+        (sess_dir / "session.v4.jsonl.zstd").write_bytes(_zstd.ZstdCompressor().compress(_payload))
+    except ImportError:                      # 没装 zstandard ⇒ 退化成纯 .jsonl（同样走解析口）
+        (sess_dir / "session.v4.jsonl").write_bytes(_payload)
+    _keys = ("DSH_SESSION_JSONL", "DSH_SESSION_ID", "DSH_SESSIONS_ROOT")
+    _old = {k: os.environ.get(k) for k in _keys}
+    try:
+        os.environ.pop("DSH_SESSION_JSONL", None)
+        os.environ["DSH_SESSIONS_ROOT"] = str(tmp / "sessions")
+        os.environ["DSH_SESSION_ID"] = "session-968579f1-b2d5-4e62-8b0f-533159a67bff"
+        got = resolve_session_path()
+        expect("⑧ 只有 session id ⇒ 按 id 解析到带版本号的文件名",
+               got is not None and got.name in ("session.v4.jsonl.zstd", "session.v4.jsonl"),
+               str(got))
+        r = verify("图片安全审查", got)
+        expect("⑨ 解析出的日志 ⇒ loaded（迁移后图片单能过闸）",
+               r["verdict"] == "loaded", r["verdict"])
+        os.environ["DSH_SESSION_ID"] = "session-ffffffff-dead-beef-0000-000000000000"
+        expect("⑩ 反向对照：id 对不上 ⇒ 解析不出（未测，不是通过）",
+               resolve_session_path() is None, str(resolve_session_path()))
+        # ⑬ `--session` 传**裸会话号**也要认（skill 正文里传的就是 `$DSH_SESSION_ID`；
+        #    2026-10-27 踩过：它被当成不存在的路径 ⇒ 直接判「未测」）
+        got = resolve_session_path(sess_dir.name)          # 夹具里那个真会话号
+        expect("⑬ 裸会话号也解析得到（--session 直接吃 $DSH_SESSION_ID）",
+               got is not None and got.parent == sess_dir, str(got))
+        # ⑫ dsh 0.2.x 的**扁平**形状（2026-10-27 实证，逐字取自真实 session.v4.jsonl.zstd）：
+        #    正文直接在 `message.content[].text`，`isError` / `toolCallId` 挂在 message 上，
+        #    **没有** `tool-result` 包裹。漏认它 ⇒ 正文取到空串 ⇒ **静默判成 pending**
+        #    （后果不是报错，是 fail-closed：当天两单图片单白跑 3 分钟）。
+        #    反向对照：把 result_text 退回「只认 tool-result」⇒ ⑫ 精确变红。
+        def _flat(path, text, is_err):
+            path.write_text("\n".join([
+                '{"type": "tool/call", "seq": 20, "time": 1792548879925, "data": '
+                '{"turn": 1, "step": 1, "callId": "call_01118c991dd140a3bb32be07", "name": "skill", '
+                '"arguments": "{\\"name\\": \\"图片安全审查\\"}"}}',
+                '{"type": "tool/result", "seq": 21, "time": 1792548879926, "data": {"turn": 1, "step": 1, '
+                '"message": {"role": "tool", "source": {"kind": "tool", '
+                '"callId": "call_01118c991dd140a3bb32be07"}, '
+                '"toolCallId": "call_01118c991dd140a3bb32be07", '
+                '"content": [{"type": "text", "text": %s}], '
+                '"isError": %s, "id": "z"}}}' % (json.dumps(text, ensure_ascii=False),
+                                                "true" if is_err else "false"),
+            ]) + "\n", encoding="utf-8")
+
+        # 真实扁平正文长这样：**没有** `<skill_content>` 包裹，直接是 skill 的 markdown
+        _flat(tmp / "flat_ok.jsonl",
+              "# Brand Image Safety Review\n\n## 步骤 1：解析审核对象与范围\n"
+              + "逐段正文…" * 60, False)
+        r = verify("图片安全审查", tmp / "flat_ok.jsonl")
+        expect("⑫ 扁平形状（0.2.x，无包裹的 markdown 正文）⇒ loaded",
+               r["verdict"] == "loaded", r["verdict"])
+        # ⑫c 反向对照：非错、但只有一句回执 ⇒ **不许**判 loaded（否则闸门等于放空）
+        _flat(tmp / "flat_short.jsonl", "OK", False)
+        r = verify("图片安全审查", tmp / "flat_short.jsonl")
+        expect("⑫c 反向对照：扁平里只有一句回执 ⇒ 仍 pending（不放宽成「非空即过」）",
+               r["verdict"] == "pending", r["verdict"])
+        _flat(tmp / "flat_err.jsonl",
+              'Error: skill "图片安全审查" is unknown or no longer available', True)
+        r = verify("图片安全审查", tmp / "flat_err.jsonl")
+        expect("⑫b 扁平形状 + isError ⇒ error_unknown（不是 loaded）",
+               r["verdict"] == "error_unknown", r["verdict"])
+
+    finally:
+        for k, v in _old.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
     print("verify_skill_loaded selftest：通过 %d ／ 失败 %d（夹具目录 %s）" % (passed, failed, tmp))
     return 0 if failed == 0 else 1
 
@@ -251,7 +404,6 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--skill", default=None, help="skill 名")
     ap.add_argument("--session", default=None, help="会话日志（默认 $DSH_SESSION_JSONL）")
     ap.add_argument("--json", action="store_true")
-    ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args(argv)
 
@@ -261,7 +413,7 @@ def main(argv: list[str] | None = None) -> int:
         print("给 --skill <名字>（或 --selftest）", file=sys.stderr)
         return 2
 
-    session = a.session or os.environ.get("DSH_SESSION_JSONL")
+    session = resolve_session_path(a.session)
     r = verify(a.skill, Path(session) if session else None)
     if a.json:
         print(json.dumps(r, ensure_ascii=False, indent=1))

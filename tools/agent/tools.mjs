@@ -1213,9 +1213,44 @@ register('kb_status', {
  */
 export const KB_ROOT = process.env.SHOUHENG_KB_ROOT
   || '/Users/lute/Documents/skill-test/执行skills/执行skills/skills-回归测试/知识库/内容治理';
+/* ══════════ ★★ 起链用的 DSH 运行时（2026-10-27：切到新版）══════════════════
+ * 为什么换：Owner 逐字「守衡要跑新版的 dsh，不能再跑旧版的」。
+ *   旧版 = `/Applications/DSH Desktop.app.pre-lute-20260907-111753`（打包 dsh **0.1.2-alpha.1**）
+ *   新版 = `/Applications/DSH NEXT.app`（2.0.20-next，打包 dsh **0.2.1-rc.3**）
+ *
+ * 为什么不能照抄旧版的起法（这是本次改动唯一的硬约束）：
+ *   旧版把 `@deepseek-ai/dsh` **解包**在 `app.asar.unpacked/` 下 ⇒ 磁盘上有真实 `bin.js`，
+ *   系统 `node` 直接跑就行；新版把它**打进 app.asar**（磁盘上没有那个文件）⇒
+ *   `node <asar>/…/dsh/lib/bin.js` 是 **MODULE_NOT_FOUND**（2026-10-27 实测）。
+ *   唯一可行的起法是「**拿 App 本体当 node**」：
+ *     ELECTRON_RUN_AS_NODE=1 "<App>/Contents/MacOS/DSH NEXT" "<asar>/…/dsh/lib/bin.js" --profile headless <task>
+ *   实测（2026-10-27 16:37）：rc=0、7 s、`kb_collections` 正常返回子库 ⇒ 这条起法是真的通。
+ *
+ * 三个旋钮都在环境变量里（默认指向新版）：
+ *   · `SHOUHENG_DSH_BIN`  —— bin.js 全路径。**覆写它就等于回到旧式 `node <bin.js>` 起法**
+ *     （解释器自动回落成 `node`）⇒ 回滚只要把它指回旧 App 的 unpacked 路径，一行、不动代码。
+ *   · `SHOUHENG_DSH_EXEC` —— 解释器（显式最高优先）。
+ *   · `SHOUHENG_DSH_APP`  —— 只用来拼上面两个默认值的便利旋钮。
+ * ⚠️ 覆写 bin 时解释器回落成 `node` 是**故意的**：`tools/test_agent.mjs` 的桩
+ *    （`stub-dsh.mjs`）就是靠 `SHOUHENG_DSH_BIN` 注入、且必须由 node 执行；默认值改成
+ *    App 本体后若不回落，那些判据会被 Electron 拉起而走样。
+ */
+export const DSH_APP = process.env.SHOUHENG_DSH_APP || '/Applications/DSH NEXT.app';
 const DSH_BIN = process.env.SHOUHENG_DSH_BIN
-  || '/Applications/DSH Desktop.app.pre-lute-20260907-111753/Contents/Resources/app.asar.unpacked'
-     + '/node_modules/@deepseek-ai/dsh/lib/bin.js';
+  || DSH_APP + '/Contents/Resources/app.asar/node_modules/@deepseek-ai/dsh/lib/bin.js';
+const DSH_EXEC = process.env.SHOUHENG_DSH_EXEC
+  || (process.env.SHOUHENG_DSH_BIN ? 'node' : DSH_APP + '/Contents/MacOS/DSH NEXT');
+/** 末尾是 `node` 的可执行文件不需要 `ELECTRON_RUN_AS_NODE`；App 本体必须带。 */
+const DSH_NEEDS_ELECTRON_ENV = !/(^|\/)node$/.test(DSH_EXEC);
+/**
+ * bin.js 在 asar 里时 `fs.existsSync(DSH_BIN)` **恒为假**（asar 是个文件、不是目录）
+ * ⇒ 改成探测那个 `.asar` 文件本身。旧式磁盘路径仍走第一条判断，行为不变。
+ */
+export function dshCliExists() {
+  if (fs.existsSync(DSH_BIN)) return true;
+  const i = DSH_BIN.indexOf('.asar/');
+  return i > 0 && fs.existsSync(DSH_BIN.slice(0, i + '.asar'.length));
+}
 // ★ 2026-10-23（图单静默 9 分 9 秒那一单）：**30 分钟 → 20 分钟** —— 比最长正常链多 2 分钟，
 //   静默的窗口因此从「半小时」压到「二十分钟」。`SHOUHENG_KB_REVIEW_TIMEOUT_MS` 仍可覆盖。
 //   它还 export 出去当**唯一出处**：回执/心跳/自证都读这一格，不许各写一份。
@@ -1267,8 +1302,29 @@ async function spawnChain(task) {
   writeChainInFlight();
   try {
     console.log(`[review] 🚀 起链（${describeChainInFlight(_chainsInFlight)}）`);
-    return await execFileP('node', [DSH_BIN, '--profile', 'headless', task], {
+    const chainEnv = {
+      ...process.env, KB_NO_PUBLISH: process.env.KB_NO_PUBLISH ?? '1',
+      ...(DSH_NEEDS_ELECTRON_ENV ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
+    };
+    // ★★ 2026-10-27（Owner 实测 `api key: ****b7b8 is invalid` 鉴权失败修复）：
+    //   守衡自身配置在中转站（`SHOUHENG_LLM_API_KEY` + `SHOUHENG_LLM_BASE_URL`），而 DSH 链进程若落到
+    //   `llm-deepseek` 默认配置会读 `~/.dsh/.credentials.yaml` 里已失效的 `DEEPSEEK_API_KEY`（尾号 `b7b8`）。
+    //   这里在 spawn 环境里将 `OPENCODE_ABI_API_KEY`、`DEEPSEEK_API_KEY`、`DEEPSEEK_BASE_URL` 与守衡自身的有效凭据对齐，
+    //   保证无论 headless 走 `opencode-abi` 还是 `deepseek-official` 都不会再踩 `b7b8` 401。
+    if (config.llm?.apiKey) {
+      chainEnv.OPENCODE_ABI_API_KEY = chainEnv.OPENCODE_ABI_API_KEY || config.llm.apiKey;
+      chainEnv.DEEPSEEK_API_KEY = config.llm.apiKey;
+    }
+    if (config.llm?.baseUrl) {
+      chainEnv.DEEPSEEK_BASE_URL = chainEnv.DEEPSEEK_BASE_URL || config.llm.baseUrl;
+    }
+    return await execFileP(DSH_EXEC, [DSH_BIN, '--profile', 'headless', task], {
       cwd: KB_ROOT, timeout: KB_REVIEW_TIMEOUT_MS, maxBuffer: 8 << 20,
+      // ★ 2026-10-26（Owner：<3 分钟第一性原理）：链内 `review_run.sh` 传 `KB_NO_PUBLISH=1`，
+      //   飞书云文档与多维表格统一由守衡在双轨合并后只写一次（避免链内花 30~50s 写一遍、守衡又写一遍）。
+      // ★ 2026-10-27：新版**必须**带 `ELECTRON_RUN_AS_NODE=1`（App 本体当 node 去读 asar）；
+      //   旧式 `node <磁盘 bin.js>` 不加它 —— 靠 `DSH_NEEDS_ELECTRON_ENV` 自动判，别在两处各写一份。
+      env: chainEnv,
     });
   } finally {
     _chainsInFlight--;
@@ -1700,9 +1756,14 @@ export async function p0HitPayload({ p0, text, p0Target, p0ReportPath, allowPubl
   //     重审就要重跑；链接必须指本单那份。旧链接只在**本单没出成**时回落，
   //     且 detail 必须写明「不是本单的」（判据在 `p0ReportOutcome`，纯函数可断言）。
   const p0ContentId = reviewPublish.contentIdOf(String(text ?? ''));
+  // ★ 2026-10-27 极速优化：当 `allowPublish=false` 且没有 `p0ReportPath`（即只读前置 `runP0Preflight`）时，
+  //   `p0ReportOutcome` 的语义是不建报告、只返回 P0 判定。跳过 `prevLinkOf`（避免在 P0 快路上
+  //   多花 2,000ms 去调飞书 API 遍历多维表格全表），让 P0 快路的墙钟耗时从 ~2.1s 压回 ~50ms。
   let prevReport = null;
-  try { prevReport = await prevLinkOf(p0ContentId); } catch (e) {
-    console.log(`[p0] ⚠️ 查同一内容的历史报告失败（不影响本单出报告）：${e?.message ?? e}`);
+  if (allowPublish || p0ReportPath) {
+    try { prevReport = await prevLinkOf(p0ContentId); } catch (e) {
+      console.log(`[p0] ⚠️ 查同一内容的历史报告失败（不影响本单出报告）：${e?.message ?? e}`);
+    }
   }
   const reportPath = p0ReportPath || p0?.report_path || null;
   const hasReportPath = !!reportPath;
@@ -2206,12 +2267,55 @@ export function reviewCmdTemplate(materialPath, ctype, imagePaths = []) {
     cmdBlock,
     '```',
     '',
-    '★★ **禁止探索**（命令已给全；下面每个秒数都是 2026-10-16 实测的浪费）：',
+    '★★ **禁止探索**（命令已给全；下面每个秒数都是**实测**的浪费）：',
     '  · 不许 `grep` / `rg` / `find` 本仓、知识库或 `/Users/lute/Project/audit_multi_content` 找「怎么调」'
       + '（**40.6s / 47.6s / 18.3s**）；',
     '  · 不许读 `kb/l8/review_run.sh` 的源码找参数 —— 要看就看 `kb/l8/review_run.sh --help`，它给的就是真用法；',
     '  · 不许去查 `macos-vision` 是什么 —— 它是**固定的 provider 名**，逐字照抄。',
     '  那一单的账：**探索 107.6 秒 ＞ 真正的链 101.9 秒**。',
+    '',
+    // ── ★★ 2026-10-26：把「慢」的三条主因逐条封掉（当天实测 12.2 min vs 10-22 的 4 min）────
+    //   病灶不是知识库（那一段三天恒定 0.4 min），是链自己在**做三件不该它做的事**：
+    //   ① 自造视觉/OCR 脚本重跑画面（6 条链里 3 条爆炸：工具调用 48–67 次，其中 5 个是
+    //      `/private/tmp/scene_read_ours.mjs`、`ocr_boxes.swift`、`focus_read1/2.mjs`、
+    //      `posture_runs.mjs`，光重跑 sceneRead 就 3 次 3.8s/次 × 反复）；
+    //   ② 链返回后又用 `lark-cli` 自己去写飞书（11 次 record-get/record-update/
+    //      record-batch-update/field-list/docs +fetch ≈ 4 min）—— 而 review_run.sh 的输出里
+    //      逐字写着「【飞书那一步已经做完了】…**你不要再写一次飞书表**」；
+    //   ③ 同一单起**两次**链（step 28 又跑一次 review_run.sh，91 s）。
+    //   三条加起来 ≈ 12 min 里的 10 min。警示语已经写过（「不得重复起链」），它不听 ⇒
+    //   这一次把它们从「提醒」改成**带实测代价的禁止项**，并给 4B 一条**照做即可**的本机路径
+    //   （web_search 禁用后它没路可走，只好自己发明 —— 那才是自造脚本的起点）。
+    '★★ **禁止越权**（2026-10-26 新增；每条后面都是当天实测烧掉的时间）：',
+    // ★ Owner 2026-10-26 当场盯着这一条：「你的修复不能影响知识库的工作流，完整执行图片审查 skill，
+    //   包括视觉分析与 OCR、L4–L7 层 skill 运行」。所以第一条**必须先说清它禁的是「重复做功」**，
+    //   而不是「少做检查」 —— 否则这句话会被读成「不用做视觉分析和 OCR」，把 skill 流程做残。
+    '  · **视觉分析与 OCR 必须做，但只准用现成工具**（本条只禁「自己造工具重跑」，**不禁分析**）：'
+      + '① 视觉核对直接用守衡落盘的**画面读数**（上面「场景摘要 / 画面读数」那一格，已随本任务提供）＋ `read_image` **逐张**看；'
+      + '② OCR 文本守衡已在入站时用本机 Vision 跑完并写进了 `--material-file`（若确实需要重跑，才调 `' + path.join(REPO_ROOT, '.tools/bin/ocr') + '` / `./.tools/bin/ocr <图路径>`，**不必重复跑第二遍 OCR**）；'
+      + '③ **禁止**新写 `.mjs` / `.swift` / `.py` 去调 `sceneRead` / Vision / `sips` 再跑一遍 ——'
+      + '本单不需要第二个视觉读数。当天实测：有单写了 5 个脚本（`run_scene.mjs`、`vision_probe.swift`、'
+      + '`vprobe*.js`）重跑场景识别，白烧 **6 分钟**；',
+    '  · **不许用 `lark-cli` 写飞书表或云文档** —— `review_run.sh` **自己已经写完并发完了**，'
+      + '它的输出里逐字写着「【飞书那一步已经做完了】published=true ⇒ **你不要再写一次飞书表**」。'
+      + '当天实测：有单在链返回后又打了 **11 次** `lark-cli`（record-get / record-update /'
+      + ' record-batch-update / field-list / docs +fetch），白烧 **4 分钟**；',
+    '  · **本单只准起一次链**：`review_run.sh` 一单只跑一次。想「再确认一下」也不行 ——'
+      + '第二次一律被拒（`already_ran`）。当天实测：有一单在 step 28 又起了一次，白烧 **91 秒**。',
+    '  ★ **本节只砍「重复做功」，一项检查都不砍**：图片 skill 的步骤照旧全做 ——'
+      + '视觉分析与 OCR、主张拆分与核查清单、4A 规则符合性、4B 事实准确性、图文一致性、'
+      + '视觉核对清单，**一项不少**；`L4 → L5 → L6 → L7` 四层 skill 仍然**先用 skill 工具真加载**、'
+      + '再由 `review_run.sh` 跑四层前置（这条命令一次就把 L4–L7 全跑完，别自己拆开逐层跑）。',
+    '',
+    '★ **4B（事实准确性）的本机路径** —— web_search 禁用后**按这个做，别自己发明**：',
+    '  · 只做**库内对照**：直接用 `review_run.sh` 的 stdout 输出里已经打印的**条款号与来源名**写进 4B 段，逐条标「库内已登记」；',
+    '  · 库里没有的，写「**未登记（本轮未做联网检索）**」—— 这就是 4B 的全部动作；',
+    '  · **不要**为 4B 联网、抓网页、造脚本、查外部事实。权威链接只许引**已有的那几条**。',
+    '',
+    '★★ **极速收尾纪律（< 3 分钟硬红线，违反即超时）**：',
+    '  · **单轮全并发调工具（Turn 1 一次发齐，省去 Turn 2 空转 10s）**：在你的**第一轮（Turn 1）**回复里，**同时平行发起**全部工具调用（按顺序：① 5 个 `skill` 调用：`图片安全审查`、`kb-canonical-lookup`、`kb-p0-check`、`kb-recall`、`kb-check`；② `read_image` 看原图；③ `bash` 执行上面的 `kb/l8/review_run.sh`）。注意 `skill` 必须排在 `bash` 之前放在同一批 tool_calls 里（这样 `review_run.sh` 执行时 5 个 skill 已写入会话记录，100% 通过加载核验）；若未同批调用，则在 Step 2 立即执行 `bash kb/l8/review_run.sh`（**禁止**再去 `cat/read` 素材文件、**禁止**跑 `--help`、**禁止**跑 `shasum`）；',
+    '  · **`review_run.sh` 返回后立即输出最终回答（不再调任何工具，直接结束）**：stdout 已经包含全部引擎读数与 `③b 转述模板`，**严禁**再去 `cat kb/.work/last_review_result.json`、**严禁**去 `ls/read kb/l7/reports/`、**严禁**去找 `check_scene_stability.mjs` 或 `visual_checklist.mjs`（那些是守衡宿主侧模块，不在本工作区）；',
+    '  · **最终回答必须极度精炼（总长严格控制在 800 字以内，省去 20s 流式生成等待）**：保留 6 个必需标题（`审核对象与范围`、`视觉分析与 OCR`、`主张拆分与核查清单`、`4A 规则符合性`、`4B 事实准确性核查`、`图文一致性`）＋ `视觉核对` 五类清单 ＋ **`### 问题清单`（只列真正的素材内容/画面风险，按 `1. 具体风险原因与现象｜中部，图 1 第 X 处｜改：修改建议` 编号；⚠️ 严禁把「覆盖缺口」列进问题清单；无实质问题写 `1. 无`）** ＋ `③b 转述模板` 结论摘要，每节只写 1~2 句最核心结论（婴儿睡眠场景附上 AAP `https://publications.aap.org/pediatrics/article/doi/10.1542/peds.2022-057990/188304/Sleep-Related-Infant-Deaths-Updated-2022`），**禁止逐面板重复罗列、禁止铺陈长表和冗长复述**。',
   ].join('\n');
 }
 
@@ -2305,13 +2409,14 @@ export function reviewTaskFor({ question = '', text = '', materialPath = '', cty
   const m2 = String(ctype ?? '').trim().toLowerCase();
   // 原图路径：显式给了且非空就用它，否则读本轮上下文（`setChainTurnImagePaths` 落的那格）。
   const given = _normPaths(imagePaths);
-  const imgs = given.length ? given : chainTurnImagePathsOf();
-  // ★ 图单要在最前面加「先真加载 skill、再把整份流程跑完」的执行前置（见 imageSkillTaskBlock）。
-  // 图单要两张前置：① 先真加载 skill 并跑完整流程 ② 交「视觉核对清单」（第 0 条之三）。
-  // 清单说明与引擎侧闸门共用 `visual_checklist.mjs` 的那一份 —— 两处各抄一遍必然走样。
-  const imgBlock = m2 === 'image'
-    ? [imageSkillTaskBlock(imgs), visualChecklistInstructions()].join('\n\n')
-    : '';
+    const imgs = given.length ? given : chainTurnImagePathsOf();
+    const imgCtx = m2 === 'image' ? String(_turnState().imageBlock ?? '').trim() : '';
+    // ★ 图单要在最前面加「先真加载 skill、再把整份流程跑完」的执行前置（见 imageSkillTaskBlock）。
+    // 图单要两张前置：① 先真加载 skill 并跑完整流程 ② 交「视觉核对清单」（第 0 条之三）。
+    // 清单说明与引擎侧闸门共用 `visual_checklist.mjs` 的那一份 —— 两处各抄一遍必然走样。
+    const imgBlock = m2 === 'image'
+      ? [imageSkillTaskBlock(imgs), visualChecklistInstructions(), imgCtx].filter(Boolean).join('\n\n')
+      : '';
   const materialRule = mf
     ? `【★ 第 0 条（先读这一条，再读下面所有内容）—— 本单素材已落盘，路径如下】\n`
       + `${mf}\n`
@@ -2415,8 +2520,8 @@ register('kb_review_chain', {
     //   ⚠️ 删除**必须在链跑完之后** —— 链侧要读它算指纹。
     const cleanupMaterial = () => { if (materialPath) { try { fs.unlinkSync(materialPath); } catch { /* 已删/不存在都无妨 */ } } };
     if (!task) return { error: '问题和素材都为空，没有可送审的内容' };
-    if (!fs.existsSync(DSH_BIN)) {
-      return { error: `找不到 dsh CLI：${DSH_BIN}（可用环境变量 SHOUHENG_DSH_BIN 覆盖）` };
+    if (!dshCliExists()) {
+      return { error: `找不到 dsh CLI：${DSH_BIN}（可用环境变量 SHOUHENG_DSH_BIN / SHOUHENG_DSH_EXEC 覆盖）` };
     }
     if (!fs.existsSync(KB_ROOT)) {
       return { error: `找不到知识库工作区：${KB_ROOT}（可用环境变量 SHOUHENG_KB_ROOT 覆盖）` };

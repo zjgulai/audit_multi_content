@@ -168,41 +168,42 @@ def _unit_to_rid():
 _RID2URL = None
 
 
+def _ensure_l1_maps():
+    """一次遍历 `kb/l1/*/*.json` 同时填充 `_RID2URL` 与 `_RID2KEY`，避免 2,300 个 JSON 被重复读两遍。"""
+    global _RID2URL, _RID2KEY
+    if _RID2URL is not None and _RID2KEY is not None:
+        return
+    u_map, k_map = {}, {}
+    import glob as _g
+    for p in _g.glob(os.path.join(ROOT, "kb", "l1", "*", "*.json")):
+        try:
+            a = json.load(open(p, encoding="utf-8"))
+        except Exception:                                # noqa: BLE001
+            continue
+        if not (isinstance(a, dict) and a.get("resource_id")):
+            continue
+        rid = a["resource_id"]
+        if a.get("resource_key"):
+            k_map[rid] = a["resource_key"]
+        src = a.get("source") if isinstance(a.get("source"), dict) else {}
+        u = str(src.get("url") or src.get("entry_url") or "").strip()
+        if u.startswith("http"):
+            u_map[rid] = u
+    if _RID2URL is None:
+        _RID2URL = u_map
+    if _RID2KEY is None:
+        _RID2KEY = k_map
+
+
 def _rid_to_url():
     """resource_id → L1 记录里的**原始链接**（没有就为空；**不许编**）。"""
-    global _RID2URL
-    if _RID2URL is None:
-        m = {}
-        import glob as _g
-        for p in _g.glob(os.path.join(ROOT, "kb", "l1", "*", "*.json")):
-            try:
-                a = json.load(open(p, encoding="utf-8"))
-            except Exception:                                # noqa: BLE001
-                continue
-            if not (isinstance(a, dict) and a.get("resource_id")):
-                continue
-            src = a.get("source") if isinstance(a.get("source"), dict) else {}
-            u = str(src.get("url") or src.get("entry_url") or "").strip()
-            if u.startswith("http"):
-                m[a["resource_id"]] = u
-        _RID2URL = m
+    _ensure_l1_maps()
     return _RID2URL
 
 
 def _rid_to_key():
     """resource_id → resource_key（从 L1 产物读一次，缓存在模块里）。"""
-    global _RID2KEY
-    if _RID2KEY is None:
-        m = {}
-        import glob as _g
-        for p in _g.glob(os.path.join(ROOT, "kb", "l1", "*", "*.json")):
-            try:
-                a = json.load(open(p, encoding="utf-8"))
-            except Exception:
-                continue
-            if isinstance(a, dict) and a.get("resource_id") and a.get("resource_key"):
-                m[a["resource_id"]] = a["resource_key"]
-        _RID2KEY = m
+    _ensure_l1_maps()
     return _RID2KEY
 
 
@@ -861,6 +862,10 @@ def _to_risk_item(f):
         "original_text": exc or "",
         # 历史规则文本必须独立展示，不能冒充当前素材 OCR/原文。
         "history_rule_text": f.get("history_rule_text") or "",
+        "history_analysis": f.get("history_analysis") or "",
+        "history_advice": f.get("history_advice") or "",
+        "history_record_id": f.get("history_record_id") or "",
+        "history_scope": f.get("history_scope") or "",
         "history_attribution": f.get("evidence_class_label") or f.get("attribution") or "",
         "reason": f.get("reason") or "",
         "suggestion": f.get("advice") if f.get("advice") not in (None, "None") else (f.get("advice_note") or ""),
@@ -1637,18 +1642,26 @@ def image_skill_gate(a):
         return out
     out["checks"].append("skill 就绪：%s" % skills[0].get("path"))
 
-    session = os.environ.get("DSH_SESSION_JSONL")
-    if not session:
-        out["load"] = {"verdict": "unverified", "why": "no_session"}
-        out.update(ok=False, reason_code="skill_session_unverified")
-        out["checks"].append("没有 $DSH_SESSION_JSONL；本会话真实 skill 调用未测，拒绝出结论")
-        return out
-    rc, payload = _json_tool([sys.executable, str(KB / "l8/verify_skill_loaded.py"),
-                              "--skill", IMAGE_DECISION_OWNER, "--json", "--session", session])
+    # ★ 2026-10-27：会话日志「在哪」**只有一处解析** = kb/l8/verify_skill_loaded.py::resolve_session_path。
+    #   为什么改：dsh **0.2.x**（DSH NEXT 起）**不再导出 `$DSH_SESSION_JSONL`**，只给 `$DSH_SESSION_ID`
+    #   （同一条探针实测：旧版 `JSONL=/…/session.jsonl.zstd` ｜ 新版 `JSONL=[]`）。原先这里
+    #   「没有 `$DSH_SESSION_JSONL` 就 fail-closed」⇒ **迁到新版后每一张图片单都变成
+    #   NEEDS_INPUT / skill_session_unverified**（当天 2 单实证：engine-20261027-164712 / -165108）。
+    #   现在交给那一个解析口：按 session id 去 `~/.dsh/sessions/*/<id>/` 找 `session*.jsonl(.zstd)`
+    #   —— 新版文件名带版本号（`session.v4.jsonl.zstd`），**不猜文件名**。
+    #   真找不到 ⇒ 它回 rc=5（untested），下面照旧 fail-closed，**reason_code 与三态口径一个字没放宽**。
+    session = (os.environ.get("DSH_SESSION_JSONL") or "").strip()
+    _verify_args = [sys.executable, str(KB / "l8/verify_skill_loaded.py"),
+                    "--skill", IMAGE_DECISION_OWNER, "--json"]
+    if session:
+        _verify_args += ["--session", session]
+    rc, payload = _json_tool(_verify_args)
     out["load"] = {"verdict": payload.get("verdict"), "calls": payload.get("calls")}
     if rc == 5:
+        out["load"]["why"] = "no_session"
         out.update(ok=False, reason_code="skill_session_unverified")
-        out["checks"].append("会话日志读不了；本会话真实 skill 调用未测，拒绝出结论：%s"
+        out["checks"].append("会话日志拿不到（`$DSH_SESSION_JSONL` 未给、按 `$DSH_SESSION_ID` 也没找到）；"
+                             "本会话真实 skill 调用未测，拒绝出结论：%s"
                              % (payload.get("reason") or "untested"))
     elif rc != 0:
         out.update(ok=False, reason_code="skill_not_loaded")
